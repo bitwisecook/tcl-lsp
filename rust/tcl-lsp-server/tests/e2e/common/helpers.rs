@@ -43,7 +43,11 @@ pub fn hover_text(hover: &Value) -> String {
         Value::Array(items) => items
             .iter()
             .map(|item| match item {
-                Value::Object(o) => o.get("value").and_then(Value::as_str).unwrap_or("").to_owned(),
+                Value::Object(o) => o
+                    .get("value")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_owned(),
                 Value::String(s) => s.clone(),
                 other => other.to_string(),
             })
@@ -79,7 +83,11 @@ pub fn locations(result: &Value) -> Vec<Loc> {
                 }
             } else {
                 Loc {
-                    uri: item.get("uri").and_then(Value::as_str).unwrap_or("").to_owned(),
+                    uri: item
+                        .get("uri")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_owned(),
                     range: item.get("range").cloned().unwrap_or(Value::Null),
                 }
             }
@@ -95,12 +103,12 @@ pub fn starts(result: &Value) -> std::collections::BTreeSet<(i64, i64)> {
             .get("range")
             .or_else(|| item.get("targetSelectionRange"))
             .or_else(|| item.get("targetRange"));
-        if let Some(rng) = rng {
-            if let Some(s) = rng.get("start") {
-                let line = s.get("line").and_then(Value::as_i64).unwrap_or(0);
-                let ch = s.get("character").and_then(Value::as_i64).unwrap_or(0);
-                out.insert((line, ch));
-            }
+        if let Some(rng) = rng
+            && let Some(s) = rng.get("start")
+        {
+            let line = s.get("line").and_then(Value::as_i64).unwrap_or(0);
+            let ch = s.get("character").and_then(Value::as_i64).unwrap_or(0);
+            out.insert((line, ch));
         }
     }
     out
@@ -114,7 +122,6 @@ pub fn start_lines(result: &Value) -> std::collections::BTreeSet<i64> {
 /// The `items` array of a completion result (`CompletionList` or bare array).
 pub fn completion_items(result: &Value) -> Vec<Value> {
     match result {
-        Value::Null => Vec::new(),
         Value::Object(o) => o
             .get("items")
             .and_then(Value::as_array)
@@ -129,13 +136,17 @@ pub fn completion_items(result: &Value) -> Vec<Value> {
 pub fn completion_labels(result: &Value) -> Vec<String> {
     completion_items(result)
         .iter()
-        .map(|item| item.get("label").and_then(Value::as_str).unwrap_or("").to_owned())
+        .map(|item| {
+            item.get("label")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned()
+        })
         .collect()
 }
 
 /// Depth-first flatten of a hierarchical `DocumentSymbol` tree.
 pub fn flatten_symbols(symbols: &Value) -> Vec<Value> {
-    let mut out = Vec::new();
     fn walk(items: &Value, out: &mut Vec<Value>) {
         if let Some(arr) = items.as_array() {
             for sym in arr {
@@ -146,6 +157,7 @@ pub fn flatten_symbols(symbols: &Value) -> Vec<Value> {
             }
         }
     }
+    let mut out = Vec::new();
     walk(symbols, &mut out);
     out
 }
@@ -154,7 +166,12 @@ pub fn flatten_symbols(symbols: &Value) -> Vec<Value> {
 pub fn symbol_names(symbols: &Value) -> std::collections::BTreeSet<String> {
     flatten_symbols(symbols)
         .iter()
-        .map(|s| s.get("name").and_then(Value::as_str).unwrap_or("").to_owned())
+        .map(|s| {
+            s.get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned()
+        })
         .collect()
 }
 
@@ -166,10 +183,7 @@ pub fn rename_edits(result: &Value) -> std::collections::BTreeMap<String, Vec<Va
     }
     if let Some(changes) = result.get("changes").and_then(Value::as_object) {
         for (uri, edits) in changes {
-            out.insert(
-                uri.clone(),
-                edits.as_array().cloned().unwrap_or_default(),
-            );
+            out.insert(uri.clone(), edits.as_array().cloned().unwrap_or_default());
         }
         return out;
     }
@@ -180,7 +194,11 @@ pub fn rename_edits(result: &Value) -> std::collections::BTreeMap<String, Vec<Va
                 .and_then(|d| d.get("uri"))
                 .and_then(Value::as_str)
             {
-                let edits = change.get("edits").and_then(Value::as_array).cloned().unwrap_or_default();
+                let edits = change
+                    .get("edits")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
                 out.entry(uri.to_owned()).or_default().extend(edits);
             }
         }
@@ -244,7 +262,6 @@ fn looks_like_range(obj: &Value) -> bool {
 
 /// Recursively collect every LSP `Range` nested anywhere in `obj`.
 pub fn iter_ranges(obj: &Value) -> Vec<Value> {
-    let mut out = Vec::new();
     fn walk(obj: &Value, out: &mut Vec<Value>) {
         if looks_like_range(obj) {
             out.push(obj.clone());
@@ -256,13 +273,16 @@ pub fn iter_ranges(obj: &Value) -> Vec<Value> {
             _ => {}
         }
     }
+    let mut out = Vec::new();
     walk(obj, &mut out);
     out
 }
 
 /// Length of `s` in UTF-16 code units — the unit LSP positions are measured in.
 fn utf16_len(s: &str) -> i64 {
-    s.chars().map(|c| c.len_utf16() as i64).sum()
+    s.chars()
+        .map(|c| i64::try_from(c.len_utf16()).unwrap())
+        .sum()
 }
 
 /// Per-line content length in UTF-16 units (trailing `\r` excluded).
@@ -276,10 +296,15 @@ fn doc_lines_utf16(text: &str) -> Vec<i64> {
 /// ok). See the pytest docstring: non-negative coords, `start <= end`, real
 /// lines, `start` column within its line (UTF-16). `strict_end_column` also
 /// requires `end` within its line.
-pub fn range_violations(result: &Value, text: &str, label: &str, strict_end_column: bool) -> Vec<String> {
+pub fn range_violations(
+    result: &Value,
+    text: &str,
+    label: &str,
+    strict_end_column: bool,
+) -> Vec<String> {
     let mut out = Vec::new();
     let line_u16 = doc_lines_utf16(text);
-    let n_lines = line_u16.len() as i64;
+    let n_lines = i64::try_from(line_u16.len()).unwrap();
     let pre = if label.is_empty() {
         String::new()
     } else {
@@ -288,8 +313,14 @@ pub fn range_violations(result: &Value, text: &str, label: &str, strict_end_colu
     for rng in iter_ranges(result) {
         let s = &rng["start"];
         let e = &rng["end"];
-        let (sl, sc) = (s["line"].as_i64().unwrap_or(0), s["character"].as_i64().unwrap_or(0));
-        let (el, ec) = (e["line"].as_i64().unwrap_or(0), e["character"].as_i64().unwrap_or(0));
+        let (sl, sc) = (
+            s["line"].as_i64().unwrap_or(0),
+            s["character"].as_i64().unwrap_or(0),
+        );
+        let (el, ec) = (
+            e["line"].as_i64().unwrap_or(0),
+            e["character"].as_i64().unwrap_or(0),
+        );
         if sl.min(sc).min(el).min(ec) < 0 {
             out.push(format!("{pre}negative coordinate in range {rng}"));
             continue;
@@ -298,27 +329,34 @@ pub fn range_violations(result: &Value, text: &str, label: &str, strict_end_colu
             out.push(format!("{pre}end before start in range {rng}"));
         }
         if sl >= n_lines {
-            out.push(format!("{pre}start line {sl} past end of document ({n_lines} lines)"));
+            out.push(format!(
+                "{pre}start line {sl} past end of document ({n_lines} lines)"
+            ));
             continue;
         }
         if el > n_lines {
-            out.push(format!("{pre}end line {el} past end of document ({n_lines} lines)"));
-        }
-        if sc > line_u16[sl as usize] {
             out.push(format!(
-                "{pre}start col {sc} past line {sl} length {} (UTF-16)",
-                line_u16[sl as usize]
+                "{pre}end line {el} past end of document ({n_lines} lines)"
             ));
         }
-        if strict_end_column && el < n_lines && ec > line_u16[el as usize] {
+        if sc > line_u16[usize::try_from(sl).unwrap()] {
+            out.push(format!(
+                "{pre}start col {sc} past line {sl} length {} (UTF-16)",
+                line_u16[usize::try_from(sl).unwrap()]
+            ));
+        }
+        if strict_end_column && el < n_lines && ec > line_u16[usize::try_from(el).unwrap()] {
             out.push(format!(
                 "{pre}end col {ec} past line {el} length {} (UTF-16)",
-                line_u16[el as usize]
+                line_u16[usize::try_from(el).unwrap()]
             ));
         }
     }
     out
 }
+
+/// A rename edit reduced to `((start_line, start_col), (end_line, end_col), new_text)`.
+type EditSpan = ((i64, i64), (i64, i64), String);
 
 /// Return overlap/duplicate violations in a `WorkspaceEdit` (empty == ok).
 pub fn workspace_edit_violations(result: &Value, label: &str) -> Vec<String> {
@@ -329,7 +367,7 @@ pub fn workspace_edit_violations(result: &Value, label: &str) -> Vec<String> {
         format!("{label}: ")
     };
     for (uri, edits) in rename_edits(result) {
-        let mut spans: Vec<((i64, i64), (i64, i64), String)> = edits
+        let mut spans: Vec<EditSpan> = edits
             .iter()
             .map(|ed| {
                 let rng = ed.get("range").cloned().unwrap_or(Value::Null);
@@ -344,7 +382,10 @@ pub fn workspace_edit_violations(result: &Value, label: &str) -> Vec<String> {
                         e.get("line").and_then(Value::as_i64).unwrap_or(0),
                         e.get("character").and_then(Value::as_i64).unwrap_or(0),
                     ),
-                    ed.get("newText").and_then(Value::as_str).unwrap_or("").to_owned(),
+                    ed.get("newText")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_owned(),
                 )
             })
             .collect();
@@ -353,7 +394,9 @@ pub fn workspace_edit_violations(result: &Value, label: &str) -> Vec<String> {
             let (prev_s, prev_e, prev_t) = &spans[i - 1];
             let (cur_s, cur_e, cur_t) = &spans[i];
             if cur_s == prev_s && cur_e == prev_e && cur_t == prev_t {
-                out.push(format!("{pre}{uri}: duplicate edit at {cur_s:?}->{cur_e:?}"));
+                out.push(format!(
+                    "{pre}{uri}: duplicate edit at {cur_s:?}->{cur_e:?}"
+                ));
             } else if cur_s < prev_e {
                 out.push(format!(
                     "{pre}{uri}: overlapping edits {prev_s:?}->{prev_e:?} and {cur_s:?}->{cur_e:?}"
@@ -377,45 +420,60 @@ pub fn semantic_token_violations(
         return vec!["semanticTokens result has no `data` array".to_owned()];
     };
     if data.len() % 5 != 0 {
-        return vec![format!("token data length {} is not a multiple of 5", data.len())];
+        return vec![format!(
+            "token data length {} is not a multiple of 5",
+            data.len()
+        )];
     }
-    let n_types = token_types.len() as i64;
-    let n_mods = token_modifiers.len() as i64;
+    let n_types = i64::try_from(token_types.len()).unwrap();
+    let n_mods = i64::try_from(token_modifiers.len()).unwrap();
     let ints: Vec<i64> = data.iter().filter_map(Value::as_i64).collect();
     for (i, group) in ints.chunks(5).enumerate() {
         let (d_line, d_char, length, ttype, tmods) =
             (group[0], group[1], group[2], group[3], group[4]);
         if d_line < 0 || d_char < 0 {
-            out.push(format!("token {i}: negative delta (dline={d_line}, dchar={d_char})"));
+            out.push(format!(
+                "token {i}: negative delta (dline={d_line}, dchar={d_char})"
+            ));
         }
         if length <= 0 {
             out.push(format!("token {i}: non-positive length {length}"));
         }
         if !(0..n_types).contains(&ttype) {
-            out.push(format!("token {i}: type index {ttype} outside legend (0..{})", n_types - 1));
+            out.push(format!(
+                "token {i}: type index {ttype} outside legend (0..{})",
+                n_types - 1
+            ));
         }
         if tmods < 0 || (n_mods < 32 && (tmods >> n_mods) != 0) {
-            out.push(format!("token {i}: modifier bits {tmods:#b} outside legend ({n_mods} mods)"));
+            out.push(format!(
+                "token {i}: modifier bits {tmods:#b} outside legend ({n_mods} mods)"
+            ));
         }
     }
 
     let line_u16 = doc_lines_utf16(text);
-    let n_lines = line_u16.len() as i64;
+    let n_lines = i64::try_from(line_u16.len()).unwrap();
     let mut prev: Option<SemToken> = None;
     for (idx, tok) in decode_semantic_tokens(result).into_iter().enumerate() {
         if tok.line >= n_lines {
-            out.push(format!("token {idx}: line {} past end of document ({n_lines} lines)", tok.line));
-        } else if tok.char + tok.length > line_u16[tok.line as usize] {
+            out.push(format!(
+                "token {idx}: line {} past end of document ({n_lines} lines)",
+                tok.line
+            ));
+        } else if tok.char + tok.length > line_u16[usize::try_from(tok.line).unwrap()] {
             out.push(format!(
                 "token {idx}: ends at utf16 col {} but line {} is {} units long (UTF-16 drift?)",
                 tok.char + tok.length,
                 tok.line,
-                line_u16[tok.line as usize]
+                line_u16[usize::try_from(tok.line).unwrap()]
             ));
         }
         if let Some(p) = prev {
             if (tok.line, tok.char) < (p.line, p.char) {
-                out.push(format!("token {idx}: starts before previous token (not ascending)"));
+                out.push(format!(
+                    "token {idx}: starts before previous token (not ascending)"
+                ));
             } else if tok.line == p.line && tok.char < p.char + p.length {
                 out.push(format!(
                     "token {idx}: overlaps previous token on line {} (starts {}, previous ends {})",

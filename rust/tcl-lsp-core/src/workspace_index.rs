@@ -51,6 +51,7 @@
 //! and namespaces are not.
 
 use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::analyser::class_hierarchy::{build_tail_index, resolve_class_name};
 use tcl_lexer::Span;
 
 /// One proc definition recorded in the workspace index.
@@ -81,6 +82,16 @@ pub struct WorkspaceClass {
     pub qualified_name: String,
     /// Byte span of the class's name token.
     pub name_span: Span,
+    /// Declared superclass names (as written), for cross-file type
+    /// hierarchy (subtype resolution).
+    pub superclasses: Vec<String>,
+    /// Declared class-level mixin names (as written).
+    pub mixins: Vec<String>,
+    /// Names of methods the class *directly defines* (instance methods +
+    /// class-side methods), for computing cross-file override families in
+    /// method rename.  Spans aren't stored — the server re-analyses each
+    /// family member's document to collect the precise decl / call sites.
+    pub defined_methods: Vec<String>,
 }
 
 /// One command-invocation (call) site recorded in the index.
@@ -169,6 +180,14 @@ impl WorkspaceIndex {
                 name: class_def.name.clone(),
                 qualified_name: class_def.qualified_name.clone(),
                 name_span: class_def.name_span,
+                superclasses: class_def.superclasses.clone(),
+                mixins: class_def.mixins.clone(),
+                defined_methods: class_def
+                    .methods
+                    .keys()
+                    .chain(class_def.class_methods.keys())
+                    .cloned()
+                    .collect(),
             });
         }
         for inv in &analysis.command_invocations {
@@ -214,6 +233,288 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn classes(&self) -> &[WorkspaceClass] {
         &self.classes
+    }
+
+    /// Workspace classes whose qualified name matches `name` exactly or via
+    /// the leading-`::` normalisation (`Animal` ↔ `::Animal`).  Used to
+    /// resolve the class **at the cursor**, whose name arrives already
+    /// qualified.
+    ///
+    /// Deliberately does *not* fall back to a bare simple-name (tail) match:
+    /// superclass / mixin names are namespace-relative in Tcl, so an
+    /// ownerless tail match (`Base` → `::Other::Base`) could manufacture a
+    /// wrong cross-file link.  Owner-aware resolution of written super/mixin
+    /// names is done by [`Self::supertype_classes`] / [`Self::subclasses_of`]
+    /// via [`resolve_class_name`], which walks the defining class's
+    /// namespace ancestry before considering a *unique* tail.
+    #[must_use]
+    pub fn classes_named<'a>(&'a self, name: &str) -> Vec<&'a WorkspaceClass> {
+        let q = format!("::{}", name.trim_start_matches("::"));
+        self.classes
+            .iter()
+            .filter(|c| c.qualified_name == name || c.qualified_name == q)
+            .collect()
+    }
+
+    /// The `(qualified-name set, tail index)` over every indexed class —
+    /// the inputs [`resolve_class_name`] needs, built once per query so
+    /// owner-aware resolution is O(1) membership rather than a linear scan
+    /// per candidate.
+    fn class_name_universe(
+        &self,
+    ) -> (
+        std::collections::HashSet<&str>,
+        std::collections::HashMap<String, Vec<String>>,
+    ) {
+        let known: std::collections::HashSet<&str> =
+            self.classes.iter().map(|c| c.qualified_name.as_str()).collect();
+        let tail_index = build_tail_index(self.classes.iter().map(|c| &c.qualified_name));
+        (known, tail_index)
+    }
+
+    /// The workspace classes that `wc`'s written superclasses + mixins
+    /// resolve to, **owner-aware** — each name is resolved relative to
+    /// `wc.qualified_name`'s namespace (ancestry → global → unique tail) via
+    /// [`resolve_class_name`], never by a bare global tail guess.  Used for
+    /// cross-file **supertype** resolution.
+    #[must_use]
+    pub fn supertype_classes<'a>(&'a self, wc: &WorkspaceClass) -> Vec<&'a WorkspaceClass> {
+        let (known, tail_index) = self.class_name_universe();
+        let mut out: Vec<&WorkspaceClass> = Vec::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for name in wc.superclasses.iter().chain(wc.mixins.iter()) {
+            let Some(q) =
+                resolve_class_name(name, &wc.qualified_name, |cand| known.contains(cand), &tail_index)
+            else {
+                continue;
+            };
+            if !seen.insert(q.clone()) {
+                continue;
+            }
+            out.extend(self.classes.iter().filter(|c| c.qualified_name == q));
+        }
+        out
+    }
+
+    /// Workspace classes that declare `class_qname` as a direct superclass
+    /// or mixin, resolving each written super/mixin name **owner-aware**
+    /// (relative to the declaring class) so an ambiguous bare name never
+    /// manufactures a subtype edge.  Used for cross-file **subtype**
+    /// resolution.
+    #[must_use]
+    pub fn subclasses_of<'a>(&'a self, class_qname: &str) -> Vec<&'a WorkspaceClass> {
+        let (known, tail_index) = self.class_name_universe();
+        self.classes
+            .iter()
+            .filter(|c| {
+                c.superclasses.iter().chain(c.mixins.iter()).any(|s| {
+                    resolve_class_name(s, &c.qualified_name, |cand| known.contains(cand), &tail_index)
+                        .as_deref()
+                        == Some(class_qname)
+                })
+            })
+            .collect()
+    }
+
+    /// The **cross-file override family** of `method` seeded at
+    /// `seed_class`: every indexed class that directly defines `method` and
+    /// sits in the same subtype-connected component as `seed_class` (or the
+    /// ancestor that provides `method` to it).
+    ///
+    /// This is the workspace-wide analogue of the single-document override
+    /// family used by method rename: a method (re)defined up or down the
+    /// hierarchy is one polymorphic name, so renaming it must touch every
+    /// class that defines it across the whole workspace.  Superclass/mixin
+    /// edges are resolved **owner-aware** (via [`resolve_class_name`]), so an
+    /// ambiguous bare parent name never fabricates a connection.  The
+    /// returned set always includes the seed's provider and is empty only
+    /// when `method` is neither defined nor inherited from any indexed
+    /// class reachable from `seed_class`.
+    #[must_use]
+    pub fn method_override_family<'a>(
+        &'a self,
+        seed_class: &str,
+        method: &str,
+    ) -> Vec<&'a WorkspaceClass> {
+        let family = self.method_family_qnames(seed_class, method);
+        let family_set: std::collections::HashSet<&str> =
+            family.iter().map(String::as_str).collect();
+        self.classes
+            .iter()
+            .filter(|c| family_set.contains(c.qualified_name.as_str()))
+            .collect()
+    }
+
+    /// Indexed classes that **inherit** `method` from the override family of
+    /// `(seed_class, method)` but do not define it themselves — the pure
+    /// inheritors whose `my method` / `$obj method` sites a rename must also
+    /// rewrite, even though they contribute no declaration.
+    ///
+    /// A class is included only when it inherits `method` (some ancestor
+    /// defines it) **and every** method-defining ancestor it can reach is in
+    /// the family.  That keeps the result sound under multiple inheritance:
+    /// if a class could resolve `method` to a definer *outside* the family
+    /// (a disjoint same-named method), it is abstained on rather than risk an
+    /// over-rename.  The workspace index carries ancestry but not a full
+    /// cross-file MRO, so this is deliberately conservative.
+    #[must_use]
+    pub fn method_inheritor_classes<'a>(
+        &'a self,
+        seed_class: &str,
+        method: &str,
+    ) -> Vec<&'a WorkspaceClass> {
+        let family = self.method_family_qnames(seed_class, method);
+        if family.is_empty() {
+            return Vec::new();
+        }
+        let family_set: std::collections::HashSet<&str> =
+            family.iter().map(String::as_str).collect();
+        let (known, tail_index) = self.class_name_universe();
+        let parents = |qname: &str| -> Vec<String> {
+            self.classes
+                .iter()
+                .find(|c| c.qualified_name == qname)
+                .map(|c| {
+                    c.superclasses
+                        .iter()
+                        .chain(c.mixins.iter())
+                        .filter_map(|s| {
+                            resolve_class_name(s, qname, |cand| known.contains(cand), &tail_index)
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        let defines = |qname: &str| {
+            self.classes
+                .iter()
+                .any(|c| c.qualified_name == qname && c.defined_methods.iter().any(|m| m == method))
+        };
+        self.classes
+            .iter()
+            .filter(|c| {
+                // A definer is handled by the family itself, not here.
+                if c.defined_methods.iter().any(|m| m == method)
+                    || family_set.contains(c.qualified_name.as_str())
+                {
+                    return false;
+                }
+                // Every method-defining ancestor this class can reach.
+                let mut stack = parents(&c.qualified_name);
+                let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+                let mut defining_ancestors: Vec<String> = Vec::new();
+                while let Some(p) = stack.pop() {
+                    if seen.insert(p.clone()) {
+                        if defines(&p) {
+                            defining_ancestors.push(p.clone());
+                        }
+                        stack.extend(parents(&p));
+                    }
+                }
+                // Inherits `method` (has a definer ancestor) and cannot resolve
+                // it to a definer outside the family.
+                !defining_ancestors.is_empty()
+                    && defining_ancestors.iter().all(|a| family_set.contains(a.as_str()))
+            })
+            .collect()
+    }
+
+    /// The qualified names of the override family of `(seed_class, method)`:
+    /// every indexed class that directly defines `method` and sits in the
+    /// same subtype-connected component as `seed_class` (or the ancestor that
+    /// provides `method` to it).  Shared by [`Self::method_override_family`]
+    /// and [`Self::method_inheritor_classes`].  Empty when `method` is neither
+    /// defined nor inherited from any indexed class reachable from
+    /// `seed_class`.
+    fn method_family_qnames(&self, seed_class: &str, method: &str) -> Vec<String> {
+        let (known, tail_index) = self.class_name_universe();
+        // Owner-aware direct parents (superclasses + mixins) of each class.
+        let parents = |qname: &str| -> Vec<String> {
+            self.classes
+                .iter()
+                .find(|c| c.qualified_name == qname)
+                .map(|c| {
+                    c.superclasses
+                        .iter()
+                        .chain(c.mixins.iter())
+                        .filter_map(|s| {
+                            resolve_class_name(s, qname, |cand| known.contains(cand), &tail_index)
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        // `parent` is a (transitive) ancestor of `child`.
+        let is_ancestor = |child: &str, parent: &str| -> bool {
+            let mut stack = parents(child);
+            let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+            while let Some(p) = stack.pop() {
+                if p == parent {
+                    return true;
+                }
+                if seen.insert(p.clone()) {
+                    stack.extend(parents(&p));
+                }
+            }
+            false
+        };
+        let connected = |a: &str, b: &str| a == b || is_ancestor(a, b) || is_ancestor(b, a);
+        let class_defines = |qname: &str| {
+            self.classes
+                .iter()
+                .any(|c| c.qualified_name == qname && c.defined_methods.iter().any(|m| m == method))
+        };
+        // Seed: the class under the cursor if it defines `method`, else the
+        // nearest ancestor that does (any definer ancestor is in the same
+        // family, so the first one found seeds it).
+        let seed = if class_defines(seed_class) {
+            seed_class.to_string()
+        } else {
+            let mut stack = parents(seed_class);
+            let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+            let mut found = None;
+            while let Some(p) = stack.pop() {
+                if class_defines(&p) {
+                    found = Some(p);
+                    break;
+                }
+                if seen.insert(p.clone()) {
+                    stack.extend(parents(&p));
+                }
+            }
+            match found {
+                Some(p) => p,
+                None => return Vec::new(),
+            }
+        };
+        // Every indexed definer of `method` (qualified names, de-duplicated).
+        let definers: Vec<String> = {
+            let mut ds: Vec<String> = self
+                .classes
+                .iter()
+                .filter(|c| c.defined_methods.iter().any(|m| m == method))
+                .map(|c| c.qualified_name.clone())
+                .collect();
+            ds.sort();
+            ds.dedup();
+            ds
+        };
+        // Grow the weakly-connected component of definers containing `seed`.
+        let mut family = vec![seed];
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for d in &definers {
+                if family.iter().any(|f| f == d) {
+                    continue;
+                }
+                if family.iter().any(|f| connected(f, d)) {
+                    family.push(d.clone());
+                    changed = true;
+                }
+            }
+        }
+        family
     }
 
     /// Procs whose simple *or* qualified name starts with
@@ -328,6 +629,167 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn cross_file_supertypes_and_subtypes() {
+        // Base in a.tcl; Dog (subclass) in b.tcl; Puppy (subclass of Dog) in c.tcl.
+        let a = analyse("oo::class create Animal {}\n");
+        let b = analyse("oo::class create Dog {\n    superclass Animal\n}\n");
+        let c = analyse("oo::class create Puppy {\n    superclass Dog\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///b.tcl", &b),
+            ("file:///c.tcl", &c),
+        ]);
+        // Dog's superclass Animal resolves cross-file (a.tcl).
+        let sup = index.classes_named("Animal");
+        assert_eq!(sup.len(), 1);
+        assert_eq!(sup[0].uri, "file:///a.tcl");
+        // Animal's subclasses: Dog (b.tcl).
+        let subs = index.subclasses_of("::Animal");
+        let names: Vec<&str> = subs.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, vec!["Dog"]);
+        // Dog's subclasses: Puppy (c.tcl).
+        let dog_subs = index.subclasses_of("::Dog");
+        assert_eq!(dog_subs.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["Puppy"]);
+    }
+
+    #[test]
+    fn owner_aware_super_resolution_picks_same_namespace_and_abstains_on_ambiguity() {
+        // Two `Base` classes in disjoint namespaces.  A subclass in ::A that
+        // writes a bare `superclass Base` must link to ::A::Base (its own
+        // namespace), never ::B::Base — and a subclass in a *third*
+        // namespace with no local Base must abstain (ambiguous tail), not
+        // guess.
+        let a = analyse("oo::class create ::A::Base {}\noo::class create ::A::Derived {\n    superclass Base\n}\n");
+        let b = analyse("oo::class create ::B::Base {}\n");
+        let c = analyse("oo::class create ::C::Widget {\n    superclass Base\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///b.tcl", &b),
+            ("file:///c.tcl", &c),
+        ]);
+        // ::A::Base's subclasses: only ::A::Derived (owner-aware pick).
+        let a_subs: Vec<&str> =
+            index.subclasses_of("::A::Base").iter().map(|c| c.qualified_name.as_str()).collect();
+        assert_eq!(a_subs, vec!["::A::Derived"], "owner-aware resolution mis-linked");
+        // ::B::Base gets no subclass from the ambiguous bare `Base` names.
+        assert!(
+            index.subclasses_of("::B::Base").is_empty(),
+            "ownerless tail match manufactured a wrong subtype edge",
+        );
+        // ::C::Widget's supertypes abstain (Base is ambiguous, ::C has none).
+        let widget = index
+            .classes
+            .iter()
+            .find(|c| c.qualified_name == "::C::Widget")
+            .expect("Widget indexed");
+        assert!(
+            index.supertype_classes(widget).is_empty(),
+            "ambiguous bare superclass should resolve to nothing",
+        );
+    }
+
+    #[test]
+    fn cross_file_method_override_family() {
+        // Base `speak` in a.tcl; Dog overrides it in b.tcl; Cat overrides it
+        // in c.tcl; unrelated Engine::speak in d.tcl must stay out.
+        let animal = analyse("oo::class create Animal {\n    method speak {} {}\n}\n");
+        let dog = analyse("oo::class create Dog {\n    superclass Animal\n    method speak {} {}\n}\n");
+        let cat = analyse("oo::class create Cat {\n    superclass Animal\n    method speak {} {}\n}\n");
+        let engine = analyse("oo::class create Engine {\n    method speak {} {}\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &animal),
+            ("file:///b.tcl", &dog),
+            ("file:///c.tcl", &cat),
+            ("file:///d.tcl", &engine),
+        ]);
+        // Seed from Dog: family = Animal + Dog + Cat (across three files).
+        let mut fam: Vec<&str> = index
+            .method_override_family("::Dog", "speak")
+            .iter()
+            .map(|wc| wc.qualified_name.as_str())
+            .collect();
+        fam.sort_unstable();
+        fam.dedup();
+        assert_eq!(fam, vec!["::Animal", "::Cat", "::Dog"], "cross-file family wrong");
+        // Unrelated Engine::speak must not be pulled in.
+        assert!(
+            !index
+                .method_override_family("::Dog", "speak")
+                .iter()
+                .any(|wc| wc.qualified_name == "::Engine"),
+            "unrelated same-named method must stay out of the family",
+        );
+        // Seeding from a class that only *inherits* speak still finds the
+        // family via the providing ancestor.
+        let puppy = analyse("oo::class create Puppy {\n    superclass Dog\n}\n");
+        let index2 = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &animal),
+            ("file:///b.tcl", &dog),
+            ("file:///e.tcl", &puppy),
+        ]);
+        let fam2: Vec<&str> = index2
+            .method_override_family("::Puppy", "speak")
+            .iter()
+            .map(|wc| wc.qualified_name.as_str())
+            .collect();
+        assert!(fam2.contains(&"::Animal") && fam2.contains(&"::Dog"), "{fam2:?}");
+    }
+
+    #[test]
+    fn cross_file_method_inheritor_classes() {
+        // Base `speak` in a.tcl; a purely-inheriting Dog (no override) in
+        // b.tcl; an unrelated Engine::speak hierarchy with its own inheritor
+        // Car in c.tcl/d.tcl.  Seeding from Animal, Dog is an inheritor and
+        // Car (disjoint hierarchy) is not.
+        let animal = analyse("oo::class create Animal {\n    method speak {} {}\n}\n");
+        let dog = analyse("oo::class create Dog {\n    superclass Animal\n    method describe {} { my speak }\n}\n");
+        let engine = analyse("oo::class create Engine {\n    method speak {} {}\n}\n");
+        let car = analyse("oo::class create Car {\n    superclass Engine\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &animal),
+            ("file:///b.tcl", &dog),
+            ("file:///c.tcl", &engine),
+            ("file:///d.tcl", &car),
+        ]);
+        let inheritors: Vec<&str> = index
+            .method_inheritor_classes("::Animal", "speak")
+            .iter()
+            .map(|wc| wc.qualified_name.as_str())
+            .collect();
+        assert_eq!(inheritors, vec!["::Dog"], "{inheritors:?}");
+        // A definer is never returned as an inheritor.
+        assert!(
+            !index
+                .method_inheritor_classes("::Animal", "speak")
+                .iter()
+                .any(|wc| wc.qualified_name == "::Animal"),
+        );
+    }
+
+    #[test]
+    fn method_inheritor_abstains_on_disjoint_definer_ancestor() {
+        // A class that multiply-inherits from two unrelated definers of the
+        // same method could resolve to either; the family seeded from only one
+        // must NOT claim it (sound abstention, no over-rename).
+        let a = analyse("oo::class create A {\n    method run {} {}\n}\n");
+        let b = analyse("oo::class create B {\n    method run {} {}\n}\n");
+        let both = analyse("oo::class create Both {\n    superclass A B\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///b.tcl", &b),
+            ("file:///both.tcl", &both),
+        ]);
+        // Family seeded from A does not include B, so `Both` (which can reach
+        // B::run too) is abstained on.
+        assert!(
+            index
+                .method_inheritor_classes("::A", "run")
+                .is_empty(),
+            "must abstain when an out-of-family definer ancestor exists",
+        );
     }
 
     #[test]

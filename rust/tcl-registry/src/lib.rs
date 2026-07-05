@@ -56,6 +56,7 @@ pub mod cache;
 pub mod command_snapshot;
 pub mod commands;
 pub mod const_fold;
+pub mod definer;
 pub mod dialects;
 mod event_descriptions;
 pub mod events;
@@ -73,6 +74,7 @@ pub mod stub_overlay;
 pub mod taint;
 pub mod traits;
 pub mod types;
+pub mod version;
 
 /// Convenience prelude for command spec files.
 ///
@@ -82,6 +84,7 @@ pub mod prelude {
     pub use crate::arg_role::ArgRole;
     pub use crate::arity::Arity;
     pub use crate::body_kind::BodyKind;
+    pub use crate::definer::{DefinerFamily, DefinitionBodyGrammar, MemberKind, MemberSpec};
     pub use crate::dialects::DialectSet;
     pub use crate::events::EventRequires;
     pub use crate::forms::{CommandForm, SubCommandForm};
@@ -89,7 +92,9 @@ pub mod prelude {
         ArgTypeHint, CodegenHookId, LoweringHookId, TclVersion, VersionedConstFoldFn,
         WasmCodegenHookId,
     };
-    pub use crate::hover::{ArgValue, FormKind, FormSpec, HoverSnippet, OptionSpec};
+    pub use crate::hover::{
+        ArgValue, FormKind, FormSpec, HoverSnippet, OptionArg, OptionArity, OptionSpec, OptionValue,
+    };
     pub use crate::patterns::{FormatType, PatternType};
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
     pub use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};

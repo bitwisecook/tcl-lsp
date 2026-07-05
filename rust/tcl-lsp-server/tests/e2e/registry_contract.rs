@@ -24,7 +24,6 @@
 //! `listSubcommands`) against the committed presence CSVs, so a Rust server
 //! passes them unchanged.
 
-
 use crate::common::Lsp;
 
 use serde_json::{Value, json};
@@ -46,8 +45,8 @@ type Row = std::collections::HashMap<String, String>;
 /// Parse `name` under the baseline dir into header-keyed rows.
 fn read_csv(name: &str) -> Vec<Row> {
     let path = baseline_dir().join(name);
-    let text = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let text =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
     let mut lines = text.lines();
     let header: Vec<String> = lines
         .next()
@@ -95,7 +94,11 @@ fn list_irule_events_matches_known_events() {
     let data = lsp.execute_command("tcl-lsp.listIruleEvents", json!([]));
     let served: BTreeSet<String> = data["events"]
         .as_array()
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect()
+        })
         .unwrap_or_default();
     let expected: BTreeSet<String> = known_events()
         .iter()
@@ -103,10 +106,7 @@ fn list_irule_events_matches_known_events() {
         .collect();
     let missing: Vec<&String> = expected.difference(&served).collect();
     let extra: Vec<&String> = served.difference(&expected).collect();
-    assert!(
-        served == expected,
-        "missing={missing:?} extra={extra:?}"
-    );
+    assert!(served == expected, "missing={missing:?} extra={extra:?}");
 }
 
 #[test]
@@ -136,7 +136,11 @@ fn describe_every_known_event_count_matches_csv() {
             failures.push(format!("{event}: deprecated mismatch"));
         }
     }
-    assert!(failures.is_empty(), "{}", failures[..failures.len().min(40)].join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{}",
+        failures[..failures.len().min(40)].join("\n")
+    );
 }
 
 #[test]

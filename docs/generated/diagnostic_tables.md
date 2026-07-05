@@ -43,6 +43,8 @@
 | W126 | warning | Non-channel value in channel argument position. | ✓ |
 | W127 | warning | Value not in the command's allowed set. | ✓ |
 | W128 | warning | Command called after it was renamed or deleted earlier in this file; the call falls through to the `unknown` handler. | ✓ |
+| W135 | warning | Command requires a newer package version than the resolved `package require`. | ✓ |
+| W136 | warning | Option requires a newer package version than the resolved `package require`. | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
 | W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |
@@ -51,6 +53,7 @@
 | W233 | warning | Division or modulo by a provably-zero divisor — raises 'divide by zero' at runtime. | ✓ |
 | W240 | warning | Loop condition is a constant false — body never executes. | ✓ |
 | W241 | warning | Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step. | ✓ |
+| W250 | warning | Instantiating an `oo::abstract` class — abstract classes cannot be created directly; use a concrete subclass. | ✓ |
 | W210 | variable | Variable read before set. | ✓ |
 | W211 | variable | Variable set but never used. | ✓ |
 | W212 | variable | Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.). | ✓ |

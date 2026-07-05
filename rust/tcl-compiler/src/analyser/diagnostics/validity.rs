@@ -184,11 +184,14 @@ impl Analyser {
         if cmd_name == "after" && is_integer_word(first_arg) {
             return;
         }
-        // Tk geometry managers accept `manager pathName ?args?` as a shortcut
-        // for `manager configure pathName ?args?` (grid.n / pack.n / place.n).
-        // A window path starts with `.`, which is not a valid subcommand-name
-        // first character, so this is unambiguous.
-        if matches!(cmd_name, "grid" | "pack" | "place") && first_arg.starts_with('.') {
+        // A subcommand name never starts with `.`, so a `.`-prefixed first word
+        // is a Tk window pathname, not an unknown subcommand.  This covers both
+        // the geometry-manager shortcut (`grid .w ?args?` for `grid configure
+        // .w …`, per grid.n / pack.n / place.n) and widget-creation commands
+        // (`entry .e …`, `canvas .c …`), whose registry `subcommands` describe
+        // the created widget's *instance* command rather than a first-word
+        // subcommand of the creator.  Either way `.path` is never W001.
+        if first_arg.starts_with('.') {
             return;
         }
         if sig.subcommands.contains_key(first_arg) {
@@ -1298,31 +1301,30 @@ before this value so it is treated as data, not an option."
                     continue;
                 }
             }
-            // Find a matching OptionSpec; if found and dialect-gated
-            // out, emit W004.
-            if let Some(opt) = options.iter().find(|o| o.name == arg)
-                && !opt.supports_dialect(Some(active), parent_dialects)
-            {
-                let span = if i < arg_tokens.len() {
-                    arg_tokens[i].span
-                } else {
-                    continue;
-                };
-                // Message
-                // exactly: `Option 'X' on 'cmd'[ sub] is not available in the
-                // active dialect (D).`
-                let sub_suffix = sub_match.map_or(String::new(), |s| format!(" {}", s.name));
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W004,
-                    span,
-                    message: format!(
-                        "Option '{arg}' on '{cmd_name}'{sub_suffix} is not available \
+            // Find a matching OptionSpec (canonical name or alias).  When it is
+            // dialect-gated out, emit W004.  Either way, skip the value word(s)
+            // it consumes, so a value that itself looks like a flag
+            // (`-command -bar`) is not mistakenly tested as an option.
+            if let Some(opt) = options.iter().find(|o| o.matches(arg)) {
+                if !opt.supports_dialect(Some(active), parent_dialects) && i < arg_tokens.len() {
+                    let span = arg_tokens[i].span;
+                    // Message exactly: `Option 'X' on 'cmd'[ sub] is not
+                    // available in the active dialect (D).`
+                    let sub_suffix = sub_match.map_or(String::new(), |s| format!(" {}", s.name));
+                    self.result.diagnostics.push(super::types::Diagnostic {
+                        code: DiagCode::W004,
+                        span,
+                        message: format!(
+                            "Option '{arg}' on '{cmd_name}'{sub_suffix} is not available \
 in the active dialect ({}).",
-                        self.dialect
-                    ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                            self.dialect
+                        ),
+                        severity: Severity::Warning,
+                        fixes: Vec::new(),
+                    });
+                }
+                i += 1 + opt.value_word_count(args, i);
+                continue;
             }
             i += 1;
         }
@@ -1487,14 +1489,13 @@ fn first_positional_without_terminator(
             return None;
         }
         if arg.starts_with('-') {
-            i += 1;
-            let consumes_value = profile
+            // Skip the option and the value word(s) it consumes (arity-aware).
+            let consumed = profile
                 .options
                 .iter()
-                .any(|o| o.name == arg && o.takes_value);
-            if consumes_value && i < args.len() {
-                i += 1;
-            }
+                .find(|o| o.matches(arg))
+                .map_or(0, |o| o.value_word_count(args, i));
+            i += 1 + consumed;
             continue;
         }
         return Some(i);

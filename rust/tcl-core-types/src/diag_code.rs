@@ -415,6 +415,8 @@ diagnostic_codes! {
     W132 => "W132", diag(Tclpkg, true, "tclpkg.lock integrity mismatch — CAS hash differs from lockfile.");
     W133 => "W133", diag(Tclpkg, true, "tclpkg.tcl directive not permitted in safe mode.");
     W134 => "W134", diag(Tclpkg, true, "Package resolved but no pkgIndex.tcl found — 'package require' will fail at runtime.");
+    W135 => "W135", diag(Warning, true, "Command requires a newer package version than the resolved `package require`.");
+    W136 => "W136", diag(Warning, true, "Option requires a newer package version than the resolved `package require`.");
     W200 => "W200", diag(Warning, true, "`exec` result not captured or binary format modifier requires newer Tcl.");
     W201 => "W201", diag(Warning, true, "Manual path concatenation — use `file join` instead.");
     W210 => "W210", diag(Variable, true, "Variable read before set.");
@@ -432,6 +434,7 @@ diagnostic_codes! {
     W240 => "W240", diag(Warning, true, "Loop condition is a constant false — body never executes.");
     W241 => "W241", diag(Warning, true, "Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step.");
     W242 => "W242", diag(Hint, false, "Loop termination cannot be proven — counter not provably modified by the loop body or step.");
+    W250 => "W250", diag(Warning, true, "Instantiating an `oo::abstract` class — abstract classes cannot be created directly; use a concrete subclass.");
     W300 => "W300", diag(Security, true, "`source` with variable argument — code execution risk.");
     W301 => "W301", diag(Security, true, "`uplevel` with string-built script — injection risk.");
     W302 => "W302", diag(Security, true, "`catch` without result variable — errors are silently swallowed.");
@@ -640,9 +643,28 @@ mod tests {
         // IRULE3103/5003/6001 flow internals, TK100x, and W31x; E204–E206 are
         // the parse-error siblings of E201–E203.
         for s in [
-            "E004", "E100", "E101", "E102", "E103", "E201", "E202", "E203", "E204", "E205",
-            "E206", "IRULE3103", "IRULE5003", "IRULE6001", "T103", "T106", "TK1001", "TK1002",
-            "TK1003", "W310", "W311", "W312",
+            "E004",
+            "E100",
+            "E101",
+            "E102",
+            "E103",
+            "E201",
+            "E202",
+            "E203",
+            "E204",
+            "E205",
+            "E206",
+            "IRULE3103",
+            "IRULE5003",
+            "IRULE6001",
+            "T103",
+            "T106",
+            "TK1001",
+            "TK1002",
+            "TK1003",
+            "W310",
+            "W311",
+            "W312",
         ] {
             assert!(
                 DiagCode::from_str(s).unwrap().is_internal(),
@@ -653,7 +675,15 @@ mod tests {
         // IRULE3004/T104/T105), and iRules flow
         // checks are all togglable, so never internal.
         for s in [
-            "E001", "W001", "W210", "IRULE1001", "IRULE3001", "IRULE3004", "T101", "T104", "T105",
+            "E001",
+            "W001",
+            "W210",
+            "IRULE1001",
+            "IRULE3001",
+            "IRULE3004",
+            "T101",
+            "T104",
+            "T105",
         ] {
             assert!(
                 !DiagCode::from_str(s).unwrap().is_internal(),

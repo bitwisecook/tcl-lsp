@@ -19,6 +19,24 @@
 //! `selection` command.
 use crate::prelude::*;
 
+/// Dynamic arg-role resolver for `selection handle`.
+///
+/// `selection handle ?-selection s? ?-type t? ?-format f? window command`
+/// — the trailing `command` is a command *prefix* that Tk invokes with
+/// two numbers (offset and maxChars) appended to supply selection data,
+/// so it carries [`ArgRole::CommandPrefix`] (its first word is a command
+/// reference), not a script body.  It is always the last argument; the
+/// leading option/value pairs and `window` precede it.  Args here are
+/// those *after* the `handle` subcommand word.
+fn selection_handle_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    match u8::try_from(args.len()) {
+        // window + command are both required (arity at_least(2)), so the
+        // command prefix is the final argument.
+        Ok(n) if n >= 2 => vec![(n - 1, ArgRole::CommandPrefix)],
+        _ => Vec::new(),
+    }
+}
+
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
@@ -40,6 +58,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Register a handler to provide the selection data.",
         synopsis: "selection handle ?-selection sel? ?-type type? ?-format fmt? window command",
+        arg_role_resolver: Some(selection_handle_arg_roles),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -61,38 +80,43 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-displayof",
-        takes_value: true,
-        value_hint: "window",
+        value: OptionValue::value("window"),
         detail: "Specifies the display for the selection operation.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-selection",
-        takes_value: true,
-        value_hint: "selection",
+        value: OptionValue::value("selection"),
         detail: "Specifies which named selection to operate on (default: PRIMARY).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-type",
-        takes_value: true,
-        value_hint: "type",
+        value: OptionValue::value("type"),
         detail: "Specifies the form in which the selection is to be returned.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-format",
-        takes_value: true,
-        value_hint: "format",
+        value: OptionValue::value("format"),
         detail: "Specifies the representation format for the selection data.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-command",
-        takes_value: true,
-        value_hint: "command",
+        value: OptionValue::script(),
         detail: "Specifies a Tcl script to run when the selection is claimed by another window.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

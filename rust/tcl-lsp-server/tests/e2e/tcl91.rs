@@ -22,7 +22,6 @@
 //! dialect is pinned with a `# tcl-dialect: tcl9.1` directive (server-side source
 //! detection), and behaviour is observed through completion + diagnostics.
 
-
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -52,7 +51,7 @@ fn complete_cmd(lsp: &mut Lsp, dialect: &str, partial: &str) -> BTreeSet<String>
     let uri = unique_uri("tcl");
     let src = format!("# tcl-dialect: {dialect}\n{partial}\n");
     lsp.open_ready(&uri, &src);
-    labels(&lsp.completion(&uri, 1, partial.len() as u32))
+    labels(&lsp.completion(&uri, 1, u32::try_from(partial.len()).unwrap()))
 }
 
 // -- TestTcl91Completion -------------------------------------------------

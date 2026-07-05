@@ -133,7 +133,10 @@ where
 /// [`order_profiles_by_traffic`]. Leaf collisions across partitions keep the
 /// first-seen type (same-partition attachment is the norm).
 #[must_use]
-pub fn order_profiles_with_types(refs: &[String], types: &HashMap<String, String>) -> Vec<String> {
+pub fn order_profiles_with_types<S: std::hash::BuildHasher>(
+    refs: &[String],
+    types: &HashMap<String, String, S>,
+) -> Vec<String> {
     let mut by_leaf: HashMap<&str, &str> = HashMap::new();
     for (path, ty) in types {
         let leaf = path.rsplit('/').next().unwrap_or(path);
@@ -254,7 +257,10 @@ mod tests {
     fn orders_default_profiles_by_name() {
         let refs = vec!["/Common/http".to_owned(), "/Common/tcp".to_owned()];
         let out = order_profiles_by_traffic(&refs, |_| None);
-        assert_eq!(out, vec!["/Common/tcp".to_owned(), "/Common/http".to_owned()]);
+        assert_eq!(
+            out,
+            vec!["/Common/tcp".to_owned(), "/Common/http".to_owned()]
+        );
     }
 
     #[test]

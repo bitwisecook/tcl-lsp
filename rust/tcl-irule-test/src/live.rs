@@ -432,7 +432,8 @@ mod tests {
             "when HTTP_REQUEST {\n  if { [class match [HTTP::host] equals hosts] } {\n    pool matched\n  }\n}",
         )
         .unwrap();
-        s.run_http_request("-host other.example.com -uri /").unwrap();
+        s.run_http_request("-host other.example.com -uri /")
+            .unwrap();
         assert_eq!(s.pool_selected().unwrap(), "");
     }
 

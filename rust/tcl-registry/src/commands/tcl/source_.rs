@@ -43,13 +43,14 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-encoding",
-            takes_value: true,
-            value_hint: "encoding",
+            value: OptionValue::value("encoding"),
             detail: "",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         hover: Some(HoverSnippet {
             summary: "Evaluate a file or resource as a Tcl script.",
             synopsis: &["source ?-encoding name? fileName"],

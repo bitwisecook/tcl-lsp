@@ -22,7 +22,6 @@
 //! of the Tcl/TclOO cases. Symbol kinds come back as raw LSP integer codes
 //! (`SymbolKind`); the named constants here mirror that enum.
 
-
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -243,7 +242,10 @@ fn constructor_symbol() {
 fn property_symbol() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "oo::configurable create Point {\n    property x y\n}\n");
+    lsp.open_ready(
+        &uri,
+        "oo::configurable create Point {\n    property x y\n}\n",
+    );
     let syms = top(&mut lsp, &uri);
     let cls = &syms[0];
     let props: std::collections::BTreeSet<String> = children(cls)
@@ -272,7 +274,10 @@ fn class_detail_shows_superclass() {
 fn class_detail_shows_metaclass() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "oo::abstract create Shape {\n    method area {} {}\n}\n");
+    lsp.open_ready(
+        &uri,
+        "oo::abstract create Shape {\n    method area {} {}\n}\n",
+    );
     let syms = top(&mut lsp, &uri);
     assert!(
         detail(&syms[0]).contains("oo::abstract"),

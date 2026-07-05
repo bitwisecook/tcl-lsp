@@ -26,6 +26,82 @@ const FORMS: &[FormSpec] = &[FormSpec {
 }];
 
 /// Command spec for `fconfigure`.
+const OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-blocking",
+        value: OptionValue::value("boolean"),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-buffering",
+        value: OptionValue::value("mode"),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-buffersize",
+        value: OptionValue::value("size"),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-encoding",
+        value: OptionValue::value("encoding"),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-eofchar",
+        value: OptionValue::value("chars"),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-translation",
+        value: OptionValue::value("mode"),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    // Tcl 9.0+ socket / terminal options (TIPs 528 / 160).
+    OptionSpec {
+        name: "-nodelay",
+        value: OptionValue::value("boolean"),
+        detail: "Disable Nagle's algorithm on TCP sockets (Tcl 9.0+).",
+        dialects: Some(DialectSet::TCL90_PLUS),
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-keepalive",
+        value: OptionValue::value("boolean"),
+        detail: "Enable TCP keepalive on sockets (Tcl 9.0+).",
+        dialects: Some(DialectSet::TCL90_PLUS),
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-inputmode",
+        value: OptionValue::value("mode"),
+        detail: "Terminal input mode: normal/password/raw (Tcl 9.0+).",
+        dialects: Some(DialectSet::TCL90_PLUS),
+        aliases: &[],
+        min_version: None,
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fconfigure",
@@ -40,72 +116,7 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        options: &[
-            OptionSpec {
-                name: "-blocking",
-                takes_value: true,
-                value_hint: "boolean",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-buffering",
-                takes_value: true,
-                value_hint: "mode",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-buffersize",
-                takes_value: true,
-                value_hint: "size",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-encoding",
-                takes_value: true,
-                value_hint: "encoding",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-eofchar",
-                takes_value: true,
-                value_hint: "chars",
-                detail: "",
-                dialects: None,
-            },
-            OptionSpec {
-                name: "-translation",
-                takes_value: true,
-                value_hint: "mode",
-                detail: "",
-                dialects: None,
-            },
-            // Tcl 9.0+ socket / terminal options (TIPs 528 / 160).
-            OptionSpec {
-                name: "-nodelay",
-                takes_value: true,
-                value_hint: "boolean",
-                detail: "Disable Nagle's algorithm on TCP sockets (Tcl 9.0+).",
-                dialects: Some(DialectSet::TCL90_PLUS),
-            },
-            OptionSpec {
-                name: "-keepalive",
-                takes_value: true,
-                value_hint: "boolean",
-                detail: "Enable TCP keepalive on sockets (Tcl 9.0+).",
-                dialects: Some(DialectSet::TCL90_PLUS),
-            },
-            OptionSpec {
-                name: "-inputmode",
-                takes_value: true,
-                value_hint: "mode",
-                detail: "Terminal input mode: normal/password/raw (Tcl 9.0+).",
-                dialects: Some(DialectSet::TCL90_PLUS),
-            },
-        ],
+        options: OPTIONS,
         hover: Some(HoverSnippet {
             summary: "Set and get options on a channel.",
             synopsis: &["fconfigure channelId ?optionName? ?value ...?"],

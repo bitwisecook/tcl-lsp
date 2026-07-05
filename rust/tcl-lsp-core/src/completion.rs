@@ -180,6 +180,18 @@ fn context_aware_completions(
     partial: &str,
 ) -> Option<Vec<CompletionItem>> {
     let (cmd, word_idx) = command_context_on_line(source, line, character)?;
+
+    // `$obj <method>` — when the command head is an instance variable whose
+    // class is known, complete the methods callable on it, gathered across
+    // the whole MRO (inherited methods included).  Checked before the
+    // registry lookup because `$obj` is not a registered command.
+    if word_idx == 1
+        && let Some(obj) = strip_instance_var(&cmd)
+        && let Some(items) = oo_method_completions(analysis, &obj, partial)
+    {
+        return Some(items);
+    }
+
     let spec = registry.get(&cmd)?;
 
     // Switch completion fires when the identifier
@@ -199,7 +211,8 @@ fn context_aware_completions(
             char_col_to_utf16(line_text, dash_col),
             char_col_to_utf16(line_text, cursor_col),
         );
-        return Some(switch_completions(spec, &switch_partial, edit));
+        let floor = package_version_floor(analysis, spec);
+        return Some(switch_completions(spec, &switch_partial, edit, floor));
     }
     // iRules `when EVENT { body }`: when the cursor is
     // typing the first argument of an event-handler
@@ -235,6 +248,24 @@ fn context_aware_completions(
     {
         let sub_arg_idx = u8::try_from(word_idx - 2).unwrap_or(u8::MAX);
         let values = sub.arg_values_at(sub_arg_idx);
+        if !values.is_empty() {
+            return Some(arg_value_completions(values, partial));
+        }
+    }
+    // Option-value completion — when the word immediately before the cursor is
+    // a value-taking option that declares an enumerable value set, offer those
+    // values (e.g. `button .b -relief <cursor>` → flat|raised|…).  Matches by
+    // name or alias; arity-`One` covered (the value follows the switch).
+    if word_idx >= 2
+        && let Some(prev) = nth_word_on_line(source, line, word_idx - 1)
+        && prev.starts_with('-')
+        && let Some(opt) = spec
+            .options
+            .iter()
+            .chain(spec.command_forms.iter().flat_map(|f| f.options.iter()))
+            .find(|o| o.matches(prev.as_str()))
+    {
+        let values = opt.value_values();
         if !values.is_empty() {
             return Some(arg_value_completions(values, partial));
         }
@@ -331,13 +362,10 @@ pub fn completions(
         // only *present* once the Tk package is loaded — the `tk` dialect (a
         // `wish` document) or a `package require Tk` in this file.  Without
         // that, a plain `.tcl` script must not be offered `button`/`pack`/… .
-        let tk_loaded = dialect == "tk"
-            || analysis
-                .package_requires
-                .iter()
-                .any(|req| req.name == "Tk");
+        let tk_loaded =
+            dialect == "tk" || analysis.package_requires.iter().any(|req| req.name == "Tk");
         items.extend(builtin_completions(
-            registry, dialect, &partial, &usage, tk_loaded,
+            registry, dialect, &partial, &usage, tk_loaded, analysis,
         ));
     }
     // Workspace-wide proc enumeration: surface procs defined in
@@ -812,6 +840,92 @@ fn command_context_on_line(source: &str, line: u32, character: u32) -> Option<(S
     Some((command, word_index))
 }
 
+/// The instance-variable name in a `$obj` / `${obj}` command head, or
+/// `None` when the head is not a single bare variable reference.
+fn strip_instance_var(cmd: &str) -> Option<String> {
+    let rest = cmd.strip_prefix('$')?;
+    let inner = rest
+        .strip_prefix('{')
+        .and_then(|r| r.strip_suffix('}'))
+        .unwrap_or(rest);
+    (!inner.is_empty()
+        && inner
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':'))
+    .then(|| inner.to_string())
+}
+
+/// Complete the methods callable on `$obj` when its class is known —
+/// gathered across the whole MRO so **inherited** methods appear, not just
+/// the receiver class's own.  Overridden methods appear once (the
+/// most-derived provider wins).  Only public methods plus the universal
+/// `destroy` are offered (an external `$obj method` dispatch cannot reach
+/// private / unexported methods).  Returns `None` when the class is
+/// unknown or nothing matches, so the caller falls through.
+fn oo_method_completions(
+    analysis: &AnalysisResult,
+    obj: &str,
+    partial: &str,
+) -> Option<Vec<CompletionItem>> {
+    let class_q = analysis.instance_classes.get(obj)?;
+    let hierarchy = analysis.class_hierarchy();
+    let mro = hierarchy
+        .mro_map
+        .get(class_q)
+        .cloned()
+        .unwrap_or_else(|| vec![class_q.clone()]);
+    let mut seen: FxHashSet<String> = FxHashSet::default();
+    let mut items: Vec<CompletionItem> = Vec::new();
+    for cls in &mro {
+        let Some(cd) = analysis.all_classes.get(cls) else {
+            continue;
+        };
+        // Instance dispatch (`$obj method`) reaches *instance* methods only.
+        // Class-side methods (`self method` / classmethod) are callable on
+        // the class command, not the instance command — so they are excluded
+        // here to avoid suggesting methods that would error on `$obj`.
+        let mut methods: Vec<(&String, &str)> = cd
+            .methods
+            .iter()
+            .filter(|(_, m)| m.visibility == "public")
+            .map(|(n, _)| (n, cls.as_str()))
+            .collect();
+        methods.sort_by(|a, b| a.0.cmp(b.0));
+        for (name, provider) in methods {
+            if !name.starts_with(partial) || !seen.insert(name.clone()) {
+                continue;
+            }
+            let detail = if provider == class_q {
+                format!("method — {class_q}")
+            } else {
+                format!("method — inherited from {provider}")
+            };
+            items.push(CompletionItem {
+                label: name.clone(),
+                insert_text: name.clone(),
+                kind: CompletionKind::Function,
+                detail: Some(detail),
+                ..CompletionItem::default()
+            });
+        }
+    }
+    // The universal object method (present on every object).
+    if "destroy".starts_with(partial) && seen.insert("destroy".to_string()) {
+        items.push(CompletionItem {
+            label: "destroy".to_string(),
+            insert_text: "destroy".to_string(),
+            kind: CompletionKind::Function,
+            detail: Some("method — oo::object builtin".to_string()),
+            ..CompletionItem::default()
+        });
+    }
+    if items.is_empty() {
+        return None;
+    }
+    items.sort_by(|a, b| a.label.cmp(&b.label));
+    Some(items)
+}
+
 /// Detect a `-switch` partial at the cursor.  Returns
 /// `Some(switch_partial)` (including the leading dash) when
 /// the character immediately preceding the identifier run
@@ -821,6 +935,30 @@ fn command_context_on_line(source: &str, line: u32, character: u32) -> Option<(S
 /// [`word_partial_at_position`]; the helper reconstructs the
 /// switch-aware partial by prepending the dash without
 /// re-walking the line.
+/// The guaranteed-available version floor for a command's owning package,
+/// resolved from the document's `package require` statements.
+///
+/// When several `package require <pkg> <req>` lines name the same package, the
+/// most restrictive (highest) lower bound wins.  Returns `None` when the
+/// command is not package-gated or the package was required without a version
+/// (permissive — every option surfaces).
+fn package_version_floor<'a>(
+    analysis: &'a AnalysisResult,
+    spec: &tcl_registry::CommandSpec,
+) -> Option<&'a str> {
+    let pkg = spec.owning_package()?;
+    analysis
+        .package_requires
+        .iter()
+        // Only *unconditional* requires guarantee the version; an optional
+        // probe (`catch {package require Tk 8.7}`, or a `require` inside an
+        // `if` arm) must not raise the floor and hide a gated option/command.
+        .filter(|req| req.name == pkg && !req.conditional)
+        .filter_map(|req| req.version.as_deref())
+        .map(tcl_registry::version::requirement_lower_bound)
+        .max_by(|a, b| tcl_registry::version::compare(a, b))
+}
+
 fn switch_partial_at_position(
     source: &str,
     line: u32,
@@ -844,11 +982,15 @@ fn switch_completions(
     spec: &tcl_registry::CommandSpec,
     partial: &str,
     edit: (u32, u32),
+    package_version: Option<&str>,
 ) -> Vec<CompletionItem> {
     let mut opts: Vec<_> = spec
         .options
         .iter()
-        .filter(|opt| partial.is_empty() || opt.name.starts_with(partial))
+        .filter(|opt| {
+            (partial.is_empty() || opt.name.starts_with(partial))
+                && opt.available_for_version(package_version)
+        })
         .collect();
     opts.sort_unstable_by_key(|opt| opt.name);
     opts.into_iter()
@@ -1030,6 +1172,7 @@ fn builtin_completions(
     partial: &str,
     usage: &FxHashMap<String, usize>,
     tk_loaded: bool,
+    analysis: &AnalysisResult,
 ) -> Vec<CompletionItem> {
     // Version-gate the command list: a command whose spec restricts itself to
     // later dialects (`try` is Tcl 8.6+, `lseq` is 9.0+, …) must not be offered
@@ -1054,6 +1197,16 @@ fn builtin_completions(
                 || registry
                     .get(n)
                     .is_none_or(|spec| spec.required_package != Some("Tk"))
+        })
+        // Package-version gate: a command introduced in a later package release
+        // (`ttk::*` needs Tk 8.5) must not be offered when this file's
+        // `package require <pkg> <req>` guarantees only an older version — the
+        // same floor W135 checks.  A package required without a version, or not
+        // required at all, yields no floor and stays permissive.
+        .filter(|n| {
+            registry
+                .get(n)
+                .is_none_or(|spec| spec.available_for_version(package_version_floor(analysis, spec)))
         })
         .collect();
     names.sort_unstable();
@@ -1177,6 +1330,51 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn obj_method_completion_includes_inherited() {
+        let src = "oo::class create Animal {\n    method eat {} {}\n}\noo::class create Dog {\n    superclass Animal\n    method bark {} {}\n}\nset d [Dog new]\n$d \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$d ` on line 8.
+        let items = completions(src, 8, 3, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"bark"), "own method missing: {labels:?}");
+        assert!(labels.contains(&"eat"), "inherited method missing: {labels:?}");
+        assert!(labels.contains(&"destroy"), "builtin missing: {labels:?}");
+        // The inherited one is labelled as such.
+        let eat = items.iter().find(|i| i.label == "eat").unwrap();
+        assert!(eat.detail.as_deref().unwrap_or("").contains("inherited from ::Animal"), "{:?}", eat.detail);
+    }
+
+    #[test]
+    fn obj_method_completion_excludes_class_side_methods() {
+        // `classmethod build` is callable on the *class* command, not on an
+        // instance.  `$obj ` completion must offer the instance method
+        // (`bark`) but not the class-side `build`.
+        let src = "oo::class create Dog {\n    method bark {} {}\n    classmethod build {} {}\n}\nset d [Dog new]\n$d \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$d ` on line 5.
+        let items = completions(src, 5, 3, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"bark"), "instance method missing: {labels:?}");
+        assert!(
+            !labels.contains(&"build"),
+            "class-side method must not appear on an instance: {labels:?}",
+        );
+    }
+
+    #[test]
+    fn obj_method_completion_filters_by_partial() {
+        let src = "oo::class create Dog {\n    method bark {} {}\n    method beg {} {}\n    method sit {} {}\n}\nset d [Dog new]\n$d b\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 6, 4, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"bark") && labels.contains(&"beg"), "{labels:?}");
+        assert!(!labels.contains(&"sit"), "partial `b` should exclude sit: {labels:?}");
     }
 
     #[test]
@@ -1594,6 +1792,62 @@ mod tests {
         assert_eq!(labels, sorted);
     }
 
+    #[test]
+    fn switch_completion_gates_options_by_package_version() {
+        // `entry -placeholder` was introduced in Tk 8.7.  Completion must gate
+        // it on the version resolved from `package require Tk <req>`.
+        let registry = CommandRegistry::build_default();
+        let older = "package require Tk 8.6\nentry .e -p\n";
+        let a1 = analyse(older);
+        let l1: Vec<String> = completions(older, 1, 11, &a1, Some(&registry), None, "tcl8.6")
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(
+            !l1.iter().any(|l| l == "-placeholder"),
+            "Tk 8.6 must not offer -placeholder: {l1:?}",
+        );
+
+        let newer = "package require Tk 8.7\nentry .e -p\n";
+        let a2 = analyse(newer);
+        let l2: Vec<String> = completions(newer, 1, 11, &a2, Some(&registry), None, "tcl8.6")
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(
+            l2.iter().any(|l| l == "-placeholder"),
+            "Tk 8.7 must offer -placeholder: {l2:?}",
+        );
+    }
+
+    #[test]
+    fn command_completion_gates_commands_by_package_version() {
+        // `ttk::button` needs Tk 8.5.  A buffer requiring only Tk 8.4 must not
+        // offer it; requiring 8.5 must.
+        let registry = CommandRegistry::build_default();
+        let older = "package require Tk 8.4\nttk::b\n";
+        let a1 = analyse(older);
+        let l1: Vec<String> = completions(older, 1, 6, &a1, Some(&registry), None, "tcl8.6")
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(
+            !l1.iter().any(|l| l == "ttk::button"),
+            "Tk 8.4 must not offer ttk::button: {l1:?}",
+        );
+
+        let newer = "package require Tk 8.5\nttk::b\n";
+        let a2 = analyse(newer);
+        let l2: Vec<String> = completions(newer, 1, 6, &a2, Some(&registry), None, "tcl8.6")
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(
+            l2.iter().any(|l| l == "ttk::button"),
+            "Tk 8.5 must offer ttk::button: {l2:?}",
+        );
+    }
+
     // iRules event-name completion
     //
     // When the cursor sits at word-index 1 of an event-handler
@@ -1930,6 +2184,22 @@ mod tests {
         let items = completions(cur_src, 1, 2, &cur, None, Some(&index), "tcl8.6");
         let count = items.iter().filter(|i| i.label == "greet").count();
         assert_eq!(count, 1, "{items:?}");
+    }
+
+    #[test]
+    fn option_enum_value_completion_offers_members() {
+        // `button .b -relief ra` — cursor on the value word after a closed-set
+        // option offers the relief members, filtered by the partial (Phase 5).
+        let src = "button .b -relief ra";
+        let cur = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let col = u32::try_from(src.len()).unwrap();
+        let items = completions(src, 0, col, &cur, Some(&registry), None, "tk");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"raised"),
+            "expected `raised` among relief completions; got {labels:?}"
+        );
     }
 
     #[test]

@@ -394,6 +394,29 @@ mod diagnostics {
     }
 
     #[test]
+    fn widget_creation_pathname_is_not_a_subcommand_no_w001() {
+        // A widget-creation command's first word is a window pathname
+        // (`.e`), not a subcommand — even though the creator carries an
+        // instance-command `subcommands` table. It must never trip W001.
+        for src in [
+            "entry .e -textvariable v",
+            "canvas .c -background white",
+            "menu .m -tearoff 0",
+            "text .t -width 40",
+            "listbox .lb -listvariable items",
+            "ttk::treeview .tv",
+            "ttk::notebook .nb",
+        ] {
+            assert!(
+                !fires(src, D, "W001"),
+                "widget creation `{src}` must not fire W001",
+            );
+        }
+        // A genuine mistyped subcommand (no leading `.`) still fires.
+        assert!(fires("string bogus hello", D, "W001"));
+    }
+
+    #[test]
     fn package_prefer_is_a_real_subcommand_no_w001() {
         // `package prefer` is real in every supported dialect — tclsh returns
         // "stable". Regression #109: must not be flagged "Unknown subcommand".

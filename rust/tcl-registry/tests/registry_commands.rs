@@ -144,7 +144,7 @@ fn socket_server_option_is_documented() {
         .iter()
         .find(|o| o.name == "-server")
         .expect("-server option present");
-    assert!(server.takes_value, "-server takes a callback value");
+    assert!(server.takes_value(), "-server takes a callback value");
     assert!(
         !server.detail.is_empty(),
         "registry-metadata: -server has a description"

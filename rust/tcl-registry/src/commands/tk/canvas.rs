@@ -19,6 +19,22 @@
 //! `canvas` command.
 use crate::prelude::*;
 
+/// Dynamic arg-role resolver for the canvas `bind` subcommand.
+///
+/// `pathName bind tagOrId ?sequence? ?command?` — like the top-level
+/// `bind` command, only the full three-argument form binds a script,
+/// supplied as the trailing (third) argument.  It is a deferred
+/// event-handler body run later from the Tk event loop, so `body_kind`
+/// is `Structural`.  Args here are those *after* the `bind` subcommand
+/// word: `tagOrId`(0) `sequence`(1) `command`(2).
+fn canvas_bind_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    if args.len() == 3 {
+        vec![(2, ArgRole::Body)]
+    } else {
+        Vec::new()
+    }
+}
+
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
@@ -38,9 +54,11 @@ const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "bind",
         dialects: None,
-        arity: Arity::at_least(1),
+        arity: Arity::new(1, 3),
         detail: "Associate a command with a canvas item event.",
         synopsis: "pathName bind tagOrId ?sequence? ?command?",
+        arg_role_resolver: Some(canvas_bind_arg_roles),
+        body_kind: BodyKind::Structural,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -69,6 +87,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(3),
         detail: "Create a new canvas item of the specified type.",
         synopsis: "pathName create type x y ?x y ...? ?option value ...?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "dchars",
+        arity: Arity::at_least(2),
+        detail: "Delete characters between the first and last positions in a text or line item.",
+        synopsis: "pathName dchars tagOrId first ?last?",
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -108,6 +133,34 @@ const SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        name: "icursor",
+        arity: Arity::exact(2),
+        detail: "Set the insertion cursor of a text, line, or polygon item just before the given index.",
+        synopsis: "pathName icursor tagOrId index",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "index",
+        arity: Arity::exact(2),
+        detail: "Return the numerical index within an item corresponding to the given index.",
+        synopsis: "pathName index tagOrId index",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "insert",
+        arity: Arity::exact(3),
+        detail: "Insert a string into a text, line, or polygon item before the given index.",
+        synopsis: "pathName insert tagOrId beforeThis string",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "itemcget",
+        arity: Arity::exact(2),
+        detail: "Return the value of a configuration option for a canvas item.",
+        synopsis: "pathName itemcget tagOrId option",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
         name: "itemconfigure",
         arity: Arity::at_least(1),
         detail: "Query or modify configuration options of a canvas item.",
@@ -130,6 +183,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        name: "moveto",
+        arity: Arity::exact(3),
+        detail: "Move the items so their top-left corner is at the given position.",
+        synopsis: "pathName moveto tagOrId x y",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
         name: "postscript",
         arity: Arity::at_least(0),
         detail: "Generate a Postscript representation of the canvas.",
@@ -145,6 +205,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        name: "rchars",
+        arity: Arity::exact(4),
+        detail: "Replace the characters between first and last in a text or line item with the given string.",
+        synopsis: "pathName rchars tagOrId first last string",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
         name: "scale",
         dialects: None,
         arity: Arity::exact(5),
@@ -157,6 +224,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Implement scanning for the canvas.",
         synopsis: "pathName scan option args",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "select",
+        arity: Arity::at_least(1),
+        detail: "Manipulate the selection in text, line, or polygon items.",
+        synopsis: "pathName select option ?tagOrId arg?",
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -192,192 +266,219 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-width",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Desired width of the canvas in screen units.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-height",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Desired height of the canvas in screen units.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-bg",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Shorthand for -background.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-background",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Background colour of the canvas.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-relief",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::enumerated(super::common::RELIEF, true, "relief"),
         detail: "3-D effect: flat, groove, raised, ridge, solid, or sunken.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-borderwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the border around the canvas.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-bd",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Shorthand for -borderwidth.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-scrollregion",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Bounding box of the total scrollable area (left top right bottom).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-xscrollcommand",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::script(),
         detail: "Command prefix for communicating with horizontal scrollbars.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-yscrollcommand",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::script(),
         detail: "Command prefix for communicating with vertical scrollbars.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-xscrollincrement",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Horizontal scrolling increment in screen units.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-yscrollincrement",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Vertical scrolling increment in screen units.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-confine",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether scrolling is confined to the scroll region.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-selectbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Background colour for selected items.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-selectborderwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the border around selected items.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-selectforeground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Foreground colour for selected items.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-insertbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the insertion cursor.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-insertborderwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the border around the insertion cursor.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-insertofftime",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Milliseconds the insertion cursor is off during blinking.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-insertontime",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Milliseconds the insertion cursor is on during blinking.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-insertwidth",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the insertion cursor in screen units.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-closeenough",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Proximity threshold for mouse cursor to be considered over an item.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-cursor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Cursor to display when the mouse is over the canvas.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-takefocus",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Whether the canvas accepts focus during keyboard traversal.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightbackground",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the highlight region when the canvas does not have focus.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightcolor",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Colour of the highlight region when the canvas has focus.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-highlightthickness",
-        takes_value: true,
-        value_hint: "",
+        value: OptionValue::value(""),
         detail: "Width of the highlight rectangle drawn around the canvas.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

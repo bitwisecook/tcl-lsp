@@ -25,6 +25,23 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     connection_side: ConnectionSide::None,
 }];
 
+/// Dynamic arg-role resolver for `bind`.
+///
+/// `bind tag` and `bind tag sequence` are *query* forms that return an
+/// existing binding and carry no script.  Only the full
+/// `bind tag sequence script` form binds a script, supplied as the
+/// trailing (third) argument — optionally prefixed with `+` to append
+/// to the current binding.  That script is a deferred body: it runs
+/// later from the Tk event loop in its own dispatch context rather than
+/// the caller's frame, so `body_kind` is `Structural`.
+fn bind_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    if args.len() == 3 {
+        vec![(2, ArgRole::Body)]
+    } else {
+        Vec::new()
+    }
+}
+
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "bind tag ?sequence? ?+??command?",
@@ -35,6 +52,12 @@ pub fn spec() -> CommandSpec {
         name: "bind",
         dialects: Some(DialectSet::TK_AND_TCL),
         arity: Arity::new(1, 3),
+        // The `bind tag sequence script` form's trailing script is a
+        // deferred event-handler body (runs from the Tk event loop, not
+        // the caller's frame), so recurse into it for highlighting and
+        // treat it as structural.
+        arg_role_resolver: Some(bind_arg_roles),
+        body_kind: BodyKind::Structural,
         hover: Some(HoverSnippet {
             summary: "Arrange for X event bindings on windows or tags.",
             synopsis: &[

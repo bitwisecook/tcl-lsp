@@ -394,8 +394,14 @@ fn orphan_reachability_is_partition_aware() {
         .iter()
         .map(|o| o["name"].as_str().unwrap())
         .collect();
-    assert!(objs.contains(&"web_a"), "TenantA filter matches web_a: {objs:?}");
-    assert!(!objs.contains(&"web_b"), "TenantA filter must not match web_b");
+    assert!(
+        objs.contains(&"web_a"),
+        "TenantA filter matches web_a: {objs:?}"
+    );
+    assert!(
+        !objs.contains(&"web_b"),
+        "TenantA filter must not match web_b"
+    );
     assert_eq!(ta["virtuals"][0], "vsA");
 }
 
@@ -446,7 +452,10 @@ fn cross_irule_proc_call_links_library() {
         .iter()
         .map(|v| v.as_str().unwrap())
         .collect();
-    assert!(!orphan_rules.contains(&"Lib"), "Lib not orphaned: {orphan_rules:?}");
+    assert!(
+        !orphan_rules.contains(&"Lib"),
+        "Lib not orphaned: {orphan_rules:?}"
+    );
 }
 
 // Built-in / system objects (from the default config members) are tagged
@@ -479,7 +488,10 @@ fn default_objects_are_tagged_and_never_orphans() {
         .unwrap()
         .iter()
         .find(|r| r["name"] == "_sys_https_redirect");
-    assert!(sys.is_some_and(|r| r["isDefault"] == true), "_sys_ rule tagged");
+    assert!(
+        sys.is_some_and(|r| r["isDefault"] == true),
+        "_sys_ rule tagged"
+    );
 
     // Counts exclude defaults: only the one user profile.
     assert_eq!(d["counts"]["profiles"], 1, "counts exclude defaults");
@@ -574,7 +586,10 @@ fn chain_fixture() -> (Source, std::collections::HashMap<String, String>) {
                 &path,
             )
         {
-            pems.insert(c.cache_path.clone(), String::from_utf8_lossy(&pem).into_owned());
+            pems.insert(
+                c.cache_path.clone(),
+                String::from_utf8_lossy(&pem).into_owned(),
+            );
         }
     }
     ((path, scf), pems)
@@ -595,9 +610,23 @@ fn cert_fields_and_chain_parsed_from_ucs_filestore() {
     // None of this is in the metadata-free stanza — it came from the PEM.
     assert_eq!(leaf["fromCertFile"], J::Bool(true));
     assert_eq!(leaf["cn"], "www.acme.example");
-    assert!(leaf["issuer"].as_str().unwrap().contains("Acme Intermediate CA"));
-    assert!(!leaf["notBefore"].as_str().unwrap().is_empty(), "issue date");
-    assert!(leaf["expirationDate"].as_str().unwrap().parse::<i64>().is_ok());
+    assert!(
+        leaf["issuer"]
+            .as_str()
+            .unwrap()
+            .contains("Acme Intermediate CA")
+    );
+    assert!(
+        !leaf["notBefore"].as_str().unwrap().is_empty(),
+        "issue date"
+    );
+    assert!(
+        leaf["expirationDate"]
+            .as_str()
+            .unwrap()
+            .parse::<i64>()
+            .is_ok()
+    );
     let san = leaf["subjectAlternativeName"].as_str().unwrap();
     assert!(san.contains("api.acme.example") && san.contains("10.0.0.5"));
     assert!(!leaf["sigAlg"].as_str().unwrap().is_empty());

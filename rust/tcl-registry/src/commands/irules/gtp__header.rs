@@ -27,13 +27,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get GTP version.",
         synopsis: "GTP::header version ?-message msg?",
         pure: true,
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-message",
-            takes_value: true,
-            value_hint: "MESSAGE",
+            value: OptionValue::value("MESSAGE"),
             detail: "Operate on specific message.",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -48,13 +49,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get GTP type.",
         synopsis: "GTP::header type ?-message msg?",
         pure: true,
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-message",
-            takes_value: true,
-            value_hint: "MESSAGE",
+            value: OptionValue::value("MESSAGE"),
             detail: "Operate on specific message.",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -70,13 +72,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "GTP::header npdu ?set|remove? ?-message msg? ?value?",
         pure: true,
         mutator: true,
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-message",
-            takes_value: true,
-            value_hint: "MESSAGE",
+            value: OptionValue::value("MESSAGE"),
             detail: "Operate on specific message.",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -92,13 +95,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "GTP::header teid ?set|remove? ?-message msg? ?value?",
         pure: true,
         mutator: true,
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-message",
-            takes_value: true,
-            value_hint: "MESSAGE",
+            value: OptionValue::value("MESSAGE"),
             detail: "Operate on specific message.",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -114,13 +118,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "GTP::header sequence ?set|remove? ?-message msg? ?value?",
         pure: true,
         mutator: true,
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-message",
-            takes_value: true,
-            value_hint: "MESSAGE",
+            value: OptionValue::value("MESSAGE"),
             detail: "Operate on specific message.",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -136,13 +141,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "GTP::header extension ?args?",
         pure: true,
         mutator: true,
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-message",
-            takes_value: true,
-            value_hint: "MESSAGE",
+            value: OptionValue::value("MESSAGE"),
             detail: "Operate on specific message.",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -175,13 +181,14 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "GTP::header <field> ?set|remove? ?-message msg? ?value?",
         }],
-        options: &[OptionSpec {
+        options: const { &[OptionSpec {
             name: "-message",
-            takes_value: true,
-            value_hint: "MESSAGE",
+            value: OptionValue::value("MESSAGE"),
             detail: "Operate on specific message.",
             dialects: None,
-        }],
+            aliases: &[],
+            min_version: None,
+        }] },
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,

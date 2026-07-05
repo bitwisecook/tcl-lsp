@@ -147,6 +147,8 @@ fn all_dialect_command_names() -> &'static FxHashSet<&'static str> {
         add(crate::commands::tcl::tcl_command_specs());
         add(crate::commands::stdlib::stdlib_command_specs());
         add(crate::commands::tcllib::tcllib_command_specs());
+        add(crate::commands::argparse::argparse_command_specs());
+        add(crate::commands::itcl::itcl_command_specs());
         add(crate::commands::tk::tk_command_specs());
         add(crate::commands::irules::irules_command_specs());
         add(crate::commands::iapps::iapps_command_specs());
@@ -159,6 +161,42 @@ fn all_dialect_command_names() -> &'static FxHashSet<&'static str> {
         add(crate::commands::eda_mentor::eda_mentor_command_specs());
         set
     })
+}
+
+/// Append the `args` indices consumed by value-taking options whose value role
+/// (primary or secondary) equals `role`.
+///
+/// Walks `args` from `scan_start` (1 to skip a subcommand word, else 0),
+/// matching option names/aliases literally — so `-1`, `$x`, `[cmd]` are treated
+/// as positionals, never flags — and advancing past each recognised option and
+/// the value word(s) it consumes ([`OptionSpec::value_indices`], which honours
+/// arity and the `--` terminator). The emitted indices are absolute into `args`,
+/// exactly like the positional roles, so consumers map them via `argv[idx + 1]`
+/// unchanged. A two-way binding (`role: VarWrite, also_role: VarRead`) emits its
+/// index for a query of either role — the multi-role convention, split across
+/// queries.
+fn push_option_value_roles(
+    out: &mut Vec<usize>,
+    options: &[crate::hover::OptionSpec],
+    args: &[&str],
+    scan_start: usize,
+    role: ArgRole,
+) {
+    let mut i = scan_start;
+    while i < args.len() {
+        if args[i] == "--" {
+            break;
+        }
+        if let Some(opt) = options.iter().find(|o| o.matches(args[i])) {
+            let vals = opt.value_indices(args, i);
+            if opt.value_role() == Some(role) || opt.value_also_role() == Some(role) {
+                out.extend(vals.iter().copied());
+            }
+            i += 1 + vals.len();
+        } else {
+            i += 1;
+        }
+    }
 }
 
 impl CommandRegistry {
@@ -176,6 +214,12 @@ impl CommandRegistry {
             registry.insert(spec);
         }
         for spec in crate::commands::tcllib::tcllib_command_specs() {
+            registry.insert(spec);
+        }
+        for spec in crate::commands::argparse::argparse_command_specs() {
+            registry.insert(spec);
+        }
+        for spec in crate::commands::itcl::itcl_command_specs() {
             registry.insert(spec);
         }
         // Tk geometry/widget commands (`grid` / `pack` / `wm` / `button` / …)
@@ -660,48 +704,55 @@ impl CommandRegistry {
             return Vec::new();
         };
         let n = args.len();
+        let mut out: Vec<usize> = Vec::new();
 
         // Check subcommand
         if !spec.subcommands.is_empty()
             && !args.is_empty()
             && let Some(sub) = spec.subcommand(args[0])
         {
-            // Try dynamic resolver first
+            // Positional roles, offset by +1 for the subcommand word.
             if let Some(resolver) = sub.arg_role_resolver {
-                return resolver(&args[1..])
+                out.extend(
+                    resolver(&args[1..])
+                        .into_iter()
+                        .filter(|(_, r)| *r == role)
+                        .map(|(i, _)| i as usize + 1),
+                );
+            } else {
+                out.extend(
+                    sub.arg_roles
+                        .iter()
+                        .filter(|(_, r)| *r == role)
+                        .map(|(i, _)| *i as usize + 1),
+                );
+            }
+            // Value-taking options on the subcommand (scan past the sub word).
+            push_option_value_roles(&mut out, sub.options, args, 1, role);
+            out.retain(|&idx| idx < n);
+            return out;
+        }
+
+        // Top-level positional roles.
+        if let Some(resolver) = spec.arg_role_resolver {
+            out.extend(
+                resolver(args)
                     .into_iter()
                     .filter(|(_, r)| *r == role)
-                    .map(|(i, _)| i as usize + 1) // +1 for subcommand word
-                    .filter(|&idx| idx < n)
-                    .collect();
-            }
-            // Static roles (offset by +1 for subcommand word)
-            return sub
-                .arg_roles
-                .iter()
-                .filter(|(_, r)| *r == role)
-                .map(|(i, _)| *i as usize + 1)
-                .filter(|&idx| idx < n)
-                .collect();
+                    .map(|(i, _)| i as usize),
+            );
+        } else {
+            out.extend(
+                spec.arg_roles
+                    .iter()
+                    .filter(|(_, r)| *r == role)
+                    .map(|(i, _)| *i as usize),
+            );
         }
-
-        // Top-level: try dynamic resolver first
-        if let Some(resolver) = spec.arg_role_resolver {
-            return resolver(args)
-                .into_iter()
-                .filter(|(_, r)| *r == role)
-                .map(|(i, _)| i as usize)
-                .filter(|&idx| idx < n)
-                .collect();
-        }
-
-        // Static roles — filter by args length to avoid out-of-range indices
-        spec.arg_roles
-            .iter()
-            .filter(|(_, r)| *r == role)
-            .map(|(i, _)| *i as usize)
-            .filter(|&idx| idx < n)
-            .collect()
+        // Value-taking options carry roles at their (dynamic) value positions.
+        push_option_value_roles(&mut out, spec.options, args, 0, role);
+        out.retain(|&idx| idx < n);
+        out
     }
 
     /// Resolve a concrete call to its registry-described form.
@@ -1264,6 +1315,304 @@ mod tests {
         let kw = reg.arg_indices_for_role("try", &args, ArgRole::Keyword);
         // on@1, finally@5
         assert_eq!(kw, vec![1, 5], "{kw:?}");
+    }
+
+    // -- Option-value roles (Phase 1) ------------------------------------
+
+    fn opt(name: &'static str, value: crate::hover::OptionValue) -> crate::hover::OptionSpec {
+        crate::hover::OptionSpec {
+            name,
+            value,
+            ..crate::hover::OptionSpec::DEFAULT
+        }
+    }
+
+    fn opt_with_alias(
+        name: &'static str,
+        aliases: &'static [&'static str],
+        value: crate::hover::OptionValue,
+    ) -> crate::hover::OptionSpec {
+        crate::hover::OptionSpec {
+            name,
+            value,
+            aliases,
+            ..crate::hover::OptionSpec::DEFAULT
+        }
+    }
+
+    fn indices(options: &[crate::hover::OptionSpec], args: &[&str], role: ArgRole) -> Vec<usize> {
+        let mut out = Vec::new();
+        push_option_value_roles(&mut out, options, args, 0, role);
+        out
+    }
+
+    #[test]
+    fn option_value_role_emits_body_index() {
+        use crate::hover::OptionValue;
+        let options = [
+            opt("-command", OptionValue::script()),
+            opt("-flag", OptionValue::flag()),
+        ];
+        let args = ["-command", "{puts hi}", "-flag", "x"];
+        // The `-command` value is a Body; the flag consumes nothing.
+        assert_eq!(indices(&options, &args, ArgRole::Body), vec![1]);
+        // It is not a generic Value role.
+        assert!(indices(&options, &args, ArgRole::Value).is_empty());
+    }
+
+    #[test]
+    fn option_value_fixed_arity_emits_n_indices() {
+        use crate::hover::OptionValue;
+        let options = [opt("-rect", OptionValue::fixed(4, ArgRole::Value, "coord"))];
+        let args = ["-rect", "1", "2", "3", "4", "tail"];
+        assert_eq!(indices(&options, &args, ArgRole::Value), vec![1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn option_value_rest_arity_stops_at_terminator() {
+        let rest = crate::hover::OptionSpec {
+            name: "-rest",
+            value: crate::hover::OptionValue::Takes(crate::hover::OptionArg {
+                arity: crate::hover::OptionArity::Rest,
+                ..crate::hover::OptionArg::DEFAULT
+            }),
+            ..crate::hover::OptionSpec::DEFAULT
+        };
+        let options = [rest];
+        let args = ["-rest", "a", "b", "c", "--", "d"];
+        // Consumes a, b, c up to `--`, not d.
+        assert_eq!(indices(&options, &args, ArgRole::Value), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn option_value_terminator_stops_scan() {
+        use crate::hover::OptionValue;
+        let options = [opt("-command", OptionValue::script())];
+        let args = ["--", "-command", "{x}"];
+        assert!(indices(&options, &args, ArgRole::Body).is_empty());
+    }
+
+    #[test]
+    fn option_value_two_way_var_name_emits_for_both_roles() {
+        use crate::hover::OptionValue;
+        let options = [opt("-textvariable", OptionValue::var_name())];
+        let args = ["-textvariable", "myvar"];
+        assert_eq!(indices(&options, &args, ArgRole::VarWrite), vec![1]);
+        assert_eq!(indices(&options, &args, ArgRole::VarRead), vec![1]);
+    }
+
+    #[test]
+    fn option_value_alias_matches_and_dynamic_flag_skipped() {
+        use crate::hover::OptionValue;
+        let options = [opt_with_alias(
+            "-command",
+            &["-cmd"],
+            OptionValue::script(),
+        )];
+        // Alias resolves to the same value role.
+        assert_eq!(
+            indices(&options, &["-cmd", "{x}"], ArgRole::Body),
+            vec![1]
+        );
+        // A `$var` in flag position isn't an option name → treated as a
+        // positional, so the real `-command` after it still resolves.
+        assert_eq!(
+            indices(&options, &["$opt", "v", "-command", "{x}"], ArgRole::Body),
+            vec![3]
+        );
+    }
+
+    #[test]
+    fn options_do_not_leak_into_positional_role_queries() {
+        // A real command with value-taking options but no role annotations
+        // must not surface any option value under Body/VarWrite (inert until
+        // annotated).
+        let reg = CommandRegistry::build_default();
+        let b = reg.arg_indices_for_role("entry", &[".e", "-width", "10"], ArgRole::Body);
+        assert!(b.is_empty(), "{b:?}");
+    }
+
+    #[test]
+    fn command_prefix_option_is_captured_but_never_a_body() {
+        // `lsort -command cmp {a b}` — the `-command` value is a CommandPrefix
+        // (Phase 6), so it is captured under that role but never returned for a
+        // Body query, i.e. a bareword prefix is not recursed as a script.
+        let reg = CommandRegistry::build_default();
+        let args = ["-command", "cmp", "{a b}"];
+        assert!(
+            reg.arg_indices_for_role("lsort", &args, ArgRole::Body)
+                .is_empty(),
+            "a command prefix must not be recursed as a body",
+        );
+        assert_eq!(
+            reg.arg_indices_for_role("lsort", &args, ArgRole::CommandPrefix),
+            vec![1],
+            "the -command value should carry the CommandPrefix role",
+        );
+    }
+
+    #[test]
+    fn namespace_name_option_carries_name_role() {
+        // `interp invokehidden -namespace ns cmd` — the `-namespace` value is a
+        // symbolic (namespace) name (Phase 7): captured declaratively for a
+        // Name query, never for Body/VarWrite (not recursed, not a var def).
+        let reg = CommandRegistry::build_default();
+        let args = ["invokehidden", "-namespace", "ns", "cmd"];
+        assert_eq!(
+            reg.arg_indices_for_role("interp", &args, ArgRole::Name),
+            vec![2],
+            "the -namespace value should carry the Name role",
+        );
+        assert!(
+            reg.arg_indices_for_role("interp", &args, ArgRole::Body)
+                .is_empty()
+                && reg
+                    .arg_indices_for_role("interp", &args, ArgRole::VarWrite)
+                    .is_empty(),
+            "a name value must not be recursed or treated as a variable",
+        );
+    }
+
+    #[test]
+    fn bind_script_form_recurses_only_the_trailing_script() {
+        // `bind $w <KeyPress> {…}` binds a script (issue #785): the third
+        // argument is a deferred event-handler body and must be recursed for
+        // highlighting.  The `bind tag` / `bind tag sequence` query forms carry
+        // no script and must not surface a Body.
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role("bind", &["$w", "<KeyPress>", "{…}"], ArgRole::Body),
+            vec![2],
+            "the trailing script of the three-argument form is a body",
+        );
+        // The `+script` append form is still the trailing argument.
+        assert_eq!(
+            reg.arg_indices_for_role("bind", &[".b", "<Enter>", "+{puts hi}"], ArgRole::Body),
+            vec![2],
+        );
+        assert!(
+            reg.arg_indices_for_role("bind", &["$w"], ArgRole::Body)
+                .is_empty(),
+            "the single-tag query form has no script",
+        );
+        assert!(
+            reg.arg_indices_for_role("bind", &["$w", "<KeyPress>"], ArgRole::Body)
+                .is_empty(),
+            "the tag+sequence query form has no script",
+        );
+    }
+
+    #[test]
+    fn wm_protocol_handler_is_a_body() {
+        // `wm protocol . WM_DELETE_WINDOW {script}` registers a deferred
+        // handler script as its third argument; the query forms carry none.
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role(
+                "wm",
+                &["protocol", ".", "WM_DELETE_WINDOW", "{exit}"],
+                ArgRole::Body,
+            ),
+            // subcommand path offsets by +1 for the `protocol` word.
+            vec![3],
+            "the wm protocol handler command is a script body",
+        );
+        assert!(
+            reg.arg_indices_for_role("wm", &["protocol", ".", "WM_DELETE_WINDOW"], ArgRole::Body)
+                .is_empty(),
+            "the two-argument `wm protocol window name` query form has no script",
+        );
+        assert!(
+            reg.arg_indices_for_role("wm", &["protocol", "."], ArgRole::Body)
+                .is_empty(),
+            "the one-argument `wm protocol window` query form has no script",
+        );
+    }
+
+    #[test]
+    fn canvas_bind_subcommand_script_is_a_body() {
+        // `pathName bind tagOrId sequence script` binds a deferred handler.
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role("canvas", &["bind", "item", "<Button>", "{p}"], ArgRole::Body),
+            vec![3],
+            "the canvas bind subcommand's trailing script is a body",
+        );
+        assert!(
+            reg.arg_indices_for_role("canvas", &["bind", "item", "<Button>"], ArgRole::Body)
+                .is_empty(),
+            "the canvas bind query form has no script",
+        );
+    }
+
+    #[test]
+    fn ttk_widgets_require_tk_8_5() {
+        // ttk (themed Tk) widgets were introduced in Tk 8.5, so they must be
+        // gated out when only an older Tk is guaranteed by `package require`.
+        let reg = CommandRegistry::build_default();
+        for name in ["ttk::button", "ttk::treeview", "ttk::notebook", "ttk::style"] {
+            let spec = reg.get(name).unwrap_or_else(|| panic!("{name} registered"));
+            assert!(
+                !spec.available_for_version(Some("8.4")),
+                "{name} must not be available under Tk 8.4",
+            );
+            assert!(
+                spec.available_for_version(Some("8.5")),
+                "{name} must be available under Tk 8.5",
+            );
+            assert!(
+                spec.available_for_version(None),
+                "{name} must be permissive when no Tk version is pinned",
+            );
+        }
+    }
+
+    #[test]
+    fn text_tag_bind_script_is_a_body() {
+        // `pathName tag bind tagName sequence script` binds a deferred
+        // event-handler script as its trailing word (issue #785 class).
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role(
+                "text",
+                &["tag", "bind", "sel", "<Key>", "{p}"],
+                ArgRole::Body,
+            ),
+            // `tag` subcommand offset (+1) plus index 3 within the tag args.
+            vec![4],
+            "the text tag bind trailing script is a body",
+        );
+        assert!(
+            reg.arg_indices_for_role("text", &["tag", "add", "sel", "1.0", "end"], ArgRole::Body)
+                .is_empty(),
+            "non-bind tag subcommands carry no script",
+        );
+    }
+
+    #[test]
+    fn selection_handle_command_is_a_command_prefix() {
+        // `selection handle window command` — the trailing command is a
+        // prefix Tk appends offset/maxChars to, not a recursed script body.
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role("selection", &["handle", ".w", "getData"], ArgRole::CommandPrefix),
+            vec![2],
+            "the selection handle command prefix is captured",
+        );
+        assert!(
+            reg.arg_indices_for_role("selection", &["handle", ".w", "getData"], ArgRole::Body)
+                .is_empty(),
+            "a command prefix is not recursed as a script body",
+        );
+        // With leading option/value pairs the command is still the last arg.
+        assert_eq!(
+            reg.arg_indices_for_role(
+                "selection",
+                &["handle", "-format", "STRING", ".w", "getData"],
+                ArgRole::CommandPrefix,
+            ),
+            vec![4],
+        );
     }
 
     #[test]
@@ -1875,13 +2224,13 @@ mod tests {
             profile
                 .options
                 .iter()
-                .any(|o| o.name == "-start" && o.takes_value)
+                .any(|o| o.name == "-start" && o.takes_value())
         );
         assert!(
             profile
                 .options
                 .iter()
-                .any(|o| o.name == "-nocase" && !o.takes_value)
+                .any(|o| o.name == "-nocase" && !o.takes_value())
         );
     }
 
@@ -1963,13 +2312,13 @@ mod tests {
             .iter()
             .find(|o| o.name == "-noserver")
             .unwrap();
-        assert!(!noserver.takes_value);
+        assert!(!noserver.takes_value());
         let version = respond
             .options
             .iter()
             .find(|o| o.name == "-version")
             .unwrap();
-        assert!(version.takes_value);
+        assert!(version.takes_value());
 
         let header = reg.get("HTTP::header").expect("HTTP::header loaded");
         let header_opts: Vec<&str> = header.options.iter().map(|o| o.name).collect();

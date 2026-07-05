@@ -110,6 +110,7 @@ mod unresolved;
 mod usage;
 mod validity;
 mod var_command;
+pub(in crate::analyser) mod version_gate;
 
 impl Analyser {
     /// Scope-tree-driven variable diagnostic emitter.
@@ -302,6 +303,9 @@ impl Analyser {
         // Cross-function post-pass: resolve $var-as-command sites
         // collected during the walk.
         self.emit_var_command_diagnostics(cu, registry);
+
+        // W250 — instantiating an `oo::abstract` class.
+        self.emit_abstract_instantiation_diagnostics(cu);
 
         // Suppress W123 for command-name
         // heads with partial interpolations like ``foo$suffix``

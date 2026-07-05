@@ -156,11 +156,11 @@ fn make_files_reader() -> tcl_bigip_query::eval::FilesReader {
                 FileOp::Inventory => {
                     let entries = list_ucs_members(&raw, &provider, &path, MemberScope::Forensic)
                         .map_err(|e| {
-                            QueryError::builtin(format!(
-                                "files: {path}: {e} \
+                        QueryError::builtin(format!(
+                            "files: {path}: {e} \
                                  (a plain bigip.conf is not an archive — read the UCS itself)"
-                            ))
-                        })?;
+                        ))
+                    })?;
                     let list = entries
                         .into_iter()
                         .map(|e| {

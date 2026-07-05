@@ -50,7 +50,7 @@ use serde_json::{Value, json};
 /// Default per-request timeout, matching the pytest harness (`timeout=30.0`).
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Longer default for `initialize` / `request` without an explicit deadline.
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
+const REQUEST_TIMEOUT: Duration = Duration::from_mins(1);
 
 /// Process-wide counter so `unique_uri` never collides across tests in one
 /// integration-test binary (each binary is its own process).
@@ -78,7 +78,11 @@ impl Rng {
     #[must_use]
     pub fn new(seed: u64) -> Self {
         Self {
-            state: if seed == 0 { 0x9E37_79B9_7F4A_7C15 } else { seed },
+            state: if seed == 0 {
+                0x9E37_79B9_7F4A_7C15
+            } else {
+                seed
+            },
         }
     }
 
@@ -94,7 +98,12 @@ impl Rng {
 
     /// Uniform float in `[0, 1)` (53-bit mantissa), like `random.random()`.
     pub fn random(&mut self) -> f64 {
-        (self.next_u64() >> 11) as f64 / (1u64 << 53) as f64
+        // Split the 53-bit mantissa into two `u32` halves — both exact in
+        // `f64` via `f64::from` — so no lossy `u64 as f64` cast is needed.
+        let mantissa = self.next_u64() >> 11;
+        let high = u32::try_from(mantissa >> 32).expect("21-bit high half");
+        let low = u32::try_from(mantissa & 0xFFFF_FFFF).expect("32-bit low half");
+        (f64::from(high) * 4_294_967_296.0 + f64::from(low)) / 9_007_199_254_740_992.0
     }
 
     /// Inclusive integer in `[lo, hi]`, like `random.randint(lo, hi)`.
@@ -102,13 +111,13 @@ impl Rng {
         if hi <= lo {
             return lo;
         }
-        lo + (self.next_u64() as usize) % (hi - lo + 1)
+        lo + usize::try_from(self.next_u64()).unwrap() % (hi - lo + 1)
     }
 
     /// Pick a reference to a random element of a non-empty slice, like
     /// `random.choice(seq)`.
     pub fn choice<'a, T>(&mut self, items: &'a [T]) -> &'a T {
-        &items[(self.next_u64() as usize) % items.len()]
+        &items[usize::try_from(self.next_u64()).unwrap() % items.len()]
     }
 }
 
@@ -218,7 +227,7 @@ impl Lsp {
         // Reader thread: parse frames, route messages.
         {
             let shared = Arc::clone(&shared);
-            std::thread::spawn(move || read_loop(stdout, shared));
+            std::thread::spawn(move || read_loop(stdout, &shared));
         }
         // Stderr drain.
         {
@@ -282,7 +291,9 @@ impl Lsp {
     pub fn request_timeout(&mut self, method: &str, params: Value, timeout: Duration) -> Value {
         let id = self.next_id;
         self.next_id += 1;
-        self.send(&json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }));
+        let mut msg = json!({ "jsonrpc": "2.0", "id": id, "method": method });
+        msg["params"] = params;
+        self.send(&msg);
 
         let deadline = Instant::now() + timeout;
         loop {
@@ -295,19 +306,20 @@ impl Lsp {
                     return resp.get("result").cloned().unwrap_or(Value::Null);
                 }
             }
-            if Instant::now() >= deadline {
-                panic!(
-                    "timed out after {timeout:?} waiting for response to {method:?}; stderr:\n{}",
-                    self.stderr_text()
-                );
-            }
+            assert!(
+                Instant::now() < deadline,
+                "timed out after {timeout:?} waiting for response to {method:?}; stderr:\n{}",
+                self.stderr_text()
+            );
             std::thread::sleep(Duration::from_millis(2));
         }
     }
 
     /// Send a notification (no response expected).
     pub fn notify(&mut self, method: &str, params: Value) {
-        self.send(&json!({ "jsonrpc": "2.0", "method": method, "params": params }));
+        let mut msg = json!({ "jsonrpc": "2.0", "method": method });
+        msg["params"] = params;
+        self.send(&msg);
     }
 
     fn send(&mut self, payload: &Value) {
@@ -336,13 +348,9 @@ impl Lsp {
 
     /// Send a `didChange` with the raw `contentChanges` array.
     pub fn change_document(&mut self, uri: &str, version: i64, changes: Value) {
-        self.notify(
-            "textDocument/didChange",
-            json!({
-                "textDocument": { "uri": uri, "version": version },
-                "contentChanges": changes,
-            }),
-        );
+        let mut params = json!({ "textDocument": { "uri": uri, "version": version } });
+        params["contentChanges"] = changes;
+        self.notify("textDocument/didChange", params);
     }
 
     /// A full-text replace at `version`.
@@ -419,10 +427,10 @@ impl Lsp {
                 if params.get("uri").and_then(Value::as_str) != Some(uri) {
                     continue;
                 }
-                if let Some(v) = version {
-                    if params.get("version").and_then(Value::as_i64) != Some(v) {
-                        continue;
-                    }
+                if let Some(v) = version
+                    && params.get("version").and_then(Value::as_i64) != Some(v)
+                {
+                    continue;
                 }
                 matched = Some(
                     params
@@ -436,9 +444,10 @@ impl Lsp {
                 return diags;
             }
             let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                panic!("no publishDiagnostics for {uri:?} version {version:?} within {timeout:?}");
-            }
+            assert!(
+                !remaining.is_zero(),
+                "no publishDiagnostics for {uri:?} version {version:?} within {timeout:?}"
+            );
             let (guard, _) = self
                 .shared
                 .notify_cv
@@ -468,9 +477,10 @@ impl Lsp {
                 }
             }
             let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                panic!("no window/logMessage containing all of {needles:?} within {timeout:?}");
-            }
+            assert!(
+                !remaining.is_zero(),
+                "no window/logMessage containing all of {needles:?} within {timeout:?}"
+            );
             let (guard, _) = self
                 .shared
                 .notify_cv
@@ -492,9 +502,10 @@ impl Lsp {
                 return note.clone();
             }
             let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                panic!("no {method:?} notification within {timeout:?}");
-            }
+            assert!(
+                !remaining.is_zero(),
+                "no {method:?} notification within {timeout:?}"
+            );
             let (guard, _) = self
                 .shared
                 .notify_cv
@@ -551,7 +562,10 @@ impl Lsp {
         self.request("textDocument/references", params)
     }
     pub fn document_highlight(&mut self, uri: &str, line: u32, ch: u32) -> Value {
-        self.request("textDocument/documentHighlight", Self::doc_pos(uri, line, ch))
+        self.request(
+            "textDocument/documentHighlight",
+            Self::doc_pos(uri, line, ch),
+        )
     }
     pub fn document_symbols(&mut self, uri: &str) -> Value {
         self.request(
@@ -599,7 +613,10 @@ impl Lsp {
         )
     }
     pub fn linked_editing_range(&mut self, uri: &str, line: u32, ch: u32) -> Value {
-        self.request("textDocument/linkedEditingRange", Self::doc_pos(uri, line, ch))
+        self.request(
+            "textDocument/linkedEditingRange",
+            Self::doc_pos(uri, line, ch),
+        )
     }
     pub fn prepare_call_hierarchy(&mut self, uri: &str, line: u32, ch: u32) -> Value {
         self.request(
@@ -608,10 +625,14 @@ impl Lsp {
         )
     }
     pub fn incoming_calls(&mut self, item: Value) -> Value {
-        self.request("callHierarchy/incomingCalls", json!({ "item": item }))
+        let mut params = json!({});
+        params["item"] = item;
+        self.request("callHierarchy/incomingCalls", params)
     }
     pub fn outgoing_calls(&mut self, item: Value) -> Value {
-        self.request("callHierarchy/outgoingCalls", json!({ "item": item }))
+        let mut params = json!({});
+        params["item"] = item;
+        self.request("callHierarchy/outgoingCalls", params)
     }
     pub fn prepare_rename(&mut self, uri: &str, line: u32, ch: u32) -> Value {
         self.request("textDocument/prepareRename", Self::doc_pos(uri, line, ch))
@@ -628,10 +649,9 @@ impl Lsp {
         )
     }
     pub fn selection_range(&mut self, uri: &str, positions: Value) -> Value {
-        self.request(
-            "textDocument/selectionRange",
-            json!({ "textDocument": { "uri": uri }, "positions": positions }),
-        )
+        let mut params = json!({ "textDocument": { "uri": uri } });
+        params["positions"] = positions;
+        self.request("textDocument/selectionRange", params)
     }
     pub fn formatting(&mut self, uri: &str, tab_size: u32, insert_spaces: bool) -> Value {
         self.request(
@@ -643,30 +663,23 @@ impl Lsp {
         )
     }
     pub fn range_formatting(&mut self, uri: &str, range: Value, tab_size: u32) -> Value {
-        self.request(
-            "textDocument/rangeFormatting",
-            json!({
-                "textDocument": { "uri": uri },
-                "range": range,
-                "options": { "tabSize": tab_size, "insertSpaces": true },
-            }),
-        )
+        let mut params = json!({
+            "textDocument": { "uri": uri },
+            "options": { "tabSize": tab_size, "insertSpaces": true },
+        });
+        params["range"] = range;
+        self.request("textDocument/rangeFormatting", params)
     }
     pub fn code_actions(&mut self, uri: &str, range: Value, diagnostics: Value) -> Value {
-        self.request(
-            "textDocument/codeAction",
-            json!({
-                "textDocument": { "uri": uri },
-                "range": range,
-                "context": { "diagnostics": diagnostics },
-            }),
-        )
+        let mut params = json!({ "textDocument": { "uri": uri }, "context": {} });
+        params["range"] = range;
+        params["context"]["diagnostics"] = diagnostics;
+        self.request("textDocument/codeAction", params)
     }
     pub fn execute_command(&mut self, command: &str, arguments: Value) -> Value {
-        self.request(
-            "workspace/executeCommand",
-            json!({ "command": command, "arguments": arguments }),
-        )
+        let mut params = json!({ "command": command });
+        params["arguments"] = arguments;
+        self.request("workspace/executeCommand", params)
     }
 
     // -- configuration ---------------------------------------------------
@@ -684,7 +697,10 @@ impl Lsp {
     /// state to restore (unlike pytest's `config_session`).
     pub fn apply_configuration(&mut self, config: Value) -> Value {
         *self.shared.tcllsp_config.lock().unwrap() = config;
-        self.notify("workspace/didChangeConfiguration", json!({ "settings": {} }));
+        self.notify(
+            "workspace/didChangeConfiguration",
+            json!({ "settings": {} }),
+        );
         self.effective_config("")
     }
 
@@ -698,7 +714,10 @@ impl Lsp {
         predicate: impl Fn(&Value) -> bool,
     ) -> Value {
         *self.shared.tcllsp_config.lock().unwrap() = config;
-        self.notify("workspace/didChangeConfiguration", json!({ "settings": {} }));
+        self.notify(
+            "workspace/didChangeConfiguration",
+            json!({ "settings": {} }),
+        );
         let deadline = Instant::now() + DEFAULT_TIMEOUT;
         let mut last = Value::Null;
         while Instant::now() < deadline {
@@ -729,7 +748,7 @@ impl Drop for Lsp {
 
 /// The background reader loop: parse framed messages from `stdout` and route
 /// them. Server-initiated requests are answered via the shared stdin.
-fn read_loop(stdout: std::process::ChildStdout, shared: Arc<Shared>) {
+fn read_loop(stdout: std::process::ChildStdout, shared: &Arc<Shared>) {
     let mut reader = BufReader::new(stdout);
     loop {
         // Read headers.
@@ -738,19 +757,16 @@ fn read_loop(stdout: std::process::ChildStdout, shared: Arc<Shared>) {
         loop {
             let mut line = String::new();
             match reader.read_line(&mut line) {
-                Ok(0) => return, // EOF: server exited.
+                // EOF or read error: server exited.
+                Ok(0) | Err(_) => return,
                 Ok(_) => {}
-                Err(_) => return,
             }
             let trimmed = line.trim_end_matches(['\r', '\n']);
             if trimmed.is_empty() {
                 break;
             }
             saw_header = true;
-            if let Some(rest) = trimmed
-                .to_ascii_lowercase()
-                .strip_prefix("content-length:")
-            {
+            if let Some(rest) = trimmed.to_ascii_lowercase().strip_prefix("content-length:") {
                 content_length = rest.trim().parse().unwrap_or(0);
             }
         }
@@ -764,7 +780,7 @@ fn read_loop(stdout: std::process::ChildStdout, shared: Arc<Shared>) {
         let Ok(msg) = serde_json::from_slice::<Value>(&body) else {
             continue;
         };
-        route(&msg, &shared);
+        route(&msg, shared);
     }
 }
 

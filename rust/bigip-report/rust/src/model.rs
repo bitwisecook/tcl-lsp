@@ -80,10 +80,16 @@ const GTM_CONTAINERS: &[(&str, &str)] = &[
 const SECURITY_CONTAINERS: &[(&str, &str)] = &[
     ("firewallPolicies", ".security.\"firewall-policy\""),
     ("firewallRuleLists", ".security.\"firewall-rule-list\""),
-    ("firewallAddressLists", ".security.\"firewall-address-list\""),
+    (
+        "firewallAddressLists",
+        ".security.\"firewall-address-list\"",
+    ),
     ("firewallPortLists", ".security.\"firewall-port-list\""),
     ("natPolicies", ".security.\"nat-policy\""),
-    ("natSourceTranslations", ".security.\"nat-source-translation\""),
+    (
+        "natSourceTranslations",
+        ".security.\"nat-source-translation\"",
+    ),
     (
         "natDestinationTranslations",
         ".security.\"nat-destination-translation\"",
@@ -595,7 +601,10 @@ fn shape_data_group(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
 
 /// `map[key]` as an array of plain strings (skips non-strings).
 fn str_array(m: &Map<String, J>, key: &str) -> Vec<J> {
-    sarr(m, key).iter().map(|s| J::String((*s).into())).collect()
+    sarr(m, key)
+        .iter()
+        .map(|s| J::String((*s).into()))
+        .collect()
 }
 
 fn shape_gtm_wideip(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
@@ -603,10 +612,16 @@ fn shape_gtm_wideip(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
     let mut o = Map::new();
     o.insert("name".into(), J::String(bstr(f, "name").into()));
     o.insert("fullPath".into(), J::String(fp.into()));
-    o.insert("recordType".into(), J::String(bstr(f, "record-type").into()));
+    o.insert(
+        "recordType".into(),
+        J::String(bstr(f, "record-type").into()),
+    );
     o.insert("pools".into(), J::Array(clean_arr(f, "pools")));
     o.insert("aliases".into(), J::Array(str_array(f, "aliases")));
-    o.insert("poolLbMode".into(), J::String(bstr(f, "pool-lb-mode").into()));
+    o.insert(
+        "poolLbMode".into(),
+        J::String(bstr(f, "pool-lb-mode").into()),
+    );
     o.insert("state".into(), J::String(bstr(f, "state").into()));
     o.insert(
         "description".into(),
@@ -623,7 +638,10 @@ fn shape_gtm_pool(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
         .map(|mm| {
             let mut mo = Map::new();
             mo.insert("name".into(), J::String(bstr(mm, "name").into()));
-            mo.insert("servicePort".into(), J::String(bstr(mm, "service-port").into()));
+            mo.insert(
+                "servicePort".into(),
+                J::String(bstr(mm, "service-port").into()),
+            );
             mo.insert("ratio".into(), J::String(bstr(mm, "ratio").into()));
             mo.insert(
                 "staticTarget".into(),
@@ -638,8 +656,14 @@ fn shape_gtm_pool(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
     let mut o = Map::new();
     o.insert("name".into(), J::String(bstr(f, "name").into()));
     o.insert("fullPath".into(), J::String(fp.into()));
-    o.insert("recordType".into(), J::String(bstr(f, "record-type").into()));
-    o.insert("lbMode".into(), J::String(bstr(f, "load-balancing-mode").into()));
+    o.insert(
+        "recordType".into(),
+        J::String(bstr(f, "record-type").into()),
+    );
+    o.insert(
+        "lbMode".into(),
+        J::String(bstr(f, "load-balancing-mode").into()),
+    );
     o.insert("monitor".into(), J::String(clean_field(f, "monitor")));
     o.insert("members".into(), J::Array(members));
     o.insert("memberCount".into(), J::from(member_count));
@@ -710,11 +734,17 @@ fn shape_fw_endpoint(m: &Map<String, J>) -> J {
 fn shape_fw_rule(m: &Map<String, J>) -> J {
     let empty = Map::new();
     let src = m.get("source").and_then(J::as_object).unwrap_or(&empty);
-    let dst = m.get("destination").and_then(J::as_object).unwrap_or(&empty);
+    let dst = m
+        .get("destination")
+        .and_then(J::as_object)
+        .unwrap_or(&empty);
     let mut o = Map::new();
     o.insert("name".into(), J::String(bstr(m, "name").into()));
     o.insert("action".into(), J::String(bstr(m, "action").into()));
-    o.insert("ipProtocol".into(), J::String(bstr(m, "ip-protocol").into()));
+    o.insert(
+        "ipProtocol".into(),
+        J::String(bstr(m, "ip-protocol").into()),
+    );
     o.insert("log".into(), J::Bool(bbool(m, "log")));
     o.insert("source".into(), shape_fw_endpoint(src));
     o.insert("destination".into(), shape_fw_endpoint(dst));
@@ -1052,10 +1082,7 @@ fn json_ref(ty: &str, full_path: &str) -> J {
 /// `/Common/`). Recognised from the `# config/<member>` section headers the UCS
 /// extractor writes into the SCF.
 fn default_object_paths(config_text: &str) -> std::collections::HashSet<String> {
-    const DEFAULT_MEMBERS: &[&str] = &[
-        "config/profile_base.conf",
-        "config/low_profile_base.conf",
-    ];
+    const DEFAULT_MEMBERS: &[&str] = &["config/profile_base.conf", "config/low_profile_base.conf"];
     let mut out = std::collections::HashSet::new();
     let mut in_default = false;
     for line in config_text.lines() {
@@ -1260,7 +1287,9 @@ fn annotate_rule_reachability(device: &mut Map<String, J>, rule_vs: &RuleVirtual
         return;
     };
     for r in rules.iter_mut() {
-        let Some(rm) = r.as_object_mut() else { continue };
+        let Some(rm) = r.as_object_mut() else {
+            continue;
+        };
         let body = bstr(rm, "body").to_string();
         let fp = bstr(rm, "fullPath").to_string();
         let own_part = partition_of(&fp);
@@ -1363,12 +1392,16 @@ fn order_virtual_profiles(device: &mut Map<String, J>) {
     }
     if let Some(J::Array(virtuals)) = device.get_mut("virtuals") {
         for v in virtuals.iter_mut() {
-            let Some(vm) = v.as_object_mut() else { continue };
+            let Some(vm) = v.as_object_mut() else {
+                continue;
+            };
             let Some(J::Array(profs)) = vm.get_mut("profiles") else {
                 continue;
             };
-            let names: Vec<String> =
-                profs.iter().filter_map(|p| p.as_str().map(str::to_owned)).collect();
+            let names: Vec<String> = profs
+                .iter()
+                .filter_map(|p| p.as_str().map(str::to_owned))
+                .collect();
             if names.len() != profs.len() {
                 continue; // non-string entries: leave the list untouched
             }
@@ -1377,20 +1410,14 @@ fn order_virtual_profiles(device: &mut Map<String, J>) {
             // by leaf, so partition-relative refs like `my_http` still resolve),
             // and the core falls back to well-known default-profile names (e.g.
             // `/Common/tcp`) that a config never re-declares.
-            let ordered = tcl_bigip_query::builtins::f5profile::order_profiles_with_types(
-                &names, &type_of,
-            );
+            let ordered =
+                tcl_bigip_query::builtins::f5profile::order_profiles_with_types(&names, &type_of);
             *profs = ordered.into_iter().map(J::String).collect();
         }
     }
 }
 
-fn collect_device(
-    uri: &str,
-    source: &str,
-    cert_pems: &HashMap<String, String>,
-    files: &[J],
-) -> J {
+fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>, files: &[J]) -> J {
     let sources: Vec<Source> = vec![(uri.to_string(), source.to_string())];
 
     // One reference-graph walk per referable container, up front.
@@ -1449,9 +1476,15 @@ fn collect_device(
     for (key, container) in GTM_CONTAINERS {
         let rows = fields_of(query(&format!("{container}[]"), &sources).unwrap_or_default());
         let shaped: Vec<J> = match *key {
-            "gtmWideips" => rows.iter().map(|f| shape_gtm_wideip(f, &gtm_used)).collect(),
+            "gtmWideips" => rows
+                .iter()
+                .map(|f| shape_gtm_wideip(f, &gtm_used))
+                .collect(),
             "gtmPools" => rows.iter().map(|f| shape_gtm_pool(f, &gtm_used)).collect(),
-            "gtmServers" => rows.iter().map(|f| shape_gtm_server(f, &gtm_used)).collect(),
+            "gtmServers" => rows
+                .iter()
+                .map(|f| shape_gtm_server(f, &gtm_used))
+                .collect(),
             "gtmDatacenters" => rows.iter().map(shape_gtm_datacenter).collect(),
             "gtmListeners" => rows.iter().map(shape_gtm_listener).collect(),
             _ => Vec::new(),
@@ -1674,12 +1707,19 @@ fn collect_device(
     // APM access-profile walk (APM tab): follow every `apm profile access` out
     // to its policy, items, agents and resources. Read from the config text —
     // the query projection is LTM-only.
-    device.insert("apmProfiles".into(), crate::apm::collect_apm(source, &device));
+    device.insert(
+        "apmProfiles".into(),
+        crate::apm::collect_apm(source, &device),
+    );
 
     // Forensic file inventory + ATT&CK-mapped checklist (Forensics tab), built
     // from the UCS members the entry point extracted (empty for a bare
     // bigip.conf) plus a web-shell scan of this device's iRules.
-    let rule_slice = device.get("rules").and_then(J::as_array).cloned().unwrap_or_default();
+    let rule_slice = device
+        .get("rules")
+        .and_then(J::as_array)
+        .cloned()
+        .unwrap_or_default();
     device.insert(
         "forensics".into(),
         crate::forensics::collect_forensics(files, &rule_slice),

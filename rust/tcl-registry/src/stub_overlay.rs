@@ -247,6 +247,7 @@ impl StubOverlay {
             "name" => ArgRole::Name,
             "pattern" => ArgRole::Pattern,
             "channel" => ArgRole::Channel,
+            "command_prefix" => ArgRole::CommandPrefix,
             _ => ArgRole::Value,
         }
     }

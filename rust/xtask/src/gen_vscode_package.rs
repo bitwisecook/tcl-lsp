@@ -69,6 +69,21 @@ struct FmtSetting {
     maximum: Option<i64>,
 }
 
+impl FmtSetting {
+    /// Baseline for struct-update construction: no enum choices and no numeric
+    /// bounds, so each catalogue entry states only the fields that differ.
+    const DEFAULT: Self = FmtSetting {
+        field: "",
+        default: Value::Null,
+        json_type: "",
+        description: "",
+        enum_values: &[],
+        enum_descriptions: &[],
+        minimum: None,
+        maximum: None,
+    };
+}
+
 /// `snake_case` → `camelCase` for VS Code setting keys.
 fn snake_to_camel(name: &str) -> String {
     let mut out = String::new();
@@ -292,7 +307,9 @@ fn optimiser_section(order: usize) -> Value {
         m.insert("default".to_owned(), Value::Null);
         m.insert(
             "markdownDescription".to_owned(),
-            json!(format!("**{code}:** {description} (`null` = inherit from profile)")),
+            json!(format!(
+                "**{code}:** {description} (`null` = inherit from profile)"
+            )),
         );
         m.insert("order".to_owned(), json!(i + 2));
         props.insert(key.clone(), scoped_prop(&key, m));
@@ -364,7 +381,8 @@ fn is_generated_title(title: &str) -> bool {
 /// Rebuild the manifest text with the regenerated sections spliced in.
 fn rebuild() -> Result<String> {
     let path = repo_root().join(PACKAGE_JSON);
-    let text = std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
+    let text =
+        std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
     let mut manifest: Value = serde_json::from_str(&text).context("parsing package.json")?;
 
     let groups = manifest
@@ -376,11 +394,19 @@ fn rebuild() -> Result<String> {
     // Find the contiguous run of generated sections (first..=last by title).
     let first = groups
         .iter()
-        .position(|g| g.get("title").and_then(Value::as_str).is_some_and(is_generated_title))
+        .position(|g| {
+            g.get("title")
+                .and_then(Value::as_str)
+                .is_some_and(is_generated_title)
+        })
         .context("no generated sections found in package.json")?;
     let last = groups
         .iter()
-        .rposition(|g| g.get("title").and_then(Value::as_str).is_some_and(is_generated_title))
+        .rposition(|g| {
+            g.get("title")
+                .and_then(Value::as_str)
+                .is_some_and(is_generated_title)
+        })
         .unwrap();
 
     let mut regenerated = formatter_sections();
@@ -420,6 +446,279 @@ pub fn run(check: bool) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
+/// The formatter settings catalogue (6 sections, 26 settings), mirroring
+/// `tooling/formatter/config.py::FORMATTER_SETTINGS_CATALOGUE`. Defaults are the
+/// VS Code-resolved form of `FormatterConfig::default()` (enums lowercased,
+/// `"\n"` → `"lf"`).
+fn formatter_catalogue() -> Vec<(&'static str, Vec<FmtSetting>)> {
+    vec![
+        fmt_group_indentation(),
+        fmt_group_braces_and_style(),
+        fmt_group_line_length(),
+        fmt_group_whitespace_and_comments(),
+        fmt_group_blank_lines_and_file_format(),
+        fmt_group_docstrings(),
+    ]
+}
+
+fn fmt_group_indentation() -> (&'static str, Vec<FmtSetting>) {
+    (
+        "Formatting — Indentation",
+        vec![
+            FmtSetting {
+                field: "indent_size",
+                default: json!(4),
+                json_type: "integer",
+                description: "Number of spaces per indentation level.",
+                minimum: Some(1),
+                maximum: Some(16),
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "indent_style",
+                default: json!("spaces"),
+                json_type: "string",
+                description: "Use spaces or tabs for indentation.",
+                enum_values: &["spaces", "tabs"],
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "continuation_indent",
+                default: json!(4),
+                json_type: "integer",
+                description: "Extra indentation for continuation lines.",
+                minimum: Some(1),
+                maximum: Some(16),
+                ..FmtSetting::DEFAULT
+            },
+        ],
+    )
+}
+
+fn fmt_group_braces_and_style() -> (&'static str, Vec<FmtSetting>) {
+    (
+        "Formatting — Braces & Style",
+        vec![
+            FmtSetting {
+                field: "brace_style",
+                default: json!("k_and_r"),
+                json_type: "string",
+                description:
+                    "Brace placement style. K&R places the opening brace at the end of the line.",
+                enum_values: &["k_and_r"],
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "space_between_braces",
+                default: json!(true),
+                json_type: "boolean",
+                description:
+                    "Insert spaces inside single-line braces: `{ body }` instead of `{body}`.",
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "enforce_braced_variables",
+                default: json!(false),
+                json_type: "boolean",
+                description: "Rewrite `$var` as `${var}` for consistency.",
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "enforce_braced_expr",
+                default: json!(false),
+                json_type: "boolean",
+                description: "Rewrite unbraced `expr` arguments as braced expressions.",
+                ..FmtSetting::DEFAULT
+            },
+        ],
+    )
+}
+
+fn fmt_group_line_length() -> (&'static str, Vec<FmtSetting>) {
+    (
+        "Formatting — Line Length & Wrapping",
+        vec![
+            FmtSetting {
+                field: "max_line_length",
+                default: json!(120),
+                json_type: "integer",
+                description: "Hard limit for line length. Lines exceeding this are wrapped.",
+                minimum: Some(40),
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "goal_line_length",
+                default: json!(100),
+                json_type: "integer",
+                description:
+                    "Soft target for line length. The formatter prefers to stay within this limit.",
+                minimum: Some(40),
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "expand_single_line_bodies",
+                default: json!(false),
+                json_type: "boolean",
+                description: "Expand single-line command bodies onto multiple lines.",
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "min_body_commands_for_expansion",
+                default: json!(2),
+                json_type: "integer",
+                description: "Minimum commands in a body before it is expanded to multiple lines.",
+                minimum: Some(1),
+                ..FmtSetting::DEFAULT
+            },
+        ],
+    )
+}
+
+fn fmt_group_whitespace_and_comments() -> (&'static str, Vec<FmtSetting>) {
+    (
+        "Formatting — Whitespace & Comments",
+        vec![
+            FmtSetting {
+                field: "space_after_comment_hash",
+                default: json!(true),
+                json_type: "boolean",
+                description: "Ensure a space after `#` in comments.",
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "trim_trailing_whitespace",
+                default: json!(true),
+                json_type: "boolean",
+                description: "Remove trailing whitespace from lines.",
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "align_comments_to_code",
+                default: json!(true),
+                json_type: "boolean",
+                description: "Align inline comments to a consistent column.",
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "replace_semicolons_with_newlines",
+                default: json!(true),
+                json_type: "boolean",
+                description: "Replace `;` command separators with newlines.",
+                ..FmtSetting::DEFAULT
+            },
+        ],
+    )
+}
+
+fn fmt_group_blank_lines_and_file_format() -> (&'static str, Vec<FmtSetting>) {
+    (
+        "Formatting — Blank Lines & File Format",
+        vec![
+            FmtSetting {
+                field: "blank_lines_between_procs",
+                default: json!(1),
+                json_type: "integer",
+                description: "Number of blank lines between proc definitions.",
+                minimum: Some(0),
+                maximum: Some(5),
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "blank_lines_between_blocks",
+                default: json!(1),
+                json_type: "integer",
+                description: "Number of blank lines between top-level blocks.",
+                minimum: Some(0),
+                maximum: Some(5),
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "max_consecutive_blank_lines",
+                default: json!(2),
+                json_type: "integer",
+                description: "Maximum number of consecutive blank lines to keep.",
+                minimum: Some(1),
+                maximum: Some(10),
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "line_ending",
+                default: json!("lf"),
+                json_type: "string",
+                description: "Line ending style for formatted output.",
+                enum_values: &["lf", "crlf", "cr"],
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "ensure_final_newline",
+                default: json!(true),
+                json_type: "boolean",
+                description: "Ensure the file ends with a newline character.",
+                ..FmtSetting::DEFAULT
+            },
+        ],
+    )
+}
+
+fn fmt_group_docstrings() -> (&'static str, Vec<FmtSetting>) {
+    (
+        "Formatting — Docstrings",
+        vec![
+            FmtSetting {
+                field: "docstring_style",
+                default: json!("none"),
+                json_type: "string",
+                description: "Where docstrings are placed relative to `proc` definitions. Set to `none` to leave existing docstrings as-is.",
+                enum_values: &["preceding", "body", "none"],
+                enum_descriptions: &[
+                    "Comment block above the proc statement.",
+                    "Comment block at the start of the proc body.",
+                    "Do not generate or reformat docstrings.",
+                ],
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "docstring_tag_style",
+                default: json!("doxygen"),
+                json_type: "string",
+                description:
+                    "Tag format used in docstrings for parameter and return documentation.",
+                enum_values: &["doxygen", "plain", "none"],
+                enum_descriptions: &[
+                    "Doxygen-style tags: @param, @return, @brief.",
+                    "Plain prose with an Arguments: section.",
+                    "Leave tag format as-is.",
+                ],
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "docstring_decoration",
+                default: json!(false),
+                json_type: "boolean",
+                description: "Add decoration border lines (e.g. `# ......`) around docstrings.",
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "docstring_decoration_char",
+                default: json!("."),
+                json_type: "string",
+                description: "Character used for docstring decoration borders.",
+                enum_values: &[".", "-", "=", "*", "~"],
+                ..FmtSetting::DEFAULT
+            },
+            FmtSetting {
+                field: "docstring_decoration_width",
+                default: json!(70),
+                json_type: "integer",
+                description: "Width of docstring decoration border lines.",
+                minimum: Some(20),
+                maximum: Some(120),
+                ..FmtSetting::DEFAULT
+            },
+        ],
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -441,93 +740,9 @@ mod tests {
     #[test]
     fn snake_to_camel_works() {
         assert_eq!(snake_to_camel("indent_size"), "indentSize");
-        assert_eq!(snake_to_camel("max_consecutive_blank_lines"), "maxConsecutiveBlankLines");
+        assert_eq!(
+            snake_to_camel("max_consecutive_blank_lines"),
+            "maxConsecutiveBlankLines"
+        );
     }
 }
-
-/// The formatter settings catalogue (6 sections, 26 settings), mirroring
-/// `tooling/formatter/config.py::FORMATTER_SETTINGS_CATALOGUE`. Defaults are the
-/// VS Code-resolved form of `FormatterConfig::default()` (enums lowercased,
-/// `"\n"` → `"lf"`).
-fn formatter_catalogue() -> Vec<(&'static str, Vec<FmtSetting>)> {
-    #[allow(clippy::too_many_arguments)]
-    fn s(
-        field: &'static str,
-        default: Value,
-        json_type: &'static str,
-        description: &'static str,
-        enum_values: &'static [&'static str],
-        enum_descriptions: &'static [&'static str],
-        minimum: Option<i64>,
-        maximum: Option<i64>,
-    ) -> FmtSetting {
-        FmtSetting {
-            field,
-            default,
-            json_type,
-            description,
-            enum_values,
-            enum_descriptions,
-            minimum,
-            maximum,
-        }
-    }
-    vec![
-        (
-            "Formatting — Indentation",
-            vec![
-                s("indent_size", json!(4), "integer", "Number of spaces per indentation level.", &[], &[], Some(1), Some(16)),
-                s("indent_style", json!("spaces"), "string", "Use spaces or tabs for indentation.", &["spaces", "tabs"], &[], None, None),
-                s("continuation_indent", json!(4), "integer", "Extra indentation for continuation lines.", &[], &[], Some(1), Some(16)),
-            ],
-        ),
-        (
-            "Formatting — Braces & Style",
-            vec![
-                s("brace_style", json!("k_and_r"), "string", "Brace placement style. K&R places the opening brace at the end of the line.", &["k_and_r"], &[], None, None),
-                s("space_between_braces", json!(true), "boolean", "Insert spaces inside single-line braces: `{ body }` instead of `{body}`.", &[], &[], None, None),
-                s("enforce_braced_variables", json!(false), "boolean", "Rewrite `$var` as `${var}` for consistency.", &[], &[], None, None),
-                s("enforce_braced_expr", json!(false), "boolean", "Rewrite unbraced `expr` arguments as braced expressions.", &[], &[], None, None),
-            ],
-        ),
-        (
-            "Formatting — Line Length & Wrapping",
-            vec![
-                s("max_line_length", json!(120), "integer", "Hard limit for line length. Lines exceeding this are wrapped.", &[], &[], Some(40), None),
-                s("goal_line_length", json!(100), "integer", "Soft target for line length. The formatter prefers to stay within this limit.", &[], &[], Some(40), None),
-                s("expand_single_line_bodies", json!(false), "boolean", "Expand single-line command bodies onto multiple lines.", &[], &[], None, None),
-                s("min_body_commands_for_expansion", json!(2), "integer", "Minimum commands in a body before it is expanded to multiple lines.", &[], &[], Some(1), None),
-            ],
-        ),
-        (
-            "Formatting — Whitespace & Comments",
-            vec![
-                s("space_after_comment_hash", json!(true), "boolean", "Ensure a space after `#` in comments.", &[], &[], None, None),
-                s("trim_trailing_whitespace", json!(true), "boolean", "Remove trailing whitespace from lines.", &[], &[], None, None),
-                s("align_comments_to_code", json!(true), "boolean", "Align inline comments to a consistent column.", &[], &[], None, None),
-                s("replace_semicolons_with_newlines", json!(true), "boolean", "Replace `;` command separators with newlines.", &[], &[], None, None),
-            ],
-        ),
-        (
-            "Formatting — Blank Lines & File Format",
-            vec![
-                s("blank_lines_between_procs", json!(1), "integer", "Number of blank lines between proc definitions.", &[], &[], Some(0), Some(5)),
-                s("blank_lines_between_blocks", json!(1), "integer", "Number of blank lines between top-level blocks.", &[], &[], Some(0), Some(5)),
-                s("max_consecutive_blank_lines", json!(2), "integer", "Maximum number of consecutive blank lines to keep.", &[], &[], Some(1), Some(10)),
-                s("line_ending", json!("lf"), "string", "Line ending style for formatted output.", &["lf", "crlf", "cr"], &[], None, None),
-                s("ensure_final_newline", json!(true), "boolean", "Ensure the file ends with a newline character.", &[], &[], None, None),
-            ],
-        ),
-        (
-            "Formatting — Docstrings",
-            vec![
-                s("docstring_style", json!("none"), "string", "Where docstrings are placed relative to `proc` definitions. Set to `none` to leave existing docstrings as-is.", &["preceding", "body", "none"], &["Comment block above the proc statement.", "Comment block at the start of the proc body.", "Do not generate or reformat docstrings."], None, None),
-                s("docstring_tag_style", json!("doxygen"), "string", "Tag format used in docstrings for parameter and return documentation.", &["doxygen", "plain", "none"], &["Doxygen-style tags: @param, @return, @brief.", "Plain prose with an Arguments: section.", "Leave tag format as-is."], None, None),
-                s("docstring_decoration", json!(false), "boolean", "Add decoration border lines (e.g. `# ......`) around docstrings.", &[], &[], None, None),
-                s("docstring_decoration_char", json!("."), "string", "Character used for docstring decoration borders.", &[".", "-", "=", "*", "~"], &[], None, None),
-                s("docstring_decoration_width", json!(70), "integer", "Width of docstring decoration border lines.", &[], &[], Some(20), Some(120)),
-            ],
-        ),
-    ]
-}
-

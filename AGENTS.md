@@ -57,6 +57,52 @@ docs/             Design docs, KCS notes, references, perf reports.
 The native LSP end-to-end suite lives at
 `rust/tcl-lsp-server/tests/*_e2e.rs` (30 suites, run by `cargo test`).
 
+## The registry is the source of truth — no per-command logic elsewhere
+
+Per-command knowledge lives in **`tcl-registry`** (`CommandSpec` and its
+attached descriptors), never as `match cmd_name { "foo" => … }` special-casing
+in the compiler, analyser, or LSP.  The compiler / analyser / LSP are **generic
+consumers** of registry data; adding or extending a command is editing (or
+adding) a spec, not adding a branch to a walker.
+
+When a command needs behaviour the existing `CommandSpec` fields can't express,
+**extend `CommandSpec`** — add a field and, if needed, a small descriptor type
+or a hook ID the compiler/analyser can dispatch on (see `hooks.rs`,
+`side_effects`, `taint_*`, `arg_role_resolver`, `definition_body`) — rather than
+teaching a consumer about the command by name.  Established examples:
+
+- **Argument roles** (`arg_roles` / `arg_role_resolver`, `ArgRole`) drive
+  variable-write / body / param-list / loop-var / expr highlighting and
+  analysis generically — the LSP token walk never names a command.
+- **Definition-body grammars** (`definition_body`, `tcl_registry::definer`)
+  describe a class/type *definer*'s body: its member sub-keywords (`method`,
+  `typemethod`, `constructor`, `variable`, …) with their body / param / var
+  layout (`MemberKind::Flat`), the nested-member wrappers (`self`, itcl's
+  `public`/`protected`/`private` — `MemberKind::Wrapper`), the flag-keyed forms
+  (`property` — `MemberKind::FlagKeyed`), plus implicit member-body variables.
+  TclOO, snit **and** [incr Tcl] are pure registry data; the shared walker in
+  `tcl-lsp-core/src/oo_body.rs` (folding + semantic tokens) contains **no**
+  command names — it dispatches on `MemberKind`, never a keyword.  A new definer
+  (xotcl, a bespoke class system) is a new `DefinitionBodyGrammar` + a
+  `DefinerFamily` arm, not new walker code.
+- Taint / side-effect / const-fold / lowering / codegen behaviour is likewise
+  spec-declared and dispatched via typed hook IDs.
+
+Migration debt is tracked, not grandfathered: when a consumer hardcodes a
+command, the goal is to move that knowledge into the registry, not to add more
+of it in the consumer.  The analyser's snit/OO *body* parser
+(`tcl-compiler/src/analyser/oo.rs`) has completed this migration — member
+**recognition** (`is_member` / `member`) and **argument layout** (which word is
+the name / parameter list / body / variable, via `MemberSpec::indices_for`) come
+entirely from the definer's `definition_body` grammar for both TclOO and snit;
+the walkers hold no hardcoded member-keyword list or arg-index literal.  What
+stays analyser-local is the small, irreducible *semantics* the registry does not
+model: routing a member to its `ClassDef` field / `MethodDef` kind, and whether a
+body opens a method scope (an object `destructor` and a class-level `initialise`
+are structurally identical single-body members — the difference is analyser scope
+modelling, not command structure).  Those are documented at their call sites and
+are *not* debt.
+
 ## Prerequisites
 
 - Rust 1.95+ with cargo, via [rustup](https://rustup.rs/) (the Makefile

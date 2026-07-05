@@ -23,7 +23,6 @@
 //! Ported from `tests/test_workspace_symbols.py` and the VS Code
 //! `foldingRanges.test.ts` / `selectionRange.test.ts` scenarios.
 
-
 use crate::common::{Lsp, unique_uri};
 
 use serde_json::{Value, json};
@@ -89,7 +88,10 @@ fn no_folds_in_flat_file() {
 fn backslash_continued_command_folds() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "MyProcCall $var1 \\\n           $var2 \\\n           $var3\n");
+    lsp.open_ready(
+        &uri,
+        "MyProcCall $var1 \\\n           $var2 \\\n           $var3\n",
+    );
     // The three physical lines are one logical command; they fold (0..2).
     let s = spans(&lsp.folding_range(&uri));
     assert!(s.contains(&(0, 2)), "{s:?}");
@@ -110,10 +112,7 @@ fn separate_runs_fold_independently() {
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "foo $a \\\n   $b\nputs sep\nbar $c \\\n   $d\n");
     let s = spans(&lsp.folding_range(&uri));
-    assert!(
-        BTreeSet::from([(0, 1), (3, 4)]).is_subset(&s),
-        "{s:?}"
-    );
+    assert!(BTreeSet::from([(0, 1), (3, 4)]).is_subset(&s), "{s:?}");
 }
 
 #[test]
@@ -168,7 +167,10 @@ fn find_proc() {
         })
         .unwrap_or_default();
     assert_eq!(matched.len(), 1);
-    assert_eq!(matched[0].get("kind").and_then(Value::as_i64), Some(FUNCTION));
+    assert_eq!(
+        matched[0].get("kind").and_then(Value::as_i64),
+        Some(FUNCTION)
+    );
 }
 
 #[test]
@@ -201,13 +203,10 @@ fn partial_match() {
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "proc calculate_total_zzz {} { return }\n");
     let result = lsp.workspace_symbols("calc");
-    let found = result
-        .as_array()
-        .map(|arr| {
-            arr.iter()
-                .any(|s| s.get("name").and_then(Value::as_str) == Some("calculate_total_zzz"))
-        })
-        .unwrap_or(false);
+    let found = result.as_array().is_some_and(|arr| {
+        arr.iter()
+            .any(|s| s.get("name").and_then(Value::as_str) == Some("calculate_total_zzz"))
+    });
     assert!(found);
 }
 
@@ -217,12 +216,9 @@ fn no_match() {
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "proc greet {} { return }\n");
     let result = lsp.workspace_symbols("zzz_no_such_symbol_qqq");
-    let all_ne = result
-        .as_array()
-        .map(|arr| {
-            arr.iter()
-                .all(|s| s.get("name").and_then(Value::as_str) != Some("zzz_no_such_symbol_qqq"))
-        })
-        .unwrap_or(true);
+    let all_ne = result.as_array().is_none_or(|arr| {
+        arr.iter()
+            .all(|s| s.get("name").and_then(Value::as_str) != Some("zzz_no_such_symbol_qqq"))
+    });
     assert!(all_ne);
 }

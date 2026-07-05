@@ -279,9 +279,9 @@ fn check_command_accessors(reg: &CommandRegistry, ds: Option<DialectSet>, dname:
     // OptionSpec; touch its fields.
     for opt in spec.options {
         assert!(!opt.name.is_empty(), "{dname}/{name}: empty option name");
-        if opt.takes_value {
+        if opt.takes_value() {
             // A value-taking option carries a hint or a detail to show.
-            let _ = (opt.value_hint, opt.detail);
+            let _ = (opt.value_hint(), opt.detail);
         }
         // Exercise the dialect predicate both with and without context.
         let _ = opt.supports_dialect(ds, spec.dialects);

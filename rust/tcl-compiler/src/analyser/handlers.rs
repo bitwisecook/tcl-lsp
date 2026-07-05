@@ -1352,6 +1352,20 @@ impl Analyser {
         }
     }
 
+    /// The definition-body grammar attached to `cmd_name`'s spec, if it is a
+    /// definer command.  Registry-sourced, so member recognition / argument
+    /// structure in the body walkers never hardcodes a keyword list — a new
+    /// definer is picked up the moment its spec carries a `definition_body`.
+    pub(super) fn definition_grammar(
+        &self,
+        cmd_name: &str,
+    ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+        self.registry
+            .as_ref()
+            .and_then(|r| r.get(cmd_name))
+            .and_then(|s| s.definition_body)
+    }
+
     /// Handle `oo::class create NAME ?BODY?` — record the class.
     ///
     /// Records a [`super::types::ClassDef`] in ``result.all_classes``
@@ -1374,12 +1388,26 @@ impl Analyser {
         // use the bare form for the recorded `metaclass`, so both spellings
         // produce an identical `ClassDef`).
         let cmd_name = cmd_name.strip_prefix("::").unwrap_or(cmd_name);
-        if !matches!(
-            cmd_name,
-            "oo::class" | "oo::configurable" | "oo::abstract" | "oo::singleton"
-        ) || args.len() < 2
-            || arg_tokens.len() < 2
-        {
+        // Which commands are TclOO class *creators* is registry data, not a
+        // hardcoded name list: the `IS_OO_METACLASS` trait (marks the
+        // `create`/`new`/`createWithNamespace` manufacturers) *and* a
+        // `TclOo`-family definition-body grammar.  Both are required:
+        //  - the trait alone includes `oo::object`, which has it but makes
+        //    *instances*, not classes (no definition body);
+        //  - the grammar alone includes `oo::define` / `oo::objdefine`, which
+        //    *extend* an existing class named at `args[0]` — so `oo::define
+        //    create method …` (a class literally named `create`) must not be
+        //    mistaken for a creation and stolen from `handle_oo_define_command`.
+        // define/objdefine carry no `IS_OO_METACLASS`, so they fall through.
+        let is_class_definer = self.registry.as_ref().and_then(|r| r.get(cmd_name)).is_some_and(
+            |s| {
+                s.traits.contains(tcl_registry::Traits::IS_OO_METACLASS)
+                    && s.definition_body.is_some_and(|g| {
+                        g.family == tcl_registry::definer::DefinerFamily::TclOo
+                    })
+            },
+        );
+        if !is_class_definer || args.len() < 2 || arg_tokens.len() < 2 {
             return false;
         }
         // `create Name ?body?`, `new ?body?`, and `createWithNamespace Name ns
@@ -1409,7 +1437,15 @@ impl Analyser {
         // ``superclasses`` / ``mixins`` / ``methods`` /
         // ``class_methods`` from the OO-define subcommands.
         if let (Some(body_text), Some(body_tok)) = (args.get(2), body_tok_opt) {
-            self.parse_oo_definition_body(body_text, body_tok, &mut class, &qualified, scope_path);
+            let grammar = self.definition_grammar(cmd_name);
+            self.parse_oo_definition_body(
+                body_text,
+                body_tok,
+                &mut class,
+                &qualified,
+                scope_path,
+                grammar,
+            );
         }
         // Register globally and in the current scope, the same as
         // the proc registration path: ``result.all_classes`` is keyed
@@ -1462,32 +1498,13 @@ impl Analyser {
             return true;
         }
 
-        // The set of known define subcommands is the same as
-        // body-form subcommands.  Anything not in this set falls
-        // through to body-form handling (the segmenter does the
-        // re-parse).
-        let define_subcmds: &[&str] = &[
-            "method",
-            "classmethod",
-            "constructor",
-            "destructor",
-            "superclass",
-            "mixin",
-            "variable",
-            "filter",
-            "forward",
-            "export",
-            "unexport",
-            "property",
-            "private",
-            "initialise",
-            "initialize",
-            "definitionnamespace",
-            "deletemethod",
-            "renamemethod",
-            "self",
-        ];
-        let inline_form = define_subcmds.contains(&args[1].as_str());
+        // The set of known define subcommands *is* the definer's member
+        // grammar (registry data), so recognition can't drift from the source
+        // of truth.  Anything not a grammar member falls through to body-form
+        // handling (the segmenter does the re-parse).
+        let inline_form = self
+            .definition_grammar("oo::define")
+            .is_some_and(|g| g.is_member(&args[1]));
 
         // Look up or create the partial ClassDef in
         // ``result.all_classes``. The ``name`` field carries the
@@ -1517,19 +1534,29 @@ impl Analyser {
 
         if inline_form {
             // ``oo::define Class subcmd ...`` — args[1..] is
-            // the subcommand + its args.
+            // the subcommand + its args.  (Registry-gated `inline_form` above
+            // guarantees the grammar is present here.)
             let inline_args: Vec<String> = args[1..].to_vec();
             let inline_tokens: Vec<Token> = arg_tokens.iter().skip(1).copied().collect();
-            super::oo::parse_oo_define_inline(&inline_args, &inline_tokens, &mut class_def);
+            if let Some(grammar) = self.definition_grammar("oo::define") {
+                super::oo::parse_oo_define_inline(
+                    grammar,
+                    &inline_args,
+                    &inline_tokens,
+                    &mut class_def,
+                );
+            }
         } else if let Some(body_tok) = arg_tokens.get(1).copied() {
             // ``oo::define Class { body }`` — args[1] is the
             // body text, arg_tokens[1] is the body token.
+            let grammar = self.definition_grammar("oo::define");
             self.parse_oo_definition_body(
                 &args[1],
                 body_tok,
                 &mut class_def,
                 &qualified,
                 scope_path,
+                grammar,
             );
         }
 
@@ -3542,6 +3569,8 @@ mod tests {
     #[test]
     fn handle_oo_class_create_records_class() {
         let mut a = Analyser::new();
+        // Metaclass recognition is now registry-trait-driven (`IS_OO_METACLASS`).
+        a.registry = Some(tcl_registry::CommandRegistry::build_default());
         let handled = a.handle_oo_class_command(
             "oo::class",
             &["create".to_string(), "MyClass".to_string()],
@@ -3563,6 +3592,7 @@ mod tests {
         // arg_tokens stripped of cmd_name (matching the
         // ``process_command`` dispatch convention).
         let mut a = Analyser::new();
+        a.registry = Some(tcl_registry::CommandRegistry::build_default());
         let handled = a.handle_oo_class_command(
             "oo::class",
             &[
@@ -3645,6 +3675,32 @@ mod tests {
         assert!(r.all_classes.contains_key("::C"));
         let cls = &r.all_classes["::C"];
         assert!(cls.methods.contains_key("m"));
+    }
+
+    #[test]
+    fn oo_define_extends_class_named_like_a_create_subcommand() {
+        // Regression: `oo::define` / `oo::objdefine` carry a TclOO
+        // `definition_body` but no `IS_OO_METACLASS` trait, so a class literally
+        // named `create` must be *extended* by `handle_oo_define_command`, not
+        // stolen by `handle_oo_class_command` (which would record a bogus class
+        // named `method`).  The class-creator check requires the metaclass
+        // trait, which define/objdefine lack.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("oo::define create method greet {} { return hi }", "tcl");
+        // The real class is `create`, with method `greet` — not a bogus class.
+        let cls = r
+            .all_classes
+            .get("::create")
+            .expect("class `create` recorded by oo::define");
+        assert!(
+            cls.methods.contains_key("greet"),
+            "method greet must be recorded on class `create`: {:?}",
+            cls.methods.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !r.all_classes.contains_key("::method"),
+            "no bogus class named `method` should be created",
+        );
     }
 
     #[test]

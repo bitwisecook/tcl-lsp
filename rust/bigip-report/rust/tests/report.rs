@@ -156,10 +156,7 @@ fn virtual_profiles_in_protocol_stack_order() {
         .collect();
     let tcp = profiles.iter().position(|p| p.ends_with("/tcp"));
     let http = profiles.iter().position(|p| p.ends_with("/http"));
-    assert!(
-        tcp < http,
-        "expected tcp before http, got {profiles:?}"
-    );
+    assert!(tcp < http, "expected tcp before http, got {profiles:?}");
 }
 
 #[test]
@@ -255,7 +252,10 @@ fn forensics_tab_present_with_file_inventory() {
         files,
         ..Default::default()
     };
-    let sources = vec![("dev.ucs".to_string(), "ltm pool /Common/p { }\n".to_string())];
+    let sources = vec![(
+        "dev.ucs".to_string(),
+        "ltm pool /Common/p { }\n".to_string(),
+    )];
     let html = build_report(&sources, &opts).expect("render");
     assert!(
         html.contains("data-panel=\"forensics\""),
@@ -288,7 +288,10 @@ fn web_shell_irule_surfaces_forensics_tab_without_files() {
         html.contains("data-panel=\"forensics\""),
         "forensics tab present for a flagged iRule even with no files"
     );
-    assert!(html.contains("irule-backdoor"), "the iRule finding is embedded");
+    assert!(
+        html.contains("irule-backdoor"),
+        "the iRule finding is embedded"
+    );
 }
 
 #[test]
@@ -336,7 +339,6 @@ fn model_json_serialisable() {
     let m = collect_model(&sources, "F5 BIG-IP Configuration Report");
     serde_json::to_string(&m).expect("model serialises");
 }
-
 
 #[test]
 fn relative_custom_profile_names_ordered_by_traffic() {

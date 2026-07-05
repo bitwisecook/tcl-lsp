@@ -18,12 +18,17 @@
 
 //! Type-hierarchy provider.
 //!
-//! Resolves a `TclOO` class at the cursor and returns a
-//! single hierarchy item.  Supertype / subtype walks are
-//! stub-empty; computing them requires the class-hierarchy
-//! index that the analyser populates.
+//! Resolves a `TclOO` class at the cursor ([`prepare`]) and walks its
+//! [`supertypes`] (direct superclasses + mixins) and [`subtypes`] (direct
+//! subclasses) via the class-hierarchy index.  Resolution is within the
+//! analysed document; cross-file super/subtypes need the workspace index
+//! (a follow-up).
+
+use std::collections::{HashMap, HashSet};
 
 use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::analyser::class_hierarchy::{build_tail_index, resolve_class_name};
+use tcl_compiler::analyser::types::ClassDef;
 use tcl_lexer::LineIndex;
 
 use crate::definition::LspRange;
@@ -61,23 +66,105 @@ pub fn prepare(
             || class_def.qualified_name == word
             || class_def.qualified_name == format!("::{word}")
         {
-            let name_range = span_to_range(source, &line_index, class_def.name_span);
-            let body_range = span_to_range(source, &line_index, class_def.body_span);
-            let full_range = LspRange {
-                start_line: name_range.start_line,
-                start_character: name_range.start_character,
-                end_line: body_range.end_line,
-                end_character: body_range.end_character,
-            };
-            return vec![TypeHierarchyItem {
-                name: class_def.qualified_name.clone(),
-                detail: Some(class_def.metaclass.clone()),
-                range: full_range,
-                selection_range: name_range,
-            }];
+            return vec![item_for(class_def, source, &line_index)];
         }
     }
     Vec::new()
+}
+
+/// Direct supertypes of `class_name`: its declared superclasses and
+/// class-level mixins, in declaration order (supers then mixins),
+/// de-duplicated.  Empty when the class is unknown or has none in this
+/// document.
+#[must_use]
+pub fn supertypes(class_name: &str, source: &str, analysis: &AnalysisResult) -> Vec<TypeHierarchyItem> {
+    let line_index = LineIndex::new(source);
+    let tail_index = build_tail_index(analysis.all_classes.keys());
+    let Some(cd) = resolve_class(class_name, "", analysis, &tail_index) else {
+        return Vec::new();
+    };
+    // Each written super/mixin name is resolved **owner-aware** — relative to
+    // the defining class's namespace (ancestry → global → unique tail) — so a
+    // bare `superclass Base` naming a namespaced class links the same way the
+    // MRO builder linked it, instead of abstaining whenever the tail isn't
+    // globally unique.  A name that resolves back to the class itself (a self
+    // edge a tail match could otherwise manufacture) is never listed.
+    let owner = cd.qualified_name.clone();
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    for name in cd.superclasses.iter().chain(cd.mixins.iter()) {
+        if let Some(target) = resolve_class(name, &owner, analysis, &tail_index)
+            && target.qualified_name != owner
+            && seen.insert(target.qualified_name.clone())
+        {
+            out.push(item_for(target, source, &line_index));
+        }
+    }
+    out
+}
+
+/// Direct subtypes of `class_name`: the classes that declare it as a
+/// superclass, via the (namespace-aware) class-hierarchy subclass map.
+/// Sorted by qualified name for determinism.
+#[must_use]
+pub fn subtypes(class_name: &str, source: &str, analysis: &AnalysisResult) -> Vec<TypeHierarchyItem> {
+    let line_index = LineIndex::new(source);
+    let tail_index = build_tail_index(analysis.all_classes.keys());
+    let Some(cd) = resolve_class(class_name, "", analysis, &tail_index) else {
+        return Vec::new();
+    };
+    let target = cd.qualified_name.clone();
+    let hierarchy = analysis.class_hierarchy();
+    let Some(subs) = hierarchy.subclasses.get(&target) else {
+        return Vec::new();
+    };
+    let mut names: Vec<&String> = subs.iter().collect();
+    names.sort();
+    names
+        .into_iter()
+        .filter_map(|s| analysis.all_classes.get(s))
+        .map(|cd| item_for(cd, source, &line_index))
+        .collect()
+}
+
+/// Resolve a written class `name` to its `ClassDef`, **owner-aware** via the
+/// shared [`resolve_class_name`] resolver: an exact hit, then `::name`, then a
+/// walk outward from `owner`'s namespace to the global namespace, and finally
+/// a *globally-unique* simple-name (tail) match.  `owner` is the qualified
+/// name of the class in whose body `name` was written (`""` for a top-level /
+/// already-qualified lookup).  Mirrors how the MRO builder linked the edge,
+/// so supertype resolution no longer abstains on tails the hierarchy resolves.
+fn resolve_class<'a>(
+    name: &str,
+    owner: &str,
+    analysis: &'a AnalysisResult,
+    tail_index: &HashMap<String, Vec<String>>,
+) -> Option<&'a ClassDef> {
+    let q = resolve_class_name(
+        name,
+        owner,
+        |cand| analysis.all_classes.contains_key(cand),
+        tail_index,
+    )?;
+    analysis.all_classes.get(&q)
+}
+
+/// Build a hierarchy item for `class_def` from its spans in `source`.
+fn item_for(class_def: &ClassDef, source: &str, line_index: &LineIndex) -> TypeHierarchyItem {
+    let name_range = span_to_range(source, line_index, class_def.name_span);
+    let body_range = span_to_range(source, line_index, class_def.body_span);
+    let full_range = LspRange {
+        start_line: name_range.start_line,
+        start_character: name_range.start_character,
+        end_line: body_range.end_line,
+        end_character: body_range.end_character,
+    };
+    TypeHierarchyItem {
+        name: class_def.qualified_name.clone(),
+        detail: Some(class_def.metaclass.clone()),
+        range: full_range,
+        selection_range: name_range,
+    }
 }
 
 fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
@@ -108,6 +195,55 @@ mod tests {
         let items = prepare(src, 0, 18, &analysis);
         if !items.is_empty() {
             assert!(items[0].name.contains("Greeter"));
+        }
+    }
+
+    #[test]
+    fn supertypes_returns_superclasses_and_mixins() {
+        let src = "oo::class create Animal {}\noo::class create Legs {}\noo::class create Dog {\n    superclass Animal\n    mixin Legs\n}\n";
+        let analysis = analyse(src);
+        let sup = supertypes("::Dog", src, &analysis);
+        let names: Vec<&str> = sup.iter().map(|i| i.name.as_str()).collect();
+        assert!(names.contains(&"::Animal"), "{names:?}");
+        assert!(names.contains(&"::Legs"), "{names:?}");
+    }
+
+    #[test]
+    fn subtypes_returns_direct_subclasses() {
+        let src = "oo::class create Animal {}\noo::class create Dog {\n    superclass Animal\n}\noo::class create Cat {\n    superclass Animal\n}\n";
+        let analysis = analyse(src);
+        let sub = subtypes("::Animal", src, &analysis);
+        let mut names: Vec<&str> = sub.iter().map(|i| i.name.as_str()).collect();
+        names.sort_unstable();
+        assert_eq!(names, vec!["::Cat", "::Dog"], "{names:?}");
+    }
+
+    #[test]
+    fn supertypes_of_unknown_class_is_empty() {
+        let analysis = analyse("oo::class create A {}\n");
+        assert!(supertypes("::Nope", "oo::class create A {}\n", &analysis).is_empty());
+    }
+
+    #[test]
+    fn supertypes_resolve_bare_namespaced_base_owner_aware() {
+        // A subclass in `::Ns` names its base bare (`Base`); the base lives at
+        // `::Ns::Base`.  Ownerless tail resolution used to abstain here; the
+        // owner-aware resolver links it the way the MRO builder did.
+        let src = "namespace eval Ns {\n    oo::class create Base {}\n    oo::class create Sub {\n        superclass Base\n    }\n}\n";
+        let analysis = analyse(src);
+        let sup = supertypes("::Ns::Sub", src, &analysis);
+        let names: Vec<&str> = sup.iter().map(|i| i.name.as_str()).collect();
+        assert_eq!(names, vec!["::Ns::Base"], "{names:?}");
+    }
+
+    #[test]
+    fn supertypes_never_lists_the_class_itself() {
+        // A class whose own tail collides with a bare superclass name must not
+        // be reported as its own supertype.
+        let src = "oo::class create Base {}\noo::class create Derived {\n    superclass Base\n}\n";
+        let analysis = analyse(src);
+        for name in supertypes("::Derived", src, &analysis) {
+            assert_ne!(name.name, "::Derived", "self-supertype leaked");
         }
     }
 }

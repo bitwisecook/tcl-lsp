@@ -99,7 +99,86 @@ fn is_two_plain_names(vars_text: &str) -> Option<[String; 2]> {
 
 // CodegenCtx methods
 
+/// Instruction indices in [`CodegenCtx::emit_dict_map`] whose slot operands are
+/// emitted with a placeholder and back-patched once the result and iterator
+/// temps are interned (they take the highest slots, after the body's locals).
+struct DictMapPatch {
+    res_store: usize,
+    dict_first: usize,
+    dict_set: usize,
+    dict_next: usize,
+    unset_it_err: usize,
+    unset_res_err: usize,
+    unset_it_exit: usize,
+    res_load: usize,
+    unset_res_exit: usize,
+}
+
 impl CodegenCtx<'_> {
+    /// Emit `dict map`'s catch error epilogue (dead in our VM; present for
+    /// C-Tcl byte fidelity). Returns the placeholder `unsetScalar` indices for
+    /// the iterator and result temps, to be back-patched by the caller.
+    fn emit_dict_map_err_epilogue(&mut self, iter_name: &str, result_name: &str) -> (usize, usize) {
+        self.emit(Op::PUSH_RETURN_OPTS, vec![]);
+        self.emit(Op::PUSH_RESULT, vec![]);
+        self.emit(Op::END_CATCH, vec![]);
+        let unset_it = self.emit_comment(
+            Op::UNSET_SCALAR,
+            vec![Operand::Imm(0), Operand::Imm(0)],
+            iter_name,
+        );
+        let unset_res = self.emit_comment(
+            Op::UNSET_SCALAR,
+            vec![Operand::Imm(0), Operand::Imm(0)],
+            result_name,
+        );
+        self.emit(Op::RETURN_STK, vec![]);
+        (unset_it, unset_res)
+    }
+
+    /// Emit `dict map`'s normal-exit tail: drop the leftover key/value, close
+    /// the catch, unset the iterator, load the accumulated dict as the result,
+    /// and unset the result temp. Returns the placeholder indices (iterator
+    /// unset, result load, result unset) for the caller to back-patch.
+    fn emit_dict_map_normal_exit(
+        &mut self,
+        iter_name: &str,
+        result_name: &str,
+    ) -> (usize, usize, usize) {
+        self.emit(Op::POP, vec![]);
+        self.emit(Op::POP, vec![]);
+        self.emit(Op::END_CATCH, vec![]);
+        let unset_it = self.emit_comment(
+            Op::UNSET_SCALAR,
+            vec![Operand::Imm(0), Operand::Imm(0)],
+            iter_name,
+        );
+        let res_load = self.emit_comment(Op::LOAD_SCALAR1, vec![Operand::Imm(0)], result_name);
+        let unset_res = self.emit_comment(
+            Op::UNSET_SCALAR,
+            vec![Operand::Imm(0), Operand::Imm(0)],
+            result_name,
+        );
+        (unset_it, res_load, unset_res)
+    }
+
+    /// Back-patch the placeholder slot operands recorded in `p` with the now-known
+    /// `res_slot` (result accumulator) and `iter_slot` (dict iterator).
+    fn backpatch_dict_map(&mut self, p: &DictMapPatch, res_slot: i32, iter_slot: i32) {
+        self.instructions[p.res_store].operands = vec![Operand::Imm(res_slot)];
+        self.instructions[p.dict_first].operands = vec![Operand::Imm(iter_slot)];
+        self.instructions[p.dict_set].operands = vec![Operand::Imm(1), Operand::Imm(res_slot)];
+        self.instructions[p.dict_next].operands = vec![Operand::Imm(iter_slot)];
+        self.instructions[p.unset_it_err].operands = vec![Operand::Imm(0), Operand::Imm(iter_slot)];
+        self.instructions[p.unset_res_err].operands =
+            vec![Operand::Imm(0), Operand::Imm(res_slot)];
+        self.instructions[p.unset_it_exit].operands =
+            vec![Operand::Imm(0), Operand::Imm(iter_slot)];
+        self.instructions[p.res_load].operands = vec![Operand::Imm(res_slot)];
+        self.instructions[p.unset_res_exit].operands =
+            vec![Operand::Imm(0), Operand::Imm(res_slot)];
+    }
+
     /// Emit a compiled `dict for {k v} DICT { body }` inline, matching C Tcl's
     /// low-level bytecode: `beginCatch4` → `dictFirst <iter>` → `jumpTrue`
     /// (skip empty) → store k/v → inline body → `dictNext` → `jumpFalse` (loop)
@@ -310,52 +389,34 @@ impl CodegenCtx<'_> {
         self.emit_comment(Op::JUMP4, vec![Operand::Label(end_lbl.clone())], "");
 
         // Error epilogue (dead in our VM; present for C-Tcl fidelity).
-        self.emit(Op::PUSH_RETURN_OPTS, vec![]);
-        self.emit(Op::PUSH_RESULT, vec![]);
-        self.emit(Op::END_CATCH, vec![]);
-        let unset_it_idx = self.emit_comment(
-            Op::UNSET_SCALAR,
-            vec![Operand::Imm(0), Operand::Imm(0)],
-            &iter_name,
-        );
-        let unset_res_idx = self.emit_comment(
-            Op::UNSET_SCALAR,
-            vec![Operand::Imm(0), Operand::Imm(0)],
-            &result_name,
-        );
-        self.emit(Op::RETURN_STK, vec![]);
+        let (unset_it_err_idx, unset_res_err_idx) =
+            self.emit_dict_map_err_epilogue(&iter_name, &result_name);
         self.catch_depth -= 1;
 
         // Normal exit: drop the leftover key/value, close the catch, unset the
         // iterator, load the accumulated dict as the result, unset the temp.
         self.place_label(&end_lbl);
-        self.emit(Op::POP, vec![]);
-        self.emit(Op::POP, vec![]);
-        self.emit(Op::END_CATCH, vec![]);
-        let unset_it2_idx = self.emit_comment(
-            Op::UNSET_SCALAR,
-            vec![Operand::Imm(0), Operand::Imm(0)],
-            &iter_name,
-        );
-        let res_load_idx = self.emit_comment(Op::LOAD_SCALAR1, vec![Operand::Imm(0)], &result_name);
-        let unset_res2_idx = self.emit_comment(
-            Op::UNSET_SCALAR,
-            vec![Operand::Imm(0), Operand::Imm(0)],
-            &result_name,
-        );
+        let (unset_it_exit_idx, res_load_idx, unset_res_exit_idx) =
+            self.emit_dict_map_normal_exit(&iter_name, &result_name);
 
         // Now intern the result + iterator temps (highest slots) and back-patch.
         let res_slot = bytecode_imm(self.lvt.intern(&result_name));
         let iter_slot = bytecode_imm(self.lvt.intern(&iter_name));
-        self.instructions[res_store_idx].operands = vec![Operand::Imm(res_slot)];
-        self.instructions[dict_first_idx].operands = vec![Operand::Imm(iter_slot)];
-        self.instructions[dict_set_idx].operands = vec![Operand::Imm(1), Operand::Imm(res_slot)];
-        self.instructions[dict_next_idx].operands = vec![Operand::Imm(iter_slot)];
-        self.instructions[unset_it_idx].operands = vec![Operand::Imm(0), Operand::Imm(iter_slot)];
-        self.instructions[unset_res_idx].operands = vec![Operand::Imm(0), Operand::Imm(res_slot)];
-        self.instructions[unset_it2_idx].operands = vec![Operand::Imm(0), Operand::Imm(iter_slot)];
-        self.instructions[res_load_idx].operands = vec![Operand::Imm(res_slot)];
-        self.instructions[unset_res2_idx].operands = vec![Operand::Imm(0), Operand::Imm(res_slot)];
+        self.backpatch_dict_map(
+            &DictMapPatch {
+                res_store: res_store_idx,
+                dict_first: dict_first_idx,
+                dict_set: dict_set_idx,
+                dict_next: dict_next_idx,
+                unset_it_err: unset_it_err_idx,
+                unset_res_err: unset_res_err_idx,
+                unset_it_exit: unset_it_exit_idx,
+                res_load: res_load_idx,
+                unset_res_exit: unset_res_exit_idx,
+            },
+            res_slot,
+            iter_slot,
+        );
 
         self.seen_generic_invoke = true;
         true
@@ -369,7 +430,7 @@ impl CodegenCtx<'_> {
     /// unless proc context, a plain-local dict var and targets, and a
     /// straight-line body whose final statement yields a value.
     pub fn emit_dict_update(&mut self, rest: &[String]) -> bool {
-        if !self.is_proc || rest.len() < 4 || rest.len() % 2 != 0 {
+        if !self.is_proc || rest.len() < 4 || !rest.len().is_multiple_of(2) {
             return false;
         }
         let dict_var = &rest[0];

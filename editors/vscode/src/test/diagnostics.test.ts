@@ -231,4 +231,22 @@ suite("Diagnostics", () => {
       `S110 message should describe the corruption, got: ${s110.message}`,
     );
   });
+
+  // Issue #777: object commands bound by `CLASS create NAME` and iterated via
+  // `foreach elem [list c1 l1 …]` are known commands, so dispatching `$elem`
+  // must not fire W307. Analysis has settled once the unknown-class commands
+  // (`C`/`L`) surface their own W123.
+  test("W307 silent for create-named objects iterated via [list] (issue #777)", async () => {
+    const uri = getDocUri("createNamedObjects.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.some((d) => codeOf(d) === "W123"),
+    });
+    const codes = diagnostics.map(codeOf);
+    assert.ok(
+      !codes.includes("W307"),
+      `dispatch over created object names must not fire W307, got [${codes}]`,
+    );
+  });
 });
