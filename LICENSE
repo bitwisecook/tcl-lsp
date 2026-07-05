@@ -659,3 +659,36 @@ specific requirements.
 if any, to sign a "copyright disclaimer" for the program, if necessary.
 For more information on this, and how to apply and follow the GNU AGPL, see
 <https://www.gnu.org/licenses/>.
+
+================================================================================
+ADDITIONAL LICENSING INFORMATION
+================================================================================
+
+The text above is the GNU Affero General Public License, version 3, which is
+the default license for tcl-lsp. The following notes supplement, but do not
+modify, that license.
+
+Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+
+DUAL LICENSING (COMMERCIAL LICENSE AVAILABLE)
+
+  tcl-lsp is dual-licensed. In addition to the AGPL-3.0-or-later above, a
+  separate commercial license is available for organisations that wish to use
+  tcl-lsp without the AGPL's copyleft obligations -- for example, in a
+  proprietary product or a hosted/paid service whose source they do not wish to
+  publish. To obtain a commercial license, contact James Deucker (bitwisecook)
+  via https://github.com/bitwisecook. See DUAL-LICENSING.md for details.
+
+  For clarity: the AGPL itself permits commercial and paid use, including paid
+  online/SaaS products; its condition is disclosure of corresponding source to
+  network users, not payment. The commercial license exists as a lawful
+  alternative for those who cannot or prefer not to meet that source-disclosure
+  obligation.
+
+THIRD-PARTY COMPONENTS
+
+  This repository includes third-party code that is NOT covered by the AGPL or
+  the commercial license. Such code remains under its own original license and
+  belongs to its original author; see the notices in the relevant files (for
+  example runtime/rust/vendor/tcl_library/license.terms and
+  rust/tcl-regex/tests/data/reg.test) and DUAL-LICENSING.md.

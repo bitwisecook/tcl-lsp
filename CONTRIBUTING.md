@@ -47,6 +47,14 @@ Models used so far: Claude Opus 4.6, Gemini 3.1 Pro, GPT-5.3-Codex.
 - Prefer `match/case` for enum/token dispatch with 3+ branches; use `if` for simple guards.
 - Prefer `x & 1` over `x % 2` for odd/even checks on integers, and use
   truthiness (`if x & 1:` rather than `if x & 1 == 1:`).
+- Put the project copyright/license header on our own original source files
+  only: the full AGPL-3.0 notice with `Copyright (C) <year> James Deucker
+  (bitwisecook)`, placed after any shebang or coding/`-*-` magic first line.
+  Never add it to vendored or third-party code, which keeps its own original
+  notices and license (for example `runtime/rust/vendor/` and
+  `rust/tcl-regex/tests/data/reg.test`). Also skip generated files, test
+  fixtures and golden corpora, and `.github/workflows/*`. See `DUAL-LICENSING.md`
+  for the licensing model.
 
 ## Code reuse and deduplication
 
