@@ -51,6 +51,7 @@
 //! and namespaces are not.
 
 use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::analyser::class_hierarchy::{build_tail_index, resolve_class_name};
 use tcl_lexer::Span;
 
 /// One proc definition recorded in the workspace index.
@@ -223,45 +224,83 @@ impl WorkspaceIndex {
         &self.classes
     }
 
-    /// Workspace classes that a superclass / mixin `name` (as written in a
-    /// class body) resolves to — an exact qualified match, a `::name`
-    /// match, or a globally-unique simple-name (tail) match.  Ambiguous
-    /// tails yield nothing (no wrong guess), mirroring the analyser's
-    /// namespace-aware resolution.  Used for cross-file **supertype**
-    /// resolution.
+    /// Workspace classes whose qualified name matches `name` exactly or via
+    /// the leading-`::` normalisation (`Animal` ↔ `::Animal`).  Used to
+    /// resolve the class **at the cursor**, whose name arrives already
+    /// qualified.
+    ///
+    /// Deliberately does *not* fall back to a bare simple-name (tail) match:
+    /// superclass / mixin names are namespace-relative in Tcl, so an
+    /// ownerless tail match (`Base` → `::Other::Base`) could manufacture a
+    /// wrong cross-file link.  Owner-aware resolution of written super/mixin
+    /// names is done by [`Self::supertype_classes`] / [`Self::subclasses_of`]
+    /// via [`resolve_class_name`], which walks the defining class's
+    /// namespace ancestry before considering a *unique* tail.
     #[must_use]
     pub fn classes_named<'a>(&'a self, name: &str) -> Vec<&'a WorkspaceClass> {
         let q = format!("::{}", name.trim_start_matches("::"));
-        let exact: Vec<&WorkspaceClass> = self
-            .classes
+        self.classes
             .iter()
             .filter(|c| c.qualified_name == name || c.qualified_name == q)
-            .collect();
-        if !exact.is_empty() {
-            return exact;
+            .collect()
+    }
+
+    /// The `(qualified-name set, tail index)` over every indexed class —
+    /// the inputs [`resolve_class_name`] needs, built once per query so
+    /// owner-aware resolution is O(1) membership rather than a linear scan
+    /// per candidate.
+    fn class_name_universe(
+        &self,
+    ) -> (
+        std::collections::HashSet<&str>,
+        std::collections::HashMap<String, Vec<String>>,
+    ) {
+        let known: std::collections::HashSet<&str> =
+            self.classes.iter().map(|c| c.qualified_name.as_str()).collect();
+        let tail_index = build_tail_index(self.classes.iter().map(|c| &c.qualified_name));
+        (known, tail_index)
+    }
+
+    /// The workspace classes that `wc`'s written superclasses + mixins
+    /// resolve to, **owner-aware** — each name is resolved relative to
+    /// `wc.qualified_name`'s namespace (ancestry → global → unique tail) via
+    /// [`resolve_class_name`], never by a bare global tail guess.  Used for
+    /// cross-file **supertype** resolution.
+    #[must_use]
+    pub fn supertype_classes<'a>(&'a self, wc: &WorkspaceClass) -> Vec<&'a WorkspaceClass> {
+        let (known, tail_index) = self.class_name_universe();
+        let mut out: Vec<&WorkspaceClass> = Vec::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for name in wc.superclasses.iter().chain(wc.mixins.iter()) {
+            let Some(q) =
+                resolve_class_name(name, &wc.qualified_name, |cand| known.contains(cand), &tail_index)
+            else {
+                continue;
+            };
+            if !seen.insert(q.clone()) {
+                continue;
+            }
+            out.extend(self.classes.iter().filter(|c| c.qualified_name == q));
         }
-        let tail = name.rsplit("::").next().unwrap_or(name);
-        let by_tail: Vec<&WorkspaceClass> = self
-            .classes
-            .iter()
-            .filter(|c| c.qualified_name.rsplit("::").next() == Some(tail))
-            .collect();
-        // Only a *unique* tail match is safe to claim.
-        if by_tail.len() == 1 { by_tail } else { Vec::new() }
+        out
     }
 
     /// Workspace classes that declare `class_qname` as a direct superclass
-    /// or mixin (resolving the written name the same way `classes_named`
-    /// does).  Used for cross-file **subtype** resolution.
+    /// or mixin, resolving each written super/mixin name **owner-aware**
+    /// (relative to the declaring class) so an ambiguous bare name never
+    /// manufactures a subtype edge.  Used for cross-file **subtype**
+    /// resolution.
     #[must_use]
     pub fn subclasses_of<'a>(&'a self, class_qname: &str) -> Vec<&'a WorkspaceClass> {
+        let (known, tail_index) = self.class_name_universe();
         self.classes
             .iter()
             .filter(|c| {
-                c.superclasses
-                    .iter()
-                    .chain(c.mixins.iter())
-                    .any(|s| self.classes_named(s).iter().any(|t| t.qualified_name == class_qname))
+                c.superclasses.iter().chain(c.mixins.iter()).any(|s| {
+                    resolve_class_name(s, &c.qualified_name, |cand| known.contains(cand), &tail_index)
+                        .as_deref()
+                        == Some(class_qname)
+                })
             })
             .collect()
     }
@@ -402,6 +441,42 @@ mod tests {
         // Dog's subclasses: Puppy (c.tcl).
         let dog_subs = index.subclasses_of("::Dog");
         assert_eq!(dog_subs.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["Puppy"]);
+    }
+
+    #[test]
+    fn owner_aware_super_resolution_picks_same_namespace_and_abstains_on_ambiguity() {
+        // Two `Base` classes in disjoint namespaces.  A subclass in ::A that
+        // writes a bare `superclass Base` must link to ::A::Base (its own
+        // namespace), never ::B::Base — and a subclass in a *third*
+        // namespace with no local Base must abstain (ambiguous tail), not
+        // guess.
+        let a = analyse("oo::class create ::A::Base {}\noo::class create ::A::Derived {\n    superclass Base\n}\n");
+        let b = analyse("oo::class create ::B::Base {}\n");
+        let c = analyse("oo::class create ::C::Widget {\n    superclass Base\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///b.tcl", &b),
+            ("file:///c.tcl", &c),
+        ]);
+        // ::A::Base's subclasses: only ::A::Derived (owner-aware pick).
+        let a_subs: Vec<&str> =
+            index.subclasses_of("::A::Base").iter().map(|c| c.qualified_name.as_str()).collect();
+        assert_eq!(a_subs, vec!["::A::Derived"], "owner-aware resolution mis-linked");
+        // ::B::Base gets no subclass from the ambiguous bare `Base` names.
+        assert!(
+            index.subclasses_of("::B::Base").is_empty(),
+            "ownerless tail match manufactured a wrong subtype edge",
+        );
+        // ::C::Widget's supertypes abstain (Base is ambiguous, ::C has none).
+        let widget = index
+            .classes
+            .iter()
+            .find(|c| c.qualified_name == "::C::Widget")
+            .expect("Widget indexed");
+        assert!(
+            index.supertype_classes(widget).is_empty(),
+            "ambiguous bare superclass should resolve to nothing",
+        );
     }
 
     #[test]

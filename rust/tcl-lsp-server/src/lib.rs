@@ -2046,16 +2046,13 @@ impl Backend {
             let list = if subtypes {
                 index.subclasses_of(&class_name)
             } else {
+                // Owner-aware: resolve each written super/mixin name relative
+                // to the defining class's namespace (never a bare global tail
+                // guess) via the index's `supertype_classes`.
                 index
                     .classes_named(&class_name)
                     .first()
-                    .map(|c| {
-                        c.superclasses
-                            .iter()
-                            .chain(c.mixins.iter())
-                            .flat_map(|n| index.classes_named(n))
-                            .collect::<Vec<_>>()
-                    })
+                    .map(|c| index.supertype_classes(c))
                     .unwrap_or_default()
             };
             list.into_iter()

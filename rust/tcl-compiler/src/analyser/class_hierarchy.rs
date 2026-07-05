@@ -156,8 +156,34 @@ fn resolve_super_name(
     classes: &HashMap<String, ClassDef>,
     tail_index: &HashMap<String, Vec<String>>,
 ) -> String {
-    if classes.contains_key(name) {
-        return name.to_string();
+    // The MRO builder wants a name back even when nothing resolves (it leaves
+    // the edge unlinked rather than dropping the class), so fall back to the
+    // written name; the resolution logic itself lives in `resolve_class_name`.
+    resolve_class_name(name, owner_qname, |q| classes.contains_key(q), tail_index)
+        .unwrap_or_else(|| name.to_string())
+}
+
+/// Owner-aware resolution of a written class / superclass / mixin `name` to
+/// a qualified class name, mirroring how Tcl resolves a command: an exact
+/// hit, then `::name`, then a walk **outward from the owning class's
+/// namespace** to the global namespace, and finally — only when the simple
+/// (tail) name is *globally unique* — that single class (the `namespace
+/// import` idiom).  Returns `None` when nothing resolves or the tail is
+/// ambiguous, so callers stay **sound-by-abstention** (never manufacture a
+/// wrong cross-file link).
+///
+/// `is_known` tests membership of a candidate qualified name in the class
+/// universe (a `HashMap`/`HashSet` `contains`); `tail_index` maps each
+/// simple name to the qualified names sharing it — build it once with
+/// [`build_tail_index`] and reuse across many resolutions.
+pub fn resolve_class_name<S: std::hash::BuildHasher>(
+    name: &str,
+    owner_qname: &str,
+    is_known: impl Fn(&str) -> bool,
+    tail_index: &HashMap<String, Vec<String>, S>,
+) -> Option<String> {
+    if is_known(name) {
+        return Some(name.to_string());
     }
     // Walk the owner's namespace ancestry, then global.
     let owner_ns = owner_qname.rsplit_once("::").map_or("", |(head, _)| head);
@@ -168,8 +194,8 @@ fn resolve_super_name(
         } else {
             format!("{}::{}", ns.trim_end_matches("::"), name.trim_start_matches("::"))
         };
-        if classes.contains_key(&cand) {
-            return cand;
+        if is_known(&cand) {
+            return Some(cand);
         }
         if ns.is_empty() {
             break;
@@ -178,12 +204,23 @@ fn resolve_super_name(
     }
     // Globally-unique simple-name match (the `namespace import` case).
     let tail = name.rsplit("::").next().unwrap_or(name);
-    if let Some(qs) = tail_index.get(tail)
-        && qs.len() == 1
-    {
-        return qs[0].clone();
+    match tail_index.get(tail) {
+        Some(qs) if qs.len() == 1 => Some(qs[0].clone()),
+        _ => None,
     }
-    name.to_string()
+}
+
+/// Build the simple-name (tail) → qualified-names index that
+/// [`resolve_class_name`] consults for the unique-tail fallback.
+pub fn build_tail_index<'a>(
+    qnames: impl Iterator<Item = &'a String>,
+) -> HashMap<String, Vec<String>> {
+    let mut tail_index: HashMap<String, Vec<String>> = HashMap::new();
+    for qname in qnames {
+        let tail = qname.rsplit("::").next().unwrap_or(qname);
+        tail_index.entry(tail.to_string()).or_default().push(qname.clone());
+    }
+    tail_index
 }
 
 /// Build the supers/mixins maps used by the MRO algorithm.
@@ -193,14 +230,7 @@ fn build_supers_mixins_maps(
     let mut supers_map: HashMap<String, Vec<String>> = HashMap::new();
     let mut mixins_map: HashMap<String, Vec<String>> = HashMap::new();
     // tail (simple name) → qualified class names sharing it.
-    let mut tail_index: HashMap<String, Vec<String>> = HashMap::new();
-    for qname in classes.keys() {
-        let tail = qname.rsplit("::").next().unwrap_or(qname);
-        tail_index
-            .entry(tail.to_string())
-            .or_default()
-            .push(qname.clone());
-    }
+    let tail_index = build_tail_index(classes.keys());
     let normalise = |owner: &str, names: &[String]| -> Vec<String> {
         names
             .iter()
