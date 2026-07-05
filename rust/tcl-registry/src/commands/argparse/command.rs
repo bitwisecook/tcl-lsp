@@ -251,12 +251,6 @@ pub fn spec() -> CommandSpec {
     }
 }
 
-/// All command specs contributed by the `argparse` package.
-#[must_use]
-pub fn argparse_command_specs() -> Vec<CommandSpec> {
-    vec![spec()]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
