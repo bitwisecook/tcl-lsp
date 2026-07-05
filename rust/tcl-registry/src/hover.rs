@@ -331,39 +331,53 @@ impl OptionSpec {
         matches!(self.value, OptionValue::Takes(arg) if arg.closed)
     }
 
-    /// The absolute indices into `args` this option consumes as its value(s)
-    /// when the option word sits at `flag_idx`.
+    /// The half-open `args` range this option consumes as its value(s) when the
+    /// option word sits at `flag_idx`.
     ///
     /// Honours arity ([`OptionArity`]), clamps to the argument list, and stops
     /// at an option terminator `--` (so `-index --` consumes nothing, matching
     /// the existing value-colouring convention).  Empty for a
-    /// [`OptionValue::Flag`].  This is the single source of the value-span
-    /// logic shared by the option-scanning loops.
-    #[must_use]
-    pub fn value_indices<S: AsRef<str>>(&self, args: &[S], flag_idx: usize) -> Vec<usize> {
+    /// [`OptionValue::Flag`].  The single source of the value-span logic shared
+    /// by [`Self::value_indices`] / [`Self::value_word_count`] and, through
+    /// them, every option-scanning loop.
+    ///
+    /// The `--` scan is bounded to the consumed window (`start + want`) rather
+    /// than the whole remaining argument list, so a `One`/`Fixed` option is
+    /// O(arity) not O(remaining args) — the option-scan loops call this once
+    /// per value-taking flag, so an unbounded scan would be quadratic in the
+    /// number of such flags on one command.
+    fn value_span<S: AsRef<str>>(&self, args: &[S], flag_idx: usize) -> core::ops::Range<usize> {
         let OptionValue::Takes(arg) = self.value else {
-            return Vec::new();
+            return 0..0;
         };
         let hard_end = args.len();
         let start = (flag_idx + 1).min(hard_end);
-        // Value consumption stops at a `--` terminator.
-        let term = args[start..hard_end]
-            .iter()
-            .position(|w| w.as_ref() == "--")
-            .map_or(hard_end, |p| start + p);
         let want = match arg.arity {
             OptionArity::One => 1,
             OptionArity::Fixed(n) => usize::from(n),
-            OptionArity::Rest => term - start,
+            OptionArity::Rest => hard_end - start,
         };
-        (start..term.min(start + want)).collect()
+        let window_end = (start + want).min(hard_end);
+        // Only a `--` inside the consumed window matters; bound the scan to it.
+        let term = args[start..window_end]
+            .iter()
+            .position(|w| w.as_ref() == "--")
+            .map_or(window_end, |p| start + p);
+        start..term
+    }
+
+    /// The absolute indices into `args` this option consumes as its value(s)
+    /// when the option word sits at `flag_idx` (see [`Self::value_span`]).
+    #[must_use]
+    pub fn value_indices<S: AsRef<str>>(&self, args: &[S], flag_idx: usize) -> Vec<usize> {
+        self.value_span(args, flag_idx).collect()
     }
 
     /// How many value words this option consumes at `flag_idx`
-    /// (see [`Self::value_indices`]).
+    /// (see [`Self::value_span`]).  Does not allocate.
     #[must_use]
     pub fn value_word_count<S: AsRef<str>>(&self, args: &[S], flag_idx: usize) -> usize {
-        self.value_indices(args, flag_idx).len()
+        self.value_span(args, flag_idx).len()
     }
 
     /// Check whether this option is available in *dialect*.
