@@ -254,7 +254,11 @@ fn resolve_imported_command<'r>(
     if name.contains("::") {
         return None;
     }
-    for imp in &analysis.namespace_imports {
+    // Iterate imports newest-first (`namespace_imports` is in source order): when
+    // several in-scope imports could provide the same bare name, Tcl's later
+    // `namespace import` (notably `-force`) wins, so the most recent one before
+    // the cursor is the effective binding.
+    for imp in analysis.namespace_imports.iter().rev() {
         if imp.ns != "::" || imp.range.end() > cursor_offset {
             continue;
         }
