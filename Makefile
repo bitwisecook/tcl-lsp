@@ -26,12 +26,12 @@ ROOT     := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 EXT_DIR         := $(ROOT)editors/vscode
 OUT_DIR         := $(EXT_DIR)/out
 # Shared TypeScript front-end for the BIG-IP report generators (built to
-# rust/bigip/report/shared/dist and synced into the Python f5report package).
-REPORT_SHARED_DIR := $(ROOT)rust/bigip/report/shared
+# rust/bigip-report/shared/dist and synced into the Python f5report package).
+REPORT_SHARED_DIR := $(ROOT)rust/bigip-report/shared
 # The compiler-explorer GUI shell lives in the `tcl` crate; `make explorer-wasm`
 # builds the Rust → WASM core + Mermaid into it, and `build.rs` embeds the whole
 # bundle into the `tcl` binary (served by `tcl explore --serve`).
-EXPLORER_STATIC := $(ROOT)rust/tools/tcl-cli/gui
+EXPLORER_STATIC := $(ROOT)rust/tcl-cli/gui
 TCLPKG_TCL_DIR  := $(ROOT)tooling/tclpkg/tcl
 
 # Zig runtime WASM — single source of truth for the artifact path and
@@ -336,7 +336,7 @@ lint: lint-ts ## Run all lint and style checks
 
 format: format-ts ## Format TypeScript code
 
-# The lsp_e2e suite is now native: rust/lsp/tcl-lsp-server/tests/*_e2e.rs, run by
+# The lsp_e2e suite is now native: rust/tcl-lsp-server/tests/*_e2e.rs, run by
 # `cargo test` (see test-rust). The old Python pytest drivers were retired.
 
 test-tclpkg-tcl: ensure-tcl-deps ## Run pure-Tcl tclpkg tests (requires tclsh8.6+)
@@ -373,9 +373,9 @@ typecheck-report-ts: $(REPORT_NPM_STAMP) ## Type-check the shared report front-e
 check-report-assets: build-report-assets ## Verify committed report dist/ + f5report-synced assets are up to date
 	@echo "==> Checking shared report assets are in sync"
 	@cd $(ROOT) && git diff --exit-code -- \
-		rust/bigip/report/shared/dist \
-		rust/bigip/report/py/python/f5report/templates \
-		rust/bigip/report/py/python/f5report/vendor \
+		rust/bigip-report/shared/dist \
+		rust/bigip-report/py/python/f5report/templates \
+		rust/bigip-report/py/python/f5report/vendor \
 		|| { echo "ERROR: report assets are stale — run 'make build-report-assets' and commit the result"; exit 1; }
 
 test-ext: ## Run VS Code extension integration tests; skip with SKIP_TEST_EXT=1
@@ -517,7 +517,7 @@ test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip w
 	fi; \
 	echo "==> Running Rust workspace tests (includes the native lsp_e2e suite)"; \
 	cd $(ROOT) && cargo test --workspace --all-features
-	@echo "==> lsp_e2e ran natively as rust/lsp/tcl-lsp-server/tests/*_e2e.rs (no Python)"
+	@echo "==> lsp_e2e ran natively as rust/tcl-lsp-server/tests/*_e2e.rs (no Python)"
 
 # Build the native Rust LSP server binary (target/release/tcl-lsp-server).
 # This is the server the test harnesses drive when TCL_LSP_SERVER_KIND=rust
@@ -1119,7 +1119,7 @@ $(OUT_DIR)/extension.js: $(TS_SRCS) $(EXT_DIR)/tsconfig.json $(NPM_STAMP) $(CANO
 # Ported from scripts/codegen/catalogs.py to `cargo xtask gen-editor-catalogs`
 # (tcl-registry is now the source of truth; the catalog carries the full
 # command surface, including Tk).
-REGISTRY_SRCS := $(shell find $(ROOT)rust/registry/tcl-registry/src $(ROOT)rust/xtask/src -name '*.rs')
+REGISTRY_SRCS := $(shell find $(ROOT)rust/tcl-registry/src $(ROOT)rust/xtask/src -name '*.rs')
 _CATALOG_DEPS := $(REGISTRY_SRCS)
 
 editors/zed/src/generated/tcl_commands.json editors/zed/src/generated/irule_events.json editors/vscode/src/generated/iruleEvents.json &: $(_CATALOG_DEPS)
@@ -1168,7 +1168,7 @@ codegen: generate gen-editor-settings ## Regenerate ALL generated files (catalog
 # Compiler Explorer (WASM GUI)
 #
 # The GUI is a static web app embedded into the `tcl` binary: a checked-in shell
-# (`rust/tools/tcl-cli/gui/index.html` + `explorer-core.js` + `worker.js` + assets)
+# (`rust/tcl-cli/gui/index.html` + `explorer-core.js` + `worker.js` + assets)
 # plus the Rust → WASM compiler core and Mermaid, which the targets below build
 # into that same dir. `build.rs` then embeds the whole bundle, and
 # `tcl explore --serve` serves it from memory — no Python, no CDN, no Pyodide.
@@ -1181,7 +1181,7 @@ $(MERMAID_JS):
 	@echo "==> Downloading Mermaid.js $(MERMAID_VERSION)"
 	curl -fSL -o $@ $(MERMAID_CDN)
 
-EXPLORER_WASM_DIR := $(ROOT)rust/wasm/tcl-explorer-wasm
+EXPLORER_WASM_DIR := $(ROOT)rust/tcl-explorer-wasm
 
 explorer-wasm: ## Build the Rust → WASM compiler-explorer core into the tcl GUI dir
 	@command -v wasm-pack >/dev/null 2>&1 || { \
@@ -1210,10 +1210,10 @@ explorer-build: explorer-wasm $(MERMAID_JS) ## Build the compiler-explorer GUI b
 	@echo "==> Compiler explorer bundle ready in $(EXPLORER_STATIC) — rebuild the tcl binary to embed it"
 
 .PHONY: report-wasm
-report-wasm: ## Build the in-browser BIG-IP report generator (Rust → WASM) into rust/wasm/bigip-report-wasm/dist/
+report-wasm: ## Build the in-browser BIG-IP report generator (Rust → WASM) into rust/bigip-report-wasm/dist/
 	@command -v wasm-bindgen >/dev/null 2>&1 || { \
 		echo "wasm-bindgen not found — 'cargo install wasm-bindgen-cli --version 0.2.126'"; exit 1; }
-	bash $(ROOT)rust/wasm/bigip-report-wasm/build-wasm.sh
+	bash $(ROOT)rust/bigip-report-wasm/build-wasm.sh
 
 compiler-explorer-gui: explorer-build ## Build the GUI bundle and serve it via the native tcl binary
 	@echo "==> Building tcl (embeds the GUI) and serving at http://localhost:8080"

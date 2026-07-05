@@ -17,9 +17,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 [package]
-name = "xtask"
+name = "tcl-pkg"
 publish.workspace = true
-description = "Build/check task runner for the workspace"
+description = "The tclpkg package manager: manifest, MVS resolver, lockfile, CAS, fetchers, venv, docker"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -27,18 +27,20 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
-[[bin]]
-name = "xtask"
-path = "src/main.rs"
-
 [dependencies]
-clap = { version = "4", features = ["derive", "wrap_help"] }
-anyhow = "1"
+tcl-syntax = { path = "../tcl-syntax" }
+tcl-sandbox = { path = "../tcl-sandbox" }
 regex = "1"
-tcl-core-types = { path = "../tcl-core-types" }
-tcl-registry = { path = "../tcl-registry" }
 serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order"] }
+serde_json = "1"
+toml = "1"
+sha2 = "0.10"
+base64 = "0.22"
+flate2 = "1"
+tar = "0.4"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+ureq = "3"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [lints]
 workspace = true

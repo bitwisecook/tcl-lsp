@@ -17,9 +17,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 [package]
-name = "xtask"
+name = "tcl-lsp-core"
 publish.workspace = true
-description = "Build/check task runner for the workspace"
+description = "Pure Rust LSP feature providers for tcl-lsp (folding, symbols, diagnostics projection)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -27,18 +27,21 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
-[[bin]]
-name = "xtask"
-path = "src/main.rs"
-
 [dependencies]
-clap = { version = "4", features = ["derive", "wrap_help"] }
-anyhow = "1"
-regex = "1"
-tcl-core-types = { path = "../tcl-core-types" }
+tcl-lexer = { path = "../tcl-lexer" }
+tcl-syntax = { path = "../tcl-syntax" }
 tcl-registry = { path = "../tcl-registry" }
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order"] }
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-irules = { path = "../tcl-irules" }
+regex = "1"
+rustc-hash = { workspace = true }
+serde_json = "1"
+
+[dev-dependencies]
+# The runtime ARE engine, used as an oracle in the semantic-token regex tests:
+# every pattern the tokenizer sub-tokenises is confirmed to be valid ARE by the
+# same engine Tcl uses at runtime, tying the two to one source of truth.
+tcl-regex = { path = "../tcl-regex" }
 
 [lints]
 workspace = true

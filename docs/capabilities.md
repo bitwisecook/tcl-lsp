@@ -22,18 +22,18 @@ report generator built on it.
 | **CLI** | `f5 query '.ltm.virtual[].name' device.ucs` (alias `f5 q`). Renderers: `f5 q --render mermaid …`. Help: `f5 query --help-manual \| --help-dsl \| --help-builtins`. |
 | **Python** | `import f5report; html = f5report.build_report(f5report.load_paths(["dev.ucs"]))`; ad-hoc `f5report.query('.ltm.pool[]', sources)`. |
 | **Web** | the in-browser report generator (above); every generated report embeds a live f5-query **console** and the **full manual**. |
-| **Server** | `f5-report-web` — upload a config, get a report server-side (`rust/bigip/report/py`). |
+| **Server** | `f5-report-web` — upload a config, get a report server-side (`rust/bigip-report/py`). |
 
 **Enrichment / side-inputs** — a query (and the report) can bind external tables to
 `$name`: `--input csv nat=nat.csv`, `--input zone dns=example.com.zone` (a new
 RFC 1035 DNS zone-file format), `--input json`/`jsonl`/`f5log`. The report's
 **topology + enrichment DSL** (the architecture manifest) declares devices, tiers,
 links, network **zones**, device **interfaces**, **DNS zones**, and CIDR/service/NAT
-maps in one place — see `rust/bigip/report/rust/src/architecture.rs`.
+maps in one place — see `rust/bigip-report/rust/src/architecture.rs`.
 
 Reference: **[docs/references/f5_query/](references/f5_query/)** (`manual.md`, `dsl.md`,
 `builtins.md`), how-tos in **[docs/kcs/](kcs/)** (`kcs-howto-*query*`), internals in
-`docs/design/f5-query-engine-internals.md`. Crate: `rust/bigip/tcl-bigip-query`.
+`docs/design/f5-query-engine-internals.md`. Crate: `rust/tcl-bigip-query`.
 
 ---
 
@@ -51,8 +51,8 @@ powers iRule analysis, diagnostics, and the compiler explorer.
 
 Reference: `docs/design/compiler-architecture.md` (+ `docs/design/compiler/`), how-tos in
 `docs/kcs/` (`kcs-howto-ir-cfg-ssa-diagnostics.md`), generated tables in
-`docs/generated/`. Crates: `rust/compiler/tcl-lexer`, `rust/compiler/tcl-syntax`, `rust/compiler/tcl-compiler`,
-`rust/lsp/tcl-lsp-core`, `rust/tools/tcl-explorer`.
+`docs/generated/`. Crates: `rust/tcl-lexer`, `rust/tcl-syntax`, `rust/tcl-compiler`,
+`rust/tcl-lsp-core`, `rust/tcl-explorer`.
 
 ---
 
@@ -70,4 +70,4 @@ event-validity diagnostics, and iRule event ordering.
 Reference: `docs/design/bigip-registry-architecture.md`, contracts in
 `docs/design/contracts/command-registry-event-model.md`, features in
 `docs/kcs/features/kcs-feature-bigip-registry.md` / `kcs-feature-event-registry.md`.
-Crates: `rust/registry/tcl-registry`, `rust/registry/tcl-irules`.
+Crates: `rust/tcl-registry`, `rust/tcl-irules`.

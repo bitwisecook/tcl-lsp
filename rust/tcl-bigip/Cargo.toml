@@ -17,9 +17,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 [package]
-name = "xtask"
+name = "tcl-bigip"
 publish.workspace = true
-description = "Build/check task runner for the workspace"
+description = "The F5 BIG-IP object model and config parser"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -27,18 +27,16 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
-[[bin]]
-name = "xtask"
-path = "src/main.rs"
-
 [dependencies]
-clap = { version = "4", features = ["derive", "wrap_help"] }
-anyhow = "1"
-regex = "1"
-tcl-core-types = { path = "../tcl-core-types" }
+tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order"] }
+tcl-irules = { path = "../tcl-irules" }
+serde_json = "1"
+regex = "1"
+ipnet = "2"
+sha2 = "0.10"
+indexmap = "2"
+thiserror = "2"
 
 [lints]
 workspace = true

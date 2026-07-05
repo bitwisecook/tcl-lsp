@@ -55,7 +55,7 @@ docs/             Design docs, KCS notes, references, perf reports.
 ```
 
 The native LSP end-to-end suite lives at
-`rust/lsp/tcl-lsp-server/tests/*_e2e.rs` (30 suites, run by `cargo test`).
+`rust/tcl-lsp-server/tests/*_e2e.rs` (30 suites, run by `cargo test`).
 
 ## Prerequisites
 
@@ -160,7 +160,7 @@ The project uses GNU Make. Key targets:
 | `make install-hooks` | Install the project's git pre-push hook, which refuses pushes unless `make check-all` (or `make test-slow`) has been run against the current worktree. |
 | `make prep-pr`     | Pre-PR formatting + fast checks (a subset of test-slow; auto-formats code, runs codegen, lint/typecheck, and `test-rust`).  Use `make test-slow` for the full gate. |
 | `make test`        | Run all tests — Rust workspace + VS Code extension + Zig WASM runtime (`test-rust test-ext test-zig`) |
-| `make test-rust`   | `cargo test --workspace --all-features` — includes the native lsp_e2e suite (`rust/lsp/tcl-lsp-server/tests/*_e2e.rs`); skip with `SKIP_TEST_RUST=1` |
+| `make test-rust`   | `cargo test --workspace --all-features` — includes the native lsp_e2e suite (`rust/tcl-lsp-server/tests/*_e2e.rs`); skip with `SKIP_TEST_RUST=1` |
 | `make test-ext`    | VS Code extension integration tests (xvfb on headless Linux) |
 | `make test-ext-rust` | Build `rust-server`, then run the VS Code extension tests against the native Rust server (`TCL_LSP_SERVER_KIND=rust`, `TCL_LSP_SERVER_BIN` set) |
 | `make test-zig`    | Zig WASM runtime unit tests (`zig build test`); skip with `SKIP_TEST_ZIG=1` |
@@ -389,7 +389,7 @@ then the rest in parallel):
 7. **Emacs eglot** (`test-emacs`)
 8. **VSIX smoke** (`_prep-pr-smoke`)
 9. **Rust workspace** (`test-rust`) — `cargo test --workspace --all-features`,
-   including the native lsp_e2e suite (`rust/lsp/tcl-lsp-server/tests/*_e2e.rs`)
+   including the native lsp_e2e suite (`rust/tcl-lsp-server/tests/*_e2e.rs`)
 
 On success it writes both `tmp/check-all.stamp` and `tmp/test-slow.stamp`.
 
@@ -542,7 +542,7 @@ type:
     `shimmer`, `tail-call`, `code-sinking`, `unused-procs`,
     `side-effects`, `exec-intent`, `rendered-props`, `const-fold`,
     `strength-reduce`, `codegen`). The vocabulary lives in the `tcl-cli`
-    KCS/help data (`rust/tools/tcl-cli`) and is documented
+    KCS/help data (`rust/tcl-cli`) and is documented
     in [`docs/kcs/STYLE.md`](docs/kcs/STYLE.md) (rule 11). Per-code
     pages and compiler-internals feature pages must carry the
     compiler-pass tag of the pass that produces the code or the
@@ -672,7 +672,7 @@ effect until the server process is restarted.
 
 ## Lexer token types
 
-The Tcl lexer (`rust/compiler/tcl-lexer`) produces tokens with a `TokenType`
+The Tcl lexer (`rust/tcl-lexer`) produces tokens with a `TokenType`
 enum. Key conventions that affect downstream consumers:
 
 - **`ESC`** — plain word fragment, possibly containing backslash escapes.
@@ -789,7 +789,7 @@ Zig ports mirror.
 
 ## Codegen and lowering fallback
 
-The lowering hooks in `rust/compiler/tcl-compiler` convert high-level Tcl
+The lowering hooks in `rust/tcl-compiler` convert high-level Tcl
 commands into IR nodes. When a hook encounters a construct it cannot
 safely specialise (e.g. `{*}` expansion in a structured command, or a
 `subst` template with unsupported backslash forms), it **falls through to
@@ -817,7 +817,7 @@ overshoots the empty case by one — issue #527).
   after the last word) minus one — covering the closer for braces, brackets,
   quoted, empty `{}`/`""`, and compound (`{a}b`) words, with no source re-scan.
   **Trust it** rather than re-deriving a command's span. The segmenter derives
-  this from the canonical red-green CST in `rust/compiler/tcl-syntax`
+  this from the canonical red-green CST in `rust/tcl-syntax`
   (`docs/design/compiler/syntax-tree.md`) — the lossless, position-independent
   tree the formatter, minifier, AOT lowering, and per-command tooling build on.
 
@@ -826,7 +826,7 @@ for the contract.
 
 ## Command registry
 
-Command metadata lives on the `CommandSpec` type in `rust/registry/tcl-registry`,
+Command metadata lives on the `CommandSpec` type in `rust/tcl-registry`,
 **not** in hardcoded sets scattered across consumer modules. Commands are
 defined in the registry's per-dialect spec packs (Tcl, F5 iRules/iApps, EDA).
 
@@ -884,12 +884,12 @@ layers — not just the one closest to the symptom.
   (WASM runtime) + the VS Code extension harness.
 - Rust tests: `make test-rust` (`cargo test --workspace --all-features`).
 - The native LSP end-to-end suite lives at
-  `rust/lsp/tcl-lsp-server/tests/*_e2e.rs` (30 suites, run by `cargo test`) — it is
+  `rust/tcl-lsp-server/tests/*_e2e.rs` (30 suites, run by `cargo test`) — it is
   **not** pytest, and there is no zipapp build step. VS Code extension tests:
   `make test-ext` (or `make test-ext-rust` to drive the native server via
   `TCL_LSP_SERVER_KIND=rust`).
 - **Registry contract & behaviour tests**
-  (`rust/lsp/tcl-lsp-server/tests/registry_contract_e2e.rs`): front-end-driven
+  (`rust/tcl-lsp-server/tests/registry_contract_e2e.rs`): front-end-driven
   coverage of the whole command registry and the iRules
   event/profile/object graphs.  The registry **generates** real Tcl
   scripts and iRules (`when EVENT { … }`) and the tests assert the live

@@ -2,13 +2,13 @@
 # registry-audit
 
 Generators / provenance for the BIG-IP registry data under
-`rust/registry/tcl-registry/src/`.
+`rust/tcl-registry/src/`.
 
 ## Profile defaults (`gen_profile_defaults.py`)
 
 Turns a real F5 `profile_base.conf` — the read-only default-profile base every
 BIG-IP ships in `/config/profile_base.conf` — into
-`rust/registry/tcl-registry/src/profile_defaults/generated.rs`
+`rust/tcl-registry/src/profile_defaults/generated.rs`
 (`PROFILE_DEFAULTS_GENERATED`). SCF exports and `tmsh list … one-line` omit any
 field left at its default, so the report / `f5 query` need this table to
 reconstruct a base profile's effective configuration.
@@ -30,7 +30,7 @@ current override so drift is caught.
 ```sh
 python3 scripts/registry-audit/gen_profile_defaults.py \
   scripts/registry-audit/data/profile_base.conf \
-  rust/registry/tcl-registry/src/profile_defaults/generated.rs
+  rust/tcl-registry/src/profile_defaults/generated.rs
 ```
 
 To refresh from a newer TMOS release, drop its `profile_base.conf` in `data/`

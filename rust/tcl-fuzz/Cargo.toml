@@ -1,0 +1,62 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# `tcl-fuzz` — differential fuzzer for the native Tcl VM.
+#
+# Generates structurally-valid Tcl over the VM's supported surface (variables,
+# expr, string/list/dict ops, control flow, procs, arrays — no I/O), runs each
+# script through both the native `tclvm` and a reference `tclsh`, and flags any
+# divergence in stdout / exit status as a finding. The campaign runner +
+# generator + findings registry drive the differential fuzzer.
+#
+# Both backends run as subprocesses with a wall-clock timeout, so a generated
+# script that hangs one engine is recorded as a finding rather than wedging the
+# campaign.
+[package]
+name = "tcl-fuzz"
+publish.workspace = true
+description = "Differential fuzzer for the native Tcl bytecode VM (tclvm vs tclsh)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "tcl-fuzz"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "wrap_help"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+# The WASM arms compile generated programs to the eval-fallback WASM module:
+# the runnability arm runs them under the wasmtime CLI; the value-differential
+# arm embeds wasmtime in-process with a `tcl-vm`-backed host. Needs the codegen,
+# registry, bytecode, and the VM as the eval host.
+tcl-bytecode = { path = "../tcl-bytecode" }
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-vm = { path = "../tcl-vm" }
+# Core-wasm embedding only (compile + run with host funcs) — the heavy default
+# features (component-model, async, gc, cache, …) are off.
+wasmtime = { version = "46", default-features = false, features = ["cranelift", "runtime", "gc-drc"] }
+
+[lints]
+workspace = true
