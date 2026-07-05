@@ -43,7 +43,6 @@
 //! computation, no I/O, no async.
 
 use rustc_hash::FxHashSet;
-use tcl_compiler::analyser::class_hierarchy::build_class_hierarchy;
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, ProcDef, VarDef};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::taint::{TaintColour, TaintLattice};
@@ -2101,7 +2100,7 @@ fn class_hover_text(analysis: &AnalysisResult, class_def: &ClassDef) -> String {
     }
     // MRO chain + direct subclasses from the class hierarchy — surfaces
     // the inheritance shape inline. Only shown when non-trivial.
-    let hierarchy = build_class_hierarchy(analysis.all_classes.clone());
+    let hierarchy = analysis.class_hierarchy();
     let qname = &class_def.qualified_name;
     if let Some(mro) = hierarchy.mro_map.get(qname)
         && mro.len() > 1
@@ -2371,7 +2370,7 @@ fn oo_method_resolution_note(
     class_q: &str,
     method: &str,
 ) -> Option<String> {
-    let hierarchy = build_class_hierarchy(analysis.all_classes.clone());
+    let hierarchy = analysis.class_hierarchy();
     let provider = hierarchy.method_target(class_q, method)?;
     if provider == class_q {
         // Defined here — does a superclass further down the MRO also

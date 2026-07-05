@@ -70,7 +70,6 @@
 
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::analyser::class_hierarchy::build_class_hierarchy;
 use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
 
@@ -432,7 +431,7 @@ fn rename_method_in_class(
 /// empty only when `method` is neither defined nor inherited by
 /// `seed_class`.
 fn override_family(analysis: &AnalysisResult, seed_class: &str, method: &str) -> Vec<String> {
-    let hierarchy = build_class_hierarchy(analysis.all_classes.clone());
+    let hierarchy = analysis.class_hierarchy();
     // Classes that *directly* define `method` (own body, any visibility) —
     // constructors/destructors aren't in `methods`/`class_methods` so are
     // naturally excluded.

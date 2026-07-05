@@ -27,7 +27,6 @@
 use std::collections::HashSet;
 
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::analyser::class_hierarchy::build_class_hierarchy;
 use tcl_compiler::analyser::types::ClassDef;
 use tcl_lexer::LineIndex;
 
@@ -104,7 +103,7 @@ pub fn subtypes(class_name: &str, source: &str, analysis: &AnalysisResult) -> Ve
         return Vec::new();
     };
     let target = cd.qualified_name.clone();
-    let hierarchy = build_class_hierarchy(analysis.all_classes.clone());
+    let hierarchy = analysis.class_hierarchy();
     let Some(subs) = hierarchy.subclasses.get(&target) else {
         return Vec::new();
     };
