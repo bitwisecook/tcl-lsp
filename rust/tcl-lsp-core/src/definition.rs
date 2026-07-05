@@ -146,6 +146,15 @@ pub fn definition(
     {
         return vec![span_to_range(source, &line_index, span)];
     }
+    // `next` / `nextto` inside a method body — jump to the super-method in
+    // the MRO chain that the enclosing method overrides (`next`), or to the
+    // named class's copy of it (`nextto Cls`).
+    if (word == "next" || word == "nextto")
+        && let Some(span) =
+            next_dispatch_target(analysis, source, &line_index, line, character, &word)
+    {
+        return vec![span_to_range(source, &line_index, span)];
+    }
     for (qname, proc_def) in &analysis.all_procs {
         if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
             return vec![span_to_range(source, &line_index, proc_def.name_span)];
@@ -251,6 +260,106 @@ fn lookup_method_in_class(
         .map(|m| m.name_span)
         .or_else(|| class_def.class_methods.get(method).map(|m| m.name_span))
         .or_else(|| class_def.properties.get(method).map(|p| p.name_span))
+}
+
+/// Resolve `TclOO` `next` / `nextto` at the cursor to the super-method's
+/// `name_span`.
+///
+/// `next` inside `method m` of class `C` dispatches `m` one step further
+/// down the object's MRO — statically we resolve it in `C`'s own MRO (the
+/// sound single-dispatch approximation): the next class after `C` that
+/// provides `m`.  `nextto Base` restarts the search at `Base`.  The
+/// enclosing class + method are found from the cursor's byte offset.
+fn next_dispatch_target(
+    analysis: &AnalysisResult,
+    source: &str,
+    line_index: &LineIndex,
+    line: u32,
+    character: u32,
+    keyword: &str,
+) -> Option<tcl_lexer::Span> {
+    let cursor = byte_offset_at(line_index, source, line, character);
+    let (class_q, method) = enclosing_method(analysis, cursor)?;
+    let start_from: Option<String> = if keyword == "nextto" {
+        // Byte offset of the cursor within its line, so `word_after` can pick
+        // the `nextto` occurrence the cursor is on (not merely the first).
+        let line_start = byte_offset_at(line_index, source, line, 0);
+        let cursor_in_line = cursor.saturating_sub(line_start) as usize;
+        let target = word_after(source, line, cursor_in_line, "nextto")?;
+        Some(canonicalise_class(analysis, &target))
+    } else {
+        None
+    };
+    let hierarchy = analysis.class_hierarchy();
+    let next_class =
+        hierarchy.next_provider(&class_q, &method, &class_q, start_from.as_deref())?;
+    lookup_method_in_class(analysis, next_class, &method)
+}
+
+/// The `(qualified_class, method_name)` whose method body contains the
+/// cursor offset, or `None` when the cursor is not inside a method body.
+fn enclosing_method(analysis: &AnalysisResult, cursor: u32) -> Option<(String, String)> {
+    for cd in analysis.all_classes.values() {
+        if !(cd.body_span.start() <= cursor && cursor <= cd.body_span.end()) {
+            continue;
+        }
+        for (mname, m) in cd.methods.iter().chain(cd.class_methods.iter()) {
+            if m.body_span.start() <= cursor && cursor <= m.body_span.end() {
+                return Some((cd.qualified_name.clone(), mname.clone()));
+            }
+        }
+    }
+    None
+}
+
+/// The whitespace-delimited word that follows `keyword` on the cursor's
+/// line (used to read the class name in `nextto Class`).
+///
+/// `cursor_in_line` is the cursor's byte offset within the line.  When a
+/// line has several `keyword` occurrences (a comment, a string, or a second
+/// statement), the occurrence the cursor sits on — or the nearest one
+/// starting at or before the cursor — is chosen, so `nextto` go-to-def
+/// resolves the class the user is actually pointing at rather than the
+/// first match on the line.
+fn word_after(source: &str, line: u32, cursor_in_line: usize, keyword: &str) -> Option<String> {
+    let line_text = source.split('\n').nth(line as usize)?;
+    // Select the keyword occurrence anchored on the cursor.
+    let mut chosen: Option<usize> = None;
+    let mut search = 0;
+    while let Some(rel) = line_text[search..].find(keyword) {
+        let idx = search + rel;
+        let end = idx + keyword.len();
+        if idx <= cursor_in_line && cursor_in_line <= end {
+            chosen = Some(idx); // cursor is on the keyword itself
+            break;
+        }
+        if idx <= cursor_in_line {
+            chosen = Some(idx); // best occurrence at/before the cursor so far
+        }
+        search = end;
+    }
+    // Fall back to the first occurrence when the cursor precedes them all.
+    let idx = chosen.or_else(|| line_text.find(keyword))?;
+    let rest = line_text[idx + keyword.len()..].trim_start();
+    let word: String = rest
+        .chars()
+        .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == ':')
+        .collect();
+    (!word.is_empty()).then_some(word)
+}
+
+/// Canonicalise a class name to the qualified form keyed in `all_classes`
+/// (adds a leading `::` when that resolves).
+fn canonicalise_class(analysis: &AnalysisResult, name: &str) -> String {
+    if analysis.all_classes.contains_key(name) {
+        return name.to_string();
+    }
+    let q = format!("::{name}");
+    if analysis.all_classes.contains_key(&q) {
+        q
+    } else {
+        name.to_string()
+    }
 }
 
 /// Detect a `$obj method ...` / `[$obj method ...]` call where
@@ -614,6 +723,45 @@ mod tests {
         // The proc name span is on line 0 starting at column 5.
         assert_eq!(locs[0].start_line, 0);
         assert_eq!(locs[0].start_character, 5);
+    }
+
+    #[test]
+    fn jump_to_next_super_method() {
+        // `next` inside B::greet jumps to the overridden A::greet.
+        let src = "oo::class create A {\n    method greet {} { return hi }\n}\noo::class create B {\n    superclass A\n    method greet {} { next }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `next` (line 5). `    method greet {} { next }`
+        let locs = definition(src, 5, 23, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // A::greet's name is on line 1 at column 11.
+        assert_eq!(locs[0].start_line, 1);
+        assert_eq!(locs[0].start_character, 11);
+    }
+
+    #[test]
+    fn jump_to_nextto_named_class_method() {
+        // `nextto A` inside C::greet jumps to A::greet (skipping B).
+        let src = "oo::class create A {\n    method greet {} { return hi }\n}\noo::class create B {\n    superclass A\n    method greet {} { next }\n}\noo::class create C {\n    superclass B\n    method greet {} { nextto A }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `nextto` (line 9). `    method greet {} { nextto A }`
+        let locs = definition(src, 9, 22, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1, "should land on A::greet");
+        assert_eq!(locs[0].start_character, 11);
+    }
+
+    #[test]
+    fn nextto_picks_occurrence_at_cursor_not_first_on_line() {
+        // The line has a decoy `nextto` earlier (inside a string) before the
+        // real `nextto A`.  With the cursor on the real one, resolution must
+        // read the class after *that* occurrence (A), not the first match.
+        let src = "oo::class create A {\n    method greet {} { return hi }\n}\noo::class create B {\n    superclass A\n    method greet {} { next }\n}\noo::class create C {\n    superclass B\n    method greet {} { set x \"nextto Z\" ; nextto A }\n}\n";
+        let analysis = analyse(src);
+        // Cursor inside the real `nextto` (line 9, col 44).
+        let locs = definition(src, 9, 44, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1, "should land on A::greet, not the string decoy");
+        assert_eq!(locs[0].start_character, 11);
     }
 
     #[test]

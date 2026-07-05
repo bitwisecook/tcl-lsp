@@ -280,6 +280,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W250",
+    section: "warning",
+    description:
+      "Instantiating an `oo::abstract` class — abstract classes cannot be created directly; use a concrete subclass.",
+    defaultEnabled: true,
+  },
+  {
     code: "W210",
     section: "variable",
     description: "Variable read before set.",

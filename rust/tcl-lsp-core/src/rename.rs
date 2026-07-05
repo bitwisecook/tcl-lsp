@@ -59,10 +59,22 @@
 //! call site.  See [`crate::references::find_obj_method_call_sites`]
 //! for the external-site scan's coverage.
 //!
+//! Cross-document rename: procs and classes rewrite their sibling-document
+//! call / definition sites via [`cross_document_symbol_edits`] over the
+//! workspace index.  **Methods** rename across their whole override family,
+//! including sibling documents: the server resolves the family via
+//! [`crate::workspace_index::WorkspaceIndex::method_override_family`] and
+//! calls [`method_spans_in_document`] per family-member document.
+//! [`method_rename_target`] identifies the seed class + method under the
+//! cursor for that path.
+//!
 //! Limitations:
 //!
-//! * Cross-document rename is not supported (no workspace-index
-//!   integration).
+//! * A `$obj method` site is only rewritten in a document that also
+//!   *defines* the receiver's class — the same single-document constraint
+//!   under which the analyser resolves `$obj`'s class at all.  A `$obj
+//!   method` call in a file that only *uses* a class (never defines it) is
+//!   not resolvable, so it is neither found nor (mis)renamed.
 //! * `$obj method` sites embedded in quoted / word tokens
 //!   (`"prefix[$d bark]"`) — the external scan descends into
 //!   command-substitution args and proc / method bodies but
@@ -366,11 +378,17 @@ pub fn rename(
     Vec::new()
 }
 
-/// Rename a method of the class identified by `class_q`:
-/// rewrite the declaration name span, every intra-class call
-/// site, and every external `$obj method` call site.  Returns
-/// `None` when `class_q` has no method / classmethod named
-/// `method`.  Shared by the in-class-body and external
+/// Rename `method` across the class identified by `class_q` **and every
+/// other class in its override family** — rewriting each class's
+/// declaration name span, its intra-class `my method` call sites, and its
+/// external `$obj method` call sites.  Returns `None` when neither
+/// `class_q` nor any ancestor provides `method` (nothing to rename).
+///
+/// A `TclOO` method that is (re)defined by a super- or sub-class is a
+/// single polymorphic name: `$obj method` dispatch can reach any
+/// definition along the chain, so renaming only the class under the
+/// cursor would silently break the override relationship.  See
+/// [`override_family`].  Shared by the in-class-body and external
 /// `$obj method` rename entry points.
 fn rename_method_in_class(
     source: &str,
@@ -381,20 +399,153 @@ fn rename_method_in_class(
     analysis: &AnalysisResult,
     line_index: &LineIndex,
 ) -> Option<Vec<TextEdit>> {
-    let (decl_span, call_spans) =
-        crate::references::method_references_for_class(source, dialect, analysis, class_q, method)?;
-    let mut edits = vec![TextEdit {
-        range: span_to_range(source, line_index, decl_span),
-        new_text: new_name.to_owned(),
-    }];
-    for span in call_spans {
+    let family = override_family(analysis, class_q, method);
+    if family.is_empty() {
+        return None;
+    }
+    let mut edits = Vec::new();
+    for member in &family {
+        let Some((decl_span, call_spans)) =
+            crate::references::method_references_for_class(source, dialect, analysis, member, method)
+        else {
+            continue;
+        };
         edits.push(TextEdit {
-            range: span_to_range(source, line_index, span),
+            range: span_to_range(source, line_index, decl_span),
             new_text: new_name.to_owned(),
         });
+        for span in call_spans {
+            edits.push(TextEdit {
+                range: span_to_range(source, line_index, span),
+                new_text: new_name.to_owned(),
+            });
+        }
+    }
+    if edits.is_empty() {
+        return None;
     }
     dedup_edits(&mut edits);
     Some(edits)
+}
+
+/// When the cursor sits on a renameable `TclOO` **method**, return the
+/// `(class_qualified_name, method_name)` it targets — the seed the server
+/// uses to compute the cross-file override family.  Covers both entry
+/// points the in-document rename recognises: an external `$obj method`
+/// call site (class resolved via `instance_classes`) and a cursor inside a
+/// class body on a method / classmethod name (declaration or `my method`
+/// call).  Returns `None` for non-method targets (vars, procs, classes,
+/// properties), which stay on the single-document rename path.
+#[must_use]
+pub fn method_rename_target(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Option<(String, String)> {
+    let line_index = LineIndex::new(source);
+    let (word, _s, _e) = find_word_span_at_position(source, line, character)?;
+    // External `$obj method` — resolve `$obj`'s class.
+    if let Some((inst, method)) =
+        crate::definition::instance_method_at_cursor(source, line, character)
+        && method == word
+        && let Some(class_q) = analysis.instance_classes.get(&inst)
+    {
+        return Some((class_q.clone(), method));
+    }
+    // Inside a class body on one of its method / classmethod names.
+    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    for class_def in analysis.all_classes.values() {
+        let body = class_def.body_span;
+        if body.start() < cursor
+            && cursor < body.end()
+            && (class_def.methods.contains_key(&word) || class_def.class_methods.contains_key(&word))
+        {
+            return Some((class_def.qualified_name.clone(), word));
+        }
+    }
+    None
+}
+
+/// Every span (declaration + intra-class `my method` calls + external
+/// `$obj method` sites) that renaming `method` on `class_q` must rewrite
+/// **within `source`**.  Empty when `class_q` is not defined in this
+/// document.  The server calls this per family-member document to assemble
+/// a cross-file method rename.
+#[must_use]
+pub fn method_spans_in_document(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+) -> Vec<tcl_lexer::Span> {
+    match crate::references::method_references_for_class(source, dialect, analysis, class_q, method) {
+        Some((decl, calls)) => {
+            let mut spans = Vec::with_capacity(1 + calls.len());
+            spans.push(decl);
+            spans.extend(calls);
+            spans
+        }
+        None => Vec::new(),
+    }
+}
+
+/// The set of classes whose definition of `method` must be renamed
+/// together with `seed_class`'s: every class that **directly defines**
+/// `method` and sits in the same override-connected component as
+/// `seed_class` (or the class that provides `method` to it when
+/// `seed_class` only inherits it).
+///
+/// Two definitions belong to one component when their classes are related
+/// by the (mixin-aware) subtype relation — directly, or transitively via
+/// another definer.  So a base method plus every subclass override, and
+/// sibling overrides of a common base, all rename as one unit; unrelated
+/// same-named methods in disjoint hierarchies stay separate (never
+/// over-renamed).  The returned vector always contains the seed and is
+/// empty only when `method` is neither defined nor inherited by
+/// `seed_class`.
+fn override_family(analysis: &AnalysisResult, seed_class: &str, method: &str) -> Vec<String> {
+    let hierarchy = analysis.class_hierarchy();
+    // Classes that *directly* define `method` (own body, any visibility) —
+    // constructors/destructors aren't in `methods`/`class_methods` so are
+    // naturally excluded.
+    let definers: Vec<&String> = analysis
+        .all_classes
+        .iter()
+        .filter(|(_, cd)| cd.methods.contains_key(method) || cd.class_methods.contains_key(method))
+        .map(|(q, _)| q)
+        .collect();
+    // Seed: the class under the cursor when it defines `method`, else the
+    // class that provides it (an ancestor, via the MRO).  When neither, the
+    // family is empty.
+    let seed = if definers.iter().any(|d| d.as_str() == seed_class) {
+        seed_class.to_string()
+    } else if let Some(provider) = hierarchy.method_target(seed_class, method) {
+        provider.to_string()
+    } else {
+        return Vec::new();
+    };
+    let connected = |a: &str, b: &str| {
+        a == b || hierarchy.is_subtype(a, b) || hierarchy.is_subtype(b, a)
+    };
+    // Grow the weakly-connected component of definers containing `seed` to a
+    // fixed point (siblings attach via a shared base already in the family).
+    let mut family = vec![seed];
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for d in &definers {
+            if family.iter().any(|f| f == d.as_str()) {
+                continue;
+            }
+            if family.iter().any(|f| connected(f, d)) {
+                family.push((*d).clone());
+                changed = true;
+            }
+        }
+    }
+    family
 }
 
 /// Variable-rename path — declaration span + every read site,
@@ -674,6 +825,31 @@ fn rename_method(
                     range: span_to_range(source, line_index, span),
                     new_text: new_name.to_owned(),
                 });
+            }
+            // Override family: a method (re)defined by a super- or
+            // sub-class is one polymorphic name — rename every other
+            // class in the connected component that defines it, plus
+            // each of those classes' own call sites.  (Properties are
+            // excluded: they aren't dispatched through the MRO.)
+            for member in override_family(analysis, &class_def.qualified_name, word) {
+                if member == class_def.qualified_name {
+                    continue;
+                }
+                let Some((decl_span, call_spans)) = crate::references::method_references_for_class(
+                    source, dialect, analysis, &member, word,
+                ) else {
+                    continue;
+                };
+                edits.push(TextEdit {
+                    range: span_to_range(source, line_index, decl_span),
+                    new_text: new_name.to_owned(),
+                });
+                for span in call_spans {
+                    edits.push(TextEdit {
+                        range: span_to_range(source, line_index, span),
+                        new_text: new_name.to_owned(),
+                    });
+                }
             }
         }
         dedup_edits(&mut edits);
@@ -1523,5 +1699,124 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(src, "tcl", 0, 6, "hello", &analysis, None);
         assert!(edits.is_empty(), "proc collision not rejected: {edits:?}");
+    }
+
+    // method rename across overrides
+
+    #[test]
+    fn rename_method_renames_subclass_override() {
+        // `Animal::speak` overridden by `Dog::speak`.  Renaming from the
+        // base declaration must rewrite *both* declarations — leaving the
+        // override behind would silently break polymorphic dispatch.
+        let src = "oo::class create Animal {\n\
+                       method speak {} { return x }\n\
+                   }\n\
+                   oo::class create Dog {\n\
+                       superclass Animal\n\
+                       method speak {} { return woof }\n\
+                   }\n";
+        let analysis = analyse(src);
+        // Cursor on `speak` in Animal's declaration (line 1 col 7).
+        let edits = rename(src, "tcl", 1, 7, "vocalise", &analysis, None);
+        assert!(edits.iter().all(|e| e.new_text == "vocalise"));
+        // Both declarations rewritten: line 1 (Animal) and line 5 (Dog).
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(
+            lines.contains(&1) && lines.contains(&5),
+            "expected both Animal (l1) and Dog override (l5) renamed; got {edits:?}",
+        );
+    }
+
+    #[test]
+    fn rename_method_renames_from_subclass_up_to_base() {
+        // Symmetric to the above: renaming from the *subclass* override
+        // must also rewrite the base declaration.
+        let src = "oo::class create Animal {\n\
+                       method speak {} { return x }\n\
+                   }\n\
+                   oo::class create Dog {\n\
+                       superclass Animal\n\
+                       method speak {} { return woof }\n\
+                   }\n";
+        let analysis = analyse(src);
+        // Cursor on `speak` in Dog's declaration (line 5 col 7).
+        let edits = rename(src, "tcl", 5, 7, "vocalise", &analysis, None);
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(
+            lines.contains(&1) && lines.contains(&5),
+            "expected base (l1) renamed from subclass override; got {edits:?}",
+        );
+    }
+
+    #[test]
+    fn rename_method_renames_sibling_overrides_of_common_base() {
+        // Two siblings override a common base method.  Renaming any one
+        // must rewrite the base and *both* siblings — they are one
+        // polymorphic name reachable via the base's static type.
+        let src = "oo::class create Shape {\n\
+                       method area {} { return 0 }\n\
+                   }\n\
+                   oo::class create Circle {\n\
+                       superclass Shape\n\
+                       method area {} { return 3 }\n\
+                   }\n\
+                   oo::class create Square {\n\
+                       superclass Shape\n\
+                       method area {} { return 4 }\n\
+                   }\n";
+        let analysis = analyse(src);
+        // Cursor on `area` in Circle (line 5 col 7).
+        let edits = rename(src, "tcl", 5, 7, "measure", &analysis, None);
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        // Shape (l1), Circle (l5), Square (l9) all rewritten.
+        assert!(
+            lines.contains(&1) && lines.contains(&5) && lines.contains(&9),
+            "expected Shape + both siblings renamed; got {edits:?}",
+        );
+    }
+
+    #[test]
+    fn rename_method_leaves_unrelated_same_name_method_untouched() {
+        // Two classes in *disjoint* hierarchies both define `run`.
+        // Renaming one must not touch the other.
+        let src = "oo::class create Engine {\n\
+                       method run {} { return e }\n\
+                   }\n\
+                   oo::class create Task {\n\
+                       method run {} { return t }\n\
+                   }\n";
+        let analysis = analyse(src);
+        // Cursor on `run` in Engine (line 1 col 7).
+        let edits = rename(src, "tcl", 1, 7, "start", &analysis, None);
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(lines.contains(&1), "Engine::run should be renamed: {edits:?}");
+        assert!(
+            !lines.contains(&4),
+            "unrelated Task::run must NOT be renamed; got {edits:?}",
+        );
+    }
+
+    #[test]
+    fn rename_inherited_method_from_external_obj_site() {
+        // `$d speak` where `d` is a `Dog` that *inherits* `speak` from
+        // `Animal` (no override).  Renaming from the external call site
+        // must rewrite the base declaration (previously produced nothing).
+        let src = "oo::class create Animal {\n\
+                       method speak {} { return x }\n\
+                   }\n\
+                   oo::class create Dog {\n\
+                       superclass Animal\n\
+                   }\n\
+                   set d [Dog new]\n\
+                   $d speak\n";
+        let analysis = analyse(src);
+        // Cursor on `speak` in `$d speak` (line 7 col 3).
+        let edits = rename(src, "tcl", 7, 3, "vocalise", &analysis, None);
+        assert!(!edits.is_empty(), "inherited-method rename produced nothing");
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(
+            lines.contains(&1),
+            "expected base Animal::speak decl (l1) renamed; got {edits:?}",
+        );
     }
 }
