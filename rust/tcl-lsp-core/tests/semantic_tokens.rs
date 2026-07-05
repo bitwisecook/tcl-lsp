@@ -691,3 +691,50 @@ fn source_command_substitution_argument_is_tokenised() {
         "a variable inside source's argument substitution must be a variable: {toks:?}",
     );
 }
+
+// ---------------------------------------------------------------------------
+// Peer bugs of #774 — other multi-name variable-declaring commands whose
+// trailing names the registry's single leading VarWrite role leaves as
+// strings.  The analyser already tracks these correctly (via lowering hooks);
+// only the highlighting lagged.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn global_highlights_every_name() {
+    // `global a b c` declares every name — not just the first.
+    let src = "proc p {} {\n    global alpha beta gamma\n}\n";
+    for name in ["alpha", "beta", "gamma"] {
+        assert_eq!(
+            kind_of_word(src, "tcl8.6", name).as_deref(),
+            Some("variable"),
+            "`{name}` in `global` must be a variable: {:?}",
+            decode(src, "tcl8.6"),
+        );
+    }
+}
+
+#[test]
+fn namespace_variable_pairs_highlight_names_not_values() {
+    // Namespace-level `variable name value name value` — the names (even arg
+    // positions) are variables; the interleaved values keep their own kind.
+    let src = "namespace eval ns {\n    variable alpha 1 beta 2\n}\n";
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "alpha").as_deref(),
+        Some("variable"),
+        "{:?}",
+        decode(src, "tcl8.6"),
+    );
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "beta").as_deref(),
+        Some("variable"),
+        "second name must also be a variable: {:?}",
+        decode(src, "tcl8.6"),
+    );
+    // The value `1` stays a number, not a variable.
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "1").as_deref(),
+        Some("number"),
+        "an interleaved value must not become a variable: {:?}",
+        decode(src, "tcl8.6"),
+    );
+}

@@ -584,41 +584,54 @@ fn special_arg_kinds(
     insert_switch_case_list_override(seg, &mut overrides);
     insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, inside_oo_body, arg_texts, &mut overrides);
-    insert_oo_variable_overrides(seg, inside_oo_body, &mut overrides);
+    insert_multiname_var_overrides(seg, inside_oo_body, &mut overrides);
     insert_var_decl_overrides(seg, registry, head, &mut overrides);
 
     overrides
 }
 
-/// Inside a `TclOO` definition body, `variable name ?name ...?` declares every
-/// bareword as an instance variable (issue #774).  This differs from the
-/// namespace-level `variable name ?value name value ...?` form the registry
-/// models — where only the leading name is a write target — so the
-/// registry-driven [`insert_var_decl_overrides`] (which marks just index 0)
-/// leaves the trailing names as plain strings.  Only meaningful when
-/// `inside_oo_body`; a method body drops out of that context, so a regular
-/// `variable` call there keeps its namespace-level classification.
-fn insert_oo_variable_overrides(
+/// Highlight the *trailing* name arguments of a multi-name variable-declaring
+/// command that the registry's single leading `VarWrite` role
+/// ([`insert_var_decl_overrides`], index 0) leaves as plain strings:
+///
+/// * `global name ?name ...?` — every argument is a declared variable.
+/// * `variable name ?name ...?` **inside a `TclOO` definition body** — every
+///   argument is an instance variable (issue #774).
+/// * `variable name ?value name value ...?` at namespace level — the name sits
+///   at every *even* argument position (0, 2, …); the interleaved values are
+///   left alone.
+///
+/// Highlighting only: the analyser already tracks every one of these names via
+/// the commands' lowering hooks (`global` / `variable`), so no diagnostic
+/// depends on this.  An array element (`arr(x)`), a `$`-computed name, or a
+/// quoted word is skipped so its inner `$var` sub-tokens survive.
+fn insert_multiname_var_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     inside_oo_body: bool,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    if !inside_oo_body || seg.texts[0] != "variable" {
-        return;
-    }
-    // Every plain bareword name argument is an instance-variable declaration.
-    // An array element (`arr(x)`), a `$`-computed name, or a quoted word is
-    // left to the default classifier so its inner `$var` sub-tokens survive.
-    for (i, text) in seg.texts.iter().enumerate().skip(1) {
+    // Stride over the argument words (`seg.texts[1..]`): 1 = every word is a
+    // name, 2 = names at every other word (name/value pairs).
+    let stride = match seg.texts[0].as_str() {
+        "global" => 1,
+        // A TclOO-body `variable a b c` declares every name; the namespace-level
+        // form is name/value pairs.
+        "variable" if inside_oo_body => 1,
+        "variable" => 2,
+        _ => return,
+    };
+    let mut i = 1;
+    while i < seg.texts.len() {
         if let Some(tok) = seg.argv.get(i)
             && matches!(tok.kind, TokenType::Esc)
             && !tok.in_quote
-            && is_plain_var_name(text)
+            && is_plain_var_name(&seg.texts[i])
         {
             overrides
                 .entry(tok.span.start())
                 .or_insert(ArgOverride::VarDecl);
         }
+        i += stride;
     }
 }
 

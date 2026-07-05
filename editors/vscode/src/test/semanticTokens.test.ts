@@ -344,4 +344,32 @@ suite("Semantic Tokens", () => {
       "expected '$currentDir' inside source's argument as a variable",
     );
   });
+
+  // Peer of issue #774: `global a b c` declares every name as a variable, not
+  // just the first.
+  test("'global' declares every name (peer of #774)", async () => {
+    const uri = getDocUri("globalMultiName.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
+    for (const name of ["alpha", "beta", "gamma"]) {
+      assert.ok(
+        variableWords.has(name),
+        `expected '${name}' in 'global' as a variable token, got ${JSON.stringify([...variableWords])}`,
+      );
+    }
+  });
 });

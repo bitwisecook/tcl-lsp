@@ -217,6 +217,34 @@ pub fn hover(
     None
 }
 
+/// Resolve an unqualified command `name` to its qualified registry spec via the
+/// document's `namespace import`s (`namespace import ::tcltest::*` → `test`
+/// resolves to `tcltest::test`).  Mirrors the analyser's imported-command body
+/// resolution (`dispatch_body_arguments`).  Returns the qualified name and its
+/// spec, or `None` when nothing matches.  Only unqualified names are resolved.
+fn resolve_imported_command<'r>(
+    registry: &'r CommandRegistry,
+    name: &str,
+    analysis: &AnalysisResult,
+) -> Option<(String, &'r tcl_registry::CommandSpec)> {
+    if name.contains("::") {
+        return None;
+    }
+    for imp in &analysis.namespace_imports {
+        let candidate = if let Some(prefix) = imp.pattern.strip_suffix('*') {
+            format!("{prefix}{name}")
+        } else if imp.pattern.rsplit("::").next() == Some(name) {
+            imp.pattern.clone()
+        } else {
+            continue;
+        };
+        if let Some(spec) = registry.get(&candidate) {
+            return Some((candidate, spec));
+        }
+    }
+    None
+}
+
 /// Render a hover snippet for a built-in command name.
 /// Looks up `name` in the registry, uses the matched spec's
 /// `hover.summary` / `synopsis` to produce a markdown block.
@@ -225,8 +253,19 @@ fn builtin_command_hover_text(
     name: &str,
     analysis: &AnalysisResult,
 ) -> Option<String> {
+    use std::borrow::Cow;
     use std::fmt::Write;
-    let spec = registry.get(name)?;
+    // Resolve the head through the document's `namespace import`s: a bare
+    // `test` under `namespace import ::tcltest::*` hovers as `tcltest::test`
+    // (mirrors the analyser's imported-command body resolution).
+    let (name, spec): (Cow<'_, str>, _) = match registry.get(name) {
+        Some(spec) => (Cow::Borrowed(name), spec),
+        None => {
+            let (qual, spec) = resolve_imported_command(registry, name, analysis)?;
+            (Cow::Owned(qual), spec)
+        }
+    };
+    let name = name.as_ref();
     let hover = spec.hover.as_ref()?;
     let mut out = format!("**`{name}`** — built-in command\n");
     if !hover.summary.is_empty() {
@@ -2491,6 +2530,31 @@ mod tests {
         let registry = tcl_registry::CommandRegistry::build_default();
         let h = hover(src, 1, 6, &analysis, Some(&registry)).expect("hover");
         assert!(!h.value.contains("**Requires**"), "{}", h.value);
+    }
+
+    #[test]
+    fn builtin_hover_resolves_imported_command() {
+        // Peer of #776: a bare command imported into the global scope resolves
+        // to its qualified spec — hovering `test` after `namespace import
+        // ::tcltest::*` surfaces the `tcltest::test` documentation.
+        let src = "namespace import ::tcltest::*\ntest t-1 {desc} -body { set x 1 } -result 1\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let h = hover(src, 1, 2, &analysis, Some(&registry)).expect("hover on bare `test`");
+        assert!(
+            h.value.contains("tcltest::test"),
+            "bare imported `test` must hover as tcltest::test: {}",
+            h.value
+        );
+    }
+
+    #[test]
+    fn builtin_hover_bare_test_without_import_is_none() {
+        // Control: without an import, a bare `test` is not a known command.
+        let src = "test t-1 {desc}\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        assert!(hover(src, 0, 0, &analysis, Some(&registry)).is_none());
     }
 
     #[test]

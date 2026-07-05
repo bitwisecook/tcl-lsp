@@ -37,4 +37,29 @@ suite("Hover", () => {
     // The hover should mention "fib" or show the signature
     assert.ok(hoverText.includes("fib"), `Hover should mention "fib", got: ${hoverText}`);
   });
+
+  // Peer of issue #776: a bare command imported into the global scope hovers as
+  // its qualified spec — `test` after `namespace import ::tcltest::*`.
+  test("resolves hover for an imported command", async () => {
+    const uri = getDocUri("tcltestImport.tcl");
+    await activate(uri);
+    // `test` is the command head on line 1.
+    const position = new vscode.Position(1, 2);
+
+    const hovers = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeHoverProvider", uri, position),
+      (r) => Array.isArray(r) && r.length > 0,
+      { timeout: 10_000, label: "hover for imported command" },
+    )) as vscode.Hover[];
+
+    const hoverText = hovers
+      .flatMap((h) => h.contents)
+      .map((c) => (typeof c === "string" ? c : (c as { value: string }).value))
+      .join("\n");
+
+    assert.ok(
+      hoverText.includes("tcltest::test"),
+      `imported 'test' should hover as tcltest::test, got: ${hoverText}`,
+    );
+  });
 });

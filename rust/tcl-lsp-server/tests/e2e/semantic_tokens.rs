@@ -1014,3 +1014,20 @@ fn test_source_command_substitution_argument_is_tokenised() {
         "the variable inside source's argument must be a variable: {tokens:?}",
     );
 }
+
+#[test]
+fn test_global_declares_every_name() {
+    // Peer of #774: `global a b c` declares every name as a variable.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "proc p {} {\n    global alpha beta gamma\n}\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    for name in ["alpha", "beta", "gamma"] {
+        let t = tokens
+            .iter()
+            .find(|t| covered(src, t) == name)
+            .unwrap_or_else(|| panic!("no token covers {name:?}: {tokens:?}"));
+        assert_eq!(t.ttype, "variable", "`{name}` in `global` must be a variable");
+    }
+}
