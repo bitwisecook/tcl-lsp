@@ -36,7 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-textvariable",
-        value: OptionValue::value("varName"),
+        value: OptionValue::var_name(),
         detail: "Variable whose value is used as the label text.",
         dialects: None,
         aliases: &[],

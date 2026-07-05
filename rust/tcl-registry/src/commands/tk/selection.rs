@@ -93,7 +93,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::value("command"),
+        value: OptionValue::script(),
         detail: "Specifies a Tcl script to run when the selection is claimed by another window.",
         dialects: None,
         aliases: &[],

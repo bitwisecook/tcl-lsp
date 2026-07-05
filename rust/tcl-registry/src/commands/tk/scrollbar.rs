@@ -36,7 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::value(""),
+        value: OptionValue::script(),
         detail: "Command prefix to invoke when the scrollbar is moved.",
         dialects: None,
         aliases: &[],

@@ -44,7 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-variable",
-        value: OptionValue::value(""),
+        value: OptionValue::var_name(),
         detail: "Name of a variable linked to the scale's current value.",
         dialects: None,
         aliases: &[],
@@ -140,7 +140,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::value(""),
+        value: OptionValue::script(),
         detail: "Tcl command prefix invoked when the scale value changes.",
         dialects: None,
         aliases: &[],

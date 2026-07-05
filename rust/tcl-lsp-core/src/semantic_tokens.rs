@@ -3301,6 +3301,32 @@ mod tests {
     }
 
     #[test]
+    fn option_command_value_recurses_as_body_script() {
+        // `button .b -command {puts $x}` — the `-command` value is a script
+        // body (Phase 3: ArgRole::Body), so it recurses: `$x` inside the braces
+        // resolves as a Variable rather than one opaque string.
+        let toks = decode_full("button .b -command {puts $x}\n", "tk", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
+            "expected $x resolved inside the -command body; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn option_textvariable_value_is_variable_declaration() {
+        // `entry .e -textvariable myvar` — the value names a variable the widget
+        // reads/writes (Phase 3: ArgRole::VarWrite), so it is a Variable
+        // declaration, not a plain `OptionValue` string.
+        let toks = decode_full("entry .e -textvariable myvar\n", "tk", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION),
+            "expected myvar as a variable declaration; got {toks:?}"
+        );
+    }
+
+    #[test]
     fn regex_pattern_with_substitution_splits_regex_and_tcl() {
         // `regexp "abc$var.*" $s` — literal `abc` / `.*` sub-tokenise as
         // regex, but `$var` stays a Tcl variable (Tcl resolves it before

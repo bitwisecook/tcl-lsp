@@ -36,7 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-textvariable",
-        value: OptionValue::value(""),
+        value: OptionValue::var_name(),
         detail: "Name of a variable whose value will be used as the checkbutton text.",
         dialects: None,
         aliases: &[],
@@ -44,7 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-variable",
-        value: OptionValue::value(""),
+        value: OptionValue::var_name(),
         detail: "Name of the global variable linked to the checkbutton state.",
         dialects: None,
         aliases: &[],
@@ -68,7 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::value(""),
+        value: OptionValue::script(),
         detail: "Tcl command to invoke when the checkbutton is toggled.",
         dialects: None,
         aliases: &[],

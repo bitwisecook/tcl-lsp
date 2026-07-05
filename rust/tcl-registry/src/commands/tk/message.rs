@@ -36,7 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-textvariable",
-        value: OptionValue::value(""),
+        value: OptionValue::var_name(),
         detail: "Name of a variable whose value will be used as the message text.",
         dialects: None,
         aliases: &[],

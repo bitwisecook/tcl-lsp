@@ -36,7 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-textvariable",
-        value: OptionValue::value(""),
+        value: OptionValue::var_name(),
         detail: "Name of a variable whose value will be used as the radiobutton text.",
         dialects: None,
         aliases: &[],
@@ -44,7 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-variable",
-        value: OptionValue::value(""),
+        value: OptionValue::var_name(),
         detail: "Name of the global variable shared by all radiobuttons in the group.",
         dialects: None,
         aliases: &[],
@@ -60,7 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::value(""),
+        value: OptionValue::script(),
         detail: "Tcl command to invoke when the radiobutton is selected.",
         dialects: None,
         aliases: &[],

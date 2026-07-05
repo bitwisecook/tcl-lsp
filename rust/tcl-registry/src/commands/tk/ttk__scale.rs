@@ -52,7 +52,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-variable",
-        value: OptionValue::value("varName"),
+        value: OptionValue::var_name(),
         detail: "Variable linked to the scale value.",
         dialects: None,
         aliases: &[],
@@ -76,7 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::value("script"),
+        value: OptionValue::script(),
         detail: "Script to evaluate when the scale value changes.",
         dialects: None,
         aliases: &[],

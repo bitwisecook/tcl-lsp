@@ -294,7 +294,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-postcommand",
-        value: OptionValue::value(""),
+        value: OptionValue::script(),
         detail: "Tcl command to invoke just before the menu is posted.",
         dialects: None,
         aliases: &[],
@@ -302,7 +302,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-tearoffcommand",
-        value: OptionValue::value(""),
+        value: OptionValue::script(),
         detail: "Tcl command to invoke when the menu is torn off.",
         dialects: None,
         aliases: &[],

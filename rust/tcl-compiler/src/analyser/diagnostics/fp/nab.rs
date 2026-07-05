@@ -289,5 +289,26 @@ fn fp_nab_11_stub_registered_command_silent() {
     );
 }
 
+// Option-value Body role: a Tk `-command` script value is recursively analysed
+// like a positional body (Phase 3), so a structure-dependent lint that requires
+// parsing the inner command — W100, unbraced `expr` — fires inside it.
+#[test]
+fn tk_command_option_body_is_analysed() {
+    let src = "button .b -command {expr $x+1}";
+    assert!(
+        fires(src, "tk", "W100"),
+        "-command body should be analysed (W100 on unbraced expr); {:?}",
+        diags(src, "tk")
+    );
+    // A generic-value option's value is a plain string, never a script — the
+    // inner `expr` is not parsed as a command, so no W100.
+    let neg = "button .b -text {expr $x+1}";
+    assert!(
+        !fires(neg, "tk", "W100"),
+        "-text value must not be analysed as a script; {:?}",
+        diags(neg, "tk")
+    );
+}
+
 // FP-NAB-03 control — an impure proc using puts comes out pure=False. Covered
 // as a Rust interproc-purity structure test elsewhere (not a diagnostic).

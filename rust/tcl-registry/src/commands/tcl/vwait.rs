@@ -100,7 +100,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-variable",
-        value: OptionValue::value(""),
+        value: OptionValue::var_name(),
         detail: "VarName must be the name of a global variable.",
         dialects: None,
         aliases: &[],

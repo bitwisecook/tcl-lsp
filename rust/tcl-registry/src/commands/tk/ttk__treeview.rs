@@ -76,7 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-xscrollcommand",
-        value: OptionValue::value("script"),
+        value: OptionValue::script(),
         detail: "Command prefix for horizontal scroll communication.",
         dialects: None,
         aliases: &[],
@@ -84,7 +84,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-yscrollcommand",
-        value: OptionValue::value("script"),
+        value: OptionValue::script(),
         detail: "Command prefix for vertical scroll communication.",
         dialects: None,
         aliases: &[],

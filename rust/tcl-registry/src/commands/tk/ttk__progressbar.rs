@@ -68,7 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-variable",
-        value: OptionValue::value("varName"),
+        value: OptionValue::var_name(),
         detail: "Variable linked to the progress bar value.",
         dialects: None,
         aliases: &[],

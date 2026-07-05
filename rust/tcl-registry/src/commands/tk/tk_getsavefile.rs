@@ -84,7 +84,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-typevariable",
-        value: OptionValue::value("varName"),
+        value: OptionValue::var_name(),
         detail: "Variable to store the selected file type.",
         dialects: None,
         aliases: &[],

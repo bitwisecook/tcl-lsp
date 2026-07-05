@@ -28,7 +28,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-textvariable",
-        value: OptionValue::value("varName"),
+        value: OptionValue::var_name(),
         detail: "Variable linked to the current combobox value.",
         dialects: None,
         aliases: &[],
@@ -68,7 +68,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-postcommand",
-        value: OptionValue::value("script"),
+        value: OptionValue::script(),
         detail: "Script to evaluate just before displaying the drop-down list.",
         dialects: None,
         aliases: &[],
@@ -84,7 +84,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-validatecommand",
-        value: OptionValue::value("script"),
+        value: OptionValue::script(),
         detail: "Script to evaluate for input validation.",
         dialects: None,
         aliases: &[],
@@ -92,7 +92,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-invalidcommand",
-        value: OptionValue::value("script"),
+        value: OptionValue::script(),
         detail: "Script to evaluate when validation fails.",
         dialects: None,
         aliases: &[],
@@ -100,7 +100,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-xscrollcommand",
-        value: OptionValue::value("script"),
+        value: OptionValue::script(),
         detail: "Command prefix for horizontal scroll communication.",
         dialects: None,
         aliases: &[],

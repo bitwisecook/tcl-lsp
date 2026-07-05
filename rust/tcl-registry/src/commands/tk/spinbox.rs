@@ -60,7 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-textvariable",
-        value: OptionValue::value(""),
+        value: OptionValue::var_name(),
         detail: "Name of a variable linked to the spinbox's contents.",
         dialects: None,
         aliases: &[],
@@ -100,7 +100,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::value(""),
+        value: OptionValue::script(),
         detail: "Tcl command to invoke when the value is changed via the arrows.",
         dialects: None,
         aliases: &[],
@@ -116,7 +116,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-validatecommand",
-        value: OptionValue::value(""),
+        value: OptionValue::script(),
         detail: "Script to evaluate when validation is triggered.",
         dialects: None,
         aliases: &[],
@@ -124,7 +124,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-invalidcommand",
-        value: OptionValue::value(""),
+        value: OptionValue::script(),
         detail: "Script to evaluate when validation fails.",
         dialects: None,
         aliases: &[],
@@ -268,7 +268,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-xscrollcommand",
-        value: OptionValue::value(""),
+        value: OptionValue::script(),
         detail: "Command prefix for communicating with horizontal scrollbars.",
         dialects: None,
         aliases: &[],
