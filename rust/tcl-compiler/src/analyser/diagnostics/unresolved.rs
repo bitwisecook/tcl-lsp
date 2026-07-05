@@ -142,9 +142,26 @@ impl Analyser {
         // spuriously flagged.
         let active_dialect = tcl_registry::prelude::DialectSet::parse(&self.dialect)
             .unwrap_or(tcl_registry::prelude::DialectSet::ALL_TCL);
+        // A command gated behind ``required_package`` is only "known" when that
+        // package was ``package require``d; otherwise it is unresolved and must
+        // still draw W123 (e.g. ``argparse`` without ``package require
+        // argparse``).  Package-provided commands don't exist ambiently.
+        let required_pkgs: HashSet<&str> = self
+            .result
+            .package_requires
+            .iter()
+            .map(|p| p.name.as_str())
+            .collect();
         let registry_names: HashSet<String> = registry
             .command_names()
-            .filter(|name| registry.get_for_dialect(name, active_dialect).is_some())
+            .filter(|name| {
+                registry
+                    .get_for_dialect(name, active_dialect)
+                    .is_some_and(|spec| {
+                        spec.required_package
+                            .is_none_or(|pkg| required_pkgs.contains(pkg))
+                    })
+            })
             .map(str::to_string)
             .collect();
         // Inline ``# tcl-lsp: stub NAME ...``

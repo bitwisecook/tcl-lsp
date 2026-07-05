@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The `argparse` package — Andy Goth's argument preprocessor as
-//! forked/maintained by George Andrews (`package require argparse`).
+//! The `argparse` package — George Yashin's (georgtree) argument parser
+//! (`package require argparse`).
 //!
 //! Models the *global* switches of the `argparse` command itself — the
 //! switches before the definition list (e.g. `argparse -inline -pfirst
