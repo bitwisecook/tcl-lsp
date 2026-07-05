@@ -89,6 +89,87 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "ttk::notebook pathName ?options?",
 }];
 
+/// The command's subcommands.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "add",
+        arity: Arity::at_least(1),
+        detail: "Add a new tab displaying the given window as a pane.",
+        synopsis: "pathName add window ?options?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "forget",
+        arity: Arity::exact(1),
+        detail: "Remove the tab specified by tabid and unmanage its window.",
+        synopsis: "pathName forget tabid",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "hide",
+        arity: Arity::exact(1),
+        detail: "Hide the tab specified by tabid without removing it.",
+        synopsis: "pathName hide tabid",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "identify",
+        arity: Arity::at_least(1),
+        detail: "Identify the element or tab at the given coordinates.",
+        synopsis: "pathName identify ?component? x y",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "index",
+        arity: Arity::exact(1),
+        detail: "Return the numeric index of the tab specified by tabid.",
+        synopsis: "pathName index tabid",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "insert",
+        arity: Arity::at_least(2),
+        detail: "Insert a tab at the specified position, adding or moving its window.",
+        synopsis: "pathName insert pos window ?options?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "select",
+        arity: Arity::new(0, 1),
+        detail: "Select the given tab, or return the currently selected tab.",
+        synopsis: "pathName select ?tabid?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "tab",
+        arity: Arity::at_least(1),
+        detail: "Query or modify the options of the tab specified by tabid.",
+        synopsis: "pathName tab tabid ?option? ?value ...?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "tabs",
+        arity: Arity::exact(0),
+        detail: "Return the list of windows managed by the notebook.",
+        synopsis: "pathName tabs",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "instate",
+        arity: Arity::at_least(1),
+        detail: "Test whether the widget state matches statespec, optionally running a script.",
+        synopsis: "pathName instate statespec ?script?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "state",
+        arity: Arity::new(0, 1),
+        detail: "Modify or query the widget state.",
+        synopsis: "pathName state ?stateSpec?",
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ttk::notebook",
@@ -107,6 +188,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

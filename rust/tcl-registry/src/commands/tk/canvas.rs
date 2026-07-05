@@ -90,6 +90,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        name: "dchars",
+        arity: Arity::at_least(2),
+        detail: "Delete characters between the first and last positions in a text or line item.",
+        synopsis: "pathName dchars tagOrId first ?last?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
         name: "delete",
         arity: Arity::at_least(0),
         detail: "Delete the items given by each tagOrId.",
@@ -126,6 +133,34 @@ const SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        name: "icursor",
+        arity: Arity::exact(2),
+        detail: "Set the insertion cursor of a text, line, or polygon item just before the given index.",
+        synopsis: "pathName icursor tagOrId index",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "index",
+        arity: Arity::exact(2),
+        detail: "Return the numerical index within an item corresponding to the given index.",
+        synopsis: "pathName index tagOrId index",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "insert",
+        arity: Arity::exact(3),
+        detail: "Insert a string into a text, line, or polygon item before the given index.",
+        synopsis: "pathName insert tagOrId beforeThis string",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "itemcget",
+        arity: Arity::exact(2),
+        detail: "Return the value of a configuration option for a canvas item.",
+        synopsis: "pathName itemcget tagOrId option",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
         name: "itemconfigure",
         arity: Arity::at_least(1),
         detail: "Query or modify configuration options of a canvas item.",
@@ -148,6 +183,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        name: "moveto",
+        arity: Arity::exact(3),
+        detail: "Move the items so their top-left corner is at the given position.",
+        synopsis: "pathName moveto tagOrId x y",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
         name: "postscript",
         arity: Arity::at_least(0),
         detail: "Generate a Postscript representation of the canvas.",
@@ -163,6 +205,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        name: "rchars",
+        arity: Arity::exact(4),
+        detail: "Replace the characters between first and last in a text or line item with the given string.",
+        synopsis: "pathName rchars tagOrId first last string",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
         name: "scale",
         dialects: None,
         arity: Arity::exact(5),
@@ -175,6 +224,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Implement scanning for the canvas.",
         synopsis: "pathName scan option args",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "select",
+        arity: Arity::at_least(1),
+        detail: "Manipulate the selection in text, line, or polygon items.",
+        synopsis: "pathName select option ?tagOrId arg?",
         ..SubCommand::DEFAULT
     },
     SubCommand {

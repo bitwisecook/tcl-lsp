@@ -1546,6 +1546,28 @@ mod tests {
     }
 
     #[test]
+    fn text_tag_bind_script_is_a_body() {
+        // `pathName tag bind tagName sequence script` binds a deferred
+        // event-handler script as its trailing word (issue #785 class).
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role(
+                "text",
+                &["tag", "bind", "sel", "<Key>", "{p}"],
+                ArgRole::Body,
+            ),
+            // `tag` subcommand offset (+1) plus index 3 within the tag args.
+            vec![4],
+            "the text tag bind trailing script is a body",
+        );
+        assert!(
+            reg.arg_indices_for_role("text", &["tag", "add", "sel", "1.0", "end"], ArgRole::Body)
+                .is_empty(),
+            "non-bind tag subcommands carry no script",
+        );
+    }
+
+    #[test]
     fn selection_handle_command_is_a_command_prefix() {
         // `selection handle window command` — the trailing command is a
         // prefix Tk appends offset/maxChars to, not a recursed script body.

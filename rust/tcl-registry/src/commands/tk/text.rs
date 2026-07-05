@@ -18,6 +18,193 @@
 
 //! `text` command.
 use crate::prelude::*;
+
+/// `text` `tag` sub-subcommand roles. `pathName tag bind tagName sequence script`
+/// binds a deferred event-handler script (run from the Tk event loop) as its
+/// trailing word. Args here are those AFTER the `tag` subcommand word:
+/// `bind`(0) tagName(1) sequence(2) script(3).
+fn text_tag_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    if args.first() == Some(&"bind") && args.len() == 4 {
+        vec![(3, ArgRole::Body)]
+    } else {
+        Vec::new()
+    }
+}
+
+/// The command's subcommands.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "bbox",
+        arity: Arity::exact(1),
+        detail: "Return the bounding box of the character at the given index.",
+        synopsis: "pathName bbox index",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "compare",
+        arity: Arity::exact(3),
+        detail: "Compare two indices according to a relational operator.",
+        synopsis: "pathName compare index1 op index2",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "count",
+        arity: Arity::at_least(2),
+        detail: "Count the number of items between two indices.",
+        synopsis: "pathName count ?option ...? index1 index2",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "debug",
+        arity: Arity::new(0, 1),
+        detail: "Enable or query consistency checking of the B-tree code.",
+        synopsis: "pathName debug ?boolean?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "delete",
+        arity: Arity::at_least(1),
+        detail: "Delete a range of characters from the text.",
+        synopsis: "pathName delete index1 ?index2 ...?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "dlineinfo",
+        arity: Arity::exact(1),
+        detail: "Return display information for the display line containing index.",
+        synopsis: "pathName dlineinfo index",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "dump",
+        arity: Arity::at_least(1),
+        detail: "Return the contents of the text widget in a parseable form.",
+        synopsis: "pathName dump ?switches? index1 ?index2?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "edit",
+        arity: Arity::at_least(1),
+        detail: "Control the undo/redo mechanism and modified flag.",
+        synopsis: "pathName edit option ?arg ...?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "get",
+        arity: Arity::at_least(1),
+        detail: "Return the text from the widget between the given indices.",
+        synopsis: "pathName get ?-displaychars? ?--? index1 ?index2 ...?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "image",
+        arity: Arity::at_least(1),
+        detail: "Manipulate images embedded in the text widget.",
+        synopsis: "pathName image option ?arg ...?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "index",
+        arity: Arity::exact(1),
+        detail: "Return the position of index in line.char form.",
+        synopsis: "pathName index index",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "insert",
+        arity: Arity::at_least(2),
+        detail: "Insert text at the given index.",
+        synopsis: "pathName insert index chars ?tagList chars tagList ...?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "mark",
+        arity: Arity::at_least(1),
+        detail: "Manipulate marks within the text widget.",
+        synopsis: "pathName mark option ?arg ...?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "peer",
+        arity: Arity::at_least(1),
+        detail: "Create or list peer text widgets.",
+        synopsis: "pathName peer option ?arg ...?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "pendingsync",
+        arity: Arity::exact(0),
+        detail: "Return whether asynchronous line-height calculations are pending.",
+        synopsis: "pathName pendingsync",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "replace",
+        arity: Arity::at_least(2),
+        detail: "Replace a range of text with new text.",
+        synopsis: "pathName replace index1 index2 chars ?tagList chars tagList ...?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "scan",
+        arity: Arity::at_least(2),
+        detail: "Implement scanning (fast dragging) of the text widget.",
+        synopsis: "pathName scan option args",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "search",
+        arity: Arity::at_least(2),
+        detail: "Search for text matching a pattern within the widget.",
+        synopsis: "pathName search ?switches? pattern index ?stopIndex?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "see",
+        arity: Arity::exact(1),
+        detail: "Scroll the widget so the character at index is visible.",
+        synopsis: "pathName see index",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "sync",
+        arity: Arity::at_least(0),
+        detail: "Control or query asynchronous line-height calculations.",
+        synopsis: "pathName sync ?-command command?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "tag",
+        arity: Arity::at_least(1),
+        detail: "Manipulate tags applied to ranges of text.",
+        synopsis: "pathName tag option ?arg ...?",
+        arg_role_resolver: Some(text_tag_arg_roles),
+        body_kind: BodyKind::Structural,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "window",
+        arity: Arity::at_least(1),
+        detail: "Manipulate embedded windows within the text widget.",
+        synopsis: "pathName window option ?arg ...?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "xview",
+        arity: Arity::at_least(0),
+        detail: "Query or change the horizontal position of the text in the window.",
+        synopsis: "pathName xview ?args?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "yview",
+        arity: Arity::at_least(0),
+        detail: "Query or change the vertical position of the text in the window.",
+        synopsis: "pathName yview ?args?",
+        ..SubCommand::DEFAULT
+    },
+];
+
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     reads: false,
@@ -323,6 +510,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

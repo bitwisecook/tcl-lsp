@@ -196,6 +196,122 @@ const OPTIONS: &[OptionSpec] = &[
     },
 ];
 
+/// The command's subcommands.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "activate",
+        arity: Arity::exact(1),
+        detail: "Set the active element to the one at the given index.",
+        synopsis: "pathName activate index",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "bbox",
+        arity: Arity::exact(1),
+        detail: "Return the bounding box of the text of the element at the given index.",
+        synopsis: "pathName bbox index",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "curselection",
+        arity: Arity::exact(0),
+        detail: "Return a list of the indices of all currently selected elements.",
+        synopsis: "pathName curselection",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "delete",
+        arity: Arity::new(1, 2),
+        detail: "Delete one or more elements in the range first through last inclusive.",
+        synopsis: "pathName delete first ?last?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "get",
+        arity: Arity::new(1, 2),
+        detail: "Return the contents of the elements in the range first through last inclusive.",
+        synopsis: "pathName get first ?last?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "index",
+        arity: Arity::exact(1),
+        detail: "Return the integer index value corresponding to the given index.",
+        synopsis: "pathName index index",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "insert",
+        arity: Arity::at_least(1),
+        detail: "Insert zero or more new elements just before the element at the given index.",
+        synopsis: "pathName insert index ?element ...?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "itemcget",
+        arity: Arity::exact(2),
+        detail: "Return the current value of the given configuration option for an item.",
+        synopsis: "pathName itemcget index option",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "itemconfigure",
+        arity: Arity::at_least(1),
+        detail: "Query or modify the configuration options of an individual item.",
+        synopsis: "pathName itemconfigure index ?option? ?value option value ...?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "nearest",
+        arity: Arity::exact(1),
+        detail: "Return the index of the visible element nearest to the given y-coordinate.",
+        synopsis: "pathName nearest y",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "scan",
+        arity: Arity::exact(2),
+        detail: "Implement scanning: record scan mark, or scroll relative to a mark.",
+        synopsis: "pathName scan mark|dragto x y",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "see",
+        arity: Arity::exact(1),
+        detail: "Adjust the view so that the element at the given index is visible.",
+        synopsis: "pathName see index",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "selection",
+        arity: Arity::at_least(1),
+        detail: "Adjust or query the selection: anchor, clear, includes, or set.",
+        synopsis: "pathName selection option first ?last?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "size",
+        arity: Arity::exact(0),
+        detail: "Return the number of elements in the listbox.",
+        synopsis: "pathName size",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "xview",
+        arity: Arity::at_least(0),
+        detail: "Query or change the horizontal position of the listbox's view.",
+        synopsis: "pathName xview ?args?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "yview",
+        arity: Arity::at_least(0),
+        detail: "Query or change the vertical position of the listbox's view.",
+        synopsis: "pathName yview ?args?",
+        ..SubCommand::DEFAULT
+    },
+];
+
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "listbox pathName ?option value ...?",
@@ -219,6 +335,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }
