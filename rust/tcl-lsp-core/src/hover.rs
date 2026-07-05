@@ -43,6 +43,7 @@
 //! computation, no I/O, no async.
 
 use rustc_hash::FxHashSet;
+use tcl_compiler::analyser::class_hierarchy::build_class_hierarchy;
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, ProcDef, VarDef};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::taint::{TaintColour, TaintLattice};
@@ -200,7 +201,7 @@ pub fn hover(
     }
 
     if let Some(class_def) = lookup_class(analysis, &word) {
-        return Some(Hover::markdown(class_hover_text(class_def)));
+        return Some(Hover::markdown(class_hover_text(analysis, class_def)));
     }
 
     // Class-member hover — same dispatch as
@@ -2067,7 +2068,7 @@ fn format_docstring(text: &str) -> String {
     parts.join("\n\n")
 }
 
-fn class_hover_text(class_def: &ClassDef) -> String {
+fn class_hover_text(analysis: &AnalysisResult, class_def: &ClassDef) -> String {
     let mut sig = format!(
         "{} create {}",
         class_def.metaclass, class_def.qualified_name
@@ -2097,6 +2098,22 @@ fn class_hover_text(class_def: &ClassDef) -> String {
             "**Instance variables**: {}",
             class_def.variables.join(", ")
         ));
+    }
+    // MRO chain + direct subclasses from the class hierarchy — surfaces
+    // the inheritance shape inline. Only shown when non-trivial.
+    let hierarchy = build_class_hierarchy(analysis.all_classes.clone());
+    let qname = &class_def.qualified_name;
+    if let Some(mro) = hierarchy.mro_map.get(qname)
+        && mro.len() > 1
+    {
+        details.push(format!("**MRO**: {}", mro.join(" → ")));
+    }
+    if let Some(subs) = hierarchy.subclasses.get(qname)
+        && !subs.is_empty()
+    {
+        let mut names: Vec<&str> = subs.iter().map(String::as_str).collect();
+        names.sort_unstable();
+        details.push(format!("**Subclasses**: {}", names.join(", ")));
     }
     if !details.is_empty() {
         parts.push(details.join("  \n"));
@@ -2288,15 +2305,19 @@ fn class_member_hover_text(
         }
         let qname = &class_def.qualified_name;
         if let Some(m) = class_def.methods.get(word) {
+            let note = oo_method_resolution_note(analysis, qname, word)
+                .map_or(String::new(), |n| format!("  \n{n}"));
             return Some(format!(
-                "**method** `{qname}::{name}` ({nparam} param(s))",
+                "**method** `{qname}::{name}` ({nparam} param(s)){note}",
                 name = m.name,
                 nparam = m.params.len(),
             ));
         }
         if let Some(m) = class_def.class_methods.get(word) {
+            let note = oo_method_resolution_note(analysis, qname, word)
+                .map_or(String::new(), |n| format!("  \n{n}"));
             return Some(format!(
-                "**classmethod** `{qname}::{name}` ({nparam} param(s))",
+                "**classmethod** `{qname}::{name}` ({nparam} param(s)){note}",
                 name = m.name,
                 nparam = m.params.len(),
             ));
@@ -2318,24 +2339,49 @@ fn class_member_hover_text(
 /// Hover text for a `$obj method` call — `method` resolved
 /// against the class identified by `class_q`.  Searches
 /// `methods` then `class_methods`, rendering a one-line
-/// summary that names the receiver class.
+/// summary that names the receiver class plus an MRO note
+/// (inherited-from / overrides).
 fn obj_method_hover_text(analysis: &AnalysisResult, class_q: &str, method: &str) -> Option<String> {
     let class_def = analysis.all_classes.get(class_q)?;
+    let note = oo_method_resolution_note(analysis, class_q, method);
+    let suffix = note.map_or(String::new(), |n| format!("  \n{n}"));
     if let Some(m) = class_def.methods.get(method) {
         return Some(format!(
-            "**method** `{class_q}::{name}` ({nparam} param(s))",
+            "**method** `{class_q}::{name}` ({nparam} param(s)){suffix}",
             name = m.name,
             nparam = m.params.len(),
         ));
     }
     if let Some(m) = class_def.class_methods.get(method) {
         return Some(format!(
-            "**classmethod** `{class_q}::{name}` ({nparam} param(s))",
+            "**classmethod** `{class_q}::{name}` ({nparam} param(s)){suffix}",
             name = m.name,
             nparam = m.params.len(),
         ));
     }
     None
+}
+
+/// MRO note for `method` on `class_q`: `inherited from ::Provider` when the
+/// method resolves to an ancestor, or `overrides ::Super::method` when it
+/// is defined on `class_q` but a superclass also provides it.  `None` for a
+/// method defined only here (no note needed) or an unresolvable one.
+fn oo_method_resolution_note(
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+) -> Option<String> {
+    let hierarchy = build_class_hierarchy(analysis.all_classes.clone());
+    let provider = hierarchy.method_target(class_q, method)?;
+    if provider == class_q {
+        // Defined here — does a superclass further down the MRO also
+        // provide it (i.e. this is an override)?
+        hierarchy
+            .next_provider(class_q, method, class_q, None)
+            .map(|sup| format!("_overrides `{sup}::{method}`_"))
+    } else {
+        Some(format!("_inherited from `{provider}`_"))
+    }
 }
 
 #[cfg(test)]
@@ -2670,14 +2716,40 @@ mod tests {
             .all_classes
             .values()
             .next()
-            .expect("class recorded");
-        let text = class_hover_text(class_def);
+            .expect("class recorded")
+            .clone();
+        let text = class_hover_text(&analysis, &class_def);
         // Methods listed in sorted order.
         let alpha_pos = text.find("alpha");
         let beta_pos = text.find("beta");
         if let (Some(a), Some(b)) = (alpha_pos, beta_pos) {
             assert!(a < b, "expected alpha before beta in: {text}");
         }
+    }
+
+    #[test]
+    fn class_hover_shows_mro_and_subclasses() {
+        let src = "oo::class create A {}\noo::class create B {\n    superclass A\n}\noo::class create C {\n    superclass B\n}\n";
+        let analysis = analyse(src);
+        let b = analysis.all_classes.get("::B").expect("B").clone();
+        let text = class_hover_text(&analysis, &b);
+        assert!(text.contains("**MRO**"), "MRO missing: {text}");
+        assert!(text.contains("::B → ::A"), "MRO chain wrong: {text}");
+        assert!(text.contains("**Subclasses**") && text.contains("::C"), "subclasses missing: {text}");
+    }
+
+    #[test]
+    fn method_hover_notes_inheritance_and_override() {
+        let src = "oo::class create A {\n    method greet {} {}\n}\noo::class create B {\n    superclass A\n    method greet {} {}\n}\noo::class create C {\n    superclass A\n}\n";
+        let analysis = analyse(src);
+        // B::greet overrides A::greet.
+        let over = oo_method_resolution_note(&analysis, "::B", "greet").unwrap_or_default();
+        assert!(over.contains("overrides") && over.contains("::A::greet"), "{over}");
+        // C inherits greet from A.
+        let inh = oo_method_resolution_note(&analysis, "::C", "greet").unwrap_or_default();
+        assert!(inh.contains("inherited from") && inh.contains("::A"), "{inh}");
+        // A::greet defined only here — no note.
+        assert!(oo_method_resolution_note(&analysis, "::A", "greet").is_none());
     }
 
     #[test]
