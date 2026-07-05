@@ -1807,6 +1807,7 @@ For the complete reference, see
 | W232 | Constant string index out of range -- `string index`/`range`/`replace`/`insert` silently no-op | |
 | W240 | Loop condition is constant false -- body never executes | |
 | W241 | Loop is provably infinite -- constant-true condition with no `break`/`return` | |
+| W250 | Instantiating an `oo::abstract` class -- abstract classes have no `new`/`create`; use a concrete subclass | |
 
 ### Warnings -- Variables
 

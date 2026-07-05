@@ -376,11 +376,27 @@ fn build_member_ranges(
     out
 }
 
+/// Every method / classmethod / constructor / destructor body span of `cd`
+/// — the regions re-segmented for intra-class `my <member>` call sites.
+fn collect_member_bodies(cd: &tcl_compiler::analyser::types::ClassDef) -> Vec<tcl_lexer::Span> {
+    let mut bodies: Vec<tcl_lexer::Span> = cd
+        .methods
+        .values()
+        .map(|m| m.body_span)
+        .chain(cd.class_methods.values().map(|m| m.body_span))
+        .chain(cd.constructors.iter().map(|c| c.body_span))
+        .collect();
+    if let Some(d) = &cd.destructor {
+        bodies.push(d.body_span);
+    }
+    bodies
+}
+
 /// Resolve a method's declaration span plus every call site —
-/// intra-class (re-segment the class's own method bodies) and
-/// external (`$obj method` across the document).  Returns
-/// `None` when `class_q` has no method / classmethod named
-/// `method`.
+/// intra-class (re-segment the class's own method bodies plus any
+/// inheriting subclass's bodies) and external (`$obj method` across the
+/// document).  Returns `None` when `class_q` has no method / classmethod
+/// named `method`.
 pub(crate) fn method_references_for_class(
     source: &str,
     dialect: &str,
@@ -398,17 +414,24 @@ pub(crate) fn method_references_for_class(
         .or_else(|| class_def.class_methods.get(method).map(|m| m.name_span))?;
 
     let mut call_spans: Vec<Span> = Vec::new();
-    // Intra-class: re-segment every method / classmethod /
-    // ctor / dtor body for bare `method` invocations.
-    let mut bodies: Vec<Span> = class_def
-        .methods
-        .values()
-        .map(|m| m.body_span)
-        .chain(class_def.class_methods.values().map(|m| m.body_span))
-        .chain(class_def.constructors.iter().map(|c| c.body_span))
-        .collect();
-    if let Some(d) = &class_def.destructor {
-        bodies.push(d.body_span);
+    // Intra-class `my method` dispatch: re-segment every method / classmethod
+    // / ctor / dtor body for `my method` invocations.  Scan `class_q`'s own
+    // bodies **and** the bodies of every subclass that *inherits* this
+    // definition — a class whose MRO resolves `method` to `class_q` (i.e. it
+    // does not override).  A pure inheritor is not itself a rename family
+    // member (it declares no copy of `method`), but its `my method` calls
+    // dispatch to `class_q`'s definition, so they must rename with it;
+    // omitting them left those call sites pointing at the old name.  A
+    // subclass that *overrides* `method` resolves to itself, not `class_q`,
+    // so its bodies are handled under its own family entry — never here.
+    let hierarchy = analysis.class_hierarchy();
+    let mut bodies: Vec<Span> = collect_member_bodies(class_def);
+    for (other_q, other_cd) in &analysis.all_classes {
+        if other_q.as_str() != class_q
+            && hierarchy.method_target(other_q, method) == Some(class_q)
+        {
+            bodies.extend(collect_member_bodies(other_cd));
+        }
     }
     for body_span in bodies {
         if body_span.is_empty() {
@@ -496,16 +519,7 @@ fn find_class_member_references(
         // Collect call-site spans by re-segmenting every
         // method body (the analyser doesn't walk into method
         // bodies for the `command_invocations` collection).
-        let mut bodies: Vec<Span> = class_def
-            .methods
-            .values()
-            .map(|m| m.body_span)
-            .chain(class_def.class_methods.values().map(|m| m.body_span))
-            .chain(class_def.constructors.iter().map(|c| c.body_span))
-            .collect();
-        if let Some(d) = &class_def.destructor {
-            bodies.push(d.body_span);
-        }
+        let bodies: Vec<Span> = collect_member_bodies(class_def);
         let mut call_spans: Vec<Span> = Vec::new();
         for body_span in bodies {
             if body_span.is_empty() {
@@ -606,11 +620,22 @@ pub(crate) fn find_obj_method_call_sites(
     class_q: &str,
     method: &str,
 ) -> Vec<tcl_lexer::Span> {
-    // Variables of the target class.
+    // Variables whose `$obj method` dispatch resolves to `class_q`'s copy of
+    // `method` — its own instances **plus** instances of any subclass that
+    // *inherits* this definition (the subclass's MRO resolves `method` to
+    // `class_q`).  An exact-class-equality filter dropped the inheriting-
+    // subclass sites, silently leaving them pointing at the old name after an
+    // inherited-method rename.  A subclass that *overrides* `method` resolves
+    // to itself, so its instances are excluded here and rewritten under that
+    // subclass's own family entry — each site is attributed to exactly one
+    // family member (no double count).
+    let hierarchy = analysis.class_hierarchy();
     let var_set: FxHashSet<&str> = analysis
         .instance_classes
         .iter()
-        .filter(|(_, c)| c.as_str() == class_q)
+        .filter(|(_, c)| {
+            c.as_str() == class_q || hierarchy.method_target(c, method) == Some(class_q)
+        })
         .map(|(v, _)| v.as_str())
         .collect();
     if var_set.is_empty() {

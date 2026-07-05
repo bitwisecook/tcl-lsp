@@ -286,7 +286,7 @@ fn next_dispatch_target(
         let line_start = byte_offset_at(line_index, source, line, 0);
         let cursor_in_line = cursor.saturating_sub(line_start) as usize;
         let target = word_after(source, line, cursor_in_line, "nextto")?;
-        Some(canonicalise_class(analysis, &target))
+        Some(canonicalise_class(analysis, &class_q, &target))
     } else {
         None
     };
@@ -348,18 +348,24 @@ fn word_after(source: &str, line: u32, cursor_in_line: usize, keyword: &str) -> 
     (!word.is_empty()).then_some(word)
 }
 
-/// Canonicalise a class name to the qualified form keyed in `all_classes`
-/// (adds a leading `::` when that resolves).
-fn canonicalise_class(analysis: &AnalysisResult, name: &str) -> String {
-    if analysis.all_classes.contains_key(name) {
-        return name.to_string();
-    }
-    let q = format!("::{name}");
-    if analysis.all_classes.contains_key(&q) {
-        q
-    } else {
-        name.to_string()
-    }
+/// Canonicalise a written class name to the qualified form keyed in
+/// `all_classes`, **owner-aware** — resolved relative to `owner`'s namespace
+/// (the class writing the `nextto`) via the shared [`resolve_class_name`]
+/// resolver: exact, `::name`, an outward namespace walk, then a unique tail.
+/// This lets `nextto Base` reach a namespaced base class (`::Ns::Base`) named
+/// bare from a sibling in the same namespace, instead of only matching a
+/// global `::Base`.  Falls back to the written name when nothing resolves so
+/// the caller's `next_provider` lookup simply finds no target.
+fn canonicalise_class(analysis: &AnalysisResult, owner: &str, name: &str) -> String {
+    let tail_index =
+        tcl_compiler::analyser::class_hierarchy::build_tail_index(analysis.all_classes.keys());
+    tcl_compiler::analyser::class_hierarchy::resolve_class_name(
+        name,
+        owner,
+        |cand| analysis.all_classes.contains_key(cand),
+        &tail_index,
+    )
+    .unwrap_or_else(|| name.to_string())
 }
 
 /// Detect a `$obj method ...` / `[$obj method ...]` call where
@@ -748,6 +754,20 @@ mod tests {
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 1, "should land on A::greet");
         assert_eq!(locs[0].start_character, 11);
+    }
+
+    #[test]
+    fn jump_to_nextto_namespaced_class_method() {
+        // `nextto A` names a namespaced sibling bare from within `::Ns::C`.
+        // Owner-aware canonicalisation resolves it to `::Ns::A` (previously
+        // only a global `::A` would have matched, so this produced nothing).
+        let src = "namespace eval Ns {\n    oo::class create A {\n        method greet {} { return hi }\n    }\n    oo::class create B {\n        superclass A\n        method greet {} { next }\n    }\n    oo::class create C {\n        superclass B\n        method greet {} { nextto A }\n    }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `nextto` inside C::greet (line 10).
+        let locs = definition(src, 10, 28, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // ::Ns::A::greet's name token is on line 2.
+        assert_eq!(locs[0].start_line, 2, "should land on ::Ns::A::greet");
     }
 
     #[test]

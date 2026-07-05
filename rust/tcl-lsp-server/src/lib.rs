@@ -2048,12 +2048,22 @@ impl Backend {
             } else {
                 // Owner-aware: resolve each written super/mixin name relative
                 // to the defining class's namespace (never a bare global tail
-                // guess) via the index's `supertype_classes`.
-                index
-                    .classes_named(&class_name)
-                    .first()
-                    .map(|c| index.supertype_classes(c))
-                    .unwrap_or_default()
+                // guess) via the index's `supertype_classes`.  A class name
+                // can be defined in more than one indexed document; union the
+                // supertypes of **every** matching definition rather than
+                // picking an arbitrary `.first()` (whose choice — and thus the
+                // reported supertypes — depended on index insertion order).
+                let mut acc: Vec<&core_workspace_index::WorkspaceClass> = Vec::new();
+                let mut seen_super: std::collections::HashSet<String> =
+                    std::collections::HashSet::new();
+                for c in index.classes_named(&class_name) {
+                    for s in index.supertype_classes(c) {
+                        if seen_super.insert(s.qualified_name.clone()) {
+                            acc.push(s);
+                        }
+                    }
+                }
+                acc
             };
             list.into_iter()
                 .map(|c| (c.uri.clone(), c.qualified_name.clone(), c.name_span))
