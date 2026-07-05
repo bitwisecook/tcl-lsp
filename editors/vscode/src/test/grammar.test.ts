@@ -168,3 +168,51 @@ suite("TextMate grammar: comment continuation (#759)", () => {
     }
   });
 });
+
+// Regression cover for issue #749: the grammar recurses `source.tcl` into every
+// brace group, so a bare control word (`for`, `else`, `in`, …) inside an unknown
+// command's braced *data* argument — e.g. `argparse -help {...}` — is coloured as
+// a keyword.  A context-free TextMate grammar cannot tell a script body from
+// data, so this is a known, documented limitation: the fix is the LSP semantic
+// token overlay (which classifies the whole brace group as a string), and the
+// `highlightingHealth` checks surface the cases where that overlay isn't active.
+// This test pins the grammar behaviour so a future context-aware change is a
+// conscious, reviewed update rather than a silent regression.
+suite("TextMate grammar: keywords inside unknown-command braces (#749)", () => {
+  let grammar: vsctm.IGrammar;
+
+  suiteSetup(async () => {
+    const registry = makeRegistry();
+    const loaded = await registry.loadGrammar("source.tcl");
+    assert.ok(loaded, "source.tcl grammar should load");
+    grammar = loaded;
+  });
+
+  /** Scopes applied to the first standalone occurrence of `word` in `line`. */
+  function scopesForWord(line: string, word: string): string[] | undefined {
+    const result = grammar.tokenizeLine(line, vsctm.INITIAL);
+    const tok = result.tokens.find((t) => line.slice(t.startIndex, t.endIndex).trim() === word);
+    return tok?.scopes;
+  }
+
+  test("a control word inside a braced -help argument is scoped as a keyword", () => {
+    const scopes = scopesForWord("argparse -help {termination occurs for the loop}", "for");
+    assert.ok(scopes, "found the 'for' token");
+    assert.ok(
+      scopes.includes("keyword.control.tcl"),
+      `grammar colours 'for' inside braces as a keyword (got ${scopes.join(", ")})`,
+    );
+  });
+
+  test("'else' inside any braced data argument is likewise scoped as a keyword", () => {
+    const scopes = scopesForWord("set opts {run else stop}", "else");
+    assert.ok(scopes, "found the 'else' token");
+    assert.ok(scopes.includes("keyword.control.tcl"), scopes.join(", "));
+  });
+
+  test("the same word at real command position is also a keyword (grammar is context-free)", () => {
+    const scopes = scopesForWord("for {set i 0} {$i < 3} {incr i} {}", "for");
+    assert.ok(scopes, "found the 'for' token");
+    assert.ok(scopes.includes("keyword.control.tcl"), scopes.join(", "));
+  });
+});

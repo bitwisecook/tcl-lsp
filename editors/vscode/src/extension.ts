@@ -71,6 +71,8 @@ import {
   openCompilerExplorer,
 } from "./compilerExplorer";
 import { openTkPreview, tkPreviewDocChanged, tkPreviewEditorChanged } from "./tkPreviewPanel";
+import { registerHighlightingHealthChecks } from "./highlightingHealth";
+import { TCL_LANGUAGE_IDS, isTclLanguage } from "./languageIds";
 
 const execFileAsync = promisify(execFile);
 
@@ -110,26 +112,9 @@ const DIALECT_LABELS: Record<string, string> = {
 
 const DEFAULT_DIALECT = "tcl8.6";
 
-const TCL_LANGUAGE_IDS = new Set([
-  "tcl",
-  "tcl-irule",
-  "tcl-iapp",
-  "tcl-bigip",
-  "tcl8.4",
-  "tcl8.5",
-  "tcl9.0",
-  "tcl9.1",
-  "tcl-synopsys",
-  "tcl-cadence",
-  "tcl-xilinx",
-  "tcl-quartus",
-  "tcl-mentor",
-  "tcl-expect",
-]);
-
-export function isTclLanguage(languageId: string): boolean {
-  return TCL_LANGUAGE_IDS.has(languageId);
-}
+// Sourced from ./languageIds (a vscode-free module) and re-exported so existing
+// importers that pull these from ./extension keep working.
+export { TCL_LANGUAGE_IDS, isTclLanguage };
 
 /** Map language IDs that imply a specific dialect. */
 const LANGUAGE_ID_DIALECTS: Record<string, string> = {
@@ -459,6 +444,11 @@ export async function activate(context: ExtensionContext) {
     }),
   );
   onActiveEditorChanged(window.activeTextEditor);
+
+  // Warn once when semantic highlighting can't reach a Tcl buffer (wrong
+  // language association, or semantic highlighting disabled) — grammar-only
+  // colouring mis-highlights keywords inside braced strings (issue #749).
+  registerHighlightingHealthChecks(context);
 
   // Update status bar label when manually changing settings, and re-push
   // resolved feature toggles when the underlying editor globals change.
