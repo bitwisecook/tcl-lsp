@@ -43,6 +43,7 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(1, ArgRole::Body)],
         tcllib_package: Some("snit"),
         required_package: Some("snit"),
+        definition_body: Some(&crate::definer::SNIT_GRAMMAR),
         ..CommandSpec::DEFAULT
     }
 }

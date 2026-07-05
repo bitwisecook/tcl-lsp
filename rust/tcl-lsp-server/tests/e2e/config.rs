@@ -109,9 +109,9 @@ fn reports_dialect_and_scalars() {
     let cfg = lsp.effective_config(&uri);
     let dialect = cfg.get("dialect").and_then(Value::as_str).unwrap_or("");
     assert!(!dialect.is_empty(), "{cfg}");
-    assert!(cfg.get("line_length").map(Value::is_i64).unwrap_or(false), "{cfg}");
+    assert!(cfg.get("line_length").is_some_and(Value::is_i64), "{cfg}");
     assert!(
-        cfg.get("optimiser_enabled").map(Value::is_boolean).unwrap_or(false),
+        cfg.get("optimiser_enabled").is_some_and(Value::is_boolean),
         "{cfg}"
     );
 }
@@ -285,7 +285,7 @@ fn two_space_indent() {
     lsp.open_ready(&uri, FMT_SRC);
     let edits = lsp.formatting(&uri, 2, true);
     assert!(
-        edits.as_array().map(|a| !a.is_empty()).unwrap_or(false),
+        edits.as_array().is_some_and(|a| !a.is_empty()),
         "expected formatting edits"
     );
     assert_eq!(body_indent(&first_edit_text(&edits)), "  ");
@@ -298,7 +298,7 @@ fn four_space_indent() {
     lsp.open_ready(&uri, FMT_SRC);
     let edits = lsp.formatting(&uri, 4, true);
     assert!(
-        edits.as_array().map(|a| !a.is_empty()).unwrap_or(false),
+        edits.as_array().is_some_and(|a| !a.is_empty()),
         "expected formatting edits"
     );
     assert_eq!(body_indent(&first_edit_text(&edits)), "    ");

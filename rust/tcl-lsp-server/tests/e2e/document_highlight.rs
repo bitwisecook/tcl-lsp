@@ -95,7 +95,7 @@ fn test_no_duplicate_ranges() {
             )
         })
         .collect();
-    let unique: std::collections::BTreeSet<_> = keys.iter().cloned().collect();
+    let unique: std::collections::BTreeSet<_> = keys.iter().copied().collect();
     assert_eq!(keys.len(), unique.len(), "{keys:?}");
 }
 

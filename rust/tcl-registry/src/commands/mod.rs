@@ -27,6 +27,7 @@ pub mod eda_xilinx;
 pub mod expect;
 pub mod iapps;
 pub mod irules;
+pub mod itcl;
 pub mod sdc_base;
 pub mod stdlib;
 pub mod tcl;

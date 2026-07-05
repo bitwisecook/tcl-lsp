@@ -283,7 +283,7 @@ fn list_subcommands_unknown_is_empty() {
 fn list_known_packages_shape() {
     let mut lsp = Lsp::tcl();
     let data = lsp.execute_command("tcl-lsp.listKnownPackages", json!([]));
-    assert!(data.get("packages").map(Value::is_array).unwrap_or(false), "{data}");
+    assert!(data.get("packages").is_some_and(Value::is_array), "{data}");
 }
 
 #[test]
@@ -292,7 +292,7 @@ fn suggest_packages_for_symbol_shape() {
     let data = lsp.execute_command("tcl-lsp.suggestPackagesForSymbol", json!(["json::write"]));
     assert_eq!(data.get("symbol").and_then(Value::as_str), Some("json::write"));
     assert!(
-        data.get("suggestions").map(Value::is_array).unwrap_or(false),
+        data.get("suggestions").is_some_and(Value::is_array),
         "{data}"
     );
 }

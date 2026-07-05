@@ -52,7 +52,7 @@ fn by_label(
     out
 }
 
-/// The `documentation` text of a completion item (string or MarkupContent).
+/// The `documentation` text of a completion item (string or `MarkupContent`).
 fn doc_text(item: &Value) -> String {
     match item.get("documentation") {
         Some(Value::String(s)) => s.clone(),

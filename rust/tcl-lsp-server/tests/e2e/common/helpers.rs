@@ -95,13 +95,12 @@ pub fn starts(result: &Value) -> std::collections::BTreeSet<(i64, i64)> {
             .get("range")
             .or_else(|| item.get("targetSelectionRange"))
             .or_else(|| item.get("targetRange"));
-        if let Some(rng) = rng {
-            if let Some(s) = rng.get("start") {
+        if let Some(rng) = rng
+            && let Some(s) = rng.get("start") {
                 let line = s.get("line").and_then(Value::as_i64).unwrap_or(0);
                 let ch = s.get("character").and_then(Value::as_i64).unwrap_or(0);
                 out.insert((line, ch));
             }
-        }
     }
     out
 }

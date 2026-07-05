@@ -323,7 +323,7 @@ fn c3_tokens_well_formed_for_pathological_input() {
     let raw = lsp.semantic_tokens(&uri);
     let data = raw.get("data").and_then(Value::as_array);
     assert!(
-        data.map(|d| d.len() % 5 == 0).unwrap_or(false),
+        data.is_some_and(|d| d.len() % 5 == 0),
         "token data must be 5-int groups"
     );
     let n_lines = (src.matches('\n').count() + 1) as i64;
@@ -449,7 +449,7 @@ fn inert_brace_word_break_tokens_well_formed() {
     let raw = lsp.semantic_tokens(&uri);
     let data = raw.get("data").and_then(Value::as_array);
     assert!(
-        data.map(|d| d.len() % 5 == 0).unwrap_or(false),
+        data.is_some_and(|d| d.len() % 5 == 0),
         "token data must be 5-int groups"
     );
 }

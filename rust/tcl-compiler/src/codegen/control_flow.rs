@@ -369,7 +369,7 @@ impl CodegenCtx<'_> {
     /// unless proc context, a plain-local dict var and targets, and a
     /// straight-line body whose final statement yields a value.
     pub fn emit_dict_update(&mut self, rest: &[String]) -> bool {
-        if !self.is_proc || rest.len() < 4 || rest.len() % 2 != 0 {
+        if !self.is_proc || rest.len() < 4 || !rest.len().is_multiple_of(2) {
             return false;
         }
         let dict_var = &rest[0];

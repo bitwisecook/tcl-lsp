@@ -952,3 +952,228 @@ fn test_clock_without_format_option() {
     let tokens = typed(&mut lsp, &lg, &uri);
     assert_eq!(tokens.iter().filter(|t| t.ttype == "clockPercent").count(), 0);
 }
+
+// -- georgtree issues #774 / #775 / #776 (end-to-end) --------------------
+
+#[test]
+fn test_tcloo_body_variable_declares_every_name() {
+    // Issue #774: `variable a b c` in a TclOO class body declares every name as
+    // an instance variable, not just the first.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "oo::class create Foo {\n    variable width height depth\n}\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    for name in ["width", "height", "depth"] {
+        let t = tokens
+            .iter()
+            .find(|t| covered(src, t) == name)
+            .unwrap_or_else(|| panic!("no token covers {name:?}: {tokens:?}"));
+        assert_eq!(t.ttype, "variable", "`{name}` must be a variable: {tokens:?}");
+    }
+}
+
+#[test]
+fn test_imported_tcltest_test_structure_recognised() {
+    // Issue #776: after `namespace import tcltest::*`, a bare `test` resolves to
+    // the tcltest spec — its `-body`/`-result` are options and the body script
+    // is recursed.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "namespace import tcltest::*\n\
+               test t-1 {desc} -body {\n    set x 1\n} -result 1\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let kind_of = |word: &str| {
+        tokens
+            .iter()
+            .find(|t| covered(src, t) == word)
+            .map(|t| t.ttype.clone())
+    };
+    assert_eq!(
+        kind_of("-body").as_deref(),
+        Some("decorator"),
+        "imported test's -body must be an option: {tokens:?}",
+    );
+    assert_eq!(
+        kind_of("-result").as_deref(),
+        Some("decorator"),
+        "imported test's -result must be an option: {tokens:?}",
+    );
+    assert_eq!(
+        kind_of("set").as_deref(),
+        Some("function"),
+        "the -body script must be recursed: {tokens:?}",
+    );
+}
+
+#[test]
+fn test_source_command_substitution_argument_is_tokenised() {
+    // Issue #775: a command substitution in `source`'s argument is highlighted
+    // as a command sequence (locks the rust-branch behaviour).
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "source [file join $currentDir testUtilities.tcl]\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    assert_eq!(
+        tokens
+            .iter()
+            .find(|t| covered(src, t) == "file")
+            .map(|t| t.ttype.clone())
+            .as_deref(),
+        Some("function"),
+        "the [file join …] substitution must be tokenised: {tokens:?}",
+    );
+    assert!(
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == "$currentDir" && t.ttype == "variable"),
+        "the variable inside source's argument must be a variable: {tokens:?}",
+    );
+}
+
+#[test]
+fn test_global_declares_every_name() {
+    // Peer of #774: `global a b c` declares every name as a variable.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "proc p {} {\n    global alpha beta gamma\n}\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    for name in ["alpha", "beta", "gamma"] {
+        let t = tokens
+            .iter()
+            .find(|t| covered(src, t) == name)
+            .unwrap_or_else(|| panic!("no token covers {name:?}: {tokens:?}"));
+        assert_eq!(t.ttype, "variable", "`{name}` in `global` must be a variable");
+    }
+}
+
+#[test]
+fn test_foreach_loop_variables_are_variables() {
+    // `foreach`/`dict for` bind their iteration variables — a single bareword
+    // and each element of a braced list read as variable declarations.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "foreach item $lst { puts $item }\nforeach {key val} $pairs { puts $key }\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let is_var = |word: &str| {
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == word && t.ttype == "variable")
+    };
+    for name in ["item", "key", "val"] {
+        assert!(is_var(name), "loop variable `{name}` must be a variable: {tokens:?}");
+    }
+}
+
+#[test]
+fn test_proc_and_lambda_parameters_are_variables() {
+    // Procedure / method / apply-lambda parameter names read as variable
+    // declarations, and `dict map` binds its loop variables (peer of dict for).
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "proc greet {name age} { return $name }\n\
+               apply {{alpha beta} { return $alpha }} 1 2\n\
+               dict map {mk mv} $d { set mk $mv }\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let is_var = |word: &str| {
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == word && t.ttype == "variable")
+    };
+    for name in ["name", "age", "alpha", "beta", "mk", "mv"] {
+        assert!(is_var(name), "`{name}` must be a variable declaration: {tokens:?}");
+    }
+}
+
+#[test]
+fn test_upvar_and_dict_update_locals_are_variables() {
+    // `upvar` / `namespace upvar` locals and `dict update` var names read as
+    // variable declarations; the other-frame names and dict keys stay strings.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "upvar 1 othervar localvar\n\
+               dict update mydict thekey thevar { set thevar 1 }\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let kind_of = |word: &str| {
+        tokens
+            .iter()
+            .find(|t| covered(src, t) == word)
+            .map(|t| t.ttype.clone())
+    };
+    assert_eq!(kind_of("localvar").as_deref(), Some("variable"), "{tokens:?}");
+    assert_eq!(kind_of("thevar").as_deref(), Some("variable"), "{tokens:?}");
+    assert_eq!(kind_of("othervar").as_deref(), Some("string"), "{tokens:?}");
+    assert_eq!(kind_of("thekey").as_deref(), Some("string"), "{tokens:?}");
+}
+
+#[test]
+fn test_snit_type_body_members_highlight() {
+    // snit definition bodies are registry data (definition_body grammar), so
+    // their members recurse + highlight with no snit-specific walker code.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "snit::type Dog {\n\
+               \x20   variable barks\n\
+               \x20   method bark {volume} { return $barks }\n\
+               \x20   typemethod count {} { return 1 }\n\
+               }\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    // `barks` (declaration) and `volume` (method param) are variables.
+    for name in ["barks", "volume"] {
+        assert!(
+            tokens.iter().any(|t| covered(src, t) == name && t.ttype == "variable"),
+            "snit `{name}` must be a variable: {tokens:?}",
+        );
+    }
+    // `typemethod` is a member keyword; the method body's `return` is recursed.
+    assert!(
+        tokens.iter().any(|t| covered(src, t) == "typemethod" && t.ttype == "keyword"),
+        "`typemethod` must be a keyword: {tokens:?}",
+    );
+    assert!(
+        tokens.iter().any(|t| covered(src, t) == "return" && t.ttype == "keyword"),
+        "a snit method body must be recursed: {tokens:?}",
+    );
+}
+
+#[test]
+fn test_itcl_class_body_members_highlight() {
+    // [incr Tcl] class bodies are registry data (definition_body grammar) too,
+    // including the public/protected/private access-modifier wrappers.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "itcl::class Dog {\n\
+               \x20   inherit Animal\n\
+               \x20   variable barks\n\
+               \x20   public method bark {volume} { set barks $volume }\n\
+               \x20   private variable secret 0\n\
+               }\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    // Declarations + a method parameter are variables (incl. the wrapped ones).
+    for name in ["barks", "volume", "secret"] {
+        assert!(
+            tokens.iter().any(|t| covered(src, t) == name && t.ttype == "variable"),
+            "itcl `{name}` must be a variable: {tokens:?}",
+        );
+    }
+    // The access modifier and the inner wrapped keyword are both keywords.
+    for kw in ["inherit", "public", "method", "private"] {
+        assert!(
+            tokens.iter().any(|t| covered(src, t) == kw && t.ttype == "keyword"),
+            "itcl `{kw}` must be a keyword: {tokens:?}",
+        );
+    }
+    // The wrapped method body is recursed (`set` is a command there).
+    assert!(
+        tokens.iter().any(|t| covered(src, t) == "set" && t.ttype == "function"),
+        "an itcl method body must be recursed: {tokens:?}",
+    );
+}

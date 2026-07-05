@@ -66,8 +66,7 @@ fn label_text(hint: &Value) -> String {
         Some(Value::Array(parts)) => parts
             .iter()
             .map(|p| p.get("value").and_then(Value::as_str).unwrap_or("").to_owned())
-            .collect::<Vec<_>>()
-            .join(""),
+            .collect::<String>(),
         Some(Value::String(s)) => s.clone(),
         Some(other) => other.to_string(),
         None => String::new(),
@@ -83,11 +82,10 @@ fn param_labels_on_line(hints: &Value, line: i64) -> Vec<(i64, String)> {
         }
         let pos = h.get("position").cloned().unwrap_or(Value::Null);
         let char = pos.get("character").and_then(Value::as_i64);
-        if pos.get("line").and_then(Value::as_i64) == Some(line) {
-            if let Some(c) = char {
+        if pos.get("line").and_then(Value::as_i64) == Some(line)
+            && let Some(c) = char {
                 out.push((c, label_text(&h)));
             }
-        }
     }
     out.sort();
     out
@@ -213,7 +211,7 @@ fn test_already_formatted_is_stable() {
     lsp.open_ready(&uri, src);
     let edits = lsp.formatting(&uri, 4, true);
     // No change needed → either no edits, or an edit reproducing the text.
-    let non_empty = edits.as_array().map(|a| !a.is_empty()).unwrap_or(false);
+    let non_empty = edits.as_array().is_some_and(|a| !a.is_empty());
     if non_empty {
         assert_eq!(full_text(&edits).as_deref(), Some(src));
     }

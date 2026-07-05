@@ -59,7 +59,7 @@ fn corpus() -> Vec<(&'static str, String)> {
         ),
         ("unterminated_quote", "set s \"open\nputs done\n".to_owned()),
         ("deep_nesting", "set x [a [b [c [d [e [f [g\nputs tail\n".to_owned()),
-        ("empty", "".to_owned()),
+        ("empty", String::new()),
         ("blank_lines", "\n\n\n".to_owned()),
         ("only_comment", "# just a comment\n".to_owned()),
         ("large", large),

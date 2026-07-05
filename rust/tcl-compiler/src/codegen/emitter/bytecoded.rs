@@ -295,7 +295,7 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         // compile inline (C Tcl's `dictUpdateStart`/`dictExpand` machinery) when
         // the body is straight-line; otherwise fall through to the runtime
         // invoke. The path form of `dict with` (`rest.len() > 2`) is not inlined.
-        "update" if rest.len() >= 4 && rest.len() % 2 == 0 => ctx.emit_dict_update(rest),
+        "update" if rest.len() >= 4 && rest.len().is_multiple_of(2) => ctx.emit_dict_update(rest),
         "with" if rest.len() == 2 => ctx.emit_dict_with(&rest[0], &rest[1]),
         _ => false,
     }

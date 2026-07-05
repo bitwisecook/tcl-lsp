@@ -271,4 +271,278 @@ suite("Semantic Tokens", () => {
       `expected 'return' inside a switch body as a keyword token, got ${JSON.stringify([...keywordWords])}`,
     );
   });
+
+  // Issue #774: `variable a b c` inside a TclOO class body declares every name
+  // as an instance variable, not just the first.
+  test("TclOO body 'variable' declares every name (issue #774)", async () => {
+    const uri = getDocUri("tclooVariable.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
+    for (const name of ["width", "height", "depth"]) {
+      assert.ok(
+        variableWords.has(name),
+        `expected '${name}' as a variable token, got ${JSON.stringify([...variableWords])}`,
+      );
+    }
+  });
+
+  // Issue #776: after `namespace import tcltest::*`, a bare `test` resolves to
+  // the tcltest spec — its `-body`/`-result` are options and the body recurses.
+  test("imported tcltest 'test' structure is recognised (issue #776)", async () => {
+    const uri = getDocUri("tcltestImport.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    const decoratorWords = new Set(decoded.filter((t) => t.type === "decorator").map(textOf));
+    for (const opt of ["-body", "-result"]) {
+      assert.ok(
+        decoratorWords.has(opt),
+        `expected '${opt}' as an option (decorator) token, got ${JSON.stringify([...decoratorWords])}`,
+      );
+    }
+    // The -body script is recursed: `set` is a command.
+    const functionWords = new Set(decoded.filter((t) => t.type === "function").map(textOf));
+    assert.ok(
+      functionWords.has("set"),
+      `expected the -body script recursed ('set' as function), got ${JSON.stringify([...functionWords])}`,
+    );
+  });
+
+  // Issue #775: a command substitution in `source`'s argument is highlighted as
+  // a command sequence (its head + variables), not one opaque string.
+  test("source argument command substitution is tokenised (issue #775)", async () => {
+    const uri = getDocUri("sourceArgument.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    assert.ok(
+      decoded.some((t) => textOf(t) === "file" && t.type === "function"),
+      "expected the [file join …] substitution recursed ('file' as function)",
+    );
+    assert.ok(
+      decoded.some((t) => textOf(t) === "$currentDir" && t.type === "variable"),
+      "expected '$currentDir' inside source's argument as a variable",
+    );
+  });
+
+  // Peer of issue #774: `global a b c` declares every name as a variable, not
+  // just the first.
+  test("'global' declares every name (peer of #774)", async () => {
+    const uri = getDocUri("globalMultiName.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
+    for (const name of ["alpha", "beta", "gamma"]) {
+      assert.ok(
+        variableWords.has(name),
+        `expected '${name}' in 'global' as a variable token, got ${JSON.stringify([...variableWords])}`,
+      );
+    }
+  });
+
+  // `foreach` / `dict for` iteration variables — a single bareword and each
+  // element of a braced list — read as variable declarations.
+  test("loop variables highlight as variables", async () => {
+    const uri = getDocUri("loopVariables.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
+    for (const name of ["item", "key", "val", "dkey", "dval"]) {
+      assert.ok(
+        variableWords.has(name),
+        `expected loop variable '${name}' as a variable token, got ${JSON.stringify([...variableWords])}`,
+      );
+    }
+  });
+
+  // Procedure / apply-lambda parameters and `dict map` loop variables read as
+  // variable declarations.
+  test("parameters and dict-map loop vars highlight as variables", async () => {
+    const uri = getDocUri("paramLists.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
+    for (const name of ["name", "age", "alpha", "beta", "mk", "mv"]) {
+      assert.ok(
+        variableWords.has(name),
+        `expected '${name}' as a variable declaration, got ${JSON.stringify([...variableWords])}`,
+      );
+    }
+  });
+
+  // `upvar` locals and `dict update` var names read as variable declarations.
+  test("upvar and dict-update locals highlight as variables", async () => {
+    const uri = getDocUri("refVariables.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
+    for (const name of ["localdata", "cnt", "sum"]) {
+      assert.ok(
+        variableWords.has(name),
+        `expected '${name}' as a variable declaration, got ${JSON.stringify([...variableWords])}`,
+      );
+    }
+  });
+
+  // snit type bodies recurse + highlight via the registry definition-body
+  // grammar, exactly like TclOO — no snit-specific token-walker code.
+  test("snit type body members highlight", async () => {
+    const uri = getDocUri("snitType.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    // Declarations + a method parameter are variables.
+    const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
+    for (const name of ["barks", "count", "volume", "args"]) {
+      assert.ok(
+        variableWords.has(name),
+        `expected snit '${name}' as a variable, got ${JSON.stringify([...variableWords])}`,
+      );
+    }
+    // The snit-specific `typemethod` keyword and the recursed method body.
+    const keywordWords = new Set(decoded.filter((t) => t.type === "keyword").map(textOf));
+    assert.ok(keywordWords.has("typemethod"), "expected 'typemethod' keyword");
+    const functionWords = new Set(decoded.filter((t) => t.type === "function").map(textOf));
+    assert.ok(functionWords.has("set"), "expected the recursed constructor body ('set')");
+  });
+
+  // [incr Tcl] class bodies recurse + highlight via the same registry
+  // definition-body grammar, including the public/protected/private access
+  // modifiers (prefix wrappers) — no itcl-specific token-walker code.
+  test("itcl class body members highlight", async () => {
+    const uri = getDocUri("itclClass.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    // Declarations (incl. a `private variable`) + a method parameter.
+    const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
+    for (const name of ["barks", "total", "volume", "secret", "args"]) {
+      assert.ok(
+        variableWords.has(name),
+        `expected itcl '${name}' as a variable, got ${JSON.stringify([...variableWords])}`,
+      );
+    }
+    // Member keywords, including the access modifiers and the inner wrapped
+    // keyword.
+    const keywordWords = new Set(decoded.filter((t) => t.type === "keyword").map(textOf));
+    for (const kw of ["inherit", "method", "public", "private", "constructor"]) {
+      assert.ok(keywordWords.has(kw), `expected itcl '${kw}' keyword`);
+    }
+    const functionWords = new Set(decoded.filter((t) => t.type === "function").map(textOf));
+    assert.ok(functionWords.has("set"), "expected the recursed method body ('set')");
+  });
 });
