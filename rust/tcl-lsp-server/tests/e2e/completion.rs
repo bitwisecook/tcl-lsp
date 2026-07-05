@@ -22,7 +22,6 @@
 //! request/response cases: the text-edit assertions matter on the live surface,
 //! since an editor applies `textEdit` verbatim.
 
-
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -52,7 +51,7 @@ fn by_label(
     out
 }
 
-/// The `documentation` text of a completion item (string or MarkupContent).
+/// The `documentation` text of a completion item (string or `MarkupContent`).
 fn doc_text(item: &Value) -> String {
     match item.get("documentation") {
         Some(Value::String(s)) => s.clone(),
@@ -113,7 +112,10 @@ fn builtin_command_has_documentation() {
     lsp.open_ready(&uri, "se");
     let item = by_label(&mut lsp, &uri, 0, 2)["set"].clone();
     let dt = doc_text(&item).to_lowercase();
-    assert!(dt.contains("variable") || dt.contains("value"), "doc: {dt:?}");
+    assert!(
+        dt.contains("variable") || dt.contains("value"),
+        "doc: {dt:?}"
+    );
 }
 
 // -- TestVariableCompletion ----------------------------------------------
@@ -270,7 +272,8 @@ fn dollar_auto_braces_var_name_with_hyphen() {
 fn dollar_cross_namespace_offers_qualified_name() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let src = "namespace eval ::other {\n    variable baz 3\n}\nnamespace eval ::myns {\n    puts $\n}\n";
+    let src =
+        "namespace eval ::other {\n    variable baz 3\n}\nnamespace eval ::myns {\n    puts $\n}\n";
     lsp.open_ready(&uri, src);
     let by = by_label(&mut lsp, &uri, 4, 10);
     assert!(by.contains_key("$::other::baz"));
@@ -314,7 +317,8 @@ fn dollar_completion_offers_dict_for_loop_vars() {
 fn dollar_completion_offers_dict_with_keys_from_const_literal() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let src = "proc p {} {\n    set d {name alice age 30}\n    dict with d {\n        puts $\n    }\n}\n";
+    let src =
+        "proc p {} {\n    set d {name alice age 30}\n    dict with d {\n        puts $\n    }\n}\n";
     lsp.open_ready(&uri, src);
     let ls = labels(&mut lsp, &uri, 3, 14);
     assert!(ls.contains(&"$name".to_owned()));
@@ -394,7 +398,8 @@ fn namespace_subcommands() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "namespace ");
-    let ls: std::collections::BTreeSet<String> = labels(&mut lsp, &uri, 0, 10).into_iter().collect();
+    let ls: std::collections::BTreeSet<String> =
+        labels(&mut lsp, &uri, 0, 10).into_iter().collect();
     for expected in ["eval", "export"] {
         assert!(ls.contains(expected), "missing {expected:?} in {ls:?}");
     }
@@ -438,7 +443,10 @@ fn switch_completion_ignores_semicolon_in_quoted_arg() {
     let uri = unique_uri("tcl");
     let source = "socket \"a;b\" -";
     lsp.open_ready(&uri, source);
-    assert!(labels(&mut lsp, &uri, 0, source.len() as u32).contains(&"-server".to_owned()));
+    assert!(
+        labels(&mut lsp, &uri, 0, u32::try_from(source.len()).unwrap())
+            .contains(&"-server".to_owned())
+    );
 }
 
 #[test]
@@ -447,7 +455,9 @@ fn switch_text_edit_replaces_partial_dash_prefix() {
     let uri = unique_uri("tcl");
     let source = "lsort -no";
     lsp.open_ready(&uri, source);
-    let edit = by_label(&mut lsp, &uri, 0, source.len() as u32)["-nocase"]["textEdit"].clone();
+    let edit =
+        by_label(&mut lsp, &uri, 0, u32::try_from(source.len()).unwrap())["-nocase"]["textEdit"]
+            .clone();
     assert_eq!(edit["range"]["start"]["character"], 6);
     assert_eq!(edit["range"]["end"]["character"], 9);
     assert_eq!(edit["newText"], "-nocase");
@@ -459,7 +469,9 @@ fn switch_text_edit_bare_dash() {
     let uri = unique_uri("tcl");
     let source = "regexp -";
     lsp.open_ready(&uri, source);
-    let edit = by_label(&mut lsp, &uri, 0, source.len() as u32)["-nocase"]["textEdit"].clone();
+    let edit =
+        by_label(&mut lsp, &uri, 0, u32::try_from(source.len()).unwrap())["-nocase"]["textEdit"]
+            .clone();
     assert_eq!(edit["range"]["start"]["character"], 7);
     assert_eq!(edit["range"]["end"]["character"], 8);
     assert_eq!(edit["newText"], "-nocase");
@@ -481,7 +493,9 @@ fn switch_text_edit_with_single_char_partial() {
     let uri = unique_uri("tcl");
     let source = "regexp -n";
     lsp.open_ready(&uri, source);
-    let edit = by_label(&mut lsp, &uri, 0, source.len() as u32)["-nocase"]["textEdit"].clone();
+    let edit =
+        by_label(&mut lsp, &uri, 0, u32::try_from(source.len()).unwrap())["-nocase"]["textEdit"]
+            .clone();
     assert_eq!(edit["range"]["start"]["character"], 7);
     assert_eq!(edit["range"]["end"]["character"], 9);
     assert_eq!(edit["newText"], "-nocase");
@@ -493,7 +507,9 @@ fn switch_text_edit_with_longer_partial() {
     let uri = unique_uri("tcl");
     let source = "lsort -noc";
     lsp.open_ready(&uri, source);
-    let edit = by_label(&mut lsp, &uri, 0, source.len() as u32)["-nocase"]["textEdit"].clone();
+    let edit =
+        by_label(&mut lsp, &uri, 0, u32::try_from(source.len()).unwrap())["-nocase"]["textEdit"]
+            .clone();
     assert_eq!(edit["range"]["start"]["character"], 6);
     assert_eq!(edit["range"]["end"]["character"], 10);
     assert_eq!(edit["newText"], "-nocase");

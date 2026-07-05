@@ -64,22 +64,24 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Cancel a script evaluation.",
         synopsis: "interp cancel ?-unwind? ?--? ?result?",
         return_type: Some(TclType::String),
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-unwind",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
-        ],
+        ] },
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -88,22 +90,24 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Create a child interpreter.",
         synopsis: "interp create ?-safe? ?--? ?name?",
         return_type: Some(TclType::String),
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-safe",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
-        ],
+        ] },
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -171,29 +175,32 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Invoke a hidden command.",
         synopsis: "interp invokehidden path ?-option ...? hiddenCmdName ?arg ...?",
         return_type: Some(TclType::String),
-        options: &[
+        options: const { &[
             OptionSpec {
                 name: "-global",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "-namespace",
-                takes_value: true,
-                value_hint: "ns",
-                detail: "",
+                value: OptionValue::name("ns"),
+                detail: "Namespace in which to invoke the hidden command.",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
             OptionSpec {
                 name: "--",
-                takes_value: false,
-                value_hint: "",
+                value: OptionValue::flag(),
                 detail: "",
                 dialects: None,
+                aliases: &[],
+                min_version: None,
             },
-        ],
+        ] },
         ..SubCommand::DEFAULT
     },
     SubCommand {

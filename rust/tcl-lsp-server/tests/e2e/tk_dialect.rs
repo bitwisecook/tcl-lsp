@@ -33,14 +33,21 @@
 //! server. The Tk-availability gating is driven by `# tcl-dialect:` directives
 //! in ordinary `tcl`-language documents (not a `tk` language id).
 
-
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
 /// Open `src`, then return the completion labels at `(line, char)`.
-fn complete(lsp: &mut Lsp, uri: &str, src: &str, line: u32, ch: u32) -> std::collections::BTreeSet<String> {
+fn complete(
+    lsp: &mut Lsp,
+    uri: &str,
+    src: &str,
+    line: u32,
+    ch: u32,
+) -> std::collections::BTreeSet<String> {
     lsp.open_ready(uri, src);
-    completion_labels(&lsp.completion(uri, line, ch)).into_iter().collect()
+    completion_labels(&lsp.completion(uri, line, ch))
+        .into_iter()
+        .collect()
 }
 
 // -- TestTkLoadedGating --------------------------------------------------

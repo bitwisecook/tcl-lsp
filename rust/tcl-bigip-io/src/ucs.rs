@@ -41,10 +41,7 @@ use crate::openpgp::decrypt_symmetric;
 /// that user objects reference, e.g. `/Common/tcp`, `/Common/http`). Emitted
 /// first so those references resolve; present only in full device archives
 /// (qkview / a UCS taken with defaults), silently skipped otherwise.
-const DEFAULT_MEMBERS: &[&str] = &[
-    "config/low_profile_base.conf",
-    "config/profile_base.conf",
-];
+const DEFAULT_MEMBERS: &[&str] = &["config/low_profile_base.conf", "config/profile_base.conf"];
 
 /// Order matters: base must come first so partition declarations exist before
 /// objects that reference them. These are the `/Common` (root) members.
@@ -223,16 +220,17 @@ pub fn ucs_to_scf(ucs_bytes: &[u8], include_extras: bool) -> Result<String, UcsE
 
     let mut chunks: Vec<String> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let emit = |name: &str, chunks: &mut Vec<String>, seen: &mut std::collections::HashSet<String>| {
-        if seen.contains(name) {
-            return;
-        }
-        if let Some(&idx) = by_name.get(name) {
-            let text = decode(&members[idx].1);
-            chunks.push(format!("#\n# {name}\n#\n{text}\n"));
-            seen.insert(name.to_owned());
-        }
-    };
+    let emit =
+        |name: &str, chunks: &mut Vec<String>, seen: &mut std::collections::HashSet<String>| {
+            if seen.contains(name) {
+                return;
+            }
+            if let Some(&idx) = by_name.get(name) {
+                let text = decode(&members[idx].1);
+                chunks.push(format!("#\n# {name}\n#\n{text}\n"));
+                seen.insert(name.to_owned());
+            }
+        };
 
     // 1. Built-in defaults (profile/monitor bases) so `/Common/tcp` etc. resolve.
     for &canonical in DEFAULT_MEMBERS {
@@ -490,7 +488,10 @@ fn is_forensic_path(name: &str) -> bool {
     }
     // Shell / user dotfiles under a home directory — T1546.004 login hooks.
     let dotfile = (name.starts_with("home/") || name.starts_with("root/"))
-        && name.rsplit('/').next().is_some_and(|base| base.starts_with('.'));
+        && name
+            .rsplit('/')
+            .next()
+            .is_some_and(|base| base.starts_with('.'));
 
     dotfile
         || FORENSIC_EXACT.contains(&name)
@@ -575,7 +576,10 @@ mod tests {
     fn ucs_to_scf_includes_defaults_and_partitions_in_order() {
         let ucs = build_ucs(&[
             ("config/bigip.conf", "ltm virtual /Common/vs_common { }"),
-            ("config/profile_base.conf", "ltm profile tcp /Common/tcp { }"),
+            (
+                "config/profile_base.conf",
+                "ltm profile tcp /Common/tcp { }",
+            ),
             (
                 "config/bigip_script.conf",
                 "cli script /Common/brace_trap { proc script::run {} { } }",
@@ -623,15 +627,15 @@ mod tests {
             ("config/bigip.conf", "ltm virtual /Common/vs { }"),
             ("config/._bigip.conf", "\u{0}\u{5}\u{16}\u{7}garbage"),
             ("__MACOSX/config/._bigip.conf", "\u{0}more binary"),
-            (
-                "config/partitions/T/._bigip.conf",
-                "\u{0}\u{1}applefork",
-            ),
+            ("config/partitions/T/._bigip.conf", "\u{0}\u{1}applefork"),
             ("config/partitions/T/bigip.conf", "ltm pool /T/p { }"),
         ]);
         let scf = ucs_to_scf(&ucs, true).unwrap();
         assert!(scf.contains("/Common/vs") && scf.contains("/T/p"));
-        assert!(!scf.contains("garbage"), "AppleDouble body excluded:\n{scf}");
+        assert!(
+            !scf.contains("garbage"),
+            "AppleDouble body excluded:\n{scf}"
+        );
         assert!(!scf.contains("applefork"));
         assert!(!scf.contains("more binary"));
     }
@@ -715,7 +719,10 @@ mod tests {
         );
         assert_eq!(passwd.sha256.len(), 64);
 
-        let blob = all.iter().find(|e| e.path == "var/lib/hsqldb/db.data").unwrap();
+        let blob = all
+            .iter()
+            .find(|e| e.path == "var/lib/hsqldb/db.data")
+            .unwrap();
         assert!(!blob.is_text, "NUL-bearing content is binary");
     }
 }

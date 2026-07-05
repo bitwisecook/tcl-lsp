@@ -41,7 +41,6 @@
 //! not load-bearing — a deterministic, hostile mix of
 //! insert/delete/replace/newline/astral edits is.
 
-
 use crate::common::helpers::*;
 use crate::common::{Lsp, Rng, unique_uri};
 
@@ -54,7 +53,7 @@ use std::time::Duration;
 
 /// Length of `s` in UTF-16 code units (astral chars count as two).
 fn utf16_len(s: &str) -> usize {
-    s.chars().map(|c| c.len_utf16()).sum()
+    s.chars().map(char::len_utf16).sum()
 }
 
 /// One LSP incremental edit: replace `[start, end)` with `text`.
@@ -150,13 +149,22 @@ impl TextMirror {
 /// deletions, replacements that span line boundaries, edits at the very end of
 /// the buffer, and newline insertion/removal.
 fn random_edit(mirror: &TextMirror, rng: &mut Rng) -> Edit {
+    const INSERTS: [&str; 10] = [
+        "x",
+        "set y 1\n",
+        "}",
+        "{",
+        "  ",
+        "\n",
+        "puts $z",
+        "# c\n",
+        "é",
+        "\u{1f600}",
+    ];
     let text = &mirror.text;
     let n = text.len(); // byte length (matches the Python offset space closely enough
-                        // for ASCII seeds; astral chars only enter via the fixed snippets)
+    // for ASCII seeds; astral chars only enter via the fixed snippets)
     let kind = rng.random();
-    const INSERTS: [&str; 10] = [
-        "x", "set y 1\n", "}", "{", "  ", "\n", "puts $z", "# c\n", "é", "\u{1f600}",
-    ];
     if n == 0 || kind < 0.45 {
         // Insertion at a random byte offset on a char boundary.
         let off = char_boundary(text, rng.randint(0, n));
@@ -273,9 +281,8 @@ fn norm_symbols(symbols: &Value) -> Vec<NormSym> {
     for sym in arr {
         let rng = &sym["range"];
         let sel = &sym["selectionRange"];
-        let coord = |v: &Value, path: &str, field: &str| -> i64 {
-            v[path][field].as_i64().unwrap_or(0)
-        };
+        let coord =
+            |v: &Value, path: &str, field: &str| -> i64 { v[path][field].as_i64().unwrap_or(0) };
         out.push(NormSym {
             name: sym.get("name").cloned().unwrap_or(Value::Null),
             kind: sym.get("kind").cloned().unwrap_or(Value::Null),
@@ -286,7 +293,10 @@ fn norm_symbols(symbols: &Value) -> Vec<NormSym> {
                 coord(rng, "end", "line"),
                 coord(rng, "end", "character"),
             ),
-            sel_start: (coord(sel, "start", "line"), coord(sel, "start", "character")),
+            sel_start: (
+                coord(sel, "start", "line"),
+                coord(sel, "start", "character"),
+            ),
             children: norm_symbols(sym.get("children").unwrap_or(&Value::Null)),
         });
     }
@@ -379,7 +389,10 @@ impl Drop for ReproDump<'_> {
         if !std::thread::panicking() {
             return;
         }
-        eprintln!("\n==== edit_tracking_stress repro (seed={}) ====", self.seed);
+        eprintln!(
+            "\n==== edit_tracking_stress repro (seed={}) ====",
+            self.seed
+        );
         eprintln!(
             "applied {} edits, reached version {}; barrier awaited diagnostics at version {}",
             self.edits.len(),
@@ -553,11 +566,11 @@ fn multiline_insertions_and_deletions() {
     let mut version = 1i64;
 
     let edit = |lsp: &mut Lsp,
-                    mirror: &mut TextMirror,
-                    version: &mut i64,
-                    start: (usize, usize),
-                    end: (usize, usize),
-                    text: &str| {
+                mirror: &mut TextMirror,
+                version: &mut i64,
+                start: (usize, usize),
+                end: (usize, usize),
+                text: &str| {
         let e = Edit::new(start, end, text);
         mirror.apply(&e);
         *version += 1;
@@ -637,11 +650,11 @@ fn utf16_offsets_survive_astral_chars() {
     let mut version = 1i64;
 
     let edit = |lsp: &mut Lsp,
-                    mirror: &mut TextMirror,
-                    version: &mut i64,
-                    start: (usize, usize),
-                    end: (usize, usize),
-                    text: &str| {
+                mirror: &mut TextMirror,
+                version: &mut i64,
+                start: (usize, usize),
+                end: (usize, usize),
+                text: &str| {
         let e = Edit::new(start, end, text);
         mirror.apply(&e);
         *version += 1;
@@ -741,7 +754,7 @@ fn multicursor_rename_keeps_tokens_aligned() {
     assert!(sites.len() >= 5, "{sites:?}");
     // Replace `count` with a longer `counterValue` at every site, bottom-up
     // (descending position) so offsets stay valid.
-    sites.sort();
+    sites.sort_unstable();
     sites.reverse();
     let edits: Vec<Edit> = sites
         .iter()
@@ -846,11 +859,11 @@ fn multibyte_edits_keep_utf16_columns_aligned() {
     let mut version = 1i64;
 
     let edit = |lsp: &mut Lsp,
-                    mirror: &mut TextMirror,
-                    version: &mut i64,
-                    start: (usize, usize),
-                    end: (usize, usize),
-                    text: &str| {
+                mirror: &mut TextMirror,
+                version: &mut i64,
+                start: (usize, usize),
+                end: (usize, usize),
+                text: &str| {
         let e = Edit::new(start, end, text);
         mirror.apply(&e);
         *version += 1;
@@ -868,7 +881,14 @@ fn multibyte_edits_keep_utf16_columns_aligned() {
     );
     let nl = mirror.text.find('\n').unwrap();
     let eol0 = mirror.position_at(nl);
-    edit(&mut lsp, &mut mirror, &mut version, eol0, eol0, " ;# 日本語");
+    edit(
+        &mut lsp,
+        &mut mirror,
+        &mut version,
+        eol0,
+        eol0,
+        " ;# 日本語",
+    );
     version = lsp.settle_analysis(&uri, version + 1, &mirror.text);
     let text = mirror.text.clone();
     assert_tokens_aligned(&mut lsp, &uri, &text);

@@ -495,6 +495,10 @@ fn invalidate_const_map_for(stmt: &Statement, scope: &mut HashMap<String, String
     }
 }
 
+/// A memoised per-procedure body-lowering callback: `(offset-0 body text,
+/// namespace) → offset-0 body [`Script`]`.  See [`Lowerer::with_body_cache`].
+type BodyCacheFn<'a> = dyn Fn(&str, &str) -> Script + 'a;
+
 /// The lowering engine — accumulates procedures and IR statements.
 pub struct Lowerer<'r> {
     /// Output module being built.
@@ -574,8 +578,7 @@ pub struct Lowerer<'r> {
     /// **context-free** files (no `namespace eval`/`import`/`export`, alias,
     /// `oo::`, `when`, or nested `proc`) where isolated lowering is byte-identical;
     /// `None` ⇒ the normal whole-file lowering.  See [`lower_to_ir_with_body_cache`].
-    #[allow(clippy::type_complexity)]
-    body_cache: Option<&'r dyn Fn(&str, &str) -> Script>,
+    body_cache: Option<&'r BodyCacheFn<'r>>,
 }
 
 impl<'r> Lowerer<'r> {
@@ -611,7 +614,7 @@ impl<'r> Lowerer<'r> {
     /// Install a memoised per-procedure body-lowering callback (see
     /// [`body_cache`](Self::body_cache) and [`lower_to_ir_with_body_cache`]).
     #[must_use]
-    pub fn with_body_cache(mut self, cache: &'r dyn Fn(&str, &str) -> Script) -> Self {
+    pub fn with_body_cache(mut self, cache: &'r BodyCacheFn<'r>) -> Self {
         self.body_cache = Some(cache);
         self
     }

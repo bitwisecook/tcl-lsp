@@ -24,7 +24,6 @@
 //! `initialize`) maps type/modifier indices back to names — so a legend or
 //! encoder drift in the shipped artifact is caught here.
 
-
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -69,7 +68,7 @@ fn typed(lsp: &mut Lsp, legend: &[String], uri: &str) -> Vec<TypedToken> {
             line: t.line,
             char: t.char,
             length: t.length,
-            ttype: legend[t.ttype as usize].clone(),
+            ttype: legend[usize::try_from(t.ttype).unwrap()].clone(),
             modifiers: t.modifiers,
         })
         .collect()
@@ -84,16 +83,22 @@ fn open_doc(lsp: &mut Lsp, source: &str) -> String {
 
 /// The source text a decoded token covers (single-line tokens only).
 fn covered<'a>(source: &'a str, tok: &TypedToken) -> &'a str {
-    let line = source.split('\n').nth(tok.line as usize).unwrap_or("");
-    let start = tok.char as usize;
-    let end = (tok.char + tok.length) as usize;
+    let line = source
+        .split('\n')
+        .nth(usize::try_from(tok.line).unwrap())
+        .unwrap_or("");
+    let start = usize::try_from(tok.char).unwrap();
+    let end = usize::try_from(tok.char + tok.length).unwrap();
     // Slicing by UTF-16-ish char offset; the covered() cases here are all ASCII.
     line.get(start..end).unwrap_or("")
 }
 
 /// The bit mask for a modifier name.
 fn modifier_bit(mods: &[String], name: &str) -> i64 {
-    let idx = mods.iter().position(|m| m == name).expect("modifier in legend");
+    let idx = mods
+        .iter()
+        .position(|m| m == name)
+        .expect("modifier in legend");
     1i64 << idx
 }
 
@@ -214,7 +219,10 @@ fn test_variable() {
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
     let uri = open_doc(&mut lsp, "set x $y\n");
-    let types: Vec<String> = typed(&mut lsp, &lg, &uri).into_iter().map(|t| t.ttype).collect();
+    let types: Vec<String> = typed(&mut lsp, &lg, &uri)
+        .into_iter()
+        .map(|t| t.ttype)
+        .collect();
     assert!(types.iter().any(|t| t == "function"));
     assert!(types.iter().any(|t| t == "variable"));
 }
@@ -337,7 +345,10 @@ fn test_multiline_positions() {
 fn test_data_is_multiple_of_5() {
     let mut lsp = Lsp::tcl();
     let uri = open_doc(&mut lsp, "set x [+ 1 2]\nputs $x\n");
-    let data = lsp.semantic_tokens(&uri)["data"].as_array().cloned().unwrap_or_default();
+    let data = lsp.semantic_tokens(&uri)["data"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
     assert_eq!(data.len() % 5, 0);
 }
 
@@ -345,10 +356,7 @@ fn test_data_is_multiple_of_5() {
 fn test_empty_source() {
     let mut lsp = Lsp::tcl();
     let uri = open_doc(&mut lsp, "");
-    assert_eq!(
-        lsp.semantic_tokens(&uri)["data"],
-        Value::Array(vec![])
-    );
+    assert_eq!(lsp.semantic_tokens(&uri)["data"], Value::Array(vec![]));
 }
 
 #[test]
@@ -356,7 +364,10 @@ fn test_string_in_quotes() {
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
     let uri = open_doc(&mut lsp, "puts \"hello\"\n");
-    let types: Vec<String> = typed(&mut lsp, &lg, &uri).into_iter().map(|t| t.ttype).collect();
+    let types: Vec<String> = typed(&mut lsp, &lg, &uri)
+        .into_iter()
+        .map(|t| t.ttype)
+        .collect();
     assert!(types.iter().any(|t| t == "function"));
     assert!(types.iter().any(|t| t == "string"));
 }
@@ -366,7 +377,10 @@ fn test_braced_string() {
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
     let uri = open_doc(&mut lsp, "puts {hello world}\n");
-    let types: Vec<String> = typed(&mut lsp, &lg, &uri).into_iter().map(|t| t.ttype).collect();
+    let types: Vec<String> = typed(&mut lsp, &lg, &uri)
+        .into_iter()
+        .map(|t| t.ttype)
+        .collect();
     assert!(types.iter().any(|t| t == "string"));
 }
 
@@ -378,7 +392,10 @@ fn test_multiline_braced_string_highlighted_per_line() {
     // exactly like the quoted form.
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
-    let braced = open_doc(&mut lsp, "set x {some long\nstring that spans\nmultiple lines}\n");
+    let braced = open_doc(
+        &mut lsp,
+        "set x {some long\nstring that spans\nmultiple lines}\n",
+    );
     let btoks = typed(&mut lsp, &lg, &braced);
     for line in 0..=2 {
         assert!(
@@ -387,7 +404,10 @@ fn test_multiline_braced_string_highlighted_per_line() {
         );
     }
     // The quoted counterpart highlights the same span the same way.
-    let quoted = open_doc(&mut lsp, "set x \"some long\nstring that spans\nmultiple lines\"\n");
+    let quoted = open_doc(
+        &mut lsp,
+        "set x \"some long\nstring that spans\nmultiple lines\"\n",
+    );
     let qtoks = typed(&mut lsp, &lg, &quoted);
     let strings = |toks: &[TypedToken]| -> Vec<(i64, i64, i64)> {
         toks.iter()
@@ -404,10 +424,10 @@ fn test_multiline_braced_string_highlighted_per_line() {
     for t in &btoks {
         let line = "set x {some long\nstring that spans\nmultiple lines}\n"
             .split('\n')
-            .nth(t.line as usize)
+            .nth(usize::try_from(t.line).unwrap())
             .unwrap_or("");
         assert!(
-            (t.char + t.length) as usize <= line.chars().count(),
+            usize::try_from(t.char + t.length).unwrap() <= line.chars().count(),
             "token {t:?} overruns its line",
         );
     }
@@ -433,8 +453,10 @@ fn test_if_expression_tokenised() {
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
     let uri = open_doc(&mut lsp, "if {$x > 0} { puts ok }\n");
-    let types: std::collections::BTreeSet<String> =
-        typed(&mut lsp, &lg, &uri).into_iter().map(|t| t.ttype).collect();
+    let types: std::collections::BTreeSet<String> = typed(&mut lsp, &lg, &uri)
+        .into_iter()
+        .map(|t| t.ttype)
+        .collect();
     for want in ["variable", "operator", "number"] {
         assert!(types.contains(want), "missing {want:?} in {types:?}");
     }
@@ -446,7 +468,11 @@ fn test_command_subst_inside_expression() {
     let lg = legend(&lsp);
     let uri = open_doc(&mut lsp, "set n [expr {[llength $xs] + 1}]\n");
     let tokens = typed(&mut lsp, &lg, &uri);
-    assert!(tokens.iter().any(|t| t.ttype == "function" && t.length == 7));
+    assert!(
+        tokens
+            .iter()
+            .any(|t| t.ttype == "function" && t.length == 7)
+    );
     assert!(tokens.iter().any(|t| t.ttype == "variable"));
 }
 
@@ -467,7 +493,9 @@ fn test_control_do_body_recursion() {
     let uri = open_doc(&mut lsp, src);
     let tokens = typed(&mut lsp, &lg, &uri);
     // `set` recursed from the braced body.
-    let has_set = tokens.iter().any(|t| t.ttype == "function" && t.length == 3);
+    let has_set = tokens
+        .iter()
+        .any(|t| t.ttype == "function" && t.length == 3);
     assert!(has_set, "control::do body not recursed: {tokens:?}");
     // `$x` recursed from the `while` expression.
     let has_var = tokens.iter().any(|t| t.ttype == "variable");
@@ -490,8 +518,10 @@ fn test_control_assert_expression_tokenised() {
     let lg = legend(&lsp);
     let src = "package require control\ncontrol::assert {$x == 10}\n";
     let uri = open_doc(&mut lsp, src);
-    let types: std::collections::BTreeSet<String> =
-        typed(&mut lsp, &lg, &uri).into_iter().map(|t| t.ttype).collect();
+    let types: std::collections::BTreeSet<String> = typed(&mut lsp, &lg, &uri)
+        .into_iter()
+        .map(|t| t.ttype)
+        .collect();
     for want in ["variable", "operator"] {
         assert!(types.contains(want), "missing {want:?} in {types:?}");
     }
@@ -506,7 +536,9 @@ fn test_struct_list_foreachperm_body_recursion() {
     let src = "package require struct::list\nstruct::list foreachperm p {a b c} {\n puts $p\n}\n";
     let uri = open_doc(&mut lsp, src);
     let tokens = typed(&mut lsp, &lg, &uri);
-    let has_puts = tokens.iter().any(|t| t.ttype == "function" && t.length == 4);
+    let has_puts = tokens
+        .iter()
+        .any(|t| t.ttype == "function" && t.length == 4);
     assert!(has_puts, "foreachperm body not recursed: {tokens:?}");
     let has_var = tokens.iter().any(|t| t.ttype == "variable");
     assert!(has_var, "foreachperm var not recursed: {tokens:?}");
@@ -582,7 +614,13 @@ fn test_quoted_structural_keyword_offsets_past_quote() {
         .iter()
         .find(|t| t.ttype == "keyword" && t.char >= 8)
         .expect("keyword past char 8");
-    assert_eq!(covered(source, kw), "else", "{:?} {:?}", kw, covered(source, kw));
+    assert_eq!(
+        covered(source, kw),
+        "else",
+        "{:?} {:?}",
+        kw,
+        covered(source, kw)
+    );
 }
 
 // -- TestRegexTokens -----------------------------------------------------
@@ -638,7 +676,10 @@ fn test_regsub_pattern() {
     let uri = open_doc(&mut lsp, "regsub {\\d+} $str replacement result\n");
     let tokens = typed(&mut lsp, &lg, &uri);
     assert_eq!(tokens[0].ttype, "function");
-    let cc: Vec<&TypedToken> = tokens.iter().filter(|t| t.ttype == "regexpCharClass").collect();
+    let cc: Vec<&TypedToken> = tokens
+        .iter()
+        .filter(|t| t.ttype == "regexpCharClass")
+        .collect();
     assert!(cc.iter().any(|t| t.length == 2));
     assert!(tokens.iter().any(|t| t.ttype == "regexpQuantifier"));
 }
@@ -647,7 +688,10 @@ fn test_regsub_pattern() {
 fn test_switch_regexp_braced_case_list() {
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
-    let uri = open_doc(&mut lsp, "switch -regexp $x { {^a} {puts a} {^b} {puts b} }\n");
+    let uri = open_doc(
+        &mut lsp,
+        "switch -regexp $x { {^a} {puts a} {^b} {puts b} }\n",
+    );
     let tokens = typed(&mut lsp, &lg, &uri);
     assert!(tokens.iter().filter(|t| is_re_type(&t.ttype)).count() >= 2);
 }
@@ -727,7 +771,10 @@ fn test_when_event_name_highlighted_as_event() {
         .filter(|t| t.ttype == "event")
         .collect();
     assert_eq!(events.len(), 1);
-    assert_eq!(events[0].length, "HTTP_REQUEST".len() as i64);
+    assert_eq!(
+        events[0].length,
+        i64::try_from("HTTP_REQUEST".len()).unwrap()
+    );
 }
 
 #[test]
@@ -751,7 +798,10 @@ fn test_regexp_option_highlighted_as_decorator() {
         .into_iter()
         .filter(|t| t.ttype == "decorator")
         .collect();
-    assert!(decs.iter().any(|t| t.length == "-nocase".len() as i64));
+    assert!(
+        decs.iter()
+            .any(|t| t.length == i64::try_from("-nocase".len()).unwrap())
+    );
 }
 
 #[test]
@@ -799,8 +849,16 @@ fn test_oo_class_split() {
     let lg = legend(&lsp);
     let uri = open_doc(&mut lsp, "oo::class create Dog {}\n");
     let tokens = typed(&mut lsp, &lg, &uri);
-    assert!(tokens.iter().any(|t| t.ttype == "namespace" && t.length == "oo::".len() as i64));
-    assert!(tokens.iter().any(|t| t.ttype == "keyword" && t.length == "class".len() as i64));
+    assert!(
+        tokens
+            .iter()
+            .any(|t| t.ttype == "namespace" && t.length == i64::try_from("oo::".len()).unwrap())
+    );
+    assert!(
+        tokens
+            .iter()
+            .any(|t| t.ttype == "keyword" && t.length == i64::try_from("class".len()).unwrap())
+    );
 }
 
 #[test]
@@ -813,7 +871,7 @@ fn test_global_qualified_command() {
         .filter(|t| t.ttype == "namespace")
         .collect();
     assert_eq!(ns.len(), 1);
-    assert_eq!(ns[0].length, "::".len() as i64);
+    assert_eq!(ns[0].length, i64::try_from("::".len()).unwrap());
 }
 
 // -- TestModifiers -------------------------------------------------------
@@ -907,7 +965,10 @@ fn test_format_specifier_highlighted() {
     let lg = legend(&lsp);
     let uri = open_doc(&mut lsp, "format \"%s %d\" \"hello\" 123\n");
     let tokens = typed(&mut lsp, &lg, &uri);
-    assert_eq!(tokens.iter().filter(|t| t.ttype == "formatPercent").count(), 2);
+    assert_eq!(
+        tokens.iter().filter(|t| t.ttype == "formatPercent").count(),
+        2
+    );
     assert_eq!(tokens.iter().filter(|t| t.ttype == "formatSpec").count(), 2);
 }
 
@@ -917,10 +978,16 @@ fn test_format_flags_width_precision() {
     let lg = legend(&lsp);
     let uri = open_doc(&mut lsp, "format \"%-10.5f\" 3.14159\n");
     let tokens = typed(&mut lsp, &lg, &uri);
-    assert_eq!(tokens.iter().filter(|t| t.ttype == "formatPercent").count(), 1);
+    assert_eq!(
+        tokens.iter().filter(|t| t.ttype == "formatPercent").count(),
+        1
+    );
     assert_eq!(tokens.iter().filter(|t| t.ttype == "formatFlag").count(), 2);
     assert_eq!(tokens.iter().filter(|t| t.ttype == "formatSpec").count(), 1);
-    assert_eq!(tokens.iter().filter(|t| t.ttype == "formatWidth").count(), 2);
+    assert_eq!(
+        tokens.iter().filter(|t| t.ttype == "formatWidth").count(),
+        2
+    );
 }
 
 #[test]
@@ -929,7 +996,10 @@ fn test_clock_format_specifiers() {
     let lg = legend(&lsp);
     let uri = open_doc(&mut lsp, "clock format $t -format \"%Y-%m-%d\"\n");
     let tokens = typed(&mut lsp, &lg, &uri);
-    assert_eq!(tokens.iter().filter(|t| t.ttype == "clockPercent").count(), 3);
+    assert_eq!(
+        tokens.iter().filter(|t| t.ttype == "clockPercent").count(),
+        3
+    );
     assert_eq!(tokens.iter().filter(|t| t.ttype == "clockSpec").count(), 3);
 }
 
@@ -939,8 +1009,14 @@ fn test_clock_format_locale_modifier() {
     let lg = legend(&lsp);
     let uri = open_doc(&mut lsp, "clock format $t -format \"%EY\"\n");
     let tokens = typed(&mut lsp, &lg, &uri);
-    assert_eq!(tokens.iter().filter(|t| t.ttype == "clockPercent").count(), 1);
-    assert_eq!(tokens.iter().filter(|t| t.ttype == "clockModifier").count(), 1);
+    assert_eq!(
+        tokens.iter().filter(|t| t.ttype == "clockPercent").count(),
+        1
+    );
+    assert_eq!(
+        tokens.iter().filter(|t| t.ttype == "clockModifier").count(),
+        1
+    );
     assert_eq!(tokens.iter().filter(|t| t.ttype == "clockSpec").count(), 1);
 }
 
@@ -950,5 +1026,233 @@ fn test_clock_without_format_option() {
     let lg = legend(&lsp);
     let uri = open_doc(&mut lsp, "clock format $t -gmt true\n");
     let tokens = typed(&mut lsp, &lg, &uri);
-    assert_eq!(tokens.iter().filter(|t| t.ttype == "clockPercent").count(), 0);
+    assert_eq!(
+        tokens.iter().filter(|t| t.ttype == "clockPercent").count(),
+        0
+    );
+}
+
+// -- georgtree issues #774 / #775 / #776 (end-to-end) --------------------
+
+#[test]
+fn test_tcloo_body_variable_declares_every_name() {
+    // Issue #774: `variable a b c` in a TclOO class body declares every name as
+    // an instance variable, not just the first.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "oo::class create Foo {\n    variable width height depth\n}\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    for name in ["width", "height", "depth"] {
+        let t = tokens
+            .iter()
+            .find(|t| covered(src, t) == name)
+            .unwrap_or_else(|| panic!("no token covers {name:?}: {tokens:?}"));
+        assert_eq!(t.ttype, "variable", "`{name}` must be a variable: {tokens:?}");
+    }
+}
+
+#[test]
+fn test_imported_tcltest_test_structure_recognised() {
+    // Issue #776: after `namespace import tcltest::*`, a bare `test` resolves to
+    // the tcltest spec — its `-body`/`-result` are options and the body script
+    // is recursed.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "namespace import tcltest::*\n\
+               test t-1 {desc} -body {\n    set x 1\n} -result 1\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let kind_of = |word: &str| {
+        tokens
+            .iter()
+            .find(|t| covered(src, t) == word)
+            .map(|t| t.ttype.clone())
+    };
+    assert_eq!(
+        kind_of("-body").as_deref(),
+        Some("decorator"),
+        "imported test's -body must be an option: {tokens:?}",
+    );
+    assert_eq!(
+        kind_of("-result").as_deref(),
+        Some("decorator"),
+        "imported test's -result must be an option: {tokens:?}",
+    );
+    assert_eq!(
+        kind_of("set").as_deref(),
+        Some("function"),
+        "the -body script must be recursed: {tokens:?}",
+    );
+}
+
+#[test]
+fn test_source_command_substitution_argument_is_tokenised() {
+    // Issue #775: a command substitution in `source`'s argument is highlighted
+    // as a command sequence (locks the rust-branch behaviour).
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "source [file join $currentDir testUtilities.tcl]\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    assert_eq!(
+        tokens
+            .iter()
+            .find(|t| covered(src, t) == "file")
+            .map(|t| t.ttype.clone())
+            .as_deref(),
+        Some("function"),
+        "the [file join …] substitution must be tokenised: {tokens:?}",
+    );
+    assert!(
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == "$currentDir" && t.ttype == "variable"),
+        "the variable inside source's argument must be a variable: {tokens:?}",
+    );
+}
+
+#[test]
+fn test_global_declares_every_name() {
+    // Peer of #774: `global a b c` declares every name as a variable.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "proc p {} {\n    global alpha beta gamma\n}\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    for name in ["alpha", "beta", "gamma"] {
+        let t = tokens
+            .iter()
+            .find(|t| covered(src, t) == name)
+            .unwrap_or_else(|| panic!("no token covers {name:?}: {tokens:?}"));
+        assert_eq!(t.ttype, "variable", "`{name}` in `global` must be a variable");
+    }
+}
+
+#[test]
+fn test_foreach_loop_variables_are_variables() {
+    // `foreach`/`dict for` bind their iteration variables — a single bareword
+    // and each element of a braced list read as variable declarations.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "foreach item $lst { puts $item }\nforeach {key val} $pairs { puts $key }\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let is_var = |word: &str| {
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == word && t.ttype == "variable")
+    };
+    for name in ["item", "key", "val"] {
+        assert!(is_var(name), "loop variable `{name}` must be a variable: {tokens:?}");
+    }
+}
+
+#[test]
+fn test_proc_and_lambda_parameters_are_variables() {
+    // Procedure / method / apply-lambda parameter names read as variable
+    // declarations, and `dict map` binds its loop variables (peer of dict for).
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "proc greet {name age} { return $name }\n\
+               apply {{alpha beta} { return $alpha }} 1 2\n\
+               dict map {mk mv} $d { set mk $mv }\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let is_var = |word: &str| {
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == word && t.ttype == "variable")
+    };
+    for name in ["name", "age", "alpha", "beta", "mk", "mv"] {
+        assert!(is_var(name), "`{name}` must be a variable declaration: {tokens:?}");
+    }
+}
+
+#[test]
+fn test_upvar_and_dict_update_locals_are_variables() {
+    // `upvar` / `namespace upvar` locals and `dict update` var names read as
+    // variable declarations; the other-frame names and dict keys stay strings.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "upvar 1 othervar localvar\n\
+               dict update mydict thekey thevar { set thevar 1 }\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let kind_of = |word: &str| {
+        tokens
+            .iter()
+            .find(|t| covered(src, t) == word)
+            .map(|t| t.ttype.clone())
+    };
+    assert_eq!(kind_of("localvar").as_deref(), Some("variable"), "{tokens:?}");
+    assert_eq!(kind_of("thevar").as_deref(), Some("variable"), "{tokens:?}");
+    assert_eq!(kind_of("othervar").as_deref(), Some("string"), "{tokens:?}");
+    assert_eq!(kind_of("thekey").as_deref(), Some("string"), "{tokens:?}");
+}
+
+#[test]
+fn test_snit_type_body_members_highlight() {
+    // snit definition bodies are registry data (definition_body grammar), so
+    // their members recurse + highlight with no snit-specific walker code.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "snit::type Dog {\n\
+               \x20   variable barks\n\
+               \x20   method bark {volume} { return $barks }\n\
+               \x20   typemethod count {} { return 1 }\n\
+               }\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    // `barks` (declaration) and `volume` (method param) are variables.
+    for name in ["barks", "volume"] {
+        assert!(
+            tokens.iter().any(|t| covered(src, t) == name && t.ttype == "variable"),
+            "snit `{name}` must be a variable: {tokens:?}",
+        );
+    }
+    // `typemethod` is a member keyword; the method body's `return` is recursed.
+    assert!(
+        tokens.iter().any(|t| covered(src, t) == "typemethod" && t.ttype == "keyword"),
+        "`typemethod` must be a keyword: {tokens:?}",
+    );
+    assert!(
+        tokens.iter().any(|t| covered(src, t) == "return" && t.ttype == "keyword"),
+        "a snit method body must be recursed: {tokens:?}",
+    );
+}
+
+#[test]
+fn test_itcl_class_body_members_highlight() {
+    // [incr Tcl] class bodies are registry data (definition_body grammar) too,
+    // including the public/protected/private access-modifier wrappers.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "itcl::class Dog {\n\
+               \x20   inherit Animal\n\
+               \x20   variable barks\n\
+               \x20   public method bark {volume} { set barks $volume }\n\
+               \x20   private variable secret 0\n\
+               }\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    // Declarations + a method parameter are variables (incl. the wrapped ones).
+    for name in ["barks", "volume", "secret"] {
+        assert!(
+            tokens.iter().any(|t| covered(src, t) == name && t.ttype == "variable"),
+            "itcl `{name}` must be a variable: {tokens:?}",
+        );
+    }
+    // The access modifier and the inner wrapped keyword are both keywords.
+    for kw in ["inherit", "public", "method", "private"] {
+        assert!(
+            tokens.iter().any(|t| covered(src, t) == kw && t.ttype == "keyword"),
+            "itcl `{kw}` must be a keyword: {tokens:?}",
+        );
+    }
+    // The wrapped method body is recursed (`set` is a command there).
+    assert!(
+        tokens.iter().any(|t| covered(src, t) == "set" && t.ttype == "function"),
+        "an itcl method body must be recursed: {tokens:?}",
+    );
 }

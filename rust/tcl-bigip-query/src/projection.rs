@@ -52,9 +52,9 @@ use tcl_bigip::model::{
     BigipSecurityNatSourceTranslation, BigipSnatPool, BigipVirtualAddress, BigipVirtualServer,
     DataGroupType, ModelObject, ProfileType,
 };
-use tcl_bigip::value::{FirewallEndpoint, FirewallRule};
 use tcl_bigip::parser::Placed;
 use tcl_bigip::value::{BigipList, ListItemValue, MonitorExpression};
+use tcl_bigip::value::{FirewallEndpoint, FirewallRule};
 
 use crate::errors::QueryError;
 use crate::eval::Root;
@@ -233,7 +233,10 @@ const SECURITY_KINDS: &[(&str, &str)] = &[
     ("firewall-port-list", "security firewall port-list"),
     ("nat-policy", "security nat policy"),
     ("nat-source-translation", "security nat source-translation"),
-    ("nat-destination-translation", "security nat destination-translation"),
+    (
+        "nat-destination-translation",
+        "security nat destination-translation",
+    ),
 ];
 
 /// Every covered kind table, in module order. Iterated by the per-module entry
@@ -1380,7 +1383,10 @@ fn project_gtm_wideip(o: &BigipGtmWideip) -> IndexMap<String, Value> {
         .v("pools", path_ref_list_strs(&o.pools, "gtm pool"))
         .v("aliases", str_list(&o.aliases))
         .s("pool-lb-mode", &o.pool_lb_mode)
-        .v("last-resort-pool", path_ref(&o.last_resort_pool, "gtm pool"))
+        .v(
+            "last-resort-pool",
+            path_ref(&o.last_resort_pool, "gtm pool"),
+        )
         .s("persistence", &o.persistence)
         .s("description", &o.description)
         .s("state", &o.state)
@@ -1504,7 +1510,9 @@ fn project_nat_policy(o: &BigipSecurityNatPolicy) -> IndexMap<String, Value> {
         .done()
 }
 
-fn project_nat_source_translation(o: &BigipSecurityNatSourceTranslation) -> IndexMap<String, Value> {
+fn project_nat_source_translation(
+    o: &BigipSecurityNatSourceTranslation,
+) -> IndexMap<String, Value> {
     Fields::new()
         .s("name", &o.name)
         .s("full-path", &o.full_path)

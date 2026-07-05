@@ -73,7 +73,11 @@ fn parse_recursion_limit(s: &str) -> Result<i64, String> {
 /// matching C's `Tcl_GetIndexFromObj`. Returns the canonical spelling or a
 /// `bad option "X": must be …` error.
 fn resolve_limit_opt<'a>(arg: &str, opts: &'a [&'a str]) -> Result<&'a str, String> {
-    let matches: Vec<&str> = opts.iter().copied().filter(|o| o.starts_with(arg)).collect();
+    let matches: Vec<&str> = opts
+        .iter()
+        .copied()
+        .filter(|o| o.starts_with(arg))
+        .collect();
     match matches.as_slice() {
         [exact] => Ok(exact),
         _ if opts.contains(&arg) => Ok(opts[opts.iter().position(|o| *o == arg).unwrap()]),
@@ -1327,9 +1331,7 @@ impl Vm {
             }
             "invokehidden" if !rest.is_empty() => {
                 if self.is_safe() {
-                    return err(
-                        "not allowed to invoke hidden commands from safe interpreter",
-                    );
+                    return err("not allowed to invoke hidden commands from safe interpreter");
                 }
                 // Skip unmodelled `-namespace ns` / `--` flags.
                 let mut i = 0;

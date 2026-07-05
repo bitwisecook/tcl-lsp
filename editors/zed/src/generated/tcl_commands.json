@@ -235,6 +235,10 @@
       "summary": "Apply an anonymous function"
     },
     {
+      "name": "argparse",
+      "summary": "Parse and validate switches and parameters from an argument list."
+    },
+    {
       "name": "array",
       "summary": "Manipulate array variables",
       "subcommands": [
@@ -1260,6 +1264,46 @@
       "name": "ip::version",
       "summary": "Return the IP version of an address (4 or 6).",
       "pure": true
+    },
+    {
+      "name": "itcl::body",
+      "summary": "Define the body of a previously-declared [incr Tcl] method or proc."
+    },
+    {
+      "name": "itcl::class",
+      "summary": "Define a new [incr Tcl] class."
+    },
+    {
+      "name": "itcl::code",
+      "summary": "Capture a command for later evaluation in its namespace context."
+    },
+    {
+      "name": "itcl::configbody",
+      "summary": "Define the configuration body of a public [incr Tcl] variable."
+    },
+    {
+      "name": "itcl::delete",
+      "summary": "Delete [incr Tcl] objects, classes, or namespaces."
+    },
+    {
+      "name": "itcl::ensemble",
+      "summary": "Define or extend an [incr Tcl] ensemble command."
+    },
+    {
+      "name": "itcl::find",
+      "summary": "Find [incr Tcl] classes or objects by pattern."
+    },
+    {
+      "name": "itcl::is",
+      "summary": "Test whether a name is an [incr Tcl] class or object."
+    },
+    {
+      "name": "itcl::local",
+      "summary": "Create an object that is automatically deleted when the current call frame ends."
+    },
+    {
+      "name": "itcl::scope",
+      "summary": "Capture a variable name in its namespace context (a scoped value)."
     },
     {
       "name": "join",

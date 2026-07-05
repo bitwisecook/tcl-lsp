@@ -21,31 +21,35 @@ use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-re",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Match as regular expression.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-ex",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Match as exact string.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-gl",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Match as glob (default).",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
     OptionSpec {
         name: "-nocase",
-        takes_value: false,
-        value_hint: "",
+        value: OptionValue::flag(),
         detail: "Case-insensitive matching.",
         dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

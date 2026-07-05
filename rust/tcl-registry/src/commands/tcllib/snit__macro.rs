@@ -45,7 +45,7 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
-        arg_roles: &[(2, ArgRole::Body)],
+        arg_roles: &[(1, ArgRole::ParamList), (2, ArgRole::Body)],
         tcllib_package: Some("snit"),
         required_package: Some("snit"),
         ..CommandSpec::DEFAULT

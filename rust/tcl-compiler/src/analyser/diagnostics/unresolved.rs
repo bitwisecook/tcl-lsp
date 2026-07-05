@@ -142,6 +142,13 @@ impl Analyser {
         // spuriously flagged.
         let active_dialect = tcl_registry::prelude::DialectSet::parse(&self.dialect)
             .unwrap_or(tcl_registry::prelude::DialectSet::ALL_TCL);
+        // A registry command is "known" for W123 whenever the active dialect
+        // enables it — including package-gated commands such as ``argparse`` or
+        // the Tk widgets, which resolve under a Tcl version and are ambient in a
+        // `wish` interpreter.  The *missing `package require`* case is reported
+        // separately by W120 (see ``emit_missing_package_require_diagnostics``),
+        // which carries an add-the-require code fix; firing W123 here as well
+        // would double-report and would false-positive on ambient Tk widgets.
         let registry_names: HashSet<String> = registry
             .command_names()
             .filter(|name| registry.get_for_dialect(name, active_dialect).is_some())
@@ -275,6 +282,11 @@ impl Analyser {
                 continue;
             }
             if self.result.all_classes.contains_key(&format!("::{name}")) {
+                continue;
+            }
+            // A command bound by `CLASS create NAME` — later `NAME method`
+            // dispatch is a real command call, not an unknown (issue #777).
+            if self.result.created_instance_commands.contains(name) {
                 continue;
             }
 

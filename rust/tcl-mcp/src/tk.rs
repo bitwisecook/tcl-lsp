@@ -29,29 +29,100 @@ use serde_json::{Map, Value, json};
 const GEOMETRY_COMMANDS: &[&str] = &["grid", "pack", "place"];
 
 const WIDGET_COMMANDS: &[&str] = &[
-    "button", "canvas", "checkbutton", "destroy", "entry", "frame", "label", "labelframe",
-    "listbox", "menu", "menubutton", "message", "panedwindow", "radiobutton", "scale", "scrollbar",
-    "spinbox", "text", "toplevel", "ttk::button", "ttk::checkbutton", "ttk::combobox", "ttk::entry",
-    "ttk::frame", "ttk::label", "ttk::labelframe", "ttk::menubutton", "ttk::notebook",
-    "ttk::panedwindow", "ttk::progressbar", "ttk::radiobutton", "ttk::scale", "ttk::scrollbar",
-    "ttk::separator", "ttk::sizegrip", "ttk::spinbox", "ttk::treeview",
+    "button",
+    "canvas",
+    "checkbutton",
+    "destroy",
+    "entry",
+    "frame",
+    "label",
+    "labelframe",
+    "listbox",
+    "menu",
+    "menubutton",
+    "message",
+    "panedwindow",
+    "radiobutton",
+    "scale",
+    "scrollbar",
+    "spinbox",
+    "text",
+    "toplevel",
+    "ttk::button",
+    "ttk::checkbutton",
+    "ttk::combobox",
+    "ttk::entry",
+    "ttk::frame",
+    "ttk::label",
+    "ttk::labelframe",
+    "ttk::menubutton",
+    "ttk::notebook",
+    "ttk::panedwindow",
+    "ttk::progressbar",
+    "ttk::radiobutton",
+    "ttk::scale",
+    "ttk::scrollbar",
+    "ttk::separator",
+    "ttk::sizegrip",
+    "ttk::spinbox",
+    "ttk::treeview",
 ];
 
 const VISUAL_OPTIONS: &[&str] = &[
-    "-text", "-textvariable", "-width", "-height", "-relief", "-label", "-orient", "-state",
-    "-show", "-wrap", "-from", "-to", "-values", "-selectmode",
+    "-text",
+    "-textvariable",
+    "-width",
+    "-height",
+    "-relief",
+    "-label",
+    "-orient",
+    "-state",
+    "-show",
+    "-wrap",
+    "-from",
+    "-to",
+    "-values",
+    "-selectmode",
 ];
 
 const GEOMETRY_OPTIONS: &[&str] = &[
-    "-row", "-column", "-rowspan", "-columnspan", "-sticky", "-side", "-fill", "-expand", "-anchor",
-    "-padx", "-pady", "-ipadx", "-ipady", "-x", "-y", "-relx", "-rely", "-relwidth", "-relheight",
-    "-in", "-before", "-after", "-weight", "-minsize",
+    "-row",
+    "-column",
+    "-rowspan",
+    "-columnspan",
+    "-sticky",
+    "-side",
+    "-fill",
+    "-expand",
+    "-anchor",
+    "-padx",
+    "-pady",
+    "-ipadx",
+    "-ipady",
+    "-x",
+    "-y",
+    "-relx",
+    "-rely",
+    "-relwidth",
+    "-relheight",
+    "-in",
+    "-before",
+    "-after",
+    "-weight",
+    "-minsize",
 ];
 
 /// Geometry-manager subcommands that push the widget path to `words[2]`.
 const GEOMETRY_SUBCOMMANDS: &[&str] = &[
-    "configure", "forget", "info", "propagate", "slaves", "columnconfigure", "rowconfigure",
-    "remove", "anchor",
+    "configure",
+    "forget",
+    "info",
+    "propagate",
+    "slaves",
+    "columnconfigure",
+    "rowconfigure",
+    "remove",
+    "anchor",
 ];
 
 struct Widget {
@@ -97,7 +168,8 @@ fn parent_path(p: &str) -> String {
 
 /// Shorten a widget command to its display type (`ttk::x` → `ttk-x`).
 fn short_type(cmd: &str) -> String {
-    cmd.strip_prefix("ttk::").map_or_else(|| cmd.to_owned(), |rest| format!("ttk-{rest}"))
+    cmd.strip_prefix("ttk::")
+        .map_or_else(|| cmd.to_owned(), |rest| format!("ttk-{rest}"))
 }
 
 /// Parse `-option value` pairs, first-seen order, last value wins (Tcl dict
@@ -118,11 +190,19 @@ fn parse_options(words: &[&str]) -> Vec<(String, String)> {
             i += 1;
         }
     }
-    order.into_iter().map(|k| { let v = map[&k].clone(); (k, v) }).collect()
+    order
+        .into_iter()
+        .map(|k| {
+            let v = map[&k].clone();
+            (k, v)
+        })
+        .collect()
 }
 
 fn filter_options(opts: Vec<(String, String)>, allowed: &[&str]) -> Vec<(String, String)> {
-    opts.into_iter().filter(|(k, _)| allowed.contains(&k.as_str())).collect()
+    opts.into_iter()
+        .filter(|(k, _)| allowed.contains(&k.as_str()))
+        .collect()
 }
 
 /// Split on whitespace runs with at most `n` splits: the remainder after the
@@ -161,8 +241,14 @@ fn widget_json(path: &str, widgets: &HashMap<String, Widget>) -> Value {
     m.insert("pathname".to_owned(), json!(w.pathname));
     m.insert("type".to_owned(), json!(w.wtype));
     m.insert("options".to_owned(), options_json(&w.options));
-    m.insert("geometry".to_owned(), w.geometry.clone().map_or(Value::Null, Value::String));
-    m.insert("geometry_options".to_owned(), options_json(&w.geometry_options));
+    m.insert(
+        "geometry".to_owned(),
+        w.geometry.clone().map_or(Value::Null, Value::String),
+    );
+    m.insert(
+        "geometry_options".to_owned(),
+        options_json(&w.geometry_options),
+    );
     m.insert(
         "children".to_owned(),
         Value::Array(w.children.iter().map(|c| widget_json(c, widgets)).collect()),
@@ -188,7 +274,11 @@ pub fn tk_layout(args: &Value) -> Value {
         if stripped.starts_with("wm title .") {
             let parts = splitn_ws(stripped, 3);
             if parts.len() >= 4 {
-                parts[3].trim_matches('"').trim_matches('{').trim_matches('}').clone_into(&mut title);
+                parts[3]
+                    .trim_matches('"')
+                    .trim_matches('{')
+                    .trim_matches('}')
+                    .clone_into(&mut title);
             }
         }
     }
@@ -254,7 +344,11 @@ pub fn tk_layout(args: &Value) -> Value {
     let conflicts: Vec<Value> = geom_parents
         .iter()
         .filter(|(_, mgrs)| mgrs.iter().any(|m| m == "pack") && mgrs.iter().any(|m| m == "grid"))
-        .map(|(parent, _)| json!(format!("Cannot mix 'pack' and 'grid' in parent '{parent}'.")))
+        .map(|(parent, _)| {
+            json!(format!(
+                "Cannot mix 'pack' and 'grid' in parent '{parent}'."
+            ))
+        })
         .collect();
 
     json!({

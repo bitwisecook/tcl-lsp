@@ -7,7 +7,7 @@
   "side": "client-side",
   "transport": "tcp/udp",
   "impliedProfiles": [],
-  "validCommandCount": 1150,
+  "validCommandCount": 1151,
   "validCommands": [
     "AAA::acct_result",
     "AAA::acct_send",
@@ -576,6 +576,7 @@
     "after",
     "append",
     "apply",
+    "argparse",
     "array",
     "b64decode",
     "b64encode",

@@ -320,18 +320,14 @@ fn match_version_command(cmd: &[ScanWord], depth: u8) -> Option<String> {
     // them as script / expression bodies. The gate is applied at *every* nesting
     // level, so even `if {$c} {set msg {package require Tcl 8.4}}` leaves the
     // inner `set` data untouched. (Reading order.)
-    let descend_braced = cmd
-        .first()
-        .is_some_and(|w| is_script_body_command(&w.text));
+    let descend_braced = cmd.first().is_some_and(|w| is_script_body_command(&w.text));
     for w in cmd {
         let recurse = match w.kind {
             tcl_lexer::TokenType::Cmd => true,
             tcl_lexer::TokenType::Str => descend_braced,
             _ => false,
         };
-        if recurse
-            && let Some(v) = scan_tokens_for_tcl_version(&w.text, depth + 1)
-        {
+        if recurse && let Some(v) = scan_tokens_for_tcl_version(&w.text, depth + 1) {
             return Some(v);
         }
     }
@@ -357,9 +353,7 @@ fn match_version_command(cmd: &[ScanWord], depth: u8) -> Option<String> {
         // other package can't select a Tcl dialect.
         Some("vsatisfies") => {
             let subject = cmd.get(2)?;
-            if subject.kind != tcl_lexer::TokenType::Cmd
-                || !is_package_require_tcl(&subject.text)
-            {
+            if subject.kind != tcl_lexer::TokenType::Cmd || !is_package_require_tcl(&subject.text) {
                 return None;
             }
             cmd.get(3).and_then(|w| extract_major_minor(&w.text))
@@ -423,15 +417,27 @@ mod detect_tests {
 
     #[test]
     fn directive_wins() {
-        assert_eq!(detect_dialect("# tcl-dialect: tcl8.5\nputs hi\n", None, DEF), "tcl8.5");
+        assert_eq!(
+            detect_dialect("# tcl-dialect: tcl8.5\nputs hi\n", None, DEF),
+            "tcl8.5"
+        );
     }
 
     #[test]
     fn extension_is_the_fallback_for_generic_content() {
         // With no content signal, the extension decides.
-        assert_eq!(detect_dialect("puts hi\n", Some("x.irule"), DEF), "f5-irules");
-        assert_eq!(detect_dialect("spawn ssh host\n", Some("y.exp"), DEF), "expect");
-        assert_eq!(detect_dialect("read_xdc c.xdc\n", Some("c.xdc"), DEF), "xilinx-eda-tcl");
+        assert_eq!(
+            detect_dialect("puts hi\n", Some("x.irule"), DEF),
+            "f5-irules"
+        );
+        assert_eq!(
+            detect_dialect("spawn ssh host\n", Some("y.exp"), DEF),
+            "expect"
+        );
+        assert_eq!(
+            detect_dialect("read_xdc c.xdc\n", Some("c.xdc"), DEF),
+            "xilinx-eda-tcl"
+        );
     }
 
     #[test]
@@ -459,8 +465,14 @@ mod detect_tests {
 
     #[test]
     fn shebang_detected() {
-        assert_eq!(detect_dialect("#!/usr/bin/expect -f\nspawn ssh\n", None, DEF), "expect");
-        assert_eq!(detect_dialect("#!/usr/bin/tclsh8.6\nputs hi\n", None, DEF), "tcl8.6");
+        assert_eq!(
+            detect_dialect("#!/usr/bin/expect -f\nspawn ssh\n", None, DEF),
+            "expect"
+        );
+        assert_eq!(
+            detect_dialect("#!/usr/bin/tclsh8.6\nputs hi\n", None, DEF),
+            "tcl8.6"
+        );
     }
 
     #[test]
@@ -473,21 +485,39 @@ mod detect_tests {
 
     #[test]
     fn eda_and_f5_content_signatures() {
-        assert_eq!(detect_dialect("synth_design -top foo\n", None, DEF), "xilinx-eda-tcl");
-        assert_eq!(detect_dialect("compile_ultra -gate_clock\n", None, DEF), "synopsys-eda-tcl");
-        assert_eq!(detect_dialect("set_db init_design\ninit_design\n", None, DEF), "cadence-eda-tcl");
-        assert_eq!(detect_dialect("tmsh::create ltm pool p\n", None, DEF), "f5-tmsh");
+        assert_eq!(
+            detect_dialect("synth_design -top foo\n", None, DEF),
+            "xilinx-eda-tcl"
+        );
+        assert_eq!(
+            detect_dialect("compile_ultra -gate_clock\n", None, DEF),
+            "synopsys-eda-tcl"
+        );
+        assert_eq!(
+            detect_dialect("set_db init_design\ninit_design\n", None, DEF),
+            "cadence-eda-tcl"
+        );
+        assert_eq!(
+            detect_dialect("tmsh::create ltm pool p\n", None, DEF),
+            "f5-tmsh"
+        );
     }
 
     #[test]
     fn expect_content_without_shebang() {
-        assert_eq!(detect_dialect("spawn ssh host\nexpect_before timeout\n", None, DEF), "expect");
+        assert_eq!(
+            detect_dialect("spawn ssh host\nexpect_before timeout\n", None, DEF),
+            "expect"
+        );
     }
 
     #[test]
     fn plain_tcl_falls_back_to_default() {
         assert_eq!(detect_dialect("set x 1\nputs $x\n", None, DEF), "tcl9.0");
-        assert_eq!(detect_dialect("package require Tcl 8.6\n", None, DEF), "tcl8.6");
+        assert_eq!(
+            detect_dialect("package require Tcl 8.6\n", None, DEF),
+            "tcl8.6"
+        );
     }
 }
 
@@ -559,16 +589,37 @@ fn has_irules_when(head: &str) -> bool {
 /// an EDA-tool script never falls through to a weaker signal.
 const CONTENT_SIGNATURES: &[(&str, &[&str])] = &[
     // F5 tmsh / iApp management scripts.
-    ("f5-iapps", &["iapp::", "tmsh::create_app", "sys application template"]),
-    ("f5-tmsh", &["tmsh::", "tmsh create", "tmsh modify", "tmsh list"]),
+    (
+        "f5-iapps",
+        &["iapp::", "tmsh::create_app", "sys application template"],
+    ),
+    (
+        "f5-tmsh",
+        &["tmsh::", "tmsh create", "tmsh modify", "tmsh list"],
+    ),
     // EDA-tool Tcl (synthesis / P&R / simulation).
-    ("xilinx-eda-tcl", &["synth_design", "launch_runs", "create_project", "read_xdc"]),
-    ("synopsys-eda-tcl", &["compile_ultra", "dc_shell", "link_design", "set_max_area"]),
-    ("cadence-eda-tcl", &["set_db", "innovus", "genus", "init_design"]),
-    ("intel-quartus-eda-tcl", &["quartus_", "project_new", "set_global_assignment"]),
+    (
+        "xilinx-eda-tcl",
+        &["synth_design", "launch_runs", "create_project", "read_xdc"],
+    ),
+    (
+        "synopsys-eda-tcl",
+        &["compile_ultra", "dc_shell", "link_design", "set_max_area"],
+    ),
+    (
+        "cadence-eda-tcl",
+        &["set_db", "innovus", "genus", "init_design"],
+    ),
+    (
+        "intel-quartus-eda-tcl",
+        &["quartus_", "project_new", "set_global_assignment"],
+    ),
     ("mentor-eda-tcl", &["vsim", "vlog", "vcom", "questa"]),
     // Expect automation.
-    ("expect", &["spawn", "expect_before", "send_user", "interact"]),
+    (
+        "expect",
+        &["spawn", "expect_before", "send_user", "interact"],
+    ),
 ];
 
 /// Whether `marker` appears in `haystack` at a word boundary on its **left**
@@ -652,7 +703,7 @@ fn detect_content_signals(head: &str) -> Option<&'static str> {
 ///    `.tcl` file's *content* is a stronger signal than its name;
 /// 6. the caller's `default` (the editor / LSP / XDG configuration).
 ///
-/// The BigIP config-object tier (tier between content and extension in the
+/// The `BigIP` config-object tier (tier between content and extension in the
 /// project's model) is applied by the `tcl-bigip` layer, which wraps this
 /// detector — it isn't reachable from the registry crate.
 ///
@@ -678,13 +729,11 @@ pub fn detect_dialect(source: &str, filename: Option<&str>, default: &'static st
     //       signatures). Try the cheap head first; on a miss, scan the whole
     //       source so a late signal in a huge script is still caught.
     let head = scan_head(source);
-    if let Some(d) =
-        detect_content_signals(head).or_else(|| {
-            (source.len() > head.len())
-                .then(|| detect_content_signals(source))
-                .flatten()
-        })
-    {
+    if let Some(d) = detect_content_signals(head).or_else(|| {
+        (source.len() > head.len())
+            .then(|| detect_content_signals(source))
+            .flatten()
+    }) {
         return d;
     }
     // 5. Filename extension — only when the content gave nothing away.
@@ -724,9 +773,8 @@ pub fn detect_dialect_from_source(source: &str) -> Option<&'static str> {
         }
     }
     let head = scan_head(source);
-    let scan = |s: &str| {
-        scan_tokens_for_tcl_version(s, 0).and_then(|ver| tcl_version_dialect(&ver))
-    };
+    let scan =
+        |s: &str| scan_tokens_for_tcl_version(s, 0).and_then(|ver| tcl_version_dialect(&ver));
     // Head first (cheap); on a miss, the full source so a late guard in a huge
     // script is still caught.
     scan(head).or_else(|| (source.len() > head.len()).then(|| scan(source)).flatten())

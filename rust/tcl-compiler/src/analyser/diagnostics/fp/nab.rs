@@ -262,12 +262,20 @@ fn fp_nab_10_dict_enabled_in_tcl_9_0_silent() {
     );
 }
 
-// FP-NAB-11 — unresolved command (W123, TP).
+// FP-NAB-11 — package-gated command used without its `package require`.
+// `argparse` is a modelled registry command (`package require argparse`), so
+// using it without the require draws W120 ("requires `package require
+// argparse`", with an add-the-require fix), not the unknown-command W123.
 #[test]
-fn fp_nab_11_unresolved_argparse_fires_w123() {
+fn fp_nab_11_unrequired_argparse_fires_w120() {
     assert!(
-        fires("argparse {x y}", D, "W123"),
-        "FP-NAB-11 TP: argparse must fire W123; {:?}",
+        fires("argparse {x y}", D, "W120"),
+        "FP-NAB-11 TP: argparse without require must fire W120; {:?}",
+        diags("argparse {x y}", D)
+    );
+    assert!(
+        !fires("argparse {x y}", D, "W123"),
+        "FP-NAB-11: a registered package command must not also draw W123; {:?}",
         diags("argparse {x y}", D)
     );
 }
@@ -278,6 +286,27 @@ fn fp_nab_11_stub_registered_command_silent() {
         !fires("puts hi", D, "W123"),
         "FP-NAB-11: puts must NOT fire W123; {:?}",
         diags("puts hi", D)
+    );
+}
+
+// Option-value Body role: a Tk `-command` script value is recursively analysed
+// like a positional body (Phase 3), so a structure-dependent lint that requires
+// parsing the inner command — W100, unbraced `expr` — fires inside it.
+#[test]
+fn tk_command_option_body_is_analysed() {
+    let src = "button .b -command {expr $x+1}";
+    assert!(
+        fires(src, "tk", "W100"),
+        "-command body should be analysed (W100 on unbraced expr); {:?}",
+        diags(src, "tk")
+    );
+    // A generic-value option's value is a plain string, never a script — the
+    // inner `expr` is not parsed as a command, so no W100.
+    let neg = "button .b -text {expr $x+1}";
+    assert!(
+        !fires(neg, "tk", "W100"),
+        "-text value must not be analysed as a script; {:?}",
+        diags(neg, "tk")
     );
 }
 

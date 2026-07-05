@@ -74,6 +74,8 @@ for historical reference.
 - [W132 — integrity mismatch](kcs-diagnostic-w132-integrity-mismatch.md)
 - [W133 — safe-mode violation](kcs-diagnostic-w133-safe-mode-violation.md)
 - [W134 — missing pkgIndex.tcl](kcs-diagnostic-w134-missing-pkgindex.md)
+- [W135 — command needs newer package version](kcs-diagnostic-w135-command-needs-newer-package.md)
+- [W136 — option needs newer package version](kcs-diagnostic-w136-option-needs-newer-package.md)
 - [W200 — exec result not captured](kcs-diagnostic-w200-exec-result-not-captured.md)
 - [W201 — manual path concatenation](kcs-diagnostic-w201-manual-path-concatenation.md)
 - [W230 — list index out of range](kcs-diagnostic-w230-list-index-out-of-range.md)

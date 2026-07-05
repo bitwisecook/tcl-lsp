@@ -10,7 +10,7 @@
     "FASTHTTP",
     "HTTP"
   ],
-  "validCommandCount": 1240,
+  "validCommandCount": 1241,
   "validCommands": [
     "AAA::acct_result",
     "AAA::acct_send",
@@ -662,6 +662,7 @@
     "after",
     "append",
     "apply",
+    "argparse",
     "array",
     "b64decode",
     "b64encode",

@@ -133,7 +133,11 @@ pub fn simulate_irule(
 
     let http = profiles.iter().any(|p| p == "HTTP");
     if let (true, Some(req)) = (http, request) {
-        let method = if req.method.is_empty() { "GET" } else { &req.method };
+        let method = if req.method.is_empty() {
+            "GET"
+        } else {
+            &req.method
+        };
         let uri = if req.uri.is_empty() { "/" } else { &req.uri };
         let mut args = format!("-method {} -uri {}", tcl_quote(method), tcl_quote(uri));
         if !req.host.is_empty() {

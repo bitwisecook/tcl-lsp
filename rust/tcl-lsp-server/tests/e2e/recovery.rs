@@ -44,7 +44,6 @@
 //! precise split offset) are intentionally NOT asserted here — they belong to the
 //! language-internal unit/differential/fuzz suites.
 
-
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -154,7 +153,7 @@ fn typed(lsp: &mut Lsp, uri: &str) -> Vec<TypedToken> {
             line: tok.line,
             length: tok.length,
             ttype: leg
-                .get(tok.ttype as usize)
+                .get(usize::try_from(tok.ttype).unwrap())
                 .cloned()
                 .unwrap_or_default(),
         })
@@ -323,10 +322,10 @@ fn c3_tokens_well_formed_for_pathological_input() {
     let raw = lsp.semantic_tokens(&uri);
     let data = raw.get("data").and_then(Value::as_array);
     assert!(
-        data.map(|d| d.len() % 5 == 0).unwrap_or(false),
+        data.is_some_and(|d| d.len() % 5 == 0),
         "token data must be 5-int groups"
     );
-    let n_lines = (src.matches('\n').count() + 1) as i64;
+    let n_lines = i64::try_from(src.matches('\n').count() + 1).unwrap();
     for t in typed(&mut lsp, &uri) {
         assert!(
             (0..n_lines).contains(&t.line),
@@ -370,7 +369,10 @@ fn c4_no_exact_duplicate_published() {
     let mut seen: BTreeSet<_> = BTreeSet::new();
     for d in &diags {
         let ident = diag_identity(d);
-        assert!(seen.insert(ident.clone()), "duplicate diagnostic published: {ident:?}");
+        assert!(
+            seen.insert(ident.clone()),
+            "duplicate diagnostic published: {ident:?}"
+        );
     }
 }
 
@@ -394,7 +396,10 @@ fn c4_no_exact_duplicate_published() {
 fn inert_brace_word_break_still_flags_and_recovers() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let diags = lsp.open_ready(&uri, "set x [foo {bar\nproc recovered_after_brace_word {} {}\n");
+    let diags = lsp.open_ready(
+        &uri,
+        "set x [foo {bar\nproc recovered_after_brace_word {} {}\n",
+    );
     assert!(
         has_recovery_error(&diags),
         "unterminated [ should flag; got {:?}",
@@ -415,7 +420,10 @@ fn inert_brace_word_break_no_duplicate_diagnostics() {
     let mut seen: BTreeSet<_> = BTreeSet::new();
     for d in &diags {
         let ident = diag_identity(d);
-        assert!(seen.insert(ident.clone()), "duplicate diagnostic published: {ident:?}");
+        assert!(
+            seen.insert(ident.clone()),
+            "duplicate diagnostic published: {ident:?}"
+        );
     }
     // The trailing bare `set` is still parsed as a command → arity errors,
     // proving the tail is analysed as code rather than swallowed.
@@ -433,7 +441,10 @@ fn inert_midword_delimiter_still_recovers() {
     // over-fire and strand an unfixable error).
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "set x [foo abc\"\nproc recovered_after_midword {} {}\n");
+    lsp.open_ready(
+        &uri,
+        "set x [foo abc\"\nproc recovered_after_midword {} {}\n",
+    );
     let names = symbol_name_list(&lsp.document_symbols(&uri));
     assert!(
         names.iter().any(|n| n == "recovered_after_midword"),
@@ -449,7 +460,7 @@ fn inert_brace_word_break_tokens_well_formed() {
     let raw = lsp.semantic_tokens(&uri);
     let data = raw.get("data").and_then(Value::as_array);
     assert!(
-        data.map(|d| d.len() % 5 == 0).unwrap_or(false),
+        data.is_some_and(|d| d.len() % 5 == 0),
         "token data must be 5-int groups"
     );
 }

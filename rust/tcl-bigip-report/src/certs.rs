@@ -496,7 +496,10 @@ pub(crate) fn collect_certs(
         cert.insert("subject".into(), J::String(subject));
         cert.insert("issuerCn".into(), J::String(cn(&issuer)));
         cert.insert("issuer".into(), J::String(issuer));
-        cert.insert("notBefore".into(), J::String(human_date(x_get("not_before"))));
+        cert.insert(
+            "notBefore".into(),
+            J::String(human_date(x_get("not_before"))),
+        );
         cert.insert("expirationString".into(), J::String(exp_string));
         cert.insert("expirationDate".into(), J::String(exp_epoch));
         cert.insert("fingerprint".into(), J::String(fingerprint));

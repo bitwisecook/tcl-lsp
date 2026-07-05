@@ -62,7 +62,11 @@ impl Progress {
             start: Instant::now(),
             findings: 0,
         };
-        p.line(&format!("START {name} (skip={}, limit={:?})", Self::skip(), Self::limit()));
+        p.line(&format!(
+            "START {name} (skip={}, limit={:?})",
+            Self::skip(),
+            Self::limit()
+        ));
         p
     }
 
@@ -131,7 +135,11 @@ use tcl_compiler::analyser::types::AnalysisResult;
 /// A compact but **actionable** description of how `got` (per-item) diverges from
 /// `want` (full) — which fields differ, with sample keys/entries — so a finding
 /// written to the progress log is enough to start debugging without re-running.
-pub fn describe_analysis_divergence(name: &str, got: &AnalysisResult, want: &AnalysisResult) -> String {
+pub fn describe_analysis_divergence(
+    name: &str,
+    got: &AnalysisResult,
+    want: &AnalysisResult,
+) -> String {
     let mut parts: Vec<String> = Vec::new();
 
     macro_rules! map_field {
@@ -145,7 +153,9 @@ pub fn describe_analysis_divergence(name: &str, got: &AnalysisResult, want: &Ana
                 for k in gk.intersection(&wk) {
                     if got.$f[k] != want.$f[k] {
                         valdiff.push(format!("{k:?}"));
-                        if valdiff.len() >= 6 { break; }
+                        if valdiff.len() >= 6 {
+                            break;
+                        }
                     }
                 }
                 parts.push(format!(
@@ -160,11 +170,23 @@ pub fn describe_analysis_divergence(name: &str, got: &AnalysisResult, want: &Ana
             if got.$f != want.$f {
                 let g: Vec<String> = got.$f.iter().map(|x| format!("{x:?}")).collect();
                 let w: Vec<String> = want.$f.iter().map(|x| format!("{x:?}")).collect();
-                let only_pi: Vec<_> = g.iter().filter(|x| !w.contains(x)).take(4).cloned().collect();
-                let only_full: Vec<_> = w.iter().filter(|x| !g.contains(x)).take(4).cloned().collect();
+                let only_pi: Vec<_> = g
+                    .iter()
+                    .filter(|x| !w.contains(x))
+                    .take(4)
+                    .cloned()
+                    .collect();
+                let only_full: Vec<_> = w
+                    .iter()
+                    .filter(|x| !g.contains(x))
+                    .take(4)
+                    .cloned()
+                    .collect();
                 parts.push(format!(
                     "{}[len {}->{} +per_item={only_pi:?} -full={only_full:?}]",
-                    stringify!($f), w.len(), g.len()
+                    stringify!($f),
+                    w.len(),
+                    g.len()
                 ));
             }
         };
@@ -172,7 +194,12 @@ pub fn describe_analysis_divergence(name: &str, got: &AnalysisResult, want: &Ana
     macro_rules! scalar_field {
         ($f:ident) => {
             if got.$f != want.$f {
-                parts.push(format!("{}[per_item={:?} full={:?}]", stringify!($f), got.$f, want.$f));
+                parts.push(format!(
+                    "{}[per_item={:?} full={:?}]",
+                    stringify!($f),
+                    got.$f,
+                    want.$f
+                ));
             }
         };
     }
@@ -197,7 +224,10 @@ pub fn describe_analysis_divergence(name: &str, got: &AnalysisResult, want: &Ana
     scalar_field!(has_dynamic_providers);
     scalar_field!(unknown_proc_info);
     if got.global_scope != want.global_scope {
-        parts.push(format!("global_scope[{}]", first_debug_diff(&got.global_scope, &want.global_scope)));
+        parts.push(format!(
+            "global_scope[{}]",
+            first_debug_diff(&got.global_scope, &want.global_scope)
+        ));
     }
 
     if parts.is_empty() {

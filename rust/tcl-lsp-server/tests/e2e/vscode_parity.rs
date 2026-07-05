@@ -35,7 +35,6 @@
 //!   * navigation — method-parameter go-to-definition
 //!   * code actions — code-lens showReferences wiring, brace-expr refactor
 
-
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -169,12 +168,12 @@ fn test_w216_quick_fixes() {
     assert!(!w216.is_empty());
     let rng = w216[0]["range"].clone();
     let start = (
-        rng["start"]["line"].as_u64().unwrap() as u32,
-        rng["start"]["character"].as_u64().unwrap() as u32,
+        u32::try_from(rng["start"]["line"].as_u64().unwrap()).unwrap(),
+        u32::try_from(rng["start"]["character"].as_u64().unwrap()).unwrap(),
     );
     let end = (
-        rng["end"]["line"].as_u64().unwrap() as u32,
-        rng["end"]["character"].as_u64().unwrap() as u32,
+        u32::try_from(rng["end"]["line"].as_u64().unwrap()).unwrap(),
+        u32::try_from(rng["end"]["character"].as_u64().unwrap()).unwrap(),
     );
     let actions = lsp.code_actions(&uri, range(start, end), Value::Array(diags.clone()));
     let new_texts: Vec<String> = actions
@@ -208,9 +207,10 @@ fn test_command_context_binders_are_completed() {
     let uri = unique_uri("tcl");
     let src = format!("{COMMAND_CONTEXTS}\n");
     lsp.open_ready(&uri, &src);
-    let ls: BTreeSet<String> = labels(&lsp.completion(&uri, 5, "    puts $".len() as u32))
-        .into_iter()
-        .collect();
+    let ls: BTreeSet<String> =
+        labels(&lsp.completion(&uri, 5, u32::try_from("    puts $".len()).unwrap()))
+            .into_iter()
+            .collect();
     for v in [
         "$la", "$lb", "$lc", "$rf", "$rk", "$rv", "$rout", "$sx", "$sy", "$sz",
     ] {
@@ -235,7 +235,7 @@ fn test_global_is_colon_qualified_from_namespace_proc() {
         "}",
     ];
     lsp.open_ready(&uri, &format!("{}\n", lines.join("\n")));
-    let result = lsp.completion(&uri, 4, "        puts $".len() as u32);
+    let result = lsp.completion(&uri, 4, u32::try_from("        puts $".len()).unwrap());
     let items = completion_items(&result);
     let item = items
         .iter()
@@ -423,7 +423,7 @@ fn test_method_parameter_definition_resolves_to_name() {
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, &format!("{}\n", lines.join("\n")));
     let idx = lines[2].rfind("name").unwrap();
-    let res = lsp.definition(&uri, 2, idx as u32 + 1);
+    let res = lsp.definition(&uri, 2, u32::try_from(idx).unwrap() + 1);
     let locs = locations(&res);
     assert!(!locs.is_empty());
     let rng = &locs[0].range;
@@ -431,7 +431,7 @@ fn test_method_parameter_definition_resolves_to_name() {
     assert_eq!(rng["start"]["line"], rng["end"]["line"]);
     let start_ch = rng["start"]["character"].as_i64().unwrap();
     let end_ch = rng["end"]["character"].as_i64().unwrap();
-    assert!(end_ch - start_ch <= "greeting".len() as i64);
+    assert!(end_ch - start_ch <= i64::try_from("greeting".len()).unwrap());
 }
 
 // ── code actions / lenses ────────────────────────────────────────────────────
@@ -518,13 +518,11 @@ fn test_local_shadowing_global_stays_bare() {
     let uri = unique_uri("tcl");
     let src = "set foo global\nproc p {} {\n    set foo local\n    puts $\n}\n";
     lsp.open_ready(&uri, src);
-    let ls: BTreeSet<String> = labels(&lsp.completion(&uri, 3, "    puts $".len() as u32))
-        .into_iter()
-        .collect();
-    assert!(
-        ls.contains("$foo") && !ls.contains("$::foo"),
-        "{ls:?}"
-    );
+    let ls: BTreeSet<String> =
+        labels(&lsp.completion(&uri, 3, u32::try_from("    puts $".len()).unwrap()))
+            .into_iter()
+            .collect();
+    assert!(ls.contains("$foo") && !ls.contains("$::foo"), "{ls:?}");
 }
 
 #[test]
@@ -542,9 +540,10 @@ fn test_var_binders_fire_inside_command_substitutions() {
         "}\n",
     );
     lsp.open_ready(&uri, src);
-    let ls: BTreeSet<String> = labels(&lsp.completion(&uri, 3, "        puts $".len() as u32))
-        .into_iter()
-        .collect();
+    let ls: BTreeSet<String> =
+        labels(&lsp.completion(&uri, 3, u32::try_from("        puts $".len()).unwrap()))
+            .into_iter()
+            .collect();
     assert!(ls.contains("$m") && ls.contains("$x"), "{ls:?}");
 }
 

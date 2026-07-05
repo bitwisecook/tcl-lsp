@@ -640,7 +640,8 @@ mod tests {
 
     #[test]
     fn or_chain() {
-        let source = "if {$host eq \"a.com\" || $host eq \"b.com\" || $host eq \"c.com\"} {\n    pool p\n}";
+        let source =
+            "if {$host eq \"a.com\" || $host eq \"b.com\" || $host eq \"c.com\"} {\n    pool p\n}";
         let c = candidates(source);
         assert_eq!(c.len(), 1);
         assert_eq!(c[0]["value_count"], 3);
@@ -676,13 +677,15 @@ mod tests {
 
     #[test]
     fn glob_switch_declined() {
-        let source = "switch -glob -- $x {\n    a* { set y 1 }\n    b* { set y 2 }\n    c* { set y 3 }\n}";
+        let source =
+            "switch -glob -- $x {\n    a* { set y 1 }\n    b* { set y 2 }\n    c* { set y 3 }\n}";
         assert!(candidates(source).is_empty());
     }
 
     #[test]
     fn wire_shape() {
-        let source = "if {$host eq \"a.com\"} {\n    pool p\n} elseif {$host eq \"b.com\"} {\n    pool p\n}";
+        let source =
+            "if {$host eq \"a.com\"} {\n    pool p\n} elseif {$host eq \"b.com\"} {\n    pool p\n}";
         let out = suggest_datagroup_extractions(&json!({ "source": source }));
         assert_eq!(out["total"], 1);
         assert!(out["candidates"].is_array());

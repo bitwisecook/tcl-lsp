@@ -26,7 +26,6 @@
 //! cases are isolated on their own server to keep the main Tcl server
 //! uncontaminated.
 
-
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -76,14 +75,10 @@ fn range(start: (u32, u32), end: (u32, u32)) -> Value {
 /// Request code actions with an explicit `only` filter (the harness's
 /// `code_actions` has no `only` parameter, so build the request directly).
 fn code_actions_only(lsp: &mut Lsp, uri: &str, rng: Value, diags: Value, only: &[&str]) -> Value {
-    lsp.request(
-        "textDocument/codeAction",
-        json!({
-            "textDocument": { "uri": uri },
-            "range": rng,
-            "context": { "diagnostics": diags, "only": only },
-        }),
-    )
+    let mut params = json!({ "textDocument": { "uri": uri }, "context": { "only": only } });
+    params["range"] = rng;
+    params["context"]["diagnostics"] = diags;
+    lsp.request("textDocument/codeAction", params)
 }
 
 /// Every `newText` in a code-action list's workspace edits (`_ca_new_texts`).
@@ -103,7 +98,11 @@ fn ca_new_texts(actions: &Value) -> Vec<String> {
         }
         if let Some(doc_changes) = edit.get("documentChanges").and_then(Value::as_array) {
             for change in doc_changes {
-                for e in change.get("edits").and_then(Value::as_array).unwrap_or(&empty) {
+                for e in change
+                    .get("edits")
+                    .and_then(Value::as_array)
+                    .unwrap_or(&empty)
+                {
                     if let Some(t) = e.get("newText").and_then(Value::as_str) {
                         out.push(t.to_owned());
                     }
@@ -156,15 +155,22 @@ fn code_str(d: &Value) -> String {
 /// Decode semantic tokens for an iRule and map their type index to the legend
 /// name (`_irules_typed`).
 fn irules_typed(lsp: &mut Lsp, uri: &str) -> Vec<(SemToken, String)> {
-    let legend: Vec<String> = lsp.initialize_result()["capabilities"]["semanticTokensProvider"]
-        ["legend"]["tokenTypes"]
-        .as_array()
-        .map(|a| a.iter().map(|v| v.as_str().unwrap_or("").to_owned()).collect())
-        .unwrap_or_default();
+    let legend: Vec<String> =
+        lsp.initialize_result()["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .map(|v| v.as_str().unwrap_or("").to_owned())
+                    .collect()
+            })
+            .unwrap_or_default();
     let toks = decode_semantic_tokens(&lsp.semantic_tokens(uri));
     toks.into_iter()
         .map(|t| {
-            let name = legend.get(t.ttype as usize).cloned().unwrap_or_default();
+            let name = legend
+                .get(usize::try_from(t.ttype).unwrap())
+                .cloned()
+                .unwrap_or_default();
             (t, name)
         })
         .collect()
@@ -186,7 +192,11 @@ fn irules_subcommand_hover() {
 fn curated_irules_hover_does_not_mark_refinement_status() {
     let mut lsp = Lsp::irules();
     let uri = unique_uri("irule");
-    lsp.open_ready_lang(&uri, "when HTTP_REQUEST { log local0. \"ok\" }\n", "tcl-irule");
+    lsp.open_ready_lang(
+        &uri,
+        "when HTTP_REQUEST { log local0. \"ok\" }\n",
+        "tcl-irule",
+    );
     assert!(!hover(&mut lsp, &uri, 0, 2).to_lowercase().contains("note:"));
 }
 
@@ -216,7 +226,7 @@ fn when_priority_and_timing_keywords_after_event() {
     let src = "when HTTP_REQUEST ";
     let mut lsp = Lsp::irules();
     let uri = open_irule(&mut lsp, src);
-    let ls = labels(&mut lsp, &uri, 0, src.len() as u32);
+    let ls = labels(&mut lsp, &uri, 0, u32::try_from(src.len()).unwrap());
     assert!(ls.contains(&"priority".to_owned()));
     assert!(ls.contains(&"timing".to_owned()));
 }
@@ -226,7 +236,7 @@ fn when_priority_and_timing_partial_keyword() {
     let src = "when HTTP_REQUEST pr";
     let mut lsp = Lsp::irules();
     let uri = open_irule(&mut lsp, src);
-    let ls = labels(&mut lsp, &uri, 0, src.len() as u32);
+    let ls = labels(&mut lsp, &uri, 0, u32::try_from(src.len()).unwrap());
     assert!(ls.contains(&"priority".to_owned()));
     assert!(!ls.contains(&"timing".to_owned()));
 }
@@ -236,7 +246,7 @@ fn when_timing_value_keywords_after_timing() {
     let src = "when HTTP_REQUEST timing ";
     let mut lsp = Lsp::irules();
     let uri = open_irule(&mut lsp, src);
-    let ls = labels(&mut lsp, &uri, 0, src.len() as u32);
+    let ls = labels(&mut lsp, &uri, 0, u32::try_from(src.len()).unwrap());
     assert!(ls.contains(&"enable".to_owned()));
     assert!(ls.contains(&"disable".to_owned()));
 }
@@ -246,7 +256,7 @@ fn when_timing_values_not_suggested_after_priority() {
     let src = "when HTTP_REQUEST priority ";
     let mut lsp = Lsp::irules();
     let uri = open_irule(&mut lsp, src);
-    let ls = labels(&mut lsp, &uri, 0, src.len() as u32);
+    let ls = labels(&mut lsp, &uri, 0, u32::try_from(src.len()).unwrap());
     assert!(!ls.contains(&"enable".to_owned()));
     assert!(!ls.contains(&"disable".to_owned()));
 }
@@ -255,7 +265,8 @@ fn when_timing_values_not_suggested_after_priority() {
 fn http_header_subcommand_keywords() {
     let mut lsp = Lsp::irules();
     let uri = open_irule(&mut lsp, "HTTP::header ");
-    let ls: std::collections::BTreeSet<String> = labels(&mut lsp, &uri, 0, 13).into_iter().collect();
+    let ls: std::collections::BTreeSet<String> =
+        labels(&mut lsp, &uri, 0, 13).into_iter().collect();
     for expected in ["insert", "replace", "value"] {
         assert!(ls.contains(expected), "missing {expected:?} in {ls:?}");
     }
@@ -275,7 +286,8 @@ fn http_header_partial_keyword() {
 fn http_respond_options_after_status_code() {
     let mut lsp = Lsp::irules();
     let uri = open_irule(&mut lsp, "HTTP::respond 302 ");
-    let ls: std::collections::BTreeSet<String> = labels(&mut lsp, &uri, 0, 18).into_iter().collect();
+    let ls: std::collections::BTreeSet<String> =
+        labels(&mut lsp, &uri, 0, 18).into_iter().collect();
     for expected in ["content", "noserver", "version"] {
         assert!(ls.contains(expected), "missing {expected:?} in {ls:?}");
     }
@@ -287,12 +299,19 @@ fn irules_event_valid_command_ranked_before_invalid() {
     let uri = open_irule(&mut lsp, "when HTTP_REQUEST {\n    \n}\n");
     let mut by = std::collections::BTreeMap::new();
     for item in completion_items(&lsp.completion(&uri, 1, 4)) {
-        let label = item.get("label").and_then(Value::as_str).unwrap_or("").to_owned();
+        let label = item
+            .get("label")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_owned();
         by.insert(label, item);
     }
     let http = by["HTTP::header"]["sortText"].as_str().unwrap();
     let tcp = by["TCP::collect"]["sortText"].as_str().unwrap();
-    assert!(http < tcp, "HTTP::header sortText {http:?} not < TCP::collect {tcp:?}");
+    assert!(
+        http < tcp,
+        "HTTP::header sortText {http:?} not < TCP::collect {tcp:?}"
+    );
 }
 
 #[test]
@@ -300,7 +319,7 @@ fn when_priority_and_timing_after_priority_value() {
     let src = "when HTTP_REQUEST priority 500 ";
     let mut lsp = Lsp::irules();
     let uri = open_irule(&mut lsp, src);
-    let ls = labels(&mut lsp, &uri, 0, src.len() as u32);
+    let ls = labels(&mut lsp, &uri, 0, u32::try_from(src.len()).unwrap());
     assert!(ls.contains(&"priority".to_owned()));
     assert!(ls.contains(&"timing".to_owned()));
 }
@@ -325,7 +344,10 @@ fn argument_value_has_documentation() {
 #[test]
 fn irule1005_adds_collect_bootstrap_options() {
     let mut lsp = Lsp::irules();
-    let uri = open_irule(&mut lsp, "when CLIENT_DATA {\n    set payload [TCP::payload]\n}\n");
+    let uri = open_irule(
+        &mut lsp,
+        "when CLIENT_DATA {\n    set payload [TCP::payload]\n}\n",
+    );
     let d = diag(
         "IRULE1005",
         "'CLIENT_DATA' will never fire without a TCP::collect or UDP::collect call in another event.",
@@ -404,7 +426,11 @@ fn irule3001_wrap_html_encode() {
         .cloned()
         .collect();
     assert_eq!(fixes.len(), 1);
-    assert!(ca_new_texts(&json!(fixes)).iter().any(|s| s.contains("[html_encode $raw]")));
+    assert!(
+        ca_new_texts(&json!(fixes))
+            .iter()
+            .any(|s| s.contains("[html_encode $raw]"))
+    );
 }
 
 #[test]
@@ -426,7 +452,11 @@ fn irule3002_wrap_uri_encode() {
         .cloned()
         .collect();
     assert_eq!(fixes.len(), 1);
-    assert!(ca_new_texts(&json!(fixes)).iter().any(|s| s.contains("[URI::encode $raw]")));
+    assert!(
+        ca_new_texts(&json!(fixes))
+            .iter()
+            .any(|s| s.contains("[URI::encode $raw]"))
+    );
 }
 
 #[test]
@@ -448,7 +478,11 @@ fn t103_wrap_regex_quote() {
         .cloned()
         .collect();
     assert_eq!(fixes.len(), 1);
-    assert!(ca_new_texts(&json!(fixes)).iter().any(|s| s.contains("[regex::quote $pat]")));
+    assert!(
+        ca_new_texts(&json!(fixes))
+            .iter()
+            .any(|s| s.contains("[regex::quote $pat]"))
+    );
 }
 
 #[test]
@@ -470,7 +504,11 @@ fn t102_insert_double_dash() {
         .cloned()
         .collect();
     assert_eq!(fixes.len(), 1);
-    assert!(ca_new_texts(&json!(fixes)).iter().any(|s| s.contains("-- ")));
+    assert!(
+        ca_new_texts(&json!(fixes))
+            .iter()
+            .any(|s| s.contains("-- "))
+    );
 }
 
 #[test]
@@ -491,7 +529,11 @@ fn braced_variable_wrapped() {
         .filter(|a| action_title(a).contains("html_encode"))
         .cloned()
         .collect();
-    assert!(ca_new_texts(&json!(fixes)).iter().any(|s| s.contains("[html_encode ${raw}]")));
+    assert!(
+        ca_new_texts(&json!(fixes))
+            .iter()
+            .any(|s| s.contains("[html_encode ${raw}]"))
+    );
 }
 
 #[test]
@@ -634,7 +676,11 @@ fn irule3002_no_proc_insert() {
         .filter(|a| action_title(a).contains("URI::encode"))
         .cloned()
         .collect();
-    assert!(!ca_new_texts(&json!(fixes)).iter().any(|s| s.contains("proc ")));
+    assert!(
+        !ca_new_texts(&json!(fixes))
+            .iter()
+            .any(|s| s.contains("proc "))
+    );
 }
 
 // -- TestIrulesProfilesHeader --------------------------------------------
@@ -694,7 +740,11 @@ fn existing_outdated_directive_offers_update() {
         "# Profiles: HTTP\nwhen HTTP_REQUEST {\n    SSL::extensions -type renegotiation\n}\n",
     );
     assert_eq!(sa.len(), 1);
-    assert!(action_title(&sa[0]).contains("Update"), "{:?}", action_title(&sa[0]));
+    assert!(
+        action_title(&sa[0]).contains("Update"),
+        "{:?}",
+        action_title(&sa[0])
+    );
     assert!(ca_new_texts(&json!(sa))[0].contains("CLIENTSSL"));
 }
 
@@ -712,8 +762,18 @@ fn irule1006_bootstrap_action_is_deduplicated() {
         &mut lsp,
         "when CLIENT_DATA {\n    set a [TCP::payload]\n    set b [TCP::payload]\n}\n",
     );
-    let first = diag("IRULE1006", "'TCP::payload' without a TCP::collect call.", (1, 11), (1, 23));
-    let second = diag("IRULE1006", "'TCP::payload' without a TCP::collect call.", (2, 11), (2, 23));
+    let first = diag(
+        "IRULE1006",
+        "'TCP::payload' without a TCP::collect call.",
+        (1, 11),
+        (1, 23),
+    );
+    let second = diag(
+        "IRULE1006",
+        "'TCP::payload' without a TCP::collect call.",
+        (2, 11),
+        (2, 23),
+    );
     let actions = lsp.code_actions(&uri, range((1, 11), (1, 23)), json!([first, second]));
     let collect: Vec<Value> = actions
         .as_array()
@@ -805,7 +865,10 @@ fn existing_matching_directive_comma_format() {
 #[test]
 fn fasthttp_normalised_to_http() {
     let mut lsp = Lsp::irules();
-    let sa = profile_source_actions(&mut lsp, "when HTTP_REQUEST {\n    set uri [HTTP::uri]\n}\n");
+    let sa = profile_source_actions(
+        &mut lsp,
+        "when HTTP_REQUEST {\n    set uri [HTTP::uri]\n}\n",
+    );
     assert_eq!(sa.len(), 1);
     let text = &ca_new_texts(&json!(sa))[0];
     assert!(!text.contains("FASTHTTP"), "{text:?}");
@@ -846,7 +909,10 @@ fn comment_with_namespace_qualifiers_stays_one_comment() {
     let tokens = irules_typed(&mut lsp, &uri);
     assert_eq!(tokens.len(), 1);
     assert_eq!(tokens[0].1, "comment");
-    assert_eq!(tokens[0].0.length, source.trim_end_matches('\n').len() as i64);
+    assert_eq!(
+        tokens[0].0.length,
+        i64::try_from(source.trim_end_matches('\n').len()).unwrap()
+    );
 }
 
 #[test]
@@ -872,7 +938,11 @@ fn taint_source_in_http_sink_fires_irule3102() {
         "when HTTP_REQUEST {\n    HTTP::respond 200 content [HTTP::uri]\n}\n",
         "tcl-irule",
     );
-    assert!(irules_codes(&diags).contains("IRULE3102"), "{:?}", irules_codes(&diags));
+    assert!(
+        irules_codes(&diags).contains("IRULE3102"),
+        "{:?}",
+        irules_codes(&diags)
+    );
 }
 
 #[test]
@@ -884,7 +954,11 @@ fn constant_in_http_sink_is_silent() {
         "when HTTP_REQUEST {\n    HTTP::respond 200 content \"static body\"\n}\n",
         "tcl-irule",
     );
-    assert!(!irules_codes(&diags).contains("IRULE3102"), "{:?}", irules_codes(&diags));
+    assert!(
+        !irules_codes(&diags).contains("IRULE3102"),
+        "{:?}",
+        irules_codes(&diags)
+    );
 }
 
 // -- TestIrulesByteArrayCorruption ---------------------------------------
@@ -939,7 +1013,11 @@ fn clean_payload_writeback_silent() {
         \x20   HTTP::payload replace 0 100 $original_data\n\
         }\n",
     );
-    assert!(!irules_codes(&diags).contains("S110"), "{:?}", irules_codes(&diags));
+    assert!(
+        !irules_codes(&diags).contains("S110"),
+        "{:?}",
+        irules_codes(&diags)
+    );
 }
 
 #[test]
@@ -954,7 +1032,11 @@ fn binary_scan_fix_silent() {
         \x20   HTTP::payload replace 0 100 $new_data\n\
         }\n",
     );
-    assert!(!irules_codes(&diags).contains("S110"), "{:?}", irules_codes(&diags));
+    assert!(
+        !irules_codes(&diags).contains("S110"),
+        "{:?}",
+        irules_codes(&diags)
+    );
 }
 
 #[test]
@@ -999,8 +1081,16 @@ fn diameter_payload_roundtrip_fires_s110() {
 fn when_body_is_analysed_under_irules() {
     let mut lsp = Lsp::irules();
     let uri = unique_uri("irule");
-    let diags = lsp.open_ready_lang(&uri, "when HTTP_REQUEST {\n    set y $undefvar\n}\n", "tcl-irule");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "when HTTP_REQUEST {\n    set y $undefvar\n}\n",
+        "tcl-irule",
+    );
     // The W210 on the never-set `undefvar` read proves the braced body was
     // recursed into as a script (under plain Tcl it would be opaque data).
-    assert!(irules_codes(&diags).contains("W210"), "{:?}", irules_codes(&diags));
+    assert!(
+        irules_codes(&diags).contains("W210"),
+        "{:?}",
+        irules_codes(&diags)
+    );
 }

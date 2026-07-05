@@ -417,6 +417,12 @@ impl Analyser {
             return;
         }
 
+        // [incr Tcl] `itcl::class Name { … }` — modelled as a `ClassDef` too,
+        // with `public`/`protected`/`private` access modifiers unwrapped.
+        if self.handle_itcl_class_command(cmd_name, args, arg_tokens, scope_path) {
+            return;
+        }
+
         // namespace eval — opens a namespace child scope.
         if self.handle_namespace_eval_command(cmd_name, args, arg_tokens, scope_path) {
             return;
@@ -656,8 +662,12 @@ impl Analyser {
         let str_diags = super::bounds_checks::string_index_diagnostics(cmd_name, args, arg_tokens);
         self.result.diagnostics.extend(str_diags);
         self.emit_w127_closed_value_args(cmd_name, args, arg_tokens, cmd_tok);
+        self.emit_w127_closed_option_values(cmd_name, args, arg_tokens, cmd_tok);
         self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
         self.emit_w004_dialect_invalid_option(cmd_name, args, arg_tokens);
+        // W135 / W136 — command/option needs a newer package version than the
+        // resolved `package require` floor (buffered, decided post-walk).
+        self.record_version_gate_sites(cmd_name, args, arg_tokens, cmd_tok);
         self.emit_arity_diagnostics(
             cmd_name,
             args,
@@ -1344,16 +1354,45 @@ impl Analyser {
                 .insert(args[0].clone(), class_q);
             return;
         }
-        // Pattern B: `CLASS create VAR ...` — the instance
-        // command is named by argv[1].
-        if args.len() >= 2
-            && args[0] == "create"
-            && let Some(class_q) = self.resolve_user_class(cmd_name)
-        {
-            self.result
-                .instance_classes
-                .insert(args[1].clone(), class_q);
+        // Pattern B: `CLASS create NAME ...` — `NAME` (argv[1]) names a new
+        // instance command.
+        if args.len() >= 2 && args[0] == "create" && is_plain_created_name(&args[1]) {
+            let name = &args[1];
+            if let Some(class_q) = self.resolve_user_class(cmd_name) {
+                // Known user class: record the object → class mapping (for
+                // `$obj method` / method validation) and the created command
+                // name.
+                self.result
+                    .instance_classes
+                    .insert(name.clone(), class_q);
+                self.result.created_instance_commands.insert(name.clone());
+            } else if self.command_head_could_be_external_class(cmd_name) {
+                // Unknown (external-package) class: the `create NAME` idiom
+                // still binds a new command, so register the name to suppress
+                // the spurious W123 / W307 on later `NAME method` dispatch
+                // (issue #777).  The class identity is unknown, so no
+                // `instance_classes` entry (that would enable W308 method
+                // validation we can't perform).
+                self.result.created_instance_commands.insert(name.clone());
+            }
         }
+    }
+
+    /// Whether `head` is a plausible external-package class command in a
+    /// `head create NAME` construct: a plain bareword (not a computed
+    /// `$…`/`[…]` head) that the analyser can't otherwise resolve — not a
+    /// registry builtin (so `dict create`, `interp create`, the `oo::*`
+    /// metaclasses, … are excluded), and not a user proc.  Under those
+    /// conditions the `create NAME` idiom is almost certainly object
+    /// construction whose created command name should be recognised.
+    fn command_head_could_be_external_class(&self, head: &str) -> bool {
+        if head.is_empty() || head.starts_with(['$', '[']) {
+            return false;
+        }
+        let known = self.registry.as_ref().is_some_and(|r| r.get(head).is_some())
+            || self.result.all_procs.contains_key(head)
+            || self.result.all_procs.contains_key(&format!("::{head}"));
+        !known
     }
 
     /// Resolve a class reference (`Dog`, `::Dog`, or a
@@ -1389,6 +1428,16 @@ impl Analyser {
         }
         self.resolve_user_class(class)
     }
+}
+
+/// Whether `name` is a concrete, bindable instance-command name in a
+/// `CLASS create NAME` construct — a plain word the analyser can register.
+/// Excludes the auto-name token (`%AUTO%`), computed names (`$v`, `[…]`), and
+/// any word carrying list / substitution metacharacters.
+fn is_plain_created_name(name: &str) -> bool {
+    !name.is_empty()
+        && !name.starts_with('%')
+        && !name.contains(['$', '[', ']', '{', '}', '(', ')', ' ', '"'])
 }
 
 /// Descend a ``Cmd`` (``[…]``) substitution token and collect every

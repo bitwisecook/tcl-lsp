@@ -29,11 +29,7 @@ use crate::code_actions::ActionKind;
 /// cursor is not on an `expr` command, the expr has no arguments, or it is
 /// already braced.
 #[must_use]
-pub fn brace_expr(
-    source: &str,
-    cursor: u32,
-    registry: &CommandRegistry,
-) -> Option<Refactoring> {
+pub fn brace_expr(source: &str, cursor: u32, registry: &CommandRegistry) -> Option<Refactoring> {
     let cmd = find_command_at(source, cursor, Some("expr"), registry)?;
 
     // Need at least the command word plus one argument.
