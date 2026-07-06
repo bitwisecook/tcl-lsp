@@ -333,6 +333,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W217",
+    section: "variable",
+    description:
+      "`unset` unsets nothing — every argument is consumed as an option (`-nocomplain` / `--`); prefix a `-`-named variable with `--`.",
+    defaultEnabled: true,
+  },
+  {
     code: "W220",
     section: "variable",
     description: "Dead store — variable set but overwritten before use.",

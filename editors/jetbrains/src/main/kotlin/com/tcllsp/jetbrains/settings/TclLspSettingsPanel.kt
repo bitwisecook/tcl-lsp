@@ -152,6 +152,7 @@ class TclLspSettingsPanel {
     private val diagW214 = JBCheckBox("W214: Unused proc parameter")
     private val diagW215 = JBCheckBox("W215: Variable name unreachable via \$-substitution (creata...")
     private val diagW216 = JBCheckBox("W216: Broken brace-form array element reference")
+    private val diagW217 = JBCheckBox("W217: unset unsets nothing")
     private val diagW220 = JBCheckBox("W220: Dead store")
 
     // Diagnostics — Security
@@ -380,7 +381,7 @@ class TclLspSettingsPanel {
         val diagVarPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
             diagW210, diagW211, diagW212, diagW213, diagW214, diagW215,
-            diagW216, diagW220,
+            diagW216, diagW217, diagW220,
         ).forEach { diagVarPanel.add(it) }
         builder.addComponent(diagVarPanel)
 
@@ -598,6 +599,7 @@ class TclLspSettingsPanel {
             diagW214.isSelected != s.diagnosticW214 ||
             diagW215.isSelected != s.diagnosticW215 ||
             diagW216.isSelected != s.diagnosticW216 ||
+            diagW217.isSelected != s.diagnosticW217 ||
             diagW220.isSelected != s.diagnosticW220 ||
             diagW101.isSelected != s.diagnosticW101 ||
             diagW102.isSelected != s.diagnosticW102 ||
@@ -829,6 +831,7 @@ class TclLspSettingsPanel {
         s.diagnosticW214 = diagW214.isSelected
         s.diagnosticW215 = diagW215.isSelected
         s.diagnosticW216 = diagW216.isSelected
+        s.diagnosticW217 = diagW217.isSelected
         s.diagnosticW220 = diagW220.isSelected
         s.diagnosticW101 = diagW101.isSelected
         s.diagnosticW102 = diagW102.isSelected
@@ -1077,6 +1080,7 @@ class TclLspSettingsPanel {
         diagW214.isSelected = s.diagnosticW214
         diagW215.isSelected = s.diagnosticW215
         diagW216.isSelected = s.diagnosticW216
+        diagW217.isSelected = s.diagnosticW217
         diagW220.isSelected = s.diagnosticW220
         diagW101.isSelected = s.diagnosticW101
         diagW102.isSelected = s.diagnosticW102
