@@ -6778,11 +6778,11 @@
     },
     {
       "name": "rest::get",
-      "summary": ""
+      "summary": "Perform a REST GET request to a URL."
     },
     {
       "name": "rest::head",
-      "summary": ""
+      "summary": "Perform a REST HEAD request to a URL."
     },
     {
       "name": "rest::parameters",
@@ -6794,15 +6794,15 @@
     },
     {
       "name": "rest::patch",
-      "summary": ""
+      "summary": "Perform a REST PATCH request to a URL."
     },
     {
       "name": "rest::post",
-      "summary": ""
+      "summary": "Perform a REST POST request to a URL."
     },
     {
       "name": "rest::put",
-      "summary": ""
+      "summary": "Perform a REST PUT request to a URL."
     },
     {
       "name": "rest::save",
@@ -6810,7 +6810,7 @@
     },
     {
       "name": "rest::simple",
-      "summary": ""
+      "summary": "Perform a one-shot REST request and return the response body."
     },
     {
       "name": "rest::substitute",
@@ -8160,7 +8160,7 @@
     },
     {
       "name": "term::ansi::send::scs0",
-      "summary": ""
+      "summary": "Choose the character set used for the default font (G0)."
     },
     {
       "name": "term::ansi::send::scs1",

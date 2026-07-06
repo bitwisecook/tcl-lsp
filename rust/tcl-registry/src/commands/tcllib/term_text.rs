@@ -333,7 +333,7 @@ const ANSI_SEND_CMDS: &[Row] = &[
         "term::ansi::send::scs0",
         Arity::exact(1),
         &["term::ansi::send::scs0 tag"],
-        "",
+        "Choose the character set used for the default font (G0).",
     ),
     (
         "term::ansi::send::scs1",
