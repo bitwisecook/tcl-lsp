@@ -460,8 +460,9 @@ fn subcommand_hover_text(
         return None;
     }
     let spec = registry.get(cmd_name)?;
-    let sub = spec.subcommand(sub_name)?;
-    let mut out = format!("**`{cmd_name} {sub_name}`** — subcommand\n");
+    // Resolve unique-prefix abbreviations (`string le` ⇒ `length`) like Tcl.
+    let sub = spec.resolve_subcommand(sub_name)?;
+    let mut out = format!("**`{cmd_name} {}`** — subcommand\n", sub.name);
     if let Some(hover) = sub.hover.as_ref() {
         if !hover.summary.is_empty() {
             let _ = write!(out, "\n{}\n", hover.summary);
@@ -505,9 +506,9 @@ fn sub_subcommand_hover_text(
         return None;
     }
     let spec = registry.get(cmd_name)?;
-    let sub = spec.subcommand(sub_name)?;
+    let sub = spec.resolve_subcommand(sub_name)?;
     let ss = sub.resolve_sub_subcommand(cursor_word)?;
-    let mut out = format!("**`{cmd_name} {sub_name} {}`** — subcommand\n", ss.name);
+    let mut out = format!("**`{cmd_name} {} {}`** — subcommand\n", sub.name, ss.name);
     if !ss.detail.is_empty() {
         let _ = write!(out, "\n{}\n", ss.detail);
     }
@@ -3444,6 +3445,16 @@ mod tests {
         let t = subcommand_hover_text(src, 0, 10, &registry, "length").expect("subcommand hover");
         assert!(t.contains("`string length`"), "{t}");
         assert!(t.contains("subcommand"), "{t}");
+    }
+
+    #[test]
+    fn subcommand_hover_resolves_unique_prefix_abbreviation() {
+        // `string le` abbreviates `string length`; hover resolves it and shows
+        // the canonical name.
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let src = "string le $name\n";
+        let t = subcommand_hover_text(src, 0, 8, &registry, "le").expect("prefix hover");
+        assert!(t.contains("`string length`"), "{t}");
     }
 
     #[test]

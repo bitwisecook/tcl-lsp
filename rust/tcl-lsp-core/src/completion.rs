@@ -243,7 +243,7 @@ fn context_aware_completions(
     // `sub_subcommands` at index 2.
     if word_idx == 2
         && let Some(sub_name) = nth_word_on_line(source, line, 1)
-        && let Some(sub) = spec.subcommands.iter().find(|s| s.name == sub_name)
+        && let Some(sub) = spec.resolve_subcommand(&sub_name)
         && !sub.sub_subcommands.is_empty()
     {
         return Some(sub_subcommand_completions(sub, partial));
@@ -255,7 +255,7 @@ fn context_aware_completions(
     // values for that sub-arg position, list them.
     if word_idx >= 2
         && let Some(sub_name) = nth_word_on_line(source, line, 1)
-        && let Some(sub) = spec.subcommands.iter().find(|s| s.name == sub_name)
+        && let Some(sub) = spec.resolve_subcommand(&sub_name)
     {
         let sub_arg_idx = u8::try_from(word_idx - 2).unwrap_or(u8::MAX);
         let values = sub.arg_values_at(sub_arg_idx);

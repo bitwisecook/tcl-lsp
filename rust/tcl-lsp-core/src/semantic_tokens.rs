@@ -1054,9 +1054,10 @@ fn insert_option_and_subcommand_overrides(
 
     // A known subcommand at arg index 1 is highlighted as a keyword, and its
     // per-subcommand options (`file delete -force`, `file link -symbolic`)
-    // join the recognised set.
+    // join the recognised set.  A unique-prefix abbreviation (`string le`)
+    // resolves like Tcl's ensemble dispatch.
     if let Some(sub_text) = seg.texts.get(1)
-        && let Some(sub) = spec.subcommand(sub_text)
+        && let Some(sub) = spec.resolve_subcommand(sub_text)
     {
         option_names.extend(sub.switch_names(None, spec.dialects));
         collect_value_options(sub.options);
@@ -1420,9 +1421,10 @@ fn insert_enum_value_overrides(
     }
 
     // Subcommand-level values: index is 0-based after the subcommand word,
-    // so add one more for the command name (`seg.texts[idx + 2]`).
+    // so add one more for the command name (`seg.texts[idx + 2]`).  Resolve
+    // unique-prefix abbreviations like Tcl's ensemble dispatch.
     if let Some(sub_text) = seg.texts.get(1)
-        && let Some(sub) = spec.subcommand(sub_text)
+        && let Some(sub) = spec.resolve_subcommand(sub_text)
     {
         for (idx, values) in sub.arg_values {
             mark(*idx as usize + 2, values);
@@ -4192,6 +4194,36 @@ mod tests {
             kind_at(src, 11),
             TokenKind::String as u32,
             "an ambiguous prefix must not highlight as a keyword"
+        );
+    }
+
+    #[test]
+    fn abbreviated_first_level_subcommand_highlights_as_keyword() {
+        // `string le $s` — `le` is Tcl's unique-prefix abbreviation of
+        // `length`; it must highlight as a subcommand keyword (column 7).
+        let src = "string le $s\n";
+        let toks = decode_full(src, "tcl", &reg());
+        let kind = toks
+            .into_iter()
+            .find(|&(_, c, _, _, _)| c == 7)
+            .map(|(_, _, _, k, _)| k)
+            .expect("token at col 7");
+        assert_eq!(
+            kind,
+            TokenKind::Keyword as u32,
+            "abbreviated subcommand `le` should be a keyword"
+        );
+        // An ambiguous prefix (`string t`) stays a string.
+        let src = "string t $s\n";
+        let kind = decode_full(src, "tcl", &reg())
+            .into_iter()
+            .find(|&(_, c, _, _, _)| c == 7)
+            .map(|(_, _, _, k, _)| k)
+            .expect("token at col 7");
+        assert_eq!(
+            kind,
+            TokenKind::String as u32,
+            "ambiguous prefix `t` must not be a keyword"
         );
     }
 
