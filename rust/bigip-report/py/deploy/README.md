@@ -62,7 +62,7 @@ first run it unpacks to a per-user cache (CPython cannot import a native
 extension straight from a zip). Run it like any script:
 
 ```bash
-python bigip-report-<version>-linux-x86_64.pyz device-01.ucs -o report.html
+python f5-report-<version>-linux-x86_64.pyz device-01.ucs -o report.html
 ```
 
 The report footer shows the engine version and the **git commit** the build came
