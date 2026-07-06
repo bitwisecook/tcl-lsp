@@ -801,6 +801,11 @@ fn subcommand_version_gates_fire_w001() {
         ("encoding dirs", "tcl8.5", "tcl8.4"),
         ("binary encode base64 abc", "tcl8.6", "tcl8.5"),
         ("binary decode base64 abc", "tcl8.6", "tcl8.5"),
+        ("interp bgerror {}", "tcl8.5", "tcl8.4"),
+        ("interp limit {} time", "tcl8.5", "tcl8.4"),
+        ("interp debug {}", "tcl8.5", "tcl8.4"),
+        ("interp cancel", "tcl8.6", "tcl8.5"),
+        ("interp children", "tcl8.6", "tcl8.5"),
     ];
     for (snippet, ok, old) in added {
         assert!(
@@ -826,6 +831,8 @@ fn subcommand_version_gates_fire_w001() {
         "trace variable v w {}",
         "trace vdelete v w {}",
         "trace vinfo v",
+        // `interp slaves` was renamed to `interp children` in 9.0.
+        "interp slaves",
     ] {
         assert!(
             !Analyser::new()

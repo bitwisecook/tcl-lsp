@@ -51,7 +51,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "bgerror",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        // Added in Tcl 8.5 (TIP 221).
+        dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::new(1, 2),
         detail: "Get or set background error handler.",
         synopsis: "interp bgerror path ?cmdPrefix?",
@@ -60,6 +61,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "cancel",
+        // Added in Tcl 8.6 (TIP 285).
+        dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(0),
         detail: "Cancel a script evaluation.",
         synopsis: "interp cancel ?-unwind? ?--? ?result?",
@@ -112,6 +115,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "debug",
+        // Added in Tcl 8.5 (TIP 233).
+        dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
         detail: "Control debug mode.",
         synopsis: "interp debug path ?-frame ?bool??",
@@ -214,6 +219,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "limit",
+        // Added in Tcl 8.5 (TIP 143).
+        dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(2),
         detail: "Get or set resource limits.",
         synopsis: "interp limit path limitType ?-option value ...?",
@@ -263,6 +270,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "slaves",
+        // Legacy name for `interp children`; removed in Tcl 9.0 (the
+        // slave/master → child/parent rename), so 8.4-8.6 only.
+        dialects: Some(DialectSet::TCL8X),
         arity: Arity::new(0, 1),
         detail: "Returns a Tcl list of the names of all the child interpreters.",
         synopsis: "interp slaves ?path?",
@@ -272,6 +282,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "children",
+        // Added in Tcl 8.6 (child/parent terminology; the preferred name for
+        // the older `interp slaves`).
+        dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::new(0, 1),
         detail: "Returns a Tcl list of the names of all the child interpreters associated with the interpreter identified by path.",
         synopsis: "interp children ?path?",
