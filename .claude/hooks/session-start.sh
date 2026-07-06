@@ -41,6 +41,7 @@ REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 # Pinned toolchain versions. Bump these when new stable releases land.
 WASMTIME_VERSION="43.0.1"
 BINARYEN_VERSION="123"
+WASI_SDK_VERSION="25.0"
 # Rust tracks the floating `stable` channel to match `rust-toolchain.toml`
 # (see docs/rust-rewrite.md). Installing the channel — rather than a pinned
 # version — keeps it auto-updating to the latest stable and, critically,
@@ -52,6 +53,7 @@ TCLLIB_VERSION="2.0"
 
 WASMTIME_PREFIX="/opt/wasmtime-${WASMTIME_VERSION}"
 BINARYEN_PREFIX="/opt/binaryen-${BINARYEN_VERSION}"
+WASI_SDK_PREFIX="/opt/wasi-sdk-${WASI_SDK_VERSION}"
 
 # ---------------------------------------------------------------------------
 # 1. System packages (apt).
@@ -224,6 +226,57 @@ install_binaryen() {
     ln -sfn "${BINARYEN_PREFIX}/bin/wasm-merge" /usr/local/bin/wasm-merge
     ln -sfn "${BINARYEN_PREFIX}/bin/wasm-opt"   /usr/local/bin/wasm-opt
     echo "session-start: binaryen $(${BINARYEN_PREFIX}/bin/wasm-merge --version | head -n1) installed at ${BINARYEN_PREFIX}"
+}
+
+# ---------------------------------------------------------------------------
+# 4b. wasi-sdk — clang + WASI sysroot for the wasm cross-compile of libtommath
+#     (the numeric tower) in runtime/rust/build.rs.  Installed to
+#     /opt/wasi-sdk-<ver> and symlinked /opt/wasi-sdk, which build.rs
+#     auto-discovers.  Without it the wasm runtime build drops the tower.
+# ---------------------------------------------------------------------------
+install_wasi_sdk() {
+    if [ -x "${WASI_SDK_PREFIX}/bin/clang" ] && [ -L /opt/wasi-sdk ] \
+       && [ "$(readlink -f /opt/wasi-sdk)" = "${WASI_SDK_PREFIX}" ]; then
+        echo "session-start: wasi-sdk ${WASI_SDK_VERSION} already installed"
+        return 0
+    fi
+
+    case "$ARCH" in
+        x86_64)  local sdk_arch="x86_64" ;;
+        aarch64) local sdk_arch="arm64" ;;
+        *) echo "session-start: unsupported arch for wasi-sdk: $ARCH" >&2; return 1 ;;
+    esac
+
+    local major="${WASI_SDK_VERSION%%.*}"
+    local tarball="wasi-sdk-${WASI_SDK_VERSION}-${sdk_arch}-linux.tar.gz"
+    local base="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${major}"
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    echo "session-start: fetching wasi-sdk ${WASI_SDK_VERSION}"
+    if ! fetch_with_retry "${base}/${tarball}" "${tmpdir}/${tarball}"; then
+        echo "session-start: failed to download wasi-sdk ${WASI_SDK_VERSION}" >&2
+        return 1
+    fi
+
+    # wasi-sdk publishes a SHA256SUMS asset alongside the tarballs; verify
+    # against it. (A hardcoded pin like binaryen/wasmtime above is a follow-up.)
+    if fetch_with_retry "${base}/SHA256SUMS" "${tmpdir}/SHA256SUMS"; then
+        local expected actual
+        expected="$(awk -v f="$tarball" '{ n=$2; sub(/^\*/,"",n); if (n==f) { print $1; exit } }' "${tmpdir}/SHA256SUMS")"
+        actual="$(sha256sum "${tmpdir}/${tarball}" | awk '{print $1}')"
+        if [ -n "$expected" ] && [ "$actual" != "$expected" ]; then
+            echo "session-start: wasi-sdk sha256 mismatch (expected $expected, got $actual)" >&2
+            return 1
+        fi
+    fi
+
+    rm -rf "$WASI_SDK_PREFIX"
+    mkdir -p "$WASI_SDK_PREFIX"
+    tar -xzf "${tmpdir}/${tarball}" -C "$WASI_SDK_PREFIX" --strip-components=1
+    ln -sfn "$WASI_SDK_PREFIX" /opt/wasi-sdk
+    echo "session-start: wasi-sdk $(${WASI_SDK_PREFIX}/bin/clang --version | head -n1) installed at ${WASI_SDK_PREFIX} (symlinked /opt/wasi-sdk)"
 }
 
 # ---------------------------------------------------------------------------
@@ -505,6 +558,7 @@ setup_tcl_library() {
 
 install_wasmtime
 install_binaryen
+install_wasi_sdk
 install_rust
 install_tcl_sources
 install_tcllib

@@ -131,6 +131,7 @@ tools via [`scripts/dev/ensure-test-deps.sh`](scripts/dev/ensure-test-deps.sh)
 | rsync, xz-utils  | distro        | `/usr/bin/`                     | `rsync`, `xz`             |
 | Wasmtime         | v43.0.1       | `/opt/wasmtime-43.0.1/`         | `/usr/local/bin/wasmtime` |
 | Binaryen         | v123          | `/opt/binaryen-123/`            | `/usr/local/bin/wasm-merge`, `/usr/local/bin/wasm-opt` |
+| wasi-sdk         | 25.0          | `/opt/wasi-sdk-25.0/` (symlink `/opt/wasi-sdk`) | — (found by `runtime/rust/build.rs`) |
 | rustup + Rust    | floating `stable` (currently 1.96.0) | `/root/.rustup`, `/root/.cargo` | `/usr/local/bin/{cargo,rustc,rustup,rustfmt,clippy-driver}` |
 | Tcl 8.4 source   | 8.4.20        | `tmp/tcl8.4.20/`                | —                         |
 | Tcl 8.5 source   | 8.5.19        | `tmp/tcl8.5.19/`                | —                         |
@@ -149,7 +150,7 @@ Notes on the fetched sources:
 
 To bump any of these versions, edit the pinned variables at the top of
 [`.claude/hooks/session-start.sh`](.claude/hooks/session-start.sh)
-(`WASMTIME_VERSION`, `BINARYEN_VERSION`, `TCLLIB_TAG` /
+(`WASMTIME_VERSION`, `BINARYEN_VERSION`, `WASI_SDK_VERSION`, `TCLLIB_TAG` /
 `TCLLIB_VERSION`; Rust tracks the floating `stable` channel via
 `RUST_TOOLCHAIN` and needs no version bump) and, for Tcl, the version/tag maps in
 [`.claude/skills/fetch-tcl-source/fetch_tcl_source.sh`](.claude/skills/fetch-tcl-source/fetch_tcl_source.sh).
@@ -182,7 +183,7 @@ The project uses GNU Make. Key targets:
 | `make test-slow`   | **Pre-PR gate** — must pass before opening a PR. Runs everything: optional dep check (or install when `AUTO_INSTALL_DEPS=1`) + `capture-bytecode-refs` + `prep-pr` + `check-rust` + tclpkg (`test-tclpkg-tcl`) + VS Code extension (`test-ext`) + Emacs eglot (`test-emacs`) + VSIX smoke (`_prep-pr-smoke`) + the full Rust workspace test suite (`test-rust`, which includes the native lsp_e2e) + the Rust runtime port (`runtime-rust-test` — the standalone `runtime/rust` crate is excluded from the workspace, so `test-rust` does not cover it). Drives every phase through `scripts/dev/test-slow-runner.sh`, which keeps going past failures and prints one consolidated PASS/FAIL summary at the end. On success writes the committed `.test-slow.stamp` (CI PR gate) plus the local `tmp/check-all.stamp` and `tmp/test-slow.stamp`. **`git add .test-slow.stamp` and commit it with your PR.** Release-only docs (`RELEASE_NOTES.md`, `docs/sphinx/changelog.md`) are excluded from the fingerprint, so a single green run before merge stays valid through the release tag — the release flow **verifies** this stamp rather than re-running the gate. |
 | `make verify-test-slow-stamp` | Verify the committed `.test-slow.stamp` matches the current tree — the same content-fingerprint check the GitHub `test-slow-stamp` PR job runs. Fails loudly if the tree changed since the last green `test-slow`. Note: running **any** make target other than this one, `test-slow`, or `help` deletes `.test-slow.stamp`, so re-run `make test-slow` (which rewrites it) as the final step before committing. |
 | `make install-test-deps` | One-shot setup: install **everything** `test-slow` needs (the system toolchain — all of `ensure-test-deps`). The target to run on a fresh checkout before `make test-slow`. Same platform coverage as `ensure-test-deps`. |
-| `make ensure-test-deps` | Install the optional `test-slow` toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`, Rust/rustup, Wasmtime, Binaryen, emacs, xvfb, …) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.3/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`, `SKIP_RUST=1`, … Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report of what would be installed. |
+| `make ensure-test-deps` | Install the optional `test-slow` toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`, Rust/rustup, Wasmtime, Binaryen, wasi-sdk, emacs, xvfb, …) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.3/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`, `SKIP_RUST=1`, … Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report of what would be installed. |
 | `make ensure-rust-deps` | Install Rust/rustup + the `wasm32-wasip2` target needed by `check-rust` / the WASM build. |
 | `make capture-bytecode-refs` | Run `scripts/capture/bytecode.sh` to fill in any missing `tests/bytecode_reference/<ver>/*.disasm` files using a locally available `tclsh9.0`. No-op when the corpus is complete; soft-skips with guidance when `tclsh9.0` is missing. |
 | `make check-rust`  | Rust format check + clippy across the workspace (and the Zed extension). Skip with `SKIP_CHECK_RUST=1`. |

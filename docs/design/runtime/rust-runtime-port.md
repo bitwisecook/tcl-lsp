@@ -761,7 +761,7 @@ are in [Design levers we own](#bitness--pointer-model--wasm32-addresses-native-i
   --import-memory --import-table`.
 
 **Toolchain (pre-installed):** stable Rust (`wasm32-wasip1` +
-`wasm32-unknown-unknown`); `zig` (use `zig cc` for C — bundled wasi-libc);
+`wasm32-unknown-unknown`); clang + wasi-sdk (for C → wasm; `/opt/wasi-sdk`);
 `wasm-ld`; `wasmtime`.
 
 ---

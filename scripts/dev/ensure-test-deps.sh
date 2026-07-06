@@ -37,6 +37,8 @@
 #     through the Wasmtime CLI.
 #   * ``wasm-merge`` / ``wasm-opt`` — Binaryen tools used by bundled WASM
 #     tests and asyncify runtime builds.
+#   * ``wasi-sdk`` — clang + WASI sysroot for the wasm cross-compile of
+#     libtommath (the numeric tower) in ``runtime/rust/build.rs``.
 #   * ``emacs`` — the headless eglot regression suite.
 #   * ``xvfb-run`` — Linux headless VS Code extension tests when DISPLAY is
 #     unset.
@@ -67,7 +69,7 @@
 # Skip individual tools with the matching env var, e.g. ``SKIP_TCLSH=1``,
 # ``SKIP_PYTHON_TK=1``,
 # ``SKIP_NODE=1``, ``SKIP_KOTLINC=1``, ``SKIP_RUST=1``,
-# ``SKIP_WASMTIME=1``, ``SKIP_BINARYEN=1``,
+# ``SKIP_WASMTIME=1``, ``SKIP_BINARYEN=1``, ``SKIP_WASI_SDK=1``,
 # ``SKIP_EMACS=1``, ``SKIP_XVFB=1``, ``SKIP_TSHARK=1``,
 # ``SKIP_OPENSSL=1``, ``SKIP_PING=1``, ``SKIP_RGXG=1``,
 # ``SKIP_TCLLIB=1``, or ``SKIP_UV=1``.
@@ -78,6 +80,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 WASMTIME_VERSION="43.0.1"
+WASI_SDK_VERSION="25.0"
 TCLLIB_TAG="tcllib-2-0"
 TCLLIB_VERSION="2.0"
 
@@ -123,6 +126,7 @@ INSTALLABLE_SKIP_VARS=(
     SKIP_RUST
     SKIP_WASMTIME
     SKIP_BINARYEN
+    SKIP_WASI_SDK
     SKIP_EMACS
     SKIP_XVFB
     SKIP_TSHARK
@@ -684,6 +688,73 @@ ensure_binaryen() {
     esac
 }
 
+# ---------------------------------------------------------------- wasi-sdk
+# clang + WASI sysroot for the wasm cross-compile of libtommath (the numeric
+# tower) in runtime/rust/build.rs.  Installed to /opt/wasi-sdk-<ver> and
+# symlinked /opt/wasi-sdk, which build.rs auto-discovers (or set WASI_SDK_PATH).
+# Without it, runtime/rust's wasm build drops the tower (expr/mathop/mathfunc/
+# lseq) with a warning.
+
+ensure_wasi_sdk() {
+    if [ "${SKIP_WASI_SDK:-}" = "1" ]; then info "SKIP_WASI_SDK=1 — skipping wasi-sdk"; return 0; fi
+    local link="/opt/wasi-sdk"
+    if [ -x "${WASI_SDK_PATH:-$link}/bin/clang" ]; then
+        info "wasi-sdk already present ($("${WASI_SDK_PATH:-$link}/bin/clang" --version 2>/dev/null | head -1))"
+        return 0
+    fi
+    if [ "$CHECK_ONLY" -eq 1 ]; then
+        note_missing "wasi-sdk ${WASI_SDK_VERSION} (would install for $OS/$ARCH → ${link})"
+        return 0
+    fi
+
+    local sdk_os sdk_arch
+    case "$OS" in
+        Linux)  sdk_os="linux" ;;
+        Darwin) sdk_os="macos" ;;
+        *) echo "ERROR: unsupported OS for wasi-sdk: $OS" >&2; return 1 ;;
+    esac
+    case "$ARCH" in
+        x86_64)        sdk_arch="x86_64" ;;
+        aarch64|arm64) sdk_arch="arm64" ;;
+        *) echo "ERROR: unsupported architecture for wasi-sdk: $ARCH" >&2; return 1 ;;
+    esac
+
+    ensure_download_tools
+    local major="${WASI_SDK_VERSION%%.*}"
+    local tarball="wasi-sdk-${WASI_SDK_VERSION}-${sdk_arch}-${sdk_os}.tar.gz"
+    local base="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${major}"
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$tmpdir'" RETURN
+
+    info "Downloading wasi-sdk ${WASI_SDK_VERSION} (${sdk_arch}-${sdk_os})"
+    fetch_with_retry "${base}/${tarball}" "$tmpdir/$tarball"
+
+    # Integrity: verify against the release's published SHA256SUMS.  (A hardcoded
+    # per-arch pin, like the other tools carry, is a follow-up once the canonical
+    # version is fixed for this branch.)
+    if fetch_with_retry "${base}/SHA256SUMS" "$tmpdir/SHA256SUMS" 2>/dev/null; then
+        local expected actual
+        expected="$(awk -v f="$tarball" '{ n=$2; sub(/^\*/,"",n); if (n==f) { print $1; exit } }' "$tmpdir/SHA256SUMS")"
+        actual="$(sha256_file "$tmpdir/$tarball")"
+        if [ -n "$expected" ] && [ "$expected" != "$actual" ]; then
+            echo "ERROR: wasi-sdk sha256 mismatch (expected $expected, got $actual)" >&2
+            return 1
+        fi
+        [ -n "$expected" ] && info "wasi-sdk checksum verified against SHA256SUMS"
+    else
+        info "wasi-sdk SHA256SUMS not fetched; skipping checksum verification"
+    fi
+
+    local prefix="/opt/wasi-sdk-${WASI_SDK_VERSION}"
+    $SUDO rm -rf "$prefix"
+    $SUDO mkdir -p "$prefix"
+    $SUDO tar -xzf "$tmpdir/$tarball" -C "$prefix" --strip-components=1
+    $SUDO ln -sfn "$prefix" "$link"
+    info "Installed wasi-sdk to ${prefix} (symlinked ${link}); runtime/rust/build.rs auto-discovers it"
+}
+
 # ---------------------------------------------------------------- tshark
 
 ensure_tshark() {
@@ -841,6 +912,7 @@ ensure_kotlinc
 ensure_rust
 ensure_wasmtime
 ensure_binaryen
+ensure_wasi_sdk
 ensure_tshark
 ensure_emacs
 ensure_xvfb
