@@ -72,7 +72,7 @@ jobs:
             version="${GIT_HASH:0:12}"
           fi
           os="$(echo '${{ runner.os }}' | tr '[:upper:]' '[:lower:]')"
-          pyz="f5report-${version}-${os}-${{ matrix.arch }}.pyz"
+          pyz="bigip-report-${version}-${os}-${{ matrix.arch }}.pyz"
 
           # Short-hash the injected commit so the footer stays compact.
           export GIT_HASH="${GIT_HASH:0:12}"
@@ -89,7 +89,7 @@ jobs:
       - name: Upload workflow artefact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: f5report-pyz-${{ runner.os }}-${{ matrix.arch }}
+          name: bigip-report-pyz-${{ runner.os }}-${{ matrix.arch }}
           path: ${{ env.PYZ_PATH }}
           if-no-files-found: error
 
