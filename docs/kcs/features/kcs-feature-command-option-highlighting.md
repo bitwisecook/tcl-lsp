@@ -45,7 +45,15 @@ There are two layers, most-precise first:
    The hierarchy is **workspace-merged** — a `project_class_index` unions every
    file's classes — so a direct `[Class new] method …` dispatch on a class
    defined in *another* file resolves too (the mro_eval cross-file lever); the
-   single-file path falls back to the local hierarchy. The receiver's class is found from a handle typed by
+   single-file path falls back to the local hierarchy.
+
+   Object provenance is also **interprocedural**: when a proc is called with an
+   object argument (a tracked `$var` handle or a direct `[Class new]`), its
+   parameter is bound to that class, iterated to a fixpoint so the class flows
+   through a chain of calls. So `set p [Pin new]; connect $p` makes `$dev` (the
+   parameter) resolve `$dev configure -node …` inside `connect` — the
+   param-receiver case the mro_eval experiment measured as ~60% of unresolved
+   dispatches. The receiver's class is found from a handle typed by
    the SSA lattice — including a handle **retrieved from an object collection**:
    a `Pins` dict filled with `[Pin new]` in one method makes
    `[dict get $Pins $pin] configure -node …` resolve to `Pin` in another (issue
@@ -116,9 +124,12 @@ still highlighted by the object-method / generic passes above.
   `direct_constructor_dispatch_resolves_method`, `command_substitution_head_recurses_not_command_token`,
   `variable_command_head_is_a_variable`, `computed_command_head_does_not_overlap`,
   `collection_dispatch_resolves_user_configurable_method`, `user_object_handle_method_resolves`,
-  `dict_for_loop_var_dispatch_resolves`, `dict_map_in_return_dispatch_resolves`
+  `dict_for_loop_var_dispatch_resolves`, `dict_map_in_return_dispatch_resolves`,
+  `cross_file_constructor_dispatch_resolves`, `interproc_param_dispatch_resolves`
 - `rust/tcl-compiler/src/object_types.rs` — `collection_of_objects_is_tracked`,
-  `collection_class_bridges_across_methods`, `spicegentcl_configurable_device_shape_resolves`
+  `collection_class_bridges_across_methods`, `spicegentcl_configurable_device_shape_resolves`,
+  `interproc_param_from_object_arg_is_a_handle`, `interproc_param_flows_through_call_chain`
+- `rust/tcl-lsp-db/src/lib.rs` — `cross_file_object_dispatch_resolves_via_project_index`
 - `rust/tcl-compiler/src/lowering/mod.rs` — `lowers_oo_configurable_class_body`
 - `rust/tcl-compiler/src/type_infer.rs` — `dict_of_objects_retrieval_types_element`,
   `list_of_objects_lindex_types_element`, `heterogeneous_object_collection_drops_element_class`

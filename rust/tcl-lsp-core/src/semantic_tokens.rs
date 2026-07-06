@@ -4910,6 +4910,30 @@ mod tests {
     }
 
     #[test]
+    fn interproc_param_dispatch_resolves() {
+        // `set p [Pin new]; connect $p` binds `connect`'s parameter `dev` to
+        // ::Pin (interprocedural provenance), so `$dev configure -node` inside
+        // the proc resolves the method — the param-receiver case.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::configurable create Pin { property node }\n\
+                   proc connect {dev t} { $dev configure -node $t }\n\
+                   set p [Pin new]\n\
+                   connect $p n1\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        // `configure` on the proc's object parameter (line 1) resolves.
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 1 && k == TokenKind::Function as u32 && m == 0),
+            "expected `$dev configure` in the proc body to resolve; got {toks:?}"
+        );
+    }
+
+    #[test]
     fn cross_file_constructor_dispatch_resolves() {
         // A class defined in one file (`Pin`), dispatched on via a direct
         // constructor in *another* file — `[::Pin new] configure -node …`.

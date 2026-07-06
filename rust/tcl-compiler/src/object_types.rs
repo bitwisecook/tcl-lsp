@@ -72,7 +72,113 @@ pub fn object_handle_classes(
     for fu in units {
         harvest_unit(fu, registry, &mut out);
     }
+    // Interprocedural: a proc called with an object argument holds that class in
+    // the corresponding parameter, so `$param method …` in the body resolves.
+    harvest_interproc_param_handles(cu, registry, &mut out);
     out
+}
+
+/// Interprocedural parameter provenance (the object-handle half of the #797
+/// follow-up "C" step): when a proc is called with an object argument — a `$var`
+/// already tracked as a handle, or a direct `[Class new]` — its corresponding
+/// parameter holds that class, so a `$param method …` dispatch in the body
+/// resolves like any other handle.  Iterated to a small fixpoint so a class
+/// flows through a chain of calls (`f $obj` → `g $param` → …).  Highlight-only
+/// and union-imprecise, matching the rest of this module.
+fn harvest_interproc_param_handles(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    out: &mut HashMap<String, HashSet<String>>,
+) {
+    // Callee qualified name → parameter names.
+    let proc_params: HashMap<&str, &[String]> = cu
+        .ir_module
+        .procedures
+        .values()
+        .map(|p| (p.qualified_name.as_str(), p.params.as_slice()))
+        .collect();
+    if proc_params.is_empty() {
+        return;
+    }
+    let resolve = |cmd: &str, canonical: Option<&str>| -> Option<&str> {
+        for cand in [canonical, Some(cmd)].into_iter().flatten() {
+            if let Some((k, _)) = proc_params.get_key_value(cand) {
+                return Some(*k);
+            }
+        }
+        let q = format!("::{}", cmd.trim_start_matches("::"));
+        proc_params.get_key_value(q.as_str()).map(|(k, _)| *k)
+    };
+    // Bounded fixpoint: three rounds cover call chains without risking a runaway
+    // on a cyclic call graph.
+    for _ in 0..3 {
+        // (param name, classes) bindings discovered this round.
+        let mut bindings: Vec<(String, HashSet<String>)> = Vec::new();
+        let units = std::iter::once(&cu.top_level)
+            .chain(cu.procedures.values())
+            .chain(cu.methods.values());
+        for fu in units {
+            for block in fu.cfg.blocks.values() {
+                for stmt in &block.statements {
+                    let Statement::Call {
+                        command,
+                        canonical_command,
+                        args,
+                        ..
+                    } = stmt
+                    else {
+                        continue;
+                    };
+                    let Some(callee) = resolve(command, canonical_command.as_deref()) else {
+                        continue;
+                    };
+                    let params = proc_params[callee];
+                    for (i, arg) in args.iter().enumerate() {
+                        let Some(pname) = params.get(i) else {
+                            break;
+                        };
+                        if pname == "args" {
+                            break;
+                        }
+                        // The argument's object class: a tracked `$var` handle,
+                        // or a direct `[Class new]` registry constructor.
+                        let classes: Option<HashSet<String>> = deref_arg_var(arg)
+                            .and_then(|v| out.get(v))
+                            .filter(|s| !s.is_empty())
+                            .cloned()
+                            .or_else(|| {
+                                constructor_class(arg, registry)
+                                    .map(|c| std::iter::once(c.to_string()).collect())
+                            });
+                        if let Some(classes) = classes {
+                            bindings.push((pname.clone(), classes));
+                        }
+                    }
+                }
+            }
+        }
+        let mut changed = false;
+        for (pname, classes) in bindings {
+            let entry = out.entry(pname).or_default();
+            for c in classes {
+                changed |= entry.insert(c);
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+}
+
+/// The variable name a `$name` / `${name}` argument dereferences, or `None` for
+/// a non-plain reference.
+fn deref_arg_var(text: &str) -> Option<&str> {
+    let rest = text.trim().strip_prefix('$')?;
+    Some(
+        rest.strip_prefix('{')
+            .and_then(|r| r.strip_suffix('}'))
+            .unwrap_or(rest),
+    )
 }
 
 /// Map every variable that holds an object *collection* — a `List`/`Dict`
@@ -176,6 +282,44 @@ mod tests {
         assert!(
             map.is_empty(),
             "no object handles expected for non-constructor assignments; got {map:?}"
+        );
+    }
+
+    #[test]
+    fn interproc_param_from_object_arg_is_a_handle() {
+        // `set p [Pin new]; connect $p` — the object flows into `connect`'s
+        // parameter `dev`, so `$dev method …` in the body resolves (the
+        // param-receiver case the mro_eval experiment measured as 60% of ⊤).
+        let registry = CommandRegistry::build_default();
+        let src = "oo::class create Pin { method cfg {args} {} }\n\
+                   proc connect {dev} { $dev cfg }\n\
+                   set p [Pin new]\n\
+                   connect $p\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let map = object_handle_classes(&cu, &registry);
+        assert_eq!(
+            map.get("dev").map(|s| s.contains("::Pin")),
+            Some(true),
+            "connect's param `dev` should be a ::Pin handle; got {map:?}"
+        );
+    }
+
+    #[test]
+    fn interproc_param_flows_through_call_chain() {
+        // `a $p` → `b $x` → `$y cfg`: the class flows two hops through the
+        // fixpoint, so the innermost param `y` is a ::Pin handle.
+        let registry = CommandRegistry::build_default();
+        let src = "oo::class create Pin { method cfg {args} {} }\n\
+                   proc a {x} { b $x }\n\
+                   proc b {y} { $y cfg }\n\
+                   set p [Pin new]\n\
+                   a $p\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let map = object_handle_classes(&cu, &registry);
+        assert_eq!(
+            map.get("y").map(|s| s.contains("::Pin")),
+            Some(true),
+            "the class should flow a→b so `y` is a ::Pin handle; got {map:?}"
         );
     }
 
