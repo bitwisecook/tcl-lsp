@@ -21,17 +21,20 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::loadScript",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
             summary: "Get or set the load script.  Deprecated: use ``configure -load``.",
             synopsis: &["tcltest::loadScript ?script?"],
-            snippet: "",
+            snippet: "With no argument, returns the current load script; with ``script``, sets the Tcl script run to load the tested commands into the interpreter.",
             source: "Tcl stdlib tcltest package (deprecated)",
             examples: "",
             return_value: "",
         }),
         required_package: Some("tcltest"),
+        // The optional value is a Tcl script the harness later evaluates.
+        arg_roles: &[(0, ArgRole::Body)],
+        body_kind: BodyKind::Structural,
         deprecated_replacement: Some("tcltest::configure"),
         ..CommandSpec::DEFAULT
     }

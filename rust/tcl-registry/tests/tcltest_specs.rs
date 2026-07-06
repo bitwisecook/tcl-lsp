@@ -62,6 +62,43 @@ fn public_tcltest_commands_are_registered() {
 }
 
 #[test]
+fn tcltest_and_harness_commands_are_never_in_irules_or_iapps() {
+    // tcltest and the C test-harness commands are Tcl-only; they must not leak
+    // into the restricted F5 iRules / iApps dialects.
+    let r = reg();
+    for name in [
+        "tcltest::test",
+        "tcltest::configure",
+        "tcltest::cleanupTests",
+        "tcltest::testConstraint",
+        "tcltest::makeFile",
+        "tcltest::bytestring",
+        "testchannel",
+        "testobj",
+        "teststringobj",
+        "testcmdobj2",
+        "testsaveresult",
+    ] {
+        let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
+        assert!(
+            !spec.supports_dialect(DialectSet::IRULES),
+            "{name} must not be available in f5-irules"
+        );
+        assert!(
+            !spec.supports_dialect(DialectSet::IAPPS),
+            "{name} must not be available in f5-iapps"
+        );
+        // …but must remain available under a real Tcl core version.
+        assert!(
+            spec.supports_dialect(DialectSet::TCL84)
+                || spec.supports_dialect(DialectSet::TCL86)
+                || spec.supports_dialect(DialectSet::TCL90),
+            "{name} must stay available under some Tcl version"
+        );
+    }
+}
+
+#[test]
 fn bytestring_is_tcl8_only() {
     // `tcltest::bytestring` is guarded out under Tcl 9.0+ (tcltest 2.5.10).
     let r = reg();

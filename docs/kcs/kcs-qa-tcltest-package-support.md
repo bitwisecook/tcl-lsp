@@ -40,11 +40,18 @@ test math-1.1 "addition" -setup {
 } -result 4
 ```
 
+### Tcl-only, never iRules or iApps
+
+Every tcltest command — and every internal `test*` command — is available only
+under a real Tcl core version (8.4 through 9.1).  None of them appear in the
+restricted F5 iRules or iApps dialects, so they are not offered in completion
+there and using one is flagged.
+
 ### Version awareness
 
 The registry knows which tcltest ships with which Tcl release — 2.2.11 with
-8.4, 2.3.8 with 8.5, 2.5.9 with 8.6, and 2.5.10 with 9.0 — and gates the
-surface accordingly:
+8.4, 2.3.8 with 8.5, 2.5.9 with 8.6, and 2.5.10 with 9.0 (9.1 carries the same
+2.5 surface) — and gates it accordingly:
 
 * `test -errorCode` is offered only when the resolved tcltest is 2.5 or newer
   (Tcl 8.6+); a `package require tcltest 2.3` document does not see it.

@@ -390,11 +390,12 @@ fn tcl_namespace_specs() -> Vec<CommandSpec> {
 /// | 8.6.16  | 2.5.9    |
 /// | 9.0.3   | 2.5.10   |
 ///
-/// Every command below is present across that whole range, so the specs are
-/// not dialect-gated — with one exception: `bytestring` is not defined under
-/// Tcl 9.0+ and is gated to [`DialectSet::TCL8X`].  Option-level version drift
-/// is expressed with `OptionSpec::min_version` against the *tcltest* package
-/// version (e.g. `test -errorCode` needs tcltest `2.5`).
+/// Every command below is gated to [`DialectSet::ALL_TCL`] (Tcl 8.4-9.1) so it
+/// is never offered in the restricted F5 iRules / iApps dialects.  The one
+/// version exception is `bytestring`, which is not defined under Tcl 9.0+ and
+/// is gated to [`DialectSet::TCL8X`].  Option-level version drift is expressed
+/// with `OptionSpec::min_version` against the *tcltest* package version (e.g.
+/// `test -errorCode` needs tcltest `2.5`).
 fn tcltest_specs() -> Vec<CommandSpec> {
     vec![
         tcltest__bytestring::spec(),
