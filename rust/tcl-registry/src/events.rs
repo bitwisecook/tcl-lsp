@@ -471,7 +471,7 @@ pub fn event_satisfies(
 
 // AUTO-GENERATED — do not edit manually
 
-fn event_props_table() -> Vec<(&'static str, EventProps)> {
+pub(crate) fn event_props_table() -> Vec<(&'static str, EventProps)> {
     let mut out = event_props_table_0();
     out.extend(event_props_table_1());
     out.extend(event_props_table_2());

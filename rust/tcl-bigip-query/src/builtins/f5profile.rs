@@ -307,7 +307,7 @@ mod tests {
     }
 
     #[test]
-    fn profile_default_builtin_resolves_version_range() {
+    fn profile_default_builtin_resolves_by_version() {
         let call = |args: &[Value]| -> Value { bi_profile_default(args).unwrap() };
         let clientssl_options = |ver: Option<&str>| {
             let mut args = vec![
@@ -320,21 +320,21 @@ mod tests {
             call(&args)
         };
 
-        // Older TMOS: base clientssl options omit the TLS 1.3 flag.
+        let current = "dont-insert-empty-fragments no-tlsv1.3 no-dtlsv1.2";
+        // Before 14.0 → the original single-flag value (the override band covers it).
         assert_eq!(
             as_string(&clientssl_options(Some("13.1"))),
             Some("dont-insert-empty-fragments")
         );
-        // 14.0+: TLS 1.3 disabled by default.
+        // [14.0, 17.1) → no-tlsv1.3 added, not yet no-dtlsv1.2.
         assert_eq!(
-            as_string(&clientssl_options(Some("16.1"))),
+            as_string(&clientssl_options(Some("15.1"))),
             Some("dont-insert-empty-fragments no-tlsv1.3")
         );
-        // No version → current value.
-        assert_eq!(
-            as_string(&clientssl_options(None)),
-            Some("dont-insert-empty-fragments no-tlsv1.3")
-        );
+        // A version at/after 17.1 resolves to the current snapshot.
+        assert_eq!(as_string(&clientssl_options(Some("17.5"))), Some(current));
+        // No version → current (newest) band.
+        assert_eq!(as_string(&clientssl_options(None)), Some(current));
     }
 
     #[test]
