@@ -1114,6 +1114,44 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       });
       return out;
     }
+    function ruleTrafficEffects(ix, vs) {
+      var out = { v2v: [], hsl: [], sideband: false };
+      var seenV = {}, seenH = {};
+      (vs.rules || []).forEach(function(rp) {
+        var rule = findByPath(ix.d.rules, rp);
+        if (!rule || !rule.body) return;
+        var body = rule.body, m;
+        var rv = /(?:^|[\n;{[])\s*virtual\s+("[^"]+"|[^\s\]]+)/g;
+        while (m = rv.exec(body)) {
+          var tgt = m[1].replace(/^"|"$/g, "").trim();
+          if (!tgt || tgt.charAt(0) === "$") continue;
+          if (!seenV[tgt]) {
+            seenV[tgt] = 1;
+            out.v2v.push({ target: tgt });
+          }
+        }
+        if (/\bHSL::(open|send)\b/.test(body)) {
+          var pub = /\bHSL::open\b[^\n\]]*-publisher\s+("[^"]+"|[^\s\]]+)/.exec(body);
+          var p = pub ? pub[1].replace(/^"|"$/g, "") : "";
+          if (!seenH[p]) {
+            seenH[p] = 1;
+            out.hsl.push({ publisher: p });
+          }
+        }
+        if (/(?:^|[\n;{[])\s*connect\s/.test(body)) out.sideband = true;
+      });
+      return out;
+    }
+    function vipDestMap(ix) {
+      if (ix._vipMap) return ix._vipMap;
+      var map = {};
+      (ix.d.virtuals || []).forEach(function(v) {
+        var L = v.listener || {};
+        if (L.address != null && L.portRaw != null && L.portRaw !== "") map[L.address + ":" + L.portRaw] = v;
+      });
+      ix._vipMap = map;
+      return map;
+    }
     function buildTrafficPipeline(ix, vsOid) {
       var vs = findByPath(ix.d.virtuals, vsOid.replace(/^vs:/, ""));
       if (!vs) return null;
@@ -1164,6 +1202,8 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
           }).join("/");
         });
       }
+      var effects = ruleTrafficEffects(ix, vs);
+      var vipMap = vipDestMap(ix);
       var steps = [];
       var l7label = l7.map(function(p) {
         return p.name;
@@ -1179,11 +1219,16 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       eventsIn("client").forEach(function(e) {
         steps.push({ t: "event", l: e });
       });
-      steps.push({ t: "proxy", l: "proxy" });
+      var proxyIdx = steps.length;
+      steps.push({ t: "proxy", l: "Proxy \xB7 client \u21C4 server" });
       eventsIn("lb").forEach(function(e) {
         steps.push({ t: "event", l: e });
       });
-      if (vs.pool) steps.push({ t: "pool", l: vs.pool.split("/").pop(), oid: "pool:" + vs.pool });
+      var poolIdx = -1;
+      if (vs.pool) {
+        poolIdx = steps.length;
+        steps.push({ t: "pool", l: vs.pool.split("/").pop(), oid: "pool:" + vs.pool });
+      }
       eventsIn("server").forEach(function(e) {
         steps.push({ t: "event", l: e });
       });
@@ -1194,16 +1239,41 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       l4.forEach(function(p) {
         steps.push({ t: "prof", l: p.name, oid: p.oid });
       });
+      var pool = vs.pool ? findByPath(ix.d.pools, vs.pool) : null;
+      var members = pool && pool.members || [];
+      var poolV2v = [];
+      members.forEach(function(m) {
+        var tv = vipMap[m.address + ":" + m.port];
+        if (tv && tv.fullPath !== vs.fullPath) poolV2v.push(tv);
+      });
       var nn = poolNodeNames(ix, vs.pool);
-      if (nn.length) steps.push({ t: "node", l: nn.join("\\n") });
+      if (nn.length) steps.push({ t: "node", l: nn.join("\\n") + (poolV2v.length ? "\\n(\u2192 virtual)" : "") });
       else if (vs.pool) steps.push({ t: "node", l: "(no members)" });
       else steps.push({ t: "node", l: "(no pool / iRule-selected)" });
+      var nodeIdx = steps.length - 1;
+      var branches = [];
+      effects.v2v.forEach(function(x) {
+        branches.push({ t: "v2v", l: "virtual: " + x.target.split("/").pop(), from: proxyIdx });
+      });
+      effects.hsl.forEach(function(x) {
+        branches.push({ t: "hsl", l: "HSL log" + (x.publisher ? ": " + x.publisher.split("/").pop() : ""), from: proxyIdx });
+      });
+      if (effects.sideband) branches.push({ t: "sband", l: "sideband (connect)", from: proxyIdx });
+      poolV2v.forEach(function(tv) {
+        branches.push({ t: "v2v", l: "virtual: " + tv.name, from: nodeIdx >= 0 ? nodeIdx : proxyIdx });
+      });
       var lines = ["flowchart LR"];
       steps.forEach(function(s, i) {
         var sid = "P" + i;
         var shape = s.t === "vs" ? ['(["', '"])'] : s.t === "node" ? ['[("', '")]'] : s.t === "event" ? ['{{"', '"}}'] : s.t === "proxy" ? ['[/"', '"/]'] : ['["', '"]'];
         lines.push("  " + sid + shape[0] + escLbl(s.l) + shape[1] + ":::" + s.t);
         if (i > 0) lines.push("  P" + (i - 1) + " --> " + sid);
+      });
+      branches.forEach(function(b, j) {
+        var bid = "B" + j;
+        var shp = b.t === "v2v" ? ['[["', '"]]'] : b.t === "hsl" ? ['[("', '")]'] : ['[/"', '"\\]'];
+        lines.push("  " + bid + shp[0] + escLbl(b.l) + shp[1] + ":::" + b.t);
+        lines.push("  P" + b.from + " -.-> " + bid);
       });
       lines.push("classDef vs fill:#dbeafe,stroke:#2563eb,color:#0b2b5e;");
       lines.push("classDef prof fill:#e0f2fe,stroke:#0284c7,color:#053345;");
@@ -1212,6 +1282,9 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       lines.push("classDef proxy fill:#f1f5f9,stroke:#64748b,color:#1e293b;");
       lines.push("classDef pool fill:#dcfce7,stroke:#16a34a,color:#064e2b;");
       lines.push("classDef node fill:#f5f5f4,stroke:#78716c,color:#292524;");
+      lines.push("classDef v2v fill:#e0e7ff,stroke:#4f46e5,color:#1e1b4b;");
+      lines.push("classDef hsl fill:#fae8ff,stroke:#a21caf,color:#4a044e;");
+      lines.push("classDef sband fill:#fff7ed,stroke:#ea580c,color:#7c2d12;");
       return { def: lines.join("\n"), steps };
     }
     var _rid = 0;

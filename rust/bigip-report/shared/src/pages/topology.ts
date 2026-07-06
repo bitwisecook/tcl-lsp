@@ -485,6 +485,52 @@ import { initArchEditor } from "../arch/editor";
     return out;
   }
 
+  // iRule-driven traffic side-effects the profile stack doesn't show. A
+  // virtual's attached iRules can steer or fork traffic: the `virtual` command
+  // re-targets another VS (virtual-to-virtual), `HSL::*` opens a high-speed
+  // logging connection, and the sideband `connect` command opens an independent
+  // connection. Each becomes a branch off the proxy in the pipeline.
+  function ruleTrafficEffects(ix, vs) {
+    var out = { v2v: [], hsl: [], sideband: false };
+    var seenV = {}, seenH = {};
+    (vs.rules || []).forEach(function (rp) {
+      var rule = findByPath(ix.d.rules, rp);
+      if (!rule || !rule.body) return;
+      var body = rule.body, m;
+      // `virtual <name>` — redirect the connection to another virtual server.
+      var rv = /(?:^|[\n;{[])\s*virtual\s+("[^"]+"|[^\s\]]+)/g;
+      while ((m = rv.exec(body))) {
+        var tgt = m[1].replace(/^"|"$/g, "").trim();
+        if (!tgt || tgt.charAt(0) === "$") continue; // skip `virtual $var` / bareword query
+        if (!seenV[tgt]) { seenV[tgt] = 1; out.v2v.push({ target: tgt }); }
+      }
+      // HSL::open / HSL::send — high-speed logging to a log publisher's pool.
+      if (/\bHSL::(open|send)\b/.test(body)) {
+        var pub = /\bHSL::open\b[^\n\]]*-publisher\s+("[^"]+"|[^\s\]]+)/.exec(body);
+        var p = pub ? pub[1].replace(/^"|"$/g, "") : "";
+        if (!seenH[p]) { seenH[p] = 1; out.hsl.push({ publisher: p }); }
+      }
+      // Sideband: the `connect` command opens an independent connection.
+      if (/(?:^|[\n;{[])\s*connect\s/.test(body)) out.sideband = true;
+    });
+    return out;
+  }
+
+  // Index every virtual's listener destination "addr:port" -> virtual, so a
+  // pool member that points at a VIP can be surfaced as pool-driven v2v (a
+  // modern BIG-IP can load-balance to other virtual servers this way). Cached
+  // on the model since it's shared across every pipeline.
+  function vipDestMap(ix) {
+    if (ix._vipMap) return ix._vipMap;
+    var map = {};
+    (ix.d.virtuals || []).forEach(function (v) {
+      var L = v.listener || {};
+      if (L.address != null && L.portRaw != null && L.portRaw !== "") map[L.address + ":" + L.portRaw] = v;
+    });
+    ix._vipMap = map;
+    return map;
+  }
+
   // Build the ordered traffic pipeline (Mermaid) for one virtual server.
   function buildTrafficPipeline(ix, vsOid) {
     var vs = findByPath(ix.d.virtuals, vsOid.replace(/^vs:/, ""));
@@ -524,6 +570,9 @@ import { initArchEditor } from "../arch/editor";
         });
     }
 
+    var effects = ruleTrafficEffects(ix, vs);
+    var vipMap = vipDestMap(ix);
+
     var steps = [];
     var l7label = l7.map(function (p) { return p.name; }).join("~");
     steps.push({ t: "vs", l: vs.name, oid: vsOid });
@@ -531,17 +580,45 @@ import { initArchEditor } from "../arch/editor";
     clientSSL.forEach(function (p) { steps.push({ t: "ssl", l: p.name, oid: p.oid }); });
     if (l7label) steps.push({ t: "prof", l: l7label });
     eventsIn("client").forEach(function (e) { steps.push({ t: "event", l: e }); });
-    steps.push({ t: "proxy", l: "proxy" });
+    // The full-proxy boundary: client-side and server-side are separate
+    // connections, joined here at the LB / forwarding decision.
+    var proxyIdx = steps.length;
+    steps.push({ t: "proxy", l: "Proxy · client ⇄ server" });
     eventsIn("lb").forEach(function (e) { steps.push({ t: "event", l: e }); });
-    if (vs.pool) steps.push({ t: "pool", l: vs.pool.split("/").pop(), oid: "pool:" + vs.pool });
+    var poolIdx = -1;
+    if (vs.pool) { poolIdx = steps.length; steps.push({ t: "pool", l: vs.pool.split("/").pop(), oid: "pool:" + vs.pool }); }
     eventsIn("server").forEach(function (e) { steps.push({ t: "event", l: e }); });
     if (l7label) steps.push({ t: "prof", l: l7label });
     serverSSL.forEach(function (p) { steps.push({ t: "ssl", l: p.name, oid: p.oid }); });
     l4.forEach(function (p) { steps.push({ t: "prof", l: p.name, oid: p.oid }); });
+
+    // Pool members that point at another virtual's destination are v2v hops.
+    var pool = vs.pool ? findByPath(ix.d.pools, vs.pool) : null;
+    var members = (pool && pool.members) || [];
+    var poolV2v = [];
+    members.forEach(function (m) {
+      var tv = vipMap[m.address + ":" + m.port];
+      if (tv && tv.fullPath !== vs.fullPath) poolV2v.push(tv);
+    });
     var nn = poolNodeNames(ix, vs.pool);
-    if (nn.length) steps.push({ t: "node", l: nn.join("\\n") });
+    if (nn.length) steps.push({ t: "node", l: nn.join("\\n") + (poolV2v.length ? "\\n(→ virtual)" : "") });
     else if (vs.pool) steps.push({ t: "node", l: "(no members)" });
     else steps.push({ t: "node", l: "(no pool / iRule-selected)" });
+    var nodeIdx = steps.length - 1;
+
+    // Branches off the main path: iRule v2v / HSL / sideband (anchored at the
+    // proxy) and pool-driven v2v (anchored at the pool node).
+    var branches = [];
+    effects.v2v.forEach(function (x) {
+      branches.push({ t: "v2v", l: "virtual: " + x.target.split("/").pop(), from: proxyIdx });
+    });
+    effects.hsl.forEach(function (x) {
+      branches.push({ t: "hsl", l: "HSL log" + (x.publisher ? ": " + x.publisher.split("/").pop() : ""), from: proxyIdx });
+    });
+    if (effects.sideband) branches.push({ t: "sband", l: "sideband (connect)", from: proxyIdx });
+    poolV2v.forEach(function (tv) {
+      branches.push({ t: "v2v", l: "virtual: " + tv.name, from: nodeIdx >= 0 ? nodeIdx : proxyIdx });
+    });
 
     var lines = ["flowchart LR"];
     steps.forEach(function (s, i) {
@@ -551,6 +628,13 @@ import { initArchEditor } from "../arch/editor";
       lines.push("  " + sid + shape[0] + escLbl(s.l) + shape[1] + ":::" + s.t);
       if (i > 0) lines.push("  P" + (i - 1) + " --> " + sid);
     });
+    branches.forEach(function (b, j) {
+      var bid = "B" + j;
+      // v2v: subroutine (another VS); hsl: cylinder (log store); sband: trapezoid.
+      var shp = b.t === "v2v" ? ['[["', '"]]'] : b.t === "hsl" ? ['[("', '")]'] : ['[/"', '"\\]'];
+      lines.push("  " + bid + shp[0] + escLbl(b.l) + shp[1] + ":::" + b.t);
+      lines.push("  P" + b.from + " -.-> " + bid);
+    });
     lines.push("classDef vs fill:#dbeafe,stroke:#2563eb,color:#0b2b5e;");
     lines.push("classDef prof fill:#e0f2fe,stroke:#0284c7,color:#053345;");
     lines.push("classDef ssl fill:#fef9c3,stroke:#ca8a04,color:#4a3608;");
@@ -558,6 +642,9 @@ import { initArchEditor } from "../arch/editor";
     lines.push("classDef proxy fill:#f1f5f9,stroke:#64748b,color:#1e293b;");
     lines.push("classDef pool fill:#dcfce7,stroke:#16a34a,color:#064e2b;");
     lines.push("classDef node fill:#f5f5f4,stroke:#78716c,color:#292524;");
+    lines.push("classDef v2v fill:#e0e7ff,stroke:#4f46e5,color:#1e1b4b;");
+    lines.push("classDef hsl fill:#fae8ff,stroke:#a21caf,color:#4a044e;");
+    lines.push("classDef sband fill:#fff7ed,stroke:#ea580c,color:#7c2d12;");
     return { def: lines.join("\n"), steps: steps };
   }
 
