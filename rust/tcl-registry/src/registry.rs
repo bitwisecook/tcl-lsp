@@ -1903,6 +1903,24 @@ mod tests {
         assert_eq!(vars, vec![2, 3]);
     }
 
+    /// `unset` recognises only `-nocomplain` / `--` as options — a dash-prefixed
+    /// word like `-foo` is a real variable name (verified against tclsh), so it
+    /// keeps its `VarWrite` role.
+    #[test]
+    fn unset_dash_name_is_a_variable() {
+        let reg = CommandRegistry::build_default();
+        // `unset -foo bar` — both are variables (no `--` needed to reach them).
+        assert_eq!(
+            reg.arg_indices_for_role("unset", &["-foo", "bar"], ArgRole::VarWrite),
+            vec![0, 1]
+        );
+        // `unset -nocomplain -foo` — `-nocomplain` is skipped, `-foo` is a name.
+        assert_eq!(
+            reg.arg_indices_for_role("unset", &["-nocomplain", "-foo"], ArgRole::VarWrite),
+            vec![1]
+        );
+    }
+
     /// `trace add variable name ops body` declares arg 1
     /// (the variable name) as `VarWrite` via the registry.
     #[test]

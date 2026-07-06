@@ -315,15 +315,22 @@ fn lower_append_lappend(cmd: &LoweringCommand<'_>) -> Option<Statement> {
 fn lower_unset(cmd: &LoweringCommand<'_>) -> Statement {
     let mut i = 0;
     let mut nocomplain = false;
-    while i < cmd.args.len() && cmd.args[i].starts_with('-') {
-        if cmd.args[i] == "-nocomplain" {
-            nocomplain = true;
+    // `unset` recognises only `-nocomplain` (skippable, repeatable) and `--`
+    // (terminator).  Any other leading word — including a variable literally
+    // named `-foo` (`unset -foo bar`) — ends option parsing and is a destroyed
+    // variable, matching tclsh 8.6/9.0.
+    while i < cmd.args.len() {
+        match cmd.args[i].as_str() {
+            "-nocomplain" => {
+                nocomplain = true;
+                i += 1;
+            }
+            "--" => {
+                i += 1;
+                break;
+            }
+            _ => break,
         }
-        if cmd.args[i] == "--" {
-            i += 1;
-            break;
-        }
-        i += 1;
     }
     let var_names: Vec<String> = cmd.args[i..]
         .iter()

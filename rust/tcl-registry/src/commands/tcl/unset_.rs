@@ -28,15 +28,23 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 /// `unset ?-nocomplain? ?--? ?name name name ...?` — every trailing word is a
 /// variable name, not just the first.  Resolve `VarWrite` dynamically (skipping
-/// the leading `-nocomplain` / `--` options, mirroring `lower_unset`) so all
-/// names highlight as variables rather than only the first (issue #774).
+/// the leading options, mirroring `lower_unset`) so all names highlight as
+/// variables rather than only the first (issue #774).
+///
+/// `unset` recognises exactly two options: `-nocomplain` (skippable, repeatable)
+/// and `--` (terminator).  Any *other* leading word — including one that begins
+/// with `-`, such as `unset -foo bar` — is a real variable name, not an option
+/// (verified against tclsh 8.6/9.0); it must keep its `VarWrite` role.
 fn unset_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let mut i = 0;
-    while i < args.len() && args[i].starts_with('-') {
-        let is_terminator = args[i] == "--";
-        i += 1;
-        if is_terminator {
-            break;
+    while i < args.len() {
+        match args[i] {
+            "-nocomplain" => i += 1,
+            "--" => {
+                i += 1;
+                break;
+            }
+            _ => break,
         }
     }
     (i..args.len())
