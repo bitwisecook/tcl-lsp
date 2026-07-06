@@ -68,15 +68,21 @@ There are two layers, most-precise first:
    `experiments/tcloo_diag/RESULTS.md`; snit `$self`/component support is the
    larger outstanding lever.)
 
-   A **`my method …` self-call** inside a class body resolves against the
-   enclosing class's MRO (the class named at the `oo::class create` /
-   `oo::define` head that opened the body) — by far the most common TclOO
-   dispatch form. `my configure -prop` colours the property option too.
+   A **self-call** inside a class body resolves against the enclosing class's
+   MRO (the class named at the definer head that opened the body) — by far the
+   most common object-dispatch form. This covers `my method …` (`TclOO`),
+   `$self method …` (snit), and `$this method …` (itcl); `my`/`$self configure
+   -prop` colours the property option too. Recognising the enclosing type for
+   snit / itcl bodies is driven by the registry's definer-family grammar, not a
+   hardcoded definer list. On the surveyed corpora, snit `$self` is the single
+   largest dispatch form after `TclOO` `my`, and enabling it roughly doubled the
+   overall dispatch-resolution rate (`experiments/tcloo_dispatch/RESULTS.md`).
 
    **Not resolved (correctly abstains, never mis-highlights):** a bareword
-   named-object dispatch (`Foo create obj; obj method`), and non-TclOO object
-   systems (`snit::type`, `itcl::class`) — their method word stays a plain
-   string rather than a guessed callable. The receiver's class is found from a handle typed by
+   named-object dispatch (`Foo create obj; obj method`), a snit/itcl object bound
+   by its *named constructor* (`set o [foo create x]; $o m`), snit components
+   (`install`/`delegate`) and `$hull`, and Tk widget-path dispatch — their method
+   word stays a plain string rather than a guessed callable. The receiver's class is found from a handle typed by
    the SSA lattice — including a handle **retrieved from an object collection**:
    a `Pins` dict filled with `[Pin new]` in one method makes
    `[dict get $Pins $pin] configure -node …` resolve to `Pin` in another (issue
@@ -134,10 +140,11 @@ still highlighted by the object-method / generic passes above.
 
 - A `-option` on an unmodelled object method is highlighted by shape only, so
   an invalid switch is not distinguished from a valid one.
-- A **snit** receiver (`$self`, an installed component, `$hull`) is not yet
-  provenance-tracked — snit is a distinct object system from `TclOO`, and it
-  dominates the unresolved dispatches on real corpora
-  (`experiments/tcloo_diag/RESULTS.md`). These use the generic fallback.
+- A snit/itcl **`$self` / `$this` self-call** resolves against the enclosing
+  type, but an **installed component** (`$myparser method`), `$hull`, and an
+  object bound by a **named constructor** (`set o [foo create x]`) are not yet
+  provenance-tracked. These dominate the residual unresolved dispatches on real
+  corpora (`experiments/tcloo_diag/RESULTS.md`) and use the generic fallback.
 - A receiver whose class is only bound in *another file* (a cross-file instance
   variable, global, or parameter) is not tracked: object provenance is computed
   per file, so only the workspace class *hierarchy* crosses files today, not the
@@ -156,7 +163,7 @@ still highlighted by the object-method / generic passes above.
   `collection_dispatch_resolves_user_configurable_method`, `user_object_handle_method_resolves`,
   `dict_for_loop_var_dispatch_resolves`, `dict_map_in_return_dispatch_resolves`,
   `cross_file_constructor_dispatch_resolves`, `interproc_param_dispatch_resolves`,
-  `my_self_call_resolves`, `my_configure_property_options_resolve`, `proc_return_object_dispatch_resolves`
+  `my_self_call_resolves`, `snit_self_call_resolves`, `my_configure_property_options_resolve`, `proc_return_object_dispatch_resolves`
 - `rust/tcl-compiler/src/object_types.rs` — `collection_of_objects_is_tracked`,
   `collection_class_bridges_across_methods`, `spicegentcl_configurable_device_shape_resolves`,
   `interproc_param_from_object_arg_is_a_handle`, `interproc_param_flows_through_call_chain`,

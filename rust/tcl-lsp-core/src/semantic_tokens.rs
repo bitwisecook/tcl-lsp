@@ -84,7 +84,7 @@ use tcl_lexer::{LineIndex, Span, Token, TokenType};
 
 use crate::definition::utf16_len;
 use tcl_registry::CommandRegistry;
-use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind};
+use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar, MemberKind};
 
 /// Encoded semantic-tokens response.  The `data` array is
 /// the LSP packed integer encoding (5 ints per token: line
@@ -1623,15 +1623,29 @@ fn definer_class_name<'s>(
     head: &str,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     source: &'s str,
+    registry: &CommandRegistry,
 ) -> Option<&'s str> {
-    let head = head.strip_prefix("::").unwrap_or(head);
-    let name_idx = match head {
+    let bare = head.strip_prefix("::").unwrap_or(head);
+    let name_idx = match bare {
         "oo::class" | "oo::configurable" | "oo::abstract" | "oo::singleton"
             if seg.texts.get(1).map(String::as_str) == Some("create") =>
         {
             2
         }
         "oo::define" if seg.texts.len() >= 3 => 1,
+        // snit / itcl definers name the class directly at arg 1 and the body at
+        // arg 2 (`snit::type Name { … }`, `itcl::class Name { … }`) — so a
+        // `$self method …` / `$this method …` dispatch in the body resolves
+        // against the class, exactly as `my` does for `TclOO`.  Driven by the
+        // registry's definer-family grammar, not a hardcoded name list.
+        _ if seg.texts.len() >= 3
+            && matches!(
+                registry.get(head).and_then(|s| s.definition_body).map(|g| g.family),
+                Some(DefinerFamily::Snit | DefinerFamily::Itcl)
+            ) =>
+        {
+            1
+        }
         _ => return None,
     };
     let tok = seg.argv.get(name_idx)?;
@@ -1659,22 +1673,28 @@ fn resolve_class_in_hierarchy(hierarchy: &ClassHierarchy, name: &str) -> Option<
     matches.next().is_none().then_some(first.clone())
 }
 
-/// Resolve a `my method …` self-call inside a class body against the enclosing
-/// class's MRO: colour the method a callable, and — for `configure` / `cget`
-/// on an `oo::configurable` class — its `-property` options.  No-op outside a
-/// class body, without a hierarchy, or for a non-`my` head.
+/// Resolve a self-call inside a class body against the enclosing class's MRO:
+/// colour the method a callable, and — for `configure` / `cget` on an
+/// `oo::configurable` class — its `-property` options.  The self-receiver is
+/// `my` (`TclOO`), `$self` (snit), or `$this` (itcl) — each of which dispatches
+/// on the enclosing object.  No-op outside a class body, without a hierarchy,
+/// or for any other head.
 fn insert_self_method_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     classes: Option<&ClassHierarchy>,
     enclosing_class: Option<&str>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let (Some(hierarchy), Some(class_name), Some(method)) =
-        (classes, enclosing_class, seg.texts.get(1))
+    let (Some(hierarchy), Some(class_name), Some(head), Some(method)) =
+        (classes, enclosing_class, seg.texts.first(), seg.texts.get(1))
     else {
         return;
     };
-    if seg.texts.first().map(String::as_str) != Some("my") {
+    // `my` is a bareword; `$self` / `$this` are variable handles for the object
+    // in snit / itcl method bodies.
+    let is_self_head =
+        head == "my" || object_handle_name(head).is_some_and(|n| n == "self" || n == "this");
+    if !is_self_head {
         return;
     }
     let Some(class) = resolve_class_in_hierarchy(hierarchy, class_name) else {
@@ -3297,7 +3317,8 @@ fn collect_script(
         // outlives the walk; otherwise inherit the enclosing class (so a
         // `method …` body keeps its class).  Lets `my method …` in the body
         // resolve against that class.
-        let next_class = definer_class_name(head_text, &seg, full_source).or(ctx.enclosing_class);
+        let next_class =
+            definer_class_name(head_text, &seg, full_source, registry).or(ctx.enclosing_class);
         let body_ctx = ScriptCtx {
             oo_grammar: next_oo,
             enclosing_class: next_class,
@@ -5024,6 +5045,30 @@ mod tests {
     }
 
     #[test]
+    fn snit_self_call_resolves() {
+        // `$self method …` inside a snit method body resolves against the
+        // enclosing snit type — snit's analogue of `TclOO`'s `my`, and by far
+        // the dominant unresolved receiver on real corpora (`$self` alone is
+        // ~12.6% of the unresolved `$var` dispatches; see experiments/tcloo_diag).
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "snit::type C {\n\
+                   \x20   method helper {} {}\n\
+                   \x20   method run {} { $self helper }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Function as u32 && m == 0),
+            "expected `$self helper` in a snit method to resolve; got {toks:?}"
+        );
+    }
+
+    #[test]
     fn my_configure_property_options_resolve() {
         // `my configure -prop` inside an oo::configurable body colours the
         // property option too.
@@ -5173,6 +5218,16 @@ mod tests {
                 "helper", 2, Resolve,
             ),
             (
+                "snit_self_call",
+                "snit::type C {\n  method helper {} {}\n  method run {} { $self helper }\n}\n",
+                "helper", 2, Resolve,
+            ),
+            (
+                "itcl_this_call",
+                "itcl::class C {\n  method helper {} {}\n  method run {} { $this helper }\n}\n",
+                "helper", 2, Resolve,
+            ),
+            (
                 "oo_define_added",
                 "oo::class create C {}\noo::define C { method added {} {} }\nset o [C new]\n$o added\n",
                 "added", 3, Resolve,
@@ -5205,7 +5260,10 @@ mod tests {
                 "mrun", 2, Abstain,
             ),
             (
-                "snit_type", // TODO(phase-3): resolve via a snit dialect pack
+                // The snit *named-constructor* shape (`$o` bound by `foo create x`)
+                // — distinct from the in-body `$self` self-call, which resolves.
+                // TODO(phase-3): type `$o` from a user-class `create` constructor.
+                "snit_named_object",
                 "snit::type foo { method smeth {} {} }\nset o [foo create x]\n$o smeth\n",
                 "smeth", 2, Abstain,
             ),

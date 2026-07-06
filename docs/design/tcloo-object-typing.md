@@ -128,7 +128,13 @@ So the measured priority order (highest corpus impact first) is:
 1. **snit dialect model** — `$self` → enclosing snit type (the snit analogue of
    `TclOO`'s `my`, already handled), components via `install`/`delegate`,
    `$hull`. This is the data-driven dispatch model of Stage/Phase 3 and the
-   single biggest lever (~1500+ receivers).
+   single biggest lever (~1500+ receivers). **`$self` / `$this` self-dispatch has
+   landed** (snit + itcl): `definer_class_name` recognises the snit/itcl definer
+   shape so `enclosing_class` is threaded into their bodies, and the self-call
+   resolver accepts `$self` / `$this` heads. Measured effect: overall dispatch
+   resolution ~doubled (local 6.8%→13.6%, project 8.1%→14.8%; see
+   `experiments/tcloo_dispatch/RESULTS.md`). Remaining snit slices: named-object
+   constructor typing (`foo create x`), components, `$hull`.
 2. **Cross-file object provenance** — a workspace union of the handle /
    collection maps, mirroring `project_class_index`, for the cross-file half of
    `param` / `unbound`.

@@ -83,3 +83,28 @@ the work: the unresolved mass is **snit** (`$self` 12.6% of the `$var` gap, plus
 Phase 2 is retained as sound, cheap, architecturally-correct groundwork (the
 design-doc Stage-3 propagation graph); **snit support (Phase 3) is the measured
 next lever**, not more within-CU edges.
+
+## Phase 3 (first slice) — snit / itcl `$self` self-dispatch
+
+Following the `tcloo_diag` finding, the highest-value lever landed next: inside a
+snit (`snit::type`/`widget`/`widgetadaptor`) or itcl (`itcl::class`) method body,
+`$self method …` (snit) / `$this method …` (itcl) now resolves against the
+enclosing type — the snit/itcl analogue of `TclOO`'s `my`. Mechanically:
+`definer_class_name` learned the snit/itcl definer shape (class named at arg 1,
+driven by the registry definer-family grammar) so `enclosing_class` is threaded
+into their bodies, and `insert_self_method_overrides` accepts the `$self`/`$this`
+heads.
+
+| mode | before | after | Δ |
+|---|--:|--:|--:|
+| local `$var` | 93 | 934 | +841 |
+| local `all` | 858 (6.8%) | **1699 (13.6%)** | +6.8pp |
+| project `all` | 1012 (8.1%) | **1853 (14.8%)** | +6.7pp |
+
+The overall resolution rate **roughly doubled** — one targeted change,
+experiment-selected, moving ~840 real dispatch sites. This is the payoff of the
+diagnostic: measuring *why* receivers were unresolved pointed straight at snit
+`$self` rather than at more `TclOO` VTA edges (which the same corpus proved
+inert). Still abstaining (correctly): the snit *named-constructor* shape
+(`set o [foo create x]; $o m`), snit components (`install`/`delegate`), `$hull`,
+and Tk widget paths — the next slices, in `tcloo_diag`'s priority order.
