@@ -9,7 +9,8 @@ runtime features the user's program can request via
 `package require`.  The first user is **Tcltest** — the full C-tier
 `test*` command surface ported from `generic/tclTest.c` /
 `tclTestObj.c` / `tclTestProcBodyObj.c` / `tclTestABSList.c` to
-`runtime/zig/tcltest/`.  All 107 upstream commands are registered;
+the Rust runtime's tcltest extension under `runtime/rust/`.  All 107
+upstream commands are registered;
 PORTABLE / PARTIAL ones have functional implementations, NOT-PORTABLE
 ones (sockets, threads, fork, native FS hooks, hardware probes) raise
 an explicit "not supported under WASM" error so test scripts get a
@@ -33,18 +34,18 @@ final `.wasm`.
 
 ## How it works today (Stage 1: variant runtimes)
 
-Two artefacts emerge from `cd runtime/zig && zig build`:
+Two artefacts emerge from the Rust runtime build (`make runtime-rust-test`,
+i.e. `cargo build` in `runtime/rust/`):
 
-| Artefact                              | `BUILTINS` shape | Use case                              |
+| Artefact                              | command-table shape | Use case                              |
 |---------------------------------------|------------------|---------------------------------------|
 | `tcl_runtime.wasm`                    | lean             | Programs that don't `package require Tcltest` |
 | `tcl_runtime_with_tcltest.wasm`       | lean + tcltest cmds | Programs that do                  |
 
-The split lives in `runtime/zig/build.zig`: each artefact has its
-own `build_options` set, and `dispatch/tcl_cmd_table.zig` ``inline
-if``s on `build_options.with_tcltest` to splice the tcltest
-`BUILTINS` slice in or out at comptime.  The lean variant pays
-zero space cost — the tcltest sources are never touched.
+The split is a Cargo feature (`tcltest`): `runtime/rust/src/builtins.rs`
+uses `#[cfg(feature = "tcltest")]` to splice the tcltest command table in
+or out at compile time.  The lean variant pays
+zero space cost — the tcltest sources are never compiled.
 
 Selection happens in :mod:`compiler.codegen.wasm.extensions`:
 
@@ -58,34 +59,30 @@ Selection happens in :mod:`compiler.codegen.wasm.extensions`:
 
 ## Adding a new extension (Stage 1)
 
-1. Create `runtime/zig/<extname>/` with one or more `cmd_*.zig`
-   files that export `pub const registrations: [_]reg.CmdEntry`
-   in the same shape as the runtime's existing
-   `runtime/zig/cmds/*.zig` modules.  They use the runtime's
-   internal Zig API directly (no `extern` plumbing — they'll be
+1. Create a module under `runtime/rust/src/` (e.g. `cmd_<extname>.rs`)
+   exporting a command-table registration in the same shape as the
+   runtime's existing `cmd_*.rs` modules.  They use the runtime's
+   internal Rust API directly (no `extern` plumbing — they'll be
    compiled into the runtime).
 
-2. In `runtime/zig/dispatch/tcl_cmd_table.zig`, add an
-   ``inline if`` import gated on `build_options.with_<extname>`,
-   and append its `registrations` to the `BUILTINS` slice.
+2. In `runtime/rust/src/builtins.rs`, add a
+   `#[cfg(feature = "<extname>")]` import and append its registrations
+   to the command table.
 
-3. In `runtime/zig/build.zig`:
-   - Add a `with_<extname>` option to the lean runtime's
-     `build_options` (default `false`).
-   - Clone the runtime's `addExecutable` block into a sibling
-     target named `tcl_runtime_with_<extname>`, with its own
-     `build_options` setting `with_<extname> = true`.
-   - Add the same option to `test_options` so unit tests can
+3. In `runtime/rust/Cargo.toml`:
+   - Add a `<extname>` entry to `[features]` (off by default).
+   - The feature-gated build (driven by `runtime/rust/build.rs`)
+     produces the sibling `tcl_runtime_with_<extname>.wasm` artefact.
+   - Wire the feature into the test config so unit tests can
      drive the new commands.
 
 4. In `compiler/codegen/wasm/extensions.py`, append an
    `ExtensionDescriptor(name=…, package_names=…,
    runtime_path_factory=…)` entry to `EXTENSIONS`.
 
-5. Add unit tests at `runtime/zig/test_<extname>_*.zig` (auto-
-   discovered by `build.zig`'s test walker — gate them on
-   `build_options.with_<extname>` so they no-op on the lean
-   build).
+5. Add unit tests (e.g. `#[cfg(test)]` modules, or files under
+   `runtime/rust/tests/`) gated on `#[cfg(feature = "<extname>")]`
+   so they no-op on the lean build.
 
 6. Add a `tests/test_wasm_bundle.py`-style end-to-end smoke
    test that compiles a Tcl program with the new
@@ -100,7 +97,7 @@ Selection happens in :mod:`compiler.codegen.wasm.extensions`:
   at 3 extensions, 8.  Tractable now (tcltest is the only one);
   not a long-term answer.
 
-* **Build cost.**  Every `zig build` recompiles each variant
+* **Build cost.**  Every `cargo build` recompiles each variant
   from scratch.  Two variants ≈ 12-15s on a warm cache; manageable.
 
 * **Memory footprint.**  Each variant carries every cmd module's
@@ -116,7 +113,7 @@ The original plan was to compile each extension as a standalone
 it alongside the runtime + user code.  That approach hits two
 issues that the build-flag variant sidesteps:
 
-1. **Multi-memory.**  Zig 0.16's wasm32-wasi target makes each
+1. **Multi-memory.**  The `wasm32-wasip1` target makes each
    WASM module declare its own linear memory.  After
    `wasm-merge`, a separately-compiled extension keeps its memory
    too — which means a name string written into the extension's
@@ -129,13 +126,13 @@ issues that the build-flag variant sidesteps:
    above the runtime's heap working set *and* below the runtime's
    exported initial-memory size.  Running into "minimum memory
    size mismatch" on every realistic N — we'd need shared-memory
-   negotiation at build time, which neither Zig 0.16 nor
+   negotiation at build time, which neither the `wasm32` toolchain nor
    `wasm-merge` v123 currently support.
 
 A dynamic-linking-style design (function-table-only handover,
 zero shared static data, names allocated through the runtime's
 heap during init) would dodge (1) and (2), at the cost of a
-substantially larger refactor of the per-extension Zig code.
+substantially larger refactor of the per-extension Rust code.
 
 Stage 2 lands when the matrix of variants becomes painful (likely
 once a 2nd extension shows up and triples the artefact count).
@@ -148,50 +145,50 @@ just a runtime.
 
 ## Tcltest layout
 
-The full upstream tcltest surface is split across 12
-`runtime/zig/tcltest/` files:
+The full upstream tcltest surface is split into 12 command groups
+(in the Rust runtime's tcltest extension under `runtime/rust/`):
 
 ```
-slots.zig           — per-extension Tcl_Obj* slot table
-cmd_obj.zig         — testintobj / testbooleanobj / testdoubleobj /
-                      testbignumobj / testindexobj / testlistobj /
-                      testobj / teststringobj / testbigdata
-cmd_eval.zig        — testevalex / testevalobjv / testreturn /
-                      testseterr / testsetnoerr / testset2 /
-                      testseterrorcode / testsetobjerrorcode /
-                      testwrongnumargs
-cmd_expr.zig        — testexprlong / testexprlongobj / testexprdouble /
-                      testexprdoubleobj / testexprstring / testconcatobj
-cmd_utf.zig         — testutfnext / testutfprev / testnumutfchars /
-                      testgetunichar / testfindfirst / testfindlast /
-                      testuniclass
-cmd_misc.zig        — testlongsize / testsize / testgetint /
-                      testgetintforindex / testgetindexfromobjstruct /
-                      testdoubledigits / testlutil / testmsb /
-                      testpurebytesobj / testbytestring /
-                      teststringbytes / testsetbytearraylength /
-                      testapplylambda / testpreferstable / testlocale /
-                      testbumpinterpepoch / testdcall / testpanic /
-                      testprint / testparseargs / testgetplatform /
-                      testsetplatform / testhashsystemhash /
-                      testhandlecount / testappverifierpresent /
-                      testmainthread / testnrelevels / testnreunwind /
-                      gettimes
-cmd_dstring.zig     — testdstring (full sub-command coverage)
-cmd_assoc.zig       — testsetassocdata / testgetassocdata /
-                      testdelassocdata
-cmd_var.zig         — testupvar / testgetvarfullname
-cmd_proc.zig        — tcl::procbodytest::proc / tcl::procbodytest::check
-cmd_abslist.zig     — lstring / lgen / value:at:
-cmd_parser.zig      — testparser / testparsevar / testparsevarname /
-                      testexprparser
-cmd_cmdinfo.zig     — testcmdinfo / testcmdtoken / testcmdtrace /
-                      testcmdobj2 / testcreatecommand / testdel /
-                      testinterpdelete / testinterpresolver
-cmd_extra.zig       — ::tcl::test::build-info /
-                      test_ns_basic::createdcommand / testencoding /
-                      testregexp / testlistrep
-cmd_stubs.zig       — NOT-PORTABLE stubs (testsocket / testcpuid /
+slots           — per-extension Tcl_Obj* slot table
+cmd_obj         — testintobj / testbooleanobj / testdoubleobj /
+                  testbignumobj / testindexobj / testlistobj /
+                  testobj / teststringobj / testbigdata
+cmd_eval        — testevalex / testevalobjv / testreturn /
+                  testseterr / testsetnoerr / testset2 /
+                  testseterrorcode / testsetobjerrorcode /
+                  testwrongnumargs
+cmd_expr        — testexprlong / testexprlongobj / testexprdouble /
+                  testexprdoubleobj / testexprstring / testconcatobj
+cmd_utf         — testutfnext / testutfprev / testnumutfchars /
+                  testgetunichar / testfindfirst / testfindlast /
+                  testuniclass
+cmd_misc        — testlongsize / testsize / testgetint /
+                  testgetintforindex / testgetindexfromobjstruct /
+                  testdoubledigits / testlutil / testmsb /
+                  testpurebytesobj / testbytestring /
+                  teststringbytes / testsetbytearraylength /
+                  testapplylambda / testpreferstable / testlocale /
+                  testbumpinterpepoch / testdcall / testpanic /
+                  testprint / testparseargs / testgetplatform /
+                  testsetplatform / testhashsystemhash /
+                  testhandlecount / testappverifierpresent /
+                  testmainthread / testnrelevels / testnreunwind /
+                  gettimes
+cmd_dstring     — testdstring (full sub-command coverage)
+cmd_assoc       — testsetassocdata / testgetassocdata /
+                  testdelassocdata
+cmd_var         — testupvar / testgetvarfullname
+cmd_proc        — tcl::procbodytest::proc / tcl::procbodytest::check
+cmd_abslist     — lstring / lgen / value:at:
+cmd_parser      — testparser / testparsevar / testparsevarname /
+                  testexprparser
+cmd_cmdinfo     — testcmdinfo / testcmdtoken / testcmdtrace /
+                  testcmdobj2 / testcreatecommand / testdel /
+                  testinterpdelete / testinterpresolver
+cmd_extra       — ::tcl::test::build-info /
+                  test_ns_basic::createdcommand / testencoding /
+                  testregexp / testlistrep
+cmd_stubs       — NOT-PORTABLE stubs (testsocket / testcpuid /
                       testfevent / testevent / testsetmainloop /
                       testexitmainloop / testexithandler /
                       testservicemode / teststaticlibrary / testlink /
@@ -204,10 +201,10 @@ cmd_stubs.zig       — NOT-PORTABLE stubs (testsocket / testcpuid /
 
 ## Verification
 
-1. `cd runtime/zig && zig build` produces both `tcl_runtime.wasm`
-   and `tcl_runtime_with_tcltest.wasm` under `zig-out/bin/`.
-2. `cd runtime/zig && zig build test` runs `test_tcltest_*.zig`
-   under `wasmtime`.
+1. `make runtime-rust-test` (i.e. `cargo build` in `runtime/rust/`)
+   produces both `tcl_runtime.wasm` and `tcl_runtime_with_tcltest.wasm`.
+2. `make runtime-rust-test` (`cargo test` in `runtime/rust/`) runs the
+   tcltest unit tests under `wasmtime`.
 3. `make check-wasm-parity` — extension-aware parity check
    accepts the variant runtime's expanded BUILTINS.
 4. Bundle smoke coverage — three cases: (a) lean bundle without
@@ -217,5 +214,5 @@ cmd_stubs.zig       — NOT-PORTABLE stubs (testsocket / testcpuid /
 
 > **Update (2026):** Python has been fully retired on this branch. The
 > old `uv run pytest tests/test_wasm_bundle.py` smoke driver is gone;
-> the bundle coverage above now runs natively via `cargo test` and the
-> Zig runtime tests (`zig build test`).
+> the bundle coverage above now runs natively via the Rust runtime tests
+> (`cargo test` / `make runtime-rust-test`).

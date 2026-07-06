@@ -163,8 +163,8 @@ becomes "elide when guaranteed broken".
 
 **Files** (per fix; concrete files depend on what surfaces):
 
-- Likely: `runtime/zig/interp/tcl_frames.zig`, 
-  `runtime/zig/interp/tcl_ns.zig`, `runtime/zig/interp/tcl_interp.zig`
+- Likely: `runtime/rust/src/frame.rs`, 
+  `runtime/rust/src/namespace.rs`, `runtime/rust/src/interp.rs`
 - New: `tests/test_runtime_frame_discipline.py`
 
 **Test plan**: Each fix has a targeted unit test; the sweep is the 

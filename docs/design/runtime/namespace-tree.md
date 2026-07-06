@@ -15,10 +15,10 @@ Give the runtime a real namespace tree — parent / child links, per-
 namespace command and variable tables, explicit path and export lists
 — so command and variable resolution matches Tcl 9 semantics
 (`tclNamesp.c:Tcl_FindCommand`, `tclVar.c:TclObjLookupVarEx`) instead
-of the current FQN-string fallbacks in `runtime/zig/tcl_procs.zig`
-(suffix-scan in `proc_lookup`) and `runtime/zig/interp/tcl_ns.zig`
-(flat FQN-keyed hash; globals were folded from the retired
-`tcl_globals.zig` into `tcl_ns.zig` in P3.4).
+of the current FQN-string fallbacks in `runtime/rust/src/cmd_proc.rs`
+(suffix-scan in `proc_lookup`) and `runtime/rust/src/namespace.rs`
+(flat FQN-keyed hash; globals live in the root namespace's variable
+table).
 
 Correctness first: a tcltest-shaped bundle (`proc $varName {args}
 body` created inside a factory, then invoked by FQN or unqualified
@@ -47,7 +47,7 @@ name, possibly through `namespace import`, possibly from inside
 
 Only the fields that shape *resolution* and *storage* are called out
 here.  Refcounting, traces, deletion handlers, resolver plug-ins, and
-ensembles are listed in §4 and skipped from the Zig mirror.
+ensembles are listed in §4 and skipped from the Rust mirror.
 
 ### `Namespace` (`tclInt.h:271`)
 
@@ -137,12 +137,12 @@ Flag bits we care about (all from `tclInt.h:757-790`):
 
 Skipped: every `VAR_TRACED_*` bit, `VAR_SEARCH_ACTIVE`, `VAR_RESOLVED`,
 `VAR_ARGUMENT`, `VAR_TEMPORARY`, `VAR_IS_ARGS` (compiled-local bits —
-the Zig runtime handles locals via frame-local alias slots, not
+the Rust runtime handles locals via frame-local alias slots, not
 `Var` structs).
 
 ### `CallFrame` (`tclInt.h:1275`)
 
-Per-proc-invocation frame.  Our existing `runtime/zig/tcl_frames.zig`
+Per-proc-invocation frame.  Our existing `runtime/rust/src/frame.rs`
 already covers the local-var + alias slice (`ALIAS_GLOBAL`,
 `ALIAS_EXT` descriptors stand in for `VAR_LINK`).  The one field we
 add in P1.3 is `nsPtr` — which namespace is "current" while this
@@ -168,24 +168,27 @@ around an FQN string; after P1.3 we save / restore a `Namespace *`.
   each new entry onto the target's `commandPathSourceList` for
   invalidation.
 
-## 3. Zig analogue
+## 3. Runtime analogue
 
-All storage lives in WASM linear memory behind `runtime/zig/tcl_obj.zig`'s
-bump allocator.  We never free.  Every sub-table is a
-`hash_table.Table(N)` (see P0) — 12-byte header (`name_ptr | name_len |
-hash`) + caller payload.
+The design model below is what the Rust runtime realises in
+`runtime/rust/src/namespace.rs` (`Namespace` / `Namespaces`),
+`cmd_proc.rs`, and `frame.rs`.  The original sketch was written against
+a WASM-linear-memory allocator that never frees, with every sub-table a
+12-byte-header hash table; treat the `u32` handles below as the design's
+addressing model (the Rust port uses owned data structures for the same
+shape).
 
 ### `Namespace` struct
 
-```zig
-// runtime/zig/tcl_ns.zig
+```
+// design realised in runtime/rust/src/namespace.rs
 
-const ht = @import("hash_table.zig");
+// child_table, cmd_table, var_table are hash tables keyed by simple name
 
 /// child_table, cmd_table, var_table bucket sizes.  All three use the
 /// same 12-byte header + 4-byte value (a u32 handle into
 /// ns_arena / cmd_arena / var_arena).  Keeping them all 16 bytes means
-/// the three ``Table(16)`` instantiations share monomorphised code.
+/// the three ``Table(16)`` instantiations share the same layout.
 const NS_BUCKET_SIZE: u32 = 16;
 const ChildTable = ht.Table(NS_BUCKET_SIZE);
 const CmdTable = ht.Table(NS_BUCKET_SIZE);
@@ -204,7 +207,7 @@ pub const Namespace = extern struct {
 
     /// Enclosing namespace.  Zero for root.  All other Namespace*
     /// fields store absolute byte addresses (u32) matching our
-    /// ``alloc`` contract in tcl_obj.zig.
+    /// ``alloc`` contract in obj.rs.
     parent: u32,
 
     /// Sub-tables.  Each Table manages its own backing buffer.
@@ -246,12 +249,12 @@ Child / cmd / var bucket payload is a single `u32` that is one of:
 
 ### `Command` struct
 
-```zig
+```
 pub const Command = extern struct {
     /// Home namespace.  Zero only during construction.
     ns: u32,
 
-    /// For compiled procs: the bucket base in tcl_procs.zig's
+    /// For compiled procs: the bucket base in cmd_proc.rs's
     /// ``proc_table``.  For imported redirects: a ``*ImportedCmdData``
     /// (discriminated by ``flags & CMD_IMPORTED``).
     client_data: u32,
@@ -275,7 +278,7 @@ pub const CMD_DEAD: u32 = 0x40;
 
 ### `Var` struct
 
-```zig
+```
 pub const Var = extern struct {
     /// VAR_ARRAY | VAR_LINK | VAR_CONSTANT | VAR_NAMESPACE_VAR etc.
     /// Matches C bit values (tclInt.h:757-790).
@@ -297,7 +300,7 @@ pub const VAR_CONSTANT: u32 = 0x10000;
 
 ### `ImportRef` + `ImportedCmdData`
 
-```zig
+```
 pub const ImportedCmdData = extern struct {
     real_cmd: u32,   // *Command — the source
     self_cmd: u32,   // *Command — the redirect (this command)
@@ -311,7 +314,7 @@ pub const ImportRef = extern struct {
 
 ### `NamespacePathEntry`
 
-```zig
+```
 pub const NamespacePathEntry = extern struct {
     target_ns: u32,    // *Namespace — what we resolve through
     creator_ns: u32,   // *Namespace — whose path_array[i] this is
@@ -322,7 +325,7 @@ pub const NamespacePathEntry = extern struct {
 
 ### Call frames
 
-`runtime/zig/tcl_frames.zig` gets one new field appended to its
+`runtime/rust/src/frame.rs` gets one new field appended to its
 per-frame header (outside the bucket array): `ns: u32` — the
 `*Namespace` that was current when the frame was pushed.  P1.3 wires
 this; until then frames carry no ns pointer and the current-ns state
@@ -339,8 +342,8 @@ unreachable from the supported surface.
 
 C Tcl uses `refCount`, `activationCount`, `NS_DYING` / `NS_DEAD`,
 `deleteProc`, `earlyDeleteProc`, `VarInHash.refCount`, `Command.refCount`,
-`Command.cmdEpoch`.  Our `tcl_obj.zig` bump allocator has no `free`
-symmetry; nothing is ever deleted in the Zig runtime.  `flags` is
+`Command.cmdEpoch`.  The runtime never deletes namespaces or commands,
+so there is no `free` symmetry to mirror.  `flags` is
 carried on `Namespace` + `Command` for code structure parity, but
 `NS_DYING` / `CMD_DYING` bits stay zero.
 
@@ -389,7 +392,7 @@ works fine.
 The `VAR_ARGUMENT` / `VAR_TEMPORARY` / `VAR_IS_ARGS` / `VAR_RESOLVED`
 flags describe compiled procedure locals, which in C live in a
 per-frame `Var *` array.  Our WASM-compiled procs use native
-locals; interpreted procs use `tcl_frames.zig` alias slots.  Neither
+locals; interpreted procs use `frame.rs` alias slots.  Neither
 goes through a `Var` struct, so these bits are never read or
 written.
 
@@ -426,7 +429,7 @@ never freed, so there's no dangling-pointer problem to solve.
 ## 5. Resolution algorithms
 
 Two primitives, both modelled on `tclNamesp.c`.  Pseudocode uses
-snake_case Zig names; treat `*Namespace` / `*Command` as `u32`
+snake_case names; treat `*Namespace` / `*Command` as `u32`
 handles throughout.
 
 ### 5.1 `ns_resolve_qualified(cxt, name) -> (target_ns, simple_name, alt_ns)`
@@ -485,7 +488,7 @@ Notes:
 ### 5.2 `ns_find_command(cxt, name) -> ?*Command`
 
 Mirror of `Tcl_FindCommand` (`tclNamesp.c:2631`).  This is the
-function `proc_lookup` in `tcl_procs.zig` becomes once P2/P5 are
+function `proc_lookup` in `cmd_proc.rs` becomes once P2/P5 are
 done.
 
 ```
@@ -538,7 +541,7 @@ Deliberate C-parity gaps:
 
 Follows exactly the same shape — `ns_resolve_qualified` to find the
 containing ns, then walk into `var_table`.  The frame-local alias
-bit already present in `tcl_frames.zig` (`ALIAS_GLOBAL` / `ALIAS_EXT`)
+bit already present in `frame.rs` (`ALIAS_GLOBAL` / `ALIAS_EXT`)
 maps cleanly to C's `VAR_LINK`: a local whose value is the absolute
 address of a `Var` in some ns's `var_table` is a `VAR_LINK`
 equivalent.  P3.3 wires `variable` / `global` to populate that
@@ -553,42 +556,42 @@ every commit.  Source: `/root/.claude/plans/plan-out-and-fix-floofy-gadget.md`.
 | Sub-PR | What changes (files) | Observable behaviour |
 |---|---|---|
 | P1.1 | `docs/design/runtime/namespace-tree.md` (this doc) | None |
-| P1.2 | new `runtime/zig/tcl_ns.zig` — `Namespace` struct, `root_ns`, `ns_root()`, `ns_lookup(parent, name)`, `ns_create(parent, name)` | None — no existing caller uses it yet |
-| P1.3 | `tcl_interp.zig` — `tcl_ns_set` / `tcl_ns_restore` stash a `*Namespace` instead of an FQN string; `tcl_frames.zig` frame header gains `ns: u32` | `[namespace current]` still returns the same FQN string (materialised from the struct) |
-| P1.4 | `tcl_ns.zig` — `ns_resolve_qualified` and tests against fixture FQNs | None — internal API |
-| P2.1 | `tcl_procs.zig` — `proc_register` dual-writes: still hits the flat `proc_table`, AND also inserts a `Command` into `current_ns.cmd_table` | None; reads still flat |
-| P2.2 | `tcl_procs.zig` — `proc_lookup` tries `ns_find_command(current_ns, name)` first, then the flat table's suffix-scan hack as fallback | Bundles with `namespace eval` blocks start resolving through the tree; nothing that worked before breaks |
-| P2.3 | `tcl_procs.zig` — delete the suffix-scan fallback in `proc_lookup` | Any caller that relied on suffix-matching now has to qualify — no tests currently do |
-| P2.4 | `tcl_procs.zig` — delete flat `proc_table` entirely; `proc_register` writes only to `cmd_table`; the 4-slot LRU cache in `proc_lookup` is rebuilt against the new walk | Bucket ABI unchanged; compiled procs unaffected |
-| P3.1 | `tcl_ns.zig` — `Var` struct + `Namespace.var_table` lookup helpers; root ns's `var_table` becomes the new storage for globals | None; `tcl_globals.zig` still owns the public API |
-| P3.2 | `tcl_globals.zig` — `global_set` / `global_get` / `global_exists` forward to `root_ns.var_table` | None |
-| P3.3 | `tcl_interp.zig` — `variable` / `global` write `VAR_LINK` entries into the current frame pointing at `Var`s inside the target ns `var_table`; test-frames also exercise `upvar` through this path | `variable x` inside a `namespace eval` now resolves to the right ns's var, matching tclsh |
-| P3.4 | `tcl_globals.zig` — removed; the few remaining direct callers migrate to `tcl_ns` helpers | Internal-only; no ABI change to the compiler |
-| P4.1 | `tcl_ns.zig` — `ns_export(ns, pattern)` appends to `export_patterns` | `namespace export` works; `namespace import` still stubs |
-| P4.2 | `tcl_ns.zig` — `ns_import(dest, src_pat)` walks source `cmd_table`, matches patterns, inserts redirect `Command`s with `ImportedCmdData` in dest `cmd_table` | `namespace import ::src::*` resolves calls into the source ns |
-| P4.3 | `tcl_ns.zig` — every import inserts an `ImportRef` node into the source command's `import_ref_head` | Internal; sets up invalidation |
-| P4.4 | `tcl_ns.zig` — `namespace forget pattern` walks redirects and removes matching entries (plus unlinks from `import_ref_head`) | `namespace forget` actually un-imports |
-| P5.1 | `tcl_ns.zig` — `Namespace.path_array` + `Namespace.path_source_head`; `[namespace path]` builtin populates + splices entries | `[namespace path {a b}]` sets the path; lookups don't use it yet |
-| P5.2 | `tcl_procs.zig` / `tcl_ns.zig` — `ns_find_command` consults `path_array` between context-ns and root | Resolution uses the path; matches tclsh on `namespace path` cases |
-| P5.3 | `tcl_ns.zig` — `cmd_ref_epoch` bumped in `ns_add_command` / `ns_remove_command` + cascaded through `path_source_head`; LRU in `proc_lookup` keyed partly on the source ns's epoch | Invalidation correctness; no observable change unless a cached entry points at a stale cmd |
+| P1.2 | new `runtime/rust/src/namespace.rs` — `Namespace` struct, `root_ns`, `ns_root()`, `ns_lookup(parent, name)`, `ns_create(parent, name)` | None — no existing caller uses it yet |
+| P1.3 | `interp.rs` — `tcl_ns_set` / `tcl_ns_restore` stash a `*Namespace` instead of an FQN string; `frame.rs` frame header gains `ns: u32` | `[namespace current]` still returns the same FQN string (materialised from the struct) |
+| P1.4 | `namespace.rs` — `ns_resolve_qualified` and tests against fixture FQNs | None — internal API |
+| P2.1 | `cmd_proc.rs` — `proc_register` dual-writes: still hits the flat `proc_table`, AND also inserts a `Command` into `current_ns.cmd_table` | None; reads still flat |
+| P2.2 | `cmd_proc.rs` — `proc_lookup` tries `ns_find_command(current_ns, name)` first, then the flat table's suffix-scan hack as fallback | Bundles with `namespace eval` blocks start resolving through the tree; nothing that worked before breaks |
+| P2.3 | `cmd_proc.rs` — delete the suffix-scan fallback in `proc_lookup` | Any caller that relied on suffix-matching now has to qualify — no tests currently do |
+| P2.4 | `cmd_proc.rs` — delete flat `proc_table` entirely; `proc_register` writes only to `cmd_table`; the 4-slot LRU cache in `proc_lookup` is rebuilt against the new walk | Bucket ABI unchanged; compiled procs unaffected |
+| P3.1 | `namespace.rs` — `Var` struct + `Namespace.var_table` lookup helpers; root ns's `var_table` becomes the new storage for globals | None; the globals API still owns the public API |
+| P3.2 | the globals API — `global_set` / `global_get` / `global_exists` forward to `root_ns.var_table` | None |
+| P3.3 | `interp.rs` — `variable` / `global` write `VAR_LINK` entries into the current frame pointing at `Var`s inside the target ns `var_table`; test-frames also exercise `upvar` through this path | `variable x` inside a `namespace eval` now resolves to the right ns's var, matching tclsh |
+| P3.4 | the globals API — removed; the few remaining direct callers migrate to `namespace.rs` helpers | Internal-only; no ABI change to the compiler |
+| P4.1 | `namespace.rs` — `ns_export(ns, pattern)` appends to `export_patterns` | `namespace export` works; `namespace import` still stubs |
+| P4.2 | `namespace.rs` — `ns_import(dest, src_pat)` walks source `cmd_table`, matches patterns, inserts redirect `Command`s with `ImportedCmdData` in dest `cmd_table` | `namespace import ::src::*` resolves calls into the source ns |
+| P4.3 | `namespace.rs` — every import inserts an `ImportRef` node into the source command's `import_ref_head` | Internal; sets up invalidation |
+| P4.4 | `namespace.rs` — `namespace forget pattern` walks redirects and removes matching entries (plus unlinks from `import_ref_head`) | `namespace forget` actually un-imports |
+| P5.1 | `namespace.rs` — `Namespace.path_array` + `Namespace.path_source_head`; `[namespace path]` builtin populates + splices entries | `[namespace path {a b}]` sets the path; lookups don't use it yet |
+| P5.2 | `cmd_proc.rs` / `namespace.rs` — `ns_find_command` consults `path_array` between context-ns and root | Resolution uses the path; matches tclsh on `namespace path` cases |
+| P5.3 | `namespace.rs` — `cmd_ref_epoch` bumped in `ns_add_command` / `ns_remove_command` + cascaded through `path_source_head`; LRU in `proc_lookup` keyed partly on the source ns's epoch | Invalidation correctness; no observable change unless a cached entry points at a stale cmd |
 
-The runtime artefact (`runtime/zig/zig-out/bin/tcl_runtime.wasm`)
-is no longer checked in — `shared.runtime_wasm.runtime_wasm_path()`
-locates it and runs `zig build` on first call when missing, so
-downstream bundle tests pick up the right binary on a fresh
-checkout without anyone manually committing it.
+The compiled `tcl-runtime` wasm artefact is no longer checked in —
+`shared.runtime_wasm.runtime_wasm_path()` locates it and builds it on
+first call when missing (the Rust runtime's Cargo build under
+`runtime/rust/`), so downstream bundle tests pick up the right binary
+on a fresh checkout without anyone manually committing it.
 
-## 7. Zig API surface
+## 7. Rust API surface
 
-Everything lives in `runtime/zig/tcl_ns.zig`.  Function signatures
+Everything lives in `runtime/rust/src/namespace.rs`.  Function signatures
 use `u32` for `*Namespace` / `*Command` / `*Var` (linear-memory
 addresses, consistent with the rest of the runtime).  `[]const u8`
-means `(ptr, len)` pair — the Zig slice ABI the other runtime
+means `(ptr, len)` pair — the slice ABI the other runtime
 modules already use.
 
 ### Core tree (P1.2)
 
-```zig
+```
 /// Return the root (global) namespace.  Always non-zero after the
 /// module is loaded.
 pub fn ns_root() u32;
@@ -605,7 +608,7 @@ pub fn ns_create(parent: u32, name: []const u8) u32;
 
 ### Current-ns stash (P1.3)
 
-```zig
+```
 /// Current namespace for the innermost active frame — equivalent to
 /// ``iPtr->varFramePtr->nsPtr`` in C.  Defaults to ``ns_root()``.
 pub fn ns_current() u32;
@@ -613,15 +616,15 @@ pub fn ns_current() u32;
 /// Compiler-emitted prologue: save the current ns and switch to
 /// ``target``.  Returns the saved handle so ``tcl_ns_restore`` can
 /// restore it.  Replaces the string-based stash that's there today.
-pub export fn tcl_ns_set(target: u32) u32;
+#[no_mangle] pub extern "C" fn tcl_ns_set(target: u32) -> u32;
 
 /// Restore the previously-stashed ns.
-pub export fn tcl_ns_restore(saved: u32) void;
+#[no_mangle] pub extern "C" fn tcl_ns_restore(saved: u32);
 ```
 
 ### FQN walker (P1.4)
 
-```zig
+```
 pub const QualifiedResult = struct {
     target_ns: u32,            // 0 if any child-table step missed
     simple_ptr: u32,           // start of the trailing simple name
@@ -646,7 +649,7 @@ pub fn ns_resolve_qualified_creating(
 
 ### Command table (P2)
 
-```zig
+```
 /// Insert or update a command in ``ns.cmd_table``.  Bumps
 /// ``cmd_ref_epoch`` on ns and cascades through ``path_source_head``
 /// (P5.3).  Returns the bucket base.
@@ -659,7 +662,7 @@ pub fn ns_find_command(cxt: u32, name: []const u8) u32;
 
 ### Variable table (P3)
 
-```zig
+```
 pub fn ns_var_find(ns: u32, name: []const u8) u32;
 pub fn ns_var_create(ns: u32, name: []const u8) u32;
 
@@ -669,41 +672,41 @@ pub fn var_resolve_link(v: u32) u32;
 
 ### Import / export (P4)
 
-```zig
+```
 pub fn ns_export(ns: u32, pattern: []const u8) void;
 pub fn ns_import(dest: u32, src_pat: []const u8) void;
 pub fn ns_forget(dest: u32, src_pat: []const u8) void;
 
 /// True if ``name`` matches any of ``ns.export_patterns`` using
 /// ``string match`` semantics (we already have a Tcl glob
-/// implementation in tcl_string.zig).
+/// implementation in value_ops.rs).
 pub fn ns_export_matches(ns: u32, name: []const u8) bool;
 ```
 
 ### Path (P5)
 
-```zig
+```
 pub fn ns_set_path(ns: u32, targets: []const u32) void;
 pub fn ns_get_path(ns: u32) []const u32;
 
 /// Called by ns_add_command to invalidate every ns that lists
-/// ``ns`` on its path.  Internal to tcl_ns.zig.
+/// ``ns`` on its path.  Internal to namespace.rs.
 fn cmd_ref_epoch_bump(ns: u32) void;
 ```
 
 ### Iteration helpers
 
 The existing `hash_table.Table(N).each(ctx, visit)` already covers
-`info commands` / `info vars` enumeration.  `tcl_ns.zig` exposes
+`info commands` / `info vars` enumeration.  `namespace.rs` exposes
 thin wrappers so callers don't need to know the table layout:
 
-```zig
+```
 pub fn ns_each_command(ns: u32, ctx: anytype, comptime visit: fn (@TypeOf(ctx), u32) void) void;
 pub fn ns_each_variable(ns: u32, ctx: anytype, comptime visit: fn (@TypeOf(ctx), u32) void) void;
 pub fn ns_each_child(ns: u32, ctx: anytype, comptime visit: fn (@TypeOf(ctx), u32) void) void;
 ```
 
-### What `tcl_procs.zig` / `tcl_globals.zig` keep exporting
+### What `cmd_proc.rs` / the globals API keep exporting
 
 Unchanged ABI for existing callers:
 
@@ -779,7 +782,7 @@ Confirm against `tclVar.c:Tcl_VariableObjCmd`.
 ### 6. `upvar` into a namespace var
 
 `upvar 1 ::ns::v local` creates a frame-local alias pointing at a
-ns-scoped var.  Our `tcl_frames.zig` `ALIAS_EXT` descriptor
+ns-scoped var.  Our `frame.rs` `ALIAS_EXT` descriptor
 currently supports `KIND_GLOBAL_NAMED` (global by name) and
 `KIND_FRAME_VAR` (another frame).  P3.3 may need a
 `KIND_NS_VAR` (target ns + simple name) if the ns var doesn't yet

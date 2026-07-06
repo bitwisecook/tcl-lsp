@@ -22,8 +22,8 @@
 # Claude Code on the web runs in a sandbox that ships without some
 # system tools and language toolchains the Makefile depends on.  This
 # hook installs anything missing so `make prep-pr`, `make test-ext`,
-# `make smoke-vsix`, bytecode comparison, the Zig WASM runtime build,
-# and Wasmtime-based harnesses keep working across fresh sessions.
+# `make smoke-vsix`, bytecode comparison, and Wasmtime-based harnesses
+# keep working across fresh sessions.
 #
 # Runs only in remote sessions — skips locally so developer machines
 # are never touched.
@@ -39,9 +39,9 @@ ARCH="$(uname -m)"
 REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 
 # Pinned toolchain versions. Bump these when new stable releases land.
-ZIG_VERSION="0.16.0"
 WASMTIME_VERSION="43.0.1"
 BINARYEN_VERSION="123"
+WASI_SDK_VERSION="25.0"
 # Rust tracks the floating `stable` channel to match `rust-toolchain.toml`
 # (see docs/rust-rewrite.md). Installing the channel — rather than a pinned
 # version — keeps it auto-updating to the latest stable and, critically,
@@ -51,9 +51,9 @@ RUST_TOOLCHAIN="stable"
 TCLLIB_TAG="tcllib-2-0"
 TCLLIB_VERSION="2.0"
 
-ZIG_PREFIX="/opt/zig-${ZIG_VERSION}"
 WASMTIME_PREFIX="/opt/wasmtime-${WASMTIME_VERSION}"
 BINARYEN_PREFIX="/opt/binaryen-${BINARYEN_VERSION}"
+WASI_SDK_PREFIX="/opt/wasi-sdk-${WASI_SDK_VERSION}"
 
 # ---------------------------------------------------------------------------
 # 1. System packages (apt).
@@ -111,103 +111,6 @@ fetch_with_retry() {
         fi
     done
     return 1
-}
-
-# ---------------------------------------------------------------------------
-# 3. Zig — prefer a community mirror, fall back to ziglang.org.
-#
-# Zig asks downloaders to be kind to their bandwidth and use a community
-# mirror when possible (https://ziglang.org/download/community-mirrors/).
-# We shuffle the mirror list and try each until one succeeds, then verify
-# against the SHA-256 published by ziglang.org.
-# ---------------------------------------------------------------------------
-install_zig() {
-    if [ -x "${ZIG_PREFIX}/zig" ] && [ -L /usr/local/bin/zig ] \
-       && [ "$(readlink -f /usr/local/bin/zig)" = "${ZIG_PREFIX}/zig" ]; then
-        echo "session-start: zig ${ZIG_VERSION} already installed"
-        return 0
-    fi
-
-    case "$ARCH" in
-        x86_64)  local zig_arch="x86_64-linux" ;;
-        aarch64) local zig_arch="aarch64-linux" ;;
-        *) echo "session-start: unsupported arch for zig: $ARCH" >&2; return 1 ;;
-    esac
-
-    local tarball="zig-${zig_arch}-${ZIG_VERSION}.tar.xz"
-    local canonical="https://ziglang.org/download/${ZIG_VERSION}/${tarball}"
-    local tmpdir
-    tmpdir="$(mktemp -d)"
-    trap 'rm -rf "$tmpdir"' RETURN
-
-    # Shuffled community mirrors plus ziglang.org as the final fallback.
-    # Mirror list snapshotted from https://ziglang.org/download/community-mirrors.txt
-    # on 2026-04-20 and shuffled at download time.
-    local mirrors=(
-        "https://pkg.hexops.org/zig"
-        "https://zigmirror.hryx.net/zig"
-        "https://zig.linus.dev/zig"
-        "https://zig.squirl.dev"
-        "https://zig.mirror.mschae23.de/zig"
-        "https://ziglang.freetls.fastly.net"
-        "https://zig.tilok.dev"
-        "https://zig-mirror.tsimnet.eu/zig"
-        "https://zig.karearl.com/zig"
-        "https://pkg.earth/zig"
-        "https://fs.liujiacai.net/zigbuilds"
-        "https://zigmirror.com"
-        "https://zig.chainsafe.dev"
-        "https://zig.savalione.com"
-    )
-
-    # Shuffle so we spread load across community mirrors.
-    local shuffled
-    mapfile -t shuffled < <(printf '%s\n' "${mirrors[@]}" | shuf)
-
-    local ok=0
-    for base in "${shuffled[@]}" ""; do
-        local url
-        if [ -n "$base" ]; then
-            url="${base}/${tarball}?source=tcl-lsp-session-start"
-            echo "session-start: fetching zig ${ZIG_VERSION} from community mirror ${base}"
-        else
-            url="$canonical"
-            echo "session-start: falling back to ${canonical}"
-        fi
-        if fetch_with_retry "$url" "${tmpdir}/${tarball}"; then
-            ok=1
-            break
-        fi
-    done
-
-    if [ "$ok" -ne 1 ]; then
-        echo "session-start: failed to download zig ${ZIG_VERSION}" >&2
-        return 1
-    fi
-
-    local expected_sha=""
-    case "$zig_arch" in
-        x86_64-linux)
-            expected_sha="70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00" ;;
-        aarch64-linux)
-            expected_sha="ea4b09bfb22ec6f6c6ceac57ab63efb6b46e17ab08d21f69f3a48b38e1534f17" ;;
-    esac
-    if [ -z "$expected_sha" ]; then
-        echo "session-start: no pinned zig sha256 for ${zig_arch}" >&2
-        return 1
-    fi
-    local actual_sha
-    actual_sha="$(sha256sum "${tmpdir}/${tarball}" | awk '{print $1}')"
-    if [ "$actual_sha" != "$expected_sha" ]; then
-        echo "session-start: zig sha256 mismatch (expected $expected_sha, got $actual_sha)" >&2
-        return 1
-    fi
-
-    rm -rf "$ZIG_PREFIX"
-    mkdir -p "$ZIG_PREFIX"
-    tar -xJf "${tmpdir}/${tarball}" -C "$ZIG_PREFIX" --strip-components=1
-    ln -sfn "${ZIG_PREFIX}/zig" /usr/local/bin/zig
-    echo "session-start: zig $(${ZIG_PREFIX}/zig version) installed at ${ZIG_PREFIX}"
 }
 
 # ---------------------------------------------------------------------------
@@ -326,6 +229,57 @@ install_binaryen() {
 }
 
 # ---------------------------------------------------------------------------
+# 4b. wasi-sdk — clang + WASI sysroot for the wasm cross-compile of libtommath
+#     (the numeric tower) in runtime/rust/build.rs.  Installed to
+#     /opt/wasi-sdk-<ver> and symlinked /opt/wasi-sdk, which build.rs
+#     auto-discovers.  Without it the wasm runtime build drops the tower.
+# ---------------------------------------------------------------------------
+install_wasi_sdk() {
+    if [ -x "${WASI_SDK_PREFIX}/bin/clang" ] && [ -L /opt/wasi-sdk ] \
+       && [ "$(readlink -f /opt/wasi-sdk)" = "${WASI_SDK_PREFIX}" ]; then
+        echo "session-start: wasi-sdk ${WASI_SDK_VERSION} already installed"
+        return 0
+    fi
+
+    case "$ARCH" in
+        x86_64)  local sdk_arch="x86_64" ;;
+        aarch64) local sdk_arch="arm64" ;;
+        *) echo "session-start: unsupported arch for wasi-sdk: $ARCH" >&2; return 1 ;;
+    esac
+
+    local major="${WASI_SDK_VERSION%%.*}"
+    local tarball="wasi-sdk-${WASI_SDK_VERSION}-${sdk_arch}-linux.tar.gz"
+    local base="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${major}"
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    echo "session-start: fetching wasi-sdk ${WASI_SDK_VERSION}"
+    if ! fetch_with_retry "${base}/${tarball}" "${tmpdir}/${tarball}"; then
+        echo "session-start: failed to download wasi-sdk ${WASI_SDK_VERSION}" >&2
+        return 1
+    fi
+
+    # wasi-sdk publishes a SHA256SUMS asset alongside the tarballs; verify
+    # against it. (A hardcoded pin like binaryen/wasmtime above is a follow-up.)
+    if fetch_with_retry "${base}/SHA256SUMS" "${tmpdir}/SHA256SUMS"; then
+        local expected actual
+        expected="$(awk -v f="$tarball" '{ n=$2; sub(/^\*/,"",n); if (n==f) { print $1; exit } }' "${tmpdir}/SHA256SUMS")"
+        actual="$(sha256sum "${tmpdir}/${tarball}" | awk '{print $1}')"
+        if [ -n "$expected" ] && [ "$actual" != "$expected" ]; then
+            echo "session-start: wasi-sdk sha256 mismatch (expected $expected, got $actual)" >&2
+            return 1
+        fi
+    fi
+
+    rm -rf "$WASI_SDK_PREFIX"
+    mkdir -p "$WASI_SDK_PREFIX"
+    tar -xzf "${tmpdir}/${tarball}" -C "$WASI_SDK_PREFIX" --strip-components=1
+    ln -sfn "$WASI_SDK_PREFIX" /opt/wasi-sdk
+    echo "session-start: wasi-sdk $(${WASI_SDK_PREFIX}/bin/clang --version | head -n1) installed at ${WASI_SDK_PREFIX} (symlinked /opt/wasi-sdk)"
+}
+
+# ---------------------------------------------------------------------------
 # 5. Tcl source trees (8.4, 8.5, 8.6, 9.0) — delegate to the existing skill.
 #    Idempotent: skips versions already fetched into tmp/.
 # ---------------------------------------------------------------------------
@@ -375,23 +329,6 @@ install_tcllib() {
     local size
     size=$(du -sh "$target_dir" | awk '{print $1}')
     echo "session-start: tcllib ${TCLLIB_VERSION} extracted to ${target_dir} (${size})"
-}
-
-# ---------------------------------------------------------------------------
-# 5c. Tcl regex engine sources — vendored at runtime/zig/vendor/tcl-regex/.
-#     The WASM runtime build expects these files to be present (they're
-#     compiled into the runtime); fetching once here keeps ``zig build``
-#     hermetic and avoids the xdist race we'd otherwise hit if four
-#     parallel worker processes each tried to fetch into the same dir.
-# ---------------------------------------------------------------------------
-install_tcl_regex() {
-    local fetcher="${REPO_ROOT}/scripts/fetch_tcl_regex.sh"
-    if [ ! -f "$fetcher" ]; then
-        echo "session-start: fetch_tcl_regex.sh missing at $fetcher" >&2
-        return 1
-    fi
-    echo "session-start: ensuring Tcl regex engine sources"
-    bash "$fetcher"
 }
 
 # ---------------------------------------------------------------------------
@@ -539,12 +476,10 @@ install_remaining_test_deps() {
     fi
     echo "session-start: installing remaining test-slow host tools"
     env \
-        SKIP_ZIG=1 \
         SKIP_WASMTIME=1 \
         SKIP_BINARYEN=1 \
         SKIP_RUST=1 \
         SKIP_TCLLIB=1 \
-        SKIP_TCL_REGEX=1 \
         bash "$installer"
 }
 
@@ -621,13 +556,12 @@ setup_tcl_library() {
     echo "session-start: TCL_LIBRARY=${TCL_LIBRARY}"
 }
 
-install_zig
 install_wasmtime
 install_binaryen
+install_wasi_sdk
 install_rust
 install_tcl_sources
 install_tcllib
-install_tcl_regex
 install_remaining_test_deps
 setup_python_venv
 setup_tcl_library

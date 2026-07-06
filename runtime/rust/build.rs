@@ -27,9 +27,10 @@
 //! `libtommath/*.c` except `bn_deprecated`/`*rand*`/`*prime*` (the integer tower
 //! needs no RNG/primality, and they pull unresolved RNG externals).
 //!
-//! Zero build-deps: shells out to the host C compiler + `ar` directly. Skipped
-//! for the `wasm32` cdylib target, where the whole-program link (Track 3)
-//! provides libtommath itself.
+//! Native build has zero build-deps: shells out to the host C compiler + `ar`
+//! directly. The wasm cross-compile uses clang + a WASI sysroot (wasi-sdk),
+//! located via `WASI_SDK_PATH`; absent that, the bignum backend degrades to a
+//! tower-less wasm build (with a `cargo:warning`) rather than failing.
 //!
 //! Source location: `$TCL_TOMMATH_DIR`, else the fetched tree at
 //! `<repo>/tmp/tcl9.0.3/libtommath`. (Vendoring the source for a
@@ -44,6 +45,8 @@ fn main() {
     println!("cargo:rerun-if-env-changed=TCL_TOMMATH_DIR");
     println!("cargo:rerun-if-env-changed=TCL_WASM_CC");
     println!("cargo:rerun-if-env-changed=TCL_WASM_AR");
+    println!("cargo:rerun-if-env-changed=TCL_WASM_SYSROOT");
+    println!("cargo:rerun-if-env-changed=WASI_SDK_PATH");
     // Register the cfg unconditionally — *before* any early return — so the
     // `#[cfg(have_tommath)]` gate is never reported as `unexpected_cfgs`
     // (which `-D warnings` turns into a hard lint failure) in the wasm or
@@ -85,30 +88,71 @@ fn main() {
     // Native: the host `cc`/`ar` (overridable via `CC`/`AR`), `-fPIC` for the
     // shared `cdylib`/`staticlib`.
     //
-    // WASM: `zig cc`/`zig ar` cross-compile the *same* pristine libtommath to a
-    // `wasm32-wasi` object archive, which rustc's wasm link (`rust-lld`) pulls
-    // into the runtime `cdylib` — so the numeric tower (`expr`, `::tcl::math*`,
-    // `lseq`, the bignum obj rep) is present on wasm exactly as on native, and a
-    // whole-program AOT link gets a self-contained tower with no host tower
-    // dependency. `zig cc` bundles clang + wasi-libc and emits relocatable wasm
-    // objects; `zig ar` (LLVM ar) writes a wasm-aware archive symbol index that
-    // the host `ar` (GNU) does not. If `zig` is unavailable we degrade to the
-    // prior tower-less wasm build rather than fail.
-    let (cc, ar, extra_cflags): (String, String, &[&str]) = if is_wasm {
-        let cc = env::var("TCL_WASM_CC").unwrap_or_else(|_| "zig cc".into());
+    // WASM: clang + a WASI sysroot (wasi-sdk) cross-compile the *same* pristine
+    // libtommath to a `wasm32-wasi` object archive, which rustc's wasm link
+    // (`rust-lld`) pulls into the runtime `cdylib` — so the numeric tower
+    // (`expr`, `::tcl::math*`, `lseq`, the bignum obj rep) is present on wasm
+    // exactly as on native, and a whole-program AOT link gets a self-contained
+    // tower with no host tower dependency. The toolchain is located via
+    // `WASI_SDK_PATH` (`$WASI_SDK_PATH/bin/clang` + `.../share/wasi-sysroot` +
+    // `$WASI_SDK_PATH/bin/llvm-ar`, which writes a wasm-aware archive symbol
+    // index the host GNU `ar` does not); each piece is overridable via
+    // `TCL_WASM_CC` / `TCL_WASM_SYSROOT` / `TCL_WASM_AR`. If neither a wasi-sdk
+    // nor an explicit sysroot is available we degrade to a tower-less wasm build
+    // (with a warning) rather than fail.
+    let (cc, ar, extra_cflags): (String, String, Vec<String>) = if is_wasm {
+        // Locate a wasi-sdk: `WASI_SDK_PATH` if set, else the canonical
+        // `/opt/wasi-sdk` the dep installers drop it at. A usable one has a
+        // `bin/clang` under it; anything else falls through to the graceful
+        // tower-less path below.
+        let wasi_sdk = env::var("WASI_SDK_PATH")
+            .ok()
+            .map(PathBuf::from)
+            .or_else(|| Some(PathBuf::from("/opt/wasi-sdk")))
+            .filter(|p| p.join("bin/clang").is_file());
+
+        let cc = env::var("TCL_WASM_CC").unwrap_or_else(|_| match &wasi_sdk {
+            Some(p) => p.join("bin/clang").display().to_string(),
+            None => "clang".into(),
+        });
         if !cc_available(&cc) {
             println!(
                 "cargo:warning=wasm C compiler ({cc}) not found; bignum backend \
-                 disabled on wasm (set TCL_WASM_CC to a wasm32-wasi clang)"
+                 disabled on wasm (install wasi-sdk and set WASI_SDK_PATH, or set \
+                 TCL_WASM_CC to a wasm32-wasi clang)"
             );
             return;
         }
-        let ar = env::var("TCL_WASM_AR").unwrap_or_else(|_| "zig ar".into());
-        (cc, ar, &["--target=wasm32-wasi"])
+
+        // The WASI sysroot (headers + libc) is required for the C compile. Take
+        // an explicit override first, then the wasi-sdk's bundled sysroot.
+        let Some(sysroot) = env::var("TCL_WASM_SYSROOT").ok().or_else(|| {
+            wasi_sdk
+                .as_ref()
+                .map(|p| p.join("share/wasi-sysroot").display().to_string())
+        }) else {
+            println!(
+                "cargo:warning=no WASI sysroot found; bignum backend disabled on \
+                 wasm (install wasi-sdk and set WASI_SDK_PATH, or set \
+                 TCL_WASM_SYSROOT to a wasm32-wasi sysroot)"
+            );
+            return;
+        };
+
+        let ar = env::var("TCL_WASM_AR").unwrap_or_else(|_| match &wasi_sdk {
+            Some(p) => p.join("bin/llvm-ar").display().to_string(),
+            None => "llvm-ar".into(),
+        });
+
+        let cflags = vec![
+            "--target=wasm32-wasi".to_string(),
+            format!("--sysroot={sysroot}"),
+        ];
+        (cc, ar, cflags)
     } else {
         let cc = env::var("CC").unwrap_or_else(|_| "cc".into());
         let ar = env::var("AR").unwrap_or_else(|_| "ar".into());
-        (cc, ar, &["-fPIC"])
+        (cc, ar, vec!["-fPIC".to_string()])
     };
 
     let out = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
@@ -126,7 +170,7 @@ fn main() {
         let obj = out.join(format!("{name}.o"));
         let status = split_cmd(&cc)
             .args(["-c", "-O2"])
-            .args(extra_cflags)
+            .args(&extra_cflags)
             .args(["-DTCL_WITH_EXTERNAL_TOMMATH", "-DLTM_ALL", "-DMP_64BIT"])
             .arg("-I")
             .arg(&ltm)
@@ -154,9 +198,10 @@ fn main() {
     println!("cargo:rustc-cfg=have_tommath");
 }
 
-/// Build a [`Command`] from a possibly multi-word program string (e.g.
-/// `"zig cc"` → program `zig`, arg `cc`). The first whitespace-separated token
-/// is the program; the rest are leading arguments.
+/// Build a [`Command`] from a possibly multi-word program string (e.g. a
+/// `TCL_WASM_CC="clang --target=wasm32-wasi"` override → program `clang`, arg
+/// `--target=wasm32-wasi`). The first whitespace-separated token is the
+/// program; the rest are leading arguments.
 fn split_cmd(cmd: &str) -> Command {
     let mut parts = cmd.split_whitespace();
     let prog = parts.next().expect("empty compiler/archiver command");
@@ -166,8 +211,8 @@ fn split_cmd(cmd: &str) -> Command {
 }
 
 /// Whether the wasm C compiler can be spawned at all (a cheap `--version`
-/// probe), so a missing `zig` degrades to a tower-less wasm build instead of a
-/// hard `build.rs` panic.
+/// probe), so a missing clang / wasi-sdk degrades to a tower-less wasm build
+/// instead of a hard `build.rs` panic.
 fn cc_available(cmd: &str) -> bool {
     split_cmd(cmd)
         .arg("--version")

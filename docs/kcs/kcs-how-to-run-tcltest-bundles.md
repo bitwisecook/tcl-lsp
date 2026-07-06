@@ -17,11 +17,12 @@ through our compile-to-WASM path and interpret the outcome?
 - The Tcl 9.0.3 source tree must be present at `tmp/tcl9.0.3/`. On the
   web harness this is fetched automatically by the SessionStart hook;
   locally run `bash .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0`.
-- The Zig runtime must be built (`cd runtime/zig && zig build
-  -Doptimize=ReleaseFast`). Many of the fixes that let tcltest's
-  preamble complete live in `tcl_cmd_info.zig`, `tcl_frames.zig`,
-  `tcl_interp.zig`, and the per-command modules under `runtime/zig/cmds/`
-  — a stale runtime will trap earlier than the bundle expects.
+- The Rust runtime must be built (`cd runtime/rust && cargo build
+  --release`; the WASM target is `wasm32-wasip1`). Many of the fixes that
+  let tcltest's preamble complete live in `cmd_info.rs`, `frame.rs`,
+  `interp.rs`, and the per-command modules (`cmd_*.rs`) under
+  `runtime/rust/src/` — a stale runtime will trap earlier than the bundle
+  expects.
 - `uv sync --extra dev` has been run so the `pytest` / `wasmtime`
   Python dependencies are in the venv.
 

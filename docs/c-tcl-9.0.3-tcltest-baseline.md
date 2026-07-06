@@ -231,7 +231,7 @@ every dict subcommand without a runtime import. Fixed by:
   trapping — the runtime now has a chance to dispatch.
 
 `switch` (dynamic-string form) remains a trapping stub. The
-[`runtime/zig/dispatch/tcl_stub_fallback.zig:73-76`](../runtime/zig/dispatch/tcl_stub_fallback.zig)
+`runtime/zig/dispatch/tcl_stub_fallback.zig:73-76`
 note still applies — required by tests that build `switch` arms at
 runtime.
 
@@ -274,7 +274,7 @@ then later does `rename ::list-bak list` to restore. Our `rename`
 command can't find `list` in the registry because list-builtins are
 dispatched through a different table (BUILTINS, not the proc table)
 that `rename` doesn't see. Fix: extend
-[`runtime/zig/cmds/tcl_rename.zig`](../runtime/zig/cmds/tcl_rename.zig)
+`runtime/zig/cmds/tcl_rename.zig`
 to also look up names in BUILTINS and shadow them in the proc table
 when renamed-away.
 

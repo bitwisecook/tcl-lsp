@@ -1,20 +1,25 @@
 # Runtime refcount contract
 
-Every WASM-exported runtime function lives in one of a handful of
+Every C-ABI-exported runtime function lives in one of a handful of
 ownership categories. This doc fixes the categories and lists each
 export's row so callers (compile-side codegen, the test harness,
 other runtime modules) can reason about lifetime without reading
-the implementation.
+the implementation. The runtime is the Rust crate `tcl-runtime`
+(`runtime/rust/`).
 
 > Status: **scaffolding** — categories and conventions are fixed;
-> the per-subsystem rows fill in incrementally as the audit
-> proceeds. See the lint verb `cargo xtask refcount-contract` (the Python
-> `scripts/check/refcount_contract.py` was removed 2026-07-01 in favour of it)
-> for which exports are still missing rows.
+> the per-subsystem rows fill in incrementally as the audit proceeds
+> against the Rust runtime (`runtime/rust/`). The `cargo xtask
+> refcount-contract` lint that once flagged exports missing a row
+> walked the Zig runtime's exports and was **retired together with
+> that runtime** (see [Lint script](#lint-script) below); the rows
+> are maintained by hand for now.
 
 ## Categories
 
-For each `pub export fn` we record:
+For each C-ABI export (`#[no_mangle] extern "C"`) — and each
+internal entry point that takes or returns a TclObj reference — we
+record:
 
 - **Args** — what the function expects of each input handle's
   refcount when the caller calls it:
@@ -30,8 +35,9 @@ For each `pub export fn` we record:
     but the function may also choose to return the same handle
     as its result. When that happens the caller's +1 implicitly
     becomes the +1 the caller holds for the result. The
-    aliasing-aware retain/release in `execute_parsed_command`
-    (see commit `43a12cb2`) is the canonical example.
+    aliasing-aware retain/release in the Rust eval loop
+    (`interp.rs`; the pattern was first worked out in commit
+    `43a12cb2`) is the canonical example.
 
 - **Return** — what the caller can assume about the result handle:
   - `owned` — the caller gets a +1 they must eventually release
@@ -52,11 +58,12 @@ For each `pub export fn` we record:
 
 ## Conventions
 
-- Every `pub export fn` named `tcl_*` or used by the WASM codegen
-  via the import table needs a row.
-- Helpers reachable only from inside the runtime (no `pub
-  export`) do not need rows but should follow the same
-  convention internally.
+- Every C-ABI export (`#[no_mangle] extern "C"`) named `Tcl_*` /
+  `tcl_*`, or used by the WASM codegen via the import table, needs
+  a row.
+- Helpers reachable only from inside the runtime (no `extern "C"`
+  export) do not need rows but should follow the same convention
+  internally.
 - Fast paths that mutate the input in place (`tcl_cmd_lappend`'s
   in-place append, `tcl_cmd_append`'s buffer growth) are
   flagged: the rc==1 check is the predicate today; once
@@ -67,23 +74,23 @@ For each `pub export fn` we record:
 ## Subsystems
 
 The contract is organised by source file. Each subsection
-mirrors a directory under `runtime/zig/`.
+mirrors a module under `runtime/rust/src/`.
 
-### `valtypes/tcl_obj.zig` — object lifecycle and primitives
+### `obj.rs` — object lifecycle and primitives
 
 | Function | Args | Return | Storage | Notes |
 |---|---|---|---|---|
-| `obj_new_int(value: i64)` | (n/a) | `owned` | none | Fresh obj at rc=1. |
-| `obj_new_float(value: f64)` | (n/a) | `owned` | none | Fresh obj at rc=1. |
-| `obj_new_string(data_ptr, length)` | (n/a) | `owned` | borrows the bytes (`OBJ_STR_CAP=0`) | Caller must keep the byte buffer alive while the obj lives, or use `obj_new_string_copy`. |
+| `Tcl_NewWideIntObj(value)` | (n/a) | `owned` | none | Fresh obj; caller-owned. Rust constructors follow the `fresh_zero` (rc=0) convention — the caller takes the first `Tcl_IncrRefCount`. |
+| `Tcl_NewDoubleObj(value)` | (n/a) | `owned` | none | Fresh obj; caller-owned. |
+| `Tcl_NewStringObj(data_ptr, length)` | (n/a) | `owned` | copies/owns the bytes | Fresh obj; caller-owned. |
 | `obj_get_int(obj)` | `borrowed` | (i64) | none | Reads cached int rep. |
 | `obj_get_float(obj)` | `borrowed` | (f64) | none | Reads cached float rep. |
-| `tcl_obj_retain(obj)` | `borrowed` | `void` | (n/a) | Increments rc by 1. **Null-safe**: returns early on obj == 0. |
-| `tcl_obj_release(obj)` | `consumed` | `void` | (n/a) | Decrements rc by 1; queues for free at rc==1→0. **Null-safe**: returns early on obj == 0. |
-| `tcl_obj_drain_pending()` | (n/a) | `void` | (n/a) | Drains the deferred-free queue. Only safe at outermost `tcl_eval` depth. |
-| `tcl_oom_get()` / `tcl_oom_clear()` | (n/a) | i32 / void | (n/a) | OOM flag access. No refcount interaction. |
+| `incr_ref_count(obj)` (C-ABI `Tcl_IncrRefCount`) | `borrowed` | `void` | (n/a) | Increments rc by 1. **Null-safe**: returns early on obj == null. |
+| `decr_ref_count(obj)` (C-ABI `Tcl_DecrRefCount`) | `consumed` | `void` | (n/a) | Decrements rc by 1; frees immediately at rc→0 (bumps the double-free counter if called on an already-zero obj). **Null-safe**. |
+| `tcl_obj_drain_pending()` | (n/a) | `void` | (n/a) | Drains the runtime-internal deferred-free queue (eval-loop aliasing case). Only safe at outermost `tcl_eval` depth. |
+| OOM flag access (`counters::oom` / reset) | (n/a) | bool / void | (n/a) | No refcount interaction. |
 
-### `interp/tcl_frames.zig` — proc-local frame slots
+### `frame.rs` — proc-local frame slots
 
 | Function | Args | Return | Storage | Notes |
 |---|---|---|---|---|
@@ -94,7 +101,7 @@ mirrors a directory under `runtime/zig/`.
 | `var_set` / `var_resolve` / `var_exists` | (TBD) | (TBD) | (TBD) | Audit pending. |
 | `frame_set_argv(argv)` / `frame_get_argv()` | (TBD) | (TBD) | (TBD) | MM-B.5d retain/release; audit pending. |
 
-### `interp/tcl_ns.zig` — namespace var tables
+### `namespace.rs` — namespace var tables
 
 | Function | Args | Return | Storage | Notes |
 |---|---|---|---|---|
@@ -103,7 +110,7 @@ mirrors a directory under `runtime/zig/`.
 | `global_exists(name)` | name `borrowed` | `owned` (TclObj wrapping 0/1) | (n/a) | Returns a fresh int obj. Caller-owned. |
 | `var_set_scalar(v_addr, obj_handle)` | obj_handle `borrowed` | `void` | retains, releases prior | MM-B.2. Internal helper used by `global_set`. |
 
-### `interp/tcl_procs.zig` — proc table
+### `cmd_proc.rs` / `interp.rs` — proc table
 
 | Function | Args | Return | Storage | Notes |
 |---|---|---|---|---|
@@ -115,14 +122,14 @@ mirrors a directory under `runtime/zig/`.
 `proc_get_export_name` — are pure readers, all args `borrowed`,
 return primitive types.)
 
-### `interp/tcl_interp.zig` — eval loop
+### `interp.rs` — eval loop
 
 | Function | Args | Return | Storage | Notes |
 |---|---|---|---|---|
 | `tcl_eval(script)` | `borrowed` (retained for the call's duration) | `null_or_owned` | (n/a) | Drains pending-free queue at outermost depth. |
 | `eval_command(words)` (internal) | each word `borrowed`, alias-aware retain on result | `passthrough_returned` | (n/a) | MM-B.4 release loop after dispatch. |
 
-### `interp/tcl_catch.zig` — error handling
+### `cmd_control.rs` / `cmd_error.rs` — error handling
 
 | Function | Args | Return | Storage | Notes |
 |---|---|---|---|---|
@@ -130,7 +137,7 @@ return primitive types.)
 | `catch_enter()` / `catch_leave()` | (n/a) | i32 | (n/a) | Catch-depth counter. |
 | `catch_result()` | (n/a) | `borrowed` | (n/a) | Reads `error_msg`; valid until the next command. |
 
-### `valtypes/tcl_list.zig` — list operations
+### `list.rs` / `cmd_list.rs` — list operations
 
 | Function | Args | Return | Storage | Notes |
 |---|---|---|---|---|
@@ -139,50 +146,54 @@ return primitive types.)
 | `tcl_cmd_list_index(list, idx)` | both `borrowed` | `owned` (fresh `obj_new_string_copy`) | none | |
 | (other list funcs — TBD) | | | | |
 
-### `valtypes/tcl_string.zig` — string operations
+### `value_ops.rs` / `cmd_string.rs` — string operations
 
 (TBD — audit pending. The salient one is `tcl_cmd_append` which
 has a similar rc==1 fast path to `tcl_cmd_lappend`.)
 
-### `valtypes/tcl_dict.zig` — dict operations
+### `dict.rs` — dict operations
 
 (TBD — audit pending.)
 
-### `valtypes/tcl_array.zig` — array (Tcl array, not list) operations
+### `cmd_array.rs` — array (Tcl array, not list) operations
 
 | Function | Args | Return | Storage | Notes |
 |---|---|---|---|---|
 | `array_set(arr, key, value)` | all `borrowed` | i32 | retains value, releases prior | MM-B.5a (commit `fe68d410`). |
 | `array_get(arr, key)` | both `borrowed` | `borrowed` | (n/a) | |
 
-### `valtypes/tcl_regex.zig`
+### `cmd_regex.rs`
 
-(TBD — note the recent retain at line 602 (`obj.tcl_obj_retain(value)`)
-which suggests one of the capture-storage paths recently switched
-to MM-B discipline; audit confirms.)
+(TBD — one of the capture-storage paths retains the captured value
+(`incr_ref_count`) so it outlives the match struct; audit the
+remaining `-inline`/`-indices` storage paths.)
 
-### `cmds/*.zig` — per-command handlers
+### `cmd_*.rs` — per-command handlers
 
 (TBD — these all consume `borrowed` args and return `owned` or
 `null_or_owned`. Specific anomalies need rows.)
 
-### `dispatch/tcl_dispatch.zig` — host bridge
+### `codegen_abi.rs` — host bridge
 
 | Function | Args | Return | Storage | Notes |
 |---|---|---|---|---|
 | `dispatch(bucket, words)` | each word `borrowed` | `null_or_owned` | (n/a) | Calls `call_compiled_proc` (host bridge); the host receives borrowed handles and returns owned. |
 
-### `io/*.zig` — stdio + filesystem + clock
+### `cmd_chan.rs` / `cmd_fs.rs` / `cmd_clock.rs` — stdio + filesystem + clock
 
 (TBD — most are pure consumers; no obj storage.)
 
 ## Lint script
 
-`cargo xtask refcount-contract` (S0.1 deliverable; the Python
-`scripts/check/refcount_contract.py` it was ported from was removed 2026-07-01)
-walks every `pub export fn` in `runtime/zig/` and warns if a row is missing.
-Initially warning-only; escalates to error after every export has a
-row.
+**Retired.** The `cargo xtask refcount-contract` lint (S0.1
+deliverable) walked every `pub export fn` in the Zig runtime
+(`runtime/zig/`) and warned on any export missing a row. It was
+**removed together with the Zig runtime**, as was the even earlier
+Python `scripts/check/refcount_contract.py` it had been ported from.
+No automated gate enforces this contract today: the rows above are
+maintained by hand against the Rust runtime (`runtime/rust/`). The
+refcount **discipline** they document still applies in full — only
+the tool that mechanically checked for missing rows is gone.
 
 ## Cross-references
 

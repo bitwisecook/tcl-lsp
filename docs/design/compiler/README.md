@@ -169,7 +169,7 @@ User-facing compiler troubleshooting and how-tos live in
   and what should move earlier.
 - [codegen-module-map.md](codegen-module-map.md) — package module map
   and ownership boundaries.
-- [wasm-runtime-primitives.md](wasm-runtime-primitives.md) — Zig
+- [wasm-runtime-primitives.md](wasm-runtime-primitives.md) — Rust
   runtime primitives at the compiler-to-interpreter boundary
   (frame sync, namespace context, list element encoding, catch
   result separation, alias descriptors).

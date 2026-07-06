@@ -4,7 +4,8 @@
 > The numeric value model and the `expr` language a from-scratch runtime must
 > fix *before* any arithmetic command exists. Related as-built notes:
 > [shimmer-reference-behaviour.md](shimmer-reference-behaviour.md) and the
-> bignum/arith modules under `runtime/zig/valtypes/`.
+> bignum/arith modules in the Rust runtime (`runtime/rust/src/bignum.rs`,
+> `expr.rs`).
 
 ## Two coupled decisions
 

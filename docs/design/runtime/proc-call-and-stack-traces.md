@@ -6,7 +6,7 @@
 > stack traces, `info frame`/`info level`, exceptions, `eval`/`uplevel`/`source`/
 > `package`, and **AOT↔interpreter interop** all work. Grounded in the C Tcl 9
 > truth (`tmp/tcl9.0.3/generic/{tclProc,tclBasic,tclCmdMZ,tclResult,tclNamesp}.c`,
-> `tclInt.h`), contrasted with `runtime/zig/`, then reasoned to a Rust design.
+> `tclInt.h`), contrasted with the retired Zig runtime, then reasoned to a Rust design.
 
 Based on `rust`@`8150eca` (see the port doc's base-hash banner).
 
@@ -167,15 +167,14 @@ must also emit (the conservative principle).
 
 ---
 
-## 2. The Zig runtime's gap
+## 2. The retired Zig runtime's gap
 
-`runtime/zig/` tracks **none** of the `CmdFrame` / `errorInfo` / `info frame`
-machinery (a grep for `errorInfo`/`error_line`/`cmd_frame`/`while executing`
-across `interp/` + `tcl_cmd_info.zig` is empty). It has the `CallFrame`-side
-(frames, argv, upvar) but not the source-location stack or the
-incremental-`errorInfo` unwinder. So for stack traces the **C source is the
-ground truth** (per the project's "defer to C + the Tcl 9 test suite" rule),
-and this is net-new design, not a Zig port.
+The former Zig runtime tracked **none** of the `CmdFrame` / `errorInfo` /
+`info frame` machinery. It had the `CallFrame`-side (frames, argv, upvar) but
+not the source-location stack or the incremental-`errorInfo` unwinder. So for
+stack traces the **C source is the ground truth** (per the project's "defer to
+C + the Tcl 9 test suite" rule), and this is net-new design in the Rust
+runtime, not a port of prior runtime code.
 
 ---
 

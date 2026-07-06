@@ -103,12 +103,11 @@ ownership matrices.
 ## Runtime internals
 
 - [runtime/namespace-tree.md](runtime/namespace-tree.md) — design for
-  the Zig runtime's namespace tree (root, child links, per-ns
+  the Rust runtime's namespace tree (root, child links, per-ns
   command/variable/path tables) modelled on Tcl 9's `Namespace`
-  struct, with per-phase migration plan from the FQN-string
-  fallbacks currently in `tcl_procs.zig` / `tcl_ns.zig` (globals
-  were folded into `tcl_ns.zig` in P3.4; `tcl_globals.zig` no longer
-  exists).
+  struct, with the migration plan from FQN-string fallbacks to a real
+  namespace tree in `runtime/rust/src/namespace.rs` (proc lookup lives
+  in `cmd_proc.rs` / `interp.rs`).
 - [runtime/rename-alias.md](runtime/rename-alias.md) — layout + flow
   for `rename` and single-interp `interp alias`, layered on top of the
   namespace tree.  Covers `CMD_ALIAS` flag, `AliasRec`, dispatch
@@ -163,9 +162,6 @@ ownership matrices.
 - [runtime/backend-constraints.md](runtime/backend-constraints.md) — the
   ``tcl_platform`` backend-introspection schema and the loadable overlay that
   skips upstream tests a wasm / WASI / eBPF build cannot run.
-- [runtime/zig-runtime-roadmap.md](runtime/zig-runtime-roadmap.md) —
-  phases 4 (residual), 5, and 6 of the Zig WASM runtime, companion to
-  the master plan: remaining P4 work and P5/P6 sequencing.
 - [runtime/tclvm-opcode-status.md](runtime/tclvm-opcode-status.md) —
   C Tcl 9.0 bytecode instruction coverage for the TCLVM.
 
@@ -237,9 +233,10 @@ chunk-by-chunk dispatch story lives in
   analyses, optimiser, and bytecode codegen against the Python source of
   truth, with a per-code coverage table and a prioritised gap register.
 - [rust/wasm-aot-path.md](rust/wasm-aot-path.md) — proposed RT-WASM path
-  forward: native WASM + AOT with real Tcl frames, grounded in the Python+Zig
-  stack on `main` (reuse the 83 K-line Zig runtime as-is, port only the ~20 K
-  emitter against its ~100-fn ABI), staged A–F with an honest difficulty
+  forward: native WASM + AOT with real Tcl frames. Originally scoped against
+  the `main`-branch Python+Zig stack (reuse the Zig runtime as-is, port only
+  the ~20 K emitter against its ~100-fn ABI); that runtime has since been
+  ported to Rust (`runtime/rust/`). Staged A–F with an honest difficulty
   register (ABI drift, frame-elision soundness, refcount discipline).
 - [runtime/runtime-execution-gaps.md](runtime/runtime-execution-gaps.md) — the
   consolidated index for the runtime & execution port scope (RT-WASM / RT-VM /
@@ -282,12 +279,12 @@ chunk-by-chunk dispatch story lives in
 
 - [compiler/wasm-extensions.md](compiler/wasm-extensions.md) —
   contract for shipping optional runtime features the user's
-  program requests via ``package require``. Build-flag variant
-  runtimes today; deferred Stage 2 plan for separately-merged
-  extension WASMs. Includes the file layout for the in-tree
-  ``runtime/zig/tcltest/`` port (every ~107 upstream tcltest
-  command registered, PORTABLE/PARTIAL ones implemented and
-  NOT-PORTABLE ones stubbed with explicit error messages).
+  program requests via ``package require``. Variant runtimes today;
+  deferred Stage 2 plan for separately-merged extension WASMs.
+  Includes the file layout for the in-tree tcltest port (every ~107
+  upstream tcltest command registered, PORTABLE/PARTIAL ones
+  implemented and NOT-PORTABLE ones stubbed with explicit error
+  messages).
 
 ## Compiler staircase (S0–S6)
 

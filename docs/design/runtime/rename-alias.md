@@ -36,7 +36,7 @@ Out (deferred):
 ## 2. Command struct reuse
 
 The existing 40-byte ``Command`` struct in
-[`tcl_procs.zig`](../../../runtime/zig/interp/tcl_procs.zig) already
+`cmd_proc.rs` already
 reserved the ``OFF_PARAMS_OBJ`` slot at offset 12 for type-dependent
 payloads:
 
@@ -67,14 +67,14 @@ The dispatcher discriminates by ``flags``:
 
 ### 3.2 Hash-table tombstones
 
-The open-addressed table primitive in [`hash_table.zig`](../../../runtime/zig/valtypes/hash_table.zig)
+The runtime's open-addressed hash-table primitive
 doesn't support bucket removal (adding tombstones would require
 probe-chain rewriting).  Both ``rename`` and ``namespace forget``
 use the same trick: keep the bucket populated but zero its
 ``OFF_HANDLE`` value, so subsequent ``ns_cmd_find`` calls return 0
 without breaking the probe chain for adjacent entries.
 
-[`tcl_ns.ns_cmd_clear`](../../../runtime/zig/interp/tcl_ns.zig) is the
+`tcl_ns.ns_cmd_clear` is the
 canonical entry point; ``rename_command`` uses it to retire the
 source name after inserting at the target.
 
@@ -110,7 +110,7 @@ user-visible way to surface "we don't support this yet".
 ``ns_cmd_put`` and ``ns_cmd_clear`` each bump the target ns's
 ``cmd_ref_epoch`` and cascade through ``path_source_head``, so
 path-based invalidation is covered by the existing P5.3 wiring.
-The proc-lookup LRU in ``tcl_procs.zig`` is additionally wiped
+The proc-lookup LRU in ``cmd_proc.rs`` is additionally wiped
 wholesale on any rename via ``lru_invalidate_all``; this is coarse
 but rename is cold-path enough that the 4-entry wipe is free.
 
@@ -118,7 +118,7 @@ but rename is cold-path enough that the 4-entry wipe is free.
 
 ### 4.1 AliasRec layout
 
-```zig
+```
 pub const AliasRec = extern struct {
     target_name_ptr: u32,   // FQN of target command (heap-copied)
     target_name_len: u32,
@@ -136,7 +136,7 @@ future slots stay free for other redirect types (hide, ensemble,
 
 ### 4.2 Dispatch
 
-[`tcl_interp.dispatch_alias`](../../../runtime/zig/interp/tcl_interp.zig)
+`tcl_interp.dispatch_alias`
 is called from ``eval_proc_call_bucket`` when a resolved Command
 has ``CMD_ALIAS`` set.  The trampoline:
 
@@ -174,7 +174,7 @@ Built-in dispatcher in ``tcl_interp.eval_interp`` recognises:
 
 Other ``interp`` subcommands (``create``, ``hide``, ``expose``,
 ``eval``, ``slaves``, …) fall back to the trapping stub in
-``tcl_env_stubs.zig`` (``unsupported command: interp``).
+``builtins.rs`` (``unsupported command: interp``).
 
 ### 4.4 Performance
 
@@ -226,16 +226,14 @@ Three layers, each live:
 
 ## 7. Ship summary
 
-- Two new Zig modules: ``tcl_rename.zig`` (365 LOC) and
-  ``tcl_alias.zig`` (481 LOC).
-- One extension to ``tcl_ns.zig``: ``ns_cmd_clear`` helper +
+- Rename + alias logic in ``cmd_misc.rs`` (rename) and
+  ``cmd_alias.rs`` (alias).
+- One extension to ``namespace.rs``: ``ns_cmd_clear`` helper +
   exposure of ``bump_cmd_ref_epoch`` / ``link_import_ref`` /
   ``unlink_import_ref``.
 - New flag bit ``CMD_ALIAS = 0x100`` on ``Command``.
 - Wired dispatch trampoline in ``tcl_interp.eval_proc_call_bucket``.
 - Wired ``rename`` / ``interp alias`` built-ins in
-  ``tcl_interp.zig``.
+  ``interp.rs``.
 - Compiler fallback updates in
   ``compiler/codegen/wasm/_imports.py``.
-- Zig 0.16 build-compat fixes (``build.zig`` new Module API +
-  ``callconv(.C)`` → ``callconv(.c)``).

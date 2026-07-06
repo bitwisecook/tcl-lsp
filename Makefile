@@ -34,15 +34,6 @@ REPORT_SHARED_DIR := $(ROOT)rust/bigip-report/shared
 EXPLORER_STATIC := $(ROOT)rust/tcl-cli/gui
 TCLPKG_TCL_DIR  := $(ROOT)tooling/tclpkg/tcl
 
-# Zig runtime WASM — single source of truth for the artifact path and
-# its sources.  Listing every .zig as a prerequisite of the artifact
-# means any runtime source change forces a rebuild via Make, instead of
-# the stale binary silently surviving (shared.runtime_wasm only builds
-# when the file is *missing*).
-RUNTIME_ZIG_DIR  := $(ROOT)runtime/zig
-RUNTIME_WASM     := $(RUNTIME_ZIG_DIR)/zig-out/bin/tcl_runtime.wasm
-RUNTIME_ZIG_SRCS := $(shell find $(RUNTIME_ZIG_DIR) -name '*.zig' -not -path '*/zig-out/*' -not -path '*/.zig-cache/*') $(wildcard $(RUNTIME_ZIG_DIR)/build.zig.zon)
-
 # Committed test-slow proof.  `.test-slow.stamp` certifies that
 # `make test-slow` passed against the current tree (the CI PR gate and
 # the release/publish targets verify it).  A *code-mutating* make
@@ -53,7 +44,7 @@ RUNTIME_ZIG_SRCS := $(shell find $(RUNTIME_ZIG_DIR) -name '*.zig' -not -path '*/
 # Exempt (STAMP_KEEP_GOALS) are the targets that DON'T touch tracked
 # sources: the stamp's own writer/checker, help, and every release /
 # publish / artifact-build target (they only write to gitignored build/,
-# out/, zig-out/, _build_info.py).  Deleting the stamp for those would
+# out/, _build_info.py).  Deleting the stamp for those would
 # (a) needlessly invalidate a valid proof and (b) dirty the worktree,
 # which `scripts/release.sh` rejects — so the release flow stays robust.
 # Those ship targets instead *depend on* verify-test-slow-stamp below, so
@@ -182,12 +173,12 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Top-level gates
 .PHONY: rust-check check-all test-slow verify-test-slow-stamp prep-pr install-hooks
 # Tests
-.PHONY: test test-ext test-ext-rust test-emacs test-zig test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all
+.PHONY: test test-ext test-ext-rust test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all
 .PHONY: test-tclpkg-tcl
 .PHONY: capture-bytecode-refs
-.PHONY: xtask-check xtask-kcs-index-links xtask-refcount-contract xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-audit-option-dialects
+.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-audit-option-dialects
 # Lint / format / typecheck
-.PHONY: lint format lint-ts format-ts typecheck-ts check-zig check-rust rust-deny
+.PHONY: lint format lint-ts format-ts typecheck-ts check-rust rust-deny
 .PHONY: build-report-assets lint-report-ts typecheck-report-ts check-report-assets
 # Coverage
 .PHONY: coverage coverage-ext
@@ -202,8 +193,6 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: build-editors build-editor-vsix verify-vsix install package-vsix publish-vsix
 .PHONY: build-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime build-editor-zed publish-zed publish-all publish-verify publish-flow
 .PHONY: release release-tag release-sums
-# Zig runtime + leak check
-.PHONY: build-runtime build-wasm-runtime build-runtime-leakcheck
 # Rust runtime port
 .PHONY: runtime-rust-test runtime-rust-lint vm-test vm-lint
 # Screenshots
@@ -211,7 +200,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Cleanup
 .PHONY: clean distclean
 # Dep-installer helpers
-.PHONY: ensure-test-deps install-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps
+.PHONY: ensure-test-deps install-test-deps ensure-tcl-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z][a-zA-Z0-9_-]*:.*?## ' $(MAKEFILE_LIST) | \
@@ -342,7 +331,7 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 
 # Test targets
 
-test: test-rust test-ext test-zig ## Run all tests (Rust workspace + VS Code extension + Zig WASM runtime)
+test: test-rust test-ext runtime-rust-test ## Run all tests (Rust workspace + VS Code extension + Rust runtime port)
 
 lint: lint-ts ## Run all lint and style checks
 
@@ -479,15 +468,11 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # scripts/check/*.py.  These need the Rust toolchain, so CI runs them in the
 # Rust-capable rust-tests job (rust-gate.yml / ci.yml), never in the Python-only
 # ci-fast job.  `xtask-check` is the CI aggregate.
-xtask-check: xtask-kcs-index-links xtask-refcount-contract xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics ## Rust-side check gates (docs index coverage + refcount rows + generated-table/catalog drift)
+xtask-check: xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
 
 xtask-kcs-index-links: ## Validate docs links + design/KCS index coverage (⇐ scripts/check/kcs_index_links.py)
 	@echo "==> Checking docs links + index coverage (cargo xtask)"
 	cd $(ROOT) && cargo xtask kcs-index-links
-
-xtask-refcount-contract: ## Lint runtime/zig refcount-contract rows (warning-only; --strict once complete)
-	@echo "==> Checking refcount-contract rows (cargo xtask)"
-	cd $(ROOT) && cargo xtask refcount-contract
 
 xtask-diag-tables: ## Verify docs/generated/ code tables are in sync with the DiagCode catalogue (drift gate)
 	@echo "==> Checking generated DiagCode tables are in sync (cargo xtask)"
@@ -721,28 +706,10 @@ test-ext-rust: rust-server ## Run VS Code extension tests against the native Rus
 		cd "$(EXT_DIR)" && "$(NPM)" test; \
 	fi
 
-## Pre-push gate: full lint + typecheck across every language (Python, TS,
-## Zig, Rust).  This is what the pre-push hook checks via tmp/check-all.stamp.
+## Pre-push gate: full lint + typecheck across every language (TS,
+## Rust).  This is what the pre-push hook checks via tmp/check-all.stamp.
 ## Tests are NOT included here — those are gated separately by test-slow
 ## before PR creation.
-
-# Zig: format check + full compile (Zig has no separate type-checker; the
-# build itself catches type errors).  Skip with SKIP_CHECK_ZIG=1.
-check-zig: ensure-check-zig-deps ## Zig format check + compile (no tests); skip with SKIP_CHECK_ZIG=1
-	@set -eu; \
-	if [ -n "$${SKIP_CHECK_ZIG:-}" ]; then \
-		echo "==> SKIP_CHECK_ZIG set — skipping Zig lint/typecheck"; \
-		exit 0; \
-	fi; \
-	if ! command -v zig >/dev/null 2>&1; then \
-		echo "ERROR: 'zig' not found on PATH (need Zig 0.16+)."; \
-		echo "       Set SKIP_CHECK_ZIG=1 to skip."; \
-		exit 1; \
-	fi; \
-	echo "==> Checking Zig formatting"; \
-	cd $(ROOT)runtime/zig && zig fmt --check .; \
-	echo "==> Compiling Zig (type-check via build)"; \
-	cd $(ROOT)runtime/zig && zig build install
 
 # Rust: cargo fmt --check + cargo clippy on the Zed extension (always
 # present) and on a top-level Cargo.toml when it exists (Rust branches).
@@ -800,11 +767,11 @@ rust-deny: ## Audit the Rust workspace with cargo-deny (advisories/licenses/bans
 	cd $(ROOT) && cargo deny --all-features check
 
 # All-languages lint + typecheck.  Mirrors GitHub Actions' pr-gate plus the
-# extra languages CI doesn't cover (Zig, Rust, full TS).  On success writes
+# extra languages CI doesn't cover (Rust, full TS).  On success writes
 # tmp/check-all.stamp — the pre-push hook requires this stamp to match the
 # current worktree before allowing a push.
-check-all: ## Full lint + typecheck (TS, Zig, Rust); writes tmp/check-all.stamp on success
-	@$(MAKE) -j $(NPROC) _prep-pr-checks check-zig check-rust
+check-all: ## Full lint + typecheck (TS, Rust); writes tmp/check-all.stamp on success
+	@$(MAKE) -j $(NPROC) _prep-pr-checks check-rust
 	@mkdir -p $(ROOT)tmp
 	@$(ROOT)scripts/worktree-fingerprint.sh > $(ROOT)tmp/check-all.stamp
 	@echo "==> check-all: PASSED — stamped $(ROOT)tmp/check-all.stamp"
@@ -814,8 +781,10 @@ check-all: ## Full lint + typecheck (TS, Zig, Rust); writes tmp/check-all.stamp 
 # subsumes check-all by running prep-pr).
 #
 # Covers: prep-pr (format/codegen/lint/typecheck/test-rust/parity) +
-# Zig & Rust lint/typecheck + tclpkg + VS Code extension + Zig WASM
-# runtime tests + Emacs eglot + VSIX smoke + Rust workspace tests.
+# Rust lint/typecheck + tclpkg + VS Code extension + Emacs eglot +
+# VSIX smoke + Rust workspace tests + the Rust runtime port
+# (runtime-rust-test — the standalone runtime/rust crate is excluded from
+# the workspace, so cargo test --workspace does not cover it).
 test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp + tmp/test-slow.stamp on success
 	@if [ "$${AUTO_INSTALL_DEPS:-0}" = "1" ]; then \
 		echo "==> test-slow: AUTO_INSTALL_DEPS=1 — installing optional test deps"; \
@@ -835,7 +804,7 @@ test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp 
 	@NPROC="$(NPROC)" MAKE="$(MAKE)" \
 		bash $(ROOT)scripts/dev/test-slow-runner.sh \
 			--serial "capture-bytecode-refs prep-pr" \
-			--parallel "check-zig check-rust test-tclpkg-tcl test-ext _prep-pr-smoke test-zig test-emacs test-rust"
+			--parallel "check-rust test-tclpkg-tcl test-ext _prep-pr-smoke test-emacs test-rust runtime-rust-test"
 	@mkdir -p $(ROOT)tmp
 	@# Committed proof for the CI PR gate (content fingerprint of the
 	@# tree, excluding the stamp itself).  Written before the local tmp
@@ -864,7 +833,6 @@ ensure-tcl-deps: ## Install Tcl shells needed by Tcl/tclpkg tests and bytecode c
 		SKIP_NODE=1 \
 		SKIP_KOTLINC=1 \
 		SKIP_RUST=1 \
-		SKIP_ZIG=1 \
 		SKIP_WASMTIME=1 \
 		SKIP_BINARYEN=1 \
 		SKIP_TCL_REGEX=1 \
@@ -877,47 +845,6 @@ ensure-tcl-deps: ## Install Tcl shells needed by Tcl/tclpkg tests and bytecode c
 		SKIP_TCLLIB=1 \
 		bash $(ROOT)scripts/dev/ensure-test-deps.sh
 
-ensure-check-zig-deps: ## Install Zig build deps needed by check-zig
-	@if [ -n "$${SKIP_CHECK_ZIG:-}" ]; then \
-		echo "==> Zig dependency install skipped"; \
-	else \
-		env \
-			SKIP_TCLSH=1 \
-			SKIP_NODE=1 \
-			SKIP_KOTLINC=1 \
-			SKIP_RUST=1 \
-			SKIP_WASMTIME=1 \
-			SKIP_BINARYEN=1 \
-			SKIP_EMACS=1 \
-			SKIP_XVFB=1 \
-			SKIP_TSHARK=1 \
-			SKIP_OPENSSL=1 \
-			SKIP_PING=1 \
-			SKIP_RGXG=1 \
-			SKIP_TCLLIB=1 \
-			bash $(ROOT)scripts/dev/ensure-test-deps.sh; \
-	fi
-
-ensure-test-zig-deps: ## Install Zig + Wasmtime CLI deps needed by test-zig
-	@if [ -n "$${SKIP_TEST_ZIG:-}" ]; then \
-		echo "==> Zig test dependency install skipped"; \
-	else \
-		env \
-			SKIP_TCLSH=1 \
-			SKIP_NODE=1 \
-			SKIP_KOTLINC=1 \
-			SKIP_RUST=1 \
-			SKIP_BINARYEN=1 \
-			SKIP_EMACS=1 \
-			SKIP_XVFB=1 \
-			SKIP_TSHARK=1 \
-			SKIP_OPENSSL=1 \
-			SKIP_PING=1 \
-			SKIP_RGXG=1 \
-			SKIP_TCLLIB=1 \
-			bash $(ROOT)scripts/dev/ensure-test-deps.sh; \
-	fi
-
 ensure-rust-deps: ## Install Rust/rustup + wasm32-wasip2 target needed by check-rust
 	@if [ -n "$${SKIP_CHECK_RUST:-}" ] || [ -n "$${SKIP_RUST:-}" ]; then \
 		echo "==> Rust dependency install skipped"; \
@@ -926,7 +853,6 @@ ensure-rust-deps: ## Install Rust/rustup + wasm32-wasip2 target needed by check-
 			SKIP_TCLSH=1 \
 			SKIP_NODE=1 \
 			SKIP_KOTLINC=1 \
-			SKIP_ZIG=1 \
 			SKIP_WASMTIME=1 \
 			SKIP_BINARYEN=1 \
 			SKIP_TCL_REGEX=1 \
@@ -953,7 +879,6 @@ ensure-emacs-deps: ## Install Emacs needed by test-emacs
 			SKIP_NODE=1 \
 			SKIP_KOTLINC=1 \
 			SKIP_RUST=1 \
-			SKIP_ZIG=1 \
 			SKIP_WASMTIME=1 \
 			SKIP_BINARYEN=1 \
 			SKIP_TCL_REGEX=1 \
@@ -976,7 +901,6 @@ ensure-vscode-test-deps: ## Install xvfb for Linux headless VS Code extension te
 		SKIP_NODE=1 \
 		SKIP_KOTLINC=1 \
 		SKIP_RUST=1 \
-		SKIP_ZIG=1 \
 		SKIP_WASMTIME=1 \
 		SKIP_BINARYEN=1 \
 		SKIP_TCL_REGEX=1 \
@@ -1021,26 +945,6 @@ test-emacs: ensure-emacs-deps ## Run headless eglot regression suite for tcl-lsp
 		exit 1; \
 	fi; \
 	bash $(ROOT)scripts/eglot_test/run.sh
-
-test-zig: ensure-test-zig-deps ## Run Zig WASM runtime unit tests (test_*.zig under runtime/zig/) — set SKIP_TEST_ZIG=1 to skip
-	@set -eu; \
-	if [ -n "$${SKIP_TEST_ZIG:-}" ]; then \
-		echo "==> SKIP_TEST_ZIG set — skipping Zig WASM runtime tests"; \
-		exit 0; \
-	fi; \
-	echo "==> Running Zig WASM runtime tests"; \
-	if ! command -v zig >/dev/null 2>&1; then \
-		echo "ERROR: 'zig' not found on PATH (need Zig 0.16+; the SessionStart hook installs it at /opt/zig-0.16.0)."; \
-		echo "       Set SKIP_TEST_ZIG=1 to skip this target."; \
-		exit 1; \
-	fi; \
-	if ! command -v wasmtime >/dev/null 2>&1; then \
-		echo "ERROR: 'wasmtime' not found on PATH — required because the runtime tests are wasm32-wasi binaries."; \
-		echo "       The SessionStart hook installs it at /opt/wasmtime-43.0.1; outside Claude Code, install from https://wasmtime.dev/."; \
-		echo "       Set SKIP_TEST_ZIG=1 to skip this target."; \
-		exit 1; \
-	fi; \
-	cd $(ROOT)runtime/zig && zig build test
 
 # ---------------------------------------------------------------------------
 # VSIX smoke test
@@ -1501,7 +1405,6 @@ clean-screenshots: ## Remove captured screenshots
 clean: ## Remove build artifacts
 	rm -rf $(BUILD_DIR)
 	rm -rf $(OUT_DIR)
-	rm -rf $(RUNTIME_ZIG_DIR)/zig-out
 	@# GUI build products embedded into the tcl binary (the checked-in shell stays).
 	rm -f  $(EXPLORER_STATIC)/tcl_explorer_wasm.js $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm
 	rm -f  $(MERMAID_JS)
@@ -1511,24 +1414,6 @@ clean: ## Remove build artifacts
 distclean: clean ## Remove build artifacts and node_modules
 	rm -rf $(EXT_DIR)/node_modules
 	rm -f  $(EXT_DIR)/package-lock.json
-
-# Zig runtime (WASM) — built ad-hoc by contributors today; targets
-# below provide a scriptable entry-point and the leak-check variant
-# used by S0.2.
-
-build-runtime: $(RUNTIME_WASM) ## Build runtime/zig (default debug build) → tcl_runtime.wasm
-build-wasm-runtime: $(RUNTIME_WASM) ## Alias of build-runtime
-
-# Real-file rule: rebuild only when a .zig source (or build.zig.zon) is
-# newer than the artifact.  Everything that consumes the runtime WASM
-# depends on this target so a stale binary can never survive a source
-# change.
-$(RUNTIME_WASM): $(RUNTIME_ZIG_SRCS)
-	@echo "==> Building Zig runtime WASM (sources changed)"
-	cd $(RUNTIME_ZIG_DIR) && zig build
-
-build-runtime-leakcheck: ## Build runtime with -Dleak-check=true (S0.2 instrumentation)
-	cd runtime/zig && rm -rf .zig-cache && zig build -Dleak-check=true
 
 # Rust runtime port (runtime/rust) — standalone crate, excluded from the root
 # workspace (it is `unsafe`; root forbids `unsafe`). These are the gates the
