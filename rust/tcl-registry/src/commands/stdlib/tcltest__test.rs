@@ -63,86 +63,110 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     connection_side: ConnectionSide::None,
 }];
 
+/// Built-in comparison modes for `-match` (a custom mode registered via
+/// `tcltest::customMatch` is also accepted, so the set is *not* closed).
+const MATCH_MODES: &[ArgValue] = &[
+    ArgValue {
+        value: "exact",
+        detail: "actual result must equal the expected result exactly",
+    },
+    ArgValue {
+        value: "glob",
+        detail: "expected result is a glob pattern (string match)",
+    },
+    ArgValue {
+        value: "regexp",
+        detail: "expected result is a regular expression",
+    },
+];
+
+/// Symbolic return codes accepted by `-returnCodes` (the numeric forms
+/// `0`-`4` are equivalent, so the set is *not* closed).
+const RETURN_CODES: &[ArgValue] = &[
+    ArgValue {
+        value: "ok",
+        detail: "TCL_OK (0)",
+    },
+    ArgValue {
+        value: "error",
+        detail: "TCL_ERROR (1)",
+    },
+    ArgValue {
+        value: "return",
+        detail: "TCL_RETURN (2)",
+    },
+    ArgValue {
+        value: "break",
+        detail: "TCL_BREAK (3)",
+    },
+    ArgValue {
+        value: "continue",
+        detail: "TCL_CONTINUE (4)",
+    },
+];
+
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-body",
         value: OptionValue::script(),
-        detail: "",
-        dialects: None,
-        aliases: &[],
-        min_version: None,
-    },
-    OptionSpec {
-        name: "-result",
-        value: OptionValue::value(""),
-        detail: "",
-        dialects: None,
-        aliases: &[],
-        min_version: None,
-    },
-    OptionSpec {
-        name: "-output",
-        value: OptionValue::value(""),
-        detail: "",
-        dialects: None,
-        aliases: &[],
-        min_version: None,
-    },
-    OptionSpec {
-        name: "-errorOutput",
-        value: OptionValue::value(""),
-        detail: "",
-        dialects: None,
-        aliases: &[],
-        min_version: None,
-    },
-    OptionSpec {
-        name: "-returnCodes",
-        value: OptionValue::value(""),
-        detail: "",
-        dialects: None,
-        aliases: &[],
-        min_version: None,
-    },
-    OptionSpec {
-        name: "-errorCode",
-        value: OptionValue::value(""),
-        detail: "",
-        dialects: None,
-        aliases: &[],
-        min_version: None,
-    },
-    OptionSpec {
-        name: "-match",
-        value: OptionValue::value(""),
-        detail: "",
-        dialects: None,
-        aliases: &[],
-        min_version: None,
+        detail: "the Tcl script that makes up the body of the test",
+        ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-setup",
         value: OptionValue::script(),
-        detail: "",
-        dialects: None,
-        aliases: &[],
-        min_version: None,
+        detail: "a script to run before the test body",
+        ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-cleanup",
         value: OptionValue::script(),
-        detail: "",
-        dialects: None,
-        aliases: &[],
-        min_version: None,
+        detail: "a script to run after the test body",
+        ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-constraints",
-        value: OptionValue::value(""),
-        detail: "",
-        dialects: None,
-        aliases: &[],
-        min_version: None,
+        value: OptionValue::value("constraintList"),
+        detail: "constraints that must all be satisfied for the test to run",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-result",
+        value: OptionValue::value("expected"),
+        detail: "the expected result of the test body",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-output",
+        value: OptionValue::value("expected"),
+        detail: "expected data written to the output channel by the test body",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-errorOutput",
+        value: OptionValue::value("expected"),
+        detail: "expected data written to the error channel by the test body",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-returnCodes",
+        value: OptionValue::enumerated(RETURN_CODES, false, "codeList"),
+        detail: "acceptable return code(s) from the test body",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-errorCode",
+        value: OptionValue::value("pattern"),
+        detail: "expected -errorcode from the test body (tcltest 2.5+)",
+        // Added in tcltest 2.5 (bundled with Tcl 8.6).
+        min_version: Some("2.5"),
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-match",
+        value: OptionValue::enumerated(MATCH_MODES, false, "mode"),
+        detail: "match algorithm comparing actual to expected result",
+        ..OptionSpec::DEFAULT
     },
 ];
 

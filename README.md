@@ -494,7 +494,10 @@ when HTTP_REQUEST {
 
 Switch between Tcl 8.4/8.5/8.6/9.0, F5 iRules, F5 iApps, and EDA tooling
 profiles.  Tk, tcllib, and stdlib commands activate automatically when their
-`package require` appears. F5 iRules metadata follows BIG-IP command/event
+`package require` appears — including the full `tcltest` surface (`test`,
+`configure`, and the convenience commands) with per-version awareness, so
+`test -errorCode` is offered only for tcltest 2.5+ and `bytestring` disappears
+under Tcl 9.0. F5 iRules metadata follows BIG-IP command/event
 source data, including profile aliases used by newer namespaces and events,
 shared TLS helper profiles such as `PERSIST`, and protocol namespace layer
 metadata that stays aligned with the enabling profile stack.

@@ -16,18 +16,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `testappverifierpresent` command.
+//! `testconvertobj` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
-        name: "testappverifierpresent",
-        dialects: Some(DialectSet::TCL90_PLUS),
-        arity: Arity::at_least(0),
+        name: "testconvertobj",
+        dialects: Some(DialectSet::TCL84),
+        arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
-            summary: "Check whether the app verifier is present (9.0+).",
-            synopsis: &["testappverifierpresent"],
-            snippet: "",
-            source: "Tcl test binary (tclTest.c)",
+            summary: "Force conversion of a value to a named internal type (Tcl 8.4 only).",
+            synopsis: &["testconvertobj option arg ?arg ...?"],
+            snippet: "Exercises the Tcl_Obj type-conversion machinery.  Present only in a test build of Tcl 8.4.",
+            source: "Tcl test binary (tclTestObj.c)",
             examples: "",
             return_value: "",
         }),

@@ -16,17 +16,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `testappverifierpresent` command.
+//! `testopenfilechannelproc` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
-        name: "testappverifierpresent",
-        dialects: Some(DialectSet::TCL90_PLUS),
-        arity: Arity::at_least(0),
+        name: "testopenfilechannelproc",
+        dialects: Some(DialectSet::TCL84_85),
+        arity: Arity::exact(2),
         hover: Some(HoverSnippet {
-            summary: "Check whether the app verifier is present (9.0+).",
-            synopsis: &["testappverifierpresent"],
-            snippet: "",
+            summary: "Install or remove a test Tcl_OpenFileChannel hook proc (Tcl 8.4-8.5).",
+            synopsis: &["testopenfilechannelproc option arg"],
+            snippet: "``option`` is ``insert`` or ``delete``; ``arg`` names the proc.  Removed in Tcl 8.6.",
             source: "Tcl test binary (tclTest.c)",
             examples: "",
             return_value: "",

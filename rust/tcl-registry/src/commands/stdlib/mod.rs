@@ -144,6 +144,7 @@ mod tcltest__threadreap;
 mod tcltest__verbose;
 mod tcltest__viewfile;
 mod tcltest__workingdirectory;
+mod testaccessproc;
 mod testapplylambda;
 mod testappverifierpresent;
 mod testasync;
@@ -155,9 +156,11 @@ mod testbytestring;
 mod testchannel;
 mod testchannelevent;
 mod testcmdinfo;
+mod testcmdobj2;
 mod testcmdtoken;
 mod testcmdtrace;
 mod testconcatobj;
+mod testconvertobj;
 mod testcpuid;
 mod testcreatecommand;
 mod testdcall;
@@ -211,6 +214,7 @@ mod testnrelevels;
 mod testnreunwind;
 mod testnumutfchars;
 mod testobj;
+mod testopenfilechannelproc;
 mod testpanic;
 mod testparseargs;
 mod testparser;
@@ -237,6 +241,7 @@ mod testsize;
 mod testsocket;
 mod teststaticlibrary;
 mod teststaticpkg;
+mod teststatproc;
 mod teststringbytes;
 mod teststringobj;
 mod testtranslatefilename;
@@ -375,6 +380,21 @@ fn tcl_namespace_specs() -> Vec<CommandSpec> {
 }
 
 /// The `tcltest::*` test-framework family.
+///
+/// The tcltest package version bundled with each Tcl release:
+///
+/// | Tcl     | tcltest  |
+/// |---------|----------|
+/// | 8.4.20  | 2.2.11   |
+/// | 8.5.19  | 2.3.8    |
+/// | 8.6.16  | 2.5.9    |
+/// | 9.0.3   | 2.5.10   |
+///
+/// Every command below is present across that whole range, so the specs are
+/// not dialect-gated — with one exception: `bytestring` is not defined under
+/// Tcl 9.0+ and is gated to [`DialectSet::TCL8X`].  Option-level version drift
+/// is expressed with `OptionSpec::min_version` against the *tcltest* package
+/// version (e.g. `test -errorCode` needs tcltest `2.5`).
 fn tcltest_specs() -> Vec<CommandSpec> {
     vec![
         tcltest__bytestring::spec(),
@@ -424,6 +444,7 @@ fn tcltest_specs() -> Vec<CommandSpec> {
 /// The internal `test*` C-API harness commands (`testa*`–`testg*`).
 fn test_harness_specs() -> Vec<CommandSpec> {
     vec![
+        testaccessproc::spec(),
         testapplylambda::spec(),
         testappverifierpresent::spec(),
         testasync::spec(),
@@ -435,9 +456,11 @@ fn test_harness_specs() -> Vec<CommandSpec> {
         testchannel::spec(),
         testchannelevent::spec(),
         testcmdinfo::spec(),
+        testcmdobj2::spec(),
         testcmdtoken::spec(),
         testcmdtrace::spec(),
         testconcatobj::spec(),
+        testconvertobj::spec(),
         testcpuid::spec(),
         testcreatecommand::spec(),
         testdcall::spec(),
@@ -497,6 +520,7 @@ fn test_harness_specs_h_w() -> Vec<CommandSpec> {
         testnreunwind::spec(),
         testnumutfchars::spec(),
         testobj::spec(),
+        testopenfilechannelproc::spec(),
         testpanic::spec(),
         testparseargs::spec(),
         testparser::spec(),
@@ -523,6 +547,7 @@ fn test_harness_specs_h_w() -> Vec<CommandSpec> {
         testsocket::spec(),
         teststaticlibrary::spec(),
         teststaticpkg::spec(),
+        teststatproc::spec(),
         teststringbytes::spec(),
         teststringobj::spec(),
         testtranslatefilename::spec(),

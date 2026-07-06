@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testapplylambda",
-        dialects: None,
+        dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Test apply with lambda expressions.",

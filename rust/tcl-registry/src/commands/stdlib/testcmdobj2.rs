@@ -16,17 +16,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `testappverifierpresent` command.
+//! `testcmdobj2` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
-        name: "testappverifierpresent",
+        name: "testcmdobj2",
         dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
-            summary: "Check whether the app verifier is present (9.0+).",
-            synopsis: &["testappverifierpresent"],
-            snippet: "",
+            summary: "Test the Tcl_CreateObjCommand2 dispatch path (Tcl 9.0+).",
+            synopsis: &["testcmdobj2 ?arg ...?"],
+            snippet: "Registered via ``Tcl_CreateObjCommand2``; returns the argument count and the final argument.  Present only in a test build of Tcl 9.0 and later.",
             source: "Tcl test binary (tclTest.c)",
             examples: "",
             return_value: "",
