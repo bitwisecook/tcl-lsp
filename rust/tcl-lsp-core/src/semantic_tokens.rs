@@ -3842,30 +3842,53 @@ fn scan_loop_vars(
     }
 }
 
-/// Syntactic scan for snit `install NAME using TYPE …` component installs,
-/// binding `NAME` to `OBJECT(::TYPE)` in the handle map so a `$NAME method …`
+/// Syntactic scan for snit object-handle bindings that the compiler CFG does not
+/// surface, binding the handle variable to its class so a `$NAME method …`
 /// dispatch in a snit method body resolves.  snit method bodies are **not**
 /// lowered into the compiler CFG (only token-walked, like the `$self` path), so
-/// a source scan is how a component's class reaches the handle map — the same
-/// technique the loop-var scan uses.  Highlight-only and sound by abstention: an
-/// unknown / cross-file `TYPE` never resolves against the class hierarchy.
-fn augment_install_component_handles(
+/// a source scan is how these classes reach the handle map — the same technique
+/// the loop-var scan uses.  Two shapes are recognised:
+///
+/// - `install NAME using TYPE …` — a snit component install; and
+/// - `set NAME [TYPE inst …]` — snit's *bare-word* constructor (`$type $name`
+///   creates an instance), gated on `TYPE` being a **known snit-family class**
+///   (so we know bare construction is valid) whose first argument is **not a
+///   typemethod** (`info` / `destroy` / a declared `typemethod`), which would be
+///   a type-command call rather than a construction.
+///
+/// Highlight-only and sound by abstention: the bare-constructor form only fires
+/// when `TYPE` is visible in the hierarchy (local, or workspace-merged in
+/// project mode), so an unknown type is never guessed at.
+fn augment_snit_handles(
     source: &str,
     dialect: &str,
+    classes: Option<&ClassHierarchy>,
     object_classes: &mut ObjectClassMap,
 ) {
-    scan_install_components(source, source, 0, dialect, object_classes, 0);
+    scan_snit_handles(source, source, 0, dialect, classes, object_classes, 0);
 }
 
-/// Recursive worker for [`augment_install_component_handles`]: segment `text`,
-/// record each `install NAME using TYPE` component, then recurse into every
-/// braced-script word (class / method / constructor bodies) and `[…]`
-/// substitution.
-fn scan_install_components(
+/// Whether `name` is a type-command call (typemethod) on snit class `class` —
+/// snit's built-in `info` / `destroy`, or a declared `typemethod` anywhere in
+/// the MRO.  `create` is deliberately excluded: `Type create inst` *is* a
+/// construction.
+fn class_declares_typemethod(hierarchy: &ClassHierarchy, class: &str, name: &str) -> bool {
+    matches!(name, "info" | "destroy")
+        || class_mro(hierarchy, class).iter().any(|c| {
+            hierarchy
+                .classes
+                .get(c)
+                .is_some_and(|cd| cd.class_methods.contains_key(name))
+        })
+}
+
+/// Recursive worker for [`augment_snit_handles`].
+fn scan_snit_handles(
     full_source: &str,
     text: &str,
     base_offset: u32,
     dialect: &str,
+    classes: Option<&ClassHierarchy>,
     handles: &mut ObjectClassMap,
     depth: u32,
 ) {
@@ -3878,24 +3901,43 @@ fn scan_install_components(
         tcl_lexer::LexerConfig::for_dialect(dialect),
     ) {
         let texts = &seg.texts;
-        // `install NAME using TYPE ?args…?` — snit component installation. Only
-        // a static bareword NAME (a plain instance-variable name) and TYPE (the
-        // component class command) qualify; a `$var`/`[cmd]` in either position
-        // is left alone.
-        if texts.first().map(String::as_str) == Some("install")
-            && texts.len() >= 4
-            && texts[2] == "using"
-        {
-            let name = texts[1].as_str();
-            let type_name = texts[3].as_str();
-            if !name.is_empty()
-                && !name.contains(['$', '[', ' '])
-                && !type_name.is_empty()
-                && !type_name.contains(['$', '[', ' '])
-            {
-                let qualified = format!("::{}", type_name.trim_start_matches("::"));
-                handles.entry(name.to_owned()).or_default().insert(qualified);
+        match texts.first().map(String::as_str) {
+            // `install NAME using TYPE ?args…?` — snit component installation.
+            // Only a static bareword NAME / TYPE qualify.
+            Some("install") if texts.len() >= 4 && texts[2] == "using" => {
+                let name = texts[1].as_str();
+                let type_name = texts[3].as_str();
+                if !name.is_empty()
+                    && !name.contains(['$', '[', ' '])
+                    && !type_name.is_empty()
+                    && !type_name.contains(['$', '[', ' '])
+                {
+                    let qualified = format!("::{}", type_name.trim_start_matches("::"));
+                    handles.entry(name.to_owned()).or_default().insert(qualified);
+                }
             }
+            // `set NAME [TYPE inst …]` — snit bare-word constructor.
+            Some("set") if texts.len() >= 3 => {
+                if let Some(hierarchy) = classes
+                    && !texts[1].is_empty()
+                    && !texts[1].contains(['$', '[', ' '])
+                    && let Some((cmd, args)) =
+                        tcl_compiler::value_shapes::parse_command_substitution(&texts[2])
+                    && let Some(class) = resolve_class_in_hierarchy(hierarchy, &cmd)
+                    && hierarchy
+                        .classes
+                        .get(&class)
+                        .is_some_and(|cd| cd.metaclass.starts_with("snit::"))
+                    // A bare construction needs an instance-name argument that is
+                    // not a (non-`create`) typemethod call on the type.
+                    && args
+                        .first()
+                        .is_some_and(|a| a == "create" || !class_declares_typemethod(hierarchy, &class, a))
+                {
+                    handles.entry(texts[1].clone()).or_default().insert(class);
+                }
+            }
+            _ => {}
         }
         for (i, tok) in seg.argv.iter().enumerate() {
             if !seg.single_token_word.get(i).copied().unwrap_or(false) {
@@ -3913,11 +3955,12 @@ fn scan_install_components(
                 _ => None,
             };
             if let Some((cstart, inner)) = inner_span {
-                scan_install_components(
+                scan_snit_handles(
                     full_source,
                     inner,
                     u32::try_from(cstart).unwrap_or(0),
                     dialect,
+                    classes,
                     handles,
                     depth + 1,
                 );
@@ -3977,10 +4020,11 @@ fn collect_entries(
     // map (issue #797, SpiceGenTcl `allNodes` / `actOnParam` shape).
     augment_loop_var_handles(source, dialect, &object_collections, &mut object_classes);
 
-    // snit `install NAME using TYPE …` component installs — a source scan, since
-    // snit method bodies (where the install lives) are not lowered into the CFG
-    // `object_handle_classes` reads.  Binds the component variable to its class.
-    augment_install_component_handles(source, dialect, &mut object_classes);
+    // snit object-handle bindings the compiler CFG doesn't surface — `install
+    // NAME using TYPE` components and `set NAME [Type inst]` bare constructors —
+    // via a source scan, since snit method bodies (where these live) are not
+    // lowered into the CFG `object_handle_classes` reads.
+    augment_snit_handles(source, dialect, classes, &mut object_classes);
 
     // Walk every segmented command (recursing into braced bodies, braced
     // expressions, and `[…]` command substitutions) and classify each token.
@@ -5186,6 +5230,57 @@ mod tests {
     }
 
     #[test]
+    fn snit_bare_constructor_dispatch_resolves() {
+        // snit's bare-word constructor `set eng [Engine ${selfns}::e]` (no
+        // `create` keyword) types `eng` as the snit class, so `$eng run` in
+        // another method resolves.  A source scan supplies it (snit bodies
+        // aren't lowered), gated on Engine being a known snit-family class.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "snit::type Engine { method run {} {} }\n\
+                   snit::type Wrapper {\n\
+                   \x20   variable eng\n\
+                   \x20   constructor {} { set eng [Engine ${selfns}::e] }\n\
+                   \x20   method go {} { $eng run }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        // `$eng run` on line 4 resolves the method.
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Function as u32 && m == 0),
+            "expected `$eng run` on a bare-constructor handle to resolve; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn snit_typemethod_call_does_not_type_handle() {
+        // `set x [Engine spawn]` is a *typemethod* call, not a construction —
+        // its result is not an Engine, so `$x run` must NOT resolve (soundness:
+        // the bare-constructor scan excludes declared typemethods).
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "snit::type Engine { method run {} {} \n\
+                   \x20   typemethod spawn {} {} }\n\
+                   set x [Engine spawn]\n\
+                   $x run\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        // `$x run` on line 3 must stay unresolved (`run` not a Function token).
+        assert!(
+            !toks.iter()
+                .any(|&(l, _, _, k, _)| l == 3 && k == TokenKind::Function as u32),
+            "expected `$x run` on a typemethod result to abstain; got {toks:?}"
+        );
+    }
+
+    #[test]
     fn my_configure_property_options_resolve() {
         // `my configure -prop` inside an oo::configurable body colours the
         // property option too.
@@ -5348,6 +5443,11 @@ mod tests {
                 "snit_install_component",
                 "snit::widget Ax { method draw {} {} }\nsnit::widget C {\n  constructor {} { install ax using Ax $win.a\n    $ax draw }\n}\n",
                 "draw", 3, Resolve,
+            ),
+            (
+                "snit_bare_constructor",
+                "snit::type Eng { method run {} {} }\nsnit::type C {\n  variable e\n  constructor {} { set e [Eng ${selfns}::x] }\n  method go {} { $e run }\n}\n",
+                "run", 4, Resolve,
             ),
             (
                 "oo_define_added",

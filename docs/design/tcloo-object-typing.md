@@ -138,10 +138,12 @@ So the measured priority order (highest corpus impact first) is:
    types as classes so the receiver types `OBJECT(class)`. **`install NAME using
    TYPE` component typing has landed too** (a source scan, since snit bodies are
    not lowered; the component class is usually cross-file, so it resolves in
-   project mode — +131 sites there). Together the snit slices lifted the corpus
-   rate from 6.8%/8.1% to 13.8% local / 15.9% project. Remaining snit slices:
-   `set`-bound components (snit's ambiguous bare constructor), `$hull`, bareword
-   named-object commands.
+   project mode — +131 sites there), as has the **bare-word constructor**
+   (`set c [Type inst]`), gated on `Type` being a known snit-family class whose
+   first arg is not a typemethod (sound: a `Type info …` call is not mistaken for
+   construction) — +64 project sites. Together the snit slices lifted the corpus
+   rate from 6.8%/8.1% to **14.0% local / 16.4% project**. Remaining snit slices:
+   `$hull` (usually a Tk widget), bareword named-object commands.
 2. **Cross-file object provenance** — a workspace union of the handle /
    collection maps, mirroring `project_class_index`, for the cross-file half of
    `param` / `unbound`.

@@ -82,18 +82,21 @@ There are two layers, most-precise first:
    types the variable as that class — the signature scan records snit types (like
    itcl and `TclOO`) as classes — so `$o method` resolves like any handle.
 
-   A snit **component** installed with `install NAME using TYPE …` types the
-   component variable `NAME` as `TYPE`, so `$NAME method …` in the body resolves.
-   Because snit method bodies aren't lowered into the compiler CFG, this comes
-   from a source scan; the component's class most often lives in another file, so
-   it lands in the workspace (project) mode where the merged hierarchy resolves
-   it.
+   A snit **component** typed either by `install NAME using TYPE …` or by snit's
+   bare-word constructor `set NAME [TYPE inst …]` (`$type $name` creates an
+   instance) resolves `$NAME method …` in the body. Because snit method bodies
+   aren't lowered into the compiler CFG, these come from a source scan; the
+   component's class most often lives in another file, so they land in the
+   workspace (project) mode where the merged hierarchy resolves them. The
+   bare-constructor form is gated for soundness — it fires only when `TYPE` is a
+   known snit-family class whose first argument is not a `typemethod` (so a
+   `set x [Type info …]` type-command call is not mistaken for a construction).
 
    **Not resolved (correctly abstains, never mis-highlights):** a bareword
    named-object dispatch (`Foo create obj; obj method`, where the *object command*
-   itself is the head), a `set`-bound snit component (`set c [Type name]`, snit's
-   ambiguous bare constructor), `$hull`, and Tk widget-path dispatch — their
-   method word stays a plain string rather than a guessed callable. The receiver's class is found from a handle typed by
+   itself is the head), `$hull` (usually a Tk widget, not a user class), and Tk
+   widget-path dispatch — their method word stays a plain string rather than a
+   guessed callable. The receiver's class is found from a handle typed by
    the SSA lattice — including a handle **retrieved from an object collection**:
    a `Pins` dict filled with `[Pin new]` in one method makes
    `[dict get $Pins $pin] configure -node …` resolve to `Pin` in another (issue
@@ -151,12 +154,12 @@ still highlighted by the object-method / generic passes above.
 
 - A `-option` on an unmodelled object method is highlighted by shape only, so
   an invalid switch is not distinguished from a valid one.
-- A snit/itcl **`$self` / `$this` self-call**, a **named-constructor** object
-  (`set o [foo create x]`), and an **installed component** (`install ax using
-  Ax`) all resolve, but a `set`-bound component (`set c [Type name]`), `$hull`,
-  and a **bareword named-object** command (`Foo create obj; obj method`) are not
-  yet provenance-tracked. These are the residual unresolved dispatches on real
-  corpora (`experiments/tcloo_diag/RESULTS.md`) and use the generic fallback.
+- snit/itcl **`$self` / `$this` self-calls**, **named-constructor** objects
+  (`set o [foo create x]`), **installed components** (`install ax using Ax`), and
+  **bare-constructor components** (`set c [Type inst]`) all resolve, but `$hull`
+  (usually a Tk widget) and a **bareword named-object** command (`Foo create
+  obj; obj method`) are not yet provenance-tracked — they use the generic
+  fallback (`experiments/tcloo_diag/RESULTS.md`).
 - A receiver whose class is only bound in *another file* (a cross-file instance
   variable, global, or parameter) is not tracked: object provenance is computed
   per file, so only the workspace class *hierarchy* crosses files today, not the
@@ -176,6 +179,7 @@ still highlighted by the object-method / generic passes above.
   `dict_for_loop_var_dispatch_resolves`, `dict_map_in_return_dispatch_resolves`,
   `cross_file_constructor_dispatch_resolves`, `interproc_param_dispatch_resolves`,
   `my_self_call_resolves`, `snit_self_call_resolves`, `snit_install_component_dispatch_resolves`,
+  `snit_bare_constructor_dispatch_resolves`, `snit_typemethod_call_does_not_type_handle`,
   `my_configure_property_options_resolve`, `proc_return_object_dispatch_resolves`
 - `rust/tcl-compiler/src/object_types.rs` — `collection_of_objects_is_tracked`,
   `collection_class_bridges_across_methods`, `spicegentcl_configurable_device_shape_resolves`,

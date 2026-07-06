@@ -142,11 +142,27 @@ component classes are overwhelmingly defined in *other files* — exactly the
 cross-file shape the diagnostic predicted. Project mode (the shipping server
 mode) merges the workspace hierarchy, so the component's `TYPE` resolves.
 
+## Phase 3d — snit bare-word constructor (`set c [Type inst]`)
+
+snit creates an instance with `$type $name` (no `create` keyword), e.g.
+`set myparser [pt::rde ${selfns}::ENGINE]` — the dominant component-binding shape
+in the corpus. A source scan types `c` as `Type`, **gated for soundness**: it
+fires only when `Type` is a *known snit-family class* (so bare construction is
+valid) whose first argument is *not a typemethod* (`info` / `destroy` / a
+declared `typemethod`), which would be a type-command call, not a construction.
+Because the gate needs the class visible, cross-file types resolve in project
+mode.
+
+| mode | after install | after bare-ctor | Δ |
+|---|--:|--:|--:|
+| local `all` | 1729 | **1759 (14.0%)** | +30 |
+| project `all` | 1998 | **2062 (16.4%)** | +64 |
+
 From the 6.8%/8.1% baseline, the snit slices together lifted the rate to
-**13.8% local / 15.9% project** — the `$self`, named-constructor, and component
-work compounding, each step diagnostic-selected and measured.
+**14.0% local / 16.4% project** — `$self`, named-constructor, `install`
+components, and the bare constructor compounding, each step diagnostic-selected
+and measured.
 
 Still abstaining (correctly): the *bareword* named-object shape (`Foo create
-obj; obj m`, needing `created_instance_commands`), `set`-bound snit components
-(`set c [Type name]`, snit's ambiguous bare constructor), `$hull`, and Tk widget
-paths — the next slices, in `tcloo_diag`'s priority order.
+obj; obj m`, needing `created_instance_commands`), `$hull` (mostly a Tk widget,
+not a user class), and Tk widget paths — the remaining slices.

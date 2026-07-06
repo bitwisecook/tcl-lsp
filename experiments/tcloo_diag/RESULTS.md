@@ -86,13 +86,13 @@ Corpus: the same ~305 OO files as `tcloo_dispatch` (tcllib, tklib, georgtree).
 
 Priority order revised by evidence, highest corpus impact first:
 
-1. **snit dialect model** (Phase 3): `$self` → enclosing snit type **(done —
-   `$self`/`$this` self-dispatch landed, ~doubling the overall resolution rate,
-   see `experiments/tcloo_dispatch/RESULTS.md`)**, **named-constructor typing
-   (`set o [foo create x]`) done**, and **`install NAME using TYPE` component
-   typing done** (+131 project sites); still to do: `set`-bound components
-   (snit's ambiguous bare constructor), `$hull`, bareword named-object commands.
-   Cumulative: 6.8%/8.1% → 13.8% local / 15.9% project.
+1. **snit dialect model** (Phase 3) — **done**: `$self`/`$this` self-dispatch
+   (~doubling the rate), named-constructor typing (`set o [foo create x]`),
+   `install NAME using TYPE` components (+131 project sites), and the bare-word
+   constructor `set c [Type inst]` gated on snit-family + not-a-typemethod
+   (+64 project sites). Cumulative: 6.8%/8.1% → **14.0% local / 16.4% project**.
+   Remaining (small): `$hull` (usually a Tk widget), bareword named-object
+   commands.
 2. **Cross-file object provenance**: lift `object_handle_classes` /
    `object_collection_classes` to a workspace union (mirrors
    `project_class_index`), reaching the cross-file half of `param`/`unbound`.
