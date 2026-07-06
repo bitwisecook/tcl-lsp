@@ -106,6 +106,41 @@ experiment (`experiments/tcloo_dispatch`).
 
 Highlight-first means: prefer silence over a wrong narrowing at every stage.
 
+## Evidence: what the corpus actually needs (`tcloo_diag`)
+
+Stage 3's first increment landed as a **VTA-lite fixpoint**
+(`object_types::propagate_object_flow`): a name-keyed union-join propagation
+graph over assignment (aliasing), proc-return, proc-parameter, and
+constructor-parameter edges. It is sound and resolves the dependency-injection
+shape (object → constructor → instance variable → dispatch), but the
+`tcloo_diag` provenance experiment showed it does **not** move the corpus
+resolution rate — because the corpus bottleneck is elsewhere. Categorising the
+8241 unresolved `$var` receivers:
+
+- **71% "unbound"** — dominated by **snit** (`$self` = 1035, `my…` components,
+  `$hull`, `options(...)`) and **Tk widget paths** (`$win.c`), not `TclOO`.
+- ~12% within-CU `TclOO` edges (alias / method-return / proc-return /
+  collection) — the slice this and prior stages address.
+- ~11% `cmd-return` — mostly non-object commands that should *abstain*.
+
+So the measured priority order (highest corpus impact first) is:
+
+1. **snit dialect model** — `$self` → enclosing snit type (the snit analogue of
+   `TclOO`'s `my`, already handled), components via `install`/`delegate`,
+   `$hull`. This is the data-driven dispatch model of Stage/Phase 3 and the
+   single biggest lever (~1500+ receivers).
+2. **Cross-file object provenance** — a workspace union of the handle /
+   collection maps, mirroring `project_class_index`, for the cross-file half of
+   `param` / `unbound`.
+3. **Method return-type summaries** — `set x [$typed m]` / `[my m]` where `m`
+   returns an object (Stage 3/4 interprocedural summaries).
+4. **Signature stubs & explicit abstention** (Stage 5) — deflate the
+   `cmd-return` denominator so the rate reflects *typable* receivers.
+
+The lesson for the staged plan: the stages are individually correct, but their
+*ordering* should follow the provenance histogram — snit and cross-file first.
+See `experiments/tcloo_diag/RESULTS.md`.
+
 ## Sources
 
 CHA/RTA (Dean/Grove/Chambers ECOOP'95; Bacon/Sweeney OOPSLA'96); VTA

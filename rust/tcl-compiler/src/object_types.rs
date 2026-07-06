@@ -72,24 +72,35 @@ pub fn object_handle_classes(
     for fu in units {
         harvest_unit(fu, registry, &mut out);
     }
-    // Interprocedural returns: `set o [make]` where `make` returns an object
-    // types `o` as that class.  Runs before the param pass so a returned object
-    // can flow onward into another call's parameter.
-    harvest_proc_return_handles(cu, &mut out);
-    // Interprocedural: a proc called with an object argument holds that class in
-    // the corresponding parameter, so `$param method …` in the body resolves.
-    harvest_interproc_param_handles(cu, registry, &mut out);
+    // VTA-lite object-flow propagation.  Having seeded the handles that are
+    // locally provable (constructor assignments + SSA `OBJECT` values), push
+    // those classes along the type-propagation edges of Variable Type Analysis
+    // (Sundaresan et al., OOPSLA'00) to a bounded fixpoint:
+    //   - *aliasing*         `set A $B`            → A ⊇ classes(B)
+    //   - *proc return*      `set A [make …]`      → A ⊇ return-class(make)
+    //   - *proc parameter*   `f $obj`              → f's param ⊇ classes($obj)
+    //   - *constructor param* `C new $obj`         → C's ctor param ⊇ classes($obj)
+    // Nodes are name-keyed (field-based, object-insensitive) and joins are set
+    // union — the economy VTA trades precision for.  Highlight-only, matching
+    // the imprecision tolerance documented above.
+    propagate_object_flow(cu, registry, &mut out);
     out
 }
 
-/// Interprocedural return provenance: bind `VAR` in `set VAR [proc …]` to the
-/// object class the callee proc returns (its inferred `return_type`), so
-/// `$VAR method …` resolves — the factory-proc pattern `set c [makeThing]`.
-fn harvest_proc_return_handles(
+/// VTA-lite object-flow fixpoint.  Propagates object classes from the seeded
+/// handles along four kinds of type-propagation edge — assignment (aliasing),
+/// proc return, proc parameter, and constructor parameter — until no new class
+/// reaches any node.  Nodes are name-keyed (a variable / parameter is one node
+/// regardless of scope, VTA's field-based object-insensitive economy) and the
+/// join is set union.  Highlight-only and union-imprecise, matching the rest of
+/// this module.
+fn propagate_object_flow(
     cu: &CompilationUnit,
+    registry: &CommandRegistry,
     out: &mut HashMap<String, HashSet<String>>,
 ) {
-    // Proc qualified name → returned object class.
+    // Callee proc qualified name → returned object class (the factory-proc
+    // signal `set c [makeThing]`).
     let returns: HashMap<&str, &str> = cu
         .procedures
         .values()
@@ -100,125 +111,35 @@ fn harvest_proc_return_handles(
                 .map(|c| (fu.name.as_str(), c))
         })
         .collect();
-    if returns.is_empty() {
-        return;
-    }
-    let resolve = |cmd: &str| -> Option<&str> {
-        if let Some((k, _)) = returns.get_key_value(cmd) {
-            return Some(*k);
-        }
-        let q = format!("::{}", cmd.trim_start_matches("::"));
-        returns.get_key_value(q.as_str()).map(|(k, _)| *k)
-    };
-    let units = std::iter::once(&cu.top_level)
-        .chain(cu.procedures.values())
-        .chain(cu.methods.values());
-    let mut bindings: Vec<(String, String)> = Vec::new();
-    for fu in units {
-        for block in fu.cfg.blocks.values() {
-            for stmt in &block.statements {
-                let Statement::AssignValue { name, value, .. } = stmt else {
-                    continue;
-                };
-                let stripped = value.trim();
-                if !stripped.starts_with('[') {
-                    continue;
-                }
-                if let Some((cmd, _)) = parse_command_substitution(stripped)
-                    && let Some(callee) = resolve(&cmd)
-                {
-                    bindings.push((name.clone(), returns[callee].to_owned()));
-                }
-            }
-        }
-    }
-    for (name, class) in bindings {
-        out.entry(name).or_default().insert(class);
-    }
-}
-
-/// Interprocedural parameter provenance (the object-handle half of the #797
-/// follow-up "C" step): when a proc is called with an object argument — a `$var`
-/// already tracked as a handle, or a direct `[Class new]` — its corresponding
-/// parameter holds that class, so a `$param method …` dispatch in the body
-/// resolves like any other handle.  Iterated to a small fixpoint so a class
-/// flows through a chain of calls (`f $obj` → `g $param` → …).  Highlight-only
-/// and union-imprecise, matching the rest of this module.
-fn harvest_interproc_param_handles(
-    cu: &CompilationUnit,
-    registry: &CommandRegistry,
-    out: &mut HashMap<String, HashSet<String>>,
-) {
-    // Callee qualified name → parameter names.
+    // Callee proc qualified name → parameter names.
     let proc_params: HashMap<&str, &[String]> = cu
         .ir_module
         .procedures
         .values()
         .map(|p| (p.qualified_name.as_str(), p.params.as_slice()))
         .collect();
-    if proc_params.is_empty() {
+    // Class qualified name → constructor parameter names (keyed
+    // `::Class::<constructor>` in the IR module).
+    let ctor_params: HashMap<&str, &[String]> = cu
+        .ir_module
+        .methods
+        .iter()
+        .filter_map(|(k, m)| {
+            k.ends_with("::<constructor>")
+                .then_some((m.class_name.as_str(), m.params.as_slice()))
+        })
+        .collect();
+    if returns.is_empty() && proc_params.is_empty() && ctor_params.is_empty() {
         return;
     }
-    let resolve = |cmd: &str, canonical: Option<&str>| -> Option<&str> {
-        for cand in [canonical, Some(cmd)].into_iter().flatten() {
-            if let Some((k, _)) = proc_params.get_key_value(cand) {
-                return Some(*k);
-            }
-        }
-        let q = format!("::{}", cmd.trim_start_matches("::"));
-        proc_params.get_key_value(q.as_str()).map(|(k, _)| *k)
-    };
-    // Bounded fixpoint: three rounds cover call chains without risking a runaway
-    // on a cyclic call graph.
-    for _ in 0..3 {
-        // (param name, classes) bindings discovered this round.
-        let mut bindings: Vec<(String, HashSet<String>)> = Vec::new();
-        let units = std::iter::once(&cu.top_level)
-            .chain(cu.procedures.values())
-            .chain(cu.methods.values());
-        for fu in units {
-            for block in fu.cfg.blocks.values() {
-                for stmt in &block.statements {
-                    let Statement::Call {
-                        command,
-                        canonical_command,
-                        args,
-                        ..
-                    } = stmt
-                    else {
-                        continue;
-                    };
-                    let Some(callee) = resolve(command, canonical_command.as_deref()) else {
-                        continue;
-                    };
-                    let params = proc_params[callee];
-                    for (i, arg) in args.iter().enumerate() {
-                        let Some(pname) = params.get(i) else {
-                            break;
-                        };
-                        if pname == "args" {
-                            break;
-                        }
-                        // The argument's object class: a tracked `$var` handle,
-                        // or a direct `[Class new]` registry constructor.
-                        let classes: Option<HashSet<String>> = deref_arg_var(arg)
-                            .and_then(|v| out.get(v))
-                            .filter(|s| !s.is_empty())
-                            .cloned()
-                            .or_else(|| {
-                                constructor_class(arg, registry)
-                                    .map(|c| std::iter::once(c.to_string()).collect())
-                            });
-                        if let Some(classes) = classes {
-                            bindings.push((pname.clone(), classes));
-                        }
-                    }
-                }
-            }
-        }
+
+    // Bounded fixpoint: a handful of rounds cover realistic alias/call chains
+    // without risking a runaway on a cyclic call graph.
+    for _ in 0..6 {
+        let bindings = scan_flow_edges(cu, registry, out, &returns, &proc_params, &ctor_params);
         let mut changed = false;
-        for (pname, classes) in bindings {
-            let entry = out.entry(pname).or_default();
+        for (name, classes) in bindings {
+            let entry = out.entry(name).or_default();
             for c in classes {
                 changed |= entry.insert(c);
             }
@@ -227,6 +148,191 @@ fn harvest_interproc_param_handles(
             break;
         }
     }
+}
+
+/// One round of the VTA-lite fixpoint: scan every statement, reading current
+/// node classes from `out`, and return the `(node, classes)` bindings the
+/// type-propagation edges imply this round.  The caller unions them into `out`
+/// and iterates until nothing changes.
+fn scan_flow_edges(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    out: &HashMap<String, HashSet<String>>,
+    returns: &HashMap<&str, &str>,
+    proc_params: &HashMap<&str, &[String]>,
+    ctor_params: &HashMap<&str, &[String]>,
+) -> Vec<(String, HashSet<String>)> {
+    // Resolve a proc call head to its callee key, tolerating the `::` global
+    // qualifier the way `CommandRegistry::get` does.
+    let resolve_proc = |cmd: &str, canonical: Option<&str>| -> Option<&str> {
+        for cand in [canonical, Some(cmd)].into_iter().flatten() {
+            if let Some((k, _)) = proc_params.get_key_value(cand) {
+                return Some(*k);
+            }
+        }
+        let q = format!("::{}", cmd.trim_start_matches("::"));
+        proc_params.get_key_value(q.as_str()).map(|(k, _)| *k)
+    };
+    let resolve_return = |cmd: &str| -> Option<&str> {
+        if let Some((k, _)) = returns.get_key_value(cmd) {
+            return Some(*k);
+        }
+        let q = format!("::{}", cmd.trim_start_matches("::"));
+        returns.get_key_value(q.as_str()).map(|(k, _)| *k)
+    };
+    // Resolve a constructor-call head (`Pin`, `::ns::Pin`) to a class that
+    // declares a constructor.  Prefers an exact / `::`-qualified match, then
+    // falls back to the trailing name segment (union-imprecise, acceptable for
+    // highlighting).
+    let resolve_ctor_class = |head: &str| -> Option<String> {
+        if ctor_params.contains_key(head) {
+            return Some(head.to_owned());
+        }
+        let q = format!("::{}", head.trim_start_matches("::"));
+        if ctor_params.contains_key(q.as_str()) {
+            return Some(q);
+        }
+        let tail = head.rsplit("::").next().unwrap_or(head);
+        ctor_params
+            .keys()
+            .find(|k| k.rsplit("::").next() == Some(tail))
+            .map(|k| (*k).to_owned())
+    };
+
+    let mut bindings: Vec<(String, HashSet<String>)> = Vec::new();
+    let units = std::iter::once(&cu.top_level)
+        .chain(cu.procedures.values())
+        .chain(cu.methods.values());
+    for fu in units {
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                match stmt {
+                    Statement::AssignValue { name, value, .. } => {
+                        let v = value.trim();
+                        // Aliasing edge: `set A $B` copies B's classes to A.
+                        if let Some(src) = deref_arg_var(v)
+                            && let Some(classes) = out.get(src).filter(|s| !s.is_empty())
+                        {
+                            bindings.push((name.clone(), classes.clone()));
+                        }
+                        // Proc-return edge: `set A [make …]`.
+                        if v.starts_with('[')
+                            && let Some((cmd, args)) = parse_command_substitution(v)
+                        {
+                            if let Some(callee) = resolve_return(&cmd) {
+                                bindings.push((
+                                    name.clone(),
+                                    std::iter::once(returns[callee].to_owned()).collect(),
+                                ));
+                            }
+                            // Constructor-parameter edge for a nested
+                            // `[Class new …]` / `[Class create …]`.
+                            emit_ctor_param_bindings(
+                                &cmd,
+                                &args,
+                                &resolve_ctor_class,
+                                ctor_params,
+                                out,
+                                registry,
+                                &mut bindings,
+                            );
+                        }
+                    }
+                    Statement::Call {
+                        command,
+                        canonical_command,
+                        args,
+                        ..
+                    } => {
+                        // Proc-parameter edge: `f $obj` binds f's params.
+                        if let Some(callee) = resolve_proc(command, canonical_command.as_deref()) {
+                            let params = proc_params[callee];
+                            for (i, arg) in args.iter().enumerate() {
+                                let Some(pname) = params.get(i) else { break };
+                                if pname == "args" {
+                                    break;
+                                }
+                                if let Some(classes) = arg_classes(arg, out, registry) {
+                                    bindings.push((pname.clone(), classes));
+                                }
+                            }
+                        }
+                        // Constructor-parameter edge: `Class create NAME …`.
+                        emit_ctor_param_bindings(
+                            command,
+                            args,
+                            &resolve_ctor_class,
+                            ctor_params,
+                            out,
+                            registry,
+                            &mut bindings,
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    bindings
+}
+
+/// Bind a constructor's parameters to the object classes of its arguments for a
+/// `Class new ARGS…` / `Class create NAME ARGS…` call.  `head` is the class
+/// command; `verb_and_args` is everything after it (`["new", "$x"]` /
+/// `["create", "foo", "$x"]`).
+fn emit_ctor_param_bindings(
+    head: &str,
+    verb_and_args: &[String],
+    resolve_ctor_class: &impl Fn(&str) -> Option<String>,
+    ctor_params: &HashMap<&str, &[String]>,
+    out: &HashMap<String, HashSet<String>>,
+    registry: &CommandRegistry,
+    bindings: &mut Vec<(String, HashSet<String>)>,
+) {
+    let ctor_args: &[String] = match verb_and_args.split_first() {
+        Some((verb, rest)) if verb == "new" => rest,
+        // `create NAME …` — skip the instance name.
+        Some((verb, rest)) if verb == "create" => match rest.split_first() {
+            Some((_name, args)) => args,
+            None => return,
+        },
+        _ => return,
+    };
+    if ctor_args.is_empty() {
+        return;
+    }
+    let Some(class) = resolve_ctor_class(head) else {
+        return;
+    };
+    let Some(params) = ctor_params.get(class.as_str()) else {
+        return;
+    };
+    for (i, arg) in ctor_args.iter().enumerate() {
+        let Some(pname) = params.get(i) else { break };
+        if pname == "args" {
+            break;
+        }
+        if let Some(classes) = arg_classes(arg, out, registry) {
+            bindings.push((pname.clone(), classes));
+        }
+    }
+}
+
+/// The object classes an argument denotes: a tracked `$var` handle, or a direct
+/// `[Class new]` registry constructor.  `None` when the argument is not a known
+/// object.
+fn arg_classes(
+    arg: &str,
+    out: &HashMap<String, HashSet<String>>,
+    registry: &CommandRegistry,
+) -> Option<HashSet<String>> {
+    if let Some(classes) = deref_arg_var(arg)
+        .and_then(|v| out.get(v))
+        .filter(|s| !s.is_empty())
+    {
+        return Some(classes.clone());
+    }
+    constructor_class(arg, registry).map(|c| std::iter::once(c.to_string()).collect())
 }
 
 /// The variable name a `$name` / `${name}` argument dereferences, or `None` for
@@ -379,6 +485,76 @@ mod tests {
             map.get("y").map(|s| s.contains("::Pin")),
             Some(true),
             "the class should flow a→b so `y` is a ::Pin handle; got {map:?}"
+        );
+    }
+
+    #[test]
+    fn aliasing_copies_handle_class() {
+        // `set a [Pin new]; set b $a` — the plain var-ref assignment aliases
+        // `a`'s class onto `b`, so `$b method …` resolves (VTA assignment edge).
+        let registry = CommandRegistry::build_default();
+        let src = "oo::class create Pin { method cfg {args} {} }\n\
+                   set a [Pin new]\n\
+                   set b $a\n\
+                   $b cfg\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let map = object_handle_classes(&cu, &registry);
+        assert_eq!(
+            map.get("b").map(|s| s.contains("::Pin")),
+            Some(true),
+            "`b` should alias `a`'s ::Pin class; got {map:?}"
+        );
+    }
+
+    #[test]
+    fn constructor_param_typed_from_object_arg() {
+        // Case B — an object passed *into* a constructor: `Wrap new $p` binds
+        // the constructor's parameter `inner` to ::Pin, so `$inner method …`
+        // inside the constructor body resolves (VTA constructor-param edge).
+        let registry = CommandRegistry::build_default();
+        let src = "oo::class create Pin { method cfg {args} {} }\n\
+                   oo::class create Wrap {\n\
+                     variable held\n\
+                     constructor {inner} { $inner cfg; set held $inner }\n\
+                   }\n\
+                   set p [Pin new]\n\
+                   set w [Wrap new $p]\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let map = object_handle_classes(&cu, &registry);
+        assert_eq!(
+            map.get("inner").map(|s| s.contains("::Pin")),
+            Some(true),
+            "constructor param `inner` should be a ::Pin handle; got {map:?}"
+        );
+        // …and the aliasing edge carries it onto the instance var it is stored
+        // in, so a *different* method dispatching `$held m` resolves too.
+        assert_eq!(
+            map.get("held").map(|s| s.contains("::Pin")),
+            Some(true),
+            "instance var `held` should alias the ::Pin ctor param; got {map:?}"
+        );
+    }
+
+    #[test]
+    fn instance_var_from_constructor_param_bridges_methods() {
+        // The full Case-B shape: an object flows in through the constructor,
+        // is stored in an instance variable, and is dispatched on from an
+        // unrelated method.  ctor-param + aliasing edges together resolve it.
+        let registry = CommandRegistry::build_default();
+        let src = "oo::class create Motor { method spin {args} {} }\n\
+                   oo::class create Car {\n\
+                     variable engine\n\
+                     constructor {e} { set engine $e }\n\
+                     method go {} { $engine spin }\n\
+                   }\n\
+                   set m [Motor new]\n\
+                   set c [Car new $m]\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let map = object_handle_classes(&cu, &registry);
+        assert_eq!(
+            map.get("engine").map(|s| s.contains("::Motor")),
+            Some(true),
+            "instance var `engine` should be a ::Motor handle via ctor param; got {map:?}"
         );
     }
 

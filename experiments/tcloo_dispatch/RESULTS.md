@@ -54,3 +54,32 @@ containing `oo::` / `snit::` / `itcl::`.
 Target for Phase 2 (field/instance-variable typing + interprocedural summaries):
 lift the absolute resolved counts materially — instance-variable receivers
 (`variable obj; … $obj m`) and param/return receivers are the reachable wins.
+
+## Phase 2 — VTA-lite object-flow (aliasing + constructor-param edges)
+
+The interprocedural passes were consolidated into a single **VTA-lite fixpoint**
+(`object_types::propagate_object_flow`): a name-keyed, union-join
+type-propagation graph over four edges — assignment (aliasing), proc-return,
+proc-parameter, and **constructor-parameter**. This adds two capabilities the
+ad-hoc passes lacked: `set b $a` aliasing and an object passed *into* a
+constructor and stored in an instance variable (the dependency-injection shape).
+
+Measured on the current corpus (305 OO files, 12 535 sites — larger than the
+baseline above, so compare within this block, not against the 11 612-site rows):
+
+| mode | before | after |
+|---|--:|--:|
+| local `all` | 858 / 12535 (6.8%) | 858 / 12535 (6.8%) |
+| project `all` | 1012 / 12535 (8.1%) | 1012 / 12535 (8.1%) |
+
+**The corpus rate is unchanged** — byte-identical resolved counts. The edges are
+*correct* (an isolated Case-B fixture goes 0/1 → 1/1 under `--project`, and three
+unit tests in `object_types` lock the behaviour) but the constructor-injection /
+aliasing patterns they resolve are essentially **absent from this corpus**.
+
+The `tcloo_diag` experiment (`experiments/tcloo_diag`) explains why and redirects
+the work: the unresolved mass is **snit** (`$self` 12.6% of the `$var` gap, plus
+`my…` components and `$hull`) and cross-file/Tk, not within-CU `TclOO` typing.
+Phase 2 is retained as sound, cheap, architecturally-correct groundwork (the
+design-doc Stage-3 propagation graph); **snit support (Phase 3) is the measured
+next lever**, not more within-CU edges.

@@ -47,14 +47,26 @@ There are two layers, most-precise first:
    defined in *another* file resolves too (the mro_eval cross-file lever); the
    single-file path falls back to the local hierarchy.
 
-   Object provenance is also **interprocedural**: when a proc is called with an
-   object argument (a tracked `$var` handle or a direct `[Class new]`), its
-   parameter is bound to that class, iterated to a fixpoint so the class flows
-   through a chain of calls. So `set p [Pin new]; connect $p` makes `$dev` (the
-   parameter) resolve `$dev configure -node …` inside `connect` — the
-   param-receiver case the mro_eval experiment measured as ~60% of unresolved
-   dispatches. A proc that **returns** an object (`proc make {} {return [C
-   new]}; set o [make]`) types the receiving variable likewise.
+   Object provenance is also **interprocedural**, computed as a small
+   name-keyed type-propagation fixpoint (VTA-lite) over four edges:
+   - **proc parameter** — a proc called with an object argument (a tracked
+     `$var` handle or a direct `[Class new]`) binds its parameter to that class,
+     so `set p [Pin new]; connect $p` resolves `$dev configure -node …` inside
+     `connect {dev}`;
+   - **proc return** — a proc that returns an object
+     (`proc make {} {return [C new]}; set o [make]`) types the receiver;
+   - **assignment (aliasing)** — `set b $a` copies `a`'s class to `b`;
+   - **constructor parameter** — an object passed *into* a constructor
+     (`Wrap new $p`) binds the constructor's parameter, which via the aliasing
+     edge carries onto an instance variable it is stored in, so a *different*
+     method dispatching on that variable resolves (the dependency-injection
+     shape).
+
+   The class flows through chains of these edges to a fixpoint. (Measured note:
+   the aliasing/constructor-param edges resolve real patterns but are rare in
+   the surveyed corpora, which are snit-dominated — see
+   `experiments/tcloo_diag/RESULTS.md`; snit `$self`/component support is the
+   larger outstanding lever.)
 
    A **`my method …` self-call** inside a class body resolves against the
    enclosing class's MRO (the class named at the `oo::class create` /
@@ -122,9 +134,16 @@ still highlighted by the object-method / generic passes above.
 
 - A `-option` on an unmodelled object method is highlighted by shape only, so
   an invalid switch is not distinguished from a valid one.
-- A receiver passed through a proc parameter (or a dict value) is not
-  provenance-tracked, so it uses the generic fallback rather than the precise
-  registry path.
+- A **snit** receiver (`$self`, an installed component, `$hull`) is not yet
+  provenance-tracked — snit is a distinct object system from `TclOO`, and it
+  dominates the unresolved dispatches on real corpora
+  (`experiments/tcloo_diag/RESULTS.md`). These use the generic fallback.
+- A receiver whose class is only bound in *another file* (a cross-file instance
+  variable, global, or parameter) is not tracked: object provenance is computed
+  per file, so only the workspace class *hierarchy* crosses files today, not the
+  handle/collection provenance maps.
+- A Tk **widget-path** dispatch (`$win.c configure …`) is not an object handle
+  and is highlighted by shape only.
 - A negative-number argument that a command genuinely treats as a value is
   correctly *not* highlighted as an option — by design.
 
@@ -140,7 +159,9 @@ still highlighted by the object-method / generic passes above.
   `my_self_call_resolves`, `my_configure_property_options_resolve`, `proc_return_object_dispatch_resolves`
 - `rust/tcl-compiler/src/object_types.rs` — `collection_of_objects_is_tracked`,
   `collection_class_bridges_across_methods`, `spicegentcl_configurable_device_shape_resolves`,
-  `interproc_param_from_object_arg_is_a_handle`, `interproc_param_flows_through_call_chain`
+  `interproc_param_from_object_arg_is_a_handle`, `interproc_param_flows_through_call_chain`,
+  `aliasing_copies_handle_class`, `constructor_param_typed_from_object_arg`,
+  `instance_var_from_constructor_param_bridges_methods`
 - `rust/tcl-lsp-db/src/lib.rs` — `cross_file_object_dispatch_resolves_via_project_index`
 - `rust/tcl-compiler/src/lowering/mod.rs` — `lowers_oo_configurable_class_body`
 - `rust/tcl-compiler/src/type_infer.rs` — `dict_of_objects_retrieval_types_element`,
