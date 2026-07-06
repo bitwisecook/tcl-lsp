@@ -40,6 +40,8 @@ const LS_META = "f5report-arch-meta";
   const drop = byId("drop");
   const fileListEl = byId("fileList");
   const passEl = byId<HTMLInputElement>("pass");
+  const passGroup = byId("passGroup");
+  const passNote = byId("passNote");
   const titleEl = byId<HTMLInputElement>("title");
   const consoleEl = byId<HTMLInputElement>("console");
   const resultEl = byId("result");
@@ -54,6 +56,9 @@ const LS_META = "f5report-arch-meta";
   let meta: Record<string, FileMeta> = {};
   let lastUrl: string | null = null;
   let ready = false;
+  // Per-file "is this an encrypted (passphrase-protected) UCS?" verdict, filled
+  // in lazily by probeEncryption() from the file's leading bytes.
+  const encState = new WeakMap<File, boolean>();
 
   const backend: ReportBackend = selectBackend();
 
@@ -112,9 +117,40 @@ const LS_META = "f5report-arch-meta";
     return (n / (1024 * 1024)).toFixed(1) + " MB";
   }
 
-  // Heuristic for the UI hint only; the engine decides for real.
-  function looksEncrypted(file: File): boolean {
-    return /\.ucs$/i.test(file.name);
+  // Recognise an OpenPGP-encrypted (i.e. passphrase-protected) UCS from its
+  // leading bytes, mirroring tcl_bigip_io::is_pgp_bytes — an ASCII-armored
+  // "-----BEGIN PGP" message, or a binary OpenPGP packet header whose tag opens
+  // an encrypted message (PKESK/SKESK/SED/SEIPD). A plain gzip UCS or a bare
+  // bigip.conf needs no passphrase and is not matched.
+  function looksPgp(data: Uint8Array): boolean {
+    if (data.length === 0) return false;
+    const isWs = (b: number) =>
+      b === 0x20 || b === 0x09 || b === 0x0a || b === 0x0c || b === 0x0d;
+    let s = 0;
+    while (s < data.length && isWs(data[s])) s++;
+    const armor = "-----BEGIN PGP";
+    if (data.length - s >= armor.length) {
+      let armored = true;
+      for (let k = 0; k < armor.length; k++) {
+        if (data[s + k] !== armor.charCodeAt(k)) {
+          armored = false;
+          break;
+        }
+      }
+      if (armored) return true;
+    }
+    const first = data[0];
+    if ((first & 0x80) === 0) return false; // not an OpenPGP packet header
+    const tag = (first & 0x40) !== 0 ? first & 0x3f : (first >> 2) & 0x0f;
+    return tag === 1 || tag === 3 || tag === 9 || tag === 18;
+  }
+
+  async function isEncryptedUcs(file: File): Promise<boolean> {
+    try {
+      return looksPgp(new Uint8Array(await file.slice(0, 64).arrayBuffer()));
+    } catch {
+      return false;
+    }
   }
 
   function renderFiles(): void {
@@ -138,10 +174,10 @@ const LS_META = "f5report-arch-meta";
         renderFiles();
       });
       li.appendChild(name);
-      if (looksEncrypted(f)) {
+      if (encState.get(f)) {
         const lk = document.createElement("span");
         lk.className = "lock";
-        lk.title = "may be encrypted";
+        lk.title = "encrypted";
         lk.textContent = "🔒";
         li.appendChild(lk);
       }
@@ -201,6 +237,7 @@ const LS_META = "f5report-arch-meta";
       if (!files.some((g) => g.name === f.name && g.size === f.size)) files.push(f);
     }
     renderFiles();
+    void probeEncryption();
     void probeSecrets();
   }
 
@@ -341,6 +378,37 @@ const LS_META = "f5report-arch-meta";
     return c.randomUUID ? c.randomUUID() : "r-" + Date.now().toString(36);
   }
 
+  function revealPass(count: number): void {
+    passGroup.style.display = "";
+    passNote.textContent =
+      count +
+      " encrypted UCS archive" +
+      (count === 1 ? "" : "s") +
+      " detected. Enter the passphrase to decrypt and read " +
+      (count === 1 ? "it" : "them") +
+      " — it stays in your browser and is never sent anywhere.";
+  }
+
+  // Reveal the passphrase box only once we spot an encrypted UCS among the
+  // selected files — the same reveal-on-detect flow as the master-key box.
+  // Detection is byte-based (no passphrase needed), so it works for both the
+  // wasm and server backends. Once shown it stays, as revealMku does.
+  async function probeEncryption(): Promise<void> {
+    let discovered = false;
+    let count = 0;
+    for (const f of files) {
+      let enc = encState.get(f);
+      if (enc === undefined) {
+        enc = await isEncryptedUcs(f);
+        encState.set(f, enc);
+        if (enc) discovered = true;
+      }
+      if (enc) count++;
+    }
+    if (discovered) renderFiles(); // newly-locked files get their 🔒
+    if (count > 0 && passGroup.style.display === "none") revealPass(count);
+  }
+
   function revealMku(count: number): void {
     mkuGroup.style.display = "";
     mkuNote.textContent =
@@ -376,7 +444,7 @@ const LS_META = "f5report-arch-meta";
 
   async function run(): Promise<void> {
     const opts: GenerateOptions = {
-      passphrase: passEl.value || "",
+      passphrase: passGroup.style.display === "none" ? "" : passEl.value,
       masterKey: mkuGroup.style.display === "none" ? "" : byId<HTMLInputElement>("mku").value.trim(),
       title: titleEl.value.trim() || "F5 BIG-IP Configuration Report",
       embedConsole: consoleEl.checked,
