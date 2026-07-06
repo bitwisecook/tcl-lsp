@@ -21,11 +21,11 @@
 //! A port of `f5report.render`: the interesting work is done by the query
 //! engine and the model shaping ([`crate::model`]); this module only turns the
 //! model into one standalone HTML file — embedded CSS/JS, the interactive
-//! Mermaid topology / listener / certificate views, and the in-browser
+//! elkjs topology / listener / certificate views, and the in-browser
 //! `f5-query` WebAssembly console — with no external assets and no CDN.
 //!
 //! Uses `minijinja` (pure Rust, so it also builds for wasm32) in place of
-//! Jinja2. The template is [`REPORT_TEMPLATE`]; the CSS / JS / Mermaid / wasm
+//! Jinja2. The template is [`REPORT_TEMPLATE`]; the CSS / JS / elkjs / wasm
 //! assets are the same vendored artifacts the Python `f5report` package ships,
 //! embedded at compile time so the two generators stay byte-identical.
 
@@ -51,12 +51,12 @@ const TOPOLOGY_CSS: &str = include_str!("../../shared/src/styles/topology.css");
 const REPORT_JS: &str = include_str!("../../shared/dist/report.js");
 const TOPOLOGY_JS: &str = include_str!("../../shared/dist/topology.js");
 const CONSOLE_JS: &str = include_str!("../../shared/dist/console.js");
-const MERMAID_JS: &str = include_str!("../../shared/public/vendor/mermaid.min.js");
 const WASM_GLUE: &str = include_str!("../../shared/public/vendor/f5query_wasm.js");
 const WASM_BIN: &[u8] = include_bytes!("../../shared/public/vendor/f5query_wasm_bg.wasm");
 
 // The certificate + secrets + APM tabs (their scripts/styles also live in
-// `shared/`; APM / elk-graph are embedded only by this Rust generator).
+// `shared/`; the APM walk itself is embedded only by this Rust generator, but
+// elkjs + the renderer are shared with the Python generator).
 const CERTS_CSS: &str = include_str!("../../shared/src/styles/certs.css");
 const CERTS_JS: &str = include_str!("../../shared/dist/certs.js");
 const SECRETS_CSS: &str = include_str!("../../shared/src/styles/secrets.css");
@@ -69,7 +69,7 @@ const PRINT_CSS: &str = include_str!("../../shared/src/styles/print.css");
 const PRINT_JS: &str = include_str!("../../shared/dist/print.js");
 const APM_CSS: &str = include_str!("../../shared/src/styles/apm.css");
 const APM_JS: &str = include_str!("../../shared/dist/apm.js");
-// elkjs (EPL-2.0), the ELK layout engine, for the orthogonal APM graph.
+// elkjs (EPL-2.0), the ELK layout engine, for the orthogonal diagrams.
 const ELK_JS: &str = include_str!("../../shared/public/vendor/elk.bundled.js");
 const ELK_GRAPH_JS: &str = include_str!("../../shared/dist/elk-graph.js");
 
@@ -194,7 +194,6 @@ pub fn render_report(model: J, opts: &RenderOptions) -> Result<String, ReportErr
     ctx.insert("apm_js".into(), J::String(APM_JS.into()));
     ctx.insert("elk_js".into(), J::String(ELK_JS.into()));
     ctx.insert("elk_graph_js".into(), J::String(ELK_GRAPH_JS.into()));
-    ctx.insert("mermaid_js".into(), J::String(MERMAID_JS.into()));
     ctx.insert("topo_types".into(), topo_types());
 
     if opts.embed_console {

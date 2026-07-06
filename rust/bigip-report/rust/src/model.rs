@@ -552,11 +552,12 @@ fn shape_rule(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
             tcl_lexer::LexerConfig::for_dialect("f5-irules"),
         )),
     );
-    // IR-based control-flow flowchart (Mermaid); empty when there's nothing to
-    // draw. The report renders it lazily when the iRule row is expanded.
+    // IR-based control-flow graph ({nodes, edges} JSON for elkjs); empty when
+    // there's nothing to draw. The report renders it lazily when the iRule row
+    // is expanded.
     o.insert(
         "flowchart".into(),
-        J::String(tcl_diagram::irule_flowchart_mermaid(
+        J::String(tcl_diagram::irule_flowchart_graph(
             &body,
             tcl_registry::registry_for_dialect("f5-irules"),
         )),
