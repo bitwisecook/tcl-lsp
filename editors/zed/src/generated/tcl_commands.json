@@ -632,6 +632,38 @@
       "summary": "Ring the display's bell."
     },
     {
+      "name": "bench::del",
+      "summary": "This command removes a column, i.e."
+    },
+    {
+      "name": "bench::edit",
+      "summary": "This command renames a column in the specified benchmark result and returns the modified result."
+    },
+    {
+      "name": "bench::locate",
+      "summary": "This command locates Tcl interpreters and returns a list containing their paths."
+    },
+    {
+      "name": "bench::merge",
+      "summary": "This commands takes one or more benchmark results, merges them into one big result, and returns that as its result."
+    },
+    {
+      "name": "bench::norm",
+      "summary": "This command normalizes the timing results in the specified benchmark result and returns the modified result."
+    },
+    {
+      "name": "bench::out::raw",
+      "summary": "This command formats the specified benchmark result for output to a file, socket, etc."
+    },
+    {
+      "name": "bench::run",
+      "summary": "This command executes the benchmarks declared in the set of files, once per Tcl interpreter specified via the."
+    },
+    {
+      "name": "bench::versions",
+      "summary": "This command takes a list of Tcl interpreters, identified by their path, and returns a dictionary mapping from."
+    },
+    {
       "name": "bgerror",
       "summary": "Handle background errors"
     },
@@ -844,6 +876,25 @@
       "name": "cmdline::usage",
       "summary": "Generate a usage string from an option specification.",
       "pure": true
+    },
+    {
+      "name": "comm::comm",
+      "summary": "Inter-interpreter communication over sockets (send/self/interps/…).",
+      "subcommands": [
+        "abort",
+        "channels",
+        "config",
+        "connect",
+        "destroy",
+        "hook",
+        "interps",
+        "new",
+        "remoteid",
+        "return_async",
+        "self",
+        "send",
+        "shutdown"
+      ]
     },
     {
       "name": "concat",
@@ -4099,6 +4150,34 @@
     {
       "name": "proc",
       "summary": "Create a Tcl procedure."
+    },
+    {
+      "name": "profiler::dump",
+      "summary": "Dump profiling information for the all functions matching pattern."
+    },
+    {
+      "name": "profiler::init",
+      "summary": "Initiate profiling."
+    },
+    {
+      "name": "profiler::print",
+      "summary": "Print profiling information for all functions matching pattern."
+    },
+    {
+      "name": "profiler::reset",
+      "summary": "Reset profiling information for all functions matching pattern."
+    },
+    {
+      "name": "profiler::resume",
+      "summary": "Resume profiling for all functions matching pattern."
+    },
+    {
+      "name": "profiler::sortFunctions",
+      "summary": "Return a list of functions sorted by a particular profiling statistic."
+    },
+    {
+      "name": "profiler::suspend",
+      "summary": "Suspend profiling for all functions matching pattern."
     },
     {
       "name": "puts",
