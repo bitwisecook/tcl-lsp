@@ -53,7 +53,18 @@ There are two layers, most-precise first:
    through a chain of calls. So `set p [Pin new]; connect $p` makes `$dev` (the
    parameter) resolve `$dev configure -node …` inside `connect` — the
    param-receiver case the mro_eval experiment measured as ~60% of unresolved
-   dispatches. The receiver's class is found from a handle typed by
+   dispatches. A proc that **returns** an object (`proc make {} {return [C
+   new]}; set o [make]`) types the receiving variable likewise.
+
+   A **`my method …` self-call** inside a class body resolves against the
+   enclosing class's MRO (the class named at the `oo::class create` /
+   `oo::define` head that opened the body) — by far the most common TclOO
+   dispatch form. `my configure -prop` colours the property option too.
+
+   **Not resolved (correctly abstains, never mis-highlights):** a bareword
+   named-object dispatch (`Foo create obj; obj method`), and non-TclOO object
+   systems (`snit::type`, `itcl::class`) — their method word stays a plain
+   string rather than a guessed callable. The receiver's class is found from a handle typed by
    the SSA lattice — including a handle **retrieved from an object collection**:
    a `Pins` dict filled with `[Pin new]` in one method makes
    `[dict get $Pins $pin] configure -node …` resolve to `Pin` in another (issue
@@ -125,7 +136,8 @@ still highlighted by the object-method / generic passes above.
   `variable_command_head_is_a_variable`, `computed_command_head_does_not_overlap`,
   `collection_dispatch_resolves_user_configurable_method`, `user_object_handle_method_resolves`,
   `dict_for_loop_var_dispatch_resolves`, `dict_map_in_return_dispatch_resolves`,
-  `cross_file_constructor_dispatch_resolves`, `interproc_param_dispatch_resolves`
+  `cross_file_constructor_dispatch_resolves`, `interproc_param_dispatch_resolves`,
+  `my_self_call_resolves`, `my_configure_property_options_resolve`, `proc_return_object_dispatch_resolves`
 - `rust/tcl-compiler/src/object_types.rs` — `collection_of_objects_is_tracked`,
   `collection_class_bridges_across_methods`, `spicegentcl_configurable_device_shape_resolves`,
   `interproc_param_from_object_arg_is_a_handle`, `interproc_param_flows_through_call_chain`

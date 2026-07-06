@@ -1615,6 +1615,78 @@ fn constructor_class_of_head<'r>(head_text: &str, registry: &'r CommandRegistry)
     registry.object_class(&cmd).map(|c| c.class_name)
 }
 
+/// The class named by an OO definition-body head (`oo::class create NAME { … }`
+/// and the property-/instantiation-metaclasses at argv[2]; `oo::define NAME
+/// { … }` at argv[1]), sliced from `source` so it outlives the walk.  `None`
+/// when the head is not a body-bearing definer.
+fn definer_class_name<'s>(
+    head: &str,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    source: &'s str,
+) -> Option<&'s str> {
+    let head = head.strip_prefix("::").unwrap_or(head);
+    let name_idx = match head {
+        "oo::class" | "oo::configurable" | "oo::abstract" | "oo::singleton"
+            if seg.texts.get(1).map(String::as_str) == Some("create") =>
+        {
+            2
+        }
+        "oo::define" if seg.texts.len() >= 3 => 1,
+        _ => return None,
+    };
+    let tok = seg.argv.get(name_idx)?;
+    source.get(tok.span.start() as usize..tok.span.end() as usize)
+}
+
+/// Resolve a class name *as written* at a definer head to a qualified key in
+/// `hierarchy`: an exact match, its global-qualified form, or — as a last
+/// resort — the unique class sharing its tail name.  `None` when unresolved or
+/// the tail is ambiguous (no wrong-resolution from a homonym).
+fn resolve_class_in_hierarchy(hierarchy: &ClassHierarchy, name: &str) -> Option<String> {
+    if hierarchy.classes.contains_key(name) {
+        return Some(name.to_owned());
+    }
+    let qualified = format!("::{}", name.trim_start_matches("::"));
+    if hierarchy.classes.contains_key(&qualified) {
+        return Some(qualified);
+    }
+    let tail = name.rsplit("::").next().unwrap_or(name);
+    let mut matches = hierarchy
+        .classes
+        .keys()
+        .filter(|k| k.rsplit("::").next() == Some(tail));
+    let first = matches.next()?;
+    matches.next().is_none().then_some(first.clone())
+}
+
+/// Resolve a `my method …` self-call inside a class body against the enclosing
+/// class's MRO: colour the method a callable, and — for `configure` / `cget`
+/// on an `oo::configurable` class — its `-property` options.  No-op outside a
+/// class body, without a hierarchy, or for a non-`my` head.
+fn insert_self_method_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    classes: Option<&ClassHierarchy>,
+    enclosing_class: Option<&str>,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let (Some(hierarchy), Some(class_name), Some(method)) =
+        (classes, enclosing_class, seg.texts.get(1))
+    else {
+        return;
+    };
+    if seg.texts.first().map(String::as_str) != Some("my") {
+        return;
+    }
+    let Some(class) = resolve_class_in_hierarchy(hierarchy, class_name) else {
+        return;
+    };
+    if !user_class_provides_method(hierarchy, &class, method) {
+        return;
+    }
+    mark_method_word(seg, overrides);
+    insert_user_configure_options(seg, hierarchy, &class, method, overrides);
+}
+
 /// The *user-defined* class named by a direct `[Class new|create …]` head,
 /// resolved against `hierarchy` (workspace-merged, so a class defined in
 /// another file resolves).  Returns the qualified class name, or `None` when
@@ -2750,6 +2822,12 @@ struct ScriptCtx<'a> {
     /// defined in another file resolves too (issue #797 follow-up).  `None` for
     /// the pure-segmentation path.
     classes: Option<&'a ClassHierarchy>,
+    /// The class whose definition body we are currently inside (as written at
+    /// the `oo::class create NAME` / `oo::define NAME` head), sliced from the
+    /// source so it lives as long as the walk.  Lets a `my method …` self-call
+    /// in a method body resolve against the enclosing class's MRO — the single
+    /// most common `TclOO` dispatch form.  `None` outside any class body.
+    enclosing_class: Option<&'a str>,
 }
 
 fn collect_switch_case_list(
@@ -3180,6 +3258,9 @@ fn collect_script(
             ctx.object_collections,
             ctx.classes,
         );
+        // `my method …` inside a class body resolves against the enclosing
+        // class's MRO (the most common `TclOO` dispatch form).
+        insert_self_method_overrides(&seg, ctx.classes, ctx.enclosing_class, &mut overrides);
         // Regex-source tracking: retag a `set` value word that feeds a regexp
         // pattern as a (substitution-aware) regex.  Keyed on the def-site word
         // start; the compiler-supplied span is authoritative for the fragment
@@ -3210,8 +3291,16 @@ fn collect_script(
             ctx.oo_grammar,
             registry,
         );
+        // The class whose body the recursion enters: a `oo::class create NAME`
+        // (and the property-/instantiation-metaclasses) names it at argv[2], an
+        // `oo::define NAME { … }` at argv[1].  Slice it from the source so it
+        // outlives the walk; otherwise inherit the enclosing class (so a
+        // `method …` body keeps its class).  Lets `my method …` in the body
+        // resolve against that class.
+        let next_class = definer_class_name(head_text, &seg, full_source).or(ctx.enclosing_class);
         let body_ctx = ScriptCtx {
             oo_grammar: next_oo,
+            enclosing_class: next_class,
             ..ctx
         };
 
@@ -3796,6 +3885,7 @@ fn collect_entries(
         object_classes: &object_classes,
         object_collections: &object_collections,
         classes,
+        enclosing_class: None,
     };
     collect_script(ctx, source, 0, &mut entries, 0);
 
@@ -4906,6 +4996,80 @@ mod tests {
             toks.iter()
                 .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Function as u32 && m == 0),
             "expected `configure` on the dict-for value var to resolve; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn my_self_call_resolves() {
+        // `my method …` inside a class body resolves against the enclosing
+        // class's MRO — the single most common TclOO dispatch form (2935
+        // occurrences across the tcllib/tklib/SpiceGenTcl corpus).
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::class create C {\n\
+                   \x20   method helper {} {}\n\
+                   \x20   method run {} { my helper }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        // `my helper` on line 2 resolves the sibling method.
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Function as u32 && m == 0),
+            "expected `my helper` to resolve; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn my_configure_property_options_resolve() {
+        // `my configure -prop` inside an oo::configurable body colours the
+        // property option too.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::configurable create C {\n\
+                   \x20   property node\n\
+                   \x20   constructor {} { my configure -node 0 }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        // `configure` resolves (Function) and `-node` is a decorator on line 2.
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Function as u32 && m == 0),
+            "expected `my configure` to resolve; got {toks:?}"
+        );
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, _)| l == 2 && k == TokenKind::Decorator as u32),
+            "expected `-node` property option; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn proc_return_object_dispatch_resolves() {
+        // `proc make {} {return [C new]}; set o [make]; $o m` — the factory's
+        // return type flows to `o`, so the dispatch resolves (interproc return).
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::class create C { method mrun {} {} }\n\
+                   proc make {} { return [C new] }\n\
+                   set o [make]\n\
+                   $o mrun\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 3 && k == TokenKind::Function as u32 && m == 0),
+            "expected `$o mrun` on a factory return to resolve; got {toks:?}"
         );
     }
 

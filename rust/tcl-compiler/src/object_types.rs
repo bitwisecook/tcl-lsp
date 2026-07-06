@@ -72,10 +72,69 @@ pub fn object_handle_classes(
     for fu in units {
         harvest_unit(fu, registry, &mut out);
     }
+    // Interprocedural returns: `set o [make]` where `make` returns an object
+    // types `o` as that class.  Runs before the param pass so a returned object
+    // can flow onward into another call's parameter.
+    harvest_proc_return_handles(cu, &mut out);
     // Interprocedural: a proc called with an object argument holds that class in
     // the corresponding parameter, so `$param method …` in the body resolves.
     harvest_interproc_param_handles(cu, registry, &mut out);
     out
+}
+
+/// Interprocedural return provenance: bind `VAR` in `set VAR [proc …]` to the
+/// object class the callee proc returns (its inferred `return_type`), so
+/// `$VAR method …` resolves — the factory-proc pattern `set c [makeThing]`.
+fn harvest_proc_return_handles(
+    cu: &CompilationUnit,
+    out: &mut HashMap<String, HashSet<String>>,
+) {
+    // Proc qualified name → returned object class.
+    let returns: HashMap<&str, &str> = cu
+        .procedures
+        .values()
+        .filter_map(|fu| {
+            (fu.return_type.tcl_type == Some(tcl_registry::TclType::Object))
+                .then_some(fu.return_type.class_name.as_deref())
+                .flatten()
+                .map(|c| (fu.name.as_str(), c))
+        })
+        .collect();
+    if returns.is_empty() {
+        return;
+    }
+    let resolve = |cmd: &str| -> Option<&str> {
+        if let Some((k, _)) = returns.get_key_value(cmd) {
+            return Some(*k);
+        }
+        let q = format!("::{}", cmd.trim_start_matches("::"));
+        returns.get_key_value(q.as_str()).map(|(k, _)| *k)
+    };
+    let units = std::iter::once(&cu.top_level)
+        .chain(cu.procedures.values())
+        .chain(cu.methods.values());
+    let mut bindings: Vec<(String, String)> = Vec::new();
+    for fu in units {
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                let Statement::AssignValue { name, value, .. } = stmt else {
+                    continue;
+                };
+                let stripped = value.trim();
+                if !stripped.starts_with('[') {
+                    continue;
+                }
+                if let Some((cmd, _)) = parse_command_substitution(stripped)
+                    && let Some(callee) = resolve(&cmd)
+                {
+                    bindings.push((name.clone(), returns[callee].to_owned()));
+                }
+            }
+        }
+    }
+    for (name, class) in bindings {
+        out.entry(name).or_default().insert(class);
+    }
 }
 
 /// Interprocedural parameter provenance (the object-handle half of the #797
