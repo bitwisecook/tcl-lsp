@@ -2760,6 +2760,10 @@
       "summary": "String-backed list command for testing (9.0+)."
     },
     {
+      "name": "map",
+      "summary": "The command converts the geographical box geobox to a point box in the canvas, for the specified zoom level, and."
+    },
+    {
       "name": "mapproj::fromAlbersEqualAreaConic",
       "summary": "Converts from the Albers equal-area conic projection."
     },
@@ -3920,6 +3924,58 @@
       "summary": "Build pkgIndex.tcl for a directory of packages"
     },
     {
+      "name": "pki::decrypt",
+      "summary": "Decrypt a message using PKI (probably RSA)."
+    },
+    {
+      "name": "pki::encrypt",
+      "summary": "Encrypt a message using PKI (probably RSA)."
+    },
+    {
+      "name": "pki::key",
+      "summary": "Convert a key structure into a serialized PEM (default) or DER encoded private key suitable for other applications."
+    },
+    {
+      "name": "pki::pkcs::create_csr",
+      "summary": "Generate a certificate signing request from a key pair specified in the keylist argument."
+    },
+    {
+      "name": "pki::pkcs::parse_csr",
+      "summary": "Parse a Certificate Signing Request."
+    },
+    {
+      "name": "pki::pkcs::parse_key",
+      "summary": "Convert a PKCS#1 private key into a usable key, i.e."
+    },
+    {
+      "name": "pki::rsa::generate",
+      "summary": "Generate a new RSA key pair, the parts of which can be used as argument for ::pki::encrypt, ::pki::decrypt."
+    },
+    {
+      "name": "pki::sign",
+      "summary": "Digitally sign message input using the private key."
+    },
+    {
+      "name": "pki::verify",
+      "summary": "Verify a digital signature using a public key."
+    },
+    {
+      "name": "pki::x509::create_cert",
+      "summary": "Sign a signing request (usually from ::pki::pkcs::create_csr or ::pki::pkcs::parse_csr) with a Certificate."
+    },
+    {
+      "name": "pki::x509::parse_cert",
+      "summary": "Convert an X.509 certificate to a usable (public) key."
+    },
+    {
+      "name": "pki::x509::validate_cert",
+      "summary": "Validate that a certificate is valid to be used in some capacity."
+    },
+    {
+      "name": "pki::x509::verify_cert",
+      "summary": "Verify that a trust can be found between the certificate specified in the cert argument and one of the."
+    },
+    {
       "name": "place",
       "summary": "Geometry manager for fixed or rubber-sheet placement.",
       "subcommands": [
@@ -4500,6 +4556,14 @@
       "pure": true
     },
     {
+      "name": "struct::disjointset",
+      "summary": "Create a disjoint-set (union-find) object command."
+    },
+    {
+      "name": "struct::graph",
+      "summary": "Create a directed-graph object command."
+    },
+    {
       "name": "struct::list",
       "summary": "Advanced list manipulation commands.",
       "subcommands": [
@@ -4534,6 +4598,22 @@
       "pure": true
     },
     {
+      "name": "struct::map",
+      "summary": "Create a bidirectional-map object command."
+    },
+    {
+      "name": "struct::matrix",
+      "summary": "Create a two-dimensional matrix object command."
+    },
+    {
+      "name": "struct::pool",
+      "summary": "Create a resource-pool object command."
+    },
+    {
+      "name": "struct::prioqueue",
+      "summary": "Create a priority-queue object command."
+    },
+    {
       "name": "struct::queue",
       "summary": "Create and manipulate FIFO queue objects."
     },
@@ -4563,6 +4643,10 @@
       "summary": "Create and manipulate LIFO stack objects."
     },
     {
+      "name": "struct::tree",
+      "summary": "Create a tree object command."
+    },
+    {
       "name": "subst",
       "summary": "Perform backslash, command, and variable substitutions."
     },
@@ -4573,6 +4657,34 @@
     {
       "name": "tailcall",
       "summary": "Replace the current procedure with another command"
+    },
+    {
+      "name": "tar::add",
+      "summary": "Appends files to the end of the existing tarball."
+    },
+    {
+      "name": "tar::contents",
+      "summary": "Returns a list of the files contained in tarball."
+    },
+    {
+      "name": "tar::create",
+      "summary": "Creates a new tar file containing the files."
+    },
+    {
+      "name": "tar::get",
+      "summary": "Returns the contents of fileName from the tarball."
+    },
+    {
+      "name": "tar::remove",
+      "summary": "Removes files from the tarball."
+    },
+    {
+      "name": "tar::stat",
+      "summary": "Returns a nested dict containing information on the named file in tarball, or all files if none is specified."
+    },
+    {
+      "name": "tar::untar",
+      "summary": "Extracts tarball."
     },
     {
       "name": "tcl::OptKeyDelete",

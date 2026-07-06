@@ -237,6 +237,7 @@ mod base32;
 mod ciphers;
 mod clients;
 mod crc;
+mod data_structures;
 mod data_util;
 mod encoding_pkgs;
 mod ensembles;
@@ -552,6 +553,7 @@ fn crypto_encoding_specs() -> Vec<CommandSpec> {
     specs.extend(image_pkgs::specs());
     specs.extend(ensembles::specs());
     specs.extend(term_text::specs());
+    specs.extend(data_structures::specs());
     specs
 }
 
