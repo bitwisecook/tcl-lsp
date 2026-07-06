@@ -239,12 +239,13 @@ mod clients;
 mod crc;
 mod data_util;
 mod encoding_pkgs;
+mod ensembles;
 mod functional;
 mod image_pkgs;
 mod math_core;
 mod md4;
-mod misc_pkgs;
 mod md5crypt;
+mod misc_pkgs;
 mod otp;
 mod rc4;
 mod ripemd;
@@ -548,6 +549,7 @@ fn crypto_encoding_specs() -> Vec<CommandSpec> {
     specs.extend(clients::specs());
     specs.extend(misc_pkgs::specs());
     specs.extend(image_pkgs::specs());
+    specs.extend(ensembles::specs());
     specs
 }
 
@@ -710,6 +712,31 @@ mod tests {
         assert_eq!(pkg("asn::asnGetSequence"), Some("asn"));
         assert_eq!(pkg("ncgi::parse"), Some("ncgi"));
         assert_eq!(pkg("htmlparse::parse"), Some("htmlparse"));
+        // Ensemble + flat packages from the later batches.
+        assert_eq!(pkg("generator"), Some("generator"));
+        assert_eq!(pkg("debug"), Some("debug"));
+        assert_eq!(pkg("hook"), Some("hook"));
+        assert_eq!(pkg("websocket::open"), Some("websocket"));
+    }
+
+    #[test]
+    fn generator_ensemble_has_subcommands() {
+        // `generator` dispatches on a sub-command word (define/yield/foreach/…).
+        let specs = tcllib_command_specs();
+        let gen_cmd = specs
+            .iter()
+            .find(|s| s.name == "generator")
+            .expect("generator registered");
+        let names: Vec<&str> = gen_cmd.subcommands.iter().map(|s| s.name).collect();
+        assert!(
+            names.contains(&"define"),
+            "generator has a define subcommand"
+        );
+        assert!(names.contains(&"yield"), "generator has a yield subcommand");
+        assert!(
+            gen_cmd.subcommands.len() > 20,
+            "generator has many subcommands"
+        );
     }
 
     #[test]

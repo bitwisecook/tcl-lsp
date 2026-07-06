@@ -1107,6 +1107,28 @@
       "summary": "Write a queue object to a channel in CSV format."
     },
     {
+      "name": "debug",
+      "summary": "Conditional, tag-scoped debug narration.",
+      "subcommands": [
+        "2array",
+        "define",
+        "header",
+        "hexl",
+        "level",
+        "names",
+        "nl",
+        "off",
+        "on",
+        "parray",
+        "pdict",
+        "prefix",
+        "setting",
+        "suffix",
+        "tab",
+        "trailer"
+      ]
+    },
+    {
       "name": "defer::autowith",
       "summary": "Schedule a script capturing all local variables at scope exit."
     },
@@ -1581,6 +1603,53 @@
       "summary": "This command sets the ftp file transfer type to either ascii, binary, or tenex."
     },
     {
+      "name": "generator",
+      "summary": "Create and drive lazy generator procedures (streams).",
+      "subcommands": [
+        "all",
+        "and",
+        "any",
+        "concat",
+        "concatMap",
+        "contains",
+        "define",
+        "destroy",
+        "drop",
+        "dropWhile",
+        "exists",
+        "filter",
+        "finally",
+        "foldl",
+        "foldl1",
+        "foldli",
+        "foldr",
+        "foldri",
+        "foreach",
+        "from",
+        "head",
+        "init",
+        "iterate",
+        "last",
+        "length",
+        "map",
+        "names",
+        "next",
+        "or",
+        "product",
+        "reduce",
+        "repeat",
+        "scanl",
+        "splitWhen",
+        "sum",
+        "tail",
+        "take",
+        "takeList",
+        "takeWhile",
+        "to",
+        "yield"
+      ]
+    },
+    {
       "name": "gets",
       "summary": "Read a line from a channel"
     },
@@ -1680,6 +1749,17 @@
         "keep",
         "nextid",
         "redo"
+      ]
+    },
+    {
+      "name": "hook",
+      "summary": "Publish/subscribe hook points between decoupled components.",
+      "subcommands": [
+        "bind",
+        "call",
+        "cget",
+        "configure",
+        "forget"
       ]
     },
     {
@@ -5924,6 +6004,54 @@
     {
       "name": "vwait",
       "summary": "Process events until a variable is written"
+    },
+    {
+      "name": "websocket::close",
+      "summary": "Gracefully close a websocket that was directly or indirectly passed to ::websocket::takeover."
+    },
+    {
+      "name": "websocket::configure",
+      "summary": "This command takes a number of dash-led options (and their values) to configure the behaviour of an existing."
+    },
+    {
+      "name": "websocket::conninfo",
+      "summary": "Provides callers with some introspection facilities in order to get some semi-internal information about an."
+    },
+    {
+      "name": "websocket::find",
+      "summary": "Look among existing websocket connections for the ones that match the hostname and port number filters passed as."
+    },
+    {
+      "name": "websocket::live",
+      "summary": "This procedure registers callbacks that will be performed on a WebSocket compliant server registered with."
+    },
+    {
+      "name": "websocket::loglevel",
+      "summary": "Set or query the log level of the library, which defaults to error."
+    },
+    {
+      "name": "websocket::open",
+      "summary": "This command is used in clients to open a WebSocket to a remote websocket-enabled HTTP server."
+    },
+    {
+      "name": "websocket::send",
+      "summary": "This command will send a fragment or a control message to the remote end of the WebSocket identified by sock."
+    },
+    {
+      "name": "websocket::server",
+      "summary": "This command registers the (accept) socket sock as the identifier fo an HTTP server that is capable of doing."
+    },
+    {
+      "name": "websocket::takeover",
+      "summary": "Take over the existing opened socket sock to implement sending and receiving WebSocket framing on top of the."
+    },
+    {
+      "name": "websocket::test",
+      "summary": "This procedure will test if the connection from an incoming client on socket cliSock and on the path path is the."
+    },
+    {
+      "name": "websocket::upgrade",
+      "summary": "Upgrade the socket sock that had been deemed by ::websocket::test to be a WebSocket connection request to a true."
     },
     {
       "name": "while",
