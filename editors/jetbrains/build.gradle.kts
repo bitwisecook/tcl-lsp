@@ -85,6 +85,16 @@ intellijPlatform {
 
     publishing {
         token = providers.environmentVariable("JETBRAINS_TOKEN")
+        // Release channel — same odd/even-minor convention as the VS Code
+        // pre-release track (scripts/release/prerelease.sh is the single
+        // source of truth).  The Makefile `publish-jetbrains` target exports
+        // JETBRAINS_CHANNEL from that script: "eap" for a pre-release
+        // (odd-minor 2.x) build, empty for a stable one.  The Gradle plugin
+        // treats "default" as the public Stable channel; a named channel
+        // (e.g. "eap") is only visible to users who add the custom repository
+        // URL https://plugins.jetbrains.com/plugins/<channel>/list.
+        val channel = System.getenv("JETBRAINS_CHANNEL").orEmpty()
+        channels = if (channel.isNotBlank()) listOf(channel) else listOf("default")
     }
 }
 
