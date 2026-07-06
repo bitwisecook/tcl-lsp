@@ -199,7 +199,7 @@ fn assert_event_info(base: &str, event: &str, expect_code: i32) {
 
 #[test]
 fn event_info_http_request() {
-    // client-side, tcp, FASTHTTP/HTTP profiles, per_request, 1290 commands.
+    // client-side, tcp, FASTHTTP/HTTP profiles, per_request, 1099 commands.
     assert_event_info("http-request", "HTTP_REQUEST", 0);
 }
 

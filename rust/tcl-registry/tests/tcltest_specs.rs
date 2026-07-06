@@ -113,14 +113,20 @@ fn bytestring_is_tcl8_only() {
 fn c_harness_commands_are_version_gated() {
     let r = reg();
 
-    // 8.4/8.5 only — removed in 8.6.
+    // 8.4 only — the obsolete FS hooks are compiled out (`#undef
+    // USE_OBSOLETE_FS_HOOKS`) from Tcl 8.5 onwards.
     for name in ["testaccessproc", "teststatproc", "testopenfilechannelproc"] {
         let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
         assert!(spec.supports_dialect(DialectSet::TCL84), "{name} in 8.4");
-        assert!(spec.supports_dialect(DialectSet::TCL85), "{name} in 8.5");
+        assert!(!spec.supports_dialect(DialectSet::TCL85), "{name} not 8.5");
         assert!(!spec.supports_dialect(DialectSet::TCL86), "{name} not 8.6");
-        assert!(!spec.supports_dialect(DialectSet::TCL90), "{name} not 9.0");
     }
+
+    // `testevent` is registered as far back as 8.4 (via `Tcl_CreateObjCommand(
+    // interp, "testevent", …)` — a whitespace variant), so it is all-Tcl.
+    let event = r.get("testevent").expect("testevent registered");
+    assert!(event.supports_dialect(DialectSet::TCL84));
+    assert!(event.supports_dialect(DialectSet::TCL90));
 
     // 8.4 only.
     let convertobj = r.get("testconvertobj").expect("testconvertobj registered");
@@ -193,6 +199,19 @@ fn test_error_code_option_needs_tcltest_2_5() {
     assert!(
         spec.find_option("-errorCode", None, Some("2.3")).is_none(),
         "-errorCode absent at tcltest 2.3"
+    );
+    // With no package floor (the common unversioned `package require tcltest`),
+    // the option is gated by Tcl core dialect instead: hidden under 8.5,
+    // offered under 8.6+ (which bundles tcltest 2.5).
+    assert!(
+        spec.find_option("-errorCode", Some(DialectSet::TCL85), None)
+            .is_none(),
+        "-errorCode hidden under Tcl 8.5 with no package floor"
+    );
+    assert!(
+        spec.find_option("-errorCode", Some(DialectSet::TCL86), None)
+            .is_some(),
+        "-errorCode offered under Tcl 8.6"
     );
     // Options present since 2.2 remain available at every floor.
     assert!(spec.find_option("-body", None, Some("2.2")).is_some());

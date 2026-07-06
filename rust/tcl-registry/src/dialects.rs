@@ -76,10 +76,6 @@ bitflags! {
         /// in 9.0).
         const TCL8X = Self::TCL84.bits() | Self::TCL85.bits() | Self::TCL86.bits();
 
-        /// Tcl 8.4 and 8.5 only — for test-harness commands removed at 8.6
-        /// (`testaccessproc`, `teststatproc`, `testopenfilechannelproc`).
-        const TCL84_85 = Self::TCL84.bits() | Self::TCL85.bits();
-
         /// Tcl 9.0 and later.  A command/option gated to "9.0" persists in
         /// 9.1 (a `.1` release is additive): a `{tcl9.0}` membership is
         /// inherited under `tcl9.1`.

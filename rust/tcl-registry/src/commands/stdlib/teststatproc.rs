@@ -21,12 +21,12 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "teststatproc",
-        dialects: Some(DialectSet::TCL84_85),
+        dialects: Some(DialectSet::TCL84),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
-            summary: "Install or remove a test stat(2) hook proc (Tcl 8.4-8.5).",
+            summary: "Install or remove a test stat(2) hook proc (Tcl 8.4 only).",
             synopsis: &["teststatproc option arg"],
-            snippet: "``option`` is ``insert`` or ``delete``; ``arg`` names the proc (``TestStatProc1``, ``TestStatProc2``, ``TestStatProc3``, or ``TclpStat``).  Removed in Tcl 8.6.",
+            snippet: "``option`` is ``insert`` or ``delete``; ``arg`` names the proc (``TestStatProc1``, ``TestStatProc2``, ``TestStatProc3``, or ``TclpStat``).  Removed in Tcl 8.5 (obsolete FS hooks compiled out).",
             source: "Tcl test binary (tclTest.c)",
             examples: "",
             return_value: "",
