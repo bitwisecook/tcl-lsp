@@ -1097,6 +1097,24 @@ fn insert_option_and_subcommand_overrides(
     }
 }
 
+/// Whether a command's *head word* is a runtime-computed (non-static) command
+/// name rather than a statically-resolvable one: a `$var` / `[cmd]`
+/// substitution head, or a multi-fragment word (`chartV$node`, `${prefix}cmd`).
+///
+/// The command name of such a call is only known at runtime — an object handle
+/// dispatched through a variable (`$chart method …`, #748), a `[Class new]` /
+/// `[dict get …]` constructor-or-lookup result (#797), a computed command
+/// name — so it must not be classified as a resolved command-head token, nor
+/// consulted against the registry's declared option tables.  A plain
+/// single-token bareword head (`puts`, a user proc) is *not* computed and stays
+/// on the registry-precise path.
+fn head_is_computed(seg: &tcl_compiler::segmenter::SegmentedCommand) -> bool {
+    seg.argv
+        .first()
+        .is_some_and(|t| matches!(t.kind, TokenType::Var | TokenType::Cmd))
+        || !seg.single_token_word.first().copied().unwrap_or(true)
+}
+
 /// Generic `-option` / option-value highlighting for a command with a
 /// *computed* head not resolved by the registry — a `$obj method …` object
 /// dispatch, a `[Class new] method …`, or a multi-fragment `chartV$node …`
@@ -1149,12 +1167,7 @@ fn insert_generic_option_overrides(
     // — `mycmd -foo` stays a string, a user command's `test … -body …` is not
     // mistaken for tcltest's, and an OO-body member (`property … -get {…}`)
     // keeps its recursed bodies — exactly as `puts -foo` stays a string.
-    let head_is_computed = seg
-        .argv
-        .first()
-        .is_some_and(|t| matches!(t.kind, TokenType::Var | TokenType::Cmd))
-        || !seg.single_token_word.first().copied().unwrap_or(true);
-    if !head_is_computed {
+    if !head_is_computed(seg) {
         return;
     }
     // The single-token literal (`Esc`) text of word `i`, or `None` for a
@@ -2847,16 +2860,28 @@ fn collect_script(
             .get(head_text)
             .filter(|(_, import_off)| head_tok.span.start() >= *import_off)
             .map_or(head_text.as_str(), |(qualified, _)| qualified.as_str());
-        emit_command_head(
-            line_index,
-            full_source,
-            head_tok,
-            head_text,
-            resolved_head,
-            ctx.oo_grammar,
-            registry,
-            entries,
-        );
+        // A *static* head word is a resolvable command name: emit it as a
+        // single command-head token (function / keyword / namespace).  A
+        // *computed* head — `$obj method …`, `[dict get …] method …`,
+        // `[Class new] method …`, a multi-fragment `chartV$node` — is not a
+        // command name we can resolve, so it must not be painted as one.  Its
+        // tokens fall through to the ordinary argument path below, where a
+        // `[…]` recurses into its inner script (`dict get $Pins $pin`) and a
+        // `$var` reads as a variable — an accurate picture of the runtime
+        // dispatch rather than a misleading command highlight (issue #797).
+        let computed_head = head_is_computed(&seg);
+        if !computed_head {
+            emit_command_head(
+                line_index,
+                full_source,
+                head_tok,
+                head_text,
+                resolved_head,
+                ctx.oo_grammar,
+                registry,
+                entries,
+            );
+        }
 
         // The command's argument words (head excluded), borrowed once as
         // `&[&str]` and shared by every registry-driven pass below — the
@@ -2909,14 +2934,22 @@ fn collect_script(
         };
 
         for tok in &seg.all_tokens {
-            // Skip every token that falls inside the head *word* — not just
-            // the exact head token.  A computed head (`chartV$node`,
-            // `${prefix}cmd`) is one word whose representative token
-            // `emit_command_head` already emitted as a single token, but
-            // whose sub-fragments (`chartV`, `$node`) also appear in
-            // `all_tokens`; emitting those would overlap the head token
-            // (invalid — LSP clients reject overlapping semantic tokens).
-            if tok.span.start() >= head_tok.span.start() && tok.span.end() <= head_tok.span.end() {
+            // Skip every token that falls inside a *static* head word — not
+            // just the exact head token.  Such a head is one word that
+            // `emit_command_head` already emitted as a single command token;
+            // its sub-fragments (`ns::`, `cmd` for a `ns::cmd` head) also
+            // appear in `all_tokens`, and emitting those would overlap the head
+            // token (invalid — LSP clients reject overlapping semantic tokens).
+            //
+            // A *computed* head is deliberately NOT emitted by
+            // `emit_command_head` (see above), so its tokens must flow through
+            // the argument path here: the `[…]` head token recurses into its
+            // inner script and the `$var` head token reads as a variable
+            // (issue #797).
+            if !computed_head
+                && tok.span.start() >= head_tok.span.start()
+                && tok.span.end() <= head_tok.span.end()
+            {
                 continue;
             }
             emit_arg_token(
@@ -4473,13 +4506,14 @@ mod tests {
     #[test]
     fn computed_command_head_does_not_overlap() {
         // `chartV$node SetOptions …` — a command head containing a `$node`
-        // substitution must emit as a single head token, not the whole head
-        // plus overlapping `chartV` / `$node` fragment tokens (LSP clients
-        // reject overlapping semantic tokens).
-        let toks = decode("chartV$node SetOptions -x {}\n", "tcl", &reg());
+        // substitution is a *computed* (non-static) command name, so it is not
+        // painted as a single command token.  Its fragments tokenise
+        // individually (`$node` as a variable) and must not overlap each other
+        // (LSP clients reject overlapping semantic tokens) — issue #797.
+        let toks = decode_full("chartV$node SetOptions -x {}\n", "tcl", &reg());
         for w in toks.windows(2) {
-            let (l0, c0, len0) = w[0];
-            let (l1, c1, _) = w[1];
+            let (l0, c0, len0, ..) = w[0];
+            let (l1, c1, ..) = w[1];
             if l0 == l1 {
                 assert!(
                     c1 >= c0 + len0,
@@ -4488,11 +4522,74 @@ mod tests {
                 );
             }
         }
-        // The head is still present as one token starting at col 0.
+        // The `$node` fragment inside the head reads as a variable — the head
+        // is not swallowed into one command-head token (which would hide the
+        // substitution and mislabel a dynamic command as a resolved one).
+        assert!(
+            toks.iter().any(|&(l, c, _, k, _)| l == 0
+                && c == 6
+                && k == TokenKind::Variable as u32),
+            "expected a `$node` variable fragment at col 6; got {toks:?}"
+        );
+        // No token is a `Function` command head spanning the computed word.
+        assert!(
+            !toks
+                .iter()
+                .any(|&(l, c, _, k, _)| l == 0 && c == 0 && k == TokenKind::Function as u32),
+            "computed head must not emit a function command token; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn command_substitution_head_recurses_not_command_token() {
+        // `[dict get $Pins $pin] configure -node $node` (issue #797) — the head
+        // is a `[…]` command substitution, a runtime-computed command name, not
+        // a resolvable command.  It must recurse into its inner script (`dict`
+        // as a builtin, `get` as its subcommand, `$Pins` / `$pin` as variables)
+        // rather than paint the whole `[…]` word as one function command token.
+        let src = "[dict get $Pins $pin] configure -node $node\n";
+        let toks = decode_full(src, "tcl", &reg());
+        // `dict` inside the substitution head is a builtin function token.
+        assert!(
+            toks.iter().any(|&(l, c, _, k, m)| l == 0
+                && c == 1
+                && k == TokenKind::Function as u32
+                && m == MOD_DEFAULT_LIBRARY),
+            "expected `dict` builtin token at col 1; got {toks:?}"
+        );
+        // `$Pins` inside the head is a variable, not swallowed by a command token.
         assert!(
             toks.iter()
-                .any(|&(l, c, len)| l == 0 && c == 0 && len == 11),
-            "expected single 11-wide head token; got {toks:?}"
+                .any(|&(l, c, _, k, _)| l == 0 && c == 10 && k == TokenKind::Variable as u32),
+            "expected `$Pins` variable at col 10; got {toks:?}"
+        );
+        // Nothing paints the computed head as a function command token at col 0.
+        assert!(
+            !toks
+                .iter()
+                .any(|&(l, c, _, k, _)| l == 0 && c == 0 && k == TokenKind::Function as u32),
+            "the `[…]` head must not be a function command token; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn variable_command_head_is_a_variable() {
+        // `$obj configure -node $node` — an object-handle dispatch whose class
+        // is unknown.  The `$obj` head is a variable substitution, not a
+        // command name, so it reads as a variable rather than a function token
+        // (issue #797 / the #748 `$chart` object-dispatch shape).
+        let src = "$obj configure -node $node\n";
+        let toks = decode_full(src, "tcl", &reg());
+        assert!(
+            toks.iter()
+                .any(|&(l, c, _, k, _)| l == 0 && c == 0 && k == TokenKind::Variable as u32),
+            "expected `$obj` head to read as a variable; got {toks:?}"
+        );
+        assert!(
+            !toks
+                .iter()
+                .any(|&(l, c, _, k, _)| l == 0 && c == 0 && k == TokenKind::Function as u32),
+            "the `$obj` head must not be a function command token; got {toks:?}"
         );
     }
 

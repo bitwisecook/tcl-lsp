@@ -49,11 +49,26 @@ option; a substitution word (`-$var`, `-{$var}`, `-[cmd]`) keeps its own
 highlight; and the `--` end-of-options marker stops option scanning, so a
 following `-literal` is treated as a positional operand.
 
+### Computed command heads are not command tokens
+
+A command whose *head word* is itself computed — a `$obj method …` object
+dispatch, a `[dict get $Pins $pin] method …` / `[Class new] method …`
+substitution, or a multi-fragment `chartV$node …` word — has a command name
+that is only known at runtime. Such a head is **not** painted as a resolved
+command token. Instead the head word is tokenised as ordinary code: a `[…]`
+substitution recurses into its inner script (so `[dict get $Pins $pin]` shows
+`dict` as a builtin, `get` as its subcommand, and `$Pins` / `$pin` as
+variables), and a `$var` head reads as a variable. This is an accurate picture
+of the dynamic dispatch rather than a misleading command highlight (issue
+#797). The words *after* the head (the method and its `-option` pairs) are
+still highlighted by the object-method / generic passes above.
+
 ## File-path anchors
 
 - `rust/tcl-lsp-core/src/semantic_tokens.rs` — `insert_option_and_subcommand_overrides`
   (registry options), `insert_object_method_overrides` (object methods),
-  `insert_generic_option_overrides` (fallback)
+  `insert_generic_option_overrides` (fallback), `head_is_computed` +
+  `collect_script` (computed heads are tokenised, not painted as command tokens)
 - `rust/tcl-compiler/src/object_types.rs` — object-handle → class provenance
 - `rust/tcl-registry/src/spec.rs` — `ObjectClassSpec`
 - `rust/tcl-registry/src/commands/ticklecharts/mod.rs` — the ticklecharts pack
@@ -72,7 +87,8 @@ following `-literal` is treated as a positional operand.
 
 - `rust/tcl-lsp-core/src/semantic_tokens.rs` — `unknown_head_options_classified_generically`,
   `generic_option_scan_stops_at_double_dash`, `object_method_options_resolve_via_registry`,
-  `direct_constructor_dispatch_resolves_method`
+  `direct_constructor_dispatch_resolves_method`, `command_substitution_head_recurses_not_command_token`,
+  `variable_command_head_is_a_variable`, `computed_command_head_does_not_overlap`
 - `rust/tcl-compiler/src/object_types.rs` — `scalar_handle_from_constructor`
 - `rust/tcl-registry/src/commands/ticklecharts/mod.rs` — `chart_factory_and_methods_resolve`
 
