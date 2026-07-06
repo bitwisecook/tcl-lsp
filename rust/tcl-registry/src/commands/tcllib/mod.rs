@@ -246,6 +246,7 @@ mod otp;
 mod rc4;
 mod ripemd;
 mod text_misc;
+mod web_asn;
 
 use crate::spec::CommandSpec;
 
@@ -540,6 +541,7 @@ fn crypto_encoding_specs() -> Vec<CommandSpec> {
     specs.extend(data_util::specs());
     specs.extend(math_core::specs());
     specs.extend(functional::specs());
+    specs.extend(web_asn::specs());
     specs
 }
 
@@ -697,6 +699,11 @@ mod tests {
         assert_eq!(pkg("defer::defer"), Some("defer"));
         assert_eq!(pkg("tie::tie"), Some("tie"));
         assert_eq!(pkg("base32::core::define"), Some("base32::core"));
+        // Web / protocol packages.
+        assert_eq!(pkg("asn::asnInteger"), Some("asn"));
+        assert_eq!(pkg("asn::asnGetSequence"), Some("asn"));
+        assert_eq!(pkg("ncgi::parse"), Some("ncgi"));
+        assert_eq!(pkg("htmlparse::parse"), Some("htmlparse"));
     }
 
     #[test]

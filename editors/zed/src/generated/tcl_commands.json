@@ -316,6 +316,202 @@
       "pure": true
     },
     {
+      "name": "asn::asnApplication",
+      "summary": "Takes a single encoded value data, packs it into an ASN application construct and returns its encoded binary form."
+    },
+    {
+      "name": "asn::asnApplicationConstr",
+      "summary": "Takes zero or more encoded values, packs them into an ASN application construct and returns its encoded binary."
+    },
+    {
+      "name": "asn::asnBMPString",
+      "summary": "Returns the string encoded as ASN.1 Basic Multilingual Plane string (Which is essentialy big-endian UCS2)."
+    },
+    {
+      "name": "asn::asnBitString",
+      "summary": "Returns the encoded form of the specified string."
+    },
+    {
+      "name": "asn::asnBoolean",
+      "summary": "Returns the encoded form of the specified boolean value bool."
+    },
+    {
+      "name": "asn::asnChoice",
+      "summary": "Takes zero or more encoded values, packs them into an ASN choice construct and returns its encoded binary form."
+    },
+    {
+      "name": "asn::asnChoiceConstr",
+      "summary": "Takes zero or more encoded values, packs them into an ASN choice construct and returns its encoded binary form."
+    },
+    {
+      "name": "asn::asnContext",
+      "summary": "Takes an encoded value and packs it into a constructed value with application tag, the context number."
+    },
+    {
+      "name": "asn::asnContextConstr",
+      "summary": "Takes zero or more encoded values and packs them into a constructed value with application tag, the context number."
+    },
+    {
+      "name": "asn::asnEnumeration",
+      "summary": "Returns the encoded form of the specified enumeration id number."
+    },
+    {
+      "name": "asn::asnGetApplication",
+      "summary": "Assumes that an ASN application construct is at the front of the data stored in the variable named data_var, and."
+    },
+    {
+      "name": "asn::asnGetBMPString",
+      "summary": "Assumes that a BMP (two-byte unicode) string value is at the front of the data stored in the variable named."
+    },
+    {
+      "name": "asn::asnGetBitString",
+      "summary": "Assumes that a bit string value is at the front of the data stored in the variable named data_var, and stores it."
+    },
+    {
+      "name": "asn::asnGetBoolean",
+      "summary": "Assumes that a boolean value is at the front of the data stored in the variable named data_var, and stores it."
+    },
+    {
+      "name": "asn::asnGetContext",
+      "summary": "Assumes that an ASN context tag construct is at the front of the data stored in the variable named data_var, and."
+    },
+    {
+      "name": "asn::asnGetEnumeration",
+      "summary": "Assumes that an enumeration id is at the front of the data stored in the variable named data_var, and stores it."
+    },
+    {
+      "name": "asn::asnGetIA5String",
+      "summary": "Assumes that a IA5 (ASCII) string value is at the front of the data stored in the variable named data_var, and."
+    },
+    {
+      "name": "asn::asnGetInteger",
+      "summary": "Assumes that an encoded integer value is at the front of the data stored in the variable named data_var, extracts."
+    },
+    {
+      "name": "asn::asnGetLength",
+      "summary": "Decode the length information for a block of BER data."
+    },
+    {
+      "name": "asn::asnGetNull",
+      "summary": "Assumes that a NULL value is at the front of the data stored in the variable named data_var and removes the bytes."
+    },
+    {
+      "name": "asn::asnGetNumericString",
+      "summary": "Assumes that a numeric string value is at the front of the data stored in the variable named data_var, and stores."
+    },
+    {
+      "name": "asn::asnGetObjectIdentifier",
+      "summary": "Assumes that a object identifier (OID) value is at the front of the data stored in the variable named data_var."
+    },
+    {
+      "name": "asn::asnGetOctetString",
+      "summary": "Assumes that a string is at the front of the data stored in the variable named data_var, and stores it into the."
+    },
+    {
+      "name": "asn::asnGetPrintableString",
+      "summary": "Assumes that a printable string value is at the front of the data stored in the variable named data_var, and."
+    },
+    {
+      "name": "asn::asnGetResponse",
+      "summary": "Reads an encoded ASN sequence from the channel chan and stores it into the variable named by data_var."
+    },
+    {
+      "name": "asn::asnGetSequence",
+      "summary": "Assumes that an ASN sequence is at the front of the data stored in the variable named data_var, and stores it."
+    },
+    {
+      "name": "asn::asnGetSet",
+      "summary": "Assumes that an ASN set is at the front of the data stored in the variable named data_var, and stores it into the."
+    },
+    {
+      "name": "asn::asnGetString",
+      "summary": "Decodes a user-readable string."
+    },
+    {
+      "name": "asn::asnGetUTCTime",
+      "summary": "Assumes that a UTC time value is at the front of the data stored in the variable named data_var, and stores it."
+    },
+    {
+      "name": "asn::asnGetUTF8String",
+      "summary": "Assumes that a UTF8 string value is at the front of the data stored in the variable named data_var, and stores it."
+    },
+    {
+      "name": "asn::asnIA5String",
+      "summary": "Returns the string encoded as ASN.1 IA5String."
+    },
+    {
+      "name": "asn::asnInteger",
+      "summary": "Returns the encoded form of the specified integer number."
+    },
+    {
+      "name": "asn::asnNull",
+      "summary": "Returns the NULL encoding."
+    },
+    {
+      "name": "asn::asnNumericString",
+      "summary": "Returns the string encoded as ASN.1 NumericString."
+    },
+    {
+      "name": "asn::asnObjectIdentifier",
+      "summary": "Takes a list of at least 2 integers describing an object identifier (OID) value, and returns the encoded value."
+    },
+    {
+      "name": "asn::asnOctetString",
+      "summary": "Returns the encoded form of the specified string."
+    },
+    {
+      "name": "asn::asnPeekByte",
+      "summary": "Retrieve the first byte of the data, without modifing data_var."
+    },
+    {
+      "name": "asn::asnPeekTag",
+      "summary": "The ::asn::asnPeekTag command can be used to take a peek at the data and decode the tag value, without removing."
+    },
+    {
+      "name": "asn::asnPrintableString",
+      "summary": "Returns the string encoding as ASN.1 PrintableString."
+    },
+    {
+      "name": "asn::asnRetag",
+      "summary": "Replaces the tag in front of the data in data_var with newTag."
+    },
+    {
+      "name": "asn::asnSequence",
+      "summary": "Takes zero or more encoded values, packs them into an ASN sequence and returns its encoded binary form."
+    },
+    {
+      "name": "asn::asnSequenceFromList",
+      "summary": "Takes a list of encoded values, packs them into an ASN sequence and returns its encoded binary form."
+    },
+    {
+      "name": "asn::asnSet",
+      "summary": "Takes zero or more encoded values, packs them into an ASN set and returns its encoded binary form."
+    },
+    {
+      "name": "asn::asnSetFromList",
+      "summary": "Takes a list of encoded values, packs them into an ASN set and returns its encoded binary form."
+    },
+    {
+      "name": "asn::asnString",
+      "summary": "Returns an encoded form of string, choosing the most restricted ASN.1 string type possible."
+    },
+    {
+      "name": "asn::asnTag",
+      "summary": "The ::asn::asnTag can be used to create a tag value."
+    },
+    {
+      "name": "asn::asnUTCTime",
+      "summary": "Returns the encoded form of the specified UTC time string."
+    },
+    {
+      "name": "asn::asnUTF8String",
+      "summary": "Returns the string encoded as UTF8 String."
+    },
+    {
+      "name": "asn::defaultStringType",
+      "summary": "Selects the string type to use for the encoding of non-ASCII strings."
+    },
+    {
       "name": "auto_execok",
       "summary": "Return path of executable, or empty string"
     },
@@ -1307,6 +1503,30 @@
       "name": "html::tagstrip",
       "summary": "Remove all HTML tags from a string.",
       "pure": true
+    },
+    {
+      "name": "htmlparse::2tree",
+      "summary": "This command is a wrapper around ::htmlparse::parse which takes an HTML string (in html) and converts it into a."
+    },
+    {
+      "name": "htmlparse::debugCallback",
+      "summary": "This command is the standard callback used by the parser in ::htmlparse::parse if none was specified by the user."
+    },
+    {
+      "name": "htmlparse::mapEscapes",
+      "summary": "This command takes a HTML string, substitutes all escape sequences with their actual characters and then returns."
+    },
+    {
+      "name": "htmlparse::parse",
+      "summary": "This command is the basic parser for HTML."
+    },
+    {
+      "name": "htmlparse::removeFormDefs",
+      "summary": "Like ::htmlparse::removeVisualFluff this command is here to cut down on the size of the tree as generated by."
+    },
+    {
+      "name": "htmlparse::removeVisualFluff",
+      "summary": "This command walks a tree as generated by ::htmlparse::2tree and removes all the nodes which represent visual."
     },
     {
       "name": "http",
@@ -2532,6 +2752,114 @@
         "upvar",
         "which"
       ]
+    },
+    {
+      "name": "ncgi::cookie",
+      "summary": "Return a list of values for cookie, if any."
+    },
+    {
+      "name": "ncgi::decode",
+      "summary": "Decode strings in www-url-encoding, which represents special characters with a %xx sequence, where xx is the."
+    },
+    {
+      "name": "ncgi::empty",
+      "summary": "Returns 1 if the CGI variable name is not present or has the empty string as its value."
+    },
+    {
+      "name": "ncgi::encode",
+      "summary": "Encode string into www-url-encoded format."
+    },
+    {
+      "name": "ncgi::exists",
+      "summary": "The return value is a boolean."
+    },
+    {
+      "name": "ncgi::header",
+      "summary": "Output the CGI header to standard output."
+    },
+    {
+      "name": "ncgi::import",
+      "summary": "This creates a variable in the current scope with the value of the CGI variable cginame."
+    },
+    {
+      "name": "ncgi::importAll",
+      "summary": "This imports several CGI variables as Tcl variables."
+    },
+    {
+      "name": "ncgi::importFile",
+      "summary": "This provides information about an uploaded file from a form input field of type file with name cginame."
+    },
+    {
+      "name": "ncgi::input",
+      "summary": "This reads and decodes the CGI values from the environment."
+    },
+    {
+      "name": "ncgi::multipart",
+      "summary": "This procedure parses a multipart/form-data query."
+    },
+    {
+      "name": "ncgi::names",
+      "summary": "This returns all names found in the query data, as a list."
+    },
+    {
+      "name": "ncgi::nvlist",
+      "summary": "This returns all the query data as a name, value list."
+    },
+    {
+      "name": "ncgi::parse",
+      "summary": "This reads and decodes the CGI values from the environment."
+    },
+    {
+      "name": "ncgi::parseMimeValue",
+      "summary": "This decodes the Content-Type and other MIME headers that have the form of primary value; param=val; p2=v2 It."
+    },
+    {
+      "name": "ncgi::query",
+      "summary": "This returns the raw query data."
+    },
+    {
+      "name": "ncgi::redirect",
+      "summary": "Generate a response that causes a 302 redirect by the Web server."
+    },
+    {
+      "name": "ncgi::reset",
+      "summary": "Set the query data and Content-Type for the current CGI session."
+    },
+    {
+      "name": "ncgi::setCookie",
+      "summary": "Set a cookie value that will be returned as part of the reply."
+    },
+    {
+      "name": "ncgi::setDefaultValue",
+      "summary": "Set a CGI value if it does not already exists."
+    },
+    {
+      "name": "ncgi::setDefaultValueList",
+      "summary": "Like ::ncgi::setDefaultValue except that the value already has list structure to represent multiple checkboxes or."
+    },
+    {
+      "name": "ncgi::setValue",
+      "summary": "Set a CGI value, overriding whatever was present in the CGI environment already."
+    },
+    {
+      "name": "ncgi::setValueList",
+      "summary": "Like ::ncgi::setValue except that the value already has list structure to represent multiple checkboxes or a."
+    },
+    {
+      "name": "ncgi::type",
+      "summary": "Returns the Content-Type of the current CGI values."
+    },
+    {
+      "name": "ncgi::urlStub",
+      "summary": "Returns the current URL, but without the protocol, server, and port."
+    },
+    {
+      "name": "ncgi::value",
+      "summary": "Return the CGI value identified by key."
+    },
+    {
+      "name": "ncgi::valueList",
+      "summary": "Like ::ncgi::value, but this always returns a list of values (even if there is only one value)."
     },
     {
       "name": "ne",
