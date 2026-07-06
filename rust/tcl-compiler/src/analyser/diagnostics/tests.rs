@@ -760,6 +760,22 @@ fn after_integer_ms_is_not_unknown_subcommand() {
 }
 
 #[test]
+fn info_frame_is_dialect_gated_to_8_5_plus() {
+    // `info frame` was introduced in Tcl 8.5 (TIP 280); it does not exist in
+    // 8.4, so an unknown-subcommand W001 must fire there but not in 8.5+.
+    assert!(
+        has_code("info frame\n", "tcl8.4", "W001"),
+        "info frame should be unknown in tcl8.4"
+    );
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        assert!(
+            !has_code("info frame\n", dialect, "W001"),
+            "info frame should be known in {dialect}"
+        );
+    }
+}
+
+#[test]
 fn e001_fires_for_bare_subcommand_command() {
     // A subcommand-dispatch command (`string`, `dict`, `info`) invoked
     // with no subcommand at all is E001.

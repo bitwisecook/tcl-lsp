@@ -204,7 +204,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info frame ?depth?",
         pure: true,
         return_type: Some(TclType::Dict),
-        dialects: None,
+        // Introduced in Tcl 8.5 (TIP 280) — not available in 8.4.
+        dialects: Some(DialectSet::TCL85_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
