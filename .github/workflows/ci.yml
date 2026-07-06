@@ -764,37 +764,35 @@ jobs:
           gh release upload "${{ steps.tag.outputs.tag }}" dist/SHA256SUMS.cosign.bundle \
             --repo "${{ github.repository }}" --clobber
 
-  # Keyless VS Code Marketplace publish via GitHub OIDC -> Azure Entra
-  # workload-identity federation.  No marketplace PAT exists anywhere: the
-  # job exchanges GitHub's OIDC token for a short-lived Entra token at
-  # publish time (`vsce publish --azure-credential`).  This honours the
-  # AGENTS.md invariant (no long-lived publish secret in CI) — the keyless
-  # analogue of the sigstore signing used by publish-checksums above.
-  #
-  # Gated by the `marketplace-vscode` Environment (required reviewer + a
-  # v*-tag-only deployment policy), so it PAUSES for manual approval and can
-  # never run on a non-tag ref.  Two deliberate hardening choices:
-  #   * vsce is installed from the COMMITTED lockfile BEFORE `azure/login`,
-  #     and the local binary is run AFTER — so no freshly-fetched npm code
-  #     ever executes while the marketplace-capable Azure session is live.
+  # VS Code Marketplace publish.  The publish token (VSCE_PAT) is an
+  # Environment secret on `marketplace-vscode` — a protected Environment
+  # (required reviewer + a v*-tag-only deployment policy).  Per the
+  # AGENTS.md invariant, a publish secret may live in CI only when it is
+  # stored this way: reachable solely by a job that targets the protected
+  # Environment, which PAUSES for manual approval and can never run on a
+  # non-tag ref.  (The keyless OIDC -> Azure Entra path was rolled back
+  # after it proved unreliable against the VS Code Marketplace; the PAT is
+  # the supported mechanism, matching the stable line on `main`.)  Hardening
+  # choices preserved from the keyless design:
+  #   * VSCE_PAT is scoped to the publish step's `env:` only, so the
+  #     freshly-fetched npm code in `npm ci` never runs with the token in
+  #     its environment.
   #   * the .vsix is pulled from the GitHub Release (which persists) and
   #     checksum-verified against the cosign-signed SHA256SUMS — not from a
   #     workflow artifact, which cleanup-*-artifacts could delete while this
   #     job sits waiting for approval.
   #
-  # Skipped until the Entra identity is configured (AZURE_CLIENT_ID /
-  # AZURE_TENANT_ID repo *variables* — non-secret identifiers).  Nothing
-  # depends on this job, so its manual-approval wait never blocks cleanup.
+  # Gated off until PUBLISH_VSIX_MARKETPLACE is set (a non-secret flag
+  # variable), so forks/clones without the secret never reach the gate.
+  # Nothing depends on this job, so its approval wait never blocks cleanup.
   publish-vsix-marketplace:
-    if: startsWith(github.ref, 'refs/tags/v') && vars.AZURE_CLIENT_ID != '' && vars.AZURE_TENANT_ID != ''
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PUBLISH_VSIX_MARKETPLACE == 'true'
     needs: [build-vsix, publish-checksums]
     runs-on: ubuntu-24.04
     environment: marketplace-vscode
     permissions:
-      id-token: write # GitHub OIDC token for Entra federation
       contents: read # gh release download
     steps:
-      # --- Everything credential-free runs first, before azure/login ---
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 1
@@ -809,10 +807,15 @@ jobs:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
         run: corepack enable npm
 
-      - name: Install vsce from the committed lockfile (pre-auth)
+      - name: Install vsce from the committed lockfile
         run: cd editors/vscode && npm ci
 
-      - name: Download the released VSIX and verify against SHA256SUMS
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: 'v2.6.3'
+
+      - name: Download the released VSIX and verify against the signed SHA256SUMS
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -820,23 +823,30 @@ jobs:
           tag="${GITHUB_REF#refs/tags/}"
           mkdir -p dist && cd dist
           gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
-            --pattern '*.vsix' --pattern 'SHA256SUMS' --clobber
+            --pattern '*.vsix' --pattern 'SHA256SUMS' \
+            --pattern 'SHA256SUMS.cosign.bundle' --clobber
+          # Verify SHA256SUMS is the manifest publish-checksums actually signed
+          # (keyless OIDC) BEFORE trusting any hash in it.  The Release stays
+          # mutable while this job waits for approval, so an actor with
+          # release-write could otherwise swap the .vsix AND SHA256SUMS as a
+          # self-consistent pair and pass a bare `sha256sum -c`.  Pinning the
+          # cosign identity to this repo's ci.yml on a v* tag makes that swap
+          # detectable.
+          cosign verify-blob \
+            --bundle SHA256SUMS.cosign.bundle \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp '^https://github\.com/bitwisecook/tcl-lsp/\.github/workflows/ci\.yml@refs/tags/v' \
+            SHA256SUMS
           # --ignore-missing: SHA256SUMS lists every release asset; we only
           # fetched the .vsix, so verify just that one (others are skipped).
           sha256sum -c --ignore-missing SHA256SUMS
 
-      # --- Credential becomes live here; only the local vsce binary runs ---
-      - name: Azure login (OIDC — no secret at rest)
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          allow-no-subscriptions: true
-
-      - name: Publish to VS Code Marketplace (keyless, local binary)
+      - name: Publish to VS Code Marketplace
         # Body lives in scripts/release/vsce_publish.sh: runs only the local
-        # vsce binary (no npm fetch while the Azure session is live) and adds
-        # --pre-release for odd-minor 2.x tags (scripts/release/prerelease.sh).
+        # vsce binary and adds --pre-release for odd-minor 2.x tags
+        # (scripts/release/prerelease.sh is the single source of truth).
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: bash scripts/release/vsce_publish.sh
 
   # Cleanup: delete workflow artifacts for all releases except the 3 most recent
