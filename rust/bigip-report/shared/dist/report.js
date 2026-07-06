@@ -143,5 +143,184 @@
         }
       });
     }
+    (function diagramViewer() {
+      var HOSTS = ".irule-flow-diagram,.app-pipe-diagram,.app-flow-diagram,.app-obj-flow,.arch-diagram,.diag-host";
+      var overlay, viewport, canvas;
+      var scale = 1, tx = 0, ty = 0, fit = 1, nat = { w: 0, h: 0 };
+      var pointers = {};
+      function clamp(s) {
+        return Math.max(fit * 0.3, Math.min(fit * 30, s));
+      }
+      function apply() {
+        canvas.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + scale + ")";
+      }
+      function zoomAt(factor, mx, my) {
+        var ns = clamp(scale * factor), f = ns / scale;
+        tx = mx - (mx - tx) * f;
+        ty = my - (my - ty) * f;
+        scale = ns;
+      }
+      function natSize(svg) {
+        function px(v) {
+          if (v == null) return NaN;
+          v = String(v).trim();
+          return /%$/.test(v) ? NaN : parseFloat(v);
+        }
+        var w = px(svg.getAttribute("width")), h = px(svg.getAttribute("height"));
+        if (w > 0 && h > 0) return { w, h };
+        var vb = svg.getAttribute("viewBox");
+        if (vb) {
+          var p = vb.split(/[\s,]+/), vw = parseFloat(p[2]), vh = parseFloat(p[3]);
+          if (vw > 0 && vh > 0) return { w: vw, h: vh };
+        }
+        var r = svg.getBoundingClientRect();
+        return { w: r.width || 900, h: r.height || 600 };
+      }
+      function fitToWindow() {
+        var vp = viewport.getBoundingClientRect();
+        fit = Math.min(vp.width / nat.w, vp.height / nat.h) * 0.96;
+        scale = fit;
+        tx = (vp.width - nat.w * scale) / 2;
+        ty = (vp.height - nat.h * scale) / 2;
+        apply();
+      }
+      function onMove(e) {
+        if (!(e.pointerId in pointers)) return;
+        var ids = Object.keys(pointers), vp = viewport.getBoundingClientRect();
+        if (ids.length >= 2) {
+          var pa = pointers[ids[0]], pb = pointers[ids[1]];
+          var pd = Math.hypot(pa.x - pb.x, pa.y - pb.y);
+          var pmx = (pa.x + pb.x) / 2, pmy = (pa.y + pb.y) / 2;
+          pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+          var a = pointers[ids[0]], b = pointers[ids[1]];
+          var cd = Math.hypot(a.x - b.x, a.y - b.y);
+          var cmx = (a.x + b.x) / 2, cmy = (a.y + b.y) / 2;
+          tx += cmx - pmx;
+          ty += cmy - pmy;
+          if (pd > 0) zoomAt(cd / pd, cmx - vp.left, cmy - vp.top);
+          apply();
+        } else {
+          var p = pointers[e.pointerId];
+          tx += e.clientX - p.x;
+          ty += e.clientY - p.y;
+          pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+          apply();
+        }
+      }
+      function build() {
+        overlay = document.createElement("div");
+        overlay.className = "dv-overlay";
+        overlay.hidden = true;
+        overlay.innerHTML = '<div class="dv-toolbar"><button type="button" class="dv-btn" data-act="out" title="Zoom out" aria-label="Zoom out">\u2212</button><button type="button" class="dv-btn" data-act="reset" title="Fit to window">Fit</button><button type="button" class="dv-btn" data-act="in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" class="dv-btn" data-act="close" title="Close (Esc)" aria-label="Close">\u2715</button></div><div class="dv-viewport"><div class="dv-canvas"></div></div><div class="dv-hint">drag to pan \xB7 scroll or pinch to zoom \xB7 double-click to zoom in</div>';
+        document.body.appendChild(overlay);
+        viewport = overlay.querySelector(".dv-viewport");
+        canvas = overlay.querySelector(".dv-canvas");
+        overlay.querySelector(".dv-toolbar").addEventListener("click", function(e) {
+          var b = e.target.closest("[data-act]");
+          if (!b) return;
+          var vp = viewport.getBoundingClientRect();
+          if (b.dataset.act === "close") close();
+          else if (b.dataset.act === "reset") fitToWindow();
+          else {
+            zoomAt(b.dataset.act === "in" ? 1.4 : 1 / 1.4, vp.width / 2, vp.height / 2);
+            apply();
+          }
+        });
+        viewport.addEventListener("wheel", function(e) {
+          e.preventDefault();
+          var vp = viewport.getBoundingClientRect();
+          zoomAt(Math.exp(-e.deltaY * 16e-4), e.clientX - vp.left, e.clientY - vp.top);
+          apply();
+        }, { passive: false });
+        viewport.addEventListener("dblclick", function(e) {
+          var vp = viewport.getBoundingClientRect();
+          zoomAt(1.6, e.clientX - vp.left, e.clientY - vp.top);
+          apply();
+        });
+        viewport.addEventListener("pointerdown", function(e) {
+          try {
+            viewport.setPointerCapture(e.pointerId);
+          } catch (_) {
+          }
+          pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+          viewport.classList.add("grabbing");
+        });
+        viewport.addEventListener("pointermove", onMove);
+        function up(e) {
+          delete pointers[e.pointerId];
+          try {
+            viewport.releasePointerCapture(e.pointerId);
+          } catch (_) {
+          }
+          if (!Object.keys(pointers).length) viewport.classList.remove("grabbing");
+        }
+        viewport.addEventListener("pointerup", up);
+        viewport.addEventListener("pointercancel", up);
+        document.addEventListener("keydown", function(e) {
+          if (overlay && !overlay.hidden && e.key === "Escape") close();
+        });
+        window.addEventListener("resize", function() {
+          if (overlay && !overlay.hidden) fitToWindow();
+        });
+      }
+      function open(host) {
+        var svg = host.querySelector("svg");
+        if (!svg) return;
+        if (!overlay) build();
+        var clone = svg.cloneNode(true);
+        clone.removeAttribute("style");
+        nat = natSize(svg);
+        canvas.textContent = "";
+        canvas.style.width = nat.w + "px";
+        canvas.style.height = nat.h + "px";
+        canvas.appendChild(clone);
+        pointers = {};
+        overlay.hidden = false;
+        document.body.classList.add("dv-open");
+        fitToWindow();
+      }
+      function close() {
+        overlay.hidden = true;
+        document.body.classList.remove("dv-open");
+        canvas.textContent = "";
+      }
+      function hasExpand(host) {
+        for (var i = 0; i < host.children.length; i++) {
+          if (host.children[i].classList && host.children[i].classList.contains("dv-expand")) return true;
+        }
+        return false;
+      }
+      function decorate(host) {
+        if (!host.querySelector("svg") || hasExpand(host)) return;
+        if (getComputedStyle(host).position === "static") host.style.position = "relative";
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "dv-expand";
+        btn.title = "Expand \u2014 pan & zoom";
+        btn.setAttribute("aria-label", "Expand diagram");
+        btn.textContent = "\u2922";
+        btn.addEventListener("click", function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          open(host);
+        });
+        host.appendChild(btn);
+      }
+      function decorateAll() {
+        document.querySelectorAll(HOSTS).forEach(decorate);
+      }
+      decorateAll();
+      if (window.MutationObserver) {
+        var pending = false;
+        new MutationObserver(function() {
+          if (pending) return;
+          pending = true;
+          requestAnimationFrame(function() {
+            pending = false;
+            decorateAll();
+          });
+        }).observe(document.body, { childList: true, subtree: true });
+      }
+    })();
   })();
 })();

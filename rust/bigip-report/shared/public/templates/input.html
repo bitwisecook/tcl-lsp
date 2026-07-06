@@ -52,15 +52,17 @@ link edge.ucs core.ucs -label internal'></textarea>
       </div>
     </details>
 
-    <div class="row">
-      <div>
-        <label class="fld" for="pass">UCS passphrase <span class="hint" style="font-weight:400">(only for encrypted UCS)</span></label>
-        <input type="password" id="pass" autocomplete="off" placeholder="leave blank if not encrypted">
-      </div>
-      <div>
-        <label class="fld" for="title">Report title</label>
-        <input type="text" id="title" placeholder="F5 BIG-IP Configuration Report">
-      </div>
+    <div style="margin-top:1rem;">
+      <label class="fld" for="title">Report title</label>
+      <input type="text" id="title" placeholder="F5 BIG-IP Configuration Report">
+    </div>
+
+    <!-- Only shown once we detect an uploaded UCS is actually encrypted — the
+         same reveal-on-detect pattern as the master-key box below. -->
+    <div id="passGroup" style="display:none; margin-top:1rem;">
+      <label class="fld" for="pass">UCS passphrase <span class="hint" style="font-weight:400">(only for encrypted UCS)</span></label>
+      <input type="password" id="pass" autocomplete="off" placeholder="passphrase for the encrypted UCS">
+      <p class="hint" id="passNote">One or more uploaded UCS archives are encrypted. Enter the passphrase to decrypt and read them — it stays in your browser and is never sent anywhere.</p>
     </div>
 
     <!-- Only shown once we detect the config actually carries $M$ secrets. -->

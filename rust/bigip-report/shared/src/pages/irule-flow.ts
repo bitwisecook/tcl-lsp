@@ -17,34 +17,29 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// f5report — render each iRule's control-flow flowchart (Mermaid) lazily when
-// its row is expanded. The Mermaid source is produced offline from the real
-// Tcl/iRules IR (tcl-diagram) and embedded per rule; here we just render it with
-// the already-loaded Mermaid. No dependencies beyond that, no network.
+// f5report — render each iRule's control-flow graph lazily when its row is
+// expanded. The graph ({nodes, edges} JSON) is produced offline from the real
+// Tcl/iRules IR (tcl-diagram) and embedded per rule; here we parse it and draw
+// it with the orthogonal elkjs renderer. No dependencies beyond that, no network.
 (function () {
   "use strict";
-  if (!window.mermaid) return;
+  if (!window.ElkGraph) return;
 
   function renderFlow(detail) {
     var host = detail.querySelector(".irule-flow-diagram");
     var src = detail.querySelector(".irule-flow-src");
     if (!host || !src || host._rendered) return;
-    var def = (src.textContent || "").trim();
-    if (!def) { host._rendered = true; return; }
+    var raw = (src.textContent || "").trim();
+    if (!raw) { host._rendered = true; return; }
+    var model;
+    try { model = JSON.parse(raw); } catch (e) { host._rendered = true; return; }
     host._rendered = true;
     host.textContent = "rendering…";
-    try {
-      var id = "irflow-" + Math.random().toString(36).slice(2);
-      mermaid.render(id, def).then(function (res) {
-        host.innerHTML = res.svg;
-      }).catch(function () {
+    window.ElkGraph.render(host, model, { dir: "DOWN", svgClass: "elk-report" })
+      .catch(function () {
         host.textContent = "(flowchart could not be rendered)";
         host._rendered = false;
       });
-    } catch (e) {
-      host.textContent = "(flowchart could not be rendered)";
-      host._rendered = false;
-    }
   }
 
   // The iRule rows are `tr.expandable`; report.js toggles `.open` on the

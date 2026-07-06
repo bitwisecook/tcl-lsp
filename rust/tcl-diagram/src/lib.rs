@@ -20,9 +20,9 @@
 //!
 //! [`diagram_data`] projects a parsed script's [`tcl_compiler`] IR into a
 //! frontend-agnostic `{events, procedures}` structure (decision / action /
-//! assign / return / switch / loop nodes). [`irule_flowchart_mermaid`] turns
-//! that into a deterministic Mermaid `flowchart` — an offline, no-LLM diagram
-//! for the BIG-IP report's iRule view, the CLI, and the MCP.
+//! assign / return / switch / loop nodes). [`irule_flowchart_graph`] turns
+//! that into a deterministic graph (`{nodes, edges}` JSON) — an offline,
+//! no-LLM diagram for the BIG-IP report's iRule view, rendered with elkjs.
 //!
 //! [`attach_reach`] / [`irule_attach_patterns`] reconstruct the object-name
 //! patterns (prefix / contained / suffix) an iRule could build for a dynamic
@@ -35,10 +35,10 @@
 
 mod attach;
 mod data;
-mod mermaid;
+mod graph;
 
 pub use attach::{
     AttachPattern, AttachReach, attach_reach, irule_attach_patterns, proc_call_refs,
 };
 pub use data::{diagram_data, diagram_data_with_config};
-pub use mermaid::irule_flowchart_mermaid;
+pub use graph::irule_flowchart_graph;

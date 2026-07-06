@@ -1,1 +1,1 @@
-"""Vendored third-party assets (Mermaid, MIT). See mermaid.LICENSE."""
+"""Vendored third-party assets (elkjs, EPL-2.0)."""

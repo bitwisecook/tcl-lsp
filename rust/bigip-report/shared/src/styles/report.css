@@ -451,7 +451,6 @@ html,body{max-width:100%}
 .arch-diagram{margin:4px 0 14px;overflow-x:auto}
 .arch-diagram:empty{display:none}
 .arch-diagram svg{display:block;margin:0 auto}
-.arch-diagram .mm-node:hover{filter:brightness(1.08)}
 .arch-tiers-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;margin:0 0 6px}
 .arch-tiers{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;align-items:stretch}
 .arch-tier{flex:0 0 auto;min-width:150px;border:1px dashed var(--line);border-radius:10px;padding:10px;
@@ -466,10 +465,6 @@ html,body{max-width:100%}
 .arch-role-afm,.arch-role-firewall{border-left-color:var(--amber)}
 .arch-links{margin-top:14px}
 .arch-arrow{text-align:center;color:var(--muted);font-size:15px}
-.arch-mermaid-src{margin-top:12px}
-.arch-mermaid-src summary{cursor:pointer;color:var(--muted);font-size:12px}
-.arch-mermaid-src .mermaid-code{white-space:pre;overflow-x:auto;background:var(--bg);border:1px solid var(--line);
-  border-radius:8px;padding:10px;font-family:var(--mono);font-size:11px;margin:8px 0 0}
 
 /* --- GTM + Firewall panels ------------------------------------------------- */
 .subhead{margin:18px 0 8px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
@@ -536,3 +531,34 @@ html,body{max-width:100%}
 .arch-editor-guide>summary{cursor:pointer;color:var(--muted);font-size:12px}
 .arch-editor-guide pre{margin:8px 0 0;padding:10px 12px;background:var(--bg);border:1px solid var(--line);
   border-radius:8px;font-size:11px;line-height:1.5;overflow:auto;white-space:pre-wrap;color:var(--ink)}
+
+/* ---- diagram viewer: click any diagram to expand + pan/zoom -------------- */
+/* A small expand affordance sits in the corner of every diagram host; hitting
+   it opens a full-window overlay you can drag/scroll/pinch like a map. */
+.dv-expand{position:absolute;top:8px;right:8px;z-index:3;width:30px;height:30px;padding:0;
+  display:inline-flex;align-items:center;justify-content:center;font-size:15px;line-height:1;
+  border:1px solid var(--line);border-radius:8px;color:var(--muted);cursor:pointer;opacity:0;
+  background:color-mix(in srgb,var(--card,var(--panel)) 82%,transparent);
+  transition:opacity .14s,color .14s,border-color .14s}
+.dv-expand:hover,.dv-expand:focus-visible{color:var(--accent);border-color:var(--accent);opacity:1}
+.irule-flow-diagram:hover .dv-expand,.app-pipe-diagram:hover .dv-expand,
+.app-flow-diagram:hover .dv-expand,.app-obj-flow:hover .dv-expand,
+.arch-diagram:hover .dv-expand,.diag-host:hover .dv-expand{opacity:.9}
+
+body.dv-open{overflow:hidden}
+.dv-overlay{position:fixed;inset:0;z-index:2000;background:color-mix(in srgb,var(--bg) 86%,#000)}
+.dv-overlay[hidden]{display:none}
+.dv-viewport{position:absolute;inset:0;overflow:hidden;cursor:grab;touch-action:none}
+.dv-viewport.grabbing{cursor:grabbing}
+.dv-canvas{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
+.dv-canvas svg{max-width:none!important;width:100%;height:100%;display:block}
+.dv-toolbar{position:absolute;top:14px;right:14px;z-index:2;display:flex;gap:6px}
+.dv-btn{min-width:36px;height:36px;padding:0 11px;font:inherit;font-size:15px;line-height:1;
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+  border:1px solid var(--line);border-radius:9px;background:var(--card,var(--panel));color:var(--ink)}
+.dv-btn:hover{border-color:var(--accent);color:var(--accent)}
+.dv-hint{position:absolute;left:14px;bottom:14px;z-index:2;color:var(--muted);font-size:12px;
+  pointer-events:none;padding:5px 9px;border:1px solid var(--line);border-radius:8px;
+  background:color-mix(in srgb,var(--card,var(--panel)) 78%,transparent)}
+
+@media print{.dv-expand,.dv-overlay{display:none!important}}

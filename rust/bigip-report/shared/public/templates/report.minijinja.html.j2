@@ -117,10 +117,6 @@
   </table>
   </div>
   {% endif %}
-  <details class="arch-mermaid-src">
-    <summary>Mermaid diagram source</summary>
-    <pre class="mermaid-code">{{ architecture.mermaid }}</pre>
-  </details>
 </section>
 {% endif %}
 
@@ -962,8 +958,13 @@
 
 <!-- embedded report model (JSON) — powers the topology / flow / listener views -->
 <script id="f5-model" type="application/json">{{ model_json | safe }}</script>
-<!-- vendored Mermaid 10.9.3 (MIT), inlined for a fully self-contained page -->
-<script>{{ mermaid_js | safe }}</script>
+<!-- vendored elkjs (EPL-2.0) + the orthogonal renderer that draws every report
+     diagram, inlined for a fully self-contained page. Loaded before the page
+     scripts that render into it. -->
+<script>{{ elk_js | safe }}</script>
+<script>
+{{ elk_graph_js | safe }}
+</script>
 <script>
 {{ topology_js | safe }}
 </script>
@@ -972,11 +973,6 @@
 </script>
 <script>
 {{ irule_flow_js | safe }}
-</script>
-<!-- vendored elkjs (EPL-2.0) for the orthogonal APM graph, inlined for a fully self-contained page -->
-<script>{{ elk_js | safe }}</script>
-<script>
-{{ elk_graph_js | safe }}
 </script>
 <script>
 {{ apm_js | safe }}

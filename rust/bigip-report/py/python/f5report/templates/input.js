@@ -170,6 +170,8 @@
     const drop = byId("drop");
     const fileListEl = byId("fileList");
     const passEl = byId("pass");
+    const passGroup = byId("passGroup");
+    const passNote = byId("passNote");
     const titleEl = byId("title");
     const consoleEl = byId("console");
     const resultEl = byId("result");
@@ -183,6 +185,7 @@
     let meta = {};
     let lastUrl = null;
     let ready = false;
+    const encState = /* @__PURE__ */ new WeakMap();
     const backend = selectBackend();
     function tclWord(s) {
       return /[\s{}[\]$";\\]/.test(s) ? "{" + s + "}" : s;
@@ -228,8 +231,33 @@
       if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
       return (n / (1024 * 1024)).toFixed(1) + " MB";
     }
-    function looksEncrypted(file) {
-      return /\.ucs$/i.test(file.name);
+    function looksPgp(data) {
+      if (data.length === 0) return false;
+      const isWs = (b) => b === 32 || b === 9 || b === 10 || b === 12 || b === 13;
+      let s = 0;
+      while (s < data.length && isWs(data[s])) s++;
+      const armor = "-----BEGIN PGP";
+      if (data.length - s >= armor.length) {
+        let armored = true;
+        for (let k = 0; k < armor.length; k++) {
+          if (data[s + k] !== armor.charCodeAt(k)) {
+            armored = false;
+            break;
+          }
+        }
+        if (armored) return true;
+      }
+      const first = data[0];
+      if ((first & 128) === 0) return false;
+      const tag = (first & 64) !== 0 ? first & 63 : first >> 2 & 15;
+      return tag === 1 || tag === 3 || tag === 9 || tag === 18;
+    }
+    async function isEncryptedUcs(file) {
+      try {
+        return looksPgp(new Uint8Array(await file.slice(0, 64).arrayBuffer()));
+      } catch {
+        return false;
+      }
     }
     function renderFiles() {
       fileListEl.textContent = "";
@@ -252,10 +280,10 @@
           renderFiles();
         });
         li.appendChild(name);
-        if (looksEncrypted(f)) {
+        if (encState.get(f)) {
           const lk = document.createElement("span");
           lk.className = "lock";
-          lk.title = "may be encrypted";
+          lk.title = "encrypted";
           lk.textContent = "\u{1F512}";
           li.appendChild(lk);
         }
@@ -307,6 +335,7 @@
         if (!files.some((g) => g.name === f.name && g.size === f.size)) files.push(f);
       }
       renderFiles();
+      void probeEncryption();
       void probeSecrets();
     }
     drop.addEventListener("click", () => picker.click());
@@ -406,6 +435,25 @@
       const c = window.crypto || {};
       return c.randomUUID ? c.randomUUID() : "r-" + Date.now().toString(36);
     }
+    function revealPass(count) {
+      passGroup.style.display = "";
+      passNote.textContent = count + " encrypted UCS archive" + (count === 1 ? "" : "s") + " detected. Enter the passphrase to decrypt and read " + (count === 1 ? "it" : "them") + " \u2014 it stays in your browser and is never sent anywhere.";
+    }
+    async function probeEncryption() {
+      let discovered = false;
+      let count = 0;
+      for (const f of files) {
+        let enc = encState.get(f);
+        if (enc === void 0) {
+          enc = await isEncryptedUcs(f);
+          encState.set(f, enc);
+          if (enc) discovered = true;
+        }
+        if (enc) count++;
+      }
+      if (discovered) renderFiles();
+      if (count > 0 && passGroup.style.display === "none") revealPass(count);
+    }
     function revealMku(count) {
       mkuGroup.style.display = "";
       mkuNote.textContent = count + " encrypted secret" + (count === 1 ? "" : "s") + " detected (SSL private-key passphrases, \u2026). Enter the unit master key (f5mku -K) to decrypt and reveal them \u2014 without it those values stay locked in the report. Decryption happens here in your browser; the key is never sent anywhere.";
@@ -432,7 +480,7 @@
     });
     async function run() {
       const opts = {
-        passphrase: passEl.value || "",
+        passphrase: passGroup.style.display === "none" ? "" : passEl.value,
         masterKey: mkuGroup.style.display === "none" ? "" : byId("mku").value.trim(),
         title: titleEl.value.trim() || "F5 BIG-IP Configuration Report",
         embedConsole: consoleEl.checked,

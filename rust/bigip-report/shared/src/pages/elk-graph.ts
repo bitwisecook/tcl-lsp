@@ -114,6 +114,10 @@
     });
     var outUsed = {}, inUsed = {};
     nodes.forEach(function (n) { outUsed[n.id] = 0; inUsed[n.id] = 0; });
+    // Per-edge presentation (dashed / extra class / endpoints) kept alongside
+    // the ELK edge so the draw pass can style it — ELK's returned edges carry
+    // only geometry, so we look this up by the edge's `e<i>` id.
+    var edgeMeta = {};
     var elkEdges = edges.map(function (e, i) {
       var op = e.from + "__o" + (outUsed[e.from] != null ? outUsed[e.from]++ : 0);
       var ip = e.to + "__i" + (inUsed[e.to] != null ? inUsed[e.to]++ : 0);
@@ -121,6 +125,7 @@
       if (e.label) {
         eo.labels = [{ text: e.label, width: Math.ceil(m.width(e.label)) + 6, height: 13 }];
       }
+      edgeMeta[eo.id] = { cls: e.cls || "", dashed: !!e.dashed, from: e.from, to: e.to };
       return eo;
     });
     m.done();
@@ -159,7 +164,10 @@
     }
 
     var W = Math.ceil(res.width) + 2, H = Math.ceil(res.height) + 2;
-    var svg = el("svg", { class: "elk-svg", viewBox: "-1 -1 " + W + " " + H, width: W, height: H });
+    var svg = el("svg", {
+      class: "elk-svg" + (opts.svgClass ? " " + opts.svgClass : ""),
+      viewBox: "-1 -1 " + W + " " + H, width: W, height: H,
+    });
     svg.style.maxWidth = "100%";
     svg.style.height = "auto";
     var defs = el("defs");
@@ -173,9 +181,14 @@
 
     // Edges (drawn under the nodes so a route never covers a box).
     (res.edges || []).forEach(function (e) {
+      var em = edgeMeta[e.id] || {};
+      var ecls = "elk-edge" + (em.dashed ? " elk-edge-dashed" : "") + (em.cls ? " " + em.cls : "");
       (e.sections || []).forEach(function (s) {
         var pts = [s.startPoint].concat(s.bendPoints || []).concat([s.endPoint]);
-        svg.appendChild(el("path", { d: path(pts), class: "elk-edge", "marker-end": "url(#elk-arrow)" }));
+        var pe = el("path", { d: path(pts), class: ecls, "marker-end": "url(#elk-arrow)" });
+        if (em.from != null) pe.setAttribute("data-from", em.from);
+        if (em.to != null) pe.setAttribute("data-to", em.to);
+        svg.appendChild(pe);
       });
       var lbl = e.labels && e.labels[0];
       if (lbl && lbl.x != null) {
@@ -195,7 +208,7 @@
     (res.children || []).forEach(function (c) {
       var info = meta[c.id];
       if (!info) return;
-      var g = el("g", { class: "elk-node " + info.cls, transform: "translate(" + c.x + "," + c.y + ")" });
+      var g = el("g", { class: "elk-node " + info.cls, "data-nid": c.id, transform: "translate(" + c.x + "," + c.y + ")" });
       g.appendChild(el("rect", { x: 0, y: 0, rx: 2, width: c.width, height: c.height, class: "elk-node-box" }));
       var t = el("text", { x: c.width / 2, y: 0, class: "elk-node-text", "text-anchor": "middle" });
       info.lines.forEach(function (line, i) {

@@ -90,10 +90,11 @@ fn architecture_section_renders() {
         html.contains("initArchitecture"),
         "architecture init wired in topology.js"
     );
-    // The Mermaid definition (embedded in the model) drives the diagram.
+    // The elkjs graph (embedded in the model) drives the diagram: one node per
+    // device, keyed by its `d<index>` id and the `device` node class.
     assert!(
-        html.contains("flowchart LR"),
-        "mermaid architecture diagram source present"
+        html.contains(r#"\"cls\":\"device\""#),
+        "architecture graph (elkjs) embedded in the model"
     );
 }
 
