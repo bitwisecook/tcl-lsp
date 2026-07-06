@@ -14,7 +14,7 @@ workspace (`rust/`) plus the native binaries it builds.
 
 The product is a Cargo workspace: ~37 crates under `rust/` (the authoritative
 list is `[workspace] members` in the top-level `Cargo.toml`), plus editor
-integrations under `editors/` and the Zig WASM runtime under `runtime/zig/`.
+integrations under `editors/` and the Rust WASM runtime under `runtime/rust/`.
 The native binaries are the cargo bins `tcl-lsp-server`, `tcl`, `f5-query`,
 and `tcl-mcp`.
 
@@ -46,9 +46,8 @@ sandbox, LSP db, bpf-tcl-*, irule-test, …) are also listed in `Cargo.toml`.
 ```
 editors/          Editor integrations (VS Code, Zed, JetBrains,
                   Neovim, Emacs, Helix, Sublime).
-runtime/zig/      Zig-compiled WASM runtime that the compiler's WASM
-                  codegen targets.
-runtime/rust/     Rust port of the runtime (leak round-trip + eval suite).
+runtime/rust/     Rust WASM runtime that the compiler's WASM codegen
+                  targets (leak round-trip + eval suite).
 scripts/          Build, release, codegen, and dev automation.
 samples/          Sample Tcl, iRules, and BigIP configs.
 docs/             Design docs, KCS notes, references, perf reports.
@@ -108,7 +107,6 @@ are *not* debt.
 - Rust 1.95+ with cargo, via [rustup](https://rustup.rs/) (the Makefile
   Prerequisites block and the `cargo`-missing errors pin 1.95+; the toolchain
   tracks the floating `stable` channel)
-- Zig 0.16.0 (for the WASM runtime under `runtime/zig/`)
 - Node.js 24+ with npm (for the VS Code TypeScript extension; the npm CLI is
   pinned to v12 via the
   `packageManager` field in `editors/vscode/package.json`; run
@@ -131,7 +129,6 @@ tools via [`scripts/dev/ensure-test-deps.sh`](scripts/dev/ensure-test-deps.sh)
 | Tool / source    | Version       | Install path                    | On `PATH` as              |
 |------------------|---------------|---------------------------------|---------------------------|
 | rsync, xz-utils  | distro        | `/usr/bin/`                     | `rsync`, `xz`             |
-| Zig              | 0.16.0        | `/opt/zig-0.16.0/`              | `/usr/local/bin/zig`      |
 | Wasmtime         | v43.0.1       | `/opt/wasmtime-43.0.1/`         | `/usr/local/bin/wasmtime` |
 | Binaryen         | v123          | `/opt/binaryen-123/`            | `/usr/local/bin/wasm-merge`, `/usr/local/bin/wasm-opt` |
 | rustup + Rust    | floating `stable` (currently 1.96.0) | `/root/.rustup`, `/root/.cargo` | `/usr/local/bin/{cargo,rustc,rustup,rustfmt,clippy-driver}` |
@@ -140,7 +137,6 @@ tools via [`scripts/dev/ensure-test-deps.sh`](scripts/dev/ensure-test-deps.sh)
 | Tcl 8.6 source   | 8.6.16        | `tmp/tcl8.6.16/`                | —                         |
 | Tcl 9.0 source   | 9.0.3         | `tmp/tcl9.0.3/`                 | —                         |
 | tcllib           | 2.0           | `tmp/tcllib-2.0/`               | —                         |
-| Tcl regex engine | 9.0.3         | `runtime/zig/vendor/tcl-regex/` | —                         |
 
 Notes on the fetched sources:
 
@@ -149,26 +145,14 @@ Notes on the fetched sources:
   `codeload.github.com`. Tarballs are GitHub-CDN cached, smaller than a git
   clone, and friendlier to the upstream Tcl project than hitting
   `tcl.tk`/`sourceforge.net` on every cold session.
-- Zig is fetched via the community mirror pool listed at
-  [`community-mirrors.txt`](https://ziglang.org/download/community-mirrors.txt);
-  the hook shuffles the pool, falls back to `ziglang.org` as the last resort,
-  and verifies the x86_64-linux tarball against the published SHA-256.
 - The hook is idempotent — warm containers re-run it and finish in seconds.
-- The Tcl regex engine sources (14 `.c`/`.h` files, ~150 KB) are fetched into
-  `runtime/zig/vendor/tcl-regex/` by `scripts/fetch_tcl_regex.sh`. They are
-  not vendored in the repo. The WASM runtime build (`zig build`) **does not**
-  fetch them itself — local developers must run the script once after
-  cloning. Re-fetch by deleting `runtime/zig/vendor/tcl-regex/.stamp` and
-  re-running.
 
 To bump any of these versions, edit the pinned variables at the top of
 [`.claude/hooks/session-start.sh`](.claude/hooks/session-start.sh)
-(`ZIG_VERSION`, `WASMTIME_VERSION`, `BINARYEN_VERSION`, `TCLLIB_TAG` /
+(`WASMTIME_VERSION`, `BINARYEN_VERSION`, `TCLLIB_TAG` /
 `TCLLIB_VERSION`; Rust tracks the floating `stable` channel via
 `RUST_TOOLCHAIN` and needs no version bump) and, for Tcl, the version/tag maps in
 [`.claude/skills/fetch-tcl-source/fetch_tcl_source.sh`](.claude/skills/fetch-tcl-source/fetch_tcl_source.sh).
-For Zig, refresh `expected_sha` in the hook to match the new x86_64-linux
-tarball's SHA-256 from `https://ziglang.org/download/index.json`.
 
 ### Version requirements — sources of truth and update checklist
 
@@ -194,22 +178,20 @@ The project uses GNU Make. Key targets:
 | Target             | Purpose                                  |
 |--------------------|------------------------------------------|
 | `make rust-check`  | **Rust PR gate** — `check-rust` (cargo `fmt --check` + `clippy`) + `xtask-check` (generated-file / docs-index drift gates via `cargo xtask …`). Mirrors the GitHub Actions `pr-gate` job. |
-| `make check-all`   | **Pre-push gate** — full lint + typecheck across **every** language: TypeScript via ESLint + Prettier + tsc, Zig via `zig fmt --check` + `zig build`, Rust via `cargo fmt --check` + `cargo clippy`. On success writes `tmp/check-all.stamp`; the pre-push hook requires this. |
-| `make test-slow`   | **Pre-PR gate** — must pass before opening a PR. Runs everything: optional dep check (or install when `AUTO_INSTALL_DEPS=1`) + `capture-bytecode-refs` + `prep-pr` + `check-zig` + `check-rust` + tclpkg (`test-tclpkg-tcl`) + VS Code extension (`test-ext`) + Zig WASM runtime tests (`test-zig`) + Emacs eglot (`test-emacs`) + VSIX smoke (`_prep-pr-smoke`) + the full Rust workspace test suite (`test-rust`, which includes the native lsp_e2e). Drives every phase through `scripts/dev/test-slow-runner.sh`, which keeps going past failures and prints one consolidated PASS/FAIL summary at the end. On success writes the committed `.test-slow.stamp` (CI PR gate) plus the local `tmp/check-all.stamp` and `tmp/test-slow.stamp`. **`git add .test-slow.stamp` and commit it with your PR.** Release-only docs (`RELEASE_NOTES.md`, `docs/sphinx/changelog.md`) are excluded from the fingerprint, so a single green run before merge stays valid through the release tag — the release flow **verifies** this stamp rather than re-running the gate. |
+| `make check-all`   | **Pre-push gate** — full lint + typecheck across **every** language: TypeScript via ESLint + Prettier + tsc, Rust via `cargo fmt --check` + `cargo clippy`. On success writes `tmp/check-all.stamp`; the pre-push hook requires this. |
+| `make test-slow`   | **Pre-PR gate** — must pass before opening a PR. Runs everything: optional dep check (or install when `AUTO_INSTALL_DEPS=1`) + `capture-bytecode-refs` + `prep-pr` + `check-rust` + tclpkg (`test-tclpkg-tcl`) + VS Code extension (`test-ext`) + Emacs eglot (`test-emacs`) + VSIX smoke (`_prep-pr-smoke`) + the full Rust workspace test suite (`test-rust`, which includes the native lsp_e2e). Drives every phase through `scripts/dev/test-slow-runner.sh`, which keeps going past failures and prints one consolidated PASS/FAIL summary at the end. On success writes the committed `.test-slow.stamp` (CI PR gate) plus the local `tmp/check-all.stamp` and `tmp/test-slow.stamp`. **`git add .test-slow.stamp` and commit it with your PR.** Release-only docs (`RELEASE_NOTES.md`, `docs/sphinx/changelog.md`) are excluded from the fingerprint, so a single green run before merge stays valid through the release tag — the release flow **verifies** this stamp rather than re-running the gate. |
 | `make verify-test-slow-stamp` | Verify the committed `.test-slow.stamp` matches the current tree — the same content-fingerprint check the GitHub `test-slow-stamp` PR job runs. Fails loudly if the tree changed since the last green `test-slow`. Note: running **any** make target other than this one, `test-slow`, or `help` deletes `.test-slow.stamp`, so re-run `make test-slow` (which rewrites it) as the final step before committing. |
 | `make install-test-deps` | One-shot setup: install **everything** `test-slow` needs (the system toolchain — all of `ensure-test-deps`). The target to run on a fresh checkout before `make test-slow`. Same platform coverage as `ensure-test-deps`. |
-| `make ensure-test-deps` | Install the optional `test-slow` toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`, Rust/rustup, Zig, Wasmtime, Binaryen, emacs, xvfb, …) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.3/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`, `SKIP_RUST=1`, `SKIP_ZIG=1`, … Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report of what would be installed. |
+| `make ensure-test-deps` | Install the optional `test-slow` toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`, Rust/rustup, Wasmtime, Binaryen, emacs, xvfb, …) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.3/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`, `SKIP_RUST=1`, … Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report of what would be installed. |
 | `make ensure-rust-deps` | Install Rust/rustup + the `wasm32-wasip2` target needed by `check-rust` / the WASM build. |
 | `make capture-bytecode-refs` | Run `scripts/capture/bytecode.sh` to fill in any missing `tests/bytecode_reference/<ver>/*.disasm` files using a locally available `tclsh9.0`. No-op when the corpus is complete; soft-skips with guidance when `tclsh9.0` is missing. |
-| `make check-zig`   | Zig format check + compile (`zig fmt --check` + `zig build install`). Skip with `SKIP_CHECK_ZIG=1`. |
 | `make check-rust`  | Rust format check + clippy across the workspace (and the Zed extension). Skip with `SKIP_CHECK_RUST=1`. |
 | `make install-hooks` | Install the project's git pre-push hook, which refuses pushes unless `make check-all` (or `make test-slow`) has been run against the current worktree. |
 | `make prep-pr`     | Pre-PR formatting + fast checks (a subset of test-slow; auto-formats code, runs codegen, lint/typecheck, and `test-rust`).  Use `make test-slow` for the full gate. |
-| `make test`        | Run all tests — Rust workspace + VS Code extension + Zig WASM runtime (`test-rust test-ext test-zig`) |
+| `make test`        | Run all tests — Rust workspace + VS Code extension (`test-rust test-ext`) |
 | `make test-rust`   | `cargo test --workspace --all-features` — includes the native lsp_e2e suite (`rust/tcl-lsp-server/tests/*_e2e.rs`); skip with `SKIP_TEST_RUST=1` |
 | `make test-ext`    | VS Code extension integration tests (xvfb on headless Linux) |
 | `make test-ext-rust` | Build `rust-server`, then run the VS Code extension tests against the native Rust server (`TCL_LSP_SERVER_KIND=rust`, `TCL_LSP_SERVER_BIN` set) |
-| `make test-zig`    | Zig WASM runtime unit tests (`zig build test`); skip with `SKIP_TEST_ZIG=1` |
 | `make lint`        | Lint / style checks — TypeScript only (`lint-ts`: ESLint + Prettier) |
 | `make format`      | Format TypeScript (`format-ts`, Prettier) |
 | `make rust-server` | Build the native `tcl-lsp-server` binary (`cargo build -p tcl-lsp-server`; `PROFILE=release|debug`) |
@@ -285,92 +267,36 @@ source of truth (prints `true`/`false`); CI (`create-release`,
 ## WASM command parity
 
 The Rust command specs in **`tcl-registry`** are the **source of truth**
-for which Tcl 8.4-9.1 commands exist.  The Zig WASM runtime must be
-bit-for-bit aligned with the registry — same commands, same sub-commands,
-same arity bounds — so that every command in the registry has runtime
-backing (a real handler, a trapping stub, or an explicit "not required"
-classification).
+for which Tcl 8.4-9.1 commands exist.  The WASM runtime backing — the
+Rust runtime under `runtime/rust/` that the compiler's WASM codegen
+targets — must stay aligned with the registry: every command in the
+registry needs runtime backing (a real handler, an interpreter-fallback
+path, or an explicit "not required" classification such as the
+`tcl::mathop::*` prefix-form operators).  The runtime port is a distinct
+workstream tracked in
+[`docs/design/runtime/rust-runtime-port.md`](docs/design/runtime/rust-runtime-port.md).
 
 For a walkthrough of how a Tcl script becomes a WASM module (the
 6-phase codegen pipeline, per-statement dispatch order, per-command
 file layout), see
 [`docs/design/compiler/wasm-codegen.md`](docs/design/compiler/wasm-codegen.md).
 
-Every command must have one of:
-
-- a real Zig handler in `runtime/zig/cmds/*.zig` (visible in
-  `runtime/zig/dispatch/tcl_cmd_table.zig`'s `BUILTINS` slice),
-- a trapping stub in `runtime/zig/dispatch/tcl_stub_fallback.zig` (raises
-  `unsupported command: X`), or
-- an explicit "not required" classification (currently only the
-  `tcl::mathop::*` prefix-form operators).
-
-### Arity contract
-
-`CmdEntry` in `runtime/zig/dispatch/tcl_cmd_registry.zig` carries
-explicit `arity_min: u32` and `arity_max: ?u32` fields (null =
-variadic).  Every registration in `cmds/*.zig` must fill them in:
-
-```zig
-.{ .name = "set", .arity_min = 1, .arity_max = 2, .handler = &eval_set }
-```
-
-These bounds must match the matching `CommandSpec` arity in the Rust
-`tcl-registry`.  A `(command, registry-bounds, zig-bounds)` mismatch is a
-regression — the Zig side is the one that has to track the registry.
-
-### Sub-command contract
-
-Commands that dispatch on a sub-command word (`string length`,
-`dict get`, `clock seconds`, `info body`, …) must declare their
-sub-commands as a `SubEntry` slice:
-
-```zig
-pub const subcommands: []const reg.SubEntry = &.{
-    .{ .name = "length", .arity_min = 1, .arity_max = 1, .handler = &sub_length },
-    .{ .name = "index",  .arity_min = 2, .arity_max = 2, .handler = &sub_index  },
-    …
-};
-```
-
-These entries must match the `SubCommand` entries on the parent
-`CommandSpec` in the Rust `tcl-registry`.  Sub-command migration is
-incremental: commands without a Zig `subcommands` table are known-missing
-(tracked, not a regression).  Adding a sub-command to the registry without
-the matching Zig entry — or vice versa — is a regression.
-
-### When you change the parity
-
 When you add a Tcl command, add both the registry `CommandSpec` (in
-`tcl-registry`) and the runtime backing (a Zig handler + arity, a stub, or
-an explicit "not required" classification) in the same change.  Common
-reasons the parity moves:
-
-- Adding a new Tcl command (registry spec + Zig handler + arity).
-- Migrating a sub-command dispatcher from if-chain to `SubEntry` slice.
-- Promoting a silent stub to a real implementation.
-
-Each change should tell a clean improvement story — the registry and the
-Zig runtime describe the same command surface, arity bounds, and
-sub-commands.
+`tcl-registry`) and its runtime backing in the same change so the two
+describe the same command surface, arity bounds, and sub-commands.
 
 ## Optional WASM extensions
 
 The compiler can ship *optional* runtime features the user's program
-requests via `package require`.  Today this is implemented as
-runtime variants — `zig build` produces both `tcl_runtime.wasm`
-(lean) and `tcl_runtime_with_<extname>.wasm` (with the extension's
-commands compiled into BUILTINS).  The `tcl-compiler` WASM link/bundle
-step picks the right variant based on the `package require` calls it
-finds in the merged IR, then `wasm-merge`s it with the user-code module
-to produce a single bundled `.wasm`.
+requests via `package require`.  The `tcl-compiler` WASM link/bundle
+step selects the runtime backing based on the `package require` calls it
+finds in the merged IR, then links it with the user-code module to
+produce a single bundled `.wasm`.
 
-The first extension is **Tcltest**: the full Tcl 9 `tcltest` C-tier
-`test*` command surface (107 commands across 14 cmd_*.zig files
-under `runtime/zig/tcltest/`).  PORTABLE / PARTIAL commands have
-functional implementations; NOT-PORTABLE ones (sockets, threads,
-fork, native FS hooks) raise an explicit "not supported under WASM"
-error.  See
+The first extension is **Tcltest**: the Tcl 9 `tcltest` C-tier `test*`
+command surface.  PORTABLE / PARTIAL commands have functional
+implementations; NOT-PORTABLE ones (sockets, threads, fork, native FS
+hooks) raise an explicit "not supported under WASM" error.  See
 [`docs/design/compiler/wasm-extensions.md`](docs/design/compiler/wasm-extensions.md)
 for the contract and full per-cluster file layout.
 
@@ -381,11 +307,11 @@ There are **three distinct gates**, in increasing strictness:
 | Gate | Required before | What runs | Enforcement |
 |---|---|---|---|
 | **`make rust-check`** | Rust-only changes (minimum) | Rust `fmt --check` + `clippy` + `xtask-check` (generated-file / docs-index drift gates).  Mirrors GitHub Actions' `pr-gate` job | fast subset — run before `check-all` |
-| **`make check-all`** | every `git push` (minimum) | multi-language lint + typecheck across TypeScript (ESLint + Prettier + tsc), Zig (`zig fmt --check` + `zig build`), Rust (`cargo fmt --check` + `cargo clippy`) | Pre-push hook accepts `tmp/check-all.stamp` matching the current worktree |
-| **`make test-slow`** | every PR / merge request | Everything `check-all` runs **plus** the full Rust workspace test suite (native lsp_e2e included), tclpkg, VS Code extension, Zig WASM runtime tests, Emacs eglot, and VSIX smoke | Pre-push hook accepts `tmp/test-slow.stamp` + agent rule: required before opening a PR |
+| **`make check-all`** | every `git push` (minimum) | multi-language lint + typecheck across TypeScript (ESLint + Prettier + tsc), Rust (`cargo fmt --check` + `cargo clippy`) | Pre-push hook accepts `tmp/check-all.stamp` matching the current worktree |
+| **`make test-slow`** | every PR / merge request | Everything `check-all` runs **plus** the full Rust workspace test suite (native lsp_e2e included), tclpkg, VS Code extension, Emacs eglot, and VSIX smoke | Pre-push hook accepts `tmp/test-slow.stamp` + agent rule: required before opening a PR |
 
 GitHub Actions runs only the fast gate on PRs (the `pr-gate` job, mirrored by
-`make rust-check` + the TS/Zig lint in `check-all`).  Everything else is the
+`make rust-check` + the TS lint in `check-all`).  Everything else is the
 responsibility of the local gates above.  CI is **not** a substitute for
 either gate.
 
@@ -404,7 +330,7 @@ The pre-push hook (installed via `make install-hooks`) recomputes
 the worktree fingerprint at push time and accepts the push when
 `tmp/check-all.stamp` or `tmp/test-slow.stamp` matches.  Failures must
 be fixed, not skipped — tooling-missing skips must be deliberate
-(`SKIP_CHECK_ZIG=1`, `SKIP_CHECK_RUST=1`, ...).
+(`SKIP_CHECK_RUST=1`, ...).
 
 **Agent rule — Claude / codex / etc:** `make check-all` is the MINIMUM
 gate before every `git push`.  The PR's `pr-gate` job runs the same Rust
@@ -428,18 +354,17 @@ then the rest in parallel):
 1. **capture-bytecode-refs** — fill any missing bytecode reference disasms
 2. **prep-pr** — format (Prettier) + codegen (`cargo xtask`) + lint + typecheck
    (tsc) + editor-settings drift check + `test-rust`
-3. **check-zig** + **check-rust** — Zig and Rust lint/typecheck
+3. **check-rust** — Rust lint/typecheck
 4. **tclpkg** (`test-tclpkg-tcl`) — pure-Tcl package-manager tests
 5. **VS Code extension** (`test-ext`) — xvfb if no DISPLAY
-6. **Zig WASM runtime** (`test-zig`) — runtime unit tests via `wasmtime`
-7. **Emacs eglot** (`test-emacs`)
-8. **VSIX smoke** (`_prep-pr-smoke`)
-9. **Rust workspace** (`test-rust`) — `cargo test --workspace --all-features`,
+6. **Emacs eglot** (`test-emacs`)
+7. **VSIX smoke** (`_prep-pr-smoke`)
+8. **Rust workspace** (`test-rust`) — `cargo test --workspace --all-features`,
    including the native lsp_e2e suite (`rust/tcl-lsp-server/tests/*_e2e.rs`)
 
 On success it writes both `tmp/check-all.stamp` and `tmp/test-slow.stamp`.
 
-Skip variables for missing tooling: `SKIP_TEST_ZIG=1`, `SKIP_TEST_EMACS=1`,
+Skip variables for missing tooling: `SKIP_TEST_EMACS=1`,
 `SKIP_TEST_RUST=1`.  Use these only when the tool genuinely isn't available
 on your machine — the gate must still cover everything else.
 
@@ -737,102 +662,6 @@ is a structural brace, not a stray character.
 See `docs/design/compiler/lexing-segmentation.md` for the full token type
 table and lexer contracts.
 
-## Zig runtime layering
-
-The WASM runtime under `runtime/zig/` is organised into role-based
-subfolders, each holding small single-responsibility modules.  Callers
-should import the specific module they need — the old "everything in
-`tcl_obj.zig`" shape is dead.  `valtypes/tcl_obj.zig` still re-exports
-the migrated symbols (`obj.is_space`, `obj.list_elem_quote`, …) as a
-compat layer so older callers don't break, but new code should go to
-the canonical module.
-
-### Folder layout
-
-```
-runtime/zig/
-├── build.zig
-├── tcl_runtime.zig                      (entry point)
-├── valtypes/                            (TclObj + value utilities)
-├── parse/                               (script tokeniser + subst)
-├── interp/                              (eval loop + frames + ns)
-├── dispatch/                            (command lookup + diag)
-├── stubs/                               (trapping / degraded exports)
-├── io/                                  (real I/O + time)
-├── cmds/                                (per-command BUILTINS registrations)
-└── regex_include/                       (C vendor shim for Spencer regex)
-```
-
-### Module reference
-
-| Module | Owns | Reference Tcl 9 analogue |
-|---|---|---|
-| `valtypes/tcl_chars.zig` | character classification (`is_space`, `is_scan_space`, `is_bareword`, `is_digit`, …) + byte-span comparators (`str_eq`, `str_cmp`, `mem_eq`) | `tclParse.c` `CHAR_TYPE` / `TclIsSpaceProc` / `TclIsBareword` |
-| `valtypes/tcl_bs.zig` | backslash decoder — `consume_bs_escape` for one ``\x`` escape; `decode_into` for whole-span decode; `encode_utf8` helper | `tclParse.c` `TclParseBackslash` / `Tcl_UtfBackslash` / `TclCopyAndCollapse` |
-| `valtypes/tcl_list_quote.zig` | output side of the list-string contract — `scan_element` + `convert_element` (COMPAT=1), `list_elem_quote` / `list_elem_quote_nth` | `tclUtil.c` `TclScanElement` / `TclConvertElement` / `Tcl_Merge` |
-| `valtypes/tcl_list_parse.zig` | input side — `count_elements`, `element_at`, `copy_unbraced_elem` | `tclUtil.c` `TclFindElement` / `Tcl_SplitList` |
-| `valtypes/tcl_obj.zig` | TclObj memory model, type dispatch, `try_parse_int` / `try_parse_bool` | `tclObj.c` |
-| `parse/tcl_parse.zig` | script / word tokeniser — `parse_command` (flat-array legacy API) and `ParseCommand` (Token-tree API with per-word `braced` flag) | `tclParse.c` `Tcl_ParseCommand` / `Tcl_ParseBraces` / `Tcl_ParseQuotedString` |
-| `parse/tcl_subst.zig` | `subst_flagged` — `$var`, `[cmd]`, and `\bs` substitution engine shared by the word expander and the `subst` command; lazy-imports `interp/tcl_interp.zig` for `eval_script` | `tclParse.c` `Tcl_SubstObj` |
-| `interp/tcl_interp.zig` | eval loop, proc frame management, and `pub` helpers (`eval_if`, `eval_while`, `eval_for`, `eval_foreach`, `eval_expr_str`, `qualify_name`, …) called by `cmds/` modules; dispatches builtins via `tcl_cmd_table.lookup()` | `tclBasic.c` / `tclExecute.c` |
-| `interp/tcl_interp_registry.zig` | child interpreter registry — `interp create`/`eval`/`delete`/`exists`/`slaves` primitives and per-interp `hidden_cmd_table` slot | `tclInterp.c` `ChildCreate` / `ChildEval` |
-| `dispatch/tcl_cmd_registry.zig` | `CmdEntry { name, handler }` type and linear-scan `lookup(entries, name_ptr, name_len)` used by `tcl_cmd_table.zig` | local shim |
-| `dispatch/tcl_cmd_table.zig` | assembles the `BUILTINS` slice from all `cmds/*.zig` modules via `++` concatenation; exposes `lookup()` called by `eval_command` | local shim |
-| `dispatch/tcl_stub_fallback.zig` | fallback dispatch for Tcl core commands without a BUILTINS entry; the `STUB_TRAP` data table names commands that emit `unsupported command: X` via `stubs/tcl_stubs.zig` | local shim |
-| `dispatch/tcl_dispatch.zig` | host bridge for compiled-proc calls (consumer) | local shim |
-| `dispatch/tcl_diag.zig` | DiagSite / DiagMap — source-location sidecar for runtime traps so stderr `tcl trap: site=<id>` resolves to a file:line:col | local shim |
-| `cmds/tcl_cmd_info.zig` | the `info` command — body/args/default/exists/level/frame/commands/procs/functions/… | `tclCmdIL.c` `Tcl_InfoObjCmd` |
-| `cmds/tcl_cmd_interp.zig` | the `interp` command — create/eval/delete/alias/hide/expose/target/invokehidden/… | `tclInterp.c` `Tcl_InterpObjCmd` |
-| `cmds/tcl_hide.zig` | hidden command table (used by `interp hide` / `interp expose` / `info hidden`) | `tclInterp.c` hidden command table |
-| `cmds/tcl_alias.zig` | interp alias table (used by `interp alias`, `rename` across interps) | `tclInterp.c` alias table |
-| `cmds/tcl_rename.zig` | `rename` command — remove-or-relocate a command in the BUILTINS registry / user-proc table | `tclBasic.c` `Tcl_RenameObjCmd` |
-| `cmds/*.zig` | one file per command group — `var.zig` (`set`/`incr`/`unset`), `scope.zig` (`global`/`variable`/`upvar`), `flow.zig` (`return`/`break`/`continue`/`error`/`catch`), `loop.zig` (`if`/`while`/`for`/`foreach`), `eval.zig` (`eval`/`uplevel`), `proc.zig` (`proc`), `list.zig` (13 list commands), `io.zig` (`puts`/`append`/`format`/`scan`), `chan.zig` (`encoding`/`fconfigure`), `fs.zig` (`file`/`pwd`/`cd`), `subst.zig` (`subst`/`expr`), `regexp.zig` (`regexp`), `inspect.zig` (`info`/`trace`), `namespace.zig` (`namespace`), `interp.zig` (`rename`/`interp`), `stubs.zig` (`auto_*`/`package`) | `tclBasic.c` built-in table |
-| `stubs/tcl_stubs.zig` | `unsupported(name)` / `unsupported_sub(cmd, sub)` / `raise(msg)` — routes through the error path so inside `catch` it sets `error_flag` + `error_msg`, outside a catch it writes to stderr and traps | local shim |
-| `io/tcl_io.zig` | real `puts` implementation on WASI `fd_write` | `tclIO.c` |
-| `io/tcl_chan.zig` | channel registry + `fconfigure` (set / single-option query / no-args dict query) | `tclIO.c` |
-| `io/tcl_fs.zig` | string-path manipulation `file` subcommands + WASI `pwd` / `cd` | `tclFileName.c` / `tclFCmd.c` |
-| `io/tcl_clock.zig` | `clock seconds` / `clock clicks` / `clock milliseconds` via WASI wall/monotonic clocks | `tclClock.c` |
-
-**Rebuilding the WASM binary:** use `Debug` mode (the default — no `-Doptimize` flag) during development so Zig's safety checks catch pointer bugs early:
-
-```
-cd runtime/zig && zig build
-```
-
-Use `ReleaseFast` only for release builds:
-
-```
-cd runtime/zig && zig build -Doptimize=ReleaseFast
-```
-
-Debug builds are ~3× larger but expose real bugs (e.g. `@ptrFromInt(0)` panics, buffer-offset vs address misuse) that are silently masked in release mode.
-
-A few invariants to preserve when adding features:
-
-- **One canonical implementation per algorithm.**  List-element
-  quoting, backslash decoding, whitespace classification — each
-  lives in exactly one module.  The "third copy in
-  `dispatch/tcl_dispatch.zig`" bug that stripped newlines from braced
-  proc bodies was exactly the kind of hazard this layering exists to
-  prevent.
-- **Character classification goes through `valtypes/tcl_chars.zig`.**
-  Don't spell out `c == ' ' or c == '\t' …` inline — use
-  `chars.is_space` / `chars.is_scan_space`.  Likewise for `is_digit`,
-  `is_hex_digit`, `is_bareword`.
-- **Braced-vs-unbraced is first-class.**  When a parser produces a
-  word, callers must get the `braced` flag (either from
-  `parse.Token.braced` or, in callers that still use the flat-array
-  form, the old `word_braced[i]`).  Losing that flag along the path
-  from parse to substitute is what causes ``\{`` / newline bugs in
-  proc bodies passed through `uplevel`.
-
-Reference Tcl source is fetched to `tmp/tcl9.0.3/` (and the matching 8.4,
-8.5, 8.6 trees) by the SessionStart hook on web sessions — see
-[Pre-installed toolchains and sources](#claude-code-on-the-web--pre-installed-toolchains-and-sources).
-Locally, run `bash .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0`
-(or `all`). `tmp/tcl9.0.3/generic/` carries the C parser / util files the
-Zig ports mirror.
-
 ## Codegen and lowering fallback
 
 The lowering hooks in `rust/tcl-compiler` convert high-level Tcl
@@ -926,8 +755,8 @@ layers — not just the one closest to the symptom.
 
 ## Testing
 
-- Test framework: **cargo test** (Rust workspace) + Zig `zig build test`
-  (WASM runtime) + the VS Code extension harness.
+- Test framework: **cargo test** (Rust workspace) + the VS Code extension
+  harness.
 - Rust tests: `make test-rust` (`cargo test --workspace --all-features`).
 - The native LSP end-to-end suite lives at
   `rust/tcl-lsp-server/tests/*_e2e.rs` (30 suites, run by `cargo test`) — it is
@@ -947,14 +776,10 @@ layers — not just the one closest to the symptom.
 - **iRule test framework** (`rust/tcl-irule-test`): simulates TMM for testing
   iRules without hardware.  See
   `docs/design/contracts/irule-test-framework.md` for architecture.
-- **WASM runtime tests** (`runtime/zig/test_*.zig`): unit tests for the Zig
-  runtime, run with `cd runtime/zig && zig build test`. Tests that need to
-  catch a Tcl-level error or set up a call frame use the fixture in
-  `runtime/zig/runtime_test_fixture.zig` — `with_catch(body)` returns the
-  raised error message (or `null` on success), `with_interp(body)` pushes a
-  fresh global frame around *body*, and `frame.set` / `frame.get` are
-  shorthand for `local_set` / `local_get`. Smoke coverage lives in
-  `runtime/zig/test_fixture.zig`.
+- **WASM runtime tests** (`runtime/rust/`): the Rust WASM runtime port carries
+  its own leak round-trip + eval suite, gated separately via
+  `make runtime-rust-test` (see
+  [`docs/design/runtime/rust-runtime-port.md`](docs/design/runtime/rust-runtime-port.md)).
 - **xfail policy**: an expected-failure / `#[ignore]` marker is only permitted
   as an intermediate state while a feature is under active development. Before a
   feature is considered ready for release, all underlying issues must be fixed

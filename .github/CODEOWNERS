@@ -17,12 +17,6 @@
 /.github/dependabot.yml                 @bitwisecook
 /.github/CODEOWNERS                     @bitwisecook
 
-# Supply-chain fetch + checksum pins for vendored Tcl sources.  Bumping
-# the checksum without bumping (and verifying) the upstream tag is
-# exactly the failure mode this guard exists to prevent.
-/scripts/fetch_tcl_regex.sh             @bitwisecook
-/scripts/tcl_regex_sha256sums.txt       @bitwisecook
-
 # Installer script published to releases — runs on user machines.
 /scripts/install/install.sh                     @bitwisecook
 

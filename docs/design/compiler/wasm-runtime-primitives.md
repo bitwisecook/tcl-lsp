@@ -8,7 +8,7 @@ interpreter for untypable constructs).  This doc lists the boundary
 primitives added to support Tcl 9 compatibility, grouped by the
 contract each one encodes.
 
-Source: [`runtime/zig/`](../../../runtime/zig/),
+Source: `runtime/zig/`,
 `compiler/codegen/wasm/`
 
 ## Expression evaluation
@@ -182,15 +182,15 @@ subcommands a typical Tcl script uses: `seconds` / `clicks` /
 `scan` / `add` (real timezone-aware implementations).  The split is
 across three Zig modules:
 
-- [`runtime/zig/io/tcl_tz.zig`](../../../runtime/zig/io/tcl_tz.zig) —
+- `runtime/zig/io/tcl_tz.zig` —
   TZif (RFC 8536) parser, 8-slot LRU cache, and the host-tzdata
   resolver.  Pure-parse + libc fopen — no compiler bridge needed.
-- [`runtime/zig/io/tcl_clock.zig`](../../../runtime/zig/io/tcl_clock.zig) —
+- `runtime/zig/io/tcl_clock.zig` —
   strftime renderer (`render_format`), broken-down time helper
   (`break_down`), epoch repacker (`pack_epoch`), and the four
   exports the interpreter dispatcher calls: `clock_format`,
   `clock_format_tz`, `clock_scan_obj`, `clock_add_pair`.
-- [`runtime/zig/cmds/stubs.zig`](../../../runtime/zig/cmds/stubs.zig) —
+- `runtime/zig/cmds/stubs.zig` —
   the interpreter-side `eval_clock` parses `-format` / `-gmt` /
   `-timezone` flags and routes to the right export.
 

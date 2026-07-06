@@ -33,10 +33,7 @@
 #     WASI Preview 2 and fails without that target installed.  Installs
 #     the latest stable toolchain (rather than a pinned version) so it
 #     tracks the same channel as the local ``cargo`` developers expect.
-#   * ``zig`` + Tcl regex sources — Python WASM tests auto-build
-#     ``runtime/zig`` on clean checkouts, and Zig builds require the Tcl
-#     regex C sources under ``runtime/zig/vendor/tcl-regex``.
-#   * ``wasmtime`` — the Zig runtime unit tests run wasm32-wasi binaries
+#   * ``wasmtime`` — the Rust WASM codegen tests run wasm32-wasi binaries
 #     through the Wasmtime CLI.
 #   * ``wasm-merge`` / ``wasm-opt`` — Binaryen tools used by bundled WASM
 #     tests and asyncify runtime builds.
@@ -69,8 +66,8 @@
 #
 # Skip individual tools with the matching env var, e.g. ``SKIP_TCLSH=1``,
 # ``SKIP_PYTHON_TK=1``,
-# ``SKIP_NODE=1``, ``SKIP_KOTLINC=1``, ``SKIP_RUST=1``, ``SKIP_ZIG=1``,
-# ``SKIP_WASMTIME=1``, ``SKIP_BINARYEN=1``, ``SKIP_TCL_REGEX=1``,
+# ``SKIP_NODE=1``, ``SKIP_KOTLINC=1``, ``SKIP_RUST=1``,
+# ``SKIP_WASMTIME=1``, ``SKIP_BINARYEN=1``,
 # ``SKIP_EMACS=1``, ``SKIP_XVFB=1``, ``SKIP_TSHARK=1``,
 # ``SKIP_OPENSSL=1``, ``SKIP_PING=1``, ``SKIP_RGXG=1``,
 # ``SKIP_TCLLIB=1``, or ``SKIP_UV=1``.
@@ -80,7 +77,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-ZIG_VERSION="0.16.0"
 WASMTIME_VERSION="43.0.1"
 TCLLIB_TAG="tcllib-2-0"
 TCLLIB_VERSION="2.0"
@@ -125,10 +121,8 @@ INSTALLABLE_SKIP_VARS=(
     SKIP_NODE
     SKIP_KOTLINC
     SKIP_RUST
-    SKIP_ZIG
     SKIP_WASMTIME
     SKIP_BINARYEN
-    SKIP_TCL_REGEX
     SKIP_EMACS
     SKIP_XVFB
     SKIP_TSHARK
@@ -627,70 +621,7 @@ ensure_rust() {
     fi
 }
 
-# ---------------------------------------------------------------- Zig + WASM tools
-
-ensure_zig() {
-    if [ "${SKIP_ZIG:-}" = "1" ]; then info "SKIP_ZIG=1 — skipping zig"; return 0; fi
-    if command -v zig >/dev/null 2>&1; then
-        info "zig already on PATH ($(zig version 2>/dev/null || echo unknown))"
-        return 0
-    fi
-    if [ "$CHECK_ONLY" -eq 1 ]; then
-        note_missing "zig ${ZIG_VERSION} (would install for $OS/$ARCH)"
-        return 0
-    fi
-
-    if [ "$PKG" = "brew" ]; then
-        run_install "Zig (Homebrew)" zig
-        return 0
-    fi
-
-    local zig_arch expected_sha
-    case "$ARCH" in
-        x86_64)  zig_arch="x86_64-linux"; expected_sha="70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00" ;;
-        aarch64) zig_arch="aarch64-linux"; expected_sha="ea4b09bfb22ec6f6c6ceac57ab63efb6b46e17ab08d21f69f3a48b38e1534f17" ;;
-        *) echo "ERROR: unsupported architecture for Zig: $ARCH" >&2; return 1 ;;
-    esac
-
-    ensure_download_tools
-    local tarball="zig-${zig_arch}-${ZIG_VERSION}.tar.xz"
-    local url="https://ziglang.org/download/${ZIG_VERSION}/${tarball}"
-    local tmpdir
-    tmpdir="$(mktemp -d)"
-    # shellcheck disable=SC2064
-    trap "rm -rf '$tmpdir'" RETURN
-
-    info "Downloading Zig ${ZIG_VERSION}"
-    fetch_with_retry "$url" "$tmpdir/$tarball"
-    local actual_sha
-    actual_sha="$(sha256_file "$tmpdir/$tarball")"
-    if [ "$actual_sha" != "$expected_sha" ]; then
-        echo "ERROR: Zig sha256 mismatch (expected $expected_sha, got $actual_sha)" >&2
-        return 1
-    fi
-
-    local prefix="/opt/zig-${ZIG_VERSION}"
-    $SUDO rm -rf "$prefix"
-    $SUDO mkdir -p "$prefix"
-    $SUDO tar -xJf "$tmpdir/$tarball" -C "$prefix" --strip-components=1
-    install_symlink "$prefix/zig" /usr/local/bin/zig
-    info "Installed zig to /usr/local/bin/zig"
-}
-
-ensure_tcl_regex() {
-    if [ "${SKIP_TCL_REGEX:-}" = "1" ]; then info "SKIP_TCL_REGEX=1 — skipping Tcl regex source"; return 0; fi
-    local stamp="$REPO_ROOT/runtime/zig/vendor/tcl-regex/.stamp"
-    if [ -f "$stamp" ]; then
-        info "Tcl regex source already present"
-        return 0
-    fi
-    if [ "$CHECK_ONLY" -eq 1 ]; then
-        note_missing "Tcl regex source (would run scripts/fetch_tcl_regex.sh)"
-        return 0
-    fi
-    ensure_download_tools
-    bash "$REPO_ROOT/scripts/fetch_tcl_regex.sh"
-}
+# ---------------------------------------------------------------- WASM tools
 
 ensure_wasmtime() {
     if [ "${SKIP_WASMTIME:-}" = "1" ]; then info "SKIP_WASMTIME=1 — skipping wasmtime"; return 0; fi
@@ -908,8 +839,6 @@ ensure_python_tk
 ensure_node
 ensure_kotlinc
 ensure_rust
-ensure_zig
-ensure_tcl_regex
 ensure_wasmtime
 ensure_binaryen
 ensure_tshark

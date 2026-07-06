@@ -28,8 +28,6 @@
 //!
 //! Subcommands:
 //!
-//! - `refcount-contract` — lint that every `pub export fn` in `runtime/zig/`
-//!   has a row in the refcount contract doc.
 //! - `kcs-index-links` — validate markdown links + KCS/design index coverage
 //!   under `docs/`.
 //! - `version` — print the setuptools-scm / hatch-vcs project version from
@@ -58,7 +56,6 @@ mod gen_editor_settings;
 mod gen_jetbrains;
 mod gen_vscode_package;
 mod kcs_index_links;
-mod refcount_contract;
 mod tzdata_bundle;
 mod util;
 mod version;
@@ -73,13 +70,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Lint that every `runtime/zig/` export has a refcount-contract row.
-    RefcountContract {
-        /// Exit non-zero on any missing/extra row (default: warning only).
-        #[arg(long)]
-        strict: bool,
-    },
-
     /// Validate markdown links + KCS/design index coverage under `docs/`.
     KcsIndexLinks,
 
@@ -91,7 +81,7 @@ enum Command {
         /// Host zoneinfo directory to read `TZif` files from.
         #[arg(long, default_value = "/usr/share/zoneinfo")]
         zoneinfo: PathBuf,
-        /// Path to write the packed bundle (e.g. `runtime/zig/data/tzdata.bin`).
+        /// Path to write the packed bundle (e.g. `runtime/rust/data/tzdata.bin`).
         #[arg(long)]
         output: PathBuf,
         /// Drop `TZif` transitions strictly before this Unix epoch second.
@@ -153,7 +143,6 @@ enum Command {
 
 fn main() -> anyhow::Result<ExitCode> {
     match Cli::parse().command {
-        Command::RefcountContract { strict } => refcount_contract::run(strict),
         Command::KcsIndexLinks => kcs_index_links::run(),
         Command::Version => Ok(version::run()),
         Command::TzdataBundle {
