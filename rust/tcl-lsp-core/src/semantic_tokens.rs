@@ -1005,6 +1005,33 @@ fn role_claimed_by_token_pass(role: Option<tcl_registry::ArgRole>) -> bool {
     matches!(role, Some(ArgRole::Body | ArgRole::Expr | ArgRole::VarWrite))
 }
 
+/// Resolve a `-word` against a command's declared option names, accepting a
+/// unique prefix (`-inc` ⇒ `-increasing`) the way Tcl's option parsing
+/// (`Tcl_GetIndexFromObj`) does.  An exact match always wins; an ambiguous
+/// prefix (two distinct options share it, e.g. `lsort -i`) or no match returns
+/// `None`.  A bare `-` never prefix-matches (only an exact-declared `-` /
+/// `--` option does).
+fn resolve_option_prefix<'a>(word: &str, names: &[&'a str]) -> Option<&'a str> {
+    if let Some(exact) = names.iter().copied().find(|n| *n == word) {
+        return Some(exact);
+    }
+    // Prefix matching needs at least one character past the leading dash.
+    if word.len() < 2 {
+        return None;
+    }
+    let mut matched: Option<&'a str> = None;
+    for &n in names {
+        if n.starts_with(word) {
+            match matched {
+                None => matched = Some(n),
+                Some(prev) if prev == n => {}
+                Some(_) => return None, // ambiguous: two distinct options
+            }
+        }
+    }
+    matched
+}
+
 fn insert_option_and_subcommand_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
@@ -1084,8 +1111,12 @@ fn insert_option_and_subcommand_overrides(
     }
 
     for (i, text) in seg.texts.iter().enumerate().skip(1) {
+        // Resolve `-word` against the declared option set, accepting a unique
+        // prefix (`lsort -inc` ⇒ `-increasing`) the way Tcl's option parsing
+        // (`Tcl_GetIndexFromObj`) does; an ambiguous prefix (`lsort -i`) is not
+        // a recognised option.
         if text.starts_with('-')
-            && option_names.contains(&text.as_str())
+            && let Some(canonical) = resolve_option_prefix(text, &option_names)
             && let Some(tok) = seg.argv.get(i)
         {
             overrides
@@ -1098,7 +1129,7 @@ fn insert_option_and_subcommand_overrides(
             // re-coloured — a `$var` / `[cmd]` substitution keeps its own
             // highlight, and a value that is itself a recognised option stays a
             // `Decorator` (the `or_insert` above already claimed it).
-            if let Some(opt) = value_options.get(text.as_str()) {
+            if let Some(opt) = value_options.get(canonical) {
                 for vi in opt.value_indices(&seg.texts, i) {
                     if let Some(val_tok) = seg.argv.get(vi)
                         && matches!(val_tok.kind, TokenType::Esc | TokenType::Str)
@@ -3946,6 +3977,37 @@ mod tests {
         // `puts -foo` — `-foo` is not an option of `puts` → not a decorator.
         let ks = kinds("puts -foo\n", "tcl", &reg());
         assert!(!ks.contains(&(TokenKind::Decorator as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn abbreviated_option_classified_as_decorator() {
+        // Tcl option parsing accepts unique prefixes: `lsort -inc` ⇒
+        // `-increasing`, `lsearch -ex` ⇒ `-exact`.
+        for src in ["lsort -inc {3 1 2}\n", "lsearch -ex {a b} b\n"] {
+            let ks = kinds(src, "tcl", &reg());
+            assert!(
+                ks.contains(&(TokenKind::Decorator as u32)),
+                "expected decorator for {src:?}; got {ks:?}"
+            );
+        }
+        // An ambiguous prefix (`lsort -i` → -index/-indices/-integer/…) is not
+        // a recognised option and stays a string.
+        let ks = kinds("lsort -i {3 1 2}\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::Decorator as u32)),
+            "ambiguous prefix must not be a decorator; got {ks:?}"
+        );
+    }
+
+    #[test]
+    fn resolve_option_prefix_resolves_and_rejects() {
+        let names = ["-increasing", "-index", "-nocase", "-real"];
+        assert_eq!(resolve_option_prefix("-nocase", &names), Some("-nocase")); // exact
+        assert_eq!(resolve_option_prefix("-noc", &names), Some("-nocase")); // unique prefix
+        assert_eq!(resolve_option_prefix("-r", &names), Some("-real")); // unique prefix
+        assert_eq!(resolve_option_prefix("-in", &names), None); // ambiguous
+        assert_eq!(resolve_option_prefix("-", &names), None); // bare dash
+        assert_eq!(resolve_option_prefix("-zzz", &names), None); // unknown
     }
 
     #[test]
