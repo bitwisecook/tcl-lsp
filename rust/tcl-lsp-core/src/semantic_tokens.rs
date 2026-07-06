@@ -604,6 +604,7 @@ fn push_regsub_subtokens(
 /// excluded) borrowed as `&[&str]`.  The caller builds it once and shares it
 /// with the registry-role and OO-body override passes, so the hot path makes
 /// only a single bridging allocation per command.
+#[allow(clippy::too_many_arguments)] // one override builder threading the whole per-command context
 fn special_arg_kinds(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
@@ -4674,6 +4675,34 @@ mod tests {
         assert!(
             user_method_on_dispatch_line(&toks),
             "`configure` on the retrieved Pin should resolve to a method; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn dict_for_loop_var_dispatch_resolves() {
+        // `dict for {k pin} $Pins {$pin configure …}` — iterating an object
+        // collection binds `pin` to an element, so the loop-body dispatch
+        // resolves the user method just like the `[dict get …]` retrieval
+        // (SpiceGenTcl `allNodes` / `floating` shape, issue #797).
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::configurable create Pin { property node }\n\
+                   oo::class create Device {\n\
+                     variable Pins\n\
+                     method add {p} { dict append Pins $p [Pin new] }\n\
+                     method dump {} { dict for {k pin} $Pins { puts [$pin configure -node] } }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        // `configure` on the loop var resolves to a user method (plain Function,
+        // no `defaultLibrary`) on the `dump` method's line.
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Function as u32 && m == 0),
+            "expected `configure` on the dict-for value var to resolve; got {toks:?}"
         );
     }
 

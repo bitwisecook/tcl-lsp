@@ -46,7 +46,10 @@ There are two layers, most-precise first:
    the SSA lattice — including a handle **retrieved from an object collection**:
    a `Pins` dict filled with `[Pin new]` in one method makes
    `[dict get $Pins $pin] configure -node …` resolve to `Pin` in another (issue
-   #797), via the container element-typing in the type lattice.
+   #797), via the container element-typing in the type lattice. A **loop over an
+   object collection** binds its value variable to an element too, so
+   `dict for {k pin} $Pins {$pin configure …}`, `dict map …`, and
+   `foreach pin $Pins {$pin …}` resolve the same way.
 
 3. **Generic fallback.** For any *unknown* command head (an object method on a
    class not modelled in the registry, or a receiver that arrives as a proc
@@ -106,9 +109,11 @@ still highlighted by the object-method / generic passes above.
   `generic_option_scan_stops_at_double_dash`, `object_method_options_resolve_via_registry`,
   `direct_constructor_dispatch_resolves_method`, `command_substitution_head_recurses_not_command_token`,
   `variable_command_head_is_a_variable`, `computed_command_head_does_not_overlap`,
-  `collection_dispatch_resolves_user_configurable_method`, `user_object_handle_method_resolves`
+  `collection_dispatch_resolves_user_configurable_method`, `user_object_handle_method_resolves`,
+  `dict_for_loop_var_dispatch_resolves`
 - `rust/tcl-compiler/src/object_types.rs` — `collection_of_objects_is_tracked`,
-  `collection_class_bridges_across_methods`
+  `collection_class_bridges_across_methods`, `dict_for_value_var_is_a_handle`,
+  `foreach_var_over_collection_is_a_handle`
 - `rust/tcl-compiler/src/type_infer.rs` — `dict_of_objects_retrieval_types_element`,
   `list_of_objects_lindex_types_element`, `heterogeneous_object_collection_drops_element_class`
 - `rust/tcl-compiler/src/object_types.rs` — `scalar_handle_from_constructor`

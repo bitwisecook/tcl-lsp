@@ -487,6 +487,7 @@ fn arg_object_class<S: std::hash::BuildHasher>(
 /// is the collection variable's own name, consulted for its prior element
 /// class (monotone: an unknown-typed write carries the prior class forward
 /// rather than dropping it — the fixpoint's phi joins handle genuine merges).
+#[allow(clippy::too_many_arguments)] // mirrors the type-inference context threaded through this module
 fn collection_element_class<S: std::hash::BuildHasher>(
     target: &str,
     value_args: &[&str],

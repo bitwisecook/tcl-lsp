@@ -66,11 +66,23 @@ pub fn object_handle_classes(
     registry: &CommandRegistry,
 ) -> HashMap<String, HashSet<String>> {
     let mut out: HashMap<String, HashSet<String>> = HashMap::new();
-    let units = std::iter::once(&cu.top_level)
-        .chain(cu.procedures.values())
-        .chain(cu.methods.values());
-    for fu in units {
+    let units = || {
+        std::iter::once(&cu.top_level)
+            .chain(cu.procedures.values())
+            .chain(cu.methods.values())
+    };
+    for fu in units() {
         harvest_unit(fu, registry, &mut out);
+    }
+    // A loop that iterates an object collection binds its value variable to an
+    // element — `dict for {k pin} $Pins {…}` / `foreach pin $Pins {…}` — so
+    // `$pin method …` in the body resolves like `[dict get $Pins $k] method …`.
+    // Needs the collection element classes, so it runs as a second pass.
+    let collections = object_collection_classes(cu);
+    if !collections.is_empty() {
+        for fu in units() {
+            harvest_loop_var_handles(fu, &collections, &mut out);
+        }
     }
     out
 }
@@ -84,7 +96,7 @@ pub fn object_handle_classes(
 /// interprocedural bridge the intraprocedural lattice cannot make on its own:
 /// a `Pins` instance variable filled with `[Pin new]` handles in one method is
 /// thereby known to be a `Dict` of `Pin` at a `[dict get $Pins $k] method …`
-/// dispatch in a *different* method — the exact SpiceGenTcl shape from issue
+/// dispatch in a *different* method — the exact `SpiceGenTcl` shape from issue
 /// #797.  Highlight-only, matching the imprecision tolerance of
 /// [`object_handle_classes`].
 #[must_use]
@@ -136,6 +148,85 @@ fn harvest_unit(
     }
 }
 
+/// Bind a loop's value variable(s) to the element class of the object
+/// collection it iterates, so a `$var method …` dispatch in the loop body
+/// resolves the same way a `[dict get …] method` retrieval does.
+///
+/// Two loop shapes reach here:
+/// - `foreach VARS $coll …` / `lmap VARS $coll …` — lowered to a `Call` whose
+///   `foreach_groups` records the per-group variable counts, `args` the
+///   per-group list expression, and `defs` the flattened loop variables.  Every
+///   variable of a group iterating an object collection is an element.
+/// - `dict for {k v} $coll …` / `dict map {k v} $coll …` — lowered to a
+///   `Barrier` (`::tcl::dict::{for,map}`) whose args are `[varpair, dictvar,
+///   body]`; the *value* variable (second of the pair) iterates the dict's
+///   values, so it takes the element class.
+fn harvest_loop_var_handles(
+    fu: &FunctionUnit,
+    collections: &HashMap<String, HashSet<String>>,
+    out: &mut HashMap<String, HashSet<String>>,
+) {
+    let mut bind = |var: &str, classes: &HashSet<String>| {
+        out.entry(var.to_owned())
+            .or_default()
+            .extend(classes.iter().cloned());
+    };
+    for block in fu.cfg.blocks.values() {
+        for stmt in &block.statements {
+            match stmt {
+                Statement::Call {
+                    command,
+                    args,
+                    defs,
+                    foreach_groups: Some(groups),
+                    ..
+                } if command == "foreach" || command == "lmap" => {
+                    let mut di = 0usize;
+                    for (g, &nvars) in groups.iter().enumerate() {
+                        let classes = args
+                            .get(g)
+                            .and_then(|a| deref_var(a))
+                            .and_then(|name| collections.get(name));
+                        for _ in 0..nvars {
+                            if let (Some(classes), Some(var)) = (classes, defs.get(di)) {
+                                bind(var, classes);
+                            }
+                            di += 1;
+                        }
+                    }
+                }
+                Statement::Barrier { command, args, .. }
+                    if command == "::tcl::dict::for" || command == "::tcl::dict::map" =>
+                {
+                    // args = [varpair, dictvar, body]; the value var is the
+                    // second word of the pair.
+                    if let (Some(varpair), Some(classes)) = (
+                        args.first(),
+                        args.get(1)
+                            .and_then(|a| deref_var(a))
+                            .and_then(|name| collections.get(name)),
+                    ) && let Some(valvar) = varpair.split_whitespace().nth(1)
+                    {
+                        bind(valvar, classes);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+/// The variable name a `$name` / `${name}` reference dereferences, or `None`
+/// for a non-plain reference.  `${pins}` → `pins`, `$pins` → `pins`.
+fn deref_var(text: &str) -> Option<&str> {
+    let rest = text.trim().strip_prefix('$')?;
+    Some(
+        rest.strip_prefix('{')
+            .and_then(|r| r.strip_suffix('}'))
+            .unwrap_or(rest),
+    )
+}
+
 /// The registry class named by a `[Class new|create …]` constructor value, or
 /// `None` when the value is not such a call.  A `TclOO` class command may be
 /// written with or without the leading `::` global qualifier; the registry's
@@ -176,6 +267,44 @@ mod tests {
         assert!(
             map.is_empty(),
             "no object handles expected for non-constructor assignments; got {map:?}"
+        );
+    }
+
+    #[test]
+    fn dict_for_value_var_is_a_handle() {
+        // `dict for {k pin} $pins {$pin …}` binds `pin` to a dict *value*, so a
+        // collection of `Pin` makes `pin` a `Pin` handle in the body.
+        let registry = CommandRegistry::build_default();
+        let src = "oo::class create Pin {}\n\
+                   dict set pins a [Pin new]\n\
+                   dict for {k pin} $pins { set n [$pin cfg] }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let map = object_handle_classes(&cu, &registry);
+        assert_eq!(
+            map.get("pin").map(|s| s.contains("::Pin")),
+            Some(true),
+            "the dict-for value var `pin` should be a ::Pin handle; got {map:?}"
+        );
+        // The *key* var is not an element.
+        assert!(
+            map.get("k").is_none(),
+            "the dict-for key var must not be a handle; got {map:?}"
+        );
+    }
+
+    #[test]
+    fn foreach_var_over_collection_is_a_handle() {
+        // `foreach pin $pins {$pin …}` binds `pin` to each element.
+        let registry = CommandRegistry::build_default();
+        let src = "oo::class create Pin {}\n\
+                   lappend pins [Pin new]\n\
+                   foreach pin $pins { set n [$pin cfg] }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let map = object_handle_classes(&cu, &registry);
+        assert_eq!(
+            map.get("pin").map(|s| s.contains("::Pin")),
+            Some(true),
+            "the foreach var `pin` should be a ::Pin handle; got {map:?}"
         );
     }
 
