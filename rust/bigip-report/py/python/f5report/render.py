@@ -111,6 +111,10 @@ def render_report(
     # listener views run with no server and no external assets.
     model["model_json"] = _script_safe_json(model)
     model["mermaid_js"] = _vendor_text("mermaid.min.js")
+    # elkjs + the orthogonal renderer, for the traffic/flow diagrams.
+    model["elk_js"] = _vendor_text("elk.bundled.js")
+    model["elk_graph_js"] = _asset_text("elk-graph.js")
+    model["apm_css"] = _asset_text("apm.css")
     model["report_css"] = _asset_text("report.css")
     model["topology_css"] = _asset_text("topology.css")
     model["print_css"] = _asset_text("print.css")

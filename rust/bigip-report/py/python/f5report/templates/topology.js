@@ -1247,7 +1247,7 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
         if (tv && tv.fullPath !== vs.fullPath) poolV2v.push(tv);
       });
       var nn = poolNodeNames(ix, vs.pool);
-      if (nn.length) steps.push({ t: "node", l: nn.join("\\n") + (poolV2v.length ? "\\n(\u2192 virtual)" : "") });
+      if (nn.length) steps.push({ t: "node", l: nn.join("\n") + (poolV2v.length ? "\n(\u2192 virtual)" : "") });
       else if (vs.pool) steps.push({ t: "node", l: "(no members)" });
       else steps.push({ t: "node", l: "(no pool / iRule-selected)" });
       var nodeIdx = steps.length - 1;
@@ -1262,30 +1262,16 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       poolV2v.forEach(function(tv) {
         branches.push({ t: "v2v", l: "virtual: " + tv.name, from: nodeIdx >= 0 ? nodeIdx : proxyIdx });
       });
-      var lines = ["flowchart LR"];
+      var enodes = [], eedges = [];
       steps.forEach(function(s, i) {
-        var sid = "P" + i;
-        var shape = s.t === "vs" ? ['(["', '"])'] : s.t === "node" ? ['[("', '")]'] : s.t === "event" ? ['{{"', '"}}'] : s.t === "proxy" ? ['[/"', '"/]'] : ['["', '"]'];
-        lines.push("  " + sid + shape[0] + escLbl(s.l) + shape[1] + ":::" + s.t);
-        if (i > 0) lines.push("  P" + (i - 1) + " --> " + sid);
+        enodes.push({ id: "P" + i, label: s.l, cls: s.t });
+        if (i > 0) eedges.push({ from: "P" + (i - 1), to: "P" + i });
       });
       branches.forEach(function(b, j) {
-        var bid = "B" + j;
-        var shp = b.t === "v2v" ? ['[["', '"]]'] : b.t === "hsl" ? ['[("', '")]'] : ['[/"', '"\\]'];
-        lines.push("  " + bid + shp[0] + escLbl(b.l) + shp[1] + ":::" + b.t);
-        lines.push("  P" + b.from + " -.-> " + bid);
+        enodes.push({ id: "B" + j, label: b.l, cls: b.t });
+        eedges.push({ from: "P" + b.from, to: "B" + j, dashed: true });
       });
-      lines.push("classDef vs fill:#dbeafe,stroke:#2563eb,color:#0b2b5e;");
-      lines.push("classDef prof fill:#e0f2fe,stroke:#0284c7,color:#053345;");
-      lines.push("classDef ssl fill:#fef9c3,stroke:#ca8a04,color:#4a3608;");
-      lines.push("classDef event fill:#ede9fe,stroke:#7c3aed,color:#3b1e75;");
-      lines.push("classDef proxy fill:#f1f5f9,stroke:#64748b,color:#1e293b;");
-      lines.push("classDef pool fill:#dcfce7,stroke:#16a34a,color:#064e2b;");
-      lines.push("classDef node fill:#f5f5f4,stroke:#78716c,color:#292524;");
-      lines.push("classDef v2v fill:#e0e7ff,stroke:#4f46e5,color:#1e1b4b;");
-      lines.push("classDef hsl fill:#fae8ff,stroke:#a21caf,color:#4a044e;");
-      lines.push("classDef sband fill:#fff7ed,stroke:#ea580c,color:#7c2d12;");
-      return { def: lines.join("\n"), steps };
+      return { nodes: enodes, edges: eedges, steps };
     }
     var _rid = 0;
     function renderInto(host, def, ix, onNodeClick) {
@@ -2431,20 +2417,12 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
         host.innerHTML = html;
         host.querySelectorAll(".app-pipe-diagram[data-vs]").forEach(function(ph) {
           var built = buildTrafficPipeline(ix, ph.getAttribute("data-vs"));
-          if (!built || !window.mermaid) {
+          if (!built || !window.ElkGraph) {
             ph.textContent = "(pipeline unavailable)";
             return;
           }
-          var id = "apppipe" + _rid++;
-          mermaid.render(id, built.def).then(function(res) {
-            ph.innerHTML = res.svg;
-            var svg = ph.querySelector("svg");
-            if (svg) {
-              svg.style.maxWidth = "100%";
-              svg.style.height = "auto";
-            }
-          }).catch(function(e) {
-            ph.innerHTML = '<div class="diag-err">pipeline error: ' + esc(e.message || e) + "</div>";
+          window.ElkGraph.render(ph, built, { dir: "RIGHT" }).catch(function(e) {
+            ph.innerHTML = '<div class="diag-err">pipeline error: ' + esc(e && e.message || e) + "</div>";
           });
         });
         host.querySelectorAll(".app-obj-flow[data-flow]").forEach(function(fh) {

@@ -10,6 +10,7 @@
 <style>
 {{ report_css | safe }}
 {{ topology_css | safe }}
+{{ apm_css | safe }}
 {{ certs_css | safe }}
 {{ secrets_css | safe }}
 {{ forensics_css | safe }}
@@ -649,6 +650,9 @@
 <script id="f5-model" type="application/json">{{ model_json | safe }}</script>
 <!-- vendored Mermaid 10.9.3 (MIT), inlined for a fully self-contained page -->
 <script>{{ mermaid_js | safe }}</script>
+<!-- elkjs (EPL-2.0) + the orthogonal renderer, for the traffic/flow diagrams -->
+<script>{{ elk_js | safe }}</script>
+<script>{{ elk_graph_js | safe }}</script>
 <script>
 {{ topology_js | safe }}
 </script>
