@@ -33,4 +33,5 @@ pub mod sdc_base;
 pub mod stdlib;
 pub mod tcl;
 pub mod tcllib;
+pub mod ticklecharts;
 pub mod tk;

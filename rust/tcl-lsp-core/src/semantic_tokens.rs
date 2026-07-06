@@ -579,6 +579,7 @@ fn special_arg_kinds(
     head: &str,
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
     arg_texts: &[&str],
+    object_classes: &ObjectClassMap,
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
 
@@ -604,6 +605,8 @@ fn special_arg_kinds(
     }
 
     insert_option_and_subcommand_overrides(seg, registry, head, &mut overrides);
+    insert_object_method_overrides(seg, registry, object_classes, &mut overrides);
+    insert_generic_option_overrides(seg, registry, head, &mut overrides);
     insert_enum_value_overrides(seg, registry, head, &mut overrides);
     insert_oo_define_keyword_overrides(seg, registry, &mut overrides);
     insert_apply_lambda_override(seg, &mut overrides);
@@ -1092,6 +1095,264 @@ fn insert_option_and_subcommand_overrides(
             }
         }
     }
+}
+
+/// Generic `-option` / option-value highlighting for a command with a
+/// *computed* head not resolved by the registry — a `$obj method …` object
+/// dispatch, a `[Class new] method …`, or a multi-fragment `chartV$node …`
+/// head.
+///
+/// A *registered* command's declared option set is authoritative — `puts -foo`
+/// stays a string because `puts` declares no `-foo`
+/// ([`insert_option_and_subcommand_overrides`]).  A plain bareword head is a
+/// (possibly user-defined) command name and is left to the registry too, so
+/// `mycmd -foo` stays a string.  Only a computed head — where the real option
+/// set lives on a method / ensemble the registry does not model — is treated as
+/// the overwhelmingly-common `-switch value` shape.  This is the fallback half
+/// of issue #748: colour those pairs like any built-in's.
+///
+/// A "clean option" is a single-token [`TokenType::Esc`] word for which
+/// [`is_generic_option_word`] holds — `-<letter>…`, excluding substitution
+/// forms, negative numbers (including the `-inf` / `-nan` special-float
+/// literals), a bare `-`, and `--`.  The single-token check is what excludes
+/// `-$var` / `-{$var}` / `-[cmd]`, which keep their variable / command
+/// highlight.
+///
+/// Tcl's `--` end-of-options marker is honoured: `--` itself is coloured as an
+/// option marker, and scanning stops there — every following word is a
+/// positional operand, even if it reads like `-foo` (`$obj cfg -- -literal`
+/// leaves `-literal` a plain string).
+///
+/// The word immediately following an option is recoloured [`TokenKind::OptionValue`]
+/// when it is a literal (`Esc`/`Str`) that is not itself an option and not
+/// `--` — a `$var` / `[cmd]` value keeps its own highlight, and a following
+/// option stays an option.  Arity is unknown for an undeclared command, so at
+/// most the single adjacent value word is claimed; a boolean option followed by
+/// another option therefore claims no value.
+fn insert_generic_option_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    head: &str,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    // Only unknown heads — a registered command's declared option set is the
+    // authority, and a bare `-word` there (`puts -foo`) is deliberately a
+    // string.
+    if registry.get(head).is_some() {
+        return;
+    }
+    // Only a *computed* head — a `$var` / `[cmd]` substitution or a
+    // multi-fragment word (`chartV$node`) — is treated as a runtime dispatch
+    // (object handle, ensemble) whose `-switch value` pairs are options.  A
+    // plain single-token bareword head is a (possibly user-defined) command
+    // name; deferring to the registry there keeps a bareword call conservative
+    // — `mycmd -foo` stays a string, a user command's `test … -body …` is not
+    // mistaken for tcltest's, and an OO-body member (`property … -get {…}`)
+    // keeps its recursed bodies — exactly as `puts -foo` stays a string.
+    let head_is_computed = seg
+        .argv
+        .first()
+        .is_some_and(|t| matches!(t.kind, TokenType::Var | TokenType::Cmd))
+        || !seg.single_token_word.first().copied().unwrap_or(true);
+    if !head_is_computed {
+        return;
+    }
+    // The single-token literal (`Esc`) text of word `i`, or `None` for a
+    // substitution / braced / multi-fragment word.
+    let literal_word = |i: usize| -> Option<&str> {
+        (seg.single_token_word.get(i).copied().unwrap_or(false)
+            && seg
+                .argv
+                .get(i)
+                .is_some_and(|t| matches!(t.kind, TokenType::Esc)))
+        .then(|| seg.texts.get(i).map(String::as_str))
+        .flatten()
+    };
+    let mut i = 1;
+    while i < seg.texts.len() {
+        let Some(text) = literal_word(i) else {
+            i += 1;
+            continue;
+        };
+        // `--` ends option processing (Tcl convention). Colour the marker, then
+        // stop — nothing after it is an option.
+        if text == "--" {
+            if let Some(tok) = seg.argv.get(i) {
+                overrides
+                    .entry(tok.span.start())
+                    .or_insert(ArgOverride::Decorator);
+            }
+            break;
+        }
+        if !is_generic_option_word(text) {
+            i += 1;
+            continue;
+        }
+        if let Some(tok) = seg.argv.get(i) {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::Decorator);
+        }
+        // The immediately-following literal word is this option's value when it
+        // is not itself an option and not the `--` marker.  A `$var` / `[cmd]`
+        // value falls through the `Esc | Str` check and keeps its own highlight.
+        let vi = i + 1;
+        if let Some(val_tok) = seg.argv.get(vi)
+            && matches!(val_tok.kind, TokenType::Esc | TokenType::Str)
+            && literal_word(vi).is_none_or(|w| w != "--" && !is_generic_option_word(w))
+        {
+            overrides
+                .entry(val_tok.span.start())
+                .or_insert(ArgOverride::Kind(TokenKind::OptionValue));
+        }
+        i += 1;
+    }
+}
+
+/// Whether a literal word reads as a generic `-option` switch on an unknown
+/// command head: a leading `-` then an ASCII letter, excluding the negative
+/// special-float literals Tcl's parser accepts as numbers (`-inf`, `-Inf`,
+/// `-infinity`, `-nan`, …).  A bare `-`, `--`, and ordinary negative numbers
+/// (`-5`, `-1.6`) are already excluded by the "letter after the dash" rule.
+fn is_generic_option_word(text: &str) -> bool {
+    let Some(rest) = text.strip_prefix('-') else {
+        return false;
+    };
+    if !rest.as_bytes().first().is_some_and(u8::is_ascii_alphabetic) {
+        return false;
+    }
+    // `-inf` / `-infinity` / `-nan` are negative floating-point values, not
+    // options — Tcl's `expr` and numeric commands parse them as numbers.
+    !(rest.eq_ignore_ascii_case("inf")
+        || rest.eq_ignore_ascii_case("infinity")
+        || rest.eq_ignore_ascii_case("nan"))
+}
+
+/// Object-handle → class-name map for the current document, keyed by the
+/// handle text a `$var method` dispatch presents (minus the leading `$`) —
+/// a scalar (`chart`) or array element (`arr(key)`).  Built once per document
+/// from the [`CompilationUnit`] by
+/// [`tcl_compiler::object_types::registry_object_handle_classes`].
+type ObjectClassMap = std::collections::HashMap<String, std::collections::HashSet<String>>;
+
+/// Precise `$obj method …` highlighting via the registry's object-class model —
+/// the object-handle half of issue #748.
+///
+/// When the command head is an object handle whose class is known — a `$var`
+/// bound by `set var [Class new]` (tracked by [`tcl_compiler::object_types`]),
+/// or a direct `[Class new] method …` dispatch — and the class declares
+/// `method`, the method word is highlighted as a function and the method's
+/// declared options / option values are coloured exactly like a built-in's
+/// (`Decorator` for the switch, `EnumMember` for a closed-set value, else
+/// `OptionValue`).
+///
+/// Runs before [`insert_generic_option_overrides`]: a recognised method's
+/// options are claimed precisely first, and anything it leaves (an option not
+/// in the spec, an un-provenanced receiver) is picked up by the generic
+/// shape-based fallback.  A `$var` / `[cmd]` option value keeps its own
+/// highlight; only literal (`Esc`/`Str`) values are recoloured.
+fn insert_object_method_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    object_classes: &ObjectClassMap,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let (Some(head_tok), Some(head_text), Some(method)) =
+        (seg.argv.first(), seg.texts.first(), seg.texts.get(1))
+    else {
+        return;
+    };
+    // Resolve the dispatched method's spec from the head's class(es).
+    let method_sub = match head_tok.kind {
+        TokenType::Var => object_handle_name(head_text)
+            .and_then(|name| object_classes.get(name))
+            .and_then(|classes| {
+                classes
+                    .iter()
+                    .find_map(|cls| registry.instance_method(cls, method))
+            }),
+        TokenType::Cmd => constructor_class_of_head(head_text, registry)
+            .and_then(|cls| registry.instance_method(cls, method)),
+        _ => None,
+    };
+    let Some(method_sub) = method_sub else {
+        return;
+    };
+    // Highlight the method word itself as a callable.
+    if let Some(mtok) = seg.argv.get(1) {
+        overrides
+            .entry(mtok.span.start())
+            .or_insert(ArgOverride::Kind(TokenKind::Function));
+    }
+    // Apply the method's declared options to the words after it (`skip(2)`).
+    for (i, text) in seg.texts.iter().enumerate().skip(2) {
+        if text == "--" {
+            // End-of-options marker — colour it, then stop (Tcl convention).
+            if let Some(tok) = seg.argv.get(i) {
+                overrides
+                    .entry(tok.span.start())
+                    .or_insert(ArgOverride::Decorator);
+            }
+            break;
+        }
+        if !text.starts_with('-') {
+            continue;
+        }
+        let Some(opt) = method_sub.options.iter().find(|o| o.matches(text)) else {
+            continue;
+        };
+        if let Some(tok) = seg.argv.get(i) {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::Decorator);
+        }
+        // Colour the option's value word(s).  A value whose role is claimed by
+        // a later token pass is left alone (parity with the command path).
+        if opt.takes_value() && !role_claimed_by_token_pass(opt.value_role()) {
+            let values = opt.value_values();
+            for vi in opt.value_indices(&seg.texts, i) {
+                let (Some(val_tok), Some(val_text)) = (seg.argv.get(vi), seg.texts.get(vi)) else {
+                    continue;
+                };
+                if !matches!(val_tok.kind, TokenType::Esc | TokenType::Str) {
+                    continue;
+                }
+                let kind = if !values.is_empty()
+                    && values.iter().any(|v| v.value == val_text.as_str())
+                {
+                    TokenKind::EnumMember
+                } else {
+                    TokenKind::OptionValue
+                };
+                overrides
+                    .entry(val_tok.span.start())
+                    .or_insert(ArgOverride::Kind(kind));
+            }
+        }
+    }
+}
+
+/// The bare handle name of a `$var` command head, matching the keys of an
+/// [`ObjectClassMap`]: strips the leading `$` and any `${…}` braces, so
+/// `$chart` → `chart`, `${chart}` → `chart`, `$arr(k)` → `arr(k)`.  Returns
+/// `None` for a head that is not a plain variable substitution.
+fn object_handle_name(head_text: &str) -> Option<&str> {
+    let rest = head_text.strip_prefix('$')?;
+    Some(
+        rest.strip_prefix('{')
+            .and_then(|r| r.strip_suffix('}'))
+            .unwrap_or(rest),
+    )
+}
+
+/// The registry class named by a direct `[Class new|create …]` command-head
+/// dispatch, or `None` when the head is not such a constructor call.
+fn constructor_class_of_head<'r>(head_text: &str, registry: &'r CommandRegistry) -> Option<&'r str> {
+    let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution(head_text)?;
+    if !args.first().is_some_and(|s| s == "new" || s == "create") {
+        return None;
+    }
+    registry.object_class(&cmd).map(|c| c.class_name)
 }
 
 /// Registry-known closed-set argument values → `EnumMember`.  The registry
@@ -2190,6 +2451,12 @@ struct ScriptCtx<'a> {
     /// retroactively re-tag an earlier same-named command.  Empty when the
     /// document has no `namespace import`.
     head_aliases: &'a FxHashMap<String, (String, u32)>,
+    /// Object-handle → class-name provenance for the whole document, so a
+    /// `$var method …` dispatch can resolve the method's options through the
+    /// registry's object-class model (issue #748).  Empty when no
+    /// [`CompilationUnit`] is available or the document creates no tracked
+    /// object handles.
+    object_classes: &'a ObjectClassMap,
 }
 
 fn collect_switch_case_list(
@@ -2598,8 +2865,14 @@ fn collect_script(
         // hot path to a single bridging allocation per command.
         let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
 
-        let mut overrides =
-            special_arg_kinds(&seg, registry, resolved_head, ctx.oo_grammar, &arg_texts);
+        let mut overrides = special_arg_kinds(
+            &seg,
+            registry,
+            resolved_head,
+            ctx.oo_grammar,
+            &arg_texts,
+            ctx.object_classes,
+        );
         // Regex-source tracking: retag a `set` value word that feeds a regexp
         // pattern as a (substitution-aware) regex.  Keyed on the def-site word
         // start; the compiler-supplied span is authoritative for the fragment
@@ -3049,6 +3322,14 @@ fn collect_entries(
     // lookups) unless the document actually imports something.
     let head_aliases = imported_command_aliases(source, dialect, registry);
 
+    // Object-handle → class provenance (`set chart [ticklecharts::chart new]`
+    // → `chart`), so a `$chart Xaxis -name …` dispatch resolves the method's
+    // options through the registry (issue #748).  Empty without a
+    // `CompilationUnit` or when the document creates no tracked object handles.
+    let object_classes: ObjectClassMap = cu.map_or_else(ObjectClassMap::default, |cu| {
+        tcl_compiler::object_types::registry_object_handle_classes(cu, registry)
+    });
+
     // Walk every segmented command (recursing into braced bodies, braced
     // expressions, and `[…]` command substitutions) and classify each token.
     let ctx = ScriptCtx {
@@ -3059,6 +3340,7 @@ fn collect_entries(
         oo_grammar: None,
         regex_sources: &regex_sources,
         head_aliases: &head_aliases,
+        object_classes: &object_classes,
     };
     collect_script(ctx, source, 0, &mut entries, 0);
 
@@ -3681,6 +3963,86 @@ mod tests {
     }
 
     #[test]
+    fn unknown_head_options_classified_generically() {
+        // The ngspice / ticklecharts pattern (issue #748): `$chart Xaxis -name
+        // {v(anode), V} -type value -min 0.4` — the head `$chart` is an object
+        // handle, unknown to the registry, so its `-switch value` pairs are
+        // highlighted by the generic heuristic.
+        let ks = kinds(
+            "$chart Xaxis -name {v} -type value -min 0.4\n",
+            "tcl",
+            &reg(),
+        );
+        assert!(
+            ks.contains(&(TokenKind::Decorator as u32)),
+            "expected -name/-type/-min decorators on an unknown head; got {ks:?}"
+        );
+        assert!(
+            ks.contains(&(TokenKind::OptionValue as u32)),
+            "expected option values on an unknown head; got {ks:?}"
+        );
+        // A negative number is not an option: `$obj move -5 10`.
+        let ks = kinds("$obj move -5 10\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::Decorator as u32)),
+            "-5 is a negative number, not an option; got {ks:?}"
+        );
+        // A `-$var` substitution word is not an option.
+        let ks = kinds("$obj configure -$flag v\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::Decorator as u32)),
+            "-$flag is a substitution, not an option; got {ks:?}"
+        );
+        // A known command keeps the strict declared-option behaviour: `puts
+        // -foo` stays a string even though the generic pass exists.
+        let ks = kinds("puts -foo\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::Decorator as u32)),
+            "a known command's undeclared -foo must stay a string; got {ks:?}"
+        );
+        // A plain bareword unknown head is a (possibly user-defined) command
+        // name, not a computed dispatch: `mycmd -foo bar` stays a string so a
+        // user proc's argument is not mistaken for an option.
+        let ks = kinds("mycmd -foo bar\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::Decorator as u32)),
+            "a bareword user command's -foo must stay a string; got {ks:?}"
+        );
+        // Negative special-float literals are numbers, not options: `-inf`,
+        // `-Inf`, `-nan` all start with a letter but Tcl parses them as values.
+        let ks = kinds("$obj set -inf\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::Decorator as u32)),
+            "-inf is a negative float literal, not an option; got {ks:?}"
+        );
+        let ks = kinds("$obj set -NaN\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::Decorator as u32)),
+            "-NaN is a float literal, not an option; got {ks:?}"
+        );
+    }
+
+    #[test]
+    fn generic_option_scan_stops_at_double_dash() {
+        // Tcl's `--` ends option processing: `-real` before it is an option,
+        // the `--` is the marker, and `-literal` after it is a positional
+        // operand (a plain string), not an option.
+        // Columns: `-real` at 9, `1` at 15, `--` at 17, `-literal` at 20.
+        let mut deco: Vec<u32> = decode_full("$obj cfg -real 1 -- -literal\n", "tcl", &reg())
+            .iter()
+            .filter(|(_, _, _, k, _)| *k == TokenKind::Decorator as u32)
+            .map(|&(_, c, _, _, _)| c)
+            .collect();
+        deco.sort_unstable();
+        // Exactly `-real` (9) and `--` (17) — never `-literal` (20).
+        assert_eq!(
+            deco,
+            vec![9, 17],
+            "expected -real and -- as the only decorators, not -literal after --; got {deco:?}"
+        );
+    }
+
+    #[test]
     fn value_taking_option_value_classified_as_option_value() {
         // `lsort -index 2 $l` — `-index` takes a value, so the literal `2` is
         // an option value (distinct from the `-index` decorator).
@@ -3964,6 +4326,60 @@ mod tests {
                 assert!(c1 >= c0 + len0, "overlap; toks={toks:?}");
             }
         }
+    }
+
+    #[test]
+    fn object_method_options_resolve_via_registry() {
+        // The ngspice / ticklecharts pattern (issue #748), end-to-end through
+        // the CompilationUnit: `set chart [ticklecharts::chart new]` binds the
+        // handle's class, so `$chart Xaxis -name … -type value …` resolves the
+        // method and its declared options through the registry's object-class
+        // model — the precise path, not the shape-based fallback.
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "set chart [ticklecharts::chart new]\n$chart Xaxis -name {v(anode), V} -type value -min 0.4 -splitLine {show True}\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let toks = decode_semantic(&full_with_cu(src, "tcl9.0", &registry, Some(&cu)));
+        let ks: Vec<u32> = toks.iter().map(|&(_, _, _, k, _)| k).collect();
+        // `Xaxis` resolved as a callable method.
+        assert!(
+            ks.contains(&(TokenKind::Function as u32)),
+            "expected Xaxis as a Function token; got {ks:?}"
+        );
+        // `-name` / `-type` / `-min` / `-splitLine` are decorators.
+        assert!(
+            ks.iter()
+                .filter(|&&k| k == TokenKind::Decorator as u32)
+                .count()
+                >= 4,
+            "expected the four axis options as decorators; got {ks:?}"
+        );
+        // `-type value` is a closed-set member; `-min 0.4` a generic value.
+        assert!(
+            ks.contains(&(TokenKind::EnumMember as u32)),
+            "expected -type's `value` as an EnumMember; got {ks:?}"
+        );
+        assert!(
+            ks.contains(&(TokenKind::OptionValue as u32)),
+            "expected -min's `0.4` as an OptionValue; got {ks:?}"
+        );
+    }
+
+    #[test]
+    fn direct_constructor_dispatch_resolves_method() {
+        // A direct `[Class new] method …` dispatch (no intermediate variable)
+        // resolves the method and its options through the registry too.
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "[ticklecharts::chart new] Yaxis -name Y -max 10\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let toks = decode_semantic(&full_with_cu(src, "tcl9.0", &registry, Some(&cu)));
+        let ks: Vec<u32> = toks.iter().map(|&(_, _, _, k, _)| k).collect();
+        assert!(
+            ks.contains(&(TokenKind::Decorator as u32))
+                && ks.contains(&(TokenKind::OptionValue as u32)),
+            "expected -name/-max decorators + values on direct dispatch; got {ks:?}"
+        );
     }
 
     #[test]

@@ -3439,6 +3439,38 @@
       "summary": "Generate a machine-readable error"
     },
     {
+      "name": "ticklecharts::Gridlayout",
+      "summary": "Multi-chart grid layout.",
+      "subcommands": [
+        "create",
+        "new"
+      ]
+    },
+    {
+      "name": "ticklecharts::chart",
+      "summary": "Main 2D ticklecharts chart.",
+      "subcommands": [
+        "create",
+        "new"
+      ]
+    },
+    {
+      "name": "ticklecharts::chart3D",
+      "summary": "3D ticklecharts chart.",
+      "subcommands": [
+        "create",
+        "new"
+      ]
+    },
+    {
+      "name": "ticklecharts::timeline",
+      "summary": "Animated multi-chart timeline.",
+      "subcommands": [
+        "create",
+        "new"
+      ]
+    },
+    {
       "name": "time",
       "summary": "Time the execution of a script"
     },

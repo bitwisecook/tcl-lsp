@@ -211,6 +211,41 @@ same meaning as on CommandSpec.
 | `xc_operation` | `str \| None` | `None` | XC translation operation |
 | `forms` | `tuple[FormSpec, ...]` | `()` | Per-subcommand getter/setter forms |
 
+### ObjectClassSpec -- object-method dispatch
+
+A `TclOO` / megawidget class whose instances are dispatched as
+`$obj <method> …` is modelled by an `ObjectClassSpec` attached to the class
+*command* spec (the factory) via `CommandSpec.object_class`.  For a `TclOO`
+class the class name **is** the factory command name (`oo::class create Foo`
+binds command `Foo`), so a class spec resolves through the ordinary command
+table — no separate index (`CommandRegistry::object_class`).
+
+| Field | Type | Default | Purpose |
+|-------|------|---------|---------|
+| `class_name` | `&str` | *(required)* | Fully-qualified class name = factory command name |
+| `instance_methods` | `&[SubCommand]` | `&[]` | Methods dispatched on a handle (`Xaxis`, `Add`, …), reusing `SubCommand` (so option / enum / arg-value metadata is shared) |
+| `superclasses` | `&[&str]` | `&[]` | Direct superclass names for inherited-method resolution |
+| `allow_unknown_methods` | `bool` | `false` | Accept an unrecognised method without complaint |
+
+The class's `new` / `create` constructor returns an object handle of
+`class_name`.  Two consumers act on this:
+
+- **Object-handle tracking** (`tcl_compiler::object_types`) harvests
+  `set VAR [Class new|create …]` provenance so a variable is known to hold an
+  instance of `class_name`; it follows scalar and array-element handles across
+  the top level, procedures, and method bodies.  This is *provenance*, not the
+  object→class dispatch *lattice* prototyped in
+  [`../tcloo-mro-lattice.md`](../tcloo-mro-lattice.md), which measured as a
+  negative on real `TclOO` corpora (factory-return receivers dominate the ⊤
+  bucket); an un-provenanced (proc-parameter) receiver is deliberately left to
+  the generic shape-based option highlighting rather than resolved unsoundly.
+- **Semantic tokens** resolve a `$var method …` / `[Class new] method …`
+  dispatch against the class's `instance_methods` and colour the method plus
+  its declared options exactly like a built-in's — the object-handle half of
+  issue #748.  A method whose options are not modelled still resolves as a
+  method call; its `-option value` pairs fall through to the generic option
+  highlighting.
+
 ### FormSpec -- invocation forms
 
 A command can have multiple forms (getter vs setter):

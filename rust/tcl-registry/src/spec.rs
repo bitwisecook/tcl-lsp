@@ -85,6 +85,56 @@ impl Default for BytePayloadSpec {
     }
 }
 
+/// Metadata for a `TclOO` / megawidget class whose instances are dispatched as
+/// `$obj <method> …`.
+///
+/// Attached to the class *command* spec (the factory — e.g.
+/// `ticklecharts::chart`, created by `oo::class create`) via
+/// [`CommandSpec::object_class`].  For a `TclOO` class the class name **is** the
+/// factory command name, so the registry resolves a class spec by looking the
+/// name up in the ordinary command table (no separate index) — see
+/// [`crate::CommandRegistry::object_class`].
+///
+/// The class's `new` / `create` constructor returns an object handle of
+/// `class_name`; a later `$handle method …` dispatch resolves `method` against
+/// [`Self::instance_methods`], which reuse the [`SubCommand`] shape so option /
+/// enum / arg-value highlighting, arity, and hover work identically to an
+/// ensemble subcommand.  This is the registry half of the object-method
+/// pattern: knowing the class of an object handle (via the compiler's
+/// object-type tracking) plus the class's methods lets `$chart Xaxis -name …`
+/// light up its options precisely rather than by shape alone (issue #748).
+#[derive(Debug)]
+pub struct ObjectClassSpec {
+    /// Fully-qualified class name — equal to the factory command name for a
+    /// `TclOO` class (`"ticklecharts::chart"`).
+    pub class_name: &'static str,
+
+    /// Instance methods dispatched on an object handle (`Xaxis`, `Add`,
+    /// `SetOptions`, …), in declaration order.  Reuses [`SubCommand`].
+    pub instance_methods: &'static [SubCommand],
+
+    /// Direct superclass names, for inherited-method resolution.  Each is
+    /// itself a class command name resolvable via
+    /// [`crate::CommandRegistry::object_class`].  Empty = none.
+    pub superclasses: &'static [&'static str],
+
+    /// Whether an unrecognised instance method is accepted without complaint
+    /// (a class with a dynamic `unknown` handler or runtime-generated
+    /// methods).  Highlighting-only today; reserved for a future
+    /// unknown-method diagnostic.
+    pub allow_unknown_methods: bool,
+}
+
+impl ObjectClassSpec {
+    /// Look up an instance method by name (this class only — no superclass
+    /// walk; the registry's [`crate::CommandRegistry::instance_method`] does
+    /// the inherited resolution).
+    #[must_use]
+    pub fn instance_method(&self, name: &str) -> Option<&SubCommand> {
+        self.instance_methods.iter().find(|m| m.name == name)
+    }
+}
+
 /// Unified command metadata — the single source of truth.
 ///
 /// Every consumer (compiler, analyser, codegen, LSP, formatter, diagram
@@ -368,6 +418,11 @@ pub struct CommandSpec {
     /// the registry is what lets a new definer be *data*, not new
     /// `match cmd_name` logic in the compiler / analyser / LSP.
     pub definition_body: Option<&'static crate::definer::DefinitionBodyGrammar>,
+
+    /// Object-class metadata — `Some` when this command is a `TclOO` /
+    /// megawidget class factory whose `new` / `create` returns an object handle
+    /// dispatched as `$obj <method> …`.  See [`ObjectClassSpec`].
+    pub object_class: Option<&'static ObjectClassSpec>,
 }
 
 impl CommandSpec {
@@ -427,6 +482,7 @@ impl CommandSpec {
         deprecated_replacement: None,
         byte_array_payload: None,
         definition_body: None,
+        object_class: None,
     };
 
     /// Run this command's constant folder for `args` under the optimiser's
