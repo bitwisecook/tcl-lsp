@@ -5,30 +5,29 @@
   // src/pages/irule-flow.ts
   (function() {
     "use strict";
-    if (!window.mermaid) return;
+    if (!window.ElkGraph) return;
     function renderFlow(detail) {
       var host = detail.querySelector(".irule-flow-diagram");
       var src = detail.querySelector(".irule-flow-src");
       if (!host || !src || host._rendered) return;
-      var def = (src.textContent || "").trim();
-      if (!def) {
+      var raw = (src.textContent || "").trim();
+      if (!raw) {
+        host._rendered = true;
+        return;
+      }
+      var model;
+      try {
+        model = JSON.parse(raw);
+      } catch (e) {
         host._rendered = true;
         return;
       }
       host._rendered = true;
       host.textContent = "rendering\u2026";
-      try {
-        var id = "irflow-" + Math.random().toString(36).slice(2);
-        mermaid.render(id, def).then(function(res) {
-          host.innerHTML = res.svg;
-        }).catch(function() {
-          host.textContent = "(flowchart could not be rendered)";
-          host._rendered = false;
-        });
-      } catch (e) {
+      window.ElkGraph.render(host, model, { dir: "DOWN", svgClass: "elk-report" }).catch(function() {
         host.textContent = "(flowchart could not be rendered)";
         host._rendered = false;
-      }
+      });
     }
     document.querySelectorAll('.panel[data-panel="rules"] tr.expandable').forEach(function(row) {
       row.addEventListener("click", function(ev) {

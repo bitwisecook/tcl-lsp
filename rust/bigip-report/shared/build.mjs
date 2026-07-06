@@ -74,7 +74,7 @@ async function build() {
 // synced; APM / elk-graph stay Rust-only, as they always have been.
 const PY_JS = ["input", "report", "topology", "console", "certs", "secrets", "forensics", "irule-flow", "irule-format", "print", "elk-graph"];
 const PY_CSS = ["input", "report", "topology", "certs", "secrets", "forensics", "print", "apm"];
-const PY_VENDOR = ["mermaid.min.js", "mermaid.LICENSE", "elk.bundled.js", "f5query_wasm.js", "f5query_wasm_bg.wasm"];
+const PY_VENDOR = ["elk.bundled.js", "f5query_wasm.js", "f5query_wasm_bg.wasm"];
 
 function sync() {
   mkdirSync(pyTemplates, { recursive: true });

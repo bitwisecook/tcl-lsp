@@ -732,7 +732,7 @@ pub fn build_architecture(devices: &[J], manifest_text: Option<&str>) -> J {
         })
         .collect();
 
-    let mermaid = build_mermaid(&dev_json, &links, &tiers);
+    let graph = build_graph(&dev_json, &links, &tiers);
 
     // Pre-group devices by tier (ascending) so the report can render tier
     // columns without regrouping in the template.
@@ -756,7 +756,7 @@ pub fn build_architecture(devices: &[J], manifest_text: Option<&str>) -> J {
     arch.insert("devices".into(), J::Array(dev_json));
     arch.insert("tiers".into(), J::Array(tier_json));
     arch.insert("links".into(), J::Array(link_json));
-    arch.insert("mermaid".into(), J::String(mermaid));
+    arch.insert("graph".into(), J::String(graph));
 
     // Topology + enrichment declarations from the manifest (empty without one).
     let (zones_json, iface_json, dns_json, maps_json) = manifest.as_ref().map_or_else(
@@ -847,57 +847,49 @@ fn manifest_enrichment_json(m: &Manifest) -> (Vec<J>, Vec<J>, Vec<J>, Map<String
 
 /// Render the architecture as a left-to-right Mermaid flowchart, one subgraph
 /// per tier, edges labelled with the number of evidencing flows.
-fn build_mermaid(dev_json: &[J], links: &[Link], tiers: &[i64]) -> String {
-    use std::fmt::Write;
-
+/// Build the cross-device architecture graph as JSON —
+/// `{"nodes":[{"id","label","cls"}], "edges":[{"from","to","label"}]}` for the
+/// report's elkjs renderer. One node per device (tier folded into the label,
+/// since the flat renderer has no tier subgraphs), ordered left-to-right by the
+/// inter-device links.
+fn build_graph(dev_json: &[J], links: &[Link], tiers: &[i64]) -> String {
     if dev_json.is_empty() {
         return String::new();
     }
-    let mut out = String::from("flowchart LR\n");
-
-    // Group device indices by tier for the subgraphs.
-    let mut by_tier: BTreeMap<i64, Vec<usize>> = BTreeMap::new();
-    for (i, t) in tiers.iter().enumerate() {
-        by_tier.entry(*t).or_default().push(i);
-    }
-    let node_label = |i: usize| -> String {
-        let d = dev_json[i].as_object();
-        let label = d.map_or("", |m| bstr(m, "label"));
-        let role = d.map_or("", |m| bstr(m, "role"));
-        let text = if label.is_empty() {
-            format!("device {i}")
-        } else {
-            label.to_string()
-        };
-        // Mermaid label text: escape quotes, tag the role.
-        let safe = text.replace('"', "'");
-        format!("\"{safe}<br/><small>{role}</small>\"")
-    };
-
-    for (t, members) in &by_tier {
-        let _ = writeln!(out, "  subgraph tier{t}[\"Tier {t}\"]");
-        for i in members {
-            let _ = writeln!(out, "    d{i}[{}]", node_label(*i));
-        }
-        out.push_str("  end\n");
-    }
-
-    for l in links {
-        let lbl = l.label.clone().unwrap_or_else(|| {
-            if l.vias.is_empty() {
-                String::new()
+    let nodes: Vec<J> = dev_json
+        .iter()
+        .enumerate()
+        .map(|(i, d)| {
+            let m = d.as_object();
+            let label = m.map_or("", |m| bstr(m, "label"));
+            let role = m.map_or("", |m| bstr(m, "role"));
+            let text = if label.is_empty() {
+                format!("device {i}")
             } else {
-                format!("{} flow(s)", l.vias.len())
-            }
-        });
-        if lbl.is_empty() {
-            let _ = writeln!(out, "  d{} --> d{}", l.from, l.to);
-        } else {
-            let safe = lbl.replace('"', "'");
-            let _ = writeln!(out, "  d{} -->|\"{safe}\"| d{}", l.from, l.to);
-        }
-    }
-    out
+                label.to_string()
+            };
+            let sub = if role.is_empty() {
+                format!("tier {}", tiers[i])
+            } else {
+                format!("{role} · tier {}", tiers[i])
+            };
+            serde_json::json!({ "id": format!("d{i}"), "label": format!("{text}\n{sub}"), "cls": "device" })
+        })
+        .collect();
+    let edges: Vec<J> = links
+        .iter()
+        .map(|l| {
+            let lbl = l.label.clone().unwrap_or_else(|| {
+                if l.vias.is_empty() {
+                    String::new()
+                } else {
+                    format!("{} flow(s)", l.vias.len())
+                }
+            });
+            serde_json::json!({ "from": format!("d{}", l.from), "to": format!("d{}", l.to), "label": lbl })
+        })
+        .collect();
+    serde_json::json!({ "nodes": nodes, "edges": edges }).to_string()
 }
 
 #[cfg(test)]

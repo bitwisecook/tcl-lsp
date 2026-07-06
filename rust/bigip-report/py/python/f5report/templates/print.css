@@ -74,7 +74,8 @@
   }
 
   /* ---- Tables: fit the page, no horizontal clipping ------------------- */
-  .tablewrap, .diag-host, pre.code, .mermaid-code, .arch-diagram {
+  .tablewrap, .diag-host, pre.code, .arch-diagram,
+  .app-pipe-diagram, .app-flow-diagram, .app-obj-flow, .irule-flow-diagram {
     overflow: visible !important;
     max-height: none !important;
   }
@@ -86,7 +87,8 @@
   /* ---- Code + diagrams ------------------------------------------------- */
   pre.code { white-space: pre-wrap !important; word-break: break-word; }
   /* Diagrams always included and scaled to the printable width. */
-  .diag-host svg, .mermaid svg, svg[id^="mermaid"] {
+  .diag-host svg, .elk-svg,
+  .app-pipe-diagram svg, .app-flow-diagram svg, .app-obj-flow svg, .irule-flow-diagram svg, .arch-diagram svg {
     width: 100% !important;
     max-width: 100% !important;
     height: auto !important;

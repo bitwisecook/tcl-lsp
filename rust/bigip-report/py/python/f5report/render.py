@@ -21,7 +21,7 @@
 Kept deliberately small: the interesting work (parsing configs, projecting
 objects, walking the reference graph) is done by the query engine in
 :mod:`f5report.report`. This module only turns the resulting model into a single
-self-contained HTML file — including the interactive Mermaid topology / flow /
+self-contained HTML file — including the interactive elkjs topology / flow /
 listener views, all embedded (no external assets, no CDN).
 """
 
@@ -79,8 +79,8 @@ def _asset_text(name: str) -> str:
     """Read a CSS/JS asset from the templates dir verbatim.
 
     These are emitted with ``| safe`` rather than ``{% include %}`` so Jinja
-    never parses them — the topology JS uses Mermaid's ``{{"…"}}`` hexagon
-    syntax, which would otherwise collide with Jinja's own delimiters.
+    never parses them — the embedded JS/CSS can contain ``{{`` / ``}}`` / ``{%``
+    sequences that would otherwise collide with Jinja's own delimiters.
     """
     return resources.files("f5report.templates").joinpath(name).read_text("utf-8")
 
@@ -110,8 +110,7 @@ def render_report(
     # The whole model is embedded as JSON so the client-side topology / flow /
     # listener views run with no server and no external assets.
     model["model_json"] = _script_safe_json(model)
-    model["mermaid_js"] = _vendor_text("mermaid.min.js")
-    # elkjs + the orthogonal renderer, for the traffic/flow diagrams.
+    # elkjs + the orthogonal renderer, which draws every report diagram.
     model["elk_js"] = _vendor_text("elk.bundled.js")
     model["elk_graph_js"] = _asset_text("elk-graph.js")
     model["apm_css"] = _asset_text("apm.css")

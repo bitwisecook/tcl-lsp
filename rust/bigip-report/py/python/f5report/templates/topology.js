@@ -555,10 +555,15 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
   }
   async function redrawDiagram(arch) {
     const host = document.getElementById("archDiagram");
-    const mermaid2 = win().mermaid;
-    if (!host || !arch.mermaid || !mermaid2) return;
-    const res = await mermaid2.render("archDiagram-svg-" + Date.now().toString(36), arch.mermaid);
-    host.innerHTML = res.svg;
+    const elk = win().ElkGraph;
+    if (!host || !arch.graph || !elk) return;
+    let model;
+    try {
+      model = JSON.parse(arch.graph);
+    } catch {
+      return;
+    }
+    await elk.render(host, model, { dir: "RIGHT", svgClass: "elk-report" });
   }
   function safeGet(k) {
     try {
@@ -582,15 +587,6 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       MODEL = JSON.parse(document.getElementById("f5-model").textContent);
     } catch (e) {
       return;
-    }
-    if (window.mermaid) {
-      mermaid.initialize({
-        startOnLoad: false,
-        securityLevel: "loose",
-        theme: "neutral",
-        layout: "elk",
-        flowchart: { htmlLabels: true, curve: "basis", nodeSpacing: 40, rankSpacing: 55 }
-      });
     }
     var TYPE_CLASS = {
       vs: "vs",
@@ -902,9 +898,6 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       return String(s).replace(/[&<>"]/g, function(c) {
         return ESC_MAP[c];
       }).replace(/\n/g, " ");
-    }
-    function escLbl(s) {
-      return String(s).replace(/[()|{}\[\]"]/g, "").replace(/\n/g, " ");
     }
     function escConf(s) {
       return String(s).replace(/[&<>"]/g, function(c) {
@@ -1326,28 +1319,28 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
     }
     function initArchitecture() {
       var arch = MODEL.architecture;
-      if (!arch || !arch.mermaid || (arch.deviceCount || 0) < 2) return;
+      if (!arch || !arch.graph || (arch.deviceCount || 0) < 2) return;
       var host = document.getElementById("archDiagram");
       if (!host) return;
-      if (!window.mermaid) {
+      if (!window.ElkGraph) {
         host.style.display = "none";
         return;
       }
-      var id = "archmmd" + _rid++;
-      mermaid.render(id, arch.mermaid).then(function(res) {
-        host.innerHTML = res.svg;
+      var model;
+      try {
+        model = JSON.parse(arch.graph);
+      } catch (e) {
+        host.style.display = "none";
+        return;
+      }
+      window.ElkGraph.render(host, model, { dir: "RIGHT", svgClass: "elk-report" }).then(function() {
         var svg = host.querySelector("svg");
-        if (svg) {
-          svg.style.maxWidth = "100%";
-          svg.style.maxHeight = "60vh";
-          svg.style.height = "auto";
-        }
-        host.querySelectorAll(".node").forEach(function(el) {
-          var m = /flowchart-d(\d+)-/.exec(el.id || "");
+        if (svg) svg.style.maxHeight = "60vh";
+        host.querySelectorAll(".elk-node[data-nid]").forEach(function(el) {
+          var m = /^d(\d+)$/.exec(el.getAttribute("data-nid") || "");
           if (!m) return;
           var di = parseInt(m[1], 10);
-          el.classList.add("mm-node");
-          el.style.cursor = "pointer";
+          el.classList.add("elk-clk");
           el.setAttribute("title", "Jump to this device");
           el.addEventListener("click", function(ev) {
             ev.stopPropagation();
@@ -2380,15 +2373,19 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
           });
         });
         host.querySelectorAll(".app-obj-flow[data-flow]").forEach(function(fh) {
-          var def = decodeURIComponent(fh.getAttribute("data-flow") || "");
-          if (!def || !window.mermaid) {
+          var raw = decodeURIComponent(fh.getAttribute("data-flow") || "");
+          if (!raw || !window.ElkGraph) {
             fh.textContent = "";
             return;
           }
-          var id = "appflow" + _rid++;
-          mermaid.render(id, def).then(function(res) {
-            fh.innerHTML = res.svg;
-          }).catch(function() {
+          var model;
+          try {
+            model = JSON.parse(raw);
+          } catch (e) {
+            fh.textContent = "";
+            return;
+          }
+          window.ElkGraph.render(fh, model, { dir: "DOWN", svgClass: "elk-report" }).catch(function() {
             fh.textContent = "(flowchart unavailable)";
           });
         });

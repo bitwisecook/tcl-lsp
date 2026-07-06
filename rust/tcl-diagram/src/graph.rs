@@ -16,11 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Deterministic Mermaid `flowchart` serialiser for [`crate::diagram_data`].
+//! Deterministic control-flow graph serialiser for [`crate::diagram_data`].
 //!
-//! Turns the IR-derived `{events, procedures}` flow tree into a Mermaid diagram
-//! string — no LLM, no network — so the BIG-IP report (and the CLI / MCP) can
-//! show an iRule's control flow offline.
+//! Turns the IR-derived `{events, procedures}` flow tree into a `{nodes, edges}`
+//! JSON graph — no LLM, no network — so the BIG-IP report can draw an iRule's
+//! control flow offline with the orthogonal elkjs renderer.
 
 use serde_json::Value;
 use tcl_registry::CommandRegistry;
@@ -33,9 +33,9 @@ const MAX_NODES: usize = 600;
 type Edge = (String, String);
 
 struct Builder {
-    out: String,
+    nodes: Vec<Value>,
+    edges: Vec<Value>,
     n: usize,
-    nodes: usize,
 }
 
 impl Builder {
@@ -45,37 +45,23 @@ impl Builder {
         id
     }
     fn full(&self) -> bool {
-        self.nodes >= MAX_NODES
+        self.nodes.len() >= MAX_NODES
     }
-    /// Emit a node `id<open>"label"<close>` and connect every inbound edge.
-    fn node(&mut self, incoming: &[Edge], open: &str, label: &str, close: &str) -> String {
+    /// Emit a node with the given semantic class and connect every inbound edge.
+    fn node(&mut self, incoming: &[Edge], cls: &str, label: &str) -> String {
         let id = self.id();
-        self.nodes += 1;
-        self.out.push_str("  ");
-        self.out.push_str(&id);
-        self.out.push_str(open);
-        self.out.push('"');
-        self.out.push_str(&esc(label));
-        self.out.push('"');
-        self.out.push_str(close);
-        self.out.push('\n');
+        self.nodes.push(serde_json::json!({
+            "id": id, "label": clean(label), "cls": cls,
+        }));
         for (from, elabel) in incoming {
             self.connect(from, &id, elabel);
         }
         id
     }
     fn connect(&mut self, from: &str, to: &str, label: &str) {
-        self.out.push_str("  ");
-        self.out.push_str(from);
-        if label.is_empty() {
-            self.out.push_str(" --> ");
-        } else {
-            self.out.push_str(" -->|\"");
-            self.out.push_str(&esc(label));
-            self.out.push_str("\"| ");
-        }
-        self.out.push_str(to);
-        self.out.push('\n');
+        self.edges.push(serde_json::json!({
+            "from": from, "to": to, "label": clean(label),
+        }));
     }
 
     /// Render a sequence of flow nodes; return the fall-through edges.
@@ -96,7 +82,7 @@ impl Builder {
         match kind {
             "action" => {
                 let cmd = node.get("command").and_then(Value::as_str).unwrap_or("");
-                let id = self.node(&incoming, "[", label, "]");
+                let id = self.node(&incoming, "action", label);
                 if is_terminal(cmd) {
                     Vec::new() // control leaves the event
                 } else {
@@ -106,38 +92,30 @@ impl Builder {
             "assign" => {
                 let var = node.get("var").and_then(Value::as_str).unwrap_or("");
                 let val = node.get("value").and_then(Value::as_str).unwrap_or("");
-                let id = self.node(&incoming, "[", &format!("set {var} = {val}"), "]");
+                let id = self.node(&incoming, "action", &format!("set {var} = {val}"));
                 vec![(id, String::new())]
             }
             "return" => {
-                let id = self.node(
+                self.node(
                     &incoming,
-                    "([",
+                    "return",
                     if label.is_empty() { "return" } else { label },
-                    "])",
                 );
-                let _ = id;
                 Vec::new()
             }
             "proc_call" => {
-                let id = self.node(&incoming, "[[", label, "]]");
+                let id = self.node(&incoming, "call", label);
                 vec![(id, String::new())]
             }
             "truncated" => {
-                let id = self.node(
-                    &incoming,
-                    "[",
-                    if label.is_empty() { "…" } else { label },
-                    "]",
-                );
+                let id = self.node(&incoming, "action", if label.is_empty() { "…" } else { label });
                 vec![(id, String::new())]
             }
             "loop" => {
                 let head = self.node(
                     &incoming,
-                    "{{",
+                    "loop",
                     if label.is_empty() { "loop" } else { label },
-                    "}}",
                 );
                 let body = node
                     .get("body")
@@ -151,7 +129,7 @@ impl Builder {
                 vec![(head, "done".into())]
             }
             "catch" => {
-                let head = self.node(&incoming, "[", "catch", "]");
+                let head = self.node(&incoming, "action", "catch");
                 let body = node
                     .get("body")
                     .and_then(Value::as_array)
@@ -163,7 +141,7 @@ impl Builder {
             "switch" => self.render_switch(node, &incoming),
             _ => {
                 let text = if label.is_empty() { kind } else { label };
-                let id = self.node(&incoming, "[", text, "]");
+                let id = self.node(&incoming, "action", text);
                 vec![(id, String::new())]
             }
         }
@@ -192,7 +170,7 @@ impl Builder {
                 tails.extend(self.seq(&body, std::mem::take(&mut pending)));
                 saw_else = true;
             } else {
-                let d = self.node(&pending, "{", &format!("if {cond}"), "}");
+                let d = self.node(&pending, "decision", &format!("if {cond}"));
                 tails.extend(self.seq(&body, vec![(d.clone(), "yes".into())]));
                 pending = vec![(d, "no".into())];
             }
@@ -210,7 +188,7 @@ impl Builder {
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
-        let d = self.node(incoming, "{", &format!("switch {subject}"), "}");
+        let d = self.node(incoming, "decision", &format!("switch {subject}"));
         let mut tails: Vec<Edge> = Vec::new();
         let mut has_default = false;
         for arm in &arms {
@@ -243,18 +221,14 @@ fn is_terminal(command: &str) -> bool {
     )
 }
 
-/// Escape a Mermaid label: quotes, and the operators / metacharacters Mermaid
-/// mis-parses inside `"…"` labels.
-fn esc(s: &str) -> String {
+/// Normalise a node/edge label for display: collapse newlines/tabs to spaces,
+/// spell out `&&` / `||` as words, and cap the length. JSON string escaping is
+/// handled by the serialiser, so no quote escaping is needed here.
+fn clean(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.trim().chars() {
-        match c {
-            '"' => out.push('\''),
-            '\n' | '\r' | '\t' => out.push(' '),
-            _ => out.push(c),
-        }
+        out.push(if matches!(c, '\n' | '\r' | '\t') { ' ' } else { c });
     }
-    // Word forms for &&/||/! so Mermaid doesn't treat `&` as an HTML entity.
     let out = out.replace("&&", " and ").replace("||", " or ");
     let trimmed = out.trim();
     if trimmed.chars().count() > 60 {
@@ -265,10 +239,12 @@ fn esc(s: &str) -> String {
     }
 }
 
-/// Build a Mermaid `flowchart` for an iRule source, or `""` when there is
-/// nothing worth drawing (no events / procedures, or a parse failure).
+/// Build a control-flow graph for an iRule source as JSON — an object
+/// `{"nodes":[{"id","label","cls"}], "edges":[{"from","to","label"}]}` for the
+/// report's elkjs renderer — or `""` when there is nothing worth drawing (no
+/// events / procedures, or a parse failure).
 #[must_use]
-pub fn irule_flowchart_mermaid(source: &str, registry: &CommandRegistry) -> String {
+pub fn irule_flowchart_graph(source: &str, registry: &CommandRegistry) -> String {
     // Always the iRules dialect: lex with the f5-irules preset so `if {expr}{body}`
     // (`}{` valid in TMM) forms correct control-flow branches instead of the
     // stock-Tcl mis-segmentation.
@@ -292,19 +268,16 @@ pub fn irule_flowchart_mermaid(source: &str, registry: &CommandRegistry) -> Stri
     }
 
     let mut b = Builder {
-        out: String::from("flowchart TD\n"),
+        nodes: Vec::new(),
+        edges: Vec::new(),
         n: 0,
-        nodes: 0,
     };
     for ev in &events {
         if b.full() {
             break;
         }
         let name = ev.get("name").and_then(Value::as_str).unwrap_or("event");
-        let ev_id = b.node(&[], "([", name, "])");
-        b.out.push_str("  class ");
-        b.out.push_str(&ev_id);
-        b.out.push_str(" evNode\n");
+        let ev_id = b.node(&[], "event", name);
         let flow = ev
             .get("flow")
             .and_then(Value::as_array)
@@ -317,7 +290,7 @@ pub fn irule_flowchart_mermaid(source: &str, registry: &CommandRegistry) -> Stri
             break;
         }
         let name = pr.get("name").and_then(Value::as_str).unwrap_or("proc");
-        let pr_id = b.node(&[], "[[", &format!("proc {name}"), "]]");
+        let pr_id = b.node(&[], "proc", &format!("proc {name}"));
         let body = pr
             .get("body")
             .and_then(Value::as_array)
@@ -325,9 +298,7 @@ pub fn irule_flowchart_mermaid(source: &str, registry: &CommandRegistry) -> Stri
             .unwrap_or_default();
         let _ = b.seq(&body, vec![(pr_id, String::new())]);
     }
-    b.out
-        .push_str("  classDef evNode fill:#dbeafe,stroke:#2563eb,color:#0b3a86;\n");
-    b.out
+    serde_json::json!({ "nodes": b.nodes, "edges": b.edges }).to_string()
 }
 
 #[cfg(test)]
@@ -336,14 +307,23 @@ mod tests {
 
     #[test]
     fn flowchart_handles_irule_brace_chain() {
-        // `if {expr}{body}` — `}{` valid in TMM. `irule_flowchart_mermaid` must
+        // `if {expr}{body}` — `}{` valid in TMM. `irule_flowchart_graph` must
         // lex with the f5-irules preset, so both branches (and their `pool`
         // actions) appear. Under stock-Tcl lexing the `}{` derails the parse and
         // the flowchart comes out empty.
         let src = "when HTTP_REQUEST {\n  if { [HTTP::uri] eq \"/a\" }{\n    pool a_pool\n  } else {\n    pool b_pool\n  }\n}";
         let registry = tcl_registry::registry_for_dialect("f5-irules");
-        let out = irule_flowchart_mermaid(src, registry);
+        let out = irule_flowchart_graph(src, registry);
+        // Valid JSON graph carrying both branch actions.
+        let v: Value = serde_json::from_str(&out).expect("valid JSON graph");
+        assert!(v.get("nodes").and_then(Value::as_array).is_some(), "no nodes:\n{out}");
         assert!(out.contains("a_pool"), "missing then-branch pool:\n{out}");
         assert!(out.contains("b_pool"), "missing else-branch pool:\n{out}");
+    }
+
+    #[test]
+    fn flowchart_empty_source_is_blank() {
+        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        assert_eq!(irule_flowchart_graph("# just a comment\n", registry), "");
     }
 }

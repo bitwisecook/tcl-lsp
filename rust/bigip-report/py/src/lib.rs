@@ -542,14 +542,14 @@ fn order_profiles(profiles: Vec<String>, types: Option<HashMap<String, String>>)
     tcl_bigip_query::builtins::f5profile::order_profiles_with_types(&profiles, &types)
 }
 
-/// Build a Mermaid control-flow flowchart for an iRule.
+/// Build a control-flow graph for an iRule as `{nodes, edges}` JSON.
 ///
 /// Uses the IR-based [`tcl_diagram`] (the same control-flow extraction the CLI
-/// and MCP use), serialised to a deterministic Mermaid `flowchart` — no LLM, no
-/// network. Returns `""` when there is nothing to draw.
+/// and MCP use), serialised to a deterministic graph for the report's elkjs
+/// renderer — no LLM, no network. Returns `""` when there is nothing to draw.
 #[pyfunction]
 fn irule_flowchart(body: &str) -> String {
-    tcl_diagram::irule_flowchart_mermaid(body, tcl_registry::registry_for_dialect("f5-irules"))
+    tcl_diagram::irule_flowchart_graph(body, tcl_registry::registry_for_dialect("f5-irules"))
 }
 
 /// Reconstruct the object-name patterns an iRule could dynamically attach.
@@ -576,7 +576,7 @@ fn irule_proc_call_refs(body: &str) -> String {
 }
 
 /// Build the cross-device *architecture* model (roles, tiers, inter-device
-/// links, and a Mermaid topology diagram) from the report's device list.
+/// links, and an elkjs topology graph) from the report's device list.
 ///
 /// `devices_json` is the JSON array of shaped device objects (`collect_model`'s
 /// `devices`); `manifest` is an optional architecture manifest (a small Tcl

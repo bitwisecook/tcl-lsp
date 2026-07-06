@@ -18,10 +18,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // f5report — interactive topology / flow / listener explorer.
-// Renders the object graph with Mermaid, maps the rendered SVG back to the
-// model, and drives click-to-focus, connected-component highlighting, the
-// per-virtual flow diagram, and the listener-matching table. No dependencies
-// beyond the vendored Mermaid (already loaded), no network.
+// Renders the object graph with the orthogonal elkjs renderer (ElkGraph), maps
+// the rendered SVG back to the model via each node's data-nid, and drives
+// click-to-focus, connected-component highlighting, the per-virtual flow
+// diagram, and the listener-matching table. No dependencies beyond the vendored
+// elkjs (already loaded), no network.
 import { initGlobalSearch } from "../search/results";
 import { initArchEditor } from "../arch/editor";
 
@@ -33,22 +34,6 @@ import { initArchEditor } from "../arch/editor";
     MODEL = JSON.parse(document.getElementById("f5-model").textContent);
   } catch (e) { return; }
 
-  if (window.mermaid) {
-    // ELK (layered) layout for the Mermaid-drawn diagrams (topology, the
-    // per-virtual traffic pipeline / flow, and the iRule flowcharts). ELK gives
-    // a clean layered node placement; the edges use a smooth curve because
-    // Mermaid does not expose ELK's orthogonal edge *routing* — a `step` curve
-    // fakes right angles but overlaps parallel edges and mis-seats arrowheads.
-    // The genuinely orthogonal diagram (the APM walk) is drawn by the dedicated
-    // elkjs renderer (elk-graph.js), which routes edges through ELK itself.
-    // The ELK layout emits the same SVG structure as the default layout
-    // (`.node` / `flowchart-N…` ids, `path.flowchart-link` / `LS-`/`LE-`
-    // classes), so the click-to-focus and edge-highlight wiring is unaffected.
-    mermaid.initialize({
-      startOnLoad: false, securityLevel: "loose", theme: "neutral", layout: "elk",
-      flowchart: { htmlLabels: true, curve: "basis", nodeSpacing: 40, rankSpacing: 55 },
-    });
-  }
 
   var TYPE_CLASS = {
     vs: "vs", pool: "pool", node: "node", mon: "mon", rule: "rule",
@@ -281,19 +266,17 @@ import { initArchEditor } from "../arch/editor";
   }
 
   // Escape HTML metacharacters — these strings are config-derived (object names,
-  // iRule bodies, data-group records, descriptions) and land in innerHTML and in
-  // Mermaid (html) labels, so `<`, `>`, `&`, `"` must all be neutralised.
+  // iRule bodies, data-group records, descriptions) and land in innerHTML, so
+  // `<`, `>`, `&`, `"` must all be neutralised. (Diagram node/edge labels are set
+  // via textContent by the elkjs renderer, so they need no escaping.)
   var ESC_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
   function esc(s) {
     return String(s).replace(/[&<>"]/g, function (c) { return ESC_MAP[c]; }).replace(/\n/g, " ");
   }
-  // Edge labels sit in Mermaid's `|...|` syntax, which chokes on (){}[]|" —
-  // strip those to keep the flowchart parseable.
-  function escLbl(s) { return String(s).replace(/[()|{}\[\]"]/g, "").replace(/\n/g, " "); }
 
   // ---- shared config-source rendering ------------------------------------
   // Escape config text for a <pre> *without* collapsing newlines (unlike esc(),
-  // which is for single-line Mermaid labels): a config stanza is multi-line, so
+  // which is for single-line contexts): a config stanza is multi-line, so
   // its line breaks must survive.
   function escConf(s) {
     return String(s).replace(/[&<>"]/g, function (c) { return ESC_MAP[c]; });
@@ -393,7 +376,7 @@ import { initArchEditor } from "../arch/editor";
     return seen; // set of oids
   }
 
-  // ---- Mermaid text builder ---------------------------------------------
+  // ---- graph model builder ----------------------------------------------
   // Build an ElkGraph model (orthogonal renderer) for a set of object oids. Node
   // ids are the short ids (ix.short/unshort), so the click / edge-highlight
   // wiring maps a rendered node straight back to its object.
@@ -514,7 +497,7 @@ import { initArchEditor } from "../arch/editor";
     return map;
   }
 
-  // Build the ordered traffic pipeline (Mermaid) for one virtual server.
+  // Build the ordered traffic pipeline (ElkGraph model) for one virtual server.
   function buildTrafficPipeline(ix, vsOid) {
     var vs = findByPath(ix.d.virtuals, vsOid.replace(/^vs:/, ""));
     if (!vs) return null;
@@ -693,22 +676,21 @@ import { initArchEditor } from "../arch/editor";
 
   function initArchitecture() {
     var arch = MODEL.architecture;
-    if (!arch || !arch.mermaid || (arch.deviceCount || 0) < 2) return;
+    if (!arch || !arch.graph || (arch.deviceCount || 0) < 2) return;
     var host = document.getElementById("archDiagram");
     if (!host) return;
-    if (!window.mermaid) { host.style.display = "none"; return; }
-    var id = "archmmd" + (_rid++);
-    mermaid.render(id, arch.mermaid).then(function (res) {
-      host.innerHTML = res.svg;
+    if (!window.ElkGraph) { host.style.display = "none"; return; }
+    var model;
+    try { model = JSON.parse(arch.graph); } catch (e) { host.style.display = "none"; return; }
+    window.ElkGraph.render(host, model, { dir: "RIGHT", svgClass: "elk-report" }).then(function () {
       var svg = host.querySelector("svg");
-      if (svg) { svg.style.maxWidth = "100%"; svg.style.maxHeight = "60vh"; svg.style.height = "auto"; }
-      // Each device node's element id is `flowchart-d<index>-<seq>`.
-      host.querySelectorAll(".node").forEach(function (el) {
-        var m = /flowchart-d(\d+)-/.exec(el.id || "");
+      if (svg) svg.style.maxHeight = "60vh";
+      // Each device node carries data-nid="d<index>"; click jumps to it.
+      host.querySelectorAll(".elk-node[data-nid]").forEach(function (el) {
+        var m = /^d(\d+)$/.exec(el.getAttribute("data-nid") || "");
         if (!m) return;
         var di = parseInt(m[1], 10);
-        el.classList.add("mm-node");
-        el.style.cursor = "pointer";
+        el.classList.add("elk-clk");
         el.setAttribute("title", "Jump to this device");
         el.addEventListener("click", function (ev) {
           ev.stopPropagation();
@@ -1704,12 +1686,14 @@ import { initArchEditor } from "../arch/editor";
           ph.innerHTML = '<div class="diag-err">pipeline error: ' + esc((e && e.message) || e) + "</div>";
         });
       });
-      // render each iRule control-flow flowchart
+      // render each iRule control-flow graph (orthogonal elkjs)
       host.querySelectorAll(".app-obj-flow[data-flow]").forEach(function (fh) {
-        var def = decodeURIComponent(fh.getAttribute("data-flow") || "");
-        if (!def || !window.mermaid) { fh.textContent = ""; return; }
-        var id = "appflow" + (_rid++);
-        mermaid.render(id, def).then(function (res) { fh.innerHTML = res.svg; }).catch(function () { fh.textContent = "(flowchart unavailable)"; });
+        var raw = decodeURIComponent(fh.getAttribute("data-flow") || "");
+        if (!raw || !window.ElkGraph) { fh.textContent = ""; return; }
+        var model;
+        try { model = JSON.parse(raw); } catch (e) { fh.textContent = ""; return; }
+        window.ElkGraph.render(fh, model, { dir: "DOWN", svgClass: "elk-report" })
+          .catch(function () { fh.textContent = "(flowchart unavailable)"; });
       });
       // cross-links: config paths + VS chips + drawer buttons
       host.querySelectorAll(".conf-link[data-goto]").forEach(function (a) {

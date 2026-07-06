@@ -43,13 +43,6 @@ td .objlink.strong,.objlink.namelink{color:var(--blue);border-bottom:1px dotted 
 .legend i{width:11px;height:11px;border-radius:3px;display:inline-block;border:1px solid}
 .hint{font-size:12px;color:var(--muted);margin:2px 0 12px}
 
-/* mermaid interaction states */
-.mm-node{cursor:pointer}
-.mm-node:hover :is(rect,circle,polygon,path){stroke-width:2.5px}
-.mm-hl :is(rect,circle,polygon){stroke-width:3px !important;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 60%,transparent))}
-path.flowchart-link.mm-hl{stroke:var(--accent) !important;stroke-width:3px !important;opacity:1}
-.mm-dim{opacity:.18;transition:opacity .12s}
-
 /* object drawer */
 #drawerScrim{position:fixed;inset:0;background:rgba(8,12,20,.42);opacity:0;pointer-events:none;transition:opacity .18s;z-index:40}
 #drawerScrim.open{opacity:1;pointer-events:auto}

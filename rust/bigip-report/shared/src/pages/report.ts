@@ -178,7 +178,7 @@
   // --- diagram viewer: click a diagram to expand, then pan/zoom -------------
   //     Google-Maps-style: drag to pan, wheel / pinch / ± to zoom, double-click
   //     to zoom in, Esc to close. Covers every diagram host (iRule flow, app
-  //     pipes/flows, mermaid architecture, topology graphs), including the ones
+  //     pipes/flows, architecture, topology graphs), including the ones
   //     built lazily when a tab is first shown (a MutationObserver decorates
   //     them as their <svg> arrives).
   (function diagramViewer() {

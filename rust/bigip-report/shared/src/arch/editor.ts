@@ -11,7 +11,8 @@
 import { DSL_GUIDE } from "./guide";
 
 interface Architecture {
-  mermaid?: string;
+  /** `{nodes, edges}` graph JSON for the elkjs renderer. */
+  graph?: string;
   deviceCount?: number;
 }
 interface Model {
@@ -23,12 +24,12 @@ interface WasmNs {
   (bytes: Uint8Array): Promise<unknown>;
   build_architecture?(devicesJson: string, manifest: string): string;
 }
-interface MermaidNs {
-  render(id: string, def: string): Promise<{ svg: string }>;
+interface ElkGraphNs {
+  render(host: HTMLElement, model: unknown, opts?: unknown): Promise<void>;
 }
 
 function win() {
-  return window as unknown as { wasm_bindgen?: WasmNs; mermaid?: MermaidNs };
+  return window as unknown as { wasm_bindgen?: WasmNs; ElkGraph?: ElkGraphNs };
 }
 
 function readModel(): Model | null {
@@ -165,10 +166,15 @@ async function applyManifest(model: Model, manifest: string, setStatus: (m: stri
 
 async function redrawDiagram(arch: Architecture): Promise<void> {
   const host = document.getElementById("archDiagram");
-  const mermaid = win().mermaid;
-  if (!host || !arch.mermaid || !mermaid) return;
-  const res = await mermaid.render("archDiagram-svg-" + Date.now().toString(36), arch.mermaid);
-  host.innerHTML = res.svg;
+  const elk = win().ElkGraph;
+  if (!host || !arch.graph || !elk) return;
+  let model: unknown;
+  try {
+    model = JSON.parse(arch.graph);
+  } catch {
+    return;
+  }
+  await elk.render(host, model, { dir: "RIGHT", svgClass: "elk-report" });
 }
 
 function safeGet(k: string): string | null {

@@ -22,7 +22,7 @@
 //! PyO3/Python demonstration of driving the query engine as a library). Given
 //! one or more loaded `(uri, scf_text)` configs it produces the exact same
 //! single-file, self-contained interactive HTML report — object tables, a
-//! reference/orphan analysis, an SSL-certificate expiry inventory, a Mermaid
+//! reference/orphan analysis, an SSL-certificate expiry inventory, an elkjs
 //! topology explorer, a listener/flow simulator and an in-browser `f5-query`
 //! console — with no server and no external assets.
 //!

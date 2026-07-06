@@ -550,11 +550,16 @@ fn irule_highlight_marks_commands_vars_events() {
 }
 
 #[test]
-fn irule_flowchart_is_mermaid() {
+fn irule_flowchart_is_graph_json() {
     let d = device0(SCF_ORPHAN_DYN);
     let fc = d["rules"][0]["flowchart"].as_str().unwrap();
-    assert!(fc.starts_with("flowchart TD"), "mermaid flowchart: {fc}");
-    assert!(fc.contains("HTTP_REQUEST"), "event node present");
+    let g: serde_json::Value = serde_json::from_str(fc).expect("flowchart is JSON graph");
+    let nodes = g["nodes"].as_array().expect("nodes array");
+    assert!(
+        nodes.iter().any(|n| n["label"].as_str() == Some("HTTP_REQUEST")),
+        "event node present: {fc}"
+    );
+    assert!(g["edges"].is_array(), "edges array present: {fc}");
 }
 
 // --- real certificate parsed out of a UCS filestore (parity with Python) -----
