@@ -50,6 +50,7 @@
 
 pub mod arg_role;
 pub mod arity;
+pub mod base_objects;
 pub mod bigip;
 pub mod body_kind;
 pub mod cache;
@@ -59,6 +60,7 @@ pub mod const_fold;
 pub mod definer;
 pub mod dialects;
 mod event_descriptions;
+pub mod event_facts;
 pub mod events;
 pub mod forms;
 pub mod hooks;

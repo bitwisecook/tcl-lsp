@@ -73,10 +73,25 @@ pub fn extract_blocks(source: &str) -> Vec<Block> {
         let header_start = pos;
         let mut hit_newline = false;
         while pos < length && bytes[pos] != b'{' {
-            if bytes[pos] == b'\n' {
-                pos += 1;
-                hit_newline = true;
-                break;
+            match bytes[pos] {
+                b'\n' => {
+                    pos += 1;
+                    hit_newline = true;
+                    break;
+                }
+                // tmsh permits braces inside a quoted object name; skip over
+                // quoted spans (and escapes) so the real opening brace is found.
+                b'\\' if pos + 1 < length => pos += 1,
+                b'"' => {
+                    pos += 1;
+                    while pos < length && bytes[pos] != b'"' {
+                        if bytes[pos] == b'\\' && pos + 1 < length {
+                            pos += 1;
+                        }
+                        pos += 1;
+                    }
+                }
+                _ => {}
             }
             pos += 1;
         }
@@ -139,6 +154,14 @@ pub fn parse_properties_with_spans(body: &str) -> Vec<(String, Property)> {
         if pos >= length {
             break;
         }
+        // A `#` at statement position starts a comment line, not a property;
+        // skip it so it isn't captured as a spurious `#`-keyed property.
+        if bytes[pos] == b'#' {
+            while pos < length && bytes[pos] != b'\n' {
+                pos += 1;
+            }
+            continue;
+        }
 
         let key_start = pos;
         while pos < length && !matches!(bytes[pos], b' ' | b'\t' | b'\n' | b'\r' | b'{') {
@@ -189,7 +212,10 @@ pub fn parse_properties_with_spans(body: &str) -> Vec<(String, Property)> {
                 }
                 pos += 1;
             }
-            let val_end = pos;
+            // An unterminated quote inside the value runs `pos` past the end
+            // (the inner scan reaches `length`, then `pos += 1` overshoots);
+            // clamp before slicing so a stray `"` can't crash the parse.
+            let val_end = pos.min(length);
             insert_prop(
                 &mut props,
                 Property {
@@ -562,5 +588,37 @@ mod tests {
                 "/Common/Microsoft Access".to_owned(),
             ]
         );
+    }
+
+    #[test]
+    fn header_scan_is_quote_aware() {
+        // A brace inside a quoted object name must not truncate the header at
+        // that inner brace; the real body brace is the one after the name.
+        let src = "ltm rule /Common/\"weird{name\" {\n    when HTTP_REQUEST { }\n}\n";
+        let blocks = extract_blocks(src);
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].header, "ltm rule /Common/\"weird{name\"");
+        assert!(blocks[0].body.contains("when HTTP_REQUEST"));
+        assert_eq!(&src[blocks[0].start_offset..=blocks[0].start_offset], "{");
+    }
+
+    #[test]
+    fn unterminated_quote_in_braced_value_does_not_panic() {
+        // A stray unbalanced `"` inside a braced value must not crash the parse
+        // via an out-of-bounds slice; it captures a clamped value instead.
+        let body = "description { \"unterminated\n";
+        let props = parse_properties_with_spans(body);
+        assert!(props.iter().any(|(k, _)| k == "description"));
+    }
+
+    #[test]
+    fn comment_lines_in_body_are_not_properties() {
+        let body = "\n    # a comment line\n    monitor /Common/http\n";
+        let props = parse_properties_with_spans(body);
+        assert!(
+            !props.iter().any(|(k, _)| k == "#"),
+            "a `#` comment must not become a property"
+        );
+        assert!(props.iter().any(|(k, p)| k == "monitor" && p.value == "/Common/http"));
     }
 }

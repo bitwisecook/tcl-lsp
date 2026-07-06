@@ -216,12 +216,18 @@ fn parse_policy_values_block(braced: &str) -> Vec<String> {
             let mut buf = String::new();
             while pos < bytes.len() && bytes[pos] != b'"' {
                 if bytes[pos] == b'\\' && pos + 1 < bytes.len() {
-                    buf.push(inner[pos + 1..].chars().next().unwrap());
-                    pos += 2;
+                    // Advance past the backslash, then by the escaped char's
+                    // full UTF-8 width so multibyte chars don't split.
+                    let c = inner[pos + 1..].chars().next().unwrap();
+                    buf.push(c);
+                    pos += 1 + c.len_utf8();
                     continue;
                 }
-                buf.push(inner[pos..].chars().next().unwrap());
-                pos += 1;
+                // Advance by the char's full UTF-8 width, not one byte, or the
+                // next slice would land inside a multibyte char and panic.
+                let c = inner[pos..].chars().next().unwrap();
+                buf.push(c);
+                pos += c.len_utf8();
             }
             if pos < bytes.len() && bytes[pos] == b'"' {
                 pos += 1;
@@ -1839,6 +1845,21 @@ mod tests {
     use super::*;
     use crate::model::ModelObject;
     use crate::parser::parse_bigip_conf;
+
+    #[test]
+    fn policy_values_handle_multibyte_utf8() {
+        // Multibyte chars inside a quoted value must advance by the char's full
+        // UTF-8 width, not one byte, or the slice lands mid-char and panics.
+        assert_eq!(
+            parse_policy_values_block("{ \"café.example.com\" }"),
+            vec!["café.example.com".to_owned()]
+        );
+        // A backslash-escaped multibyte char is handled too.
+        assert_eq!(
+            parse_policy_values_block("{ \"a\\ïb\" }"),
+            vec!["aïb".to_owned()]
+        );
+    }
 
     fn config() -> crate::parser::BigipConfig {
         let src = include_str!("../../../../samples/bigip/bigip.conf");

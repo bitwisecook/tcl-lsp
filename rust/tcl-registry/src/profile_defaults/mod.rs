@@ -19,13 +19,12 @@
 //! Version-ranged TMOS profile field defaults.
 //!
 //! A single-configuration file (SCF) — and `tmsh list … one-line` — omit any
-//! profile field that is still at its TMOS default, because those values live
-//! in `/config/profile_base.conf`, the read-only base config every BIG-IP ships
-//! with. Reconstructing a profile's *effective* configuration from an SCF
-//! therefore requires that default set. Worse, the defaults themselves drift
-//! across releases (a field is added, a default is retuned, an option flips), so
-//! a single value per field is not enough — each default is keyed by the BIG-IP
-//! **version range** over which it applies.
+//! profile field that is still at its TMOS default, because those values are
+//! part of the read-only base config a BIG-IP loads before `bigip.conf`.
+//! Reconstructing a profile's *effective* configuration from an SCF therefore
+//! requires that default set. Because defaults drift across releases (a field
+//! is added, a default is retuned, an option flips), each default is keyed by
+//! the BIG-IP **version** it was captured at.
 //!
 //! This module is that table. It is the registry-side source of truth for
 //! "what does field X of an unmodified `ltm profile <type>` resolve to on TMOS
@@ -33,23 +32,23 @@
 //! BIG-IP report (to show effective values for base profiles an SCF never
 //! re-declares), and the LSP.
 //!
-//! ## Data + import
+//! **These are fallbacks only.** A value present in a parsed source
+//! (UCS/qkview/SCF/`bigip.conf`) always wins: consult this table solely for a
+//! field the parsed config does not itself carry.
 //!
-//! [`PROFILE_DEFAULTS`] is generated (`generated.rs`) by
-//! `scripts/registry-audit/gen_profile_defaults.py` from a real
-//! `profile_base.conf` — the read-only default-profile base every BIG-IP ships
-//! (sourced from f5-corkscrew's Apache-2.0 archive fixtures). One snapshot
-//! yields version-unbounded entries; known cross-release changes a single
-//! snapshot can't express (e.g. the client/server-ssl `options` gaining
-//! `no-tlsv1.3` at 14.0) are recorded as an `OVERRIDES` table in the generator
-//! and emitted as adjacent half-open ranges. Refresh by re-running the
-//! generator against a newer `profile_base.conf`; add range boundaries to
-//! `OVERRIDES` as releases retune a default. The resolver treats an open upper
-//! bound as the latest known value.
+//! ## Version resolution
+//!
+//! Each entry carries the snapshot version it was captured at (as a half-open
+//! range starting there). Resolving field X for a report at version V
+//! floor-matches: the snapshot whose range covers V, else — when V predates
+//! every snapshot we hold — the oldest snapshot we have. With a single snapshot
+//! that means every report resolves to it; as more snapshots are added, a report
+//! picks the nearest not-newer one. Refresh or extend by re-running the
+//! generator against another base-config snapshot.
 
 mod generated;
 
-/// The full profile default table (generated from `profile_base.conf`). See the
+/// The full profile default table (generated). See the
 /// module docs for provenance and the version-range policy.
 pub use generated::PROFILE_DEFAULTS_GENERATED as PROFILE_DEFAULTS;
 
@@ -161,7 +160,7 @@ impl VersionRange {
 pub struct FieldDefault {
     /// tmsh field name (e.g. `"idle-timeout"`, `"insert-xforwarded-for"`).
     pub field: &'static str,
-    /// The default value as it appears in `profile_base.conf` for this range.
+    /// The default value captured for this version.
     pub value: &'static str,
     /// BIG-IP versions this default applies to.
     pub range: VersionRange,
@@ -182,10 +181,9 @@ pub struct ProfileDefaults {
 /// Resolve the effective default value of `field` on profile type
 /// `profile_type` (case-insensitive, underscores ignored) at `version`.
 ///
-/// `version = None` selects the current value — the entry whose range has an
-/// open upper bound ([`VersionRange::is_current`]); when every entry is bounded
-/// the highest-versioned one is used. Returns `None` when the profile/field is
-/// unknown or no recorded range covers `version`.
+/// `version = None` selects the current (newest) snapshot. `Some(v)` floor-
+/// matches: the snapshot covering `v`, or the oldest snapshot when `v` predates
+/// all of them. Returns `None` only when the profile or field is unknown.
 #[must_use]
 pub fn profile_field_default(
     profile_type: &str,
@@ -243,18 +241,30 @@ pub fn profiles_with_defaults() -> Vec<&'static str> {
 }
 
 /// Pick the default for one field of `spec` at `version`.
+///
+/// `version = None` selects the current (newest) snapshot. `Some(v)` floor-
+/// matches: the snapshot whose range contains `v`, or — when `v` predates every
+/// snapshot we have — the oldest snapshot (clamp up to the lowest recorded
+/// version rather than returning nothing).
 fn resolve_field(
     spec: &ProfileDefaults,
     field: &str,
     version: Option<BigipVersion>,
 ) -> Option<&'static str> {
-    let mut candidates = spec.fields.iter().filter(|f| f.field == field);
+    let candidates: Vec<&FieldDefault> = spec.fields.iter().filter(|f| f.field == field).collect();
     match version {
-        Some(v) => candidates.find(|f| f.range.contains(v)).map(|f| f.value),
+        Some(v) => candidates
+            .iter()
+            .find(|f| f.range.contains(v))
+            // Floor-clamp: report older than any snapshot → oldest snapshot
+            // (smallest lower bound; an unbounded-below range sorts first).
+            .or_else(|| candidates.iter().min_by_key(|f| f.range.min))
+            .map(|f| f.value),
         // Current value: rank an open upper bound above any bounded range, then
         // by highest lower bound (newest recorded range). `Option<BigipVersion>`
         // and `bool` both order the way we want (`false < true`, `None < Some`).
         None => candidates
+            .iter()
             .max_by_key(|f| (f.range.is_current(), f.range.min))
             .map(|f| f.value),
     }
@@ -325,25 +335,27 @@ mod tests {
     }
 
     #[test]
-    fn version_split_selects_the_right_side() {
-        // Before 14.0: no TLS 1.3 flag in the base options.
+    fn version_floor_matches_to_the_nearest_snapshot() {
+        let snapshot = "dont-insert-empty-fragments no-tlsv1.3 no-dtlsv1.2";
+        // At or after the snapshot version → the snapshot value.
+        assert_eq!(
+            profile_field_default("CLIENTSSL", "options", Some(v("17.1"))),
+            Some(snapshot)
+        );
+        assert_eq!(
+            profile_field_default("CLIENTSSL", "options", Some(v("17.5.1.3"))),
+            Some(snapshot)
+        );
+        // Older than any snapshot we hold → clamp up to the oldest snapshot
+        // rather than returning nothing.
         assert_eq!(
             profile_field_default("CLIENTSSL", "options", Some(v("13.1.0.8"))),
-            Some("dont-insert-empty-fragments")
+            Some(snapshot)
         );
-        // 14.0 and later: TLS 1.3 disabled by default.
-        assert_eq!(
-            profile_field_default("CLIENTSSL", "options", Some(v("14.0"))),
-            Some("dont-insert-empty-fragments no-tlsv1.3")
-        );
-        assert_eq!(
-            profile_field_default("CLIENTSSL", "options", Some(v("16.1.3"))),
-            Some("dont-insert-empty-fragments no-tlsv1.3")
-        );
-        // No version → current value (open upper bound).
+        // No version → current (newest) snapshot.
         assert_eq!(
             profile_field_default("CLIENTSSL", "options", None),
-            Some("dont-insert-empty-fragments no-tlsv1.3")
+            Some(snapshot)
         );
     }
 
@@ -359,10 +371,10 @@ mod tests {
         // The generated table covers the full base-profile set, not a handful.
         assert!(
             profiles_with_defaults().len() >= 50,
-            "expected the full profile_base.conf import, got {}",
+            "expected the full base-profile import, got {}",
             profiles_with_defaults().len()
         );
-        // Real values from profile_base.conf (not guessed): the base tcp proxy
+        // Real captured values (not guessed): the base tcp proxy
         // buffer is 65535, and the profile carries dozens of fields.
         assert_eq!(
             profile_field_default("tcp", "proxy-buffer-high", None),
@@ -392,11 +404,11 @@ mod tests {
         let mut sorted = names.clone();
         sorted.sort_unstable();
         assert_eq!(names, sorted);
-        // `options` appears exactly once despite two ranged entries
+        // `options` resolves to exactly one value
         assert_eq!(d.iter().filter(|(f, _)| *f == "options").count(), 1);
         assert_eq!(
             d.iter().find(|(f, _)| *f == "options").map(|(_, v)| *v),
-            Some("dont-insert-empty-fragments no-tlsv1.3")
+            Some("dont-insert-empty-fragments no-tlsv1.3 no-dtlsv1.2")
         );
     }
 

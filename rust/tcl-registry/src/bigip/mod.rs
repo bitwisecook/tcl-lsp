@@ -29,6 +29,43 @@
 use std::collections::HashMap;
 
 pub mod data;
+mod references;
+
+pub use references::REFERENCE_EDGES;
+
+/// A config-level reference edge of the BIG-IP object graph: property
+/// [`property`](ReferenceEdge::property) of [`from_kind`](ReferenceEdge::from_kind)
+/// — optionally scoped to a [`section`](ReferenceEdge::section) — may name any of
+/// [`to_kinds`](ReferenceEdge::to_kinds). Kind names are the registry's canonical
+/// underscore form (`ltm_pool`, `gtm_monitor_http`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReferenceEdge {
+    /// Source object kind (canonical underscore form).
+    pub from_kind: &'static str,
+    /// The property that carries the reference.
+    pub property: &'static str,
+    /// Sub-section the property sits in, when the reference is nested.
+    pub section: Option<&'static str>,
+    /// Candidate target kinds the property may name.
+    pub to_kinds: &'static [&'static str],
+}
+
+/// Reference edges declared for `from_kind`, in table order.
+pub fn reference_edges_from(
+    from_kind: &str,
+) -> impl Iterator<Item = &'static ReferenceEdge> + '_ {
+    REFERENCE_EDGES.iter().filter(move |e| e.from_kind == from_kind)
+}
+
+/// The candidate target kinds `property` of `from_kind` may name — the first
+/// matching edge's targets, or empty when there is none.
+#[must_use]
+pub fn reference_targets(from_kind: &str, property: &str) -> &'static [&'static str] {
+    REFERENCE_EDGES
+        .iter()
+        .find(|e| e.from_kind == from_kind && e.property == property)
+        .map_or(&[][..], |e| e.to_kinds)
+}
 
 /// Canonical property value-kind vocabulary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -489,5 +526,37 @@ mod tests {
                 "fanned-out kind {kind} round-trips"
             );
         }
+    }
+
+    #[test]
+    fn reference_edges_are_broad_and_well_formed() {
+        assert!(
+            REFERENCE_EDGES.len() > 500,
+            "expected a broad reference-edge set, got {}",
+            REFERENCE_EDGES.len()
+        );
+        // Every edge names at least one target.
+        assert!(REFERENCE_EDGES.iter().all(|e| !e.to_kinds.is_empty()));
+        // A canonical edge: an ltm pool's members name ltm nodes.
+        assert_eq!(reference_targets("ltm_pool", "members"), &["ltm_node"]);
+        assert!(reference_edges_from("ltm_pool").count() >= 1);
+        // An unknown source/property yields no targets.
+        assert!(reference_targets("ltm_pool", "__no_such_prop__").is_empty());
+        assert_eq!(reference_edges_from("__no_such_kind__").count(), 0);
+    }
+
+    #[test]
+    fn reference_edge_source_kinds_mostly_resolve() {
+        // Reference-edge source kinds use the registry's canonical kind naming,
+        // so the vast majority resolve to a registered object spec.
+        let reg = default_registry();
+        let sources: std::collections::HashSet<&str> =
+            REFERENCE_EDGES.iter().map(|e| e.from_kind).collect();
+        let resolved = sources.iter().filter(|k| reg.get(k).is_some()).count();
+        assert!(
+            resolved * 100 >= sources.len() * 80,
+            "expected ≥80% of edge source kinds to resolve, got {resolved}/{}",
+            sources.len()
+        );
     }
 }
