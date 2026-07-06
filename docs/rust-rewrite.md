@@ -102,8 +102,8 @@ The end state reached:
   extensions, the compiler explorer, the MCP server, the debugger CLI,
   or any other entry point in this repository.
 - The LSP server is a standalone Rust binary.
-- The bytecode VM is a Rust crate. The Zig WASM runtime stays as the
-  out-of-process runtime for compiled scripts; the VM is the in-process
+- The bytecode VM is a Rust crate. The Rust WASM runtime (`runtime/rust/`)
+  is the out-of-process runtime for compiled scripts; the VM is the in-process
   interpreter the analyser, debugger, and iRule test framework drive.
 - The compiler explorer is embedded in the `tcl` binary
   (`tcl explore --serve`) — no Pyodide, no Python at runtime.
@@ -639,10 +639,9 @@ rust/
   tcl-fuzz/               differential fuzzer (seeded generator + tclvm-vs-tclsh harness + findings)
   tcl-irule-test/         iRule TMM-sim: SCF→orchestrator topology + `LiveSession` running the orchestrator Tcl on tcl-vm (embedded framework)
   tcl-debugger/           working record-and-replay step debugger over tcl-vm + the `tcl-debug` CLI front-end
-  xtask/                  cargo-xtask build/release verbs (kcs-index-links, refcount-contract, …)
+  xtask/                  cargo-xtask build/release verbs (kcs-index-links, diag-tables, …)
 runtime/
-  zig/                    Zig WASM runtime (out-of-process runtime for compiled scripts)
-  rust/                   tree-walking reference runtime (RT-VM parity oracle)
+  rust/                   Rust WASM runtime (out-of-process runtime for compiled scripts) + RT-VM parity oracle
 .github/workflows/ci.yml  rust job + rust-gate (cargo tests + native lsp_e2e); no Python
 Makefile                  rust-build/test/lint/format; check-rust; test-rust
 ```
@@ -820,7 +819,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Bytecode codegen | `tcl-compiler::codegen` | 🟢 | state-mutating statement-position specialisations + `expr` const-fold + byte-wise `esc` + the `set x [cmd]` inline re-land landed (byte-true vs tclsh9.0; VM opcodes implemented to match); residual: bare-statement `string`/`regexp`/`lindex`/`lreplace` (value-discarded) → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes); `ProcArgTrait::DynamicNameLocal` added so caller-side W211/W214/dead-store false positives stay suppressed (parity-audit gap #6, 2026-06-25) — see [history](rust-rewrite-history.md). The two consumer-wiring residuals (per-check config toggles, flow-warning code actions) landed under **SRV-LSP** |
 | F5 dialect diagnostics | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, `f5-xc` | ✅ | all four families ported & consumer-wired: TK1001-3 (analyser), BIGIP6001-11 + IAPP7001-3 (routed into the native server via `f5_dialect_diagnostics`, push+pull), and XC100-301 (new **`f5-xc`** crate — `translate_irule` IR-walker + `get_xc_diagnostics`, parity-tested vs the Python oracle; opt-in `xcDiagnostics` toggle wired into the `f5-irules` diagnostics path) — see [history](rust-rewrite-history.md) → **FE-DIAG-F5** |
-| WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🟡 | **separate scope** → [`design/runtime/runtime-execution-gaps.md`](design/runtime/runtime-execution-gaps.md) §1 (RT-WASM). Headline: eval-fallback emitter + `tcl compwasm` wiring landed; ~1.5 K Rust LOC vs the ~20.6 K-LOC / 49-module Python emitter — the largest single gap |
+| WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/rust`, new `tcl-wasm` | 🟡 | **separate scope** → [`design/runtime/runtime-execution-gaps.md`](design/runtime/runtime-execution-gaps.md) §1 (RT-WASM). Headline: eval-fallback emitter + `tcl compwasm` wiring landed; ~1.5 K Rust LOC vs the ~20.6 K-LOC / 49-module Python emitter — the largest single gap |
 | Bytecode VM | `tcl-vm` | 🟡 | **separate scope** → [`design/runtime/runtime-execution-gaps.md`](design/runtime/runtime-execution-gaps.md) §2 (RT-VM). Headline: differential `bug_*` cmd-tests all closed (2026-06-25); 98/39/54 of 191 opcodes; 28/59/10 of 97 tcltest stems; TclOO/coroutine still VM-absent |
 | Regex engine (ARE) | `tcl-regex` | ✅ | pure-Rust port of Tcl 9's Henry-Spencer ARE engine (no C FFI, no `unsafe`). Passes `reg.test` 544/544 + the `regexp.test` command corpus (engine-relevant cases) as Rust cargo tests vs the real engine. Drives **both** runtimes via the `cmd-core` `RegexEngine` provider — the VM (replacing the `regex` crate) and `runtime/rust` (replacing the C Henry-Spencer engine: `build.rs`/FFI/`regex_shim` removed, so `regexp` now works on wasm32 too). C consumers link the `runtime/rust` C-ABI shim (`regex_capi`, `TclReComp`/`TclReExec`/…). Residual: cmd-plumbing `-about`/`regsub -command`/`-start`-validation gaps live in `tcl-cmd-core`. See [rust-regex-port.md](design/runtime/rust-regex-port.md) |
 | LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed; BIG-IP find-references / document-links / code-action providers + "Generate docstring" parity landed (parity-audit gap #8, 2026-06-25) — see [history](rust-rewrite-history.md). The document-store / per-edit-incrementality work is its own **SRV-INCREMENTAL** track (the rope was measured and demoted; design in [`design/srv-incremental/`](design/srv-incremental/README.md)) |
@@ -831,7 +830,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Refactoring transforms | `tcl-lsp-core::code_actions` | ✅ | all 7 transforms ported (`tcl-lsp-core::refactor`), byte-parity vs the Python oracle → **TOOL-REFACTOR** |
 | Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟢 | `wasm` view renders the eval-fallback emitter's WAT; rich per-instruction web-GUI shape (`to_explorer_json`) ported (`tcl_explorer::wasm_explorer`: resolved call/branch targets, block-pairing, ranges) — densifies automatically as RT-WASM emits real instructions → **TOOL-EXPLORER** |
 | Package manager (`tclpkg`) | `tcl-pkg` | ✅ | full port (manifest/resolver/lockfile/CAS/fetchers/venv/docker) + wired `pkg`/`venv`/`docker` CLI → **TOOL-TCLPKG** |
-| Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); generator grammar broadened to procs/namespaces/dict/`catch`/`try`/`switch` (RT-VM-gated work done, 1.5 K-iter campaign @ 0 findings); WASM-runnability arm landed (`wasm-check`: compile→`wasmtime`, 600-program campaign clean); WASM **value**-differential arm landed (`wasm-diff`: in-process wasmtime with a `tcl-vm`-backed eval-fallback host, fuel-bounded `WasmHang` detection — verifies control-flow codegen, already caught a non-terminating-loop bug the runnability arm can't); residual: re-back that arm with the **real linked Zig runtime** for a full value differential, gated on **RT-WASM** → **TOOL-FUZZ** |
+| Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); generator grammar broadened to procs/namespaces/dict/`catch`/`try`/`switch` (RT-VM-gated work done, 1.5 K-iter campaign @ 0 findings); WASM-runnability arm landed (`wasm-check`: compile→`wasmtime`, 600-program campaign clean); WASM **value**-differential arm landed (`wasm-diff`: in-process wasmtime with a `tcl-vm`-backed eval-fallback host, fuel-bounded `WasmHang` detection — verifies control-flow codegen, already caught a non-terminating-loop bug the runnability arm can't); residual: re-back that arm with the **real linked Rust runtime** for a full value differential, gated on **RT-WASM** → **TOOL-FUZZ** |
 | Debugger | `tcl-debugger` | ✅ | record-and-replay step debugger over `tcl-vm` (VM debug-hook seam) with a `tcl-debug` CLI **and** a DAP server for editors (`--dap`): breakpoints, step in/over/out, continue, stack/scopes/variables, evaluate → **TOOL-DEBUGGER** |
 | iRule test framework | `tcl-irule-test` | 🟢 | SCF→orchestrator topology generator + `LiveSession` running the TMM-sim orchestrator live on `tcl-vm` (load iRule, fire events, read pool/logs/decisions; 14 integration tests green); framework Tcl embedded for self-contained consumers. Residual: auto-broadening coverage **plus** the session's `event dispatch` / `class match` handlers (not yet implemented) → **TOOL-IRULE-TEST** |
 | PyO3 public API + retirement | — | ✅ | **done (Python fully retired; PyO3 surface not shipped — `tcl-lsp-py`/`tcl-lsp-rust` crates removed).** Source/CI/release/editors/tests are native; `scripts`→`xtask` done; the `lsp_e2e` suite ported to native `*_e2e.rs` (see [history](rust-rewrite-history.md) → *PYTHON-RETIRE*) |
@@ -848,7 +847,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | FE | **FE-CODEGEN** 🟢 | `tcl-compiler::codegen` (non-wasm) | — | M |
 | FE | **FE-DIAG** ✅ | `tcl-compiler::analyser`, `irules_checks` | — | M |
 | FE | **FE-DIAG-F5** ✅ | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, `f5-xc` (all four families ported + consumer-wired) | `tcl-bigip`, `f5-xc` | L |
-| RT | **RT-WASM** 🟡 *(separate scope — [runtime-execution-gaps.md](design/runtime/runtime-execution-gaps.md))* | `tcl-compiler::codegen::wasm`, `runtime/zig`, `tcl-wasm` bin | FE-CODEGEN | L |
+| RT | **RT-WASM** 🟡 *(separate scope — [runtime-execution-gaps.md](design/runtime/runtime-execution-gaps.md))* | `tcl-compiler::codegen::wasm`, `runtime/rust`, `tcl-wasm` bin | FE-CODEGEN | L |
 | RT | **RT-VM** 🟡 *(separate scope — [runtime-execution-gaps.md](design/runtime/runtime-execution-gaps.md))* | `tcl-vm`, `tcl-vm-cli` (`tclvm` bin) | `tcl-bytecode` | L |
 | SRV | **SRV-LSP** ✅ | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | FE-DIAG, FE-DATAFLOW | L |
 | SRV | **SRV-INCREMENTAL** 🟢 | per-edit pipeline: Tasks 1/2a/2b (`LineIndex` + per-function check + interproc-taint memos), Task 6 (cross-file cascade, incl. per-symbol `command_arity` cutoff + corpus fuzzer), Task 4 (`optimise_unit` memo), and Task 3 (per-item IR-lowering `lower_proc_body` memo, gated v1) all landed byte-identical; **Tasks 5 + 7 dropped (rope-dependent, 2026-06-30)**; residual: broaden the Task 3 body-cache eligibility gate | FE-LEX (structural-state index), SRV-LSP | L |
@@ -943,9 +942,7 @@ the tree-walking-port breakdown in
 the tiered delivery plan (the capability ladder in
 [`design/runtime/tcl-test-tiers.md`](design/runtime/tcl-test-tiers.md), the
 `tcltest` bring-up plan in
-[`design/runtime/tcltest-bringup.md`](design/runtime/tcltest-bringup.md), and the
-Zig-runtime roadmap in
-[`design/runtime/zig-runtime-roadmap.md`](design/runtime/zig-runtime-roadmap.md)).
+[`design/runtime/tcltest-bringup.md`](design/runtime/tcltest-bringup.md)).
 The landed runtime work (the 2026-06-19 parity push, the 2026-06-21/22
 follow-ons, and the 2026-06-25 differential-cmd-test closures) is in the
 [history archive](rust-rewrite-history.md).

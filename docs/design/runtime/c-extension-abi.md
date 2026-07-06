@@ -7,8 +7,7 @@ dynamic side-module load, and a six-extension compile-check, all green). This
 document is the durable contract those spikes stand in for — **do not derive
 the shape from the spike code**; derive it from here.
 
-Companion docs: [`zig-runtime-roadmap.md`](zig-runtime-roadmap.md),
-[`memory-management.md`](memory-management.md),
+Companion docs: [`memory-management.md`](memory-management.md),
 [`refcount-contract.md`](refcount-contract.md),
 [`../compiler/wasm-runtime-primitives.md`](../compiler/wasm-runtime-primitives.md).
 
@@ -195,7 +194,7 @@ built `--experimental-pic -shared --import-memory --import-table`.
 
 Model A suits "bake these extensions into one artifact" (CI images, fixed
 deployments). Model B is required for true `package require` at runtime. Both
-are language-agnostic; the runtime being Rust vs Zig does not change either.
+are language-agnostic; they are independent of the runtime's implementation language.
 
 ### 5.4 The libc question
 
@@ -271,9 +270,10 @@ library**, never the Tcl API.
   The spike loader is Python + `wasmtime`; production would put the loader in
   the runtime itself.
 
-## 9. Runtime-language analysis (Rust vs Zig)
+## 9. Runtime-language analysis (Rust, ported from Zig)
 
-The mechanism is language-agnostic. What changes if the runtime is Rust:
+The mechanism is language-agnostic. The runtime is now Rust, ported from the
+former Zig implementation; what the language choice changed:
 
 | Concern | Rust | Zig |
 |---|---|---|
@@ -291,10 +291,10 @@ inherently `unsafe`.
 ## 10. The regex engine is the first C library
 
 Tcl's Henry Spencer ARE engine is already C, already compiled into the runtime
-(`runtime/zig/vendor/tcl-regex/`). Once "compile C against the runtime" exists,
+(the vendored `tcl-regex` engine). Once "compile C against the runtime" exists,
 the regex engine *is* the first such C library — keeping it gives bit-for-bit
 ARE fidelity (backreferences + lookahead + POSIX leftmost-longest, which no
-pure-Rust crate matches) under either runtime language. Its small locale shim is
+pure-Rust crate matches) in the Rust runtime. Its small locale shim is
 a *runtime-internal* C component, not a user extension, so it is exempt from the
 "no per-extension shim" rule.
 

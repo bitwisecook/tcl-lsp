@@ -2,8 +2,9 @@
 
 `rust/tcl-regex/` is a from-scratch, idiomatic-Rust implementation of Tcl 9's
 Advanced Regular Expression (ARE) engine — the Henry-Spencer engine that
-`tclsh` 9.0 uses (the C sources live in `runtime/zig/vendor/tcl-regex/`:
-`regcomp.c`, `regc_*.c`, `regexec.c`, `rege_dfa.c`).
+`tclsh` 9.0 uses (upstream Tcl C sources: `regcomp.c`, `regc_*.c`,
+`regexec.c`, `rege_dfa.c`). Being a pure-Rust port, the crate needs no
+vendored C sources fetched at build time.
 
 It is **not** a transliteration of the C. The C engine is built from intrusive
 pointer-linked NFA arcs, a union-tree colour map, and a `subre` child-pointer

@@ -38,7 +38,7 @@ it stamps a `{local_name: slot_index}` map on the summary, and the
 WASM emitter routes those names through the runtime's
 `tcl_frame_local_at(idx)` / `tcl_frame_local_set_at(idx)` indexed
 accessors instead of the name-keyed `tcl_local_set` / `tcl_local_get`
-calls.  See `runtime/zig/interp/tcl_frames.zig`'s
+calls.  See `runtime/rust/src/frame.rs`'s
 `frame_locals_array` for the runtime side.
 
 Consumers:

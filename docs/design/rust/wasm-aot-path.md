@@ -1,5 +1,15 @@
 # RT-WASM path forward — native WASM + AOT with real Tcl frames
 
+> **Historical proposal — reference design.** This was written against the
+> `main`-branch **Python + Zig** stack, when the plan was to reuse the Zig WASM
+> runtime as-is and port only the emitter. That runtime has since been **ported
+> to Rust** (`runtime/rust/`, the `tcl-runtime` crate — see
+> [`rust-runtime-port.md`](../runtime/rust-runtime-port.md)), and the Python
+> emitter is now the Rust `tcl-compiler`. Read the "Zig runtime" references below
+> as the historical **reference design** the Rust port targets; the ABI, frame
+> model, and difficulty register still apply, now realised in Rust rather than
+> Zig.
+
 A proposal for taking the Rust **RT-WASM** track past the current eval-fallback
 tier to a genuine ahead-of-time (AOT) native WASM compiler — the architecture the
 **Python + Zig** stack on `main` already proves out. Treat the "tcl frames but

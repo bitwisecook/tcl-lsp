@@ -1,10 +1,15 @@
 # Rust runtime port — productionising C-Tcl-extension-to-WASM
 
 > **Based on `rust`@`8150eca`** (#549, the spike merge) — the commit this entire
-> WASM runtime port is built on. Every Rust module mirrors its Zig/C sources
-> *as of this hash*; the [upstream sync log](#upstream-sync-log-zig--rust) diffs
-> `runtime/zig/` against it. **Update this hash (and re-baseline the sync log)
-> only on a deliberate rebase onto a newer `rust`.**
+> WASM runtime port is built on. Every Rust module mirrored its Zig/C sources
+> *as of this hash*; the [upstream sync log](#upstream-sync-log-zig--rust) diffed
+> `runtime/zig/` against it.
+>
+> **The Zig runtime (`runtime/zig/`) has since been retired** — the Rust runtime
+> under `runtime/rust/` is now the runtime the compiler's WASM codegen targets.
+> The Zig→Rust sync log below is therefore a **frozen historical baseline**: the
+> C-Tcl (`tmp/tcl9.0.3/`) citations remain the live source of truth for
+> semantics, but there is no longer a `runtime/zig/` tree to diff against.
 
 Status: **bootstrapping.** The end-to-end mechanism (compile an unmodified C
 Tcl extension to WASM and link it against our runtime + compiled user code,
@@ -719,8 +724,7 @@ test suite** as ground truth.
 | **The three day-one contracts** (`docs/design/contracts/`, from PR #551 — the from-scratch "if starting over" semantics, authoritative): [`runtime-variable-frame-model.md`](../contracts/runtime-variable-frame-model.md) (cell/frame/namespace resolution), [`parser-and-aot-interpret-boundary.md`](../contracts/parser-and-aot-interpret-boundary.md) (parse-once + the AOT/interpret boundary), [`numeric-tower-and-expr-semantics.md`](../contracts/numeric-tower-and-expr-semantics.md) (the numeric tower + `expr`) | The canonical contracts the Rust port implements; the "Deep Tcl semantics" section below maps port status against them |
 | **The three PR #554 contracts** (`docs/design/contracts/`): [`command-binding-and-aliasing.md`](../contracts/command-binding-and-aliasing.md) (one `resolve(ns,name)` + the binding lattice), [`variable-trace-dispatch-and-introspection.md`](../contracts/variable-trace-dispatch-and-introspection.md) (trace fire-order/error-wrap/ignore + live introspection), [`compiled-scope-and-name-lowering.md`](../contracts/compiled-scope-and-name-lowering.md) (scope class as a lowering output, emits-nothing, token-faithful fallback) | The command-layer + scope/trace contracts; captured as port directives in [the scope/trace/info + command-binding lessons](#lessons-from-the-tcl-9-wasm-correctness-campaign--scope--trace--info) |
 | [`../compiler/wasm-aot-staircase.md`](../compiler/wasm-aot-staircase.md) (+ s0..s6) | AOT north star + staircase; the metaprog heuristics extend this |
-| [`zig-runtime-roadmap.md`](zig-runtime-roadmap.md) | The Zig runtime's own roadmap and layering |
-| [`../../../AGENTS.md`](../../../AGENTS.md) | Zig runtime layering, the WASM parity gate (`make check-wasm-parity`), workflow |
+| [`../../../AGENTS.md`](../../../AGENTS.md) | Repo layout, the WASM command-parity contract, workflow |
 | [`../../rust-rewrite.md`](../../rust-rewrite.md) + `docs/design/rust/` | The Rust migration this fits into |
 
 Upstream trees: `tmp/tcl9.0.3/{generic/{tcl.h,tclDecls.h},doc/*.3,tests/*.test}`;
