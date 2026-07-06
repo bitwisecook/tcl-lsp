@@ -592,6 +592,26 @@
       "summary": "Reset auto-loading state"
     },
     {
+      "name": "autoproxy::cget",
+      "summary": "Retrieve individual package configuration options."
+    },
+    {
+      "name": "autoproxy::init",
+      "summary": "Initialize the autoproxy package from system resources."
+    },
+    {
+      "name": "autoproxy::tls_connect",
+      "summary": "Connect to a secure socket through a proxy."
+    },
+    {
+      "name": "autoproxy::tls_socket",
+      "summary": "This function is to be used to register a proxy-aware secure socket handler for the https protocol."
+    },
+    {
+      "name": "autoproxy::tunnel_connect",
+      "summary": "Connect to a target host throught a proxy."
+    },
+    {
       "name": "base32::core::define",
       "summary": "Build the forward / backward maps for a base32 variant."
     },
@@ -628,6 +648,30 @@
       "summary": "Encode binary data as a base64 string."
     },
     {
+      "name": "bee::decodeCancel",
+      "summary": "This command cancels the decoder set up by ::bee::decodeChannel and represented by the handle token."
+    },
+    {
+      "name": "bee::decodePush",
+      "summary": "This command appends the string to the internal decoder buffer."
+    },
+    {
+      "name": "bee::encodeDict",
+      "summary": "Takes a dictionary list of string keys and bee-encoded values and returns the bee-encoding of the list."
+    },
+    {
+      "name": "bee::encodeList",
+      "summary": "Takes a list of bee-encoded values and returns the bee-encoding of the list."
+    },
+    {
+      "name": "bee::encodeNumber",
+      "summary": "Returns the bee-encoding of the integer number."
+    },
+    {
+      "name": "bee::encodeString",
+      "summary": "Returns the bee-encoding of the string."
+    },
+    {
       "name": "bell",
       "summary": "Ring the display's bell."
     },
@@ -638,6 +682,10 @@
     {
       "name": "bench::edit",
       "summary": "This command renames a column in the specified benchmark result and returns the modified result."
+    },
+    {
+      "name": "bench::in::read",
+      "summary": "This command reads a benchmark result from the specified file and returns it as its result."
     },
     {
       "name": "bench::locate",
@@ -652,7 +700,15 @@
       "summary": "This command normalizes the timing results in the specified benchmark result and returns the modified result."
     },
     {
+      "name": "bench::out::csv",
+      "summary": "This command formats the specified benchmark result for output to a file, socket, etc."
+    },
+    {
       "name": "bench::out::raw",
+      "summary": "This command formats the specified benchmark result for output to a file, socket, etc."
+    },
+    {
+      "name": "bench::out::text",
       "summary": "This command formats the specified benchmark result for output to a file, socket, etc."
     },
     {
@@ -764,6 +820,10 @@
         "xview",
         "yview"
       ]
+    },
+    {
+      "name": "cat",
+      "summary": "Dump the contents of a file as a result."
     },
     {
       "name": "catch",
@@ -895,6 +955,10 @@
         "send",
         "shutdown"
       ]
+    },
+    {
+      "name": "comm::comm_send",
+      "summary": "Invoking this procedure will substitute the Tk send and winfo interps commands with these equivalents that use ::"
     },
     {
       "name": "concat",
@@ -1108,6 +1172,50 @@
       "pure": true
     },
     {
+      "name": "cron::at",
+      "summary": "This command registers a command to be called at the time specified by timecode."
+    },
+    {
+      "name": "cron::cancel",
+      "summary": "This command unregisters the process processname and cancels any pending commands."
+    },
+    {
+      "name": "cron::clock_delay",
+      "summary": "Return a clock time absolute to the epoch which falls on the next border between one second and the next millisec"
+    },
+    {
+      "name": "cron::clock_set",
+      "summary": "Sets the internal clock for cron."
+    },
+    {
+      "name": "cron::clock_sleep",
+      "summary": "Return a clock time absolute to the epoch which falls exactly seconds in the future."
+    },
+    {
+      "name": "cron::clock_step",
+      "summary": "Return a clock time absolute to the epoch which falls on the next border between one second and the next for the "
+    },
+    {
+      "name": "cron::every",
+      "summary": "This command registers a command to be called at the interval of frequency."
+    },
+    {
+      "name": "cron::in",
+      "summary": "This command registers a command to be called after a delay of time specified by timecode."
+    },
+    {
+      "name": "cron::object_coroutine",
+      "summary": "This command registers a coroutine, associated with object to be called given the parameters of info."
+    },
+    {
+      "name": "cron::sleep",
+      "summary": "When run within a coroutine, this command will register the coroutine for a callback at the appointed time, and i"
+    },
+    {
+      "name": "cron::wake",
+      "summary": "Wake up cron, and arrange for its event loop to be run during the next Idle cycle."
+    },
+    {
       "name": "csv::iscomplete",
       "summary": "Test whether a CSV record is complete or has unbalanced quotes.",
       "pure": true
@@ -1266,6 +1374,10 @@
       "summary": "Return the domain name from a DNS query result."
     },
     {
+      "name": "dns::nameservers",
+      "summary": "Attempts to return a list of the nameservers currently configured for the users system."
+    },
+    {
       "name": "dns::reset",
       "summary": "Reset a DNS query."
     },
@@ -1286,16 +1398,88 @@
       "summary": "Wait for a DNS query to complete."
     },
     {
+      "name": "doctools::changelog::flatten",
+      "summary": "This command converts a list of entries as generated by change::scan above into a simpler list of plain text bloc"
+    },
+    {
+      "name": "doctools::changelog::scan",
+      "summary": "The command takes the text and parses it under the assumption that it contains a ChangeLog as generated by emacs."
+    },
+    {
+      "name": "doctools::changelog::toDoctools",
+      "summary": "This command converts the pre-parsed ChangeLog entries as generated by the command ::doctools::changelog::scan in"
+    },
+    {
+      "name": "doctools::cvs::scanLog",
+      "summary": "The command takes the text and parses it under the assumption that it contains a CVS log as generated by cvs log."
+    },
+    {
+      "name": "doctools::cvs::toChangeLog",
+      "summary": "The three arguments for this command are the same as the last three arguments of the command ::doctools::cvs::sca"
+    },
+    {
       "name": "doctools::help",
       "summary": "This is a convenience command for applications wishing to provide their user with a short description of the."
+    },
+    {
+      "name": "doctools::html::cssdefaults::contents",
+      "summary": "This command returns the text of the default CSS style to use for HTML markup generated by the various HTML expor"
+    },
+    {
+      "name": "doctools::idx",
+      "summary": "This command creates a new container object with an associated Tcl command whose name is objectName."
+    },
+    {
+      "name": "doctools::idx::export",
+      "summary": "This command creates a new export manager object with an associated Tcl command whose name is objectName."
+    },
+    {
+      "name": "doctools::idx::help",
+      "summary": "This is a convenience command for applications wishing to provide their user with a short description of the avai"
+    },
+    {
+      "name": "doctools::idx::import",
+      "summary": "This command creates a new import manager object with an associated Tcl command whose name is objectName."
+    },
+    {
+      "name": "doctools::idx::search",
+      "summary": "Whenever an object created by this the package has to map the name of a format to the file containing the code fo"
+    },
+    {
+      "name": "doctools::msgcat::init",
+      "summary": "The command locates and loads the message catalogs for all the languages returned by msgcat::mcpreferences, provi"
     },
     {
       "name": "doctools::new",
       "summary": "This command creates a new doctools object with an associated Tcl command whose name is objectName."
     },
     {
+      "name": "doctools::nroff::man_macros::contents",
+      "summary": "This command returns the text of the default CSS style to use for NROFF generated by the various NROFF export plu"
+    },
+    {
       "name": "doctools::search",
       "summary": "Whenever an object created by this the package has to map the name of a format to the file containing the code."
+    },
+    {
+      "name": "doctools::toc",
+      "summary": "This command creates a new container object with an associated Tcl command whose name is objectName."
+    },
+    {
+      "name": "doctools::toc::export",
+      "summary": "This command creates a new export manager object with an associated Tcl command whose name is objectName."
+    },
+    {
+      "name": "doctools::toc::help",
+      "summary": "This is a convenience command for applications wishing to provide their user with a short description of the avai"
+    },
+    {
+      "name": "doctools::toc::import",
+      "summary": "This command creates a new import manager object with an associated Tcl command whose name is objectName."
+    },
+    {
+      "name": "doctools::toc::search",
+      "summary": "Whenever an object created by this the package has to map the name of a format to the file containing the code fo"
     },
     {
       "name": "encoding",
@@ -1359,6 +1543,10 @@
     {
       "name": "exit",
       "summary": "End the application"
+    },
+    {
+      "name": "export",
+      "summary": "This command has to accept the canonical serialization of a parsing expression grammar and the configuration for "
     },
     {
       "name": "expr",
@@ -1478,8 +1666,72 @@
       "pure": true
     },
     {
+      "name": "fileutil::magic::cgen::2tree",
+      "summary": "This command converts the recognizer specified by the script into a tree and returns the object command of that t"
+    },
+    {
+      "name": "fileutil::magic::cgen::treedump",
+      "summary": "This command takes a tree as generated by ::fileutil::magic::cgen::2tree and returns a string encoding the tree f"
+    },
+    {
+      "name": "fileutil::magic::cgen::treegen",
+      "summary": "This command takes a tree as generated by ::fileutil::magic::cgen::2tree and returns a Tcl script, the recognizer"
+    },
+    {
+      "name": "fileutil::magic::filetype",
+      "summary": "This command is similar to the command fileutil::fileType."
+    },
+    {
+      "name": "fileutil::magic::rt::I",
+      "summary": "Calculates an offset based on an initial offset and the provided modifiers."
+    },
+    {
+      "name": "fileutil::magic::rt::L",
+      "summary": "Sets the current level in the calling context to newlevel."
+    },
+    {
+      "name": "fileutil::magic::rt::N",
+      "summary": "Fetch the numeric value with type from the absolute location offset, compare it with expected using comp as the c"
+    },
+    {
+      "name": "fileutil::magic::rt::Nv",
+      "summary": "A limited form of ::fileutile::magic::rt::N that only checks for equality and can't be told to invert the test."
+    },
+    {
+      "name": "fileutil::magic::rt::O",
+      "summary": "Produce an offset from where, relative to the cursor one level up."
+    },
+    {
+      "name": "fileutil::magic::rt::R",
+      "summary": "Given an initial offset, calculates an offset relative to the cursor at the next level up."
+    },
+    {
+      "name": "fileutil::magic::rt::S",
+      "summary": "Like ::fileutil::magic::rt::N except that it fetches and compares string types , not numeric data."
+    },
+    {
+      "name": "fileutil::magic::rt::U",
+      "summary": "Add a level and use a named test script."
+    },
+    {
+      "name": "fileutil::magic::rt::emit",
+      "summary": "This command adds the text msg to the result buffer."
+    },
+    {
+      "name": "fileutil::magic::rt::file_start",
+      "summary": "This command marks the start of a magic file when debugging."
+    },
+    {
+      "name": "fileutil::magic::rt::new",
+      "summary": "Create a new command which returns one description of the file each time it is called, and a code of break when t"
+    },
+    {
       "name": "fileutil::maketempdir",
       "summary": "Create a temporary directory."
+    },
+    {
+      "name": "fileutil::paths",
+      "summary": "Creates a new, empty pool of search paths with an associated global Tcl command whose name is poolName."
     },
     {
       "name": "fileutil::relative",
@@ -1503,6 +1755,10 @@
       "name": "fileutil::stripN",
       "summary": "Remove N leading path components.",
       "pure": true
+    },
+    {
+      "name": "fileutil::stripPath",
+      "summary": "If, and only of the path is inside of the directory prefix (or the prefix directory itself) it is made relative t"
     },
     {
       "name": "fileutil::stripPwd",
@@ -1666,6 +1922,10 @@
       "summary": "This command sets the ftp file transfer type to either ascii, binary, or tenex."
     },
     {
+      "name": "ftp::geturl",
+      "summary": "This command can be used by the generic command ::uri::geturl (See package uri) to retrieve the contents of ftp u"
+    },
+    {
       "name": "generator",
       "summary": "Create and drive lazy generator procedures (streams).",
       "subcommands": [
@@ -1783,6 +2043,186 @@
       ]
     },
     {
+      "name": "grammar::fa::op::complement",
+      "summary": "Complements fa."
+    },
+    {
+      "name": "grammar::fa::op::constructor",
+      "summary": "This command has to be called by the user of the package before any other operations is performed, to establish a"
+    },
+    {
+      "name": "grammar::fa::op::kleene",
+      "summary": "Applies Kleene's closure to fa."
+    },
+    {
+      "name": "grammar::fa::op::optional",
+      "summary": "Makes the fa optional."
+    },
+    {
+      "name": "grammar::fa::op::remove_eps",
+      "summary": "Removes all epsilon-transitions from the fa in such a manner the the language of fa is unchanged."
+    },
+    {
+      "name": "grammar::fa::op::reverse",
+      "summary": "Reverses the fa."
+    },
+    {
+      "name": "grammar::fa::op::simplifyRegexp",
+      "summary": "This command simplifies a regular expression by applying the following algorithm first to the main expression and"
+    },
+    {
+      "name": "grammar::fa::op::toRegexp",
+      "summary": "This command generates and returns a regular expression which accepts the same language as the finite automaton f"
+    },
+    {
+      "name": "grammar::fa::op::toRegexp2",
+      "summary": "This command has the same functionality as ::grammar::fa::op::toRegexp, but uses a different algorithm to simplif"
+    },
+    {
+      "name": "grammar::fa::op::toTclRegexp",
+      "summary": "This command generates and returns a regular expression in Tcl syntax for the regular expression regexp, if that "
+    },
+    {
+      "name": "grammar::me::cpu",
+      "summary": "The command creates a new ME machine object with an associated global Tcl command whose name is meName."
+    },
+    {
+      "name": "grammar::me::cpu::gasm::Bra",
+      "summary": "This is a convenience command to create a .BRA pseudo-instruction."
+    },
+    {
+      "name": "grammar::me::cpu::gasm::Exit",
+      "summary": "This command creates an arc from the anchor to one of the exit instructions, based on the operation mode (see ::g"
+    },
+    {
+      "name": "grammar::me::cpu::gasm::Inline",
+      "summary": "This command links an instruction sequence created by an earlier begin/done pair into the current instruction seq"
+    },
+    {
+      "name": "grammar::me::cpu::gasm::Jmp",
+      "summary": "This command creates an arc from the anchor to the instruction labeled with label, and tags with the the current "
+    },
+    {
+      "name": "grammar::me::cpu::gasm::Nop",
+      "summary": "This is a convenience command to create a .NOP pseudo-instruction."
+    },
+    {
+      "name": "grammar::me::cpu::gasm::Note",
+      "summary": "This is a convenience command to create a .C pseudo-instruction, i.e."
+    },
+    {
+      "name": "grammar::me::cpu::gasm::Who",
+      "summary": "This command returns a reference to the instruction labeled with label."
+    },
+    {
+      "name": "grammar::me::cpu::gasm::done",
+      "summary": "This command finalizes the creation of an instruction sequence and then clears the state of the assembler."
+    },
+    {
+      "name": "grammar::me::cpu::gasm::lift",
+      "summary": "This command operates on the tree t."
+    },
+    {
+      "name": "grammar::me::cpu::gasm::state",
+      "summary": "This command returns the current state of the assembler."
+    },
+    {
+      "name": "grammar::me::tcl::ias_mark",
+      "summary": "This command returns a marker for the current state of the AST stack AS."
+    },
+    {
+      "name": "grammar::me::tcl::ias_pop2mark",
+      "summary": "The command takes the marker as argument as it comes from the Tcl stack, not the machine state."
+    },
+    {
+      "name": "grammar::me::tcl::ias_push",
+      "summary": "No changes."
+    },
+    {
+      "name": "grammar::me::tcl::icl_get",
+      "summary": "This command returns the current location CL in the input."
+    },
+    {
+      "name": "grammar::me::tcl::icl_rewind",
+      "summary": "The command takes the location as argument as it comes from the Tcl stack, not the machine state."
+    },
+    {
+      "name": "grammar::me::tcl::ict_advance",
+      "summary": "No changes."
+    },
+    {
+      "name": "grammar::me::tcl::ict_match_tokclass",
+      "summary": "No changes."
+    },
+    {
+      "name": "grammar::me::tcl::ict_match_token",
+      "summary": "No changes."
+    },
+    {
+      "name": "grammar::me::tcl::ict_match_tokrange",
+      "summary": "If, and only if a token map was specified during initialization then the arguments are the numeric representation"
+    },
+    {
+      "name": "grammar::me::tcl::ier_clear",
+      "summary": "No changes."
+    },
+    {
+      "name": "grammar::me::tcl::ier_get",
+      "summary": "This command returns the current error state ER."
+    },
+    {
+      "name": "grammar::me::tcl::ier_merge",
+      "summary": "The command takes the second error state to merge as argument as it comes from the Tcl stack, not the machine sta"
+    },
+    {
+      "name": "grammar::me::tcl::ier_nonterminal",
+      "summary": "The command takes the location as argument as it comes from the Tcl stack, not the machine state."
+    },
+    {
+      "name": "grammar::me::tcl::inc_restore",
+      "summary": "Instead of taking a branchlabel the command returns a boolean value."
+    },
+    {
+      "name": "grammar::me::tcl::inc_save",
+      "summary": "The command takes the start location as additional argument, as it is managed on the Tcl stack, and not in the ma"
+    },
+    {
+      "name": "grammar::me::tcl::iok_fail",
+      "summary": "No changes."
+    },
+    {
+      "name": "grammar::me::tcl::iok_negate",
+      "summary": "No changes."
+    },
+    {
+      "name": "grammar::me::tcl::iok_ok",
+      "summary": "No changes."
+    },
+    {
+      "name": "grammar::me::tcl::isv_clear",
+      "summary": "No changes."
+    },
+    {
+      "name": "grammar::me::tcl::isv_nonterminal_leaf",
+      "summary": "The command takes the start location as argument as it comes from the Tcl stack, not the machine state."
+    },
+    {
+      "name": "grammar::me::tcl::isv_nonterminal_range",
+      "summary": "The command takes the start location as argument as it comes from the Tcl stack, not the machine state."
+    },
+    {
+      "name": "grammar::me::tcl::isv_terminal",
+      "summary": "No changes."
+    },
+    {
+      "name": "grammar::peg::interp::parse",
+      "summary": "This command interprets the loaded grammar and tries to match it against the stream of characters represented by "
+    },
+    {
+      "name": "grammar::peg::interp::setup",
+      "summary": "This command (re)initializes the interpreter."
+    },
+    {
       "name": "grid",
       "summary": "Geometry manager that arranges widgets in a grid.",
       "subcommands": [
@@ -1826,14 +2266,150 @@
       ]
     },
     {
+      "name": "html::author",
+      "summary": "Side effect only."
+    },
+    {
+      "name": "html::bodyTag",
+      "summary": "Generate a body tag."
+    },
+    {
+      "name": "html::checkSet",
+      "summary": "Generate a set of checkbox form elements and associated labels."
+    },
+    {
+      "name": "html::checkbox",
+      "summary": "Generate a checkbox form element with the specified name and value."
+    },
+    {
+      "name": "html::closeTag",
+      "summary": "Pop a tag off the stack created by ::html::openTag and generate the corresponding close tag (e.g., </body>)."
+    },
+    {
+      "name": "html::css",
+      "summary": "Side effect only."
+    },
+    {
+      "name": "html::description",
+      "summary": "Side effect only."
+    },
+    {
+      "name": "html::doctype",
+      "summary": "This procedure can be used to build the standard DOCTYPE declaration string."
+    },
+    {
+      "name": "html::end",
+      "summary": "Pop all open tags from the stack and generate the corresponding close HTML tags, (e.g., </body></html>)."
+    },
+    {
+      "name": "html::font",
+      "summary": "Generate a standard font tag."
+    },
+    {
+      "name": "html::for",
+      "summary": "This procedure is similar to the built-in Tcl for control structure."
+    },
+    {
+      "name": "html::getFormInfo",
+      "summary": "Generate hidden fields to capture form values."
+    },
+    {
+      "name": "html::getTitle",
+      "summary": "Return the title string, with out the surrounding title tag, set with a previous call to ::html::title."
+    },
+    {
+      "name": "html::hdrRow",
+      "summary": "Generate a table row, including tr and th tags."
+    },
+    {
+      "name": "html::head",
+      "summary": "Generate the head section that includes the page title."
+    },
+    {
+      "name": "html::headTag",
+      "summary": "Save a tag for inclusion in the head section generated by ::html::head."
+    },
+    {
       "name": "html::html_entities",
       "summary": "Replace special characters with HTML entities.",
       "pure": true
     },
     {
+      "name": "html::js",
+      "summary": "Side effect only."
+    },
+    {
+      "name": "html::keywords",
+      "summary": "Side effect only."
+    },
+    {
+      "name": "html::meta",
+      "summary": "Compatibility name for html::meta_name."
+    },
+    {
+      "name": "html::meta_charset",
+      "summary": "Side effect only."
+    },
+    {
+      "name": "html::meta_equiv",
+      "summary": "Side effect only."
+    },
+    {
+      "name": "html::meta_name",
+      "summary": "Side effect only."
+    },
+    {
+      "name": "html::nl2br",
+      "summary": "This command replaces all line-endings in the string with a br tag and returns the modified text."
+    },
+    {
+      "name": "html::quoteFormValue",
+      "summary": "Quote special characters in value by replacing them with HTML entities for quotes, ampersand, and angle brackets."
+    },
+    {
+      "name": "html::radioSet",
+      "summary": "Generate a set of input tags of type radio and an associated text label."
+    },
+    {
+      "name": "html::radioValue",
+      "summary": "Generate the name=name value=value for a radio form element."
+    },
+    {
+      "name": "html::refresh",
+      "summary": "Set up a refresh meta tag."
+    },
+    {
+      "name": "html::row",
+      "summary": "Generate a table row, including tr and td tags."
+    },
+    {
+      "name": "html::set",
+      "summary": "This procedure is similar to the built-in Tcl set command."
+    },
+    {
       "name": "html::tagstrip",
       "summary": "Remove all HTML tags from a string.",
       "pure": true
+    },
+    {
+      "name": "html::textInput",
+      "summary": "Generate an input form tag with type text."
+    },
+    {
+      "name": "html::textInputRow",
+      "summary": "Generate an input form tag with type text formatted into a table row with an associated label."
+    },
+    {
+      "name": "html::title",
+      "summary": "Side effect only."
+    },
+    {
+      "name": "html::varEmpty",
+      "summary": "This returns 1 if the named variable either does not exist or has the empty string for its value."
+    },
+    {
+      "name": "html::while",
+      "summary": "This procedure is similar to the built-in Tcl while control structure."
     },
     {
       "name": "htmlparse::2tree",
@@ -2115,6 +2691,10 @@
       "summary": "Unsubscribe a new mailbox."
     },
     {
+      "name": "import",
+      "summary": "This command has to accept the a text containing a parsing expression grammar in some format."
+    },
+    {
       "name": "in",
       "summary": "list membership"
     },
@@ -2249,6 +2829,14 @@
       ]
     },
     {
+      "name": "interp::snitDictLink",
+      "summary": "This command behaves like ::interp::snitLink, except that it takes a dictionary mapping from commands to methods "
+    },
+    {
+      "name": "interp::snitLink",
+      "summary": "This command assumes that it was called from within a method of a snit object, and that the command mymethod is a"
+    },
+    {
       "name": "ip::collapse",
       "summary": "Collapse a list of IP addresses or subnets into the minimal set.",
       "pure": true
@@ -2259,9 +2847,17 @@
       "pure": true
     },
     {
+      "name": "ip::distance",
+      "summary": "This command computes the (integer) distance from IPv4 address ipaddr1 to IPv4 address ipaddr2, i.e."
+    },
+    {
       "name": "ip::equal",
       "summary": "Test if two IP addresses or subnets are equal.",
       "pure": true
+    },
+    {
+      "name": "ip::ipToLayer2Multicast",
+      "summary": "This command an converts ipv4 address in dotted form into a layer 2 multicast address, also in dotted form."
     },
     {
       "name": "ip::is",
@@ -2274,6 +2870,10 @@
       "pure": true
     },
     {
+      "name": "ip::maskToInt",
+      "summary": "This command convert an ipmask in either dotted (255.255.255.0) form or mask length form (24) into an integer num"
+    },
+    {
       "name": "ip::normalize",
       "summary": "Normalise an IP address to its canonical form.",
       "pure": true
@@ -2284,9 +2884,25 @@
       "pure": true
     },
     {
+      "name": "ip::prefixToNative",
+      "summary": "This command converts the string prefix from dotted form (<ipaddr>/<mask> format) to native (hex) form."
+    },
+    {
+      "name": "ip::reduceToAggregates",
+      "summary": "This command finds nets that overlap and filters out the more specific nets."
+    },
+    {
       "name": "ip::subtract",
       "summary": "Subtract address ranges from a list of hosts.",
       "pure": true
+    },
+    {
+      "name": "ip::toHex",
+      "summary": "This command converts dotted form ip into a hexadecimal number."
+    },
+    {
+      "name": "ip::toInteger",
+      "summary": "This command converts a dotted form ip into an integer number."
     },
     {
       "name": "ip::type",
@@ -2763,6 +3379,10 @@
       "summary": "Set the logging level for all logger services."
     },
     {
+      "name": "logger::utils::createFormatCmd",
+      "summary": "This command translates formatString into an expandable command string."
+    },
+    {
       "name": "logger::walk",
       "summary": "Walk the logger tree applying a command to each service."
     },
@@ -2825,6 +3445,14 @@
     {
       "name": "map",
       "summary": "The command converts the geographical box geobox to a point box in the canvas, for the specified zoom level, and."
+    },
+    {
+      "name": "map::slippy::cache",
+      "summary": "Creates the cache cacheName and configures it with both the path to the directory contaiing the locally cached ti"
+    },
+    {
+      "name": "map::slippy::fetcher",
+      "summary": "Creates the fetcher fetcherName and configures it with the number of zoom levels supported by the tile server, an"
     },
     {
       "name": "mapproj::fromAlbersEqualAreaConic",
@@ -3035,6 +3663,314 @@
       "summary": "Converts to the Trystan Edwards cylindrical equal area projection."
     },
     {
+      "name": "math::Beta",
+      "summary": "Returns the Beta function of the parameters z and w."
+    },
+    {
+      "name": "math::PCA::createPCA",
+      "summary": "Create a new object, based on the data that are passed via the data argument."
+    },
+    {
+      "name": "math::bignum::abs",
+      "summary": "Return the absolute value of the bignum."
+    },
+    {
+      "name": "math::bignum::add",
+      "summary": "Return the sum of the two bignums a and b."
+    },
+    {
+      "name": "math::bignum::bitand",
+      "summary": "Return the result of doing a bitwise AND operation on a and b."
+    },
+    {
+      "name": "math::bignum::bitor",
+      "summary": "Return the result of doing a bitwise OR operation on a and b."
+    },
+    {
+      "name": "math::bignum::bits",
+      "summary": "Return the number of bits needed to represent bignum in radix 2."
+    },
+    {
+      "name": "math::bignum::bitxor",
+      "summary": "Return the result of doing a bitwise XOR operation on a and b."
+    },
+    {
+      "name": "math::bignum::clearbit",
+      "summary": "Set the bit at bit position to 0 in the bignum stored in the variable bignumVar."
+    },
+    {
+      "name": "math::bignum::cmp",
+      "summary": "Compare the two bignums a and b, returning 0 if a == b, 1 if a > b, and -1 if a < b."
+    },
+    {
+      "name": "math::bignum::div",
+      "summary": "Return the quotient of the division between the two bignums a and b."
+    },
+    {
+      "name": "math::bignum::divqr",
+      "summary": "Return a two-elements list containing as first element the quotient of the division between the two bignums a and"
+    },
+    {
+      "name": "math::bignum::eq",
+      "summary": "Return true if a == b, otherwise false is returned."
+    },
+    {
+      "name": "math::bignum::ge",
+      "summary": "Return true if a >= b, otherwise false is returned."
+    },
+    {
+      "name": "math::bignum::gt",
+      "summary": "Return true if a > b, otherwise false is returned."
+    },
+    {
+      "name": "math::bignum::iseven",
+      "summary": "Return true if bignum is even."
+    },
+    {
+      "name": "math::bignum::isodd",
+      "summary": "Return true if bignum is odd."
+    },
+    {
+      "name": "math::bignum::iszero",
+      "summary": "Return true if bignum value is zero, otherwise false is returned."
+    },
+    {
+      "name": "math::bignum::le",
+      "summary": "Return true if a <= b, otherwise false is returned."
+    },
+    {
+      "name": "math::bignum::lshift",
+      "summary": "Return the result of left shifting bignum's binary representation of bits positions on the left."
+    },
+    {
+      "name": "math::bignum::lt",
+      "summary": "Return true if a < b, otherwise false is returned."
+    },
+    {
+      "name": "math::bignum::mod",
+      "summary": "Return n modulo m."
+    },
+    {
+      "name": "math::bignum::mul",
+      "summary": "Return the product of the two bignums a and b."
+    },
+    {
+      "name": "math::bignum::ne",
+      "summary": "Return true if a != b, otherwise false is returned."
+    },
+    {
+      "name": "math::bignum::pow",
+      "summary": "Return base raised to the exponent exp."
+    },
+    {
+      "name": "math::bignum::powm",
+      "summary": "Return base raised to the exponent exp, modulo m."
+    },
+    {
+      "name": "math::bignum::rand",
+      "summary": "Return a random number of at most bits bits."
+    },
+    {
+      "name": "math::bignum::rem",
+      "summary": "Return the remainder of the division between the two bignums a and b."
+    },
+    {
+      "name": "math::bignum::rshift",
+      "summary": "Return the result of right shifting bignum's binary representation of bits positions on the right."
+    },
+    {
+      "name": "math::bignum::setbit",
+      "summary": "Set the bit at bit position to 1 in the bignum stored in the variable bignumVar."
+    },
+    {
+      "name": "math::bignum::sign",
+      "summary": "Return the sign of the bignum."
+    },
+    {
+      "name": "math::bignum::sqrt",
+      "summary": "Return the integer part of the square root of bignum."
+    },
+    {
+      "name": "math::bignum::sub",
+      "summary": "Return the difference of the two bignums a and b."
+    },
+    {
+      "name": "math::bignum::testbit",
+      "summary": "Return true if the bit at the bit position of bignum is on, otherwise false is returned."
+    },
+    {
+      "name": "math::calculus::boundaryValueSecondOrder",
+      "summary": "Solve a second order linear differential equation with boundary values at two sides."
+    },
+    {
+      "name": "math::calculus::eulerStep",
+      "summary": "Set a single step in the numerical integration of a system of differential equations."
+    },
+    {
+      "name": "math::calculus::heunStep",
+      "summary": "Set a single step in the numerical integration of a system of differential equations."
+    },
+    {
+      "name": "math::calculus::integral",
+      "summary": "Determine the integral of the given function using the Simpson rule."
+    },
+    {
+      "name": "math::calculus::integral2D",
+      "summary": "tcllib command."
+    },
+    {
+      "name": "math::calculus::integral2D_accurate",
+      "summary": "The commands integral2D and integral2D_accurate calculate the integral of a function of two variables over the re"
+    },
+    {
+      "name": "math::calculus::integral3D",
+      "summary": "tcllib command."
+    },
+    {
+      "name": "math::calculus::integral3D_accurate",
+      "summary": "The commands integral3D and integral3D_accurate are the three-dimensional equivalent of integral2D and integral3D"
+    },
+    {
+      "name": "math::calculus::integralExpr",
+      "summary": "Similar to the previous proc, this one determines the integral of the given expression using the Simpson rule."
+    },
+    {
+      "name": "math::calculus::newtonRaphson",
+      "summary": "Determine the root of an equation given by func(x) = 0 using the method of Newton-Raphson."
+    },
+    {
+      "name": "math::calculus::newtonRaphsonParameters",
+      "summary": "Set the numerical parameters for the Newton-Raphson method: Maximum number of iteration steps (defaults to 20) Re"
+    },
+    {
+      "name": "math::calculus::qk15",
+      "summary": "Determine the integral of the given function using the Gauss-Kronrod 15 points quadrature rule."
+    },
+    {
+      "name": "math::calculus::qk15_detailed",
+      "summary": "Determine the integral of the given function using the Gauss-Kronrod 15 points quadrature rule."
+    },
+    {
+      "name": "math::calculus::regula_falsi",
+      "summary": "Return an estimate of the zero or one of the zeros of the function contained in the interval ."
+    },
+    {
+      "name": "math::calculus::root_bisection",
+      "summary": "Return an estimate of the zero or one of the zeros of the function contained in the interval ."
+    },
+    {
+      "name": "math::calculus::root_brent",
+      "summary": "Return an estimate of the zero or one of the zeros of the function contained in the interval ."
+    },
+    {
+      "name": "math::calculus::root_chandrupatla",
+      "summary": "Return an estimate of the zero or one of the zeros of the function contained in the interval ."
+    },
+    {
+      "name": "math::calculus::root_secant",
+      "summary": "Return an estimate of the zero or one of the zeros of the function contained in the interval ."
+    },
+    {
+      "name": "math::calculus::rungeKuttaStep",
+      "summary": "Set a single step in the numerical integration of a system of differential equations."
+    },
+    {
+      "name": "math::calculus::solveTriDiagonal",
+      "summary": "Solve a system of linear equations Ax = b with A a tridiagonal matrix."
+    },
+    {
+      "name": "math::choose",
+      "summary": "Returns the binomial coefficient C(n, k) [example { C(n,k) = n!."
+    },
+    {
+      "name": "math::combinatorics::catalan",
+      "summary": "Return the n'th Catalan number."
+    },
+    {
+      "name": "math::combinatorics::combinations",
+      "summary": "Return the number of combinations of k items selected from the total of n items."
+    },
+    {
+      "name": "math::combinatorics::derangements",
+      "summary": "Return the number of derangements of n items."
+    },
+    {
+      "name": "math::combinatorics::firstStirling",
+      "summary": "Calculate a Stirling number of the first kind (signed version, m cycles in a permutation of n items) Number of it"
+    },
+    {
+      "name": "math::combinatorics::partitionP",
+      "summary": "Calculate the number of ways an integer n can be written as the sum of positive integers."
+    },
+    {
+      "name": "math::combinatorics::permutations",
+      "summary": "Return the number of permutations of n items."
+    },
+    {
+      "name": "math::combinatorics::secondStirling",
+      "summary": "Calculate a Stirling number of the second kind (m non-empty subsets from n items) Number of items Number of subse"
+    },
+    {
+      "name": "math::combinatorics::variations",
+      "summary": "Return the number of variations k items selected from the total of n items."
+    },
+    {
+      "name": "math::complexnumbers::arg",
+      "summary": "Return the argument (angle in radians) of the given complex number Complex number in question."
+    },
+    {
+      "name": "math::complexnumbers::complex",
+      "summary": "Construct the complex number real + imag*i and return it The real part of the new complex number The imaginary pa"
+    },
+    {
+      "name": "math::complexnumbers::conj",
+      "summary": "Return the conjugate of the given complex number Complex number in question."
+    },
+    {
+      "name": "math::complexnumbers::cos",
+      "summary": "Calculate the cosine function for the given complex argument and return the result The complex argument for the f"
+    },
+    {
+      "name": "math::complexnumbers::exp",
+      "summary": "Calculate the exponential for the given complex argument and return the result The complex argument for the funct"
+    },
+    {
+      "name": "math::complexnumbers::imag",
+      "summary": "Return the imaginary part of the given complex number Complex number in question."
+    },
+    {
+      "name": "math::complexnumbers::log",
+      "summary": "Calculate the (principle value of the) logarithm for the given complex argument and return the result The complex"
+    },
+    {
+      "name": "math::complexnumbers::mod",
+      "summary": "Return the modulus of the given complex number Complex number in question."
+    },
+    {
+      "name": "math::complexnumbers::pow",
+      "summary": "Calculate z1 to the power of z2 and return the result The complex number to be raised to a power The complex powe"
+    },
+    {
+      "name": "math::complexnumbers::real",
+      "summary": "Return the real part of the given complex number Complex number in question."
+    },
+    {
+      "name": "math::complexnumbers::sin",
+      "summary": "Calculate the sine function for the given complex argument and return the result The complex argument for the fun"
+    },
+    {
+      "name": "math::complexnumbers::sqrt",
+      "summary": "Calculate the (principle value of the) square root for the given complex argument and return the result The compl"
+    },
+    {
+      "name": "math::complexnumbers::tan",
+      "summary": "Calculate the tangent function for the given complex argument and return the result The complex argument for the "
+    },
+    {
+      "name": "math::complexnumbers::tostring",
+      "summary": "Convert the complex number to the form real + imag*i and return the string The complex number to be converted."
+    },
+    {
       "name": "math::constants::constants",
       "summary": "Import named mathematical constants (pi, e, …) into the caller."
     },
@@ -3048,9 +3984,313 @@
       "pure": true
     },
     {
+      "name": "math::decimal::abs",
+      "summary": "Return the absolute value of the decimal."
+    },
+    {
+      "name": "math::decimal::add",
+      "summary": "tcllib command."
+    },
+    {
+      "name": "math::decimal::compare",
+      "summary": "Compare the two decimals a and b, returning 0 if a == b, 1 if a > b, and -1 if a < b."
+    },
+    {
+      "name": "math::decimal::copynegate",
+      "summary": "Returns a with the sign flipped."
+    },
+    {
+      "name": "math::decimal::copysign",
+      "summary": "Returns a with the sign set to the sign of the b."
+    },
+    {
+      "name": "math::decimal::divide",
+      "summary": "tcllib command."
+    },
+    {
+      "name": "math::decimal::divideint",
+      "summary": "Return a the integer portion of the quotient of the division between decimals a and b."
+    },
+    {
+      "name": "math::decimal::fma",
+      "summary": "Return the result from first multiplying a by b and then adding c."
+    },
+    {
+      "name": "math::decimal::fromstr",
+      "summary": "Convert string into a decimal."
+    },
+    {
+      "name": "math::decimal::max",
+      "summary": "Compare the two decimals a and b, and return a if a >= b, and b if a < b."
+    },
+    {
+      "name": "math::decimal::maxmag",
+      "summary": "Compare the two decimals a and b while ignoring their signs, and return a if abs(a) >= abs(b), and b if abs(a) < "
+    },
+    {
+      "name": "math::decimal::min",
+      "summary": "Compare the two decimals a and b, and return a if a <= b, and b if a > b."
+    },
+    {
+      "name": "math::decimal::minmag",
+      "summary": "Compare the two decimals a and b while ignoring their signs, and return a if abs(a) <= abs(b), and b if abs(a) > "
+    },
+    {
+      "name": "math::decimal::minus",
+      "summary": "Return the result from ::math::decimal::- 0 $a."
+    },
+    {
+      "name": "math::decimal::multiply",
+      "summary": "tcllib command."
+    },
+    {
+      "name": "math::decimal::plus",
+      "summary": "Return the result from ::math::decimal::+ 0 $a."
+    },
+    {
+      "name": "math::decimal::remainder",
+      "summary": "Return the remainder of the division between the two decimals a and b."
+    },
+    {
+      "name": "math::decimal::round_05up",
+      "summary": "Rounds decimal to digits number of decimal points with the following rules: Round zero or five away from 0."
+    },
+    {
+      "name": "math::decimal::round_ceiling",
+      "summary": "Rounds decimal to digits number of decimal points with the following rules: Round toward Infinity."
+    },
+    {
+      "name": "math::decimal::round_down",
+      "summary": "Rounds decimal to digits number of decimal points with the following rules: Round toward 0."
+    },
+    {
+      "name": "math::decimal::round_floor",
+      "summary": "Rounds decimal to digits number of decimal points with the following rules: Round toward -Infinity."
+    },
+    {
+      "name": "math::decimal::round_half_down",
+      "summary": "Rounds decimal to digits number of decimal points with the following rules: Round to the nearest."
+    },
+    {
+      "name": "math::decimal::round_half_even",
+      "summary": "Rounds decimal to digits number of decimal points with the following rules: Round to the nearest."
+    },
+    {
+      "name": "math::decimal::round_half_up",
+      "summary": "Rounds decimal to digits number of decimal points with the following rules: Round to the nearest."
+    },
+    {
+      "name": "math::decimal::round_up",
+      "summary": "Rounds decimal to digits number of decimal points with the following rules: Round away from 0."
+    },
+    {
+      "name": "math::decimal::setVariable",
+      "summary": "Sets the variable to setting."
+    },
+    {
+      "name": "math::decimal::subtract",
+      "summary": "tcllib command."
+    },
+    {
+      "name": "math::decimal::tostr",
+      "summary": "Convert decimal into a string representing the number in base 10."
+    },
+    {
+      "name": "math::exact::exactexpr",
+      "summary": "Accepts a mathematical expression in Tcl syntax, and returns an object that represents the program to calculate s"
+    },
+    {
+      "name": "math::factorial",
+      "summary": "Returns the factorial of the argument x."
+    },
+    {
       "name": "math::fibonacci",
       "summary": "Return the n-th Fibonacci number.",
       "pure": true
+    },
+    {
+      "name": "math::figurate::biquadratic",
+      "summary": "Return the nth biquaratic number (i.e."
+    },
+    {
+      "name": "math::figurate::centeredCube",
+      "summary": "Return the nth centered cube number (items arranged in concentric cubes) Required index."
+    },
+    {
+      "name": "math::figurate::centeredHexagonal",
+      "summary": "Return the nth centered hexagonal number (items arranged in concentric hexagons) Required index."
+    },
+    {
+      "name": "math::figurate::centeredPentagonal",
+      "summary": "Return the nth centered pentagonal number (items arranged in concentric pentagons) Required index."
+    },
+    {
+      "name": "math::figurate::centeredSquare",
+      "summary": "Return the nth centered square number (items arranged in concentric squares) Required index."
+    },
+    {
+      "name": "math::figurate::centeredTriangular",
+      "summary": "Return the nth centered triangular number (items arranged in concentric squares) Required index."
+    },
+    {
+      "name": "math::figurate::cubic",
+      "summary": "Return the nth cubic number Required index."
+    },
+    {
+      "name": "math::figurate::decagonal",
+      "summary": "Return the nth decagonal number (items arranged in decagons with one common vertex) Required index."
+    },
+    {
+      "name": "math::figurate::heptagonal",
+      "summary": "Return the nth heptagonal number (items arranged in heptagons with one common vertex) Required index."
+    },
+    {
+      "name": "math::figurate::hexagonal",
+      "summary": "Return the nth hexagonal number (items arranged in hexagons with one common vertex) Required index."
+    },
+    {
+      "name": "math::figurate::oblong",
+      "summary": "Return the nth oblong number (twice the nth triangular number) Required index."
+    },
+    {
+      "name": "math::figurate::octagonal",
+      "summary": "Return the nth octagonal number (items arranged in octagons with one common vertex) Required index."
+    },
+    {
+      "name": "math::figurate::octahedral",
+      "summary": "Return the nth octahedral number (items arranged in octahedrons with a common centre) Required index."
+    },
+    {
+      "name": "math::figurate::pentagonal",
+      "summary": "Return the nth pentagonal number (items arranged in pentagons with one common vertex) Required index."
+    },
+    {
+      "name": "math::figurate::pentatope",
+      "summary": "Return the nth pentatope number (items arranged in the four-dimensional analogue of a triangular pyramid) Require"
+    },
+    {
+      "name": "math::figurate::pronic",
+      "summary": "Return the nth pronic number (synonym for oblong) Required index."
+    },
+    {
+      "name": "math::figurate::square",
+      "summary": "Return the nth square number Required index."
+    },
+    {
+      "name": "math::figurate::squarePyramidral",
+      "summary": "Return the nth square pyramidral number (items arranged in a square pyramid) Required index."
+    },
+    {
+      "name": "math::figurate::sum_10th_power",
+      "summary": "Return the sum of 10th powers 1**10, 2**10, ..., n**10."
+    },
+    {
+      "name": "math::figurate::sum_10th_power_odd",
+      "summary": "Return the sum of odd 10th powers 1**10, 2**10, ..., (2n-1)**10."
+    },
+    {
+      "name": "math::figurate::sum_4th_power",
+      "summary": "Return the sum of 4th powers 1**4, 2**4, ..., n**4."
+    },
+    {
+      "name": "math::figurate::sum_4th_power_odd",
+      "summary": "Return the sum of odd 4th powers 1**4, 2**4, ..., (2n-1)**4."
+    },
+    {
+      "name": "math::figurate::sum_5th_power",
+      "summary": "Return the sum of 5th powers 1**5, 2**5, ..., n**5."
+    },
+    {
+      "name": "math::figurate::sum_5th_power_odd",
+      "summary": "Return the sum of odd 5th powers 1**5, 2**5, ..., (2n-1)**5."
+    },
+    {
+      "name": "math::figurate::sum_6th_power",
+      "summary": "Return the sum of 6th powers 1**6, 2**6, ..., n**6."
+    },
+    {
+      "name": "math::figurate::sum_6th_power_odd",
+      "summary": "Return the sum of odd 6th powers 1**6, 2**6, ..., (2n-1)**6."
+    },
+    {
+      "name": "math::figurate::sum_7th_power",
+      "summary": "Return the sum of 7th powers 1**7, 2**7, ..., n**7."
+    },
+    {
+      "name": "math::figurate::sum_7th_power_odd",
+      "summary": "Return the sum of odd 7th powers 1**7, 2**7, ..., (2n-1)**7."
+    },
+    {
+      "name": "math::figurate::sum_8th_power",
+      "summary": "Return the sum of 8th powers 1**8, 2**8, ..., n**8."
+    },
+    {
+      "name": "math::figurate::sum_8th_power_odd",
+      "summary": "Return the sum of odd 8th powers 1**8, 2**8, ..., (2n-1)**8."
+    },
+    {
+      "name": "math::figurate::sum_9th_power",
+      "summary": "Return the sum of 9th powers 1**9, 2**9, ..., n**9."
+    },
+    {
+      "name": "math::figurate::sum_9th_power_odd",
+      "summary": "Return the sum of odd 9th powers 1**9, 2**9, ..., (2n-1)**9."
+    },
+    {
+      "name": "math::figurate::sum_cubes",
+      "summary": "Return the sum of cubes 1**3, 2**3, ..., n**3."
+    },
+    {
+      "name": "math::figurate::sum_cubes_odd",
+      "summary": "Return the sum of odd cubes 1**3, 3**3, ..., (2n-1)**3."
+    },
+    {
+      "name": "math::figurate::sum_sequence",
+      "summary": "Return the sum of integers 1, 2, ..., n."
+    },
+    {
+      "name": "math::figurate::sum_sequence_odd",
+      "summary": "Return the sum of odd integers 1, 3, ..., 2n-1 Highest integer in the sum."
+    },
+    {
+      "name": "math::figurate::sum_squares",
+      "summary": "Return the sum of squares 1**2, 2**2, ..., n**2."
+    },
+    {
+      "name": "math::figurate::sum_squares_odd",
+      "summary": "Return the sum of odd squares 1**2, 3**2, ..., (2n-1)**2."
+    },
+    {
+      "name": "math::figurate::tetrahedral",
+      "summary": "Return the nth tetrahedral number (items arranged in a triangular pyramid) Required index."
+    },
+    {
+      "name": "math::figurate::triangular",
+      "summary": "Return the nth triangular number Required index."
+    },
+    {
+      "name": "math::filters::filter",
+      "summary": "Filter the entire data series based on the filter coefficients."
+    },
+    {
+      "name": "math::filters::filterButterworth",
+      "summary": "Determine the coefficients for a Butterworth filter of given order."
+    },
+    {
+      "name": "math::fourier::dft",
+      "summary": "Determine the Fourier transform of the given list of complex numbers."
+    },
+    {
+      "name": "math::fourier::highpass",
+      "summary": "Filter the (complex) amplitudes so that low-frequency components are suppressed."
+    },
+    {
+      "name": "math::fourier::inverse_dft",
+      "summary": "Determine the inverse Fourier transform of the given list of complex numbers (interpreted as amplitudes)."
+    },
+    {
+      "name": "math::fourier::lowpass",
+      "summary": "Filter the (complex) amplitudes so that high-frequency components are suppressed."
     },
     {
       "name": "math::fuzzy::tceil",
@@ -3103,9 +4343,505 @@
       "pure": true
     },
     {
+      "name": "math::geometry::angle",
+      "summary": "Calculate the angle from the positive x-axis to a given line (in two dimensions only)."
+    },
+    {
+      "name": "math::geometry::angleBetween",
+      "summary": "Calculate the angle between two vectors (in degrees) First vector Second vector."
+    },
+    {
+      "name": "math::geometry::areaParallellogram",
+      "summary": "Calculate the area of the parallellogram with the two vectors as its sides First vector Second vector."
+    },
+    {
+      "name": "math::geometry::areaPolygon",
+      "summary": "Calculate the area of a polygon."
+    },
+    {
+      "name": "math::geometry::bbox",
+      "summary": "Calculate the bounding box of a polyline."
+    },
+    {
+      "name": "math::geometry::between",
+      "summary": "Compute the point which is at relative distance s between the two points and return it as the result of the comma"
+    },
+    {
+      "name": "math::geometry::calculateDistanceToLine",
+      "summary": "Calculate the distance of point P to the (infinite) line and return the result List of two numbers, the coordinat"
+    },
+    {
+      "name": "math::geometry::calculateDistanceToLineSegment",
+      "summary": "Calculate the distance of point P to the (finite) line segment and return the result."
+    },
+    {
+      "name": "math::geometry::calculateDistanceToPolygon",
+      "summary": "Calculate the distance of point P to the polygon and return the result."
+    },
+    {
+      "name": "math::geometry::calculateDistanceToPolyline",
+      "summary": "Calculate the distance of point P to the polyline and return the result."
+    },
+    {
+      "name": "math::geometry::cathetusPoint",
+      "summary": "Return the third point of the rectangular triangle defined by the two given end points of the hypothenusa."
+    },
+    {
+      "name": "math::geometry::circle",
+      "summary": "Convenience procedure to create a circle from a point and a radius."
+    },
+    {
+      "name": "math::geometry::circleTwoPoints",
+      "summary": "Convenience procedure to create a circle from two points on its circumference The centre is the point between the"
+    },
+    {
+      "name": "math::geometry::cleanupPolyline",
+      "summary": "Remove duplicate neighbouring vertices and return the result."
+    },
+    {
+      "name": "math::geometry::degToRad",
+      "summary": "Convert from degrees to radians Angle in degrees."
+    },
+    {
+      "name": "math::geometry::direction",
+      "summary": "Given the angle in degrees this command computes and returns the unit vector pointing into this direction."
+    },
+    {
+      "name": "math::geometry::distance",
+      "summary": "Compute the distance between the two points and return it as the result of the command."
+    },
+    {
+      "name": "math::geometry::enrichPolyline",
+      "summary": "Split up each segment of a polyline into a number of smaller segments and return the result."
+    },
+    {
+      "name": "math::geometry::findClosestPointOnLine",
+      "summary": "Return the point on a line which is closest to a given point."
+    },
+    {
+      "name": "math::geometry::findClosestPointOnLineSegment",
+      "summary": "Return the point on a line segment which is closest to a given point."
+    },
+    {
+      "name": "math::geometry::findClosestPointOnPolyline",
+      "summary": "Return the point on a polyline which is closest to a given point."
+    },
+    {
+      "name": "math::geometry::findLineIntersection",
+      "summary": "Find the intersection point of two (infinite) lines."
+    },
+    {
+      "name": "math::geometry::findLineSegmentIntersection",
+      "summary": "Find the intersection point of two line segments."
+    },
+    {
+      "name": "math::geometry::h",
+      "summary": "Returns a horizontal vector on the X-axis of the specified length."
+    },
+    {
+      "name": "math::geometry::inproduct",
+      "summary": "Calculate the inner product of two vectors First vector Second vector."
+    },
+    {
+      "name": "math::geometry::intersectionCircleWithCircle",
+      "summary": "Determine the points at which the given two circles intersect."
+    },
+    {
+      "name": "math::geometry::intersectionLineWithCircle",
+      "summary": "Determine the points at which the given line intersects the circle."
+    },
+    {
+      "name": "math::geometry::intersectionPolylineCircle",
+      "summary": "Return the first point or all points where the polyline intersects the circle."
+    },
+    {
+      "name": "math::geometry::intersectionPolylines",
+      "summary": "Return the first point or all points where the two polylines intersect."
+    },
+    {
+      "name": "math::geometry::intervalsOverlap",
+      "summary": "Check if two intervals overlap."
+    },
+    {
+      "name": "math::geometry::length",
+      "summary": "Compute the length of the vector and return it as the result of the command."
+    },
+    {
+      "name": "math::geometry::lengthOfPolyline",
+      "summary": "Return the length of the polyline (note: it not regarded as a polygon) List of numbers, the vertices of the polyl"
+    },
+    {
+      "name": "math::geometry::lineIntersectsCircle",
+      "summary": "Determine if the given line intersects the circle or touches it (1) or does not (0)."
+    },
+    {
+      "name": "math::geometry::lineSegmentIntersectsCircle",
+      "summary": "Determine if the given line segment intersects the circle or touches it (1) or does not (0)."
+    },
+    {
+      "name": "math::geometry::lineSegmentsIntersect",
+      "summary": "Check if two line segments intersect or coincide."
+    },
+    {
+      "name": "math::geometry::movePointInDirection",
+      "summary": "Move a point over a given distance in a given direction and return the new coordinates (in two dimensions only)."
+    },
+    {
+      "name": "math::geometry::nwse",
+      "summary": "Extract the northwest and southeast corners of the rectangle and return them as the result of the command (a 2-el"
+    },
+    {
+      "name": "math::geometry::octant",
+      "summary": "Compute the octant of the circle the point is in and return it as the result of the command."
+    },
+    {
+      "name": "math::geometry::overlapBBox",
+      "summary": "Check if the bounding boxes of two polylines overlap or not."
+    },
+    {
+      "name": "math::geometry::p",
+      "summary": "Construct a point from its coordinates and return it as the result of the command."
+    },
+    {
+      "name": "math::geometry::parallel",
+      "summary": "Return a line parallel to the given line, with a distance offset."
+    },
+    {
+      "name": "math::geometry::pointInsideBBox",
+      "summary": "Check if the point is inside or on the bounding box or not."
+    },
+    {
+      "name": "math::geometry::pointInsideCircle",
+      "summary": "Determine if the given point is inside the circle or on the circumference (1) or outside (0)."
+    },
+    {
+      "name": "math::geometry::pointInsidePolygon",
+      "summary": "Determine if a point is completely inside a polygon."
+    },
+    {
+      "name": "math::geometry::pointInsidePolygonAlt",
+      "summary": "Determine if a point is completely inside a polygon."
+    },
+    {
+      "name": "math::geometry::polylineCutEnd",
+      "summary": "Return the part of the first polyline from the last intersection point with the second to the end."
+    },
+    {
+      "name": "math::geometry::polylineCutOrigin",
+      "summary": "Return the part of the first polyline from the origin up to the first intersection with the second."
+    },
+    {
+      "name": "math::geometry::polylinesBoundingIntersect",
+      "summary": "Check whether two polylines intersect, but reduce the correctness of the result to the given granularity."
+    },
+    {
+      "name": "math::geometry::polylinesIntersect",
+      "summary": "Check if two polylines intersect or not (in two dimensions only)."
+    },
+    {
+      "name": "math::geometry::radToDeg",
+      "summary": "Convert from radians to degrees Angle in radians."
+    },
+    {
+      "name": "math::geometry::rect",
+      "summary": "Construct a rectangle from its northwest and southeast corners and return it as the result of the command."
+    },
+    {
+      "name": "math::geometry::rectangleInsidePolygon",
+      "summary": "Determine if a rectangle is completely inside a polygon."
+    },
+    {
+      "name": "math::geometry::rectanglesOverlap",
+      "summary": "Check if two rectangles overlap."
+    },
+    {
+      "name": "math::geometry::reflect",
+      "summary": "Reflect a polyline in a line through the origin at a given angle (degrees) to the x-axis Angle of the line of ref"
+    },
+    {
+      "name": "math::geometry::rotate",
+      "summary": "Rotate a polyline over a given angle (degrees) around the origin Angle over which to rotate the polyline (degrees"
+    },
+    {
+      "name": "math::geometry::rotateAbout",
+      "summary": "Rotate a polyline around a given point p and return the new polyline."
+    },
+    {
+      "name": "math::geometry::splitPolyline",
+      "summary": "Split the poyline into a set of polylines where each separate polyline holds numberVertex vertices between the tw"
+    },
+    {
+      "name": "math::geometry::tangentLinesToCircle",
+      "summary": "Determine the tangent lines from the given point to the circle."
+    },
+    {
+      "name": "math::geometry::translate",
+      "summary": "Translate a polyline over a given vector Translation vector The polyline to be translated."
+    },
+    {
+      "name": "math::geometry::unitVector",
+      "summary": "Return a unit vector from the given line or direction, if the line argument is a single point (then a line throug"
+    },
+    {
+      "name": "math::geometry::v",
+      "summary": "Returns a vertical vector on the Y-axis of the specified length."
+    },
+    {
       "name": "math::integrate",
       "summary": "Integrate a tabulated function given as x/y value pairs.",
       "pure": true
+    },
+    {
+      "name": "math::interpolate::defineTable",
+      "summary": "Define a table with one or two independent variables (the distinction is implicit in the data)."
+    },
+    {
+      "name": "math::interpolate::neville",
+      "summary": "Interpolates between the tabulated values of a function whose abscissae are xlist and whose ordinates are ylist t"
+    },
+    {
+      "name": "math::linearalgebra::add",
+      "summary": "Return a vector or matrix that is the sum of the two arguments (x+y) Specialised variants are: add_vect and add_m"
+    },
+    {
+      "name": "math::linearalgebra::angle",
+      "summary": "Compute the angle between two vectors (in radians) First vector Second vector."
+    },
+    {
+      "name": "math::linearalgebra::axpy",
+      "summary": "Return a vector or matrix that results from a daxpy operation, that is: compute a*x+y (a a scalar and x and y bot"
+    },
+    {
+      "name": "math::linearalgebra::choleski",
+      "summary": "Determine the Choleski decomposition of a symmetric positive semidefinite matrix (this condition is not checked!)"
+    },
+    {
+      "name": "math::linearalgebra::conforming",
+      "summary": "Checks if two objects (vector or matrix) have conforming shapes, that is if they can be applied in an operation l"
+    },
+    {
+      "name": "math::linearalgebra::crossproduct",
+      "summary": "Compute the cross product of two (three-dimensional) vectors First vector Second vector."
+    },
+    {
+      "name": "math::linearalgebra::det",
+      "summary": "Returns the determinant of the given matrix, based on PA=LU decomposition, i.e."
+    },
+    {
+      "name": "math::linearalgebra::determineSVD",
+      "summary": "Determines the Singular Value Decomposition of a matrix: A = U S Vtrans."
+    },
+    {
+      "name": "math::linearalgebra::dger",
+      "summary": "Perform the rank 1 operation A + alpha*x*y' inline (that is: the matrix A is adjusted)."
+    },
+    {
+      "name": "math::linearalgebra::dgetrf",
+      "summary": "Computes an LU factorization of a general matrix, using partial, pivoting with row interchanges."
+    },
+    {
+      "name": "math::linearalgebra::dim",
+      "summary": "Returns the number of dimensions for the object (either 0 for a scalar, 1 for a vector and 2 for a matrix) Scalar"
+    },
+    {
+      "name": "math::linearalgebra::dotproduct",
+      "summary": "Determine the inproduct or dot product of two vectors."
+    },
+    {
+      "name": "math::linearalgebra::eigenvectorsSVD",
+      "summary": "Determines the eigenvectors and eigenvalues of a real symmetric matrix, using SVD."
+    },
+    {
+      "name": "math::linearalgebra::from_LA",
+      "summary": "Transforms a vector or matrix from the format used by the original LA package into the format used by the present"
+    },
+    {
+      "name": "math::linearalgebra::getcol",
+      "summary": "Returns a single column of a matrix as a list Matrix in question Index of the column to return Minimum index of t"
+    },
+    {
+      "name": "math::linearalgebra::getelem",
+      "summary": "Returns a single element of a matrix/vector Matrix or vector in question Row of the element Column of the element"
+    },
+    {
+      "name": "math::linearalgebra::getrow",
+      "summary": "Returns a single row of a matrix as a list Matrix in question Index of the row to return Minimum index of the col"
+    },
+    {
+      "name": "math::linearalgebra::largesteigen",
+      "summary": "Returns a list made of the largest eigenvalue (in magnitude) and associated eigenvector."
+    },
+    {
+      "name": "math::linearalgebra::leastSquaresSVD",
+      "summary": "Determines the solution to a least-sqaures problem Ax ~ y via singular value decomposition."
+    },
+    {
+      "name": "math::linearalgebra::matmul",
+      "summary": "Multiply a vector/matrix with another vector/matrix."
+    },
+    {
+      "name": "math::linearalgebra::mkBorder",
+      "summary": "Create a bordered matrix of size size."
+    },
+    {
+      "name": "math::linearalgebra::mkDiagonal",
+      "summary": "Create a diagonal matrix whose diagonal elements are the elements of the vector diag."
+    },
+    {
+      "name": "math::linearalgebra::mkDingdong",
+      "summary": "Create a dingdong matrix of dimension size."
+    },
+    {
+      "name": "math::linearalgebra::mkFrank",
+      "summary": "Create a Frank matrix of size size."
+    },
+    {
+      "name": "math::linearalgebra::mkHilbert",
+      "summary": "Create a Hilbert matrix of dimension size."
+    },
+    {
+      "name": "math::linearalgebra::mkIdentity",
+      "summary": "Create an identity matrix of dimension size."
+    },
+    {
+      "name": "math::linearalgebra::mkMatrix",
+      "summary": "Create a matrix with nrows rows and ncols columns."
+    },
+    {
+      "name": "math::linearalgebra::mkMoler",
+      "summary": "Create a Moler matrix of size size."
+    },
+    {
+      "name": "math::linearalgebra::mkOnes",
+      "summary": "Create a square matrix of dimension size whose entries are all 1."
+    },
+    {
+      "name": "math::linearalgebra::mkRandom",
+      "summary": "Create a square matrix whose elements are uniformly distributed random numbers between 0 and 1 of dimension size."
+    },
+    {
+      "name": "math::linearalgebra::mkTriangular",
+      "summary": "Create a triangular matrix with non-zero elements in the upper or lower part, depending on argument uplo."
+    },
+    {
+      "name": "math::linearalgebra::mkUnitVector",
+      "summary": "Create a unit vector in ndim-dimensional space, along the ndir-th direction."
+    },
+    {
+      "name": "math::linearalgebra::mkVector",
+      "summary": "Create a vector with ndim elements, each with the value value."
+    },
+    {
+      "name": "math::linearalgebra::norm",
+      "summary": "Returns the norm of the given vector."
+    },
+    {
+      "name": "math::linearalgebra::normMatrix",
+      "summary": "Returns the norm of the given matrix."
+    },
+    {
+      "name": "math::linearalgebra::norm_max",
+      "summary": "Returns the Linf norm of the given vector, the maximum absolute coefficient Vector, list of coefficients (optiona"
+    },
+    {
+      "name": "math::linearalgebra::norm_one",
+      "summary": "Returns the L1 norm of the given vector, the sum of absolute values Vector, list of coefficients."
+    },
+    {
+      "name": "math::linearalgebra::norm_two",
+      "summary": "Returns the L2 norm of the given vector, the ordinary Euclidean norm Vector, list of coefficients."
+    },
+    {
+      "name": "math::linearalgebra::normalizeStat",
+      "summary": "Normalize the matrix or vector in a statistical sense: the mean of the elements of the columns of the result is z"
+    },
+    {
+      "name": "math::linearalgebra::orthonormalizeColumns",
+      "summary": "Use the modified Gram-Schmidt method to orthogonalize and normalize the columns of the given matrix and return th"
+    },
+    {
+      "name": "math::linearalgebra::orthonormalizeRows",
+      "summary": "Use the modified Gram-Schmidt method to orthogonalize and normalize the rows of the given matrix and return the r"
+    },
+    {
+      "name": "math::linearalgebra::rotate",
+      "summary": "Apply a planar rotation to two vectors and return the result as a list of two vectors: c*x-s*y and s*x+c*y."
+    },
+    {
+      "name": "math::linearalgebra::scale",
+      "summary": "Scale a vector or matrix and return the result, that is: compute a*x."
+    },
+    {
+      "name": "math::linearalgebra::setcol",
+      "summary": "Set a single column of a matrix to new values (this list must have the same number of elements as the number of r"
+    },
+    {
+      "name": "math::linearalgebra::setelem",
+      "summary": "Set a single element of a matrix (or vector) to a new value name of the matrix in question Row of the element Col"
+    },
+    {
+      "name": "math::linearalgebra::setrow",
+      "summary": "Set a single row of a matrix to new values (this list must have the same number of elements as the number of colu"
+    },
+    {
+      "name": "math::linearalgebra::shape",
+      "summary": "Returns the number of elements in each dimension for the object (either an empty list for a scalar, a single numb"
+    },
+    {
+      "name": "math::linearalgebra::show",
+      "summary": "Return a string representing the vector or matrix, for easy printing."
+    },
+    {
+      "name": "math::linearalgebra::solveGauss",
+      "summary": "Solve a system of linear equations (Ax=b) using Gauss elimination."
+    },
+    {
+      "name": "math::linearalgebra::solveGaussBand",
+      "summary": "Solve a system of linear equations (Ax=b) using Gauss elimination, where the matrix is stored as a band matrix (c"
+    },
+    {
+      "name": "math::linearalgebra::solvePGauss",
+      "summary": "Solve a system of linear equations (Ax=b) using Gauss elimination with partial pivoting."
+    },
+    {
+      "name": "math::linearalgebra::solveTriangular",
+      "summary": "Solve a system of linear equations (Ax=b) by backward substitution."
+    },
+    {
+      "name": "math::linearalgebra::solveTriangularBand",
+      "summary": "Solve a system of linear equations (Ax=b) by backward substitution."
+    },
+    {
+      "name": "math::linearalgebra::sub",
+      "summary": "Return a vector or matrix that is the difference of the two arguments (x-y) Specialised variants are: sub_vect an"
+    },
+    {
+      "name": "math::linearalgebra::swapcols",
+      "summary": "Swap two columns in a matrix completely or only a selected part name of the matrix in question Index of first col"
+    },
+    {
+      "name": "math::linearalgebra::swaprows",
+      "summary": "Swap two rows in a matrix completely or only a selected part name of the matrix in question Index of first row In"
+    },
+    {
+      "name": "math::linearalgebra::symmetric",
+      "summary": "Checks if the given (square) matrix is symmetric."
+    },
+    {
+      "name": "math::linearalgebra::to_LA",
+      "summary": "Transforms a vector or matrix into the format used by the original LA package."
+    },
+    {
+      "name": "math::linearalgebra::transpose",
+      "summary": "Transpose a matrix Matrix to be transposed."
+    },
+    {
+      "name": "math::linearalgebra::unitLengthVector",
+      "summary": "Return a vector in the same direction with length 1."
+    },
+    {
+      "name": "math::ln_Gamma",
+      "summary": "Returns the natural logarithm of the Gamma function for the argument z."
     },
     {
       "name": "math::max",
@@ -3123,6 +4859,94 @@
       "pure": true
     },
     {
+      "name": "math::optimize::linearProgramMaximum",
+      "summary": "Convenience function to return the maximum for the solution found by the solveLinearProgram procedure."
+    },
+    {
+      "name": "math::optimize::maximum",
+      "summary": "Maximize the given (continuous) function by examining the values in the given interval."
+    },
+    {
+      "name": "math::optimize::minimum",
+      "summary": "Minimize the given (continuous) function by examining the values in the given interval."
+    },
+    {
+      "name": "math::optimize::solveLinearProgram",
+      "summary": "Solve a linear program in standard form using a straightforward implementation of the Simplex algorithm."
+    },
+    {
+      "name": "math::polynomials::addPolyn",
+      "summary": "Return a new polynomial which is the sum of the two others."
+    },
+    {
+      "name": "math::polynomials::allCoeffsPolyn",
+      "summary": "Return the coefficients of the polynomial (in ascending order)."
+    },
+    {
+      "name": "math::polynomials::coeffPolyn",
+      "summary": "Return the coefficient of the term of the index'th degree of the polynomial."
+    },
+    {
+      "name": "math::polynomials::degreePolyn",
+      "summary": "Return the degree of the polynomial."
+    },
+    {
+      "name": "math::polynomials::derivPolyn",
+      "summary": "Differentiate the polynomial and return the result."
+    },
+    {
+      "name": "math::polynomials::divPolyn",
+      "summary": "Divide the first polynomial by the second polynomial and return the result."
+    },
+    {
+      "name": "math::polynomials::evalPolyn",
+      "summary": "Evaluate the polynomial at x."
+    },
+    {
+      "name": "math::polynomials::multPolyn",
+      "summary": "Return a new polynomial which is the product of the two others."
+    },
+    {
+      "name": "math::polynomials::polynCmd",
+      "summary": "Create a new procedure that evaluates the polynomial."
+    },
+    {
+      "name": "math::polynomials::polynomial",
+      "summary": "Return an (encoded) list that defines the polynomial."
+    },
+    {
+      "name": "math::polynomials::primitivePolyn",
+      "summary": "Integrate the polynomial and return the result."
+    },
+    {
+      "name": "math::polynomials::remainderPolyn",
+      "summary": "Divide the first polynomial by the second polynomial and return the remainder."
+    },
+    {
+      "name": "math::polynomials::subPolyn",
+      "summary": "Return a new polynomial which is the difference of the two others."
+    },
+    {
+      "name": "math::probopt::adaLipoMax",
+      "summary": "The adaptive Lipschitz optimisation algorithm uses the Lipschitz property of the given function to find a maximum"
+    },
+    {
+      "name": "math::probopt::diffev",
+      "summary": "The differential evolution algorithm uses a number of initial points that are then updated using randomly selecte"
+    },
+    {
+      "name": "math::probopt::lipoMax",
+      "summary": "The Lipschitz optimisation algorithm uses the Lipschitz property of the given function to find a maximum in the g"
+    },
+    {
+      "name": "math::probopt::pso",
+      "summary": "The particle swarm optimisation algorithm uses the idea that the candidate optimum points should swarm around the"
+    },
+    {
+      "name": "math::probopt::sce",
+      "summary": "The shuffled complex evolution algorithm is an extension of the Nelder-Mead algorithm that uses multiple complexe"
+    },
+    {
       "name": "math::product",
       "summary": "Return the product of a set of values.",
       "pure": true
@@ -3130,6 +4954,46 @@
     {
       "name": "math::random",
       "summary": "Return a pseudo-random number, optionally within a range."
+    },
+    {
+      "name": "math::rationalfunctions::addRatio",
+      "summary": "Return a new rational function which is the sum of the two others."
+    },
+    {
+      "name": "math::rationalfunctions::coeffsDenominator",
+      "summary": "Return the coefficients of the denominator of the rational function."
+    },
+    {
+      "name": "math::rationalfunctions::coeffsNumerator",
+      "summary": "Return the coefficients of the numerator of the rational function."
+    },
+    {
+      "name": "math::rationalfunctions::derivPolyn",
+      "summary": "Differentiate the rational function and return the result."
+    },
+    {
+      "name": "math::rationalfunctions::divRatio",
+      "summary": "Divide the first rational function by the second rational function and return the result."
+    },
+    {
+      "name": "math::rationalfunctions::evalRatio",
+      "summary": "Evaluate the rational function at x."
+    },
+    {
+      "name": "math::rationalfunctions::multRatio",
+      "summary": "Return a new rational function which is the product of the two others."
+    },
+    {
+      "name": "math::rationalfunctions::ratioCmd",
+      "summary": "Create a new procedure that evaluates the rational function."
+    },
+    {
+      "name": "math::rationalfunctions::rationalFunction",
+      "summary": "Return an (encoded) list that defines the rational function."
+    },
+    {
+      "name": "math::rationalfunctions::subRatio",
+      "summary": "Return a new rational function which is the difference of the two others."
     },
     {
       "name": "math::roman::expr",
@@ -3157,6 +5021,138 @@
       "pure": true
     },
     {
+      "name": "math::special::Beta",
+      "summary": "Compute the Beta function for arguments x and y First argument for the Beta function Second argument for the Beta"
+    },
+    {
+      "name": "math::special::Gamma",
+      "summary": "Compute the Gamma function for argument x Argument for the Gamma function."
+    },
+    {
+      "name": "math::special::I_n",
+      "summary": "Compute the modified Bessel function of the first kind of order n for the argument x Positive integer order of th"
+    },
+    {
+      "name": "math::special::J0",
+      "summary": "Compute the zeroth-order Bessel function of the first kind for the argument x Argument for the Bessel function."
+    },
+    {
+      "name": "math::special::J1",
+      "summary": "Compute the first-order Bessel function of the first kind for the argument x Argument for the Bessel function."
+    },
+    {
+      "name": "math::special::Jn",
+      "summary": "Compute the nth-order Bessel function of the first kind for the argument x Order of the Bessel function Argument "
+    },
+    {
+      "name": "math::special::bernoulliNumber",
+      "summary": "Return the index'th Bernoulli number."
+    },
+    {
+      "name": "math::special::chebyshev",
+      "summary": "Return the Chebyshev polynomial of degree n (of the first kind) Degree of the polynomial."
+    },
+    {
+      "name": "math::special::cn",
+      "summary": "Compute the elliptic function cn for the argument u and parameter k."
+    },
+    {
+      "name": "math::special::digamma",
+      "summary": "Compute the digamma function (psi) for argument x Argument for the digamma function."
+    },
+    {
+      "name": "math::special::dn",
+      "summary": "Compute the elliptic function dn for the argument u and parameter k."
+    },
+    {
+      "name": "math::special::elliptic_E",
+      "summary": "Compute the complete elliptic integral of the second kind for the argument k Argument for the function."
+    },
+    {
+      "name": "math::special::elliptic_K",
+      "summary": "Compute the complete elliptic integral of the first kind for the argument k Argument for the function."
+    },
+    {
+      "name": "math::special::erf",
+      "summary": "Compute the error function for argument x Argument for the error function."
+    },
+    {
+      "name": "math::special::erfc",
+      "summary": "Compute the complementary error function for argument x Argument for the complementary error function."
+    },
+    {
+      "name": "math::special::eulerNumber",
+      "summary": "Return the index'th Euler number (note: these are integer values)."
+    },
+    {
+      "name": "math::special::exponential_Chi",
+      "summary": "Compute the hyperbolic cosine integral for the argument x Argument for the function (x > 0)."
+    },
+    {
+      "name": "math::special::exponential_Ci",
+      "summary": "Compute the cosine integral for the argument x Argument for the function (x > 0)."
+    },
+    {
+      "name": "math::special::exponential_Ei",
+      "summary": "Compute the exponential integral of the second kind for the argument x Argument for the function (x != 0)."
+    },
+    {
+      "name": "math::special::exponential_En",
+      "summary": "Compute the exponential integral of the first kind for the argument x and order n Order of the integral (n >= 0) "
+    },
+    {
+      "name": "math::special::exponential_Shi",
+      "summary": "Compute the hyperbolic sine integral for the argument x Argument for the function (x > 0)."
+    },
+    {
+      "name": "math::special::exponential_Si",
+      "summary": "Compute the sine integral for the argument x Argument for the function (x > 0)."
+    },
+    {
+      "name": "math::special::exponential_li",
+      "summary": "Compute the logarithmic integral for the argument x Argument for the function (x > 0)."
+    },
+    {
+      "name": "math::special::fresnel_C",
+      "summary": "Compute the Fresnel cosine integral for real argument x Argument for the function."
+    },
+    {
+      "name": "math::special::fresnel_S",
+      "summary": "Compute the Fresnel sine integral for real argument x Argument for the function."
+    },
+    {
+      "name": "math::special::hermite",
+      "summary": "Return the Hermite polynomial of degree n Degree of the polynomial."
+    },
+    {
+      "name": "math::special::incBeta",
+      "summary": "Compute the incomplete Beta function for argument x with parameters a and b First parameter for the incomplete Be"
+    },
+    {
+      "name": "math::special::invnorm",
+      "summary": "Compute the inverse of the normal distribution function for argument p Argument for the inverse normal distributi"
+    },
+    {
+      "name": "math::special::laguerre",
+      "summary": "Return the Laguerre polynomial of degree n with parameter alpha Parameter of the Laguerre polynomial Degree of th"
+    },
+    {
+      "name": "math::special::legendre",
+      "summary": "Return the Legendre polynomial of degree n (see ) Degree of the polynomial."
+    },
+    {
+      "name": "math::special::regIncBeta",
+      "summary": "Compute the regularized incomplete Beta function for argument x with parameters a and b First parameter for the i"
+    },
+    {
+      "name": "math::special::sinc",
+      "summary": "Compute the sinc function for real argument x Argument for the function."
+    },
+    {
+      "name": "math::special::sn",
+      "summary": "Compute the elliptic function sn for the argument u and parameter k."
+    },
+    {
       "name": "math::statistics::analyse-Kruskal-Wallis",
       "summary": "Analyse Kruskal-Wallis results.",
       "pure": true
@@ -3170,6 +5166,10 @@
       "name": "math::statistics::basic-stats",
       "summary": "Compute basic statistics (mean, min, max, count, stdev).",
       "pure": true
+    },
+    {
+      "name": "math::statistics::bootstrap",
+      "summary": "Create a subsample or subsamples from a given list of data."
     },
     {
       "name": "math::statistics::control-Rchart",
@@ -3210,6 +5210,14 @@
       "name": "math::statistics::histogram-alt",
       "summary": "Compute a histogram (alternate boundaries).",
       "pure": true
+    },
+    {
+      "name": "math::statistics::incompleteBeta",
+      "summary": "Evaluate the incomplete Beta integral - First shape parameter - Second shape parameter - Value of x (limit of the"
+    },
+    {
+      "name": "math::statistics::incompleteGamma",
+      "summary": "Evaluate the incomplete Gamma integral [example { 1 / x p-1 P(p,x) = -------- | dt exp(-t) * t Gamma(p) / 0 }] - "
     },
     {
       "name": "math::statistics::interval-mean-stdev",
@@ -3312,6 +5320,10 @@
       "pure": true
     },
     {
+      "name": "math::statistics::subdivide",
+      "summary": "Routine PM - not implemented yet."
+    },
+    {
       "name": "math::statistics::t-test-mean",
       "summary": "Perform a t-test on the mean.",
       "pure": true
@@ -3367,6 +5379,10 @@
       "pure": true
     },
     {
+      "name": "math::statistics::tstat",
+      "summary": "Returns the value of the t-distribution t* satisfying [example { P(t*) = 1 - alpha/2 P(-t*) = alpha/2 }] for the "
+    },
+    {
       "name": "math::statistics::var",
       "summary": "Compute the variance of a list of values.",
       "pure": true
@@ -3380,6 +5396,98 @@
       "name": "math::sum",
       "summary": "Return the sum of a set of values.",
       "pure": true
+    },
+    {
+      "name": "math::trig::acosec",
+      "summary": "Calculate the arc cosecant of the value Value of the argument."
+    },
+    {
+      "name": "math::trig::acosech",
+      "summary": "Calculate the arc hyperbolic cosecant of the value Value of the argument."
+    },
+    {
+      "name": "math::trig::acosh",
+      "summary": "Calculate the arc hyperbolic cosine of the value Value of the argument."
+    },
+    {
+      "name": "math::trig::acotan",
+      "summary": "Calculate the arc cotangent of the value Value of the argument."
+    },
+    {
+      "name": "math::trig::acotanh",
+      "summary": "Calculate the arc hyperbolic cotangent of the value Value of the argument."
+    },
+    {
+      "name": "math::trig::asec",
+      "summary": "Calculate the arc secant of the value Value of the argument."
+    },
+    {
+      "name": "math::trig::asech",
+      "summary": "Calculate the arc hyperbolic secant of the value Value of the argument."
+    },
+    {
+      "name": "math::trig::asinh",
+      "summary": "Calculate the arc hyperbolic sine of the value Value of the argument."
+    },
+    {
+      "name": "math::trig::atanh",
+      "summary": "Calculate the arc hyperbolic tangent of the value Value of the argument."
+    },
+    {
+      "name": "math::trig::cosd",
+      "summary": "Calculate the cosine of the angle (in degrees) Angle (in radians)."
+    },
+    {
+      "name": "math::trig::cosec",
+      "summary": "Calculate the cosecant of the angle (1/cos(angle)) Angle (in radians)."
+    },
+    {
+      "name": "math::trig::cosecd",
+      "summary": "Calculate the cosecant of the angle (in degrees) Angle (in degrees)."
+    },
+    {
+      "name": "math::trig::cosech",
+      "summary": "Calculate the hyperbolic cosecant of the value (1/sinh(value)) Value of the argument."
+    },
+    {
+      "name": "math::trig::cotan",
+      "summary": "Calculate the cotangent of the angle (1/tan(angle)) Angle (in radians)."
+    },
+    {
+      "name": "math::trig::cotand",
+      "summary": "Calculate the cotangent of the angle (in degrees) Angle (in degrees)."
+    },
+    {
+      "name": "math::trig::cotanh",
+      "summary": "Calculate the hyperbolic cotangent of the value (1/tanh(value)) Value of the argument."
+    },
+    {
+      "name": "math::trig::degree_reduced",
+      "summary": "Return the equivalent angle in the interval [0, 360)."
+    },
+    {
+      "name": "math::trig::radian_reduced",
+      "summary": "Return the equivalent angle in the interval [0, 2pi)."
+    },
+    {
+      "name": "math::trig::sec",
+      "summary": "Calculate the secant of the angle (1/sin(angle)) Angle (in radians)."
+    },
+    {
+      "name": "math::trig::secd",
+      "summary": "Calculate the secant of the angle (in degrees) Angle (in degrees)."
+    },
+    {
+      "name": "math::trig::sech",
+      "summary": "Calculate the hyperbolic secant of the value (1/cosh(value)) Value of the argument."
+    },
+    {
+      "name": "math::trig::sind",
+      "summary": "Calculate the sine of the angle (in degrees) Angle (in degrees)."
+    },
+    {
+      "name": "math::trig::tand",
+      "summary": "Calculate the cotangent of the angle (in degrees) Angle (in degrees)."
     },
     {
       "name": "max",
@@ -3418,6 +5526,30 @@
       "name": "md4::md4",
       "summary": "Compute the MD4 message-digest of a string, file, or channel.",
       "pure": true
+    },
+    {
+      "name": "md5::HMACFinal",
+      "summary": "These commands are identical to the MD5 equivalent commands."
+    },
+    {
+      "name": "md5::HMACInit",
+      "summary": "This is equivalent to the ::md5::MD5Init command except that it requires the key that will be included in the HMA"
+    },
+    {
+      "name": "md5::HMACUpdate",
+      "summary": "tcllib command."
+    },
+    {
+      "name": "md5::MD5Final",
+      "summary": "Returns the hash value and releases any resources held by this token."
+    },
+    {
+      "name": "md5::MD5Init",
+      "summary": "Begins a new MD5 hash."
+    },
+    {
+      "name": "md5::MD5Update",
+      "summary": "Add data to the hash identified by token."
     },
     {
       "name": "md5::md5",
@@ -3563,6 +5695,10 @@
       "summary": "minimum of arguments"
     },
     {
+      "name": "mkdoc::run",
+      "summary": "The command reads the specified infile, extracts the embedded documentation, and then executes the contents of th"
+    },
+    {
       "name": "modf",
       "summary": "Split a floating-point number into integer and fraction parts (Tcl 9.1).",
       "pure": true
@@ -3640,8 +5776,60 @@
       "summary": "Utility subcommands for the message catalogue system."
     },
     {
+      "name": "multiplexer::create",
+      "summary": "The create command creates a new multiplexer 'instance'."
+    },
+    {
       "name": "my",
       "summary": "invoke a method on the current object"
+    },
+    {
+      "name": "nameserv::bind",
+      "summary": "The caller of this command registers the given name as its name in the configured name service, and additionally "
+    },
+    {
+      "name": "nameserv::cget",
+      "summary": "This command returns the currently configured value for the specified -option."
+    },
+    {
+      "name": "nameserv::common::port",
+      "summary": "The result returned by the command is the id of the default TCP/IP port a nameservice server will listen on, and "
+    },
+    {
+      "name": "nameserv::configure",
+      "summary": "In this form the command returns a dictionary of all supported options, and their current values."
+    },
+    {
+      "name": "nameserv::protocol",
+      "summary": "This command returns the highest version of the name service protocol supported by the package."
+    },
+    {
+      "name": "nameserv::release",
+      "summary": "Invoking this command releases all names (and their data) registered by all previous calls to ::nameserv::bind of"
+    },
+    {
+      "name": "nameserv::server::cget",
+      "summary": "This command returns the currently configured value for the specified -option."
+    },
+    {
+      "name": "nameserv::server::configure",
+      "summary": "In this form the command returns a dictionary of all supported options, and their current values."
+    },
+    {
+      "name": "nameserv::server::start",
+      "summary": "This command starts the server and causes it to listen on the configured port."
+    },
+    {
+      "name": "nameserv::server::stop",
+      "summary": "Invoking this command stops the server and releases all information it had."
+    },
+    {
+      "name": "nameserv::server_features",
+      "summary": "This command returns a list containing the names of the features of the name service protocol which are supported"
+    },
+    {
+      "name": "nameserv::server_protocol",
+      "summary": "This command returns the highest version of the name service protocol supported by the name service the client is"
     },
     {
       "name": "namespace",
@@ -3791,6 +5979,38 @@
     {
       "name": "ne",
       "summary": "string inequality"
+    },
+    {
+      "name": "nettool::allocate_port",
+      "summary": "Attempt to allocate startingport, or, if busy, advance the port number sequentially until a free port is found, a"
+    },
+    {
+      "name": "nettool::arp_table",
+      "summary": "Dump the contents of this computer's Address Resolution Protocol (ARP) table."
+    },
+    {
+      "name": "nettool::broadcast_list",
+      "summary": "Returns a list of broadcast addresses (suitable for UDP multicast) that this computer is associated with."
+    },
+    {
+      "name": "nettool::cpuinfo",
+      "summary": "If no arguments are given, return a key/value list describing the CPU of the present machine."
+    },
+    {
+      "name": "nettool::find_port",
+      "summary": "Return startingport if it is available, or the next free port after startingport."
+    },
+    {
+      "name": "nettool::network_list",
+      "summary": "Return a list of networks associated with this computer."
+    },
+    {
+      "name": "nettool::status",
+      "summary": "Return a key/value list describing the status of the computer."
+    },
+    {
+      "name": "nettool::user_data_root",
+      "summary": "Return a fully qualified path to a folder where appname should store it's data."
     },
     {
       "name": "next",
@@ -3964,6 +6184,158 @@
       ]
     },
     {
+      "name": "page::pluginmgr::configuration",
+      "summary": "This command loads the named configuration plugin, retrieves the options encoded in it, and then immediately unlo"
+    },
+    {
+      "name": "page::pluginmgr::log",
+      "summary": "This command defines a log callback command to be used by loaded plugins for the reporting of internal errors, wa"
+    },
+    {
+      "name": "page::pluginmgr::rconfigure",
+      "summary": "This commands configures the loaded reader plugin."
+    },
+    {
+      "name": "page::pluginmgr::reader",
+      "summary": "This command loads the named reader plugin and initializes it."
+    },
+    {
+      "name": "page::pluginmgr::reportvia",
+      "summary": "This command defines the callback command used by ::page::pluginmgr::report (see below) to report input errors an"
+    },
+    {
+      "name": "page::pluginmgr::rgettime",
+      "summary": "This command retrieves the collected timing statistics of the loaded reader plugin after it was executed."
+    },
+    {
+      "name": "page::pluginmgr::rhelp",
+      "summary": "This command retrieves the help string of the loaded reader plugin."
+    },
+    {
+      "name": "page::pluginmgr::rlabel",
+      "summary": "This command retrieves the human-readable name of the loaded reader plugin."
+    },
+    {
+      "name": "page::pluginmgr::rtime",
+      "summary": "This command activates the collection of timing statistics in the loaded reader plugin."
+    },
+    {
+      "name": "page::pluginmgr::rtimeable",
+      "summary": "This commands checks if the loaded reader plugin is able to collect timing statistics."
+    },
+    {
+      "name": "page::pluginmgr::tconfigure",
+      "summary": "This commands configures the identified transformation plugin."
+    },
+    {
+      "name": "page::pluginmgr::tgettime",
+      "summary": "This command retrieves the collected timing statistics of the identified transformation plugin after it was execu"
+    },
+    {
+      "name": "page::pluginmgr::thelp",
+      "summary": "This command retrieves the help string of the identified transformation plugin."
+    },
+    {
+      "name": "page::pluginmgr::tlabel",
+      "summary": "This command retrieves the human-readable name of the identified transformation plugin."
+    },
+    {
+      "name": "page::pluginmgr::transform",
+      "summary": "This command loads the named transformation plugin and initializes it."
+    },
+    {
+      "name": "page::pluginmgr::transform_do",
+      "summary": "The identified transformation plugin is invoked to process the specified data."
+    },
+    {
+      "name": "page::pluginmgr::ttime",
+      "summary": "This command activates the collection of timing statistics in the identified transformation plugin."
+    },
+    {
+      "name": "page::pluginmgr::ttimeable",
+      "summary": "This commands checks if the identified transformation plugin is able to collect timing statistics."
+    },
+    {
+      "name": "page::pluginmgr::wconfigure",
+      "summary": "This commands configures the loaded writer plugin."
+    },
+    {
+      "name": "page::pluginmgr::wgettime",
+      "summary": "This command retrieves the collected timing statistics of the loaded writer plugin after it was executed."
+    },
+    {
+      "name": "page::pluginmgr::whelp",
+      "summary": "This command retrieves the help string of the loaded writer plugin."
+    },
+    {
+      "name": "page::pluginmgr::wlabel",
+      "summary": "This command retrieves the human-readable name of the loaded writer plugin."
+    },
+    {
+      "name": "page::pluginmgr::write",
+      "summary": "The loaded writer plugin is invoked to generate the output."
+    },
+    {
+      "name": "page::pluginmgr::writer",
+      "summary": "This command loads the named writer plugin and initializes it."
+    },
+    {
+      "name": "page::pluginmgr::wtime",
+      "summary": "This command activates the collection of timing statistics in the loaded writer plugin."
+    },
+    {
+      "name": "page::pluginmgr::wtimeable",
+      "summary": "This commands checks if the loaded writer plugin is able to measure execution times."
+    },
+    {
+      "name": "page::util::flow",
+      "summary": "This command contains the core logic to drive the walking of an arbitrary data structure which can partitioned in"
+    },
+    {
+      "name": "page::util::norm::lemon",
+      "summary": "This command assumes the tree object contains for a lemon grammar."
+    },
+    {
+      "name": "page::util::norm::peg",
+      "summary": "This command assumes the tree object contains for a parsing expression grammar."
+    },
+    {
+      "name": "page::util::peg::flatten",
+      "summary": "This commands flattens nested sequence and choice operators in the AST tree, re-using the treeql object treequery"
+    },
+    {
+      "name": "page::util::peg::getWarnings",
+      "summary": "This command looks at the attributes of the AST tree for problems with the grammar and issues warnings."
+    },
+    {
+      "name": "page::util::peg::peOf",
+      "summary": "This command converts the parsing expression starting at the node eroot in the AST tree into a nested list."
+    },
+    {
+      "name": "page::util::peg::printTclExpr",
+      "summary": "This command converts the parsing expression contained in the nested list pe into a Tcl string which can be place"
+    },
+    {
+      "name": "page::util::peg::printWarnings",
+      "summary": "The argument of the command is a dictionary mapping nonterminal names to their associated warnings, as generated "
+    },
+    {
+      "name": "page::util::peg::symbolNodeOf",
+      "summary": "Given an arbitrary expression node in the AST tree it determines the node (itself or an ancestor) containing the "
+    },
+    {
+      "name": "page::util::peg::symbolOf",
+      "summary": "As ::page::util::peg::symbolNodeOf, but returns the symbol name instead of the node."
+    },
+    {
+      "name": "page::util::peg::updateUndefinedDueRemoval",
+      "summary": "The removal of nodes in the AST tree can cause symbols to lose one or more users."
+    },
+    {
+      "name": "page::util::quote::unquote",
+      "summary": "A character, as stored in an abstract syntax tree by a PEG processor (See the packages grammar::peg::interpreter,"
+    },
+    {
       "name": "panedwindow",
       "summary": "Create and manipulate a panedwindow widget.",
       "subcommands": [
@@ -3980,6 +6352,10 @@
     {
       "name": "parray",
       "summary": "Print an array's keys and values"
+    },
+    {
+      "name": "picoirc::post",
+      "summary": "This should be called to process user input and send it to the server."
     },
     {
       "name": "pid",
@@ -4176,6 +6552,38 @@
       "summary": "Create a Tcl procedure."
     },
     {
+      "name": "processman::find_exe",
+      "summary": "Locate an executable by the name of name in the system path."
+    },
+    {
+      "name": "processman::kill",
+      "summary": "Kill a child process id."
+    },
+    {
+      "name": "processman::kill_all",
+      "summary": "Kill all processes spawned by this program."
+    },
+    {
+      "name": "processman::killexe",
+      "summary": "Kill a process identified by the executable."
+    },
+    {
+      "name": "processman::onexit",
+      "summary": "Arrange to execute the script cmd when this programe detects that process id as terminated."
+    },
+    {
+      "name": "processman::priority",
+      "summary": "Mark process id with the priorty level."
+    },
+    {
+      "name": "processman::process_list",
+      "summary": "Return a list of processes that have been triggered by this program, as well as a boolean flag to indicate if the"
+    },
+    {
+      "name": "processman::spawn",
+      "summary": "Start a child process, identified by id."
+    },
+    {
       "name": "profiler::dump",
       "summary": "Dump profiling information for the all functions matching pattern."
     },
@@ -4202,6 +6610,22 @@
     {
       "name": "profiler::suspend",
       "summary": "Suspend profiling for all functions matching pattern."
+    },
+    {
+      "name": "pt::peg::export",
+      "summary": "This command creates a new export manager object with an associated Tcl command whose name is objectName."
+    },
+    {
+      "name": "pt::peg::import",
+      "summary": "This command creates a new import manager object with an associated Tcl command whose name is objectName."
+    },
+    {
+      "name": "pt::peg::interp",
+      "summary": "The command creates a new parser object and returns the fully qualified name of the object command as its result."
+    },
+    {
+      "name": "pt::rde",
+      "summary": "The command creates a new runtime object for a recursive descent parser with backtracking and returns the fully q"
     },
     {
       "name": "puts",
@@ -4311,6 +6735,26 @@
     {
       "name": "rename",
       "summary": "Rename or delete a command"
+    },
+    {
+      "name": "report::defstyle",
+      "summary": "Defines the new style styleName."
+    },
+    {
+      "name": "report::rmstyle",
+      "summary": "Deletes the style styleName."
+    },
+    {
+      "name": "report::stylearguments",
+      "summary": "This introspection command returns the list of arguments associated with the style styleName."
+    },
+    {
+      "name": "report::stylebody",
+      "summary": "This introspection command returns the script associated with the style styleName."
+    },
+    {
+      "name": "report::styles",
+      "summary": "This introspection command returns a list containing the names of all styles known to the package at the time of "
     },
     {
       "name": "rest::create_interface",
@@ -4504,9 +6948,73 @@
       "summary": "Read or write a variable value."
     },
     {
+      "name": "sha1::HMACFinal",
+      "summary": "These commands are identical to the SHA1 equivalent commands."
+    },
+    {
+      "name": "sha1::HMACInit",
+      "summary": "This is equivalent to the ::sha1::SHA1Init command except that it requires the key that will be included in the H"
+    },
+    {
+      "name": "sha1::HMACUpdate",
+      "summary": "tcllib command."
+    },
+    {
+      "name": "sha1::SHA1Final",
+      "summary": "Returns the hash value and releases any resources held by this token."
+    },
+    {
+      "name": "sha1::SHA1Init",
+      "summary": "Begins a new SHA1 hash."
+    },
+    {
+      "name": "sha1::SHA1Update",
+      "summary": "Add data to the hash identified by token."
+    },
+    {
+      "name": "sha1::hmac",
+      "summary": "tcllib command."
+    },
+    {
       "name": "sha1::sha1",
       "summary": "Compute the SHA-1 hash of a string or file.",
       "pure": true
+    },
+    {
+      "name": "sha2::HMACFinal",
+      "summary": "These commands are identical to the SHA256 equivalent commands."
+    },
+    {
+      "name": "sha2::HMACInit",
+      "summary": "This is equivalent to the ::sha2::SHA256Init command except that it requires the key that will be included in the"
+    },
+    {
+      "name": "sha2::HMACUpdate",
+      "summary": "tcllib command."
+    },
+    {
+      "name": "sha2::SHA224Final",
+      "summary": "Returns the hash value and releases any resources held by this token."
+    },
+    {
+      "name": "sha2::SHA224Init",
+      "summary": "Begins a new SHA256/SHA224 hash."
+    },
+    {
+      "name": "sha2::SHA256Final",
+      "summary": "tcllib command."
+    },
+    {
+      "name": "sha2::SHA256Init",
+      "summary": "tcllib command."
+    },
+    {
+      "name": "sha2::SHA256Update",
+      "summary": "Add data to the hash identified by token."
+    },
+    {
+      "name": "sha2::hmac",
+      "summary": "tcllib command."
     },
     {
       "name": "sha2::sha256",
@@ -4514,8 +7022,136 @@
       "pure": true
     },
     {
+      "name": "simulation::annealing::findCombinatorialMinimum",
+      "summary": "Find the minimum of a function of discrete variables using simulated annealing."
+    },
+    {
+      "name": "simulation::annealing::findMinimum",
+      "summary": "Find the minimum of a function using simulated annealing."
+    },
+    {
+      "name": "simulation::annealing::getOption",
+      "summary": "Get the value of an option given as part of the findMinimum command."
+    },
+    {
+      "name": "simulation::annealing::hasOption",
+      "summary": "Returns 1 if the option is available, 0 if not."
+    },
+    {
+      "name": "simulation::annealing::setOption",
+      "summary": "Set the value of the given option."
+    },
+    {
+      "name": "simulation::montecarlo::getExpResult",
+      "summary": "Get the results of the entire experiment (typically used in the final phase or even after completion of the singl"
+    },
+    {
+      "name": "simulation::montecarlo::getOption",
+      "summary": "Get the value of an option given as part of the singleExperiment command."
+    },
+    {
+      "name": "simulation::montecarlo::getTrialResults",
+      "summary": "Get the results of all individual trials for analysis (typically used in the final phase or after completion of t"
+    },
+    {
+      "name": "simulation::montecarlo::hasOption",
+      "summary": "Returns 1 if the option is available, 0 if not."
+    },
+    {
+      "name": "simulation::montecarlo::integral2D",
+      "summary": "Integrate a function over a two-dimensional region using a Monte Carlo approach."
+    },
+    {
+      "name": "simulation::montecarlo::setExpResult",
+      "summary": "Set the results of the entire experiment (typically used in the final phase)."
+    },
+    {
+      "name": "simulation::montecarlo::setOption",
+      "summary": "Set the value of the given option."
+    },
+    {
+      "name": "simulation::montecarlo::setTrialResult",
+      "summary": "Store the results of the trial for later analysis List of values to be stored."
+    },
+    {
+      "name": "simulation::montecarlo::singleExperiment",
+      "summary": "Iterate code over a number of trials and store the results."
+    },
+    {
+      "name": "simulation::montecarlo::transposeData",
+      "summary": "Interchange columns and rows of a list of lists and return the result."
+    },
+    {
+      "name": "simulation::random::prng_Ball",
+      "summary": "Create a command (PRNG) that generates (x,y,z)-coordinates for points uniformly spread within a ball of given rad"
+    },
+    {
+      "name": "simulation::random::prng_Bernoulli",
+      "summary": "Create a command (PRNG) that generates numbers with a Bernoulli distribution: the value is either 1 or 0, with a "
+    },
+    {
+      "name": "simulation::random::prng_Block",
+      "summary": "Create a command (PRNG) that generates (x,y,z)-coordinates for points uniformly spread over a block Length of the"
+    },
+    {
+      "name": "simulation::random::prng_Discrete",
+      "summary": "Create a command (PRNG) that generates numbers 0 to n-1 with equal probability."
+    },
+    {
+      "name": "simulation::random::prng_Disk",
+      "summary": "Create a command (PRNG) that generates (x,y)-coordinates for points uniformly spread over a disk of given radius."
+    },
+    {
+      "name": "simulation::random::prng_Exponential",
+      "summary": "Create a command (PRNG) that generates exponentially distributed numbers with a given minimum value and a given m"
+    },
+    {
+      "name": "simulation::random::prng_Gumbel",
+      "summary": "Create a command (PRNG) that generates numbers distributed according to Gumbel with a given minimum value and a g"
+    },
+    {
+      "name": "simulation::random::prng_Normal",
+      "summary": "Create a command (PRNG) that generates normally distributed numbers with a given mean value and a given standard "
+    },
+    {
+      "name": "simulation::random::prng_Pareto",
+      "summary": "Create a command (PRNG) that generates numbers distributed according to Pareto with a given minimum value and a g"
+    },
+    {
+      "name": "simulation::random::prng_Poisson",
+      "summary": "Create a command (PRNG) that generates numbers according to the Poisson distribution."
+    },
+    {
+      "name": "simulation::random::prng_Rectangle",
+      "summary": "Create a command (PRNG) that generates (x,y)-coordinates for points uniformly spread over a rectangle."
+    },
+    {
+      "name": "simulation::random::prng_Sphere",
+      "summary": "Create a command (PRNG) that generates (x,y,z)-coordinates for points uniformly spread over the surface of a sphe"
+    },
+    {
+      "name": "simulation::random::prng_SymmTriangular",
+      "summary": "Create a command (PRNG) that generates numbers distributed according to a symmetric triangle around the mean of m"
+    },
+    {
+      "name": "simulation::random::prng_Triangular",
+      "summary": "Create a command (PRNG) that generates triangularly distributed numbers between min and max."
+    },
+    {
+      "name": "simulation::random::prng_Uniform",
+      "summary": "Create a command (PRNG) that generates uniformly distributed numbers between min and max."
+    },
+    {
+      "name": "simulation::random::prng_chiSquared",
+      "summary": "Create a command (PRNG) that generates numbers distributed according to the chi-squared distribution with df degr"
+    },
+    {
       "name": "smtp::sendmessage",
       "summary": "Send an e-mail message via SMTP."
+    },
+    {
+      "name": "smtpd::stop",
+      "summary": "Halt the server and release the listening socket."
     },
     {
       "name": "snit::compile",
@@ -4750,6 +7386,10 @@
       "summary": "Create a tree object command."
     },
     {
+      "name": "struct::tree::prune",
+      "summary": "This command is provided outside of the tree methods, as it is not a tree method per se."
+    },
+    {
       "name": "subst",
       "summary": "Perform backslash, command, and variable substitutions."
     },
@@ -4824,6 +7464,14 @@
     {
       "name": "tcl::chan::cat",
       "summary": "This command creates the concatenation channel using all the provided channels, and returns its handle."
+    },
+    {
+      "name": "tcl::chan::core",
+      "summary": "This command creates a new channel core object with an associated global Tcl command whose name is objectName."
+    },
+    {
+      "name": "tcl::chan::events",
+      "summary": "This command creates a new channel event core object with an associated global Tcl command whose name is objectNa"
     },
     {
       "name": "tcl::chan::facade",
@@ -5052,6 +7700,10 @@
     {
       "name": "tcl::transform::base64",
       "summary": "This command creates a base64 transformation on top of the channel chan and returns its handle."
+    },
+    {
+      "name": "tcl::transform::core",
+      "summary": "This command creates a new transform core object with an associated global Tcl command whose name is objectName."
     },
     {
       "name": "tcl::transform::counter",
@@ -5303,8 +7955,48 @@
       "summary": "Return current access position for an open channel"
     },
     {
+      "name": "term::ansi::code::attr::names",
+      "summary": "This command is for introspection."
+    },
+    {
       "name": "term::ansi::code::const",
       "summary": "This command defines a procedure name which returns the control sequence code."
+    },
+    {
+      "name": "term::ansi::code::ctrl::clear",
+      "summary": "Clear screen."
+    },
+    {
+      "name": "term::ansi::code::ctrl::groff",
+      "summary": "Switch to regular characters."
+    },
+    {
+      "name": "term::ansi::code::ctrl::gron",
+      "summary": "Switch to character/box graphics."
+    },
+    {
+      "name": "term::ansi::code::ctrl::groptim",
+      "summary": "Optimize character graphics."
+    },
+    {
+      "name": "term::ansi::code::ctrl::init",
+      "summary": "Initialize default and alternate fonts to ASCII and box graphics."
+    },
+    {
+      "name": "term::ansi::code::ctrl::names",
+      "summary": "This command is for introspection."
+    },
+    {
+      "name": "term::ansi::code::ctrl::showat",
+      "summary": "Format the block of text for display at the specified location."
+    },
+    {
+      "name": "term::ansi::code::ctrl::skd",
+      "summary": "Set Key Definition."
+    },
+    {
+      "name": "term::ansi::code::ctrl::title",
+      "summary": "Set the terminal title."
     },
     {
       "name": "term::ansi::code::define",
@@ -5317,6 +8009,34 @@
     {
       "name": "term::ansi::code::escb",
       "summary": "This command returns the argument string, prefixed with a common ANSI escape sequence, 033[."
+    },
+    {
+      "name": "term::ansi::code::macros::frame",
+      "summary": "The paragraph of text contained in the string is padded with spaces at the right margin, after normalizing intern"
+    },
+    {
+      "name": "term::ansi::code::macros::menu",
+      "summary": "The description of a menu is converted into a formatted rectangular block of text, with the menu command characte"
+    },
+    {
+      "name": "term::ansi::code::macros::names",
+      "summary": "This command is for introspection."
+    },
+    {
+      "name": "term::ansi::ctrl::unix::columns",
+      "summary": "This command queries the terminal connected to the standard input for the number of columns available for display"
+    },
+    {
+      "name": "term::ansi::ctrl::unix::cooked",
+      "summary": "This command switches the standard input of the current process to cooked input mode."
+    },
+    {
+      "name": "term::ansi::ctrl::unix::raw",
+      "summary": "This command switches the standard input of the current process to raw input mode."
+    },
+    {
+      "name": "term::ansi::ctrl::unix::rows",
+      "summary": "This command queries the terminal connected to the standard input for the number of rows (aka lines) available fo"
     },
     {
       "name": "term::ansi::send::cat",
@@ -5469,6 +8189,14 @@
     {
       "name": "term::ansi::send::title",
       "summary": "Set the terminal title."
+    },
+    {
+      "name": "term::send::wr",
+      "summary": "This convenience command is like ::term::send::wrch, except that the destination channel is fixed to stdout."
+    },
+    {
+      "name": "term::send::wrch",
+      "summary": "Send the text str to the channel specified by the handle chan."
     },
     {
       "name": "testaccessproc",
@@ -5929,6 +8657,22 @@
       "summary": "Adjust a text block to a given line length."
     },
     {
+      "name": "textutil::adjust::getPredefined",
+      "summary": "Use this command to query the package for the full path name of the hyphenation file filename coming with the pac"
+    },
+    {
+      "name": "textutil::adjust::listPredefined",
+      "summary": "This command returns a list containing the names of the hyphenation files coming with this package."
+    },
+    {
+      "name": "textutil::adjust::readPatterns",
+      "summary": "Loads the internal storage for hyphenation patterns with the contents of the file filename."
+    },
+    {
+      "name": "textutil::adjust::undent",
+      "summary": "The command computes the common prefix for all lines in string consisting solely out of whitespace, removes this "
+    },
+    {
       "name": "textutil::blank",
       "summary": "Return a string of N spaces.",
       "pure": true
@@ -5949,6 +8693,10 @@
       "pure": true
     },
     {
+      "name": "textutil::expander",
+      "summary": "The command creates a new expander object with an associated Tcl command whose name is expanderName."
+    },
+    {
       "name": "textutil::indent",
       "summary": "Indent each line of text by a given prefix."
     },
@@ -5961,6 +8709,10 @@
       "name": "textutil::longestCommonPrefixList",
       "summary": "Find the longest common prefix of a list of strings.",
       "pure": true
+    },
+    {
+      "name": "textutil::patch::apply",
+      "summary": "Applies the patch (text of the path, not file) to the files in the basedirectory using the specified striplevel."
     },
     {
       "name": "textutil::repeat::blank",
@@ -5993,6 +8745,30 @@
       "pure": true
     },
     {
+      "name": "textutil::string::cap",
+      "summary": "Capitalizes the first character of string and returns the modified string."
+    },
+    {
+      "name": "textutil::string::capEachWord",
+      "summary": "Capitalizes the first character of word of the string and returns the modified string."
+    },
+    {
+      "name": "textutil::string::chop",
+      "summary": "A convenience command."
+    },
+    {
+      "name": "textutil::string::longestCommonPrefixList",
+      "summary": "tcllib command."
+    },
+    {
+      "name": "textutil::string::tail",
+      "summary": "A convenience command."
+    },
+    {
+      "name": "textutil::string::uncap",
+      "summary": "The complementary operation to ::textutil::string::cap."
+    },
+    {
       "name": "textutil::tabify",
       "summary": "Convert spaces to tabs.",
       "pure": true
@@ -6010,6 +8786,14 @@
     {
       "name": "textutil::trim",
       "summary": "Remove leading whitespace from each line of text."
+    },
+    {
+      "name": "textutil::trim::trimEmptyHeading",
+      "summary": "Looks for empty lines (including lines consisting of only whitespace) at the beginning of the string and removes "
+    },
+    {
+      "name": "textutil::trim::trimPrefix",
+      "summary": "Removes the prefix from the beginning of string and returns the result."
     },
     {
       "name": "textutil::trimEmptyHeading",
@@ -6405,6 +9189,10 @@
       "summary": "In this form the command returns a list containing the names of all tags which have events with commands bound to."
     },
     {
+      "name": "uevent::onidle",
+      "summary": "The command creates a new onidle object with an associated global Tcl command whose name is objectName."
+    },
+    {
       "name": "uevent::unbind",
       "summary": "This command releases the event binding represented by the token."
     },
@@ -6759,6 +9547,62 @@
     {
       "name": "yieldto",
       "summary": "Create and produce values from coroutines"
+    },
+    {
+      "name": "zipfile::decode::archive",
+      "summary": "This command decodes the last opened (and not yet closed) zip archive file."
+    },
+    {
+      "name": "zipfile::decode::close",
+      "summary": "This command releases all state associated with the last call of ::zipfile::decode::open."
+    },
+    {
+      "name": "zipfile::decode::comment",
+      "summary": "This command takes a dictionary describing the currently open zip archive file, as returned by ::zipfile::decode:"
+    },
+    {
+      "name": "zipfile::decode::content",
+      "summary": "This is a convenience command which decodes the specified zip archive file and returns the list of paths found in"
+    },
+    {
+      "name": "zipfile::decode::copyfile",
+      "summary": "This command takes a dictionary describing the currently open zip archive file, as returned by ::zipfile::decode:"
+    },
+    {
+      "name": "zipfile::decode::filecomment",
+      "summary": "This command takes a dictionary describing the currently open zip archive file, as returned by ::zipfile::decode:"
+    },
+    {
+      "name": "zipfile::decode::files",
+      "summary": "This command takes a dictionary describing the currently open zip archive file, as returned by ::zipfile::decode:"
+    },
+    {
+      "name": "zipfile::decode::filesize",
+      "summary": "This command takes a dictionary describing the currently open zip archive file, as returned by ::zipfile::decode:"
+    },
+    {
+      "name": "zipfile::decode::getfile",
+      "summary": "This command takes a dictionary describing the currently open zip archive file, as returned by ::zipfile::decode:"
+    },
+    {
+      "name": "zipfile::decode::hasfile",
+      "summary": "This command takes a dictionary describing the currently open zip archive file, as returned by ::zipfile::decode:"
+    },
+    {
+      "name": "zipfile::decode::iszip",
+      "summary": "This command takes the path of a presumed zip archive file and returns a boolean flag as the result of the comman"
+    },
+    {
+      "name": "zipfile::decode::open",
+      "summary": "This command takes the path of a zip archive file and prepares it for decoding."
+    },
+    {
+      "name": "zipfile::decode::unzip",
+      "summary": "This command takes a dictionary describing the currently open zip archive file, as returned by ::zipfile::decode:"
+    },
+    {
+      "name": "zipfile::decode::unzipfile",
+      "summary": "This is a convenience command which unpacks the specified zip archive file in the given destination directory dst"
     },
     {
       "name": "zlib",

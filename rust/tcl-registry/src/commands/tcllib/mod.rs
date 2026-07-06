@@ -246,8 +246,10 @@ mod ensembles;
 mod functional;
 mod image_pkgs;
 mod math_core;
+mod math_ext;
 mod md4;
 mod md5crypt;
+mod misc_ext;
 mod misc_pkgs;
 mod namespacex;
 mod otp;
@@ -560,6 +562,8 @@ fn crypto_encoding_specs() -> Vec<CommandSpec> {
     specs.extend(data_ext::specs());
     specs.extend(channels_docs::specs());
     specs.push(namespacex::spec());
+    specs.extend(math_ext::specs());
+    specs.extend(misc_ext::specs());
     specs
 }
 
