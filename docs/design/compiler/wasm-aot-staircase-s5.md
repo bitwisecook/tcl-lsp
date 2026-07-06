@@ -59,7 +59,7 @@ several scratch locals. Each such write today emits a
 - Modify: `compiler/codegen/wasm/_emitter/_core.py`
 - Modify: `compiler/ssa.py` if the convention needs
   formalising.
-- Modify: `runtime/zig/valtypes/tcl_obj.zig` if the leak-check
+- Modify: `runtime/rust/src/obj.rs` if the leak-check
   build needs a new counter.
 
 **Test plan**:

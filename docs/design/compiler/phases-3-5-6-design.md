@@ -147,13 +147,13 @@ therefore requires releasing the previous occupant's `TclObj` before the next
 live range reuses the slot, i.e. it is entangled with the runtime's memory
 management, not a drop-in `coalesce_slots()` remap. So the WASM wiring must
 insert release/retain at coalesced-slot boundaries and be validated against the
-WASM runtime (`zig build` + `make test-opt`) for leaks/use-after-free. The
+WASM runtime (`make runtime-rust-test` + `make test-opt`) for leaks/use-after-free. The
 opt-in **bytecode** mode is lower-risk (the VM owns locals, no manual
 refcounting) and is the recommended first wiring target.
 
 **Validation gate:** `tests/test_bytecode_identity.py` **must stay green**
 (default path untouched — the guardrail). New `optimise`-mode tests assert slot
-reduction; WASM runtime (`zig build`) + `make test-opt` confirm semantics.
+reduction; WASM runtime (`make runtime-rust-test`) + `make test-opt` confirm semantics.
 Explorer: slot allocation/interference in `asm`/`wasm` views.
 
 **Risk:** low for the default path (guardrail), medium for the WASM/opt path.

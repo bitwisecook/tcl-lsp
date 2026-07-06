@@ -683,7 +683,7 @@ pub fn classify_side_effects(
     if spec.traits.contains(Traits::PURE) {
         let effective_sub = args.first().map(String::as_str);
         let sub_is_mutator = effective_sub
-            .and_then(|s| spec.subcommand(s))
+            .and_then(|s| spec.resolve_subcommand(s))
             .is_some_and(|sc| sc.mutator);
         if !sub_is_mutator {
             let effects = dialect_side_effect_hints(registry, command, effective_sub, dialect)
@@ -717,7 +717,7 @@ pub fn classify_side_effects(
     // Without this the side-effect classifier treats every ensemble call as a
     // conservative unknown-write, which (e.g.) hides redundant `string length`
     // computations from GVN.
-    if let Some(sub) = args.first().and_then(|a| spec.subcommand(a))
+    if let Some(sub) = args.first().and_then(|a| spec.resolve_subcommand(a))
         && sub.pure
         && !sub.mutator
     {
@@ -1019,7 +1019,7 @@ fn dialect_side_effect_hints(
             continue;
         }
         if let Some(sub_name) = subcommand
-            && let Some(sub) = spec.subcommands.iter().find(|s| s.name == sub_name)
+            && let Some(sub) = spec.resolve_subcommand(sub_name)
             && !sub.side_effects.is_empty()
         {
             return Some(

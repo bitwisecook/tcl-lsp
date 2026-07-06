@@ -7165,13 +7165,16 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
+        let hover_dialect = tcl_registry::dialects::DialectSet::parse(&doc.dialect)
+            .unwrap_or(tcl_registry::dialects::DialectSet::ALL_TCL);
         let result = tokio::task::spawn_blocking(move || {
-            core_hover::hover(
+            core_hover::hover_with_dialect(
                 &doc.text,
                 pos.line,
                 pos.character,
                 &analysis,
                 Some(&registry),
+                hover_dialect,
             )
         })
         .await

@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
             summary: "Handle background errors",
             synopsis: &[],
             snippet: "",
-            source: "",
+            source: "Tcl man page bgerror.n",
             examples: "",
             return_value: "",
         }),

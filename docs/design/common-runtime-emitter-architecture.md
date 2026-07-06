@@ -7,7 +7,7 @@
 > space** — the bytecode (TCLVM) emitter, the WASM emitter, and the runtimes —
 > to fix the right split before code is written.
 >
-> **It deliberately does NOT touch the WASM emitter or the WASM/Zig runtime.**
+> **It deliberately does NOT touch the WASM emitter or the Rust WASM runtime.**
 > Those have had the most work and encode hard-won solutions; they stay the
 > behavioural **oracle**. The WASM side migrates onto these interfaces *later*,
 > guided by [§7 WASM migration steering](#7-wasm-migration-steering). The
@@ -19,9 +19,9 @@
 The repo already has a shared compiler frontend (lexer → green/red CST → IR →
 CFG → SSA → optimiser) feeding **two codegen backends** that live side by side
 (`compiler/codegen/bytecode/` and `compiler/codegen/wasm/`;
-[docs/design/compiler/codegen-module-map.md]) and **multiple runtimes** (the Zig
-WASM runtime `runtime/zig/`, its Rust port `runtime/rust/`, and the Python
-reference VM `tooling/vm/`). We are adding a native, idiomatic Rust **bytecode
+[docs/design/compiler/codegen-module-map.md]) and **multiple runtimes** (the Rust
+WASM runtime `runtime/rust/`, which replaced the retired Zig runtime, and the
+Python reference VM `tooling/vm/`). We are adding a native, idiomatic Rust **bytecode
 VM** that executes the TCLVM bytecode the Rust codegen already emits
 (`rust/tcl-compiler/src/codegen/`).
 
@@ -35,8 +35,8 @@ implementations" — is wrong, and the WASM work proves why. Two facts dominate:
    features (`info`, `trace`, `upvar`/`uplevel`, namespaces, coroutines,
    ensembles, `rename`/alias, child interps, `errorInfo`) are all *runtime
    state* concerns, not codegen concerns (evidence:
-   `runtime/zig/interp/tcl_ns.zig`, `tcl_frames.zig`, `tcl_var_trace.zig`,
-   `tcl_procs.zig`; [docs/design/runtime/namespace-tree.md],
+   `runtime/rust/src/namespace.rs`, `frame.rs`, `cmd_trace.rs`,
+   `cmd_proc.rs`; [docs/design/runtime/namespace-tree.md],
    [docs/design/runtime/proc-call-and-stack-traces.md],
    [docs/design/runtime/command-introspection.md],
    [docs/design/runtime/trace-implementation.md]).
@@ -77,10 +77,10 @@ Three layers, with their consumers:
    RUNTIME    │  Interface family B: RUNTIME STATE     │  state-mutation protocol
    (execute)  │  namespaces · frames/upvar · traces ·  │  + shared pure value logic
               │  command dispatch · catch/return · info│
-              │   ┌──────────┐ ┌──────────┐ ┌────────┐ │
-              │   │ TCLVM    │ │ Zig WASM │ │ rust   │ │  Python VM = reference
-              │   │ (new)    │ │ runtime  │ │ runtime│ │
-              │   └──────────┘ └──────────┘ └────────┘ │
+              │   ┌──────────┐ ┌──────────┐             │
+              │   │ TCLVM    │ │ Rust WASM│             │  Python VM = reference
+              │   │ (new)    │ │ runtime  │             │
+              │   └──────────┘ └──────────┘             │
               └───────────────────────────────────────┘
 ```
 
@@ -182,8 +182,8 @@ string ops. The VM implements `tcl-syntax`'s `ExprOps`-style traits over its
 
 ### 4b. Interp-state operations — share an interface (trait), not the storage
 
-Each is mutable per-interpreter state with backend-specific storage (Zig:
-open-addressed hash tables in linear memory with bit-tagged handles; Rust VM:
+Each is mutable per-interpreter state with backend-specific storage (the WASM
+runtime: open-addressed hash tables in linear memory with tagged handles; Rust VM:
 `HashMap`/arena). The *semantics* are shared; the *layout* is not.
 
 **This is not speculative — the shape already exists in `runtime/rust`.** That
@@ -222,7 +222,7 @@ Trait shapes (illustrative — many small role-traits over an associated
 `Value`, names/ids finalised in `tcl-runtime-api`):
 
 ```rust
-trait NamespaceSystem {              // runtime/zig/interp/tcl_ns.zig analogue
+trait NamespaceSystem {              // runtime/rust/src/namespace.rs analogue
     fn resolve_qualified(&self, cxt: NsId, name: &str) -> (NsId, /*simple*/ Range, Option<NsId>);
     fn find_command(&self, cxt: NsId, name: &str) -> Option<CommandId>;   // unqualified: cxt → path → root
     fn add_command(&mut self, ns: NsId, name: &str) -> CommandId;
@@ -230,7 +230,7 @@ trait NamespaceSystem {              // runtime/zig/interp/tcl_ns.zig analogue
     fn import(&mut self, dest: NsId, src: NsId, pat: &str);
     fn set_path(&mut self, ns: NsId, targets: &[NsId]);
 }
-trait FrameModel {                   // runtime/zig/interp/tcl_frames.zig analogue
+trait FrameModel {                   // runtime/rust/src/frame.rs analogue
     fn push(&mut self, ns: NsId) -> FrameId;
     fn pop(&mut self);
     fn local_get(&self, f: FrameId, name: &str) -> Option<Value>;
@@ -240,7 +240,7 @@ trait FrameModel {                   // runtime/zig/interp/tcl_frames.zig analog
     fn variable(&mut self, here: FrameId, ns_var: VarId, local: &str);
     // uplevel runs a body with varFramePtr != framePtr — the two-pointer duality
 }
-trait TraceManager {                 // runtime/zig/interp/tcl_var_trace.zig analogue
+trait TraceManager {                 // runtime/rust/src/cmd_trace.rs analogue
     fn add(&mut self, var_path: &str, ops: TraceOps, callback: Value);
     fn fire(&mut self, var_path: &str, op: TraceOp) -> Result<(), Error>;  // re-entrancy guarded
 }
@@ -251,7 +251,7 @@ trait Introspection {                // info: command-introspection.md
     fn commands(&self, cxt: NsId, pat: Option<&str>) -> Vec<Value>;  // walk cxt → path → root
     fn exists(&self, f: FrameId, name: &str) -> bool;
 }
-trait CommandDispatcher {            // runtime/zig/dispatch/tcl_dispatch.zig analogue
+trait CommandDispatcher {            // runtime/rust/src/interp.rs analogue
     fn dispatch(&mut self, cxt: NsId, name: &str, argv: &[Value]) -> Completion;
     // routes Command{compiled, interpreted-proc, alias, ensemble, coroutine, builtin}
 }
@@ -261,7 +261,7 @@ Plus the **catch/return model**: a `Completion{code, result, options}` with
 `Code{Ok,Error,Return,Break,Continue}`, return-options dict, and incremental
 `errorInfo`/`errorCode` accumulation on unwind
 ([docs/design/runtime/proc-call-and-stack-traces.md] §1.4–1.6;
-`runtime/zig/interp/tcl_catch.zig`, `runtime/rust/src/interp.rs::settle_return`).
+`runtime/rust/src/cmd_control.rs`, `runtime/rust/src/interp.rs::settle_return`).
 
 ### 4c. Why these force the VM to be a *reified-state* runtime
 
@@ -276,7 +276,7 @@ Direct consequences for the bytecode VM — it cannot be a string-stack machine:
   discard: interpreted-proc **bodies** (`info body`), **params** (`info args`/
   `default`), per-frame **argv** (`info level N`), and — for faithful
   `errorInfo`/`info frame` — a **CmdFrame** stack carrying command text + source
-  line. (The Zig runtime keeps proc bodies; `info level N`/`info frame` are
+  line. (The Rust runtime keeps proc bodies; `info level N`/`info frame` are
   *still gaps* there — see §8.)
 - **`trace`** means every variable write goes through a bottleneck that checks a
   trace registry; the VM's `local_set`/`global_set` must be those bottlenecks.
@@ -334,7 +334,7 @@ pub fn lrange_core<O: ValueOps>(ops: &mut O, list: &O::Value, from: &str, to: &s
 Faithful `errorInfo`, `info frame`, and `info level N` need a **CmdFrame stack
 distinct from the var-frame stack** — C Tcl's `framePtr`/`varFramePtr` split has
 a third axis: the *command* being evaluated, with its source text and line. This
-is a **gap in the Zig runtime today** (no CmdFrame stack; `info frame`/`info
+is a **gap in the Rust runtime today** (no CmdFrame stack; `info frame`/`info
 level N` unimplemented — [docs/design/runtime/command-introspection.md]). The VM
 is the natural place to lead it, because **the bytecode already carries the
 inputs**: `Instruction.source_line` and `Instruction.source_cmd_text`
@@ -356,13 +356,13 @@ struct CmdFrame {
 - `info level` reads the var-frame depth; `info level N` reads the retained
   **per-frame argv** (captured at proc entry); `info frame` reads the CmdFrame
   stack; `info body`/`info args`/`info default` read the retained `ProcDef`
-  (params + body source) — interpreted procs keep their body, exactly as the Zig
-  `Command` struct does (`OFF_BODY_OBJ`).
+  (params + body source) — interpreted procs keep their body, exactly as the Rust
+  runtime's `Command::Proc(Rc<ProcDef>)` does.
 - `errorInfo` accumulates on unwind by walking the CmdFrame stack and appending
   `"\n    while executing\n\"<cmd_text>\""` / `"    (procedure \"name\" line N)"`
   frames — `TclLogCommandInfo`/`MakeProcError` semantics
   ([docs/design/runtime/proc-call-and-stack-traces.md] §1.5–1.6).
-- This same `CmdFrame` design is what the Zig runtime would later adopt; the VM
+- This same `CmdFrame` design is what the Rust runtime would later adopt; the VM
   proving it out de-risks that.
 
 ### 4f. Return / catch / options — the completion model
@@ -406,9 +406,9 @@ depends only on the subset it needs:
 | `ValueOps` | `tcl-syntax` value shape | `from_str/int`, `as_str/int/bool`, list/dict/string ops, COW append/set | every command core (§4d); `tcl-cmd-core` is generic over it |
 | `VarStore` | `frame.rs` `Var`/`VarTable` | `get/set/unset/exists(frame,name[,elem])`, `array_*`, `link(upvar/global/variable)` | `set`/`incr`/`append`/`lappend`/`upvar`/`array`; the `*Stk` opcodes |
 | `Frames` | `frame.rs` `FrameStack` | `push(ns)`, `pop`, `current_level`, `active_level` (uplevel), `frame_ns`, `argv(level)` | proc call/return, `uplevel`, `info level` |
-| `Namespaces` | `namespace.rs` / `tcl_ns.zig` | `resolve_qualified`, `find_command`, `add_command`, `export/import`, `set_path`, `create`, `current` | command resolution, `namespace`, qualified names |
+| `Namespaces` | `namespace.rs` | `resolve_qualified`, `find_command`, `add_command`, `export/import`, `set_path`, `create`, `current` | command resolution, `namespace`, qualified names |
 | `Commands` | `interp.rs` `Command` | `define/rename/delete/lookup → Command{Builtin,Proc,Alias,Imported,Ensemble,Child}`, `dispatch(cxt,name,argv)->Completion` | `INVOKE_STK`, `proc`/`rename`/`interp alias`, ensembles |
-| `Traces` | `vars.rs` / `tcl_var_trace.zig` | `add/remove(var,ops,cb)`, `fire(var,op)` (re-entrancy-guarded) | the `VarStore` write/read/unset bottlenecks; `trace` |
+| `Traces` | `vars.rs` / `cmd_trace.rs` | `add/remove(var,ops,cb)`, `fire(var,op)` (re-entrancy-guarded) | the `VarStore` write/read/unset bottlenecks; `trace` |
 | `Introspect` | `cmd_info.rs` + §4e CmdFrame | `proc_body/args/default`, `level_argv`, `cmd_frames`, `commands(pat)`, `exists` | the `info` family |
 | `Completionʹ` | §4f | `set_result`, `return_options`, `accumulate_error_info`, code/level propagation | `catch`/`return`/`error`; `beginCatch`/`PUSH_*`/`returnImm` |
 
@@ -509,27 +509,27 @@ Concrete crate/module placement (Rust side; Python mirrors where relevant):
 | Runtime-state protocol | `NamespaceSystem`/`FrameModel`/`TraceManager`/`Introspection`/`CommandDispatcher`/`Completion` | `tcl-runtime-api` (new, design now / impl later) | **traits** (family B) |
 | VM engine | dispatch loop, exec stack, reified frames/ns/traces | `tcl-vm` (new) | backend-specific, implements family-B traits |
 | Value representation | `Rc<Obj>` dual-rep enum (VM) vs 24-byte ABI `Tcl_Obj` (WASM) | `tcl-vm` / `runtime/rust` | **NOT shared** (§1.2) |
-| Storage/ABI/host-bridge/asyncify | linear-memory layout, LEB128, tagged handles | `runtime/zig`, `runtime/rust` | **NOT shared** |
+| Storage/ABI/host-bridge/asyncify | linear-memory layout, LEB128, tagged handles | `runtime/rust` | **NOT shared** |
 
 Dependency diamond (mirrors the existing `tcl-syntax` leaf pattern):
 
 ```
 tcl-lexer ← tcl-syntax ← tcl-bytecode ← { tcl-compiler, tcl-vm }
                       ← tcl-cmd-core ← { tcl-vm, runtime/rust }      (M5)
-                      ← tcl-runtime-api ← { tcl-vm, runtime/rust }   (traits; Zig via FFI-shaped parity, not a literal impl)
+                      ← tcl-runtime-api ← { tcl-vm, runtime/rust }   (traits)
 ```
 
-`tcl-runtime-api` is the family-B trait crate. The Zig runtime does not *import*
-it (different language), but its public surface
-(`ns_find_command`/`frame_push`/`tcl_global_set`/…) is the **reference the trait
-mirrors**; parity is enforced by the existing command-parity gate, not by a
+`tcl-runtime-api` is the family-B trait crate, implemented directly by both
+`tcl-vm` and the Rust runtime (`runtime/rust`). The non-Rust participants — the
+Python WASM emitter and reference VM — do not *import* it; they converge by
+**parity of shape**, enforced by the existing command-parity gate, not by a
 shared link.
 
 ## 6b. Cross-language reality — concrete reuse is Rust-only
 
 A caveat that qualifies the entire split, and which the "shared interface"
 framing must not paper over: **the same-binary, concrete code reuse only spans
-the *Rust* implementations.** Two of the four runtime/emitter participants are
+the *Rust* implementations.** The one runtime/emitter participant that is
 not Rust today:
 
 - The **WASM emitter is Python** (`compiler/codegen/wasm/`). The Rust bytecode
@@ -540,27 +540,29 @@ not Rust today:
   (the `Backend` trait, the lifted driver) is **Rust-emitter-to-Rust-emitter**
   and only becomes real once/if the WASM emitter is ported to Rust (a large,
   separate effort, explicitly out of scope here — §7).
-- The **canonical WASM runtime is Zig** (`runtime/zig/`). It cannot implement
-  Rust `tcl-runtime-api` traits. It converges by **API parity** — the
-  command-parity gate (`scripts/check/wasm_command_parity.py`) and the C Tcl 9
-  test suite as the shared oracle — not by linking the trait crate.
 
-So the **trait/parity-not-link** story is symmetric across both families:
+The **canonical WASM runtime is now Rust** (`runtime/rust`, the port that
+superseded the retired Zig runtime), so — unlike the old Zig runtime, which could
+only converge by **API parity** (the command-parity gate
+`scripts/check/wasm_command_parity.py` + the C Tcl 9 suite as oracle) — it *does*
+implement `tcl-runtime-api` and shares concrete code via `tcl-cmd-core`; that
+convergence is the highest-value one below.
+
+So the **trait/parity-not-link** story is:
 
 | Participant | Language | Shares concrete code with VM? | Converges by |
 |-------------|----------|-------------------------------|--------------|
 | TCLVM bytecode emitter | Rust | n/a (it *is* the codegen the VM runs) | — |
 | `tcl-vm` (the VM) | Rust | — | — |
-| `runtime/rust` runtime | Rust | **yes** — `tcl-cmd-core` + `tcl-runtime-api` impls | shared crates |
+| `runtime/rust` WASM runtime | Rust | **yes** — `tcl-cmd-core` + `tcl-runtime-api` impls | shared crates |
 | WASM emitter | Python | no | parity of IR/registry shape |
-| Zig WASM runtime | Zig | no | API parity + C-suite oracle |
 
 Concretely, the **only pair that exchanges concrete Rust code** is `tcl-vm` ↔
 `runtime/rust` (via `tcl-cmd-core` value cores and the `tcl-runtime-api` traits).
 That is still the highest-value convergence — it is what lets a builtin be
-written once and run in both the native VM and the WASM runtime port — but the
-doc should not imply Python/Zig get it for free. They get *interface discipline*,
-not *implementation reuse*.
+written once and run in both the native VM and the WASM runtime — but the
+doc should not imply the Python emitter gets it for free. It gets *interface
+discipline*, not *implementation reuse*.
 
 ## 7. WASM migration steering
 
@@ -572,21 +574,22 @@ The migration path, for when we choose to converge them:
    VM) before touching WASM.
 2. **Introduce `tcl-cmd-core`** (§6, M5) and re-base the *Rust* WASM runtime
    (`runtime/rust`) command cores onto it first — same language, `Tcl_Obj` impl
-   of `ValueOps`. The Zig runtime stays as-is and as oracle.
+   of `ValueOps`. The C Tcl 9 test suite stays the behavioural oracle.
 3. **Extract the shared `cfg_walk` driver** only once both the bytecode and a
    *Rust* WASM emitter want it. The Python WASM emitter is migrated last, or
    left in place behind the same registry seam indefinitely.
 4. **Document the emitter↔runtime contract** (§5) as the stable surface; mark
-   the unstable surfaces (Zig handle layouts, frame-alias bit-tagging,
-   `Tcl_Obj` 24-byte layout) as explicitly *not* part of the shared interface.
-5. **Never regress** the compiler/LSP or the Zig runtime; the C Tcl 9 test suite
+   the unstable surfaces (the runtime's linear-memory handle layouts,
+   frame-alias bit-tagging, `Tcl_Obj` 24-byte layout) as explicitly *not* part of
+   the shared interface.
+5. **Never regress** the compiler/LSP or the Rust runtime; the C Tcl 9 test suite
    (`tmp/tcl9.0.3/tests/*.test`) stays the gold standard
    ([docs/design/runtime/rust-runtime-port.md]).
 
 ## 8. Longest poles / risks (call these out before building)
 
 - **`errorInfo`/`info frame`/`info level N`** need a **CmdFrame** stack (command
-  text + source line) and per-frame argv retention. The Zig runtime *doesn't yet
+  text + source line) and per-frame argv retention. The Rust runtime *doesn't yet
   have these*; the bytecode is already carrying `source_line`/`source_cmd_text`
   on `Instruction`, so the VM is actually well placed to lead here — but it is
   real work, not free.
@@ -594,8 +597,9 @@ The migration path, for when we choose to converge them:
   bytecode encodes catch via `BEGIN_CATCH4`/`END_CATCH` and loops via jump
   shape. The VM derives a range table at load (C1) for fidelity without an
   emitter change; byte-true parity (emitting the table, C2) is deferred.
-- **Coroutines** require saving/restoring the whole frame stack (Zig uses
-  asyncify); the VM would use native Rust control or an explicit
+- **Coroutines** require saving/restoring the whole frame stack (the recursive
+  `runtime/rust` uses OS worker threads + channel handoff — see §8b); the VM
+  would use native Rust control or an explicit
   continuation/segmented model — a parallel implementation, not shared.
 - **The value-model split is permanent** while C-extension interop is required
   (§1.2). Convergence is at the trait + pure-logic layer only.
@@ -618,8 +622,8 @@ tclExecute.c`). Evidence this matters: the *recursive* tree-walking
 `runtime/rust` cannot suspend mid-evaluation, so it implements `yield` with **OS
 worker threads + channel handoff** (`runtime/rust/src/cmd_coro.rs`: "yield must
 suspend execution arbitrarily deep in the recursive evaluator… rather than
-rewrite"), and the Zig runtime needs **asyncify** (wasm-opt call-stack
-save/restore, `runtime/zig/sched/tcl_coro.zig`). A bytecode VM whose activation
+rewrite"), and the former Zig runtime needed **asyncify** (wasm-opt call-stack
+save/restore) for the same reason. A bytecode VM whose activation
 stack *is data* needs neither. This is the **single biggest architectural reason
 to prefer a bytecode VM**, and it is free only if NRE is designed in from M2
 (proc calls), not retrofitted.

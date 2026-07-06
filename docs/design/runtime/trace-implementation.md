@@ -2,16 +2,16 @@
 
 ## Status
 
-`trace add variable …` is **implemented** in
-`runtime/zig/interp/tcl_var_trace.zig` (~854 LOC).  Variable traces
+`trace add variable …` is **implemented** in the Rust runtime's
+`runtime/rust/src/cmd_trace.rs`.  Variable traces
 fire on read, write, and unset for global scalars, global arrays,
 array elements, namespace variables, and proc-local variables (via a
-parallel per-frame chain rooted in `tcl_frames.zig`).
+parallel per-frame chain rooted in `frame.rs`).
 
 `trace add command …` and `trace add execution …` remain
 **no-ops** — they are accepted syntactically (so tcltest harnesses
 load) but silently drop the callback.  See
-`runtime/zig/interp/tcl_trace.zig` (header comment) for the
+`runtime/rust/src/cmd_trace.rs` (header comment) for the
 canonical statement of their deferred status.
 
 The remaining gaps are tracked here because they are independent
@@ -34,13 +34,14 @@ The runtime touches vars through three layers:
    the trace-fire on those bottlenecks would cover compiled and
    eval-fallback paths together.
 3. **Eval-fallback writes.**  `tcl_eval` routes every interpreter-
-   side `set` through `tcl_cmd_set` in `runtime/zig/cmds/var.zig`.
+   side `set` through the `set` implementation in
+   `runtime/rust/src/cmd_var.rs`.
    Traces installed on a var must fire there too.
 
 ## Trace storage
 
-Each `Var` (in `tcl_ns.zig`) and each array bucket (in
-`tcl_array.zig`) needs an optional pointer to a TraceList struct:
+Each `Var` and each array element (both modelled by the `Var` type
+in `frame.rs`) needs an optional pointer to a TraceList struct:
 
 ```
 TraceList:

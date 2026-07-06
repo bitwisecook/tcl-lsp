@@ -26,6 +26,32 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "unset ?-nocomplain? ?--? ?name name name ...?",
 }];
 
+/// `unset ?-nocomplain? ?--? ?name name name ...?` — every trailing word is a
+/// variable name, not just the first.  Resolve `VarWrite` dynamically (skipping
+/// the leading options, mirroring `lower_unset`) so all names highlight as
+/// variables rather than only the first (issue #774).
+///
+/// `unset` recognises exactly two options: `-nocomplain` (skippable, repeatable)
+/// and `--` (terminator).  Any *other* leading word — including one that begins
+/// with `-`, such as `unset -foo bar` — is a real variable name, not an option
+/// (verified against tclsh 8.6/9.0); it must keep its `VarWrite` role.
+fn unset_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    let mut i = 0;
+    while i < args.len() {
+        match args[i] {
+            "-nocomplain" => i += 1,
+            "--" => {
+                i += 1;
+                break;
+            }
+            _ => break,
+        }
+    }
+    (i..args.len())
+        .filter_map(|j| u8::try_from(j).ok().map(|j| (j, ArgRole::VarWrite)))
+        .collect()
+}
+
 /// Command spec for `unset`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -34,8 +60,12 @@ pub fn spec() -> CommandSpec {
             | Traits::BYTE_COMPILED
             | Traits::DESTROYS_VARIABLE
             | Traits::FIRST_ARG_VARNAME,
-        arity: Arity::at_least(1),
-        arg_roles: &[(0, ArgRole::VarWrite)],
+        // Names are optional: tclsh 8.5+ accepts `unset`, `unset -nocomplain`,
+        // and `unset --` as valid no-ops (the `-nocomplain` option was added in
+        // 8.5).  The "consumed all args, unset nothing" footgun is surfaced by
+        // W217, not an arity error.
+        arity: Arity::at_least(0),
+        arg_role_resolver: Some(unset_arg_roles),
         assigns_variable_at: Some(0),
         return_type: Some(TclType::String),
         options: const { &[

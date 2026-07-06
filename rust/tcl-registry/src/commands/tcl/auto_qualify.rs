@@ -28,7 +28,7 @@ pub fn spec() -> CommandSpec {
             summary: "Compute fully-qualified names for auto-loading",
             synopsis: &[],
             snippet: "",
-            source: "",
+            source: "Tcl man page library.n",
             examples: "",
             return_value: "",
         }),

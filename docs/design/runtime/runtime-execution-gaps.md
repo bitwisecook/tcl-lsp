@@ -38,9 +38,6 @@ parity, bottom-up. These are the *plan* documents (the trackers above are the
 - **The `tcltest` bring-up plan:** [`tcltest-bringup.md`](tcltest-bringup.md) —
   running the unmodified pure-Tcl standard library and real C Tcl 9 `*.test`
   files on `runtime/rust` by porting the C command surface the library assumes.
-- **The Zig-runtime roadmap:** [`zig-runtime-roadmap.md`](zig-runtime-roadmap.md)
-  — the residual Zig WASM-runtime phases (the WASM link target the emitted
-  modules run against).
 
 Status legend: ✅ done · 🟢 done bar listed residuals · 🟡 partial · 🔴 not started.
 
@@ -63,7 +60,7 @@ no in the bytecode VM + WASM path*.
 
 ## 1. RT-WASM — WASM codegen + runtime 🟡 (largest single gap)
 
-Owns `tcl-compiler::codegen::wasm`, `runtime/zig`, and a new `tcl-wasm` bin.
+Owns `tcl-compiler::codegen::wasm`, `runtime/rust`, and a new `tcl-wasm` bin.
 The eval-fallback emitter and `tcl compwasm` wiring have landed (binary/WAT
 output, `wasmtime`-validated). **Scale of the gap:** the Rust emitter is ~1.5 K
 LOC across 4 files (`codegen/wasm/{backend,encoding,ir,mod}.rs`); the Python
@@ -166,8 +163,8 @@ fix unlocks it). The structural gaps behind the scoreboard:
 
 ## 3. `runtime/rust` — tree-walking runtime port 🟡 (off-workspace)
 
-`runtime/rust/` is the standalone Rust port of the Zig WASM runtime (the
-`runtime/zig/` tree), kept out of `cargo test --workspace` (it needs raw-pointer
+`runtime/rust/` is the standalone Rust port of the former Zig WASM runtime,
+kept out of `cargo test --workspace` (it needs raw-pointer
 `unsafe` over shared linear memory) and gated via `make runtime-rust-test`. It is
 the eventual in-process tree-walking interpreter and the wasm32 runtime the
 emitted modules link against. Per [`rust-runtime-port.md`](rust-runtime-port.md),

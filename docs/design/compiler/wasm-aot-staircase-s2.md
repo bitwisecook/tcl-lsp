@@ -417,10 +417,10 @@ overflowing the wasm-time cap.
 
 **Files**:
 
-- Modify: `runtime/zig/valtypes/tcl_obj.zig` (new helper)
-- Modify: `runtime/zig/valtypes/tcl_list.zig` (mutate-in-place
+- Modify: `runtime/rust/src/obj.rs` (new helper)
+- Modify: `runtime/rust/src/list.rs` (mutate-in-place
   variant of `tcl_cmd_lappend`)
-- Modify: `runtime/zig/valtypes/tcl_string.zig` (similar for
+- Modify: `runtime/rust/src/cmd_string.rs` (similar for
   `tcl_cmd_append`)
 - Modify: `compiler/codegen/wasm/_emitter/cmds/lappend_.py`,
   `append_.py`, `dict_.py` to use the new variant when the slot
@@ -458,8 +458,7 @@ land the two trap-cluster fixes that have been blocked because
 they were net-negative under today's broken discipline:
 
 - `llength` unbalanced-brace error path
-  (`runtime/zig/valtypes/tcl_list_parse.zig` +
-  `runtime/zig/valtypes/tcl_list.zig`).
+  (`runtime/rust/src/list.rs`).
 - Namespace-aware `_emit_re_register_proc` 
   (`compiler/codegen/wasm/_emitter/_statements.py`).
 
@@ -493,8 +492,7 @@ their downstream impact is bounded.
 
 **Files**:
 
-- Modify: `runtime/zig/valtypes/tcl_list_parse.zig`,
-  `runtime/zig/valtypes/tcl_list.zig`
+- Modify: `runtime/rust/src/list.rs`
 - Modify: `compiler/codegen/wasm/_emitter/_statements.py`
 
 **Test plan**:

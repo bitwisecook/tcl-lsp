@@ -29,7 +29,7 @@ we can't tell a fast-path safety violation from a real refcount bug.
 
 **Tasks**:
 
-- [ ] Walk every `pub export fn` in `runtime/zig/` and classify each by:
+- [ ] Walk every `#[no_mangle] extern "C"` export in `runtime/rust/src/` and classify each by:
   - **Args**: `borrowed` (caller still owns), `consumed` (callee took the
     +1), `passthrough_returned` (returned verbatim).
   - **Return**: `owned` (caller gets +1), `borrowed` (caller does not own),
@@ -41,25 +41,25 @@ we can't tell a fast-path safety violation from a real refcount bug.
   flag it: needs a "sole owner" predicate that does not depend on raw rc
   once compile-side discipline lands.
 - [ ] Cross-reference each `tcl_obj_retain` and `tcl_obj_release` site in
-  `runtime/zig/` to the contract entry that justifies it.
+  `runtime/rust/src/` to the contract entry that justifies it.
 - [ ] Add a CI lint script `scripts/check/refcount_contract.py` that
-  warns when a new `pub export fn` is added without a contract row.
+  warns when a new `#[no_mangle] extern "C"` export is added without a contract row.
 
 **Files**:
 
 - New: `docs/design/runtime/refcount-contract.md`
 - New: `scripts/check/refcount_contract.py`
-- Reference (read-only): `runtime/zig/**/*.zig`
+- Reference (read-only): `runtime/rust/src/**/*.rs`
 
 **Test plan**: This is documentation; the test is the lint script
 asserting every export has a contract row. CI runs it on every PR
-touching `runtime/zig/`.
+touching `runtime/rust/`.
 
 **Rollback**: Documentation is risk-free; no runtime change. Lint script
 is warning-only initially, escalates to error after every existing
 export has a row.
 
-**Acceptance gate**: Every existing `pub export fn` in `runtime/zig/`
+**Acceptance gate**: Every existing `#[no_mangle] extern "C"` export in `runtime/rust/src/`
 has exactly one contract row. CI lint passes.
 
 **Estimated size**: 1 commit (large, mechanical). Maybe 2 if the lint
@@ -69,8 +69,8 @@ script is split out.
 
 ### S0.2 — Debug-mode leak counter (MM-C)
 
-**Goal**: A `-Dleak-check=true` zig build flag that wraps every
-`obj_alloc` / `release_now` with a global counter. Reactor exit asserts
+**Goal**: A `leak-check` Cargo feature (`cargo build --features leak-check`)
+that wraps every `obj_alloc` / `release_now` with a global counter. Reactor exit asserts
 the counter is zero. Non-zero count prints the type-tag distribution
 of the leaked objs.
 
@@ -80,9 +80,9 @@ for refcount bugs is "test failed mysteriously hours later".
 
 **Tasks**:
 
-- [ ] Add `runtime/zig/build.zig` flag: `b.option(bool, "leak-check", ...)`
-  threaded into a `build_options` import.
-- [ ] Inside `runtime/zig/valtypes/tcl_obj.zig`:
+- [ ] Add a `leak-check` feature to `runtime/rust/Cargo.toml`, gated in
+  code via `#[cfg(feature = "leak-check")]`.
+- [ ] Inside `runtime/rust/src/obj.rs`:
   - When flag is on: `obj_alloc` increments `g_alloc_count[type_tag]`;
     `release_now` decrements.
   - When flag is on: add `tcl_test_finalize` export that asserts all
@@ -94,12 +94,12 @@ for refcount bugs is "test failed mysteriously hours later".
 - [ ] Test harness change: `_run_wasm` calls `tcl_test_finalize` on
   clean exit when the leak-check binary is loaded.
 - [ ] New build profile: `make build-leakcheck` that produces
-  `runtime/zig/zig-out/bin/tcl_runtime_leakcheck.wasm` alongside the
+  `tcl_runtime_leakcheck.wasm` under `runtime/rust/target/` alongside the
   normal build (tests opt in via env var).
 
 **Files**:
 
-- Modify: `runtime/zig/build.zig`, `runtime/zig/valtypes/tcl_obj.zig`
+- Modify: `runtime/rust/Cargo.toml`, `runtime/rust/src/obj.rs`
 - Modify: `tests/test_wasm_real_tcl.py` (`_get_rt_module` switches
   based on env var)
 - Modify: `Makefile` (new `build-leakcheck` target)
@@ -168,7 +168,7 @@ did not trip the bug. Without a repro every fix is a guess.
 **Files**:
 
 - New: `tests/test_wasm_refcount_canonical.py`
-- Optional: small Zig test-instrument flag (`release-aggressively`)
+- Optional: small Rust test-instrument flag (`release-aggressively`)
   that forces "release after every command dispatch" — only needed
   if natural execution does not trip it.
 

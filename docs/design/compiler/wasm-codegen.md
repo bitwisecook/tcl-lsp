@@ -25,7 +25,7 @@ under this call.
 
 `_scan.py::_scan_needed_imports()` walks the full IR tree once —
 every `IRCall`, embedded `[cmd]` substitution, `expr` operator, and
-statement-level side effect — and accumulates the set of Zig runtime
+statement-level side effect — and accumulates the set of runtime
 imports the emitter will need (`tcl_puts`, `tcl_list_index`, `tcl_arith_add`,
 …).  This is a read-only pass; no code emitted yet.
 
@@ -148,7 +148,7 @@ Each file:
 
 ## Runtime interop contract
 
-Each spec that maps to a Zig runtime import declares a
+Each spec that maps to a runtime import declares a
 `WasmRuntimeImport(import_key, argc, nontrapping, module, export_name,
 params, results)` on its `CommandSpec.wasm_runtime_import` field (or
 on the parent's `SubCommand.wasm_runtime_import` for sub-command
@@ -158,15 +158,15 @@ dispatchers).  The fields:
 |---|---|
 | `import_key` | Internal name used by the compiler to refer to the import (e.g. `"tcl_puts"`) |
 | `argc` | Fixed argument count, or `None` for variadic |
-| `nontrapping` | When `True`, skip the `tcl_diag_set` preamble (Zig side is total) |
+| `nontrapping` | When `True`, skip the `tcl_diag_set` preamble (runtime side is total) |
 | `module` | WASM import module (typically `"tcl"`) |
-| `export_name` | Zig-exported symbol (defaults to `tcl_cmd_<key[4:]>`) |
+| `export_name` | Runtime-exported symbol (defaults to `tcl_cmd_<key[4:]>`) |
 | `params` | WASM value types — `("i32",)`, `("i64", "i32")`, etc. |
 | `results` | WASM result types (`()` for void) |
 
 The CI parity gate (`make check-wasm-parity`) cross-verifies every
-CommandSpec's arity + subcommand arity against the Zig side's
-`CmdEntry` / `SubEntry` arity fields.  Drift is impossible to merge.
+CommandSpec's arity + subcommand arity against the runtime's
+command-table arity fields.  Drift is impossible to merge.
 
 ## Reference map
 

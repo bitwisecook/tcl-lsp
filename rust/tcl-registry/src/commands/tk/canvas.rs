@@ -480,6 +480,14 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         min_version: None,
     },
+    OptionSpec {
+        name: "-state",
+        value: OptionValue::value("stateSpec"),
+        detail: "Modifies the default state of the canvas where state may be set to one of: normal, disabled, or hidden.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {

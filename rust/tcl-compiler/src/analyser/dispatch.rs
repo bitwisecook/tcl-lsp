@@ -61,6 +61,38 @@ pub struct SubcommandSig {
     pub allow_unknown: bool,
 }
 
+impl SubcommandSig {
+    /// Resolve a subcommand word to its canonical [`CommandSig`], accepting a
+    /// unique non-empty prefix the way Tcl's `Tcl_GetIndexFromObj` ensemble
+    /// dispatch does (`string le` ⇒ `length`). An exact match wins; an
+    /// ambiguous prefix resolves to `None`. Only the dialect-available
+    /// subcommands are in the map, so prefix resolution is dialect-correct.
+    #[must_use]
+    pub fn resolve(&self, word: &str) -> Option<&CommandSig> {
+        if word.is_empty() {
+            return None;
+        }
+        if let Some(exact) = self.subcommands.get(word) {
+            return Some(exact);
+        }
+        let mut hits = self
+            .subcommands
+            .iter()
+            .filter(|(name, _)| name.starts_with(word));
+        let (_, first) = hits.next()?;
+        if hits.next().is_some() {
+            return None; // ambiguous prefix
+        }
+        Some(first)
+    }
+
+    /// Whether `word` resolves to a known subcommand (exact or unique prefix).
+    #[must_use]
+    pub fn is_known(&self, word: &str) -> bool {
+        self.resolve(word).is_some()
+    }
+}
+
 /// What ``signature_for_command`` returned.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CommandSignature {

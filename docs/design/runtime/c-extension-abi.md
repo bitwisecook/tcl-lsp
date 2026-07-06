@@ -7,8 +7,7 @@ dynamic side-module load, and a six-extension compile-check, all green). This
 document is the durable contract those spikes stand in for — **do not derive
 the shape from the spike code**; derive it from here.
 
-Companion docs: [`zig-runtime-roadmap.md`](zig-runtime-roadmap.md),
-[`memory-management.md`](memory-management.md),
+Companion docs: [`memory-management.md`](memory-management.md),
 [`refcount-contract.md`](refcount-contract.md),
 [`../compiler/wasm-runtime-primitives.md`](../compiler/wasm-runtime-primitives.md).
 
@@ -156,8 +155,8 @@ load-time-registered command can be resolved.
 
 ### 5.1 Model A — whole-program static link
 
-Compile the extension `.c` to a WASM object with `zig cc`/`clang`; link it with
-the runtime's objects via `wasm-ld` into a single module. Same model as
+Compile the extension `.c` to a WASM object with clang + wasi-sdk (or `zig cc`);
+link it with the runtime's objects via `wasm-ld` into a single module. Same model as
 `core/compiler/codegen/wasm_link.py`'s whole-program link. Simplest deployment;
 proves API compatibility, Rust↔C wasm interop, and the §4.5 callback. Validated
 by `runtime/rust-spike/static-link/`.
@@ -195,20 +194,22 @@ built `--experimental-pic -shared --import-memory --import-table`.
 
 Model A suits "bake these extensions into one artifact" (CI images, fixed
 deployments). Model B is required for true `package require` at runtime. Both
-are language-agnostic; the runtime being Rust vs Zig does not change either.
+are language-agnostic; they are independent of the runtime's implementation language.
 
 ### 5.4 The libc question
 
 `pkga.c` uses no libc, but most real extensions do (`snprintf`, `<string.h>`,
 `malloc`). Two coherent options, both compatible with §4.4:
 
-- **Compile with `zig cc`** (bundled wasi-libc) — what the spikes use. The
-  authored `tcl.h` `#include`s `<stdio.h>`/`<string.h>` like the real header,
-  and libc-using extensions compile with no separate sysroot. `malloc`/`free`
+- **Compile with clang + a WASI sysroot (wasi-sdk)** — the project standard
+  (what `runtime/rust/build.rs` uses for the libtommath tower). The authored
+  `tcl.h` `#include`s `<stdio.h>`/`<string.h>` like the real header, and
+  libc-using extensions compile against the wasi-sdk sysroot. `malloc`/`free`
   used internally by an extension resolve to wasi-libc; for memory that crosses
   the boundary, the extension must use `Tcl_Alloc` (which is the runtime's
   allocator) — this is already the Tcl convention.
-- **clang + a wasi sysroot** (wasi-sdk) — equivalent, more setup.
+- **`zig cc`** (clang + bundled wasi-libc, no separate sysroot) — an equivalent
+  the original spikes used; works wherever a Zig toolchain is already present.
 
 A production runtime should additionally route `Tcl_Alloc`/`ckalloc` to its own
 allocator so all boundary-crossing memory is single-owner.
@@ -259,11 +260,11 @@ library**, never the Tcl API.
 
 ## 8. Toolchain
 
-- **C compiler:** `zig cc` (clang + bundled wasi-libc) is the recommended
-  hybrid — a hermetic C→wasm cross-compiler with libc, independent of the
-  runtime's language. Plain `clang` works with a wasi sysroot. (`zig cc` *is*
-  clang underneath, which is why the runtime's language never gates extension
-  compilation.)
+- **C compiler:** clang + a WASI sysroot (wasi-sdk) is the project standard —
+  a hermetic C→wasm cross-compiler with libc, independent of the runtime's
+  language (`runtime/rust/build.rs` uses it for the libtommath tower). `zig cc`
+  is an equivalent (it *is* clang + bundled wasi-libc underneath), which is why
+  the runtime's language never gates extension compilation.
 - **Linker:** `wasm-ld`. Main module: `--export-table --growable-table`
   (+ exported `memory`). Side module: `--experimental-pic -shared --no-entry
   --import-memory --import-table`.
@@ -271,30 +272,31 @@ library**, never the Tcl API.
   The spike loader is Python + `wasmtime`; production would put the loader in
   the runtime itself.
 
-## 9. Runtime-language analysis (Rust vs Zig)
+## 9. Runtime-language analysis (Rust, ported from Zig)
 
-The mechanism is language-agnostic. What changes if the runtime is Rust:
+The mechanism is language-agnostic. The runtime is now Rust, ported from the
+former Zig implementation; what the language choice changed:
 
 | Concern | Rust | Zig |
 |---|---|---|
 | Export C ABI symbols | `#[no_mangle] extern "C"` | `export fn` |
 | `Tcl_Obj` layout | `#[repr(C)]` | `extern struct` |
 | Consume `tcl.h` for self-consistency | `bindgen` (build step) | `@cImport` (native) |
-| Compile the extension's C | external `zig cc`/clang | bundled `zig cc` |
+| Compile the extension's C | external clang + wasi-sdk (or `zig cc`) | bundled `zig cc` |
 | Safety in the obj/memory layer | partial — raw-pointer `unsafe` over shared memory | manual |
 
 Net: Rust is fully **capable**; it costs *ergonomics* (`bindgen` vs `@cImport`,
-bring-your-own `zig cc`), not capability. Rust's safety benefit is real for the
+external clang + wasi-sdk vs a bundled compiler), not capability. Rust's safety benefit is real for the
 pure-logic halves and partial in the `Tcl_Obj`/shared-memory layer, which is
 inherently `unsafe`.
 
 ## 10. The regex engine is the first C library
 
 Tcl's Henry Spencer ARE engine is already C, already compiled into the runtime
-(`runtime/zig/vendor/tcl-regex/`). Once "compile C against the runtime" exists,
+(the vendored `tcl-regex` engine). Once "compile C against the runtime" exists,
 the regex engine *is* the first such C library — keeping it gives bit-for-bit
 ARE fidelity (backreferences + lookahead + POSIX leftmost-longest, which no
-pure-Rust crate matches) under either runtime language. Its small locale shim is
+pure-Rust crate matches) in the Rust runtime. Its small locale shim is
 a *runtime-internal* C component, not a user extension, so it is exempt from the
 "no per-extension shim" rule.
 

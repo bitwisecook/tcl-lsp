@@ -231,6 +231,35 @@ mod yaml__setoptions;
 mod yaml__yaml2dict;
 mod yaml__yaml2huddle;
 
+// Grouped crypto / hash / checksum / encoding packages (one module per
+// package family, each exposing a `specs()` builder).
+mod base32;
+mod channels_docs;
+mod ciphers;
+mod clients;
+mod crc;
+mod data_ext;
+mod data_structures;
+mod data_util;
+mod encoding_pkgs;
+mod ensembles;
+mod functional;
+mod image_pkgs;
+mod math_core;
+mod math_ext;
+mod md4;
+mod md5crypt;
+mod misc_ext;
+mod misc_pkgs;
+mod namespacex;
+mod otp;
+mod rc4;
+mod ripemd;
+mod term_text;
+mod text_misc;
+mod web_asn;
+
+use crate::dialects::DialectSet;
 use crate::spec::CommandSpec;
 
 /// Return all `tcllib` command specifications.
@@ -248,14 +277,25 @@ pub fn tcllib_command_specs() -> Vec<CommandSpec> {
     specs.extend(logger_math_specs());
     specs.extend(md5_mime_snit_struct_specs());
     specs.extend(textutil_uri_yaml_specs());
+    specs.extend(crypto_encoding_specs());
     // Every tcllib command is gated on its providing package.
     // Derive `required_package` from the command's namespace so
     // W120 (missing-package-require) and package-gated
     // completion fire for tcllib commands used without the
     // corresponding `package require`.
+    // tcllib packages are loaded with `package require`, which the restricted
+    // F5 embedded dialects (iRules / iApps) do not support — those run in TMM
+    // with a fixed command set.  Gate every tcllib command out of them (mirrors
+    // how Tk is excluded via `TK_AND_TCL`), so they are not offered or counted
+    // as valid there.  A spec that already carries an explicit dialect set (a
+    // version-gated command) keeps it.
+    let tcllib_dialects = DialectSet::all().difference(DialectSet::IRULES | DialectSet::IAPPS);
     for spec in &mut specs {
         if spec.required_package.is_none() {
             spec.required_package = tcllib_required_package(spec.name);
+        }
+        if spec.dialects.is_none() {
+            spec.dialects = Some(tcllib_dialects);
         }
     }
     specs
@@ -501,6 +541,43 @@ fn textutil_uri_yaml_specs() -> Vec<CommandSpec> {
     ]
 }
 
+/// The tcllib crypto / hash / checksum / encoding packages: `md4`,
+/// `md5crypt`, `ripemd128`/`ripemd160`, the CRC family
+/// (`crc16`/`crc32`/`cksum`/`sum`), the block ciphers (`aes`/`blowfish`/
+/// `des`), `rc4`, `otp`, and `base32`/`base32::hex`.  Each command carries its
+/// own `required_package` (the package name often differs from the leading
+/// namespace segment — e.g. `crc::crc16` is provided by `crc16`, `DES::des`
+/// by `des`), so these are exempt from the namespace-derivation fallback.
+fn crypto_encoding_specs() -> Vec<CommandSpec> {
+    let mut specs = vec![md4::md4(), md4::hmac()];
+    specs.extend(md4::incremental());
+    specs.extend(md5crypt::specs());
+    specs.extend(ripemd::specs());
+    specs.extend(crc::specs());
+    specs.extend(ciphers::specs());
+    specs.extend(rc4::specs());
+    specs.extend(otp::specs());
+    specs.extend(base32::specs());
+    specs.extend(encoding_pkgs::specs());
+    specs.extend(text_misc::specs());
+    specs.extend(data_util::specs());
+    specs.extend(math_core::specs());
+    specs.extend(functional::specs());
+    specs.extend(web_asn::specs());
+    specs.extend(clients::specs());
+    specs.extend(misc_pkgs::specs());
+    specs.extend(image_pkgs::specs());
+    specs.extend(ensembles::specs());
+    specs.extend(term_text::specs());
+    specs.extend(data_structures::specs());
+    specs.extend(data_ext::specs());
+    specs.extend(channels_docs::specs());
+    specs.push(namespacex::spec());
+    specs.extend(math_ext::specs());
+    specs.extend(misc_ext::specs());
+    specs
+}
+
 /// Map a tcllib command name to the package that provides it.
 ///
 /// Each module declares the package its commands belong to.
@@ -597,6 +674,140 @@ mod tests {
             reg.get("csv::split").and_then(|s| s.required_package),
             Some("csv"),
         );
+    }
+
+    #[test]
+    fn crypto_encoding_packages_are_registered_with_their_package() {
+        // The crypto / hash / checksum / encoding cluster carries the *provider*
+        // package, which frequently differs from the leading namespace segment.
+        let specs = tcllib_command_specs();
+        let pkg = |name: &str| {
+            specs
+                .iter()
+                .find(|s| s.name == name)
+                .and_then(|s| s.required_package)
+        };
+        // Namespace segment == package.
+        assert_eq!(pkg("md4::md4"), Some("md4"));
+        assert_eq!(pkg("md4::hmac"), Some("md4"));
+        assert_eq!(pkg("md5crypt::md5crypt"), Some("md5crypt"));
+        assert_eq!(pkg("aes::aes"), Some("aes"));
+        assert_eq!(pkg("blowfish::blowfish"), Some("blowfish"));
+        assert_eq!(pkg("rc4::rc4"), Some("rc4"));
+        assert_eq!(pkg("otp::otp-md5"), Some("otp"));
+        // Namespace segment != package.
+        assert_eq!(pkg("ripemd::ripemd128"), Some("ripemd128"));
+        assert_eq!(pkg("ripemd::ripemd160"), Some("ripemd160"));
+        assert_eq!(pkg("crc::crc16"), Some("crc16"));
+        assert_eq!(pkg("crc::crc32"), Some("crc32"));
+        assert_eq!(pkg("crc::cksum"), Some("cksum"));
+        assert_eq!(pkg("crc::sum"), Some("sum"));
+        assert_eq!(pkg("DES::des"), Some("des"));
+        assert_eq!(pkg("base32::encode"), Some("base32"));
+        assert_eq!(pkg("base32::hex::encode"), Some("base32::hex"));
+        // The 18-variant crc16 family is fully present.
+        assert_eq!(pkg("crc::crc-ccitt"), Some("crc16"));
+        assert_eq!(pkg("crc::xmodem"), Some("crc16"));
+        assert_eq!(pkg("crc::modbus"), Some("crc16"));
+        // Binary-encoding and text packages.
+        assert_eq!(pkg("ascii85::encode"), Some("ascii85"));
+        assert_eq!(pkg("uuencode::uuencode"), Some("uuencode"));
+        assert_eq!(pkg("yencode::ydecode"), Some("yencode"));
+        assert_eq!(pkg("soundex::knuth"), Some("soundex"));
+        assert_eq!(pkg("stringprep::compare"), Some("stringprep"));
+        assert_eq!(pkg("unicode::normalize"), Some("unicode"));
+        // Data / utility packages (namespace != package for inifile).
+        assert_eq!(pkg("ini::open"), Some("inifile"));
+        assert_eq!(pkg("ini::commentchar"), Some("inifile"));
+        assert_eq!(pkg("units::convert"), Some("units"));
+        assert_eq!(pkg("counter::start"), Some("counter"));
+        // math core packages (each math sub-namespace is its own package).
+        assert_eq!(pkg("math::mean"), Some("math"));
+        assert_eq!(pkg("math::random"), Some("math"));
+        assert_eq!(pkg("math::fuzzy::teq"), Some("math::fuzzy"));
+        assert_eq!(pkg("math::roman::toroman"), Some("math::roman"));
+        assert_eq!(pkg("math::constants::constants"), Some("math::constants"));
+        // Functional / scoping packages.
+        assert_eq!(pkg("lambda"), Some("lambda"));
+        assert_eq!(pkg("defer::defer"), Some("defer"));
+        assert_eq!(pkg("tie::tie"), Some("tie"));
+        assert_eq!(pkg("base32::core::define"), Some("base32::core"));
+        // Web / protocol packages.
+        assert_eq!(pkg("asn::asnInteger"), Some("asn"));
+        assert_eq!(pkg("asn::asnGetSequence"), Some("asn"));
+        assert_eq!(pkg("ncgi::parse"), Some("ncgi"));
+        assert_eq!(pkg("htmlparse::parse"), Some("htmlparse"));
+        // Ensemble + flat packages from the later batches.
+        assert_eq!(pkg("generator"), Some("generator"));
+        assert_eq!(pkg("debug"), Some("debug"));
+        assert_eq!(pkg("hook"), Some("hook"));
+        assert_eq!(pkg("websocket::open"), Some("websocket"));
+    }
+
+    #[test]
+    fn generator_ensemble_has_subcommands() {
+        // `generator` dispatches on a sub-command word (define/yield/foreach/…).
+        let specs = tcllib_command_specs();
+        let gen_cmd = specs
+            .iter()
+            .find(|s| s.name == "generator")
+            .expect("generator registered");
+        let names: Vec<&str> = gen_cmd.subcommands.iter().map(|s| s.name).collect();
+        assert!(
+            names.contains(&"define"),
+            "generator has a define subcommand"
+        );
+        assert!(names.contains(&"yield"), "generator has a yield subcommand");
+        assert!(
+            gen_cmd.subcommands.len() > 20,
+            "generator has many subcommands"
+        );
+    }
+
+    #[test]
+    fn lambda_body_and_param_roles_recurse() {
+        // `lambda arguments body` — the argument list is a param list and the
+        // body is a Tcl script, so both drive semantic-token recursion like a
+        // bare `proc` / `apply`.
+        use crate::ArgRole;
+        let reg = crate::registry::CommandRegistry::build_default();
+        let args = ["{x y}", "{return [expr {$x + $y}]}"];
+        let bodies = reg.arg_indices_for_role("lambda", &args, ArgRole::Body);
+        let params = reg.arg_indices_for_role("lambda", &args, ArgRole::ParamList);
+        assert_eq!(bodies, vec![1], "lambda body index");
+        assert_eq!(params, vec![0], "lambda param-list index");
+    }
+
+    #[test]
+    fn unicode_normalize_form_is_a_closed_enum() {
+        // `unicode::normalize form uclist` — the form word is a closed set
+        // (D / C / KD / KC) so an out-of-set literal is flagged (W127).
+        let reg = crate::registry::CommandRegistry::build_default();
+        let spec = reg.get("unicode::normalize").expect("registered");
+        let forms: Vec<&str> = spec
+            .arg_values
+            .iter()
+            .find(|(i, _)| *i == 0)
+            .map(|(_, vs)| vs.iter().map(|v| v.value).collect())
+            .unwrap_or_default();
+        assert_eq!(forms, ["D", "C", "KD", "KC"]);
+        assert!(spec.closed_value_args.contains(&0), "form arg is closed");
+    }
+
+    #[test]
+    fn cipher_mode_and_dir_options_are_enumerated() {
+        // The block-cipher primary commands expose closed enum option values
+        // (`-mode`, `-dir`) so completion / validation can drive them.
+        let reg = crate::registry::CommandRegistry::build_default();
+        let des = reg.get("DES::des").expect("DES::des registered");
+        let mode = des
+            .options
+            .iter()
+            .find(|o| o.name == "-mode")
+            .expect("DES::des has -mode");
+        let modes: Vec<&str> = mode.value_values().iter().map(|v| v.value).collect();
+        assert!(mode.value_is_closed(), "-mode set is closed");
+        assert_eq!(modes, ["ecb", "cbc", "cfb", "ofb"]);
     }
 
     #[test]

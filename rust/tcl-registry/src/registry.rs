@@ -750,10 +750,10 @@ impl CommandRegistry {
         let n = args.len();
         let mut out: Vec<usize> = Vec::new();
 
-        // Check subcommand
+        // Check subcommand (exact or unique-prefix abbreviation).
         if !spec.subcommands.is_empty()
             && !args.is_empty()
-            && let Some(sub) = spec.subcommand(args[0])
+            && let Some(sub) = spec.resolve_subcommand(args[0])
         {
             // Positional roles, offset by +1 for the subcommand word.
             if let Some(resolver) = sub.arg_role_resolver {
@@ -1274,6 +1274,42 @@ mod tests {
             reg.get("const").expect("registered").dialects,
             None,
             "const should be universal (it is dialect-agnostic)",
+        );
+    }
+
+    #[test]
+    fn every_command_has_hover_with_manpage_source() {
+        // Every registered command must carry a hover snippet with a non-empty
+        // summary and a manpage/source attribution. A short allowlist covers
+        // internal pseudo-commands and dialect placeholders that have no user
+        // documentation.
+        const HOVERLESS_OK: &[&str] = &["disabled_in_irules"];
+        let reg = CommandRegistry::build_default();
+        let mut missing_hover = Vec::new();
+        let mut missing_source = Vec::new();
+        for name in reg.command_names() {
+            if HOVERLESS_OK.contains(&name) {
+                continue;
+            }
+            let spec = reg.get(name).expect("registered");
+            match &spec.hover {
+                None => missing_hover.push(name.to_string()),
+                Some(h) => {
+                    if h.summary.trim().is_empty() || h.source.trim().is_empty() {
+                        missing_source.push(name.to_string());
+                    }
+                }
+            }
+        }
+        missing_hover.sort();
+        missing_source.sort();
+        assert!(
+            missing_hover.is_empty(),
+            "commands without a hover snippet: {missing_hover:?}",
+        );
+        assert!(
+            missing_source.is_empty(),
+            "commands with an empty hover summary or manpage source: {missing_source:?}",
         );
     }
 
@@ -1882,6 +1918,43 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let set_vars = reg.arg_indices_for_role("set", &["x", "1"], ArgRole::VarWrite);
         assert_eq!(set_vars, vec![0]);
+    }
+
+    /// `unset x y z` names *every* argument as a variable (issue #774), not
+    /// just the first, so all of them highlight as variables.
+    #[test]
+    fn unset_marks_every_name() {
+        let reg = CommandRegistry::build_default();
+        let vars = reg.arg_indices_for_role("unset", &["x", "y", "z"], ArgRole::VarWrite);
+        assert_eq!(vars, vec![0, 1, 2]);
+    }
+
+    /// `unset -nocomplain -- a b` skips the leading options and names only the
+    /// real variables (`a`, `b`), mirroring `lower_unset`.
+    #[test]
+    fn unset_skips_leading_options() {
+        let reg = CommandRegistry::build_default();
+        let vars =
+            reg.arg_indices_for_role("unset", &["-nocomplain", "--", "a", "b"], ArgRole::VarWrite);
+        assert_eq!(vars, vec![2, 3]);
+    }
+
+    /// `unset` recognises only `-nocomplain` / `--` as options — a dash-prefixed
+    /// word like `-foo` is a real variable name (verified against tclsh), so it
+    /// keeps its `VarWrite` role.
+    #[test]
+    fn unset_dash_name_is_a_variable() {
+        let reg = CommandRegistry::build_default();
+        // `unset -foo bar` — both are variables (no `--` needed to reach them).
+        assert_eq!(
+            reg.arg_indices_for_role("unset", &["-foo", "bar"], ArgRole::VarWrite),
+            vec![0, 1]
+        );
+        // `unset -nocomplain -foo` — `-nocomplain` is skipped, `-foo` is a name.
+        assert_eq!(
+            reg.arg_indices_for_role("unset", &["-nocomplain", "-foo"], ArgRole::VarWrite),
+            vec![1]
+        );
     }
 
     /// `trace add variable name ops body` declares arg 1

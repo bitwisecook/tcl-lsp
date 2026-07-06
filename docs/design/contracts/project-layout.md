@@ -45,7 +45,7 @@ Outside the Cargo workspace:
 | Path | Role |
 |------|------|
 | `editors/` | Editor integrations — VS Code (TypeScript), Zed (Rust cdylib), JetBrains (Kotlin), plus Neovim / Emacs / Helix / Sublime configs. |
-| `runtime/zig/` | Zig-compiled WASM runtime the compiler's WASM codegen targets. |
+| `runtime/rust/` | Rust-compiled WASM runtime (crate `tcl-runtime`) the compiler's WASM codegen targets. |
 | `rust/tcl-lsp-server/tests/*_e2e.rs` | Native LSP end-to-end suite (driven by `cargo test`, no Python). |
 | `samples/` | Sample Tcl, iRules, and BIG-IP configs. |
 | `docs/` | Design docs, KCS notes, references, perf reports. |

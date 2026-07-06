@@ -82,6 +82,8 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "add",
+        // Added in Tcl 8.5 (the clock rewrite, TIP 173).
+        dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
         detail: "Add duration to a time.",
         synopsis: "clock add timeVal ?count unit ...?",
@@ -259,6 +261,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "microseconds",
+        // Added in Tcl 8.5 (TIP 173).
+        dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::exact(0),
         detail: "Return current time in microseconds.",
         synopsis: "clock microseconds",
@@ -268,6 +272,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "milliseconds",
+        // Added in Tcl 8.5 (TIP 173).
+        dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::exact(0),
         detail: "Return current time in milliseconds.",
         synopsis: "clock milliseconds",

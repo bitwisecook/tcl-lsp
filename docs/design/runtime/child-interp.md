@@ -75,11 +75,10 @@ Out (deferred to later waves):
 
 ## 2. The `Interp` struct
 
-[`tcl_interp_registry.zig`](../../../runtime/zig/interp/tcl_interp_registry.zig)
-owns the one-Interp-per-interpreter state.  `extern struct`
-layout mirrors the rest of the runtime's ABI — every field is a
-`u32` at a known offset so `@ptrFromInt` casts read the right
-bytes.
+`interp.rs`
+owns the one-Interp-per-interpreter state.  The Rust runtime
+realises this as the `Interp(Rc<InterpState>)` handle (§13); the
+field table below is the design model each field maps onto.
 
 | Field | Owns |
 |---|---|
@@ -103,7 +102,7 @@ valid address.
 `invokehidden`, cross-interp alias create / query / dispatch)
 goes through:
 
-```zig
+```
 const save = interp_reg.enter(target);
 defer interp_reg.leave(save);
 // ... eval in child ...
@@ -139,7 +138,7 @@ tclsh error `could not find interpreter "X"` on miss.
 ## 5. Per-interp hidden commands
 
 Previously the hidden table lived as a module-global in
-`tcl_ns.zig` — one table for the whole runtime.  That matched the
+`namespace.rs` — one table for the whole runtime.  That matched the
 single-interp scope but broke the moment we needed cross-interp
 hide / expose.
 
@@ -328,15 +327,15 @@ Three layers:
 
 ## 12. Ship summary
 
-- One new Zig module: `tcl_interp_registry.zig` carrying
+- Child-interp registry in `interp.rs` carrying the
   `Interp` struct + `enter` / `leave` + `alloc_child_command` +
   recursive delete helpers.
-- `tcl_ns.zig` changes: `root_addr` made public for swap; new
+- `namespace.rs` changes: `root_addr` made public for swap; new
   `ns_alloc_root` helper; hidden-table surface removed (moved
   into the registry).
-- `tcl_hide.zig` API gained a leading `target_interp` argument.
-- `tcl_procs.zig` gained `CMD_INTERP_CHILD` (`0x200`).
-- `tcl_interp.zig` gained `create`, `eval`, `exists`,
+- `cmd_alias.rs` API gained a leading `target_interp` argument.
+- `cmd_proc.rs` gained `CMD_INTERP_CHILD` (`0x200`).
+- `interp.rs` gained `create`, `eval`, `exists`,
   `slaves` / `children`, `delete`, `target`, `issafe` branches;
   path promotion for `hide` / `expose` / `hidden` /
   `invokehidden` / `alias`; `dispatch_interp_child` for the

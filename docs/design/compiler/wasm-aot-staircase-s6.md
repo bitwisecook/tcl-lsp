@@ -44,7 +44,7 @@ TclObjs (every tcltest), this is half the per-op cost.
 
 **Tasks**:
 
-- [ ] In `runtime/zig/valtypes/tcl_obj.zig::alloc`: when the
+- [ ] In `runtime/rust/src/obj.rs::alloc`: when the
   aligned size matches one of the four common classes AND the
   class's free-list is non-empty, pop and return.
 - [ ] In `free_obj` / `free_sized`: when size matches AND the
@@ -56,7 +56,7 @@ TclObjs (every tcltest), this is half the per-op cost.
 
 **Files**:
 
-- Modify: `runtime/zig/valtypes/tcl_obj.zig`
+- Modify: `runtime/rust/src/obj.rs`
 
 **Test plan**:
 
@@ -93,7 +93,7 @@ results (the common case for tagged-int → string fall-through)
 and short identifiers (`set x …`, `puts foo`).
 
 The 8-byte cap is recorded as `MAX_INLINE_STR = 8` in
-`runtime/zig/valtypes/tcl_obj.zig`.  Re-opening the 23-byte
+`runtime/rust/src/obj.rs`.  Re-opening the 23-byte
 target is a future S6.x sub-plan; the 8-byte landing is the
 shipping baseline.
 
@@ -125,16 +125,16 @@ lived structure (interp result, parse cache entry) and the obj
 subsequently released would alias a recycled obj header with
 silent corruption.  The deferred-free queue makes the common
 adjacent-buffer case safe but doesn't protect the obj header
-itself.  See review thread on `tcl_obj.zig:41`.
+itself.  See review thread on `obj.rs`.
 
 **Files**:
 
-- Modify: `runtime/zig/valtypes/tcl_obj.zig` (most of the work)
+- Modify: `runtime/rust/src/obj.rs` (most of the work)
 - Modify: every consumer of the str_ptr / str_len fields
 
 **Test plan**:
 
-- Unit test (Zig): a 5-byte string is stored inline.
+- Unit test (Rust): a 5-byte string is stored inline.
 - Unit test: a 100-byte string is stored in a separate buffer.
 - Unit test: appending 50 bytes to a 5-byte inline string
   promotes to a buffer.
@@ -165,7 +165,7 @@ is a single pointer bump; reset is a single pointer reset.
 
 **Tasks**:
 
-- [ ] Add `runtime/zig/valtypes/tcl_arena.zig`: a fixed-size
+- [ ] Add `runtime/rust/src/arena.rs`: a fixed-size
   arena (e.g. 64 KB) with `arena_alloc(size)`, `arena_reset()`,
   and overflow-to-libc fallback.
 - [ ] Identify call sites whose scratch lifetime ends at
@@ -180,10 +180,10 @@ is a single pointer bump; reset is a single pointer reset.
 
 **Files**:
 
-- New: `runtime/zig/valtypes/tcl_arena.zig`
-- Modify: `runtime/zig/parse/tcl_parse.zig`,
-  `runtime/zig/parse/tcl_subst.zig`,
-  `runtime/zig/valtypes/tcl_regex.zig`
+- New: `runtime/rust/src/arena.rs`
+- Modify: `runtime/rust/src/parse.rs`,
+  `runtime/rust/src/subst.rs`,
+  `runtime/rust/src/cmd_regex.rs`
 
 **Test plan**:
 
@@ -232,13 +232,13 @@ entirely for the common small-int case.
 
 **Files**:
 
-- Modify: most of `runtime/zig/valtypes/`
+- Modify: most of the value-type modules in `runtime/rust/src/`
 - Modify: `compiler/codegen/wasm/_emitter/_values.py`
   (`_emit_obj_literal` int branch)
 
 **Test plan**:
 
-- Unit test (Zig): `obj_new_int(42)` returns a tagged
+- Unit test (Rust): `obj_new_int(42)` returns a tagged
   immediate; `obj_new_int(2**40)` allocates.
 - Unit test: tagged immediate retain/release are no-ops.
 - Sweep: neutral.

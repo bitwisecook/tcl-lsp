@@ -28,7 +28,7 @@ pub fn spec() -> CommandSpec {
             summary: "Generate tclIndex from Tcl source files",
             synopsis: &[],
             snippet: "",
-            source: "",
+            source: "Tcl man page library.n",
             examples: "",
             return_value: "",
         }),

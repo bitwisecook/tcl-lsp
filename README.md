@@ -1605,7 +1605,15 @@ different Tcl versions without manual switching.
 **Tk**, **tcllib**, and **Tcl stdlib** commands are automatically recognised
 when the corresponding `package require` appears in the file.  No manual
 toggle is needed — the registry activates the relevant command definitions
-per-document.
+per-document.  The tcllib coverage spans the cryptography/hash
+(`md4`, `ripemd`, `crc*`, `aes`/`blowfish`/`des`, …), encoding (`base32`,
+`ascii85`, `uuencode`, `yencode`), maths (`math`, `math::fuzzy`,
+`math::roman`), data/utility (`inifile`, `units`, `counter`, `tie`,
+`lambda`), web/protocol/client (`asn`, `ncgi`, `imap4`, `ldap`, `ftp`,
+`pop3`, `irc`, `rest`, `SASL`, `websocket`, …), format (`png`, `jpeg`,
+`tiff`, `gpx`, `mapproj`, `nmea`), and ensemble (`generator`, `debug`,
+`hook`) package families — see
+[the tcllib coverage note](docs/kcs/features/kcs-feature-tcllib-package-coverage.md).
 
 ### Dialect command stubs
 
@@ -2063,7 +2071,7 @@ Run `make help` to see all targets:
 | `make build-editor-vsix` | Build the .vsix (tests must pass first) |
 | `make install` | Build and install the .vsix into VS Code |
 | `make package-vsix` | Package VSIX (skip lint/test, for CI) |
-| `make test` | Run all tests (Rust workspace + VS Code extension + Zig WASM runtime) |
+| `make test` | Run all tests (Rust workspace + VS Code extension) |
 | `make test-rust` | Run the Rust workspace tests (incl. the native LSP e2e suite) |
 | `make test-ext` | Run VS Code extension integration tests |
 | `make lint` | Run all lint and style checks |
@@ -2192,7 +2200,7 @@ See `editors/` for per-editor setup instructions.
 ### Running tests
 
 ```sh
-# Via make (Rust workspace + extension + Zig WASM runtime)
+# Via make (Rust workspace + extension)
 make test
 
 # Rust workspace only (incl. the native LSP e2e suite)

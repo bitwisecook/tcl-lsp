@@ -28,7 +28,7 @@ pub fn spec() -> CommandSpec {
             summary: "Auto-load a command from the library",
             synopsis: &[],
             snippet: "",
-            source: "",
+            source: "Tcl man page library.n",
             examples: "",
             return_value: "",
         }),

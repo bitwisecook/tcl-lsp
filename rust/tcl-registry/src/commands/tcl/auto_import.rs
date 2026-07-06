@@ -28,7 +28,7 @@ pub fn spec() -> CommandSpec {
             summary: "Import auto-loaded commands into namespace",
             synopsis: &[],
             snippet: "",
-            source: "",
+            source: "Tcl man page library.n",
             examples: "",
             return_value: "",
         }),

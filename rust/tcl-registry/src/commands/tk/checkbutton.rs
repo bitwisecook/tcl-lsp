@@ -298,6 +298,30 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         min_version: None,
     },
+    OptionSpec {
+        name: "-offrelief",
+        value: OptionValue::value("relief"),
+        detail: "Specifies the relief for the checkbutton when the indicator is not drawn and the checkbutton is off. The.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-tristateimage",
+        value: OptionValue::value("image"),
+        detail: "Specifies an image to display (in place of the -image option) when the checkbutton is in tri-state mode. This.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-tristatevalue",
+        value: OptionValue::value("value"),
+        detail: "Specifies the value that causes the checkbutton to display the multi-value selection, also known as the.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {

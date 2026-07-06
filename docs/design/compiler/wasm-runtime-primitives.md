@@ -1,21 +1,21 @@
 # WASM runtime — compiler-to-interpreter bridge primitives
 
-The Zig runtime (`runtime/zig/tcl_runtime.wasm`) is the execution
-partner of the WASM code we emit from `compiler/codegen/wasm/`.
-Compiled code calls Zig-exported helpers for the primitives it cannot
+The Rust runtime (`runtime/rust/`, which builds `tcl_runtime.wasm`) is the
+execution partner of the WASM code we emit from `compiler/codegen/wasm/`.
+Compiled code calls the runtime's exported helpers for the primitives it cannot
 statically compile (list parsing, string operations, the full Tcl
 interpreter for untypable constructs).  This doc lists the boundary
 primitives added to support Tcl 9 compatibility, grouped by the
 contract each one encodes.
 
-Source: [`runtime/zig/`](../../../runtime/zig/),
+Source: `runtime/rust/src/`,
 `compiler/codegen/wasm/`
 
 ## Expression evaluation
 
 ### `tcl_expr_order_cmp(a, b) → TclObj(i64)`
 
-`tcl_string.zig`.  Returns `-1`, `0`, or `1`.  Tries a numeric
+`value_ops.rs`.  Returns `-1`, `0`, or `1`.  Tries a numeric
 comparison of `a` and `b` first via `try_parse_int`; falls back to a
 bytewise string comparison when either operand is non-numeric.
 
@@ -28,13 +28,13 @@ flag through to the emitter — the runtime targets Tcl 9.0 only.
 ## Call-frame interop
 
 Compiled procs keep their locals in WASM locals for speed.  When a
-compiled body calls `tcl_eval` for a fallback, the Zig interpreter
+compiled body calls `tcl_eval` for a fallback, the Rust interpreter
 needs to read/write the same variables via its frame hash table.  The
 bridge is a sync-then-eval-then-readback sequence:
 
 ### `tcl_local_set(name_obj, value) → TclObj`
 
-`tcl_frames.zig`.  Writes `value` to the current frame's bucket for
+`frame.rs`.  Writes `value` to the current frame's bucket for
 `name_obj`, following `ALIAS_GLOBAL` / `ALIAS_EXT` redirection.
 Emitted by `_emit_frame_sync` to mirror WASM locals into the frame.
 
@@ -57,7 +57,7 @@ _emit_frame_readback()    # local_get(name) → WASM local
 
 ### `ns_set(name_ptr, name_len) → i64 saved`
 
-`tcl_interp.zig`.  Pushes `(name_ptr, name_len)` into the interpreter's
+`interp.rs`.  Pushes `(name_ptr, name_len)` into the interpreter's
 `current_ns_ptr` / `current_ns_len` globals and packs the previous
 values into a single i64 save token.  Emitted just before a
 compiled-in-namespace proc calls `tcl_eval`.
@@ -73,7 +73,7 @@ stack mid-eval.
 
 ### `catch_set_ok_result(val)`
 
-`tcl_catch.zig`.  Records the success-path value of the catch body's
+`cmd_control.rs`.  Records the success-path value of the catch body's
 last statement.  Called by compiled catch bodies in "keep result" mode
 after the last statement.  `catch_result` then returns this value on
 success (code 0) or `error_msg` on error (code 1).  The old
@@ -117,7 +117,7 @@ negated descriptor address in the current frame bucket.
 
 ### `list_elem_quote(buf, off, ptr, len) → new_off` (shared)
 
-`tcl_obj.zig`.  Writes one list element into `buf` starting at `off`.
+`list.rs`.  Writes one list element into `buf` starting at `off`.
 Chooses between three forms:
 
 1. **Bare** when the element has no special characters, no backslash,
@@ -128,12 +128,12 @@ Chooses between three forms:
 3. **Backslash-escaped** — each whitespace, brace, backslash, quote,
    `$`, `[`, or `;` byte is prefixed with `\`.
 
-`tcl_string.zig`'s `list_quote_elem` is a thin alias; both modules use
+`value_ops.rs`'s string-side list quoting is a thin alias; both paths use
 the canonical implementation.
 
 ### `copy_unbraced_elem(dst, src_ptr, src_len) → written`
 
-`tcl_obj.zig`.  Decodes backslash sequences in an unbraced list element
+`list.rs`.  Decodes backslash sequences in an unbraced list element
 using the shared `consume_bs_escape` helper, handling the full Tcl
 backslash table (`\n \t \r \a \b \f \v`, `\xNN`, `\uNNNN`,
 `\UNNNNNNNN`, octal `\NNN`, `\<whitespace>` folding).
@@ -158,7 +158,7 @@ unpaired backslash that would eat the separator space.
 ## Argument expansion (`{*}`)
 
 Tcl 8.5+'s `{*}word` prefix is parsed into a per-word `expand` flag by
-`parse_command` in `tcl_interp.zig`.  `eval_script` then splits the
+`parse_command` in `parse.rs`.  `eval_script` then splits the
 flagged word's value as a Tcl list and inserts each element as a
 separate argument, up to `MAX_EXPANDED_WORDS = 128`.  Compiled
 callers route `{*}` through `_emit_eval_fallback` with a
@@ -171,7 +171,7 @@ When a proc's last formal parameter is literally named `args`, surplus
 call-site arguments are packed into a single Tcl list and bound to
 that slot.  The compiler tracks this per-proc in
 `_proc_args_tail: set[str]` and emits `_emit_args_list(tail_args)` at
-the call site; the runtime (`eval_proc_call` in `tcl_interp.zig`) does
+the call site; the runtime (`eval_proc_call` in `interp.rs`) does
 the same packing for interpreter-dispatched calls.
 
 ## Clock + timezone resolution
@@ -179,19 +179,16 @@ the same packing for interpreter-dispatched calls.
 The `clock` ensemble in the WASM runtime supports the four practical
 subcommands a typical Tcl script uses: `seconds` / `clicks` /
 `milliseconds` / `microseconds` (WASI-clock-backed) plus `format` /
-`scan` / `add` (real timezone-aware implementations).  The split is
-across three Zig modules:
+`scan` / `add` (real timezone-aware implementations).  The clock support
+lives in `runtime/rust/src/cmd_clock.rs`, split functionally into:
 
-- [`runtime/zig/io/tcl_tz.zig`](../../../runtime/zig/io/tcl_tz.zig) —
-  TZif (RFC 8536) parser, 8-slot LRU cache, and the host-tzdata
-  resolver.  Pure-parse + libc fopen — no compiler bridge needed.
-- [`runtime/zig/io/tcl_clock.zig`](../../../runtime/zig/io/tcl_clock.zig) —
-  strftime renderer (`render_format`), broken-down time helper
+- the TZif (RFC 8536) parser, 8-slot LRU cache, and the host-tzdata
+  resolver.  Pure-parse + libc `fopen` — no compiler bridge needed.
+- the strftime renderer (`render_format`), broken-down time helper
   (`break_down`), epoch repacker (`pack_epoch`), and the four
   exports the interpreter dispatcher calls: `clock_format`,
   `clock_format_tz`, `clock_scan_obj`, `clock_add_pair`.
-- [`runtime/zig/cmds/stubs.zig`](../../../runtime/zig/cmds/stubs.zig) —
-  the interpreter-side `eval_clock` parses `-format` / `-gmt` /
+- the interpreter-side `eval_clock` that parses `-format` / `-gmt` /
   `-timezone` flags and routes to the right export.
 
 ### `clock_format_tz(secs, fmt, zone) → TclObj`
@@ -269,15 +266,15 @@ The intended trim policy:
 
 The trimmer should live in `scripts/trim_tzdata.py` and run at
 runtime build time (idempotent, like `fetch_tcl_regex.sh`).
-Output goes to `runtime/zig/data/tzdata.bin` and is pulled in
-via `@embedFile` from `tcl_tz.zig`.
+Output goes to a data blob under `runtime/rust/` and is embedded
+into the runtime binary (via Rust's `include_bytes!`) from the clock module.
 
 ## Capability-gated commands
 
 Three commands — `exec`, `exit`, and `glob` — escape the WASM
 sandbox by reaching the host process or the host filesystem.  All
 three live behind a per-runtime capability bitset
-(`runtime/zig/interp/tcl_caps.zig`); the default sandboxed posture
+(`runtime/rust/src/host_wasm.rs`); the default sandboxed posture
 refuses each call with a Tcl-catchable
 `permission denied: <cmd> requires CAP_<NAME>` until the embedder
 flips the matching bit.
@@ -294,7 +291,7 @@ flips the matching bit.
 
 #### `tcl_set_capabilities(bits: u32)` → void
 
-`tcl_caps.zig`.  Overwrites the active capability mask.  Called by
+`host_wasm.rs`.  Overwrites the active capability mask.  Called by
 the embedder before `tcl_eval` to grant whichever subset of dangerous
 primitives the deployment needs.  Passing `0` resets to the default
 sandboxed posture mid-run, which is honoured for every subsequent
@@ -311,13 +308,15 @@ embedder that wraps the runtime in additional guards.
 `proc_exit` only, not `proc_spawn`.  The runtime declares a single
 new host import:
 
-```
-extern "env" fn host_spawn(
-    argv_ptr: u32,
-    argv_len: u32,
-    stdin_ptr: u32,
-    stdin_len: u32,
-) i32;
+```rust
+extern "C" {
+    fn host_spawn(
+        argv_ptr: u32,
+        argv_len: u32,
+        stdin_ptr: u32,
+        stdin_len: u32,
+    ) -> i32;
+}
 ```
 
 `argv_ptr` / `argv_len` point to a NUL-separated UTF-8 buffer in
@@ -337,7 +336,7 @@ opt-in tests swap in a real implementation.
 
 ### `proc_exit` (existing WASI import)
 
-`exit` calls `std.os.wasi.proc_exit` directly — no new host wiring.
+`exit` calls the WASI `proc_exit` directly — no new host wiring.
 wasmtime surfaces this as an `Exit` trap to the embedder
 (`wasmtime.ExitTrap` in the Python binding); other embedders see
 their environment-specific termination signal.  When `CAP_EXIT` is
@@ -346,7 +345,8 @@ gate raises `permission denied` first.
 
 ### Failure paths through `catch`
 
-Capability denial routes through `stubs.tcl_stubs.raise` so a
+Capability denial routes through the runtime's error-raise path
+(`cmd_error.rs`) so a
 `catch` around the call sees `code == 1` with the permission-denied
 message available via `$::errorInfo`.  Bare invocations (no `catch`)
 write the same message to stderr with the standard

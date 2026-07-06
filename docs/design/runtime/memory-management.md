@@ -2,33 +2,44 @@
 
 ## Problem statement
 
-The Zig WASM runtime allocates TclObjs and their string buffers on
-the wasm linear memory.  Until this commit the allocator was a
-"bump pointer + size-class free-lists" scheme that worked fine for
-bounded workloads but had three structural defects:
+The WASM runtime allocates TclObjs and their string buffers on
+the wasm linear memory.  The runtime is now the Rust crate
+`tcl-runtime` (`runtime/rust/`), whose object lifecycle lives in
+`runtime/rust/src/obj.rs` and allocates through Rust's global
+allocator.  The allocator history below belongs to the **former
+Zig runtime**, whose hand-rolled "bump pointer + size-class
+free-lists" scheme worked fine for bounded workloads but had three
+structural defects.  The Rust runtime inherits none of the
+allocator-coherence defects (#1) because it never bump-allocates;
+the refcount discipline (#2, #3, and Phase MM-B) still applies and
+is the substance of this document:
 
-1. **Heap incoherence with wasi-libc.**  The vendored Spencer
-   regex engine (`runtime/zig/vendor/tcl-regex/`) calls `MALLOC`/
-   `FREE` which bind to wasi-libc's dlmalloc.  dlmalloc's heap
-   starts at `__heap_base` and grows upward.  Our bump pointer
-   started at a fixed offset (originally 64 KB, then 17 MB after
-   the Phase 1.3 data-segment fix) and *also* grew upward.  On
-   heavy regex workloads — `regexp.test` compiles thousands of
-   regex_t — wasi-libc's heap eventually crossed our bump base
-   and the two consumers stomped on each other's free-list
-   metadata.  Symptom: ``out of bounds memory access at <text-
-   bytes-as-pointer>`` deep in `c.malloc.malloc`.
+1. **Heap incoherence with wasi-libc** (former Zig runtime).  The
+   vendored Spencer regex engine called `MALLOC`/`FREE` which bind
+   to wasi-libc's dlmalloc.  dlmalloc's heap starts at `__heap_base`
+   and grows upward.  The Zig bump pointer started at a fixed offset
+   (originally 64 KB, then 17 MB after the Phase 1.3 data-segment
+   fix) and *also* grew upward.  On heavy regex workloads —
+   `regexp.test` compiles thousands of regex_t — wasi-libc's heap
+   eventually crossed the bump base and the two consumers stomped on
+   each other's free-list metadata.  Symptom: ``out of bounds memory
+   access at <text-bytes-as-pointer>`` deep in `c.malloc.malloc`.
+   The Rust runtime's regex is the pure-Rust `tcl-regex` crate
+   (driven by `runtime/rust/src/cmd_regex.rs`), so this
+   cross-allocator hazard cannot recur.
 
-2. **Refcount infrastructure exists but is barely used.**  Each
-   TclObj has an `OBJ_REFCOUNT` field plus
-   `tcl_obj_retain` / `tcl_obj_release` / `tcl_obj_drain_pending`
-   exports, but only two call sites in the entire runtime
-   actually invoke them (both added incidentally as part of the
-   Phase 1.3 / 4.5 fixes).  The frame, proc, namespace, and
-   dispatch layers all hold TclObj references without retaining
-   them.  Consequence: every freshly-allocated TclObj is
-   effectively immortal — `release` is never called, so the
-   refcount never drops to zero, so the buffer is never freed.
+2. **Refcount infrastructure must be used consistently.**  Each
+   TclObj carries a refcount field; `runtime/rust/src/obj.rs`
+   provides `incr_ref_count` / `decr_ref_count` (exported over the
+   C ABI as `Tcl_IncrRefCount` / `Tcl_DecrRefCount`), with
+   `decr_ref_count` freeing the object when the count reaches zero.
+   The hazard the former Zig runtime hit was that only a couple of
+   call sites actually retained/released, so the frame, proc,
+   namespace, and dispatch layers held TclObj references without
+   retaining them and every freshly-allocated TclObj was effectively
+   immortal — release was never called, the refcount never dropped
+   to zero, so the buffer was never freed.  Phase MM-B makes
+   retain/release consistent across every reference holder.
 
 3. **Borrow vs own ambiguity.**  Some TclObjs own their buffer
    (`OBJ_STR_CAP > 0`) and the buffer must be freed when the
@@ -40,14 +51,21 @@ bounded workloads but had three structural defects:
    stored in proc bodies went stale because their lender (the
    outer script) was released first.
 
-This document fixes #1 immediately, then plans a staged solution
-for #2 and #3.
+This document records how #1 was resolved and plans the staged
+refcount solution for #2 and #3 that the Rust runtime follows.
 
-## Phase MM-A (this commit) — coherent allocator
+## Phase MM-A — coherent allocator (former Zig runtime; moot under Rust)
 
-`runtime/zig/valtypes/tcl_obj.zig::alloc` now routes every
+This phase was the former Zig runtime's allocator fix.  The Rust
+runtime does not need it: it allocates through Rust's global
+allocator in `runtime/rust/src/obj.rs`, has no second bump heap,
+and its regex engine is the pure-Rust `tcl-regex` crate — so the
+cross-allocator corruption class cannot arise.  Retained here as
+design history:
+
+The Zig `alloc` entry point routed every
 allocation through wasi-libc `malloc`.  `free_obj` and
-`free_sized` route through `free`.  The size-class free-lists are
+`free_sized` routed through `free`.  The size-class free-lists were
 kept as a no-op layer for ABI compat (callers that read them
 still see a valid empty list) but are never populated.
 
@@ -71,6 +89,13 @@ correctness.
 
 ## Phase MM-B — finish refcounting
 
+The retain/release audit below was first carried out on the former
+Zig runtime; its findings define the discipline the Rust runtime
+implements.  File citations point at the Rust module that now owns
+each subsystem (some Zig-internal symbol names in the historical
+audit narratives, e.g. `execute_parsed_command` / `eval_command`,
+have no verbatim Rust equivalent and are kept as design history).
+
 Goal: every TclObj reference holder explicitly retains and
 releases.  Once that's true, refcount-driven `free` is the
 canonical lifetime mechanism, leaks become impossible, and the
@@ -88,68 +113,65 @@ For each subsystem, list every place that:
   callee retains, or vice versa)
 
 Subsystems to audit:
-- `interp/tcl_frames.zig` — frame locals (the frame_table entries
-  hold TclObj pointers; bind/unbind of locals must retain/release)
-- `interp/tcl_procs.zig` — proc table (`OFF_PARAMS_OBJ` /
-  `OFF_BODY_OBJ` slots; proc registration must retain, proc
-  unregistration must release)
-- `interp/tcl_ns.zig` — namespace var table (`var_set_scalar`
-  stores into a slot — must release the prior occupant, retain
-  the new value)
-- `interp/tcl_interp.zig` — eval loop (parser-produced word
-  TclObjs need refcount management across dispatch, especially
-  for words that get stored elsewhere via `set` / `proc` /
-  `lappend` / etc.)
-- `dispatch/tcl_dispatch.zig` — host-bridge call paths (caller
-  passes a TclObj; callee may store; clear ownership rule
-  needed)
-- `cmds/*.zig` — every command handler that returns or stores a
+- `frame.rs` — frame locals (the frame entries hold TclObj
+  pointers; bind/unbind of locals must retain/release)
+- `cmd_proc.rs` / `interp.rs` — proc table (params + body slots;
+  proc registration must retain, proc unregistration must release)
+- `namespace.rs` — namespace var table (a scalar store into a slot
+  must release the prior occupant, retain the new value)
+- `interp.rs` — eval loop (parser-produced word TclObjs need
+  refcount management across dispatch, especially for words that
+  get stored elsewhere via `set` / `proc` / `lappend` / etc.)
+- `codegen_abi.rs` — compiled-proc host-bridge call paths (caller
+  passes a TclObj; callee may store; clear ownership rule needed)
+- `cmd_*.rs` — every command handler that returns or stores a
   TclObj
-- `valtypes/tcl_*.zig` — list, dict, string-buffer ops that hold
-  internal refs to element TclObjs
+- `list.rs` / `dict.rs` / `value_ops.rs` — list, dict, string-buffer
+  ops that hold internal refs to element TclObjs
 
 Each site gets a one-line comment stating its retain/release
 contract.
 
 ### B.2 — Make `var_set_scalar` retain/release
 
-The simplest high-leverage fix.  Currently:
+The simplest high-leverage fix.  A scalar-store that overwrites its
+slot without releasing the prior occupant leaks:
 
-```zig
-pub fn var_set_scalar(v_addr: u32, obj_handle: u32) void {
-    ...
-    v.value = obj_handle;     // overwrite; old value leaks
+```rust
+fn set_scalar(slot: &mut Var, new: *mut TclObj) {
+    // ...
+    slot.value = new;          // overwrite; old value leaks
 }
 ```
 
-After:
+After — retain the incoming value, release the one it displaces:
 
-```zig
-pub fn var_set_scalar(v_addr: u32, obj_handle: u32) void {
-    ...
-    const old = v.value;
-    v.value = obj_handle;
-    obj.tcl_obj_retain(obj_handle);
-    if (old != 0) obj.tcl_obj_release(old);
+```rust
+fn set_scalar(slot: &mut Var, new: *mut TclObj) {
+    // ...
+    let old = slot.value;
+    slot.value = new;
+    incr_ref_count(new);
+    if !old.is_null() { decr_ref_count(old); }
 }
 ```
 
-Same shape applies to `frame.local_set`, `dict.dict_set`,
-`list.list_set_at`, etc.
+Same shape applies to frame-local set (`frame.rs`), `dict` set
+(`dict.rs`), list element set (`list.rs`), etc.
 
 ### B.3 — Make proc parameter binding retain
 
-`eval_proc_call_bucket` at line ~1160:
+The proc-call path (`interp.rs`) binds each parameter to its
+argument word:
 
-```zig
-_ = frames.local_set(param_name, words[arg_idx]);
+```rust
+frame.local_set(param_name, words[arg_idx]);
 ```
 
 The frame entry now holds a reference to `words[arg_idx]`.  The
-caller of `eval_proc_call_bucket` may release `words[]` after
-dispatch; the frame's hold must keep the value alive.  After the
-B.2 fix to `local_set`, this becomes correct automatically (the
-local_set retains).
+caller may release `words[]` after dispatch; the frame's hold must
+keep the value alive.  After the B.2 fix to the local-set path, this
+becomes correct automatically (the local set retains).
 
 ### B.4 — Make eval_command release words[] after dispatch
 
@@ -200,8 +222,8 @@ a borrowed (ptr, len) into a TclObj's buffer):
   `(body_ptr, body_len)`.  Under B.4 a body buffer can be
   freed and its slab reissued by libc malloc; a subsequent
   lookup with the recycled `(body_ptr, body_len)` pair returns
-  a stale slab whose tokens point into freed memory.  See
-  `runtime/zig/valtypes/parse_cache.zig::lookup`.
+  a stale slab whose tokens point into freed memory.  See the
+  parse-cache lookup path (now `runtime/rust/src/parse.rs`).
 - `tcl_diag.current_eval_ptr` — recorded for trap context.
   Set per `eval_script` call but might point to a script
   whose owner is releasing.  Audit pending — not currently a
@@ -281,32 +303,35 @@ the dispatch fast path.  B.7 is the perf-friendly version.
 
 ## Phase MM-C — debug-only leak detection
 
-Compile-time flag (`-Dleak-check=true` or similar).  When set:
-- `obj_alloc` increments a global counter.
-- `release_now` decrements.
-- Reactor entry `tcl_test_finalize` (called by tests after the
-  last work item) asserts the counter is zero.
-- A non-zero count on exit prints the type-tag distribution of
-  the leaked objs ("12 STRING, 3 LIST, 1 DICT") so the offending
-  subsystem is obvious.
+The leak-check counters live in `runtime/rust/src/counters.rs`
+(exposed over the C ABI in `capi.rs` as the `tcl_test_*` surface).
+They are thread-local, so the native `cargo test` runner is
+race-free.  When enabled:
+- object allocation bumps `obj_alloced`.
+- the object free path bumps `obj_freed` (and `double_free` if an
+  already-zero-refcount object is released).
+- `tcl_test_finalize` (called by tests after the last work item)
+  asserts the residual (`counters::finalize`) is zero.
+- a non-zero residual flags the leak; pairing it with per-subsystem
+  probes (MM-E) localises the offending subsystem.
 
-ReleaseFast builds skip this entirely — zero runtime cost on the
-hot path.
+The production wasm build gates this instrumentation behind a
+`leak-check` cargo feature — zero runtime cost on the hot path.
 
 ## Phase MM-D — performance recovery
 
 After MM-A's libc-malloc switch, per-call alloc cost is ~100 ns.
 For workloads where this matters:
 
-- **Reuse via the existing free-lists.**  The size-class arrays
-  in tcl_obj.zig are still defined.  Re-enable free-list pushes
-  in `free_obj` / `free_sized` for the four most-common size
-  classes (32, 48, 64, 96 — the TclObj header + small-string
-  cases).  Allocations from those classes pop from the list
-  before falling through to malloc.  Each push/pop is two stores
-  + one load — much cheaper than malloc.  Bound the lists at 256
-  entries each so a regex stress-test doesn't pin too much
-  memory in the recycler.
+- **Reuse via a size-class free-list.**  Add a size-class reuse
+  pool in `obj.rs`: on free, push the freed TclObj header / small
+  buffer onto a per-size-class free list for the four most-common
+  size classes (32, 48, 64, 96 — the TclObj header + small-string
+  cases); on alloc, pop from that class's list before falling
+  through to the global allocator.  Each push/pop is a couple of
+  stores + a load — much cheaper than a general allocation.  Bound
+  the lists at 256 entries each so a regex stress-test doesn't pin
+  too much memory in the recycler.
 
 - **Inline-string optimisation.**  TclObjs whose string fits in
   ≤ 23 bytes can store the bytes inline (in the

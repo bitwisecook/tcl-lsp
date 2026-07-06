@@ -237,6 +237,17 @@ fn context_aware_completions(
     if word_idx == 1 && !spec.subcommands.is_empty() {
         return Some(subcommand_completions(spec, partial));
     }
+    // Second-level subcommand completion — the word after a two-level
+    // ensemble's first-level subcommand (`info object <op>`, `info class <op>`,
+    // issue #798).  The first-level word is at index 1; offer its declared
+    // `sub_subcommands` at index 2.
+    if word_idx == 2
+        && let Some(sub_name) = nth_word_on_line(source, line, 1)
+        && let Some(sub) = spec.resolve_subcommand(&sub_name)
+        && !sub.sub_subcommands.is_empty()
+    {
+        return Some(sub_subcommand_completions(sub, partial));
+    }
     // Subcommand argument-value completion — e.g.
     // `string is <class>`.  When the cursor is at
     // word-index ≥ 2 of a command whose subcommand
@@ -244,7 +255,7 @@ fn context_aware_completions(
     // values for that sub-arg position, list them.
     if word_idx >= 2
         && let Some(sub_name) = nth_word_on_line(source, line, 1)
-        && let Some(sub) = spec.subcommands.iter().find(|s| s.name == sub_name)
+        && let Some(sub) = spec.resolve_subcommand(&sub_name)
     {
         let sub_arg_idx = u8::try_from(word_idx - 2).unwrap_or(u8::MAX);
         let values = sub.arg_values_at(sub_arg_idx);
@@ -1089,6 +1100,34 @@ fn subcommand_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Ve
         .collect()
 }
 
+/// Build completions for the second-level subcommands of a two-level ensemble
+/// (`info object <op>` / `info class <op>`), filtered by `partial`.  Each
+/// item's detail is the operation's one-line description (issue #798).
+fn sub_subcommand_completions(
+    sub: &tcl_registry::SubCommand,
+    partial: &str,
+) -> Vec<CompletionItem> {
+    let mut subs: Vec<&tcl_registry::SubSubCommand> = sub
+        .sub_subcommands
+        .iter()
+        .filter(|s| partial.is_empty() || s.name.starts_with(partial))
+        .collect();
+    subs.sort_unstable_by_key(|s| s.name);
+    subs.into_iter()
+        .map(|s| CompletionItem {
+            label: s.name.to_owned(),
+            insert_text: s.name.to_owned(),
+            kind: CompletionKind::Function,
+            detail: (!s.detail.is_empty()).then(|| s.detail.to_owned()),
+            sort_text: None,
+            is_snippet: false,
+            filter_text: None,
+            text_edit: None,
+            documentation: None,
+        })
+        .collect()
+}
+
 /// Return the `n`-th whitespace-delimited word on `line` of
 /// `source` (0-based), if present.  Used to recover the
 /// subcommand keyword (word index 1) for argument-value
@@ -1681,6 +1720,34 @@ mod tests {
             !labels.contains(&"puts"),
             "subcommand context should not include `puts`; got {labels:?}",
         );
+    }
+
+    #[test]
+    fn sub_subcommand_completion_surfaces_at_word_index_2() {
+        // Issue #798 fix 3: after `info object ` (word-index 2), offer the
+        // OBJECT INTROSPECTION operations with their descriptions.
+        let src = "info object \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 12, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"class"), "expected `class`; got {labels:?}");
+        assert!(labels.contains(&"methods"), "expected `methods`; got {labels:?}");
+        // Descriptions are surfaced as detail.
+        assert!(
+            items
+                .iter()
+                .find(|i| i.label == "class")
+                .and_then(|i| i.detail.as_deref())
+                .is_some_and(|d| !d.is_empty()),
+            "expected a detail on the `class` op",
+        );
+        // Partial filters: `info class super` → `superclasses`.
+        let src = "info class super\n";
+        let analysis = analyse(src);
+        let items = completions(src, 0, 16, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["superclasses"], "prefix should filter; got {labels:?}");
     }
 
     #[test]

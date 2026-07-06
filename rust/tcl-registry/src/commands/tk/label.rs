@@ -202,6 +202,38 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         min_version: None,
     },
+    OptionSpec {
+        name: "-activebackground",
+        value: OptionValue::value("color"),
+        detail: "Specifies background color to use when drawing active elements. An element (a widget or portion of a widget).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-disabledforeground",
+        value: OptionValue::value("color"),
+        detail: "Specifies foreground color to use when drawing a disabled element. If the option is specified as an empty.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-activeforeground",
+        value: OptionValue::value("color"),
+        detail: "Specifies foreground color to use when drawing active elements. See above for definition of active elements.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-state",
+        value: OptionValue::value("stateSpec"),
+        detail: "Specifies one of three states for the label: normal, active, or disabled. In normal state the button is.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {

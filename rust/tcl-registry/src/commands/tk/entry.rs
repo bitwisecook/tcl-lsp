@@ -266,6 +266,22 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         min_version: None,
     },
+    OptionSpec {
+        name: "-disabledbackground",
+        value: OptionValue::value("color"),
+        detail: "Specifies the background color to use when the entry is disabled. If this option is the empty string, the.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-disabledforeground",
+        value: OptionValue::value("color"),
+        detail: "Specifies the foreground color to use when the entry is disabled. If this option is the empty string, the.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
 ];
 
 /// The command's subcommands.

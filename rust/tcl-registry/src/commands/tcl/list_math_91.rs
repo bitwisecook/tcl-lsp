@@ -34,6 +34,7 @@ fn make(
     args: u16,
     summary: &'static str,
     synopsis: &'static [&'static str],
+    source: &'static str,
 ) -> CommandSpec {
     CommandSpec {
         name,
@@ -43,7 +44,7 @@ fn make(
         dialects: Some(DialectSet::TCL91),
         arity: Arity::exact(args),
         return_type: Some(TclType::List),
-        hover: Some(HoverSnippet::brief(summary, synopsis, "Tcl man page")),
+        hover: Some(HoverSnippet::brief(summary, synopsis, source)),
         ..CommandSpec::DEFAULT
     }
 }
@@ -55,6 +56,7 @@ pub fn divmod() -> CommandSpec {
         2,
         "Divide an integer by another and report quotient and remainder (Tcl 9.1).",
         &["divmod x y"],
+        "Tcl man page divmod.n",
     )
 }
 
@@ -65,6 +67,7 @@ pub fn frexp() -> CommandSpec {
         1,
         "Split a floating-point number into fraction and exponent parts (Tcl 9.1).",
         &["frexp value"],
+        "Tcl man page frexp.n",
     )
 }
 
@@ -75,6 +78,7 @@ pub fn modf() -> CommandSpec {
         1,
         "Split a floating-point number into integer and fraction parts (Tcl 9.1).",
         &["modf value"],
+        "Tcl man page modf.n",
     )
 }
 
@@ -85,5 +89,6 @@ pub fn remquo() -> CommandSpec {
         2,
         "Compute floating-point remainder and quadrant determinant (Tcl 9.1).",
         &["remquo x y"],
+        "Tcl man page remquo.n",
     )
 }

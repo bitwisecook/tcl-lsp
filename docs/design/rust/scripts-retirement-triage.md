@@ -107,8 +107,9 @@ the gates must live in `rust-tests`, not `ci-fast`.
 **Deleted 2026-07-01 (fully orphaned — no live Makefile/CI invocation of either
 the Python or the xtask verb; nothing that runs today changed):**
 
-- `check/refcount_contract.py` → `xtask refcount-contract` (now in `make
-  xtask-check`, warning-only until every `runtime/zig` export has a row). *(deleted)*
+- `check/refcount_contract.py` → `xtask refcount-contract` (both removed with
+  the Zig runtime — the refcount contract was specific to the former Zig
+  runtime's exports and no longer applies to the Rust runtime). *(deleted)*
 - `check/audit_option_dialects.py` → `xtask audit-option-dialects` — a *generator*
   (writes `tmp/option_dialect_audit.json`, needs built `tmp/tcl*/unix` trees), not
   a pass/fail gate, so it is a `make xtask-audit-option-dialects` on-demand target,
@@ -188,12 +189,12 @@ if reimplemented Rust-side:
 
 - `dev/rust_tcltest_sweep.py`, `dev/rust_vm_tier_gap.py` (regenerates
   `rust-vm-tier-parity.md`), `dev/tcl9_ctcl_baseline.py` (C reference baseline).
-- `dev/tcl9_wasm_sweep.py`, `dev/run_tcl9_wasm_core.py` (Zig),
+- `dev/tcl9_wasm_sweep.py`, `dev/run_tcl9_wasm_core.py` (targeted the former Zig runtime),
   `dev/classify_tcl9_wasm_failures.py`, `dev/gen_tcl9_wasm_classification.py`.
 - `dev/leak_sweep.py`, `dev/diff_leak_sweep.py`, `dev/bench_wasm_runtime.py`,
   `dev/perf_microbench.py`, `dev/run_external_test_suites.py`,
   `dev/bisect_tcltest.py`.
-- `check/wasm_command_parity.py` — Python registry vs Zig runtime parity.
+- `check/wasm_command_parity.py` — Python registry vs the former Zig runtime parity.
 
 ---
 

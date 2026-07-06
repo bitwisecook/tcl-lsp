@@ -10,10 +10,12 @@ is always half of a pair — a complete runtime parser+evaluator" made concrete.
 
 **Method (the one the work follows).** Reason over portions of `init.tcl` /
 `tcltest.tcl`, find the missing bit, **reference C Tcl** (`tmp/tcl9.0.3/generic/*.c`
-for exact semantics) **and the Zig runtime** (`runtime/zig/`, the behavioural
-oracle — see the [discoveries appendix](#appendix--zig-runtime-discoveries-to-honour))
+for exact semantics) **and the former Zig runtime** (`runtime/zig/`, the retired
+behavioural oracle — see the [discoveries appendix](#appendix--zig-runtime-discoveries-to-honour))
 to inform it, implement it as a Rust builtin, and re-drive. Empirical loop:
-`source` the file → hit the first wall → port that command → repeat.
+`source` the file → hit the first wall → port that command → repeat. (The Zig
+runtime has since been deleted; its oracle discoveries are preserved in the
+appendix and its citations point into git history.)
 
 ## What "C command" means here (the surface to port)
 
@@ -103,10 +105,11 @@ test.
     uses, compiled to a static archive by `build.rs` (gated `have_regex`, like
     `have_tommath`) and FFI'd via `src/regex.rs`. The C host hooks (heap, ASCII
     char-class predicates, `Tcl_UniChar*` case/encode + `Tcl_DString`) live in
-    `regex_shim/` (`regcustom.h`/`tclInt.h`/`regex_shim.c`), adapted from the Zig
-    runtime's `regex_include/` (the oracle) and retargeted from wasm32 to the
-    native host. The Spencer workspace `struct vars` is `_Thread_local` (vs the
-    Zig file-static) so the multi-threaded `cargo test` runner is race-free.
+    `regex_shim/` (`regcustom.h`/`tclInt.h`/`regex_shim.c`), adapted from the
+    former Zig runtime's `regex_include/` (the oracle) and retargeted from
+    wasm32 to the native host. The Spencer workspace `struct vars` is
+    `_Thread_local` (vs the former Zig file-static) so the multi-threaded
+    `cargo test` runner is race-free.
     `cmd_regex.rs` mirrors `tclCmdMZ.c` (`-all`/`-inline`/`-indices`/`-nocase`/
     `-line`/`-start`/`--`; `&`/`\N` substitution; UTF-8↔codepoint offset
     mapping). ASCII-only Unicode classes for now (a mechanical follow-up).
@@ -199,9 +202,11 @@ test.
 
 ## Appendix — Zig-runtime discoveries to honour
 
-Mined from `runtime/zig/` (the behavioural oracle). Each is a concrete,
-testable semantic the Rust port must match; **bold** = a guard against a real bug
-the Zig runtime hit. Rust status noted where already handled.
+Mined from the **former Zig runtime** (`runtime/zig/`, the retired behavioural
+oracle — now deleted; the `*.zig` line citations below point into its git
+history). Each is a concrete, testable semantic the Rust port must match;
+**bold** = a guard against a real bug the Zig runtime hit. Rust status noted
+where already handled.
 
 **Procs / call:**
 - **Body-level `break`/`continue` that escapes a proc → error** (`tcl_interp.zig`
@@ -261,6 +266,7 @@ the Zig runtime hit. Rust status noted where already handled.
 - [`rust-runtime-port.md`](rust-runtime-port.md) — Track 1 status + gates.
 - [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md) — PC-3 (eval/
   uplevel) + PC-4 (catch/error/return-options/errorInfo) drive M1.
-- C Tcl 9 source: `tmp/tcl9.0.3/generic/*.c` (exact semantics); the Zig runtime
-  `runtime/zig/` (oracle); `make check-wasm-parity` / the Tcl 9 tcltest sweep
-  (no regression of a file the Zig baseline passes).
+- C Tcl 9 source: `tmp/tcl9.0.3/generic/*.c` (exact semantics); the former Zig
+  runtime `runtime/zig/` remains the historical oracle (git history only);
+  `make runtime-rust-test` / the Tcl 9 tcltest sweep (no regression of a file
+  the runtime already passes).

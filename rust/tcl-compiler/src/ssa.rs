@@ -882,7 +882,7 @@ pub(crate) fn structural_body_indices(
             None
         } else {
             args.first()
-                .and_then(|first| spec.subcommand(first))
+                .and_then(|first| spec.resolve_subcommand(first))
                 .map(|sub| sub.body_kind)
         };
         let body_kind = sub_body_kind.unwrap_or(spec.body_kind);

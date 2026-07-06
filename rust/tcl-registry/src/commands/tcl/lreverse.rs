@@ -28,7 +28,8 @@ pub fn spec() -> CommandSpec {
         name: "lreverse",
         const_fold: Some(crate::const_fold::fold_lreverse),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE,
-        dialects: None,
+        // Added in Tcl 8.5 (TIP 272).
+        dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::exact(1),
         return_type: Some(TclType::List),
         hover: Some(HoverSnippet {

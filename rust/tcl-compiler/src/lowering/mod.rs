@@ -252,11 +252,12 @@ fn parse_param_names(param_str: &str) -> Vec<String> {
 /// simple literal. Tolerates surrounding whitespace and is
 /// case-insensitive (matches `Tcl_GetBoolean`).
 pub(crate) fn static_bool(expr_text: &str) -> Option<bool> {
-    let stripped = expr_text.trim().to_ascii_lowercase();
-    match stripped.as_str() {
-        "0" | "false" | "no" | "off" => Some(false),
-        "1" | "true" | "yes" | "on" => Some(true),
-        _ => None,
+    let stripped = expr_text.trim();
+    match stripped {
+        "0" => Some(false),
+        "1" => Some(true),
+        // Boolean words, incl. unique-prefix spellings (`tr`, `ye`, `of`).
+        _ => tcl_syntax::boolean::parse_boolean_word(stripped),
     }
 }
 
@@ -2639,6 +2640,22 @@ mod tests {
 
     fn reg() -> CommandRegistry {
         CommandRegistry::build_default()
+    }
+
+    #[test]
+    fn static_bool_accepts_unique_prefix_booleans() {
+        // A condition folds boolean words by unique prefix, like Tcl
+        // (`if {tr}` runs, `if {of}` does not — verified against tclsh).
+        assert_eq!(static_bool("tr"), Some(true));
+        assert_eq!(static_bool(" ye "), Some(true));
+        assert_eq!(static_bool("on"), Some(true));
+        assert_eq!(static_bool("of"), Some(false));
+        assert_eq!(static_bool("n"), Some(false));
+        assert_eq!(static_bool("0"), Some(false));
+        assert_eq!(static_bool("1"), Some(true));
+        // Ambiguous `o` (on/off) is not a static boolean.
+        assert_eq!(static_bool("o"), None);
+        assert_eq!(static_bool("$x"), None);
     }
 
     #[test]

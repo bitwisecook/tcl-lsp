@@ -29,6 +29,9 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "const",
+        // Intentionally universal (`dialects: None`) rather than Tcl-9.0-gated:
+        // kept dialect-agnostic so it stays valid inside iRules events. See
+        // `tcl9_commands_gated_to_tcl90` in registry.rs.
         dialects: None,
         arity: Arity::new(2, 2),
         assigns_variable_at: Some(0),

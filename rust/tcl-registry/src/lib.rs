@@ -50,6 +50,7 @@
 
 pub mod arg_role;
 pub mod arity;
+pub mod base_objects;
 pub mod bigip;
 pub mod body_kind;
 pub mod cache;
@@ -59,6 +60,7 @@ pub mod const_fold;
 pub mod definer;
 pub mod dialects;
 mod event_descriptions;
+pub mod event_facts;
 pub mod events;
 pub mod forms;
 pub mod hooks;
@@ -97,7 +99,7 @@ pub mod prelude {
     };
     pub use crate::patterns::{FormatType, PatternType};
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
-    pub use crate::spec::{BytePayloadSpec, CommandSpec, ObjectClassSpec, SubCommand};
+    pub use crate::spec::{BytePayloadSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSubCommand};
     pub use crate::taint::{SetterConstraint, TaintColour};
     pub use crate::traits::Traits;
     pub use crate::types::TclType;
@@ -116,7 +118,7 @@ pub use dialects::{
 pub use hover::ArgValue;
 pub use patterns::{FormatType, PatternType};
 pub use registry::{CommandRegistry, ResolvedTerminator};
-pub use spec::{BytePayloadSpec, CommandSpec, ObjectClassSpec, SubCommand};
+pub use spec::{BytePayloadSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSubCommand};
 pub use taint::{SetterConstraint, TaintColour};
 pub use traits::Traits;
 pub use types::TclType;

@@ -37,6 +37,8 @@ pub fn spec() -> CommandSpec {
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
             | Traits::DYNAMIC_EVAL_BODY,
+        // Added in Tcl 8.5 (TIP 194).
+        dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Body)],
         lowering_hook: Some(crate::hooks::LoweringHookId::Apply),

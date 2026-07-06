@@ -19,13 +19,12 @@
 //! Version-ranged TMOS profile field defaults.
 //!
 //! A single-configuration file (SCF) — and `tmsh list … one-line` — omit any
-//! profile field that is still at its TMOS default, because those values live
-//! in `/config/profile_base.conf`, the read-only base config every BIG-IP ships
-//! with. Reconstructing a profile's *effective* configuration from an SCF
-//! therefore requires that default set. Worse, the defaults themselves drift
-//! across releases (a field is added, a default is retuned, an option flips), so
-//! a single value per field is not enough — each default is keyed by the BIG-IP
-//! **version range** over which it applies.
+//! profile field that is still at its TMOS default, because those values are
+//! part of the read-only base config a BIG-IP loads before `bigip.conf`.
+//! Reconstructing a profile's *effective* configuration from an SCF therefore
+//! requires that default set. Because defaults drift across releases (a field
+//! is added, a default is retuned, an option flips), each default is keyed by
+//! the BIG-IP **version** it was captured at.
 //!
 //! This module is that table. It is the registry-side source of truth for
 //! "what does field X of an unmodified `ltm profile <type>` resolve to on TMOS
@@ -33,23 +32,23 @@
 //! BIG-IP report (to show effective values for base profiles an SCF never
 //! re-declares), and the LSP.
 //!
-//! ## Data + import
+//! **These are fallbacks only.** A value present in a parsed source
+//! (UCS/qkview/SCF/`bigip.conf`) always wins: consult this table solely for a
+//! field the parsed config does not itself carry.
 //!
-//! [`PROFILE_DEFAULTS`] is generated (`generated.rs`) by
-//! `scripts/registry-audit/gen_profile_defaults.py` from a real
-//! `profile_base.conf` — the read-only default-profile base every BIG-IP ships
-//! (sourced from f5-corkscrew's Apache-2.0 archive fixtures). One snapshot
-//! yields version-unbounded entries; known cross-release changes a single
-//! snapshot can't express (e.g. the client/server-ssl `options` gaining
-//! `no-tlsv1.3` at 14.0) are recorded as an `OVERRIDES` table in the generator
-//! and emitted as adjacent half-open ranges. Refresh by re-running the
-//! generator against a newer `profile_base.conf`; add range boundaries to
-//! `OVERRIDES` as releases retune a default. The resolver treats an open upper
-//! bound as the latest known value.
+//! ## Version resolution
+//!
+//! Each entry carries the snapshot version it was captured at (as a half-open
+//! range starting there). Resolving field X for a report at version V
+//! floor-matches: the snapshot whose range covers V, else — when V predates
+//! every snapshot we hold — the oldest snapshot we have. With a single snapshot
+//! that means every report resolves to it; as more snapshots are added, a report
+//! picks the nearest not-newer one. Refresh or extend by re-running the
+//! generator against another base-config snapshot.
 
 mod generated;
 
-/// The full profile default table (generated from `profile_base.conf`). See the
+/// The full profile default table (generated). See the
 /// module docs for provenance and the version-range policy.
 pub use generated::PROFILE_DEFAULTS_GENERATED as PROFILE_DEFAULTS;
 
@@ -161,7 +160,7 @@ impl VersionRange {
 pub struct FieldDefault {
     /// tmsh field name (e.g. `"idle-timeout"`, `"insert-xforwarded-for"`).
     pub field: &'static str,
-    /// The default value as it appears in `profile_base.conf` for this range.
+    /// The default value captured for this version.
     pub value: &'static str,
     /// BIG-IP versions this default applies to.
     pub range: VersionRange,
@@ -182,10 +181,9 @@ pub struct ProfileDefaults {
 /// Resolve the effective default value of `field` on profile type
 /// `profile_type` (case-insensitive, underscores ignored) at `version`.
 ///
-/// `version = None` selects the current value — the entry whose range has an
-/// open upper bound ([`VersionRange::is_current`]); when every entry is bounded
-/// the highest-versioned one is used. Returns `None` when the profile/field is
-/// unknown or no recorded range covers `version`.
+/// `version = None` selects the current (newest) snapshot. `Some(v)` floor-
+/// matches: the snapshot covering `v`, or the oldest snapshot when `v` predates
+/// all of them. Returns `None` only when the profile or field is unknown.
 #[must_use]
 pub fn profile_field_default(
     profile_type: &str,
@@ -243,21 +241,107 @@ pub fn profiles_with_defaults() -> Vec<&'static str> {
 }
 
 /// Pick the default for one field of `spec` at `version`.
+///
+/// `version = None` selects the current (newest) snapshot. `Some(v)` floor-
+/// matches: the snapshot whose range contains `v`, or — when `v` predates every
+/// snapshot we have — the oldest snapshot (clamp up to the lowest recorded
+/// version rather than returning nothing).
 fn resolve_field(
     spec: &ProfileDefaults,
     field: &str,
     version: Option<BigipVersion>,
 ) -> Option<&'static str> {
-    let mut candidates = spec.fields.iter().filter(|f| f.field == field);
+    // A hand-authored cross-version split (FIELD_OVERRIDES) takes precedence
+    // over the single-snapshot generated entry for a (profile, field); the
+    // generated field's own entries apply otherwise. The generated table is one
+    // snapshot per field, so this is where pre-snapshot version history lives.
+    let candidates: Vec<&FieldDefault> = match field_override(spec.profile, field) {
+        Some(over) => over.iter().collect(),
+        None => spec.fields.iter().filter(|f| f.field == field).collect(),
+    };
     match version {
-        Some(v) => candidates.find(|f| f.range.contains(v)).map(|f| f.value),
+        Some(v) => candidates
+            .iter()
+            .find(|f| f.range.contains(v))
+            // Floor-clamp: report older than any snapshot → oldest snapshot
+            // (smallest lower bound; an unbounded-below range sorts first).
+            .or_else(|| candidates.iter().min_by_key(|f| f.range.min))
+            .map(|f| f.value),
         // Current value: rank an open upper bound above any bounded range, then
         // by highest lower bound (newest recorded range). `Option<BigipVersion>`
         // and `bool` both order the way we want (`false < true`, `None < Some`).
         None => candidates
+            .iter()
             .max_by_key(|f| (f.range.is_current(), f.range.min))
             .map(|f| f.value),
     }
+}
+
+/// A hand-authored cross-version split for one `(profile, field)`.
+///
+/// The generated table records a single snapshot value per field (see
+/// [`generated`]); it cannot express a default that changed across TMOS
+/// releases. An override lists the full version history for that field, and
+/// [`resolve_field`] uses it *instead of* the generated entry.
+///
+/// Invariant (guarded by `overrides_agree_with_generated_snapshot`): the
+/// newest band's value must equal the generated snapshot value, so an override
+/// only *adds* older history and never silently diverges from regeneration.
+struct FieldOverride {
+    /// Profile type, matched via [`normalise_type`].
+    profile: &'static str,
+    /// The field whose generated snapshot entry these bands replace.
+    field: &'static str,
+    /// Version-ranged values, newest band last.
+    values: &'static [FieldDefault],
+}
+
+/// Cross-version splits the single-snapshot generated table can't express.
+///
+/// `client-ssl` / `server-ssl` `options` gained TLS/DTLS opt-outs over time:
+/// `no-tlsv1.3` at 14.0 and `no-dtlsv1.2` by the 17.1 snapshot. Without these
+/// bands, `profile_default(..., options, "13.1")` would report 17.1-era flags
+/// for a 13.x device.
+static FIELD_OVERRIDES: &[FieldOverride] = &[
+    FieldOverride {
+        profile: "CLIENTSSL",
+        field: "options",
+        values: SSL_OPTIONS_BANDS,
+    },
+    FieldOverride {
+        profile: "SERVERSSL",
+        field: "options",
+        values: SSL_OPTIONS_BANDS,
+    },
+];
+
+/// Shared `options` history for the client/server SSL profiles (identical).
+static SSL_OPTIONS_BANDS: &[FieldDefault] = &[
+    FieldDefault {
+        field: "options",
+        value: "dont-insert-empty-fragments",
+        range: VersionRange::until(BigipVersion::new(14, 0, 0, 0)),
+    },
+    FieldDefault {
+        field: "options",
+        value: "dont-insert-empty-fragments no-tlsv1.3",
+        range: VersionRange::between(BigipVersion::new(14, 0, 0, 0), BigipVersion::new(17, 1, 0, 0)),
+    },
+    FieldDefault {
+        field: "options",
+        value: "dont-insert-empty-fragments no-tlsv1.3 no-dtlsv1.2",
+        range: VersionRange::from(BigipVersion::new(17, 1, 0, 0)),
+    },
+];
+
+/// The version bands for `(profile, field)`, or `None` when no split is
+/// hand-authored (the generated snapshot then applies as-is).
+fn field_override(profile: &str, field: &str) -> Option<&'static [FieldDefault]> {
+    let key = normalise_type(profile);
+    FIELD_OVERRIDES
+        .iter()
+        .find(|o| o.field == field && normalise_type(o.profile) == key)
+        .map(|o| o.values)
 }
 
 /// Canonicalise a profile type spelling: uppercase, drop `_`/`-`/`.` and any
@@ -325,26 +409,76 @@ mod tests {
     }
 
     #[test]
-    fn version_split_selects_the_right_side() {
-        // Before 14.0: no TLS 1.3 flag in the base options.
+    fn version_splits_and_floor_matching() {
+        // client-ssl / server-ssl `options` gained opt-outs over releases; the
+        // hand-authored override recovers the per-release value.
+        let cur = "dont-insert-empty-fragments no-tlsv1.3 no-dtlsv1.2";
+        let mid = "dont-insert-empty-fragments no-tlsv1.3";
+        let orig = "dont-insert-empty-fragments";
+        // 17.1 onward → current value.
         assert_eq!(
-            profile_field_default("CLIENTSSL", "options", Some(v("13.1.0.8"))),
-            Some("dont-insert-empty-fragments")
+            profile_field_default("CLIENTSSL", "options", Some(v("17.1"))),
+            Some(cur)
         );
-        // 14.0 and later: TLS 1.3 disabled by default.
+        assert_eq!(
+            profile_field_default("CLIENTSSL", "options", Some(v("17.5.1.3"))),
+            Some(cur)
+        );
+        // [14.0, 17.1) → no-tlsv1.3 but not yet no-dtlsv1.2.
+        assert_eq!(
+            profile_field_default("CLIENTSSL", "options", Some(v("16.1"))),
+            Some(mid)
+        );
         assert_eq!(
             profile_field_default("CLIENTSSL", "options", Some(v("14.0"))),
-            Some("dont-insert-empty-fragments no-tlsv1.3")
+            Some(mid)
         );
+        // Before 14.0 → the original value (the override covers it — no clamp).
         assert_eq!(
-            profile_field_default("CLIENTSSL", "options", Some(v("16.1.3"))),
-            Some("dont-insert-empty-fragments no-tlsv1.3")
+            profile_field_default("CLIENTSSL", "options", Some(v("13.1.0.8"))),
+            Some(orig)
         );
-        // No version → current value (open upper bound).
+        // No version → current (newest).
+        assert_eq!(profile_field_default("CLIENTSSL", "options", None), Some(cur));
+        // server-ssl shares the identical history.
         assert_eq!(
-            profile_field_default("CLIENTSSL", "options", None),
-            Some("dont-insert-empty-fragments no-tlsv1.3")
+            profile_field_default("SERVERSSL", "options", Some(v("13.1"))),
+            Some(orig)
         );
+
+        // A field with only the 17.1 snapshot still floor-clamps up to it for
+        // older reports rather than returning nothing.
+        assert_eq!(
+            profile_field_default("CLIENTSSL", "mode", Some(v("13.1"))),
+            Some("enabled")
+        );
+    }
+
+    /// The newest override band must equal the generated snapshot value, so an
+    /// override only adds older history and can't silently diverge on regen.
+    #[test]
+    fn overrides_agree_with_generated_snapshot() {
+        for over in FIELD_OVERRIDES {
+            let newest = over
+                .values
+                .iter()
+                .max_by_key(|f| (f.range.is_current(), f.range.min))
+                .expect("override has at least one band");
+            // The generated table has a single snapshot entry per field; read
+            // it directly (bypassing the override) to check the newest band.
+            let generated = PROFILE_DEFAULTS
+                .iter()
+                .find(|p| normalise_type(p.profile) == normalise_type(over.profile))
+                .and_then(|p| p.fields.iter().find(|f| f.field == over.field))
+                .map(|f| f.value);
+            assert_eq!(
+                Some(newest.value),
+                generated,
+                "{}::{} newest override band must match the generated snapshot",
+                over.profile,
+                over.field
+            );
+        }
     }
 
     #[test]
@@ -359,10 +493,10 @@ mod tests {
         // The generated table covers the full base-profile set, not a handful.
         assert!(
             profiles_with_defaults().len() >= 50,
-            "expected the full profile_base.conf import, got {}",
+            "expected the full base-profile import, got {}",
             profiles_with_defaults().len()
         );
-        // Real values from profile_base.conf (not guessed): the base tcp proxy
+        // Real captured values (not guessed): the base tcp proxy
         // buffer is 65535, and the profile carries dozens of fields.
         assert_eq!(
             profile_field_default("tcp", "proxy-buffer-high", None),
@@ -392,7 +526,8 @@ mod tests {
         let mut sorted = names.clone();
         sorted.sort_unstable();
         assert_eq!(names, sorted);
-        // `options` appears exactly once despite two ranged entries
+        // `options` resolves to exactly one value — and at 16.1 that is the
+        // [14.0, 17.1) band (no-tlsv1.3, not yet no-dtlsv1.2).
         assert_eq!(d.iter().filter(|(f, _)| *f == "options").count(), 1);
         assert_eq!(
             d.iter().find(|(f, _)| *f == "options").map(|(_, v)| *v),
