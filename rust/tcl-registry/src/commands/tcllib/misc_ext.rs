@@ -150,7 +150,7 @@ const COMM_CMDS: &[Row] = &[(
 const CRON_CMDS: &[Row] = &[
     (
         "cron::at",
-        Arity::exact(3),
+        Arity::new(2, 3),
         &["cron::at ?processname? timecode command"],
         "This command registers a command to be called at the time specified by timecode.",
     ),
@@ -168,13 +168,13 @@ const CRON_CMDS: &[Row] = &[
     ),
     (
         "cron::in",
-        Arity::exact(3),
+        Arity::new(2, 3),
         &["cron::in ?processname? timecode command"],
         "This command registers a command to be called after a delay of time specified by timecode.",
     ),
     (
         "cron::object_coroutine",
-        Arity::exact(3),
+        Arity::new(2, 3),
         &["cron::object_coroutine object coroutine ?info?"],
         "This command registers a coroutine, associated with object to be called given the parameters of info.",
     ),
@@ -186,7 +186,7 @@ const CRON_CMDS: &[Row] = &[
     ),
     (
         "cron::wake",
-        Arity::exact(1),
+        Arity::new(0, 1),
         &["cron::wake ?who?"],
         "Wake up cron, and arrange for its event loop to be run during the next Idle cycle.",
     ),
@@ -204,7 +204,7 @@ const CRON_CMDS: &[Row] = &[
     ),
     (
         "cron::clock_sleep",
-        Arity::exact(2),
+        Arity::new(1, 2),
         &["cron::clock_sleep seconds ?offset?"],
         "Return a clock time absolute to the epoch which falls exactly seconds in the future.",
     ),

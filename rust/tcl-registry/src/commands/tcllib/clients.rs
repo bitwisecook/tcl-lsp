@@ -91,14 +91,14 @@ const LOG_CMDS: &[Row] = &[
     ),
     (
         "log::lvSuppress",
-        Arity::exact(2),
-        &["log::lvSuppress level {suppress 1}"],
+        Arity::new(1, 2),
+        &["log::lvSuppress level ?suppress?"],
         "(Un)suppresses the output of messages having the specified level.",
     ),
     (
         "log::lvSuppressLE",
-        Arity::exact(2),
-        &["log::lvSuppressLE level {suppress 1}"],
+        Arity::new(1, 2),
+        &["log::lvSuppressLE level ?suppress?"],
         "(Un)suppresses the output of messages having the specified level or one of lesser priority.",
     ),
     (

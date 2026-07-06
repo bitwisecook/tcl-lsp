@@ -259,6 +259,7 @@ mod term_text;
 mod text_misc;
 mod web_asn;
 
+use crate::dialects::DialectSet;
 use crate::spec::CommandSpec;
 
 /// Return all `tcllib` command specifications.
@@ -282,9 +283,19 @@ pub fn tcllib_command_specs() -> Vec<CommandSpec> {
     // W120 (missing-package-require) and package-gated
     // completion fire for tcllib commands used without the
     // corresponding `package require`.
+    // tcllib packages are loaded with `package require`, which the restricted
+    // F5 embedded dialects (iRules / iApps) do not support — those run in TMM
+    // with a fixed command set.  Gate every tcllib command out of them (mirrors
+    // how Tk is excluded via `TK_AND_TCL`), so they are not offered or counted
+    // as valid there.  A spec that already carries an explicit dialect set (a
+    // version-gated command) keeps it.
+    let tcllib_dialects = DialectSet::all().difference(DialectSet::IRULES | DialectSet::IAPPS);
     for spec in &mut specs {
         if spec.required_package.is_none() {
             spec.required_package = tcllib_required_package(spec.name);
+        }
+        if spec.dialects.is_none() {
+            spec.dialects = Some(tcllib_dialects);
         }
     }
     specs

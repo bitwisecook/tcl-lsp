@@ -34,6 +34,11 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Creates a new generator procedure.",
         synopsis: "generator define name params body",
+        // `generator define name params body` is proc-shaped: mark the
+        // parameter list and body so the generic registry-driven body
+        // recursion (semantic tokens, folding, diagnostics) descends into the
+        // generator body, as it does for `proc` / `lambda`.
+        arg_roles: &[(1, ArgRole::ParamList), (2, ArgRole::Body)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -45,9 +50,11 @@ const GENERATOR_SUBS: &[SubCommand] = &[
     },
     SubCommand {
         name: "foreach",
-        arity: Arity::at_least(5),
+        // `generator foreach varList generator ?varList generator ...? body`:
+        // the single-generator form is three words (one pair plus the body).
+        arity: Arity::at_least(3),
         detail: "Loops through one or more generators, assigning the next values to variables and then executing the loop body.",
-        synopsis: "generator foreach varList generator varList generator ... body",
+        synopsis: "generator foreach varList generator ?varList generator ...? body",
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -283,9 +290,10 @@ const GENERATOR_SUBS: &[SubCommand] = &[
     },
     SubCommand {
         name: "repeat",
-        arity: Arity::exact(2),
+        // `generator repeat n value ?value ...?` — one or more repeated values.
+        arity: Arity::at_least(2),
         detail: "Returns a generator that consists of n copies of the given elements.",
-        synopsis: "generator repeat n value..",
+        synopsis: "generator repeat n value ?value ...?",
         ..SubCommand::DEFAULT
     },
     SubCommand {
