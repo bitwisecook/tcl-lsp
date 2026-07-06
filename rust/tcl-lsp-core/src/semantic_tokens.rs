@@ -5097,6 +5097,164 @@ mod tests {
         );
     }
 
+    /// Golden fixture for `TclOO` object-method dispatch resolution — validated
+    /// against the Tcler's-wiki pattern catalogue and a real corpus (tcllib,
+    /// tklib, SpiceGenTcl).  Two guarantees:
+    ///
+    /// * **`Resolve`** — a statically-determinable dispatch colours its method a
+    ///   callable (regression guard for every form we support).
+    /// * **`Abstain`** — a genuinely-dynamic dispatch (or a form we do not model)
+    ///   leaves its method a plain string, never a *mis-highlighted* callable
+    ///   (soundness guard: no false positives).
+    ///
+    /// Adding a pattern here is how object-dispatch support is expanded and
+    /// measured; flip an `Abstain` to `Resolve` when a form becomes supported.
+    #[test]
+    fn tcloo_dispatch_pattern_fixture() {
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        #[derive(Clone, Copy, PartialEq)]
+        enum Expect {
+            Resolve,
+            Abstain,
+        }
+        use Expect::{Abstain, Resolve};
+        // (name, source, method word, 0-based dispatch line, expectation)
+        let cases: &[(&str, &str, &str, u32, Expect)] = &[
+            // ---- statically determinable → resolve ----
+            (
+                "var_new",
+                "oo::class create C { method mrun {} {} }\nset o [C new]\n$o mrun\n",
+                "mrun", 2, Resolve,
+            ),
+            (
+                "direct_new",
+                "oo::class create C { method mrun {} {} }\n[C new] mrun\n",
+                "mrun", 1, Resolve,
+            ),
+            (
+                "configurable_property",
+                "oo::configurable create C { property node }\nset o [C new]\n$o configure -node 1\n",
+                "configure", 2, Resolve,
+            ),
+            (
+                "inherited_method",
+                "oo::class create B { method base {} {} }\noo::class create D { superclass B }\nset o [D new]\n$o base\n",
+                "base", 3, Resolve,
+            ),
+            (
+                "mixin_method",
+                "oo::class create M { method mixm {} {} }\noo::class create C { mixin M }\nset o [C new]\n$o mixm\n",
+                "mixm", 3, Resolve,
+            ),
+            (
+                "dict_collection",
+                "oo::class create C { method mrun {} {} }\ndict set d k [C new]\n[dict get $d k] mrun\n",
+                "mrun", 2, Resolve,
+            ),
+            (
+                "foreach_loopvar",
+                "oo::class create C { method mrun {} {} }\nlappend objs [C new]\nforeach o $objs { $o mrun }\n",
+                "mrun", 2, Resolve,
+            ),
+            (
+                "interproc_param",
+                "oo::class create C { method mrun {} {} }\nproc f {o} { $o mrun }\nset p [C new]\nf $p\n",
+                "mrun", 1, Resolve,
+            ),
+            (
+                "proc_return",
+                "oo::class create C { method mrun {} {} }\nproc make {} { return [C new] }\nset o [make]\n$o mrun\n",
+                "mrun", 3, Resolve,
+            ),
+            (
+                "my_self_call",
+                "oo::class create C {\n  method helper {} {}\n  method run {} { my helper }\n}\n",
+                "helper", 2, Resolve,
+            ),
+            (
+                "oo_define_added",
+                "oo::class create C {}\noo::define C { method added {} {} }\nset o [C new]\n$o added\n",
+                "added", 3, Resolve,
+            ),
+            (
+                "registry_class",
+                "set c [ticklecharts::chart new]\n$c Xaxis -name x\n",
+                "Xaxis", 1, Resolve,
+            ),
+            // ---- genuinely dynamic → must abstain (soundness) ----
+            (
+                "introspection_class",
+                "oo::class create C { method mrun {} {} }\nset o [C new]\nset cls [info object class $o]\n[$cls new] mrun\n",
+                "mrun", 3, Abstain,
+            ),
+            (
+                "oo_copy",
+                "oo::class create C { method mrun {} {} }\nset a [C new]\nset b [oo::copy $a]\n$b mrun\n",
+                "mrun", 3, Abstain,
+            ),
+            (
+                "unknown_param",
+                "proc f {o} { $o mrun }\n",
+                "mrun", 0, Abstain,
+            ),
+            // ---- not yet modelled, but abstains safely (flip to Resolve when done) ----
+            (
+                "named_object", // TODO(phase-3): resolve via created_instance_commands
+                "oo::class create C { method mrun {} {} }\nC create obj\nobj mrun\n",
+                "mrun", 2, Abstain,
+            ),
+            (
+                "snit_type", // TODO(phase-3): resolve via a snit dialect pack
+                "snit::type foo { method smeth {} {} }\nset o [foo create x]\n$o smeth\n",
+                "smeth", 2, Abstain,
+            ),
+        ];
+        let registry = reg();
+        let mut failures = Vec::new();
+        for &(name, src, method, line, expect) in cases {
+            let cu = CompilationUnit::build_for(src, &registry, false);
+            let analysis = Analyser::new().analyse(src, "tcl9.0");
+            let toks = decode_semantic(&full_with_cu_and_analysis(
+                src,
+                "tcl9.0",
+                &registry,
+                Some(&cu),
+                Some(&analysis),
+            ));
+            // Column of the method word on the dispatch line (word-boundary,
+            // first occurrence — unambiguous in these snippets).  ASCII, so byte
+            // == UTF-16 column.
+            let src_line = src.lines().nth(line as usize).unwrap_or("");
+            let mcol = src_line.match_indices(method).find_map(|(i, _)| {
+                let before = src_line.as_bytes().get(i.wrapping_sub(1)).copied();
+                let after = src_line.as_bytes().get(i + method.len()).copied();
+                let boundary = |b: Option<u8>| b.is_none_or(|b| !b.is_ascii_alphanumeric() && b != b'_');
+                (boundary(before) && boundary(after)).then_some(i as u32)
+            });
+            // The method resolves iff *its own* token is a callable `Function`.
+            let resolved = mcol.is_some_and(|c| {
+                toks.iter()
+                    .any(|&(l, tc, _, k, _)| l == line && tc == c && k == TokenKind::Function as u32)
+            });
+            let ok = match expect {
+                Resolve => resolved,
+                Abstain => !resolved,
+            };
+            if !ok {
+                let want = if expect == Resolve { "resolve" } else { "abstain" };
+                failures.push(format!(
+                    "  {name}: `{method}` expected to {want} but did not"
+                ));
+            }
+        }
+        assert!(
+            failures.is_empty(),
+            "TclOO dispatch fixture regressions:\n{}",
+            failures.join("\n")
+        );
+    }
+
     #[test]
     fn cross_file_constructor_dispatch_resolves() {
         // A class defined in one file (`Pin`), dispatched on via a direct
