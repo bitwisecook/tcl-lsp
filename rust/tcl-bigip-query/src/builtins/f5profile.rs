@@ -320,13 +320,21 @@ mod tests {
             call(&args)
         };
 
-        let snapshot = "dont-insert-empty-fragments no-tlsv1.3 no-dtlsv1.2";
-        // A version older than any snapshot floor-matches to the oldest snapshot.
-        assert_eq!(as_string(&clientssl_options(Some("13.1"))), Some(snapshot));
-        // A version at/after the snapshot resolves to it.
-        assert_eq!(as_string(&clientssl_options(Some("17.5"))), Some(snapshot));
-        // No version → current (newest) snapshot.
-        assert_eq!(as_string(&clientssl_options(None)), Some(snapshot));
+        let current = "dont-insert-empty-fragments no-tlsv1.3 no-dtlsv1.2";
+        // Before 14.0 → the original single-flag value (the override band covers it).
+        assert_eq!(
+            as_string(&clientssl_options(Some("13.1"))),
+            Some("dont-insert-empty-fragments")
+        );
+        // [14.0, 17.1) → no-tlsv1.3 added, not yet no-dtlsv1.2.
+        assert_eq!(
+            as_string(&clientssl_options(Some("15.1"))),
+            Some("dont-insert-empty-fragments no-tlsv1.3")
+        );
+        // A version at/after 17.1 resolves to the current snapshot.
+        assert_eq!(as_string(&clientssl_options(Some("17.5"))), Some(current));
+        // No version → current (newest) band.
+        assert_eq!(as_string(&clientssl_options(None)), Some(current));
     }
 
     #[test]
