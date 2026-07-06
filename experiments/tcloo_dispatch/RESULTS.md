@@ -124,7 +124,29 @@ A smaller lever than `$self` (the `foo create x` shape is less frequent than
 in-body self-dispatch in this corpus) but sound and free — it also flips the
 `snit_named_object` fixture to Resolve.
 
+## Phase 3c — snit `install NAME using TYPE` component typing
+
+A snit component installed with `install NAME using TYPE …` types the component
+variable `NAME` as `TYPE`, so `$NAME method …` in the snit body resolves.  snit
+method bodies are **not** lowered into the compiler CFG (only token-walked, like
+the `$self` path), so this is a *source scan* (`augment_install_component_handles`)
+feeding the handle map — the same technique the loop-var scan uses.
+
+| mode | after named-ctor | after install | Δ |
+|---|--:|--:|--:|
+| local `all` | 1713 | **1729 (13.8%)** | +16 |
+| project `all` | 1867 | **1998 (15.9%)** | +131 |
+
+The **project** delta (+131, `$var` 951 → 1082) dwarfs local (+16) because
+component classes are overwhelmingly defined in *other files* — exactly the
+cross-file shape the diagnostic predicted. Project mode (the shipping server
+mode) merges the workspace hierarchy, so the component's `TYPE` resolves.
+
+From the 6.8%/8.1% baseline, the snit slices together lifted the rate to
+**13.8% local / 15.9% project** — the `$self`, named-constructor, and component
+work compounding, each step diagnostic-selected and measured.
+
 Still abstaining (correctly): the *bareword* named-object shape (`Foo create
-obj; obj m`, needing `created_instance_commands`), snit components
-(`install`/`delegate`), `$hull`, and Tk widget paths — the next slices, in
-`tcloo_diag`'s priority order.
+obj; obj m`, needing `created_instance_commands`), `set`-bound snit components
+(`set c [Type name]`, snit's ambiguous bare constructor), `$hull`, and Tk widget
+paths — the next slices, in `tcloo_diag`'s priority order.

@@ -3842,6 +3842,90 @@ fn scan_loop_vars(
     }
 }
 
+/// Syntactic scan for snit `install NAME using TYPE …` component installs,
+/// binding `NAME` to `OBJECT(::TYPE)` in the handle map so a `$NAME method …`
+/// dispatch in a snit method body resolves.  snit method bodies are **not**
+/// lowered into the compiler CFG (only token-walked, like the `$self` path), so
+/// a source scan is how a component's class reaches the handle map — the same
+/// technique the loop-var scan uses.  Highlight-only and sound by abstention: an
+/// unknown / cross-file `TYPE` never resolves against the class hierarchy.
+fn augment_install_component_handles(
+    source: &str,
+    dialect: &str,
+    object_classes: &mut ObjectClassMap,
+) {
+    scan_install_components(source, source, 0, dialect, object_classes, 0);
+}
+
+/// Recursive worker for [`augment_install_component_handles`]: segment `text`,
+/// record each `install NAME using TYPE` component, then recurse into every
+/// braced-script word (class / method / constructor bodies) and `[…]`
+/// substitution.
+fn scan_install_components(
+    full_source: &str,
+    text: &str,
+    base_offset: u32,
+    dialect: &str,
+    handles: &mut ObjectClassMap,
+    depth: u32,
+) {
+    if depth > MAX_TOKEN_RECURSION {
+        return;
+    }
+    for seg in segment_commands_with_offset_and_config(
+        text,
+        base_offset,
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    ) {
+        let texts = &seg.texts;
+        // `install NAME using TYPE ?args…?` — snit component installation. Only
+        // a static bareword NAME (a plain instance-variable name) and TYPE (the
+        // component class command) qualify; a `$var`/`[cmd]` in either position
+        // is left alone.
+        if texts.first().map(String::as_str) == Some("install")
+            && texts.len() >= 4
+            && texts[2] == "using"
+        {
+            let name = texts[1].as_str();
+            let type_name = texts[3].as_str();
+            if !name.is_empty()
+                && !name.contains(['$', '[', ' '])
+                && !type_name.is_empty()
+                && !type_name.contains(['$', '[', ' '])
+            {
+                let qualified = format!("::{}", type_name.trim_start_matches("::"));
+                handles.entry(name.to_owned()).or_default().insert(qualified);
+            }
+        }
+        for (i, tok) in seg.argv.iter().enumerate() {
+            if !seg.single_token_word.get(i).copied().unwrap_or(false) {
+                continue;
+            }
+            let inner_span = match tok.kind {
+                TokenType::Str => subspec_content(full_source, *tok),
+                TokenType::Cmd => {
+                    let cstart = tok.span.start() as usize + tok.content_offset as usize;
+                    let cend = (tok.span.end() as usize).min(full_source.len());
+                    (cend > cstart)
+                        .then(|| full_source.get(cstart..cend).map(|inner| (cstart, inner)))
+                        .flatten()
+                }
+                _ => None,
+            };
+            if let Some((cstart, inner)) = inner_span {
+                scan_install_components(
+                    full_source,
+                    inner,
+                    u32::try_from(cstart).unwrap_or(0),
+                    dialect,
+                    handles,
+                    depth + 1,
+                );
+            }
+        }
+    }
+}
+
 fn collect_entries(
     source: &str,
     dialect: &str,
@@ -3892,6 +3976,11 @@ fn collect_entries(
     // surfaces it as a loop — and feeds the value variable(s) into the handle
     // map (issue #797, SpiceGenTcl `allNodes` / `actOnParam` shape).
     augment_loop_var_handles(source, dialect, &object_collections, &mut object_classes);
+
+    // snit `install NAME using TYPE …` component installs — a source scan, since
+    // snit method bodies (where the install lives) are not lowered into the CFG
+    // `object_handle_classes` reads.  Binds the component variable to its class.
+    augment_install_component_handles(source, dialect, &mut object_classes);
 
     // Walk every segmented command (recursing into braced bodies, braced
     // expressions, and `[…]` command substitutions) and classify each token.
@@ -5069,6 +5158,34 @@ mod tests {
     }
 
     #[test]
+    fn snit_install_component_dispatch_resolves() {
+        // `install axis using verticalAxis …` types the `axis` component, so a
+        // `$axis method` dispatch in the snit body resolves — the snit component
+        // idiom.  A source scan supplies the class (snit bodies aren't lowered).
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "snit::widget verticalAxis { method draw {} {} }\n\
+                   snit::widget chart {\n\
+                   \x20   component axis\n\
+                   \x20   constructor {args} {\n\
+                   \x20     install axis using verticalAxis $win.a\n\
+                   \x20     $axis draw\n\
+                   \x20   }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        // `$axis draw` on line 5 resolves the component's method.
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 5 && k == TokenKind::Function as u32 && m == 0),
+            "expected `$axis draw` on an installed component to resolve; got {toks:?}"
+        );
+    }
+
+    #[test]
     fn my_configure_property_options_resolve() {
         // `my configure -prop` inside an oo::configurable body colours the
         // property option too.
@@ -5226,6 +5343,11 @@ mod tests {
                 "itcl_this_call",
                 "itcl::class C {\n  method helper {} {}\n  method run {} { $this helper }\n}\n",
                 "helper", 2, Resolve,
+            ),
+            (
+                "snit_install_component",
+                "snit::widget Ax { method draw {} {} }\nsnit::widget C {\n  constructor {} { install ax using Ax $win.a\n    $ax draw }\n}\n",
+                "draw", 3, Resolve,
             ),
             (
                 "oo_define_added",

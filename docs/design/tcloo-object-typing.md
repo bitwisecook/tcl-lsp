@@ -135,8 +135,13 @@ So the measured priority order (highest corpus impact first) is:
    resolution ~doubled (local 6.8%→13.6%, project 8.1%→14.8%; see
    `experiments/tcloo_dispatch/RESULTS.md`). **Named-constructor typing
    (`set o [foo create x]`) has also landed** — the signature scan records snit
-   types as classes so the receiver types `OBJECT(class)`. Remaining snit slices:
-   components (`install`/`delegate`), `$hull`, bareword named-object commands.
+   types as classes so the receiver types `OBJECT(class)`. **`install NAME using
+   TYPE` component typing has landed too** (a source scan, since snit bodies are
+   not lowered; the component class is usually cross-file, so it resolves in
+   project mode — +131 sites there). Together the snit slices lifted the corpus
+   rate from 6.8%/8.1% to 13.8% local / 15.9% project. Remaining snit slices:
+   `set`-bound components (snit's ambiguous bare constructor), `$hull`, bareword
+   named-object commands.
 2. **Cross-file object provenance** — a workspace union of the handle /
    collection maps, mirroring `project_class_index`, for the cross-file half of
    `param` / `unbound`.

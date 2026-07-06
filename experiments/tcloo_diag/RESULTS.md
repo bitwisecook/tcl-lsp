@@ -88,9 +88,11 @@ Priority order revised by evidence, highest corpus impact first:
 
 1. **snit dialect model** (Phase 3): `$self` → enclosing snit type **(done —
    `$self`/`$this` self-dispatch landed, ~doubling the overall resolution rate,
-   see `experiments/tcloo_dispatch/RESULTS.md`)** and **named-constructor typing
-   (`set o [foo create x]`) done**; still to do: components (`install`/`delegate`)
-   → their types, `$hull`, bareword named-object commands.
+   see `experiments/tcloo_dispatch/RESULTS.md`)**, **named-constructor typing
+   (`set o [foo create x]`) done**, and **`install NAME using TYPE` component
+   typing done** (+131 project sites); still to do: `set`-bound components
+   (snit's ambiguous bare constructor), `$hull`, bareword named-object commands.
+   Cumulative: 6.8%/8.1% → 13.8% local / 15.9% project.
 2. **Cross-file object provenance**: lift `object_handle_classes` /
    `object_collection_classes` to a workspace union (mirrors
    `project_class_index`), reaching the cross-file half of `param`/`unbound`.
