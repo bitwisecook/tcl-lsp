@@ -214,8 +214,56 @@
       "summary": "list index operator"
     },
     {
+      "name": "DES::Decrypt",
+      "summary": "Decrypt a block of data using a cipher-state token."
+    },
+    {
+      "name": "DES::Encrypt",
+      "summary": "Encrypt a block of data using a cipher-state token."
+    },
+    {
+      "name": "DES::Final",
+      "summary": "Release the resources held by a cipher-state token."
+    },
+    {
+      "name": "DES::Init",
+      "summary": "Construct a key schedule and return an opaque cipher-state token."
+    },
+    {
+      "name": "DES::Reset",
+      "summary": "Reset a cipher-state token's chaining state with a new IV."
+    },
+    {
+      "name": "DES::des",
+      "summary": "Encrypt or decrypt data with the DES / triple-DES block cipher."
+    },
+    {
       "name": "^",
       "summary": "bitwise XOR"
+    },
+    {
+      "name": "aes::Decrypt",
+      "summary": "Decrypt a block of data using a cipher-state token."
+    },
+    {
+      "name": "aes::Encrypt",
+      "summary": "Encrypt a block of data using a cipher-state token."
+    },
+    {
+      "name": "aes::Final",
+      "summary": "Release the resources held by a cipher-state token."
+    },
+    {
+      "name": "aes::Init",
+      "summary": "Construct a key schedule and return an opaque cipher-state token."
+    },
+    {
+      "name": "aes::Reset",
+      "summary": "Reset a cipher-state token's chaining state with a new IV."
+    },
+    {
+      "name": "aes::aes",
+      "summary": "Encrypt or decrypt data with the AES block cipher."
     },
     {
       "name": "after",
@@ -290,6 +338,26 @@
       "summary": "Reset auto-loading state"
     },
     {
+      "name": "base32::decode",
+      "summary": "Decode a standard base32 (RFC 4648) string.",
+      "pure": true
+    },
+    {
+      "name": "base32::encode",
+      "summary": "Encode a string using standard base32 (RFC 4648).",
+      "pure": true
+    },
+    {
+      "name": "base32::hex::decode",
+      "summary": "Decode an extended-hex base32 (RFC 4648) string.",
+      "pure": true
+    },
+    {
+      "name": "base32::hex::encode",
+      "summary": "Encode a string using extended-hex base32 (RFC 4648).",
+      "pure": true
+    },
+    {
       "name": "base64::decode",
       "summary": "Decode a base64-encoded string back to binary data."
     },
@@ -318,6 +386,30 @@
     {
       "name": "bind",
       "summary": "Arrange for X event bindings on windows or tags."
+    },
+    {
+      "name": "blowfish::Decrypt",
+      "summary": "Decrypt a block of data using a cipher-state token."
+    },
+    {
+      "name": "blowfish::Encrypt",
+      "summary": "Encrypt a block of data using a cipher-state token."
+    },
+    {
+      "name": "blowfish::Final",
+      "summary": "Release the resources held by a cipher-state token."
+    },
+    {
+      "name": "blowfish::Init",
+      "summary": "Construct a key schedule and return an opaque cipher-state token."
+    },
+    {
+      "name": "blowfish::Reset",
+      "summary": "Reset a cipher-state token's chaining state with a new IV."
+    },
+    {
+      "name": "blowfish::blowfish",
+      "summary": "Encrypt or decrypt data with the Blowfish block cipher."
     },
     {
       "name": "break",
@@ -516,6 +608,135 @@
     {
       "name": "coroutine",
       "summary": "Create and produce values from coroutines"
+    },
+    {
+      "name": "crc::CksumFinal",
+      "summary": "Finalise an incremental cksum and return the result."
+    },
+    {
+      "name": "crc::CksumInit",
+      "summary": "Begin an incremental cksum, returning a state token."
+    },
+    {
+      "name": "crc::CksumUpdate",
+      "summary": "Add data to an in-progress cksum."
+    },
+    {
+      "name": "crc::Crc32Final",
+      "summary": "Finalise an incremental CRC-32 and return the result."
+    },
+    {
+      "name": "crc::Crc32Init",
+      "summary": "Begin an incremental CRC-32, returning a state token."
+    },
+    {
+      "name": "crc::Crc32Update",
+      "summary": "Add data to an in-progress CRC-32."
+    },
+    {
+      "name": "crc::buypass",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
+    },
+    {
+      "name": "crc::cksum",
+      "summary": "Compute a cksum(1)-compatible checksum over a string, file, or channel.",
+      "pure": true
+    },
+    {
+      "name": "crc::cms",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
+    },
+    {
+      "name": "crc::crc-ccitt",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
+    },
+    {
+      "name": "crc::crc-sdlc",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
+    },
+    {
+      "name": "crc::crc-usb",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
+    },
+    {
+      "name": "crc::crc-x25",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
+    },
+    {
+      "name": "crc::crc16",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
+    },
+    {
+      "name": "crc::crc32",
+      "summary": "Compute a 32-bit cyclic redundancy check over a message, file, or channel.",
+      "pure": true
+    },
+    {
+      "name": "crc::genibus",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
+    },
+    {
+      "name": "crc::gsm",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
+    },
+    {
+      "name": "crc::kermit",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
+    },
+    {
+      "name": "crc::maxim",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
+    },
+    {
+      "name": "crc::mcrf4xx",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
+    },
+    {
+      "name": "crc::modbus",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
+    },
+    {
+      "name": "crc::sum",
+      "summary": "Compute a sum(1)-compatible checksum over a string, file, or channel.",
+      "pure": true
+    },
+    {
+      "name": "crc::umts",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
+    },
+    {
+      "name": "crc::unknown2",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
+    },
+    {
+      "name": "crc::unknown3",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
+    },
+    {
+      "name": "crc::unknown4",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
+    },
+    {
+      "name": "crc::xmodem",
+      "summary": "Compute a 16-bit cyclic redundancy check over a message or file.",
+      "pure": true
     },
     {
       "name": "csv::iscomplete",
@@ -1753,9 +1974,57 @@
       "summary": "maximum of arguments"
     },
     {
+      "name": "md4::HMACFinal",
+      "summary": "Finalise an incremental HMAC-MD4 and return the result."
+    },
+    {
+      "name": "md4::HMACInit",
+      "summary": "Begin an incremental HMAC-MD4 keyed with the given key."
+    },
+    {
+      "name": "md4::HMACUpdate",
+      "summary": "Add data to an in-progress HMAC-MD4 identified by its token."
+    },
+    {
+      "name": "md4::MD4Final",
+      "summary": "Finalise an incremental MD4 digest and return the result."
+    },
+    {
+      "name": "md4::MD4Init",
+      "summary": "Begin an incremental MD4 digest, returning a state token."
+    },
+    {
+      "name": "md4::MD4Update",
+      "summary": "Add data to an in-progress MD4 digest identified by its token."
+    },
+    {
+      "name": "md4::hmac",
+      "summary": "Compute an MD4 keyed hash-based message authentication code.",
+      "pure": true
+    },
+    {
+      "name": "md4::md4",
+      "summary": "Compute the MD4 message-digest of a string, file, or channel.",
+      "pure": true
+    },
+    {
       "name": "md5::md5",
       "summary": "Compute the MD5 hash of a string or file.",
       "pure": true
+    },
+    {
+      "name": "md5crypt::aprcrypt",
+      "summary": "Encrypt a password using the Apache-variant MD5 crypt algorithm.",
+      "pure": true
+    },
+    {
+      "name": "md5crypt::md5crypt",
+      "summary": "Encrypt a password using the MD5-based crypt algorithm.",
+      "pure": true
+    },
+    {
+      "name": "md5crypt::salt",
+      "summary": "Generate a random salt string for md5crypt."
     },
     {
       "name": "memory",
@@ -2054,6 +2323,26 @@
       ]
     },
     {
+      "name": "otp::otp-md4",
+      "summary": "Compute an RFC 2289 one-time password using the MD4 digest.",
+      "pure": true
+    },
+    {
+      "name": "otp::otp-md5",
+      "summary": "Compute an RFC 2289 one-time password using the MD5 digest.",
+      "pure": true
+    },
+    {
+      "name": "otp::otp-rmd160",
+      "summary": "Compute an RFC 2289 one-time password using the RIPEMD-160 digest.",
+      "pure": true
+    },
+    {
+      "name": "otp::otp-sha1",
+      "summary": "Compute an RFC 2289 one-time password using the SHA-1 digest.",
+      "pure": true
+    },
+    {
       "name": "pack",
       "summary": "Geometry manager that packs slaves around the edges of a cavity.",
       "subcommands": [
@@ -2171,6 +2460,22 @@
       "summary": "Raise a window's position in the stacking order."
     },
     {
+      "name": "rc4::RC4",
+      "summary": "Transform data through an in-progress RC4 keystream."
+    },
+    {
+      "name": "rc4::RC4Final",
+      "summary": "Release the resources held by an RC4 state token."
+    },
+    {
+      "name": "rc4::RC4Init",
+      "summary": "Initialise an RC4 key schedule and return a state token."
+    },
+    {
+      "name": "rc4::rc4",
+      "summary": "Encrypt or decrypt data with the RC4 stream cipher."
+    },
+    {
       "name": "re_quote",
       "summary": "Escape regex metacharacters in a string.",
       "pure": true
@@ -2222,6 +2527,74 @@
     {
       "name": "return",
       "summary": "Return from the current procedure/script with optional control-code metadata."
+    },
+    {
+      "name": "ripemd::RIPEHMAC128Final",
+      "summary": "Finalise an incremental HMAC-RIPEMD-128."
+    },
+    {
+      "name": "ripemd::RIPEHMAC128Init",
+      "summary": "Begin an incremental HMAC-RIPEMD-128 keyed with the given key."
+    },
+    {
+      "name": "ripemd::RIPEHMAC128Update",
+      "summary": "Add data to an in-progress HMAC-RIPEMD-128."
+    },
+    {
+      "name": "ripemd::RIPEHMAC160Final",
+      "summary": "Finalise an incremental HMAC-RIPEMD-160."
+    },
+    {
+      "name": "ripemd::RIPEHMAC160Init",
+      "summary": "Begin an incremental HMAC-RIPEMD-160 keyed with the given key."
+    },
+    {
+      "name": "ripemd::RIPEHMAC160Update",
+      "summary": "Add data to an in-progress HMAC-RIPEMD-160."
+    },
+    {
+      "name": "ripemd::RIPEMD128Final",
+      "summary": "Finalise an incremental RIPEMD-128 digest."
+    },
+    {
+      "name": "ripemd::RIPEMD128Init",
+      "summary": "Begin an incremental RIPEMD-128 digest, returning a state token."
+    },
+    {
+      "name": "ripemd::RIPEMD128Update",
+      "summary": "Add data to an in-progress RIPEMD-128 digest."
+    },
+    {
+      "name": "ripemd::RIPEMD160Final",
+      "summary": "Finalise an incremental RIPEMD-160 digest."
+    },
+    {
+      "name": "ripemd::RIPEMD160Init",
+      "summary": "Begin an incremental RIPEMD-160 digest, returning a state token."
+    },
+    {
+      "name": "ripemd::RIPEMD160Update",
+      "summary": "Add data to an in-progress RIPEMD-160 digest."
+    },
+    {
+      "name": "ripemd::hmac128",
+      "summary": "Compute a RIPEMD-128 keyed hash-based message authentication code.",
+      "pure": true
+    },
+    {
+      "name": "ripemd::hmac160",
+      "summary": "Compute a RIPEMD-160 keyed hash-based message authentication code.",
+      "pure": true
+    },
+    {
+      "name": "ripemd::ripemd128",
+      "summary": "Compute the RIPEMD-128 message-digest of a string, file, or channel.",
+      "pure": true
+    },
+    {
+      "name": "ripemd::ripemd160",
+      "summary": "Compute the RIPEMD-160 message-digest of a string, file, or channel.",
+      "pure": true
     },
     {
       "name": "safe::interpAddToAccessPath",

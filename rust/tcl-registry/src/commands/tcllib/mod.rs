@@ -231,6 +231,17 @@ mod yaml__setoptions;
 mod yaml__yaml2dict;
 mod yaml__yaml2huddle;
 
+// Grouped crypto / hash / checksum / encoding packages (one module per
+// package family, each exposing a `specs()` builder).
+mod base32;
+mod ciphers;
+mod crc;
+mod md4;
+mod md5crypt;
+mod otp;
+mod rc4;
+mod ripemd;
+
 use crate::spec::CommandSpec;
 
 /// Return all `tcllib` command specifications.
@@ -248,6 +259,7 @@ pub fn tcllib_command_specs() -> Vec<CommandSpec> {
     specs.extend(logger_math_specs());
     specs.extend(md5_mime_snit_struct_specs());
     specs.extend(textutil_uri_yaml_specs());
+    specs.extend(crypto_encoding_specs());
     // Every tcllib command is gated on its providing package.
     // Derive `required_package` from the command's namespace so
     // W120 (missing-package-require) and package-gated
@@ -501,6 +513,26 @@ fn textutil_uri_yaml_specs() -> Vec<CommandSpec> {
     ]
 }
 
+/// The tcllib crypto / hash / checksum / encoding packages: `md4`,
+/// `md5crypt`, `ripemd128`/`ripemd160`, the CRC family
+/// (`crc16`/`crc32`/`cksum`/`sum`), the block ciphers (`aes`/`blowfish`/
+/// `des`), `rc4`, `otp`, and `base32`/`base32::hex`.  Each command carries its
+/// own `required_package` (the package name often differs from the leading
+/// namespace segment — e.g. `crc::crc16` is provided by `crc16`, `DES::des`
+/// by `des`), so these are exempt from the namespace-derivation fallback.
+fn crypto_encoding_specs() -> Vec<CommandSpec> {
+    let mut specs = vec![md4::md4(), md4::hmac()];
+    specs.extend(md4::incremental());
+    specs.extend(md5crypt::specs());
+    specs.extend(ripemd::specs());
+    specs.extend(crc::specs());
+    specs.extend(ciphers::specs());
+    specs.extend(rc4::specs());
+    specs.extend(otp::specs());
+    specs.extend(base32::specs());
+    specs
+}
+
 /// Map a tcllib command name to the package that provides it.
 ///
 /// Each module declares the package its commands belong to.
@@ -597,6 +629,57 @@ mod tests {
             reg.get("csv::split").and_then(|s| s.required_package),
             Some("csv"),
         );
+    }
+
+    #[test]
+    fn crypto_encoding_packages_are_registered_with_their_package() {
+        // The crypto / hash / checksum / encoding cluster carries the *provider*
+        // package, which frequently differs from the leading namespace segment.
+        let specs = tcllib_command_specs();
+        let pkg = |name: &str| {
+            specs
+                .iter()
+                .find(|s| s.name == name)
+                .and_then(|s| s.required_package)
+        };
+        // Namespace segment == package.
+        assert_eq!(pkg("md4::md4"), Some("md4"));
+        assert_eq!(pkg("md4::hmac"), Some("md4"));
+        assert_eq!(pkg("md5crypt::md5crypt"), Some("md5crypt"));
+        assert_eq!(pkg("aes::aes"), Some("aes"));
+        assert_eq!(pkg("blowfish::blowfish"), Some("blowfish"));
+        assert_eq!(pkg("rc4::rc4"), Some("rc4"));
+        assert_eq!(pkg("otp::otp-md5"), Some("otp"));
+        // Namespace segment != package.
+        assert_eq!(pkg("ripemd::ripemd128"), Some("ripemd128"));
+        assert_eq!(pkg("ripemd::ripemd160"), Some("ripemd160"));
+        assert_eq!(pkg("crc::crc16"), Some("crc16"));
+        assert_eq!(pkg("crc::crc32"), Some("crc32"));
+        assert_eq!(pkg("crc::cksum"), Some("cksum"));
+        assert_eq!(pkg("crc::sum"), Some("sum"));
+        assert_eq!(pkg("DES::des"), Some("des"));
+        assert_eq!(pkg("base32::encode"), Some("base32"));
+        assert_eq!(pkg("base32::hex::encode"), Some("base32::hex"));
+        // The 18-variant crc16 family is fully present.
+        assert_eq!(pkg("crc::crc-ccitt"), Some("crc16"));
+        assert_eq!(pkg("crc::xmodem"), Some("crc16"));
+        assert_eq!(pkg("crc::modbus"), Some("crc16"));
+    }
+
+    #[test]
+    fn cipher_mode_and_dir_options_are_enumerated() {
+        // The block-cipher primary commands expose closed enum option values
+        // (`-mode`, `-dir`) so completion / validation can drive them.
+        let reg = crate::registry::CommandRegistry::build_default();
+        let des = reg.get("DES::des").expect("DES::des registered");
+        let mode = des
+            .options
+            .iter()
+            .find(|o| o.name == "-mode")
+            .expect("DES::des has -mode");
+        let modes: Vec<&str> = mode.value_values().iter().map(|v| v.value).collect();
+        assert!(mode.value_is_closed(), "-mode set is closed");
+        assert_eq!(modes, ["ecb", "cbc", "cfb", "ofb"]);
     }
 
     #[test]
