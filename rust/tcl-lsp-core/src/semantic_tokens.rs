@@ -4163,6 +4163,45 @@ mod tests {
     }
 
     #[test]
+    fn unset_marks_every_name_as_variable() {
+        // `unset x y z` — every name is a variable, not just the first
+        // (issue #774: only the first argument was highlighted).
+        let toks = decode_full("unset x y z\n", "tcl", &reg());
+        let vars = toks
+            .iter()
+            .filter(|(_, _, _, k, _)| *k == TokenKind::Variable as u32)
+            .count();
+        assert_eq!(
+            vars, 3,
+            "all three unset names must highlight as variables; got {toks:?}"
+        );
+        // Leading `-nocomplain` / `--` options are not variables.
+        let toks = decode_full("unset -nocomplain -- a b\n", "tcl", &reg());
+        let vars = toks
+            .iter()
+            .filter(|(_, _, _, k, _)| *k == TokenKind::Variable as u32)
+            .count();
+        assert_eq!(
+            vars, 2,
+            "only `a` and `b` are variables, not the leading options; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn global_marks_every_name_as_variable() {
+        // `global a b c` — every name is a variable, not just the first.
+        let toks = decode_full("proc p {} { global a b c }\n", "tcl", &reg());
+        let vars = toks
+            .iter()
+            .filter(|(_, _, _, k, _)| *k == TokenKind::Variable as u32)
+            .count();
+        assert_eq!(
+            vars, 3,
+            "all three global names must highlight as variables; got {toks:?}"
+        );
+    }
+
+    #[test]
     fn array_element_write_not_retagged() {
         // `set arr($i) 1` — the target has a `$` substitution; leave it to the
         // default classifier so the inner `$i` variable still tokenises.

@@ -1884,6 +1884,25 @@ mod tests {
         assert_eq!(set_vars, vec![0]);
     }
 
+    /// `unset x y z` names *every* argument as a variable (issue #774), not
+    /// just the first, so all of them highlight as variables.
+    #[test]
+    fn unset_marks_every_name() {
+        let reg = CommandRegistry::build_default();
+        let vars = reg.arg_indices_for_role("unset", &["x", "y", "z"], ArgRole::VarWrite);
+        assert_eq!(vars, vec![0, 1, 2]);
+    }
+
+    /// `unset -nocomplain -- a b` skips the leading options and names only the
+    /// real variables (`a`, `b`), mirroring `lower_unset`.
+    #[test]
+    fn unset_skips_leading_options() {
+        let reg = CommandRegistry::build_default();
+        let vars =
+            reg.arg_indices_for_role("unset", &["-nocomplain", "--", "a", "b"], ArgRole::VarWrite);
+        assert_eq!(vars, vec![2, 3]);
+    }
+
     /// `trace add variable name ops body` declares arg 1
     /// (the variable name) as `VarWrite` via the registry.
     #[test]

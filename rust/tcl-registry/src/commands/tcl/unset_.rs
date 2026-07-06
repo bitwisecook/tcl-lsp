@@ -26,6 +26,24 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "unset ?-nocomplain? ?--? ?name name name ...?",
 }];
 
+/// `unset ?-nocomplain? ?--? ?name name name ...?` — every trailing word is a
+/// variable name, not just the first.  Resolve `VarWrite` dynamically (skipping
+/// the leading `-nocomplain` / `--` options, mirroring `lower_unset`) so all
+/// names highlight as variables rather than only the first (issue #774).
+fn unset_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    let mut i = 0;
+    while i < args.len() && args[i].starts_with('-') {
+        let is_terminator = args[i] == "--";
+        i += 1;
+        if is_terminator {
+            break;
+        }
+    }
+    (i..args.len())
+        .filter_map(|j| u8::try_from(j).ok().map(|j| (j, ArgRole::VarWrite)))
+        .collect()
+}
+
 /// Command spec for `unset`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -35,7 +53,7 @@ pub fn spec() -> CommandSpec {
             | Traits::DESTROYS_VARIABLE
             | Traits::FIRST_ARG_VARNAME,
         arity: Arity::at_least(1),
-        arg_roles: &[(0, ArgRole::VarWrite)],
+        arg_role_resolver: Some(unset_arg_roles),
         assigns_variable_at: Some(0),
         return_type: Some(TclType::String),
         options: const { &[
