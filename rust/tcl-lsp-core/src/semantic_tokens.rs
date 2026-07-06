@@ -4160,6 +4160,19 @@ mod tests {
             TokenKind::String as u32,
             "an unknown third word must stay a string, not a keyword"
         );
+
+        // The issue's actual form: `info object class` nested inside a command
+        // substitution within an `if` expression. Highlighting must recurse into
+        // the bracketed inner command, not just top-level statements. The column
+        // of `class` is located dynamically to stay robust.
+        let src =
+            "if {([info object class $element {::Foo::Analysis}]) && ([info exists C])} {\n}\n";
+        let col = u32::try_from(src.find(" class ").expect("has ` class `") + 1).unwrap();
+        assert_eq!(
+            kind_at(src, col),
+            TokenKind::Keyword as u32,
+            "`class` must highlight as a keyword even nested in an if-expr command substitution"
+        );
     }
 
     #[test]
