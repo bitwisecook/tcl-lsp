@@ -342,4 +342,33 @@ mod tests {
             "pins should be a collection of ::Pin, harvested from method add; got {map:?}"
         );
     }
+
+    #[test]
+    fn spicegentcl_configurable_device_shape_resolves() {
+        // The exact SpiceGenTcl shape: namespaced `oo::configurable` classes,
+        // the collection built and dispatched in the *same* big method's switch
+        // arms with fully-qualified constructors.  Locks in that an
+        // `oo::configurable` class body is lowered (so its `[::ns::Pin new]`
+        // writes type the `Pins` dict) — issue #797.
+        let registry = CommandRegistry::build_default();
+        let src = "namespace eval ::SpiceGenTcl {\n\
+                     oo::configurable create Pin { property node }\n\
+                     oo::configurable create Device {\n\
+                       variable Pins\n\
+                       method actOnPin {action pin node} {\n\
+                         switch -- $action {\n\
+                           add { dict append Pins $pin [::SpiceGenTcl::Pin new $pin $node] }\n\
+                           node { [dict get $Pins $pin] configure -node $node }\n\
+                         }\n\
+                       }\n\
+                     }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let map = object_collection_classes(&cu);
+        assert_eq!(
+            map.get("Pins").map(|s| s.contains("::SpiceGenTcl::Pin")),
+            Some(true),
+            "Pins should be a collection of ::SpiceGenTcl::Pin; got {map:?}"
+        );
+    }
 }
