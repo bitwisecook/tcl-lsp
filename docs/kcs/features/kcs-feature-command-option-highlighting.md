@@ -38,11 +38,14 @@ There are two layers, most-precise first:
    [ObjectClassSpec](../../../docs/design/compiler/command-registry.md).
 
    Resolution also reaches **user-defined classes** (not only registry-modelled
-   ones): the method is resolved against the analyser's class hierarchy (MRO
-   over `superclass` / `mixin`), so `$obj method` on a class defined in the
-   workspace colours the method, and for an `oo::configurable` receiver its
-   `configure` / `cget` `-property` options are coloured from the class's
-   declared properties. The receiver's class is found from a handle typed by
+   ones): the method is resolved against a class hierarchy (MRO over
+   `superclass` / `mixin`), so `$obj method` on a class defined in the workspace
+   colours the method, and for an `oo::configurable` receiver its `configure` /
+   `cget` `-property` options are coloured from the class's declared properties.
+   The hierarchy is **workspace-merged** — a `project_class_index` unions every
+   file's classes — so a direct `[Class new] method …` dispatch on a class
+   defined in *another* file resolves too (the mro_eval cross-file lever); the
+   single-file path falls back to the local hierarchy. The receiver's class is found from a handle typed by
    the SSA lattice — including a handle **retrieved from an object collection**:
    a `Pins` dict filled with `[Pin new]` in one method makes
    `[dict get $Pins $pin] configure -node …` resolve to `Pin` in another (issue

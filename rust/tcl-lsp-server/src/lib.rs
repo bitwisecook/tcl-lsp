@@ -1724,9 +1724,20 @@ impl Backend {
     ) -> Option<tcl_lsp_core::semantic_tokens::SemanticTokens> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = self.resolved_db_config(uri).await;
+        // When the workspace has been indexed into a `Project`, resolve object
+        // dispatches against the *cross-file* class index so a `$obj method` on
+        // a class defined in another file highlights; otherwise fall back to the
+        // local (single-file) hierarchy.
+        let project = *self.db_project.lock().await;
         let snapshot = self.db.lock().await.clone();
         tokio::task::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| tcl_lsp_db::semantic_tokens(&snapshot, file, config)).ok()
+            salsa::Cancelled::catch(|| match project {
+                Some(project) => {
+                    tcl_lsp_db::semantic_tokens_project(&snapshot, file, config, project)
+                }
+                None => tcl_lsp_db::semantic_tokens(&snapshot, file, config),
+            })
+            .ok()
         })
         .await
         .ok()

@@ -53,7 +53,8 @@ use tcl_compiler::taint_interproc::{InterprocTaintResult, ProcTaintSummary as Re
 
 use tcl_compiler::analyser::per_item::{BodyFragment, DeferredBody, analyse_proc_body_isolated};
 use tcl_compiler::analyser::{
-    Analyser, AnalysisResult, FileDecls, ItemSig, ItemTree, NonAsciiMode,
+    Analyser, AnalysisResult, ClassDef, ClassHierarchy, FileDecls, ItemSig, ItemTree,
+    NonAsciiMode, build_class_hierarchy,
 };
 use tcl_compiler::signature_scan::types::ParamDef;
 use tcl_lsp_core::document_symbols::DocumentSymbol;
@@ -2057,6 +2058,56 @@ pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig)
     )
 }
 
+/// The project's workspace-merged class hierarchy: every file's `ClassDef`s
+/// unioned into one cross-file MRO index, so a `$obj method` dispatch resolves
+/// against a class defined in *another* file.
+///
+/// Aggregates `file_analysis(f, config).all_classes` across `project`.  A
+/// body-only edit rebuilds this (cheap re-aggregation) but yields an equal
+/// [`ClassHierarchy`], so salsa backdates and dependent token queries do not
+/// recompute.  On a class-signature change the merged index changes and the
+/// affected tokens recompute — the correct cross-file invalidation.
+#[salsa::tracked]
+pub fn project_class_index(
+    db: &dyn TclDb,
+    project: Project,
+    config: AnalyserConfig,
+) -> Arc<ClassHierarchy> {
+    let mut merged: HashMap<String, ClassDef> = HashMap::new();
+    for &file in project.files(db) {
+        let analysis = file_analysis(db, file, config);
+        for (name, class) in &analysis.all_classes {
+            // First definition wins; a homonym in another file does not clobber
+            // it (deterministic, and matches the analyser's own precedence).
+            merged.entry(name.clone()).or_insert_with(|| class.clone());
+        }
+    }
+    Arc::new(build_class_hierarchy(merged))
+}
+
+/// [`semantic_tokens`] resolved against the **workspace-merged** class index, so
+/// a `$obj method …` dispatch on a class defined in another project file
+/// resolves too.  The server calls this when a [`Project`] is available; the
+/// bare [`semantic_tokens`] (local file only) is the fallback.
+#[salsa::tracked]
+pub fn semantic_tokens_project(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+    project: Project,
+) -> SemanticTokens {
+    let registry = db.registry(file.dialect(db));
+    let cu = document_compilation_unit(db, file);
+    let classes = project_class_index(db, project, config);
+    tcl_lsp_core::semantic_tokens::full_with_cu_and_classes(
+        file.text(db),
+        file.dialect(db),
+        &registry,
+        Some(&cu),
+        Some(&classes),
+    )
+}
+
 /// Folding ranges — wraps `folding::folding_ranges`; reads the durable registry.
 #[salsa::tracked]
 pub fn folding_ranges(db: &dyn TclDb, file: SourceFile) -> Vec<FoldingRange> {
@@ -2147,6 +2198,39 @@ mod tests {
         let expected = tcl_lsp_core::semantic_tokens::full(SRC, "tcl", &reg);
         assert_eq!(got, expected);
         assert!(!got.data.is_empty());
+    }
+
+    #[test]
+    fn cross_file_object_dispatch_resolves_via_project_index() {
+        // A class defined in one file, dispatched on via a direct constructor in
+        // another: `semantic_tokens_project` resolves the method through the
+        // workspace-merged `project_class_index`, so its output differs from the
+        // local-only `semantic_tokens` (which leaves the method a plain string).
+        let db = TclDatabase::default();
+        let lib = SourceFile::new(
+            &db,
+            "oo::configurable create ::Pin { property node }\n".to_owned(),
+            "tcl9.0".to_owned(),
+        );
+        let user = SourceFile::new(
+            &db,
+            "[::Pin new] configure -node 5\n".to_owned(),
+            "tcl9.0".to_owned(),
+        );
+        let project = Project::new(&db, vec![lib, user]);
+        let cross = semantic_tokens_project(&db, user, cfg(&db), project);
+        let local = semantic_tokens(&db, user, cfg(&db));
+        assert_ne!(
+            cross.data, local.data,
+            "cross-file index must resolve the method the local pass leaves unresolved"
+        );
+        // The merged index sees the class from the other file.
+        assert!(
+            project_class_index(&db, project, cfg(&db))
+                .classes
+                .contains_key("::Pin"),
+            "project index should contain ::Pin from the library file"
+        );
     }
 
     #[test]

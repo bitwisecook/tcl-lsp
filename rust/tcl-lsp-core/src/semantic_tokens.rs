@@ -77,7 +77,7 @@
 //! of the BIG-IP taxonomy) is handled.
 
 use rustc_hash::FxHashMap;
-use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::analyser::{AnalysisResult, ClassHierarchy};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Span, Token, TokenType};
@@ -332,7 +332,28 @@ pub fn full_with_cu_and_analysis(
     cu: Option<&CompilationUnit>,
     analysis: Option<&AnalysisResult>,
 ) -> SemanticTokens {
-    let entries = collect_entries(source, dialect, registry, cu, analysis);
+    full_with_cu_and_classes(
+        source,
+        dialect,
+        registry,
+        cu,
+        analysis.map(AnalysisResult::class_hierarchy),
+    )
+}
+
+/// [`full_with_cu`] with an optional [`ClassHierarchy`] — the workspace-merged
+/// project class index, so a `$obj method …` dispatch resolves against a class
+/// defined in *another* file.  The salsa / server path uses this; the local
+/// single-file path goes through [`full_with_cu_and_analysis`].
+#[must_use]
+pub fn full_with_cu_and_classes(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+    cu: Option<&CompilationUnit>,
+    classes: Option<&ClassHierarchy>,
+) -> SemanticTokens {
+    let entries = collect_entries(source, dialect, registry, cu, classes);
     encode_entries(&entries)
 }
 
@@ -375,7 +396,28 @@ pub fn range_with_cu_and_analysis(
     cu: Option<&CompilationUnit>,
     analysis: Option<&AnalysisResult>,
 ) -> SemanticTokens {
-    let mut entries = collect_entries(source, dialect, registry, cu, analysis);
+    range_with_cu_and_classes(
+        source,
+        dialect,
+        range,
+        registry,
+        cu,
+        analysis.map(AnalysisResult::class_hierarchy),
+    )
+}
+
+/// [`range_with_cu`] with an optional workspace-merged [`ClassHierarchy`] (see
+/// [`full_with_cu_and_classes`]).
+#[must_use]
+pub fn range_with_cu_and_classes(
+    source: &str,
+    dialect: &str,
+    range: crate::definition::LspRange,
+    registry: &CommandRegistry,
+    cu: Option<&CompilationUnit>,
+    classes: Option<&ClassHierarchy>,
+) -> SemanticTokens {
+    let mut entries = collect_entries(source, dialect, registry, cu, classes);
     entries.retain(|(line, col, _, _, _)| {
         // Half-open interval per LSP `Range` semantics: start is
         // inclusive, end is exclusive.
@@ -613,7 +655,7 @@ fn special_arg_kinds(
     arg_texts: &[&str],
     object_classes: &ObjectClassMap,
     object_collections: &ObjectClassMap,
-    classes: Option<&AnalysisResult>,
+    classes: Option<&ClassHierarchy>,
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
 
@@ -1310,7 +1352,7 @@ fn insert_object_method_overrides(
     registry: &CommandRegistry,
     object_classes: &ObjectClassMap,
     object_collections: &ObjectClassMap,
-    classes: Option<&AnalysisResult>,
+    classes: Option<&ClassHierarchy>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let (Some(head_tok), Some(head_text), Some(method)) =
@@ -1326,14 +1368,21 @@ fn insert_object_method_overrides(
             .and_then(|name| object_classes.get(name))
             .map(|s| s.iter().cloned().collect())
             .unwrap_or_default(),
-        TokenType::Cmd => constructor_class_of_head(head_text, registry).map_or_else(
-            || {
+        // `[Class new] method …`: a registry factory, else a *user* class named
+        // by the constructor head (resolved against the class hierarchy, which
+        // is workspace-merged, so a class defined in another file resolves),
+        // else a `[dict get $coll $k]` retrieval from an object collection.
+        TokenType::Cmd => {
+            if let Some(cls) = constructor_class_of_head(head_text, registry) {
+                vec![cls.to_string()]
+            } else if let Some(cls) = user_constructor_class_of_head(head_text, classes) {
+                vec![cls]
+            } else {
                 collection_head_element_classes(head_text, object_collections)
                     .map(|s| s.iter().cloned().collect())
                     .unwrap_or_default()
-            },
-            |cls| vec![cls.to_string()],
-        ),
+            }
+        }
         _ => Vec::new(),
     };
     if candidates.is_empty() {
@@ -1348,16 +1397,17 @@ fn insert_object_method_overrides(
         insert_registry_method_options(seg, method_sub, overrides);
         return;
     }
-    // 2. User-defined class — resolve the method through the analyser's class
-    //    hierarchy; for an `oo::configurable` receiver, colour `configure` /
-    //    `cget` property options too.
-    if let Some(analysis) = classes
+    // 2. User-defined class — resolve the method through the class hierarchy
+    //    (workspace-wide when a project index is supplied, so a class defined in
+    //    another file resolves too); for an `oo::configurable` receiver, colour
+    //    `configure` / `cget` property options.
+    if let Some(hierarchy) = classes
         && let Some(cls) = candidates
             .iter()
-            .find(|c| user_class_provides_method(analysis, c, method))
+            .find(|c| user_class_provides_method(hierarchy, c, method))
     {
         mark_method_word(seg, overrides);
-        insert_user_configure_options(seg, analysis, cls, method, overrides);
+        insert_user_configure_options(seg, hierarchy, cls, method, overrides);
     }
 }
 
@@ -1450,14 +1500,15 @@ fn collection_head_element_classes<'a>(
 /// Whether a *user-defined* class provides `method` for an instance dispatch:
 /// the class hierarchy's MRO resolves it (a declared method on the class or an
 /// ancestor), or it is an `TclOO` builtin every instance answers — `destroy`,
-/// or `configure` / `cget` on an `oo::configurable` receiver.
-fn user_class_provides_method(analysis: &AnalysisResult, class: &str, method: &str) -> bool {
-    if analysis.class_hierarchy().method_target(class, method).is_some() {
+/// or `configure` / `cget` on an `oo::configurable` receiver.  `hierarchy` is
+/// the local file's hierarchy or a workspace-merged project index.
+fn user_class_provides_method(hierarchy: &ClassHierarchy, class: &str, method: &str) -> bool {
+    if hierarchy.method_target(class, method).is_some() {
         return true;
     }
     match method {
         "destroy" => true,
-        "configure" | "cget" => class_is_configurable(analysis, class),
+        "configure" | "cget" => class_is_configurable(hierarchy, class),
         _ => false,
     }
 }
@@ -1465,19 +1516,19 @@ fn user_class_provides_method(analysis: &AnalysisResult, class: &str, method: &s
 /// Whether `class` (or any class in its MRO) is `oo::configurable` or declares
 /// configurable properties — the classes whose `configure` / `cget` accept
 /// `-property` options.
-fn class_is_configurable(analysis: &AnalysisResult, class: &str) -> bool {
-    class_mro(analysis, class).iter().any(|c| {
-        analysis.all_classes.get(c).is_some_and(|cd| {
-            cd.metaclass == "oo::configurable" || !cd.properties.is_empty()
-        })
+fn class_is_configurable(hierarchy: &ClassHierarchy, class: &str) -> bool {
+    class_mro(hierarchy, class).iter().any(|c| {
+        hierarchy
+            .classes
+            .get(c)
+            .is_some_and(|cd| cd.metaclass == "oo::configurable" || !cd.properties.is_empty())
     })
 }
 
-/// The MRO (self first) of `class` from the analyser's class hierarchy, or just
-/// `[class]` when the hierarchy has no entry (an external / unindexed class).
-fn class_mro(analysis: &AnalysisResult, class: &str) -> Vec<String> {
-    analysis
-        .class_hierarchy()
+/// The MRO (self first) of `class` from `hierarchy`, or just `[class]` when the
+/// hierarchy has no entry (an external / unindexed class).
+fn class_mro(hierarchy: &ClassHierarchy, class: &str) -> Vec<String> {
+    hierarchy
         .mro_map
         .get(class)
         .cloned()
@@ -1492,7 +1543,7 @@ fn class_mro(analysis: &AnalysisResult, class: &str) -> Vec<String> {
 /// than `configure` / `cget`.
 fn insert_user_configure_options(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-    analysis: &AnalysisResult,
+    hierarchy: &ClassHierarchy,
     class: &str,
     method: &str,
     overrides: &mut FxHashMap<u32, ArgOverride>,
@@ -1501,9 +1552,9 @@ fn insert_user_configure_options(
         return;
     }
     // Property names across the whole MRO (`-node`, `-name`, inherited …).
-    let props: std::collections::HashSet<String> = class_mro(analysis, class)
+    let props: std::collections::HashSet<String> = class_mro(hierarchy, class)
         .iter()
-        .filter_map(|c| analysis.all_classes.get(c))
+        .filter_map(|c| hierarchy.classes.get(c))
         .flat_map(|cd| cd.properties.keys().cloned())
         .collect();
     if props.is_empty() {
@@ -1562,6 +1613,28 @@ fn constructor_class_of_head<'r>(head_text: &str, registry: &'r CommandRegistry)
         return None;
     }
     registry.object_class(&cmd).map(|c| c.class_name)
+}
+
+/// The *user-defined* class named by a direct `[Class new|create …]` head,
+/// resolved against `hierarchy` (workspace-merged, so a class defined in
+/// another file resolves).  Returns the qualified class name, or `None` when
+/// the head is not a constructor call on a known class.  The constructor head
+/// *is* the class command, so the class name is the head word itself — matched
+/// as written and `::`-qualified.
+fn user_constructor_class_of_head(
+    head_text: &str,
+    hierarchy: Option<&ClassHierarchy>,
+) -> Option<String> {
+    let hierarchy = hierarchy?;
+    let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution(head_text)?;
+    if !args.first().is_some_and(|s| s == "new" || s == "create") {
+        return None;
+    }
+    let qualified = format!("::{}", cmd.trim_start_matches("::"));
+    [cmd.as_str(), qualified.as_str()]
+        .into_iter()
+        .find(|c| hierarchy.classes.contains_key(*c))
+        .map(String::from)
 }
 
 /// Registry-known closed-set argument values → `EnumMember`.  The registry
@@ -2670,12 +2743,13 @@ struct ScriptCtx<'a> {
     /// / `[lindex $coll $i]` retrieval used as a command head resolves the
     /// element's method (issue #797).  Empty without a [`CompilationUnit`].
     object_collections: &'a ObjectClassMap,
-    /// Full analysis result, when available — the source of user-defined
-    /// [`ClassDef`](tcl_compiler::analyser::ClassDef)s (methods +
-    /// `oo::configurable` properties) and the class-hierarchy MRO used to
-    /// resolve a dispatched method against a *user* class, not just a
-    /// registry-modelled one.  `None` for the pure-segmentation path.
-    classes: Option<&'a AnalysisResult>,
+    /// Class hierarchy, when available — the MRO + `ClassDef`s (methods +
+    /// `oo::configurable` properties) used to resolve a dispatched method
+    /// against a *user* class, not just a registry-modelled one.  This is the
+    /// current file's hierarchy, or a workspace-merged project index so a class
+    /// defined in another file resolves too (issue #797 follow-up).  `None` for
+    /// the pure-segmentation path.
+    classes: Option<&'a ClassHierarchy>,
 }
 
 fn collect_switch_case_list(
@@ -3663,7 +3737,7 @@ fn collect_entries(
     dialect: &str,
     registry: &CommandRegistry,
     cu: Option<&CompilationUnit>,
-    analysis: Option<&AnalysisResult>,
+    classes: Option<&ClassHierarchy>,
 ) -> Vec<Entry> {
     let mut entries: Vec<Entry> = Vec::new();
     let line_index = LineIndex::new(source);
@@ -3721,7 +3795,7 @@ fn collect_entries(
         head_aliases: &head_aliases,
         object_classes: &object_classes,
         object_collections: &object_collections,
-        classes: analysis,
+        classes,
     };
     collect_script(ctx, source, 0, &mut entries, 0);
 
@@ -4832,6 +4906,41 @@ mod tests {
             toks.iter()
                 .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Function as u32 && m == 0),
             "expected `configure` on the dict-for value var to resolve; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn cross_file_constructor_dispatch_resolves() {
+        // A class defined in one file (`Pin`), dispatched on via a direct
+        // constructor in *another* file — `[::Pin new] configure -node …`.
+        // Resolving against a workspace-merged `ClassHierarchy` (what
+        // `project_class_index` builds) lights up the method even though the
+        // class is not in this file (issue #797 follow-up, the mro_eval
+        // cross-file lever).
+        use tcl_compiler::analyser::{Analyser, build_class_hierarchy};
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let lib = "oo::configurable create ::Pin { property node }\n";
+        let hierarchy = build_class_hierarchy(Analyser::new().analyse(lib, "tcl9.0").all_classes);
+        let user = "[::Pin new] configure -node 5\n";
+        let cu = CompilationUnit::build_for(user, &registry, false);
+        let toks =
+            decode_semantic(&full_with_cu_and_classes(user, "tcl9.0", &registry, Some(&cu), Some(&hierarchy)));
+        // `configure` (col 12, after `[::Pin new] `) resolves to a method.
+        assert!(
+            toks.iter().any(|&(l, c, _, k, m)| l == 0
+                && c == 12
+                && k == TokenKind::Function as u32
+                && m == 0),
+            "cross-file `[::Pin new] configure` should resolve; got {toks:?}"
+        );
+        // Without the hierarchy it stays an unresolved string.
+        let none =
+            decode_semantic(&full_with_cu_and_classes(user, "tcl9.0", &registry, Some(&cu), None));
+        assert!(
+            none.iter()
+                .any(|&(l, c, _, k, _)| l == 0 && c == 12 && k == TokenKind::String as u32),
+            "without a hierarchy, configure is a string; got {none:?}"
         );
     }
 
