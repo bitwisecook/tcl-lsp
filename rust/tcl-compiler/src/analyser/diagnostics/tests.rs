@@ -970,6 +970,39 @@ fn w004_fires_on_lsearch_stride_in_tcl85() {
 }
 
 #[test]
+fn w004_fires_on_version_gated_list_options() {
+    // Options added after 8.4 must warn (W004) under an older dialect and stay
+    // silent once available.
+    let cases = [
+        // (snippet, introduced-in dialect, a dialect that predates it)
+        ("lsearch -index 0 {a b} x", "tcl8.5", "tcl8.4"), // -index: 8.5
+        ("lsearch -nocase {a b} x", "tcl8.5", "tcl8.4"),  // -nocase: 8.5
+        ("lsearch -bisect {a b} x", "tcl8.6", "tcl8.5"),  // -bisect: 8.6
+        ("lsort -nocase {a b}", "tcl8.5", "tcl8.4"),      // -nocase: 8.5
+        ("lsort -indices {a b}", "tcl8.5", "tcl8.4"),     // -indices: 8.5
+        ("lsort -stride 2 {a b}", "tcl8.6", "tcl8.5"),    // -stride: 8.6
+    ];
+    for (snippet, ok_dialect, old_dialect) in cases {
+        let mut a = Analyser::new();
+        assert!(
+            a.analyse(snippet, old_dialect)
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W004),
+            "expected W004 for {snippet:?} on {old_dialect}"
+        );
+        let mut a = Analyser::new();
+        assert!(
+            !a.analyse(snippet, ok_dialect)
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W004),
+            "unexpected W004 for {snippet:?} on {ok_dialect}"
+        );
+    }
+}
+
+#[test]
 fn w004_fires_on_lsearch_stride_in_tcl86() {
     // `lsearch -stride` is Tcl 9.0-only — tclsh8.6.14 rejects it with
     // `bad option "-stride"` (the 8.6 / TIP 351 `-stride` belongs to `lsort`),

@@ -58,7 +58,8 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-nocase",
         value: OptionValue::flag(),
         detail: "Case-insensitive comparison.",
-        dialects: None,
+        // Added to `lsort` in Tcl 8.5.
+        dialects: Some(DialectSet::TCL85_PLUS),
         aliases: &[],
         min_version: None,
     },
@@ -82,7 +83,8 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-indices",
         value: OptionValue::flag(),
         detail: "Return the indices of the sorted elements rather than the elements.",
-        dialects: None,
+        // Added to `lsort` in Tcl 8.5.
+        dialects: Some(DialectSet::TCL85_PLUS),
         aliases: &[],
         min_version: None,
     },
@@ -114,7 +116,8 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-stride",
         value: OptionValue::value("length"),
         detail: "Treat the list as groups of this many elements and sort by group.",
-        dialects: None,
+        // Added to `lsort` in Tcl 8.6 (TIP 351).
+        dialects: Some(DialectSet::TCL86_PLUS),
         aliases: &[],
         min_version: None,
     },
