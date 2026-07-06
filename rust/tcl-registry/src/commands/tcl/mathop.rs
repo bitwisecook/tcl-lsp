@@ -22,7 +22,8 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::mathop",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::TCL86_PLUS),
+        // The operator-command namespace was added in Tcl 8.5 (TIP 174).
+        dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(0),
         return_type: Some(TclType::Numeric),
         hover: Some(HoverSnippet::brief(

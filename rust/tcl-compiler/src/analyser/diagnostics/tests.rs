@@ -767,7 +767,8 @@ fn command_version_gates_fire_w123() {
         ("apply {{} {return 1}}", "tcl8.5", "tcl8.4"),
         ("lreverse {a b c}", "tcl8.5", "tcl8.4"),
         ("lrepeat 3 x", "tcl8.5", "tcl8.4"),
-        ("const c 1", "tcl9.0", "tcl8.6"),
+        // NB: `const` is intentionally universal (valid in iRules), so it is
+        // deliberately NOT version-gated — see const_.rs.
     ];
     for (snippet, ok, old) in cases {
         assert!(

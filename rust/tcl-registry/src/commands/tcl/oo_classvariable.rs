@@ -27,7 +27,8 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "classvariable",
         traits: Traits::LANGUAGE_KEYWORD,
-        dialects: Some(DialectSet::TCL86_PLUS),
+        // Added in Tcl 8.7/9.0 (TIP 478); not present in 8.6.
+        dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {
