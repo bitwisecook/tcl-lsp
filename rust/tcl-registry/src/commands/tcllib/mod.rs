@@ -238,6 +238,7 @@ mod ciphers;
 mod crc;
 mod data_util;
 mod encoding_pkgs;
+mod functional;
 mod math_core;
 mod md4;
 mod md5crypt;
@@ -538,6 +539,7 @@ fn crypto_encoding_specs() -> Vec<CommandSpec> {
     specs.extend(text_misc::specs());
     specs.extend(data_util::specs());
     specs.extend(math_core::specs());
+    specs.extend(functional::specs());
     specs
 }
 
@@ -690,6 +692,25 @@ mod tests {
         assert_eq!(pkg("math::fuzzy::teq"), Some("math::fuzzy"));
         assert_eq!(pkg("math::roman::toroman"), Some("math::roman"));
         assert_eq!(pkg("math::constants::constants"), Some("math::constants"));
+        // Functional / scoping packages.
+        assert_eq!(pkg("lambda"), Some("lambda"));
+        assert_eq!(pkg("defer::defer"), Some("defer"));
+        assert_eq!(pkg("tie::tie"), Some("tie"));
+        assert_eq!(pkg("base32::core::define"), Some("base32::core"));
+    }
+
+    #[test]
+    fn lambda_body_and_param_roles_recurse() {
+        // `lambda arguments body` — the argument list is a param list and the
+        // body is a Tcl script, so both drive semantic-token recursion like a
+        // bare `proc` / `apply`.
+        use crate::ArgRole;
+        let reg = crate::registry::CommandRegistry::build_default();
+        let args = ["{x y}", "{return [expr {$x + $y}]}"];
+        let bodies = reg.arg_indices_for_role("lambda", &args, ArgRole::Body);
+        let params = reg.arg_indices_for_role("lambda", &args, ArgRole::ParamList);
+        assert_eq!(bodies, vec![1], "lambda body index");
+        assert_eq!(params, vec![0], "lambda param-list index");
     }
 
     #[test]

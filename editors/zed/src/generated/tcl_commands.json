@@ -348,6 +348,14 @@
       "summary": "Reset auto-loading state"
     },
     {
+      "name": "base32::core::define",
+      "summary": "Build the forward / backward maps for a base32 variant."
+    },
+    {
+      "name": "base32::core::valid",
+      "summary": "Test whether a string is a valid base32 encoding."
+    },
+    {
       "name": "base32::decode",
       "summary": "Decode a standard base32 (RFC 4648) string.",
       "pure": true
@@ -837,6 +845,22 @@
     {
       "name": "csv::writequeue",
       "summary": "Write a queue object to a channel in CSV format."
+    },
+    {
+      "name": "defer::autowith",
+      "summary": "Schedule a script capturing all local variables at scope exit."
+    },
+    {
+      "name": "defer::cancel",
+      "summary": "Cancel one or more previously deferred scripts by id."
+    },
+    {
+      "name": "defer::defer",
+      "summary": "Schedule a script to run when the current scope exits."
+    },
+    {
+      "name": "defer::with",
+      "summary": "Schedule a script capturing the named variables at scope exit."
     },
     {
       "name": "destroy",
@@ -1699,6 +1723,14 @@
     {
       "name": "labelframe",
       "summary": "Create and manipulate a labelframe widget."
+    },
+    {
+      "name": "lambda",
+      "summary": "Construct an anonymous procedure (a lambda term)."
+    },
+    {
+      "name": "lambda@",
+      "summary": "Construct an anonymous procedure that runs in a namespace."
     },
     {
       "name": "lappend",
@@ -4106,6 +4138,22 @@
         "create",
         "new"
       ]
+    },
+    {
+      "name": "tie::info",
+      "summary": "Query the tie subsystem (ties / types / type)."
+    },
+    {
+      "name": "tie::register",
+      "summary": "Register a data-source class command under a type name."
+    },
+    {
+      "name": "tie::tie",
+      "summary": "Tie an array variable to a persistent data source."
+    },
+    {
+      "name": "tie::untie",
+      "summary": "Break the tie between an array variable and its data source."
     },
     {
       "name": "time",
