@@ -229,6 +229,44 @@ fn build_report_html_self_contained() {
 }
 
 #[test]
+fn footer_shows_version_and_git_hash() {
+    let sources = vec![load("lab-device-01.ucs")];
+    let opts = RenderOptions {
+        title: "Estate Report".into(),
+        generated_at: "2026-07-03 00:00:00 UTC".into(),
+        ..Default::default()
+    };
+    let html = build_report(&sources, &opts).expect("render");
+
+    // The bottom bar carries the engine version and the git build hash.
+    assert!(html.contains("class=\"foot-build\""), "footer build line");
+    assert!(
+        html.contains(tcl_bigip_report::ENGINE_VERSION),
+        "version in footer"
+    );
+    assert!(
+        html.contains(tcl_bigip_report::GIT_HASH),
+        "git hash in footer"
+    );
+
+    // The print running header (title) + footer (attribution/version/hash) are
+    // emitted so the print stylesheet can repeat them on every page.
+    assert!(
+        html.contains("class=\"print-running-head\""),
+        "print running header present"
+    );
+    assert!(
+        html.contains("class=\"print-running-foot\""),
+        "print running footer present"
+    );
+    // The print stylesheet pins them with position:fixed (repeats per page).
+    assert!(
+        html.contains(".print-running-head") && html.contains("position: fixed"),
+        "print stylesheet fixes running header"
+    );
+}
+
+#[test]
 fn forensics_tab_present_with_file_inventory() {
     // A file inventory (as the wasm/CLI entry points extract it) drives the
     // Forensics tab: the tab appears, and the checklist verdicts are embedded.

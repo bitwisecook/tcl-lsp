@@ -203,6 +203,8 @@ pre.code.tcl .diag.flash{background:rgba(191,135,0,.25);border-radius:3px}
 
 .foot{padding:22px;color:var(--muted);font-size:12px;text-align:center;border-top:1px solid var(--line)}
 .foot code{background:var(--tag-bg);padding:1px 5px;border-radius:4px}
+.foot-build{margin:6px 0 0;font-size:11px;color:var(--muted)}
+.foot-build code{font-family:var(--mono);font-size:10px}
 
 /* Attribution — the bitwisecook BIG-IP Report Generator. Shown small in the
    footer and (print only) as a page footer; also embedded invisibly in the

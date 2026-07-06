@@ -619,6 +619,7 @@ fn build_enrichment(devices_json: &str, architecture_json: &str) -> PyResult<Str
 #[pymodule]
 fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+    m.add("__git_hash__", env!("GIT_HASH"))?;
     m.add("QueryError", m.py().get_type::<QueryError>())?;
     m.add_function(wrap_pyfunction!(query, m)?)?;
     m.add_function(wrap_pyfunction!(load_paths, m)?)?;
