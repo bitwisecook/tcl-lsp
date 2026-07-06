@@ -3538,6 +3538,126 @@ fn imported_command_aliases(
     aliases
 }
 
+/// Augment the object-handle map with loop variables that iterate an object
+/// collection — `dict for {k v} $coll {…}`, `dict map …`, `foreach v $coll {…}`,
+/// `lmap …` — so a `$v method …` dispatch in the loop body resolves like a
+/// `[dict get $coll $k] method …` retrieval.
+///
+/// A *syntactic* recursive scan of the source rather than an IR pass: the IR
+/// lowers a `dict for` used as a bare statement to a barrier, but a loop nested
+/// in a command substitution or `set` value (`return [dict map {k v} $coll
+/// {…}]`) is folded into a value string and never surfaces as a loop.  The
+/// syntactic scan sees every body regardless of how it lowers.  No-op when no
+/// object collection is tracked.
+fn augment_loop_var_handles(
+    source: &str,
+    dialect: &str,
+    object_collections: &ObjectClassMap,
+    object_classes: &mut ObjectClassMap,
+) {
+    if object_collections.is_empty() {
+        return;
+    }
+    scan_loop_vars(source, source, 0, dialect, object_collections, object_classes, 0);
+}
+
+/// Add a loop variable → element-class set entry to the handle map (skips an
+/// empty name).
+fn bind_loop_var(
+    handles: &mut ObjectClassMap,
+    var: &str,
+    classes: &std::collections::HashSet<String>,
+) {
+    if !var.is_empty() {
+        handles
+            .entry(var.to_owned())
+            .or_default()
+            .extend(classes.iter().cloned());
+    }
+}
+
+/// Recursive worker for [`augment_loop_var_handles`]: segment `text` (anchored
+/// at `base_offset`), bind any loop's value variable(s) that iterate a tracked
+/// object collection, then recurse into every braced-script word.
+fn scan_loop_vars(
+    full_source: &str,
+    text: &str,
+    base_offset: u32,
+    dialect: &str,
+    collections: &ObjectClassMap,
+    handles: &mut ObjectClassMap,
+    depth: u32,
+) {
+    if depth > MAX_TOKEN_RECURSION {
+        return;
+    }
+    for seg in segment_commands_with_offset_and_config(
+        text,
+        base_offset,
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    ) {
+        let texts = &seg.texts;
+        // `dict for {k v} $coll body` / `dict map {k v} $coll body` — the value
+        // variable (second word of the pair) iterates the dict's values.
+        if texts.first().map(String::as_str) == Some("dict")
+            && matches!(texts.get(1).map(String::as_str), Some("for" | "map"))
+            && texts.len() >= 5
+            && let Some(classes) = object_handle_name(&texts[3]).and_then(|c| collections.get(c))
+            && let Some(valvar) = texts[2].split_whitespace().nth(1)
+        {
+            bind_loop_var(handles, valvar, classes);
+        }
+        // `foreach VARS LIST ?VARS LIST …? BODY` / `lmap …` — every variable of
+        // a group iterating an object collection is an element.
+        if matches!(texts.first().map(String::as_str), Some("foreach" | "lmap"))
+            && texts.len() >= 4
+        {
+            let pairs = &texts[1..texts.len() - 1];
+            let mut i = 0;
+            while i + 1 < pairs.len() {
+                if let Some(classes) =
+                    object_handle_name(&pairs[i + 1]).and_then(|c| collections.get(c))
+                {
+                    for v in pairs[i].split_whitespace() {
+                        bind_loop_var(handles, v, classes);
+                    }
+                }
+                i += 2;
+            }
+        }
+        // Recurse into braced-script words (loop bodies, proc / method / class
+        // bodies, `namespace eval` blocks, `if`/`switch` arms, …) and into
+        // `[…]` command substitutions (a loop can be `return [dict map …]`).
+        for (i, tok) in seg.argv.iter().enumerate() {
+            if !seg.single_token_word.get(i).copied().unwrap_or(false) {
+                continue;
+            }
+            let inner_span = match tok.kind {
+                TokenType::Str => subspec_content(full_source, *tok),
+                TokenType::Cmd => {
+                    let cstart = tok.span.start() as usize + tok.content_offset as usize;
+                    let cend = (tok.span.end() as usize).min(full_source.len());
+                    (cend > cstart)
+                        .then(|| full_source.get(cstart..cend).map(|inner| (cstart, inner)))
+                        .flatten()
+                }
+                _ => None,
+            };
+            if let Some((cstart, inner)) = inner_span {
+                scan_loop_vars(
+                    full_source,
+                    inner,
+                    u32::try_from(cstart).unwrap_or(0),
+                    dialect,
+                    collections,
+                    handles,
+                    depth + 1,
+                );
+            }
+        }
+    }
+}
+
 fn collect_entries(
     source: &str,
     dialect: &str,
@@ -3568,7 +3688,7 @@ fn collect_entries(
     // → `chart`), so a `$chart Xaxis -name …` dispatch resolves the method's
     // options through the registry (issue #748).  Empty without a
     // `CompilationUnit` or when the document creates no tracked object handles.
-    let object_classes: ObjectClassMap = cu.map_or_else(ObjectClassMap::default, |cu| {
+    let mut object_classes: ObjectClassMap = cu.map_or_else(ObjectClassMap::default, |cu| {
         tcl_compiler::object_types::object_handle_classes(cu, registry)
     });
 
@@ -3579,6 +3699,15 @@ fn collect_entries(
     let object_collections: ObjectClassMap = cu.map_or_else(ObjectClassMap::default, |cu| {
         tcl_compiler::object_types::object_collection_classes(cu)
     });
+
+    // A loop that iterates an object collection binds its value variable to an
+    // element, so `$v method …` in the body resolves like `[dict get $coll $k]
+    // method …`.  A *syntactic* scan of the source catches every loop shape —
+    // including `return [dict map {k v} $coll {…}]` / `set x [dict map …]`,
+    // where the loop is nested in a command substitution and the IR never
+    // surfaces it as a loop — and feeds the value variable(s) into the handle
+    // map (issue #797, SpiceGenTcl `allNodes` / `actOnParam` shape).
+    augment_loop_var_handles(source, dialect, &object_collections, &mut object_classes);
 
     // Walk every segmented command (recursing into braced bodies, braced
     // expressions, and `[…]` command substitutions) and classify each token.
@@ -4703,6 +4832,32 @@ mod tests {
             toks.iter()
                 .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Function as u32 && m == 0),
             "expected `configure` on the dict-for value var to resolve; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn dict_map_in_return_dispatch_resolves() {
+        // `return [dict map {k v} $coll {$v method …}]` — the loop is nested in
+        // a command substitution, so the IR never surfaces it as a loop; the
+        // syntactic scan still binds `v` to the collection element (SpiceGenTcl
+        // `getPinsNodes` / `getParams` shape, issue #797).
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::configurable create Pin { property node }\n\
+                   oo::class create Device {\n\
+                     variable Pins\n\
+                     method add {p} { dict append Pins $p [Pin new] }\n\
+                     method nodes {} { return [dict map {k pin} $Pins {$pin configure -node}] }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Function as u32 && m == 0),
+            "expected `configure` in the return-nested dict map to resolve; got {toks:?}"
         );
     }
 
