@@ -754,6 +754,10 @@
       "summary": "Arrange for X event bindings on windows or tags."
     },
     {
+      "name": "bindtags",
+      "summary": "Get or set the binding tags used for a window."
+    },
+    {
       "name": "blowfish::Decrypt",
       "summary": "Decrypt a block of data using a cipher-state token."
     },
@@ -964,6 +968,10 @@
       "name": "concat",
       "summary": "Join lists together",
       "pure": true
+    },
+    {
+      "name": "console",
+      "summary": "Control the debugging console window (hide/show/eval/…)."
     },
     {
       "name": "const",
@@ -9029,12 +9037,32 @@
       ]
     },
     {
+      "name": "tk_bisque",
+      "summary": "Restore the classic Tk bisque colour scheme."
+    },
+    {
       "name": "tk_chooseColor",
       "summary": "Pop up a dialogue for the user to select a colour."
     },
     {
       "name": "tk_chooseDirectory",
       "summary": "Pop up a dialogue for the user to select a directory."
+    },
+    {
+      "name": "tk_dialog",
+      "summary": "Create a modal dialog box with a bitmap and a row of buttons."
+    },
+    {
+      "name": "tk_focusFollowsMouse",
+      "summary": "Change focus behaviour so focus follows the mouse pointer."
+    },
+    {
+      "name": "tk_focusNext",
+      "summary": "Return the next window in keyboard-traversal order."
+    },
+    {
+      "name": "tk_focusPrev",
+      "summary": "Return the previous window in keyboard-traversal order."
     },
     {
       "name": "tk_getOpenFile",
@@ -9049,8 +9077,16 @@
       "summary": "Pop up a message window and wait for user response."
     },
     {
+      "name": "tk_optionMenu",
+      "summary": "Create an option-menubutton whose value is linked to a variable."
+    },
+    {
       "name": "tk_popup",
       "summary": "Post a pop-up menu at the given screen coordinates."
+    },
+    {
+      "name": "tk_setPalette",
+      "summary": "Change the colour scheme of the whole application."
     },
     {
       "name": "tkwait",
@@ -9086,6 +9122,10 @@
       "summary": "Create and manipulate a themed button widget."
     },
     {
+      "name": "ttk::checkbutton",
+      "summary": "Create and manipulate a themed checkbutton widget."
+    },
+    {
       "name": "ttk::combobox",
       "summary": "Create and manipulate a themed combobox widget."
     },
@@ -9100,6 +9140,10 @@
     {
       "name": "ttk::label",
       "summary": "Create and manipulate a themed label widget."
+    },
+    {
+      "name": "ttk::menubutton",
+      "summary": "Create and manipulate a themed menubutton widget."
     },
     {
       "name": "ttk::notebook",
@@ -9119,8 +9163,16 @@
       ]
     },
     {
+      "name": "ttk::panedwindow",
+      "summary": "Create and manipulate a themed paned-window widget."
+    },
+    {
       "name": "ttk::progressbar",
       "summary": "Create and manipulate a themed progress indicator widget."
+    },
+    {
+      "name": "ttk::radiobutton",
+      "summary": "Create and manipulate a themed radiobutton widget."
     },
     {
       "name": "ttk::scale",
@@ -9133,6 +9185,10 @@
     {
       "name": "ttk::sizegrip",
       "summary": "Create and manipulate a themed size grip widget for resizing."
+    },
+    {
+      "name": "ttk::spinbox",
+      "summary": "Create and manipulate a themed spinbox widget."
     },
     {
       "name": "ttk::style",
