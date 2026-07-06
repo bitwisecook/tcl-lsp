@@ -1278,6 +1278,42 @@ mod tests {
     }
 
     #[test]
+    fn every_command_has_hover_with_manpage_source() {
+        // Every registered command must carry a hover snippet with a non-empty
+        // summary and a manpage/source attribution. A short allowlist covers
+        // internal pseudo-commands and dialect placeholders that have no user
+        // documentation.
+        const HOVERLESS_OK: &[&str] = &["disabled_in_irules"];
+        let reg = CommandRegistry::build_default();
+        let mut missing_hover = Vec::new();
+        let mut missing_source = Vec::new();
+        for name in reg.command_names() {
+            if HOVERLESS_OK.contains(&name) {
+                continue;
+            }
+            let spec = reg.get(name).expect("registered");
+            match &spec.hover {
+                None => missing_hover.push(name.to_string()),
+                Some(h) => {
+                    if h.summary.trim().is_empty() || h.source.trim().is_empty() {
+                        missing_source.push(name.to_string());
+                    }
+                }
+            }
+        }
+        missing_hover.sort();
+        missing_source.sort();
+        assert!(
+            missing_hover.is_empty(),
+            "commands without a hover snippet: {missing_hover:?}",
+        );
+        assert!(
+            missing_source.is_empty(),
+            "commands with an empty hover summary or manpage source: {missing_source:?}",
+        );
+    }
+
+    #[test]
     fn timerate_registered_with_body_and_int_hint() {
         // `timerate` measures the rate of execution of a script.
         use crate::arg_role::ArgRole;

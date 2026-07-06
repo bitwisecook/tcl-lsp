@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
             summary: "File name conventions",
             synopsis: &[],
             snippet: "",
-            source: "",
+            source: "Tcl man page filename.n",
             examples: "",
             return_value: "",
         }),

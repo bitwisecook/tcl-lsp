@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
             summary: "Memory debugging (debug builds only)",
             synopsis: &[],
             snippet: "",
-            source: "",
+            source: "Tcl man page memory.n",
             examples: "",
             return_value: "",
         }),

@@ -34,7 +34,7 @@ pub fn spec() -> CommandSpec {
             summary: "Escape regex metacharacters in a string.",
             synopsis: &["regex::quote STRING", "regex::quote string"],
             snippet: "Returns *STRING* with all regular-expression\nmetacharacters (``[ ] { } ( ) * + ? . \\\\ ^ $ |``)\nbackslash-escaped so it can be used as a literal\npattern in ``regexp`` or ``regsub``.",
-            source: "",
+            source: "Tcl man page re_syntax.n",
             examples: "set safe_pattern [regex::quote $user_input]\nif {[regexp $safe_pattern $haystack]} { ... }",
             return_value: "Returns a regex-escaped string.",
         }),
