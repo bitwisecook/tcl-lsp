@@ -27,7 +27,6 @@ real `tcl diag` / `f5 irule` front-ends.
 | **Subcommands** (`test_subcommand_behaviour`) | every ensemble called bare / with a bogus sub / with a real sub | `tcl diag --json` | E001 / W001 fire; a real sub is clean |
 | **Event scoping** (`test_irule_event_scoping`) | `when EVENT { command }` for every iRules command | `tcl diag --dialect f5-irules` | IRULE1001 fires iff the command is used outside its valid events; any-event commands never warn; unknown event → IRULE1002 |
 | **Event graph** (`test_irule_event_graph`) | an iRule with many `when` blocks in scrambled order | `f5 irule event-order` | returned in the registry's canonical firing order |
-| **LSP surface** (`test_registry_contract_e2e`) | registry lookups | `workspace/executeCommand` (`listIruleEvents`, `describeIruleEvent`, `describeIruleCommand`, `listSubcommands`) | agree with the CSVs / known ensembles |
 
 The generated predicates were validated empirically against the live
 front-end before being trusted — e.g. "command used outside its valid
@@ -37,32 +36,19 @@ The event-scoping valid-event set comes from the `command-info`
 front-end, so that test links two front-end surfaces through the
 registry.
 
-### 2. Presence safety-net (small CSVs)
+### 2. Presence safety-net (retired)
 
-`tests/baselines/registry/*.csv` pin that **every** command (with its
-arity and subcommand/switch counts), event, profile, and object is
-present in the registry with basic data:
-
-- `commands.csv` — `dialect, command, arity_min, arity_max, subcommands, switches`
-- `events.csv` — `event, known, deprecated, side, multiplicity, valid_commands`
-- `profiles.csv` — `profile, layer, side`
-- `objects.csv` — `kind, module, object_types`
-
-CSVs were chosen over verbose JSON dumps on purpose: a registry change is
-a tiny, line-oriented, reviewable diff (one row per command), not a
-multi-megabyte blob.  There is no JSON dump surface — the registry is
-either read through the front-ends (the behavioural tests above) or
-directly in-process.  `test_registry_presence.py` regenerates the rows
-straight from the registry (`scripts/codegen/registry_baselines.py`'s
-`check_all`) and asserts they match the committed CSVs;
-`test_graph_integrity.py` reads the in-memory registry
-(`compiler.registry.namespace_data`, `NAMESPACE_REGISTRY`, the BIG-IP
-`OBJECT_KIND_SPECS` / `HEADER_KIND_MAP`) and asserts structural
-invariants (stable event order, closed profile/object reference edges).
-
-Regenerate with `make gen-registry-baselines`
-(`scripts/codegen/registry_baselines.py`); `--check`
-(`make check-registry-baselines`, and a pytest) fails on drift.
+The Python era carried a set of golden CSVs
+(`tests/baselines/registry/*.csv`, later ported to
+`rust/tcl-lsp-server/tests/fixtures/registry/*.csv`) that pinned every
+command (with its arity and subcommand / switch counts), event, profile,
+and object present in the registry.  Those CSVs and their comparison test
+have been **retired** — they compared the live registry against a
+Python-derived dump, which is no longer meaningful now that Python has been
+removed and the behavioural sweep tests above are the contract.  Presence
+is instead asserted directly against the in-process registry by
+`rust/tcl-registry/tests/registry_commands.rs` and
+`rust/tcl-registry/tests/registry_sweep.rs`.
 
 ## Deterministic resolution
 
@@ -76,13 +62,12 @@ process history.  The behavioural generators deliberately use the same
 `REGISTRY.get` path the analyser uses, so the generated input and the
 front-end stay self-consistent within a run.
 
-## Using the contract from the `rust` branch
+## How the contract runs today
 
-A Rust front-end re-implements the CLI verbs (`command-info`,
-`event-info`, `irule event-order`, `diag`) and the four LSP
-`executeCommand` registry handlers.  The presence and graph-integrity
-checks read the registry directly (no JSON wire to reproduce).  Point the
-e2e harness at the
-native server with `TCL_LSP_SERVER_KIND=rust` and run the CLI behavioural
-tests against the Rust binaries — both validate against the unchanged
-CSVs and the registry-generated behavioural cases.
+The native front-ends expose the CLI verbs (`command-info`, `event-info`,
+`irule event-order`, `diag`) and the LSP `executeCommand` registry
+handlers.  The behavioural sweep and presence checks read the in-process
+registry directly (no JSON wire, no golden dump to reproduce) in
+`rust/tcl-registry/tests/registry_sweep.rs` and
+`rust/tcl-registry/tests/registry_commands.rs`.  The LSP-driven surface is
+exercised by the native e2e suite under `rust/tcl-lsp-server/tests/`.

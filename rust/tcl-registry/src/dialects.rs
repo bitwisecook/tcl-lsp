@@ -69,6 +69,13 @@ bitflags! {
         /// Tcl 8.6 and later.
         const TCL86_PLUS = Self::TCL86.bits() | Self::TCL90.bits() | Self::TCL91.bits();
 
+        /// The Tcl 8 series only (8.4, 8.5, 8.6), excluding 9.0+.  For
+        /// commands and options dropped or renamed at the 9.0 boundary — e.g.
+        /// `tcltest::bytestring` (not defined under Tcl 9.0+) and the
+        /// `teststaticpkg` / `testsaveresult` test-harness commands (removed
+        /// in 9.0).
+        const TCL8X = Self::TCL84.bits() | Self::TCL85.bits() | Self::TCL86.bits();
+
         /// Tcl 9.0 and later.  A command/option gated to "9.0" persists in
         /// 9.1 (a `.1` release is additive): a `{tcl9.0}` membership is
         /// inherited under `tcl9.1`.

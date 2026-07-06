@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testlistobj",
-        dialects: None,
+        dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Test list Tcl_Obj operations.",

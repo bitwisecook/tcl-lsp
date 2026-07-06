@@ -21,17 +21,19 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::testConstraint",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Get or set a named test constraint boolean.",
             synopsis: &["tcltest::testConstraint constraint ?value?"],
-            snippet: "",
+            snippet: "With one argument, returns whether ``constraint`` is currently satisfied; with a boolean ``value``, sets it.  A ``test`` whose ``-constraints`` are not all satisfied is skipped.",
             source: "Tcl stdlib tcltest package",
             examples: "",
             return_value: "",
         }),
         required_package: Some("tcltest"),
+        // 0 = the constraint name being queried / set.
+        arg_roles: &[(0, ArgRole::Name)],
         ..CommandSpec::DEFAULT
     }
 }

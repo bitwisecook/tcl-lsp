@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testhandlecount",
-        dialects: None,
+        dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Test handle count tracking (9.0+).",

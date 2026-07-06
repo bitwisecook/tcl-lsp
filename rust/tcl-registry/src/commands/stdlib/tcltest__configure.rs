@@ -18,20 +18,171 @@
 
 //! `tcltest::configure` command.
 use crate::prelude::*;
+
+/// Levels accepted by `-verbose`.  A combination is given as a list (or a
+/// string of single-letter abbreviations), so the set is *not* closed.
+/// `line` was added in tcltest 2.3; `msec` and `usec` in tcltest 2.5.
+const VERBOSE_LEVELS: &[ArgValue] = &[
+    ArgValue {
+        value: "body",
+        detail: "display the body of failed tests",
+    },
+    ArgValue {
+        value: "pass",
+        detail: "display all passed tests",
+    },
+    ArgValue {
+        value: "skip",
+        detail: "display all skipped tests",
+    },
+    ArgValue {
+        value: "start",
+        detail: "display each test as it starts",
+    },
+    ArgValue {
+        value: "error",
+        detail: "display errorInfo for failed tests",
+    },
+    ArgValue {
+        value: "line",
+        detail: "display source file line of failed tests (tcltest 2.3+)",
+    },
+    ArgValue {
+        value: "msec",
+        detail: "display each test's execution time in milliseconds (tcltest 2.5+)",
+    },
+    ArgValue {
+        value: "usec",
+        detail: "display each test's execution time in microseconds (tcltest 2.5+)",
+    },
+];
+
+const OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-verbose",
+        value: OptionValue::enumerated(VERBOSE_LEVELS, false, "levelList"),
+        detail: "verbosity of test-run output",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-match",
+        value: OptionValue::value("patternList"),
+        detail: "run only tests whose name matches one of these glob patterns",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-skip",
+        value: OptionValue::value("patternList"),
+        detail: "skip tests whose name matches one of these glob patterns",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-file",
+        value: OptionValue::value("pattern"),
+        detail: "run tests in files matching this glob pattern",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-notfile",
+        value: OptionValue::value("pattern"),
+        detail: "skip test files matching this glob pattern",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-relateddir",
+        value: OptionValue::value("pattern"),
+        detail: "run tests in directories matching this glob pattern",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-asidefromdir",
+        value: OptionValue::value("pattern"),
+        detail: "skip tests in directories matching this glob pattern",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-constraints",
+        value: OptionValue::value("constraintList"),
+        detail: "do not skip the listed constraints",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-limitconstraints",
+        value: OptionValue::value("boolean"),
+        detail: "run only tests with the listed constraints",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-singleproc",
+        value: OptionValue::value("boolean"),
+        detail: "run all tests in one process rather than one per file",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-debug",
+        value: OptionValue::value("level"),
+        detail: "internal debug level (integer)",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-preservecore",
+        value: OptionValue::value("level"),
+        detail: "how aggressively to preserve core files (integer)",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-load",
+        value: OptionValue::script(),
+        detail: "script that loads the tested commands",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-loadfile",
+        value: OptionValue::value("file"),
+        detail: "file holding the script that loads the tested commands",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-tmpdir",
+        value: OptionValue::value("dir"),
+        detail: "directory for temporary files created during testing",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-testdir",
+        value: OptionValue::value("dir"),
+        detail: "directory searched for test files",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-outfile",
+        value: OptionValue::value("file"),
+        detail: "channel or file for test-run output",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-errfile",
+        value: OptionValue::value("file"),
+        detail: "channel or file for test-run errors",
+        ..OptionSpec::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::configure",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Get or set tcltest configuration options.",
             synopsis: &["tcltest::configure ?option? ?value option value ...?"],
-            snippet: "Options include ``-verbose``, ``-debug``, ``-outfile``, ``-errfile``, ``-tmpdir``, ``-testdir``, ``-file``, ``-notfile``, ``-match``, ``-skip``, ``-constraints``, ``-limitconstraints``, ``-singleproc``, ``-preservecore``, ``-load``, ``-loadfile``.",
+            snippet: "Options include ``-verbose``, ``-debug``, ``-outfile``, ``-errfile``, ``-tmpdir``, ``-testdir``, ``-file``, ``-notfile``, ``-relateddir``, ``-asidefromdir``, ``-match``, ``-skip``, ``-constraints``, ``-limitconstraints``, ``-singleproc``, ``-preservecore``, ``-load``, ``-loadfile``.",
             source: "Tcl stdlib tcltest package",
             examples: "",
             return_value: "",
         }),
         required_package: Some("tcltest"),
+        options: OPTIONS,
         ..CommandSpec::DEFAULT
     }
 }
