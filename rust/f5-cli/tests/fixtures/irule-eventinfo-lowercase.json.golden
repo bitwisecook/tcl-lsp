@@ -10,7 +10,7 @@
     "FASTHTTP",
     "HTTP"
   ],
-  "validCommandCount": 1099,
+  "validCommandCount": 1096,
   "validCommands": [
     "AAA::acct_result",
     "AAA::acct_send",
@@ -661,7 +661,6 @@
     "active_nodes",
     "after",
     "append",
-    "apply",
     "argparse",
     "array",
     "b64decode",
@@ -866,9 +865,7 @@
     "logger::setlevel",
     "logger::walk",
     "lrange",
-    "lrepeat",
     "lreplace",
-    "lreverse",
     "lsearch",
     "lset",
     "lsort",
