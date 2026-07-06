@@ -1068,7 +1068,10 @@ fn insert_option_and_subcommand_overrides(
 
         // Two-level ensembles (`info object <subcommand>`, `info class
         // <subcommand>`): the word after the first-level subcommand is itself a
-        // subcommand keyword, not a string (issue #798).
+        // subcommand keyword, not a string (issue #798).  `is_sub_subcommand`
+        // accepts a unique prefix (`info object cl` ⇒ `class`) the way Tcl's
+        // ensemble dispatch does.  General over any registry-declared two-level
+        // ensemble, not just `info`.
         if let Some(sub_sub_text) = seg.texts.get(2)
             && sub.is_sub_subcommand(sub_sub_text)
             && let Some(tok) = seg.argv.get(2)
@@ -4172,6 +4175,23 @@ mod tests {
             kind_at(src, col),
             TokenKind::Keyword as u32,
             "`class` must highlight as a keyword even nested in an if-expr command substitution"
+        );
+
+        // Unique-prefix abbreviation (#798 fix 1): `info object cl` is Tcl's
+        // abbreviation of `class`; column 12 is `cl`.
+        let src = "info object cl $obj\n";
+        assert_eq!(
+            kind_at(src, 12),
+            TokenKind::Keyword as u32,
+            "a unique-prefix sub-subcommand should highlight as a keyword"
+        );
+        // An ambiguous prefix stays a string: `info class c` matches both
+        // `call` and `constructor`, so it must not be painted a keyword.
+        let src = "info class c $cls\n";
+        assert_eq!(
+            kind_at(src, 11),
+            TokenKind::String as u32,
+            "an ambiguous prefix must not highlight as a keyword"
         );
     }
 

@@ -834,17 +834,36 @@ pub struct SubCommand {
     /// the lowering pass.
     pub cfg_rewrite_name: Option<&'static str>,
 
-    /// Nested subcommand keywords for a two-level ensemble, matched at the
-    /// argument index immediately after this subcommand word.
+    /// Nested subcommands for a two-level ensemble, matched at the argument
+    /// index immediately after this subcommand word.
     ///
     /// A handful of `info` subcommands are themselves ensembles whose *next*
     /// word selects a further operation — `info object <subcommand> object …`
     /// and `info class <subcommand> class …` (per the `info` man page's OBJECT
-    /// INTROSPECTION and CLASS INTROSPECTION sections). Listing the valid
-    /// second-level names here lets the semantic-token pass colour that word as
-    /// a subcommand keyword (issue #798) instead of leaving it a bare string.
-    /// Empty for the overwhelmingly-common single-level subcommand.
-    pub sub_subcommands: &'static [&'static str],
+    /// INTROSPECTION and CLASS INTROSPECTION sections). Declaring them here lets
+    /// the semantic-token pass colour that word as a subcommand keyword (issue
+    /// #798), and drives hover and completion for it. Empty for the
+    /// overwhelmingly-common single-level subcommand.
+    pub sub_subcommands: &'static [SubSubCommand],
+}
+
+/// A second-level subcommand of a two-level ensemble (`info object <op>`,
+/// `info class <op>`).
+///
+/// Lighter than a full [`SubCommand`]: it carries just what the LSP needs to
+/// highlight, hover, and complete the word after the first-level subcommand
+/// (issue #798). Resolution accepts a unique prefix, matching how Tcl's own
+/// ensemble dispatch abbreviates subcommands.
+#[derive(Debug, Clone, Copy)]
+pub struct SubSubCommand {
+    /// Canonical operation name (`"class"`, `"superclasses"`, …).
+    pub name: &'static str,
+    /// One-line description for hover / completion detail.
+    pub detail: &'static str,
+    /// Invocation synopsis, e.g. `"info object class object ?className?"`.
+    pub synopsis: &'static str,
+    /// Dialect membership; `None` inherits from the owning subcommand.
+    pub dialects: Option<DialectSet>,
 }
 
 impl SubCommand {
@@ -906,11 +925,34 @@ impl SubCommand {
         }
     }
 
-    /// Whether `name` is a recognised second-level subcommand of this
-    /// two-level-ensemble subcommand (see [`Self::sub_subcommands`]).
+    /// Resolve a second-level subcommand word to its [`SubSubCommand`],
+    /// accepting a unique non-empty prefix (`info object cl` ⇒ `class`) the way
+    /// Tcl's ensemble dispatch does. An exact match always wins; an ambiguous
+    /// prefix (several candidates) resolves to `None`.
     #[must_use]
-    pub fn is_sub_subcommand(&self, name: &str) -> bool {
-        self.sub_subcommands.contains(&name)
+    pub fn resolve_sub_subcommand(&self, word: &str) -> Option<&'static SubSubCommand> {
+        if word.is_empty() {
+            return None;
+        }
+        let subs: &'static [SubSubCommand] = self.sub_subcommands;
+        if let Some(exact) = subs.iter().find(|s| s.name == word) {
+            return Some(exact);
+        }
+        let mut hits = subs.iter().filter(|s| s.name.starts_with(word));
+        let first = hits.next()?;
+        // Unique prefix only — bail if a second candidate also matches.
+        if hits.next().is_some() {
+            return None;
+        }
+        Some(first)
+    }
+
+    /// Whether `word` resolves to a second-level subcommand of this
+    /// two-level-ensemble subcommand (exact or unique-prefix; see
+    /// [`Self::resolve_sub_subcommand`]).
+    #[must_use]
+    pub fn is_sub_subcommand(&self, word: &str) -> bool {
+        self.resolve_sub_subcommand(word).is_some()
     }
 
     /// Look up a static arg role by index.

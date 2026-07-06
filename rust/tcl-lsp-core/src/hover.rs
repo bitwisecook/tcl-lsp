@@ -220,6 +220,9 @@ pub fn hover(
         if let Some(text) = option_hover_text(source, line, character, registry, &word) {
             return Some(Hover::markdown(text));
         }
+        if let Some(text) = sub_subcommand_hover_text(source, line, character, registry, &word) {
+            return Some(Hover::markdown(text));
+        }
         if let Some(text) = subcommand_hover_text(source, line, character, registry, &word) {
             return Some(Hover::markdown(text));
         }
@@ -468,6 +471,48 @@ fn subcommand_hover_text(
         }
     } else {
         let _ = write!(out, "\nSubcommand of `{cmd_name}`.\n");
+    }
+    Some(out)
+}
+
+/// Render a hover for the third word of a two-level ensemble — the
+/// second-level subcommand of `info object <op>` / `info class <op>` (issue
+/// #798) — when the cursor sits on it.  Accepts a unique prefix (`info object
+/// cl` ⇒ `class`), matching Tcl's ensemble dispatch.
+fn sub_subcommand_hover_text(
+    source: &str,
+    line: u32,
+    character: u32,
+    registry: &CommandRegistry,
+    cursor_word: &str,
+) -> Option<String> {
+    use std::fmt::Write;
+    let line_text = source.split('\n').nth(line as usize)?;
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
+    let prefix: String = chars[..col].iter().collect();
+    let tokens: Vec<&str> = prefix.split_whitespace().collect();
+    // Need at least the command and its first-level subcommand before the
+    // cursor word (`info object …`).
+    if tokens.len() < 2 {
+        return None;
+    }
+    let cmd_name = tokens[0];
+    let sub_name = tokens[1];
+    // The cursor must be on the *third* word, not the command or the
+    // first-level subcommand.
+    if cursor_word == cmd_name || cursor_word == sub_name {
+        return None;
+    }
+    let spec = registry.get(cmd_name)?;
+    let sub = spec.subcommand(sub_name)?;
+    let ss = sub.resolve_sub_subcommand(cursor_word)?;
+    let mut out = format!("**`{cmd_name} {sub_name} {}`** — subcommand\n", ss.name);
+    if !ss.detail.is_empty() {
+        let _ = write!(out, "\n{}\n", ss.detail);
+    }
+    if !ss.synopsis.is_empty() {
+        let _ = write!(out, "\n```tcl\n{}\n```\n", ss.synopsis);
     }
     Some(out)
 }
@@ -3406,6 +3451,23 @@ mod tests {
         let registry = tcl_registry::CommandRegistry::build_default();
         let src = "string bogusSubcommand\n";
         assert!(subcommand_hover_text(src, 0, 12, &registry, "bogusSubcommand").is_none());
+    }
+
+    #[test]
+    fn sub_subcommand_hover_surfaces_for_info_object_class() {
+        // Issue #798 fix 3: hovering the third word of `info object class`
+        // returns the second-level subcommand's doc.
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let src = "info object class $obj\n";
+        let t = sub_subcommand_hover_text(src, 0, 12, &registry, "class").expect("sub-sub hover");
+        assert!(t.contains("`info object class`"), "{t}");
+        assert!(t.contains("subcommand"), "{t}");
+        // Unique-prefix abbreviation resolves to the canonical op.
+        let src = "info class super $cls\n";
+        let t = sub_subcommand_hover_text(src, 0, 11, &registry, "super").expect("prefix hover");
+        assert!(t.contains("`info class superclasses`"), "{t}");
+        // The first-level subcommand word itself is not a sub-subcommand.
+        assert!(sub_subcommand_hover_text("info object class\n", 0, 5, &registry, "object").is_none());
     }
 
     #[test]

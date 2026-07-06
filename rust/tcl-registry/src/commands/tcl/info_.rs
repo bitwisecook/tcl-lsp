@@ -25,46 +25,71 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "info option ?arg arg ...?",
 }];
 
+/// A concise `SubSubCommand` — most `info object`/`info class` operations are
+/// available since 8.6 (dialect `None`, inheriting the parent subcommand).
+const fn sub(name: &'static str, detail: &'static str, synopsis: &'static str) -> SubSubCommand {
+    SubSubCommand {
+        name,
+        detail,
+        synopsis,
+        dialects: None,
+    }
+}
+
+/// A `SubSubCommand` gated to a later dialect (e.g. the 9.0/TIP-478 additions).
+const fn sub_since(
+    name: &'static str,
+    detail: &'static str,
+    synopsis: &'static str,
+    dialects: DialectSet,
+) -> SubSubCommand {
+    SubSubCommand {
+        name,
+        detail,
+        synopsis,
+        dialects: Some(dialects),
+    }
+}
+
 /// Second-level subcommands of `info object` (the OBJECT INTROSPECTION
-/// operations from the `info` man page). Names span Tcl 8.6–9.0; the
-/// version-newer ones (`creationid`, `properties`) are harmless to list here —
-/// this drives semantic highlighting of the word after `object`, not arity or
-/// dialect validation.
-const INFO_OBJECT_SUBS: &[&str] = &[
-    "call",
-    "class",
-    "creationid",
-    "definition",
-    "filters",
-    "forward",
-    "isa",
-    "methods",
-    "methodtype",
-    "mixins",
-    "namespace",
-    "properties",
-    "variables",
-    "vars",
+/// operations from the `info` man page). Base set is Tcl 8.6; `creationid` and
+/// `properties` are 9.0 (TIP 478 / TIP 558).
+const INFO_OBJECT_SUBS: &[SubSubCommand] = &[
+    sub("call", "Report the method-call chain for a method.", "info object call object methodName"),
+    sub("class", "Report the class of an object (or test membership).", "info object class object ?className?"),
+    sub_since("creationid", "Report the unique creation id of an object.", "info object creationid object", DialectSet::TCL90_PLUS),
+    sub("definition", "Report how a method was defined.", "info object definition object methodName"),
+    sub("filters", "List the filter methods of an object.", "info object filters object"),
+    sub("forward", "Report the target of a forwarded method.", "info object forward object methodName"),
+    sub("isa", "Test whether an object belongs to a category.", "info object isa category object ?arg?"),
+    sub("methods", "List the methods of an object.", "info object methods object ?option ...?"),
+    sub("methodtype", "Report the type of a method.", "info object methodtype object methodName"),
+    sub("mixins", "List the classes mixed into an object.", "info object mixins object"),
+    sub("namespace", "Report the private namespace of an object.", "info object namespace object"),
+    sub_since("properties", "List the declared properties of an object.", "info object properties object ?option ...?", DialectSet::TCL90_PLUS),
+    sub("variables", "List the declared instance variables of an object.", "info object variables object"),
+    sub("vars", "List the visible variables in an object's namespace.", "info object vars object ?pattern?"),
 ];
 
 /// Second-level subcommands of `info class` (the CLASS INTROSPECTION
-/// operations from the `info` man page).
-const INFO_CLASS_SUBS: &[&str] = &[
-    "call",
-    "constructor",
-    "definition",
-    "definitionnamespace",
-    "destructor",
-    "filters",
-    "forward",
-    "instances",
-    "methods",
-    "methodtype",
-    "mixins",
-    "properties",
-    "subclasses",
-    "superclasses",
-    "variables",
+/// operations from the `info` man page). Base set is Tcl 8.6;
+/// `definitionnamespace` and `properties` are 9.0 (TIP 478 / TIP 558).
+const INFO_CLASS_SUBS: &[SubSubCommand] = &[
+    sub("call", "Report the method-call chain for a class method.", "info class call class methodName"),
+    sub("constructor", "Report the definition of a class constructor.", "info class constructor class"),
+    sub("definition", "Report how a class method was defined.", "info class definition class methodName"),
+    sub_since("definitionnamespace", "Report a class's definition namespace.", "info class definitionnamespace class ?kind?", DialectSet::TCL90_PLUS),
+    sub("destructor", "Report the definition of a class destructor.", "info class destructor class"),
+    sub("filters", "List the filter methods of a class.", "info class filters class"),
+    sub("forward", "Report the target of a forwarded class method.", "info class forward class methodName"),
+    sub("instances", "List the instances of a class.", "info class instances class ?pattern?"),
+    sub("methods", "List the methods of a class.", "info class methods class ?option ...?"),
+    sub("methodtype", "Report the type of a class method.", "info class methodtype class methodName"),
+    sub("mixins", "List the classes mixed into a class.", "info class mixins class"),
+    sub_since("properties", "List the declared properties of a class.", "info class properties class ?option ...?", DialectSet::TCL90_PLUS),
+    sub("subclasses", "List the subclasses of a class.", "info class subclasses class ?pattern?"),
+    sub("superclasses", "List the superclasses of a class.", "info class superclasses class"),
+    sub("variables", "List the declared instance variables of a class.", "info class variables class ?-private?"),
 ];
 
 static SUBCOMMANDS: &[SubCommand] = &[
