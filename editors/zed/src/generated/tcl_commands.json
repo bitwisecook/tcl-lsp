@@ -238,6 +238,38 @@
       "summary": "Encrypt or decrypt data with the DES / triple-DES block cipher."
     },
     {
+      "name": "SASL::cleanup",
+      "summary": "Release all resources associated with the SASL context."
+    },
+    {
+      "name": "SASL::configure",
+      "summary": "Modify and inspect the SASL context option."
+    },
+    {
+      "name": "SASL::mechanisms",
+      "summary": "Returns a list of all the available SASL mechanisms."
+    },
+    {
+      "name": "SASL::new",
+      "summary": "Contruct a new SASL context."
+    },
+    {
+      "name": "SASL::register",
+      "summary": "New mechanisms can be added to the package by registering the mechanism name and the implementing procedures."
+    },
+    {
+      "name": "SASL::reset",
+      "summary": "Re-initialize the SASL context."
+    },
+    {
+      "name": "SASL::response",
+      "summary": "Returns the next response string that should be sent to the server."
+    },
+    {
+      "name": "SASL::step",
+      "summary": "This is the core procedure for using the SASL framework."
+    },
+    {
       "name": "^",
       "summary": "bitwise XOR"
     },
@@ -586,6 +618,22 @@
     {
       "name": "bgerror",
       "summary": "Handle background errors"
+    },
+    {
+      "name": "bibtex::addStrings",
+      "summary": "This command adds the macro definitions stored in the dictionary stringdict to the parser represented by the."
+    },
+    {
+      "name": "bibtex::destroy",
+      "summary": "This command cleans up all internal state associated with the parser represented by the handle token, effectively."
+    },
+    {
+      "name": "bibtex::parse",
+      "summary": "This is the general form of the command for parsing a bibliography."
+    },
+    {
+      "name": "bibtex::wait",
+      "summary": "This command waits for the parser represented by the token to complete and then returns."
     },
     {
       "name": "binary",
@@ -1996,6 +2044,30 @@
       "summary": "Capture a variable name in its namespace context (a scoped value)."
     },
     {
+      "name": "javascript::makeChildCheckbox",
+      "summary": "Create an HTML checkbox and tie its value to that of its parent checkbox."
+    },
+    {
+      "name": "javascript::makeMasterButton",
+      "summary": "Create an HTML button that sets its slave checkboxs to the boolean value."
+    },
+    {
+      "name": "javascript::makeParentCheckbox",
+      "summary": "Create an HTML checkbox and tie its value to that of its child checkbox."
+    },
+    {
+      "name": "javascript::makeProtectedSubmitButton",
+      "summary": "Create an HTML submit button that prompts the user with a continue/cancel shutdown warning before the form is."
+    },
+    {
+      "name": "javascript::makeSelectorWidget",
+      "summary": "Construct HTML code to create a dual-multi-selection megawidget."
+    },
+    {
+      "name": "javascript::makeSubmitButton",
+      "summary": "Create an HTML submit button that resets a hidden field for each registered multi-selection box."
+    },
+    {
       "name": "join",
       "summary": "Create a string by joining together list elements",
       "pure": true
@@ -3138,6 +3210,54 @@
       "summary": "list non-membership"
     },
     {
+      "name": "nmea::checksum",
+      "summary": "Returns the checksum of the supplied data."
+    },
+    {
+      "name": "nmea::close_file",
+      "summary": "Close the open file if one exists."
+    },
+    {
+      "name": "nmea::close_port",
+      "summary": "Close the com port connection if one is open."
+    },
+    {
+      "name": "nmea::configure_port",
+      "summary": "Changes the current port settings."
+    },
+    {
+      "name": "nmea::do_line",
+      "summary": "If there is a currently open file, this command will read and process a single line from it."
+    },
+    {
+      "name": "nmea::event",
+      "summary": "Registers a handler proc for a given NMEA sentence."
+    },
+    {
+      "name": "nmea::input",
+      "summary": "Processes and dispatches the supplied sentence."
+    },
+    {
+      "name": "nmea::log",
+      "summary": "Starts or stops input logging."
+    },
+    {
+      "name": "nmea::open_file",
+      "summary": "Open file file and read NMEA sentences, one per line, at the rate specified by rate in milliseconds."
+    },
+    {
+      "name": "nmea::open_port",
+      "summary": "Open the specified COM port and read NMEA sentences when available."
+    },
+    {
+      "name": "nmea::rate",
+      "summary": "Sets the rate at which lines are processed from the open file, in milliseconds."
+    },
+    {
+      "name": "nmea::write",
+      "summary": "If there is a currently open port, this command will write the specified sentence and data to the port in proper."
+    },
+    {
       "name": "noop",
       "summary": "Do nothing (used for timing baselines)."
     },
@@ -3385,6 +3505,34 @@
       "summary": "Encrypt or decrypt data with the RC4 stream cipher."
     },
     {
+      "name": "rcs::applyRcsPatch",
+      "summary": "This operation applies a patch in the form of a PCL to a text given in the form of a dictionary and returns the."
+    },
+    {
+      "name": "rcs::decodeRcsPatch",
+      "summary": "Converts the text argument into a patch command list (PCL) as specified in the section {RCS PATCH COMMAND LIST}."
+    },
+    {
+      "name": "rcs::dict2file",
+      "summary": "This command is identical to ::rcs::2dict2text, except that it stores the resulting text in the file with path."
+    },
+    {
+      "name": "rcs::dict2text",
+      "summary": "This command provides the complementary operation to ::rcs::text2dict."
+    },
+    {
+      "name": "rcs::encodeRcsPatch",
+      "summary": "This command provides the complementary operation to ::rcs::decodeRcsPatch."
+    },
+    {
+      "name": "rcs::file2dict",
+      "summary": "This command is identical to ::rcs::text2dict, except that it reads the text to convert from the file with path."
+    },
+    {
+      "name": "rcs::text2dict",
+      "summary": "Converts the argument text into a dictionary containing and representing the same text in an indexed form and."
+    },
+    {
       "name": "re_quote",
       "summary": "Escape regex metacharacters in a string.",
       "pure": true
@@ -3432,6 +3580,58 @@
     {
       "name": "rename",
       "summary": "Rename or delete a command"
+    },
+    {
+      "name": "rest::create_interface",
+      "summary": "This command creates procedures for all the API calls specified in the array variable name."
+    },
+    {
+      "name": "rest::delete",
+      "summary": "These commands are all equivalent except for the http method used."
+    },
+    {
+      "name": "rest::describe",
+      "summary": "This command prints a description of all API calls specified in the array variable name to the channel stdout."
+    },
+    {
+      "name": "rest::get",
+      "summary": ""
+    },
+    {
+      "name": "rest::head",
+      "summary": ""
+    },
+    {
+      "name": "rest::parameters",
+      "summary": "This command parses an url query string into a dictionary and returns said dictionary as its result."
+    },
+    {
+      "name": "rest::parse_opts",
+      "summary": "This command implements a custom parserfor command options."
+    },
+    {
+      "name": "rest::patch",
+      "summary": ""
+    },
+    {
+      "name": "rest::post",
+      "summary": ""
+    },
+    {
+      "name": "rest::put",
+      "summary": ""
+    },
+    {
+      "name": "rest::save",
+      "summary": "This command saves a copy of the dynamically created procedures for all the API calls specified in the array."
+    },
+    {
+      "name": "rest::simple",
+      "summary": ""
+    },
+    {
+      "name": "rest::substitute",
+      "summary": "This command takes a string, substitutes values for any option identifiers found inside and returns the modified."
     },
     {
       "name": "return",
@@ -4790,6 +4990,46 @@
     {
       "name": "time",
       "summary": "Time the execution of a script"
+    },
+    {
+      "name": "time::cget",
+      "summary": "Get the current value for the named configuration option."
+    },
+    {
+      "name": "time::cleanup",
+      "summary": "Remove all state variables associated with the request."
+    },
+    {
+      "name": "time::configure",
+      "summary": "Called with no arguments this command returns all the current configuration options and values."
+    },
+    {
+      "name": "time::error",
+      "summary": "Returns the error message provided for requests whose status is error."
+    },
+    {
+      "name": "time::getsntp",
+      "summary": "Get the time from an SNTP server."
+    },
+    {
+      "name": "time::gettime",
+      "summary": "Get the time from timeserver."
+    },
+    {
+      "name": "time::reset",
+      "summary": "Reset or cancel the query optionally specfying the reason to record for the error command."
+    },
+    {
+      "name": "time::status",
+      "summary": "Returns the status flag."
+    },
+    {
+      "name": "time::unixtime",
+      "summary": "Format the returned time for the unix epoch."
+    },
+    {
+      "name": "time::wait",
+      "summary": "Wait for a query to complete and return the status upon completion."
     },
     {
       "name": "timer",

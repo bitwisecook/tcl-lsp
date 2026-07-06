@@ -242,6 +242,7 @@ mod encoding_pkgs;
 mod functional;
 mod math_core;
 mod md4;
+mod misc_pkgs;
 mod md5crypt;
 mod otp;
 mod rc4;
@@ -544,6 +545,7 @@ fn crypto_encoding_specs() -> Vec<CommandSpec> {
     specs.extend(functional::specs());
     specs.extend(web_asn::specs());
     specs.extend(clients::specs());
+    specs.extend(misc_pkgs::specs());
     specs
 }
 
