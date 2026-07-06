@@ -104,6 +104,10 @@ FULL_VERSION     := $(VERSION)
 # the same `vsce package` / `vsce publish` recipes serve both channels.
 IS_PRERELEASE       := $(shell bash $(ROOT)scripts/release/prerelease.sh "$(VERSION)" 2>/dev/null || echo false)
 VSCE_PRERELEASE_FLAG := $(if $(filter true,$(IS_PRERELEASE)),--pre-release,)
+# JetBrains has no per-version pre-release flag — it uses named release
+# channels instead.  Map the same convention onto a channel: "eap" for the
+# pre-release line, empty (the default Stable channel) for stable.
+JETBRAINS_CHANNEL   := $(if $(filter true,$(IS_PRERELEASE)),eap,)
 
 # Derived paths
 VSIX_FILE      := $(BUILD_DIR)/tcl-lsp-vscode-$(VERSION).vsix
@@ -1291,8 +1295,8 @@ publish-jetbrains: verify-test-slow-stamp build-editor-jetbrains ## Publish JetB
 	@echo "==> Resolving JetBrains Marketplace credentials"
 	@JETBRAINS_TOKEN="$$(bash $(ROOT)scripts/release/jetbrains_token.sh)" || exit 1; \
 	export JETBRAINS_TOKEN; \
-	echo "==> Publishing JetBrains plugin to Marketplace"; \
-	cd $(JB_DIR) && RELEASE_VERSION="$(SEMVER_VERSION)" ./gradlew publishPlugin
+	echo "==> Publishing JetBrains plugin to Marketplace$(if $(JETBRAINS_CHANNEL), (channel: $(JETBRAINS_CHANNEL)), (channel: Stable))"; \
+	cd $(JB_DIR) && RELEASE_VERSION="$(SEMVER_VERSION)" JETBRAINS_CHANNEL="$(JETBRAINS_CHANNEL)" ./gradlew publishPlugin
 
 # Sublime Text package
 

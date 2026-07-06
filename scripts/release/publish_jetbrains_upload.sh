@@ -33,7 +33,13 @@
 #
 # Env knobs:
 #   JETBRAINS_PLUGIN_ID  numeric Marketplace plugin id (default: 31801)
-#   JETBRAINS_CHANNEL    release channel; empty = Stable/default
+#   JETBRAINS_CHANNEL    release channel.  If set (even to empty) it wins —
+#                        empty = the default Stable channel.  If UNSET, the
+#                        channel is derived from the version in the zip name
+#                        using the same odd/even-minor convention as the VS
+#                        Code pre-release track (scripts/release/prerelease.sh):
+#                        a pre-release (odd-minor 2.x) build -> "eap", a
+#                        stable build -> the default Stable channel.
 #
 # Exit codes:
 #   0  upload accepted (HTTP 2xx)
@@ -42,8 +48,21 @@ set -uo pipefail
 
 ZIP="${1:?usage: $0 <plugin.zip>}"
 PLUGIN_ID="${JETBRAINS_PLUGIN_ID:-31801}"
-CHANNEL="${JETBRAINS_CHANNEL:-}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
+
+# Release channel.  An explicitly-set JETBRAINS_CHANNEL wins (even when empty
+# — empty means the default Stable channel).  When UNSET, derive it from the
+# version in the zip name (tcl-lsp-jetbrains-X.Y.Z.zip) via the shared
+# odd/even-minor convention: a pre-release build -> "eap", stable -> Stable.
+if [ -n "${JETBRAINS_CHANNEL+set}" ]; then
+    CHANNEL="$JETBRAINS_CHANNEL"
+else
+    CHANNEL=""
+    ver="$(basename "$ZIP" .zip)"; ver="${ver#tcl-lsp-jetbrains-}"
+    if [ "$(bash "$HERE/prerelease.sh" "$ver" 2>/dev/null)" = "true" ]; then
+        CHANNEL="eap"
+    fi
+fi
 
 [ -f "$ZIP" ] || { echo "error: plugin zip not found: $ZIP" >&2; exit 1; }
 
