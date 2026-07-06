@@ -2871,6 +2871,10 @@
       "summary": "Return current access position for an open channel"
     },
     {
+      "name": "testaccessproc",
+      "summary": "Install or remove a test access(2) hook proc (Tcl 8.4 only)."
+    },
+    {
       "name": "testapplylambda",
       "summary": "Test apply with lambda expressions."
     },
@@ -2915,6 +2919,10 @@
       "summary": "Test Tcl_GetCommandInfo / Tcl_SetCommandInfo."
     },
     {
+      "name": "testcmdobj2",
+      "summary": "Test the Tcl_CreateObjCommand2 dispatch path (Tcl 9.0+)."
+    },
+    {
       "name": "testcmdtoken",
       "summary": "Test command token operations."
     },
@@ -2925,6 +2933,10 @@
     {
       "name": "testconcatobj",
       "summary": "Test Tcl_ConcatObj."
+    },
+    {
+      "name": "testconvertobj",
+      "summary": "Force conversion of a value to a named internal type (Tcl 8.4 only)."
     },
     {
       "name": "testcpuid",
@@ -3139,6 +3151,10 @@
       "summary": "Test Tcl_Obj type operations."
     },
     {
+      "name": "testopenfilechannelproc",
+      "summary": "Install or remove a test Tcl_OpenFileChannel hook proc (Tcl 8.4 only)."
+    },
+    {
       "name": "testpanic",
       "summary": "Test Tcl_Panic."
     },
@@ -3241,6 +3257,10 @@
     {
       "name": "teststaticpkg",
       "summary": "Test Tcl_StaticPackage."
+    },
+    {
+      "name": "teststatproc",
+      "summary": "Install or remove a test stat(2) hook proc (Tcl 8.4 only)."
     },
     {
       "name": "teststringbytes",
