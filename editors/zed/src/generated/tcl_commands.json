@@ -238,6 +238,22 @@
       "summary": "Encrypt or decrypt data with the DES / triple-DES block cipher."
     },
     {
+      "name": "Markdown::convert",
+      "summary": "This command takes in a block of Markdown text, and returns a block of HTML."
+    },
+    {
+      "name": "Markdown::get_lang_counter",
+      "summary": "Return a dict of language specifier and number of occurrences in fenced code blocks."
+    },
+    {
+      "name": "Markdown::register",
+      "summary": "Register a language specific converter for prettifying a code block (e.g."
+    },
+    {
+      "name": "Markdown::reset_lang_counter",
+      "summary": "Reset the language counters."
+    },
+    {
       "name": "SASL::cleanup",
       "summary": "Release all resources associated with the SASL context."
     },
@@ -1581,6 +1597,50 @@
       "summary": "Access global variables"
     },
     {
+      "name": "gpx::Cleanup",
+      "summary": "This procedure cleans up resources associated with token."
+    },
+    {
+      "name": "gpx::Create",
+      "summary": "The ::gpx::Create is the first command called to process GPX data."
+    },
+    {
+      "name": "gpx::GetAllWaypoints",
+      "summary": "This procedure returns the a list of waypoints defined in the GPX data identified by token."
+    },
+    {
+      "name": "gpx::GetGPXMetadata",
+      "summary": "This procedure returns a dictionary of the metadata associated with the GPX data identified by token."
+    },
+    {
+      "name": "gpx::GetRouteCount",
+      "summary": "This procedure returns the number of routes defined in the GPX data identified by token."
+    },
+    {
+      "name": "gpx::GetRouteMetadata",
+      "summary": "This procedure returns a dictionary of the metadata associated route number whichRoute (1 based) in the GPX data."
+    },
+    {
+      "name": "gpx::GetRoutePoints",
+      "summary": "The procedure returns a list of route points comprising route number whichRoute (1 based) in the GPX data."
+    },
+    {
+      "name": "gpx::GetTrackCount",
+      "summary": "This procedure returns the number of tracks defined in the GPX data identified by token."
+    },
+    {
+      "name": "gpx::GetTrackMetadata",
+      "summary": "This procedure returns a dictionary of the metadata associated track number whichTrack (1 based) in the GPX data."
+    },
+    {
+      "name": "gpx::GetTrackPoints",
+      "summary": "The procedure returns a list of track points comprising track number whichTrack (1 based) in the GPX data."
+    },
+    {
+      "name": "gpx::GetWaypointCount",
+      "summary": "This procedure returns the number of waypoints defined in the GPX data identified by token."
+    },
+    {
       "name": "grab",
       "summary": "Confine pointer and keyboard events to a window sub-tree.",
       "subcommands": [
@@ -1806,6 +1866,110 @@
         "types",
         "width"
       ]
+    },
+    {
+      "name": "imap4::check",
+      "summary": "Send CHECK command to server."
+    },
+    {
+      "name": "imap4::cleanup",
+      "summary": "Destroy an IMAP connection and free the used space."
+    },
+    {
+      "name": "imap4::close",
+      "summary": "Close the mailbox."
+    },
+    {
+      "name": "imap4::copy",
+      "summary": "Copies the specified message (identified by its message number) to the named mailbox, i.e."
+    },
+    {
+      "name": "imap4::create",
+      "summary": "Create a new mailbox."
+    },
+    {
+      "name": "imap4::debugmode",
+      "summary": "Switch client into command line debug mode."
+    },
+    {
+      "name": "imap4::delete",
+      "summary": "Delete a new mailbox."
+    },
+    {
+      "name": "imap4::examine",
+      "summary": "Examines a mailbox, read-only equivalent of ::imap4::select."
+    },
+    {
+      "name": "imap4::expunge",
+      "summary": "Permanently removes all messages that have the Deleted flag set from the currently selected mailbox, without the."
+    },
+    {
+      "name": "imap4::fetch",
+      "summary": "Fetch attributes from messages."
+    },
+    {
+      "name": "imap4::folderinfo",
+      "summary": "Get information on the recently selected folderlist."
+    },
+    {
+      "name": "imap4::folders",
+      "summary": "Get list of matching folders, 0 is returned on success."
+    },
+    {
+      "name": "imap4::isableto",
+      "summary": "Test for capability."
+    },
+    {
+      "name": "imap4::login",
+      "summary": "Login using the IMAP LOGIN command, 0 is returned on successful login."
+    },
+    {
+      "name": "imap4::logout",
+      "summary": "Informs the server that the client is done with the connection and closes the network connection."
+    },
+    {
+      "name": "imap4::mboxinfo",
+      "summary": "Get information on the currently selected mailbox."
+    },
+    {
+      "name": "imap4::msginfo",
+      "summary": "Get information (from previously collected using fetch) from a given msgid."
+    },
+    {
+      "name": "imap4::noop",
+      "summary": "Send NOOP command to server."
+    },
+    {
+      "name": "imap4::open",
+      "summary": "Open a new IMAP connection and initalize the handler, the imap communication channel (handler) is returned."
+    },
+    {
+      "name": "imap4::rename",
+      "summary": "Rename a new mailbox."
+    },
+    {
+      "name": "imap4::search",
+      "summary": "Search for mails matching search criterions, 0 is returned on success."
+    },
+    {
+      "name": "imap4::select",
+      "summary": "Select a mailbox, 0 is returned on success."
+    },
+    {
+      "name": "imap4::starttls",
+      "summary": "Use this when tasked with connecting to an unsecure port which must be changed to a secure port prior to user."
+    },
+    {
+      "name": "imap4::store",
+      "summary": "Alters data associated with a message in the selected mailbox."
+    },
+    {
+      "name": "imap4::subscribe",
+      "summary": "Subscribe a new mailbox."
+    },
+    {
+      "name": "imap4::unsubscribe",
+      "summary": "Unsubscribe a new mailbox."
     },
     {
       "name": "in",
@@ -2071,6 +2235,70 @@
       "name": "join",
       "summary": "Create a string by joining together list elements",
       "pure": true
+    },
+    {
+      "name": "jpeg::addComment",
+      "summary": "Adds one or more plain text comments to the JPEG image in file."
+    },
+    {
+      "name": "jpeg::debug",
+      "summary": "Prints everything we know about the given file in a nice format."
+    },
+    {
+      "name": "jpeg::dimensions",
+      "summary": "Returns the dimensions of the JPEG file as a list of the horizontal and vertical pixel count."
+    },
+    {
+      "name": "jpeg::exifKeys",
+      "summary": "Returns a list of the EXIF keys which are currently understood."
+    },
+    {
+      "name": "jpeg::formatExif",
+      "summary": "Takes a list of key-value pairs as returned by getExif and formats many of the values into a more human readable."
+    },
+    {
+      "name": "jpeg::getComments",
+      "summary": "Returns a list containing all the JPEG comments found in the file."
+    },
+    {
+      "name": "jpeg::getExif",
+      "summary": "Section must be one of main or thumbnail."
+    },
+    {
+      "name": "jpeg::getExifFromChannel",
+      "summary": "This command is as per ::jpeg::getExif except that it uses a previously opened channel."
+    },
+    {
+      "name": "jpeg::getThumbnail",
+      "summary": "This procedure will return the binary thumbnail image data, if a JPEG thumbnail is included in file, and the."
+    },
+    {
+      "name": "jpeg::imageInfo",
+      "summary": "Returns a dictionary with keys version, units, xdensity, ydensity, xthumb, and ythumb."
+    },
+    {
+      "name": "jpeg::isJPEG",
+      "summary": "Returns a boolean value indicating if file is a JPEG image."
+    },
+    {
+      "name": "jpeg::markers",
+      "summary": "This is an internal helper command, we document it for use by advanced users of the package."
+    },
+    {
+      "name": "jpeg::removeComments",
+      "summary": "Removes all comments from the file specified."
+    },
+    {
+      "name": "jpeg::removeExif",
+      "summary": "Removes the Exif data segment from the specified file and replaces it with a standard JFIF segment."
+    },
+    {
+      "name": "jpeg::replaceComment",
+      "summary": "Replaces the first comment in the file with the new text."
+    },
+    {
+      "name": "jpeg::stripJPEG",
+      "summary": "Removes all metadata from the JPEG file leaving only the image."
     },
     {
       "name": "json::dict2json",
@@ -2450,6 +2678,214 @@
     {
       "name": "lstring",
       "summary": "String-backed list command for testing (9.0+)."
+    },
+    {
+      "name": "mapproj::fromAlbersEqualAreaConic",
+      "summary": "Converts from the Albers equal-area conic projection."
+    },
+    {
+      "name": "mapproj::fromAzimuthalEquidistant",
+      "summary": "Converts from the azimuthal equidistant projection."
+    },
+    {
+      "name": "mapproj::fromBalthasart",
+      "summary": "Converts from the Balthasart cylindrical equal area projection."
+    },
+    {
+      "name": "mapproj::fromBehrmann",
+      "summary": "Converts from the Behrmann cylindrical equal area projection."
+    },
+    {
+      "name": "mapproj::fromCassini",
+      "summary": "Converts from the Cassini (transverse cylindrical equidistant) projection."
+    },
+    {
+      "name": "mapproj::fromConicEquidistant",
+      "summary": "Converts from the conic equidistant projection."
+    },
+    {
+      "name": "mapproj::fromCylindricalEqualArea",
+      "summary": "Converts from the cylindrical equal-area projection."
+    },
+    {
+      "name": "mapproj::fromEckertIV",
+      "summary": "Converts from the Eckert IV projection."
+    },
+    {
+      "name": "mapproj::fromEckertVI",
+      "summary": "Converts from the Eckert VI projection."
+    },
+    {
+      "name": "mapproj::fromGallPeters",
+      "summary": "Converts from the Gall-Peters cylindrical equal area projection."
+    },
+    {
+      "name": "mapproj::fromGnomonic",
+      "summary": "Converts from the gnomonic projection."
+    },
+    {
+      "name": "mapproj::fromHammer",
+      "summary": "Converts from the Hammer projection."
+    },
+    {
+      "name": "mapproj::fromHoboDyer",
+      "summary": "Converts from the Hobo-Dyer cylindrical equal area projection."
+    },
+    {
+      "name": "mapproj::fromLambertAzimuthalEqualArea",
+      "summary": "Converts from the Lambert azimuthal equal-area projection."
+    },
+    {
+      "name": "mapproj::fromLambertConformalConic",
+      "summary": "Converts from the Lambert conformal conic projection."
+    },
+    {
+      "name": "mapproj::fromLambertCylindricalEqualArea",
+      "summary": "Converts from the Lambert cylindrical equal area projection."
+    },
+    {
+      "name": "mapproj::fromMercator",
+      "summary": "Converts from the Mercator (cylindrical conformal) projection."
+    },
+    {
+      "name": "mapproj::fromMillerCylindrical",
+      "summary": "Converts from the Miller Cylindrical projection."
+    },
+    {
+      "name": "mapproj::fromMollweide",
+      "summary": "Converts from the Mollweide projection."
+    },
+    {
+      "name": "mapproj::fromOrthographic",
+      "summary": "Converts from the orthographic projection."
+    },
+    {
+      "name": "mapproj::fromPeirceQuincuncial",
+      "summary": "Converts from the Peirce Quincuncial Projection."
+    },
+    {
+      "name": "mapproj::fromPlateCarree",
+      "summary": "Converts from the plate carre (cylindrical equidistant) projection."
+    },
+    {
+      "name": "mapproj::fromRobinson",
+      "summary": "Converts from the Robinson projection."
+    },
+    {
+      "name": "mapproj::fromSinusoidal",
+      "summary": "Converts from the sinusoidal (Sanson-Flamsteed) projection."
+    },
+    {
+      "name": "mapproj::fromStereographic",
+      "summary": "Converts from the stereographic (azimuthal conformal) projection."
+    },
+    {
+      "name": "mapproj::fromTrystanEdwards",
+      "summary": "Converts from the Trystan Edwards cylindrical equal area projection."
+    },
+    {
+      "name": "mapproj::toAlbersEqualAreaConic",
+      "summary": "Converts to the Albers equal-area conic projection."
+    },
+    {
+      "name": "mapproj::toAzimuthalEquidistant",
+      "summary": "Converts to the azimuthal equidistant projection."
+    },
+    {
+      "name": "mapproj::toBalthasart",
+      "summary": "Converts to the Balthasart cylindrical equal area projection."
+    },
+    {
+      "name": "mapproj::toBehrmann",
+      "summary": "Converts to the Behrmann cylindrical equal area projection."
+    },
+    {
+      "name": "mapproj::toCassini",
+      "summary": "Converts to the Cassini (transverse cylindrical equidistant) projection."
+    },
+    {
+      "name": "mapproj::toConicEquidistant",
+      "summary": "Converts to the conic equidistant projection."
+    },
+    {
+      "name": "mapproj::toCylindricalEqualArea",
+      "summary": "Converts to the cylindrical equal-area projection."
+    },
+    {
+      "name": "mapproj::toEckertIV",
+      "summary": "Converts to the Eckert IV projection."
+    },
+    {
+      "name": "mapproj::toEckertVI",
+      "summary": "Converts to the Eckert VI projection."
+    },
+    {
+      "name": "mapproj::toGallPeters",
+      "summary": "Converts to the Gall-Peters cylindrical equal area projection."
+    },
+    {
+      "name": "mapproj::toGnomonic",
+      "summary": "Converts to the gnomonic projection."
+    },
+    {
+      "name": "mapproj::toHammer",
+      "summary": "Converts to the Hammer projection."
+    },
+    {
+      "name": "mapproj::toHoboDyer",
+      "summary": "Converts to the Hobo-Dyer cylindrical equal area projection."
+    },
+    {
+      "name": "mapproj::toLambertAzimuthalEqualArea",
+      "summary": "Converts to the Lambert azimuthal equal-area projection."
+    },
+    {
+      "name": "mapproj::toLambertConformalConic",
+      "summary": "Converts to the Lambert conformal conic projection."
+    },
+    {
+      "name": "mapproj::toLambertCylindricalEqualArea",
+      "summary": "Converts to the Lambert cylindrical equal area projection."
+    },
+    {
+      "name": "mapproj::toMercator",
+      "summary": "Converts to the Mercator (cylindrical conformal) projection."
+    },
+    {
+      "name": "mapproj::toMillerCylindrical",
+      "summary": "Converts to the Miller Cylindrical projection."
+    },
+    {
+      "name": "mapproj::toMollweide",
+      "summary": "Converts to the Mollweide projection."
+    },
+    {
+      "name": "mapproj::toOrthographic",
+      "summary": "Converts to the orthographic projection."
+    },
+    {
+      "name": "mapproj::toPeirceQuincuncial",
+      "summary": "Converts to the Peirce Quincuncial Projection."
+    },
+    {
+      "name": "mapproj::toPlateCarree",
+      "summary": "Converts to the plate carre (cylindrical equidistant) projection."
+    },
+    {
+      "name": "mapproj::toRobinson",
+      "summary": "Converts to the Robinson projection."
+    },
+    {
+      "name": "mapproj::toSinusoidal",
+      "summary": "Converts to the sinusoidal (Sanson-Flamsteed) projection."
+    },
+    {
+      "name": "mapproj::toStereographic",
+      "summary": "Converts to the stereographic (azimuthal conformal) projection."
+    },
+    {
+      "name": "mapproj::toTrystanEdwards",
+      "summary": "Converts to the Trystan Edwards cylindrical equal area projection."
     },
     {
       "name": "math::constants::constants",
@@ -3262,6 +3698,18 @@
       "summary": "Do nothing (used for timing baselines)."
     },
     {
+      "name": "oauth::config",
+      "summary": "When this command is invoked without arguments it returns a dictionary containing the current values of all."
+    },
+    {
+      "name": "oauth::header",
+      "summary": "This command is the base signature creator."
+    },
+    {
+      "name": "oauth::query",
+      "summary": "This procedure will use the settings made with ::oauth::config to create the basic authentication and then send."
+    },
+    {
       "name": "oo::abstract",
       "summary": "metaclass for abstract classes"
     },
@@ -3423,6 +3871,50 @@
     {
       "name": "platform::shell::identify",
       "summary": "Return the platform identifier for a given Tcl shell."
+    },
+    {
+      "name": "png::addComment",
+      "summary": "Adds a plain text comment to the PNG image in file, just before the first data chunk."
+    },
+    {
+      "name": "png::getComments",
+      "summary": "Currently supports only uncompressed comments."
+    },
+    {
+      "name": "png::getPixelDimension",
+      "summary": "Returns a dictionary with keys ppux, ppuy and unit if the information is present."
+    },
+    {
+      "name": "png::getTimestamp",
+      "summary": "Returns the epoch time if a timestamp chunk is found in the PNG image contained in the file, otherwise returns."
+    },
+    {
+      "name": "png::image",
+      "summary": "Given a PNG file returns the image in the list of scanlines format used by Tk_GetColor."
+    },
+    {
+      "name": "png::imageInfo",
+      "summary": "Returns a dictionary with keys width, height, depth, color, compression, filter, and interlace."
+    },
+    {
+      "name": "png::isPNG",
+      "summary": "Returns a boolean value indicating if the file file starts with a PNG signature."
+    },
+    {
+      "name": "png::removeComments",
+      "summary": "Removes all comments from the PNG image in file."
+    },
+    {
+      "name": "png::setTimestamp",
+      "summary": "Writes a new timestamp to the file, either replacing the old timestamp, or adding one just before the data chunks."
+    },
+    {
+      "name": "png::validate",
+      "summary": "Returns a value indicating if file is a valid PNG file."
+    },
+    {
+      "name": "png::write",
+      "summary": "Takes a list of scanlines in the Tk_GetColor format and writes the represented image to file."
     },
     {
       "name": "pop3::capa",
@@ -4986,6 +5478,62 @@
     {
       "name": "tie::untie",
       "summary": "Break the tie between an array variable and its data source."
+    },
+    {
+      "name": "tiff::addEntry",
+      "summary": "Adds the specified entries to the image named by image (default 0), or optionally all."
+    },
+    {
+      "name": "tiff::byteOrder",
+      "summary": "Returns either big or little."
+    },
+    {
+      "name": "tiff::debug",
+      "summary": "Prints everything we know about the given file in a nice format."
+    },
+    {
+      "name": "tiff::deleteEntry",
+      "summary": "Deletes the specified entries from the image named by image (default 0), or optionally all."
+    },
+    {
+      "name": "tiff::dimensions",
+      "summary": "Returns the dimensions of image number image in file as a list of the horizontal and vertical pixel count."
+    },
+    {
+      "name": "tiff::entries",
+      "summary": "Returns a list of all entries in the given file and image in hexadecimal format."
+    },
+    {
+      "name": "tiff::getEntry",
+      "summary": "Returns the value of entry from image image in the TIFF file."
+    },
+    {
+      "name": "tiff::getImage",
+      "summary": "Returns the name of a Tk image containing the image at index image from file Throws an error if file is not a."
+    },
+    {
+      "name": "tiff::imageInfo",
+      "summary": "Returns a dictionary with keys ImageWidth, ImageLength, BitsPerSample, Compression, PhotometricInterpretation."
+    },
+    {
+      "name": "tiff::isTIFF",
+      "summary": "Returns a boolean value indicating if file is a TIFF image."
+    },
+    {
+      "name": "tiff::nametotag",
+      "summary": "Returns a list with names translated from string to 4 digit format."
+    },
+    {
+      "name": "tiff::numImages",
+      "summary": "Returns the number of images in file."
+    },
+    {
+      "name": "tiff::tagtoname",
+      "summary": "Returns a list with tags translated from 4 digit to string format."
+    },
+    {
+      "name": "tiff::writeImage",
+      "summary": "Writes the contents of the Tk image image to a tiff file file."
     },
     {
       "name": "time",

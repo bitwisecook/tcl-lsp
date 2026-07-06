@@ -240,6 +240,7 @@ mod crc;
 mod data_util;
 mod encoding_pkgs;
 mod functional;
+mod image_pkgs;
 mod math_core;
 mod md4;
 mod misc_pkgs;
@@ -546,6 +547,7 @@ fn crypto_encoding_specs() -> Vec<CommandSpec> {
     specs.extend(web_asn::specs());
     specs.extend(clients::specs());
     specs.extend(misc_pkgs::specs());
+    specs.extend(image_pkgs::specs());
     specs
 }
 
