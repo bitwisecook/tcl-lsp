@@ -512,15 +512,48 @@ impl CommandSpec {
     /// does: `string le` ⇒ `length`, `info ex` ⇒ `exists`. An exact match
     /// always wins over a prefix; an ambiguous prefix (several candidates, e.g.
     /// `string t`) resolves to `None`.
+    ///
+    /// Dialect-agnostic — every declared subcommand is a candidate. Prefer
+    /// [`Self::resolve_subcommand_for_dialect`] where the active Tcl version is
+    /// known, since a prefix's uniqueness can change between versions
+    /// (`info class def` is `definition` in 8.6 but ambiguous with
+    /// `definitionnamespace` in 9.0).
     #[must_use]
     pub fn resolve_subcommand(&self, word: &str) -> Option<&SubCommand> {
+        self.resolve_subcommand_filtered(word, |_| true)
+    }
+
+    /// Like [`Self::resolve_subcommand`] but only considers subcommands
+    /// available in `dialect`, so prefix uniqueness matches the given Tcl
+    /// version exactly.
+    #[must_use]
+    pub fn resolve_subcommand_for_dialect(
+        &self,
+        word: &str,
+        dialect: DialectSet,
+    ) -> Option<&SubCommand> {
+        let parent = self.dialects;
+        self.resolve_subcommand_filtered(word, |s| match s.dialects.or(parent) {
+            Some(d) => d.intersects(dialect),
+            None => true,
+        })
+    }
+
+    fn resolve_subcommand_filtered(
+        &self,
+        word: &str,
+        avail: impl Fn(&SubCommand) -> bool,
+    ) -> Option<&SubCommand> {
         if word.is_empty() {
             return None;
         }
-        if let Some(exact) = self.subcommand(word) {
+        if let Some(exact) = self.subcommands.iter().find(|s| s.name == word && avail(s)) {
             return Some(exact);
         }
-        let mut hits = self.subcommands.iter().filter(|s| s.name.starts_with(word));
+        let mut hits = self
+            .subcommands
+            .iter()
+            .filter(|s| s.name.starts_with(word) && avail(s));
         let first = hits.next()?;
         if hits.next().is_some() {
             return None; // ambiguous prefix
@@ -952,14 +985,39 @@ impl SubCommand {
     /// prefix (several candidates) resolves to `None`.
     #[must_use]
     pub fn resolve_sub_subcommand(&self, word: &str) -> Option<&'static SubSubCommand> {
+        self.resolve_sub_subcommand_filtered(word, |_| true)
+    }
+
+    /// Like [`Self::resolve_sub_subcommand`] but only considers second-level
+    /// subcommands available in `dialect`, so a prefix's uniqueness matches the
+    /// given Tcl version (`info class def` is `definition` in 8.6 but ambiguous
+    /// with `definitionnamespace` in 9.0).
+    #[must_use]
+    pub fn resolve_sub_subcommand_for_dialect(
+        &self,
+        word: &str,
+        dialect: DialectSet,
+    ) -> Option<&'static SubSubCommand> {
+        let parent = self.dialects;
+        self.resolve_sub_subcommand_filtered(word, |s| match s.dialects.or(parent) {
+            Some(d) => d.intersects(dialect),
+            None => true,
+        })
+    }
+
+    fn resolve_sub_subcommand_filtered(
+        &self,
+        word: &str,
+        avail: impl Fn(&SubSubCommand) -> bool,
+    ) -> Option<&'static SubSubCommand> {
         if word.is_empty() {
             return None;
         }
         let subs: &'static [SubSubCommand] = self.sub_subcommands;
-        if let Some(exact) = subs.iter().find(|s| s.name == word) {
+        if let Some(exact) = subs.iter().find(|s| s.name == word && avail(s)) {
             return Some(exact);
         }
-        let mut hits = subs.iter().filter(|s| s.name.starts_with(word));
+        let mut hits = subs.iter().filter(|s| s.name.starts_with(word) && avail(s));
         let first = hits.next()?;
         // Unique prefix only — bail if a second candidate also matches.
         if hits.next().is_some() {

@@ -117,6 +117,31 @@ pub fn hover(
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
 ) -> Option<Hover> {
+    // Dialect-agnostic entry point (every subcommand is a resolution
+    // candidate).  Production callers that know the document's Tcl version
+    // should prefer [`hover_with_dialect`] so a prefix's uniqueness matches the
+    // version (see [`tcl_registry::CommandSpec::resolve_subcommand_for_dialect`]).
+    hover_with_dialect(
+        source,
+        line,
+        character,
+        analysis,
+        registry,
+        tcl_registry::dialects::DialectSet::ALL_TCL,
+    )
+}
+
+/// [`hover`] resolving prefix-abbreviated subcommands against a specific Tcl
+/// `dialect`, so e.g. `info class def` hovers `definition` under 8.6 but
+/// nothing (ambiguous with `definitionnamespace`) under 9.0.
+pub fn hover_with_dialect(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    dialect: tcl_registry::dialects::DialectSet,
+) -> Option<Hover> {
     // One index shared by the position conversions below.
     let line_index = tcl_lexer::LineIndex::new(source);
 
@@ -220,10 +245,14 @@ pub fn hover(
         if let Some(text) = option_hover_text(source, line, character, registry, &word) {
             return Some(Hover::markdown(text));
         }
-        if let Some(text) = sub_subcommand_hover_text(source, line, character, registry, &word) {
+        if let Some(text) =
+            sub_subcommand_hover_text(source, line, character, registry, &word, dialect)
+        {
             return Some(Hover::markdown(text));
         }
-        if let Some(text) = subcommand_hover_text(source, line, character, registry, &word) {
+        if let Some(text) =
+            subcommand_hover_text(source, line, character, registry, &word, dialect)
+        {
             return Some(Hover::markdown(text));
         }
         if let Some(text) = builtin_command_hover_text(registry, &word, analysis, cursor_offset) {
@@ -438,6 +467,7 @@ fn subcommand_hover_text(
     character: u32,
     registry: &CommandRegistry,
     cursor_word: &str,
+    dialect: tcl_registry::dialects::DialectSet,
 ) -> Option<String> {
     use std::fmt::Write;
     let line_text = source.split('\n').nth(line as usize)?;
@@ -460,8 +490,9 @@ fn subcommand_hover_text(
         return None;
     }
     let spec = registry.get(cmd_name)?;
-    // Resolve unique-prefix abbreviations (`string le` ⇒ `length`) like Tcl.
-    let sub = spec.resolve_subcommand(sub_name)?;
+    // Resolve unique-prefix abbreviations (`string le` ⇒ `length`) like Tcl,
+    // honouring the active dialect for the prefix's uniqueness.
+    let sub = spec.resolve_subcommand_for_dialect(sub_name, dialect)?;
     let mut out = format!("**`{cmd_name} {}`** — subcommand\n", sub.name);
     if let Some(hover) = sub.hover.as_ref() {
         if !hover.summary.is_empty() {
@@ -486,6 +517,7 @@ fn sub_subcommand_hover_text(
     character: u32,
     registry: &CommandRegistry,
     cursor_word: &str,
+    dialect: tcl_registry::dialects::DialectSet,
 ) -> Option<String> {
     use std::fmt::Write;
     let line_text = source.split('\n').nth(line as usize)?;
@@ -506,8 +538,8 @@ fn sub_subcommand_hover_text(
         return None;
     }
     let spec = registry.get(cmd_name)?;
-    let sub = spec.resolve_subcommand(sub_name)?;
-    let ss = sub.resolve_sub_subcommand(cursor_word)?;
+    let sub = spec.resolve_subcommand_for_dialect(sub_name, dialect)?;
+    let ss = sub.resolve_sub_subcommand_for_dialect(cursor_word, dialect)?;
     let mut out = format!("**`{cmd_name} {} {}`** — subcommand\n", sub.name, ss.name);
     if !ss.detail.is_empty() {
         let _ = write!(out, "\n{}\n", ss.detail);
@@ -2486,6 +2518,9 @@ mod tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
 
+    /// Dialect-agnostic default for the subcommand-hover helper tests.
+    const ALL: tcl_registry::dialects::DialectSet = tcl_registry::dialects::DialectSet::ALL_TCL;
+
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
@@ -3442,7 +3477,8 @@ mod tests {
     fn subcommand_hover_surfaces_for_string_length() {
         let registry = tcl_registry::CommandRegistry::build_default();
         let src = "string length $name\n";
-        let t = subcommand_hover_text(src, 0, 10, &registry, "length").expect("subcommand hover");
+        let t = subcommand_hover_text(src, 0, 10, &registry, "length", ALL)
+            .expect("subcommand hover");
         assert!(t.contains("`string length`"), "{t}");
         assert!(t.contains("subcommand"), "{t}");
     }
@@ -3453,15 +3489,43 @@ mod tests {
         // the canonical name.
         let registry = tcl_registry::CommandRegistry::build_default();
         let src = "string le $name\n";
-        let t = subcommand_hover_text(src, 0, 8, &registry, "le").expect("prefix hover");
+        let t = subcommand_hover_text(src, 0, 8, &registry, "le", ALL).expect("prefix hover");
         assert!(t.contains("`string length`"), "{t}");
+    }
+
+    #[test]
+    fn subcommand_hover_prefix_is_dialect_aware() {
+        use tcl_registry::dialects::DialectSet;
+        let registry = tcl_registry::CommandRegistry::build_default();
+        // `info class def` is `definition` in 8.6 (unique) but ambiguous with
+        // `definitionnamespace` in 9.0 (verified against tclsh).
+        let src = "info class def ::C\n";
+        let t86 =
+            sub_subcommand_hover_text(src, 0, 11, &registry, "def", DialectSet::TCL86);
+        assert!(
+            t86.is_some_and(|t| t.contains("`info class definition`")),
+            "8.6 should resolve `def` to definition",
+        );
+        assert!(
+            sub_subcommand_hover_text(src, 0, 11, &registry, "def", DialectSet::TCL90).is_none(),
+            "9.0 `def` is ambiguous — no hover",
+        );
+        // `string rev` (reverse, 8.5+) hovers in 8.6 but not in 8.4.
+        let src = "string rev abc\n";
+        assert!(
+            subcommand_hover_text(src, 0, 8, &registry, "rev", DialectSet::TCL86).is_some(),
+        );
+        assert!(
+            subcommand_hover_text(src, 0, 8, &registry, "rev", DialectSet::TCL84).is_none(),
+            "`string rev` is unknown in 8.4",
+        );
     }
 
     #[test]
     fn subcommand_hover_skips_unknown_subcommand() {
         let registry = tcl_registry::CommandRegistry::build_default();
         let src = "string bogusSubcommand\n";
-        assert!(subcommand_hover_text(src, 0, 12, &registry, "bogusSubcommand").is_none());
+        assert!(subcommand_hover_text(src, 0, 12, &registry, "bogusSubcommand", ALL).is_none());
     }
 
     #[test]
@@ -3470,15 +3534,20 @@ mod tests {
         // returns the second-level subcommand's doc.
         let registry = tcl_registry::CommandRegistry::build_default();
         let src = "info object class $obj\n";
-        let t = sub_subcommand_hover_text(src, 0, 12, &registry, "class").expect("sub-sub hover");
+        let t =
+            sub_subcommand_hover_text(src, 0, 12, &registry, "class", ALL).expect("sub-sub hover");
         assert!(t.contains("`info object class`"), "{t}");
         assert!(t.contains("subcommand"), "{t}");
         // Unique-prefix abbreviation resolves to the canonical op.
         let src = "info class super $cls\n";
-        let t = sub_subcommand_hover_text(src, 0, 11, &registry, "super").expect("prefix hover");
+        let t = sub_subcommand_hover_text(src, 0, 11, &registry, "super", ALL)
+            .expect("prefix hover");
         assert!(t.contains("`info class superclasses`"), "{t}");
         // The first-level subcommand word itself is not a sub-subcommand.
-        assert!(sub_subcommand_hover_text("info object class\n", 0, 5, &registry, "object").is_none());
+        assert!(
+            sub_subcommand_hover_text("info object class\n", 0, 5, &registry, "object", ALL)
+                .is_none()
+        );
     }
 
     #[test]

@@ -83,6 +83,7 @@ use tcl_lexer::{LineIndex, Span, Token, TokenType};
 
 use crate::definition::utf16_len;
 use tcl_registry::CommandRegistry;
+use tcl_registry::dialects::DialectSet;
 use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind};
 
 /// Encoded semantic-tokens response.  The `data` array is
@@ -580,6 +581,7 @@ fn special_arg_kinds(
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
     arg_texts: &[&str],
     object_classes: &ObjectClassMap,
+    dialect: DialectSet,
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
 
@@ -604,10 +606,10 @@ fn special_arg_kinds(
             .or_insert(ArgOverride::ProcNameDef);
     }
 
-    insert_option_and_subcommand_overrides(seg, registry, head, &mut overrides);
+    insert_option_and_subcommand_overrides(seg, registry, head, dialect, &mut overrides);
     insert_object_method_overrides(seg, registry, object_classes, &mut overrides);
     insert_generic_option_overrides(seg, registry, head, &mut overrides);
-    insert_enum_value_overrides(seg, registry, head, &mut overrides);
+    insert_enum_value_overrides(seg, registry, head, dialect, &mut overrides);
     insert_oo_define_keyword_overrides(seg, registry, &mut overrides);
     insert_apply_lambda_override(seg, &mut overrides);
     insert_switch_case_list_override(seg, &mut overrides);
@@ -1036,6 +1038,7 @@ fn insert_option_and_subcommand_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
+    dialect: DialectSet,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let Some(spec) = registry.get(head) else {
@@ -1084,7 +1087,7 @@ fn insert_option_and_subcommand_overrides(
     // join the recognised set.  A unique-prefix abbreviation (`string le`)
     // resolves like Tcl's ensemble dispatch.
     if let Some(sub_text) = seg.texts.get(1)
-        && let Some(sub) = spec.resolve_subcommand(sub_text)
+        && let Some(sub) = spec.resolve_subcommand_for_dialect(sub_text, dialect)
     {
         option_names.extend(sub.switch_names(None, spec.dialects));
         collect_value_options(sub.options);
@@ -1101,7 +1104,7 @@ fn insert_option_and_subcommand_overrides(
         // ensemble dispatch does.  General over any registry-declared two-level
         // ensemble, not just `info`.
         if let Some(sub_sub_text) = seg.texts.get(2)
-            && sub.is_sub_subcommand(sub_sub_text)
+            && sub.resolve_sub_subcommand_for_dialect(sub_sub_text, dialect).is_some()
             && let Some(tok) = seg.argv.get(2)
         {
             overrides
@@ -1416,6 +1419,7 @@ fn insert_enum_value_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
+    dialect: DialectSet,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let Some(spec) = registry.get(head) else {
@@ -1455,7 +1459,7 @@ fn insert_enum_value_overrides(
     // so add one more for the command name (`seg.texts[idx + 2]`).  Resolve
     // unique-prefix abbreviations like Tcl's ensemble dispatch.
     if let Some(sub_text) = seg.texts.get(1)
-        && let Some(sub) = spec.resolve_subcommand(sub_text)
+        && let Some(sub) = spec.resolve_subcommand_for_dialect(sub_text, dialect)
     {
         for (idx, values) in sub.arg_values {
             mark(*idx as usize + 2, values);
@@ -2920,6 +2924,7 @@ fn collect_script(
             ctx.oo_grammar,
             &arg_texts,
             ctx.object_classes,
+            DialectSet::parse(ctx.dialect).unwrap_or(DialectSet::ALL_TCL),
         );
         // Regex-source tracking: retag a `set` value word that feeds a regexp
         // pattern as a (substitution-aware) regex.  Keyed on the def-site word
@@ -4256,6 +4261,42 @@ mod tests {
             kind_at(src, 11),
             TokenKind::String as u32,
             "an ambiguous prefix must not highlight as a keyword"
+        );
+    }
+
+    #[test]
+    fn subcommand_prefix_resolution_is_dialect_aware() {
+        let kind_at = |src: &str, dialect: &str, col: u32| -> u32 {
+            decode_full(src, dialect, &reg())
+                .into_iter()
+                .find(|&(_, c, _, _, _)| c == col)
+                .map(|(_, _, _, k, _)| k)
+                .unwrap_or_else(|| panic!("no token at col {col} in {src:?}"))
+        };
+        // `string rev` is `reverse` (added 8.5): a keyword in 8.6, but an
+        // unknown word in 8.4 where `reverse` does not exist (verified: tclsh8.4
+        // rejects `string rev`).  Column 7 is `rev`.
+        let src = "string rev abc\n";
+        assert_eq!(kind_at(src, "tcl8.6", 7), TokenKind::Keyword as u32);
+        assert_eq!(
+            kind_at(src, "tcl8.4", 7),
+            TokenKind::String as u32,
+            "`string rev` is not a subcommand in 8.4"
+        );
+
+        // `info class def`: uniquely `definition` in 8.6 (keyword), but
+        // ambiguous with `definitionnamespace` in 9.0 (verified against tclsh)
+        // → stays a string.  Column 11 is `def`.
+        let src = "info class def ::C\n";
+        assert_eq!(
+            kind_at(src, "tcl8.6", 11),
+            TokenKind::Keyword as u32,
+            "`info class def` is `definition` in 8.6"
+        );
+        assert_eq!(
+            kind_at(src, "tcl9.0", 11),
+            TokenKind::String as u32,
+            "`info class def` is ambiguous in 9.0"
         );
     }
 
