@@ -235,6 +235,7 @@ mod yaml__yaml2huddle;
 // package family, each exposing a `specs()` builder).
 mod base32;
 mod ciphers;
+mod clients;
 mod crc;
 mod data_util;
 mod encoding_pkgs;
@@ -542,6 +543,7 @@ fn crypto_encoding_specs() -> Vec<CommandSpec> {
     specs.extend(math_core::specs());
     specs.extend(functional::specs());
     specs.extend(web_asn::specs());
+    specs.extend(clients::specs());
     specs
 }
 

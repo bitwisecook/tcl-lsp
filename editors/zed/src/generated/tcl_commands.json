@@ -1437,6 +1437,86 @@
       "pure": true
     },
     {
+      "name": "ftp::Append",
+      "summary": "This command behaves like ::ftp::Puts, but appends the transfered information to the remote file."
+    },
+    {
+      "name": "ftp::Cd",
+      "summary": "This command changes the current working directory on the ftp server to a specified target directory."
+    },
+    {
+      "name": "ftp::Close",
+      "summary": "This command terminates the specified ftp session."
+    },
+    {
+      "name": "ftp::Delete",
+      "summary": "This command deletes the specified file on the ftp server."
+    },
+    {
+      "name": "ftp::DisplayMsg",
+      "summary": "This command is used by the package itself to show the different messages from the ftp sessions."
+    },
+    {
+      "name": "ftp::FileSize",
+      "summary": "This command returns the size of the specified file on the ftp server."
+    },
+    {
+      "name": "ftp::Get",
+      "summary": "This command retrieves a remote file remote on the ftp server and stores its contents into the local file local."
+    },
+    {
+      "name": "ftp::List",
+      "summary": "This command returns a human-readable list of files."
+    },
+    {
+      "name": "ftp::MkDir",
+      "summary": "This command creates the specified directory on the ftp server."
+    },
+    {
+      "name": "ftp::ModTime",
+      "summary": "This command retrieves the time of the last modification of the file on the ftp server as a system dependent."
+    },
+    {
+      "name": "ftp::NList",
+      "summary": "This command has the same behavior as the ::ftp::List command, except that it only retrieves an abbreviated."
+    },
+    {
+      "name": "ftp::Newer",
+      "summary": "This command behaves like ::ftp::Get, except that it retrieves the remote file only if the modification time of."
+    },
+    {
+      "name": "ftp::Open",
+      "summary": "This command is used to start a FTP session by establishing a control connection to the FTP server."
+    },
+    {
+      "name": "ftp::Put",
+      "summary": "This command transfers a local file local to a remote file remote on the ftp server."
+    },
+    {
+      "name": "ftp::Pwd",
+      "summary": "This command returns the complete path of the current working directory on the ftp server, or an empty string in."
+    },
+    {
+      "name": "ftp::Quote",
+      "summary": "This command is used to send an arbitrary ftp command to the server."
+    },
+    {
+      "name": "ftp::Reget",
+      "summary": "This command behaves like ::ftp::Get, except that if local file local exists and is smaller than remote file."
+    },
+    {
+      "name": "ftp::Rename",
+      "summary": "This command renames the file from in the current directory of the ftp server to the specified new file name to."
+    },
+    {
+      "name": "ftp::RmDir",
+      "summary": "This command removes the specified directory on the ftp server."
+    },
+    {
+      "name": "ftp::Type",
+      "summary": "This command sets the ftp file transfer type to either ascii, binary, or tenex."
+    },
+    {
       "name": "gets",
       "summary": "Read a line from a channel"
     },
@@ -1864,6 +1944,18 @@
       "pure": true
     },
     {
+      "name": "irc::config",
+      "summary": "Sets configuration key to value."
+    },
+    {
+      "name": "irc::connection",
+      "summary": "The command creates a new object to deal with an IRC connection."
+    },
+    {
+      "name": "irc::connections",
+      "summary": "Returns a list of all the current connections that were created with connection."
+    },
+    {
       "name": "itcl::body",
       "summary": "Define the body of a previously-declared [incr Tcl] method or proc."
     },
@@ -1961,6 +2053,82 @@
       "summary": "Assign list elements to variables"
     },
     {
+      "name": "ldap::add",
+      "summary": "This command creates a new object using the specified dn."
+    },
+    {
+      "name": "ldap::addMulti",
+      "summary": "This command is the preferred one to create a new object using the specified dn."
+    },
+    {
+      "name": "ldap::bind",
+      "summary": "This command authenticates the ldap connection refered to by the token in handle, with a user name and associated."
+    },
+    {
+      "name": "ldap::bindSASL",
+      "summary": "This command uses SASL authentication mechanisms to do a multistage bind."
+    },
+    {
+      "name": "ldap::connect",
+      "summary": "Opens a LDAPv3 connection to the specified host, at the given port, and returns a token for the connection."
+    },
+    {
+      "name": "ldap::delete",
+      "summary": "This command removes the object specified by dn, and all its attributes from the server."
+    },
+    {
+      "name": "ldap::disconnect",
+      "summary": "Closes the ldap connection refered to by the token handle."
+    },
+    {
+      "name": "ldap::info",
+      "summary": "This command returns the IP address of the remote LDAP server the handle is connected to."
+    },
+    {
+      "name": "ldap::modify",
+      "summary": "This command modifies the object dn on the ldap server we are connected to via handle."
+    },
+    {
+      "name": "ldap::modifyDN",
+      "summary": "This command moves or copies the object specified by dn to a new location in the tree of object."
+    },
+    {
+      "name": "ldap::modifyMulti",
+      "summary": "This command modifies the object dn on the ldap server we are connected to via handle."
+    },
+    {
+      "name": "ldap::search",
+      "summary": "This command performs a LDAP search below the baseObject tree using a complex LDAP search expression filterString."
+    },
+    {
+      "name": "ldap::searchEnd",
+      "summary": "This command terminates a LDAP search initiated by ::ldap::searchInit."
+    },
+    {
+      "name": "ldap::searchInit",
+      "summary": "This command initiates a LDAP search below the baseObject tree using a complex LDAP search expression filterString."
+    },
+    {
+      "name": "ldap::searchNext",
+      "summary": "This command returns the next entry from a LDAP search initiated by ::ldap::searchInit."
+    },
+    {
+      "name": "ldap::secure_connect",
+      "summary": "Like ::ldap::connect, except that the created connection is secured by SSL."
+    },
+    {
+      "name": "ldap::starttls",
+      "summary": "Start TLS negotiation on the connection denoted by handle, with TLS parameters set with ::ldap::tlsoptions."
+    },
+    {
+      "name": "ldap::tlsoptions",
+      "summary": "This command resets TLS options to default values."
+    },
+    {
+      "name": "ldap::unbind",
+      "summary": "This command asks the ldap server to release the last bind done for the connection refered to by the token in."
+    },
+    {
       "name": "ledit",
       "summary": "Replace elements in a list variable, in place."
     },
@@ -2021,6 +2189,98 @@
     {
       "name": "load",
       "summary": "Load machine code and initialize new commands"
+    },
+    {
+      "name": "log::Puts",
+      "summary": "The standard log command, it writes messages and their levels to user-specified channels."
+    },
+    {
+      "name": "log::levels",
+      "summary": "Returns the names of all known levels, in alphabetical order."
+    },
+    {
+      "name": "log::log",
+      "summary": "Log a message according to the specifications for commands, channels and suppression."
+    },
+    {
+      "name": "log::logError",
+      "summary": "Convenience wrapper around ::log::log."
+    },
+    {
+      "name": "log::logMsg",
+      "summary": "Convenience wrapper around ::log::log."
+    },
+    {
+      "name": "log::logarray",
+      "summary": "Like ::log::log, but logs the contents of the specified array variable arrayvar, possibly restricted to entries."
+    },
+    {
+      "name": "log::loghex",
+      "summary": "Like ::log::log, but assumes that data contains binary data."
+    },
+    {
+      "name": "log::logsubst",
+      "summary": "Like ::log::log, but msg may contain substitutions and variable references, which are evaluated in the caller."
+    },
+    {
+      "name": "log::lv2channel",
+      "summary": "Converts any level name including unique abbreviations to the channel used by ::log::Puts to write messages with."
+    },
+    {
+      "name": "log::lv2cmd",
+      "summary": "Converts any level name including unique abbreviations to the command prefix used to write messages with that."
+    },
+    {
+      "name": "log::lv2color",
+      "summary": "Converts any level name including unique abbreviations to the corresponding color."
+    },
+    {
+      "name": "log::lv2longform",
+      "summary": "Converts any unique abbreviation of a level name to the full level name."
+    },
+    {
+      "name": "log::lv2priority",
+      "summary": "Converts any level name including unique abbreviations to the corresponding priority."
+    },
+    {
+      "name": "log::lvChannel",
+      "summary": "Defines for the specified level into which channel ::log::Puts (the standard command) shall write the messages."
+    },
+    {
+      "name": "log::lvChannelForall",
+      "summary": "Defines for all known levels with which which channel ::log::Puts (the standard command) shall write the messages."
+    },
+    {
+      "name": "log::lvCmd",
+      "summary": "Defines for the specified level with which command to write the messages having this level."
+    },
+    {
+      "name": "log::lvCmdForall",
+      "summary": "Defines for all known levels with which command to write the messages having this level."
+    },
+    {
+      "name": "log::lvColor",
+      "summary": "Defines for the specified level the color to return for it in a call to ::log::lv2color."
+    },
+    {
+      "name": "log::lvColorForall",
+      "summary": "Defines for all known levels the color to return for it in a call to ::log::lv2color."
+    },
+    {
+      "name": "log::lvCompare",
+      "summary": "Compares two levels (including unique abbreviations) with respect to their priority."
+    },
+    {
+      "name": "log::lvIsSuppressed",
+      "summary": "Asks the package whether the specified level is currently suppressed."
+    },
+    {
+      "name": "log::lvSuppress",
+      "summary": "(Un)suppresses the output of messages having the specified level."
+    },
+    {
+      "name": "log::lvSuppressLE",
+      "summary": "(Un)suppresses the output of messages having the specified level or one of lesser priority."
     },
     {
       "name": "logger::disable",
@@ -3043,6 +3303,50 @@
     {
       "name": "platform::shell::identify",
       "summary": "Return the platform identifier for a given Tcl shell."
+    },
+    {
+      "name": "pop3::capa",
+      "summary": "Optional POP3 command, not all servers may support this."
+    },
+    {
+      "name": "pop3::close",
+      "summary": "Gracefully close the connect after sending a POP3 QUIT command down the socket."
+    },
+    {
+      "name": "pop3::config",
+      "summary": "Returns the configuration of the pop3 connection identified by the channel handle chan as a serialized array."
+    },
+    {
+      "name": "pop3::delete",
+      "summary": "Delete a range of messages from the server."
+    },
+    {
+      "name": "pop3::last",
+      "summary": "Query the server for the last email message read from the spool."
+    },
+    {
+      "name": "pop3::list",
+      "summary": "Returns the scan listing of the mailbox."
+    },
+    {
+      "name": "pop3::open",
+      "summary": "Open a socket connection to the server specified by host, transmit the username and password as login information."
+    },
+    {
+      "name": "pop3::retrieve",
+      "summary": "Retrieve a range of messages from the server."
+    },
+    {
+      "name": "pop3::status",
+      "summary": "Query the server for the status of the mail spool."
+    },
+    {
+      "name": "pop3::top",
+      "summary": "Optional POP3 command, not all servers may support this."
+    },
+    {
+      "name": "pop3::uidl",
+      "summary": "Optional POP3 command, not all servers may support this."
     },
     {
       "name": "proc",
@@ -4664,6 +4968,38 @@
         "xview",
         "yview"
       ]
+    },
+    {
+      "name": "uevent::bind",
+      "summary": "Using this command registers the command prefix to be triggered when the event occurs for the tag."
+    },
+    {
+      "name": "uevent::generate",
+      "summary": "This command generates an event for the tag, triggering all commands bound to that combination."
+    },
+    {
+      "name": "uevent::list",
+      "summary": "In this form the command returns a list containing the names of all tags which have events with commands bound to."
+    },
+    {
+      "name": "uevent::unbind",
+      "summary": "This command releases the event binding represented by the token."
+    },
+    {
+      "name": "uevent::watch::event::add",
+      "summary": "This command sets up a sort of reverse events."
+    },
+    {
+      "name": "uevent::watch::event::remove",
+      "summary": "This command removes a watcher for (un)bind events on tag/event combinations."
+    },
+    {
+      "name": "uevent::watch::tag::add",
+      "summary": "This command sets up a sort of reverse events."
+    },
+    {
+      "name": "uevent::watch::tag::remove",
+      "summary": "This command removes a watcher for (un)bind events on tags."
     },
     {
       "name": "unicode",
