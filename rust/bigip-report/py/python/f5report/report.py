@@ -723,6 +723,7 @@ def collect_model(
     return {
         "title": title,
         "engine_version": _engine.__version__,
+        "git_hash": getattr(_engine, "__git_hash__", "unknown"),
         "devices": devices,
         "architecture": architecture,
         "enrichment": enrichment,
