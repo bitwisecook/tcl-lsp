@@ -1,0 +1,83 @@
+# KCS: feature — Command option highlighting
+
+> **Audience:** User
+> **Type:** Functionality
+
+## Applies to
+
+all-editors, analyser
+
+## Summary
+
+Words that read as `-option` switches, and the values they take, are given
+their own semantic-token colours — an option token for the switch and an
+option-value token for its argument — so a command's flags stand out from its
+positional strings.
+
+## How to use
+
+- **Editor**: Applied automatically as part of semantic highlighting. No
+  configuration; toggles with `tclLsp.features.semanticTokens`.
+
+## Operational context
+
+There are two layers, most-precise first:
+
+1. **Registry-declared options.** For a command the registry knows
+   (`lsort -index 2`, `file delete -force …`), only the switches the command
+   actually declares are highlighted, so a stray `puts -foo` stays a plain
+   string. Value-taking options colour their value too (an enum value as an
+   enum member, otherwise an option value).
+
+2. **Object-method options.** For an object handle bound by a constructor —
+   the standard `TclOO` / Tk pattern `set chart [ticklecharts::chart new]`
+   then `$chart Xaxis -name {v} -type value -min 0.4` — the handle's class is
+   tracked from the `new` call, the method is resolved against the class's
+   registry model, and its declared options and values are coloured precisely.
+   Direct `[Class new] method …` dispatch resolves the same way. See
+   [ObjectClassSpec](../../../docs/design/compiler/command-registry.md).
+
+3. **Generic fallback.** For any *unknown* command head (an object method on a
+   class not modelled in the registry, or a receiver that arrives as a proc
+   parameter), a word shaped like a clean option — a leading `-` then a
+   letter — is highlighted as an option and its following literal value as an
+   option value.
+
+The heuristic is careful about Tcl's own conventions: a negative number
+(`-5`, `-1.6`) or a special-float literal (`-inf`, `-nan`) is **not** an
+option; a substitution word (`-$var`, `-{$var}`, `-[cmd]`) keeps its own
+highlight; and the `--` end-of-options marker stops option scanning, so a
+following `-literal` is treated as a positional operand.
+
+## File-path anchors
+
+- `rust/tcl-lsp-core/src/semantic_tokens.rs` — `insert_option_and_subcommand_overrides`
+  (registry options), `insert_object_method_overrides` (object methods),
+  `insert_generic_option_overrides` (fallback)
+- `rust/tcl-compiler/src/object_types.rs` — object-handle → class provenance
+- `rust/tcl-registry/src/spec.rs` — `ObjectClassSpec`
+- `rust/tcl-registry/src/commands/ticklecharts/mod.rs` — the ticklecharts pack
+
+## Failure modes
+
+- A `-option` on an unmodelled object method is highlighted by shape only, so
+  an invalid switch is not distinguished from a valid one.
+- A receiver passed through a proc parameter (or a dict value) is not
+  provenance-tracked, so it uses the generic fallback rather than the precise
+  registry path.
+- A negative-number argument that a command genuinely treats as a value is
+  correctly *not* highlighted as an option — by design.
+
+## Test anchors
+
+- `rust/tcl-lsp-core/src/semantic_tokens.rs` — `unknown_head_options_classified_generically`,
+  `generic_option_scan_stops_at_double_dash`, `object_method_options_resolve_via_registry`,
+  `direct_constructor_dispatch_resolves_method`
+- `rust/tcl-compiler/src/object_types.rs` — `scalar_handle_from_constructor`
+- `rust/tcl-registry/src/commands/ticklecharts/mod.rs` — `chart_factory_and_methods_resolve`
+
+## Discoverability
+
+- [KCS feature index](README.md)
+- [Command registry](../../../docs/design/compiler/command-registry.md)
+- [Semantic tokens](kcs-feature-semantic-tokens.md)

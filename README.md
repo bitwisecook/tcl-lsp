@@ -236,7 +236,16 @@ domain-specific token types:
 | **Binary format** | `binarySpec`, `binaryCount`, `binaryFlag` | `binary scan $data su3 x y z` — `s`, `u`, and `3` each highlighted |
 | **Clock format** | `clockPercent`, `clockSpec`, `clockModifier` | `clock format $t -format "%Y-%m-%d"` — `%`, `Y`, `m`, `d` each highlighted |
 | **Escape sequences** | `escape` | `puts "line1\nline2\t${var}"` — `\n`, `\t` highlighted inside strings |
+| **Options** | `decorator`, `optionValue`, `enumMember` | `file delete -force f` and `$chart Xaxis -name x -type value` — switches and their values get their own colours |
 | **BIG-IP config** | `object`, `ipAddress`, `port`, `partition`, `pool`, `monitor`, `profile`, `vlan`, `fqdn`, `routeDomain`, `encrypted`, `interface` | BIG-IP `.conf` files get object-aware highlighting |
+
+Command options are highlighted precisely for commands the registry knows,
+including object methods on a tracked handle — the standard `TclOO` / Tk
+pattern `set chart [ticklecharts::chart new]; $chart Xaxis -name x -type value`
+resolves `Xaxis`'s options through the registry.  Any other `-option value`
+pair on an unknown command head is highlighted by shape, while negative
+numbers (`-5`), special floats (`-inf`), substitutions (`-$var`), and the `--`
+end-of-options marker are handled per Tcl's conventions.
 
 ### Diagnostics
 
