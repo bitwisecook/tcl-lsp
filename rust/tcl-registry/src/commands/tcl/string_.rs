@@ -1149,6 +1149,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_reverse),
+        // Added in Tcl 8.5.
+        dialects: Some(DialectSet::TCL85_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {

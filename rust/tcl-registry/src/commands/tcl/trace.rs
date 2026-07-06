@@ -92,6 +92,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Arrange for command to be executed whenever variable name is accessed. Deprecated in favour of trace add variable.",
         synopsis: "trace variable name ops command",
+        // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only).
+        dialects: Some(DialectSet::TCL8X),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -100,6 +102,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Delete a variable trace. Deprecated in favour of trace remove variable.",
         synopsis: "trace vdelete name ops command",
+        // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only).
+        dialects: Some(DialectSet::TCL8X),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -108,6 +112,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Return trace information for the given variable. Deprecated in favour of trace info variable.",
         synopsis: "trace vinfo name",
+        // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only).
+        dialects: Some(DialectSet::TCL8X),
         ..SubCommand::DEFAULT
     },
 ];

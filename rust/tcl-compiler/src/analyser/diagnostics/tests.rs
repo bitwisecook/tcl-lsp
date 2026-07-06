@@ -760,6 +760,62 @@ fn after_integer_ms_is_not_unknown_subcommand() {
 }
 
 #[test]
+fn subcommand_version_gates_fire_w001() {
+    // Subcommands added or removed across 8.4-9.1 must warn (W001 unknown
+    // subcommand) in dialects where they do not exist.
+    let added = [
+        // (snippet, first dialect it exists in, an older dialect)
+        ("string reverse abc", "tcl8.5", "tcl8.4"),
+        ("package prefer stable", "tcl8.5", "tcl8.4"),
+        ("encoding dirs", "tcl8.5", "tcl8.4"),
+        ("binary encode base64 abc", "tcl8.6", "tcl8.5"),
+        ("binary decode base64 abc", "tcl8.6", "tcl8.5"),
+    ];
+    for (snippet, ok, old) in added {
+        assert!(
+            Analyser::new()
+                .analyse(snippet, old)
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W001),
+            "expected W001 for {snippet:?} on {old}"
+        );
+        assert!(
+            !Analyser::new()
+                .analyse(snippet, ok)
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W001),
+            "unexpected W001 for {snippet:?} on {ok}"
+        );
+    }
+    // `trace variable/vdelete/vinfo` were removed in 9.0: known in 8.6, gone in
+    // 9.0.
+    for snippet in [
+        "trace variable v w {}",
+        "trace vdelete v w {}",
+        "trace vinfo v",
+    ] {
+        assert!(
+            !Analyser::new()
+                .analyse(snippet, "tcl8.6")
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W001),
+            "unexpected W001 for {snippet:?} on tcl8.6"
+        );
+        assert!(
+            Analyser::new()
+                .analyse(snippet, "tcl9.0")
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W001),
+            "expected W001 for {snippet:?} on tcl9.0 (removed)"
+        );
+    }
+}
+
+#[test]
 fn info_frame_is_dialect_gated_to_8_5_plus() {
     // `info frame` was introduced in Tcl 8.5 (TIP 280); it does not exist in
     // 8.4, so an unknown-subcommand W001 must fire there but not in 8.5+.

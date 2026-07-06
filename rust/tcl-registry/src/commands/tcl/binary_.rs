@@ -60,6 +60,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 shimmers: true,
             },
         )],
+        // `binary encode`/`binary decode` added in Tcl 8.6 (TIP 317).
+        dialects: Some(DialectSet::TCL86_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -76,6 +78,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 shimmers: true,
             },
         )],
+        // `binary encode`/`binary decode` added in Tcl 8.6 (TIP 317).
+        dialects: Some(DialectSet::TCL86_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
