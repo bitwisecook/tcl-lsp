@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "teststaticpkg",
-        dialects: None,
+        dialects: Some(DialectSet::TCL8X),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Test Tcl_StaticPackage.",

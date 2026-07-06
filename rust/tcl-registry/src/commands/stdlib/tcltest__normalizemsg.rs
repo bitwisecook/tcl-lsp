@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::normalizeMsg",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Normalise an error message for comparison (lowercase, strip trailing newline).",

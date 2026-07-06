@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testgetintforindex",
-        dialects: None,
+        dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Test Tcl_GetIntForIndex (9.0+).",

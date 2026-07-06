@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::skip",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
             summary: "Get or set test skip patterns.  Deprecated: use ``configure -skip``.",
@@ -32,6 +32,8 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         required_package: Some("tcltest"),
+        // The optional value is a glob pattern (list).
+        arg_roles: &[(0, ArgRole::Pattern)],
         deprecated_replacement: Some("tcltest::configure"),
         ..CommandSpec::DEFAULT
     }

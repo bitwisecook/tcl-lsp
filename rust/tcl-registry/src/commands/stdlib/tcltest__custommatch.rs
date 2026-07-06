@@ -21,17 +21,19 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::customMatch",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Register a custom matching command for test results.",
             synopsis: &["tcltest::customMatch mode command"],
-            snippet: "",
+            snippet: "Registers ``mode`` as a value for ``test -match``.  ``command`` is a command prefix invoked as ``command expected actual`` and must return a boolean.",
             source: "Tcl stdlib tcltest package",
             examples: "",
             return_value: "",
         }),
         required_package: Some("tcltest"),
+        // 0 = the new mode name, 1 = a command prefix (`command expected actual`).
+        arg_roles: &[(0, ArgRole::Name), (1, ArgRole::CommandPrefix)],
         ..CommandSpec::DEFAULT
     }
 }

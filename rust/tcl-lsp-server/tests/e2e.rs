@@ -63,8 +63,6 @@ mod navigation_extras;
 mod recovery;
 #[path = "e2e/references.rs"]
 mod references;
-#[path = "e2e/registry_contract.rs"]
-mod registry_contract;
 #[path = "e2e/rename.rs"]
 mod rename;
 #[path = "e2e/semantic_tokens.rs"]

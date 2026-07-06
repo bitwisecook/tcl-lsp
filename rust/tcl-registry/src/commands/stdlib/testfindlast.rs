@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testfindlast",
-        dialects: None,
+        dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Test Tcl_FindLast / hash iteration.",

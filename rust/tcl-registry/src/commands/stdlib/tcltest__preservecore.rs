@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::preserveCore",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
             summary: "Get or set core file preservation.  Deprecated: use ``configure -preservecore``.",
