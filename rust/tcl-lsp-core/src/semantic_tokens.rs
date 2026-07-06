@@ -1413,7 +1413,7 @@ fn insert_object_method_overrides(
     // Candidate receiver classes implied by the head's shape: a `$var` object
     // handle, a direct `[Class new] …` constructor, or a `[dict get $coll $k]`
     // / `[lindex $coll $i]` retrieval from an object collection (issue #797).
-    let candidates: Vec<String> = match head_tok.kind {
+    let mut candidates: Vec<String> = match head_tok.kind {
         TokenType::Var => object_handle_name(head_text)
             .and_then(|name| object_classes.get(name))
             .map(|s| s.iter().cloned().collect())
@@ -1438,6 +1438,14 @@ fn insert_object_method_overrides(
     if candidates.is_empty() {
         return;
     }
+    // The candidate sets come from `HashSet` iteration, whose order varies per
+    // map instance (random hash seed). When a receiver has several candidate
+    // classes that resolve differently, an order-dependent pick would make the
+    // incrementally-edited buffer and a fresh open disagree on the token — so
+    // sort to a stable order before selecting (see the `edit_tracking_stress`
+    // incremental-vs-fresh parity tests).
+    candidates.sort_unstable();
+    candidates.dedup();
     // 1. Registry-modelled class — precise, declared method options.
     if let Some(method_sub) = candidates
         .iter()
