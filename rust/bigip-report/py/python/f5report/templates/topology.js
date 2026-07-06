@@ -1002,39 +1002,26 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
     }
     function buildFlowchart(ix, oids, opts) {
       opts = opts || {};
-      var dir = opts.dir || "LR";
-      var lines = ["flowchart " + dir];
       var nodeSet = {};
       oids.forEach(function(o) {
         nodeSet[o] = true;
       });
+      var enodes = [], eedges = [];
       Object.keys(nodeSet).forEach(function(o) {
         var n = ix.byOid[o];
         if (!n) return;
-        var sid = ix.short[o];
-        var label = esc(n.name);
-        var cls = TYPE_CLASS[n.type] || "default";
-        var shape = n.type === "vs" ? ['(["', '"])'] : n.type === "node" ? ['[("', '")]'] : n.type === "rule" ? ['{{"', '"}}'] : ['["', '"]'];
-        lines.push("  " + sid + shape[0] + label + shape[1] + ":::" + cls + (n.orphan ? " " : ""));
+        enodes.push({ id: ix.short[o], label: n.name, cls: TYPE_CLASS[n.type] || "default" });
       });
       ix.d.graph.edges.forEach(function(e) {
         if (!nodeSet[e.from] || !nodeSet[e.to]) return;
-        var a = ix.short[e.from], b = ix.short[e.to];
-        var lbl = e.label ? "|" + escLbl(e.label) + "|" : "";
-        var arrow = e.kind === "pool-irule" ? " -.->" : " -->";
-        lines.push("  " + a + arrow + lbl + " " + b);
+        eedges.push({
+          from: ix.short[e.from],
+          to: ix.short[e.to],
+          label: e.label || "",
+          dashed: e.kind === "pool-irule"
+        });
       });
-      lines.push("classDef vs fill:#dbeafe,stroke:#2563eb,color:#0b2b5e;");
-      lines.push("classDef pool fill:#dcfce7,stroke:#16a34a,color:#064e2b;");
-      lines.push("classDef node fill:#f1f5f9,stroke:#64748b,color:#1e293b;");
-      lines.push("classDef mon fill:#fef9c3,stroke:#ca8a04,color:#4a3608;");
-      lines.push("classDef rule fill:#ede9fe,stroke:#7c3aed,color:#3b1e75;");
-      lines.push("classDef prof fill:#e0f2fe,stroke:#0284c7,color:#053345;");
-      lines.push("classDef persist fill:#ffe4e6,stroke:#e11d48,color:#5c0a1e;");
-      lines.push("classDef policy fill:#fae8ff,stroke:#c026d3,color:#4a0d52;");
-      lines.push("classDef snat fill:#f5f5f4,stroke:#78716c,color:#292524;");
-      lines.push("classDef dg fill:#ecfeff,stroke:#0891b2,color:#083344;");
-      return lines.join("\n");
+      return { nodes: enodes, edges: eedges, dir: opts.dir === "TB" ? "DOWN" : "RIGHT" };
     }
     var PROFILE_LAYER = {
       TCP: { layer: 1 },
@@ -1273,55 +1260,37 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       });
       return { nodes: enodes, edges: eedges, steps };
     }
-    var _rid = 0;
-    function renderInto(host, def, ix, onNodeClick) {
-      if (!window.mermaid) {
-        host.textContent = "Mermaid unavailable";
+    function renderInto(host, model, ix, onNodeClick) {
+      if (!window.ElkGraph) {
+        host.textContent = "diagram engine unavailable";
         return;
       }
-      var id = "mmd" + _rid++;
-      mermaid.render(id, def).then(function(res) {
-        host.innerHTML = res.svg;
+      window.ElkGraph.render(host, model, { dir: model && model.dir || "RIGHT", svgClass: "elk-report" }).then(function() {
         var svg = host.querySelector("svg");
-        if (svg) {
-          svg.style.maxWidth = "100%";
-          svg.style.maxHeight = "70vh";
-          svg.style.height = "auto";
-        }
+        if (svg) svg.style.maxHeight = "70vh";
         wire(host, ix, onNodeClick);
       }).catch(function(err) {
-        host.innerHTML = '<div class="diag-err">diagram error: ' + esc(err.message || err) + "</div>";
+        host.innerHTML = '<div class="diag-err">diagram error: ' + esc(err && err.message || err) + "</div>";
       });
     }
-    function nodeSid(el) {
-      var m = /flowchart-(N\d+)-/.exec(el.id || "");
-      return m ? m[1] : null;
-    }
-    function edgeEnds(el) {
-      var cls = el.getAttribute("class") || "";
-      var s = /LS-(N\d+)/.exec(cls), e = /LE-(N\d+)/.exec(cls);
-      return s && e ? [s[1], e[1]] : null;
-    }
     function wire(host, ix, onNodeClick) {
-      host.querySelectorAll(".node").forEach(function(el) {
-        var sid = nodeSid(el);
-        if (!sid) return;
-        el.classList.add("mm-node");
-        el.dataset.sid = sid;
+      host.querySelectorAll(".elk-node[data-nid]").forEach(function(el) {
+        var oid = ix.unshort[el.getAttribute("data-nid")];
+        if (!oid) return;
+        el.classList.add("elk-clk");
         el.addEventListener("click", function(ev) {
           ev.stopPropagation();
           clearHl(host);
-          if (onNodeClick) onNodeClick(ix.unshort[sid]);
+          if (onNodeClick) onNodeClick(oid);
         });
       });
-      host.querySelectorAll("path.flowchart-link").forEach(function(el) {
-        var ends = edgeEnds(el);
-        if (!ends) return;
-        el.classList.add("mm-edge");
+      host.querySelectorAll("path.elk-edge[data-from][data-to]").forEach(function(el) {
+        var a = el.getAttribute("data-from"), b = el.getAttribute("data-to");
+        if (!ix.unshort[a] || !ix.unshort[b]) return;
         el.style.cursor = "pointer";
         el.addEventListener("click", function(ev) {
           ev.stopPropagation();
-          highlightComponent(host, ix, ends[0], ends[1]);
+          highlightComponent(host, ix, a, b);
         });
       });
       host.addEventListener("click", function() {
@@ -1329,8 +1298,8 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       });
     }
     function clearHl(host) {
-      host.querySelectorAll(".mm-hl,.mm-dim").forEach(function(el) {
-        el.classList.remove("mm-hl", "mm-dim");
+      host.querySelectorAll(".elk-hl,.elk-dim").forEach(function(el) {
+        el.classList.remove("elk-hl", "elk-dim");
       });
     }
     function highlightComponent(host, ix, sidA, sidB) {
@@ -1341,18 +1310,12 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
         compSids[ix.short[o]] = true;
       });
       clearHl(host);
-      host.querySelectorAll(".node").forEach(function(el) {
-        var sid = nodeSid(el);
-        if (!sid) return;
-        el.classList.add(compSids[sid] ? "mm-hl" : "mm-dim");
+      host.querySelectorAll(".elk-node[data-nid]").forEach(function(el) {
+        el.classList.add(compSids[el.getAttribute("data-nid")] ? "elk-hl" : "elk-dim");
       });
-      host.querySelectorAll("path.flowchart-link").forEach(function(el) {
-        var ends = edgeEnds(el);
-        if (!ends) return;
-        var on = compSids[ends[0]] && compSids[ends[1]];
-        el.classList.add(on ? "mm-hl" : "mm-dim");
-      });
-      host.querySelectorAll(".edgeLabel").forEach(function(el) {
+      host.querySelectorAll("path.elk-edge").forEach(function(el) {
+        var a = el.getAttribute("data-from"), b = el.getAttribute("data-to");
+        el.classList.add(a && b && compSids[a] && compSids[b] ? "elk-hl" : "elk-dim");
       });
     }
     function activateDevice2(di) {
@@ -1611,67 +1574,58 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
     }
     function buildFlow(ix, vsOid) {
       var v = findVirtual(ix, vsOid);
-      if (!v) return "flowchart LR\n  x[No data]";
+      if (!v) return { nodes: [{ id: "x", label: "No data", cls: "muted" }], edges: [], dir: "RIGHT" };
       var L = v.listener || {};
-      var s = [], n = 0;
+      var enodes = [], eedges = [], n = 0;
       function id() {
         return "F" + n++;
       }
-      var lines = ["flowchart LR"];
       var client = id();
-      lines.push("  " + client + '(["Client<br/>' + esc(L.source || "any") + '"]):::cl');
+      enodes.push({ id: client, label: "Client\n" + (L.source || "any"), cls: "cl" });
       var lsnr = id();
-      lines.push("  " + lsnr + '["Listener<br/>' + esc(v.name) + "<br/>" + esc((L.address || "") + ":" + (L.portRaw || "")) + '"]:::vs');
-      lines.push("  " + client + " --> " + lsnr);
+      enodes.push({ id: lsnr, label: "Listener\n" + v.name + "\n" + ((L.address || "") + ":" + (L.portRaw || "")), cls: "vs" });
+      eedges.push({ from: client, to: lsnr });
       var prev = lsnr;
       if (L.vlans && L.vlans.length) {
         var vl = id();
-        lines.push("  " + vl + '["VLAN<br/>' + esc(L.vlans.join(", ")) + '"]:::vlan');
-        lines.push("  " + client + " -.-> " + vl + " -.-> " + lsnr);
+        enodes.push({ id: vl, label: "VLAN\n" + L.vlans.join(", "), cls: "vlan" });
+        eedges.push({ from: client, to: vl, dashed: true });
+        eedges.push({ from: vl, to: lsnr, dashed: true });
       }
       (v.profiles || []).forEach(function(p) {
         var pid = id();
-        lines.push("  " + pid + '["' + esc(p.split("/").pop()) + '"]:::prof');
-        lines.push("  " + prev + " --> " + pid);
+        enodes.push({ id: pid, label: p.split("/").pop(), cls: "prof" });
+        eedges.push({ from: prev, to: pid });
         prev = pid;
       });
       (v.dynamicProfiles || []).forEach(function(a) {
         var did = id();
-        lines.push("  " + did + '["iRule: ' + esc(a.effect) + (a.arg ? " " + esc(a.arg) : "") + '"]:::dyn');
-        lines.push("  " + prev + " -.-> " + did);
+        enodes.push({ id: did, label: "iRule: " + a.effect + (a.arg ? " " + a.arg : ""), cls: "dyn" });
+        eedges.push({ from: prev, to: did, dashed: true });
         prev = did;
       });
       (v.rules || []).forEach(function(r) {
         var rid = id();
-        lines.push("  " + rid + '{{"iRule<br/>' + esc(r.split("/").pop()) + '"}}:::rule');
-        lines.push("  " + prev + " --> " + rid);
+        enodes.push({ id: rid, label: "iRule\n" + r.split("/").pop(), cls: "rule" });
+        eedges.push({ from: prev, to: rid });
         prev = rid;
       });
       if (v.pool) {
         var pl = id();
-        lines.push("  " + pl + '["Pool<br/>' + esc(v.pool.split("/").pop()) + '"]:::pool');
-        lines.push("  " + prev + " --> " + pl);
+        enodes.push({ id: pl, label: "Pool\n" + v.pool.split("/").pop(), cls: "pool" });
+        eedges.push({ from: prev, to: pl });
         var pool = findPool(ix, "pool:" + v.pool);
         (pool ? pool.members : []).slice(0, 12).forEach(function(m) {
           var mid = id();
-          lines.push("  " + mid + '[("' + esc(m.address) + ":" + esc(m.port) + '")]:::node');
-          lines.push("  " + pl + " --> " + mid);
+          enodes.push({ id: mid, label: m.address + ":" + m.port, cls: "node" });
+          eedges.push({ from: pl, to: mid });
         });
       } else {
         var np = id();
-        lines.push("  " + np + '["no default pool<br/>(forwarding / policy)"]:::muted');
-        lines.push("  " + prev + " --> " + np);
+        enodes.push({ id: np, label: "no default pool\n(forwarding / policy)", cls: "muted" });
+        eedges.push({ from: prev, to: np });
       }
-      lines.push("classDef cl fill:#f8fafc,stroke:#94a3b8;");
-      lines.push("classDef vs fill:#dbeafe,stroke:#2563eb;");
-      lines.push("classDef prof fill:#e0f2fe,stroke:#0284c7;");
-      lines.push("classDef rule fill:#ede9fe,stroke:#7c3aed;");
-      lines.push("classDef pool fill:#dcfce7,stroke:#16a34a;");
-      lines.push("classDef node fill:#f1f5f9,stroke:#64748b;");
-      lines.push("classDef dyn fill:#fef3c7,stroke:#d97706,stroke-dasharray:4 2;");
-      lines.push("classDef vlan fill:#f5f5f4,stroke:#78716c;");
-      lines.push("classDef muted fill:#f8fafc,stroke:#cbd5e1,color:#64748b;");
-      return lines.join("\n");
+      return { nodes: enodes, edges: eedges, dir: "RIGHT" };
     }
     function closeDrawer() {
       document.getElementById("objDrawer").classList.remove("open");
@@ -2421,7 +2375,7 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
             ph.textContent = "(pipeline unavailable)";
             return;
           }
-          window.ElkGraph.render(ph, built, { dir: "RIGHT" }).catch(function(e) {
+          window.ElkGraph.render(ph, built, { dir: "RIGHT", svgClass: "elk-report" }).catch(function(e) {
             ph.innerHTML = '<div class="diag-err">pipeline error: ' + esc(e && e.message || e) + "</div>";
           });
         });

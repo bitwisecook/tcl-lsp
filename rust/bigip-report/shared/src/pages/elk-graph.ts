@@ -164,7 +164,10 @@
     }
 
     var W = Math.ceil(res.width) + 2, H = Math.ceil(res.height) + 2;
-    var svg = el("svg", { class: "elk-svg", viewBox: "-1 -1 " + W + " " + H, width: W, height: H });
+    var svg = el("svg", {
+      class: "elk-svg" + (opts.svgClass ? " " + opts.svgClass : ""),
+      viewBox: "-1 -1 " + W + " " + H, width: W, height: H,
+    });
     svg.style.maxWidth = "100%";
     svg.style.height = "auto";
     var defs = el("defs");

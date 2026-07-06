@@ -50,22 +50,38 @@
 .elk-edge-label-bg { fill: #ffffff; opacity: .85; }
 .elk-edge-label-t { font: 11px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #334155; }
 
-/* Report traffic/flow diagrams reuse the elkjs renderer with their own node
-   palette. Scoped to the report diagram hosts so the type-class names (vs,
-   pool, node, …) don't collide with the APM walk's own node classes above. */
-.app-pipe-diagram, .app-flow-diagram, .app-obj-flow, .irule-flow-diagram, .diag-host, #archDiagram {
-  --dg: 0; /* marker: report diagram host */
-}
-:is(.app-pipe-diagram,.app-flow-diagram,.app-obj-flow,.irule-flow-diagram,.diag-host,#archDiagram) .elk-node.vs .elk-node-box { fill:#dbeafe; stroke:#2563eb; }
-:is(.app-pipe-diagram,.app-flow-diagram,.app-obj-flow,.irule-flow-diagram,.diag-host,#archDiagram) .elk-node.prof .elk-node-box { fill:#e0f2fe; stroke:#0284c7; }
-:is(.app-pipe-diagram,.app-flow-diagram,.app-obj-flow,.irule-flow-diagram,.diag-host,#archDiagram) .elk-node.ssl .elk-node-box { fill:#fef9c3; stroke:#ca8a04; }
-:is(.app-pipe-diagram,.app-flow-diagram,.app-obj-flow,.irule-flow-diagram,.diag-host,#archDiagram) .elk-node.event .elk-node-box { fill:#ede9fe; stroke:#7c3aed; }
-:is(.app-pipe-diagram,.app-flow-diagram,.app-obj-flow,.irule-flow-diagram,.diag-host,#archDiagram) .elk-node.proxy .elk-node-box { fill:#f1f5f9; stroke:#64748b; }
-:is(.app-pipe-diagram,.app-flow-diagram,.app-obj-flow,.irule-flow-diagram,.diag-host,#archDiagram) .elk-node.pool .elk-node-box { fill:#dcfce7; stroke:#16a34a; }
-:is(.app-pipe-diagram,.app-flow-diagram,.app-obj-flow,.irule-flow-diagram,.diag-host,#archDiagram) .elk-node.node .elk-node-box { fill:#f5f5f4; stroke:#78716c; }
-:is(.app-pipe-diagram,.app-flow-diagram,.app-obj-flow,.irule-flow-diagram,.diag-host,#archDiagram) .elk-node.v2v .elk-node-box { fill:#e0e7ff; stroke:#4f46e5; }
-:is(.app-pipe-diagram,.app-flow-diagram,.app-obj-flow,.irule-flow-diagram,.diag-host,#archDiagram) .elk-node.hsl .elk-node-box { fill:#fae8ff; stroke:#a21caf; }
-:is(.app-pipe-diagram,.app-flow-diagram,.app-obj-flow,.irule-flow-diagram,.diag-host,#archDiagram) .elk-node.sband .elk-node-box { fill:#fff7ed; stroke:#ea580c; }
+/* Report traffic/flow/graph diagrams reuse the elkjs renderer with their own
+   node palette. Scoped to `.elk-report` (the svgClass the report passes to
+   ElkGraph.render) so the type-class names (vs, pool, node, …) don't collide
+   with the APM walk's own node classes above. */
+.elk-report .elk-node.vs .elk-node-box { fill:#dbeafe; stroke:#2563eb; }
+.elk-report .elk-node.prof .elk-node-box { fill:#e0f2fe; stroke:#0284c7; }
+.elk-report .elk-node.ssl .elk-node-box { fill:#fef9c3; stroke:#ca8a04; }
+.elk-report .elk-node.event .elk-node-box { fill:#ede9fe; stroke:#7c3aed; }
+.elk-report .elk-node.proxy .elk-node-box { fill:#f1f5f9; stroke:#64748b; }
+.elk-report .elk-node.pool .elk-node-box { fill:#dcfce7; stroke:#16a34a; }
+.elk-report .elk-node.node .elk-node-box { fill:#f5f5f4; stroke:#78716c; }
+.elk-report .elk-node.mon .elk-node-box { fill:#fef9c3; stroke:#ca8a04; }
+.elk-report .elk-node.rule .elk-node-box { fill:#ede9fe; stroke:#7c3aed; }
+.elk-report .elk-node.persist .elk-node-box { fill:#ffe4e6; stroke:#e11d48; }
+.elk-report .elk-node.policy .elk-node-box { fill:#fae8ff; stroke:#c026d3; }
+.elk-report .elk-node.snat .elk-node-box { fill:#f5f5f4; stroke:#78716c; }
+.elk-report .elk-node.dg .elk-node-box { fill:#ecfeff; stroke:#0891b2; }
+.elk-report .elk-node.default .elk-node-box { fill:#f1f5f9; stroke:#64748b; }
+.elk-report .elk-node.v2v .elk-node-box { fill:#e0e7ff; stroke:#4f46e5; }
+.elk-report .elk-node.hsl .elk-node-box { fill:#fae8ff; stroke:#a21caf; }
+.elk-report .elk-node.sband .elk-node-box { fill:#fff7ed; stroke:#ea580c; }
+.elk-report .elk-node.cl .elk-node-box { fill:#f8fafc; stroke:#94a3b8; }
+.elk-report .elk-node.vlan .elk-node-box { fill:#f5f5f4; stroke:#78716c; }
+.elk-report .elk-node.dyn .elk-node-box { fill:#fef3c7; stroke:#d97706; }
+.elk-report .elk-node.muted .elk-node-box { fill:#f8fafc; stroke:#cbd5e1; }
+
+/* click-to-focus + connected-component highlight (was Mermaid's mm-* states) */
+.elk-node.elk-clk { cursor: pointer; }
+.elk-node.elk-clk:hover .elk-node-box { stroke-width: 2.4px; }
+.elk-node.elk-hl .elk-node-box { stroke-width: 3px; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent, #2563eb) 60%, transparent)); }
+path.elk-edge.elk-hl { stroke: var(--accent, #2563eb); stroke-width: 2.4px; opacity: 1; }
+.elk-node.elk-dim, path.elk-edge.elk-dim { opacity: .18; transition: opacity .12s; }
 
 @media (prefers-color-scheme: dark) {
   .apm-profile { border-color: #2b3546; }
