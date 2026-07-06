@@ -23,7 +23,8 @@
 //! (W001), a command disabled in the dialect (W002), an invalid dialect
 //! option (W004) or expression operator (W003), wrong argument counts
 //! (the arity diagnostics), a malformed `if` (E004), a missing `--` option
-//! terminator before a value that looks like an option (W304), and a stub
+//! terminator before a value that looks like an option (W304), an `unset`
+//! whose options consume every argument so nothing is unset (W217), and a stub
 //! `proc` that shadows a built-in command or `expr` function (W116, W117).
 //! The disabled-command, arity, and W304 emitters buffer their candidates
 //! and flush them after the walk.
@@ -915,6 +916,73 @@ impl Analyser {
         if let Some(origin_diag) = origin {
             self.result.diagnostics.push(origin_diag);
         }
+    }
+
+    /// **W217.** An `unset` whose leading option words (`-nocomplain` / `--`)
+    /// consume *every* argument, so the call unsets no variable at all.
+    ///
+    /// This is almost always a mistake: either a variable name was forgotten,
+    /// or the author meant to unset a variable whose name begins with `-` (e.g.
+    /// a variable literally named `-nocomplain`) and needs a `--` terminator in
+    /// front of it — `unset -nocomplain` is parsed as the flag, not the name.
+    ///
+    /// Fires only when at least one option word was consumed **and** no variable
+    /// name follows (`unset -nocomplain`, `unset --`, `unset -nocomplain --`).
+    /// A call with any real variable (`unset -nocomplain $x`, `unset x`,
+    /// `unset foo -nocomplain` where `-nocomplain` is a name) stays silent.
+    /// Carries a fix that inserts `--` before the first option word so the
+    /// remaining words are unset as variable names.
+    pub(in crate::analyser) fn emit_w217_unset_option_only(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if cmd_name != "unset" || args.is_empty() || arg_tokens.len() != args.len() {
+            return;
+        }
+        // `unset` recognises only `-nocomplain` (skippable, repeatable) and `--`
+        // (terminator); any other word ends option parsing and is a variable
+        // name.  Mirrors `lower_unset` and the registry `unset` arg-role
+        // resolver (verified against tclsh 8.6/9.0).
+        let mut i = 0;
+        while i < args.len() {
+            match args[i].as_str() {
+                "-nocomplain" => i += 1,
+                "--" => {
+                    i += 1;
+                    break;
+                }
+                _ => break,
+            }
+        }
+        // Fire only when the options consumed every argument (no variable name
+        // remains) after consuming at least one option word.
+        if i == 0 || i < args.len() {
+            return;
+        }
+
+        let first = arg_tokens[0];
+        let last = arg_tokens[args.len() - 1];
+        let diag_span = tcl_lexer::Span::new(first.span.start(), last.span.end());
+        // Fix: prepend `--` to the first option word so every following word —
+        // including a `-`-named variable — is unset as a variable name.
+        let slice = &self.source[first.span.start() as usize..first.span.end() as usize];
+        let fixes = vec![super::types::CodeFix {
+            span: first.span,
+            new_text: format!("-- {slice}"),
+            description: "Insert '--' so the following words are variable names".to_string(),
+        }];
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::W217,
+            span: diag_span,
+            message: "`unset` unsets no variable here — `-nocomplain` / `--` are consumed as \
+options. To unset a variable whose name begins with `-`, put `--` before it \
+(e.g. `unset -- -nocomplain`)."
+                .to_string(),
+            severity: Severity::Warning,
+            fixes,
+        });
     }
 
     /// Emit the per-item path's pending W304 diagnostics, classifying each

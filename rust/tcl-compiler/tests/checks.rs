@@ -889,6 +889,61 @@ mod missing_option_terminator {
 }
 
 // ===========================================================================
+// W217 — `unset` whose options consume every argument, so nothing is unset.
+//
+// `unset` recognises only `-nocomplain` / `--`; any other word (even `-foo`) is
+// a variable name. When leading options eat all the arguments, the call is a
+// silent no-op — usually a variable named `-nocomplain` that needs a `--`.
+// ===========================================================================
+mod unset_option_only {
+    use super::*;
+
+    #[test]
+    fn nocomplain_only_fires_with_terminator_fix() {
+        let ds = of_code("unset -nocomplain", D, "W217");
+        assert_eq!(ds.len(), 1, "expected one W217");
+        assert!(ds[0].0.contains("--"), "message mentions --: {:?}", ds[0].0);
+        assert_eq!(ds[0].2.len(), 1, "one fix offered");
+        assert!(
+            ds[0].2[0].starts_with("-- "),
+            "fix inserts the terminator: {:?}",
+            ds[0].2[0]
+        );
+    }
+
+    #[test]
+    fn bare_terminator_and_repeated_flags_fire() {
+        assert_eq!(count("unset --", D, "W217"), 1);
+        assert_eq!(count("unset -nocomplain --", D, "W217"), 1);
+        assert_eq!(count("unset -nocomplain -nocomplain", D, "W217"), 1);
+    }
+
+    #[test]
+    fn option_only_unset_is_not_an_arity_error() {
+        // tclsh 8.5+: `unset`, `unset -nocomplain`, `unset --` are all valid
+        // no-ops, so the misleading E002 "too few arguments" must not fire —
+        // the option-only cases are covered by W217 instead.
+        assert!(!fires("unset -nocomplain", D, "E002"));
+        assert!(!fires("unset --", D, "E002"));
+        assert!(!fires("unset", D, "E002"));
+    }
+
+    #[test]
+    fn call_that_unsets_a_variable_is_clean() {
+        // A real variable name follows the options.
+        assert!(!fires("unset -nocomplain $x", D, "W217"));
+        assert!(!fires("unset -nocomplain foo", D, "W217"));
+        assert!(!fires("unset x", D, "W217"));
+        assert!(!fires("unset x y z", D, "W217"));
+        // `--` terminator already present, then a real name.
+        assert!(!fires("unset -- -nocomplain", D, "W217"));
+        // A dash-name in first position is a variable, not an option.
+        assert!(!fires("unset -foo", D, "W217"));
+        assert!(!fires("unset foo -nocomplain", D, "W217"));
+    }
+}
+
+// ===========================================================================
 // W306 — literal-expected position contains a substitution.
 //
 // A bare single `$var`/`${ns::v}` regex pattern is the canonical parameterised-

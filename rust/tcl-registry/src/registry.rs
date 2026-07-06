@@ -1884,6 +1884,43 @@ mod tests {
         assert_eq!(set_vars, vec![0]);
     }
 
+    /// `unset x y z` names *every* argument as a variable (issue #774), not
+    /// just the first, so all of them highlight as variables.
+    #[test]
+    fn unset_marks_every_name() {
+        let reg = CommandRegistry::build_default();
+        let vars = reg.arg_indices_for_role("unset", &["x", "y", "z"], ArgRole::VarWrite);
+        assert_eq!(vars, vec![0, 1, 2]);
+    }
+
+    /// `unset -nocomplain -- a b` skips the leading options and names only the
+    /// real variables (`a`, `b`), mirroring `lower_unset`.
+    #[test]
+    fn unset_skips_leading_options() {
+        let reg = CommandRegistry::build_default();
+        let vars =
+            reg.arg_indices_for_role("unset", &["-nocomplain", "--", "a", "b"], ArgRole::VarWrite);
+        assert_eq!(vars, vec![2, 3]);
+    }
+
+    /// `unset` recognises only `-nocomplain` / `--` as options — a dash-prefixed
+    /// word like `-foo` is a real variable name (verified against tclsh), so it
+    /// keeps its `VarWrite` role.
+    #[test]
+    fn unset_dash_name_is_a_variable() {
+        let reg = CommandRegistry::build_default();
+        // `unset -foo bar` — both are variables (no `--` needed to reach them).
+        assert_eq!(
+            reg.arg_indices_for_role("unset", &["-foo", "bar"], ArgRole::VarWrite),
+            vec![0, 1]
+        );
+        // `unset -nocomplain -foo` — `-nocomplain` is skipped, `-foo` is a name.
+        assert_eq!(
+            reg.arg_indices_for_role("unset", &["-nocomplain", "-foo"], ArgRole::VarWrite),
+            vec![1]
+        );
+    }
+
     /// `trace add variable name ops body` declares arg 1
     /// (the variable name) as `VarWrite` via the registry.
     #[test]

@@ -664,6 +664,7 @@ impl Analyser {
         self.emit_w127_closed_value_args(cmd_name, args, arg_tokens, cmd_tok);
         self.emit_w127_closed_option_values(cmd_name, args, arg_tokens, cmd_tok);
         self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
+        self.emit_w217_unset_option_only(cmd_name, args, arg_tokens);
         self.emit_w004_dialect_invalid_option(cmd_name, args, arg_tokens);
         // W135 / W136 — command/option needs a newer package version than the
         // resolved `package require` floor (buffered, decided post-walk).
