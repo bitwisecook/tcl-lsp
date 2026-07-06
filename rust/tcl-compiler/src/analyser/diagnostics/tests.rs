@@ -760,6 +760,35 @@ fn after_integer_ms_is_not_unknown_subcommand() {
 }
 
 #[test]
+fn w001_accepts_unique_prefix_subcommand_abbreviations() {
+    // Tcl ensemble dispatch accepts unique-prefix abbreviations; the analyser
+    // must not flag them as unknown subcommands (W001).
+    for snippet in [
+        "string le $s",       // length
+        "string leng $s",     // length
+        "info ex v",          // exists
+        "dict k $d",          // keys
+        "string rev $s",      // reverse
+    ] {
+        assert!(
+            !has_code(snippet, "tcl8.6", "W001"),
+            "unique-prefix abbreviation {snippet:?} must not trip W001"
+        );
+    }
+    // A genuinely unknown word still fires.
+    assert!(
+        has_code("string zzz $s", "tcl8.6", "W001"),
+        "an unknown subcommand must still fire W001"
+    );
+    // An ambiguous prefix (`string t` → tolower/totitle/toupper/trim…) is not a
+    // valid abbreviation and remains flagged.
+    assert!(
+        has_code("string t $s", "tcl8.6", "W001"),
+        "an ambiguous prefix must still fire W001"
+    );
+}
+
+#[test]
 fn command_version_gates_fire_w123() {
     // Whole commands introduced after 8.4 must be unknown (W123) in older
     // dialects and known once available.

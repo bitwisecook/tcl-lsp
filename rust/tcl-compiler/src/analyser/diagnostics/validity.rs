@@ -194,7 +194,9 @@ impl Analyser {
         if first_arg.starts_with('.') {
             return;
         }
-        if sig.subcommands.contains_key(first_arg) {
+        // Accept a unique-prefix abbreviation (`string le` ⇒ `length`), the way
+        // Tcl's ensemble dispatch does, so valid abbreviations don't trip W001.
+        if sig.is_known(first_arg) {
             return;
         }
         let mut message = format!("Unknown subcommand '{first_arg}' for '{cmd_name}'");
@@ -345,8 +347,10 @@ impl Analyser {
                 if sub_name.contains('$') || sub_name.contains('[') {
                     return;
                 }
-                let Some(sub_sig) = sig.subcommands.get(sub_name) else {
-                    // Unknown subcommand — W001's job, not arity.
+                // Resolve exact-or-unique-prefix so an abbreviated subcommand
+                // (`string le $s`) is arity-checked against `length`.
+                let Some(sub_sig) = sig.resolve(sub_name) else {
+                    // Unknown / ambiguous subcommand — W001's job, not arity.
                     return;
                 };
                 let display_name = format!("{cmd_name} {sub_name}");

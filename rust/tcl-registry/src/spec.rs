@@ -501,10 +501,31 @@ impl CommandSpec {
         }
     }
 
-    /// Look up a subcommand by name.
+    /// Look up a subcommand by exact name.
     #[must_use]
     pub fn subcommand(&self, name: &str) -> Option<&SubCommand> {
         self.subcommands.iter().find(|s| s.name == name)
+    }
+
+    /// Resolve a subcommand word to its [`SubCommand`], accepting a unique
+    /// non-empty prefix the way Tcl's ensemble dispatch (`Tcl_GetIndexFromObj`)
+    /// does: `string le` ⇒ `length`, `info ex` ⇒ `exists`. An exact match
+    /// always wins over a prefix; an ambiguous prefix (several candidates, e.g.
+    /// `string t`) resolves to `None`.
+    #[must_use]
+    pub fn resolve_subcommand(&self, word: &str) -> Option<&SubCommand> {
+        if word.is_empty() {
+            return None;
+        }
+        if let Some(exact) = self.subcommand(word) {
+            return Some(exact);
+        }
+        let mut hits = self.subcommands.iter().filter(|s| s.name.starts_with(word));
+        let first = hits.next()?;
+        if hits.next().is_some() {
+            return None; // ambiguous prefix
+        }
+        Some(first)
     }
 
     /// Return static arg role for a given index, if declared.
