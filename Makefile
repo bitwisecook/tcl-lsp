@@ -331,7 +331,7 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 
 # Test targets
 
-test: test-rust test-ext ## Run all tests (Rust workspace + VS Code extension)
+test: test-rust test-ext runtime-rust-test ## Run all tests (Rust workspace + VS Code extension + Rust runtime port)
 
 lint: lint-ts ## Run all lint and style checks
 
@@ -782,7 +782,9 @@ check-all: ## Full lint + typecheck (TS, Rust); writes tmp/check-all.stamp on su
 #
 # Covers: prep-pr (format/codegen/lint/typecheck/test-rust/parity) +
 # Rust lint/typecheck + tclpkg + VS Code extension + Emacs eglot +
-# VSIX smoke + Rust workspace tests.
+# VSIX smoke + Rust workspace tests + the Rust runtime port
+# (runtime-rust-test — the standalone runtime/rust crate is excluded from
+# the workspace, so cargo test --workspace does not cover it).
 test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp + tmp/test-slow.stamp on success
 	@if [ "$${AUTO_INSTALL_DEPS:-0}" = "1" ]; then \
 		echo "==> test-slow: AUTO_INSTALL_DEPS=1 — installing optional test deps"; \
@@ -802,7 +804,7 @@ test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp 
 	@NPROC="$(NPROC)" MAKE="$(MAKE)" \
 		bash $(ROOT)scripts/dev/test-slow-runner.sh \
 			--serial "capture-bytecode-refs prep-pr" \
-			--parallel "check-rust test-tclpkg-tcl test-ext _prep-pr-smoke test-emacs test-rust"
+			--parallel "check-rust test-tclpkg-tcl test-ext _prep-pr-smoke test-emacs test-rust runtime-rust-test"
 	@mkdir -p $(ROOT)tmp
 	@# Committed proof for the CI PR gate (content fingerprint of the
 	@# tree, excluding the stamp itself).  Written before the local tmp
