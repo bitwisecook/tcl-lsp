@@ -78,11 +78,15 @@ There are two layers, most-precise first:
    largest dispatch form after `TclOO` `my`, and enabling it roughly doubled the
    overall dispatch-resolution rate (`experiments/tcloo_dispatch/RESULTS.md`).
 
+   A snit/itcl object bound by its **named constructor** (`set o [foo create x]`)
+   types the variable as that class — the signature scan records snit types (like
+   itcl and `TclOO`) as classes — so `$o method` resolves like any handle.
+
    **Not resolved (correctly abstains, never mis-highlights):** a bareword
-   named-object dispatch (`Foo create obj; obj method`), a snit/itcl object bound
-   by its *named constructor* (`set o [foo create x]; $o m`), snit components
-   (`install`/`delegate`) and `$hull`, and Tk widget-path dispatch — their method
-   word stays a plain string rather than a guessed callable. The receiver's class is found from a handle typed by
+   named-object dispatch (`Foo create obj; obj method`, where the *object command*
+   itself is the head), snit components (`install`/`delegate`) and `$hull`, and Tk
+   widget-path dispatch — their method word stays a plain string rather than a
+   guessed callable. The receiver's class is found from a handle typed by
    the SSA lattice — including a handle **retrieved from an object collection**:
    a `Pins` dict filled with `[Pin new]` in one method makes
    `[dict get $Pins $pin] configure -node …` resolve to `Pin` in another (issue
@@ -140,11 +144,12 @@ still highlighted by the object-method / generic passes above.
 
 - A `-option` on an unmodelled object method is highlighted by shape only, so
   an invalid switch is not distinguished from a valid one.
-- A snit/itcl **`$self` / `$this` self-call** resolves against the enclosing
-  type, but an **installed component** (`$myparser method`), `$hull`, and an
-  object bound by a **named constructor** (`set o [foo create x]`) are not yet
-  provenance-tracked. These dominate the residual unresolved dispatches on real
-  corpora (`experiments/tcloo_diag/RESULTS.md`) and use the generic fallback.
+- A snit/itcl **`$self` / `$this` self-call** and an object bound by a **named
+  constructor** (`set o [foo create x]`) both resolve, but an **installed
+  component** (`$myparser method`), `$hull`, and a **bareword named-object**
+  command (`Foo create obj; obj method`) are not yet provenance-tracked. These
+  dominate the residual unresolved dispatches on real corpora
+  (`experiments/tcloo_diag/RESULTS.md`) and use the generic fallback.
 - A receiver whose class is only bound in *another file* (a cross-file instance
   variable, global, or parameter) is not tracked: object provenance is computed
   per file, so only the workspace class *hierarchy* crosses files today, not the
@@ -168,7 +173,8 @@ still highlighted by the object-method / generic passes above.
   `collection_class_bridges_across_methods`, `spicegentcl_configurable_device_shape_resolves`,
   `interproc_param_from_object_arg_is_a_handle`, `interproc_param_flows_through_call_chain`,
   `aliasing_copies_handle_class`, `constructor_param_typed_from_object_arg`,
-  `instance_var_from_constructor_param_bridges_methods`
+  `instance_var_from_constructor_param_bridges_methods`, `snit_named_constructor_types_handle`
+- `rust/tcl-compiler/src/signature_scan/handlers.rs` — `handle_snit_type_records_class`
 - `rust/tcl-lsp-db/src/lib.rs` — `cross_file_object_dispatch_resolves_via_project_index`
 - `rust/tcl-compiler/src/lowering/mod.rs` — `lowers_oo_configurable_class_body`
 - `rust/tcl-compiler/src/type_infer.rs` — `dict_of_objects_retrieval_types_element`,

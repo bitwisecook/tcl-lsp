@@ -457,6 +457,21 @@ pub(super) fn handle_itcl_class(
     emit_class(&texts[1], argv[1], argv[2], ns_prefix, result);
 }
 
+/// Record a snit type/widget/widgetadaptor as a class so its instance-creating
+/// constructor (`Name create obj` / `Name %AUTO%`) types the receiving variable
+/// `OBJECT(Name)`.  Same `DEFINER Name Body` shape as itcl.
+pub(super) fn handle_snit_type(
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    result: &mut SignatureScanResult,
+) {
+    if texts.len() < 3 {
+        return;
+    }
+    emit_class(&texts[1], argv[1], argv[2], ns_prefix, result);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -848,6 +863,21 @@ mod tests {
         let cls = result.classes.get("::Foo").expect("inserted");
         assert_eq!(cls.name, "Foo");
         assert_eq!(cls.body_range, Span::new(16, 33));
+    }
+
+    #[test]
+    fn handle_snit_type_records_class() {
+        let texts = vec![
+            "snit::type".to_string(),
+            "Foo".to_string(),
+            "method m {} {}".to_string(),
+        ];
+        let argv = vec![token(0, 10), token(11, 14), token(15, 29)];
+        let mut result = SignatureScanResult::default();
+        handle_snit_type(&texts, &argv, "", &mut result);
+        let cls = result.classes.get("::Foo").expect("inserted");
+        assert_eq!(cls.name, "Foo");
+        assert_eq!(cls.body_range, Span::new(15, 29));
     }
 
     #[test]

@@ -105,6 +105,26 @@ The overall resolution rate **roughly doubled** — one targeted change,
 experiment-selected, moving ~840 real dispatch sites. This is the payoff of the
 diagnostic: measuring *why* receivers were unresolved pointed straight at snit
 `$self` rather than at more `TclOO` VTA edges (which the same corpus proved
-inert). Still abstaining (correctly): the snit *named-constructor* shape
-(`set o [foo create x]; $o m`), snit components (`install`/`delegate`), `$hull`,
-and Tk widget paths — the next slices, in `tcloo_diag`'s priority order.
+inert).
+
+## Phase 3b — snit named-constructor typing (`set o [foo create x]`)
+
+The signature scan now records snit types (`snit::type`/`widget`/`widgetadaptor`)
+as classes — a pure-snit file contains neither "class" nor "oo::", so the cheap
+`collect_known_classes` gate previously skipped it and left every snit
+`[Name create obj]` untyped. Admitting `snit::` and recording the class types the
+receiving variable `OBJECT(Name)`.
+
+| mode | after `$self` | after named-ctor | Δ |
+|---|--:|--:|--:|
+| local `all` | 1699 | **1713 (13.7%)** | +14 |
+| project `all` | 1853 | **1867 (14.9%)** | +14 |
+
+A smaller lever than `$self` (the `foo create x` shape is less frequent than
+in-body self-dispatch in this corpus) but sound and free — it also flips the
+`snit_named_object` fixture to Resolve.
+
+Still abstaining (correctly): the *bareword* named-object shape (`Foo create
+obj; obj m`, needing `created_instance_commands`), snit components
+(`install`/`delegate`), `$hull`, and Tk widget paths — the next slices, in
+`tcloo_diag`'s priority order.

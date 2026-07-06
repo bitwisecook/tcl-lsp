@@ -133,8 +133,10 @@ So the measured priority order (highest corpus impact first) is:
    shape so `enclosing_class` is threaded into their bodies, and the self-call
    resolver accepts `$self` / `$this` heads. Measured effect: overall dispatch
    resolution ~doubled (local 6.8%→13.6%, project 8.1%→14.8%; see
-   `experiments/tcloo_dispatch/RESULTS.md`). Remaining snit slices: named-object
-   constructor typing (`foo create x`), components, `$hull`.
+   `experiments/tcloo_dispatch/RESULTS.md`). **Named-constructor typing
+   (`set o [foo create x]`) has also landed** — the signature scan records snit
+   types as classes so the receiver types `OBJECT(class)`. Remaining snit slices:
+   components (`install`/`delegate`), `$hull`, bareword named-object commands.
 2. **Cross-file object provenance** — a workspace union of the handle /
    collection maps, mirroring `project_class_index`, for the cross-file half of
    `param` / `unbound`.

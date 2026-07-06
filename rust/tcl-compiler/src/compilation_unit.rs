@@ -1067,8 +1067,10 @@ fn collect_known_classes(source: &str, registry: &CommandRegistry) -> HashSet<St
     // `TclOO` metaclass — `oo::configurable` / `oo::abstract` / `oo::singleton`,
     // none of which contain the word "class" — so also admit any `oo::` head
     // (issue #797: an `oo::configurable` class was skipped here, leaving its
-    // `[Class new]` untyped).
-    if !source.contains("class") && !source.contains("oo::") {
+    // `[Class new]` untyped).  snit definers (`snit::type` / `snit::widget` /
+    // `snit::widgetadaptor`) contain neither "class" nor "oo::", so admit
+    // `snit::` too, or a pure-snit file's `[Name create obj]` stays untyped.
+    if !source.contains("class") && !source.contains("oo::") && !source.contains("snit::") {
         return HashSet::new();
     }
     crate::signature_scan::extract_signatures(source, registry)

@@ -5260,12 +5260,12 @@ mod tests {
                 "mrun", 2, Abstain,
             ),
             (
-                // The snit *named-constructor* shape (`$o` bound by `foo create x`)
-                // — distinct from the in-body `$self` self-call, which resolves.
-                // TODO(phase-3): type `$o` from a user-class `create` constructor.
+                // The snit *named-constructor* shape: `$o` bound by `foo create
+                // x` types as `foo` (the signature scan records snit types as
+                // classes), so the dispatch resolves like any handle.
                 "snit_named_object",
                 "snit::type foo { method smeth {} {} }\nset o [foo create x]\n$o smeth\n",
-                "smeth", 2, Abstain,
+                "smeth", 2, Resolve,
             ),
         ];
         let registry = reg();

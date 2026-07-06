@@ -559,6 +559,22 @@ mod tests {
     }
 
     #[test]
+    fn snit_named_constructor_types_handle() {
+        // `set o [foo create x]` for a snit type types `o` as the snit class,
+        // so `$o method` resolves.  Requires the signature scan to record snit
+        // types as known classes (a pure-snit file has no "class"/"oo::").
+        let registry = CommandRegistry::build_default();
+        let src = "snit::type foo { method smeth {} {} }\nset o [foo create x]\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let map = object_handle_classes(&cu, &registry);
+        assert_eq!(
+            map.get("o").map(|s| s.contains("::foo")),
+            Some(true),
+            "`o` from `foo create x` should be a ::foo handle; got {map:?}"
+        );
+    }
+
+    #[test]
     fn collection_of_objects_is_tracked() {
         let registry = CommandRegistry::build_default();
         let src = "oo::class create Pin {}\n\
