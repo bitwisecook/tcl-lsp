@@ -3669,6 +3669,18 @@
       ]
     },
     {
+      "name": "namespacex",
+      "summary": "Namespace-manipulation utilities (hook/import/info/state/normalize/strip).",
+      "subcommands": [
+        "hook",
+        "import",
+        "info",
+        "normalize",
+        "state",
+        "strip"
+      ]
+    },
+    {
       "name": "ncgi::cookie",
       "summary": "Return a list of values for cookie, if any."
     },
