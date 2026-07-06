@@ -17,7 +17,8 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# fetch_tcl_source.sh — Download full Tcl source trees for 8.4, 8.5, 8.6, 9.0.
+# fetch_tcl_source.sh — Download full Tcl source trees for 8.4, 8.5, 8.6, 9.0,
+# 9.1.
 #
 # Usage:
 #   ./fetch_tcl_source.sh <version>
@@ -25,7 +26,8 @@
 #   ./fetch_tcl_source.sh 85        # or 8.5
 #   ./fetch_tcl_source.sh 86        # or 8.6
 #   ./fetch_tcl_source.sh 90        # or 9.0
-#   ./fetch_tcl_source.sh all       # all four versions
+#   ./fetch_tcl_source.sh 91        # or 9.1
+#   ./fetch_tcl_source.sh all       # all five versions
 #   ./fetch_tcl_source.sh status    # show what's present in tmp/
 #
 # Fetches pre-built release tarballs from GitHub's codeload CDN
@@ -51,6 +53,7 @@ declare -A LATEST_VERSIONS=(
     [8.5]="8.5.19"
     [8.6]="8.6.16"
     [9.0]="9.0.3"
+    [9.1]="9.1b0"
 )
 
 declare -A GITHUB_TAGS=(
@@ -58,6 +61,7 @@ declare -A GITHUB_TAGS=(
     [8.5]="core-8-5-19"
     [8.6]="core-8-6-16"
     [9.0]="core-9-0-3"
+    [9.1]="core-9-1-b0"
 )
 
 # Normalise user input
@@ -68,9 +72,10 @@ normalise_version() {
         85|8.5)  echo "8.5" ;;
         86|8.6)  echo "8.6" ;;
         90|9.0)  echo "9.0" ;;
+        91|9.1)  echo "9.1" ;;
         *)
             echo "ERROR: Unknown version '$input'" >&2
-            echo "Valid versions: 84/8.4, 85/8.5, 86/8.6, 90/9.0, all, status" >&2
+            echo "Valid versions: 84/8.4, 85/8.5, 86/8.6, 90/9.0, 91/9.1, all, status" >&2
             return 1
             ;;
     esac
@@ -81,7 +86,7 @@ show_status() {
     echo "Tcl source trees in $TMP_DIR/:"
     echo ""
     local found=0
-    for major_minor in 8.4 8.5 8.6 9.0; do
+    for major_minor in 8.4 8.5 8.6 9.0 9.1; do
         local full="${LATEST_VERSIONS[$major_minor]}"
         local dir="$TMP_DIR/tcl${full}"
         if [[ -d "$dir/generic" ]] && [[ -d "$dir/tests" ]]; then
@@ -94,7 +99,7 @@ show_status() {
         fi
     done
     echo ""
-    echo "$found of 4 versions present."
+    echo "$found of 5 versions present."
 }
 
 # Fetch one version by downloading the GitHub codeload tarball.
@@ -155,8 +160,8 @@ fetch_version() {
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 <version|all|status>"
     echo ""
-    echo "Versions: 84/8.4, 85/8.5, 86/8.6, 90/9.0"
-    echo "  all     — fetch all four versions"
+    echo "Versions: 84/8.4, 85/8.5, 86/8.6, 90/9.0, 91/9.1"
+    echo "  all     — fetch all five versions"
     echo "  status  — show what's already in tmp/"
     exit 1
 fi
@@ -168,7 +173,7 @@ case "$1" in
     all)
         echo "Fetching all Tcl source trees to $TMP_DIR/"
         echo ""
-        for v in 8.4 8.5 8.6 9.0; do
+        for v in 8.4 8.5 8.6 9.0 9.1; do
             echo "=== Tcl $v ==="
             fetch_version "$v"
             echo ""
