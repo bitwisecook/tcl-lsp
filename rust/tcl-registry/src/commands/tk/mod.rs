@@ -24,9 +24,9 @@ mod bell;
 mod bind;
 mod button;
 mod canvas;
-mod common;
 mod checkbutton;
 mod clipboard;
+mod common;
 mod destroy;
 mod entry;
 mod event;
@@ -57,6 +57,7 @@ mod text;
 mod tk_choosecolor;
 mod tk_choosedirectory;
 mod tk_cmd;
+mod tk_extra_cmds;
 mod tk_getopenfile;
 mod tk_getsavefile;
 mod tk_messagebox;
@@ -75,6 +76,7 @@ mod ttk__separator;
 mod ttk__sizegrip;
 mod ttk__style;
 mod ttk__treeview;
+mod ttk_extra;
 mod winfo;
 mod wm;
 
@@ -84,6 +86,8 @@ use crate::spec::CommandSpec;
 #[must_use]
 pub fn tk_command_specs() -> Vec<CommandSpec> {
     let mut specs = tk_command_specs_raw();
+    specs.extend(ttk_extra::specs());
+    specs.extend(tk_extra_cmds::specs());
     // The themed-widget set (`ttk::*`) was introduced with Tk 8.5.  Stamp the
     // package `min_version` here rather than in every ttk spec file so the
     // gate stays in one place.
@@ -180,6 +184,36 @@ mod tests {
         ] {
             assert!(has(cmd), "tk command `{cmd}` is registered");
         }
+    }
+
+    #[test]
+    fn newly_added_tk_commands_are_present() {
+        let specs = tk_command_specs();
+        let has = |n: &str| specs.iter().any(|s| s.name == n);
+        // The remaining themed widgets.
+        for w in [
+            "ttk::checkbutton",
+            "ttk::menubutton",
+            "ttk::panedwindow",
+            "ttk::radiobutton",
+            "ttk::spinbox",
+        ] {
+            assert!(has(w), "themed widget `{w}` is registered");
+        }
+        // Additional standalone commands.
+        for c in [
+            "bindtags",
+            "tk_optionMenu",
+            "tk_dialog",
+            "tk_setPalette",
+            "tk_focusNext",
+            "tk_focusPrev",
+        ] {
+            assert!(has(c), "tk command `{c}` is registered");
+        }
+        // ttk::spinbox is gated to 8.5 like the rest of the themed set.
+        let spin = specs.iter().find(|s| s.name == "ttk::spinbox").unwrap();
+        assert_eq!(spin.min_version, Some("8.5"));
     }
 
     #[test]

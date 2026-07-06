@@ -306,6 +306,14 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         min_version: None,
     },
+    OptionSpec {
+        name: "-offrelief",
+        value: OptionValue::value("relief"),
+        detail: "Specifies the relief for the checkbutton when the indicator is not drawn and the checkbutton is off. The.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {

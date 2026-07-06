@@ -194,6 +194,30 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         min_version: None,
     },
+    OptionSpec {
+        name: "-disabledforeground",
+        value: OptionValue::value("color"),
+        detail: "Specifies foreground color to use when drawing a disabled element. If the option is specified as an empty.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-justify",
+        value: OptionValue::value("justify"),
+        detail: "When there are multiple lines of text displayed in a widget, this option determines how the lines line up.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-state",
+        value: OptionValue::value("stateSpec"),
+        detail: "Specifies one of two states for the listbox: normal or disabled. If the listbox is disabled then items may.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
 ];
 
 /// The command's subcommands.

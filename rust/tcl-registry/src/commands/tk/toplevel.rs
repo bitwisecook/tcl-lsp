@@ -170,6 +170,22 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         min_version: None,
     },
+    OptionSpec {
+        name: "-pady",
+        value: OptionValue::value("amount"),
+        detail: "Specifies a non-negative value indicating how much extra space to request for the widget in the Y-direction.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-padx",
+        value: OptionValue::value("amount"),
+        detail: "Specifies a non-negative value indicating how much extra space to request for the widget in the X-direction.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {
