@@ -123,6 +123,7 @@ pub mod loops;
 pub mod lowering;
 pub mod lowering_hooks;
 pub mod memory_ssa;
+pub mod object_types;
 // Name normalisation moved to the shared `tcl-syntax` crate; re-export so
 // `crate::naming::*` keeps resolving across the compiler.
 pub use tcl_syntax::naming;

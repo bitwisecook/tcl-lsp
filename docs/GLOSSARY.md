@@ -265,6 +265,24 @@ state), each with its own arity and side-effect classification.  See
 
 See also: [Command registry](design/compiler/command-registry.md).
 
+### ObjectClassSpec
+
+Registry metadata for a `TclOO` / megawidget class whose instances are
+dispatched as `$obj <method> …`.  Attached to the class factory command and
+carrying the class's instance methods (each a `SubCommand`), so an object
+handle's method options resolve through the registry.  See `ObjectClassSpec`
+in `tcl_registry::spec`.
+
+See also: [Command registry](design/compiler/command-registry.md).
+
+### Object handle
+
+A command name that names a `TclOO` object instance (returned by
+`Class new` / bound by `Class create name`), invoked as `$handle method …`.
+The [object-handle tracking](design/compiler/command-registry.md) harvests
+`set var [Class new]` provenance so `$var` is known to hold an instance of a
+registry-modelled class.
+
 ---
 
 ## Phase 4 — CFG construction

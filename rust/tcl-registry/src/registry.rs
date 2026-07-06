@@ -148,6 +148,7 @@ fn all_dialect_command_names() -> &'static FxHashSet<&'static str> {
         add(crate::commands::stdlib::stdlib_command_specs());
         add(crate::commands::tcllib::tcllib_command_specs());
         add(crate::commands::argparse::argparse_command_specs());
+        add(crate::commands::ticklecharts::ticklecharts_command_specs());
         add(crate::commands::itcl::itcl_command_specs());
         add(crate::commands::tk::tk_command_specs());
         add(crate::commands::irules::irules_command_specs());
@@ -217,6 +218,9 @@ impl CommandRegistry {
             registry.insert(spec);
         }
         for spec in crate::commands::argparse::argparse_command_specs() {
+            registry.insert(spec);
+        }
+        for spec in crate::commands::ticklecharts::ticklecharts_command_specs() {
             registry.insert(spec);
         }
         for spec in crate::commands::itcl::itcl_command_specs() {
@@ -366,6 +370,46 @@ impl CommandRegistry {
     /// Return all registered command names.
     pub fn command_names(&self) -> impl Iterator<Item = &str> {
         self.by_name.keys().map(String::as_str)
+    }
+
+    /// The [`ObjectClassSpec`] for a `TclOO` / megawidget class named
+    /// `class_name`, or `None` when it is not a registry-modelled class.
+    ///
+    /// For a `TclOO` class the class name is the factory command name
+    /// (`oo::class create Foo` binds command `Foo`), so this resolves through
+    /// the ordinary command table — no separate index.  A leading `::` falls
+    /// back to the bare name, as with [`Self::get`].
+    #[must_use]
+    pub fn object_class(&self, class_name: &str) -> Option<&crate::spec::ObjectClassSpec> {
+        self.get(class_name).and_then(|s| s.object_class)
+    }
+
+    /// Resolve an instance method `method` on class `class_name`, walking
+    /// declared superclasses breadth-first.  Returns the owning class's
+    /// [`SubCommand`] method spec, or `None` when unresolved.
+    #[must_use]
+    pub fn instance_method(
+        &self,
+        class_name: &str,
+        method: &str,
+    ) -> Option<&crate::spec::SubCommand> {
+        let mut queue = vec![class_name.to_string()];
+        let mut seen = std::collections::HashSet::new();
+        while let Some(cls) = queue.pop() {
+            if !seen.insert(cls.clone()) {
+                continue;
+            }
+            let Some(class_spec) = self.object_class(&cls) else {
+                continue;
+            };
+            if let Some(m) = class_spec.instance_method(method) {
+                return Some(m);
+            }
+            for sup in class_spec.superclasses {
+                queue.push((*sup).to_string());
+            }
+        }
+        None
     }
 
     /// Whether `pkg` is a package the registry knows about — i.e. at

@@ -32,6 +32,10 @@ rules for the KCS/documentation split live in
   persistent per-document analysis worker model: bounded pool + per-uri
   single-writer lock for incremental edits, process pool + serialized
   warm-start seed for the cold build.
+- [tcloo-mro-lattice.md](tcloo-mro-lattice.md) — the (measured-negative)
+  `TclOO` object→class dispatch lattice experiment: why intraprocedural class
+  resolution collapses to ⊤ on real corpora, and what the shipping
+  MRO/CHA + provenance model does instead.
 
 > Past project-tracking documents (perf reports, phase trackers,
 > migration plans) are kept in [`../archive/`](../archive/) and are

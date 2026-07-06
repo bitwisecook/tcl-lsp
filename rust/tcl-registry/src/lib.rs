@@ -97,7 +97,7 @@ pub mod prelude {
     };
     pub use crate::patterns::{FormatType, PatternType};
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
-    pub use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
+    pub use crate::spec::{BytePayloadSpec, CommandSpec, ObjectClassSpec, SubCommand};
     pub use crate::taint::{SetterConstraint, TaintColour};
     pub use crate::traits::Traits;
     pub use crate::types::TclType;
@@ -116,7 +116,7 @@ pub use dialects::{
 pub use hover::ArgValue;
 pub use patterns::{FormatType, PatternType};
 pub use registry::{CommandRegistry, ResolvedTerminator};
-pub use spec::{BytePayloadSpec, CommandSpec, SubCommand};
+pub use spec::{BytePayloadSpec, CommandSpec, ObjectClassSpec, SubCommand};
 pub use taint::{SetterConstraint, TaintColour};
 pub use traits::Traits;
 pub use types::TclType;

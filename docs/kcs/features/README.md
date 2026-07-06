@@ -77,6 +77,7 @@ combine them when more than one form helps:
 - [kcs-feature-inlay-hints.md](kcs-feature-inlay-hints.md)
 - [kcs-feature-call-hierarchy.md](kcs-feature-call-hierarchy.md)
 - [kcs-feature-semantic-tokens.md](kcs-feature-semantic-tokens.md)
+- [kcs-feature-command-option-highlighting.md](kcs-feature-command-option-highlighting.md)
 - [kcs-feature-apl-language.md](kcs-feature-apl-language.md)
 - [kcs-feature-selection-range.md](kcs-feature-selection-range.md)
 - [kcs-feature-document-links.md](kcs-feature-document-links.md)
