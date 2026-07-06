@@ -1286,6 +1286,18 @@
       "summary": "Wait for a DNS query to complete."
     },
     {
+      "name": "doctools::help",
+      "summary": "This is a convenience command for applications wishing to provide their user with a short description of the."
+    },
+    {
+      "name": "doctools::new",
+      "summary": "This command creates a new doctools object with an associated Tcl command whose name is objectName."
+    },
+    {
+      "name": "doctools::search",
+      "summary": "Whenever an object created by this the package has to map the name of a format to the file containing the code."
+    },
+    {
       "name": "encoding",
       "summary": "Convert between character encodings.",
       "subcommands": [
@@ -4798,6 +4810,66 @@
       "summary": "Return compile-time build metadata for the Tcl runtime."
     },
     {
+      "name": "tcl::chan::cat",
+      "summary": "This command creates the concatenation channel using all the provided channels, and returns its handle."
+    },
+    {
+      "name": "tcl::chan::facade",
+      "summary": "This command creates the facade channel around the provided channel chan, and returns its handle."
+    },
+    {
+      "name": "tcl::chan::fifo",
+      "summary": "This command creates a new fifo channel and returns its handle."
+    },
+    {
+      "name": "tcl::chan::fifo2",
+      "summary": "This command creates a new connected pair of fifo channels and returns their handles, as a list containing two."
+    },
+    {
+      "name": "tcl::chan::halfpipe",
+      "summary": "This command creates a halfpipe channel and configures it with the callbacks to run when the channel is closed."
+    },
+    {
+      "name": "tcl::chan::memchan",
+      "summary": "This command creates a new memchan channel and returns its handle."
+    },
+    {
+      "name": "tcl::chan::null",
+      "summary": "This command creates a new null channel and returns its handle."
+    },
+    {
+      "name": "tcl::chan::nullzero",
+      "summary": "This command creates a new nullzero channel and returns its handle."
+    },
+    {
+      "name": "tcl::chan::random",
+      "summary": "This command creates a new random channel and returns its handle."
+    },
+    {
+      "name": "tcl::chan::std",
+      "summary": "This command creates the std channel and returns its handle."
+    },
+    {
+      "name": "tcl::chan::string",
+      "summary": "This command creates a new string channel and returns its handle."
+    },
+    {
+      "name": "tcl::chan::textwindow",
+      "summary": "This command creates a new textwindow channel and returns its handle."
+    },
+    {
+      "name": "tcl::chan::variable",
+      "summary": "This command creates a new variable channel and returns its handle."
+    },
+    {
+      "name": "tcl::chan::zero",
+      "summary": "This command creates a new zero channel and returns its handle."
+    },
+    {
+      "name": "tcl::combine",
+      "summary": "This command takes to seed lists and combines them into a single list by XORing them elementwise, modulo 256."
+    },
+    {
       "name": "tcl::idna",
       "summary": "Internationalised Domain Name (IDNA/Punycode) helpers.",
       "subcommands": [
@@ -4945,6 +5017,10 @@
       ]
     },
     {
+      "name": "tcl::randomseed",
+      "summary": "This command creates returns a list of seed integers suitable as seed argument for random channels."
+    },
+    {
       "name": "tcl::tm::path",
       "summary": "Manage the list of paths searched for Tcl modules.",
       "subcommands": [
@@ -4956,6 +5032,54 @@
     {
       "name": "tcl::tm::roots",
       "summary": "Set the root paths for Tcl module discovery."
+    },
+    {
+      "name": "tcl::transform::adler32",
+      "summary": "This command creates an adler32 checksumming transformation on top of the channel chan and returns its handle."
+    },
+    {
+      "name": "tcl::transform::base64",
+      "summary": "This command creates a base64 transformation on top of the channel chan and returns its handle."
+    },
+    {
+      "name": "tcl::transform::counter",
+      "summary": "This command creates a counter transformation on top of the channel chan and returns its handle."
+    },
+    {
+      "name": "tcl::transform::crc32",
+      "summary": "This command creates a crc32 checksumming transformation on top of the channel chan and returns its handle."
+    },
+    {
+      "name": "tcl::transform::hex",
+      "summary": "This command creates a hex transformation on top of the channel chan and returns its handle."
+    },
+    {
+      "name": "tcl::transform::identity",
+      "summary": "This command creates an identity transformation on top of the channel chan and returns its handle."
+    },
+    {
+      "name": "tcl::transform::limitsize",
+      "summary": "This command creates a size limiting transformation on top of the channel chan and returns its handle."
+    },
+    {
+      "name": "tcl::transform::observe",
+      "summary": "This command creates an observer transformation on top of the channel chan and returns its handle."
+    },
+    {
+      "name": "tcl::transform::otp",
+      "summary": "This command creates a one-time pad based encryption transformation on top of the channel chan and returns its."
+    },
+    {
+      "name": "tcl::transform::rot",
+      "summary": "This command creates a rot encryption transformation on top of the channel chan and returns its handle."
+    },
+    {
+      "name": "tcl::transform::spacer",
+      "summary": "This command creates a spacer transformation on top of the channel chan and returns its handle."
+    },
+    {
+      "name": "tcl::transform::zlib",
+      "summary": "This command creates a zlib compressor transformation on top of the channel chan and returns its handle."
     },
     {
       "name": "tclLog",

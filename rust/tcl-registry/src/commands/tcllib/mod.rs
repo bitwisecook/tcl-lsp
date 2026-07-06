@@ -234,6 +234,7 @@ mod yaml__yaml2huddle;
 // Grouped crypto / hash / checksum / encoding packages (one module per
 // package family, each exposing a `specs()` builder).
 mod base32;
+mod channels_docs;
 mod ciphers;
 mod clients;
 mod crc;
@@ -556,6 +557,7 @@ fn crypto_encoding_specs() -> Vec<CommandSpec> {
     specs.extend(term_text::specs());
     specs.extend(data_structures::specs());
     specs.extend(data_ext::specs());
+    specs.extend(channels_docs::specs());
     specs
 }
 
