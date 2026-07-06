@@ -750,10 +750,10 @@ impl CommandRegistry {
         let n = args.len();
         let mut out: Vec<usize> = Vec::new();
 
-        // Check subcommand
+        // Check subcommand (exact or unique-prefix abbreviation).
         if !spec.subcommands.is_empty()
             && !args.is_empty()
-            && let Some(sub) = spec.subcommand(args[0])
+            && let Some(sub) = spec.resolve_subcommand(args[0])
         {
             // Positional roles, offset by +1 for the subcommand word.
             if let Some(resolver) = sub.arg_role_resolver {
@@ -1274,6 +1274,42 @@ mod tests {
             reg.get("const").expect("registered").dialects,
             None,
             "const should be universal (it is dialect-agnostic)",
+        );
+    }
+
+    #[test]
+    fn every_command_has_hover_with_manpage_source() {
+        // Every registered command must carry a hover snippet with a non-empty
+        // summary and a manpage/source attribution. A short allowlist covers
+        // internal pseudo-commands and dialect placeholders that have no user
+        // documentation.
+        const HOVERLESS_OK: &[&str] = &["disabled_in_irules"];
+        let reg = CommandRegistry::build_default();
+        let mut missing_hover = Vec::new();
+        let mut missing_source = Vec::new();
+        for name in reg.command_names() {
+            if HOVERLESS_OK.contains(&name) {
+                continue;
+            }
+            let spec = reg.get(name).expect("registered");
+            match &spec.hover {
+                None => missing_hover.push(name.to_string()),
+                Some(h) => {
+                    if h.summary.trim().is_empty() || h.source.trim().is_empty() {
+                        missing_source.push(name.to_string());
+                    }
+                }
+            }
+        }
+        missing_hover.sort();
+        missing_source.sort();
+        assert!(
+            missing_hover.is_empty(),
+            "commands without a hover snippet: {missing_hover:?}",
+        );
+        assert!(
+            missing_source.is_empty(),
+            "commands with an empty hover summary or manpage source: {missing_source:?}",
         );
     }
 

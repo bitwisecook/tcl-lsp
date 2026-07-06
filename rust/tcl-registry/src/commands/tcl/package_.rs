@@ -67,6 +67,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns or sets the current mode of selection logic used by package require.",
         synopsis: "package prefer ?latest|stable?",
         return_type: Some(TclType::String),
+        // Added in Tcl 8.5 (TIP 268).
+        dialects: Some(DialectSet::TCL85_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {

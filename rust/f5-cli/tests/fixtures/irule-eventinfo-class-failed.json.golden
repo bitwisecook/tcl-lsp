@@ -9,7 +9,7 @@
   "impliedProfiles": [
     "HTTP"
   ],
-  "validCommandCount": 1068,
+  "validCommandCount": 1065,
   "validCommands": [
     "AAA::acct_result",
     "AAA::acct_send",
@@ -631,7 +631,6 @@
     "active_nodes",
     "after",
     "append",
-    "apply",
     "argparse",
     "array",
     "b64decode",
@@ -836,9 +835,7 @@
     "logger::setlevel",
     "logger::walk",
     "lrange",
-    "lrepeat",
     "lreplace",
-    "lreverse",
     "lsearch",
     "lset",
     "lsort",

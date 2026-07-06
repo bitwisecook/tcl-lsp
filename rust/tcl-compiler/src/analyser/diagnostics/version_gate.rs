@@ -104,7 +104,7 @@ impl Analyser {
         let sub_match = (!spec.subcommands.is_empty())
             .then(|| {
                 let first = args.first().map(String::as_str).unwrap_or_default();
-                spec.subcommands.iter().find(|s| s.name == first)
+                spec.resolve_subcommand(first)
             })
             .flatten();
         let (options, start_idx) = match sub_match {

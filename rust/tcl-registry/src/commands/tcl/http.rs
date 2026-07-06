@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
             summary: "HTTP client implementation (package http)",
             synopsis: &[],
             snippet: "",
-            source: "",
+            source: "Tcl man page http.n",
             examples: "",
             return_value: "",
         }),

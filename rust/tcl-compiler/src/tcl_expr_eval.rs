@@ -424,10 +424,9 @@ pub fn format_tcl_value(v: TclValue) -> String {
 pub fn parse_literal(text: &str) -> Option<TclValue> {
     use tcl_syntax::number::Number;
     // Boolean keywords (`Tcl_GetBoolean`, not part of the number grammar).
-    match text.to_ascii_lowercase().as_str() {
-        "true" | "yes" | "on" => return Some(TclValue::Int(1)),
-        "false" | "no" | "off" => return Some(TclValue::Int(0)),
-        _ => {}
+    // Accepts unique-prefix spellings (`tr`, `ye`, `of`) like real Tcl.
+    if let Some(b) = tcl_syntax::boolean::parse_boolean_word(text) {
+        return Some(TclValue::Int(i64::from(b)));
     }
     // The numeric grammar is the shared `tcl_syntax::number` (the same
     // `TclParseNumber` port the runtime const-folds with): `0x`/`0o`/`0b`,
@@ -885,6 +884,21 @@ mod tests {
         assert_eq!(parse_literal("yes"), Some(TclValue::Int(1)));
         assert_eq!(parse_literal("false"), Some(TclValue::Int(0)));
         assert_eq!(parse_literal("off"), Some(TclValue::Int(0)));
+    }
+
+    #[test]
+    fn literal_bool_unique_prefix() {
+        // `Tcl_GetBoolean` accepts unique prefixes in a boolean-coercion
+        // context (verified against tclsh: `expr {1 && tr}` => 1,
+        // `expr {ye && of}` => 0).
+        for w in ["t", "tr", "tru", "y", "ye", "on"] {
+            assert_eq!(parse_literal(w), Some(TclValue::Int(1)), "{w}");
+        }
+        for w in ["f", "fa", "n", "no", "of", "off"] {
+            assert_eq!(parse_literal(w), Some(TclValue::Int(0)), "{w}");
+        }
+        // Ambiguous `o` (on/off) is not a boolean.
+        assert_eq!(parse_literal("o"), None);
     }
 
     #[test]

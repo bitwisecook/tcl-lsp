@@ -41,6 +41,7 @@
 //! - `subst` — to follow.
 
 pub mod backslash;
+pub mod boolean;
 pub mod expr;
 pub mod format;
 pub mod glob;

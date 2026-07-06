@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
             summary: "Return current working directory",
             synopsis: &[],
             snippet: "",
-            source: "",
+            source: "Tcl man page pwd.n",
             examples: "",
             return_value: "",
         }),

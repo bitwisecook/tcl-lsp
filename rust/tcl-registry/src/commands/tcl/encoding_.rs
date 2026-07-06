@@ -101,6 +101,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Manage encoding search path.",
         synopsis: "encoding dirs ?directoryList?",
         return_type: Some(TclType::List),
+        // Added in Tcl 8.5.
+        dialects: Some(DialectSet::TCL85_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {

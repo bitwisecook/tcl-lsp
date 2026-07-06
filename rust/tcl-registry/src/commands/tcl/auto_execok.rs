@@ -28,7 +28,7 @@ pub fn spec() -> CommandSpec {
             summary: "Return path of executable, or empty string",
             synopsis: &[],
             snippet: "",
-            source: "",
+            source: "Tcl man page library.n",
             examples: "",
             return_value: "",
         }),

@@ -28,7 +28,7 @@ pub fn spec() -> CommandSpec {
             summary: "Locate a Tcl library directory",
             synopsis: &[],
             snippet: "",
-            source: "",
+            source: "Tcl man page library.n",
             examples: "",
             return_value: "",
         }),

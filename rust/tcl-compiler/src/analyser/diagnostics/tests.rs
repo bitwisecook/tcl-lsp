@@ -760,6 +760,148 @@ fn after_integer_ms_is_not_unknown_subcommand() {
 }
 
 #[test]
+fn w001_accepts_unique_prefix_subcommand_abbreviations() {
+    // Tcl ensemble dispatch accepts unique-prefix abbreviations; the analyser
+    // must not flag them as unknown subcommands (W001).
+    for snippet in [
+        "string le $s",       // length
+        "string leng $s",     // length
+        "info ex v",          // exists
+        "dict k $d",          // keys
+        "string rev $s",      // reverse
+    ] {
+        assert!(
+            !has_code(snippet, "tcl8.6", "W001"),
+            "unique-prefix abbreviation {snippet:?} must not trip W001"
+        );
+    }
+    // A genuinely unknown word still fires.
+    assert!(
+        has_code("string zzz $s", "tcl8.6", "W001"),
+        "an unknown subcommand must still fire W001"
+    );
+    // An ambiguous prefix (`string t` → tolower/totitle/toupper/trim…) is not a
+    // valid abbreviation and remains flagged.
+    assert!(
+        has_code("string t $s", "tcl8.6", "W001"),
+        "an ambiguous prefix must still fire W001"
+    );
+}
+
+#[test]
+fn command_version_gates_fire_w123() {
+    // Whole commands introduced after 8.4 must be unknown (W123) in older
+    // dialects and known once available.
+    let cases = [
+        ("apply {{} {return 1}}", "tcl8.5", "tcl8.4"),
+        ("lreverse {a b c}", "tcl8.5", "tcl8.4"),
+        ("lrepeat 3 x", "tcl8.5", "tcl8.4"),
+        // NB: `const` is intentionally universal (valid in iRules), so it is
+        // deliberately NOT version-gated — see const_.rs.
+    ];
+    for (snippet, ok, old) in cases {
+        assert!(
+            Analyser::new()
+                .analyse(snippet, old)
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W123),
+            "expected W123 for {snippet:?} on {old}"
+        );
+        assert!(
+            !Analyser::new()
+                .analyse(snippet, ok)
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W123),
+            "unexpected W123 for {snippet:?} on {ok}"
+        );
+    }
+}
+
+#[test]
+fn subcommand_version_gates_fire_w001() {
+    // Subcommands added or removed across 8.4-9.1 must warn (W001 unknown
+    // subcommand) in dialects where they do not exist.
+    let added = [
+        // (snippet, first dialect it exists in, an older dialect)
+        ("string reverse abc", "tcl8.5", "tcl8.4"),
+        ("package prefer stable", "tcl8.5", "tcl8.4"),
+        ("encoding dirs", "tcl8.5", "tcl8.4"),
+        ("binary encode base64 abc", "tcl8.6", "tcl8.5"),
+        ("binary decode base64 abc", "tcl8.6", "tcl8.5"),
+        ("interp bgerror {}", "tcl8.5", "tcl8.4"),
+        ("interp limit {} time", "tcl8.5", "tcl8.4"),
+        ("interp debug {}", "tcl8.5", "tcl8.4"),
+        ("interp cancel", "tcl8.6", "tcl8.5"),
+        ("interp children", "tcl8.6", "tcl8.5"),
+        ("clock add 0 1 day", "tcl8.5", "tcl8.4"),
+        ("clock microseconds", "tcl8.5", "tcl8.4"),
+        ("clock milliseconds", "tcl8.5", "tcl8.4"),
+    ];
+    for (snippet, ok, old) in added {
+        assert!(
+            Analyser::new()
+                .analyse(snippet, old)
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W001),
+            "expected W001 for {snippet:?} on {old}"
+        );
+        assert!(
+            !Analyser::new()
+                .analyse(snippet, ok)
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W001),
+            "unexpected W001 for {snippet:?} on {ok}"
+        );
+    }
+    // `trace variable/vdelete/vinfo` were removed in 9.0: known in 8.6, gone in
+    // 9.0.
+    for snippet in [
+        "trace variable v w {}",
+        "trace vdelete v w {}",
+        "trace vinfo v",
+        // `interp slaves` was renamed to `interp children` in 9.0.
+        "interp slaves",
+    ] {
+        assert!(
+            !Analyser::new()
+                .analyse(snippet, "tcl8.6")
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W001),
+            "unexpected W001 for {snippet:?} on tcl8.6"
+        );
+        assert!(
+            Analyser::new()
+                .analyse(snippet, "tcl9.0")
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W001),
+            "expected W001 for {snippet:?} on tcl9.0 (removed)"
+        );
+    }
+}
+
+#[test]
+fn info_frame_is_dialect_gated_to_8_5_plus() {
+    // `info frame` was introduced in Tcl 8.5 (TIP 280); it does not exist in
+    // 8.4, so an unknown-subcommand W001 must fire there but not in 8.5+.
+    assert!(
+        has_code("info frame\n", "tcl8.4", "W001"),
+        "info frame should be unknown in tcl8.4"
+    );
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        assert!(
+            !has_code("info frame\n", dialect, "W001"),
+            "info frame should be known in {dialect}"
+        );
+    }
+}
+
+#[test]
 fn e001_fires_for_bare_subcommand_command() {
     // A subcommand-dispatch command (`string`, `dict`, `info`) invoked
     // with no subcommand at all is E001.
@@ -951,6 +1093,39 @@ fn w004_fires_on_lsearch_stride_in_tcl85() {
         "expected W004 on tcl8.5 lsearch -stride, got {:?}",
         result.diagnostics
     );
+}
+
+#[test]
+fn w004_fires_on_version_gated_list_options() {
+    // Options added after 8.4 must warn (W004) under an older dialect and stay
+    // silent once available.
+    let cases = [
+        // (snippet, introduced-in dialect, a dialect that predates it)
+        ("lsearch -index 0 {a b} x", "tcl8.5", "tcl8.4"), // -index: 8.5
+        ("lsearch -nocase {a b} x", "tcl8.5", "tcl8.4"),  // -nocase: 8.5
+        ("lsearch -bisect {a b} x", "tcl8.6", "tcl8.5"),  // -bisect: 8.6
+        ("lsort -nocase {a b}", "tcl8.5", "tcl8.4"),      // -nocase: 8.5
+        ("lsort -indices {a b}", "tcl8.5", "tcl8.4"),     // -indices: 8.5
+        ("lsort -stride 2 {a b}", "tcl8.6", "tcl8.5"),    // -stride: 8.6
+    ];
+    for (snippet, ok_dialect, old_dialect) in cases {
+        let mut a = Analyser::new();
+        assert!(
+            a.analyse(snippet, old_dialect)
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W004),
+            "expected W004 for {snippet:?} on {old_dialect}"
+        );
+        let mut a = Analyser::new();
+        assert!(
+            !a.analyse(snippet, ok_dialect)
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W004),
+            "unexpected W004 for {snippet:?} on {ok_dialect}"
+        );
+    }
 }
 
 #[test]

@@ -501,10 +501,64 @@ impl CommandSpec {
         }
     }
 
-    /// Look up a subcommand by name.
+    /// Look up a subcommand by exact name.
     #[must_use]
     pub fn subcommand(&self, name: &str) -> Option<&SubCommand> {
         self.subcommands.iter().find(|s| s.name == name)
+    }
+
+    /// Resolve a subcommand word to its [`SubCommand`], accepting a unique
+    /// non-empty prefix the way Tcl's ensemble dispatch (`Tcl_GetIndexFromObj`)
+    /// does: `string le` ⇒ `length`, `info ex` ⇒ `exists`. An exact match
+    /// always wins over a prefix; an ambiguous prefix (several candidates, e.g.
+    /// `string t`) resolves to `None`.
+    ///
+    /// Dialect-agnostic — every declared subcommand is a candidate. Prefer
+    /// [`Self::resolve_subcommand_for_dialect`] where the active Tcl version is
+    /// known, since a prefix's uniqueness can change between versions
+    /// (`info class def` is `definition` in 8.6 but ambiguous with
+    /// `definitionnamespace` in 9.0).
+    #[must_use]
+    pub fn resolve_subcommand(&self, word: &str) -> Option<&SubCommand> {
+        self.resolve_subcommand_filtered(word, |_| true)
+    }
+
+    /// Like [`Self::resolve_subcommand`] but only considers subcommands
+    /// available in `dialect`, so prefix uniqueness matches the given Tcl
+    /// version exactly.
+    #[must_use]
+    pub fn resolve_subcommand_for_dialect(
+        &self,
+        word: &str,
+        dialect: DialectSet,
+    ) -> Option<&SubCommand> {
+        let parent = self.dialects;
+        self.resolve_subcommand_filtered(word, |s| match s.dialects.or(parent) {
+            Some(d) => d.intersects(dialect),
+            None => true,
+        })
+    }
+
+    fn resolve_subcommand_filtered(
+        &self,
+        word: &str,
+        avail: impl Fn(&SubCommand) -> bool,
+    ) -> Option<&SubCommand> {
+        if word.is_empty() {
+            return None;
+        }
+        if let Some(exact) = self.subcommands.iter().find(|s| s.name == word && avail(s)) {
+            return Some(exact);
+        }
+        let mut hits = self
+            .subcommands
+            .iter()
+            .filter(|s| s.name.starts_with(word) && avail(s));
+        let first = hits.next()?;
+        if hits.next().is_some() {
+            return None; // ambiguous prefix
+        }
+        Some(first)
     }
 
     /// Return static arg role for a given index, if declared.
@@ -833,6 +887,37 @@ pub struct SubCommand {
     /// CFG-lowered command name for ensemble subcommands rewritten by
     /// the lowering pass.
     pub cfg_rewrite_name: Option<&'static str>,
+
+    /// Nested subcommands for a two-level ensemble, matched at the argument
+    /// index immediately after this subcommand word.
+    ///
+    /// A handful of `info` subcommands are themselves ensembles whose *next*
+    /// word selects a further operation — `info object <subcommand> object …`
+    /// and `info class <subcommand> class …` (per the `info` man page's OBJECT
+    /// INTROSPECTION and CLASS INTROSPECTION sections). Declaring them here lets
+    /// the semantic-token pass colour that word as a subcommand keyword (issue
+    /// #798), and drives hover and completion for it. Empty for the
+    /// overwhelmingly-common single-level subcommand.
+    pub sub_subcommands: &'static [SubSubCommand],
+}
+
+/// A second-level subcommand of a two-level ensemble (`info object <op>`,
+/// `info class <op>`).
+///
+/// Lighter than a full [`SubCommand`]: it carries just what the LSP needs to
+/// highlight, hover, and complete the word after the first-level subcommand
+/// (issue #798). Resolution accepts a unique prefix, matching how Tcl's own
+/// ensemble dispatch abbreviates subcommands.
+#[derive(Debug, Clone, Copy)]
+pub struct SubSubCommand {
+    /// Canonical operation name (`"class"`, `"superclasses"`, …).
+    pub name: &'static str,
+    /// One-line description for hover / completion detail.
+    pub detail: &'static str,
+    /// Invocation synopsis, e.g. `"info object class object ?className?"`.
+    pub synopsis: &'static str,
+    /// Dialect membership; `None` inherits from the owning subcommand.
+    pub dialects: Option<DialectSet>,
 }
 
 impl SubCommand {
@@ -878,6 +963,7 @@ impl SubCommand {
         returns_path: false,
         is_unescape: false,
         cfg_rewrite_name: None,
+        sub_subcommands: &[],
     };
 
     /// Run this subcommand's constant folder for `args` under `dialect` —
@@ -891,6 +977,61 @@ impl SubCommand {
         } else {
             self.const_fold?(args)
         }
+    }
+
+    /// Resolve a second-level subcommand word to its [`SubSubCommand`],
+    /// accepting a unique non-empty prefix (`info object cl` ⇒ `class`) the way
+    /// Tcl's ensemble dispatch does. An exact match always wins; an ambiguous
+    /// prefix (several candidates) resolves to `None`.
+    #[must_use]
+    pub fn resolve_sub_subcommand(&self, word: &str) -> Option<&'static SubSubCommand> {
+        self.resolve_sub_subcommand_filtered(word, |_| true)
+    }
+
+    /// Like [`Self::resolve_sub_subcommand`] but only considers second-level
+    /// subcommands available in `dialect`, so a prefix's uniqueness matches the
+    /// given Tcl version (`info class def` is `definition` in 8.6 but ambiguous
+    /// with `definitionnamespace` in 9.0).
+    #[must_use]
+    pub fn resolve_sub_subcommand_for_dialect(
+        &self,
+        word: &str,
+        dialect: DialectSet,
+    ) -> Option<&'static SubSubCommand> {
+        let parent = self.dialects;
+        self.resolve_sub_subcommand_filtered(word, |s| match s.dialects.or(parent) {
+            Some(d) => d.intersects(dialect),
+            None => true,
+        })
+    }
+
+    fn resolve_sub_subcommand_filtered(
+        &self,
+        word: &str,
+        avail: impl Fn(&SubSubCommand) -> bool,
+    ) -> Option<&'static SubSubCommand> {
+        if word.is_empty() {
+            return None;
+        }
+        let subs: &'static [SubSubCommand] = self.sub_subcommands;
+        if let Some(exact) = subs.iter().find(|s| s.name == word && avail(s)) {
+            return Some(exact);
+        }
+        let mut hits = subs.iter().filter(|s| s.name.starts_with(word) && avail(s));
+        let first = hits.next()?;
+        // Unique prefix only — bail if a second candidate also matches.
+        if hits.next().is_some() {
+            return None;
+        }
+        Some(first)
+    }
+
+    /// Whether `word` resolves to a second-level subcommand of this
+    /// two-level-ensemble subcommand (exact or unique-prefix; see
+    /// [`Self::resolve_sub_subcommand`]).
+    #[must_use]
+    pub fn is_sub_subcommand(&self, word: &str) -> bool {
+        self.resolve_sub_subcommand(word).is_some()
     }
 
     /// Look up a static arg role by index.

@@ -26,7 +26,7 @@ pub fn spec() -> CommandSpec {
             summary: "Create a package ifneeded script",
             synopsis: &[],
             snippet: "",
-            source: "",
+            source: "Tcl man page packagens.n",
             examples: "",
             return_value: "",
         }),

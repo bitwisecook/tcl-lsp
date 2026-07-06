@@ -28,7 +28,7 @@ pub fn spec() -> CommandSpec {
             summary: "Reset auto-loading state",
             synopsis: &[],
             snippet: "",
-            source: "",
+            source: "Tcl man page library.n",
             examples: "",
             return_value: "",
         }),

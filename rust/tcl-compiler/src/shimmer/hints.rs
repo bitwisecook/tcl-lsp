@@ -51,7 +51,7 @@ pub fn arg_shimmer_type(
     // Subcommand dispatch: spec has subcommands and args[0] names one.
     if !spec.subcommands.is_empty() {
         let sub_name = args.first().copied()?;
-        let sub = spec.subcommand(sub_name)?;
+        let sub = spec.resolve_subcommand(sub_name)?;
         // arg_index 0 = subcommand word; subtract 1 for sub-relative index.
         let sub_idx = u8::try_from(arg_index.checked_sub(1)?).ok()?;
         return sub

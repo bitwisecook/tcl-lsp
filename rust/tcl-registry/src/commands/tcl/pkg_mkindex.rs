@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
             summary: "Build pkgIndex.tcl for a directory of packages",
             synopsis: &[],
             snippet: "",
-            source: "",
+            source: "Tcl man page pkgMkIndex.n",
             examples: "",
             return_value: "",
         }),

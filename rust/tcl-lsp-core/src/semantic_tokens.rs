@@ -83,6 +83,7 @@ use tcl_lexer::{LineIndex, Span, Token, TokenType};
 
 use crate::definition::utf16_len;
 use tcl_registry::CommandRegistry;
+use tcl_registry::dialects::DialectSet;
 use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind};
 
 /// Encoded semantic-tokens response.  The `data` array is
@@ -580,6 +581,7 @@ fn special_arg_kinds(
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
     arg_texts: &[&str],
     object_classes: &ObjectClassMap,
+    dialect: DialectSet,
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
 
@@ -604,10 +606,10 @@ fn special_arg_kinds(
             .or_insert(ArgOverride::ProcNameDef);
     }
 
-    insert_option_and_subcommand_overrides(seg, registry, head, &mut overrides);
+    insert_option_and_subcommand_overrides(seg, registry, head, dialect, &mut overrides);
     insert_object_method_overrides(seg, registry, object_classes, &mut overrides);
     insert_generic_option_overrides(seg, registry, head, &mut overrides);
-    insert_enum_value_overrides(seg, registry, head, &mut overrides);
+    insert_enum_value_overrides(seg, registry, head, dialect, &mut overrides);
     insert_oo_define_keyword_overrides(seg, registry, &mut overrides);
     insert_apply_lambda_override(seg, &mut overrides);
     insert_switch_case_list_override(seg, &mut overrides);
@@ -1005,10 +1007,38 @@ fn role_claimed_by_token_pass(role: Option<tcl_registry::ArgRole>) -> bool {
     matches!(role, Some(ArgRole::Body | ArgRole::Expr | ArgRole::VarWrite))
 }
 
+/// Resolve a `-word` against a command's declared option names, accepting a
+/// unique prefix (`-inc` ⇒ `-increasing`) the way Tcl's option parsing
+/// (`Tcl_GetIndexFromObj`) does.  An exact match always wins; an ambiguous
+/// prefix (two distinct options share it, e.g. `lsort -i`) or no match returns
+/// `None`.  A bare `-` never prefix-matches (only an exact-declared `-` /
+/// `--` option does).
+fn resolve_option_prefix<'a>(word: &str, names: &[&'a str]) -> Option<&'a str> {
+    if let Some(exact) = names.iter().copied().find(|n| *n == word) {
+        return Some(exact);
+    }
+    // Prefix matching needs at least one character past the leading dash.
+    if word.len() < 2 {
+        return None;
+    }
+    let mut matched: Option<&'a str> = None;
+    for &n in names {
+        if n.starts_with(word) {
+            match matched {
+                None => matched = Some(n),
+                Some(prev) if prev == n => {}
+                Some(_) => return None, // ambiguous: two distinct options
+            }
+        }
+    }
+    matched
+}
+
 fn insert_option_and_subcommand_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
+    dialect: DialectSet,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let Some(spec) = registry.get(head) else {
@@ -1054,9 +1084,10 @@ fn insert_option_and_subcommand_overrides(
 
     // A known subcommand at arg index 1 is highlighted as a keyword, and its
     // per-subcommand options (`file delete -force`, `file link -symbolic`)
-    // join the recognised set.
+    // join the recognised set.  A unique-prefix abbreviation (`string le`)
+    // resolves like Tcl's ensemble dispatch.
     if let Some(sub_text) = seg.texts.get(1)
-        && let Some(sub) = spec.subcommand(sub_text)
+        && let Some(sub) = spec.resolve_subcommand_for_dialect(sub_text, dialect)
     {
         option_names.extend(sub.switch_names(None, spec.dialects));
         collect_value_options(sub.options);
@@ -1065,11 +1096,30 @@ fn insert_option_and_subcommand_overrides(
                 .entry(tok.span.start())
                 .or_insert(ArgOverride::SubcommandKeyword);
         }
+
+        // Two-level ensembles (`info object <subcommand>`, `info class
+        // <subcommand>`): the word after the first-level subcommand is itself a
+        // subcommand keyword, not a string (issue #798).  `is_sub_subcommand`
+        // accepts a unique prefix (`info object cl` ⇒ `class`) the way Tcl's
+        // ensemble dispatch does.  General over any registry-declared two-level
+        // ensemble, not just `info`.
+        if let Some(sub_sub_text) = seg.texts.get(2)
+            && sub.resolve_sub_subcommand_for_dialect(sub_sub_text, dialect).is_some()
+            && let Some(tok) = seg.argv.get(2)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::SubcommandKeyword);
+        }
     }
 
     for (i, text) in seg.texts.iter().enumerate().skip(1) {
+        // Resolve `-word` against the declared option set, accepting a unique
+        // prefix (`lsort -inc` ⇒ `-increasing`) the way Tcl's option parsing
+        // (`Tcl_GetIndexFromObj`) does; an ambiguous prefix (`lsort -i`) is not
+        // a recognised option.
         if text.starts_with('-')
-            && option_names.contains(&text.as_str())
+            && let Some(canonical) = resolve_option_prefix(text, &option_names)
             && let Some(tok) = seg.argv.get(i)
         {
             overrides
@@ -1082,7 +1132,7 @@ fn insert_option_and_subcommand_overrides(
             // re-coloured — a `$var` / `[cmd]` substitution keeps its own
             // highlight, and a value that is itself a recognised option stays a
             // `Decorator` (the `or_insert` above already claimed it).
-            if let Some(opt) = value_options.get(text.as_str()) {
+            if let Some(opt) = value_options.get(canonical) {
                 for vi in opt.value_indices(&seg.texts, i) {
                     if let Some(val_tok) = seg.argv.get(vi)
                         && matches!(val_tok.kind, TokenType::Esc | TokenType::Str)
@@ -1369,6 +1419,7 @@ fn insert_enum_value_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
+    dialect: DialectSet,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let Some(spec) = registry.get(head) else {
@@ -1405,9 +1456,10 @@ fn insert_enum_value_overrides(
     }
 
     // Subcommand-level values: index is 0-based after the subcommand word,
-    // so add one more for the command name (`seg.texts[idx + 2]`).
+    // so add one more for the command name (`seg.texts[idx + 2]`).  Resolve
+    // unique-prefix abbreviations like Tcl's ensemble dispatch.
     if let Some(sub_text) = seg.texts.get(1)
-        && let Some(sub) = spec.subcommand(sub_text)
+        && let Some(sub) = spec.resolve_subcommand_for_dialect(sub_text, dialect)
     {
         for (idx, values) in sub.arg_values {
             mark(*idx as usize + 2, values);
@@ -2872,6 +2924,7 @@ fn collect_script(
             ctx.oo_grammar,
             &arg_texts,
             ctx.object_classes,
+            DialectSet::parse(ctx.dialect).unwrap_or(DialectSet::ALL_TCL),
         );
         // Regex-source tracking: retag a `set` value word that feeds a regexp
         // pattern as a (substitution-aware) regex.  Keyed on the def-site word
@@ -3932,6 +3985,37 @@ mod tests {
     }
 
     #[test]
+    fn abbreviated_option_classified_as_decorator() {
+        // Tcl option parsing accepts unique prefixes: `lsort -inc` ⇒
+        // `-increasing`, `lsearch -ex` ⇒ `-exact`.
+        for src in ["lsort -inc {3 1 2}\n", "lsearch -ex {a b} b\n"] {
+            let ks = kinds(src, "tcl", &reg());
+            assert!(
+                ks.contains(&(TokenKind::Decorator as u32)),
+                "expected decorator for {src:?}; got {ks:?}"
+            );
+        }
+        // An ambiguous prefix (`lsort -i` → -index/-indices/-integer/…) is not
+        // a recognised option and stays a string.
+        let ks = kinds("lsort -i {3 1 2}\n", "tcl", &reg());
+        assert!(
+            !ks.contains(&(TokenKind::Decorator as u32)),
+            "ambiguous prefix must not be a decorator; got {ks:?}"
+        );
+    }
+
+    #[test]
+    fn resolve_option_prefix_resolves_and_rejects() {
+        let names = ["-increasing", "-index", "-nocase", "-real"];
+        assert_eq!(resolve_option_prefix("-nocase", &names), Some("-nocase")); // exact
+        assert_eq!(resolve_option_prefix("-noc", &names), Some("-nocase")); // unique prefix
+        assert_eq!(resolve_option_prefix("-r", &names), Some("-real")); // unique prefix
+        assert_eq!(resolve_option_prefix("-in", &names), None); // ambiguous
+        assert_eq!(resolve_option_prefix("-", &names), None); // bare dash
+        assert_eq!(resolve_option_prefix("-zzz", &names), None); // unknown
+    }
+
+    #[test]
     fn subcommand_option_classified_as_decorator() {
         // Issue #748's own example: `file delete -force filename`.  `-force`
         // is declared on the `delete` *subcommand* (not on `file` itself), so
@@ -4107,6 +4191,142 @@ mod tests {
         assert!(
             !ks.contains(&(TokenKind::EnumMember as u32)),
             "bogusclass is not a class; got {ks:?}"
+        );
+    }
+
+    #[test]
+    fn info_object_class_sub_subcommand_classified_as_keyword() {
+        // Issue #798: in `info object class $obj`, the `class` word is a
+        // second-level subcommand (OBJECT INTROSPECTION), not a string. Both the
+        // first-level `object` and the second-level `class` must read as
+        // keywords (the `info` head itself is a Function).
+        let kind_at = |src: &str, col: u32| -> u32 {
+            decode_full(src, "tcl", &reg())
+                .into_iter()
+                .find(|&(_, c, _, _, _)| c == col)
+                .map(|(_, _, _, k, _)| k)
+                .unwrap_or_else(|| panic!("no token at column {col} in {src:?}"))
+        };
+
+        // `info object class $obj` — column 12 is `class`.
+        let src = "info object class $obj\n";
+        assert_eq!(
+            kind_at(src, 12),
+            TokenKind::Keyword as u32,
+            "`class` sub-subcommand should be a keyword"
+        );
+
+        // `info class superclasses $cls` — column 11 is `superclasses`.
+        let src = "info class superclasses $cls\n";
+        assert_eq!(
+            kind_at(src, 11),
+            TokenKind::Keyword as u32,
+            "`superclasses` sub-subcommand should be a keyword"
+        );
+
+        // A non-subcommand third word stays a string: `info object frobnicate`
+        // — `frobnicate` is not a recognised OBJECT INTROSPECTION operation.
+        let src = "info object frobnicate $obj\n";
+        assert_eq!(
+            kind_at(src, 12),
+            TokenKind::String as u32,
+            "an unknown third word must stay a string, not a keyword"
+        );
+
+        // The issue's actual form: `info object class` nested inside a command
+        // substitution within an `if` expression. Highlighting must recurse into
+        // the bracketed inner command, not just top-level statements. The column
+        // of `class` is located dynamically to stay robust.
+        let src =
+            "if {([info object class $element {::Foo::Analysis}]) && ([info exists C])} {\n}\n";
+        let col = u32::try_from(src.find(" class ").expect("has ` class `") + 1).unwrap();
+        assert_eq!(
+            kind_at(src, col),
+            TokenKind::Keyword as u32,
+            "`class` must highlight as a keyword even nested in an if-expr command substitution"
+        );
+
+        // Unique-prefix abbreviation (#798 fix 1): `info object cl` is Tcl's
+        // abbreviation of `class`; column 12 is `cl`.
+        let src = "info object cl $obj\n";
+        assert_eq!(
+            kind_at(src, 12),
+            TokenKind::Keyword as u32,
+            "a unique-prefix sub-subcommand should highlight as a keyword"
+        );
+        // An ambiguous prefix stays a string: `info class c` matches both
+        // `call` and `constructor`, so it must not be painted a keyword.
+        let src = "info class c $cls\n";
+        assert_eq!(
+            kind_at(src, 11),
+            TokenKind::String as u32,
+            "an ambiguous prefix must not highlight as a keyword"
+        );
+    }
+
+    #[test]
+    fn subcommand_prefix_resolution_is_dialect_aware() {
+        let kind_at = |src: &str, dialect: &str, col: u32| -> u32 {
+            decode_full(src, dialect, &reg())
+                .into_iter()
+                .find(|&(_, c, _, _, _)| c == col)
+                .map(|(_, _, _, k, _)| k)
+                .unwrap_or_else(|| panic!("no token at col {col} in {src:?}"))
+        };
+        // `string rev` is `reverse` (added 8.5): a keyword in 8.6, but an
+        // unknown word in 8.4 where `reverse` does not exist (verified: tclsh8.4
+        // rejects `string rev`).  Column 7 is `rev`.
+        let src = "string rev abc\n";
+        assert_eq!(kind_at(src, "tcl8.6", 7), TokenKind::Keyword as u32);
+        assert_eq!(
+            kind_at(src, "tcl8.4", 7),
+            TokenKind::String as u32,
+            "`string rev` is not a subcommand in 8.4"
+        );
+
+        // `info class def`: uniquely `definition` in 8.6 (keyword), but
+        // ambiguous with `definitionnamespace` in 9.0 (verified against tclsh)
+        // → stays a string.  Column 11 is `def`.
+        let src = "info class def ::C\n";
+        assert_eq!(
+            kind_at(src, "tcl8.6", 11),
+            TokenKind::Keyword as u32,
+            "`info class def` is `definition` in 8.6"
+        );
+        assert_eq!(
+            kind_at(src, "tcl9.0", 11),
+            TokenKind::String as u32,
+            "`info class def` is ambiguous in 9.0"
+        );
+    }
+
+    #[test]
+    fn abbreviated_first_level_subcommand_highlights_as_keyword() {
+        // `string le $s` — `le` is Tcl's unique-prefix abbreviation of
+        // `length`; it must highlight as a subcommand keyword (column 7).
+        let src = "string le $s\n";
+        let toks = decode_full(src, "tcl", &reg());
+        let kind = toks
+            .into_iter()
+            .find(|&(_, c, _, _, _)| c == 7)
+            .map(|(_, _, _, k, _)| k)
+            .expect("token at col 7");
+        assert_eq!(
+            kind,
+            TokenKind::Keyword as u32,
+            "abbreviated subcommand `le` should be a keyword"
+        );
+        // An ambiguous prefix (`string t`) stays a string.
+        let src = "string t $s\n";
+        let kind = decode_full(src, "tcl", &reg())
+            .into_iter()
+            .find(|&(_, c, _, _, _)| c == 7)
+            .map(|(_, _, _, k, _)| k)
+            .expect("token at col 7");
+        assert_eq!(
+            kind,
+            TokenKind::String as u32,
+            "ambiguous prefix `t` must not be a keyword"
         );
     }
 
