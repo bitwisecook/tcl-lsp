@@ -4,8 +4,7 @@ These are **unmodified** files from the C Tcl 9.0.3 `library/` tree, vendored so
 the Rust runtime can embed them in the WASM binary (`--features wasm_stdlib`) and
 seed them into the in-memory VFS — letting a self-contained `wasm32-wasip1`
 module bootstrap the real standard library with no host filesystem. See
-[`../../src/embedded_stdlib.rs`](../../src/embedded_stdlib.rs) and
-[`../../../rust-spike/aot-script/README.md`](../../../rust-spike/aot-script/README.md).
+[`../../src/embedded_stdlib.rs`](../../src/embedded_stdlib.rs).
 
 The set is exactly the **read-closure** of bootstrapping `init.tcl` and loading
 the `tcltest` package (determined by tracing the file reads of a native

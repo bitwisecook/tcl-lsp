@@ -18,8 +18,7 @@
 
 //! The `Tcl_Obj` value model + refcount discipline (Track 1, T1.1).
 //!
-//! This is the **real** port, not the leaking spike (`runtime/rust-spike/`):
-//! every allocation is balanced by a free driven by the refcount reaching
+//! Every allocation is balanced by a free driven by the refcount reaching
 //! zero, and the alloc/free counters (`crate::counters`) prove it.
 //!
 //! ## Layout — the C-extension ABI requires `#[repr(C)]`

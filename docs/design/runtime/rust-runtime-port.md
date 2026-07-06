@@ -13,9 +13,8 @@
 
 Status: **bootstrapping.** The end-to-end mechanism (compile an unmodified C
 Tcl extension to WASM and link it against our runtime + compiled user code,
-API-not-ABI) is proven by the three throwaway spikes under
-[`runtime/rust-spike/`](../../../runtime/rust-spike/README.md). The durable
-contract is [`c-extension-abi.md`](c-extension-abi.md). This document is the
+API-not-ABI) was spike-validated by three throwaway spikes (since removed). The
+durable contract is [`c-extension-abi.md`](c-extension-abi.md). This document is the
 **source of truth** for turning that proof into a shipped capability, and it
 must be kept current **every PR**.
 
@@ -717,7 +716,6 @@ test suite** as ground truth.
 | Doc | What it gives you |
 |---|---|
 | [`c-extension-abi.md`](c-extension-abi.md) | ABI (§4), link models (§5), measured GOT findings (§11), scoped next steps (§13) |
-| [`runtime/rust-spike/README.md`](../../../runtime/rust-spike/README.md) | The three throwaway spikes — reimplement properly, do not derive shape from |
 | [`memory-management.md`](memory-management.md) + [`refcount-contract.md`](refcount-contract.md) | TclObj model + refcount discipline (cross-check vs `tclObj.c`) |
 | [`c-api-ownership-contract.md`](c-api-ownership-contract.md) | T2.1 — ownership + error category for every shipped C-API function (the `fresh_zero` convention) |
 | [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md) | The call protocol: the two stacks (CallFrame + CmdFrame), exceptions/return-options, stack-trace construction, AOT↔interp interop — **read before the proc chunk**. Conservative-first; dynamic cross-scope (`uplevel`/`upvar`/`namespace`/`eval`) correct before optimising |
@@ -1473,8 +1471,8 @@ an ownership annotation**.
 
 ### T2.2 — Shipped headers (§4.1, §7, §11)
 
-Promote `runtime/rust-spike/include/{tcl.h,tclOO.h,tclTomMath.h}` to shipped
-headers, widened to the full public-survey surface, backed by real impls. Ship
+Author the shipped `tcl.h` / `tclOO.h` / `tclTomMath.h` headers, widened to the
+full public-survey surface, backed by real impls. Ship
 the full versioned `Tcl_ChannelType` / `Tcl_Filesystem` / `Tcl_ObjType` bodies
 (the spike carries only probed fields). Status: **not-started.**
 

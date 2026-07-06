@@ -24,7 +24,7 @@
 //! indices) is **embedded in the binary** at build time
 //! ([`crate::embedded_stdlib`]) and seeded into this VFS, so a self-contained
 //! WASM module bootstraps the real stdlib with no `--dir` preopen and no source
-//! files shipped alongside it. See `runtime/rust-spike/aot-script/README.md`.
+//! files shipped alongside it.
 //!
 //! Paths are POSIX-style and normalised (`.`/`..`/`//` collapsed) to an absolute
 //! key. Directories are implicit — a directory exists when it is the prefix of a

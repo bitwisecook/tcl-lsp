@@ -4480,11 +4480,10 @@ a path-renaming refactor", the branch tree was reset onto
   Rust` step), so no infra merge was needed — the overlaid workspace
   plugs straight in.
 - **Re-applied from `origin/rust` (the Rust workstream):** the `rust/`
-  Cargo workspace (eight member crates), `runtime/rust` + `runtime/rust-spike`,
+  Cargo workspace (eight member crates), `runtime/rust`,
   `Cargo.toml` / `Cargo.lock` / `rust-toolchain.toml` / `deny.toml`, the
-  Rust-only design/perf docs (`docs/design/{rust,runtime}/…`,
-  `docs/perf/wasm-tcl9-parity/…`), `rust-rewrite-registries.md`, and this
-  document.
+  Rust-only design docs (`docs/design/{rust,runtime}/…`),
+  `rust-rewrite-registries.md`, and this document.
 - **Conformed to main ("follow main"):** seven shared `docs/design/runtime/*.md`
   files were restored to main's versions (the branch had stale-or-divergent
   copies — e.g. a pre-reorg `scripts/check_refcount_contract.py` path).  The
