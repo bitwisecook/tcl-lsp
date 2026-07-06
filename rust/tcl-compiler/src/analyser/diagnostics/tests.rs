@@ -806,6 +806,9 @@ fn subcommand_version_gates_fire_w001() {
         ("interp debug {}", "tcl8.5", "tcl8.4"),
         ("interp cancel", "tcl8.6", "tcl8.5"),
         ("interp children", "tcl8.6", "tcl8.5"),
+        ("clock add 0 1 day", "tcl8.5", "tcl8.4"),
+        ("clock microseconds", "tcl8.5", "tcl8.4"),
+        ("clock milliseconds", "tcl8.5", "tcl8.4"),
     ];
     for (snippet, ok, old) in added {
         assert!(
