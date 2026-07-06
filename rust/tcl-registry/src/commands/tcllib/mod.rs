@@ -249,6 +249,7 @@ mod misc_pkgs;
 mod otp;
 mod rc4;
 mod ripemd;
+mod term_text;
 mod text_misc;
 mod web_asn;
 
@@ -550,6 +551,7 @@ fn crypto_encoding_specs() -> Vec<CommandSpec> {
     specs.extend(misc_pkgs::specs());
     specs.extend(image_pkgs::specs());
     specs.extend(ensembles::specs());
+    specs.extend(term_text::specs());
     specs
 }
 

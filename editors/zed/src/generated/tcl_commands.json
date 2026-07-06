@@ -4424,6 +4424,38 @@
       "pure": true
     },
     {
+      "name": "stooop::class",
+      "summary": "This command creates a class."
+    },
+    {
+      "name": "stooop::classof",
+      "summary": "This command returns the class of the existing object passed as single parameter."
+    },
+    {
+      "name": "stooop::delete",
+      "summary": "This command is used to delete one or several objects."
+    },
+    {
+      "name": "stooop::new",
+      "summary": "This command is used to create an object."
+    },
+    {
+      "name": "stooop::printObjects",
+      "summary": "Prints an ordered list of existing objects, in creation order, oldest first."
+    },
+    {
+      "name": "stooop::record",
+      "summary": "When invoked, a snapshot of all existing stooop objects is taken."
+    },
+    {
+      "name": "stooop::report",
+      "summary": "Prints the created and deleted objects since the ::stooop::record procedure was invoked last."
+    },
+    {
+      "name": "stooop::virtual",
+      "summary": "The virtual specifier may be used on member procedures to achieve dynamic binding."
+    },
+    {
       "name": "string",
       "summary": "Perform one of several string operations.",
       "subcommands": [
@@ -4944,6 +4976,174 @@
       "summary": "Return current access position for an open channel"
     },
     {
+      "name": "term::ansi::code::const",
+      "summary": "This command defines a procedure name which returns the control sequence code."
+    },
+    {
+      "name": "term::ansi::code::define",
+      "summary": "This command defines a procedure name which returns the control sequence code, beginning with the specified."
+    },
+    {
+      "name": "term::ansi::code::esc",
+      "summary": "This command returns the argument string, prefixed with the ANSI escape character, 033."
+    },
+    {
+      "name": "term::ansi::code::escb",
+      "summary": "This command returns the argument string, prefixed with a common ANSI escape sequence, 033[."
+    },
+    {
+      "name": "term::ansi::send::cat",
+      "summary": "Clear All Tabs."
+    },
+    {
+      "name": "term::ansi::send::ch",
+      "summary": "Cursor Home."
+    },
+    {
+      "name": "term::ansi::send::clear",
+      "summary": "Clear screen."
+    },
+    {
+      "name": "term::ansi::send::ct",
+      "summary": "Clear Tab (@ current position)."
+    },
+    {
+      "name": "term::ansi::send::dlw",
+      "summary": "Disable Line Wrap."
+    },
+    {
+      "name": "term::ansi::send::ed",
+      "summary": "Erase Down (to bottom)."
+    },
+    {
+      "name": "term::ansi::send::eeol",
+      "summary": "Erase (to) End Of Line."
+    },
+    {
+      "name": "term::ansi::send::eg",
+      "summary": "Enter Graphics Mode."
+    },
+    {
+      "name": "term::ansi::send::el",
+      "summary": "Erase (current) Line."
+    },
+    {
+      "name": "term::ansi::send::elw",
+      "summary": "Enable Line Wrap."
+    },
+    {
+      "name": "term::ansi::send::es",
+      "summary": "Erase Screen."
+    },
+    {
+      "name": "term::ansi::send::esol",
+      "summary": "Erase (to) Start Of Line."
+    },
+    {
+      "name": "term::ansi::send::eu",
+      "summary": "Erase Up (to top)."
+    },
+    {
+      "name": "term::ansi::send::fcp",
+      "summary": "Force Cursor Position (aka Go To)."
+    },
+    {
+      "name": "term::ansi::send::groff",
+      "summary": "Switch to regular characters."
+    },
+    {
+      "name": "term::ansi::send::gron",
+      "summary": "Switch to character/box graphics."
+    },
+    {
+      "name": "term::ansi::send::groptim",
+      "summary": "Optimize character graphics."
+    },
+    {
+      "name": "term::ansi::send::import",
+      "summary": "Imports the commands of this package into the namespace ns."
+    },
+    {
+      "name": "term::ansi::send::init",
+      "summary": "Initialize default and alternate fonts to ASCII and box graphics."
+    },
+    {
+      "name": "term::ansi::send::lg",
+      "summary": "Exit Graphics Mode."
+    },
+    {
+      "name": "term::ansi::send::qcp",
+      "summary": "Query Cursor Position."
+    },
+    {
+      "name": "term::ansi::send::qdc",
+      "summary": "Query Device Code."
+    },
+    {
+      "name": "term::ansi::send::qds",
+      "summary": "Query Device Status."
+    },
+    {
+      "name": "term::ansi::send::rc",
+      "summary": "Restore Cursor (Unsave)."
+    },
+    {
+      "name": "term::ansi::send::rca",
+      "summary": "Restore Cursor + Attributes."
+    },
+    {
+      "name": "term::ansi::send::rd",
+      "summary": "Reset Device."
+    },
+    {
+      "name": "term::ansi::send::sc",
+      "summary": "Save Cursor."
+    },
+    {
+      "name": "term::ansi::send::sca",
+      "summary": "Save Cursor + Attributes."
+    },
+    {
+      "name": "term::ansi::send::scs0",
+      "summary": ""
+    },
+    {
+      "name": "term::ansi::send::scs1",
+      "summary": "Select Character Set."
+    },
+    {
+      "name": "term::ansi::send::sd",
+      "summary": "Scroll Down."
+    },
+    {
+      "name": "term::ansi::send::sda",
+      "summary": "Set Display Attributes."
+    },
+    {
+      "name": "term::ansi::send::showat",
+      "summary": "Show the block of text at the specified location."
+    },
+    {
+      "name": "term::ansi::send::skd",
+      "summary": "Set Key Definition."
+    },
+    {
+      "name": "term::ansi::send::ss",
+      "summary": "Scroll Screen (entire display, or between rows start end, inclusive)."
+    },
+    {
+      "name": "term::ansi::send::st",
+      "summary": "Set Tab (@ current position)."
+    },
+    {
+      "name": "term::ansi::send::su",
+      "summary": "Scroll Up."
+    },
+    {
+      "name": "term::ansi::send::title",
+      "summary": "Set the terminal title."
+    },
+    {
       "name": "testaccessproc",
       "summary": "Install or remove a test access(2) hook proc (Tcl 8.4 only)."
     },
@@ -5436,6 +5636,22 @@
       "pure": true
     },
     {
+      "name": "textutil::repeat::blank",
+      "summary": "A convenience command."
+    },
+    {
+      "name": "textutil::repeat::strRepeat",
+      "summary": "This command returns a string containing the text repeated num times."
+    },
+    {
+      "name": "textutil::split::splitn",
+      "summary": "This command splits the given string into chunks of len characters and returns a list containing these chunks."
+    },
+    {
+      "name": "textutil::split::splitx",
+      "summary": "This command splits the string and return a list."
+    },
+    {
       "name": "textutil::splitn",
       "summary": "Split a string into chunks of length N.",
       "pure": true
@@ -5506,6 +5722,18 @@
       "name": "textutil::untabify2",
       "summary": "Convert tabs to spaces (position-aware).",
       "pure": true
+    },
+    {
+      "name": "textutil::wcswidth",
+      "summary": "Returns the number of character cells taken by the string when printed to the terminal."
+    },
+    {
+      "name": "textutil::wcswidth_char",
+      "summary": "Returns the number of character cells taken by the character when printed to the terminal."
+    },
+    {
+      "name": "textutil::wcswidth_type",
+      "summary": "Returns the character type of the specified character."
     },
     {
       "name": "throw",
