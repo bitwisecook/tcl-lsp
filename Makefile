@@ -63,7 +63,7 @@ STAMP_FILE       := $(ROOT).test-slow.stamp
 STAMP_KEEP_GOALS := test-slow verify-test-slow-stamp help \
     release% publish% smoke-% screenshot% explorer-build% \
     package-vsix vsix verify-vsix jetbrains sublime zed claude-skills \
-    compiler-explorer-gui
+    compiler-explorer-gui build-report-pyz
 ifeq ($(findstring n,$(firstword $(MAKEFLAGS))),)
 ifneq ($(strip $(filter-out $(STAMP_KEEP_GOALS),$(MAKECMDGOALS))),)
 # drop-if-stale, NOT unconditional delete: a still-valid stamp survives
@@ -111,6 +111,14 @@ JETBRAINS_CHANNEL   := $(if $(filter true,$(IS_PRERELEASE)),eap,)
 
 # Derived paths
 VSIX_FILE      := $(BUILD_DIR)/tcl-lsp-vscode-$(VERSION).vsix
+# Self-contained BIG-IP report .pyz (native `_engine` + jinja2 bundled by shiv).
+# Native + abi3, so the artefact is OS/arch-specific but runs on any CPython
+# >= 3.9 for that platform; the tag keeps CI matrix outputs from clobbering.
+REPORT_PY_DIR  := $(ROOT)rust/bigip-report/py
+REPORT_WHEELS  := $(BUILD_DIR)/report-wheels
+REPORT_PYZ_OS   := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+REPORT_PYZ_ARCH := $(shell uname -m)
+REPORT_PYZ     := $(BUILD_DIR)/f5report-$(VERSION)-$(REPORT_PYZ_OS)-$(REPORT_PYZ_ARCH).pyz
 LICENSE_SRC    := $(ROOT)LICENSE
 README_SRC     := $(ROOT)README.md
 SCREENSHOT_DIR := $(ROOT)docs/screenshots
@@ -362,6 +370,27 @@ typecheck-ts: $(NPM_STAMP) copy-canonical ## Type-check TypeScript extension cod
 build-report-assets: $(REPORT_NPM_STAMP) ## Build the shared BIG-IP report front-end (TS -> dist/, synced into f5report)
 	@echo "==> Building shared BIG-IP report front-end (esbuild)"
 	cd $(REPORT_SHARED_DIR) && $(NPM) run build
+
+build-report-pyz: build-report-assets ## Build a self-contained f5report .pyz (native engine + jinja2, via maturin + shiv)
+	@echo "==> Building self-contained f5report .pyz for $(REPORT_PYZ_OS)-$(REPORT_PYZ_ARCH)"
+	@command -v maturin >/dev/null 2>&1 || { echo "ERROR: 'maturin' not found — install with 'pip install maturin'"; exit 1; }
+	@command -v shiv    >/dev/null 2>&1 || { echo "ERROR: 'shiv' not found — install with 'pip install shiv'"; exit 1; }
+	@rm -rf $(REPORT_WHEELS)
+	@mkdir -p $(REPORT_WHEELS) $(BUILD_DIR)
+	@# Build the platform wheel. GIT_HASH is stamped into the native engine by
+	@# the crate's build.rs so the report footer shows the commit even when the
+	@# .pyz is later run outside any git checkout.
+	GIT_HASH=$(GIT_HASH) maturin build --release \
+		--manifest-path $(REPORT_PY_DIR)/Cargo.toml \
+		--out $(REPORT_WHEELS)
+	@rm -f $(REPORT_PYZ)
+	@# shiv bundles the wheel + its deps (jinja2) into one .pyz; on first run it
+	@# unpacks to a per-user cache (needed because CPython can't import the native
+	@# `_engine` .so straight from the zip). `-c f5-report` is the project script.
+	shiv --console-script f5-report --output-file $(REPORT_PYZ) \
+		--find-links $(REPORT_WHEELS) --reproducible \
+		f5report
+	@echo "==> Built $(REPORT_PYZ)"
 
 lint-report-ts: $(REPORT_NPM_STAMP) ## Lint/format-check the shared report search modules
 	@echo "==> Linting shared report front-end (ESLint + Prettier check)"

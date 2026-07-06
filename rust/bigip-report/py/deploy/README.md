@@ -48,3 +48,38 @@ The report is then served at `https://<owner>.github.io/<repo>/`.
   hosted page is the *full* report — the in-browser query console works there too.
 - Change the input configs by editing the `python -m f5report …` line in the
   workflow (e.g. point it at your own committed `bigip.conf` / `.ucs`).
+
+# Shipping a self-contained `.pyz`
+
+`report-pyz.yml` builds a single-file, self-contained `f5report` command — the
+native `_engine` extension plus its Python deps (jinja2) bundled by
+[`shiv`](https://shiv.readthedocs.io/) — for Linux, macOS and Windows, and
+attaches the artefacts to the GitHub Release.
+
+Because the compiled engine is baked in, each `.pyz` is **OS/arch-specific** but
+runs on **any CPython ≥ 3.9** for that platform (the extension is `abi3`). On
+first run it unpacks to a per-user cache (CPython cannot import a native
+extension straight from a zip). Run it like any script:
+
+```bash
+python f5report-<version>-linux-x86_64.pyz device-01.ucs -o report.html
+```
+
+The report footer shows the engine version and the **git commit** the build came
+from; CI injects that commit via the `GIT_HASH` env var (see the workflow), so it
+is correct even though the `.pyz` runs outside any git checkout.
+
+## Setup
+
+Install the workflow the same way as the Pages one (it needs the `workflow`
+scope):
+
+```bash
+cp rust/bigip-report/py/deploy/report-pyz.yml .github/workflows/
+git add .github/workflows/report-pyz.yml && git commit -m "Add f5report .pyz workflow" && git push
+```
+
+It then runs on every published release (attaching the `.pyz` files) and on
+manual **Actions → Build f5report .pyz → Run workflow** dispatch. The local
+equivalent is `make build-report-pyz`, which runs the same maturin + shiv steps
+for the host platform.

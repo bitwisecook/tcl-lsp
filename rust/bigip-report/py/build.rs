@@ -34,21 +34,58 @@ fn main() {
         .map(Path::to_path_buf)
         .unwrap_or_else(|| manifest.clone());
 
-    let git_dir = repo_root.join(".git");
-    for rel in ["HEAD", "index"] {
-        let p = git_dir.join(rel);
-        if p.exists() {
-            println!("cargo:rerun-if-changed={}", p.display());
-        }
-    }
+    // A CI / packaging pipeline that builds the wheel outside a git checkout
+    // (an sdist build) sets `GIT_HASH` to inject the commit it built from.
+    println!("cargo:rerun-if-env-changed=GIT_HASH");
 
-    println!("cargo:rustc-env=GIT_HASH={}", git_hash(&repo_root));
+    // Re-run whenever the checked-out commit changes so the stamp stays current.
+    // We track the commit *pointer* — HEAD, the branch ref it resolves to (which
+    // a commit rewrites), and packed-refs — not working-tree state: an unstaged
+    // edit touches none of these files, so a build script keying a "-dirty" flag
+    // off them could not be re-run reliably. The stamp is the committed short
+    // hash, which is what a shipped report needs.
+    watch_commit_refs(&repo_root.join(".git"));
+
+    println!("cargo:rustc-env=GIT_HASH={}", resolve_git_hash(&repo_root));
 }
 
-/// `git rev-parse --short HEAD`, with a `-dirty` suffix when the working tree
-/// has uncommitted changes. `"unknown"` when git is unavailable or errors.
+/// The git hash to stamp: an explicit `GIT_HASH` override (set by CI when
+/// building outside a checkout) wins; otherwise ask git; otherwise `"unknown"`.
+fn resolve_git_hash(repo_root: &Path) -> String {
+    if let Ok(hash) = std::env::var("GIT_HASH") {
+        let hash = hash.trim();
+        if !hash.is_empty() {
+            return hash.to_owned();
+        }
+    }
+    git_hash(repo_root)
+}
+
+/// Emit `rerun-if-changed` for the files git rewrites when a new commit lands:
+/// `HEAD`, the loose ref HEAD points at, and `packed-refs`.
+fn watch_commit_refs(git_dir: &Path) {
+    let head = git_dir.join("HEAD");
+    if !head.exists() {
+        return; // not a git checkout (e.g. an unpacked source tarball)
+    }
+    println!("cargo:rerun-if-changed={}", head.display());
+    if let Ok(contents) = std::fs::read_to_string(&head)
+        && let Some(reference) = contents.strip_prefix("ref:").map(str::trim)
+    {
+        let ref_path = git_dir.join(reference);
+        if ref_path.exists() {
+            println!("cargo:rerun-if-changed={}", ref_path.display());
+        }
+    }
+    let packed = git_dir.join("packed-refs");
+    if packed.exists() {
+        println!("cargo:rerun-if-changed={}", packed.display());
+    }
+}
+
+/// `git rev-parse --short HEAD`. `"unknown"` when git is unavailable or errors.
 fn git_hash(repo_root: &Path) -> String {
-    let short = Command::new("git")
+    Command::new("git")
         .arg("-C")
         .arg(repo_root)
         .args(["rev-parse", "--short", "HEAD"])
@@ -56,24 +93,6 @@ fn git_hash(repo_root: &Path) -> String {
         .ok()
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
-        .filter(|s| !s.is_empty());
-
-    let Some(short) = short else {
-        return "unknown".to_owned();
-    };
-
-    let dirty = Command::new("git")
-        .arg("-C")
-        .arg(repo_root)
-        .args(["status", "--porcelain"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .is_some_and(|o| !o.stdout.is_empty());
-
-    if dirty {
-        format!("{short}-dirty")
-    } else {
-        short
-    }
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "unknown".to_owned())
 }

@@ -1,0 +1,100 @@
+# Build the self-contained f5report `.pyz` for every platform and attach the
+# artefacts to the GitHub Release.
+#
+# The `.pyz` bundles the native `_engine` extension (Rust query engine via PyO3)
+# together with its Python deps (jinja2), built by `shiv`. Because the compiled
+# engine is baked in, each artefact is OS/arch-specific (but runs on any CPython
+# >= 3.9 for that platform — the extension is abi3). `GIT_HASH` is injected at
+# build time so the report footer shows the commit the `.pyz` was built from
+# even when it is later run outside any git checkout — the whole reason this
+# lives in CI rather than only in `make build-report-pyz`.
+#
+# Like `github-pages.yml`, this file lives here (not under `.github/workflows/`)
+# because installing a workflow requires the `workflow` scope; copy it into
+# place from a clone that has it:
+#
+#     cp rust/bigip-report/py/deploy/report-pyz.yml .github/workflows/
+#     git add .github/workflows/report-pyz.yml && git commit && git push
+#
+# It runs on published releases (attaching the `.pyz` files to the release) and
+# on manual dispatch (artefacts only). The local equivalent is
+# `make build-report-pyz`, which runs the same maturin + shiv steps for the host
+# platform.
+name: Build f5report .pyz (all platforms)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write # attach artefacts to the release
+
+jobs:
+  build:
+    name: ${{ matrix.os }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: x86_64
+          - os: macos-14
+            arch: arm64
+          - os: windows-latest
+            arch: x86_64
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # abi3 wheels run on any CPython >= 3.9; build on a current one.
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      # rust-toolchain.toml pins the channel; the runners ship cargo, so no
+      # explicit toolchain install is needed.
+      - name: Build the .pyz (maturin wheel + shiv bundle)
+        shell: bash
+        env:
+          # The commit the report footer will show. Short, to match the
+          # `git rev-parse --short` form the build script uses in a checkout.
+          GIT_HASH: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip maturin shiv
+
+          # Version tag for the filename: the release tag (minus a leading `v`)
+          # on a release, else the short commit.
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="${GIT_HASH:0:12}"
+          fi
+          os="$(echo '${{ runner.os }}' | tr '[:upper:]' '[:lower:]')"
+          pyz="f5report-${version}-${os}-${{ matrix.arch }}.pyz"
+
+          # Short-hash the injected commit so the footer stays compact.
+          export GIT_HASH="${GIT_HASH:0:12}"
+
+          rm -rf report-wheels && mkdir -p report-wheels dist
+          maturin build --release \
+            --manifest-path rust/bigip-report/py/Cargo.toml \
+            --out report-wheels
+          shiv --console-script f5-report --output-file "dist/${pyz}" \
+            --find-links report-wheels --reproducible \
+            f5report
+          echo "PYZ_PATH=dist/${pyz}" >> "$GITHUB_ENV"
+
+      - name: Upload workflow artefact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: f5report-pyz-${{ runner.os }}-${{ matrix.arch }}
+          path: ${{ env.PYZ_PATH }}
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        with:
+          files: ${{ env.PYZ_PATH }}
