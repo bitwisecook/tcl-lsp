@@ -29,7 +29,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "const",
-        dialects: None,
+        // Added in Tcl 9.0 (TIP 677).
+        dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::new(2, 2),
         assigns_variable_at: Some(0),
         arg_roles: &[(0, ArgRole::VarWrite)],

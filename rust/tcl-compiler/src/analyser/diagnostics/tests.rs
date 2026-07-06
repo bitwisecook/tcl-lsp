@@ -760,6 +760,36 @@ fn after_integer_ms_is_not_unknown_subcommand() {
 }
 
 #[test]
+fn command_version_gates_fire_w123() {
+    // Whole commands introduced after 8.4 must be unknown (W123) in older
+    // dialects and known once available.
+    let cases = [
+        ("apply {{} {return 1}}", "tcl8.5", "tcl8.4"),
+        ("lreverse {a b c}", "tcl8.5", "tcl8.4"),
+        ("lrepeat 3 x", "tcl8.5", "tcl8.4"),
+        ("const c 1", "tcl9.0", "tcl8.6"),
+    ];
+    for (snippet, ok, old) in cases {
+        assert!(
+            Analyser::new()
+                .analyse(snippet, old)
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W123),
+            "expected W123 for {snippet:?} on {old}"
+        );
+        assert!(
+            !Analyser::new()
+                .analyse(snippet, ok)
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W123),
+            "unexpected W123 for {snippet:?} on {ok}"
+        );
+    }
+}
+
+#[test]
 fn subcommand_version_gates_fire_w001() {
     // Subcommands added or removed across 8.4-9.1 must warn (W001 unknown
     // subcommand) in dialects where they do not exist.
