@@ -16,17 +16,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! iRule event structural facts: category grouping and enabling profiles.
+//! iRule event structural facts: protocol category grouping.
 //!
-//! For each iRule event this records two facts — the protocol *categories* it
-//! belongs to (`HTTP`, `SSL`, `TCP`, …) and the profile *types* that enable it
-//! (`HTTP`, `CLIENTSSL`, `ACCESS`, …). It is deliberately facts-only: event
-//! semantics and prose live in [`crate::events`] and
-//! [`crate::event_descriptions`].
+//! For each iRule event this records the protocol *categories* it belongs to
+//! (`HTTP`, `SSL`, `TCP`, …). It is deliberately facts-only: event semantics
+//! and prose live in [`crate::events`] and [`crate::event_descriptions`].
 //!
-//! The enabling-profile facts tie the event registry to the profile graph: the
-//! inverse view ([`events_for_profile`]) answers "which events does attaching
-//! profile P make available", and profile names match
+//! Enabling-profile facts are **not** recorded here. Which profile *types* make
+//! an event available is the hand-curated
+//! [`crate::events::EventProps::implied_profiles`] — the single source of truth;
+//! the inverse view ([`events_for_profile`]) reads that directly so this
+//! schema-derived table cannot drift from it. Profile names match
 //! [`crate::profiles::ProfileSpec::name`].
 
 mod generated;
@@ -40,9 +40,6 @@ pub struct EventFacts {
     pub event: &'static str,
     /// Protocol categories the event belongs to (e.g. `["HTTP", "SSL"]`).
     pub categories: &'static [&'static str],
-    /// Profile *types* that enable the event, uppercase to match
-    /// [`crate::profiles::ProfileSpec::name`] (e.g. `["HTTP"]`).
-    pub profiles: &'static [&'static str],
 }
 
 /// The facts recorded for `event`, or `None` when the event is unknown.
@@ -51,14 +48,23 @@ pub fn event_facts(event: &str) -> Option<&'static EventFacts> {
     EVENT_FACTS.iter().find(|e| e.event == event)
 }
 
-/// Events enabled by profile type `profile` (case-insensitive), sorted. The
-/// profile-graph inverse of [`EventFacts::profiles`].
+/// Events enabled by profile type `profile` (case-insensitive), sorted.
+///
+/// Derived from the authoritative
+/// [`crate::events::EventProps::implied_profiles`] rather than a generated
+/// table, so it stays in lockstep with the event registry (no drift, full
+/// event coverage).
 #[must_use]
 pub fn events_for_profile(profile: &str) -> Vec<&'static str> {
-    let mut out: Vec<&'static str> = EVENT_FACTS
-        .iter()
-        .filter(|e| e.profiles.iter().any(|p| p.eq_ignore_ascii_case(profile)))
-        .map(|e| e.event)
+    let mut out: Vec<&'static str> = crate::events::event_props_table()
+        .into_iter()
+        .filter(|(_, props)| {
+            props
+                .implied_profiles
+                .iter()
+                .any(|p| p.eq_ignore_ascii_case(profile))
+        })
+        .map(|(name, _)| name)
         .collect();
     out.sort_unstable();
     out
@@ -97,7 +103,6 @@ mod tests {
     fn http_request_facts_resolve() {
         let f = event_facts("HTTP_REQUEST").expect("HTTP_REQUEST present");
         assert!(f.categories.contains(&"HTTP"));
-        assert!(f.profiles.contains(&"HTTP"));
         assert!(event_facts("__NO_SUCH_EVENT__").is_none());
     }
 
@@ -106,6 +111,10 @@ mod tests {
         // The HTTP profile enables HTTP_REQUEST (case-insensitive lookup).
         let http_events = events_for_profile("http");
         assert!(http_events.contains(&"HTTP_REQUEST"));
+        // events_for_profile is sourced from events.rs implied_profiles, so it
+        // reflects the full registry — e.g. FASTHTTP enables HTTP_RESPONSE,
+        // which the old generated table dropped.
+        assert!(events_for_profile("FASTHTTP").contains(&"HTTP_RESPONSE"));
         // Category grouping works.
         let ssl_events = events_in_category("SSL");
         assert!(!ssl_events.is_empty());
