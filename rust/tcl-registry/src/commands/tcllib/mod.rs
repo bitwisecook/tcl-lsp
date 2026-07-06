@@ -238,6 +238,7 @@ mod ciphers;
 mod crc;
 mod data_util;
 mod encoding_pkgs;
+mod math_core;
 mod md4;
 mod md5crypt;
 mod otp;
@@ -536,6 +537,7 @@ fn crypto_encoding_specs() -> Vec<CommandSpec> {
     specs.extend(encoding_pkgs::specs());
     specs.extend(text_misc::specs());
     specs.extend(data_util::specs());
+    specs.extend(math_core::specs());
     specs
 }
 
@@ -682,6 +684,12 @@ mod tests {
         assert_eq!(pkg("ini::commentchar"), Some("inifile"));
         assert_eq!(pkg("units::convert"), Some("units"));
         assert_eq!(pkg("counter::start"), Some("counter"));
+        // math core packages (each math sub-namespace is its own package).
+        assert_eq!(pkg("math::mean"), Some("math"));
+        assert_eq!(pkg("math::random"), Some("math"));
+        assert_eq!(pkg("math::fuzzy::teq"), Some("math::fuzzy"));
+        assert_eq!(pkg("math::roman::toroman"), Some("math::roman"));
+        assert_eq!(pkg("math::constants::constants"), Some("math::constants"));
     }
 
     #[test]

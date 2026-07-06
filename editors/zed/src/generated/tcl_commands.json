@@ -1868,6 +1868,128 @@
       "summary": "String-backed list command for testing (9.0+)."
     },
     {
+      "name": "math::constants::constants",
+      "summary": "Import named mathematical constants (pi, e, …) into the caller."
+    },
+    {
+      "name": "math::constants::print-constants",
+      "summary": "Print the named mathematical constants and their values."
+    },
+    {
+      "name": "math::cov",
+      "summary": "Compute the coefficient of variation of a set of values.",
+      "pure": true
+    },
+    {
+      "name": "math::fibonacci",
+      "summary": "Return the n-th Fibonacci number.",
+      "pure": true
+    },
+    {
+      "name": "math::fuzzy::tceil",
+      "summary": "Tolerant ceiling of a floating-point value.",
+      "pure": true
+    },
+    {
+      "name": "math::fuzzy::teq",
+      "summary": "Tolerant floating-point equality test.",
+      "pure": true
+    },
+    {
+      "name": "math::fuzzy::tfloor",
+      "summary": "Tolerant floor of a floating-point value.",
+      "pure": true
+    },
+    {
+      "name": "math::fuzzy::tge",
+      "summary": "Tolerant floating-point greater-or-equal test.",
+      "pure": true
+    },
+    {
+      "name": "math::fuzzy::tgt",
+      "summary": "Tolerant floating-point strictly-greater test.",
+      "pure": true
+    },
+    {
+      "name": "math::fuzzy::tle",
+      "summary": "Tolerant floating-point less-or-equal test.",
+      "pure": true
+    },
+    {
+      "name": "math::fuzzy::tlt",
+      "summary": "Tolerant floating-point strictly-less test.",
+      "pure": true
+    },
+    {
+      "name": "math::fuzzy::tne",
+      "summary": "Tolerant floating-point inequality test.",
+      "pure": true
+    },
+    {
+      "name": "math::fuzzy::tround",
+      "summary": "Tolerant rounding of a floating-point value.",
+      "pure": true
+    },
+    {
+      "name": "math::fuzzy::troundn",
+      "summary": "Tolerant rounding of a value to ndigits decimals.",
+      "pure": true
+    },
+    {
+      "name": "math::integrate",
+      "summary": "Integrate a tabulated function given as x/y value pairs.",
+      "pure": true
+    },
+    {
+      "name": "math::max",
+      "summary": "Return the maximum of a set of values.",
+      "pure": true
+    },
+    {
+      "name": "math::mean",
+      "summary": "Return the arithmetic mean of a set of values.",
+      "pure": true
+    },
+    {
+      "name": "math::min",
+      "summary": "Return the minimum of a set of values.",
+      "pure": true
+    },
+    {
+      "name": "math::product",
+      "summary": "Return the product of a set of values.",
+      "pure": true
+    },
+    {
+      "name": "math::random",
+      "summary": "Return a pseudo-random number, optionally within a range."
+    },
+    {
+      "name": "math::roman::expr",
+      "summary": "Evaluate an expression whose operands are Roman numerals.",
+      "pure": true
+    },
+    {
+      "name": "math::roman::sort",
+      "summary": "Sort a list of Roman numerals into numeric order.",
+      "pure": true
+    },
+    {
+      "name": "math::roman::tointeger",
+      "summary": "Convert a Roman numeral string to an integer.",
+      "pure": true
+    },
+    {
+      "name": "math::roman::toroman",
+      "summary": "Convert an integer to a Roman numeral string.",
+      "pure": true
+    },
+    {
+      "name": "math::sigma",
+      "summary": "Return the standard deviation of a set of values.",
+      "pure": true
+    },
+    {
       "name": "math::statistics::analyse-Kruskal-Wallis",
       "summary": "Analyse Kruskal-Wallis results.",
       "pure": true
@@ -2080,6 +2202,16 @@
     {
       "name": "math::statistics::var",
       "summary": "Compute the variance of a list of values.",
+      "pure": true
+    },
+    {
+      "name": "math::stats",
+      "summary": "Return mean, standard deviation, and range of a set of values.",
+      "pure": true
+    },
+    {
+      "name": "math::sum",
+      "summary": "Return the sum of a set of values.",
       "pure": true
     },
     {
