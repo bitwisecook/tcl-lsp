@@ -236,11 +236,13 @@ mod yaml__yaml2huddle;
 mod base32;
 mod ciphers;
 mod crc;
+mod encoding_pkgs;
 mod md4;
 mod md5crypt;
 mod otp;
 mod rc4;
 mod ripemd;
+mod text_misc;
 
 use crate::spec::CommandSpec;
 
@@ -530,6 +532,8 @@ fn crypto_encoding_specs() -> Vec<CommandSpec> {
     specs.extend(rc4::specs());
     specs.extend(otp::specs());
     specs.extend(base32::specs());
+    specs.extend(encoding_pkgs::specs());
+    specs.extend(text_misc::specs());
     specs
 }
 
@@ -664,6 +668,29 @@ mod tests {
         assert_eq!(pkg("crc::crc-ccitt"), Some("crc16"));
         assert_eq!(pkg("crc::xmodem"), Some("crc16"));
         assert_eq!(pkg("crc::modbus"), Some("crc16"));
+        // Binary-encoding and text packages.
+        assert_eq!(pkg("ascii85::encode"), Some("ascii85"));
+        assert_eq!(pkg("uuencode::uuencode"), Some("uuencode"));
+        assert_eq!(pkg("yencode::ydecode"), Some("yencode"));
+        assert_eq!(pkg("soundex::knuth"), Some("soundex"));
+        assert_eq!(pkg("stringprep::compare"), Some("stringprep"));
+        assert_eq!(pkg("unicode::normalize"), Some("unicode"));
+    }
+
+    #[test]
+    fn unicode_normalize_form_is_a_closed_enum() {
+        // `unicode::normalize form uclist` — the form word is a closed set
+        // (D / C / KD / KC) so an out-of-set literal is flagged (W127).
+        let reg = crate::registry::CommandRegistry::build_default();
+        let spec = reg.get("unicode::normalize").expect("registered");
+        let forms: Vec<&str> = spec
+            .arg_values
+            .iter()
+            .find(|(i, _)| *i == 0)
+            .map(|(_, vs)| vs.iter().map(|v| v.value).collect())
+            .unwrap_or_default();
+        assert_eq!(forms, ["D", "C", "KD", "KC"]);
+        assert!(spec.closed_value_args.contains(&0), "form arg is closed");
     }
 
     #[test]

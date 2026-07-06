@@ -306,6 +306,16 @@
       ]
     },
     {
+      "name": "ascii85::decode",
+      "summary": "Decode an ascii85-encoded string.",
+      "pure": true
+    },
+    {
+      "name": "ascii85::encode",
+      "summary": "Encode binary data using the ascii85 encoding.",
+      "pure": true
+    },
+    {
       "name": "auto_execok",
       "summary": "Return path of executable, or empty string"
     },
@@ -2710,6 +2720,11 @@
       "summary": "Open a TCP client or server socket channel."
     },
     {
+      "name": "soundex::knuth",
+      "summary": "Compute the Knuth-variant Soundex code of a string.",
+      "pure": true
+    },
+    {
       "name": "source",
       "summary": "Evaluate a file or resource as a Tcl script."
     },
@@ -2766,6 +2781,20 @@
         "wordend",
         "wordstart"
       ]
+    },
+    {
+      "name": "stringprep::compare",
+      "summary": "Compare two strings after applying a stringprep profile.",
+      "pure": true
+    },
+    {
+      "name": "stringprep::register",
+      "summary": "Register a named stringprep (RFC 3454) profile."
+    },
+    {
+      "name": "stringprep::stringprep",
+      "summary": "Prepare a string according to a registered stringprep profile.",
+      "pure": true
     },
     {
       "name": "struct::list",
@@ -4036,6 +4065,26 @@
       ]
     },
     {
+      "name": "unicode::fromstring",
+      "summary": "Convert a Tcl string to a list of Unicode code points.",
+      "pure": true
+    },
+    {
+      "name": "unicode::normalize",
+      "summary": "Normalise a list of Unicode code points to the given form.",
+      "pure": true
+    },
+    {
+      "name": "unicode::normalizeS",
+      "summary": "Normalise a Tcl string to the given Unicode form.",
+      "pure": true
+    },
+    {
+      "name": "unicode::tostring",
+      "summary": "Convert a list of Unicode code points to a Tcl string.",
+      "pure": true
+    },
+    {
       "name": "unknown",
       "summary": "Handle attempts to use non-existent commands"
     },
@@ -4092,6 +4141,24 @@
     {
       "name": "uri::split",
       "summary": "Split a URI into its component parts."
+    },
+    {
+      "name": "uuencode::decode",
+      "summary": "Decode raw uuencoded data (no header).",
+      "pure": true
+    },
+    {
+      "name": "uuencode::encode",
+      "summary": "Encode a string into raw uuencoded data (no header).",
+      "pure": true
+    },
+    {
+      "name": "uuencode::uudecode",
+      "summary": "Decode a uuencoded document into its component files."
+    },
+    {
+      "name": "uuencode::uuencode",
+      "summary": "Uuencode a file or string into a full uuencoded document."
     },
     {
       "name": "uuid::uuid",
@@ -4234,6 +4301,24 @@
     {
       "name": "yaml::yaml2huddle",
       "summary": "Parse a YAML string and return a huddle object."
+    },
+    {
+      "name": "yencode::decode",
+      "summary": "Decode raw yEnc data (no header).",
+      "pure": true
+    },
+    {
+      "name": "yencode::encode",
+      "summary": "Encode a string into raw yEnc data (no header).",
+      "pure": true
+    },
+    {
+      "name": "yencode::ydecode",
+      "summary": "Decode a yEnc document into its component files."
+    },
+    {
+      "name": "yencode::yencode",
+      "summary": "yEnc-encode a file or string into a full yEnc document."
     },
     {
       "name": "yield",
