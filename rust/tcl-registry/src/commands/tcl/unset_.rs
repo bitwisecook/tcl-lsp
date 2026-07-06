@@ -60,7 +60,11 @@ pub fn spec() -> CommandSpec {
             | Traits::BYTE_COMPILED
             | Traits::DESTROYS_VARIABLE
             | Traits::FIRST_ARG_VARNAME,
-        arity: Arity::at_least(1),
+        // Names are optional: tclsh 8.5+ accepts `unset`, `unset -nocomplain`,
+        // and `unset --` as valid no-ops (the `-nocomplain` option was added in
+        // 8.5).  The "consumed all args, unset nothing" footgun is surfaced by
+        // W217, not an arity error.
+        arity: Arity::at_least(0),
         arg_role_resolver: Some(unset_arg_roles),
         assigns_variable_at: Some(0),
         return_type: Some(TclType::String),

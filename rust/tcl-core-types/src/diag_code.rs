@@ -426,6 +426,7 @@ diagnostic_codes! {
     W214 => "W214", diag(Variable, true, "Unused proc parameter — argument is declared but never read in the procedure body.");
     W215 => "W215", diag(Variable, true, "Variable name unreachable via $-substitution (creatable via set/info exists/upvar but no $-form can read it).");
     W216 => "W216", diag(Variable, true, "Broken brace-form array element reference — ``${arr}(x)`` parses as scalar+literal, ``${arr($foo)}`` does not substitute the index.");
+    W217 => "W217", diag(Variable, true, "`unset` unsets nothing — every argument is consumed as an option (`-nocomplain` / `--`); prefix a `-`-named variable with `--`.");
     W220 => "W220", diag(Variable, true, "Dead store — variable set but overwritten before use.");
     W230 => "W230", diag(Warning, true, "Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.");
     W231 => "W231", diag(Warning, true, "Constant list index out of range — lset raises a runtime error.");
