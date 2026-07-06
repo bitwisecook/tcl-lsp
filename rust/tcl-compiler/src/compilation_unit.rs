@@ -1062,7 +1062,13 @@ struct ArgConsts {
 /// entirely.  A false-positive probe just runs the (still fast) scan; the probe
 /// can never miss a real definition because both heads contain `class`.
 fn collect_known_classes(source: &str, registry: &CommandRegistry) -> HashSet<String> {
-    if !source.contains("class") {
+    // Cheap gate before the full signature scan.  A class is created by
+    // `oo::class` / `itcl::class` (both contain "class") **or** by another stock
+    // `TclOO` metaclass — `oo::configurable` / `oo::abstract` / `oo::singleton`,
+    // none of which contain the word "class" — so also admit any `oo::` head
+    // (issue #797: an `oo::configurable` class was skipped here, leaving its
+    // `[Class new]` untyped).
+    if !source.contains("class") && !source.contains("oo::") {
         return HashSet::new();
     }
     crate::signature_scan::extract_signatures(source, registry)

@@ -2040,14 +2040,20 @@ pub fn document_compilation_unit(db: &dyn TclDb, file: SourceFile) -> Arc<Compil
 /// keyed on the same `SourceFile`, guarantees the analysis and the tokens are
 /// for the identical revision (no version skew in the emitted stream).
 #[salsa::tracked]
-pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile) -> SemanticTokens {
+pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig) -> SemanticTokens {
     let registry = db.registry(file.dialect(db));
     let cu = document_compilation_unit(db, file);
-    tcl_lsp_core::semantic_tokens::full_with_cu(
+    // The whole-file analysis (shared, memoised with diagnostics under the same
+    // `config`) supplies user-defined `ClassDef`s so a `$obj method …` /
+    // `[dict get $objs $k] method …` dispatch resolves against user classes and
+    // their `oo::configurable` properties (issue #797), not only registry ones.
+    let analysis = file_analysis(db, file, config);
+    tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
         file.text(db),
         file.dialect(db),
         &registry,
         Some(&cu),
+        Some(&analysis),
     )
 }
 
@@ -2136,7 +2142,7 @@ mod tests {
     fn semantic_tokens_match_direct() {
         let db = TclDatabase::default();
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned());
-        let got = semantic_tokens(&db, file);
+        let got = semantic_tokens(&db, file, cfg(&db));
         let reg = db.registry("tcl");
         let expected = tcl_lsp_core::semantic_tokens::full(SRC, "tcl", &reg);
         assert_eq!(got, expected);

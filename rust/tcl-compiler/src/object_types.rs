@@ -16,22 +16,25 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Object-handle → class-name provenance for the `$obj method …` pattern.
+//! Object-handle & object-collection → class-name provenance for the
+//! `$obj method …` / `[dict get $objs $k] method …` patterns.
 //!
-//! Recognises `set VAR [Factory new|create …]` where `Factory` is a
-//! registry-modelled `TclOO` class (carries an
-//! [`ObjectClassSpec`](tcl_registry::ObjectClassSpec)), so a later
-//! `$VAR method …` dispatch can resolve the method's options through the
-//! registry — the object-handle half of issue #748.
+//! [`object_handle_classes`] recognises a `set VAR [Factory new|create …]`
+//! constructor assignment (the object-handle half of issue #748) *and* any SSA
+//! value the type lattice typed `OBJECT(class)` — the latter now including a
+//! handle retrieved from an object collection (`set p [dict get $pins $k]`).
+//! [`object_collection_classes`] maps a `List`/`Dict` variable to the class of
+//! its elements, harvested from the lattice's container element-typing.
 //!
-//! This is **provenance** tracking, not class *inference*.  The class comes
-//! directly from the constructor call, which is the accurate signal for the
-//! trackable case: the object→class binding *lattice* was measured to add no
-//! resolving power on real `TclOO` corpora (`experiments/mro_eval/RESULTS.md`
-//! — 99.8% ⊤, factory-return dominating), because a receiver that arrives as a
-//! proc parameter is inherently un-provenanced intraprocedurally.  Those
-//! receivers are left to the generic shape-based option fallback rather than
-//! resolved with a wrong-or-abstain lattice.
+//! The maps union across scopes.  For the syntactic constructor signal that is
+//! merely a highlight-precision convenience; for the collection signal it is
+//! also the *interprocedural bridge* that makes issue #797 resolvable — an
+//! object built into an instance-variable collection in one method is dispatched
+//! from it in another, which no intraprocedural lattice can connect
+//! (`experiments/mro_eval/RESULTS.md` measured 99.8% ⊤ intraprocedurally on real
+//! `TclOO` corpora, factory-return / cross-method dominating).  An
+//! un-provenanced receiver is still left to the generic shape-based option
+//! fallback rather than resolved with a wrong-or-abstain lattice.
 
 use std::collections::{HashMap, HashSet};
 
@@ -41,18 +44,24 @@ use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::Statement;
 use crate::value_shapes::parse_command_substitution;
 
-/// Map every variable that holds a registry-class object handle to the set of
-/// class names it can hold, harvested from `set VAR [Class new|create …]`
-/// across the top level, procedures, and method bodies of `cu`.
+/// Map every variable that holds an object handle to the set of class names it
+/// can hold, across the top level, procedures, and method bodies of `cu`.
 ///
-/// Keys are the assignment target verbatim — a scalar name (`chart`) or an
-/// array element (`arr(key)`) — matching the handle text a `$VAR method`
-/// dispatch presents once its leading `$` is stripped.  The map unions across
-/// scopes: a highlight-only consumer does not need per-scope precision, and a
-/// variable named `chart` that is a `ticklecharts::chart` in one proc is
-/// overwhelmingly one in another.
+/// Two signals are unioned:
+/// - the syntactic `set VAR [Class new|create …]` constructor assignment
+///   (reliable for registry-modelled factory commands); and
+/// - any SSA value typed `OBJECT(class)` by the type lattice — which now
+///   additionally covers a handle *retrieved from an object collection*
+///   (`set p [dict get $pins $k]`, `set p [lindex $objs $i]`) via
+///   `type_infer`'s container element-typing.
+///
+/// Keys are the handle text a `$VAR method` dispatch presents once its leading
+/// `$` is stripped — a scalar name (`chart`) or an array element (`arr(key)`).
+/// The map unions across scopes: a highlight-only consumer does not need
+/// per-scope precision, and a variable named `chart` that is a
+/// `ticklecharts::chart` in one proc is overwhelmingly one in another.
 #[must_use]
-pub fn registry_object_handle_classes(
+pub fn object_handle_classes(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
 ) -> HashMap<String, HashSet<String>> {
@@ -66,11 +75,42 @@ pub fn registry_object_handle_classes(
     out
 }
 
+/// Map every variable that holds an object *collection* — a `List`/`Dict`
+/// whose elements are all `OBJECT(class)` — to the set of element class names,
+/// read out of the SSA type lattice across the top level, procedures, and
+/// method bodies of `cu`.
+///
+/// Keys are SSA variable names.  The map unions across scopes, which is the
+/// interprocedural bridge the intraprocedural lattice cannot make on its own:
+/// a `Pins` instance variable filled with `[Pin new]` handles in one method is
+/// thereby known to be a `Dict` of `Pin` at a `[dict get $Pins $k] method …`
+/// dispatch in a *different* method — the exact SpiceGenTcl shape from issue
+/// #797.  Highlight-only, matching the imprecision tolerance of
+/// [`object_handle_classes`].
+#[must_use]
+pub fn object_collection_classes(cu: &CompilationUnit) -> HashMap<String, HashSet<String>> {
+    let mut out: HashMap<String, HashSet<String>> = HashMap::new();
+    let units = std::iter::once(&cu.top_level)
+        .chain(cu.procedures.values())
+        .chain(cu.methods.values());
+    for fu in units {
+        for ((sym, _ver), t) in &fu.types {
+            if let Some(class) = t.element_class() {
+                out.entry(fu.ssa.var_name(*sym).to_owned())
+                    .or_default()
+                    .insert(class.to_owned());
+            }
+        }
+    }
+    out
+}
+
 fn harvest_unit(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
     out: &mut HashMap<String, HashSet<String>>,
 ) {
+    // Syntactic constructor assignments: `set VAR [Class new|create …]`.
     for block in fu.cfg.blocks.values() {
         for stmt in &block.statements {
             let Statement::AssignValue { name, value, .. } = stmt else {
@@ -81,6 +121,17 @@ fn harvest_unit(
                     .or_default()
                     .insert(class.to_string());
             }
+        }
+    }
+    // SSA values typed `OBJECT(class)` — includes collection retrievals
+    // (`set p [dict get $pins $k]`) the syntactic scan above cannot see.
+    for ((sym, _ver), t) in &fu.types {
+        if t.tcl_type == Some(tcl_registry::TclType::Object)
+            && let Some(class) = &t.class_name
+        {
+            out.entry(fu.ssa.var_name(*sym).to_owned())
+                .or_default()
+                .insert(class.clone());
         }
     }
 }
@@ -108,7 +159,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let src = "set chart [ticklecharts::chart new]\n$chart Xaxis -name x\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
-        let map = registry_object_handle_classes(&cu, &registry);
+        let map = object_handle_classes(&cu, &registry);
         assert_eq!(
             map.get("chart").map(|s| s.contains("ticklecharts::chart")),
             Some(true),
@@ -121,10 +172,45 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let src = "set x [expr {1 + 2}]\nset y hello\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
-        let map = registry_object_handle_classes(&cu, &registry);
+        let map = object_handle_classes(&cu, &registry);
         assert!(
             map.is_empty(),
             "no object handles expected for non-constructor assignments; got {map:?}"
+        );
+    }
+
+    #[test]
+    fn collection_of_objects_is_tracked() {
+        let registry = CommandRegistry::build_default();
+        let src = "oo::class create Pin {}\n\
+                   dict set pins a [Pin new]\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let map = object_collection_classes(&cu);
+        assert_eq!(
+            map.get("pins").map(|s| s.contains("::Pin")),
+            Some(true),
+            "pins should be a collection of ::Pin; got {map:?}"
+        );
+    }
+
+    #[test]
+    fn collection_class_bridges_across_methods() {
+        // The interprocedural case from issue #797: one method fills the `pins`
+        // collection, a *different* method dispatches on an element.  The
+        // cross-scope union makes `pins` a collection-of-Pin at both sites.
+        let registry = CommandRegistry::build_default();
+        let src = "oo::class create Pin { method cfg {args} {} }\n\
+                   oo::class create Dev {\n\
+                     variable pins\n\
+                     method add {k} { dict set pins $k [Pin new] }\n\
+                     method use {k} { [dict get $pins $k] cfg -node 1 }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let map = object_collection_classes(&cu);
+        assert_eq!(
+            map.get("pins").map(|s| s.contains("::Pin")),
+            Some(true),
+            "pins should be a collection of ::Pin, harvested from method add; got {map:?}"
         );
     }
 }
