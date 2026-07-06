@@ -974,7 +974,7 @@ environment variables or a vault, not in source code."
                 .registry
                 .as_ref()
                 .and_then(|r| r.get(cmd_name))
-                .and_then(|s| s.subcommand(&sub))
+                .and_then(|s| s.resolve_subcommand(&sub))
                 .and_then(|sc| {
                     sc.credential_arg
                         .map(|a| (a as usize, sc.sensitive_headers))

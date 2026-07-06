@@ -750,10 +750,10 @@ impl CommandRegistry {
         let n = args.len();
         let mut out: Vec<usize> = Vec::new();
 
-        // Check subcommand
+        // Check subcommand (exact or unique-prefix abbreviation).
         if !spec.subcommands.is_empty()
             && !args.is_empty()
-            && let Some(sub) = spec.subcommand(args[0])
+            && let Some(sub) = spec.resolve_subcommand(args[0])
         {
             // Positional roles, offset by +1 for the subcommand word.
             if let Some(resolver) = sub.arg_role_resolver {

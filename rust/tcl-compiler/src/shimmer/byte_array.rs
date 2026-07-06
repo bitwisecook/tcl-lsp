@@ -172,7 +172,7 @@ fn cmdsub_returns_bytearray(registry: &CommandRegistry, cmd: &str, args: &[Strin
     if !spec.subcommands.is_empty() {
         return args
             .first()
-            .and_then(|sub| spec.subcommand(sub))
+            .and_then(|sub| spec.resolve_subcommand(sub))
             .is_some_and(|sub| sub.return_type == Some(TclType::ByteArray));
     }
     spec.return_type == Some(TclType::ByteArray)

@@ -201,7 +201,7 @@ pub(crate) fn return_type_for_command<S: std::hash::BuildHasher>(
     // Subcommand commands: check sub's return_type.
     if !spec.subcommands.is_empty() {
         if let Some(sub_name) = args.first()
-            && let Some(sub) = spec.subcommand(sub_name)
+            && let Some(sub) = spec.resolve_subcommand(sub_name)
         {
             return match sub.return_type {
                 Some(t) => TypeLattice::of(t),
@@ -416,7 +416,7 @@ fn is_scope_alias_call(registry: &CommandRegistry, command: &str, args: &[String
         return true;
     }
     args.first()
-        .and_then(|sub| spec.subcommand(sub))
+        .and_then(|sub| spec.resolve_subcommand(sub))
         .is_some_and(|sub| sub.creates_scope_alias)
 }
 

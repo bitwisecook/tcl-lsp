@@ -671,7 +671,7 @@ fn emit_builtin_hints(
         let Some(sub_name) = seg.texts.get(1) else {
             return;
         };
-        let Some(sub) = spec.subcommands.iter().find(|s| s.name == sub_name) else {
+        let Some(sub) = spec.resolve_subcommand(sub_name) else {
             return;
         };
         // Synopsis like `string length string` — skip the

@@ -351,7 +351,7 @@ fn transform_colour(
 ) -> Option<TaintColour> {
     let spec = registry.get(command)?;
     if let Some(sub_name) = args.first()
-        && let Some(sub) = spec.subcommand(sub_name)
+        && let Some(sub) = spec.resolve_subcommand(sub_name)
         && let Some(colour) = sub.taint_transform
     {
         return Some(reg_colour(colour));
