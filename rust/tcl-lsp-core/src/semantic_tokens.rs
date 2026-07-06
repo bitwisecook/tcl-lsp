@@ -1065,6 +1065,18 @@ fn insert_option_and_subcommand_overrides(
                 .entry(tok.span.start())
                 .or_insert(ArgOverride::SubcommandKeyword);
         }
+
+        // Two-level ensembles (`info object <subcommand>`, `info class
+        // <subcommand>`): the word after the first-level subcommand is itself a
+        // subcommand keyword, not a string (issue #798).
+        if let Some(sub_sub_text) = seg.texts.get(2)
+            && sub.is_sub_subcommand(sub_sub_text)
+            && let Some(tok) = seg.argv.get(2)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::SubcommandKeyword);
+        }
     }
 
     for (i, text) in seg.texts.iter().enumerate().skip(1) {
@@ -4107,6 +4119,46 @@ mod tests {
         assert!(
             !ks.contains(&(TokenKind::EnumMember as u32)),
             "bogusclass is not a class; got {ks:?}"
+        );
+    }
+
+    #[test]
+    fn info_object_class_sub_subcommand_classified_as_keyword() {
+        // Issue #798: in `info object class $obj`, the `class` word is a
+        // second-level subcommand (OBJECT INTROSPECTION), not a string. Both the
+        // first-level `object` and the second-level `class` must read as
+        // keywords (the `info` head itself is a Function).
+        let kind_at = |src: &str, col: u32| -> u32 {
+            decode_full(src, "tcl", &reg())
+                .into_iter()
+                .find(|&(_, c, _, _, _)| c == col)
+                .map(|(_, _, _, k, _)| k)
+                .unwrap_or_else(|| panic!("no token at column {col} in {src:?}"))
+        };
+
+        // `info object class $obj` — column 12 is `class`.
+        let src = "info object class $obj\n";
+        assert_eq!(
+            kind_at(src, 12),
+            TokenKind::Keyword as u32,
+            "`class` sub-subcommand should be a keyword"
+        );
+
+        // `info class superclasses $cls` — column 11 is `superclasses`.
+        let src = "info class superclasses $cls\n";
+        assert_eq!(
+            kind_at(src, 11),
+            TokenKind::Keyword as u32,
+            "`superclasses` sub-subcommand should be a keyword"
+        );
+
+        // A non-subcommand third word stays a string: `info object frobnicate`
+        // — `frobnicate` is not a recognised OBJECT INTROSPECTION operation.
+        let src = "info object frobnicate $obj\n";
+        assert_eq!(
+            kind_at(src, 12),
+            TokenKind::String as u32,
+            "an unknown third word must stay a string, not a keyword"
         );
     }
 

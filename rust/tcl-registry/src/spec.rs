@@ -833,6 +833,18 @@ pub struct SubCommand {
     /// CFG-lowered command name for ensemble subcommands rewritten by
     /// the lowering pass.
     pub cfg_rewrite_name: Option<&'static str>,
+
+    /// Nested subcommand keywords for a two-level ensemble, matched at the
+    /// argument index immediately after this subcommand word.
+    ///
+    /// A handful of `info` subcommands are themselves ensembles whose *next*
+    /// word selects a further operation — `info object <subcommand> object …`
+    /// and `info class <subcommand> class …` (per the `info` man page's OBJECT
+    /// INTROSPECTION and CLASS INTROSPECTION sections). Listing the valid
+    /// second-level names here lets the semantic-token pass colour that word as
+    /// a subcommand keyword (issue #798) instead of leaving it a bare string.
+    /// Empty for the overwhelmingly-common single-level subcommand.
+    pub sub_subcommands: &'static [&'static str],
 }
 
 impl SubCommand {
@@ -878,6 +890,7 @@ impl SubCommand {
         returns_path: false,
         is_unescape: false,
         cfg_rewrite_name: None,
+        sub_subcommands: &[],
     };
 
     /// Run this subcommand's constant folder for `args` under `dialect` —
@@ -891,6 +904,13 @@ impl SubCommand {
         } else {
             self.const_fold?(args)
         }
+    }
+
+    /// Whether `name` is a recognised second-level subcommand of this
+    /// two-level-ensemble subcommand (see [`Self::sub_subcommands`]).
+    #[must_use]
+    pub fn is_sub_subcommand(&self, name: &str) -> bool {
+        self.sub_subcommands.contains(&name)
     }
 
     /// Look up a static arg role by index.

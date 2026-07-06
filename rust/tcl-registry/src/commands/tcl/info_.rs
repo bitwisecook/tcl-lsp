@@ -25,6 +25,48 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "info option ?arg arg ...?",
 }];
 
+/// Second-level subcommands of `info object` (the OBJECT INTROSPECTION
+/// operations from the `info` man page). Names span Tcl 8.6–9.0; the
+/// version-newer ones (`creationid`, `properties`) are harmless to list here —
+/// this drives semantic highlighting of the word after `object`, not arity or
+/// dialect validation.
+const INFO_OBJECT_SUBS: &[&str] = &[
+    "call",
+    "class",
+    "creationid",
+    "definition",
+    "filters",
+    "forward",
+    "isa",
+    "methods",
+    "methodtype",
+    "mixins",
+    "namespace",
+    "properties",
+    "variables",
+    "vars",
+];
+
+/// Second-level subcommands of `info class` (the CLASS INTROSPECTION
+/// operations from the `info` man page).
+const INFO_CLASS_SUBS: &[&str] = &[
+    "call",
+    "constructor",
+    "definition",
+    "definitionnamespace",
+    "destructor",
+    "filters",
+    "forward",
+    "instances",
+    "methods",
+    "methodtype",
+    "mixins",
+    "properties",
+    "subclasses",
+    "superclasses",
+    "variables",
+];
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "args",
@@ -53,6 +95,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         dialects: Some(DialectSet::TCL86_PLUS),
+        // `info class` is itself an ensemble: the word after `class` selects a
+        // CLASS INTROSPECTION operation (issue #798).
+        sub_subcommands: INFO_CLASS_SUBS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -245,6 +290,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         dialects: Some(DialectSet::TCL86_PLUS),
+        // `info object` is itself an ensemble: the word after `object` selects
+        // an OBJECT INTROSPECTION operation (issue #798).
+        sub_subcommands: INFO_OBJECT_SUBS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
