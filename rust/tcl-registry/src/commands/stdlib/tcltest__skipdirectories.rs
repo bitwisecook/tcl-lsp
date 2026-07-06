@@ -32,6 +32,8 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         required_package: Some("tcltest"),
+        // The optional value is a glob pattern (list).
+        arg_roles: &[(0, ArgRole::Pattern)],
         deprecated_replacement: Some("tcltest::configure"),
         ..CommandSpec::DEFAULT
     }
