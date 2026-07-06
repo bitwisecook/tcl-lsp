@@ -236,6 +236,7 @@ mod yaml__yaml2huddle;
 mod base32;
 mod ciphers;
 mod crc;
+mod data_util;
 mod encoding_pkgs;
 mod md4;
 mod md5crypt;
@@ -534,6 +535,7 @@ fn crypto_encoding_specs() -> Vec<CommandSpec> {
     specs.extend(base32::specs());
     specs.extend(encoding_pkgs::specs());
     specs.extend(text_misc::specs());
+    specs.extend(data_util::specs());
     specs
 }
 
@@ -675,6 +677,11 @@ mod tests {
         assert_eq!(pkg("soundex::knuth"), Some("soundex"));
         assert_eq!(pkg("stringprep::compare"), Some("stringprep"));
         assert_eq!(pkg("unicode::normalize"), Some("unicode"));
+        // Data / utility packages (namespace != package for inifile).
+        assert_eq!(pkg("ini::open"), Some("inifile"));
+        assert_eq!(pkg("ini::commentchar"), Some("inifile"));
+        assert_eq!(pkg("units::convert"), Some("units"));
+        assert_eq!(pkg("counter::start"), Some("counter"));
     }
 
     #[test]

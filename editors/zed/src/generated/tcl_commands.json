@@ -620,6 +620,46 @@
       "summary": "Create and produce values from coroutines"
     },
     {
+      "name": "counter::count",
+      "summary": "Increment a counter by a delta (default 1)."
+    },
+    {
+      "name": "counter::exists",
+      "summary": "Test whether a counter exists.",
+      "pure": true
+    },
+    {
+      "name": "counter::get",
+      "summary": "Return a value or statistic held by a counter.",
+      "pure": true
+    },
+    {
+      "name": "counter::histHtmlDisplay",
+      "summary": "Render a counter's histogram as HTML.",
+      "pure": true
+    },
+    {
+      "name": "counter::init",
+      "summary": "Initialise a counter with the given options."
+    },
+    {
+      "name": "counter::names",
+      "summary": "List the names of all defined counters.",
+      "pure": true
+    },
+    {
+      "name": "counter::reset",
+      "summary": "Reset a counter to its initial state."
+    },
+    {
+      "name": "counter::start",
+      "summary": "Start a timing interval for a counter instance."
+    },
+    {
+      "name": "counter::stop",
+      "summary": "Stop a timing interval and record the elapsed time."
+    },
+    {
       "name": "crc::CksumFinal",
       "summary": "Finalise an incremental cksum and return the result."
     },
@@ -1437,6 +1477,69 @@
         "tclversion",
         "vars"
       ]
+    },
+    {
+      "name": "ini::close",
+      "summary": "Close an INI handle without saving."
+    },
+    {
+      "name": "ini::comment",
+      "summary": "Get or set the comment for a section or key."
+    },
+    {
+      "name": "ini::commentchar",
+      "summary": "Get or set the comment character.",
+      "pure": true
+    },
+    {
+      "name": "ini::commit",
+      "summary": "Write pending changes back to the INI file."
+    },
+    {
+      "name": "ini::delete",
+      "summary": "Delete an INI section or key."
+    },
+    {
+      "name": "ini::exists",
+      "summary": "Test whether a section or key exists.",
+      "pure": true
+    },
+    {
+      "name": "ini::filename",
+      "summary": "Return the filename backing an INI handle.",
+      "pure": true
+    },
+    {
+      "name": "ini::get",
+      "summary": "Return a section as a key/value list.",
+      "pure": true
+    },
+    {
+      "name": "ini::keys",
+      "summary": "List the keys in an INI section.",
+      "pure": true
+    },
+    {
+      "name": "ini::open",
+      "summary": "Open an INI file and return a handle for the other ini commands."
+    },
+    {
+      "name": "ini::revert",
+      "summary": "Discard pending changes to an INI handle."
+    },
+    {
+      "name": "ini::sections",
+      "summary": "List the sections in an INI file.",
+      "pure": true
+    },
+    {
+      "name": "ini::set",
+      "summary": "Set the value of an INI key."
+    },
+    {
+      "name": "ini::value",
+      "summary": "Return the value of an INI key.",
+      "pure": true
     },
     {
       "name": "interp",
@@ -4082,6 +4185,20 @@
     {
       "name": "unicode::tostring",
       "summary": "Convert a list of Unicode code points to a Tcl string.",
+      "pure": true
+    },
+    {
+      "name": "units::convert",
+      "summary": "Convert a value string into a number scaled to the target units.",
+      "pure": true
+    },
+    {
+      "name": "units::new",
+      "summary": "Define a new named unit in terms of existing units."
+    },
+    {
+      "name": "units::reduce",
+      "summary": "Reduce a unit string to a scale factor and its base units.",
       "pure": true
     },
     {
