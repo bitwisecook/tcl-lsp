@@ -29,11 +29,12 @@ command* that takes a variable name by reference — `myset arr(key) 1` where
 
 Whether an argument *is* a variable-name spot is not a text-shape question —
 the [command registry](../design/compiler/command-registry.md) already answers
-it. `insert_var_decl_overrides` walks the argument indices the registry marks
-with the `ArgRole::VarWrite` role, so the target is known to be a variable
-before the walker looks at its text. The only remaining question is token
-**geometry**: can the word be painted as one whole-word `Variable` token, or
-does it contain an inner substitution that must survive as its own sub-token?
+it. `insert_var_role_overrides` walks the argument indices the registry marks
+with a by-reference variable role — `ArgRole::VarWrite` (a written target) or
+`ArgRole::VarRead` (a read reference) — so the argument is known to be a
+variable before the walker looks at its text. The only remaining question is
+token **geometry**: can the word be painted as one whole-word `Variable` token,
+or does it contain an inner substitution that must survive as its own sub-token?
 
 The old gate answered that with `is_plain_var_name`, which rejects any word
 containing `(`, so every array element — literal (`arr(key)`) or computed
@@ -63,11 +64,11 @@ safe to paint as one token.
 3. A word with an inner substitution (`arr($i)`, `$dynamic`) is multi-token, so
    `single_token_word` is `false` and the word is left to the default
    classifier — its inner `$var` sub-tokens survive.
-3. The registry-agnostic list walkers (`global` / `variable` names, `upvar`
+4. The registry-agnostic list walkers (`global` / `variable` names, `upvar`
    locals, parameter lists, loop-variable lists) still use `is_plain_var_name`,
    because those pull names out of list positions where an element genuinely may
    not be a name.
-4. The static registry role is not the *only* source of a variable-name spot.
+5. The static registry role is not the *only* source of a variable-name spot.
    The same retag also unions two dynamic sources, both carried by the
    `VarNameArgRoles` index passed into the token walk:
    - **Stub roles** — a `# tcl-lsp: stub NAME {arg:var …}` (write) or `:var_read`

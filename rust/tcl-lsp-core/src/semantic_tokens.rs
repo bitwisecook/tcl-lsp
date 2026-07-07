@@ -5493,16 +5493,32 @@ mod tests {
 
     #[test]
     fn unset_array_element_is_variable() {
-        // `unset arr(key)` — the literal element is a variable, and a computed
-        // subscript (`unset arr($i)`) still leaves the inner `$i` sub-token.
-        for src in ["unset arr(key)\n", "unset arr($i)\n"] {
-            let toks = decode_full(src, "tcl", &reg());
-            assert!(
-                toks.iter()
-                    .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
-                "expected a variable token; got {toks:?} for {src:?}"
-            );
-        }
+        // `unset arr(key)` — `unset` is a VarWrite command, so the literal
+        // element retags as one whole-word `Variable` declaration spanning
+        // `arr(key)` (col 6, len 8).
+        let toks = decode_full("unset arr(key)\n", "tcl", &reg());
+        let whole = toks.iter().any(|(_, col, len, k, m)| {
+            *col == 6 && *len == 8 && *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
+        });
+        assert!(
+            whole,
+            "expected `arr(key)` as one variable declaration; got {toks:?}"
+        );
+        // `unset arr($i)` — the computed subscript stays multi-token: the inner
+        // `$i` (col 10) survives as its own variable, and the whole word is not
+        // painted (no declaration at the word start, col 6).
+        let toks = decode_full("unset arr($i)\n", "tcl", &reg());
+        let inner_i = toks
+            .iter()
+            .any(|(_, col, _, k, _)| *col == 10 && *k == TokenKind::Variable as u32);
+        assert!(inner_i, "expected the inner `$i` variable; got {toks:?}");
+        let painted_whole = toks.iter().any(|(_, col, _, k, m)| {
+            *col == 6 && *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
+        });
+        assert!(
+            !painted_whole,
+            "computed subscript must not retag the whole word; got {toks:?}"
+        );
     }
 
     #[test]
