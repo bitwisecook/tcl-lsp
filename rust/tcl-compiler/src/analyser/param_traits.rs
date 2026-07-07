@@ -39,11 +39,16 @@
 //!
 //! Two passes are exposed:
 //!
-//! * [`infer_param_traits`] — shallow, top-level command scan
-//!   only.  Fast enough for synchronous use during analysis;
-//!   detects direct patterns like ``eval $param``, ``upvar 1
-//!   $param local``, ``foreach x $list body``.  Does not
-//!   recurse into braced body arguments.
+//! * [`infer_param_traits`] — shallow command scan.  Fast enough
+//!   for synchronous use during analysis; detects direct patterns
+//!   like ``eval $param``, ``upvar 1 $param local``, ``foreach x
+//!   $list body``.  It **does** descend into ``[...]`` command
+//!   substitutions (`return [set $v]` is a first-order use), and
+//!   recognises variable names built from parameters — a bare
+//!   ``$p``, a compound array element (``set ${v}($k)`` marks both
+//!   ``v`` and ``k``), and ``namespace upvar ns $token arr``.  It
+//!   does **not** recurse into braced *body* arguments (that is the
+//!   deep pass's job).
 //! * [`infer_param_traits_deep`] — recursive descent into
 //!   braced body args, catching traits hidden one or more
 //!   levels deep (`foreach item $items { uplevel 1 $body }`
@@ -65,7 +70,7 @@ use tcl_registry::stub_overlay::StubOverlay;
 
 use super::types::ProcArgTrait;
 use crate::segmenter::segment_commands_with_offset_and_config;
-use tcl_lexer::LexerConfig;
+use tcl_lexer::{LexerConfig, TokenType};
 
 /// Top-level shallow trait inference.  Returns a map from
 /// parameter name to a set of inferred traits.  Empty entries
@@ -269,9 +274,42 @@ fn scan_commands<'p>(
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     upvar_aliases: &mut HashMap<String, &'p str>,
 ) {
-    let commands = extract_commands(source, ctx.config);
-    for (cmd_name, cmd_args) in &commands {
-        scan_command(cmd_name, cmd_args, ctx, traits, upvar_aliases);
+    scan_commands_bounded(source, ctx, traits, upvar_aliases, 0);
+}
+
+/// [`scan_commands`] plus descent into `[...]` command substitutions, bounded
+/// by [`MAX_DEPTH`].  A param used inside a substitution (`return [set $v]`,
+/// `set x [foo $v]`, `set ${v}($k)` wrapped in `[...]`) is a first-order use of
+/// that param, not a "deep" one, so both the shallow and deep passes see it —
+/// the substitution is where much ordinary Tcl computation happens.  Nested
+/// substitutions are reached by the recursion.
+fn scan_commands_bounded<'p>(
+    source: &str,
+    ctx: &ScanCtx<'p, '_>,
+    traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
+    upvar_aliases: &mut HashMap<String, &'p str>,
+    depth: u8,
+) {
+    let segments = segment_commands_with_offset_and_config(source, 0, ctx.config);
+    for seg in &segments {
+        if seg.texts.is_empty() {
+            continue;
+        }
+        let cmd_args: Vec<String> = seg.texts[1..].to_vec();
+        scan_command(&seg.texts[0], &cmd_args, ctx, traits, upvar_aliases);
+        if depth >= MAX_DEPTH {
+            continue;
+        }
+        // A whole-word `Cmd` token's `texts` entry is the bracketed
+        // substitution; strip the outer `[` / `]` and recurse into its script.
+        for (word, tok) in seg.texts.iter().zip(seg.argv.iter()) {
+            if tok.kind == TokenType::Cmd
+                && let Some(inner) = word.strip_prefix('[').and_then(|w| w.strip_suffix(']'))
+                && !inner.trim().is_empty()
+            {
+                scan_commands_bounded(inner, ctx, traits, upvar_aliases, depth + 1);
+            }
+        }
     }
 }
 
@@ -343,22 +381,6 @@ fn scan_deep<'p>(
             scan_deep(body_text, ctx, traits, upvar_aliases, depth + 1);
         }
     }
-}
-
-/// Extract `(command, args)` pairs from `source` via the
-/// segmenter.
-fn extract_commands(source: &str, config: LexerConfig) -> Vec<(String, Vec<String>)> {
-    let mut commands = Vec::new();
-    let segments = segment_commands_with_offset_and_config(source, 0, config);
-    for seg in segments {
-        if seg.texts.is_empty() {
-            continue;
-        }
-        let cmd_name = seg.texts[0].clone();
-        let cmd_args: Vec<String> = seg.texts[1..].to_vec();
-        commands.push((cmd_name, cmd_args));
-    }
-    commands
 }
 
 /// Extract a bare variable name from ``$var`` or ``${var}``.
@@ -457,6 +479,9 @@ fn scan_command<'p>(
     // Per-command structural handlers.
     match cmd_name {
         "upvar" => handle_upvar(cmd_args, param_set, traits, upvar_aliases),
+        "namespace" if cmd_args.first().map(String::as_str) == Some("upvar") => {
+            handle_namespace_upvar(cmd_args, param_set, traits, upvar_aliases);
+        }
         "foreach" | "lmap" => handle_foreach(cmd_args, param_set, traits),
         "while" => handle_while(cmd_args, param_set, traits),
         "for" => handle_for(cmd_args, param_set, traits),
@@ -516,38 +541,127 @@ fn apply_arg_role_traits<'p>(
 ) {
     let arg_roles = resolve_arg_roles(cmd_name, cmd_args, registry, stub_overlay);
     for (idx, arg) in cmd_args.iter().enumerate() {
-        let Some(var_name) = extract_var_name(arg) else {
-            continue;
-        };
-        let source_param = if let Some(p) = param_set.get(var_name) {
-            *p
-        } else if let Some(alias) = upvar_aliases.get(var_name) {
-            *alias
-        } else {
-            continue;
-        };
         let Ok(idx_u8) = u8::try_from(idx) else {
             continue;
         };
-        let Some(set) = traits.get_mut(source_param) else {
-            continue;
-        };
         match arg_roles.get(&idx_u8) {
+            // Body / Expr apply only to a bare `$param` (or upvar-aliased) word:
+            // the whole argument *is* the param's value, evaluated as a script /
+            // expression.
             Some(ArgRole::Body) => {
-                set.insert(ProcArgTrait::Body);
+                if let Some(p) = resolve_param(arg, param_set, upvar_aliases)
+                    && let Some(set) = traits.get_mut(p)
+                {
+                    set.insert(ProcArgTrait::Body);
+                }
             }
             Some(ArgRole::Expr) => {
-                set.insert(ProcArgTrait::Expr);
+                if let Some(p) = resolve_param(arg, param_set, upvar_aliases)
+                    && let Some(set) = traits.get_mut(p)
+                {
+                    set.insert(ProcArgTrait::Expr);
+                }
             }
-            // A registry `VarWrite` / `VarRead` role landing on a bare
-            // `$param` substitution means the param's VALUE names a
-            // CALLEE-LOCAL variable (`set $p 1`, `variable $p`,
-            // `incr $p`) — NOT a caller-frame alias.  Record the
-            // callee-local refinement, never `VarWrite` (only an
-            // `upvar`-aliased write-back is a genuine caller write).
-            Some(ArgRole::VarWrite | ArgRole::VarRead) => mark_dynamic_name_local(set),
+            // A registry / stub `VarWrite` / `VarRead` role names a variable.
+            // Every param whose value flows into that name — the whole `$p`, or
+            // a `$p` component of a compound dynamic name (`${p}($k)`,
+            // `$p($k)`) — names a CALLEE-LOCAL variable (`set $p 1`,
+            // `set ${v}($k)`, `incr $p`), NOT a caller-frame alias.  Record the
+            // callee-local refinement (never `VarWrite`; only an `upvar`-aliased
+            // write-back is a genuine caller write).
+            Some(ArgRole::VarWrite | ArgRole::VarRead) => {
+                for var_name in var_substitutions(arg) {
+                    if let Some(p) = lookup_param(var_name, param_set, upvar_aliases)
+                        && let Some(set) = traits.get_mut(p)
+                    {
+                        mark_dynamic_name_local(set);
+                    }
+                }
+            }
             _ => {}
         }
+    }
+}
+
+/// Resolve a bare `$param` / `${param}` argument to the param it references,
+/// following an `upvar` alias.  `None` when the argument is not a simple
+/// variable reference or names no known param.
+fn resolve_param<'p>(
+    arg: &str,
+    param_set: &HashSet<&'p str>,
+    upvar_aliases: &HashMap<String, &'p str>,
+) -> Option<&'p str> {
+    lookup_param(extract_var_name(arg)?, param_set, upvar_aliases)
+}
+
+/// Map a bare variable name to the param it is (directly, or via an `upvar`
+/// alias).  `None` when it names no known param.
+fn lookup_param<'p>(
+    var_name: &str,
+    param_set: &HashSet<&'p str>,
+    upvar_aliases: &HashMap<String, &'p str>,
+) -> Option<&'p str> {
+    if let Some(p) = param_set.get(var_name) {
+        Some(*p)
+    } else {
+        upvar_aliases.get(var_name).copied()
+    }
+}
+
+/// Yield each simple variable name substituted in `text` — `$name`, `${name}`,
+/// or the array *name* of an element reference — in source order.  Used to find
+/// the param(s) whose value flows into a (possibly compound) dynamic variable
+/// name such as `${v}($k)` (both `v` and `k`), `arr($k)` (just `k`), or the
+/// segmenter's normalised `${gas(idx)}` form (just `gas`).  Best-effort and
+/// highlighting-grade: a leading `\$` is skipped, and a name must start with a
+/// letter or `_` (so `$1` backrefs and `$` alone are ignored).
+fn var_substitutions(text: &str) -> Vec<&str> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'$' || (i > 0 && bytes[i - 1] == b'\\') {
+            i += 1;
+            continue;
+        }
+        if bytes.get(i + 1) == Some(&b'{') {
+            // `${…}` — the braced content is the variable name, but the
+            // segmenter normalises an element ref to `${gas(idx)}`, so take only
+            // the leading identifier as the name.  Advance past `${` (not past
+            // the closer) so any `$k` *inside* the braces (`${arr($k)}`) or
+            // after them (`${v}($k)`) is still scanned.
+            if let Some(rel) = text[i + 2..].find('}') {
+                push_leading_ident(&text[i + 2..i + 2 + rel], &mut out);
+            }
+            i += 2;
+        } else {
+            let mut j = i + 1;
+            while j < bytes.len()
+                && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_' || bytes[j] == b':')
+            {
+                j += 1;
+            }
+            push_leading_ident(&text[i + 1..j], &mut out);
+            i = j.max(i + 1);
+        }
+    }
+    out
+}
+
+/// Push the leading identifier of `content` (up to the first non-`[A-Za-z0-9_:]`
+/// character) onto `out`, when it starts with a letter or `_`.  Used to peel the
+/// array *name* off an element reference (`gas(idx)` → `gas`).
+fn push_leading_ident<'a>(content: &'a str, out: &mut Vec<&'a str>) {
+    let end = content
+        .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == ':'))
+        .unwrap_or(content.len());
+    let name = &content[..end];
+    if name
+        .bytes()
+        .next()
+        .is_some_and(|b| b.is_ascii_alphabetic() || b == b'_')
+    {
+        out.push(name);
     }
 }
 
@@ -607,17 +721,46 @@ fn handle_upvar<'p>(
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     upvar_aliases: &mut HashMap<String, &'p str>,
 ) {
-    let mut start = 0usize;
-    if !args.is_empty() {
-        let head = args[0].as_str();
-        if head.chars().all(|c| c.is_ascii_digit()) || head.starts_with('#') {
-            start = 1;
-        }
+    // `upvar ?level? otherVar myVar ?otherVar myVar ...?` — an optional leading
+    // level word (`1`, `#0`) shifts the first pair.
+    let has_level = args
+        .first()
+        .is_some_and(|h| h.chars().all(|c| c.is_ascii_digit()) || h.starts_with('#'));
+    let pairs = args.get(usize::from(has_level)..).unwrap_or(&[]);
+    record_upvar_pairs(pairs, param_set, traits, upvar_aliases);
+}
+
+/// `namespace upvar namespace ?otherVar myVar ...?` — the pairs alias namespace
+/// variables named by `otherVar` (`$token`) into locals.  Structurally
+/// identical to [`handle_upvar`] once the `upvar` sub-command word and the
+/// `namespace` word are skipped.  `args` is the whole sub-command arg list:
+/// `["upvar", namespace, otherVar, myVar, …]`, so the pairs start at index 2.
+fn handle_namespace_upvar<'p>(
+    args: &[String],
+    param_set: &HashSet<&'p str>,
+    traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
+    upvar_aliases: &mut HashMap<String, &'p str>,
+) {
+    if args.len() > 2 {
+        record_upvar_pairs(&args[2..], param_set, traits, upvar_aliases);
     }
-    let mut i = start;
-    while i + 1 < args.len() {
-        let other_var = &args[i];
-        let my_var = &args[i + 1];
+}
+
+/// Record the `otherVar myVar` pairs shared by `upvar` and `namespace upvar`:
+/// each `otherVar` that is a `$param` reads the aliased variable (`VarRead`)
+/// and registers `myVar` as an alias for that param, so a later write through
+/// the alias upgrades it to `VarWrite`.  A `$param` in a `myVar` slot names a
+/// callee-local alias (`VarWrite`).
+fn record_upvar_pairs<'p>(
+    pairs: &[String],
+    param_set: &HashSet<&'p str>,
+    traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
+    upvar_aliases: &mut HashMap<String, &'p str>,
+) {
+    let mut i = 0;
+    while i + 1 < pairs.len() {
+        let other_var = &pairs[i];
+        let my_var = &pairs[i + 1];
         i += 2;
 
         if let Some(other_vn) = extract_var_name(other_var)
@@ -950,6 +1093,111 @@ mod tests {
                 !traits.get(p).unwrap().contains(&ProcArgTrait::VarWrite),
                 "{p}: callee-local lassign target must not be VarWrite, got {:?}",
                 traits.get(p),
+            );
+        }
+    }
+
+    #[test]
+    fn command_substitution_is_scanned() {
+        // A param used inside a `[...]` substitution is a first-order use — the
+        // shallow scan must descend into it.  `return [set $v 1]` names a
+        // callee-local variable via `$v` → DynamicNameLocal (+ VarRead).
+        let traits = infer(&["v"], "return [set $v 1]");
+        assert_trait(&traits, "v", ProcArgTrait::DynamicNameLocal);
+        assert_trait(&traits, "v", ProcArgTrait::VarRead);
+        // The read form (single-arg `set`) is scanned identically.
+        let traits = infer(&["v"], "return [set $v]");
+        assert_trait(&traits, "v", ProcArgTrait::DynamicNameLocal);
+    }
+
+    #[test]
+    fn command_substitution_plain_value_is_not_a_var_name() {
+        // `[string length $x]` reads `$x` as a value, not a variable name, so
+        // no role is recorded — the descent must not over-mark ordinary reads.
+        let traits = infer(&["x"], "return [string length $x]");
+        assert!(
+            traits.get("x").is_none_or(HashSet::is_empty),
+            "plain value read must record no trait, got {:?}",
+            traits.get("x"),
+        );
+    }
+
+    #[test]
+    fn compound_dynamic_array_name_marks_components() {
+        // `set ${v}($k) 1` — both the array-name param `v` and the key param
+        // `k` flow into a dynamic variable name, so both are DynamicNameLocal
+        // (+ VarRead).  This is the shape behind `return [set ${v}($k)]`.
+        for body in ["set ${v}($k) 1", "set $v($k) 1", "return [set ${v}($k)]"] {
+            let traits = infer(&["v", "k"], body);
+            for p in ["v", "k"] {
+                assert_trait(&traits, p, ProcArgTrait::DynamicNameLocal);
+                assert_trait(&traits, p, ProcArgTrait::VarRead);
+            }
+        }
+        // A literal array name with a `$k` key marks only the key.
+        let traits = infer(&["k"], "set arr($k) 1");
+        assert_trait(&traits, "k", ProcArgTrait::DynamicNameLocal);
+    }
+
+    #[test]
+    fn var_substitutions_finds_compound_components() {
+        assert_eq!(var_substitutions("$v"), vec!["v"]);
+        assert_eq!(var_substitutions("${v}($k)"), vec!["v", "k"]);
+        assert_eq!(var_substitutions("$v($k)"), vec!["v", "k"]);
+        assert_eq!(var_substitutions("arr($k)"), vec!["k"]);
+        assert_eq!(var_substitutions("literal"), Vec::<&str>::new());
+        assert_eq!(var_substitutions("\\$escaped"), Vec::<&str>::new());
+        assert_eq!(var_substitutions("$1backref"), Vec::<&str>::new());
+    }
+
+    #[test]
+    fn namespace_upvar_dynamic_name_reads_other_var() {
+        // `namespace upvar ns $token arr` — the token/state-array idiom, with a
+        // dynamic `$token` naming the namespace variable aliased into `arr`.
+        // The pairs start after the `namespace` word (index 2 of the
+        // sub-command args), so `$token` is the *other* var → VarRead, and a
+        // later write through the `arr` alias upgrades it to VarWrite.
+        let traits = infer(&["token"], "namespace upvar ns $token arr");
+        assert_trait(&traits, "token", ProcArgTrait::VarRead);
+        let traits = infer(&["token"], "namespace upvar ns $token arr\nset arr 1");
+        assert_trait(&traits, "token", ProcArgTrait::VarWrite);
+    }
+
+    #[test]
+    fn real_world_by_reference_patterns_are_inferred() {
+        // The dominant variable-name-by-reference shapes mined from the tcllib /
+        // Tcl-library corpus (`http`, `smtp`, `ftp`, … token idiom).  Each names
+        // a variable via a parameter, so each must record a read/write trait.
+        let has_var = |body: &str, p: &str| {
+            let t = infer(&[p], body);
+            t.get(p).is_some_and(|s| {
+                s.contains(&ProcArgTrait::VarRead) || s.contains(&ProcArgTrait::VarWrite)
+            })
+        };
+        for (body, p) in [
+            ("upvar 1 $varname data", "varname"),
+            ("upvar 0 $token state", "token"),
+            ("upvar #0 $token state", "token"),
+            ("upvar $v local", "v"),
+            ("variable $name", "name"),
+            ("array set $a {x 1}", "a"),
+            ("array get $a", "a"),
+            ("array names $a", "a"),
+            ("unset $v", "v"),
+            ("dict set $d k 1", "d"),
+            ("incr $counter", "counter"),
+            ("append $resultVar x", "resultVar"),
+            ("lappend $pages_var p", "pages_var"),
+            ("set ${tok}(state) connected", "tok"),
+            ("set $gas(idx) 1", "gas"),
+            ("namespace upvar ns $v local", "v"),
+            ("foreach k [array names $a] { puts $k }", "a"),
+            ("return [set ${token}($field)]", "token"),
+        ] {
+            assert!(
+                has_var(body, p),
+                "expected a by-reference var trait for `{p}` in `{body}`; got {:?}",
+                infer(&[p], body).get(p),
             );
         }
     }

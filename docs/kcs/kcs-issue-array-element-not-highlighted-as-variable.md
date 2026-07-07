@@ -76,13 +76,17 @@ safe to paint as one token.
      token-collection time, so they apply on every path (local and workspace)
      with no analysis needed.
    - **Inferred user-proc roles** — a proc parameter the analyser inferred to
-     alias a caller variable via `upvar $param` (writing it →
-     `ProcArgTrait::VarWrite`, reading it → `ProcArgTrait::VarRead`).
-     Available from the single-file analysis locally, and from the workspace-
-     merged `project_proc_var_index` salsa query when a project is open, so a
-     proc defined in another file resolves too. `ProcArgTrait::DynamicNameLocal`
-     (the param's *value* names a callee-local variable) is excluded from both
-     directions — a literal name there is not the caller's variable.
+     name a variable. This covers a caller-frame `upvar $param` alias (write →
+     `ProcArgTrait::VarWrite`, read → `ProcArgTrait::VarRead`) *and* a
+     dynamic name the param's value builds (`set $p`, `set ${v}($k)`,
+     `variable $name`, `array set $a`, `namespace upvar ns $token arr` →
+     `ProcArgTrait::DynamicNameLocal`). The inference descends into `[...]`
+     command substitutions, so `return [set ${v}($k)]` is seen, and it marks
+     both the array-name and key components of a compound name. Available from
+     the single-file analysis locally, and from the workspace-merged
+     `project_proc_var_index` salsa query when a project is open, so a proc
+     defined in another file resolves too. A write elevates to a declaration; a
+     dynamic-name or read reference elevates to a plain `Variable`.
    The same single-token `Esc` geometry gate applies to every source, so a
    computed subscript stays multi-token and its inner `$var` survives.
 
@@ -94,7 +98,8 @@ safe to paint as one token.
 - `rust/tcl-lsp-db/src/lib.rs` — `project_proc_var_index` (workspace-merged
   inferred roles), `semantic_tokens` / `semantic_tokens_project` wiring
 - `rust/tcl-compiler/src/analyser/param_traits.rs` — proc parameter trait
-  inference (`upvar` → `VarWrite` / `VarRead`)
+  inference: `upvar` / `namespace upvar` aliases, dynamic names (`var_substitutions`,
+  `scan_commands_bounded` command-substitution descent), compound array names
 - `rust/tcl-registry/src/stub_overlay.rs` — `# tcl-lsp: stub … :var` / `:var_read`
   roles
 - `rust/tcl-compiler/src/segmenter.rs` — `SegmentedCommand::single_token_word`

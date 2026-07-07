@@ -412,15 +412,16 @@ fn proc_var_write_indices(proc: &ProcDef) -> Vec<u32> {
     proc_indices_with_trait(proc, |traits| traits.contains(&ProcArgTrait::VarWrite))
 }
 
-/// The 0-based argument indices of a proc's parameters that the analyser
-/// inferred to *alias a caller variable read by the proc*
-/// ([`ProcArgTrait::VarRead`]) via `upvar`.  A parameter that is only a
-/// [`ProcArgTrait::DynamicNameLocal`] (its value names a *callee-local*
-/// variable — `set $p …`, always co-emitted with `VarRead`) is excluded, since
-/// a literal name there does not reference the caller's variable.
+/// The 0-based argument indices of a proc's parameters whose value the analyser
+/// inferred to name a variable that is *read* — either a caller-frame
+/// [`ProcArgTrait::VarRead`] `upvar` alias, or a
+/// [`ProcArgTrait::DynamicNameLocal`] whose value names a callee-local variable
+/// read (`set $p`, `set ${v}($k)`).  Both mean the literal at the call site is
+/// a variable name, so both elevate to a read reference — the highlighter does
+/// not need to distinguish caller-frame from callee-local.
 fn proc_var_read_indices(proc: &ProcDef) -> Vec<u32> {
     proc_indices_with_trait(proc, |traits| {
-        traits.contains(&ProcArgTrait::VarRead) && !traits.contains(&ProcArgTrait::DynamicNameLocal)
+        traits.contains(&ProcArgTrait::VarRead) || traits.contains(&ProcArgTrait::DynamicNameLocal)
     })
 }
 
@@ -5713,6 +5714,44 @@ mod tests {
     }
 
     #[test]
+    fn user_proc_dynamic_name_read_args_highlight() {
+        // A proc that reads a dynamic variable name built from its parameters
+        // inside a command substitution — `return [set ${v}($k)]` — infers a
+        // read role for both `v` and `k`, so the literal call-site args
+        // (`b aa foo`) highlight as plain `Variable` references.  Exercises the
+        // full path: cmd-substitution recursion + compound-name inference in
+        // the analyser, through to the token retag.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "array set aa {foo 1}\n\
+                   proc b {v k} {\n\
+                       return [set ${v}($k)]\n\
+                   }\n\
+                   b aa foo\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
+        // On the call line (`b aa foo`, line 4) both `aa` (col 2) and `foo`
+        // (col 5) highlight as plain `Variable` references (no declaration).
+        let refs: Vec<_> = toks
+            .iter()
+            .filter(|&&(line, _, _, k, m)| line == 4 && k == TokenKind::Variable as u32 && m == 0)
+            .collect();
+        assert!(
+            refs.iter().any(|&&(_, col, _, _, _)| col == 2)
+                && refs.iter().any(|&&(_, col, _, _, _)| col == 5),
+            "expected `aa` and `foo` as variable references on the call line; got {toks:?}"
+        );
+    }
+
+    #[test]
     fn method_body_recurses_in_class_definition_script() {
         // `oo::class create C { method m {} { set z 3 } }` — the method body
         // must be tokenised (C Tcl evaluates it as a script), so `set` reads
@@ -7316,3 +7355,4 @@ mod tests {
         );
     }
 }
+
