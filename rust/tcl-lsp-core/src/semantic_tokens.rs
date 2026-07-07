@@ -76,7 +76,8 @@
 //! iRules object-reference highlighting (the code-relevant half
 //! of the BIG-IP taxonomy) is handled.
 
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
+use tcl_compiler::analyser::types::{ProcArgTrait, ProcDef};
 use tcl_compiler::analyser::{AnalysisResult, ClassHierarchy};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
@@ -295,6 +296,225 @@ fn is_operator_command(name: &str) -> bool {
     )
 }
 
+/// Extra "this argument names a written variable" positions for commands the
+/// static [`CommandRegistry`] does not model — user procs whose parameters the
+/// analyser inferred to alias a caller variable (`upvar $param`), and
+/// `# tcl-lsp: stub … :var` / `:var_read` declarations.  Keyed by command /
+/// proc name; each value is the 0-based argument indices (head excluded) that
+/// name a variable — split by direction, since a *written* target highlights as
+/// a `Variable` declaration and a *read* reference as a plain `Variable`.  Lets
+/// the retag highlight `myset arr(key) …` / `myexists arr(key)` the same way it
+/// highlights `set arr(key) …` / `info exists arr(key)` (issue #813 follow-up).
+///
+/// Built from an [`AnalysisResult`] (single file) or merged across a project's
+/// files.  Empty (and cost-free) on the pure-segmentation path, where only the
+/// static registry roles apply.  Stub roles are source-derived and unioned in
+/// at token-collection time, so they apply on every path without threading.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct VarNameArgRoles {
+    write: FxHashMap<String, Vec<u32>>,
+    read: FxHashMap<String, Vec<u32>>,
+    /// Argument positions whose value the analyser inferred to name a *command*
+    /// ([`ProcArgTrait::Command`] — a `$param` command head or a `CommandPrefix`
+    /// argument), so a literal call-site arg highlights as a command.
+    command: FxHashMap<String, Vec<u32>>,
+}
+
+impl VarNameArgRoles {
+    /// Infer the variable-name argument positions of every proc in `analysis`.
+    #[must_use]
+    pub fn from_analysis(analysis: &AnalysisResult) -> Self {
+        Self::from_procs(analysis.all_procs.values())
+    }
+
+    /// Infer from an iterator of proc definitions — a single file's, or a whole
+    /// project's files chained together.  A proc name that resolves to two
+    /// *different non-empty* index sets across the iterator is dropped as
+    /// ambiguous, so the result is independent of iteration order — matching the
+    /// highlight-only, sound-by-abstention posture of the cross-file class
+    /// index.  An empty index set (the proc has no by-reference argument in that
+    /// direction) never participates: it neither seeds nor conflicts an entry,
+    /// so a definition that contributes roles is not cancelled by one that
+    /// contributes none.
+    #[must_use]
+    pub fn from_procs<'a>(procs: impl IntoIterator<Item = &'a ProcDef>) -> Self {
+        let mut write = RoleMapBuilder::default();
+        let mut read = RoleMapBuilder::default();
+        let mut command = RoleMapBuilder::default();
+        for proc in procs {
+            let keys = proc_name_keys(proc);
+            write.insert(&keys, &proc_var_write_indices(proc));
+            read.insert(&keys, &proc_var_read_indices(proc));
+            command.insert(&keys, &proc_command_indices(proc));
+        }
+        Self {
+            write: write.finish(),
+            read: read.finish(),
+            command: command.finish(),
+        }
+    }
+
+    /// `true` when no command carries an inferred by-reference argument.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.write.is_empty() && self.read.is_empty() && self.command.is_empty()
+    }
+
+    /// Copy the write / read / command entries into the `out_*` maps without
+    /// overwriting a name already present (source-derived stub roles that
+    /// landed first win).
+    fn extend_into(
+        &self,
+        out_write: &mut FxHashMap<String, Vec<u32>>,
+        out_read: &mut FxHashMap<String, Vec<u32>>,
+        out_command: &mut FxHashMap<String, Vec<u32>>,
+    ) {
+        for (name, indices) in &self.write {
+            out_write.entry(name.clone()).or_insert_with(|| indices.clone());
+        }
+        for (name, indices) in &self.read {
+            out_read.entry(name.clone()).or_insert_with(|| indices.clone());
+        }
+        for (name, indices) in &self.command {
+            out_command.entry(name.clone()).or_insert_with(|| indices.clone());
+        }
+    }
+}
+
+/// Accumulates one direction's `name → arg indices` map while dropping any name
+/// that resolves to conflicting index sets (abstain-on-conflict), so the merged
+/// result is independent of insertion order.
+#[derive(Default)]
+struct RoleMapBuilder {
+    map: FxHashMap<String, Vec<u32>>,
+    ambiguous: FxHashSet<String>,
+}
+
+impl RoleMapBuilder {
+    fn insert(&mut self, keys: &[String], indices: &[u32]) {
+        if indices.is_empty() {
+            return;
+        }
+        for key in keys {
+            if self.ambiguous.contains(key) {
+                continue;
+            }
+            match self.map.get(key) {
+                Some(existing) if existing.as_slice() != indices => {
+                    self.map.remove(key);
+                    self.ambiguous.insert(key.clone());
+                }
+                Some(_) => {}
+                None => {
+                    self.map.insert(key.clone(), indices.to_vec());
+                }
+            }
+        }
+    }
+
+    fn finish(self) -> FxHashMap<String, Vec<u32>> {
+        self.map
+    }
+}
+
+/// The 0-based argument indices of a proc's parameters that the analyser
+/// inferred to *alias a caller variable written by the proc*
+/// ([`ProcArgTrait::VarWrite`]) — so a literal name passed there names the
+/// caller's variable.  [`ProcArgTrait::DynamicNameLocal`] (the param's *value*
+/// names a callee-local variable) is excluded: a literal there is not the
+/// caller's variable.
+fn proc_var_write_indices(proc: &ProcDef) -> Vec<u32> {
+    proc_indices_with_trait(proc, |traits| traits.contains(&ProcArgTrait::VarWrite))
+}
+
+/// The 0-based argument indices of a proc's parameters whose value the analyser
+/// inferred to name a variable that is *read* — either a caller-frame
+/// [`ProcArgTrait::VarRead`] `upvar` alias, or a
+/// [`ProcArgTrait::DynamicNameLocal`] whose value names a callee-local variable
+/// read (`set $p`, `set ${v}($k)`).  Both mean the literal at the call site is
+/// a variable name, so both elevate to a read reference — the highlighter does
+/// not need to distinguish caller-frame from callee-local.
+fn proc_var_read_indices(proc: &ProcDef) -> Vec<u32> {
+    proc_indices_with_trait(proc, |traits| {
+        traits.contains(&ProcArgTrait::VarRead) || traits.contains(&ProcArgTrait::DynamicNameLocal)
+    })
+}
+
+/// The 0-based argument indices of a proc's parameters whose value the analyser
+/// inferred to name a *command* ([`ProcArgTrait::Command`] — a `$param` command
+/// head or a `CommandPrefix` argument), so a literal at the call site highlights
+/// as a command.
+fn proc_command_indices(proc: &ProcDef) -> Vec<u32> {
+    proc_indices_with_trait(proc, |traits| traits.contains(&ProcArgTrait::Command))
+}
+
+/// Shared body of [`proc_var_write_indices`] / [`proc_var_read_indices`]: the
+/// positions of the parameters whose inferred trait set satisfies `keep`.
+fn proc_indices_with_trait(
+    proc: &ProcDef,
+    keep: impl Fn(&std::collections::HashSet<ProcArgTrait>) -> bool,
+) -> Vec<u32> {
+    proc.params
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| proc.param_traits.get(&p.name).is_some_and(&keep))
+        .filter_map(|(i, _)| u32::try_from(i).ok())
+        .collect()
+}
+
+/// Every name a call site might use for `proc`: the bare name, the qualified
+/// name, and the qualified name without its leading `::`.
+fn proc_name_keys(proc: &ProcDef) -> Vec<String> {
+    let mut keys = vec![proc.name.clone()];
+    let stripped = proc.qualified_name.trim_start_matches("::");
+    if stripped != proc.name {
+        keys.push(stripped.to_owned());
+    }
+    if proc.qualified_name != proc.name && proc.qualified_name != stripped {
+        keys.push(proc.qualified_name.clone());
+    }
+    keys
+}
+
+/// Add `# tcl-lsp: stub` by-reference argument positions from the document
+/// `source` to the `out_*` maps: `:var` (written) → `out_write`, `:var_read`
+/// (read) → `out_read`, and `:command_prefix` (a command) → `out_command`.
+/// Source-derived, so it applies on every token path (local and workspace)
+/// without threading.  Cheap-gated: the line scan runs only when the source
+/// mentions `stub`.
+fn add_stub_var_roles(
+    source: &str,
+    out_write: &mut FxHashMap<String, Vec<u32>>,
+    out_read: &mut FxHashMap<String, Vec<u32>>,
+    out_command: &mut FxHashMap<String, Vec<u32>>,
+) {
+    if !source.contains("stub") {
+        return;
+    }
+    let (stub_cmds, _exprs) = tcl_compiler::analyser::utils::scan_source_for_stubs(source);
+    let overlay = tcl_compiler::analyser::types::build_stub_overlay(&stub_cmds);
+    let indices_for = |sig: &tcl_registry::stub_overlay::StubSig, role: tcl_registry::ArgRole| {
+        sig.args
+            .iter()
+            .enumerate()
+            .filter(|(_, a)| a.role == role)
+            .filter_map(|(i, _)| u32::try_from(i).ok())
+            .collect::<Vec<u32>>()
+    };
+    for (name, sig) in overlay.iter() {
+        for (role, out) in [
+            (tcl_registry::ArgRole::VarWrite, &mut *out_write),
+            (tcl_registry::ArgRole::VarRead, &mut *out_read),
+            (tcl_registry::ArgRole::CommandPrefix, &mut *out_command),
+        ] {
+            let indices = indices_for(sig, role);
+            if !indices.is_empty() {
+                out.entry(name.to_owned()).or_insert(indices);
+            }
+        }
+    }
+}
+
 /// Compute semantic tokens for the entire document.
 #[must_use]
 pub fn full(source: &str, dialect: &str, registry: &CommandRegistry) -> SemanticTokens {
@@ -333,12 +553,14 @@ pub fn full_with_cu_and_analysis(
     cu: Option<&CompilationUnit>,
     analysis: Option<&AnalysisResult>,
 ) -> SemanticTokens {
-    full_with_cu_and_classes(
+    let proc_roles = analysis.map(VarNameArgRoles::from_analysis);
+    full_with_cu_and_classes_and_roles(
         source,
         dialect,
         registry,
         cu,
         analysis.map(AnalysisResult::class_hierarchy),
+        proc_roles.as_ref(),
     )
 }
 
@@ -354,7 +576,25 @@ pub fn full_with_cu_and_classes(
     cu: Option<&CompilationUnit>,
     classes: Option<&ClassHierarchy>,
 ) -> SemanticTokens {
-    let entries = collect_entries(source, dialect, registry, cu, classes);
+    full_with_cu_and_classes_and_roles(source, dialect, registry, cu, classes, None)
+}
+
+/// [`full_with_cu_and_classes`] with the workspace-merged inferred variable-name
+/// argument roles ([`VarNameArgRoles`]), so a `myproc arr(key) …` call whose
+/// `myproc` parameter aliases a caller variable highlights its array-element
+/// target like `set arr(key) …` (issue #813 follow-up).  The project path
+/// passes a cross-file index; `None` restricts the retag to the static registry
+/// roles (plus source-derived stub roles).
+#[must_use]
+pub fn full_with_cu_and_classes_and_roles(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+    cu: Option<&CompilationUnit>,
+    classes: Option<&ClassHierarchy>,
+    proc_roles: Option<&VarNameArgRoles>,
+) -> SemanticTokens {
+    let entries = collect_entries(source, dialect, registry, cu, classes, proc_roles);
     encode_entries(&entries)
 }
 
@@ -397,13 +637,15 @@ pub fn range_with_cu_and_analysis(
     cu: Option<&CompilationUnit>,
     analysis: Option<&AnalysisResult>,
 ) -> SemanticTokens {
-    range_with_cu_and_classes(
+    let proc_roles = analysis.map(VarNameArgRoles::from_analysis);
+    range_with_cu_and_classes_and_roles(
         source,
         dialect,
         range,
         registry,
         cu,
         analysis.map(AnalysisResult::class_hierarchy),
+        proc_roles.as_ref(),
     )
 }
 
@@ -418,7 +660,22 @@ pub fn range_with_cu_and_classes(
     cu: Option<&CompilationUnit>,
     classes: Option<&ClassHierarchy>,
 ) -> SemanticTokens {
-    let mut entries = collect_entries(source, dialect, registry, cu, classes);
+    range_with_cu_and_classes_and_roles(source, dialect, range, registry, cu, classes, None)
+}
+
+/// [`range_with_cu_and_classes`] with the workspace-merged inferred
+/// variable-name argument roles (see [`full_with_cu_and_classes_and_roles`]).
+#[must_use]
+pub fn range_with_cu_and_classes_and_roles(
+    source: &str,
+    dialect: &str,
+    range: crate::definition::LspRange,
+    registry: &CommandRegistry,
+    cu: Option<&CompilationUnit>,
+    classes: Option<&ClassHierarchy>,
+    proc_roles: Option<&VarNameArgRoles>,
+) -> SemanticTokens {
+    let mut entries = collect_entries(source, dialect, registry, cu, classes, proc_roles);
     entries.retain(|(line, col, _, _, _)| {
         // Half-open interval per LSP `Range` semantics: start is
         // inclusive, end is exclusive.
@@ -484,6 +741,15 @@ enum ArgOverride {
     /// A variable name a command declares / writes (`ArgRole::VarWrite`) →
     /// `Variable` + `declaration` modifier.
     VarDecl,
+    /// A variable name a command reads by reference (`ArgRole::VarRead` —
+    /// `info exists arr(key)`, `array names arr`, `dict with $d`) → `Variable`
+    /// with **no** `declaration` modifier: it references an existing variable
+    /// rather than declaring one.
+    VarRef,
+    /// A command name passed as an argument (`ArgRole::CommandPrefix`, or a proc
+    /// parameter the analyser inferred to be a `Command`) → `Function`: the
+    /// literal names a command the callee invokes.
+    CommandRef,
     /// The `{params body ?ns?}` lambda literal argument of `apply` — its
     /// second list element (the body) is re-segmented as a script.
     ApplyLambda,
@@ -658,6 +924,9 @@ fn special_arg_kinds(
     object_collections: &ObjectClassMap,
     classes: Option<&ClassHierarchy>,
     dialect: DialectSet,
+    extra_var_write: &FxHashMap<String, Vec<u32>>,
+    extra_var_read: &FxHashMap<String, Vec<u32>>,
+    extra_command: &FxHashMap<String, Vec<u32>>,
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
 
@@ -702,7 +971,15 @@ fn special_arg_kinds(
     insert_ref_var_overrides(seg, &mut overrides);
     insert_loop_var_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_param_list_overrides(seg, registry, head, arg_texts, &mut overrides);
-    insert_var_decl_overrides(seg, registry, head, &mut overrides);
+    insert_var_role_overrides(
+        seg,
+        registry,
+        head,
+        extra_var_write,
+        extra_var_read,
+        &mut overrides,
+    );
+    insert_command_role_overrides(seg, registry, head, extra_command, &mut overrides);
 
     overrides
 }
@@ -1962,26 +2239,92 @@ fn insert_apply_lambda_override(
 /// / `incr` / `append` / `lappend` / `lassign` / `global` / `variable` / … ,
 /// which the query [`CommandRegistry::arg_indices_for_role`] resolves
 /// (including subcommand and dynamic-resolver commands such as `dict set`).
-/// Only a plain bareword name is retagged — an array element (`arr(x)`), a
-/// `$`-computed name, or a quoted word is left to the default classifier so
-/// its inner `$var` sub-tokens survive.
-fn insert_var_decl_overrides(
+/// The argument is *known* to be a variable-name spot — not from the word's
+/// text, but from a declared role: the static registry `ArgRole::VarWrite` /
+/// `ArgRole::VarRead`, a `# tcl-lsp: stub … :var` / `:var_read` declaration, or
+/// a user-proc parameter the analyser inferred to alias a caller variable
+/// (`extra_var_write` / `extra_var_read`).  A **written** target retags as a
+/// `Variable` declaration; a **read** reference as a plain `Variable` (it names
+/// an existing variable, not a new one).  The only remaining question is token
+/// geometry.  A word that lexes as a single unquoted [`TokenType::Esc`] token —
+/// a scalar (`x`), a literal array element (`arr(key)`), or a namespaced name
+/// (`::ns::arr(key)`) — is retagged as one whole-word token, matching how the
+/// `$arr(key)` read highlights (issue #813).  A word with an inner substitution
+/// (`arr($i)`, `$dynamic`) is multi-token (`single_token_word` is `false`), so
+/// it is left to the default classifier and its inner `$var` sub-tokens survive.
+fn insert_var_role_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
+    extra_var_write: &FxHashMap<String, Vec<u32>>,
+    extra_var_read: &FxHashMap<String, Vec<u32>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
-    for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::VarWrite) {
-        // `i` is 0-based after the command name → token at `seg.argv[i + 1]`.
-        if let (Some(text), Some(tok)) = (seg.texts.get(i + 1), seg.argv.get(i + 1))
+    // `i` is 0-based after the command name → word at index `i + 1`.  A word is
+    // retagged only when it is a single unquoted `Esc` token — the geometry that
+    // makes it safe to paint whole (scalars, literal array elements, namespaced
+    // names), while a substitution-bearing word stays multi-token.
+    let mut retag = |i: usize, ov: ArgOverride| {
+        if let Some(tok) = seg.argv.get(i + 1)
+            && seg.single_token_word.get(i + 1) == Some(&true)
             && matches!(tok.kind, TokenType::Esc)
             && !tok.in_quote
-            && is_plain_var_name(text)
+        {
+            overrides.entry(tok.span.start()).or_insert(ov);
+        }
+    };
+    // Writes first: a declaration wins over a read reference at the same
+    // position (`dict with`'s arg 0 carries both roles).
+    for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::VarWrite) {
+        retag(i, ArgOverride::VarDecl);
+    }
+    if let Some(indices) = extra_var_write.get(head) {
+        for &i in indices {
+            retag(i as usize, ArgOverride::VarDecl);
+        }
+    }
+    for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::VarRead) {
+        retag(i, ArgOverride::VarRef);
+    }
+    if let Some(indices) = extra_var_read.get(head) {
+        for &i in indices {
+            retag(i as usize, ArgOverride::VarRef);
+        }
+    }
+}
+
+/// A command name passed as an argument — the registry `CommandPrefix` role
+/// (`tk selection … -command`, a stub `:command_prefix`), or a proc parameter
+/// the analyser inferred to be a `Command` (`extra_command`: `$cmd` used as a
+/// head, or flowing into a command-name position).  Retag the literal at the
+/// call site as a `Function`, gated by the same single-token `Esc` geometry as
+/// the variable retag, so `dispatch mycmd …` paints `mycmd` as a command.
+fn insert_command_role_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    head: &str,
+    extra_command: &FxHashMap<String, Vec<u32>>,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
+    let mut retag = |i: usize| {
+        if let Some(tok) = seg.argv.get(i + 1)
+            && seg.single_token_word.get(i + 1) == Some(&true)
+            && matches!(tok.kind, TokenType::Esc)
+            && !tok.in_quote
         {
             overrides
                 .entry(tok.span.start())
-                .or_insert(ArgOverride::VarDecl);
+                .or_insert(ArgOverride::CommandRef);
+        }
+    };
+    for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::CommandPrefix) {
+        retag(i);
+    }
+    if let Some(indices) = extra_command.get(head) {
+        for &i in indices {
+            retag(i as usize);
         }
     }
 }
@@ -2908,6 +3251,26 @@ struct ScriptCtx<'a> {
     /// in a method body resolve against the enclosing class's MRO — the single
     /// most common `TclOO` dispatch form.  `None` outside any class body.
     enclosing_class: Option<&'a str>,
+    /// Extra variable-name (`ArgRole::VarWrite`) argument positions the static
+    /// registry doesn't model, keyed by command / proc name: source-derived
+    /// `# tcl-lsp: stub … :var` roles unioned with the analyser's inferred
+    /// user-proc parameter roles.  The `VarWrite` retag reads this alongside
+    /// the registry so a `myproc arr(key) …` call highlights its array-element
+    /// target (issue #813 follow-up).  Empty on the pure-segmentation path.
+    extra_var_write: &'a FxHashMap<String, Vec<u32>>,
+    /// Extra variable-name (`ArgRole::VarRead`) argument positions the static
+    /// registry doesn't model — the read-side counterpart of `extra_var_write`
+    /// (stub `:var_read` roles and inferred user-proc `VarRead` params).  These
+    /// retag as a plain `Variable` (no `declaration` modifier), since a read
+    /// references an existing variable.  Empty on the pure-segmentation path.
+    extra_var_read: &'a FxHashMap<String, Vec<u32>>,
+    /// Extra command-name (`ArgRole::CommandPrefix` / inferred
+    /// `ProcArgTrait::Command`) argument positions, keyed by command / proc
+    /// name: stub `:command_prefix` roles unioned with the analyser's inferred
+    /// user-proc `Command` params.  These retag as a `Function` so a literal
+    /// command name passed to a dispatcher highlights as a command.  Empty on
+    /// the pure-segmentation path.
+    extra_command: &'a FxHashMap<String, Vec<u32>>,
 }
 
 fn collect_switch_case_list(
@@ -3338,6 +3701,9 @@ fn collect_script(
             ctx.object_collections,
             ctx.classes,
             DialectSet::parse(ctx.dialect).unwrap_or(DialectSet::ALL_TCL),
+            ctx.extra_var_write,
+            ctx.extra_var_read,
+            ctx.extra_command,
         );
         // `my method …` inside a class body resolves against the enclosing
         // class's MRO (the most common `TclOO` dispatch form).
@@ -3439,6 +3805,8 @@ fn verbatim_token_kind(ov: ArgOverride) -> Option<(TokenKind, u32)> {
         ArgOverride::Kind(kind) => Some((kind, 0)),
         ArgOverride::Decorator => Some((TokenKind::Decorator, 0)),
         ArgOverride::VarDecl => Some((TokenKind::Variable, MOD_DECLARATION)),
+        ArgOverride::VarRef => Some((TokenKind::Variable, 0)),
+        ArgOverride::CommandRef => Some((TokenKind::Function, 0)),
         ArgOverride::SubcommandKeyword => Some((TokenKind::Keyword, MOD_DEFAULT_LIBRARY)),
         ArgOverride::ProcNameDef => Some((TokenKind::Function, MOD_DEFINITION)),
         _ => None,
@@ -3534,6 +3902,8 @@ fn emit_arg_token(
             ArgOverride::Kind(_)
             | ArgOverride::Decorator
             | ArgOverride::VarDecl
+            | ArgOverride::VarRef
+            | ArgOverride::CommandRef
             | ArgOverride::SubcommandKeyword
             | ArgOverride::ProcNameDef,
         ) => {}
@@ -4036,9 +4406,29 @@ fn collect_entries(
     registry: &CommandRegistry,
     cu: Option<&CompilationUnit>,
     classes: Option<&ClassHierarchy>,
+    proc_roles: Option<&VarNameArgRoles>,
 ) -> Vec<Entry> {
     let mut entries: Vec<Entry> = Vec::new();
     let line_index = LineIndex::new(source);
+
+    // Extra variable-name argument positions the static registry doesn't model,
+    // split by direction (written → `Variable` declaration, read → plain
+    // `Variable`): source-derived `# tcl-lsp: stub … :var` / `:var_read` roles
+    // (every path) unioned with the analyser's inferred user-proc roles
+    // (`proc_roles`, when the caller supplied an analysis / project index).
+    // Empty (and lookup-free) when neither source contributes.
+    let mut extra_var_write: FxHashMap<String, Vec<u32>> = FxHashMap::default();
+    let mut extra_var_read: FxHashMap<String, Vec<u32>> = FxHashMap::default();
+    let mut extra_command: FxHashMap<String, Vec<u32>> = FxHashMap::default();
+    add_stub_var_roles(
+        source,
+        &mut extra_var_write,
+        &mut extra_var_read,
+        &mut extra_command,
+    );
+    if let Some(roles) = proc_roles {
+        roles.extend_into(&mut extra_var_write, &mut extra_var_read, &mut extra_command);
+    }
 
     // Regex-source spans: the def-site literal words (`set my_re ".*"`) whose
     // variable flows into a `regexp`/`regsub` pattern, keyed by word start so
@@ -4101,6 +4491,9 @@ fn collect_entries(
         object_collections: &object_collections,
         classes,
         enclosing_class: None,
+        extra_var_write: &extra_var_write,
+        extra_var_read: &extra_var_read,
+        extra_command: &extra_command,
     };
     collect_script(ctx, source, 0, &mut entries, 0);
 
@@ -5138,6 +5531,343 @@ mod tests {
             toks.iter()
                 .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
             "expected inner $i variable token; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn literal_array_element_write_is_variable_declaration() {
+        // A literal array-element write target highlights as one whole-word
+        // `Variable` declaration, matching the `$arr(key)` read (issue #813).
+        for src in [
+            "set arr(key) 1\n",
+            "incr count(hits)\n",
+            "append log(err) x\n",
+        ] {
+            let toks = decode_full(src, "tcl", &reg());
+            let decl = toks.iter().any(|(_, _, _, k, m)| {
+                *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
+            });
+            assert!(
+                decl,
+                "expected an array-element variable declaration; got {toks:?} for {src:?}"
+            );
+        }
+        // The target `arr(key)` is a single token spanning the whole element.
+        let toks = decode_full("set arr(key) 1\n", "tcl", &reg());
+        let whole = toks.iter().any(|(_, col, len, k, m)| {
+            *col == 4 && *len == 8 && *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
+        });
+        assert!(
+            whole,
+            "expected a single length-8 variable token over `arr(key)`; got {toks:?}"
+        );
+        assert_non_overlapping("set arr(key) 1\n", &reg());
+    }
+
+    #[test]
+    fn namespaced_array_element_write_is_variable_declaration() {
+        // A namespaced array (`::ns::arr(key)`) is still a plain element.
+        let toks = decode_full("set ::ns::arr(key) 1\n", "tcl", &reg());
+        let decl = toks.iter().any(|(_, _, _, k, m)| {
+            *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
+        });
+        assert!(
+            decl,
+            "expected a variable declaration for the namespaced array element; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn unset_array_element_is_variable() {
+        // `unset arr(key)` — `unset` is a VarWrite command, so the literal
+        // element retags as one whole-word `Variable` declaration spanning
+        // `arr(key)` (col 6, len 8).
+        let toks = decode_full("unset arr(key)\n", "tcl", &reg());
+        let whole = toks.iter().any(|(_, col, len, k, m)| {
+            *col == 6 && *len == 8 && *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
+        });
+        assert!(
+            whole,
+            "expected `arr(key)` as one variable declaration; got {toks:?}"
+        );
+        // `unset arr($i)` — the computed subscript stays multi-token: the inner
+        // `$i` (col 10) survives as its own variable, and the whole word is not
+        // painted (no declaration at the word start, col 6).
+        let toks = decode_full("unset arr($i)\n", "tcl", &reg());
+        let inner_i = toks
+            .iter()
+            .any(|(_, col, _, k, _)| *col == 10 && *k == TokenKind::Variable as u32);
+        assert!(inner_i, "expected the inner `$i` variable; got {toks:?}");
+        let painted_whole = toks.iter().any(|(_, col, _, k, m)| {
+            *col == 6 && *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
+        });
+        assert!(
+            !painted_whole,
+            "computed subscript must not retag the whole word; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn varread_role_highlights_variable_name() {
+        // A read-role variable-name argument (`info exists`, `array names`)
+        // highlights its name as a plain `Variable` — no `declaration`
+        // modifier, since a read references an existing variable (issue #813
+        // follow-up / read side).
+        for src in [
+            "info exists arr(key)\n",
+            "info exists scalar\n",
+            "array names arr\n",
+            "array get arr\n",
+        ] {
+            let toks = decode_full(src, "tcl", &reg());
+            let var_ref = toks.iter().any(|(_, _, _, k, m)| {
+                *k == TokenKind::Variable as u32 && *m == 0
+            });
+            assert!(
+                var_ref,
+                "expected a plain Variable reference for {src:?}; got {toks:?}"
+            );
+            // A read must not carry the declaration modifier.
+            let decl = toks.iter().any(|(_, _, _, k, m)| {
+                *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
+            });
+            assert!(!decl, "a read must not declare; got {toks:?} for {src:?}");
+        }
+    }
+
+    #[test]
+    fn varread_value_argument_is_not_a_variable() {
+        // `dict get $d k` — `$d` is a value (a dict), not a var-name spot, so
+        // the read-role retag must not fire on it; only the `$d` substitution
+        // itself is a variable, and `k` (the key) is a plain string.
+        let toks = decode_full("dict get $d k\n", "tcl", &reg());
+        // Exactly one variable: the `$d` substitution.
+        let vars = toks
+            .iter()
+            .filter(|(_, _, _, k, _)| *k == TokenKind::Variable as u32)
+            .count();
+        assert_eq!(vars, 1, "only `$d` is a variable; got {toks:?}");
+    }
+
+    #[test]
+    fn stub_var_arg_highlights_array_element() {
+        // A `# tcl-lsp: stub` with a `:var` argument marks that position a
+        // variable-name spot, so a literal array element passed there
+        // highlights like `set arr(key) …` — even on the registry-only path,
+        // since stub roles are derived from the document source (issue #813
+        // follow-up).
+        let src = "# tcl-lsp: stubs-begin\n\
+                   # tcl-lsp: stub mywrite {varName:var value}\n\
+                   # tcl-lsp: stubs-end\n\
+                   mywrite arr(key) 1\n";
+        let toks = decode_full(src, "tcl", &reg());
+        let decl = toks.iter().any(|(line, _, _, k, m)| {
+            *line == 3 && *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
+        });
+        assert!(
+            decl,
+            "expected the stubbed :var array element to highlight; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn stub_var_read_arg_highlights_as_reference() {
+        // A `# tcl-lsp: stub … :var_read` argument marks a read-position
+        // variable name, so a literal array element there highlights as a plain
+        // `Variable` reference (no `declaration` modifier).
+        let src = "# tcl-lsp: stubs-begin\n\
+                   # tcl-lsp: stub myexists {varName:var_read}\n\
+                   # tcl-lsp: stubs-end\n\
+                   myexists arr(key)\n";
+        let toks = decode_full(src, "tcl", &reg());
+        let var_ref = toks.iter().any(|(line, _, _, k, m)| {
+            *line == 3 && *k == TokenKind::Variable as u32 && *m == 0
+        });
+        assert!(
+            var_ref,
+            "expected the stubbed :var_read array element as a reference; got {toks:?}"
+        );
+        let decl_on_call = toks.iter().any(|(line, _, _, k, m)| {
+            *line == 3 && *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
+        });
+        assert!(!decl_on_call, "a read must not declare; got {toks:?}");
+    }
+
+    #[test]
+    fn user_proc_var_name_arg_highlights_array_element() {
+        // A user proc whose parameter the analyser infers to alias a caller
+        // variable (`upvar $varName` + write) makes a literal array element at
+        // that call-site position a variable-name spot — so `myset arr(key) 1`
+        // highlights `arr(key)` like `set arr(key) 1` (issue #813 follow-up).
+        // The plumbing is analysis-driven, so it needs the enriched path.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "proc myset {varName value} {\n\
+                     upvar 1 $varName v\n\
+                     set v $value\n\
+                   }\n\
+                   myset arr(key) 1\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let decl_on_call = |toks: &[(u32, u32, u32, u32, u32)]| {
+            toks.iter().any(|&(line, _, _, k, m)| {
+                line == 4 && k == TokenKind::Variable as u32 && m == MOD_DECLARATION
+            })
+        };
+        // Without analysis, `myset` is an unknown command → `arr(key)` at the
+        // call stays a plain string.
+        let plain = decode_semantic(&full_with_cu(src, "tcl9.0", &registry, Some(&cu)));
+        assert!(
+            !decl_on_call(&plain),
+            "no proc-role highlight without analysis; got {plain:?}"
+        );
+        // With analysis, the inferred `varName` role retags `arr(key)`.
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
+        assert!(
+            decl_on_call(&toks),
+            "expected arr(key) at the myset call to highlight; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn user_proc_var_name_computed_subscript_survives() {
+        // `myset arr($i) 1` — even with the proc role, a computed subscript is
+        // multi-token, so it is not painted whole and the inner `$i` survives.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "proc myset {varName value} {\n\
+                     upvar 1 $varName v\n\
+                     set v $value\n\
+                   }\n\
+                   myset arr($i) 1\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
+        let inner_i = toks
+            .iter()
+            .any(|&(line, _, _, k, _)| line == 4 && k == TokenKind::Variable as u32);
+        assert!(
+            inner_i,
+            "expected the inner $i on the call line to survive; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn user_proc_var_read_arg_highlights_as_reference() {
+        // A proc that only *reads* its upvar'd parameter (`upvar $varName v`
+        // then reads `v`) infers a `VarRead` role, so a literal name at the
+        // call site highlights as a plain `Variable` reference — no
+        // `declaration` modifier.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "proc myexists {varName} {\n\
+                     upvar 1 $varName v\n\
+                     return [info exists v]\n\
+                   }\n\
+                   myexists arr(key)\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
+        let ref_on_call = toks
+            .iter()
+            .any(|&(line, _, _, k, m)| line == 4 && k == TokenKind::Variable as u32 && m == 0);
+        assert!(
+            ref_on_call,
+            "expected arr(key) at the myexists call as a reference; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn user_proc_dynamic_name_read_args_highlight() {
+        // A proc that reads a dynamic variable name built from its parameters
+        // inside a command substitution — `return [set ${v}($k)]` — infers a
+        // read role for both `v` and `k`, so the literal call-site args
+        // (`b aa foo`) highlight as plain `Variable` references.  Exercises the
+        // full path: cmd-substitution recursion + compound-name inference in
+        // the analyser, through to the token retag.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "array set aa {foo 1}\n\
+                   proc b {v k} {\n\
+                       return [set ${v}($k)]\n\
+                   }\n\
+                   b aa foo\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
+        // On the call line (`b aa foo`, line 4) both `aa` (col 2) and `foo`
+        // (col 5) highlight as plain `Variable` references (no declaration).
+        let refs: Vec<_> = toks
+            .iter()
+            .filter(|&&(line, _, _, k, m)| line == 4 && k == TokenKind::Variable as u32 && m == 0)
+            .collect();
+        assert!(
+            refs.iter().any(|&&(_, col, _, _, _)| col == 2)
+                && refs.iter().any(|&&(_, col, _, _, _)| col == 5),
+            "expected `aa` and `foo` as variable references on the call line; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn user_proc_command_arg_highlights_as_function() {
+        // A dispatcher proc invokes its parameter as a command (`$cmd …`), so
+        // the analyser infers `cmd` is a `Command`.  The literal command name at
+        // the call site (`dispatch greet …`) then highlights as a `Function`.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "proc dispatch {cmd arg} {\n\
+                     $cmd $arg\n\
+                   }\n\
+                   dispatch greet hello\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        // Without analysis, `greet` is an unknown command's plain string arg.
+        let plain = decode_semantic(&full_with_cu(src, "tcl9.0", &registry, Some(&cu)));
+        let greet_fn = |toks: &[(u32, u32, u32, u32, u32)]| {
+            toks.iter()
+                .any(|&(line, col, _, k, _)| line == 3 && col == 9 && k == TokenKind::Function as u32)
+        };
+        assert!(!greet_fn(&plain), "no command role without analysis; got {plain:?}");
+        // With analysis, `greet` (col 9 on the call line) highlights as a command.
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
+        assert!(
+            greet_fn(&toks),
+            "expected `greet` at the dispatch call to highlight as a Function; got {toks:?}"
         );
     }
 
@@ -6745,3 +7475,4 @@ mod tests {
         );
     }
 }
+
