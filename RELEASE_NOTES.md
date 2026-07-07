@@ -1,50 +1,51 @@
-# v2.1.1
+# v2.1.4
 
 **2.x alpha — pre-release channel.**
 
-The second pre-release on the **2.x** line, where the ongoing Python → Rust
+Another pre-release on the **2.x** line, where the ongoing Python → Rust
 rewrite of tcl-lsp ships its alphas. It is opt-in: install it from the VS Code
-Marketplace **pre-release** channel, or download the pre-release VSIX / native
-binaries from this GitHub release. The stable **1.x** line stays the default
-for everyone who has not opted into pre-releases, and a `2.1.x` build never
-becomes the "latest" GitHub release or the default Marketplace download.
+Marketplace **pre-release** channel or the JetBrains Marketplace **eap**
+channel, or download the pre-release VSIX / plugin / native binaries from this
+GitHub release. The stable **1.x** line stays the default for everyone who has
+not opted into pre-releases, and a `2.1.x` build never becomes the "latest"
+GitHub release or the default Marketplace download.
 
 ## New Features
 
-- **Native Rust MCP server (`tcl-mcp`).** A single self-contained binary that
-  exposes the tcl-lsp analysis engine to Claude Code / Claude Desktop / Codex
-  over MCP — no Python, no PyO3. It hosts the full 46-tool surface: analysis,
-  diagnostics, LSP features (hover / completion / definition / references /
-  rename / code actions / symbols), refactors, docstrings, control-flow &
-  data-flow graphs, iRule/BIG-IP tools (`irule_with_context`, `explain_flow`,
-  `fakecmp_*`), F5 XC translation, Tk layout, data-group suggestions, and iRule
-  test generation. It fully replaces the Python `ai/mcp` server.
-- **Prebuilt MCP binaries on the GitHub release.** Per-platform `tcl-mcp`
-  binaries are published as release assets (checksum-verified). The installer
-  fetches the native binary for your platform by default and registers it with
-  Claude Code and Codex; in-repo, `.mcp.json` auto-discovers it.
+- **Command-option highlighting.** Command options — including TclOO
+  object-method options — are now recognised and highlighted from the registry,
+  and option/subcommand names may be given by unambiguous prefix abbreviation
+  the way Tcl itself accepts them.
+- **Reports carry provenance.** Generated reports are stamped with the git
+  commit hash and gain print headers/footers for cleaner hard copies.
 
 ## Improvements
 
-- **Rust LSP server parity.** Closed 23 VS Code extension parity gaps
-  (diagnostics, command handlers, config toggles, completion in command
-  contexts, capabilities, code-lens, go-to-definition off-by-ones, …).
-- **Tcl 9.1 dialect sync.** Registry + analyser updated for the 9.1 surface —
-  Unicode/`timer`/`subst` options and operators, the C99 `expr` math functions
-  (TIP 745), and additional 9.1 commands surfaced against the C oracle.
-- **Rust-native analysis facades.** The Python AI layer now runs entirely on
-  the Rust engine via the `tcl_lsp_py` facades, decoupled from the retiring
-  Python compiler/analyser/tooling.
-- **Installer.** Native-by-default MCP install with a graceful fallback to the
-  Python zipapp on unsupported platforms; detects existing native/Python
-  registrations and cleans up superseded installs when switching.
+- **Much broader registry coverage.** Comprehensive tcllib and Tk command
+  coverage (including ttk and ticklecharts), plus BIG-IP config defaults,
+  object specs, cross-references, and event facts — sharpening completion,
+  hover, and diagnostics across Tcl, Tk, and iRule/BIG-IP code.
+- **Diagram rendering switched to elkjs.** Control-flow and data-flow diagrams
+  now lay out with elkjs instead of Mermaid, for more stable, readable graphs.
+- **Better tcltest support.** Registry tests migrated and the `tcltest`
+  package surface improved.
+- **Boolean handling in the syntax layer** for more accurate analysis of
+  boolean literals.
 
 ## Bug Fixes
 
-- Analyser false-positive precision fixes and f5-cli/regex residuals.
-- Relocated the F5 config/iRule input loader out of `dialects/` to honour the
-  layering contract (`dialects/` must not depend on `tooling/`).
-- Addressed Codex review findings across the LSP, registry, and installer.
+- **Object dispatch.** Correctly resolve non-static command and TclOO object
+  dispatch so methods on objects are analysed instead of flagged as unknown.
+- **Variable highlighting.** `unset` and `global` now highlight every variable
+  name in the command, not just the first.
+
+## Release-pipeline changes
+
+- VS Code pre-releases publish through a PAT-backed, approval-gated CI job
+  (the keyless Azure/OIDC path was rolled back after proving unreliable).
+- JetBrains pre-releases now publish to the Marketplace **eap** channel from an
+  approval-gated CI job, matching the VS Code pre-release track.
+- Removed the retired Zig WASM runtime and its build infrastructure.
 
 ## Using this alpha
 
