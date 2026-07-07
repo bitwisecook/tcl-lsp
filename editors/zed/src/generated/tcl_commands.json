@@ -2275,15 +2275,23 @@
     },
     {
       "name": "html::author",
-      "summary": "Side effect only."
+      "summary": "Set the author name for the document, included as a comment in the head section. Side effect only."
     },
     {
       "name": "html::bodyTag",
-      "summary": "Generate a body tag."
+      "summary": "Generate a <body> tag, using any accumulated body tag parameters plus the given key/value pairs. Takes zero or more arguments."
+    },
+    {
+      "name": "html::cell",
+      "summary": "Generate a table cell (a td or th element, defaulting to td) wrapping value, with the given tag parameters."
     },
     {
       "name": "html::checkSet",
-      "summary": "Generate a set of checkbox form elements and associated labels."
+      "summary": "Generate a set of checkbox form elements and associated labels from a list of value/label pairs, separated by sep."
+    },
+    {
+      "name": "html::checkValue",
+      "summary": "Generate the name=name value=value for a checkbox form element, marking it checked when the current form value matches (value defaults to 1)."
     },
     {
       "name": "html::checkbox",
@@ -2295,43 +2303,96 @@
     },
     {
       "name": "html::css",
-      "summary": "Side effect only."
+      "summary": "Register a link to an external stylesheet (href) for inclusion in the head section. Side effect only."
+    },
+    {
+      "name": "html::css-clear",
+      "summary": "Clear the accumulated set of stylesheet references registered with ::html::css."
+    },
+    {
+      "name": "html::default",
+      "summary": "Return the parameter string for a form element, merging in any default value previously registered for key."
     },
     {
       "name": "html::description",
-      "summary": "Side effect only."
+      "summary": "Set the description meta tag for the document head. Side effect only."
     },
     {
       "name": "html::doctype",
-      "summary": "This procedure can be used to build the standard DOCTYPE declaration string."
+      "summary": "Build the standard DOCTYPE declaration string for the well-known document-type id (e.g. HTML401, XHTML1-STRICT).",
+      "pure": true
     },
     {
       "name": "html::end",
       "summary": "Pop all open tags from the stack and generate the corresponding close HTML tags, (e.g., </body></html>)."
     },
     {
+      "name": "html::eval",
+      "summary": "Evaluate the arguments as a Tcl script in the caller's context, the way the built-in eval does; used inside html templates."
+    },
+    {
+      "name": "html::extractParam",
+      "summary": "Extract the value of key from an HTML parameter string; stores it in varName (returning 1/0) when given, otherwise returns the value."
+    },
+    {
       "name": "html::font",
-      "summary": "Generate a standard font tag."
+      "summary": "Generate a standard <font> tag from the given key/value parameter pairs. Takes zero or more arguments."
     },
     {
       "name": "html::for",
-      "summary": "This procedure is similar to the built-in Tcl for control structure."
+      "summary": "Like the built-in Tcl for control structure, but the body is substituted (not evaluated as a script) and the result appended to the page."
+    },
+    {
+      "name": "html::foreach",
+      "summary": "Like the built-in Tcl foreach control structure, but the body is substituted (not evaluated as a script) and the result appended to the page."
+    },
+    {
+      "name": "html::formValue",
+      "summary": "Return the current value for the named form element (from the query data), or defvalue if it is not set."
     },
     {
       "name": "html::getFormInfo",
-      "summary": "Generate hidden fields to capture form values."
+      "summary": "Generate hidden fields capturing the current form values whose names match the given patterns (all values when no pattern is given)."
     },
     {
       "name": "html::getTitle",
-      "summary": "Return the title string, with out the surrounding title tag, set with a previous call to ::html::title."
+      "summary": "Return the title string, without the surrounding title tag, set with a previous call to ::html::title."
+    },
+    {
+      "name": "html::h",
+      "summary": "Generate a heading element of the given level (1-6) wrapping string, with optional tag parameters."
+    },
+    {
+      "name": "html::h1",
+      "summary": "Generate an <h1> heading element wrapping string, with optional tag parameters."
+    },
+    {
+      "name": "html::h2",
+      "summary": "Generate an <h2> heading element wrapping string, with optional tag parameters."
+    },
+    {
+      "name": "html::h3",
+      "summary": "Generate an <h3> heading element wrapping string, with optional tag parameters."
+    },
+    {
+      "name": "html::h4",
+      "summary": "Generate an <h4> heading element wrapping string, with optional tag parameters."
+    },
+    {
+      "name": "html::h5",
+      "summary": "Generate an <h5> heading element wrapping string, with optional tag parameters."
+    },
+    {
+      "name": "html::h6",
+      "summary": "Generate an <h6> heading element wrapping string, with optional tag parameters."
     },
     {
       "name": "html::hdrRow",
-      "summary": "Generate a table row, including tr and th tags."
+      "summary": "Generate a table header row, including tr and th tags, from the given values. Takes zero or more arguments."
     },
     {
       "name": "html::head",
-      "summary": "Generate the head section that includes the page title."
+      "summary": "Generate the head section that includes the page title and any registered meta/link tags."
     },
     {
       "name": "html::headTag",
@@ -2343,56 +2404,123 @@
       "pure": true
     },
     {
+      "name": "html::if",
+      "summary": "Like the built-in Tcl if control structure, but each body is substituted (not evaluated as a script) and the result appended to the page."
+    },
+    {
+      "name": "html::init",
+      "summary": "(Re)initialise the html package's page state, optionally seeding the default parameter array from a name/value list."
+    },
+    {
       "name": "html::js",
-      "summary": "Side effect only."
+      "summary": "Register a link to an external JavaScript file (href) for inclusion in the head section. Side effect only."
+    },
+    {
+      "name": "html::js-clear",
+      "summary": "Clear the accumulated set of JavaScript references registered with ::html::js."
     },
     {
       "name": "html::keywords",
-      "summary": "Side effect only."
+      "summary": "Set the keywords meta tag for the document head. Side effect only. Takes zero or more arguments."
+    },
+    {
+      "name": "html::mailto",
+      "summary": "Generate a mailto: hyperlink for the given email address, with an optional pre-filled subject.",
+      "pure": true
     },
     {
       "name": "html::meta",
-      "summary": "Compatibility name for html::meta_name."
+      "summary": "Compatibility alias for html::meta_name: register a name/content meta tag for the head section. Side effect only."
     },
     {
       "name": "html::meta_charset",
-      "summary": "Side effect only."
+      "summary": "Register a charset meta tag for the head section. Side effect only."
     },
     {
       "name": "html::meta_equiv",
-      "summary": "Side effect only."
+      "summary": "Register an http-equiv meta tag for the head section. Side effect only."
     },
     {
       "name": "html::meta_name",
-      "summary": "Side effect only."
+      "summary": "Register a name/content meta tag for the head section. Side effect only."
+    },
+    {
+      "name": "html::minorList",
+      "summary": "Generate an unordered (or, when ordered is false, ordered) list of hyperlinks from a list of label/URL pairs."
+    },
+    {
+      "name": "html::minorMenu",
+      "summary": "Generate a horizontal menu of hyperlinks from a list of label/URL pairs, joined by sep (default \" | \")."
     },
     {
       "name": "html::nl2br",
-      "summary": "This command replaces all line-endings in the string with a br tag and returns the modified text."
+      "summary": "Replace all line-endings in the string with a <br> tag and return the modified text.",
+      "pure": true
+    },
+    {
+      "name": "html::openTag",
+      "summary": "Push tag onto the open-tag stack and generate its opening tag with the given parameters; balanced by ::html::closeTag."
+    },
+    {
+      "name": "html::paramRow",
+      "summary": "Generate a table row from a list of cell values, with optional row (rparam) and cell (cparam) tag parameters."
+    },
+    {
+      "name": "html::passwordInput",
+      "summary": "Generate an input form tag with type password (name defaults to \"password\")."
+    },
+    {
+      "name": "html::passwordInputRow",
+      "summary": "Generate a password input form tag formatted into a table row with an associated label (name defaults to \"password\")."
     },
     {
       "name": "html::quoteFormValue",
-      "summary": "Quote special characters in value by replacing them with HTML entities for quotes, ampersand, and angle brackets."
+      "summary": "Quote special characters in value by replacing them with HTML entities for quotes, ampersand, and angle brackets.",
+      "pure": true
     },
     {
       "name": "html::radioSet",
-      "summary": "Generate a set of input tags of type radio and an associated text label."
+      "summary": "Generate a set of input tags of type radio and an associated text label from a list of value/label pairs."
     },
     {
       "name": "html::radioValue",
-      "summary": "Generate the name=name value=value for a radio form element."
+      "summary": "Generate the name=name value=value for a radio form element, marking it checked when it matches the default selection."
     },
     {
       "name": "html::refresh",
-      "summary": "Set up a refresh meta tag."
+      "summary": "Register a refresh meta tag that reloads after content seconds, optionally redirecting to url. Side effect only."
     },
     {
       "name": "html::row",
-      "summary": "Generate a table row, including tr and td tags."
+      "summary": "Generate a table row, including tr and td tags, from the given values. Takes zero or more arguments."
+    },
+    {
+      "name": "html::select",
+      "summary": "Generate a <select> form element from a list of value/label choices, marking current as selected."
+    },
+    {
+      "name": "html::selectPlain",
+      "summary": "Generate a <select> form element from a plain list of choices (used as both value and label), marking current as selected."
     },
     {
       "name": "html::set",
-      "summary": "This procedure is similar to the built-in Tcl set command."
+      "summary": "Like the built-in Tcl set command: assign val to the variable var in the caller's context; used inside html templates."
+    },
+    {
+      "name": "html::submit",
+      "summary": "Generate a submit button with the given label (name defaults to \"submit\", with an optional title attribute)."
+    },
+    {
+      "name": "html::tableFromArray",
+      "summary": "Generate a two-column table of the key/value pairs of the named array whose keys match pat, with optional table parameters."
+    },
+    {
+      "name": "html::tableFromList",
+      "summary": "Generate a two-column table from a name/value list, with optional table parameters."
+    },
+    {
+      "name": "html::tagParam",
+      "summary": "Return the parameter string for tag, merging in any default parameters previously registered for that tag."
     },
     {
       "name": "html::tagstrip",
@@ -2401,23 +2529,36 @@
     },
     {
       "name": "html::textInput",
-      "summary": "Generate an input form tag with type text."
+      "summary": "Generate an input form tag with type text, with an optional initial value and extra tag parameters."
     },
     {
       "name": "html::textInputRow",
-      "summary": "Generate an input form tag with type text formatted into a table row with an associated label."
+      "summary": "Generate a text input form tag formatted into a table row with an associated label."
+    },
+    {
+      "name": "html::textarea",
+      "summary": "Generate a <textarea> form element with the given name, tag parameters, and current contents."
     },
     {
       "name": "html::title",
-      "summary": "Side effect only."
+      "summary": "Set the document title, generated inside the head section by ::html::head. Side effect only."
+    },
+    {
+      "name": "html::urlParent",
+      "summary": "Return the parent URL of url (the URL with its last path component removed).",
+      "pure": true
     },
     {
       "name": "html::varEmpty",
-      "summary": "This returns 1 if the named variable either does not exist or has the empty string for its value."
+      "summary": "Return 1 if the named variable either does not exist or has the empty string for its value, and 0 otherwise."
     },
     {
       "name": "html::while",
-      "summary": "This procedure is similar to the built-in Tcl while control structure."
+      "summary": "Like the built-in Tcl while control structure, but the body is substituted (not evaluated as a script) and the result appended to the page."
+    },
+    {
+      "name": "html::wrapTag",
+      "summary": "Generate a balanced element: an opening tag (with the given parameters) around text and the matching close tag."
     },
     {
       "name": "htmlparse::2tree",
