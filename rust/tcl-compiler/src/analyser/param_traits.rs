@@ -296,7 +296,15 @@ fn scan_commands_bounded<'p>(
             continue;
         }
         let cmd_args: Vec<String> = seg.texts[1..].to_vec();
-        scan_command(&seg.texts[0], &cmd_args, ctx, traits, upvar_aliases);
+        // Per-arg "braced literal" flags: a single `Str` word (`{…}`) suppresses
+        // substitution, so a `$k` inside it is literal text, not a param ref.
+        let braced: Vec<bool> = (1..seg.texts.len())
+            .map(|i| {
+                seg.argv.get(i).is_some_and(|t| t.kind == TokenType::Str)
+                    && seg.single_token_word.get(i).copied().unwrap_or(false)
+            })
+            .collect();
+        scan_command(&seg.texts[0], &cmd_args, &braced, ctx, traits, upvar_aliases);
         if depth >= MAX_DEPTH {
             continue;
         }
@@ -460,20 +468,13 @@ fn resolve_arg_roles(
 fn scan_command<'p>(
     cmd_name: &str,
     cmd_args: &[String],
+    braced: &[bool],
     ctx: &ScanCtx<'p, '_>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     upvar_aliases: &mut HashMap<String, &'p str>,
 ) {
     let param_set = ctx.param_set;
-    apply_arg_role_traits(
-        cmd_name,
-        cmd_args,
-        param_set,
-        traits,
-        upvar_aliases,
-        ctx.registry,
-        ctx.stub_overlay,
-    );
+    apply_arg_role_traits(cmd_name, cmd_args, braced, ctx, traits, upvar_aliases);
     apply_eval_traits(cmd_name, cmd_args, param_set, traits);
 
     // Per-command structural handlers.
@@ -530,16 +531,23 @@ fn scan_command<'p>(
 /// ``ArgRole::Body`` / ``Expr`` / ``VarWrite`` / ``VarRead`` to
 /// the matching parameter trait set when an arg is a simple
 /// ``$param`` reference (or aliases an upvar'd one).
+///
+/// `braced[i]` is `true` when argument `i` was a braced (`{…}`) literal word,
+/// in which case **no substitution occurs**: `set {arr($k)} 1` names the literal
+/// variable `arr($k)`, so the `$k` inside must not be read as a substitution
+/// (issue #814 review).  The braced guard applies only to the variable-name
+/// roles; a braced `Body` / `Expr` word still substitutes internally when Tcl
+/// evaluates it, and the deep pass recurses into it.
 fn apply_arg_role_traits<'p>(
     cmd_name: &str,
     cmd_args: &[String],
-    param_set: &HashSet<&'p str>,
+    braced: &[bool],
+    ctx: &ScanCtx<'p, '_>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     upvar_aliases: &HashMap<String, &'p str>,
-    registry: &CommandRegistry,
-    stub_overlay: Option<&StubOverlay>,
 ) {
-    let arg_roles = resolve_arg_roles(cmd_name, cmd_args, registry, stub_overlay);
+    let param_set = ctx.param_set;
+    let arg_roles = resolve_arg_roles(cmd_name, cmd_args, ctx.registry, ctx.stub_overlay);
     for (idx, arg) in cmd_args.iter().enumerate() {
         let Ok(idx_u8) = u8::try_from(idx) else {
             continue;
@@ -568,8 +576,11 @@ fn apply_arg_role_traits<'p>(
             // `$p($k)`) — names a CALLEE-LOCAL variable (`set $p 1`,
             // `set ${v}($k)`, `incr $p`), NOT a caller-frame alias.  Record the
             // callee-local refinement (never `VarWrite`; only an `upvar`-aliased
-            // write-back is a genuine caller write).
-            Some(ArgRole::VarWrite | ArgRole::VarRead) => {
+            // write-back is a genuine caller write).  A braced word is a literal
+            // name — no substitution — so no param flows into it.
+            Some(ArgRole::VarWrite | ArgRole::VarRead)
+                if !braced.get(idx).copied().unwrap_or(false) =>
+            {
                 for var_name in var_substitutions(arg) {
                     if let Some(p) = lookup_param(var_name, param_set, upvar_aliases)
                         && let Some(set) = traits.get_mut(p)
@@ -1119,6 +1130,21 @@ mod tests {
             traits.get("x").is_none_or(HashSet::is_empty),
             "plain value read must record no trait, got {:?}",
             traits.get("x"),
+        );
+    }
+
+    #[test]
+    fn braced_var_name_has_no_substitution() {
+        // `set {arr($k)} 1` — the braces make `arr($k)` a *literal* variable
+        // name, so `$k` is not a substitution and must not mark `k` (issue #814
+        // review: the segmenter drops the braces, so the guard is by token kind).
+        assert!(infer(&["k"], "set {arr($k)} 1").get("k").is_none());
+        assert!(infer(&["p"], "set {$p} 1").get("p").is_none());
+        // The unbraced form *does* substitute, so it still marks the component.
+        assert_trait(
+            &infer(&["k"], "set arr($k) 1"),
+            "k",
+            ProcArgTrait::DynamicNameLocal,
         );
     }
 

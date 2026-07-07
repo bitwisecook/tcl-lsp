@@ -324,10 +324,14 @@ impl VarNameArgRoles {
     }
 
     /// Infer from an iterator of proc definitions — a single file's, or a whole
-    /// project's files chained together.  A proc name that resolves to
-    /// *different* index sets across the iterator is dropped as ambiguous, so
-    /// the result is independent of iteration order — matching the highlight-
-    /// only, sound-by-abstention posture of the cross-file class index.
+    /// project's files chained together.  A proc name that resolves to two
+    /// *different non-empty* index sets across the iterator is dropped as
+    /// ambiguous, so the result is independent of iteration order — matching the
+    /// highlight-only, sound-by-abstention posture of the cross-file class
+    /// index.  An empty index set (the proc has no by-reference argument in that
+    /// direction) never participates: it neither seeds nor conflicts an entry,
+    /// so a definition that contributes roles is not cancelled by one that
+    /// contributes none.
     #[must_use]
     pub fn from_procs<'a>(procs: impl IntoIterator<Item = &'a ProcDef>) -> Self {
         let mut write = RoleMapBuilder::default();
