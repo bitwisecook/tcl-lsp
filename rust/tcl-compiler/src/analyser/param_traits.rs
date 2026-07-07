@@ -131,7 +131,7 @@ pub fn infer_param_traits_with_config(
     let param_set: HashSet<&str> = params.iter().copied().collect();
     let mut traits: HashMap<&str, HashSet<ProcArgTrait>> =
         params.iter().map(|p| (*p, HashSet::new())).collect();
-    let mut upvar_aliases: HashMap<String, &str> = HashMap::new();
+    let mut aliases = Aliases::default();
 
     let ctx = ScanCtx {
         param_set: &param_set,
@@ -139,7 +139,7 @@ pub fn infer_param_traits_with_config(
         stub_overlay,
         config,
     };
-    scan_commands(body_source, &ctx, &mut traits, &mut upvar_aliases);
+    scan_commands(body_source, &ctx, &mut traits, &mut aliases);
 
     finalise_traits(traits)
 }
@@ -196,7 +196,7 @@ pub fn infer_param_traits_deep_with_config(
     let param_set: HashSet<&str> = params.iter().copied().collect();
     let mut traits: HashMap<&str, HashSet<ProcArgTrait>> =
         params.iter().map(|p| (*p, HashSet::new())).collect();
-    let mut upvar_aliases: HashMap<String, &str> = HashMap::new();
+    let mut aliases = Aliases::default();
 
     let ctx = ScanCtx {
         param_set: &param_set,
@@ -204,7 +204,7 @@ pub fn infer_param_traits_deep_with_config(
         stub_overlay,
         config,
     };
-    scan_deep(body_source, &ctx, &mut traits, &mut upvar_aliases, 0);
+    scan_deep(body_source, &ctx, &mut traits, &mut aliases, 0);
 
     finalise_traits(traits)
 }
@@ -261,6 +261,34 @@ struct ScanCtx<'p, 'r> {
     config: LexerConfig,
 }
 
+/// Mutable alias / value-copy state accumulated while scanning a proc body.
+/// Bundling the two maps keeps the scan helpers at or under the argument limit.
+#[derive(Default)]
+struct Aliases<'p> {
+    /// `myVar` (an `upvar` / `namespace upvar` alias name) → the param it
+    /// aliases, so a later `set myVar …` writes the caller's variable
+    /// (`VarWrite`).
+    upvar: HashMap<String, &'p str>,
+    /// A local name → the param whose *value* it currently holds (`set n $p`),
+    /// so a later `$n` in a name / command position resolves to that param.
+    /// Invalidated when the local is written to anything else.
+    value_copies: HashMap<String, &'p str>,
+}
+
+/// `true` when `name` is a plain scalar local identifier — the only shape a
+/// tracked value-copy target can take (`set n $p` records `n`, but `set
+/// arr(x)` / `set $n` do not).
+fn is_plain_local_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .bytes()
+            .next()
+            .is_some_and(|b| b.is_ascii_alphabetic() || b == b'_')
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
+}
+
 /// Single-level command scan shared by both passes.  Extracts
 /// segmented commands from `source` and dispatches each through
 /// [`scan_command`].
@@ -272,9 +300,9 @@ fn scan_commands<'p>(
     source: &str,
     ctx: &ScanCtx<'p, '_>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
-    upvar_aliases: &mut HashMap<String, &'p str>,
+    aliases: &mut Aliases<'p>,
 ) {
-    scan_commands_bounded(source, ctx, traits, upvar_aliases, 0);
+    scan_commands_bounded(source, ctx, traits, aliases, 0);
 }
 
 /// [`scan_commands`] plus descent into `[...]` command substitutions, bounded
@@ -287,7 +315,7 @@ fn scan_commands_bounded<'p>(
     source: &str,
     ctx: &ScanCtx<'p, '_>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
-    upvar_aliases: &mut HashMap<String, &'p str>,
+    aliases: &mut Aliases<'p>,
     depth: u8,
 ) {
     let segments = segment_commands_with_offset_and_config(source, 0, ctx.config);
@@ -315,7 +343,7 @@ fn scan_commands_bounded<'p>(
             head_is_var,
             ctx,
             traits,
-            upvar_aliases,
+            aliases,
         );
         if depth >= MAX_DEPTH {
             continue;
@@ -327,7 +355,7 @@ fn scan_commands_bounded<'p>(
                 && let Some(inner) = word.strip_prefix('[').and_then(|w| w.strip_suffix(']'))
                 && !inner.trim().is_empty()
             {
-                scan_commands_bounded(inner, ctx, traits, upvar_aliases, depth + 1);
+                scan_commands_bounded(inner, ctx, traits, aliases, depth + 1);
             }
         }
     }
@@ -346,14 +374,14 @@ fn scan_deep<'p>(
     source: &str,
     ctx: &ScanCtx<'p, '_>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
-    upvar_aliases: &mut HashMap<String, &'p str>,
+    aliases: &mut Aliases<'p>,
     depth: u8,
 ) {
     if depth > MAX_DEPTH {
         return;
     }
 
-    scan_commands(source, ctx, traits, upvar_aliases);
+    scan_commands(source, ctx, traits, aliases);
 
     // The recursion only walks braced bodies, so we re-segment
     // here rather than threading the segmented commands through
@@ -398,7 +426,7 @@ fn scan_deep<'p>(
             if head.len() >= 2 && (head[1] == b'$' || head[1] == b'[') {
                 continue;
             }
-            scan_deep(body_text, ctx, traits, upvar_aliases, depth + 1);
+            scan_deep(body_text, ctx, traits, aliases, depth + 1);
         }
     }
 }
@@ -485,27 +513,28 @@ fn scan_command<'p>(
     head_is_var: bool,
     ctx: &ScanCtx<'p, '_>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
-    upvar_aliases: &mut HashMap<String, &'p str>,
+    aliases: &mut Aliases<'p>,
 ) {
     let param_set = ctx.param_set;
     // A `$param` command *head* (`$cmd arg1 arg2`) means the param's value names
     // a command.  Only a genuine `$`-substitution head counts — a braced
-    // `{$cmd}` is a literal command name.
+    // `{$cmd}` is a literal command name.  Resolves value-copies, so
+    // `set c $cmd; $c …` also marks `cmd`.
     if head_is_var
         && let Some(vn) = extract_var_name(cmd_name)
-        && let Some(p) = param_set.get(vn).copied()
+        && let Some(p) = lookup_param(vn, param_set, aliases)
         && let Some(set) = traits.get_mut(p)
     {
         set.insert(ProcArgTrait::Command);
     }
-    apply_arg_role_traits(cmd_name, cmd_args, braced, ctx, traits, upvar_aliases);
+    apply_arg_role_traits(cmd_name, cmd_args, braced, ctx, traits, aliases);
     apply_eval_traits(cmd_name, cmd_args, param_set, traits);
 
     // Per-command structural handlers.
     match cmd_name {
-        "upvar" => handle_upvar(cmd_args, param_set, traits, upvar_aliases),
+        "upvar" => handle_upvar(cmd_args, param_set, traits, aliases),
         "namespace" if cmd_args.first().map(String::as_str) == Some("upvar") => {
-            handle_namespace_upvar(cmd_args, param_set, traits, upvar_aliases);
+            handle_namespace_upvar(cmd_args, param_set, traits, aliases);
         }
         "foreach" | "lmap" => handle_foreach(cmd_args, param_set, traits),
         "while" => handle_while(cmd_args, param_set, traits),
@@ -530,7 +559,7 @@ fn scan_command<'p>(
     // ``local`` was registered as an alias for some param.
     if matches!(cmd_name, "set" | "incr" | "append" | "lappend")
         && !cmd_args.is_empty()
-        && let Some(target) = upvar_aliases.get(cmd_args[0].as_str())
+        && let Some(target) = aliases.upvar.get(cmd_args[0].as_str())
         && let Some(set) = traits.get_mut(target)
     {
         set.insert(ProcArgTrait::VarWrite);
@@ -541,13 +570,44 @@ fn scan_command<'p>(
         let remaining = &cmd_args[..cmd_args.len() - 1];
         let mut i = 0;
         while i < remaining.len() {
-            if let Some(target) = upvar_aliases.get(remaining[i].as_str())
+            if let Some(target) = aliases.upvar.get(remaining[i].as_str())
                 && let Some(set) = traits.get_mut(target)
             {
                 set.insert(ProcArgTrait::VarWrite);
             }
             i += 2;
         }
+    }
+
+    // Value-copy tracking: `set n $p` makes local `n` carry param `p`'s value,
+    // so a later `$n` in a name / command position resolves to `p`.  Any other
+    // write to a tracked local invalidates the copy.  Recorded *after* the role
+    // scan so this command's effect applies only to later commands.
+    match cmd_name {
+        "set" if cmd_args.len() == 2 => {
+            let target = cmd_args[0].as_str();
+            if extract_var_name(&cmd_args[0]).is_none()
+                && is_plain_local_name(target)
+                && !param_set.contains(target)
+            {
+                match extract_var_name(&cmd_args[1])
+                    .and_then(|vn| lookup_param(vn, param_set, aliases))
+                {
+                    Some(p) => {
+                        aliases.value_copies.insert(target.to_owned(), p);
+                    }
+                    None => {
+                        aliases.value_copies.remove(target);
+                    }
+                }
+            }
+        }
+        "incr" | "append" | "lappend"
+            if cmd_args.first().is_some_and(|t| is_plain_local_name(t)) =>
+        {
+            aliases.value_copies.remove(cmd_args[0].as_str());
+        }
+        _ => {}
     }
 }
 
@@ -568,7 +628,7 @@ fn apply_arg_role_traits<'p>(
     braced: &[bool],
     ctx: &ScanCtx<'p, '_>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
-    upvar_aliases: &HashMap<String, &'p str>,
+    aliases: &Aliases<'p>,
 ) {
     let param_set = ctx.param_set;
     let arg_roles = resolve_arg_roles(cmd_name, cmd_args, ctx.registry, ctx.stub_overlay);
@@ -581,14 +641,14 @@ fn apply_arg_role_traits<'p>(
             // the whole argument *is* the param's value, evaluated as a script /
             // expression.
             Some(ArgRole::Body) => {
-                if let Some(p) = resolve_param(arg, param_set, upvar_aliases)
+                if let Some(p) = resolve_param(arg, param_set, aliases)
                     && let Some(set) = traits.get_mut(p)
                 {
                     set.insert(ProcArgTrait::Body);
                 }
             }
             Some(ArgRole::Expr) => {
-                if let Some(p) = resolve_param(arg, param_set, upvar_aliases)
+                if let Some(p) = resolve_param(arg, param_set, aliases)
                     && let Some(set) = traits.get_mut(p)
                 {
                     set.insert(ProcArgTrait::Expr);
@@ -606,7 +666,7 @@ fn apply_arg_role_traits<'p>(
                 if !braced.get(idx).copied().unwrap_or(false) =>
             {
                 for var_name in var_substitutions(arg) {
-                    if let Some(p) = lookup_param(var_name, param_set, upvar_aliases)
+                    if let Some(p) = lookup_param(var_name, param_set, aliases)
                         && let Some(set) = traits.get_mut(p)
                     {
                         mark_dynamic_name_local(set);
@@ -619,7 +679,7 @@ fn apply_arg_role_traits<'p>(
             // name.  Braced words are literal — no substitution.
             Some(ArgRole::CommandPrefix) if !braced.get(idx).copied().unwrap_or(false) => {
                 for var_name in var_substitutions(arg) {
-                    if let Some(p) = lookup_param(var_name, param_set, upvar_aliases)
+                    if let Some(p) = lookup_param(var_name, param_set, aliases)
                         && let Some(set) = traits.get_mut(p)
                     {
                         set.insert(ProcArgTrait::Command);
@@ -637,23 +697,24 @@ fn apply_arg_role_traits<'p>(
 fn resolve_param<'p>(
     arg: &str,
     param_set: &HashSet<&'p str>,
-    upvar_aliases: &HashMap<String, &'p str>,
+    aliases: &Aliases<'p>,
 ) -> Option<&'p str> {
-    lookup_param(extract_var_name(arg)?, param_set, upvar_aliases)
+    lookup_param(extract_var_name(arg)?, param_set, aliases)
 }
 
-/// Map a bare variable name to the param it is (directly, or via an `upvar`
-/// alias).  `None` when it names no known param.
+/// Map a bare variable name to the param it references — directly, via an
+/// `upvar` alias, or via a local that carries a param's value (`set n $p`).
+/// `None` when it names no known param.
 fn lookup_param<'p>(
     var_name: &str,
     param_set: &HashSet<&'p str>,
-    upvar_aliases: &HashMap<String, &'p str>,
+    aliases: &Aliases<'p>,
 ) -> Option<&'p str> {
-    if let Some(p) = param_set.get(var_name) {
-        Some(*p)
-    } else {
-        upvar_aliases.get(var_name).copied()
-    }
+    param_set
+        .get(var_name)
+        .copied()
+        .or_else(|| aliases.upvar.get(var_name).copied())
+        .or_else(|| aliases.value_copies.get(var_name).copied())
 }
 
 /// Yield each simple variable name substituted in `text` — `$name`, `${name}`,
@@ -767,7 +828,7 @@ fn handle_upvar<'p>(
     args: &[String],
     param_set: &HashSet<&'p str>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
-    upvar_aliases: &mut HashMap<String, &'p str>,
+    aliases: &mut Aliases<'p>,
 ) {
     // `upvar ?level? otherVar myVar ?otherVar myVar ...?` — an optional leading
     // level word (`1`, `#0`) shifts the first pair.
@@ -775,7 +836,7 @@ fn handle_upvar<'p>(
         .first()
         .is_some_and(|h| h.chars().all(|c| c.is_ascii_digit()) || h.starts_with('#'));
     let pairs = args.get(usize::from(has_level)..).unwrap_or(&[]);
-    record_upvar_pairs(pairs, param_set, traits, upvar_aliases);
+    record_upvar_pairs(pairs, param_set, traits, aliases);
 }
 
 /// `namespace upvar namespace ?otherVar myVar ...?` — the pairs alias namespace
@@ -787,10 +848,10 @@ fn handle_namespace_upvar<'p>(
     args: &[String],
     param_set: &HashSet<&'p str>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
-    upvar_aliases: &mut HashMap<String, &'p str>,
+    aliases: &mut Aliases<'p>,
 ) {
     if args.len() > 2 {
-        record_upvar_pairs(&args[2..], param_set, traits, upvar_aliases);
+        record_upvar_pairs(&args[2..], param_set, traits, aliases);
     }
 }
 
@@ -803,7 +864,7 @@ fn record_upvar_pairs<'p>(
     pairs: &[String],
     param_set: &HashSet<&'p str>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
-    upvar_aliases: &mut HashMap<String, &'p str>,
+    aliases: &mut Aliases<'p>,
 ) {
     let mut i = 0;
     while i + 1 < pairs.len() {
@@ -817,7 +878,7 @@ fn record_upvar_pairs<'p>(
             if let Some(set) = traits.get_mut(p) {
                 set.insert(ProcArgTrait::VarRead);
             }
-            upvar_aliases.insert(my_var.clone(), p);
+            aliases.upvar.insert(my_var.clone(), p);
         }
         if let Some(my_vn) = extract_var_name(my_var)
             && let Some(p) = param_set.get(my_vn).copied()
@@ -1211,6 +1272,47 @@ mod tests {
         assert_eq!(var_substitutions("literal"), Vec::<&str>::new());
         assert_eq!(var_substitutions("\\$escaped"), Vec::<&str>::new());
         assert_eq!(var_substitutions("$1backref"), Vec::<&str>::new());
+    }
+
+    #[test]
+    fn value_copy_carries_param_into_name_and_command_positions() {
+        // `set n $p` copies the param's value into local `n`; a later `$n` in a
+        // name / command position then resolves back to the param.
+        assert_trait(
+            &infer(&["v"], "set n $v\nset $n 1"),
+            "v",
+            ProcArgTrait::DynamicNameLocal,
+        );
+        assert_trait(
+            &infer(&["cmd"], "set c $cmd\n$c arg"),
+            "cmd",
+            ProcArgTrait::Command,
+        );
+        // In a command substitution too.
+        assert_trait(
+            &infer(&["v"], "set n $v\nreturn [set $n]"),
+            "v",
+            ProcArgTrait::DynamicNameLocal,
+        );
+        // Transitive copies chain.
+        assert_trait(
+            &infer(&["cmd"], "set c $cmd\nset d $c\n$d arg"),
+            "cmd",
+            ProcArgTrait::Command,
+        );
+    }
+
+    #[test]
+    fn value_copy_is_invalidated_and_not_over_eager() {
+        // Reassigning the local to a non-param drops the copy, so a later `$n`
+        // no longer resolves to the original param.
+        assert!(
+            infer(&["v"], "set n $v\nset n other\nset $n 1")
+                .get("v")
+                .is_none()
+        );
+        // Merely passing the value through (never used as a name) is not a role.
+        assert!(infer(&["v"], "set n $v\nreturn $n").get("v").is_none());
     }
 
     #[test]
