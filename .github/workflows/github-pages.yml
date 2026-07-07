@@ -38,11 +38,11 @@ on:
     branches: [rust, main]
     paths:
       # BIG-IP report generator + demo sources (query engine, model, renderer).
-      - "rust/bigip-report/py/**"
-      - "rust/bigip-report/rust/**"
-      - "rust/bigip-report/shared/**"
+      - "rust/bigip-report-gen/python/**"
+      - "rust/bigip-report-gen/rust/**"
+      - "rust/bigip-report-gen/frontend/**"
       - "rust/bigip-query-wasm/**"
-      - "rust/bigip-report-wasm/**"
+      - "rust/bigip-report-gen/wasm/**"
       - "rust/tcl-bigip-query/**"
       - "rust/tcl-bigip/**"
       - "rust/tcl-bigip-io/**"
@@ -72,13 +72,13 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       # rust-toolchain.toml pins the channel (stable). Cache both crate trees:
-      # the workspace member the report links (bigip-report/py) and the
+      # the workspace member the report links (bigip-report-gen/python) and the
       # standalone WASM crate (tcl-explorer-wasm has its own lockfile).
       - name: Cache cargo + build
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           workspaces: |
-            rust/bigip-report/py
+            rust/bigip-report-gen/python
             rust/tcl-explorer-wasm
 
       # ── Compiler Explorer (Rust → WASM, client-side, no backend) ──────────
@@ -89,7 +89,7 @@ jobs:
         uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2.82.7
         with:
           # wasm-bindgen-cli must match the wasm-bindgen crate version pinned in
-          # rust/bigip-report-wasm/Cargo.toml.
+          # rust/bigip-report-gen/wasm/Cargo.toml.
           tool: wasm-pack,wasm-bindgen-cli@0.2.126
 
       # No wasm-opt/binaryen: it is intentionally disabled for this module
@@ -102,18 +102,18 @@ jobs:
 
       - name: Build the in-browser report generator (Rust → WASM)
         # Assembles the single-file upload app into
-        # rust/bigip-report-wasm/dist/index.html (WASM + glue inlined).
+        # rust/bigip-report-gen/wasm/dist/index.html (WASM + glue inlined).
         # build-wasm.sh skips wasm-opt for the same externref-table reason as
         # the explorer, and verifies the module's externref table is growable.
-        run: bash rust/bigip-report-wasm/build-wasm.sh
+        run: bash rust/bigip-report-gen/wasm/build-wasm.sh
 
       # ── Shared report front-end (TypeScript → dist/, synced into f5report) ─
-      # Builds rust/bigip-report/shared/src → dist/*.js and syncs the built JS +
+      # Builds rust/bigip-report-gen/frontend/src → dist/*.js and syncs the built JS +
       # styles + freshly-vendored wasm into the Python package, so maturin
       # embeds current assets. Node is preinstalled on the runner.
       - name: Build the shared report front-end (TypeScript)
         run: |
-          cd rust/bigip-report/shared
+          cd rust/bigip-report-gen/frontend
           npm ci
           npm run build
 
@@ -133,20 +133,20 @@ jobs:
           # so the vendored Mermaid + wasm engine (committed under
           # python/f5report/vendor/) are embedded — GitHub Pages has no strict
           # CSP, so the in-browser query console works when hosted.
-          ( cd rust/bigip-report/py && maturin develop --release )
+          ( cd rust/bigip-report-gen/python && maturin develop --release )
 
           # BIG-IP report → /bigip-report-demo/
           mkdir -p site/bigip-report-demo
           python -m f5report \
-            rust/bigip-report/py/tests/data/lab-device-01.ucs \
-            rust/bigip-report/py/tests/data/lab-device-02.ucs \
+            rust/bigip-report-gen/python/tests/data/lab-device-01.ucs \
+            rust/bigip-report-gen/python/tests/data/lab-device-02.ucs \
             -t "F5 BIG-IP Estate — example report" \
             -o site/bigip-report-demo/index.html
 
           # Interactive report generator (upload a UCS/SCF, all in-browser) →
           # /bigip-report-generator/ (single self-contained file built above).
           mkdir -p site/bigip-report-generator
-          cp rust/bigip-report-wasm/dist/index.html site/bigip-report-generator/index.html
+          cp rust/bigip-report-gen/wasm/dist/index.html site/bigip-report-generator/index.html
 
           # Compiler Explorer → /compiler-explorer/ (bundle built above; the
           # wasm/js/mermaid assets are gitignored build outputs, so copy the
