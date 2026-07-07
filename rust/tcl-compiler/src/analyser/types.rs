@@ -165,10 +165,12 @@ pub enum ProcArgTrait {
     /// See PR #498 / #499 (deep-review finding 10 / 6).
     DynamicNameLocal,
     /// The parameter's **value** is used as a **command name** — either the
-    /// command word of an invocation (``$cmd arg1 arg2``) or a registry
-    /// ``CommandPrefix`` argument (``rename $old new``, ``interp alias {} $a
-    /// {} …``).  Passing a literal at the call site therefore names a command,
-    /// which a consumer can resolve (call graph) or highlight as a command.
+    /// command word of an invocation (``$cmd arg1 arg2``) or a registry / stub
+    /// ``CommandPrefix`` callback argument (a command prefix such as
+    /// ``tcltest::customMatch``'s matcher, ``selection handle``'s handler, or a
+    /// stub ``:command_prefix`` argument).  Passing a literal at the call site
+    /// therefore names a command, which a consumer can resolve (call graph) or
+    /// highlight as a command.
     Command,
 }
 

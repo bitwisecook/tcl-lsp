@@ -89,7 +89,7 @@ safe to paint as one token.
      dynamic-name or read reference elevates to a plain `Variable`.
    The same single-token `Esc` geometry gate applies to every source, so a
    computed subscript stays multi-token and its inner `$var` survives.
-5. The mechanism is role-general, not variable-only. A parameter the analyser
+6. The mechanism is role-general, not variable-only. A parameter the analyser
    infers to name a **command** — used as a command head (`$cmd args`) or a
    `CommandPrefix` argument (registry or stub `:command_prefix`) — elevates the
    call-site literal to a `Function` (`ArgOverride::CommandRef`), so

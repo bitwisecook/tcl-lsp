@@ -673,10 +673,11 @@ fn apply_arg_role_traits<'p>(
                     }
                 }
             }
-            // A registry `CommandPrefix` role names a command (`rename $old new`,
-            // `interp alias {} $a {} …`).  A `$param` (or component of a
-            // dynamic name) flowing there means the param's value is a command
-            // name.  Braced words are literal — no substitution.
+            // A registry / stub `CommandPrefix` role names a command — a callback
+            // command prefix (`tcltest::customMatch`, `selection handle`, a stub
+            // `:command_prefix` arg).  A `$param` (or component of a dynamic
+            // name) flowing there means the param's value is a command name.
+            // Braced words are literal — no substitution.
             Some(ArgRole::CommandPrefix) if !braced.get(idx).copied().unwrap_or(false) => {
                 for var_name in var_substitutions(arg) {
                     if let Some(p) = lookup_param(var_name, param_set, aliases)
@@ -856,10 +857,12 @@ fn handle_namespace_upvar<'p>(
 }
 
 /// Record the `otherVar myVar` pairs shared by `upvar` and `namespace upvar`:
-/// each `otherVar` that is a `$param` reads the aliased variable (`VarRead`)
-/// and registers `myVar` as an alias for that param, so a later write through
-/// the alias upgrades it to `VarWrite`.  A `$param` in a `myVar` slot names a
-/// callee-local alias (`VarWrite`).
+/// each `otherVar` that is a `$param` reads the aliased caller variable
+/// (`VarRead`) and registers `myVar` as an alias for that param, so a later
+/// write *through the alias* (`set myVar …`) upgrades it to a genuine
+/// caller-frame `VarWrite`.  A `$param` in the `myVar` slot is different — its
+/// value names a *callee-local* alias variable, not a caller variable, so it is
+/// a `DynamicNameLocal` use (never a caller-frame `VarWrite`).
 fn record_upvar_pairs<'p>(
     pairs: &[String],
     param_set: &HashSet<&'p str>,
@@ -884,7 +887,7 @@ fn record_upvar_pairs<'p>(
             && let Some(p) = param_set.get(my_vn).copied()
             && let Some(set) = traits.get_mut(p)
         {
-            set.insert(ProcArgTrait::VarWrite);
+            mark_dynamic_name_local(set);
         }
     }
 }
@@ -1186,6 +1189,20 @@ mod tests {
         assert_trait(&traits, "var", ProcArgTrait::VarRead);
         // Write through the alias upgrades to VarWrite.
         assert_trait(&traits, "var", ProcArgTrait::VarWrite);
+    }
+
+    #[test]
+    fn upvar_my_var_slot_param_is_callee_local_not_var_write() {
+        // `upvar 1 caller $local` — the param in the `myVar` slot names the
+        // *callee-local* alias, not a caller variable, so it is a
+        // `DynamicNameLocal` use, never a caller-frame `VarWrite` (PR review).
+        let traits = infer(&["local"], "upvar 1 caller $local");
+        assert_trait(&traits, "local", ProcArgTrait::DynamicNameLocal);
+        assert!(
+            !traits.get("local").unwrap().contains(&ProcArgTrait::VarWrite),
+            "myVar-slot param must not be a caller VarWrite; got {:?}",
+            traits.get("local"),
+        );
     }
 
     #[test]
