@@ -1,5 +1,9 @@
-# Build the self-contained f5report `.pyz` for every platform and attach the
-# artefacts to the GitHub Release.
+# Build the report-generator release artefacts and attach them to the GitHub
+# Release:
+#   * the self-contained f5report `.pyz` (Python generator CLI) per platform,
+#   * the single-file HTML generator (the Rust generator's browser form — one
+#     index.html with the WASM engine embedded), built once, and
+#   * (Stage B) the native Rust generator CLI binary per platform.
 #
 # The `.pyz` bundles the native `_engine` extension (Rust query engine via PyO3)
 # together with its Python deps (minijinja), built by `shiv`. Because the compiled
@@ -20,7 +24,7 @@
 # on manual dispatch (artefacts only). The local equivalent is
 # `make build-report-pyz`, which runs the same maturin + shiv steps for the host
 # platform.
-name: Build f5report .pyz (all platforms)
+name: Build report-generator release artefacts
 
 on:
   release:
@@ -99,6 +103,16 @@ jobs:
             f5report
           echo "PYZ_PATH=dist/${pyz}" >> "$GITHUB_ENV"
 
+      # ── Stage B slot: native Rust generator CLI binary ────────────────────
+      # Once `bigip-report-gen-rust` grows a `[[bin]]` (the native CLI), build
+      # it for this platform here and attach it alongside the .pyz, e.g.:
+      #   - name: Build the Rust generator CLI
+      #     run: |
+      #       cargo build --release -p bigip-report-gen-rust --bin bigip-report-gen
+      #       cp target/release/bigip-report-gen \
+      #          "f5-report-cli-${version}-${os}-${{ matrix.arch }}"
+      #   (then a second upload-artifact + attach-to-release, mirroring below).
+
       - name: Upload workflow artefact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -111,3 +125,63 @@ jobs:
         uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
         with:
           files: ${{ env.PYZ_PATH }}
+
+  # ── Single-file HTML generator (Rust → WASM, runs entirely in the browser) ─
+  # The Rust generator's "website" form: one self-contained index.html with the
+  # WASM engine embedded — upload a UCS/SCF and generate a report client-side,
+  # nothing uploaded. Platform-independent, so build it once.
+  single-file-html:
+    name: single-file HTML generator
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # The generator page inlines the front-end bundle (input.js), so build the
+      # shared front-end first. Node is preinstalled on the runner.
+      - name: Build the shared report front-end (TypeScript)
+        run: |
+          cd rust/bigip-report-gen/frontend
+          npm ci
+          npm run build
+
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install wasm-pack + wasm-bindgen-cli
+        uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2.82.7
+        with:
+          # wasm-bindgen-cli must match the wasm-bindgen crate pinned in
+          # rust/bigip-report-gen/wasm/Cargo.toml.
+          tool: wasm-pack,wasm-bindgen-cli@0.2.126
+
+      - name: Build the single-file generator
+        id: build
+        shell: bash
+        env:
+          GIT_HASH: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          export GIT_HASH="${GIT_HASH:0:12}"
+          # Assembles rust/bigip-report-gen/wasm/dist/index.html (WASM inlined).
+          bash rust/bigip-report-gen/wasm/build-wasm.sh
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="${GIT_HASH}"
+          fi
+          out="f5-report-generator-${version}.html"
+          cp rust/bigip-report-gen/wasm/dist/index.html "${out}"
+          echo "HTML_PATH=${out}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload workflow artefact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: f5-report-generator-html
+          path: ${{ steps.build.outputs.HTML_PATH }}
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        with:
+          files: ${{ steps.build.outputs.HTML_PATH }}
