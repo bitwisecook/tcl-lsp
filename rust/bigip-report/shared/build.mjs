@@ -4,13 +4,14 @@
 // Build the shared BIG-IP report front-end: bundle the page entry scripts in
 // `src/pages/` (which pull in `src/search/` and are styled by `src/styles/`) to
 // plain browser IIFE scripts in `dist/`, then sync the built JS + styles +
-// vendor + the single MiniJinja template into the Python `f5report` package so
-// its wheel stays self-contained (no Node needed at wheel-build time — same
-// precedent as the vendored wasm). Both backends render the SAME template:
-// Python via the `minijinja` binding, Rust via `include_str!` of
-// `public/templates/report.html.j2` (plus `dist/`, `src/styles/`,
-// `public/vendor/`). The rendered report is always ONE self-contained HTML file
-// with every asset inlined.
+// vendor + the single template into the Python `f5report` package. Those synced
+// copies are BUILD OUTPUTS, not checked in (see py/.gitignore); every wheel /
+// `maturin develop` build runs this first to populate them on disk, and the
+// maturin `include` in py/pyproject.toml pulls them into the wheel. Both
+// backends render the SAME template: Python via the `minijinja` binding, Rust
+// via `include_str!` of `public/templates/report.html.j2` (plus `dist/`,
+// `src/styles/`, `public/vendor/`). The rendered report is always ONE
+// self-contained HTML file with every asset inlined.
 //
 // Usage: `npm run build` (from rust/bigip-report/shared).
 

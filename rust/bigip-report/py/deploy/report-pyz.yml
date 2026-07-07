@@ -52,6 +52,19 @@ jobs:
         with:
           python-version: "3.12"
 
+      # The wheel embeds the shared front-end assets (templates + JS/CSS +
+      # vendored wasm), which `npm run build` regenerates from
+      # rust/bigip-report/shared into the package. They are build outputs, not
+      # checked in (see rust/bigip-report/py/.gitignore + the maturin `include`),
+      # so build them here before maturin packages the wheel. Node is
+      # preinstalled on the GitHub runners.
+      - name: Build the shared report front-end (TypeScript)
+        shell: bash
+        run: |
+          cd rust/bigip-report/shared
+          npm ci
+          npm run build
+
       # rust-toolchain.toml pins the channel; the runners ship cargo, so no
       # explicit toolchain install is needed.
       - name: Build the .pyz (maturin wheel + shiv bundle)

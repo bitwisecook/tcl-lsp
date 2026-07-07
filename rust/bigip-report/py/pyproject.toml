@@ -45,3 +45,16 @@ f5-report-web = "f5report.web:main"
 python-source = "python"
 module-name = "f5report._engine"
 features = ["pyo3/extension-module"]
+# The front-end assets (templates/JS/CSS + vendored wasm) are build outputs of
+# `npm run build` (rust/bigip-report/shared/build.mjs), synced into the package
+# on disk but NOT checked in (see .gitignore). maturin otherwise skips
+# git-ignored files, so force them into the wheel here. Every wheel build runs
+# the shared front-end build first, so they are present on disk.
+include = [
+    "python/f5report/templates/*.js",
+    "python/f5report/templates/*.css",
+    "python/f5report/templates/*.j2",
+    "python/f5report/templates/*.html",
+    "python/f5report/vendor/*.js",
+    "python/f5report/vendor/*.wasm",
+]
