@@ -1962,9 +1962,11 @@ fn insert_apply_lambda_override(
 /// / `incr` / `append` / `lappend` / `lassign` / `global` / `variable` / … ,
 /// which the query [`CommandRegistry::arg_indices_for_role`] resolves
 /// (including subcommand and dynamic-resolver commands such as `dict set`).
-/// Only a plain bareword name is retagged — an array element (`arr(x)`), a
-/// `$`-computed name, or a quoted word is left to the default classifier so
-/// its inner `$var` sub-tokens survive.
+/// A plain bareword name, or a literal array element (`arr(key)`), is retagged
+/// as one whole-word `Variable` token — matching how `$arr(key)` reads
+/// highlight (issue #813).  A `$`-computed subscript (`arr($i)`), a
+/// `$`-computed name, or a quoted word is left to the default classifier so its
+/// inner `$var` sub-tokens survive.
 fn insert_var_decl_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
@@ -1977,7 +1979,7 @@ fn insert_var_decl_overrides(
         if let (Some(text), Some(tok)) = (seg.texts.get(i + 1), seg.argv.get(i + 1))
             && matches!(tok.kind, TokenType::Esc)
             && !tok.in_quote
-            && is_plain_var_name(text)
+            && (is_plain_var_name(text) || is_literal_array_element(text))
         {
             overrides
                 .entry(tok.span.start())
@@ -1993,6 +1995,27 @@ fn is_plain_var_name(text: &str) -> bool {
     // braced words, and the stray `}` / `)` the degenerate empty-brace (`{}`)
     // span clamp can leave in sub-tokenised list content.
     !text.is_empty() && !text.contains(['(', ')', '$', '[', ']', '{', '}', '"', ' '])
+}
+
+/// `true` when `text` is an array-element reference `name(index)` whose name
+/// and index are both literal — no substitution (`$` / `[`) or nested
+/// delimiter inside.  Such a word lexes as a single [`TokenType::Esc`] token,
+/// so it is safe to retag as one whole-word `Variable` token.  A `$`-computed
+/// subscript (`arr($i)`) is excluded: it lexes into several tokens (`arr(`,
+/// `$i`, `)`) whose inner `$i` must survive as its own variable sub-token.
+fn is_literal_array_element(text: &str) -> bool {
+    let Some(open) = text.find('(') else {
+        return false;
+    };
+    // A non-empty scalar name, followed by a `(...)` subscript that closes the
+    // word.  `open == 0` (`(x)`) has no name; a missing trailing `)` is not a
+    // complete element.
+    if open == 0 || !text.ends_with(')') {
+        return false;
+    }
+    let name = &text[..open];
+    let index = &text[open + 1..text.len() - 1];
+    is_plain_var_name(name) && !index.contains(['$', '[', ']', '(', ')', '{', '}', '"', ' '])
 }
 
 /// `switch … { pat body … }` — the braced case list (the final word, when
@@ -5139,6 +5162,80 @@ mod tests {
                 .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
             "expected inner $i variable token; got {toks:?}"
         );
+    }
+
+    #[test]
+    fn literal_array_element_write_is_variable_declaration() {
+        // A literal array-element write target highlights as one whole-word
+        // `Variable` declaration, matching the `$arr(key)` read (issue #813).
+        for src in [
+            "set arr(key) 1\n",
+            "incr count(hits)\n",
+            "append log(err) x\n",
+        ] {
+            let toks = decode_full(src, "tcl", &reg());
+            let decl = toks.iter().any(|(_, _, _, k, m)| {
+                *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
+            });
+            assert!(
+                decl,
+                "expected an array-element variable declaration; got {toks:?} for {src:?}"
+            );
+        }
+        // The target `arr(key)` is a single token spanning the whole element.
+        let toks = decode_full("set arr(key) 1\n", "tcl", &reg());
+        let whole = toks.iter().any(|(_, col, len, k, m)| {
+            *col == 4 && *len == 8 && *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
+        });
+        assert!(
+            whole,
+            "expected a single length-8 variable token over `arr(key)`; got {toks:?}"
+        );
+        assert_non_overlapping("set arr(key) 1\n", &reg());
+    }
+
+    #[test]
+    fn namespaced_array_element_write_is_variable_declaration() {
+        // A namespaced array (`::ns::arr(key)`) is still a plain element.
+        let toks = decode_full("set ::ns::arr(key) 1\n", "tcl", &reg());
+        let decl = toks.iter().any(|(_, _, _, k, m)| {
+            *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
+        });
+        assert!(
+            decl,
+            "expected a variable declaration for the namespaced array element; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn unset_array_element_is_variable() {
+        // `unset arr(key)` — the literal element is a variable, and a computed
+        // subscript (`unset arr($i)`) still leaves the inner `$i` sub-token.
+        for src in ["unset arr(key)\n", "unset arr($i)\n"] {
+            let toks = decode_full(src, "tcl", &reg());
+            assert!(
+                toks.iter()
+                    .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
+                "expected a variable token; got {toks:?} for {src:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn is_literal_array_element_classifies() {
+        assert!(is_literal_array_element("arr(key)"));
+        assert!(is_literal_array_element("arr(1)"));
+        assert!(is_literal_array_element("arr(a,b)"));
+        assert!(is_literal_array_element("::ns::arr(key)"));
+        assert!(is_literal_array_element("arr()"));
+        // Computed subscript / name — must survive as sub-tokens.
+        assert!(!is_literal_array_element("arr($i)"));
+        assert!(!is_literal_array_element("arr([x])"));
+        // Not an element.
+        assert!(!is_literal_array_element("scalar"));
+        assert!(!is_literal_array_element("(x)"));
+        assert!(!is_literal_array_element("arr(key"));
+        assert!(!is_literal_array_element("$arr(key)"));
     }
 
     #[test]
