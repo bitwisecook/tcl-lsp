@@ -27,8 +27,7 @@ suite("Document Links", () => {
     await activate(docUri);
 
     const links = (await vscode.commands.executeCommand("vscode.executeLinkProvider", docUri)) as
-      | vscode.DocumentLink[]
-      | undefined;
+      vscode.DocumentLink[] | undefined;
 
     // The server should provide clickable links for source/package require
     assert.ok(links !== undefined, "Link provider should return a result (possibly empty)");
