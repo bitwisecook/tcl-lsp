@@ -405,6 +405,13 @@ pub fn build_class_hierarchy<S: std::hash::BuildHasher>(
 
     let method_providers = build_method_providers(&classes, &mro_map);
 
+    // `errors` is accumulated while walking `classes.keys()` (HashMap order), so
+    // its `Vec` order is otherwise nondeterministic.  Sort it: the order carries
+    // no meaning, and a stable order keeps two logically-equal hierarchies
+    // `==` — which is what lets salsa backdate `project_class_index` on a
+    // body-only edit instead of needlessly recomputing dependent token queries.
+    errors.sort_unstable();
+
     ClassHierarchy {
         classes,
         mro_map,

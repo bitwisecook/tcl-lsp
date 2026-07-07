@@ -124,11 +124,24 @@ pub(super) fn scan(
             "package" => handlers::handle_package(texts, argv, conditional, &mut ctx.result),
             "source" => handlers::handle_source(texts, argv, &mut ctx.result),
             "interp" => handlers::handle_interp(texts, &mut ctx.result),
-            "oo::class" | "::oo::class" => {
+            // Every stock `TclOO` metaclass creates a class via the same
+            // `METACLASS create NAME ?BODY?` interface — `oo::configurable`
+            // (property-bearing), `oo::abstract`, and `oo::singleton` included,
+            // so a `[Pin new]` on an `oo::configurable` class is typed as an
+            // object like any other (issue #797).
+            "oo::class" | "::oo::class" | "oo::configurable" | "::oo::configurable"
+            | "oo::abstract" | "::oo::abstract" | "oo::singleton" | "::oo::singleton" => {
                 handlers::handle_oo_class(texts, argv, ns_prefix, &mut ctx.result);
             }
             "itcl::class" | "::itcl::class" => {
                 handlers::handle_itcl_class(texts, argv, ns_prefix, &mut ctx.result);
+            }
+            // snit types/widgets create instances via `Name create obj` /
+            // `Name %AUTO%` / a widget's `Name .path`, so record them as classes
+            // to type those constructors' receivers (same shape as itcl).
+            "snit::type" | "::snit::type" | "snit::widget" | "::snit::widget"
+            | "snit::widgetadaptor" | "::snit::widgetadaptor" => {
+                handlers::handle_snit_type(texts, argv, ns_prefix, &mut ctx.result);
             }
             "if" => handle_if(texts, argv, ns_prefix, known_commands, ctx),
             "catch" => handle_catch(texts, argv, ns_prefix, known_commands, ctx),

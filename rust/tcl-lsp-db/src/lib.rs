@@ -53,7 +53,8 @@ use tcl_compiler::taint_interproc::{InterprocTaintResult, ProcTaintSummary as Re
 
 use tcl_compiler::analyser::per_item::{BodyFragment, DeferredBody, analyse_proc_body_isolated};
 use tcl_compiler::analyser::{
-    Analyser, AnalysisResult, FileDecls, ItemSig, ItemTree, NonAsciiMode,
+    Analyser, AnalysisResult, ClassDef, ClassHierarchy, FileDecls, ItemSig, ItemTree,
+    NonAsciiMode, build_class_hierarchy,
 };
 use tcl_compiler::signature_scan::types::ParamDef;
 use tcl_lsp_core::document_symbols::DocumentSymbol;
@@ -2040,14 +2041,89 @@ pub fn document_compilation_unit(db: &dyn TclDb, file: SourceFile) -> Arc<Compil
 /// keyed on the same `SourceFile`, guarantees the analysis and the tokens are
 /// for the identical revision (no version skew in the emitted stream).
 #[salsa::tracked]
-pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile) -> SemanticTokens {
+pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig) -> SemanticTokens {
     let registry = db.registry(file.dialect(db));
     let cu = document_compilation_unit(db, file);
-    tcl_lsp_core::semantic_tokens::full_with_cu(
+    // The whole-file analysis (shared, memoised with diagnostics under the same
+    // `config`) supplies user-defined `ClassDef`s so a `$obj method …` /
+    // `[dict get $objs $k] method …` dispatch resolves against user classes and
+    // their `oo::configurable` properties (issue #797), not only registry ones.
+    let analysis = file_analysis(db, file, config);
+    tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
         file.text(db),
         file.dialect(db),
         &registry,
         Some(&cu),
+        Some(&analysis),
+    )
+}
+
+/// The project's workspace-merged class hierarchy: every file's `ClassDef`s
+/// unioned into one cross-file MRO index, so a `$obj method` dispatch resolves
+/// against a class defined in *another* file.
+///
+/// Aggregates `file_analysis(f, config).all_classes` across `project`.  A
+/// body-only edit rebuilds this (cheap re-aggregation) but yields an equal
+/// [`ClassHierarchy`], so salsa backdates and dependent token queries do not
+/// recompute.  On a class-signature change the merged index changes and the
+/// affected tokens recompute — the correct cross-file invalidation.
+#[salsa::tracked]
+pub fn project_class_index(
+    db: &dyn TclDb,
+    project: Project,
+    config: AnalyserConfig,
+) -> Arc<ClassHierarchy> {
+    // `project.files(db)` is an unordered `Vec` with no stable identity, so a
+    // "first definition wins" merge would make the winner for a duplicate
+    // qualified class name depend on file-enumeration order — non-deterministic
+    // cross-file resolution (and token output).  Instead, abstain: a qualified
+    // name defined in two or more files is genuinely ambiguous (which `::Foo`
+    // does `$obj method` mean?), so drop it from the merged index and fall back
+    // to no cross-file resolution — order-independent and sound, matching this
+    // feature's highlight-only / sound-by-abstention posture.
+    let mut merged: HashMap<String, ClassDef> = HashMap::new();
+    let mut ambiguous: HashSet<String> = HashSet::new();
+    for &file in project.files(db) {
+        let analysis = file_analysis(db, file, config);
+        for (name, class) in &analysis.all_classes {
+            if ambiguous.contains(name) {
+                continue;
+            }
+            match merged.entry(name.clone()) {
+                std::collections::hash_map::Entry::Occupied(e) => {
+                    // A second file defines the same qualified name — ambiguous.
+                    e.remove();
+                    ambiguous.insert(name.clone());
+                }
+                std::collections::hash_map::Entry::Vacant(e) => {
+                    e.insert(class.clone());
+                }
+            }
+        }
+    }
+    Arc::new(build_class_hierarchy(merged))
+}
+
+/// [`semantic_tokens`] resolved against the **workspace-merged** class index, so
+/// a `$obj method …` dispatch on a class defined in another project file
+/// resolves too.  The server calls this when a [`Project`] is available; the
+/// bare [`semantic_tokens`] (local file only) is the fallback.
+#[salsa::tracked]
+pub fn semantic_tokens_project(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+    project: Project,
+) -> SemanticTokens {
+    let registry = db.registry(file.dialect(db));
+    let cu = document_compilation_unit(db, file);
+    let classes = project_class_index(db, project, config);
+    tcl_lsp_core::semantic_tokens::full_with_cu_and_classes(
+        file.text(db),
+        file.dialect(db),
+        &registry,
+        Some(&cu),
+        Some(&classes),
     )
 }
 
@@ -2136,11 +2212,74 @@ mod tests {
     fn semantic_tokens_match_direct() {
         let db = TclDatabase::default();
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned());
-        let got = semantic_tokens(&db, file);
+        let got = semantic_tokens(&db, file, cfg(&db));
         let reg = db.registry("tcl");
         let expected = tcl_lsp_core::semantic_tokens::full(SRC, "tcl", &reg);
         assert_eq!(got, expected);
         assert!(!got.data.is_empty());
+    }
+
+    #[test]
+    fn cross_file_object_dispatch_resolves_via_project_index() {
+        // A class defined in one file, dispatched on via a direct constructor in
+        // another: `semantic_tokens_project` resolves the method through the
+        // workspace-merged `project_class_index`, so its output differs from the
+        // local-only `semantic_tokens` (which leaves the method a plain string).
+        let db = TclDatabase::default();
+        let lib = SourceFile::new(
+            &db,
+            "oo::configurable create ::Pin { property node }\n".to_owned(),
+            "tcl9.0".to_owned(),
+        );
+        let user = SourceFile::new(
+            &db,
+            "[::Pin new] configure -node 5\n".to_owned(),
+            "tcl9.0".to_owned(),
+        );
+        let project = Project::new(&db, vec![lib, user]);
+        let cross = semantic_tokens_project(&db, user, cfg(&db), project);
+        let local = semantic_tokens(&db, user, cfg(&db));
+        assert_ne!(
+            cross.data, local.data,
+            "cross-file index must resolve the method the local pass leaves unresolved"
+        );
+        // The merged index sees the class from the other file.
+        assert!(
+            project_class_index(&db, project, cfg(&db))
+                .classes
+                .contains_key("::Pin"),
+            "project index should contain ::Pin from the library file"
+        );
+    }
+
+    #[test]
+    fn project_index_abstains_on_duplicate_class_name() {
+        // The same qualified class name defined in two files is genuinely
+        // ambiguous — which `::Pin` does a cross-file dispatch mean?  The merged
+        // index drops it (sound-by-abstention), deterministically regardless of
+        // file order, rather than letting an order-dependent "winner" leak into
+        // resolution.
+        let db = TclDatabase::default();
+        let a = SourceFile::new(
+            &db,
+            "oo::class create ::Pin { method a {} {} }\n".to_owned(),
+            "tcl9.0".to_owned(),
+        );
+        let b = SourceFile::new(
+            &db,
+            "oo::class create ::Pin { method b {} {} }\n".to_owned(),
+            "tcl9.0".to_owned(),
+        );
+        // Both orderings must agree (and both must drop the ambiguous class).
+        for files in [vec![a, b], vec![b, a]] {
+            let project = Project::new(&db, files);
+            assert!(
+                !project_class_index(&db, project, cfg(&db))
+                    .classes
+                    .contains_key("::Pin"),
+                "an ambiguous cross-file class name must be dropped, not resolved"
+            );
+        }
     }
 
     #[test]

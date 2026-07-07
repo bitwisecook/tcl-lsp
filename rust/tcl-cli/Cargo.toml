@@ -47,7 +47,7 @@ tcl-sandbox = { path = "../tcl-sandbox" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 # Bundled SQLite (with FTS5) for the `help` verb's embedded KCS database.
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 # Termina backend (the helix-editor VT library) instead of crossterm:
 # `default-features = false` drops the default crossterm backend; the `termina`
 # feature pulls `ratatui-termina` and re-exports the `termina` crate.
@@ -75,7 +75,7 @@ tui = ["dep:ratatui"]
 [build-dependencies]
 # Build the embedded KCS help database (FTS5) from the committed
 # docs/kcs/features/*.md at compile time.
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 regex = "1"
 
 [lints]

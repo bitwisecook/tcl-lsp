@@ -11,7 +11,7 @@ runtime exports) and is the **T2.1** deliverable of
 [`rust-runtime-port.md`](rust-runtime-port.md); see `c-extension-abi.md` §13.1.
 
 > Status: **scaffolding — surface enumerated, categories fixed.** Rows cover the
-> authored spike-header surface (`runtime/rust-spike/include/*.h`), which is the
+> authored C-API header surface, which is the
 > shipped C-API surface contract until `runtime/rust/` lands its
 > `#[no_mangle] extern "C"` exports. The gate
 > `scripts/check_c_api_ownership.py` rejects a header-declared C-API function
@@ -311,7 +311,7 @@ across the boundary.
 `scripts/check_c_api_ownership.py` (the T2.1 enforcement, parity-style):
 
 1. Collects every C-API function **declared** in the shipped headers
-   (`runtime/rust-spike/include/{tcl.h,tclOO.h,tclTomMath.h}` today; the parser
+   (the authored `tcl.h` / `tclOO.h` / `tclTomMath.h` surface; the parser
    reads `extern <ret> Name(` declarations, so `#define` macros — `Tcl_NewIntObj`,
    `Tcl_PkgProvide`, `Tcl_GetHashValue`, `Tcl_SetHashValue` — and `extern`
    **data** symbols — `tclStubsPtr`, `tclOOStubsPtr` — are correctly excluded).

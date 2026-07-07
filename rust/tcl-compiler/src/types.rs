@@ -57,6 +57,15 @@ pub struct TypeLattice {
     pub from_type: Option<TclType>,
     /// Class name (for `Object` types only).
     pub class_name: Option<String>,
+    /// Element class (for `List` / `Dict` *of objects* only): the value is a
+    /// collection every element of which is an `OBJECT(element_class)`.  Set by
+    /// [`Self::collection_of`], harvested from `dict set/append VAR k [C new]`,
+    /// `lappend VAR [C new]`, and `list`/`dict create` of object values, and
+    /// read out at retrieval sites (`dict get` / `lindex`) so an element
+    /// dispatched as `[dict get $coll $k] method …` resolves to `C`.  A join
+    /// of two collections whose element classes differ drops it (the container
+    /// is still `List`/`Dict`, just no longer object-homogeneous).
+    pub element_class: Option<String>,
 }
 
 impl TypeLattice {
@@ -68,6 +77,7 @@ impl TypeLattice {
             tcl_type: None,
             from_type: None,
             class_name: None,
+            element_class: None,
         }
     }
 
@@ -79,6 +89,7 @@ impl TypeLattice {
             tcl_type: None,
             from_type: None,
             class_name: None,
+            element_class: None,
         }
     }
 
@@ -90,6 +101,7 @@ impl TypeLattice {
             tcl_type: Some(t),
             from_type: None,
             class_name: None,
+            element_class: None,
         }
     }
 
@@ -101,6 +113,24 @@ impl TypeLattice {
             tcl_type: Some(TclType::Object),
             from_type: None,
             class_name: Some(class_name.into()),
+            element_class: None,
+        }
+    }
+
+    /// A known `List` / `Dict` whose elements are all `OBJECT(element_class)`.
+    /// `container` must be [`TclType::List`] or [`TclType::Dict`]; any other
+    /// type is treated as a plain known type with no element class (callers
+    /// only ever pass the two container types).
+    #[must_use]
+    pub fn collection_of(container: TclType, element_class: impl Into<String>) -> Self {
+        let element_class = matches!(container, TclType::List | TclType::Dict)
+            .then(|| element_class.into());
+        Self {
+            kind: TypeKind::Known,
+            tcl_type: Some(container),
+            from_type: None,
+            class_name: None,
+            element_class,
         }
     }
 
@@ -113,7 +143,19 @@ impl TypeLattice {
             tcl_type: Some(b),
             from_type: Some(a),
             class_name: None,
+            element_class: None,
         }
+    }
+
+    /// The object class of this collection's elements, when it is a
+    /// `List`/`Dict` known to be homogeneous in `OBJECT(class)` — the signal a
+    /// `dict get` / `lindex` retrieval reads to type its result.
+    #[must_use]
+    pub fn element_class(&self) -> Option<&str> {
+        (self.kind == TypeKind::Known
+            && matches!(self.tcl_type, Some(TclType::List | TclType::Dict)))
+        .then_some(self.element_class.as_deref())
+        .flatten()
     }
 }
 
@@ -125,6 +167,12 @@ impl fmt::Display for TypeLattice {
             TypeKind::Known if self.tcl_type == Some(TclType::Object) => {
                 write!(f, "OBJECT({})", self.class_name.as_deref().unwrap_or("?"))
             }
+            TypeKind::Known if self.element_class().is_some() => write!(
+                f,
+                "{:?}<OBJECT({})>",
+                self.tcl_type.unwrap(),
+                self.element_class().unwrap()
+            ),
             TypeKind::Known => write!(f, "{:?}", self.tcl_type.unwrap()),
             TypeKind::Shimmered => write!(
                 f,
@@ -160,6 +208,12 @@ pub fn type_join(a: &TypeLattice, b: &TypeLattice) -> TypeLattice {
                     return a.clone();
                 }
                 return TypeLattice::of(TclType::Object);
+            }
+            // A `List`/`Dict` carries an element class only while both sides
+            // agree it is object-homogeneous in the *same* class; otherwise the
+            // container type survives but the element class widens away.
+            if matches!(at, TclType::List | TclType::Dict) && a.element_class != b.element_class {
+                return TypeLattice::of(at);
             }
             return a.clone();
         }

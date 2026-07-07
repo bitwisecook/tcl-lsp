@@ -1723,9 +1723,21 @@ impl Backend {
         uri: &Uri,
     ) -> Option<tcl_lsp_core::semantic_tokens::SemanticTokens> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
+        let config = self.resolved_db_config(uri).await;
+        // When the workspace has been indexed into a `Project`, resolve object
+        // dispatches against the *cross-file* class index so a `$obj method` on
+        // a class defined in another file highlights; otherwise fall back to the
+        // local (single-file) hierarchy.
+        let project = *self.db_project.lock().await;
         let snapshot = self.db.lock().await.clone();
         tokio::task::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| tcl_lsp_db::semantic_tokens(&snapshot, file)).ok()
+            salsa::Cancelled::catch(|| match project {
+                Some(project) => {
+                    tcl_lsp_db::semantic_tokens_project(&snapshot, file, config, project)
+                }
+                None => tcl_lsp_db::semantic_tokens(&snapshot, file, config),
+            })
+            .ok()
         })
         .await
         .ok()
@@ -2138,12 +2150,20 @@ impl Backend {
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
         // No salsa input for this document (unindexed buffer): build the unit
-        // fresh so regex-source highlighting still applies, matching the salsa
-        // path above.
+        // and analysis fresh so regex-source highlighting and user-class
+        // object-method resolution still apply, matching the salsa path above.
         tokio::task::spawn_blocking(move || {
             let cu =
                 tcl_compiler::compilation_unit::CompilationUnit::build_for(&text, &registry, false);
-            core_semantic_tokens::full_with_cu(&text, &dialect, &registry, Some(&cu)).data
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(&text, &dialect);
+            core_semantic_tokens::full_with_cu_and_analysis(
+                &text,
+                &dialect,
+                &registry,
+                Some(&cu),
+                Some(&analysis),
+            )
+            .data
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -6136,9 +6156,11 @@ impl LanguageServer for Backend {
             end_character: params.range.end.character,
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        // Reuse the memoised unit when the document is indexed; else build fresh
-        // — so regex-source highlighting is consistent with the full stream.
+        // Reuse the memoised unit + analysis when the document is indexed; else
+        // build fresh — so regex-source highlighting and user-class
+        // object-method resolution are consistent with the full stream.
         let cached_cu = self.db_compilation_unit(&params.text_document.uri).await;
+        let cached_analysis = self.db_file_analysis(&params.text_document.uri).await;
         // Pure-CPU tokenisation on a worker so a parser panic is contained
         // as a JSON-RPC error.
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
@@ -6148,8 +6170,17 @@ impl LanguageServer for Backend {
                     &text, &registry, false,
                 ))
             });
-            core_semantic_tokens::range_with_cu(&text, &dialect, core_range, &registry, Some(&cu))
-                .data
+            let analysis = cached_analysis
+                .unwrap_or_else(|| Arc::new(tcl_compiler::analyser::Analyser::new().analyse(&text, &dialect)));
+            core_semantic_tokens::range_with_cu_and_analysis(
+                &text,
+                &dialect,
+                core_range,
+                &registry,
+                Some(&cu),
+                Some(&analysis),
+            )
+            .data
         })
         .await
         .map_err(|err| jsonrpc::Error {

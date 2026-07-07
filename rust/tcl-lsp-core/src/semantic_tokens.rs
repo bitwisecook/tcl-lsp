@@ -77,6 +77,7 @@
 //! of the BIG-IP taxonomy) is handled.
 
 use rustc_hash::FxHashMap;
+use tcl_compiler::analyser::{AnalysisResult, ClassHierarchy};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Span, Token, TokenType};
@@ -84,7 +85,7 @@ use tcl_lexer::{LineIndex, Span, Token, TokenType};
 use crate::definition::utf16_len;
 use tcl_registry::CommandRegistry;
 use tcl_registry::dialects::DialectSet;
-use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind};
+use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar, MemberKind};
 
 /// Encoded semantic-tokens response.  The `data` array is
 /// the LSP packed integer encoding (5 ints per token: line
@@ -316,7 +317,44 @@ pub fn full_with_cu(
     registry: &CommandRegistry,
     cu: Option<&CompilationUnit>,
 ) -> SemanticTokens {
-    let entries = collect_entries(source, dialect, registry, cu);
+    full_with_cu_and_analysis(source, dialect, registry, cu, None)
+}
+
+/// [`full_with_cu`] with an optional [`AnalysisResult`], enabling precise
+/// `$obj method …` / `[dict get $objs $k] method …` highlighting against
+/// *user-defined* classes (their methods and `oo::configurable` properties),
+/// resolved through the analyser's class hierarchy.  `None` falls back to the
+/// registry-only object-method path.
+#[must_use]
+pub fn full_with_cu_and_analysis(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+    cu: Option<&CompilationUnit>,
+    analysis: Option<&AnalysisResult>,
+) -> SemanticTokens {
+    full_with_cu_and_classes(
+        source,
+        dialect,
+        registry,
+        cu,
+        analysis.map(AnalysisResult::class_hierarchy),
+    )
+}
+
+/// [`full_with_cu`] with an optional [`ClassHierarchy`] — the workspace-merged
+/// project class index, so a `$obj method …` dispatch resolves against a class
+/// defined in *another* file.  The salsa / server path uses this; the local
+/// single-file path goes through [`full_with_cu_and_analysis`].
+#[must_use]
+pub fn full_with_cu_and_classes(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+    cu: Option<&CompilationUnit>,
+    classes: Option<&ClassHierarchy>,
+) -> SemanticTokens {
+    let entries = collect_entries(source, dialect, registry, cu, classes);
     encode_entries(&entries)
 }
 
@@ -345,7 +383,42 @@ pub fn range_with_cu(
     registry: &CommandRegistry,
     cu: Option<&CompilationUnit>,
 ) -> SemanticTokens {
-    let mut entries = collect_entries(source, dialect, registry, cu);
+    range_with_cu_and_analysis(source, dialect, range, registry, cu, None)
+}
+
+/// [`range_with_cu`] with an optional [`AnalysisResult`] for user-class
+/// object-method highlighting (see [`full_with_cu_and_analysis`]).
+#[must_use]
+pub fn range_with_cu_and_analysis(
+    source: &str,
+    dialect: &str,
+    range: crate::definition::LspRange,
+    registry: &CommandRegistry,
+    cu: Option<&CompilationUnit>,
+    analysis: Option<&AnalysisResult>,
+) -> SemanticTokens {
+    range_with_cu_and_classes(
+        source,
+        dialect,
+        range,
+        registry,
+        cu,
+        analysis.map(AnalysisResult::class_hierarchy),
+    )
+}
+
+/// [`range_with_cu`] with an optional workspace-merged [`ClassHierarchy`] (see
+/// [`full_with_cu_and_classes`]).
+#[must_use]
+pub fn range_with_cu_and_classes(
+    source: &str,
+    dialect: &str,
+    range: crate::definition::LspRange,
+    registry: &CommandRegistry,
+    cu: Option<&CompilationUnit>,
+    classes: Option<&ClassHierarchy>,
+) -> SemanticTokens {
+    let mut entries = collect_entries(source, dialect, registry, cu, classes);
     entries.retain(|(line, col, _, _, _)| {
         // Half-open interval per LSP `Range` semantics: start is
         // inclusive, end is exclusive.
@@ -574,6 +647,7 @@ fn push_regsub_subtokens(
 /// excluded) borrowed as `&[&str]`.  The caller builds it once and shares it
 /// with the registry-role and OO-body override passes, so the hot path makes
 /// only a single bridging allocation per command.
+#[allow(clippy::too_many_arguments)] // one override builder threading the whole per-command context
 fn special_arg_kinds(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
@@ -581,6 +655,8 @@ fn special_arg_kinds(
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
     arg_texts: &[&str],
     object_classes: &ObjectClassMap,
+    object_collections: &ObjectClassMap,
+    classes: Option<&ClassHierarchy>,
     dialect: DialectSet,
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
@@ -607,7 +683,14 @@ fn special_arg_kinds(
     }
 
     insert_option_and_subcommand_overrides(seg, registry, head, dialect, &mut overrides);
-    insert_object_method_overrides(seg, registry, object_classes, &mut overrides);
+    insert_object_method_overrides(
+        seg,
+        registry,
+        object_classes,
+        object_collections,
+        classes,
+        &mut overrides,
+    );
     insert_generic_option_overrides(seg, registry, head, &mut overrides);
     insert_enum_value_overrides(seg, registry, head, dialect, &mut overrides);
     insert_oo_define_keyword_overrides(seg, registry, &mut overrides);
@@ -1147,6 +1230,24 @@ fn insert_option_and_subcommand_overrides(
     }
 }
 
+/// Whether a command's *head word* is a runtime-computed (non-static) command
+/// name rather than a statically-resolvable one: a `$var` / `[cmd]`
+/// substitution head, or a multi-fragment word (`chartV$node`, `${prefix}cmd`).
+///
+/// The command name of such a call is only known at runtime — an object handle
+/// dispatched through a variable (`$chart method …`, #748), a `[Class new]` /
+/// `[dict get …]` constructor-or-lookup result (#797), a computed command
+/// name — so it must not be classified as a resolved command-head token, nor
+/// consulted against the registry's declared option tables.  A plain
+/// single-token bareword head (`puts`, a user proc) is *not* computed and stays
+/// on the registry-precise path.
+fn head_is_computed(seg: &tcl_compiler::segmenter::SegmentedCommand) -> bool {
+    seg.argv
+        .first()
+        .is_some_and(|t| matches!(t.kind, TokenType::Var | TokenType::Cmd))
+        || !seg.single_token_word.first().copied().unwrap_or(true)
+}
+
 /// Generic `-option` / option-value highlighting for a command with a
 /// *computed* head not resolved by the registry — a `$obj method …` object
 /// dispatch, a `[Class new] method …`, or a multi-fragment `chartV$node …`
@@ -1199,12 +1300,7 @@ fn insert_generic_option_overrides(
     // — `mycmd -foo` stays a string, a user command's `test … -body …` is not
     // mistaken for tcltest's, and an OO-body member (`property … -get {…}`)
     // keeps its recursed bodies — exactly as `puts -foo` stays a string.
-    let head_is_computed = seg
-        .argv
-        .first()
-        .is_some_and(|t| matches!(t.kind, TokenType::Var | TokenType::Cmd))
-        || !seg.single_token_word.first().copied().unwrap_or(true);
-    if !head_is_computed {
+    if !head_is_computed(seg) {
         return;
     }
     // The single-token literal (`Esc`) text of word `i`, or `None` for a
@@ -1282,7 +1378,7 @@ fn is_generic_option_word(text: &str) -> bool {
 /// handle text a `$var method` dispatch presents (minus the leading `$`) —
 /// a scalar (`chart`) or array element (`arr(key)`).  Built once per document
 /// from the [`CompilationUnit`] by
-/// [`tcl_compiler::object_types::registry_object_handle_classes`].
+/// [`tcl_compiler::object_types::object_handle_classes`].
 type ObjectClassMap = std::collections::HashMap<String, std::collections::HashSet<String>>;
 
 /// Precise `$obj method …` highlighting via the registry's object-class model —
@@ -1305,6 +1401,8 @@ fn insert_object_method_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     object_classes: &ObjectClassMap,
+    object_collections: &ObjectClassMap,
+    classes: Option<&ClassHierarchy>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let (Some(head_tok), Some(head_text), Some(method)) =
@@ -1312,29 +1410,86 @@ fn insert_object_method_overrides(
     else {
         return;
     };
-    // Resolve the dispatched method's spec from the head's class(es).
-    let method_sub = match head_tok.kind {
+    // Candidate receiver classes implied by the head's shape: a `$var` object
+    // handle, a direct `[Class new] …` constructor, or a `[dict get $coll $k]`
+    // / `[lindex $coll $i]` retrieval from an object collection (issue #797).
+    let mut candidates: Vec<String> = match head_tok.kind {
         TokenType::Var => object_handle_name(head_text)
             .and_then(|name| object_classes.get(name))
-            .and_then(|classes| {
-                classes
-                    .iter()
-                    .find_map(|cls| registry.instance_method(cls, method))
-            }),
-        TokenType::Cmd => constructor_class_of_head(head_text, registry)
-            .and_then(|cls| registry.instance_method(cls, method)),
-        _ => None,
+            .map(|s| s.iter().cloned().collect())
+            .unwrap_or_default(),
+        // `[Class new] method …`: a registry factory, else a *user* class named
+        // by the constructor head (resolved against the class hierarchy, which
+        // is workspace-merged, so a class defined in another file resolves),
+        // else a `[dict get $coll $k]` retrieval from an object collection.
+        TokenType::Cmd => {
+            if let Some(cls) = constructor_class_of_head(head_text, registry) {
+                vec![cls.to_string()]
+            } else if let Some(cls) = user_constructor_class_of_head(head_text, classes) {
+                vec![cls]
+            } else {
+                collection_head_element_classes(head_text, object_collections)
+                    .map(|s| s.iter().cloned().collect())
+                    .unwrap_or_default()
+            }
+        }
+        _ => Vec::new(),
     };
-    let Some(method_sub) = method_sub else {
+    if candidates.is_empty() {
         return;
-    };
-    // Highlight the method word itself as a callable.
+    }
+    // The candidate sets come from `HashSet` iteration, whose order varies per
+    // map instance (random hash seed). When a receiver has several candidate
+    // classes that resolve differently, an order-dependent pick would make the
+    // incrementally-edited buffer and a fresh open disagree on the token — so
+    // sort to a stable order before selecting (see the `edit_tracking_stress`
+    // incremental-vs-fresh parity tests).
+    candidates.sort_unstable();
+    candidates.dedup();
+    // 1. Registry-modelled class — precise, declared method options.
+    if let Some(method_sub) = candidates
+        .iter()
+        .find_map(|cls| registry.instance_method(cls, method))
+    {
+        mark_method_word(seg, overrides);
+        insert_registry_method_options(seg, method_sub, overrides);
+        return;
+    }
+    // 2. User-defined class — resolve the method through the class hierarchy
+    //    (workspace-wide when a project index is supplied, so a class defined in
+    //    another file resolves too); for an `oo::configurable` receiver, colour
+    //    `configure` / `cget` property options.
+    if let Some(hierarchy) = classes
+        && let Some(cls) = candidates
+            .iter()
+            .find(|c| user_class_provides_method(hierarchy, c, method))
+    {
+        mark_method_word(seg, overrides);
+        insert_user_configure_options(seg, hierarchy, cls, method, overrides);
+    }
+}
+
+/// Highlight a dispatched object method's name word (`seg.argv[1]`) as a
+/// callable [`TokenKind::Function`].
+fn mark_method_word(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
     if let Some(mtok) = seg.argv.get(1) {
         overrides
             .entry(mtok.span.start())
             .or_insert(ArgOverride::Kind(TokenKind::Function));
     }
-    // Apply the method's declared options to the words after it (`skip(2)`).
+}
+
+/// Apply a registry object-method's declared options to the words after the
+/// method (`skip(2)`): the switch → [`ArgOverride::Decorator`], a closed-set
+/// value → [`TokenKind::EnumMember`], else [`TokenKind::OptionValue`].
+fn insert_registry_method_options(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    method_sub: &tcl_registry::SubCommand,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
     for (i, text) in seg.texts.iter().enumerate().skip(2) {
         if text == "--" {
             // End-of-options marker — colour it, then stop (Tcl convention).
@@ -1382,6 +1537,119 @@ fn insert_object_method_overrides(
     }
 }
 
+/// The element classes of a collection-*retrieval* command head — a
+/// single-level `[dict get $coll $key]` or `[lindex $coll $idx]` — looked up in
+/// the object-collection map, or `None` when the head is not such a retrieval
+/// or the collection is not tracked.  Resolves the receiver of the issue-#797
+/// `[dict get $Pins $pin] configure -node …` dispatch.
+fn collection_head_element_classes<'a>(
+    head_text: &str,
+    object_collections: &'a ObjectClassMap,
+) -> Option<&'a std::collections::HashSet<String>> {
+    let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution(head_text)?;
+    let coll = match (cmd.as_str(), args.as_slice()) {
+        ("dict", [sub, coll, _key]) if sub == "get" => coll,
+        ("lindex", [coll, _idx]) => coll,
+        _ => return None,
+    };
+    object_collections.get(object_handle_name(coll)?)
+}
+
+/// Whether a *user-defined* class provides `method` for an instance dispatch:
+/// the class hierarchy's MRO resolves it (a declared method on the class or an
+/// ancestor), or it is an `TclOO` builtin every instance answers — `destroy`,
+/// or `configure` / `cget` on an `oo::configurable` receiver.  `hierarchy` is
+/// the local file's hierarchy or a workspace-merged project index.
+fn user_class_provides_method(hierarchy: &ClassHierarchy, class: &str, method: &str) -> bool {
+    if hierarchy.method_target(class, method).is_some() {
+        return true;
+    }
+    match method {
+        "destroy" => true,
+        "configure" | "cget" => class_is_configurable(hierarchy, class),
+        _ => false,
+    }
+}
+
+/// Whether `class` (or any class in its MRO) is `oo::configurable` or declares
+/// configurable properties — the classes whose `configure` / `cget` accept
+/// `-property` options.
+fn class_is_configurable(hierarchy: &ClassHierarchy, class: &str) -> bool {
+    class_mro(hierarchy, class).iter().any(|c| {
+        hierarchy
+            .classes
+            .get(c)
+            .is_some_and(|cd| cd.metaclass == "oo::configurable" || !cd.properties.is_empty())
+    })
+}
+
+/// The MRO (self first) of `class` from `hierarchy`, or just `[class]` when the
+/// hierarchy has no entry (an external / unindexed class).
+fn class_mro(hierarchy: &ClassHierarchy, class: &str) -> Vec<String> {
+    hierarchy
+        .mro_map
+        .get(class)
+        .cloned()
+        .unwrap_or_else(|| vec![class.to_string()])
+}
+
+/// Colour the `-property` options of a `configure` / `cget` dispatch on an
+/// `oo::configurable` user class: a word `-<name>` whose `name` is a property
+/// declared on the class or an ancestor becomes a [`ArgOverride::Decorator`],
+/// and a following literal value an [`TokenKind::OptionValue`].  A non-property
+/// `-word` is left to the generic option fallback.  No-op for any method other
+/// than `configure` / `cget`.
+fn insert_user_configure_options(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    hierarchy: &ClassHierarchy,
+    class: &str,
+    method: &str,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    if method != "configure" && method != "cget" {
+        return;
+    }
+    // Property names across the whole MRO (`-node`, `-name`, inherited …).
+    let props: std::collections::HashSet<String> = class_mro(hierarchy, class)
+        .iter()
+        .filter_map(|c| hierarchy.classes.get(c))
+        .flat_map(|cd| cd.properties.keys().cloned())
+        .collect();
+    if props.is_empty() {
+        return;
+    }
+    for (i, text) in seg.texts.iter().enumerate().skip(2) {
+        if text == "--" {
+            if let Some(tok) = seg.argv.get(i) {
+                overrides
+                    .entry(tok.span.start())
+                    .or_insert(ArgOverride::Decorator);
+            }
+            break;
+        }
+        let Some(prop) = text.strip_prefix('-') else {
+            continue;
+        };
+        if !props.contains(prop) {
+            continue;
+        }
+        if let Some(tok) = seg.argv.get(i) {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::Decorator);
+        }
+        // The immediately-following literal word is this property's value.
+        if let Some(val_tok) = seg.argv.get(i + 1)
+            && matches!(val_tok.kind, TokenType::Esc | TokenType::Str)
+            && seg.texts.get(i + 1).is_some_and(|w| !w.starts_with('-') && w != "--")
+        {
+            overrides
+                .entry(val_tok.span.start())
+                .or_insert(ArgOverride::Kind(TokenKind::OptionValue));
+        }
+    }
+}
+
 /// The bare handle name of a `$var` command head, matching the keys of an
 /// [`ObjectClassMap`]: strips the leading `$` and any `${…}` braces, so
 /// `$chart` → `chart`, `${chart}` → `chart`, `$arr(k)` → `arr(k)`.  Returns
@@ -1403,6 +1671,120 @@ fn constructor_class_of_head<'r>(head_text: &str, registry: &'r CommandRegistry)
         return None;
     }
     registry.object_class(&cmd).map(|c| c.class_name)
+}
+
+/// The class named by an OO definition-body head (`oo::class create NAME { … }`
+/// and the property-/instantiation-metaclasses at argv[2]; `oo::define NAME
+/// { … }` at argv[1]), sliced from `source` so it outlives the walk.  `None`
+/// when the head is not a body-bearing definer.
+fn definer_class_name<'s>(
+    head: &str,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    source: &'s str,
+    registry: &CommandRegistry,
+) -> Option<&'s str> {
+    let bare = head.strip_prefix("::").unwrap_or(head);
+    let name_idx = match bare {
+        "oo::class" | "oo::configurable" | "oo::abstract" | "oo::singleton"
+            if seg.texts.get(1).map(String::as_str) == Some("create") =>
+        {
+            2
+        }
+        "oo::define" if seg.texts.len() >= 3 => 1,
+        // snit / itcl definers name the class directly at arg 1 and the body at
+        // arg 2 (`snit::type Name { … }`, `itcl::class Name { … }`) — so a
+        // `$self method …` / `$this method …` dispatch in the body resolves
+        // against the class, exactly as `my` does for `TclOO`.  Driven by the
+        // registry's definer-family grammar, not a hardcoded name list.
+        _ if seg.texts.len() >= 3
+            && matches!(
+                registry.get(head).and_then(|s| s.definition_body).map(|g| g.family),
+                Some(DefinerFamily::Snit | DefinerFamily::Itcl)
+            ) =>
+        {
+            1
+        }
+        _ => return None,
+    };
+    let tok = seg.argv.get(name_idx)?;
+    source.get(tok.span.start() as usize..tok.span.end() as usize)
+}
+
+/// Resolve a class name *as written* at a definer head to a qualified key in
+/// `hierarchy`: an exact match, its global-qualified form, or — as a last
+/// resort — the unique class sharing its tail name.  `None` when unresolved or
+/// the tail is ambiguous (no wrong-resolution from a homonym).
+fn resolve_class_in_hierarchy(hierarchy: &ClassHierarchy, name: &str) -> Option<String> {
+    if hierarchy.classes.contains_key(name) {
+        return Some(name.to_owned());
+    }
+    let qualified = format!("::{}", name.trim_start_matches("::"));
+    if hierarchy.classes.contains_key(&qualified) {
+        return Some(qualified);
+    }
+    let tail = name.rsplit("::").next().unwrap_or(name);
+    let mut matches = hierarchy
+        .classes
+        .keys()
+        .filter(|k| k.rsplit("::").next() == Some(tail));
+    let first = matches.next()?;
+    matches.next().is_none().then_some(first.clone())
+}
+
+/// Resolve a self-call inside a class body against the enclosing class's MRO:
+/// colour the method a callable, and — for `configure` / `cget` on an
+/// `oo::configurable` class — its `-property` options.  The self-receiver is
+/// `my` (`TclOO`), `$self` (snit), or `$this` (itcl) — each of which dispatches
+/// on the enclosing object.  No-op outside a class body, without a hierarchy,
+/// or for any other head.
+fn insert_self_method_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    classes: Option<&ClassHierarchy>,
+    enclosing_class: Option<&str>,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let (Some(hierarchy), Some(class_name), Some(head), Some(method)) =
+        (classes, enclosing_class, seg.texts.first(), seg.texts.get(1))
+    else {
+        return;
+    };
+    // `my` is a bareword; `$self` / `$this` are variable handles for the object
+    // in snit / itcl method bodies.
+    let is_self_head =
+        head == "my" || object_handle_name(head).is_some_and(|n| n == "self" || n == "this");
+    if !is_self_head {
+        return;
+    }
+    let Some(class) = resolve_class_in_hierarchy(hierarchy, class_name) else {
+        return;
+    };
+    if !user_class_provides_method(hierarchy, &class, method) {
+        return;
+    }
+    mark_method_word(seg, overrides);
+    insert_user_configure_options(seg, hierarchy, &class, method, overrides);
+}
+
+/// The *user-defined* class named by a direct `[Class new|create …]` head,
+/// resolved against `hierarchy` (workspace-merged, so a class defined in
+/// another file resolves).  Returns the qualified class name, or `None` when
+/// the head is not a constructor call on a known class.  The constructor head
+/// *is* the class command, so the class name is the head word itself — matched
+/// as written and `::`-qualified.
+fn user_constructor_class_of_head(
+    head_text: &str,
+    hierarchy: Option<&ClassHierarchy>,
+) -> Option<String> {
+    let hierarchy = hierarchy?;
+    let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution(head_text)?;
+    if !args.first().is_some_and(|s| s == "new" || s == "create") {
+        return None;
+    }
+    let qualified = format!("::{}", cmd.trim_start_matches("::"));
+    [cmd.as_str(), qualified.as_str()]
+        .into_iter()
+        .find(|c| hierarchy.classes.contains_key(*c))
+        .map(String::from)
 }
 
 /// Registry-known closed-set argument values → `EnumMember`.  The registry
@@ -2509,6 +2891,23 @@ struct ScriptCtx<'a> {
     /// [`CompilationUnit`] is available or the document creates no tracked
     /// object handles.
     object_classes: &'a ObjectClassMap,
+    /// Object-*collection* variable → element class, so a `[dict get $coll $k]`
+    /// / `[lindex $coll $i]` retrieval used as a command head resolves the
+    /// element's method (issue #797).  Empty without a [`CompilationUnit`].
+    object_collections: &'a ObjectClassMap,
+    /// Class hierarchy, when available — the MRO + `ClassDef`s (methods +
+    /// `oo::configurable` properties) used to resolve a dispatched method
+    /// against a *user* class, not just a registry-modelled one.  This is the
+    /// current file's hierarchy, or a workspace-merged project index so a class
+    /// defined in another file resolves too (issue #797 follow-up).  `None` for
+    /// the pure-segmentation path.
+    classes: Option<&'a ClassHierarchy>,
+    /// The class whose definition body we are currently inside (as written at
+    /// the `oo::class create NAME` / `oo::define NAME` head), sliced from the
+    /// source so it lives as long as the walk.  Lets a `my method …` self-call
+    /// in a method body resolve against the enclosing class's MRO — the single
+    /// most common `TclOO` dispatch form.  `None` outside any class body.
+    enclosing_class: Option<&'a str>,
 }
 
 fn collect_switch_case_list(
@@ -2899,16 +3298,28 @@ fn collect_script(
             .get(head_text)
             .filter(|(_, import_off)| head_tok.span.start() >= *import_off)
             .map_or(head_text.as_str(), |(qualified, _)| qualified.as_str());
-        emit_command_head(
-            line_index,
-            full_source,
-            head_tok,
-            head_text,
-            resolved_head,
-            ctx.oo_grammar,
-            registry,
-            entries,
-        );
+        // A *static* head word is a resolvable command name: emit it as a
+        // single command-head token (function / keyword / namespace).  A
+        // *computed* head — `$obj method …`, `[dict get …] method …`,
+        // `[Class new] method …`, a multi-fragment `chartV$node` — is not a
+        // command name we can resolve, so it must not be painted as one.  Its
+        // tokens fall through to the ordinary argument path below, where a
+        // `[…]` recurses into its inner script (`dict get $Pins $pin`) and a
+        // `$var` reads as a variable — an accurate picture of the runtime
+        // dispatch rather than a misleading command highlight (issue #797).
+        let computed_head = head_is_computed(&seg);
+        if !computed_head {
+            emit_command_head(
+                line_index,
+                full_source,
+                head_tok,
+                head_text,
+                resolved_head,
+                ctx.oo_grammar,
+                registry,
+                entries,
+            );
+        }
 
         // The command's argument words (head excluded), borrowed once as
         // `&[&str]` and shared by every registry-driven pass below — the
@@ -2924,8 +3335,13 @@ fn collect_script(
             ctx.oo_grammar,
             &arg_texts,
             ctx.object_classes,
+            ctx.object_collections,
+            ctx.classes,
             DialectSet::parse(ctx.dialect).unwrap_or(DialectSet::ALL_TCL),
         );
+        // `my method …` inside a class body resolves against the enclosing
+        // class's MRO (the most common `TclOO` dispatch form).
+        insert_self_method_overrides(&seg, ctx.classes, ctx.enclosing_class, &mut overrides);
         // Regex-source tracking: retag a `set` value word that feeds a regexp
         // pattern as a (substitution-aware) regex.  Keyed on the def-site word
         // start; the compiler-supplied span is authoritative for the fragment
@@ -2956,20 +3372,37 @@ fn collect_script(
             ctx.oo_grammar,
             registry,
         );
+        // The class whose body the recursion enters: a `oo::class create NAME`
+        // (and the property-/instantiation-metaclasses) names it at argv[2], an
+        // `oo::define NAME { … }` at argv[1].  Slice it from the source so it
+        // outlives the walk; otherwise inherit the enclosing class (so a
+        // `method …` body keeps its class).  Lets `my method …` in the body
+        // resolve against that class.
+        let next_class =
+            definer_class_name(head_text, &seg, full_source, registry).or(ctx.enclosing_class);
         let body_ctx = ScriptCtx {
             oo_grammar: next_oo,
+            enclosing_class: next_class,
             ..ctx
         };
 
         for tok in &seg.all_tokens {
-            // Skip every token that falls inside the head *word* — not just
-            // the exact head token.  A computed head (`chartV$node`,
-            // `${prefix}cmd`) is one word whose representative token
-            // `emit_command_head` already emitted as a single token, but
-            // whose sub-fragments (`chartV`, `$node`) also appear in
-            // `all_tokens`; emitting those would overlap the head token
-            // (invalid — LSP clients reject overlapping semantic tokens).
-            if tok.span.start() >= head_tok.span.start() && tok.span.end() <= head_tok.span.end() {
+            // Skip every token that falls inside a *static* head word — not
+            // just the exact head token.  Such a head is one word that
+            // `emit_command_head` already emitted as a single command token;
+            // its sub-fragments (`ns::`, `cmd` for a `ns::cmd` head) also
+            // appear in `all_tokens`, and emitting those would overlap the head
+            // token (invalid — LSP clients reject overlapping semantic tokens).
+            //
+            // A *computed* head is deliberately NOT emitted by
+            // `emit_command_head` (see above), so its tokens must flow through
+            // the argument path here: the `[…]` head token recurses into its
+            // inner script and the `$var` head token reads as a variable
+            // (issue #797).
+            if !computed_head
+                && tok.span.start() >= head_tok.span.start()
+                && tok.span.end() <= head_tok.span.end()
+            {
                 continue;
             }
             emit_arg_token(
@@ -3350,11 +3783,259 @@ fn imported_command_aliases(
     aliases
 }
 
+/// Augment the object-handle map with loop variables that iterate an object
+/// collection — `dict for {k v} $coll {…}`, `dict map …`, `foreach v $coll {…}`,
+/// `lmap …` — so a `$v method …` dispatch in the loop body resolves like a
+/// `[dict get $coll $k] method …` retrieval.
+///
+/// A *syntactic* recursive scan of the source rather than an IR pass: the IR
+/// lowers a `dict for` used as a bare statement to a barrier, but a loop nested
+/// in a command substitution or `set` value (`return [dict map {k v} $coll
+/// {…}]`) is folded into a value string and never surfaces as a loop.  The
+/// syntactic scan sees every body regardless of how it lowers.  No-op when no
+/// object collection is tracked.
+fn augment_loop_var_handles(
+    source: &str,
+    dialect: &str,
+    object_collections: &ObjectClassMap,
+    object_classes: &mut ObjectClassMap,
+) {
+    if object_collections.is_empty() {
+        return;
+    }
+    scan_loop_vars(source, source, 0, dialect, object_collections, object_classes, 0);
+}
+
+/// Add a loop variable → element-class set entry to the handle map (skips an
+/// empty name).
+fn bind_loop_var(
+    handles: &mut ObjectClassMap,
+    var: &str,
+    classes: &std::collections::HashSet<String>,
+) {
+    if !var.is_empty() {
+        handles
+            .entry(var.to_owned())
+            .or_default()
+            .extend(classes.iter().cloned());
+    }
+}
+
+/// Recursive worker for [`augment_loop_var_handles`]: segment `text` (anchored
+/// at `base_offset`), bind any loop's value variable(s) that iterate a tracked
+/// object collection, then recurse into every braced-script word.
+fn scan_loop_vars(
+    full_source: &str,
+    text: &str,
+    base_offset: u32,
+    dialect: &str,
+    collections: &ObjectClassMap,
+    handles: &mut ObjectClassMap,
+    depth: u32,
+) {
+    if depth > MAX_TOKEN_RECURSION {
+        return;
+    }
+    for seg in segment_commands_with_offset_and_config(
+        text,
+        base_offset,
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    ) {
+        let texts = &seg.texts;
+        // `dict for {k v} $coll body` / `dict map {k v} $coll body` — the value
+        // variable (second word of the pair) iterates the dict's values.
+        if texts.first().map(String::as_str) == Some("dict")
+            && matches!(texts.get(1).map(String::as_str), Some("for" | "map"))
+            && texts.len() >= 5
+            && let Some(classes) = object_handle_name(&texts[3]).and_then(|c| collections.get(c))
+            && let Some(valvar) = texts[2].split_whitespace().nth(1)
+        {
+            bind_loop_var(handles, valvar, classes);
+        }
+        // `foreach VARS LIST ?VARS LIST …? BODY` / `lmap …` — every variable of
+        // a group iterating an object collection is an element.
+        if matches!(texts.first().map(String::as_str), Some("foreach" | "lmap"))
+            && texts.len() >= 4
+        {
+            let pairs = &texts[1..texts.len() - 1];
+            let mut i = 0;
+            while i + 1 < pairs.len() {
+                if let Some(classes) =
+                    object_handle_name(&pairs[i + 1]).and_then(|c| collections.get(c))
+                {
+                    for v in pairs[i].split_whitespace() {
+                        bind_loop_var(handles, v, classes);
+                    }
+                }
+                i += 2;
+            }
+        }
+        // Recurse into braced-script words (loop bodies, proc / method / class
+        // bodies, `namespace eval` blocks, `if`/`switch` arms, …) and into
+        // `[…]` command substitutions (a loop can be `return [dict map …]`).
+        for (i, tok) in seg.argv.iter().enumerate() {
+            if !seg.single_token_word.get(i).copied().unwrap_or(false) {
+                continue;
+            }
+            let inner_span = match tok.kind {
+                TokenType::Str => subspec_content(full_source, *tok),
+                TokenType::Cmd => {
+                    let cstart = tok.span.start() as usize + tok.content_offset as usize;
+                    let cend = (tok.span.end() as usize).min(full_source.len());
+                    (cend > cstart)
+                        .then(|| full_source.get(cstart..cend).map(|inner| (cstart, inner)))
+                        .flatten()
+                }
+                _ => None,
+            };
+            if let Some((cstart, inner)) = inner_span {
+                scan_loop_vars(
+                    full_source,
+                    inner,
+                    u32::try_from(cstart).unwrap_or(0),
+                    dialect,
+                    collections,
+                    handles,
+                    depth + 1,
+                );
+            }
+        }
+    }
+}
+
+/// Syntactic scan for snit object-handle bindings that the compiler CFG does not
+/// surface, binding the handle variable to its class so a `$NAME method …`
+/// dispatch in a snit method body resolves.  snit method bodies are **not**
+/// lowered into the compiler CFG (only token-walked, like the `$self` path), so
+/// a source scan is how these classes reach the handle map — the same technique
+/// the loop-var scan uses.  Two shapes are recognised:
+///
+/// - `install NAME using TYPE …` — a snit component install; and
+/// - `set NAME [TYPE inst …]` — snit's *bare-word* constructor (`$type $name`
+///   creates an instance), gated on `TYPE` being a **known snit-family class**
+///   (so we know bare construction is valid) whose first argument is **not a
+///   typemethod** (`info` / `destroy` / a declared `typemethod`), which would be
+///   a type-command call rather than a construction.
+///
+/// Highlight-only and sound by abstention: the bare-constructor form only fires
+/// when `TYPE` is visible in the hierarchy (local, or workspace-merged in
+/// project mode), so an unknown type is never guessed at.
+fn augment_snit_handles(
+    source: &str,
+    dialect: &str,
+    classes: Option<&ClassHierarchy>,
+    object_classes: &mut ObjectClassMap,
+) {
+    scan_snit_handles(source, source, 0, dialect, classes, object_classes, 0);
+}
+
+/// Whether `name` is a type-command call (typemethod) on snit class `class` —
+/// snit's built-in `info` / `destroy`, or a declared `typemethod` anywhere in
+/// the MRO.  `create` is deliberately excluded: `Type create inst` *is* a
+/// construction.
+fn class_declares_typemethod(hierarchy: &ClassHierarchy, class: &str, name: &str) -> bool {
+    matches!(name, "info" | "destroy")
+        || class_mro(hierarchy, class).iter().any(|c| {
+            hierarchy
+                .classes
+                .get(c)
+                .is_some_and(|cd| cd.class_methods.contains_key(name))
+        })
+}
+
+/// Recursive worker for [`augment_snit_handles`].
+fn scan_snit_handles(
+    full_source: &str,
+    text: &str,
+    base_offset: u32,
+    dialect: &str,
+    classes: Option<&ClassHierarchy>,
+    handles: &mut ObjectClassMap,
+    depth: u32,
+) {
+    if depth > MAX_TOKEN_RECURSION {
+        return;
+    }
+    for seg in segment_commands_with_offset_and_config(
+        text,
+        base_offset,
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    ) {
+        let texts = &seg.texts;
+        match texts.first().map(String::as_str) {
+            // `install NAME using TYPE ?args…?` — snit component installation.
+            // Only a static bareword NAME / TYPE qualify.
+            Some("install") if texts.len() >= 4 && texts[2] == "using" => {
+                let name = texts[1].as_str();
+                let type_name = texts[3].as_str();
+                if !name.is_empty()
+                    && !name.contains(['$', '[', ' '])
+                    && !type_name.is_empty()
+                    && !type_name.contains(['$', '[', ' '])
+                {
+                    let qualified = format!("::{}", type_name.trim_start_matches("::"));
+                    handles.entry(name.to_owned()).or_default().insert(qualified);
+                }
+            }
+            // `set NAME [TYPE inst …]` — snit bare-word constructor.
+            Some("set") if texts.len() >= 3 => {
+                if let Some(hierarchy) = classes
+                    && !texts[1].is_empty()
+                    && !texts[1].contains(['$', '[', ' '])
+                    && let Some((cmd, args)) =
+                        tcl_compiler::value_shapes::parse_command_substitution(&texts[2])
+                    && let Some(class) = resolve_class_in_hierarchy(hierarchy, &cmd)
+                    && hierarchy
+                        .classes
+                        .get(&class)
+                        .is_some_and(|cd| cd.metaclass.starts_with("snit::"))
+                    // A bare construction needs an instance-name argument that is
+                    // not a (non-`create`) typemethod call on the type.
+                    && args
+                        .first()
+                        .is_some_and(|a| a == "create" || !class_declares_typemethod(hierarchy, &class, a))
+                {
+                    handles.entry(texts[1].clone()).or_default().insert(class);
+                }
+            }
+            _ => {}
+        }
+        for (i, tok) in seg.argv.iter().enumerate() {
+            if !seg.single_token_word.get(i).copied().unwrap_or(false) {
+                continue;
+            }
+            let inner_span = match tok.kind {
+                TokenType::Str => subspec_content(full_source, *tok),
+                TokenType::Cmd => {
+                    let cstart = tok.span.start() as usize + tok.content_offset as usize;
+                    let cend = (tok.span.end() as usize).min(full_source.len());
+                    (cend > cstart)
+                        .then(|| full_source.get(cstart..cend).map(|inner| (cstart, inner)))
+                        .flatten()
+                }
+                _ => None,
+            };
+            if let Some((cstart, inner)) = inner_span {
+                scan_snit_handles(
+                    full_source,
+                    inner,
+                    u32::try_from(cstart).unwrap_or(0),
+                    dialect,
+                    classes,
+                    handles,
+                    depth + 1,
+                );
+            }
+        }
+    }
+}
+
 fn collect_entries(
     source: &str,
     dialect: &str,
     registry: &CommandRegistry,
     cu: Option<&CompilationUnit>,
+    classes: Option<&ClassHierarchy>,
 ) -> Vec<Entry> {
     let mut entries: Vec<Entry> = Vec::new();
     let line_index = LineIndex::new(source);
@@ -3379,9 +4060,32 @@ fn collect_entries(
     // → `chart`), so a `$chart Xaxis -name …` dispatch resolves the method's
     // options through the registry (issue #748).  Empty without a
     // `CompilationUnit` or when the document creates no tracked object handles.
-    let object_classes: ObjectClassMap = cu.map_or_else(ObjectClassMap::default, |cu| {
-        tcl_compiler::object_types::registry_object_handle_classes(cu, registry)
+    let mut object_classes: ObjectClassMap = cu.map_or_else(ObjectClassMap::default, |cu| {
+        tcl_compiler::object_types::object_handle_classes(cu, registry)
     });
+
+    // Object-*collection* → element-class map (`dict set Pins $k [Pin new]` →
+    // `Pins` is a `Dict` of `Pin`), so a `[dict get $Pins $k] method …`
+    // retrieval dispatch resolves the element's method (issue #797).  Empty
+    // without a `CompilationUnit`.
+    let object_collections: ObjectClassMap = cu.map_or_else(ObjectClassMap::default, |cu| {
+        tcl_compiler::object_types::object_collection_classes(cu)
+    });
+
+    // A loop that iterates an object collection binds its value variable to an
+    // element, so `$v method …` in the body resolves like `[dict get $coll $k]
+    // method …`.  A *syntactic* scan of the source catches every loop shape —
+    // including `return [dict map {k v} $coll {…}]` / `set x [dict map …]`,
+    // where the loop is nested in a command substitution and the IR never
+    // surfaces it as a loop — and feeds the value variable(s) into the handle
+    // map (issue #797, SpiceGenTcl `allNodes` / `actOnParam` shape).
+    augment_loop_var_handles(source, dialect, &object_collections, &mut object_classes);
+
+    // snit object-handle bindings the compiler CFG doesn't surface — `install
+    // NAME using TYPE` components and `set NAME [Type inst]` bare constructors —
+    // via a source scan, since snit method bodies (where these live) are not
+    // lowered into the CFG `object_handle_classes` reads.
+    augment_snit_handles(source, dialect, classes, &mut object_classes);
 
     // Walk every segmented command (recursing into braced bodies, braced
     // expressions, and `[…]` command substitutions) and classify each token.
@@ -3394,6 +4098,9 @@ fn collect_entries(
         regex_sources: &regex_sources,
         head_aliases: &head_aliases,
         object_classes: &object_classes,
+        object_collections: &object_collections,
+        classes,
+        enclosing_class: None,
     };
     collect_script(ctx, source, 0, &mut entries, 0);
 
@@ -4642,6 +5349,543 @@ mod tests {
     }
 
     #[test]
+    fn collection_dispatch_resolves_user_configurable_method() {
+        // Issue #797 end-to-end: a `Pins` dict is filled with `[Pin new]`
+        // handles in one method and an element is dispatched with
+        // `[dict get $Pins $pin] configure -node …` in another.  The receiver
+        // resolves to the user `oo::configurable` class, so `configure` is a
+        // method and `-node` (a declared property) an option — not the plain
+        // strings they read as without collection-element + user-class
+        // resolution.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::configurable create Pin { property node }\n\
+                   oo::class create Device {\n\
+                     variable Pins\n\
+                     method add {pin} { dict append Pins $pin [Pin new] }\n\
+                     method cfg {pin node} { [dict get $Pins $pin] configure -node $node }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        // The dispatch line carries `dict` (a `defaultLibrary` Function); the
+        // resolved *method* is a plain Function (no `defaultLibrary`), which is
+        // the signal that distinguishes resolution from the built-in.
+        let user_method_on_dispatch_line = |toks: &[(u32, u32, u32, u32, u32)]| {
+            toks.iter().any(|&(l, _, _, k, m)| {
+                l == 4 && k == TokenKind::Function as u32 && m == 0
+            })
+        };
+        // Without analysis: `configure` stays an unresolved string — only
+        // `dict` (defaultLibrary) is a Function on the line.
+        let plain = decode_semantic(&full_with_cu(src, "tcl9.0", &registry, Some(&cu)));
+        assert!(
+            !user_method_on_dispatch_line(&plain),
+            "without analysis, no user method resolves; got {plain:?}"
+        );
+        // With analysis: the dynamic dispatch resolves `configure` as a method.
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        assert!(
+            user_method_on_dispatch_line(&toks),
+            "`configure` on the retrieved Pin should resolve to a method; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn dict_for_loop_var_dispatch_resolves() {
+        // `dict for {k pin} $Pins {$pin configure …}` — iterating an object
+        // collection binds `pin` to an element, so the loop-body dispatch
+        // resolves the user method just like the `[dict get …]` retrieval
+        // (SpiceGenTcl `allNodes` / `floating` shape, issue #797).
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::configurable create Pin { property node }\n\
+                   oo::class create Device {\n\
+                     variable Pins\n\
+                     method add {p} { dict append Pins $p [Pin new] }\n\
+                     method dump {} { dict for {k pin} $Pins { puts [$pin configure -node] } }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        // `configure` on the loop var resolves to a user method (plain Function,
+        // no `defaultLibrary`) on the `dump` method's line.
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Function as u32 && m == 0),
+            "expected `configure` on the dict-for value var to resolve; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn my_self_call_resolves() {
+        // `my method …` inside a class body resolves against the enclosing
+        // class's MRO — the single most common TclOO dispatch form (2935
+        // occurrences across the tcllib/tklib/SpiceGenTcl corpus).
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::class create C {\n\
+                   \x20   method helper {} {}\n\
+                   \x20   method run {} { my helper }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        // `my helper` on line 2 resolves the sibling method.
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Function as u32 && m == 0),
+            "expected `my helper` to resolve; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn snit_self_call_resolves() {
+        // `$self method …` inside a snit method body resolves against the
+        // enclosing snit type — snit's analogue of `TclOO`'s `my`, and by far
+        // the dominant unresolved receiver on real corpora (`$self` alone is
+        // ~12.6% of the unresolved `$var` dispatches; see experiments/tcloo_diag).
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "snit::type C {\n\
+                   \x20   method helper {} {}\n\
+                   \x20   method run {} { $self helper }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Function as u32 && m == 0),
+            "expected `$self helper` in a snit method to resolve; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn snit_install_component_dispatch_resolves() {
+        // `install axis using verticalAxis …` types the `axis` component, so a
+        // `$axis method` dispatch in the snit body resolves — the snit component
+        // idiom.  A source scan supplies the class (snit bodies aren't lowered).
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "snit::widget verticalAxis { method draw {} {} }\n\
+                   snit::widget chart {\n\
+                   \x20   component axis\n\
+                   \x20   constructor {args} {\n\
+                   \x20     install axis using verticalAxis $win.a\n\
+                   \x20     $axis draw\n\
+                   \x20   }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        // `$axis draw` on line 5 resolves the component's method.
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 5 && k == TokenKind::Function as u32 && m == 0),
+            "expected `$axis draw` on an installed component to resolve; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn snit_bare_constructor_dispatch_resolves() {
+        // snit's bare-word constructor `set eng [Engine ${selfns}::e]` (no
+        // `create` keyword) types `eng` as the snit class, so `$eng run` in
+        // another method resolves.  A source scan supplies it (snit bodies
+        // aren't lowered), gated on Engine being a known snit-family class.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "snit::type Engine { method run {} {} }\n\
+                   snit::type Wrapper {\n\
+                   \x20   variable eng\n\
+                   \x20   constructor {} { set eng [Engine ${selfns}::e] }\n\
+                   \x20   method go {} { $eng run }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        // `$eng run` on line 4 resolves the method.
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Function as u32 && m == 0),
+            "expected `$eng run` on a bare-constructor handle to resolve; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn snit_typemethod_call_does_not_type_handle() {
+        // `set x [Engine spawn]` is a *typemethod* call, not a construction —
+        // its result is not an Engine, so `$x run` must NOT resolve (soundness:
+        // the bare-constructor scan excludes declared typemethods).
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "snit::type Engine { method run {} {} \n\
+                   \x20   typemethod spawn {} {} }\n\
+                   set x [Engine spawn]\n\
+                   $x run\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        // `$x run` on line 3 must stay unresolved (`run` not a Function token).
+        assert!(
+            !toks.iter()
+                .any(|&(l, _, _, k, _)| l == 3 && k == TokenKind::Function as u32),
+            "expected `$x run` on a typemethod result to abstain; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn my_configure_property_options_resolve() {
+        // `my configure -prop` inside an oo::configurable body colours the
+        // property option too.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::configurable create C {\n\
+                   \x20   property node\n\
+                   \x20   constructor {} { my configure -node 0 }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        // `configure` resolves (Function) and `-node` is a decorator on line 2.
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Function as u32 && m == 0),
+            "expected `my configure` to resolve; got {toks:?}"
+        );
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, _)| l == 2 && k == TokenKind::Decorator as u32),
+            "expected `-node` property option; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn proc_return_object_dispatch_resolves() {
+        // `proc make {} {return [C new]}; set o [make]; $o m` — the factory's
+        // return type flows to `o`, so the dispatch resolves (interproc return).
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::class create C { method mrun {} {} }\n\
+                   proc make {} { return [C new] }\n\
+                   set o [make]\n\
+                   $o mrun\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 3 && k == TokenKind::Function as u32 && m == 0),
+            "expected `$o mrun` on a factory return to resolve; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn interproc_param_dispatch_resolves() {
+        // `set p [Pin new]; connect $p` binds `connect`'s parameter `dev` to
+        // ::Pin (interprocedural provenance), so `$dev configure -node` inside
+        // the proc resolves the method — the param-receiver case.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::configurable create Pin { property node }\n\
+                   proc connect {dev t} { $dev configure -node $t }\n\
+                   set p [Pin new]\n\
+                   connect $p n1\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        // `configure` on the proc's object parameter (line 1) resolves.
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 1 && k == TokenKind::Function as u32 && m == 0),
+            "expected `$dev configure` in the proc body to resolve; got {toks:?}"
+        );
+    }
+
+    /// Golden fixture for `TclOO` object-method dispatch resolution — validated
+    /// against the Tcler's-wiki pattern catalogue and a real corpus (tcllib,
+    /// tklib, SpiceGenTcl).  Two guarantees:
+    ///
+    /// * **`Resolve`** — a statically-determinable dispatch colours its method a
+    ///   callable (regression guard for every form we support).
+    /// * **`Abstain`** — a genuinely-dynamic dispatch (or a form we do not model)
+    ///   leaves its method a plain string, never a *mis-highlighted* callable
+    ///   (soundness guard: no false positives).
+    ///
+    /// Adding a pattern here is how object-dispatch support is expanded and
+    /// measured; flip an `Abstain` to `Resolve` when a form becomes supported.
+    #[test]
+    fn tcloo_dispatch_pattern_fixture() {
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        #[derive(Clone, Copy, PartialEq)]
+        enum Expect {
+            Resolve,
+            Abstain,
+        }
+        use Expect::{Abstain, Resolve};
+        // (name, source, method word, 0-based dispatch line, expectation)
+        let cases: &[(&str, &str, &str, u32, Expect)] = &[
+            // ---- statically determinable → resolve ----
+            (
+                "var_new",
+                "oo::class create C { method mrun {} {} }\nset o [C new]\n$o mrun\n",
+                "mrun", 2, Resolve,
+            ),
+            (
+                "direct_new",
+                "oo::class create C { method mrun {} {} }\n[C new] mrun\n",
+                "mrun", 1, Resolve,
+            ),
+            (
+                "configurable_property",
+                "oo::configurable create C { property node }\nset o [C new]\n$o configure -node 1\n",
+                "configure", 2, Resolve,
+            ),
+            (
+                "inherited_method",
+                "oo::class create B { method base {} {} }\noo::class create D { superclass B }\nset o [D new]\n$o base\n",
+                "base", 3, Resolve,
+            ),
+            (
+                "mixin_method",
+                "oo::class create M { method mixm {} {} }\noo::class create C { mixin M }\nset o [C new]\n$o mixm\n",
+                "mixm", 3, Resolve,
+            ),
+            (
+                "dict_collection",
+                "oo::class create C { method mrun {} {} }\ndict set d k [C new]\n[dict get $d k] mrun\n",
+                "mrun", 2, Resolve,
+            ),
+            (
+                "foreach_loopvar",
+                "oo::class create C { method mrun {} {} }\nlappend objs [C new]\nforeach o $objs { $o mrun }\n",
+                "mrun", 2, Resolve,
+            ),
+            (
+                "interproc_param",
+                "oo::class create C { method mrun {} {} }\nproc f {o} { $o mrun }\nset p [C new]\nf $p\n",
+                "mrun", 1, Resolve,
+            ),
+            (
+                "proc_return",
+                "oo::class create C { method mrun {} {} }\nproc make {} { return [C new] }\nset o [make]\n$o mrun\n",
+                "mrun", 3, Resolve,
+            ),
+            (
+                "my_self_call",
+                "oo::class create C {\n  method helper {} {}\n  method run {} { my helper }\n}\n",
+                "helper", 2, Resolve,
+            ),
+            (
+                "snit_self_call",
+                "snit::type C {\n  method helper {} {}\n  method run {} { $self helper }\n}\n",
+                "helper", 2, Resolve,
+            ),
+            (
+                "itcl_this_call",
+                "itcl::class C {\n  method helper {} {}\n  method run {} { $this helper }\n}\n",
+                "helper", 2, Resolve,
+            ),
+            (
+                "snit_install_component",
+                "snit::widget Ax { method draw {} {} }\nsnit::widget C {\n  constructor {} { install ax using Ax $win.a\n    $ax draw }\n}\n",
+                "draw", 3, Resolve,
+            ),
+            (
+                "snit_bare_constructor",
+                "snit::type Eng { method run {} {} }\nsnit::type C {\n  variable e\n  constructor {} { set e [Eng ${selfns}::x] }\n  method go {} { $e run }\n}\n",
+                "run", 4, Resolve,
+            ),
+            (
+                "oo_define_added",
+                "oo::class create C {}\noo::define C { method added {} {} }\nset o [C new]\n$o added\n",
+                "added", 3, Resolve,
+            ),
+            (
+                "registry_class",
+                "set c [ticklecharts::chart new]\n$c Xaxis -name x\n",
+                "Xaxis", 1, Resolve,
+            ),
+            // ---- genuinely dynamic → must abstain (soundness) ----
+            (
+                "introspection_class",
+                "oo::class create C { method mrun {} {} }\nset o [C new]\nset cls [info object class $o]\n[$cls new] mrun\n",
+                "mrun", 3, Abstain,
+            ),
+            (
+                "oo_copy",
+                "oo::class create C { method mrun {} {} }\nset a [C new]\nset b [oo::copy $a]\n$b mrun\n",
+                "mrun", 3, Abstain,
+            ),
+            (
+                "unknown_param",
+                "proc f {o} { $o mrun }\n",
+                "mrun", 0, Abstain,
+            ),
+            // ---- not yet modelled, but abstains safely (flip to Resolve when done) ----
+            (
+                "named_object", // TODO(phase-3): resolve via created_instance_commands
+                "oo::class create C { method mrun {} {} }\nC create obj\nobj mrun\n",
+                "mrun", 2, Abstain,
+            ),
+            (
+                // The snit *named-constructor* shape: `$o` bound by `foo create
+                // x` types as `foo` (the signature scan records snit types as
+                // classes), so the dispatch resolves like any handle.
+                "snit_named_object",
+                "snit::type foo { method smeth {} {} }\nset o [foo create x]\n$o smeth\n",
+                "smeth", 2, Resolve,
+            ),
+        ];
+        let registry = reg();
+        let mut failures = Vec::new();
+        for &(name, src, method, line, expect) in cases {
+            let cu = CompilationUnit::build_for(src, &registry, false);
+            let analysis = Analyser::new().analyse(src, "tcl9.0");
+            let toks = decode_semantic(&full_with_cu_and_analysis(
+                src,
+                "tcl9.0",
+                &registry,
+                Some(&cu),
+                Some(&analysis),
+            ));
+            // Column of the method word on the dispatch line (word-boundary,
+            // first occurrence — unambiguous in these snippets).  ASCII, so byte
+            // == UTF-16 column.
+            let src_line = src.lines().nth(line as usize).unwrap_or("");
+            let mcol = src_line.match_indices(method).find_map(|(i, _)| {
+                let before = src_line.as_bytes().get(i.wrapping_sub(1)).copied();
+                let after = src_line.as_bytes().get(i + method.len()).copied();
+                let boundary = |b: Option<u8>| b.is_none_or(|b| !b.is_ascii_alphanumeric() && b != b'_');
+                (boundary(before) && boundary(after)).then_some(i as u32)
+            });
+            // The method resolves iff *its own* token is a callable `Function`.
+            let resolved = mcol.is_some_and(|c| {
+                toks.iter()
+                    .any(|&(l, tc, _, k, _)| l == line && tc == c && k == TokenKind::Function as u32)
+            });
+            let ok = match expect {
+                Resolve => resolved,
+                Abstain => !resolved,
+            };
+            if !ok {
+                let want = if expect == Resolve { "resolve" } else { "abstain" };
+                failures.push(format!(
+                    "  {name}: `{method}` expected to {want} but did not"
+                ));
+            }
+        }
+        assert!(
+            failures.is_empty(),
+            "TclOO dispatch fixture regressions:\n{}",
+            failures.join("\n")
+        );
+    }
+
+    #[test]
+    fn cross_file_constructor_dispatch_resolves() {
+        // A class defined in one file (`Pin`), dispatched on via a direct
+        // constructor in *another* file — `[::Pin new] configure -node …`.
+        // Resolving against a workspace-merged `ClassHierarchy` (what
+        // `project_class_index` builds) lights up the method even though the
+        // class is not in this file (issue #797 follow-up, the mro_eval
+        // cross-file lever).
+        use tcl_compiler::analyser::{Analyser, build_class_hierarchy};
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let lib = "oo::configurable create ::Pin { property node }\n";
+        let hierarchy = build_class_hierarchy(Analyser::new().analyse(lib, "tcl9.0").all_classes);
+        let user = "[::Pin new] configure -node 5\n";
+        let cu = CompilationUnit::build_for(user, &registry, false);
+        let toks =
+            decode_semantic(&full_with_cu_and_classes(user, "tcl9.0", &registry, Some(&cu), Some(&hierarchy)));
+        // `configure` (col 12, after `[::Pin new] `) resolves to a method.
+        assert!(
+            toks.iter().any(|&(l, c, _, k, m)| l == 0
+                && c == 12
+                && k == TokenKind::Function as u32
+                && m == 0),
+            "cross-file `[::Pin new] configure` should resolve; got {toks:?}"
+        );
+        // Without the hierarchy it stays an unresolved string.
+        let none =
+            decode_semantic(&full_with_cu_and_classes(user, "tcl9.0", &registry, Some(&cu), None));
+        assert!(
+            none.iter()
+                .any(|&(l, c, _, k, _)| l == 0 && c == 12 && k == TokenKind::String as u32),
+            "without a hierarchy, configure is a string; got {none:?}"
+        );
+    }
+
+    #[test]
+    fn dict_map_in_return_dispatch_resolves() {
+        // `return [dict map {k v} $coll {$v method …}]` — the loop is nested in
+        // a command substitution, so the IR never surfaces it as a loop; the
+        // syntactic scan still binds `v` to the collection element (SpiceGenTcl
+        // `getPinsNodes` / `getParams` shape, issue #797).
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::configurable create Pin { property node }\n\
+                   oo::class create Device {\n\
+                     variable Pins\n\
+                     method add {p} { dict append Pins $p [Pin new] }\n\
+                     method nodes {} { return [dict map {k pin} $Pins {$pin configure -node}] }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Function as u32 && m == 0),
+            "expected `configure` in the return-nested dict map to resolve; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn user_object_handle_method_resolves() {
+        // `set p [Pin new]; $p configure -node x` — a directly-bound user-class
+        // handle resolves its method + property option against the ClassDef.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::configurable create Pin { property node }\n\
+                   set p [Pin new]\n\
+                   $p configure -node 5\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks =
+            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        // `configure` at line 2 resolves to a Function.
+        assert!(
+            toks.iter()
+                .any(|&(l, _, _, k, _)| l == 2 && k == TokenKind::Function as u32),
+            "expected `configure` as a Function on the $p dispatch; got {toks:?}"
+        );
+    }
+
+    #[test]
     fn regex_source_tracks_inside_namespace_eval_body() {
         // `namespace eval` bodies are lowered as their own synthetic body units,
         // so a `set re "…"; regexp $re` inside the eval highlights the def-site
@@ -4732,13 +5976,14 @@ mod tests {
     #[test]
     fn computed_command_head_does_not_overlap() {
         // `chartV$node SetOptions …` — a command head containing a `$node`
-        // substitution must emit as a single head token, not the whole head
-        // plus overlapping `chartV` / `$node` fragment tokens (LSP clients
-        // reject overlapping semantic tokens).
-        let toks = decode("chartV$node SetOptions -x {}\n", "tcl", &reg());
+        // substitution is a *computed* (non-static) command name, so it is not
+        // painted as a single command token.  Its fragments tokenise
+        // individually (`$node` as a variable) and must not overlap each other
+        // (LSP clients reject overlapping semantic tokens) — issue #797.
+        let toks = decode_full("chartV$node SetOptions -x {}\n", "tcl", &reg());
         for w in toks.windows(2) {
-            let (l0, c0, len0) = w[0];
-            let (l1, c1, _) = w[1];
+            let (l0, c0, len0, ..) = w[0];
+            let (l1, c1, ..) = w[1];
             if l0 == l1 {
                 assert!(
                     c1 >= c0 + len0,
@@ -4747,11 +5992,74 @@ mod tests {
                 );
             }
         }
-        // The head is still present as one token starting at col 0.
+        // The `$node` fragment inside the head reads as a variable — the head
+        // is not swallowed into one command-head token (which would hide the
+        // substitution and mislabel a dynamic command as a resolved one).
+        assert!(
+            toks.iter().any(|&(l, c, _, k, _)| l == 0
+                && c == 6
+                && k == TokenKind::Variable as u32),
+            "expected a `$node` variable fragment at col 6; got {toks:?}"
+        );
+        // No token is a `Function` command head spanning the computed word.
+        assert!(
+            !toks
+                .iter()
+                .any(|&(l, c, _, k, _)| l == 0 && c == 0 && k == TokenKind::Function as u32),
+            "computed head must not emit a function command token; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn command_substitution_head_recurses_not_command_token() {
+        // `[dict get $Pins $pin] configure -node $node` (issue #797) — the head
+        // is a `[…]` command substitution, a runtime-computed command name, not
+        // a resolvable command.  It must recurse into its inner script (`dict`
+        // as a builtin, `get` as its subcommand, `$Pins` / `$pin` as variables)
+        // rather than paint the whole `[…]` word as one function command token.
+        let src = "[dict get $Pins $pin] configure -node $node\n";
+        let toks = decode_full(src, "tcl", &reg());
+        // `dict` inside the substitution head is a builtin function token.
+        assert!(
+            toks.iter().any(|&(l, c, _, k, m)| l == 0
+                && c == 1
+                && k == TokenKind::Function as u32
+                && m == MOD_DEFAULT_LIBRARY),
+            "expected `dict` builtin token at col 1; got {toks:?}"
+        );
+        // `$Pins` inside the head is a variable, not swallowed by a command token.
         assert!(
             toks.iter()
-                .any(|&(l, c, len)| l == 0 && c == 0 && len == 11),
-            "expected single 11-wide head token; got {toks:?}"
+                .any(|&(l, c, _, k, _)| l == 0 && c == 10 && k == TokenKind::Variable as u32),
+            "expected `$Pins` variable at col 10; got {toks:?}"
+        );
+        // Nothing paints the computed head as a function command token at col 0.
+        assert!(
+            !toks
+                .iter()
+                .any(|&(l, c, _, k, _)| l == 0 && c == 0 && k == TokenKind::Function as u32),
+            "the `[…]` head must not be a function command token; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn variable_command_head_is_a_variable() {
+        // `$obj configure -node $node` — an object-handle dispatch whose class
+        // is unknown.  The `$obj` head is a variable substitution, not a
+        // command name, so it reads as a variable rather than a function token
+        // (issue #797 / the #748 `$chart` object-dispatch shape).
+        let src = "$obj configure -node $node\n";
+        let toks = decode_full(src, "tcl", &reg());
+        assert!(
+            toks.iter()
+                .any(|&(l, c, _, k, _)| l == 0 && c == 0 && k == TokenKind::Variable as u32),
+            "expected `$obj` head to read as a variable; got {toks:?}"
+        );
+        assert!(
+            !toks
+                .iter()
+                .any(|&(l, c, _, k, _)| l == 0 && c == 0 && k == TokenKind::Function as u32),
+            "the `$obj` head must not be a function command token; got {toks:?}"
         );
     }
 

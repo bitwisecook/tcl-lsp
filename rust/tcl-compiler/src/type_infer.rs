@@ -420,6 +420,135 @@ fn is_scope_alias_call(registry: &CommandRegistry, command: &str, args: &[String
         .is_some_and(|sub| sub.creates_scope_alias)
 }
 
+/// The tracked [`TypeLattice`] of the SSA value `name` reads at this site, or
+/// `None` when it is unversioned / untyped.
+fn lookup_var_type(
+    name: &str,
+    uses: &HashMap<Symbol, u32>,
+    types: &HashMap<ValueKey, TypeLattice>,
+    ssa: &SsaFunction,
+) -> Option<TypeLattice> {
+    let sym = ssa.var_symbol(name)?;
+    let ver = *uses.get(&sym)?;
+    if ver == 0 {
+        return None;
+    }
+    types.get(&(sym, ver)).cloned()
+}
+
+/// The object class an argument *text* provably denotes: a
+/// `[Class new|create …]` constructor, or a `$var` whose tracked type is
+/// `OBJECT(class)`.  `None` when the text is not provably a single object —
+/// the signal that harvests the element class of an object collection.
+fn arg_object_class<S: std::hash::BuildHasher>(
+    text: &str,
+    uses: &HashMap<Symbol, u32>,
+    types: &HashMap<ValueKey, TypeLattice>,
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+    known_classes: &HashSet<String, S>,
+    namespace: &str,
+) -> Option<String> {
+    let stripped = text.trim();
+    if is_pure_var_ref(stripped) {
+        let t = lookup_var_type(normalise_var_name(stripped), uses, types, ssa)?;
+        return (t.tcl_type == Some(TclType::Object)).then_some(t.class_name).flatten();
+    }
+    if stripped.starts_with('[')
+        && stripped.ends_with(']')
+        && let Some((cmd, args)) = parse_command_substitution(stripped)
+    {
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let t = return_type_for_command(registry, &cmd, &arg_refs, known_classes, namespace);
+        if t.tcl_type == Some(TclType::Object)
+            && let Some(class) = t.class_name
+        {
+            return Some(class);
+        }
+        // A registry-modelled `[Class new|create]` factory is not typed through
+        // `return_type_for_command` (the class is a registered command, not a
+        // `known_classes` name), so resolve its declared object class directly.
+        if args.first().is_some_and(|a| a == "new" || a == "create") {
+            return registry
+                .object_class(&cmd)
+                .map(|c| c.class_name.to_string());
+        }
+    }
+    None
+}
+
+/// The element class a `dict set`/`dict append`/`dict lappend`/`lappend`
+/// statement leaves on its target collection: the object class of the appended
+/// value(s), joined with the collection's prior element class so a mixed-class
+/// or non-object write widens the container back to a plain `List`/`Dict`.
+///
+/// `value_args` are the words that become element values (the value(s) after
+/// the key for `dict set/append`, or after the var for `lappend`).  `target`
+/// is the collection variable's own name, consulted for its prior element
+/// class (monotone: an unknown-typed write carries the prior class forward
+/// rather than dropping it — the fixpoint's phi joins handle genuine merges).
+#[allow(clippy::too_many_arguments)] // mirrors the type-inference context threaded through this module
+fn collection_element_class<S: std::hash::BuildHasher>(
+    target: &str,
+    value_args: &[&str],
+    container: TclType,
+    uses: &HashMap<Symbol, u32>,
+    types: &HashMap<ValueKey, TypeLattice>,
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+    known_classes: &HashSet<String, S>,
+    namespace: &str,
+) -> TypeLattice {
+    let prior = lookup_var_type(target, uses, types, ssa)
+        .and_then(|t| t.element_class().map(str::to_owned));
+    let mut elem = prior;
+    for value in value_args {
+        let value_class =
+            arg_object_class(value, uses, types, ssa, registry, known_classes, namespace);
+        match (&elem, value_class) {
+            // No provable object class for this write — no new evidence for or
+            // against homogeneity; carry the prior class forward.
+            (_, None) => {}
+            (None, Some(v)) => elem = Some(v),
+            (Some(p), Some(v)) if *p == v => {}
+            // A different concrete class: the collection is not homogeneous.
+            (Some(_), Some(_)) => return TypeLattice::of(container),
+        }
+    }
+    match elem {
+        Some(c) => TypeLattice::collection_of(container, c),
+        None => TypeLattice::of(container),
+    }
+}
+
+/// The object type a container *retrieval* yields — `dict get $coll k` or
+/// `lindex $coll i` on a collection tracked as object-homogeneous → an
+/// `OBJECT(element_class)`.  `None` for any other shape, so the caller falls
+/// back to the command's declared return type.  Only a single-level `dict get`
+/// (one key) is modelled; a nested-path `dict get` is left untyped.
+fn container_retrieval_object_type(
+    command: &str,
+    args: &[&str],
+    uses: &HashMap<Symbol, u32>,
+    types: &HashMap<ValueKey, TypeLattice>,
+    ssa: &SsaFunction,
+) -> Option<TypeLattice> {
+    // Single-level retrieval only: `dict get $coll $key` (exactly one key) or
+    // `lindex $coll $idx`.  A nested-path `dict get` (4+ args) does not match.
+    let coll = match (command, args) {
+        ("dict", [sub, coll, _key]) if *sub == "get" => *coll,
+        ("lindex", [coll, _idx]) => *coll,
+        _ => return None,
+    };
+    if !is_pure_var_ref(coll) {
+        return None;
+    }
+    let class = lookup_var_type(normalise_var_name(coll), uses, types, ssa)?
+        .element_class()
+        .map(str::to_owned)?;
+    Some(TypeLattice::object_of(class))
+}
+
 /// Infer the type produced by `stmt` under the current `types` map.
 #[must_use]
 fn evaluate_type_def<S: std::hash::BuildHasher>(
@@ -471,6 +600,14 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
                 && let Some((cmd, args)) = parse_command_substitution(stripped)
             {
                 let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+                // A `dict get $coll k` / `lindex $coll i` on an object-homogeneous
+                // collection yields an `OBJECT(element_class)` — resolved before
+                // the command's declared (`String`/`Overdefined`) return type.
+                if let Some(t) =
+                    container_retrieval_object_type(&cmd, &arg_refs, uses, types, ssa)
+                {
+                    return t;
+                }
                 return return_type_for_command(
                     registry,
                     &cmd,
@@ -495,6 +632,37 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
             ..
         } if !defs.is_empty() => {
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+            // A `dict set/append/lappend VAR …` or `lappend VAR …` that stores
+            // object handles types VAR as a collection *of* that class, so a
+            // later `[dict get $VAR k] method …` retrieval resolves the element.
+            // `dict set VAR ?key…? value` takes a single trailing value; the
+            // `*append`/`lappend` forms take every word after the key/var.
+            if let Some((container, target, value_args)) = match (command.as_str(), &arg_refs[..]) {
+                ("dict", ["set", target, rest @ ..]) if !rest.is_empty() => {
+                    Some((TclType::Dict, *target, &rest[rest.len() - 1..]))
+                }
+                ("dict", ["append" | "lappend", target, _key, values @ ..])
+                    if !values.is_empty() =>
+                {
+                    Some((TclType::Dict, *target, values))
+                }
+                ("lappend", [target, values @ ..]) if !values.is_empty() => {
+                    Some((TclType::List, *target, values))
+                }
+                _ => None,
+            } {
+                return collection_element_class(
+                    target,
+                    value_args,
+                    container,
+                    uses,
+                    types,
+                    ssa,
+                    registry,
+                    known_classes,
+                    namespace,
+                );
+            }
             return_type_for_command(registry, command, &arg_refs, known_classes, namespace)
         }
 
@@ -944,6 +1112,72 @@ mod tests {
             fu.ssa.var_name(*name) == "n" && t.tcl_type == Some(TclType::Int)
         });
         assert!(n_is_int, "expected n to be Int (llength return type)");
+    }
+
+    /// A `dict set VAR k [Class new]` collection retrieved by `dict get` types
+    /// the element as the class (issue #797 SpiceGenTcl `Pins` shape).
+    #[test]
+    fn dict_of_objects_retrieval_types_element() {
+        use crate::compilation_unit::CompilationUnit;
+        let src = "oo::class create Pin { method cfg {args} {} }\n\
+                   dict set pins a [Pin new]\n\
+                   set p [dict get $pins a]\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::top").expect("top level");
+        let pins_ok = fu
+            .types
+            .iter()
+            .any(|((name, _), t)| fu.ssa.var_name(*name) == "pins" && t.element_class() == Some("::Pin"));
+        assert!(
+            pins_ok,
+            "pins should be Dict<OBJECT(::Pin)>; got {:?}",
+            fu.types
+                .iter()
+                .map(|((n, v), t)| (fu.ssa.var_name(*n), *v, t.to_string()))
+                .collect::<Vec<_>>()
+        );
+        let p_ok = fu.types.iter().any(|((name, _), t)| {
+            fu.ssa.var_name(*name) == "p"
+                && t.tcl_type == Some(TclType::Object)
+                && t.class_name.as_deref() == Some("::Pin")
+        });
+        assert!(p_ok, "p (dict get) should be OBJECT(::Pin)");
+    }
+
+    /// A `lappend VAR [Class new]` list retrieved by `lindex` types the element.
+    #[test]
+    fn list_of_objects_lindex_types_element() {
+        use crate::compilation_unit::CompilationUnit;
+        let src = "oo::class create Pin {}\n\
+                   lappend pins [Pin new]\n\
+                   set p [lindex $pins 0]\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::top").expect("top level");
+        let p_ok = fu.types.iter().any(|((name, _), t)| {
+            fu.ssa.var_name(*name) == "p"
+                && t.tcl_type == Some(TclType::Object)
+                && t.class_name.as_deref() == Some("::Pin")
+        });
+        assert!(p_ok, "p (lindex) should be OBJECT(::Pin)");
+    }
+
+    /// A collection written with two *different* object classes is not
+    /// homogeneous, so the element class widens away (retrieval stays untyped).
+    #[test]
+    fn heterogeneous_object_collection_drops_element_class() {
+        use crate::compilation_unit::CompilationUnit;
+        let src = "oo::class create A {}\noo::class create B {}\n\
+                   dict set d k1 [A new]\n\
+                   dict set d k2 [B new]\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::top").expect("top level");
+        // The latest `d` version must not claim a single element class.
+        let widened = fu
+            .types
+            .iter()
+            .filter(|((name, _), _)| fu.ssa.var_name(*name) == "d")
+            .all(|((_, ver), t)| *ver < 2 || t.element_class().is_none());
+        assert!(widened, "mixed-class dict must drop its element class");
     }
 
     // expr type-inference precision

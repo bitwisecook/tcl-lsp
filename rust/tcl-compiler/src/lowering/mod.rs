@@ -77,11 +77,19 @@ fn proc_namespace(qname: &str) -> String {
 /// Recognise the OO definition-command spellings. Returns
 /// `Some("oo::class")` / `Some("oo::define")` when the command is one
 /// of those (with or without a leading `::`), else `None`.
+///
+/// The stock property-/instantiation-restricting metaclasses
+/// (`oo::configurable`, `oo::abstract`, `oo::singleton`) create a class with
+/// the *identical* `METACLASS create NAME { body }` shape as `oo::class`, so
+/// they map to the `oo::class` form — their bodies are lowered and their
+/// methods lifted like any class's, rather than falling through to a barrier
+/// (issue #797: a `Device` class defined with `oo::configurable` left every
+/// method body unanalysed, so no object-collection types flowed).
 fn oo_definition_form(command: &str, canonical: Option<&str>) -> Option<&'static str> {
     let c = canonical.unwrap_or(command);
     let c = c.strip_prefix("::").unwrap_or(c);
     match c {
-        "oo::class" => Some("oo::class"),
+        "oo::class" | "oo::configurable" | "oo::abstract" | "oo::singleton" => Some("oo::class"),
         "oo::define" => Some("oo::define"),
         _ => None,
     }
@@ -2760,6 +2768,29 @@ mod tests {
         let ctor = &m.methods["::Counter::<constructor>"];
         assert_eq!(ctor.kind, MethodKind::Constructor);
         assert!(m.redefined_methods.is_empty());
+    }
+
+    #[test]
+    fn lowers_oo_configurable_class_body() {
+        // `oo::configurable create` (and `oo::abstract` / `oo::singleton`)
+        // share the `METACLASS create NAME { body }` shape, so their bodies
+        // must be lowered and their methods lifted like `oo::class`'s — not left
+        // as an unanalysed barrier (issue #797: a `Device` defined with
+        // `oo::configurable` otherwise had every method body skipped).
+        let src = "oo::configurable create Pin {\n\
+                   \x20   property node\n\
+                   \x20   method describe {} { return [my configure -node] }\n\
+                   }\n";
+        let m = lower_to_ir(src, &reg());
+        assert!(
+            m.methods.contains_key("::Pin::describe"),
+            "oo::configurable method must be lifted; methods: {:?}",
+            m.methods.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !m.methods["::Pin::describe"].body.statements.is_empty(),
+            "the method body should be lowered, not barriered"
+        );
     }
 
     #[test]

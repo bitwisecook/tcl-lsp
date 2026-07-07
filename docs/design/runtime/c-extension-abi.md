@@ -1,11 +1,10 @@
 # C Tcl extension → WASM ABI
 
 Status: **design proposed, mechanism spike-validated.** The end-to-end
-mechanism is proven by the throwaway spikes under
-[`runtime/rust-spike/`](../../../runtime/rust-spike/README.md) (static link,
-dynamic side-module load, and a six-extension compile-check, all green). This
-document is the durable contract those spikes stand in for — **do not derive
-the shape from the spike code**; derive it from here.
+mechanism was proven by throwaway spikes (since removed) covering static link,
+dynamic side-module load, and a six-extension compile-check, all green. This
+document is the durable contract those spikes stood in for — **do not derive
+the shape from spike code**; derive it from here.
 
 Companion docs: [`memory-management.md`](memory-management.md),
 [`refcount-contract.md`](refcount-contract.md),
@@ -158,8 +157,8 @@ load-time-registered command can be resolved.
 Compile the extension `.c` to a WASM object with clang + wasi-sdk (or `zig cc`);
 link it with the runtime's objects via `wasm-ld` into a single module. Same model as
 `core/compiler/codegen/wasm_link.py`'s whole-program link. Simplest deployment;
-proves API compatibility, Rust↔C wasm interop, and the §4.5 callback. Validated
-by `runtime/rust-spike/static-link/`.
+proves API compatibility, Rust↔C wasm interop, and the §4.5 callback. This was
+spike-validated (spike since removed).
 
 ### 5.2 Model B — dynamic side-module load (`package require`)
 
@@ -182,9 +181,9 @@ module**. A loader in the runtime/host loads it at runtime:
 7. Call `Foo_Init(interp)`. Its `Tcl_CreateObjCommand` calls register command
    procs (now resident in the shared table at `__table_base + k`).
 
-The runtime then dispatches as in §4.6. Validated by
-`runtime/rust-spike/dynamic-link/` (a `wasmtime` host loader + a Rust cdylib
-runtime exporting memory and a growable, exported `__indirect_function_table`).
+The runtime then dispatches as in §4.6. This was spike-validated (spike since
+removed) with a `wasmtime` host loader plus a Rust cdylib runtime exporting
+memory and a growable, exported `__indirect_function_table`.
 
 **Linker flags that matter.** The main module must export its table
 (`--export-table`) and make it growable (`--growable-table`); the side module is
@@ -231,8 +230,7 @@ direct-ABI model there is no live stub table, so:
 
 ## 7. Header scope
 
-Source of truth for "what the API surface must cover": the 25-extension survey
-(captured in [`runtime/rust-spike/README.md`](../../../runtime/rust-spike/README.md)).
+Source of truth for "what the API surface must cover": the 25-extension survey.
 **~85–90% of real extensions are public-`tcl.h`-only.**
 
 `tcl.h` must cover, in priority order:
@@ -332,7 +330,7 @@ a *runtime-internal* C component, not a user extension, so it is exempt from the
 
 ## 12. Spike evidence
 
-Executable proof lives under [`runtime/rust-spike/`](../../../runtime/rust-spike/README.md):
+Executable proof was provided by throwaway spikes (since removed):
 
 | Spike | Proves | Run |
 |---|---|---|

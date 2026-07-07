@@ -837,12 +837,7 @@ impl Analyser {
             // ``Overdefined`` (matches the registry behaviour
             // for unknown commands).
             let ret_type = if is_constructor_call {
-                crate::types::TypeLattice {
-                    kind: crate::types::TypeKind::Known,
-                    tcl_type: Some(tcl_registry::TclType::Object),
-                    from_type: None,
-                    class_name: Some(class_qn.clone()),
-                }
+                crate::types::TypeLattice::object_of(class_qn.clone())
             } else {
                 // The constructor case is already handled inline above using the
                 // analyser's authoritative class set, so the registry fallback
