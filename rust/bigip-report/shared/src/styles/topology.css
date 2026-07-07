@@ -57,6 +57,8 @@ td .objlink.strong,.objlink.namelink{color:var(--blue);border-bottom:1px dotted 
 #objDrawer.open{transform:translateX(0)}
 .drawer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
 .drawer-title{font-size:17px;font-weight:650}
+.drawer-title-link{cursor:pointer;border-radius:6px}
+.drawer-title-link:hover,.drawer-title-link:focus-visible{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;outline:none}
 .drawer-sub{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:3px}
 .drawer-close{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;width:32px;height:32px;font-size:16px;cursor:pointer;flex:0 0 auto}
 .drawer-close:hover{border-color:var(--accent)}

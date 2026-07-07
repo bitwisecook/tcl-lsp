@@ -153,6 +153,9 @@ tr.expandable{cursor:pointer}
 tr.expandable.open .expander{transform:rotate(90deg);color:var(--accent)}
 tr.detail{display:none;background:color-mix(in srgb,var(--accent) 4%,transparent)}
 tr.detail.open{display:table-row}
+/* Deep-link target highlight: flashed when jumped to from a drawer / index. */
+@keyframes rowFlash{0%{background:color-mix(in srgb,var(--accent) 42%,transparent)}100%{background:transparent}}
+tr.row-flash>td{animation:rowFlash 1.5s ease-out}
 .subgrid{width:100%;border-collapse:collapse;margin:4px 0}
 .subgrid th{text-align:left;padding:5px 10px;color:var(--muted);font-size:10px;text-transform:uppercase}
 .subgrid td{padding:5px 10px;border-top:1px solid var(--line)}

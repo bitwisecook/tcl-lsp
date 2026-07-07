@@ -56,20 +56,35 @@
   })();
 
   // --- theme toggle: auto -> light -> dark, remembered in localStorage ------
+  // Each click MUST look like it did something. The three modes are auto /
+  // light / dark, but on a light-preference OS "auto" and "light" render the
+  // same, so cycling between them used to feel like a dead button. Give every
+  // state a distinct glyph + label so the click is always visibly acknowledged,
+  // even when the two light-looking modes are visually identical.
   var root = document.documentElement;
   var order = ["auto", "light", "dark"];
+  var THEME_ICON = { auto: "◐", light: "☀", dark: "☾" };
+  var THEME_LABEL = { auto: "Auto (match system)", light: "Light", dark: "Dark" };
+  var toggle = document.getElementById("themeToggle");
+  function reflectTheme(mode) {
+    if (!toggle) return;
+    toggle.textContent = THEME_ICON[mode] || THEME_ICON.auto;
+    toggle.title = "Theme: " + (THEME_LABEL[mode] || mode) + " — click to change";
+    toggle.setAttribute("aria-label", "Theme: " + (THEME_LABEL[mode] || mode));
+  }
+  var current = "auto";
   try {
     var saved = localStorage.getItem("f5report-theme");
-    if (saved) root.setAttribute("data-theme", saved);
+    if (saved && order.indexOf(saved) !== -1) current = saved;
   } catch (e) {}
-  var toggle = document.getElementById("themeToggle");
+  root.setAttribute("data-theme", current);
+  reflectTheme(current);
   if (toggle) {
     toggle.addEventListener("click", function () {
-      var cur = root.getAttribute("data-theme") || "auto";
-      var next = order[(order.indexOf(cur) + 1) % order.length];
-      root.setAttribute("data-theme", next);
-      try { localStorage.setItem("f5report-theme", next); } catch (e) {}
-      toggle.title = "Theme: " + next;
+      current = order[(order.indexOf(current) + 1) % order.length];
+      root.setAttribute("data-theme", current);
+      try { localStorage.setItem("f5report-theme", current); } catch (e) {}
+      reflectTheme(current);
     });
   }
 

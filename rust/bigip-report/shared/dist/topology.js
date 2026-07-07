@@ -612,6 +612,15 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       snat: "SNAT Pool",
       dg: "Data Group"
     };
+    var TYPE_PANEL = {
+      vs: "virtuals",
+      pool: "pools",
+      node: "nodes",
+      mon: "monitors",
+      rule: "rules",
+      prof: "profiles",
+      dg: "dataGroups"
+    };
     var CONTAINER = {
       vs: ".ltm.virtual",
       pool: ".ltm.pool",
@@ -1414,8 +1423,31 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       showSelector(n);
       var drawer = document.getElementById("objDrawer");
       var body = drawer.querySelector(".drawer-body");
-      drawer.querySelector(".drawer-title").innerHTML = '<span class="tag ' + n.type + '">' + TYPE_LABEL[n.type] + "</span> " + esc(n.name);
+      var titleEl = drawer.querySelector(".drawer-title");
+      titleEl.innerHTML = '<span class="tag ' + n.type + '">' + TYPE_LABEL[n.type] + "</span> " + esc(n.name);
       drawer.querySelector(".drawer-sub").textContent = n.fullPath;
+      if (TYPE_PANEL[n.type]) {
+        titleEl.classList.add("drawer-title-link");
+        titleEl.setAttribute("role", "link");
+        titleEl.setAttribute("tabindex", "0");
+        titleEl.title = "Open " + n.name + " on the " + TYPE_LABEL[n.type] + " tab";
+        titleEl.onclick = function() {
+          gotoObject(ix, oid);
+        };
+        titleEl.onkeydown = function(e) {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            gotoObject(ix, oid);
+          }
+        };
+      } else {
+        titleEl.classList.remove("drawer-title-link");
+        titleEl.removeAttribute("role");
+        titleEl.removeAttribute("tabindex");
+        titleEl.title = "";
+        titleEl.onclick = null;
+        titleEl.onkeydown = null;
+      }
       var parts = [];
       if (n.type === "vs") parts.push(vsDetail(ix, oid));
       else if (n.type === "pool") parts.push(poolDetail(ix, oid));
@@ -1623,6 +1655,43 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
     function closeDrawer() {
       document.getElementById("objDrawer").classList.remove("open");
       document.getElementById("drawerScrim").classList.remove("open");
+    }
+    function gotoObject(ix, oid) {
+      var n = ix.byOid[oid];
+      if (!n) return false;
+      var panelName = TYPE_PANEL[n.type];
+      if (!panelName) return false;
+      var di = IDX.indexOf(ix);
+      var deviceEl = document.querySelector('.device[data-dev="' + di + '"]');
+      if (!deviceEl) return false;
+      closeDrawer();
+      if (!deviceEl.classList.contains("active")) {
+        var devTab = document.querySelector('.dev-tab[data-dev="' + di + '"]');
+        if (devTab) devTab.click();
+      }
+      var tab = deviceEl.querySelector('.tab[data-panel="' + panelName + '"]');
+      if (tab) tab.click();
+      var panel = deviceEl.querySelector('.panel[data-panel="' + panelName + '"]');
+      var link = panel && panel.querySelector('[data-oid="' + n.type + ":" + n.fullPath + '"]');
+      var row = link && link.closest("tr");
+      if (!row) return false;
+      row.classList.remove("part-hidden");
+      var detail = row.nextElementSibling;
+      if (detail && detail.classList.contains("detail")) {
+        detail.classList.remove("part-hidden");
+        if (row.classList.contains("expandable")) {
+          row.classList.add("open");
+          detail.classList.add("open");
+        }
+      }
+      row.scrollIntoView({ block: "center", behavior: "smooth" });
+      row.classList.remove("row-flash");
+      void row.offsetWidth;
+      row.classList.add("row-flash");
+      setTimeout(function() {
+        row.classList.remove("row-flash");
+      }, 1600);
+      return true;
     }
     function ipVer(ip) {
       if (!ip) return null;

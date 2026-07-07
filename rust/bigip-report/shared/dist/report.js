@@ -36,22 +36,32 @@
     })();
     var root = document.documentElement;
     var order = ["auto", "light", "dark"];
+    var THEME_ICON = { auto: "\u25D0", light: "\u2600", dark: "\u263E" };
+    var THEME_LABEL = { auto: "Auto (match system)", light: "Light", dark: "Dark" };
+    var toggle = document.getElementById("themeToggle");
+    function reflectTheme(mode) {
+      if (!toggle) return;
+      toggle.textContent = THEME_ICON[mode] || THEME_ICON.auto;
+      toggle.title = "Theme: " + (THEME_LABEL[mode] || mode) + " \u2014 click to change";
+      toggle.setAttribute("aria-label", "Theme: " + (THEME_LABEL[mode] || mode));
+    }
+    var current = "auto";
     try {
       var saved = localStorage.getItem("f5report-theme");
-      if (saved) root.setAttribute("data-theme", saved);
+      if (saved && order.indexOf(saved) !== -1) current = saved;
     } catch (e) {
     }
-    var toggle = document.getElementById("themeToggle");
+    root.setAttribute("data-theme", current);
+    reflectTheme(current);
     if (toggle) {
       toggle.addEventListener("click", function() {
-        var cur = root.getAttribute("data-theme") || "auto";
-        var next = order[(order.indexOf(cur) + 1) % order.length];
-        root.setAttribute("data-theme", next);
+        current = order[(order.indexOf(current) + 1) % order.length];
+        root.setAttribute("data-theme", current);
         try {
-          localStorage.setItem("f5report-theme", next);
+          localStorage.setItem("f5report-theme", current);
         } catch (e) {
         }
-        toggle.title = "Theme: " + next;
+        reflectTheme(current);
       });
     }
     document.querySelectorAll(".dev-tab").forEach(function(btn) {

@@ -43,6 +43,13 @@ import { initArchEditor } from "../arch/editor";
     vs: "Virtual", pool: "Pool", node: "Node", mon: "Monitor", rule: "iRule",
     prof: "Profile", persist: "Persistence", policy: "Policy", snat: "SNAT Pool", dg: "Data Group",
   };
+  // Which report tab (data-panel) lists each object type, so the drawer title
+  // and the Object Index can deep-link to an object's full row. Types without a
+  // dedicated tab (persist / policy / snat) are omitted — no row to jump to.
+  var TYPE_PANEL = {
+    vs: "virtuals", pool: "pools", node: "nodes", mon: "monitors",
+    rule: "rules", prof: "profiles", dg: "dataGroups",
+  };
   // f5-query container path for each node type, for the selector status bar.
   var CONTAINER = {
     vs: ".ltm.virtual", pool: ".ltm.pool", node: ".ltm.node", mon: ".ltm.monitor",
@@ -764,9 +771,29 @@ import { initArchEditor } from "../arch/editor";
     showSelector(n);
     var drawer = document.getElementById("objDrawer");
     var body = drawer.querySelector(".drawer-body");
-    drawer.querySelector(".drawer-title").innerHTML =
+    var titleEl = drawer.querySelector(".drawer-title");
+    titleEl.innerHTML =
       '<span class="tag ' + n.type + '">' + TYPE_LABEL[n.type] + "</span> " + esc(n.name);
     drawer.querySelector(".drawer-sub").textContent = n.fullPath;
+    // When this object type has a listing tab, make the title a link that jumps
+    // to the object's expanded row there (e.g. iRule popover -> iRules tab).
+    if (TYPE_PANEL[n.type]) {
+      titleEl.classList.add("drawer-title-link");
+      titleEl.setAttribute("role", "link");
+      titleEl.setAttribute("tabindex", "0");
+      titleEl.title = "Open " + n.name + " on the " + TYPE_LABEL[n.type] + " tab";
+      titleEl.onclick = function () { gotoObject(ix, oid); };
+      titleEl.onkeydown = function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); gotoObject(ix, oid); }
+      };
+    } else {
+      titleEl.classList.remove("drawer-title-link");
+      titleEl.removeAttribute("role");
+      titleEl.removeAttribute("tabindex");
+      titleEl.title = "";
+      titleEl.onclick = null;
+      titleEl.onkeydown = null;
+    }
 
     var parts = [];
     if (n.type === "vs") parts.push(vsDetail(ix, oid));
@@ -987,6 +1014,49 @@ import { initArchEditor } from "../arch/editor";
   function closeDrawer() {
     document.getElementById("objDrawer").classList.remove("open");
     document.getElementById("drawerScrim").classList.remove("open");
+  }
+
+  // Jump from the drawer (or the Object Index tab) to an object's own row on the
+  // tab that lists its type: activate the owning device, switch to that tab,
+  // expand the row if it is expandable (e.g. an iRule body), scroll it into view
+  // and flash it. Returns true if a row was found and revealed.
+  function gotoObject(ix, oid) {
+    var n = ix.byOid[oid];
+    if (!n) return false;
+    var panelName = TYPE_PANEL[n.type];
+    if (!panelName) return false;
+    var di = IDX.indexOf(ix);
+    var deviceEl = document.querySelector('.device[data-dev="' + di + '"]');
+    if (!deviceEl) return false;
+    closeDrawer();
+    // Multi-device reports: bring this object's device to the front first.
+    if (!deviceEl.classList.contains("active")) {
+      var devTab = document.querySelector('.dev-tab[data-dev="' + di + '"]');
+      if (devTab) devTab.click();
+    }
+    var tab = deviceEl.querySelector('.tab[data-panel="' + panelName + '"]');
+    if (tab) tab.click();
+    // The name cell carries data-oid="<type>:<fullPath>"; find its row.
+    var panel = deviceEl.querySelector('.panel[data-panel="' + panelName + '"]');
+    var link = panel && panel.querySelector('[data-oid="' + n.type + ":" + n.fullPath + '"]');
+    var row = link && link.closest("tr");
+    if (!row) return false;
+    // A partition filter may have collapsed it — force it visible.
+    row.classList.remove("part-hidden");
+    var detail = row.nextElementSibling;
+    if (detail && detail.classList.contains("detail")) {
+      detail.classList.remove("part-hidden");
+      if (row.classList.contains("expandable")) {
+        row.classList.add("open");
+        detail.classList.add("open");
+      }
+    }
+    row.scrollIntoView({ block: "center", behavior: "smooth" });
+    row.classList.remove("row-flash");
+    void row.offsetWidth; // restart the flash animation if re-triggered
+    row.classList.add("row-flash");
+    setTimeout(function () { row.classList.remove("row-flash"); }, 1600);
+    return true;
   }
 
   // ---- IP helpers (IPv4 + IPv6, BigInt-based) ----------------------------
