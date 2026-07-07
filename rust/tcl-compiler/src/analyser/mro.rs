@@ -338,6 +338,46 @@ mod tests {
     }
 
     #[test]
+    fn wshape_multi_inheritance_matches_tclsh() {
+        // A W-shaped diamond that stresses late-placement across two
+        // multi-parent classes sharing a middle base:
+        //   Z → {K1, K2};  K1 → {AA, BB};  K2 → {BB, CC}
+        // Verified against real TclOO (`tclsh9.0`, `info class call`):
+        //   ::Z ::K1 ::AA ::K2 ::BB ::CC
+        // `BB` (first reached via K1) is moved *after* K2 when re-reached via
+        // K2's chain — the TclOO "as late as possible" placement.
+        let s = supers(&[
+            ("Z", &["K1", "K2"]),
+            ("K1", &["AA", "BB"]),
+            ("K2", &["BB", "CC"]),
+            ("AA", &[]),
+            ("BB", &[]),
+            ("CC", &[]),
+        ]);
+        let mro = tcloo_linearise("Z", &s, &empty_mixins()).unwrap();
+        assert_eq!(mro, vec!["Z", "K1", "AA", "K2", "BB", "CC"]);
+    }
+
+    #[test]
+    fn c3_inconsistent_hierarchy_resolves_like_tclsh() {
+        // The decisive TclOO-vs-C3 case: `X → A,B` and `Y → B,A` disagree on the
+        // A/B order, so Python/Perl **C3 linearisation raises an error**. TclOO's
+        // DFS + late-placement instead resolves it deterministically. Verified
+        // against real TclOO (`tclsh9.0`, `info class call`):
+        //   ::Z ::X ::Y ::B ::A
+        // Confirms we implement TclOO's actual algorithm, not C3.
+        let s = supers(&[
+            ("Z", &["X", "Y"]),
+            ("X", &["A", "B"]),
+            ("Y", &["B", "A"]),
+            ("A", &[]),
+            ("B", &[]),
+        ]);
+        let mro = tcloo_linearise("Z", &s, &empty_mixins()).unwrap();
+        assert_eq!(mro, vec!["Z", "X", "Y", "B", "A"]);
+    }
+
+    #[test]
     fn no_mixins_same_as_supers_only() {
         // With empty mixins, MRO = parent chain.
         let s = supers(&[("D", &["C"]), ("C", &["B"]), ("B", &["A"]), ("A", &[])]);

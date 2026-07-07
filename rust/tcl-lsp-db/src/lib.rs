@@ -2073,13 +2073,32 @@ pub fn project_class_index(
     project: Project,
     config: AnalyserConfig,
 ) -> Arc<ClassHierarchy> {
+    // `project.files(db)` is an unordered `Vec` with no stable identity, so a
+    // "first definition wins" merge would make the winner for a duplicate
+    // qualified class name depend on file-enumeration order — non-deterministic
+    // cross-file resolution (and token output).  Instead, abstain: a qualified
+    // name defined in two or more files is genuinely ambiguous (which `::Foo`
+    // does `$obj method` mean?), so drop it from the merged index and fall back
+    // to no cross-file resolution — order-independent and sound, matching this
+    // feature's highlight-only / sound-by-abstention posture.
     let mut merged: HashMap<String, ClassDef> = HashMap::new();
+    let mut ambiguous: HashSet<String> = HashSet::new();
     for &file in project.files(db) {
         let analysis = file_analysis(db, file, config);
         for (name, class) in &analysis.all_classes {
-            // First definition wins; a homonym in another file does not clobber
-            // it (deterministic, and matches the analyser's own precedence).
-            merged.entry(name.clone()).or_insert_with(|| class.clone());
+            if ambiguous.contains(name) {
+                continue;
+            }
+            match merged.entry(name.clone()) {
+                std::collections::hash_map::Entry::Occupied(e) => {
+                    // A second file defines the same qualified name — ambiguous.
+                    e.remove();
+                    ambiguous.insert(name.clone());
+                }
+                std::collections::hash_map::Entry::Vacant(e) => {
+                    e.insert(class.clone());
+                }
+            }
         }
     }
     Arc::new(build_class_hierarchy(merged))
@@ -2231,6 +2250,36 @@ mod tests {
                 .contains_key("::Pin"),
             "project index should contain ::Pin from the library file"
         );
+    }
+
+    #[test]
+    fn project_index_abstains_on_duplicate_class_name() {
+        // The same qualified class name defined in two files is genuinely
+        // ambiguous — which `::Pin` does a cross-file dispatch mean?  The merged
+        // index drops it (sound-by-abstention), deterministically regardless of
+        // file order, rather than letting an order-dependent "winner" leak into
+        // resolution.
+        let db = TclDatabase::default();
+        let a = SourceFile::new(
+            &db,
+            "oo::class create ::Pin { method a {} {} }\n".to_owned(),
+            "tcl9.0".to_owned(),
+        );
+        let b = SourceFile::new(
+            &db,
+            "oo::class create ::Pin { method b {} {} }\n".to_owned(),
+            "tcl9.0".to_owned(),
+        );
+        // Both orderings must agree (and both must drop the ambiguous class).
+        for files in [vec![a, b], vec![b, a]] {
+            let project = Project::new(&db, files);
+            assert!(
+                !project_class_index(&db, project, cfg(&db))
+                    .classes
+                    .contains_key("::Pin"),
+                "an ambiguous cross-file class name must be dropped, not resolved"
+            );
+        }
     }
 
     #[test]
