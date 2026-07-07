@@ -33,19 +33,47 @@ import json
 from importlib import resources
 from typing import Any
 
-import jinja2
+import minijinja
 
 from . import _engine
 
+# One template, one engine. The Python and Rust generators render the *same*
+# MiniJinja template (`report.minijinja.html.j2`) so they cannot drift: MiniJinja
+# is Jinja2-compatible and ships a native Python binding backed by the same Rust
+# engine the report generator embeds. See render.rs for the mirrored setup.
 
-def _jinja_env() -> jinja2.Environment:
-    env = jinja2.Environment(
-        loader=jinja2.PackageLoader("f5report", "templates"),
-        autoescape=jinja2.select_autoescape(["html", "xml", "j2"]),
-        trim_blocks=True,
-        lstrip_blocks=True,
+# The topology tab's type legend, mirroring `render.rs::topo_types`.
+_TOPO_TYPES = [
+    {"k": k, "label": label}
+    for k, label in [
+        ("vs", "Virtual"), ("pool", "Pool"), ("node", "Node"), ("mon", "Monitor"),
+        ("rule", "iRule"), ("prof", "Profile"), ("persist", "Persist"),
+        ("policy", "Policy"), ("snat", "SNAT"), ("dg", "DataGroup"),
+    ]
+]
+
+
+def _leaf(value: Any) -> str:
+    """`leaf` filter: the last `/`-separated segment of an object path.
+
+    Mirrors the Rust `leaf` filter (render.rs) and replaces Jinja's
+    `path.split('/')[-1]`, which MiniJinja does not support.
+    """
+    s = "" if value is None else str(value)
+    return s.rsplit("/", 1)[-1]
+
+
+def _build_env(template_src: str) -> minijinja.Environment:
+    """A MiniJinja environment matching the Rust generator's configuration:
+    HTML auto-escaping, the `leaf` filter, and lenient (chainable) undefined so a
+    model missing an optional section (e.g. APM) renders empty rather than erroring.
+    """
+    env = minijinja.Environment(
+        templates={"report": template_src},
+        auto_escape_callback=lambda _name: "html",
+        undefined_behavior="chainable",
     )
-    env.filters["tojson_attr"] = lambda v: json.dumps(v, separators=(",", ":"))
+    env.add_filter("leaf", _leaf)
     return env
 
 
@@ -97,8 +125,6 @@ def render_report(
     ``report_id``: a stable per-report id embedded as ``<html data-report-id>`` so
     the in-report architecture editor keys its localStorage per report.
     """
-    env = _jinja_env()
-    template = env.get_template("report.html.j2")
     model = dict(model)
     model.setdefault(
         "generated_at",
@@ -108,12 +134,14 @@ def render_report(
     # The full f5-query manual, embedded as a reference panel by the console.
     model["f5q_manual"] = _engine.manual()
     # The whole model is embedded as JSON so the client-side topology / flow /
-    # listener views run with no server and no external assets.
+    # listener views run with no server and no external assets. Computed before
+    # the (large) asset strings are added so they are not duplicated into it.
     model["model_json"] = _script_safe_json(model)
     # elkjs + the orthogonal renderer, which draws every report diagram.
     model["elk_js"] = _vendor_text("elk.bundled.js")
     model["elk_graph_js"] = _asset_text("elk-graph.js")
     model["apm_css"] = _asset_text("apm.css")
+    model["apm_js"] = _asset_text("apm.js")
     model["report_css"] = _asset_text("report.css")
     model["topology_css"] = _asset_text("topology.css")
     model["print_css"] = _asset_text("print.css")
@@ -127,6 +155,8 @@ def render_report(
     model["forensics_js"] = _asset_text("forensics.js")
     model["irule_flow_js"] = _asset_text("irule-flow.js")
     model["print_js"] = _asset_text("print.js")
+    # Topology tab type legend (mirrors render.rs).
+    model["topo_types"] = _TOPO_TYPES
 
     # In-browser query console: the wasm build of the query engine, inlined.
     # Optional — a report still renders (minus the console) if the wasm artifacts
@@ -140,4 +170,6 @@ def render_report(
         model["has_console"] = True
     else:
         model["has_console"] = False
-    return template.render(**model)
+
+    template_src = _asset_text("report.minijinja.html.j2")
+    return _build_env(template_src).render_template("report", **model)

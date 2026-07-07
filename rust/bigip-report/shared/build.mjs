@@ -4,12 +4,13 @@
 // Build the shared BIG-IP report front-end: bundle the page entry scripts in
 // `src/pages/` (which pull in `src/search/` and are styled by `src/styles/`) to
 // plain browser IIFE scripts in `dist/`, then sync the built JS + styles +
-// vendor + the Jinja2 template into the Python `f5report` package so its wheel
-// stays self-contained (no Node needed at wheel-build time — same precedent as
-// the vendored wasm). The Rust generator embeds `dist/`, `src/styles/`,
-// `public/vendor/`, and `public/templates/report.minijinja.html.j2` directly
-// via `include_str!`. The rendered report is always ONE self-contained HTML
-// file with every asset inlined.
+// vendor + the single MiniJinja template into the Python `f5report` package so
+// its wheel stays self-contained (no Node needed at wheel-build time — same
+// precedent as the vendored wasm). Both backends render the SAME template:
+// Python via the `minijinja` binding, Rust via `include_str!` of
+// `public/templates/report.minijinja.html.j2` (plus `dist/`, `src/styles/`,
+// `public/vendor/`). The rendered report is always ONE self-contained HTML file
+// with every asset inlined.
 //
 // Usage: `npm run build` (from rust/bigip-report/shared).
 
@@ -72,7 +73,7 @@ async function build() {
 // ---- sync built assets into the self-contained Python package --------------
 // Only the assets the Jinja2 template (`report.jinja2.html.j2`) references are
 // synced; APM / elk-graph stay Rust-only, as they always have been.
-const PY_JS = ["input", "report", "topology", "console", "certs", "secrets", "forensics", "irule-flow", "irule-format", "print", "elk-graph"];
+const PY_JS = ["input", "report", "topology", "console", "certs", "secrets", "forensics", "irule-flow", "irule-format", "print", "elk-graph", "apm"];
 const PY_CSS = ["input", "report", "topology", "certs", "secrets", "forensics", "print", "apm"];
 const PY_VENDOR = ["elk.bundled.js", "f5query_wasm.js", "f5query_wasm_bg.wasm"];
 
@@ -82,9 +83,10 @@ function sync() {
   for (const name of PY_JS) copyFileSync(join(distDir, `${name}.js`), join(pyTemplates, `${name}.js`));
   for (const name of PY_CSS) copyFileSync(join(stylesDir, `${name}.css`), join(pyTemplates, `${name}.css`));
   for (const name of PY_VENDOR) copyFileSync(join(vendorDir, name), join(pyVendor, name));
-  // The Jinja2 template lives under its engine-specific name in shared/; the
-  // Python PackageLoader still asks for "report.html.j2".
-  copyFileSync(join(templatesDir, "report.jinja2.html.j2"), join(pyTemplates, "report.html.j2"));
+  // ONE template for both backends: the Python `f5report` package renders the
+  // same MiniJinja template the Rust generator embeds (via the `minijinja`
+  // Python binding), so the two can never drift.
+  copyFileSync(join(templatesDir, "report.minijinja.html.j2"), join(pyTemplates, "report.minijinja.html.j2"));
   // The builder page the f5report web server serves.
   copyFileSync(join(templatesDir, "input.html"), join(pyTemplates, "input.html"));
 }

@@ -10,9 +10,9 @@
 <style>
 {{ report_css | safe }}
 {{ topology_css | safe }}
-{{ apm_css | safe }}
 {{ certs_css | safe }}
 {{ secrets_css | safe }}
+{{ apm_css | safe }}
 {{ forensics_css | safe }}
 {{ print_css | safe }}
 </style>
@@ -43,17 +43,82 @@
 <div class="chip {{ tone }}{{ ' chip-link' if target }}"{% if target %} data-target="{{ target }}" role="button" tabindex="0" title="Go to {{ label }}"{% endif %}><span class="chip-val">{{ value }}</span><span class="chip-lbl">{{ label }}</span></div>
 {% endmacro %}
 
+{#: Render a firewall rule endpoint (source / destination) compactly. :#}
+{% macro fw_endpoint(e) %}
+{%- if not e or (not e.addresses and not e.addressLists and not e.ports and not e.portLists) -%}
+<span class="muted">any</span>
+{%- else -%}
+{% for x in e.addresses %}<span class="tag">{{ x }}</span>{% endfor %}
+{%- for x in e.addressLists %}<span class="tag blue" title="address-list">{{ x | leaf }}</span>{% endfor %}
+{%- for x in e.ports %}<span class="tag amber">:{{ x }}</span>{% endfor %}
+{%- for x in e.portLists %}<span class="tag" title="port-list">:{{ x | leaf }}</span>{% endfor %}
+{%- endif -%}
+{% endmacro %}
+
 <section class="summary">
-  {{ chip('Virtual Servers', totals.get('virtuals', 0), '', 'virtuals') }}
-  {{ chip('Pools', totals.get('pools', 0), '', 'pools') }}
-  {{ chip('Pool Members', totals.get('poolMembers', 0), '', 'pools') }}
-  {{ chip('Nodes', totals.get('nodes', 0), '', 'nodes') }}
-  {{ chip('iRules', totals.get('rules', 0), '', 'rules') }}
-  {{ chip('Monitors', totals.get('monitors', 0), '', 'monitors') }}
-  {{ chip('Data Groups', totals.get('dataGroups', 0), '', 'dataGroups') }}
-  {{ chip('Orphaned Objects', totals.get('orphans', 0), 'warn' if totals.get('orphans', 0) else 'ok') }}
-  {{ chip('SSL Certificates', totals.get('certificates', 0), '', 'certificates') }}
+  {{ chip('Virtual Servers', totals.virtuals, '', 'virtuals') }}
+  {{ chip('Pools', totals.pools, '', 'pools') }}
+  {{ chip('Pool Members', totals.poolMembers, '', 'pools') }}
+  {{ chip('Nodes', totals.nodes, '', 'nodes') }}
+  {{ chip('iRules', totals.rules, '', 'rules') }}
+  {{ chip('Monitors', totals.monitors, '', 'monitors') }}
+  {{ chip('Data Groups', totals.dataGroups, '', 'dataGroups') }}
+  {{ chip('Orphaned Objects', totals.orphans, 'warn' if totals.orphans else 'ok') }}
+  {{ chip('SSL Certificates', totals.certificates, '', 'certificates') }}
 </section>
+
+{% if architecture and architecture.deviceCount > 1 %}
+<section class="architecture" id="architecture">
+  <div class="arch-head">
+    <h2>Architecture</h2>
+    <span class="muted">how the loaded devices relate as tiers —
+      {%- if architecture.defined %} from manifest{% else %} auto-detected from address overlap{% endif -%}
+    </span>
+  </div>
+  {% if architecture.manifestError %}
+  <div class="insight warn"><span class="dot"></span>Manifest ignored: {{ architecture.manifestError }}</div>
+  {% endif %}
+  <div class="arch-diagram diag-host" id="archDiagram" aria-label="Interactive architecture diagram — click a device to jump to it"></div>
+  <div class="arch-tiers-lbl">Devices by tier</div>
+  <div class="arch-tiers">
+    {% for t in architecture.tiers %}
+    <div class="arch-tier">
+      <div class="arch-tier-lbl">Tier {{ t.tier }}</div>
+      {% for d in t.devices %}
+      <div class="arch-node arch-role-{{ d.role }}">
+        <span class="arch-node-name">{{ d.label }}</span>
+        <span class="arch-node-role">{{ d.role }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {% if architecture.links %}
+  <div class="tablewrap">
+  <table class="grid arch-links">
+    <thead><tr><th>Upstream</th><th></th><th>Downstream</th><th>Source</th><th>Evidence</th></tr></thead>
+    <tbody>
+      {% for l in architecture.links %}
+      <tr>
+        <td class="mono strong">{{ l.fromLabel }}</td>
+        <td class="arch-arrow">→</td>
+        <td class="mono strong">{{ l.toLabel }}</td>
+        <td>{% if l.source == 'auto' %}<span class="tag">auto</span>{% elif l.source == 'manifest' %}<span class="tag blue">manifest</span>{% else %}<span class="tag green">manifest + auto</span>{% endif %}</td>
+        <td class="mono">
+          {%- if l.vias %}
+          {% for v in l.vias[:4] %}<span class="tag" title="{{ v.fromObj }} → {{ v.toObj }}">{{ v.address }}{% if v.port %}:{{ v.port }}{% endif %}</span>{% endfor %}
+          {%- if l.viaCount > 4 %}<span class="muted">+{{ l.viaCount - 4 }} more</span>{% endif %}
+          {%- elif l.label %}<span class="muted">{{ l.label }}</span>
+          {%- else %}<span class="muted">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
 
 {% if devices|length > 1 %}
 <nav class="device-switch" role="tablist" aria-label="Devices">
@@ -69,7 +134,7 @@
     <h2>{{ d.name }}</h2>
     <div class="device-meta">
       {% if d.tmshVersion %}<span class="badge">TMOS {{ d.tmshVersion }}</span>{% endif %}
-      <span class="badge muted">{{ d.uri.split('/')[-1] }}</span>
+      <span class="badge muted">{{ d.uri | leaf }}</span>
     </div>
   </div>
 
@@ -106,6 +171,9 @@
     <button class="tab" data-panel="profiles">Profiles <span class="n">{{ d.counts.profiles }}</span></button>
     <button class="tab" data-panel="certificates">SSL Certificates <span class="n">{{ d.counts.certificates }}</span></button>
     {% if d.counts.secrets %}<button class="tab" data-panel="secrets">Secrets <span class="n">{{ d.counts.secrets }}</span></button>{% endif %}
+    {% if d.counts.apmProfiles %}<button class="tab" data-panel="apm">APM <span class="n">{{ d.counts.apmProfiles }}</span></button>{% endif %}
+    {% if d.counts.gtm %}<button class="tab" data-panel="gtm">GTM / DNS <span class="n">{{ d.counts.gtm }}</span></button>{% endif %}
+    {% if d.counts.firewall %}<button class="tab" data-panel="firewall">Firewall / NAT <span class="n">{{ d.counts.firewall }}</span></button>{% endif %}
     {% if d.counts.files or d.forensics.flagged %}<button class="tab" data-panel="forensics">Forensics <span class="n">{{ d.counts.files }}</span></button>{% endif %}
     <button class="tab" data-panel="topology">Topology</button>
     <button class="tab" data-panel="listener">Listener Matcher</button>
@@ -139,10 +207,10 @@
         <td class="mono strong"><span class="objlink namelink" data-oid="vs:{{ v.fullPath }}">{{ v.name }}</span>{% if v.disabled %} <span class="tag red">disabled</span>{% endif %}</td>
         <td class="mono">{{ v.destAddr }}</td>
         <td class="mono">{{ v.destPort }}</td>
-        <td class="mono">{% if v.pool %}<a href="#" class="ref" data-oid="pool:{{ v.pool }}">{{ v.pool.split('/')[-1] }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
-        <td>{% for p in v.profiles %}<span class="tag" data-oid="prof:{{ p }}">{{ p.split('/')[-1] }}</span>{% endfor %}</td>
-        <td>{% for r in v.rules %}<span class="tag blue" data-oid="rule:{{ r }}">{{ r.split('/')[-1] }}</span>{% endfor %}</td>
-        <td class="mono small">{{ v.snatpool.split('/')[-1] if v.snatpool else v.sourceXlate or '—' }}</td>
+        <td class="mono">{% if v.pool %}<a href="#" class="ref" data-oid="pool:{{ v.pool }}">{{ v.pool | leaf }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>{% for p in v.profiles %}<span class="tag" data-oid="prof:{{ p }}">{{ p | leaf }}</span>{% endfor %}</td>
+        <td>{% for r in v.rules %}<span class="tag blue" data-oid="rule:{{ r }}">{{ r | leaf }}</span>{% endfor %}</td>
+        <td class="mono small">{{ v.snatpool | leaf if v.snatpool else v.sourceXlate or '—' }}</td>
         <td class="mono small">{{ v.ipProtocol }}</td>
         <td>{% if v.description %}<span class="info-i" title="{{ v.description }}">i</span>{% endif %}</td>
       </tr>
@@ -167,7 +235,7 @@
         <td>{{ p.memberCount }}{% if p.memberCount == 0 %} <span class="tag amber">empty</span>{% endif %}</td>
         <td class="mono small">{{ p.monitor or '—' }}</td>
         <td class="mono small">{{ p.lbMode or 'round-robin' }}</td>
-        <td class="mono small">{% for u in p.usedBy %}<span class="tag blue" data-oref="{{ u }}">{{ u.split("/")[-1] }}</span>{% else %}<span class="muted">nothing</span>{% endfor %}</td>
+        <td class="mono small">{% for u in p.usedBy %}<span class="tag blue" data-oref="{{ u }}">{{ u | leaf }}</span>{% else %}<span class="muted">nothing</span>{% endfor %}</td>
       </tr>
       {% if p.members %}
       <tr class="detail"><td></td><td colspan="5">
@@ -175,7 +243,7 @@
           <thead><tr><th>Member</th><th>Address</th><th>Port</th><th>Monitor</th></tr></thead>
           <tbody>
           {% for m in p.members %}
-          <tr><td class="mono">{{ m.name.split('/')[-1] }}</td><td class="mono">{{ m.address }}</td><td class="mono">{{ m.port }}</td><td class="mono small">{{ m.monitor or '—' }}</td></tr>
+          <tr><td class="mono">{{ m.name | leaf }}</td><td class="mono">{{ m.address }}</td><td class="mono">{{ m.port }}</td><td class="mono small">{{ m.monitor or '—' }}</td></tr>
           {% endfor %}
           </tbody>
         </table>
@@ -198,7 +266,7 @@
         <td class="mono strong"><span class="objlink namelink" data-oid="node:{{ n.fullPath }}">{{ n.name }}</span>{% if n.orphanStatus == 'orphan' %} <span class="tag amber">orphan</span>{% elif n.orphanStatus == 'possible' %} <span class="tag" title="No static reference, but {% for m in n.orphanMatches %}iRule {{ m.rule }} could build a matching name ({{ m.pattern }}){% if not loop.last %}; {% endif %}{% else %}an iRule selects nodes dynamically{% endfor %} — can't be proven unused">possible orphan</span>{% endif %}</td>
         <td class="mono">{{ n.address }}</td>
         <td class="mono small">{{ n.monitor or '—' }}</td>
-        <td class="mono small">{% for u in n.usedBy %}<span class="tag" data-oref="{{ u }}">{{ u.split("/")[-1] }}</span>{% else %}<span class="muted">nothing</span>{% endfor %}</td>
+        <td class="mono small">{% for u in n.usedBy %}<span class="tag" data-oref="{{ u }}">{{ u | leaf }}</span>{% else %}<span class="muted">nothing</span>{% endfor %}</td>
       </tr>
       {% endfor %}
       </tbody>
@@ -240,7 +308,7 @@
         <td class="mono strong"><span class="objlink namelink" data-oid="rule:{{ r.fullPath }}">{{ r.name }}</span>{% if not r.usedBy %} <span class="tag amber">unattached</span>{% endif %}</td>
         <td>{% for e in r.events %}<span class="tag blue">{{ e }}</span>{% endfor %}</td>
         <td class="mono">{{ r.lineCount }}</td>
-        <td class="mono small">{% for u in r.usedBy %}<span class="tag">{{ u.split('/')[-1] }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+        <td class="mono small">{% for u in r.usedBy %}<span class="tag">{{ u | leaf }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
       </tr>
       <tr class="detail"><td></td><td colspan="4">{% set ro = r.referencedObjects %}{% if ro %}<div class="irule-refs">{% if ro.static %}<div class="refs-static"><span class="refs-lbl">Referenced objects:</span> {% for o in ro.static %}<span class="objlink ref-obj" data-oid="{{ o.oid }}" title="{{ o.type }} {{ o.fullPath }}">{{ o.type }} {{ o.name }}</span> {% endfor %}</div>{% endif %}{% if not ro.static and not ro.dynamic %}<div class="refs-none muted">No pool / node / snatpool / data-group references (static or dynamic) in this iRule.</div>{% endif %}{% for g in ro.dynamic %}<div class="refs-dyn"><div class="refs-ctx">Potentially referenced objects{% if g.attached %} — resolved for {% for vn in g.virtuals %}<span class="tag">{{ vn }}</span>{% endfor %} in partition <code>/{{ g.partition }}</code>{% else %} — this iRule is not attached to any virtual; filters resolved in <code>/{{ g.partition }}</code>{% endif %}</div><table class="refs-table"><thead><tr><th>Determined filter</th><th>Type</th><th>Matching objects (this partition)</th></tr></thead><tbody>{% for f in g.filters %}<tr><td><code class="attach-pat" title="reconstructed from the iRule source: {{ f.raw }}">{{ f.glob }}</code>{% if f.unconstrained %} <span class="muted small">(any name)</span>{% elif f.exact %} <span class="muted small">(exact)</span>{% endif %}</td><td class="mono small">{{ f.type }}</td><td>{% for o in f.objects %}<span class="objlink ref-obj" data-oid="{{ o.oid }}" title="{{ o.fullPath }}">{{ o.name }}</span> {% else %}<span class="muted">{% if f.unconstrained %}any {{ f.type }} in scope{% else %}none defined match{% endif %}</span>{% endfor %}</td></tr>{% endfor %}</tbody></table></div>{% endfor %}</div>{% endif %}{% if r.flowchart %}<div class="irule-flow"><div class="irule-flow-src" hidden>{{ r.flowchart }}</div><div class="irule-flow-diagram diag-host"></div></div>{% endif %}<pre class="code tcl">{{ r.bodyHtml | safe }}</pre></td></tr>
       {% endfor %}
@@ -282,8 +350,8 @@
       <tr class="searchable" data-search="{{ p.name }} {{ p.fullPath }} {{ p.type }} {{ p.cert }} {{ p.parent }}">
         <td class="mono strong"><span class="objlink namelink" data-oid="prof:{{ p.fullPath }}">{{ p.name }}</span></td>
         <td><span class="tag{{ ' green' if 'SSL' in p.type }}">{{ p.type }}</span></td>
-        <td class="mono small">{{ p.parent.split('/')[-1] if p.parent else '—' }}</td>
-        <td class="mono small">{{ p.cert.split('/')[-1] if p.cert else '—' }}</td>
+        <td class="mono small">{{ p.parent | leaf if p.parent else '—' }}</td>
+        <td class="mono small">{{ p.cert | leaf if p.cert else '—' }}</td>
         <td class="mono small clip">{{ p.ciphers or '—' }}</td>
         <td class="mono small">{{ p.usedBy|length }}</td>
       </tr>
@@ -326,7 +394,7 @@
         <td class="mono small">{{ c.expirationString or '—' }}</td>
         <td class="mono small cert-remaining">—</td>
         <td class="mono small">{{ c.keyType }}{% if c.keySize %}/{{ c.keySize }}{% endif %}</td>
-        <td class="mono small">{% for u in c.usedByVirtuals %}<span class="tag blue">{{ u.split('/')[-1] }}</span>{% else %}{% if c.usedByProfiles %}{% for p in c.usedByProfiles %}<span class="tag">{{ p.split('/')[-1] }}</span>{% endfor %}{% else %}<span class="tag amber">unused</span>{% endif %}{% endfor %}</td>
+        <td class="mono small">{% for u in c.usedByVirtuals %}<span class="tag blue">{{ u | leaf }}</span>{% else %}{% if c.usedByProfiles %}{% for p in c.usedByProfiles %}<span class="tag">{{ p | leaf }}</span>{% endfor %}{% else %}<span class="tag amber">unused</span>{% endif %}{% endfor %}</td>
       </tr>
       <tr class="detail"><td></td><td colspan="7">
         <div class="cert-detail">
@@ -345,7 +413,7 @@
             {% endfor %}
             </ol>
           </div>{% endif %}
-          {% if c.hasKey %}<div><span class="cd-k">Private key</span><span class="mono small">{{ c.keyPath.split('/')[-1] }}{% if c.keySecurityType %} · {{ c.keySecurityType }}{% endif %}{% if c.keyPassphrase %} · passphrase {% if c.keyPassphraseEncrypted %}<span class="tag amber">encrypted — supply the f5mku master key to reveal</span>{% else %}<code class="secret">{{ c.keyPassphrase }}</code>{% endif %}{% endif %}</span></div>{% endif %}
+          {% if c.hasKey %}<div><span class="cd-k">Private key</span><span class="mono small">{{ c.keyPath | leaf }}{% if c.keySecurityType %} · {{ c.keySecurityType }}{% endif %}{% if c.keyPassphrase %} · passphrase {% if c.keyPassphraseEncrypted %}<span class="tag amber">encrypted — supply the f5mku master key to reveal</span>{% else %}<code class="secret">{{ c.keyPassphrase }}</code>{% endif %}{% endif %}</span></div>{% endif %}
           {% if c.usedByProfiles %}<div><span class="cd-k">Profiles</span><span class="mono small">{{ c.usedByProfiles | join(', ') }}</span></div>{% endif %}
           {% if c.sourcePath %}<div><span class="cd-k">Source</span><span class="mono small">{{ c.sourcePath }}</span></div>{% endif %}
         </div>
@@ -383,6 +451,248 @@
   </div>
   {% endif %}
 
+  {#: ---------------- APM access-profile walk ---------------- :#}
+  {% if d.counts.apmProfiles %}
+  <div class="panel" data-panel="apm">
+    <p class="lm-field-note">Every <code>apm profile access</code> walked out to everything it depends on — the virtual servers that attach it, its connectivity profile, the access policy and its items (with the <code>next-item</code> flow between them), the agents on each item, the AAA servers they authenticate against, and the resources a resource-assign agent hands out (network access → lease pool / client DNS, webtops, remote-desktop resources). Laid out left-to-right like the Visual Policy Editor: <b>green</b> start / allow, <b>red</b> deny, orthogonal connectors labelled with each branch.</p>
+    {% for p in d.apmProfiles %}
+    <div class="apm-profile searchable" data-search="{{ p.name }} {{ p.fullPath }} {{ p.policy }} {% for o in p.objects %}{{ o.name }} {% endfor %}">
+      <div class="apm-head">
+        <span class="apm-title">{{ p.name }}</span>
+        <span class="apm-path mono">{{ p.fullPath }}</span>
+        <span class="apm-meta">
+          {% if p.policy %}<span class="tag">policy: {{ p.policy }}</span>{% endif %}
+          {% for v in p.virtuals %}<span class="tag blue">{{ v }}</span>{% else %}<span class="tag amber">no virtual attaches this profile</span>{% endfor %}
+          <span class="tag" title="Objects linked from this profile">{{ p.objectCount }} linked</span>
+        </span>
+      </div>
+      <div class="apm-graph">
+        <script type="application/json" class="apm-graph-data">{{ p.graph | tojson }}</script>
+        <div class="apm-diagram"></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {#: ---------------- GTM / DNS ---------------- :#}
+  {% if d.counts.gtm %}
+  <div class="panel" data-panel="gtm">
+    <p class="lm-field-note">The GTM (BIG-IP DNS) global load-balancing tier: wide-IPs resolve a name to a pool, whose members select a <code>server</code>'s virtual server. A server's virtual-server destinations are the downstream LTM virtual addresses — the link the <a href="#architecture">Architecture</a> view uses to place this GTM in front of its LTM tiers.</p>
+
+    {% if d.gtmWideips %}
+    <h3 class="subhead">Wide-IPs <span class="n">{{ d.gtmWideips | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Wide-IP</th><th>Type</th><th>Pools</th><th>Aliases</th><th>LB mode</th></tr></thead>
+      <tbody>
+      {% for w in d.gtmWideips %}
+      <tr class="searchable" data-search="{{ w.name }} {{ w.fullPath }}">
+        <td class="mono strong">{{ w.name }}</td>
+        <td>{% if w.recordType %}<span class="tag">{{ w.recordType | upper }}</span>{% endif %}</td>
+        <td class="mono">{% for p in w.pools %}<span class="tag blue">{{ p | leaf }}</span>{% endfor %}</td>
+        <td class="mono small">{% for a in w.aliases %}{{ a }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+        <td>{{ w.poolLbMode or '—' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.gtmPools %}
+    <h3 class="subhead">Pools <span class="n">{{ d.gtmPools | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Pool</th><th>Type</th><th>LB mode</th><th>Members</th></tr></thead>
+      <tbody>
+      {% for p in d.gtmPools %}
+      <tr class="searchable" data-search="{{ p.name }} {{ p.fullPath }}">
+        <td class="mono strong">{{ p.name }}</td>
+        <td>{% if p.recordType %}<span class="tag">{{ p.recordType | upper }}</span>{% endif %}</td>
+        <td>{{ p.lbMode or '—' }}</td>
+        <td class="mono small">{% for m in p.members %}<span class="tag" title="{{ m.state }}">{{ m.name }}{% if m.staticTarget %} → {{ m.staticTarget }}{% endif %}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.gtmServers %}
+    <h3 class="subhead">Servers <span class="n">{{ d.gtmServers | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Server</th><th>Datacenter</th><th>Product</th><th>Addresses</th><th>Virtual-server targets</th></tr></thead>
+      <tbody>
+      {% for s in d.gtmServers %}
+      <tr class="searchable" data-search="{{ s.name }} {{ s.fullPath }}">
+        <td class="mono strong">{{ s.name }}</td>
+        <td class="mono">{{ s.datacenter | leaf or '—' }}</td>
+        <td>{{ s.product or '—' }}</td>
+        <td class="mono small">{% for a in s.addresses %}{{ a }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+        <td class="mono small">{% for v in s.virtualServers %}<span class="tag green">{{ v }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.gtmDatacenters %}
+    <h3 class="subhead">Datacenters <span class="n">{{ d.gtmDatacenters | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Datacenter</th><th>Location</th><th>Contact</th></tr></thead>
+      <tbody>
+      {% for c in d.gtmDatacenters %}
+      <tr class="searchable" data-search="{{ c.name }} {{ c.fullPath }}">
+        <td class="mono strong">{{ c.name }}</td>
+        <td>{{ c.location or '—' }}</td>
+        <td>{{ c.contact or '—' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {#: ---------------- Firewall / NAT ---------------- :#}
+  {% if d.counts.firewall %}
+  <div class="panel" data-panel="firewall">
+    <p class="lm-field-note">The AFM firewall and NAT posture: policies and the rule-lists they enforce, the address-/port-lists rules match on, and the NAT policies and source/destination translations.</p>
+
+    {% if d.firewallPolicies %}
+    <h3 class="subhead">Firewall policies <span class="n">{{ d.firewallPolicies | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Policy</th><th>Rule-lists</th><th>Inline rules</th></tr></thead>
+      <tbody>
+      {% for p in d.firewallPolicies %}
+      <tr class="searchable" data-search="{{ p.name }} {{ p.fullPath }}">
+        <td class="mono strong">{{ p.name }}</td>
+        <td class="mono">{% for rl in p.ruleLists %}<span class="tag blue">{{ rl | leaf }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+        <td class="mono small">{% for r in p.rules %}<span class="tag">{{ r }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.firewallRuleLists %}
+    <h3 class="subhead">Rule-lists <span class="n">{{ d.firewallRuleLists | length }}</span></h3>
+    {% for rl in d.firewallRuleLists %}
+    <div class="rule-list-block">
+      <div class="rule-list-name mono strong">{{ rl.name }} <span class="muted">({{ rl.ruleCount }} rule{{ '' if rl.ruleCount == 1 else 's' }})</span></div>
+      <div class="tablewrap">
+      <table class="grid fw-rules">
+        <thead><tr><th>Rule</th><th>Action</th><th>Proto</th><th>Source</th><th>Destination</th><th>Log</th></tr></thead>
+        <tbody>
+        {% for r in rl.rules %}
+        <tr class="searchable" data-search="{{ r.name }} {{ rl.name }}">
+          <td class="mono strong">{{ r.name }}</td>
+          <td><span class="tag {{ 'green' if r.action == 'accept' else 'red' if r.action in ['drop','reject'] else '' }}">{{ r.action or '—' }}</span></td>
+          <td class="mono">{{ r.ipProtocol or 'any' }}</td>
+          <td class="mono small">{{ fw_endpoint(r.source) }}</td>
+          <td class="mono small">{{ fw_endpoint(r.destination) }}{% if r.ruleList %} <span class="tag blue">list {{ r.ruleList | leaf }}</span>{% endif %}</td>
+          <td>{% if r.log %}<span class="tag amber">log</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if d.firewallAddressLists %}
+    <h3 class="subhead">Address-lists <span class="n">{{ d.firewallAddressLists | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Address-list</th><th>Addresses</th><th>Nested lists</th><th>FQDNs</th></tr></thead>
+      <tbody>
+      {% for a in d.firewallAddressLists %}
+      <tr class="searchable" data-search="{{ a.name }} {{ a.fullPath }}">
+        <td class="mono strong">{{ a.name }}</td>
+        <td class="mono small">{% for x in a.addresses %}<span class="tag">{{ x }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+        <td class="mono small">{% for x in a.addressLists %}<span class="tag blue">{{ x | leaf }}</span>{% endfor %}</td>
+        <td class="mono small">{% for x in a.fqdns %}{{ x }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.firewallPortLists %}
+    <h3 class="subhead">Port-lists <span class="n">{{ d.firewallPortLists | length }}</span></h3>
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Port-list</th><th>Ports</th></tr></thead>
+      <tbody>
+      {% for p in d.firewallPortLists %}
+      <tr class="searchable" data-search="{{ p.name }} {{ p.fullPath }}">
+        <td class="mono strong">{{ p.name }}</td>
+        <td class="mono small">{% for x in p.ports %}<span class="tag">{{ x }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if d.natPolicies or d.natSourceTranslations or d.natDestinationTranslations %}
+    <h3 class="subhead">NAT</h3>
+    {% if d.natPolicies %}
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>NAT policy</th><th>Rule-lists</th><th>Rules</th></tr></thead>
+      <tbody>
+      {% for p in d.natPolicies %}
+      <tr class="searchable" data-search="{{ p.name }} {{ p.fullPath }}">
+        <td class="mono strong">{{ p.name }}</td>
+        <td class="mono">{% for rl in p.ruleLists %}<span class="tag blue">{{ rl | leaf }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+        <td class="mono small">{% for r in p.rules %}<span class="tag">{{ r }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+    {% if d.natSourceTranslations or d.natDestinationTranslations %}
+    <div class="tablewrap">
+    <table class="grid">
+      <thead><tr><th>Translation</th><th>Direction</th><th>Type</th><th>Addresses</th><th>Ports</th></tr></thead>
+      <tbody>
+      {% for t in d.natSourceTranslations %}
+      <tr class="searchable" data-search="{{ t.name }} {{ t.fullPath }}">
+        <td class="mono strong">{{ t.name }}</td>
+        <td><span class="tag">source</span></td>
+        <td class="mono">{{ t.type or '—' }}</td>
+        <td class="mono small">{% for x in t.addresses %}{{ x }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+        <td class="mono small">{% for x in t.ports %}{{ x }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      {% for t in d.natDestinationTranslations %}
+      <tr class="searchable" data-search="{{ t.name }} {{ t.fullPath }}">
+        <td class="mono strong">{{ t.name }}</td>
+        <td><span class="tag">destination</span></td>
+        <td class="mono">{{ t.type or '—' }}</td>
+        <td class="mono small">{% for x in t.addresses %}{{ x }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+        <td class="mono small">{% for x in t.ports %}{{ x }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+  {% endif %}
+
   {#: ---------------- Forensics (UCS file inventory + hunting checklist) ---------------- :#}
   {% if d.counts.files or d.forensics.flagged %}
   <div class="panel" data-panel="forensics">
@@ -406,8 +716,8 @@
         </select>
       </label>
       <span class="topo-types">
-        {% for t, lbl in [('vs','Virtual'),('pool','Pool'),('node','Node'),('mon','Monitor'),('rule','iRule'),('prof','Profile'),('persist','Persist'),('policy','Policy'),('snat','SNAT'),('dg','DataGroup')] %}
-        <label><input type="checkbox" class="topo-type" value="{{ t }}"{{ ' checked' if t in ['vs','pool','node','rule'] }}> {{ lbl }}</label>
+        {% for tt in topo_types %}
+        <label><input type="checkbox" class="topo-type" value="{{ tt.t }}"{{ ' checked' if tt.t in ['vs','pool','node','rule'] }}> {{ tt.lbl }}</label>
         {% endfor %}
       </span>
     </div>
@@ -639,7 +949,7 @@
 
 <footer class="foot">
   <p class="attrib"><b>BIG-IP&nbsp;Report&nbsp;Generator, tcl-lsp &amp; f5&#8209;query</b> by <a class="tool-copyright" href="https://github.com/bitwisecook/tcl-lsp/blob/HEAD/LICENSE" rel="noopener" target="_blank" title="© 2026 bitwisecook — AGPL-3.0-or-later; the report tooling licence">&copy;&nbsp;2026 bitwisecook</a> · this report is self-contained with no external assets, telemetry or uploads.</p>
-  <p class="foot-build"><span class="foot-backend" title="generated by the Python (Jinja/PyO3) backend">(py)</span> · version <code>{{ version }}</code></p>
+  <p class="foot-build"><span class="foot-backend" title="generated by the Rust/WebAssembly backend">(rust)</span> · version <code>{{ version }}</code></p>
   {% if copyright %}<p class="foot-copyright">{{ copyright }}</p>{% endif %}
   <div class="foot-logos">
     <span class="foot-logo foot-logo--f5q" title="f5-query"><svg viewBox="0 0 44 22" width="53" height="26" role="img" aria-label="f5-query"><rect x="1" y="1" width="42" height="20" rx="5" fill="none" stroke="currentColor" stroke-opacity=".45"/><text x="22" y="15.5" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="12" font-weight="700" fill="currentColor">f5q</text></svg></span>
@@ -659,9 +969,12 @@
 <!-- embedded report model (JSON) — powers the topology / flow / listener views -->
 <script id="f5-model" type="application/json">{{ model_json | safe }}</script>
 <!-- vendored elkjs (EPL-2.0) + the orthogonal renderer that draws every report
-     diagram, inlined. Loaded before the page scripts that render into it. -->
+     diagram, inlined for a fully self-contained page. Loaded before the page
+     scripts that render into it. -->
 <script>{{ elk_js | safe }}</script>
-<script>{{ elk_graph_js | safe }}</script>
+<script>
+{{ elk_graph_js | safe }}
+</script>
 <script>
 {{ topology_js | safe }}
 </script>
@@ -670,6 +983,9 @@
 </script>
 <script>
 {{ irule_flow_js | safe }}
+</script>
+<script>
+{{ apm_js | safe }}
 </script>
 <script>
 {{ secrets_js | safe }}

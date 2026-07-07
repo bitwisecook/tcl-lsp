@@ -30,7 +30,9 @@ license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "tcl-lsp contributors" }]
 keywords = ["f5", "big-ip", "bigip", "report", "irules", "pyo3"]
 dependencies = [
-    "jinja2>=3.1",
+    # MiniJinja (Jinja2-compatible) is the single templating engine shared with
+    # the Rust generator, so the two backends render the identical template.
+    "minijinja>=2.0",
 ]
 
 [project.scripts]
