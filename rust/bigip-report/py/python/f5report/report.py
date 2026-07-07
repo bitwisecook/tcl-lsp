@@ -726,6 +726,8 @@ def collect_model(
         "copyright": copyright,
         "engine_version": _engine.__version__,
         "git_hash": getattr(_engine, "__git_hash__", "unknown"),
+        # Single `git describe --tags` version (v-tag + commits + hash) for the footer.
+        "version": getattr(_engine, "__git_describe__", "unknown"),
         "devices": devices,
         "architecture": architecture,
         "enrichment": enrichment,

@@ -47,6 +47,44 @@ fn main() {
     watch_commit_refs(&repo_root.join(".git"));
 
     println!("cargo:rustc-env=GIT_HASH={}", resolve_git_hash(&repo_root));
+
+    // A single `git describe --tags` version (nearest `v*` tag + commits-since +
+    // short hash) shown in the report footer instead of a separate crate version
+    // and build hash. Explicit `GIT_DESCRIBE` override wins for out-of-checkout
+    // builds.
+    println!("cargo:rerun-if-env-changed=GIT_DESCRIBE");
+    println!(
+        "cargo:rustc-env=GIT_DESCRIBE={}",
+        resolve_git_describe(&repo_root)
+    );
+}
+
+/// The `git describe --tags` version: an explicit `GIT_DESCRIBE` override wins
+/// (CI / out-of-checkout builds); otherwise ask git.
+fn resolve_git_describe(repo_root: &Path) -> String {
+    if let Ok(desc) = std::env::var("GIT_DESCRIBE") {
+        let desc = desc.trim();
+        if !desc.is_empty() {
+            return desc.to_owned();
+        }
+    }
+    git_describe(repo_root)
+}
+
+/// `git describe --tags --always` — nearest `v*` tag plus commits-since and the
+/// short hash (e.g. `v1.2.3-4-gabcdef0`), or the bare short hash when no tag
+/// exists yet. `"unknown"` when git is unavailable.
+fn git_describe(repo_root: &Path) -> String {
+    Command::new("git")
+        .arg("-C")
+        .arg(repo_root)
+        .args(["describe", "--tags", "--always"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "unknown".to_owned())
 }
 
 /// The git hash to stamp: an explicit `GIT_HASH` override (set by CI when

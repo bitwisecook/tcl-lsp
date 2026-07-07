@@ -56,8 +56,8 @@ pub use tcl_lexer::highlight_tcl;
 
 pub use forensics::collect_forensics;
 pub use model::{
-    ENGINE_VERSION, GIT_HASH, collect_model, collect_model_full, collect_model_with_architecture,
-    collect_model_with_certs,
+    ENGINE_VERSION, GIT_DESCRIBE, GIT_HASH, collect_model, collect_model_full,
+    collect_model_with_architecture, collect_model_with_certs,
 };
 pub use query::{ReportError, Source};
 /// Architecture / topology detection, hoisted into the query engine so the

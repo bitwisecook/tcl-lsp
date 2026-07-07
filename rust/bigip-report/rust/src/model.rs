@@ -42,6 +42,11 @@ pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// `build.rs`. `"unknown"` when the build carried no git metadata.
 pub const GIT_HASH: &str = env!("GIT_HASH");
 
+/// The single `git describe --tags` version (nearest `v*` tag + commits-since +
+/// short hash, e.g. `v1.2.3-4-gabcdef0`) shown in the footer. Stamped by
+/// `build.rs`; `"unknown"` when the build carried no git metadata.
+pub const GIT_DESCRIBE: &str = env!("GIT_DESCRIBE");
+
 /// The iRule event registry — the source of truth for canonical event firing
 /// order. Built once (the data is compiled into the binary) and reused across
 /// every shaped rule. (Profile *traffic* order lives in the shared
@@ -1945,6 +1950,7 @@ pub fn collect_model_full(
     model.insert("title".into(), J::String(title.into()));
     model.insert("engine_version".into(), J::String(ENGINE_VERSION.into()));
     model.insert("git_hash".into(), J::String(GIT_HASH.into()));
+    model.insert("version".into(), J::String(GIT_DESCRIBE.into()));
     model.insert("devices".into(), J::Array(devices));
     model.insert("totals".into(), J::Object(totals));
     model.insert("container_order".into(), J::Array(container_order));

@@ -238,15 +238,16 @@ fn footer_shows_version_and_git_hash() {
     };
     let html = build_report(&sources, &opts).expect("render");
 
-    // The bottom bar carries the engine version and the git build hash.
+    // The bottom bar carries a single `git describe --tags` version (v-tag +
+    // commits + hash) and marks which backend rendered the report.
     assert!(html.contains("class=\"foot-build\""), "footer build line");
     assert!(
-        html.contains(tcl_bigip_report::ENGINE_VERSION),
-        "version in footer"
+        html.contains(tcl_bigip_report::GIT_DESCRIBE),
+        "git describe version in footer"
     );
     assert!(
-        html.contains(tcl_bigip_report::GIT_HASH),
-        "git hash in footer"
+        html.contains(">(rust)<"),
+        "backend badge in footer"
     );
 
     // The print running header (title) + footer (attribution/version/hash) are
