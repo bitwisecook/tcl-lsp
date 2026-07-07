@@ -73,8 +73,7 @@ export function resetHighlightingHealthSession(): void {
 export type SemanticReason = "featureOff" | "editorOff" | "themeUnsupported";
 
 export type SemanticStatus =
-  | { effective: true; reason: "on" }
-  | { effective: false; reason: SemanticReason };
+  { effective: true; reason: "on" } | { effective: false; reason: SemanticReason };
 
 /**
  * The side-effecting collaborators the checks depend on. Production builds this
