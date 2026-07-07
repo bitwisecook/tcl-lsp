@@ -1492,10 +1492,70 @@ import { initArchEditor } from "../arch/editor";
     });
   }
 
+  // ---- Object Index tab: a flat, filterable list of every deep-linkable
+  //      object in this device, grouped by type; each row jumps to the object's
+  //      expanded row on its own tab (reuses gotoObject). --------------------
+  function initObjectIndex(deviceEl, ix) {
+    var panel = deviceEl.querySelector('.panel[data-panel="objectIndex"]');
+    if (!panel) return;
+    var view = panel.querySelector(".objindex-view");
+    var filter = panel.querySelector(".objindex-filter");
+
+    var groups = {};
+    Object.keys(ix.byOid).forEach(function (oid) {
+      var n = ix.byOid[oid];
+      if (!TYPE_PANEL[n.type]) return; // only types with a listing tab are linkable
+      (groups[n.type] = groups[n.type] || []).push(n);
+    });
+
+    var order = ["vs", "pool", "node", "mon", "rule", "dg", "prof"];
+    var html = "";
+    order.forEach(function (t) {
+      var list = groups[t];
+      if (!list || !list.length) return;
+      list.sort(function (a, b) {
+        return a.fullPath < b.fullPath ? -1 : a.fullPath > b.fullPath ? 1 : 0;
+      });
+      html +=
+        '<section class="objindex-group"><h3 class="objindex-h"><span class="tag ' +
+        t + '">' + TYPE_LABEL[t] + '</span> <span class="objindex-count">' +
+        list.length + "</span></h3><ul class=\"objindex-list\">";
+      list.forEach(function (n) {
+        var key = (n.name + " " + n.fullPath).toLowerCase();
+        html +=
+          '<li class="objindex-item" data-oid="' + esc(n.oid) + '" data-search="' +
+          esc(key) + '"><span class="objindex-name">' + esc(n.name) +
+          '</span> <span class="objindex-path mono">' + esc(n.fullPath) + "</span></li>";
+      });
+      html += "</ul></section>";
+    });
+    view.innerHTML = html || '<div class="diag-empty">No indexable objects.</div>';
+
+    view.querySelectorAll(".objindex-item[data-oid]").forEach(function (li) {
+      li.addEventListener("click", function () {
+        gotoObject(ix, li.getAttribute("data-oid"));
+      });
+    });
+
+    if (filter) {
+      filter.addEventListener("input", function () {
+        var q = filter.value.trim().toLowerCase();
+        view.querySelectorAll(".objindex-item").forEach(function (li) {
+          var show = !q || li.getAttribute("data-search").indexOf(q) !== -1;
+          li.classList.toggle("oi-hidden", !show);
+        });
+        view.querySelectorAll(".objindex-group").forEach(function (g) {
+          g.classList.toggle("oi-hidden", !g.querySelector(".objindex-item:not(.oi-hidden)"));
+        });
+      });
+    }
+  }
+
   document.querySelectorAll(".device").forEach(function (deviceEl) {
     var ix = IDX[parseInt(deviceEl.dataset.dev, 10)];
     initTopology(deviceEl, ix);
     initListener(deviceEl, ix);
+    initObjectIndex(deviceEl, ix);
     wireObjLinks(deviceEl, ix);
     // draw topology lazily the first time its tab is shown
     deviceEl.querySelectorAll('.tab[data-panel="topology"]').forEach(function (tab) {

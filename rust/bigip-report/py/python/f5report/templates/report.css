@@ -153,6 +153,23 @@ tr.expandable{cursor:pointer}
 tr.expandable.open .expander{transform:rotate(90deg);color:var(--accent)}
 tr.detail{display:none;background:color-mix(in srgb,var(--accent) 4%,transparent)}
 tr.detail.open{display:table-row}
+/* ---- Object Index tab -------------------------------------------------- */
+.objindex-bar{margin:0 0 14px}
+.objindex-filter{width:100%;max-width:420px;padding:8px 12px;border:1px solid var(--line);
+  border-radius:8px;background:var(--bg);color:var(--ink);font-size:13px}
+.objindex-filter:focus{outline:none;border-color:var(--accent)}
+.objindex-view{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;align-items:start}
+.objindex-group{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+.objindex-h{margin:0;padding:8px 12px;font-size:12px;display:flex;align-items:center;gap:8px;
+  border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.objindex-count{margin-left:auto;color:var(--muted);font-family:var(--mono);font-size:11px}
+.objindex-list{list-style:none;margin:0;padding:4px 0;max-height:340px;overflow:auto}
+.objindex-item{padding:5px 12px;cursor:pointer;display:flex;flex-direction:column;gap:1px;line-height:1.3}
+.objindex-item:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.objindex-name{font-weight:600;font-size:13px}
+.objindex-path{font-size:10.5px;color:var(--muted);word-break:break-all}
+.oi-hidden{display:none}
+
 /* Deep-link target highlight: flashed when jumped to from a drawer / index. */
 @keyframes rowFlash{0%{background:color-mix(in srgb,var(--accent) 42%,transparent)}100%{background:transparent}}
 tr.row-flash>td{animation:rowFlash 1.5s ease-out}

@@ -175,6 +175,7 @@
     {% if d.counts.gtm %}<button class="tab" data-panel="gtm">GTM / DNS <span class="n">{{ d.counts.gtm }}</span></button>{% endif %}
     {% if d.counts.firewall %}<button class="tab" data-panel="firewall">Firewall / NAT <span class="n">{{ d.counts.firewall }}</span></button>{% endif %}
     {% if d.counts.files or d.forensics.flagged %}<button class="tab" data-panel="forensics">Forensics <span class="n">{{ d.counts.files }}</span></button>{% endif %}
+    <button class="tab" data-panel="objectIndex">Object Index</button>
     <button class="tab" data-panel="topology">Topology</button>
     <button class="tab" data-panel="listener">Listener Matcher</button>
     <button class="tab" data-panel="apps">Apps <span class="n app-badge">0</span></button>
@@ -700,6 +701,18 @@
     <div class="forensics-view"></div>
   </div>
   {% endif %}
+
+  {#: ---------------- Object Index ---------------- :#}
+  {#: A flat, filterable index of every object in this device, grouped by type;
+      each row deep-links to the object's expanded row on its own tab. Built
+      client-side by topology.ts from the embedded model (shared by both
+      backends). :#}
+  <div class="panel" data-panel="objectIndex">
+    <div class="objindex-bar">
+      <input type="search" class="objindex-filter" placeholder="Filter objects by name or path…" aria-label="Filter object index">
+    </div>
+    <div class="objindex-view"></div>
+  </div>
 
   {#: ---------------- Topology ---------------- :#}
   <div class="panel" data-panel="topology">
