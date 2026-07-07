@@ -113,6 +113,9 @@ pub struct RenderOptions {
     /// generation time (raw HTML stripped) and shown in a dedicated "Front
     /// matter" tab. Empty = no tab.
     pub front_matter: String,
+    /// Optional report logo as an inlined `data:` URI, shown in the report
+    /// header in place of the default glyph. Empty = default glyph.
+    pub logo: String,
 }
 
 impl Default for RenderOptions {
@@ -127,6 +130,7 @@ impl Default for RenderOptions {
             report_id: String::new(),
             copyright: String::new(),
             front_matter: String::new(),
+            logo: String::new(),
         }
     }
 }
@@ -190,6 +194,7 @@ pub fn render_report(model: J, opts: &RenderOptions) -> Result<String, ReportErr
         crate::render_markdown(&opts.front_matter)
     };
     ctx.insert("front_matter_html".into(), J::String(front_matter_html));
+    ctx.insert("logo".into(), J::String(opts.logo.clone()));
     ctx.insert("report_id".into(), J::String(opts.report_id.clone()));
     ctx.insert(
         "f5q_manual".into(),

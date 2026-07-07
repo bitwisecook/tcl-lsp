@@ -684,6 +684,7 @@ def collect_model(
     manifest: str | None = None,
     copyright: str = "",
     front_matter: str = "",
+    logo: str = "",
 ) -> dict[str, Any]:
     """Build the full report model from loaded ``(uri, text)`` sources.
 
@@ -731,6 +732,8 @@ def collect_model(
         "front_matter_html": (
             _engine.render_markdown(front_matter) if front_matter.strip() else ""
         ),
+        # Report logo as an inlined data: URI (single-file); shown in the header.
+        "logo": logo,
         "engine_version": _engine.__version__,
         "git_hash": getattr(_engine, "__git_hash__", "unknown"),
         # Single `git describe --tags` version (v-tag + commits + hash) for the footer.
@@ -753,6 +756,7 @@ def build_report(
     manifest: str | None = None,
     copyright: str = "",
     front_matter: str = "",
+    logo: str = "",
 ) -> str:
     """Collect the model and render it to a standalone HTML document.
 
@@ -763,7 +767,7 @@ def build_report(
     """
     return render_report(
         collect_model(sources, title=title, master_key=master_key, manifest=manifest,
-                      copyright=copyright, front_matter=front_matter),
+                      copyright=copyright, front_matter=front_matter, logo=logo),
         embed_console=embed_console,
         report_id=report_id,
     )

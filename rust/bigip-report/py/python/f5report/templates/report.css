@@ -56,6 +56,9 @@ code{font-family:var(--mono)}
 .brand{display:flex;align-items:center;gap:14px}
 .logo{display:grid;place-items:center;width:38px;height:38px;border-radius:10px;
   background:linear-gradient(135deg,var(--accent),var(--blue));color:#fff;font-size:20px}
+/* User-supplied report logo (inlined data-URI): show at its aspect ratio, no
+ * gradient background. Capped so a wide wordmark or tall badge both fit. */
+.logo-custom{background:none;width:auto;height:38px;max-width:160px;object-fit:contain;border-radius:6px}
 .topbar h1{font-size:17px}
 .sub{margin:2px 0 0;color:var(--muted);font-size:12px}
 .topbar-actions{display:flex;align-items:center;gap:10px}

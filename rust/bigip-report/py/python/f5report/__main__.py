@@ -25,12 +25,28 @@ HTML report, using the native query engine for every fact it shows.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
+import mimetypes
 import sys
 import uuid as _uuid
 
 from . import __version__, engine_version, load_paths
 from .report import build_report, collect_model
+
+
+def _logo_data_uri(path: str) -> str:
+    """Read an image file and return it as an inlined ``data:`` URI.
+
+    The report is a single self-contained file, so the logo is embedded rather
+    than referenced. The MIME type is guessed from the extension (``.svg`` →
+    ``image/svg+xml``); an unknown type falls back to ``application/octet-stream``.
+    """
+    data = open(path, "rb").read()
+    mime, _ = mimetypes.guess_type(path)
+    if mime is None:
+        mime = "image/svg+xml" if path.lower().endswith(".svg") else "application/octet-stream"
+    return f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -65,6 +81,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--front-matter", metavar="FILE", default=None,
                         help="Markdown file shown in a 'Front matter' tab at the front of "
                         "the report (rendered to HTML at generation time)")
+    parser.add_argument("--logo", metavar="FILE", default=None,
+                        help="image file (PNG/JPEG/SVG/GIF/WebP) shown as the report's "
+                        "header logo; inlined as a data: URI so the report stays one file")
     parser.add_argument("--json", action="store_true",
                         help="emit the report model as JSON instead of HTML")
     parser.add_argument("--version", action="version",
@@ -95,6 +114,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"f5-report: could not read --front-matter: {exc}", file=sys.stderr)
             return 2
 
+    logo = ""
+    if args.logo:
+        try:
+            logo = _logo_data_uri(args.logo)
+        except OSError as exc:
+            print(f"f5-report: could not read --logo: {exc}", file=sys.stderr)
+            return 2
+
     try:
         sources = load_paths(
             args.inputs, passphrase=args.passphrase, include_extras=args.include_extras
@@ -107,7 +134,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.json:
             out = json.dumps(
                 collect_model(sources, title=args.title, master_key=master_key,
-                              copyright=copyright_notice, front_matter=front_matter),
+                              copyright=copyright_notice, front_matter=front_matter,
+                              logo=logo),
                 indent=2, default=str,
             )
         else:
@@ -116,7 +144,8 @@ def main(argv: list[str] | None = None) -> int:
                                master_key=master_key,
                                report_id=str(_uuid.uuid4()),
                                copyright=copyright_notice,
-                               front_matter=front_matter)
+                               front_matter=front_matter,
+                               logo=logo)
     except Exception as exc:  # noqa: BLE001 — surface a clean CLI error (e.g. wrong master key)
         print(f"f5-report: {exc}", file=sys.stderr)
         return 2
