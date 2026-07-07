@@ -129,14 +129,29 @@ pub struct WorkspaceSource {
     pub is_literal: bool,
 }
 
+/// One `package require NAME` declaration recorded in the index.
+///
+/// Lets a module inherit the requires of the entry file(s) that `source` it,
+/// so the workspace W120 refinement does not flag a command whose package is
+/// required upstream (see [`crate::source_graph`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspacePackageRequire {
+    /// Document containing the `package require` statement.
+    pub uri: String,
+    /// Required package name (the `NAME` argument).
+    pub name: String,
+}
+
 /// Cross-document aggregate of proc / class definitions,
-/// command-invocation sites, and `source` references.
+/// command-invocation sites, `source` references, and
+/// `package require` declarations.
 #[derive(Debug, Clone, Default)]
 pub struct WorkspaceIndex {
     procs: Vec<WorkspaceProc>,
     classes: Vec<WorkspaceClass>,
     invocations: Vec<WorkspaceInvocation>,
     sources: Vec<WorkspaceSource>,
+    package_requires: Vec<WorkspacePackageRequire>,
 }
 
 impl WorkspaceIndex {
@@ -206,6 +221,12 @@ impl WorkspaceIndex {
                 is_literal: target.is_literal,
             });
         }
+        for pr in &analysis.package_requires {
+            self.package_requires.push(WorkspacePackageRequire {
+                uri: uri.to_owned(),
+                name: pr.name.clone(),
+            });
+        }
     }
 
     /// Drop every entry that came from `uri` (used before
@@ -215,12 +236,68 @@ impl WorkspaceIndex {
         self.classes.retain(|c| c.uri != uri);
         self.invocations.retain(|i| i.uri != uri);
         self.sources.retain(|s| s.uri != uri);
+        self.package_requires.retain(|pr| pr.uri != uri);
     }
 
     /// Every indexed `source FILE` reference.
     #[must_use]
     pub fn sources(&self) -> &[WorkspaceSource] {
         &self.sources
+    }
+
+    /// Every indexed `package require NAME` declaration.
+    #[must_use]
+    pub fn package_requires(&self) -> &[WorkspacePackageRequire] {
+        &self.package_requires
+    }
+
+    /// The package names `uri` `package require`s, de-duplicated. Used to seed
+    /// the workspace W120 refinement from an explicitly configured project
+    /// entry file.
+    #[must_use]
+    pub fn package_requires_for(&self, uri: &str) -> Vec<String> {
+        let mut out: Vec<String> = self
+            .package_requires
+            .iter()
+            .filter(|pr| pr.uri == uri)
+            .map(|pr| pr.name.clone())
+            .collect();
+        out.sort();
+        out.dedup();
+        out
+    }
+
+    /// The union of `package require` names from every document that
+    /// transitively `source`s `target_uri`.
+    ///
+    /// `resolve(parent_uri, raw_path)` maps a literal `source` path written in
+    /// `parent_uri` to the child document's URI (the server supplies the
+    /// URI ↔ path conversion); a `None` return drops that unresolvable edge.
+    /// Only literal `source` targets are followed — a `source $dir/x.tcl` whose
+    /// path is computed at runtime cannot be resolved statically.  The
+    /// reachability walk and requires union live in
+    /// [`crate::source_graph::ancestor_requires`].
+    #[must_use]
+    pub fn source_ancestor_package_requires(
+        &self,
+        target_uri: &str,
+        resolve: impl Fn(&str, &str) -> Option<String>,
+    ) -> Vec<String> {
+        let edges: Vec<(String, String)> = self
+            .sources
+            .iter()
+            .filter(|s| s.is_literal)
+            .filter_map(|s| resolve(&s.uri, &s.raw_path).map(|child| (s.uri.clone(), child)))
+            .collect();
+        let mut requires: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        for pr in &self.package_requires {
+            requires
+                .entry(pr.uri.clone())
+                .or_default()
+                .push(pr.name.clone());
+        }
+        crate::source_graph::ancestor_requires(target_uri, &edges, &requires)
     }
 
     /// Every indexed proc.
@@ -882,5 +959,61 @@ mod tests {
         assert!(!index.invocations().is_empty());
         index.remove_document("file:///a.tcl");
         assert!(index.invocations().is_empty());
+    }
+
+    #[test]
+    fn indexes_and_removes_package_requires() {
+        let a = analyse("package require Tk\npackage require http\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        assert_eq!(
+            index.package_requires_for("file:///a.tcl"),
+            vec!["Tk".to_owned(), "http".to_owned()]
+        );
+        index.remove_document("file:///a.tcl");
+        assert!(index.package_requires().is_empty());
+    }
+
+    #[test]
+    fn source_ancestor_requires_walks_the_graph() {
+        // app.tcl requires Tk and sources lib/util.tcl; util inherits Tk.
+        let app = analyse("package require Tk\nsource lib/util.tcl\n");
+        let util = analyse("proc u {} {}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///proj/app.tcl", &app),
+            ("file:///proj/lib/util.tcl", &util),
+        ]);
+        // Resolver mirrors the server's: join the raw path onto the parent's
+        // directory (path portion of the file URI).
+        let resolve = |parent: &str, raw: &str| -> Option<String> {
+            let dir = parent.rsplit_once('/').map(|(d, _)| d)?;
+            Some(format!("{dir}/{raw}"))
+        };
+        let got = index.source_ancestor_package_requires("file:///proj/lib/util.tcl", resolve);
+        assert_eq!(got, vec!["Tk".to_owned()]);
+        // The entry file itself inherits nothing.
+        assert!(
+            index
+                .source_ancestor_package_requires("file:///proj/app.tcl", resolve)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn source_ancestor_requires_ignores_nonliteral_sources() {
+        // A computed `source $path` produces no resolvable edge.
+        let app = analyse("package require Tk\nsource $dir/util.tcl\n");
+        let util = analyse("proc u {} {}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///proj/app.tcl", &app),
+            ("file:///proj/util.tcl", &util),
+        ]);
+        let resolve =
+            |_p: &str, _r: &str| -> Option<String> { panic!("non-literal must not resolve") };
+        assert!(
+            index
+                .source_ancestor_package_requires("file:///proj/util.tcl", resolve)
+                .is_empty()
+        );
     }
 }

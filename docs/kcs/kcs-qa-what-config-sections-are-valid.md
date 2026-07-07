@@ -38,6 +38,14 @@ when this section appears in the **global** XDG `config.ini`; a
   command names the analyser should recognise.
 - `libraryPaths` — one path per line, or comma-separated for one-line
   values. Extra directories for the package and source resolver.
+- `entryPoints` — one path per line, or comma-separated for one-line
+  values, relative to the folder root (or absolute). The project's
+  "main" files that run the `package require`s and `source` the rest.
+  When set, every file inherits these entries' `package require`s for
+  the missing-`package require` check
+  ([W120](codes/kcs-diagnostic-w120-missing-package-require.md)), and
+  the automatic `source`-graph inheritance is turned off. Most useful
+  in `.tcl-lsp.ini` (`[project]`).
 
 ### `[project]` (only in `.tcl-lsp.ini`)
 

@@ -58,6 +58,7 @@ pub mod selection_range;
 pub mod semantic_tokens;
 pub mod signature_help;
 pub mod snippets;
+pub mod source_graph;
 pub mod source_style;
 pub mod tcl_install;
 pub mod type_definition;

@@ -193,6 +193,19 @@ pub fn settings_from_ini(content: &str, layer: Layer) -> Value {
             );
         }
     }
+    // `entryPoints` — the project's "main" files that run the `package
+    // require`s and `source` the rest. When set, W120 auto source-graph
+    // inheritance is disabled and every file inherits these entries' requires.
+    // Accepts one path per line (configparser continuation) or a comma list.
+    if let Some(raw) = section_value(&sections, top, "entryPoints") {
+        let entries = parse_path_list(raw);
+        if !entries.is_empty() {
+            out.insert(
+                "entryPoints".to_owned(),
+                Value::Array(entries.into_iter().map(Value::String).collect()),
+            );
+        }
+    }
 
     insert_diagnostics(&sections, &mut out);
     insert_optimiser(&sections, &mut out);
