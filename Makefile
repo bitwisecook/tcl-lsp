@@ -835,7 +835,6 @@ ensure-tcl-deps: ## Install Tcl shells needed by Tcl/tclpkg tests and bytecode c
 		SKIP_RUST=1 \
 		SKIP_WASMTIME=1 \
 		SKIP_BINARYEN=1 \
-		SKIP_TCL_REGEX=1 \
 		SKIP_EMACS=1 \
 		SKIP_XVFB=1 \
 		SKIP_TSHARK=1 \
@@ -855,7 +854,6 @@ ensure-rust-deps: ## Install Rust/rustup + wasm32-wasip2 target needed by check-
 			SKIP_KOTLINC=1 \
 			SKIP_WASMTIME=1 \
 			SKIP_BINARYEN=1 \
-			SKIP_TCL_REGEX=1 \
 			SKIP_EMACS=1 \
 			SKIP_XVFB=1 \
 			SKIP_TSHARK=1 \
@@ -881,7 +879,6 @@ ensure-emacs-deps: ## Install Emacs needed by test-emacs
 			SKIP_RUST=1 \
 			SKIP_WASMTIME=1 \
 			SKIP_BINARYEN=1 \
-			SKIP_TCL_REGEX=1 \
 			SKIP_XVFB=1 \
 			SKIP_TSHARK=1 \
 			SKIP_OPENSSL=1 \
@@ -903,7 +900,6 @@ ensure-vscode-test-deps: ## Install xvfb for Linux headless VS Code extension te
 		SKIP_RUST=1 \
 		SKIP_WASMTIME=1 \
 		SKIP_BINARYEN=1 \
-		SKIP_TCL_REGEX=1 \
 		SKIP_EMACS=1 \
 		SKIP_TSHARK=1 \
 		SKIP_OPENSSL=1 \

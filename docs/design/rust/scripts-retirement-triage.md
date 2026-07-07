@@ -270,7 +270,9 @@ artifact, so there is nothing to port; they die with Python:
 
 - `dev/ensure-test-deps.sh`, `dev/resolve-tcl-library.sh`, `dev/tclsh_check.sh`,
   `dev/test-slow-runner.sh`, `test-slow-stamp.sh`, `worktree-fingerprint.sh`,
-  `fetch_tcl_regex.sh`, `build/render_logo.sh`, `screenshots.sh`. **Keep.**
+  `build/render_logo.sh`, `screenshots.sh`. **Keep.**
+  (`fetch_tcl_regex.sh` retired with the C Henry-Spencer regex vendoring — the
+  ARE engine is now the pure-Rust `tcl-regex` crate.)
 
 ### B6 — Release / install shell (backend-agnostic)
 

@@ -13,8 +13,9 @@ because it never bump-allocates; the refcount discipline (#2, #3,
 and Phase MM-B) still applies:
 
 1. **Heap incoherence with wasi-libc.**  The
-   vendored Spencer regex engine called `MALLOC`/`FREE` which bind
-   to wasi-libc's dlmalloc.  dlmalloc's heap starts at `__heap_base`
+   vendored Spencer regex engine (since removed — the ARE engine is
+   now the pure-Rust `tcl-regex` crate) called `MALLOC`/`FREE` which
+   bind to wasi-libc's dlmalloc.  dlmalloc's heap starts at `__heap_base`
    and grows upward.  A bump allocator started at a fixed offset
    (originally 64 KB, then 17 MB after the Phase 1.3 data-segment
    fix) and *also* grew upward.  On heavy regex workloads —
