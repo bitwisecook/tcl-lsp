@@ -1915,7 +1915,20 @@ impl Backend {
         {
             return d.to_owned();
         }
-        if let Some(d) = lang_dialect {
+        // A *versioned* or non-Tcl language id (`tcl8.4`, `tcl9.0`,
+        // `f5-irules`, …) is a deliberate, specific choice and wins over the
+        // per-folder and session (config-file) dialect below. The bare `"tcl"`
+        // id is different: editors send it for *every* `.tcl` file, so it names
+        // no specific version and must NOT be treated as authoritative — it has
+        // to defer to the folder override and the session `default_dialect`
+        // (which the `dialect =` key of `config.ini` / `.tcl-lsp.ini` sets).
+        // Without this deferral a config-file dialect would never take effect
+        // for a normally-opened `.tcl` buffer (issue #805); the session default
+        // is itself `tcl8.6` unless configured, so an unconfigured file still
+        // resolves exactly as the old direct `"tcl"` → `tcl8.6` mapping did.
+        if language_id != "tcl"
+            && let Some(d) = lang_dialect
+        {
             return d.to_owned();
         }
         if let Some(d) = self.resolve_folder_dialect(uri).await {
@@ -13001,18 +13014,47 @@ mod tests {
             "f5-irules".to_owned(),
         )];
         let doc = Uri::from_str("file:///workspace/main.tcl").unwrap();
-        // A `tcl` language id maps to `tcl8.6` directly, so the
-        // folder override is *not* consulted (language_id is the
-        // most specific signal we have).
+        // The bare `tcl` language id names no specific version (editors send it
+        // for every `.tcl` file), so the folder override *is* consulted — it is
+        // the more specific signal.
         assert_eq!(
             backend.dialect_for_open(&doc, "tcl", "").await,
-            "tcl8.6".to_owned(),
+            "f5-irules".to_owned(),
         );
         // An unknown language id (`plaintext`) lets the folder
         // override take effect.
         assert_eq!(
             backend.dialect_for_open(&doc, "plaintext", "").await,
             "f5-irules".to_owned(),
+        );
+        // An explicit *versioned* language id is a deliberate choice and still
+        // wins over the folder override.
+        assert_eq!(
+            backend.dialect_for_open(&doc, "tcl9.0", "").await,
+            "tcl9.0".to_owned(),
+        );
+    }
+
+    /// A `dialect =` key in `config.ini` / `.tcl-lsp.ini` sets the session
+    /// `default_dialect`; a normally-opened `.tcl` buffer (language id `"tcl"`,
+    /// which every editor sends) must resolve to it rather than pinning
+    /// `tcl8.6`. Regression test for issue #805.
+    #[tokio::test]
+    async fn dialect_for_open_respects_config_default_dialect() {
+        let backend = test_backend();
+        *backend.default_dialect.lock().await = "tcl9.0".to_owned();
+        let doc = Uri::from_str("file:///workspace/main.tcl").unwrap();
+        assert_eq!(
+            backend.dialect_for_open(&doc, "tcl", "").await,
+            "tcl9.0".to_owned(),
+        );
+        // An in-source dialect directive is still the most specific signal and
+        // overrides the configured default.
+        assert_eq!(
+            backend
+                .dialect_for_open(&doc, "tcl", "# tcl-dialect: tcl8.4\n")
+                .await,
+            "tcl8.4".to_owned(),
         );
     }
 
