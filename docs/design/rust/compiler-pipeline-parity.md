@@ -186,7 +186,7 @@ underlying logic.
   Tcl 8.4/8.5/8.6's `Tcl_ParseVarName` stops at the *first* `}` (no depth, no
   backslash) — the project standardises the `${…}` parse on 9.0.3 across all
   dialects per principle #0 (the Python lexer is test-pinned the same way under
-  the default 8.6 dialect). See [history](../../rust-rewrite-history.md).
+  the default 8.6 dialect). See history.
 - **Default position column is a byte offset, not UTF-16 (C1).** The lexer/
   `SourceMap` token-resolution path uses `position_at` (byte column,
   `line_index.rs:103-114`); the UTF-16-correct `position_at_utf16`
@@ -1117,7 +1117,7 @@ not a decision.
 | 3 | Optimiser §7 | **O108** ADCE treats every assignment as side-effect-free → can delete `set x [impureCmd]` | elimination.rs:740 | Verify against landed RHS-purity gate; restore if genuinely dropped. |
 | 4 | Value/SCCP §5 | SCCP omits **escaping-var widening** (`::g`/escaping names not forced OVERDEFINED) | sccp.rs `evaluate_def` (no guard; `escaping_var_names` lives in var_observability.rs, unused by SCCP) | Consult `escaping_var_names` in `evaluate_def`. |
 | 5 | Value/SCCP §5 | SCCP omits **break-edge reachability** → false O107 / unsound DCE on `while 1 {… break}` (already tracked as `fp_rch`, rust-rewrite.md:5037) | sccp.rs (no `break_exits`) | Port the break-exit precompute (core_analyses.py:1337). |
-| 6 | Lexer §1 | ~~**`${a\}b}` / `${a{b}c}`** braced-var scan stops at first `}`~~ **DONE (FE-LEX, 2026-06-19)** — `parse_var` + `scan_dollar_brace` track inner-brace depth and consume `\X` (9.0.3 reference; verified against `tclsh9.0`) | lexer.rs `parse_var` | Landed; see [history](../../rust-rewrite-history.md). |
+| 6 | Lexer §1 | ~~**`${a\}b}` / `${a{b}c}`** braced-var scan stops at first `}`~~ **DONE (FE-LEX, 2026-06-19)** — `parse_var` + `scan_dollar_brace` track inner-brace depth and consume `\X` (9.0.3 reference; verified against `tclsh9.0`) | lexer.rs `parse_var` | Landed; see history. |
 | 7 | Memory-SSA §4 | **upvar transitive-merge** divergence (`upvar 1 x a; upvar 1 x b` → `may_alias("a","b")` False); code/test/doc disagree | memory_ssa.rs:519 | Decide intended semantics; align code+test+doc. |
 | 8 | Memory-SSA §4 | **`IRUpFrame` not a clobber** → non-inlined `uplevel {…}` doesn't bump memory version | memory_ssa.rs `is_clobber` | Add `IRUpFrame` to the clobber set. |
 | 9 | Shimmer §5 | **S100 severity** emitted as Warning, not Information; **phi-S101 / expr-S100** code-strings ignore `in_loop` | compiler_checks.rs:113; phi.rs:146; expr.rs:273 | Map S100→Information; compute code from `in_loop`. |

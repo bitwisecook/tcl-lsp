@@ -1,7 +1,7 @@
 # `tcl-runtime` — Rust port of the Tcl WASM runtime
 
 The Rust runtime (Track 1 of
-[`docs/design/runtime/rust-runtime-port.md`](../../docs/design/runtime/rust-runtime-port.md)):
+`docs/design/runtime/rust-runtime-port.md`):
 every allocation is balanced by a refcount-driven free, and the alloc/free
 counters prove it.
 

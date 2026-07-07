@@ -18,9 +18,8 @@
 
 //! Tcl substitution engine (`subst`, and the eval loop's word expander) — T1.2.
 //!
-//! Ports the *structure* of `runtime/zig/parse/tcl_subst.zig`'s `subst_flagged`,
-//! re-derived onto the shared [`crate::parse::scan_parts`] component model so
-//! parse and subst share one scanner (the Zig duplicated it).
+//! Implements `subst_flagged` on the shared [`crate::parse::scan_parts`]
+//! component model so parse and subst share one scanner.
 //!
 //! Substitution is two halves:
 //! 1. **Scan** the input into components ([`scan`]) — pure, done here.

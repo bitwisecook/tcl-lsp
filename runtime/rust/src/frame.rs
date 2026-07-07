@@ -28,8 +28,7 @@
 //! that ties frames and namespaces together (the variable parallel of the
 //! command resolver) lives in [`crate::vars`].
 //!
-//! Representation decisions (see `rust-runtime-port.md` T1.3 / namespace-tree.md
-//! §5.3):
+//! Representation decisions (see namespace-tree.md §5.3):
 //! - **`BTreeMap`** (not `HashMap`) for both the var table and array elements —
 //!   deterministic iteration (`std::HashMap`'s `RandomState` would make
 //!   `info vars` / `array names` vary run-to-run, poison for an oracle-diffed

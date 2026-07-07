@@ -1,7 +1,6 @@
 # EXP-BIGNUM — the numeric tower's bignum representation (evidence)
 
-Throwaway probes for the bignum-rep decision recorded in
-`docs/design/runtime/rust-runtime-port.md` (EXP-BIGNUM). Run against the
+Throwaway probes for the bignum-rep decision (EXP-BIGNUM). Run against the
 reference libtommath bundled in `tmp/tcl9.0.3/libtommath` with its Tcl wrapper
 header `tmp/tcl9.0.3/generic/tclTomMath.h`.
 
@@ -12,9 +11,9 @@ cd tmp/tcl9.0.3
 # native (defaults to MP_64BIT on a 64-bit host)
 clang -Igeneric -Ilibtommath runtime/.../lt_layout.c -o /tmp/lt_n && /tmp/lt_n
 # wasm32 default (libtommath picks MP_32BIT off the 32-bit pointer)
-zig cc --target=wasm32-wasi -Igeneric -Ilibtommath lt_layout.c -o a.wasm && wasmtime a.wasm
+clang --target=wasm32-wasi -Igeneric -Ilibtommath lt_layout.c -o a.wasm && wasmtime a.wasm
 # wasm32 + forced MP_64BIT (the chosen, wasm-matched config)
-zig cc --target=wasm32-wasi -DMP_64BIT -Igeneric -Ilibtommath lt_layout.c -o a.wasm && wasmtime a.wasm
+clang --target=wasm32-wasi -DMP_64BIT -Igeneric -Ilibtommath lt_layout.c -o a.wasm && wasmtime a.wasm
 ```
 
 Result:
@@ -50,7 +49,7 @@ SRCS=$(ls libtommath/*.c | grep -vE 'bn_deprecated|rand|prime')   # 139 files
 # native (defaults to MP_64BIT) — `mp_*` symbols, no stubs:
 clang -DTCL_WITH_EXTERNAL_TOMMATH -DLTM_ALL -Ilibtommath lt_arith.c $SRCS -o a && ./a
 # wasm32, forcing 60-bit limbs:
-zig cc --target=wasm32-wasi -DTCL_WITH_EXTERNAL_TOMMATH -DLTM_ALL -DMP_64BIT \
+clang --target=wasm32-wasi -DTCL_WITH_EXTERNAL_TOMMATH -DLTM_ALL -DMP_64BIT \
     -Ilibtommath lt_arith.c $SRCS -o a.wasm && wasmtime a.wasm
 ```
 

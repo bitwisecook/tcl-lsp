@@ -923,7 +923,7 @@ validation, `::tcl::dict::map`, `dict map` `break`, `lsort -unique` keep-last),
 control (`try` array-element bind), and `namespace which -variable` all match
 tclsh — so the `bug_*` tests now stand as **regression guards** rather than a
 TODO list. The fix detail is in
-[the history archive](rust-rewrite-history.md) (2026-06-25). New VM commands or
+the history archive (2026-06-25). New VM commands or
 opcodes should extend these suites, oracle-pinned, before landing.
 
 ## TEST-MIGRATE — incremental pytest → Rust ports (non-destructive)

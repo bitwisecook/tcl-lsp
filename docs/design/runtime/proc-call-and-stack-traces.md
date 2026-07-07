@@ -1,7 +1,6 @@
 # Proc call, exceptions, and stack traces — the call protocol
 
-> Design doc, written **before** implementing procs (gates the T1.6 proc chunk
-> in [`rust-runtime-port.md`](rust-runtime-port.md)). It figures out *the proper
+> Design doc, written **before** implementing procs (gates the T1.6 proc chunk). It figures out *the proper
 > way to call something* and *what information every call must carry* so that
 > stack traces, `info frame`/`info level`, exceptions, `eval`/`uplevel`/`source`/
 > `package`, and **AOT↔interpreter interop** all work. Grounded in the C Tcl 9
@@ -421,8 +420,6 @@ above); speed is recovered only afterwards.**
 
 ## Cross-references
 
-- [`rust-runtime-port.md`](rust-runtime-port.md) — Track 1 (gates the proc chunk),
-  the AOT staircase interop, the conservative principle.
 - [`c-extension-abi.md`](c-extension-abi.md) §4.6 — extension-command dispatch
   (the `External` call path).
 - [`namespace-tree.md`](namespace-tree.md) — namespace resolution (T1.5), the

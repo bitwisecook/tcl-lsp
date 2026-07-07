@@ -11,14 +11,14 @@
 >    subsystem** (Info-severity diagnostics + the `info` command family).
 >
 > Scope: the Rust workspace under `rust/` plus the go-forward WASM runtime
-> `runtime/rust/`. The Python tree and `runtime/zig/` are **out of scope** — they are
-> being deleted, and this review treats them as already gone. Reviewed on branch
+> `runtime/rust/`. The Python tree is **out of scope** — it is
+> being deleted, and this review treats it as already gone. Reviewed on branch
 > `claude/exciting-planck-q7rj94`; claims anchored file:line. Companion to:
 > [workspace deep review](workspace-deep-review-2026-06-22.md),
 > [LSP-server deep review](lsp-server-deep-review-2026-06-22.md),
 > [Python→Rust parity audit](python-rust-parity-audit-2026-06-22.md),
-> [production-readiness assessment](production-readiness-2026-06-23.md),
-> [architecture & code-quality review](architecture-and-quality-2026-06-23.md).
+> production-readiness assessment,
+> architecture & code-quality review.
 
 ## Verdict
 
@@ -70,7 +70,7 @@ five companions was re-verified to still hold.** Three points matter for the fin
    / cmd-core / bigip / registry helper tests to Rust, but **the FP precision suite was
    not ported**: zero `rust/**/tests/*.rs` reference any FP-id, and all 12
    `tests/test_fp_*.py` still exist as Python-only. They are actively porting tests yet
-   skipped the precision contract — the [AQ §F](architecture-and-quality-2026-06-23.md)
+   skipped the precision contract — the AQ §F
    headline stands, now with a live test-migration effort that should simply include it.
 2. **PyO3 is being *reinforced*, not retired — distinguish binding from core.** ARCH9 just
    built a structured PyO3 public surface for wheel consumers; `tcl-lsp-rust` remains a
@@ -80,7 +80,7 @@ five companions was re-verified to still hold.** Three points matter for the fin
    wholesale).
 3. **xtask is now the tooling home, but `cargo deny` is still unwired.** The
    scripts→xtask migration is the natural place to wire the supply-chain gate, yet no
-   `cargo deny` invocation exists in `xtask`, the `Makefile`, or CI — [AQ §D6](architecture-and-quality-2026-06-23.md)
+   `cargo deny` invocation exists in `xtask`, the `Makefile`, or CI — AQ §D6
    holds. (New xtask verbs of note: `refcount_contract`, `audit_option_dialects`,
    `tzdata_bundle`.)
 
@@ -190,7 +190,7 @@ differently at almost every layer boundary that touches the editor.
    (`gvn.rs:45`), `Version` a bare alias not a newtype (`ssa.rs:38`) — cloned through every
    pass — whereas `tcl-bytecode` interns to numeric ids (`lib.rs:799-895`). This is the
    type-level root of the performance findings in
-   [AQ §D1–D3](architecture-and-quality-2026-06-23.md); **Fix:** `BlockId`/`ValueId`/
+   AQ §D1–D3; **Fix:** `BlockId`/`ValueId`/
    `Symbol` newtypes backed by the bytecode interner pattern.
 6. **"Range" exists 5 ways, "Dialect" 2 ways.** Range: `Span`, `SourcePosition`,
    `LspRange` (`definition.rs:64`), the `tower_lsp` wire type, plus separate clones in
@@ -426,7 +426,7 @@ coverage, it's a **correctness divergence**: the VM hard-codes `tclversion → "
 where the WASM runtime reads live state — and the VM's `9.0.0` even disagrees with the
 WASM runtime's `9.0.3`.
 
-**This is a registry-leverage failure (ties to [AQ §A2/§C](architecture-and-quality-2026-06-23.md)).**
+**This is a registry-leverage failure (ties to AQ §A2/§C).**
 The 15 common subcommands *are* shared via `tcl_cmd_core::info::*`
 (`tcl-cmd-core/src/info.rs`), but the WASM runtime's 14 extras are hand-rolled with no
 shared backing, and **neither runtime is registry-driven** even though
@@ -447,7 +447,7 @@ information-provider handlers.
 
 ## 6. Additions to the production-readiness roadmap
 
-These extend the [architecture-and-quality roadmap](architecture-and-quality-2026-06-23.md)
+These extend the architecture-and-quality roadmap
 (P0 = blocks deleting Python; P1 = ship-quality; P2 = throughput; P3 = hygiene).
 
 **P0 — add to the "before Python is deleted" set:**

@@ -18,8 +18,7 @@
 
 //! Rust port of the Tcl WASM runtime — support library + interpreter fallback.
 //!
-//! Track 1 of the effort tracked in
-//! `docs/design/runtime/rust-runtime-port.md`. The `Tcl_Obj` model is
+//! Track 1 of the runtime port. The `Tcl_Obj` model is
 //! ABI-faithful (`c-extension-abi.md` §4.2), refcounts are balanced, and the
 //! alloc/free counters prove leak-freedom.
 //!

@@ -22,8 +22,7 @@
 # primitives that BOTH the LSP/compiler suite and the WASM runtime port need —
 # list split/merge (`Tcl_SplitList`/`Tcl_Merge`), substitution decomposition,
 # the `expr` AST + Pratt parser, the `TclParseNumber` numeric grammar, and the
-# `format`/`scan` spec parsers. See
-# `docs/design/runtime/rust-runtime-port.md` ("the `tcl-syntax` decision").
+# `format`/`scan` spec parsers.
 #
 # Dependency DAG (no cycles):
 #   tcl-lexer  <-  tcl-syntax  <-  { tcl-registry, tcl-compiler, runtime/rust }

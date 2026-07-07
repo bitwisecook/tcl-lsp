@@ -12,7 +12,7 @@
 > behavioural **oracle**. The WASM side migrates onto these interfaces *later*,
 > guided by [§7 WASM migration steering](#7-wasm-migration-steering). The
 > near-term implementation target is the bytecode VM + the emitter trait on the
-> Rust side ([docs/design/runtime/rust-runtime-port.md] discipline).
+> Rust side.
 
 ## 1. Why this document exists
 
@@ -583,8 +583,7 @@ The migration path, for when we choose to converge them:
    frame-alias bit-tagging, `Tcl_Obj` 24-byte layout) as explicitly *not* part of
    the shared interface.
 5. **Never regress** the compiler/LSP or the Rust runtime; the C Tcl 9 test suite
-   (`tmp/tcl9.0.3/tests/*.test`) stays the gold standard
-   ([docs/design/runtime/rust-runtime-port.md]).
+   (`tmp/tcl9.0.3/tests/*.test`) stays the gold standard.
 
 ## 8. Longest poles / risks (call these out before building)
 
@@ -678,5 +677,4 @@ panicking stub and drop the compiler entirely.
 - [docs/design/compiler/wasm-runtime-primitives.md] — the import boundary.
 - [docs/design/runtime/namespace-tree.md], [docs/design/runtime/proc-call-and-stack-traces.md], [docs/design/runtime/command-introspection.md], [docs/design/runtime/trace-implementation.md], [docs/design/runtime/rename-alias.md], [docs/design/runtime/child-interp.md] — the family-B subsystems.
 - [docs/design/runtime/c-extension-abi.md] — why the value model can't be one type.
-- [docs/design/runtime/rust-runtime-port.md] — the Rust runtime-port discipline this VM rides alongside.
 - [docs/design/contracts/vm-bytecode-test-boundary.md] — bytecode identity/test boundary.

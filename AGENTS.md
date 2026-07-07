@@ -274,8 +274,7 @@ targets — must stay aligned with the registry: every command in the
 registry needs runtime backing (a real handler, an interpreter-fallback
 path, or an explicit "not required" classification such as the
 `tcl::mathop::*` prefix-form operators).  The runtime port is a distinct
-workstream tracked in
-[`docs/design/runtime/rust-runtime-port.md`](docs/design/runtime/rust-runtime-port.md).
+workstream (`runtime/rust/`).
 
 For a walkthrough of how a Tcl script becomes a WASM module (the
 6-phase codegen pipeline, per-statement dispatch order, per-command
@@ -782,8 +781,7 @@ layers — not just the one closest to the symptom.
   `docs/design/contracts/irule-test-framework.md` for architecture.
 - **WASM runtime tests** (`runtime/rust/`): the Rust WASM runtime port carries
   its own leak round-trip + eval suite, gated separately via
-  `make runtime-rust-test` (see
-  [`docs/design/runtime/rust-runtime-port.md`](docs/design/runtime/rust-runtime-port.md)).
+  `make runtime-rust-test`.
 - **xfail policy**: an expected-failure / `#[ignore]` marker is only permitted
   as an intermediate state while a feature is under active development. Before a
   feature is considered ready for release, all underlying issues must be fixed

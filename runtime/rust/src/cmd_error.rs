@@ -19,8 +19,7 @@
 //! `catch` + `error` — the exception foundation (PC-4, toward running tcltest).
 //!
 //! Modelled on C Tcl 9 (`tclCmdAH.c` `Tcl_CatchObjCmd`, `tclProc.c`/`tclResult.c`
-//! `Tcl_ErrorObjCmd`) and the Zig oracle's catch discoveries
-//! (`tcltest-bringup.md` appendix). `catch` snapshots the body's completion code
+//! `Tcl_ErrorObjCmd`). `catch` snapshots the body's completion code
 //! and result **before** resetting the interp result; `error` stamps the
 //! `::errorInfo` / `::errorCode` globals on every error (`NONE` default).
 //!

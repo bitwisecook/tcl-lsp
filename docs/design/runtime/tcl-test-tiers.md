@@ -301,5 +301,3 @@ core-vs-feature lens.
 - [`backend-constraints.md`](backend-constraints.md) — per-backend skip overlay
   and `tcl_platform` introspection.
 - [`child-interp.md`](child-interp.md) — child-interpreter design (Tier 8).
-- [`tcltest-bringup.md`](tcltest-bringup.md) — how the real `init.tcl` /
-  `tcltest.tcl` are brought up, and the no-edit hard rules.

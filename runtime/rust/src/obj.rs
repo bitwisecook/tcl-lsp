@@ -56,7 +56,7 @@ pub type TclSize = isize;
 pub type TclWideInt = i64;
 
 /// `Tcl_ObjType` — the registered type descriptor (`tcl.h`). The four procs are
-/// the **shimmer keystone** (`rust-runtime-port.md` value-kinds): the runtime
+/// the **shimmer keystone** (value-kinds): the runtime
 /// dispatches free / dup / string-generation through `typePtr`, so built-in
 /// types (int, double, list, …) and extension-registered custom types share one
 /// mechanism — type handling is open, never a closed enum (the §6/Track-2
