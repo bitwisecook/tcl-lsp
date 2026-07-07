@@ -3,7 +3,7 @@
 #   * the self-contained f5report `.pyz` (Python generator CLI) per platform,
 #   * the single-file HTML generator (the Rust generator's browser form — one
 #     index.html with the WASM engine embedded), built once, and
-#   * (Stage B) the native Rust generator CLI binary per platform.
+#   * the native Rust generator CLI binary (`bigip-report-gen`) per platform.
 #
 # The `.pyz` bundles the native `_engine` extension (Rust query engine via PyO3)
 # together with its Python deps (minijinja), built by `shiv`. Because the compiled
@@ -102,29 +102,46 @@ jobs:
             --find-links report-wheels --reproducible \
             f5report
           echo "PYZ_PATH=dist/${pyz}" >> "$GITHUB_ENV"
+          # Share the version/os stamp with the Rust-CLI step below (each step is
+          # a fresh shell, so shell vars don't carry over).
+          echo "REPORT_VERSION=${version}" >> "$GITHUB_ENV"
+          echo "REPORT_OS=${os}" >> "$GITHUB_ENV"
 
-      # ── Stage B slot: native Rust generator CLI binary ────────────────────
-      # Once `bigip-report-gen-rust` grows a `[[bin]]` (the native CLI), build
-      # it for this platform here and attach it alongside the .pyz, e.g.:
-      #   - name: Build the Rust generator CLI
-      #     run: |
-      #       cargo build --release -p bigip-report-gen-rust --bin bigip-report-gen
-      #       cp target/release/bigip-report-gen \
-      #          "f5-report-cli-${version}-${os}-${{ matrix.arch }}"
-      #   (then a second upload-artifact + attach-to-release, mirroring below).
+      # ── Native Rust generator CLI binary ──────────────────────────────────
+      # The Rust generator's command-line form: the same report the `.pyz`
+      # produces, from a single self-contained native binary (no Python runtime).
+      # `--features cli` pulls the UCS reader + a real clock (the default build is
+      # time-free for the wasm/PyO3 consumers); `build.rs` stamps `git describe`
+      # into the footer. Platform-specific, so built inside the same matrix.
+      - name: Build the native Rust generator CLI
+        id: cli
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --release -p bigip-report-gen-rust --features cli \
+            --bin bigip-report-gen
+          ext=""
+          [ "${{ runner.os }}" = "Windows" ] && ext=".exe"
+          out="f5-report-cli-${REPORT_VERSION}-${REPORT_OS}-${{ matrix.arch }}${ext}"
+          cp "target/release/bigip-report-gen${ext}" "${out}"
+          echo "CLI_PATH=${out}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload workflow artefact
+      - name: Upload workflow artefacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: f5-report-pyz-${{ runner.os }}-${{ matrix.arch }}
-          path: ${{ env.PYZ_PATH }}
+          name: f5-report-${{ runner.os }}-${{ matrix.arch }}
+          path: |
+            ${{ env.PYZ_PATH }}
+            ${{ steps.cli.outputs.CLI_PATH }}
           if-no-files-found: error
 
       - name: Attach to release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
         with:
-          files: ${{ env.PYZ_PATH }}
+          files: |
+            ${{ env.PYZ_PATH }}
+            ${{ steps.cli.outputs.CLI_PATH }}
 
   # ── Single-file HTML generator (Rust → WASM, runs entirely in the browser) ─
   # The Rust generator's "website" form: one self-contained index.html with the

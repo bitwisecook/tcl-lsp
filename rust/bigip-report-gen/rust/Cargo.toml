@@ -60,11 +60,31 @@ chrono = { version = "0.4", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 minijinja = { version = "2", default-features = false, features = ["builtins", "macros", "loop_controls", "serde", "json"] }
+# UCS extraction (plain / OpenPGP) for the native CLI: read a `.ucs` off disk,
+# flatten it to SCF, and pull the certificate filestore + forensic file
+# inventory the same way the wasm generator does. Native-only — gated behind the
+# `cli` feature so the wasm/library builds (which never touch the filesystem)
+# don't pull it in.
+tcl-bigip-io = { path = "../../tcl-bigip-io", optional = true }
+
+[features]
+# The native command-line generator (`bigip-report-gen`). Off by default so the
+# default `cargo build` (and the wasm / PyO3 consumers, which render in-process
+# and are time-free) stay lean: `chrono/clock` — needed only to stamp the CLI's
+# generation timestamp — is confined here, keeping the wasm build clockless.
+cli = ["dep:tcl-bigip-io", "chrono/clock"]
 
 [dev-dependencies]
 # Load the shared UCS fixtures the Python f5report tests use, so the port is
 # validated against the same inputs.
 tcl-bigip-io = { path = "../../tcl-bigip-io" }
+
+# The native CLI generator: `cargo run -p bigip-report-gen-rust --features cli
+# --bin bigip-report-gen -- device.ucs -o report.html`. Requires `cli` (which
+# pulls the UCS reader + a real clock); a plain `cargo build` skips it.
+[[bin]]
+name = "bigip-report-gen"
+required-features = ["cli"]
 
 [lints]
 workspace = true
