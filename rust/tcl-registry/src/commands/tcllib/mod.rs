@@ -178,6 +178,7 @@ mod mime__setheader;
 mod mime__uniqueid;
 mod mime__word_decode;
 mod mime__word_encode;
+mod report__defstyle;
 mod sha1__sha1;
 mod sha2__sha256;
 mod smtp__sendmessage;
@@ -188,6 +189,7 @@ mod snit__type;
 mod snit__typemethod;
 mod snit__widget;
 mod snit__widgetadaptor;
+mod stooop__class;
 mod struct__list;
 mod struct__queue;
 mod struct__set;
@@ -296,6 +298,16 @@ pub fn tcllib_command_specs() -> Vec<CommandSpec> {
         }
         if spec.dialects.is_none() {
             spec.dialects = Some(tcllib_dialects);
+        }
+        // Honour the providing package's Tcl-version floor: a tcllib
+        // package whose `package require Tcl` line excludes an older
+        // release must not offer its commands under that dialect.  Applied
+        // after the blanket gate (and to specs with an explicit dialect
+        // set) so every command a package provides stays consistent.
+        if let Some(excluded) = spec.owning_package().and_then(tcllib_package_dialect_floor) {
+            if let Some(dialects) = spec.dialects {
+                spec.dialects = Some(dialects.difference(excluded));
+            }
         }
     }
     specs
@@ -480,6 +492,7 @@ fn md5_mime_snit_struct_specs() -> Vec<CommandSpec> {
         mime__uniqueid::spec(),
         mime__word_decode::spec(),
         mime__word_encode::spec(),
+        report__defstyle::spec(),
         sha1__sha1::spec(),
         sha2__sha256::spec(),
         smtp__sendmessage::spec(),
@@ -490,6 +503,7 @@ fn md5_mime_snit_struct_specs() -> Vec<CommandSpec> {
         snit__typemethod::spec(),
         snit__widget::spec(),
         snit__widgetadaptor::spec(),
+        stooop__class::spec(),
         struct__list::spec(),
         struct__queue::spec(),
         struct__set::spec(),
@@ -624,6 +638,27 @@ fn tcllib_required_package(name: &str) -> Option<&'static str> {
     }
 }
 
+/// Dialects a tcllib package must be gated *out* of because its
+/// `package require Tcl` line raises the Tcl floor above the registry's
+/// oldest supported release.
+///
+/// The blanket tcllib gate offers every command in all standard Tcl
+/// dialects (8.4–9.1).  A package that requires a newer Tcl core is not
+/// installable on the excluded dialect, so its commands must drop that
+/// membership.  Returns the dialect bits to remove, or `None` when the
+/// package supports the full range.
+///
+/// Verified against the bundled tcllib 2.0 sources (each module's
+/// `package require Tcl` line):
+///   * `report` 0.5   — `package require Tcl 8.5 9`  → excludes 8.4
+///   * `stooop` 4.4.2 — `package require Tcl 8.5 9`  → excludes 8.4
+fn tcllib_package_dialect_floor(pkg: &str) -> Option<DialectSet> {
+    match pkg {
+        "report" | "stooop" => Some(DialectSet::TCL84),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -663,6 +698,36 @@ mod tests {
         // Versioned sha packages.
         assert_eq!(pkg("sha1::sha1"), Some("sha1"));
         assert_eq!(pkg("sha2::sha256"), Some("sha2"));
+    }
+
+    #[test]
+    fn tcl85_plus_packages_are_gated_out_of_tcl84() {
+        // `report` and `stooop` declare `package require Tcl 8.5 9` in
+        // tcllib 2.0, so none of their commands are available under the
+        // tcl8.4 dialect — and every command a package provides must be
+        // gated consistently, not just the ones with a dedicated spec.
+        let specs = tcllib_command_specs();
+        let gated: Vec<_> = specs
+            .iter()
+            .filter(|s| s.name.starts_with("report::") || s.name.starts_with("stooop::"))
+            .collect();
+        assert!(
+            !gated.is_empty(),
+            "expected report::/stooop:: commands in the tcllib set",
+        );
+        for spec in gated {
+            let dialects = spec.dialects.expect("tcllib command carries a dialect set");
+            assert!(
+                !dialects.contains(DialectSet::TCL84),
+                "`{}` must not be available under tcl8.4 (package requires Tcl 8.5+)",
+                spec.name,
+            );
+            assert!(
+                dialects.contains(DialectSet::TCL86),
+                "`{}` should remain available under tcl8.6",
+                spec.name,
+            );
+        }
     }
 
     #[test]
