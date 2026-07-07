@@ -59,7 +59,7 @@ use tcl_compiler::analyser::{
 use tcl_compiler::signature_scan::types::ParamDef;
 use tcl_lsp_core::document_symbols::DocumentSymbol;
 use tcl_lsp_core::folding::FoldingRange;
-use tcl_lsp_core::semantic_tokens::SemanticTokens;
+use tcl_lsp_core::semantic_tokens::{SemanticTokens, VarNameArgRoles};
 use tcl_registry::CommandRegistry;
 use tcl_registry::dialects::DialectSet;
 
@@ -2104,6 +2104,32 @@ pub fn project_class_index(
     Arc::new(build_class_hierarchy(merged))
 }
 
+/// The project's workspace-merged inferred variable-name argument roles: every
+/// file's user-proc parameter roles — a parameter the analyser inferred to
+/// alias a caller variable (`upvar $param` + write) — unioned into one
+/// cross-file index, so a `myproc arr(key) …` call highlights its array-element
+/// target even when `myproc` is defined in another file (issue #813 follow-up).
+///
+/// A proc name defined with *conflicting* roles across files is dropped as
+/// ambiguous by [`VarNameArgRoles::from_procs`], so the merged index is
+/// order-independent — matching the abstention posture of
+/// [`project_class_index`].
+#[salsa::tracked]
+pub fn project_proc_var_index(
+    db: &dyn TclDb,
+    project: Project,
+    config: AnalyserConfig,
+) -> Arc<VarNameArgRoles> {
+    let analyses: Vec<Arc<AnalysisResult>> = project
+        .files(db)
+        .iter()
+        .map(|&file| file_analysis(db, file, config))
+        .collect();
+    Arc::new(VarNameArgRoles::from_procs(
+        analyses.iter().flat_map(|a| a.all_procs.values()),
+    ))
+}
+
 /// [`semantic_tokens`] resolved against the **workspace-merged** class index, so
 /// a `$obj method …` dispatch on a class defined in another project file
 /// resolves too.  The server calls this when a [`Project`] is available; the
@@ -2118,12 +2144,14 @@ pub fn semantic_tokens_project(
     let registry = db.registry(file.dialect(db));
     let cu = document_compilation_unit(db, file);
     let classes = project_class_index(db, project, config);
-    tcl_lsp_core::semantic_tokens::full_with_cu_and_classes(
+    let proc_roles = project_proc_var_index(db, project, config);
+    tcl_lsp_core::semantic_tokens::full_with_cu_and_classes_and_roles(
         file.text(db),
         file.dialect(db),
         &registry,
         Some(&cu),
         Some(&classes),
+        Some(&proc_roles),
     )
 }
 

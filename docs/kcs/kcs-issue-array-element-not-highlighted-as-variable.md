@@ -15,6 +15,10 @@ highlighted as a variable. The `arr(key)` word stays a plain string, even
 though the corresponding read (`$arr(key)`) highlights as one whole-word
 variable (issue #813).
 
+The same is true for an array element passed to a *user proc* or *stubbed
+command* that takes a variable name by reference — `myset arr(key) 1` where
+`myset` does `upvar $varName …`, or a `# tcl-lsp: stub … :var` command.
+
 ## Operational context
 
 Whether an argument *is* a variable-name spot is not a text-shape question —
@@ -49,10 +53,31 @@ safe to paint as one token.
    locals, parameter lists, loop-variable lists) still use `is_plain_var_name`,
    because those pull names out of list positions where an element genuinely may
    not be a name.
+4. The static registry role is not the *only* source of a variable-name spot.
+   The same retag also unions two dynamic sources, both carried by the
+   `VarNameArgRoles` index passed into the token walk:
+   - **Stub roles** — a `# tcl-lsp: stub NAME {arg:var …}` declaration. These
+     are derived from the document source at token-collection time, so they
+     apply on every path (local and workspace) with no analysis needed.
+   - **Inferred user-proc roles** — a proc parameter the analyser inferred to
+     alias a caller variable (`upvar $param` + write → `ProcArgTrait::VarWrite`).
+     Available from the single-file analysis locally, and from the workspace-
+     merged `project_proc_var_index` salsa query when a project is open, so a
+     proc defined in another file resolves too. `ProcArgTrait::DynamicNameLocal`
+     (the param's *value* names a callee-local variable) is excluded — a literal
+     name there is not the caller's variable.
+   The same single-token `Esc` geometry gate applies to every source, so a
+   computed subscript stays multi-token and its inner `$var` survives.
 
 ## File-path anchors
 
-- `rust/tcl-lsp-core/src/semantic_tokens.rs` — `insert_var_decl_overrides`
+- `rust/tcl-lsp-core/src/semantic_tokens.rs` — `insert_var_decl_overrides`,
+  `VarNameArgRoles`, `add_stub_var_write_roles`, `proc_var_write_indices`
+- `rust/tcl-lsp-db/src/lib.rs` — `project_proc_var_index` (workspace-merged
+  inferred roles), `semantic_tokens` / `semantic_tokens_project` wiring
+- `rust/tcl-compiler/src/analyser/param_traits.rs` — proc parameter trait
+  inference (`upvar` → `VarWrite`)
+- `rust/tcl-registry/src/stub_overlay.rs` — `# tcl-lsp: stub … :var` roles
 - `rust/tcl-compiler/src/segmenter.rs` — `SegmentedCommand::single_token_word`
   (per-word single-token geometry, whose representative `argv` token spans the
   whole word)
@@ -75,7 +100,10 @@ safe to paint as one token.
 
 - `rust/tcl-lsp-core/src/semantic_tokens.rs` — `literal_array_element_write_is_variable_declaration`,
   `namespaced_array_element_write_is_variable_declaration`,
-  `unset_array_element_is_variable`, `array_element_write_not_retagged`
+  `unset_array_element_is_variable`, `array_element_write_not_retagged`,
+  `stub_var_arg_highlights_array_element`,
+  `user_proc_var_name_arg_highlights_array_element`,
+  `user_proc_var_name_computed_subscript_survives`
 
 ## Related
 
