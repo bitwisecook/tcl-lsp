@@ -189,6 +189,7 @@ mod snit__type;
 mod snit__typemethod;
 mod snit__widget;
 mod snit__widgetadaptor;
+mod stooop__class;
 mod struct__list;
 mod struct__queue;
 mod struct__set;
@@ -492,6 +493,7 @@ fn md5_mime_snit_struct_specs() -> Vec<CommandSpec> {
         snit__typemethod::spec(),
         snit__widget::spec(),
         snit__widgetadaptor::spec(),
+        stooop__class::spec(),
         struct__list::spec(),
         struct__queue::spec(),
         struct__set::spec(),

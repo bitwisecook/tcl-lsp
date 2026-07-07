@@ -44,13 +44,11 @@ fn rows(pkg: &'static str, table: &'static [Row]) -> Vec<CommandSpec> {
 }
 
 /// The `stooop` package.
+//
+// `stooop::class` is not here — it carries a structural definition body
+// (member `proc` definitions), so it has a dedicated spec in
+// `stooop__class.rs` (the flat `Row` table can't express arg roles).
 const STOOOP_CMDS: &[Row] = &[
-    (
-        "stooop::class",
-        Arity::exact(1),
-        &["stooop::class {name body}"],
-        "This command creates a class.",
-    ),
     (
         "stooop::new",
         Arity::at_least(1),
