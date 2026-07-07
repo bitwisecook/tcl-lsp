@@ -683,6 +683,7 @@ def collect_model(
     master_key: str | None = None,
     manifest: str | None = None,
     copyright: str = "",
+    front_matter: str = "",
 ) -> dict[str, Any]:
     """Build the full report model from loaded ``(uri, text)`` sources.
 
@@ -724,6 +725,12 @@ def collect_model(
     return {
         "title": title,
         "copyright": copyright,
+        # User-supplied Markdown front-matter, rendered to HTML by the same
+        # shared renderer the Rust/wasm backends use (raw HTML stripped). Empty
+        # keeps the template's front-matter tab hidden.
+        "front_matter_html": (
+            _engine.render_markdown(front_matter) if front_matter.strip() else ""
+        ),
         "engine_version": _engine.__version__,
         "git_hash": getattr(_engine, "__git_hash__", "unknown"),
         # Single `git describe --tags` version (v-tag + commits + hash) for the footer.
@@ -745,6 +752,7 @@ def build_report(
     report_id: str = "",
     manifest: str | None = None,
     copyright: str = "",
+    front_matter: str = "",
 ) -> str:
     """Collect the model and render it to a standalone HTML document.
 
@@ -755,7 +763,7 @@ def build_report(
     """
     return render_report(
         collect_model(sources, title=title, master_key=master_key, manifest=manifest,
-                      copyright=copyright),
+                      copyright=copyright, front_matter=front_matter),
         embed_console=embed_console,
         report_id=report_id,
     )

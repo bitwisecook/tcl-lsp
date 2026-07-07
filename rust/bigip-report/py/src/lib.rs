@@ -515,6 +515,14 @@ fn highlight_tcl(body: &str) -> String {
     tcl_lexer::highlight_tcl_with_config(body, tcl_lexer::LexerConfig::for_dialect("f5-irules"))
 }
 
+/// Render Markdown (CommonMark + GFM) to an HTML fragment for report
+/// front-matter. Delegates to the single shared renderer so the Python, Rust
+/// and wasm backends produce identical output; raw HTML is stripped.
+#[pyfunction]
+fn render_markdown(md: &str) -> String {
+    tcl_bigip_report::render_markdown(md)
+}
+
 /// Sort iRule `when` event names into canonical firing order.
 ///
 /// Wraps the shared [`tcl_registry`] event registry — the same firing-order
@@ -632,6 +640,7 @@ fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(decrypt_secrets, m)?)?;
     m.add_function(wrap_pyfunction!(list_secrets, m)?)?;
     m.add_function(wrap_pyfunction!(highlight_tcl, m)?)?;
+    m.add_function(wrap_pyfunction!(render_markdown, m)?)?;
     m.add_function(wrap_pyfunction!(order_events, m)?)?;
     m.add_function(wrap_pyfunction!(order_profiles, m)?)?;
     m.add_function(wrap_pyfunction!(irule_flowchart, m)?)?;

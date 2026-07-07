@@ -162,7 +162,8 @@
   {% endif %}
 
   <nav class="tabs" role="tablist">
-    <button class="tab active" data-panel="virtuals">Virtual Servers <span class="n">{{ d.counts.virtuals }}</span></button>
+    {% if front_matter_html %}<button class="tab active" data-panel="frontMatter">Front matter</button>{% endif %}
+    <button class="tab{% if not front_matter_html %} active{% endif %}" data-panel="virtuals">Virtual Servers <span class="n">{{ d.counts.virtuals }}</span></button>
     <button class="tab" data-panel="pools">Pools <span class="n">{{ d.counts.pools }}</span></button>
     <button class="tab" data-panel="nodes">Nodes <span class="n">{{ d.counts.nodes }}</span></button>
     <button class="tab" data-panel="monitors">Monitors <span class="n">{{ d.counts.monitors }}</span></button>
@@ -185,8 +186,15 @@
     {% endif %}
   </nav>
 
+  {#: ---------------- Front matter (user-supplied Markdown) ---------------- :#}
+  {% if front_matter_html %}
+  <div class="panel active" data-panel="frontMatter">
+    <div class="front-matter md-body">{{ front_matter_html | safe }}</div>
+  </div>
+  {% endif %}
+
   {#: ---------------- Virtual Servers ---------------- :#}
-  <div class="panel active" data-panel="virtuals">
+  <div class="panel{% if not front_matter_html %} active{% endif %}" data-panel="virtuals">
     <div class="app-bar">
       <span class="app-bar-lbl">Bundle as app:</span>
       <input class="app-name" type="text" placeholder="App name…" maxlength="60" aria-label="App name">

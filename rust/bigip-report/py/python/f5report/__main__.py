@@ -62,6 +62,9 @@ def main(argv: list[str] | None = None) -> int:
                         "footer (screen, mobile and print); or read from --copyright-file")
     parser.add_argument("--copyright-file", metavar="FILE", default=None,
                         help="read the footer copyright notice from FILE")
+    parser.add_argument("--front-matter", metavar="FILE", default=None,
+                        help="Markdown file shown in a 'Front matter' tab at the front of "
+                        "the report (rendered to HTML at generation time)")
     parser.add_argument("--json", action="store_true",
                         help="emit the report model as JSON instead of HTML")
     parser.add_argument("--version", action="version",
@@ -84,6 +87,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"f5-report: could not read --copyright-file: {exc}", file=sys.stderr)
             return 2
 
+    front_matter = ""
+    if args.front_matter:
+        try:
+            front_matter = open(args.front_matter, encoding="utf-8").read()
+        except OSError as exc:
+            print(f"f5-report: could not read --front-matter: {exc}", file=sys.stderr)
+            return 2
+
     try:
         sources = load_paths(
             args.inputs, passphrase=args.passphrase, include_extras=args.include_extras
@@ -96,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.json:
             out = json.dumps(
                 collect_model(sources, title=args.title, master_key=master_key,
-                              copyright=copyright_notice),
+                              copyright=copyright_notice, front_matter=front_matter),
                 indent=2, default=str,
             )
         else:
@@ -104,7 +115,8 @@ def main(argv: list[str] | None = None) -> int:
                                embed_console=False if args.no_console else None,
                                master_key=master_key,
                                report_id=str(_uuid.uuid4()),
-                               copyright=copyright_notice)
+                               copyright=copyright_notice,
+                               front_matter=front_matter)
     except Exception as exc:  # noqa: BLE001 — surface a clean CLI error (e.g. wrong master key)
         print(f"f5-report: {exc}", file=sys.stderr)
         return 2

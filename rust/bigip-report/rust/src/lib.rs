@@ -46,6 +46,7 @@ pub mod enrich;
 mod forensics;
 mod graph;
 mod jutil;
+mod markdown;
 mod model;
 mod query;
 mod render;
@@ -67,5 +68,6 @@ pub use tcl_bigip_query::build_architecture;
 /// The full f5-query manual (grammar + builtins + cookbook), re-exported so the
 /// wasm builder / report can embed a reference panel.
 pub use tcl_bigip_query::manual::format_manual;
+pub use markdown::render_markdown;
 pub use render::{RenderOptions, build_report};
 pub use secrets::{collect_secrets, count_encrypted_secrets, decrypt_secrets};

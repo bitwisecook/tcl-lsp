@@ -301,6 +301,7 @@ pub fn generate_report(
         architecture,
         report_id: report_id.to_owned(),
         copyright: setting("copyright"),
+        front_matter: setting("frontMatter"),
     };
     build_report(&sources, &opts).map_err(|e| JsError::new(&e.to_string()))
 }

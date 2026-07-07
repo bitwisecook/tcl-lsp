@@ -109,6 +109,10 @@ pub struct RenderOptions {
     /// Optional copyright / confidentiality notice rendered in the report footer
     /// (screen, mobile and every printed page). Empty = no notice.
     pub copyright: String,
+    /// Optional user-supplied **Markdown** front-matter. Rendered to HTML at
+    /// generation time (raw HTML stripped) and shown in a dedicated "Front
+    /// matter" tab. Empty = no tab.
+    pub front_matter: String,
 }
 
 impl Default for RenderOptions {
@@ -122,6 +126,7 @@ impl Default for RenderOptions {
             architecture: None,
             report_id: String::new(),
             copyright: String::new(),
+            front_matter: String::new(),
         }
     }
 }
@@ -176,6 +181,15 @@ pub fn render_report(model: J, opts: &RenderOptions) -> Result<String, ReportErr
     let mut ctx: Map<String, J> = data;
     ctx.insert("title".into(), J::String(opts.title.clone()));
     ctx.insert("copyright".into(), J::String(opts.copyright.clone()));
+    // User-supplied Markdown front-matter, rendered to HTML (raw HTML stripped).
+    // Empty stays empty so the template's `{% if front_matter_html %}` tab guard
+    // hides the tab when there is no front-matter.
+    let front_matter_html = if opts.front_matter.trim().is_empty() {
+        String::new()
+    } else {
+        crate::render_markdown(&opts.front_matter)
+    };
+    ctx.insert("front_matter_html".into(), J::String(front_matter_html));
     ctx.insert("report_id".into(), J::String(opts.report_id.clone()));
     ctx.insert(
         "f5q_manual".into(),
