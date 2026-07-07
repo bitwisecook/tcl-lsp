@@ -7228,7 +7228,7 @@
     },
     {
       "name": "stooop::class",
-      "summary": "This command creates a class."
+      "summary": "Defines a stooop class."
     },
     {
       "name": "stooop::classof",
