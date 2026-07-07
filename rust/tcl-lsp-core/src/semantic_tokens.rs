@@ -1962,11 +1962,14 @@ fn insert_apply_lambda_override(
 /// / `incr` / `append` / `lappend` / `lassign` / `global` / `variable` / … ,
 /// which the query [`CommandRegistry::arg_indices_for_role`] resolves
 /// (including subcommand and dynamic-resolver commands such as `dict set`).
-/// A plain bareword name, or a literal array element (`arr(key)`), is retagged
-/// as one whole-word `Variable` token — matching how `$arr(key)` reads
-/// highlight (issue #813).  A `$`-computed subscript (`arr($i)`), a
-/// `$`-computed name, or a quoted word is left to the default classifier so its
-/// inner `$var` sub-tokens survive.
+/// The registry has already decided this argument is a variable-name spot; the
+/// only remaining question is token geometry.  A word that lexes as a single
+/// unquoted [`TokenType::Esc`] token — a scalar (`x`), a literal array element
+/// (`arr(key)`), or a namespaced name (`::ns::arr(key)`) — is retagged as one
+/// whole-word `Variable` token, matching how the `$arr(key)` read highlights
+/// (issue #813).  A word with an inner substitution (`arr($i)`, `$dynamic`)
+/// is multi-token (`single_token_word` is `false`), so it is left to the
+/// default classifier and its inner `$var` sub-tokens survive.
 fn insert_var_decl_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
@@ -1975,11 +1978,11 @@ fn insert_var_decl_overrides(
 ) {
     let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
     for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::VarWrite) {
-        // `i` is 0-based after the command name → token at `seg.argv[i + 1]`.
-        if let (Some(text), Some(tok)) = (seg.texts.get(i + 1), seg.argv.get(i + 1))
+        // `i` is 0-based after the command name → word at index `i + 1`.
+        if let Some(tok) = seg.argv.get(i + 1)
+            && seg.single_token_word.get(i + 1) == Some(&true)
             && matches!(tok.kind, TokenType::Esc)
             && !tok.in_quote
-            && (is_plain_var_name(text) || is_literal_array_element(text))
         {
             overrides
                 .entry(tok.span.start())
@@ -1995,27 +1998,6 @@ fn is_plain_var_name(text: &str) -> bool {
     // braced words, and the stray `}` / `)` the degenerate empty-brace (`{}`)
     // span clamp can leave in sub-tokenised list content.
     !text.is_empty() && !text.contains(['(', ')', '$', '[', ']', '{', '}', '"', ' '])
-}
-
-/// `true` when `text` is an array-element reference `name(index)` whose name
-/// and index are both literal — no substitution (`$` / `[`) or nested
-/// delimiter inside.  Such a word lexes as a single [`TokenType::Esc`] token,
-/// so it is safe to retag as one whole-word `Variable` token.  A `$`-computed
-/// subscript (`arr($i)`) is excluded: it lexes into several tokens (`arr(`,
-/// `$i`, `)`) whose inner `$i` must survive as its own variable sub-token.
-fn is_literal_array_element(text: &str) -> bool {
-    let Some(open) = text.find('(') else {
-        return false;
-    };
-    // A non-empty scalar name, followed by a `(...)` subscript that closes the
-    // word.  `open == 0` (`(x)`) has no name; a missing trailing `)` is not a
-    // complete element.
-    if open == 0 || !text.ends_with(')') {
-        return false;
-    }
-    let name = &text[..open];
-    let index = &text[open + 1..text.len() - 1];
-    is_plain_var_name(name) && !index.contains(['$', '[', ']', '(', ')', '{', '}', '"', ' '])
 }
 
 /// `switch … { pat body … }` — the braced case list (the final word, when
@@ -5219,23 +5201,6 @@ mod tests {
                 "expected a variable token; got {toks:?} for {src:?}"
             );
         }
-    }
-
-    #[test]
-    fn is_literal_array_element_classifies() {
-        assert!(is_literal_array_element("arr(key)"));
-        assert!(is_literal_array_element("arr(1)"));
-        assert!(is_literal_array_element("arr(a,b)"));
-        assert!(is_literal_array_element("::ns::arr(key)"));
-        assert!(is_literal_array_element("arr()"));
-        // Computed subscript / name — must survive as sub-tokens.
-        assert!(!is_literal_array_element("arr($i)"));
-        assert!(!is_literal_array_element("arr([x])"));
-        // Not an element.
-        assert!(!is_literal_array_element("scalar"));
-        assert!(!is_literal_array_element("(x)"));
-        assert!(!is_literal_array_element("arr(key"));
-        assert!(!is_literal_array_element("$arr(key)"));
     }
 
     #[test]
