@@ -1611,13 +1611,11 @@ const PT_IMPORT_API_CMDS: &[Row] = &[(
 )];
 
 /// The `report` package.
+//
+// `report::defstyle` is not here — it carries a proc-style parameter
+// list and a structural script body, so it has a dedicated spec in
+// `report__defstyle.rs` (the flat `Row` table can't express arg roles).
 const REPORT_CMDS: &[Row] = &[
-    (
-        "report::defstyle",
-        Arity::exact(3),
-        &["report::defstyle styleName arguments script"],
-        "Defines the new style styleName.",
-    ),
     (
         "report::rmstyle",
         Arity::exact(1),

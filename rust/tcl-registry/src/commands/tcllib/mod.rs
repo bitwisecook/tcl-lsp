@@ -178,6 +178,7 @@ mod mime__setheader;
 mod mime__uniqueid;
 mod mime__word_decode;
 mod mime__word_encode;
+mod report__defstyle;
 mod sha1__sha1;
 mod sha2__sha256;
 mod smtp__sendmessage;
@@ -480,6 +481,7 @@ fn md5_mime_snit_struct_specs() -> Vec<CommandSpec> {
         mime__uniqueid::spec(),
         mime__word_decode::spec(),
         mime__word_encode::spec(),
+        report__defstyle::spec(),
         sha1__sha1::spec(),
         sha2__sha256::spec(),
         smtp__sendmessage::spec(),
