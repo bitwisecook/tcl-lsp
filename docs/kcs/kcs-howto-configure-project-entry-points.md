@@ -18,7 +18,7 @@ required them?
 
 ## Before you start
 
-- The files that do the `source`ing and the files being sourced are all
+- The files that do the sourcing and the files being sourced are all
   inside the same workspace folder the editor opened.
 
 ## Answer

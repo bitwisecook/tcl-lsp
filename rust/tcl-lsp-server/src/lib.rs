@@ -853,7 +853,9 @@ async fn run_diagnostics_analyser_path(
 
     // #804: extra requires this document inherits from configured entry points
     // or its `source` ancestors, resolved against the live workspace index.
-    let inherited_requires = {
+    // Only computed when there is a W120 to refine — otherwise the index lock
+    // and `source`-graph walk are wasted work on the hot diagnostics path.
+    let inherited_requires = if analyser_diags.iter().any(|d| d.code == DiagCode::W120) {
         let index = inputs.workspace_index.read().await;
         compute_inherited_requires(
             &index,
@@ -861,6 +863,8 @@ async fn run_diagnostics_analyser_path(
             inputs.entry_points,
             inputs.folder_root,
         )
+    } else {
+        Vec::new()
     };
     let result = refine_and_lift_diagnostics(
         &analysis,
@@ -4376,8 +4380,14 @@ impl Backend {
         // workspace whose `pkgIndex.tcl`/`libraryPaths` prove a required package
         // transitively provides the flagged package suppresses the false W120.
         // #804: also inherit the requires of the project's entry files / the
-        // `source` ancestors of this document.
-        let inherited_requires = self.inherited_package_requires(uri).await;
+        // `source` ancestors of this document. Only computed when there is a
+        // W120 to refine, matching the push path — otherwise the workspace-index
+        // lock and `source`-graph walk are avoidable work.
+        let inherited_requires = if analyser_diags.iter().any(|d| d.code == DiagCode::W120) {
+            self.inherited_package_requires(uri).await
+        } else {
+            Vec::new()
+        };
         let analyser_diags = refine_workspace_w120(
             analyser_diags,
             analysis.as_ref(),
