@@ -41,8 +41,8 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   — a highlight over a braced word covers `{$condition` instead of
   `{$condition}`, dropping the closing delimiter.
 - [kcs-issue-array-element-not-highlighted-as-variable.md](kcs-issue-array-element-not-highlighted-as-variable.md)
-  — an array-element write target (`set arr(key) 1`) is not highlighted
-  as a variable.
+  — a by-reference variable-name argument (`set arr(key) 1`,
+  `info exists arr(key)`) is not highlighted as a variable.
 - [kcs-issue-duplicate-diagnostics.md](kcs-issue-duplicate-diagnostics.md)
   — the same finding is reported twice.
 - [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)
