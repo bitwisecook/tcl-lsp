@@ -84,6 +84,12 @@ var*.txt
 *.chars
 *.tcltestout
 
+# Zig WASM runtime was removed in #800; the `runtime/zig/` tree is now only a
+# locally-fetched vendored-source build artefact (vendor/tcl-regex/*, with
+# .fetch.lock / .stamp markers), never source. Ignore it so a stale local copy
+# isn't proposed for commit.
+/runtime/zig/
+
 # Rust workspace (editors/zed keeps its own local .gitignore for its target/)
 /target/
 rust/tcl-lsp-rust/.venv/
