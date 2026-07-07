@@ -152,10 +152,6 @@ ownership matrices.
   C-Tcl-extension → WASM ABI: how an unmodified C extension is compiled
   and linked against the runtime, with the spike that validated the
   mechanism end-to-end.
-- [runtime/tcltest-bringup.md](runtime/tcltest-bringup.md) — the plan for
-  running the real Tcl library and ``tcltest`` harness (the
-  ``pkgIndex.tcl`` / ``tm`` machinery) against real C Tcl 9 under the
-  runtime.
 - [runtime/tcl-test-tiers.md](runtime/tcl-test-tiers.md) — the capability
   ladder (parsing → interpretation → fundamentals → control flow → I/O →
   platform features) ordering the work toward C tcltest parity.
@@ -196,20 +192,6 @@ chunk-by-chunk dispatch story lives in
   passes/features): one missing command (``ledit``), four Rust-only
   optimiser miscompiles, an unwired inliner, and the deleted parity-check
   tooling.
-- [rust/production-readiness-2026-06-23.md](rust/production-readiness-2026-06-23.md)
-  — production-readiness assessment for **retiring Python**: the robustness
-  blockers (a malformed file crashes the server; a fold-bomb OOMs it), the
-  precision regression against [`../compiler/FP.md`](compiler/FP.md), the
-  safety-net collapse, the still-Python distribution, and the ordered
-  path-to-production.
-- [rust/architecture-and-quality-2026-06-23.md](rust/architecture-and-quality-2026-06-23.md)
-  — whole-workspace architecture & code-quality review (companion to the
-  production-readiness doc): cross-layer sharing/DRY, the unified
-  editor↔lexer↔CST↔runtime buffer, registry leverage & lowering hookup,
-  algorithms/data-structures (SipHash-everywhere, String-keyed SSA, confirmed
-  O(n²)/O(n³) hotspots), clippy/MSRV/dependency currency, documentation
-  accuracy, FP-catalog test-net coverage, and configuration layering — with a
-  consolidated production-readiness roadmap.
 - [rust/coherence-and-coverage-2026-06-23.md](rust/coherence-and-coverage-2026-06-23.md)
   — closing review pass: a coverage map proving every goal aspect is documented
   across the six reviews, plus the remaining axes — **type-system coherence**
@@ -232,19 +214,10 @@ chunk-by-chunk dispatch story lives in
   deep parity audit of the Rust rewrite's lexer, CST, IR/lowering, CFG/SSA,
   analyses, optimiser, and bytecode codegen against the Python source of
   truth, with a per-code coverage table and a prioritised gap register.
-- [rust/wasm-aot-path.md](rust/wasm-aot-path.md) — proposed RT-WASM path
-  forward: native WASM + AOT with real Tcl frames. Originally scoped against
-  the `main`-branch Python+Zig stack (reuse the Zig runtime as-is, port only
-  the ~20 K emitter against its ~100-fn ABI); that runtime has since been
-  ported to Rust (`runtime/rust/`). Staged A–F with an honest difficulty
-  register (ABI drift, frame-elision soundness, refcount discipline).
 - [runtime/runtime-execution-gaps.md](runtime/runtime-execution-gaps.md) — the
   consolidated index for the runtime & execution port scope (RT-WASM / RT-VM /
   `runtime/rust`) and the tiered VM/runtime delivery plan; the single entry
   point separate from the tooling/LSP/compiler/analysis gaps.
-- [runtime/rust-runtime-port.md](runtime/rust-runtime-port.md) —
-  productionising the C-Tcl-extension-to-WASM port on the Rust runtime:
-  status, bootstrapping plan, and the end-to-end build mechanism.
 - [runtime/rust-vm-tier-parity.md](runtime/rust-vm-tier-parity.md) — the
   Rust bytecode VM's Tier 1/2/3 tcltest parity scoreboard versus C Tcl 9.
 - [runtime/rust-regex-port.md](runtime/rust-regex-port.md) — the
