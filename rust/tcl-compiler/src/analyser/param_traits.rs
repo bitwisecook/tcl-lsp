@@ -304,7 +304,19 @@ fn scan_commands_bounded<'p>(
                     && seg.single_token_word.get(i).copied().unwrap_or(false)
             })
             .collect();
-        scan_command(&seg.texts[0], &cmd_args, &braced, ctx, traits, upvar_aliases);
+        // The head names a command by *substitution* only when it lexes as a
+        // `Var` word (`$cmd` / `${cmd}`); a braced `{$cmd}` or bareword head is
+        // a literal command name, not a param reference.
+        let head_is_var = seg.argv.first().is_some_and(|t| t.kind == TokenType::Var);
+        scan_command(
+            &seg.texts[0],
+            &cmd_args,
+            &braced,
+            head_is_var,
+            ctx,
+            traits,
+            upvar_aliases,
+        );
         if depth >= MAX_DEPTH {
             continue;
         }
@@ -448,6 +460,7 @@ fn resolve_arg_roles(
         ArgRole::Expr,
         ArgRole::VarWrite,
         ArgRole::VarRead,
+        ArgRole::CommandPrefix,
     ] {
         for idx in registry.arg_indices_for_role(command, &arg_strs, role) {
             if let Ok(idx_u8) = u8::try_from(idx) {
@@ -469,11 +482,22 @@ fn scan_command<'p>(
     cmd_name: &str,
     cmd_args: &[String],
     braced: &[bool],
+    head_is_var: bool,
     ctx: &ScanCtx<'p, '_>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     upvar_aliases: &mut HashMap<String, &'p str>,
 ) {
     let param_set = ctx.param_set;
+    // A `$param` command *head* (`$cmd arg1 arg2`) means the param's value names
+    // a command.  Only a genuine `$`-substitution head counts — a braced
+    // `{$cmd}` is a literal command name.
+    if head_is_var
+        && let Some(vn) = extract_var_name(cmd_name)
+        && let Some(p) = param_set.get(vn).copied()
+        && let Some(set) = traits.get_mut(p)
+    {
+        set.insert(ProcArgTrait::Command);
+    }
     apply_arg_role_traits(cmd_name, cmd_args, braced, ctx, traits, upvar_aliases);
     apply_eval_traits(cmd_name, cmd_args, param_set, traits);
 
@@ -586,6 +610,19 @@ fn apply_arg_role_traits<'p>(
                         && let Some(set) = traits.get_mut(p)
                     {
                         mark_dynamic_name_local(set);
+                    }
+                }
+            }
+            // A registry `CommandPrefix` role names a command (`rename $old new`,
+            // `interp alias {} $a {} …`).  A `$param` (or component of a
+            // dynamic name) flowing there means the param's value is a command
+            // name.  Braced words are literal — no substitution.
+            Some(ArgRole::CommandPrefix) if !braced.get(idx).copied().unwrap_or(false) => {
+                for var_name in var_substitutions(arg) {
+                    if let Some(p) = lookup_param(var_name, param_set, upvar_aliases)
+                        && let Some(set) = traits.get_mut(p)
+                    {
+                        set.insert(ProcArgTrait::Command);
                     }
                 }
             }
@@ -1174,6 +1211,35 @@ mod tests {
         assert_eq!(var_substitutions("literal"), Vec::<&str>::new());
         assert_eq!(var_substitutions("\\$escaped"), Vec::<&str>::new());
         assert_eq!(var_substitutions("$1backref"), Vec::<&str>::new());
+    }
+
+    #[test]
+    fn param_used_as_command_head_is_command() {
+        // `$cmd arg1 arg2` — the param's value is the command word, so it names
+        // a command.  Works at the top level and inside a `[...]` substitution.
+        assert_trait(&infer(&["cmd"], "$cmd a b"), "cmd", ProcArgTrait::Command);
+        assert_trait(
+            &infer(&["cmd"], "return [$cmd x]"),
+            "cmd",
+            ProcArgTrait::Command,
+        );
+        // A braced `{$cmd}` head is a *literal* command name — no substitution.
+        assert!(infer(&["cmd"], "{$cmd} arg").get("cmd").is_none());
+        // A param merely read as a value is not a command.
+        assert!(infer(&["x"], "puts $x").get("x").is_none());
+    }
+
+    #[test]
+    fn stub_command_prefix_role_is_command() {
+        // A stub-declared `command_prefix` argument names a command, so a
+        // `$param` there is inferred `Command`.
+        let overlay = make_overlay(vec![stub_sig(
+            "on_event",
+            &[("event", ArgRole::Value), ("handler", ArgRole::CommandPrefix)],
+        )]);
+        let registry = CommandRegistry::build_default();
+        let traits = infer_param_traits(&["h"], "on_event click $h", &registry, Some(&overlay));
+        assert_trait(&traits, "h", ProcArgTrait::Command);
     }
 
     #[test]

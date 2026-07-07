@@ -314,6 +314,10 @@ fn is_operator_command(name: &str) -> bool {
 pub struct VarNameArgRoles {
     write: FxHashMap<String, Vec<u32>>,
     read: FxHashMap<String, Vec<u32>>,
+    /// Argument positions whose value the analyser inferred to name a *command*
+    /// ([`ProcArgTrait::Command`] — a `$param` command head or a `CommandPrefix`
+    /// argument), so a literal call-site arg highlights as a command.
+    command: FxHashMap<String, Vec<u32>>,
 }
 
 impl VarNameArgRoles {
@@ -336,36 +340,43 @@ impl VarNameArgRoles {
     pub fn from_procs<'a>(procs: impl IntoIterator<Item = &'a ProcDef>) -> Self {
         let mut write = RoleMapBuilder::default();
         let mut read = RoleMapBuilder::default();
+        let mut command = RoleMapBuilder::default();
         for proc in procs {
             let keys = proc_name_keys(proc);
             write.insert(&keys, &proc_var_write_indices(proc));
             read.insert(&keys, &proc_var_read_indices(proc));
+            command.insert(&keys, &proc_command_indices(proc));
         }
         Self {
             write: write.finish(),
             read: read.finish(),
+            command: command.finish(),
         }
     }
 
-    /// `true` when no command carries an inferred variable-name argument.
+    /// `true` when no command carries an inferred by-reference argument.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.write.is_empty() && self.read.is_empty()
+        self.write.is_empty() && self.read.is_empty() && self.command.is_empty()
     }
 
-    /// Copy the write / read entries into `out_write` / `out_read` without
+    /// Copy the write / read / command entries into the `out_*` maps without
     /// overwriting a name already present (source-derived stub roles that
     /// landed first win).
     fn extend_into(
         &self,
         out_write: &mut FxHashMap<String, Vec<u32>>,
         out_read: &mut FxHashMap<String, Vec<u32>>,
+        out_command: &mut FxHashMap<String, Vec<u32>>,
     ) {
         for (name, indices) in &self.write {
             out_write.entry(name.clone()).or_insert_with(|| indices.clone());
         }
         for (name, indices) in &self.read {
             out_read.entry(name.clone()).or_insert_with(|| indices.clone());
+        }
+        for (name, indices) in &self.command {
+            out_command.entry(name.clone()).or_insert_with(|| indices.clone());
         }
     }
 }
@@ -429,6 +440,14 @@ fn proc_var_read_indices(proc: &ProcDef) -> Vec<u32> {
     })
 }
 
+/// The 0-based argument indices of a proc's parameters whose value the analyser
+/// inferred to name a *command* ([`ProcArgTrait::Command`] — a `$param` command
+/// head or a `CommandPrefix` argument), so a literal at the call site highlights
+/// as a command.
+fn proc_command_indices(proc: &ProcDef) -> Vec<u32> {
+    proc_indices_with_trait(proc, |traits| traits.contains(&ProcArgTrait::Command))
+}
+
 /// Shared body of [`proc_var_write_indices`] / [`proc_var_read_indices`]: the
 /// positions of the parameters whose inferred trait set satisfies `keep`.
 fn proc_indices_with_trait(
@@ -457,8 +476,9 @@ fn proc_name_keys(proc: &ProcDef) -> Vec<String> {
     keys
 }
 
-/// Add `# tcl-lsp: stub … :var` (written) and `:var_read` (read) variable-name
-/// argument positions from the document `source` to `out_write` / `out_read`.
+/// Add `# tcl-lsp: stub` by-reference argument positions from the document
+/// `source` to the `out_*` maps: `:var` (written) → `out_write`, `:var_read`
+/// (read) → `out_read`, and `:command_prefix` (a command) → `out_command`.
 /// Source-derived, so it applies on every token path (local and workspace)
 /// without threading.  Cheap-gated: the line scan runs only when the source
 /// mentions `stub`.
@@ -466,6 +486,7 @@ fn add_stub_var_roles(
     source: &str,
     out_write: &mut FxHashMap<String, Vec<u32>>,
     out_read: &mut FxHashMap<String, Vec<u32>>,
+    out_command: &mut FxHashMap<String, Vec<u32>>,
 ) {
     if !source.contains("stub") {
         return;
@@ -481,13 +502,15 @@ fn add_stub_var_roles(
             .collect::<Vec<u32>>()
     };
     for (name, sig) in overlay.iter() {
-        let write = indices_for(sig, tcl_registry::ArgRole::VarWrite);
-        if !write.is_empty() {
-            out_write.entry(name.to_owned()).or_insert(write);
-        }
-        let read = indices_for(sig, tcl_registry::ArgRole::VarRead);
-        if !read.is_empty() {
-            out_read.entry(name.to_owned()).or_insert(read);
+        for (role, out) in [
+            (tcl_registry::ArgRole::VarWrite, &mut *out_write),
+            (tcl_registry::ArgRole::VarRead, &mut *out_read),
+            (tcl_registry::ArgRole::CommandPrefix, &mut *out_command),
+        ] {
+            let indices = indices_for(sig, role);
+            if !indices.is_empty() {
+                out.entry(name.to_owned()).or_insert(indices);
+            }
         }
     }
 }
@@ -723,6 +746,10 @@ enum ArgOverride {
     /// with **no** `declaration` modifier: it references an existing variable
     /// rather than declaring one.
     VarRef,
+    /// A command name passed as an argument (`ArgRole::CommandPrefix`, or a proc
+    /// parameter the analyser inferred to be a `Command`) → `Function`: the
+    /// literal names a command the callee invokes.
+    CommandRef,
     /// The `{params body ?ns?}` lambda literal argument of `apply` — its
     /// second list element (the body) is re-segmented as a script.
     ApplyLambda,
@@ -899,6 +926,7 @@ fn special_arg_kinds(
     dialect: DialectSet,
     extra_var_write: &FxHashMap<String, Vec<u32>>,
     extra_var_read: &FxHashMap<String, Vec<u32>>,
+    extra_command: &FxHashMap<String, Vec<u32>>,
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
 
@@ -951,6 +979,7 @@ fn special_arg_kinds(
         extra_var_read,
         &mut overrides,
     );
+    insert_command_role_overrides(seg, registry, head, extra_command, &mut overrides);
 
     overrides
 }
@@ -2265,6 +2294,41 @@ fn insert_var_role_overrides(
     }
 }
 
+/// A command name passed as an argument — the registry `CommandPrefix` role
+/// (`tk selection … -command`, a stub `:command_prefix`), or a proc parameter
+/// the analyser inferred to be a `Command` (`extra_command`: `$cmd` used as a
+/// head, or flowing into a command-name position).  Retag the literal at the
+/// call site as a `Function`, gated by the same single-token `Esc` geometry as
+/// the variable retag, so `dispatch mycmd …` paints `mycmd` as a command.
+fn insert_command_role_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    head: &str,
+    extra_command: &FxHashMap<String, Vec<u32>>,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
+    let mut retag = |i: usize| {
+        if let Some(tok) = seg.argv.get(i + 1)
+            && seg.single_token_word.get(i + 1) == Some(&true)
+            && matches!(tok.kind, TokenType::Esc)
+            && !tok.in_quote
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::CommandRef);
+        }
+    };
+    for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::CommandPrefix) {
+        retag(i);
+    }
+    if let Some(indices) = extra_command.get(head) {
+        for &i in indices {
+            retag(i as usize);
+        }
+    }
+}
+
 /// `true` when `text` is a plain (non-array, non-substituted) variable name
 /// — the safe case to retag as a whole-word `Variable` declaration token.
 fn is_plain_var_name(text: &str) -> bool {
@@ -3200,6 +3264,13 @@ struct ScriptCtx<'a> {
     /// retag as a plain `Variable` (no `declaration` modifier), since a read
     /// references an existing variable.  Empty on the pure-segmentation path.
     extra_var_read: &'a FxHashMap<String, Vec<u32>>,
+    /// Extra command-name (`ArgRole::CommandPrefix` / inferred
+    /// `ProcArgTrait::Command`) argument positions, keyed by command / proc
+    /// name: stub `:command_prefix` roles unioned with the analyser's inferred
+    /// user-proc `Command` params.  These retag as a `Function` so a literal
+    /// command name passed to a dispatcher highlights as a command.  Empty on
+    /// the pure-segmentation path.
+    extra_command: &'a FxHashMap<String, Vec<u32>>,
 }
 
 fn collect_switch_case_list(
@@ -3632,6 +3703,7 @@ fn collect_script(
             DialectSet::parse(ctx.dialect).unwrap_or(DialectSet::ALL_TCL),
             ctx.extra_var_write,
             ctx.extra_var_read,
+            ctx.extra_command,
         );
         // `my method …` inside a class body resolves against the enclosing
         // class's MRO (the most common `TclOO` dispatch form).
@@ -3734,6 +3806,7 @@ fn verbatim_token_kind(ov: ArgOverride) -> Option<(TokenKind, u32)> {
         ArgOverride::Decorator => Some((TokenKind::Decorator, 0)),
         ArgOverride::VarDecl => Some((TokenKind::Variable, MOD_DECLARATION)),
         ArgOverride::VarRef => Some((TokenKind::Variable, 0)),
+        ArgOverride::CommandRef => Some((TokenKind::Function, 0)),
         ArgOverride::SubcommandKeyword => Some((TokenKind::Keyword, MOD_DEFAULT_LIBRARY)),
         ArgOverride::ProcNameDef => Some((TokenKind::Function, MOD_DEFINITION)),
         _ => None,
@@ -3830,6 +3903,7 @@ fn emit_arg_token(
             | ArgOverride::Decorator
             | ArgOverride::VarDecl
             | ArgOverride::VarRef
+            | ArgOverride::CommandRef
             | ArgOverride::SubcommandKeyword
             | ArgOverride::ProcNameDef,
         ) => {}
@@ -4345,9 +4419,15 @@ fn collect_entries(
     // Empty (and lookup-free) when neither source contributes.
     let mut extra_var_write: FxHashMap<String, Vec<u32>> = FxHashMap::default();
     let mut extra_var_read: FxHashMap<String, Vec<u32>> = FxHashMap::default();
-    add_stub_var_roles(source, &mut extra_var_write, &mut extra_var_read);
+    let mut extra_command: FxHashMap<String, Vec<u32>> = FxHashMap::default();
+    add_stub_var_roles(
+        source,
+        &mut extra_var_write,
+        &mut extra_var_read,
+        &mut extra_command,
+    );
     if let Some(roles) = proc_roles {
-        roles.extend_into(&mut extra_var_write, &mut extra_var_read);
+        roles.extend_into(&mut extra_var_write, &mut extra_var_read, &mut extra_command);
     }
 
     // Regex-source spans: the def-site literal words (`set my_re ".*"`) whose
@@ -4413,6 +4493,7 @@ fn collect_entries(
         enclosing_class: None,
         extra_var_write: &extra_var_write,
         extra_var_read: &extra_var_read,
+        extra_command: &extra_command,
     };
     collect_script(ctx, source, 0, &mut entries, 0);
 
@@ -5752,6 +5833,41 @@ mod tests {
             refs.iter().any(|&&(_, col, _, _, _)| col == 2)
                 && refs.iter().any(|&&(_, col, _, _, _)| col == 5),
             "expected `aa` and `foo` as variable references on the call line; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn user_proc_command_arg_highlights_as_function() {
+        // A dispatcher proc invokes its parameter as a command (`$cmd …`), so
+        // the analyser infers `cmd` is a `Command`.  The literal command name at
+        // the call site (`dispatch greet …`) then highlights as a `Function`.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "proc dispatch {cmd arg} {\n\
+                     $cmd $arg\n\
+                   }\n\
+                   dispatch greet hello\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        // Without analysis, `greet` is an unknown command's plain string arg.
+        let plain = decode_semantic(&full_with_cu(src, "tcl9.0", &registry, Some(&cu)));
+        let greet_fn = |toks: &[(u32, u32, u32, u32, u32)]| {
+            toks.iter()
+                .any(|&(line, col, _, k, _)| line == 3 && col == 9 && k == TokenKind::Function as u32)
+        };
+        assert!(!greet_fn(&plain), "no command role without analysis; got {plain:?}");
+        // With analysis, `greet` (col 9 on the call line) highlights as a command.
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
+        assert!(
+            greet_fn(&toks),
+            "expected `greet` at the dispatch call to highlight as a Function; got {toks:?}"
         );
     }
 
