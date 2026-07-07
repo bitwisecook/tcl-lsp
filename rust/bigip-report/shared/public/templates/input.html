@@ -57,6 +57,34 @@ link edge.ucs core.ucs -label internal'></textarea>
       <input type="text" id="title" placeholder="F5 BIG-IP Configuration Report">
     </div>
 
+    <!-- Report branding / front-matter. Everything here is remembered in this
+         browser and inlined into the generated report (nothing is uploaded).
+         Export/import moves the defaults between machines. -->
+    <details class="settings-adv" id="settingsAdv">
+      <summary>Branding &amp; front matter <span class="hint" style="font-weight:400">— logo, copyright, intro (remembered on this device)</span></summary>
+
+      <label class="fld" for="frontMatter" style="margin-top:.6rem">Front matter <span class="hint" style="font-weight:400">(Markdown — shown as the report's first tab)</span></label>
+      <textarea id="frontMatter" rows="6" spellcheck="false" placeholder="# Executive summary&#10;&#10;Scope, caveats, contacts… (Markdown: **bold**, lists, tables)"></textarea>
+
+      <label class="fld" for="copyright" style="margin-top:.6rem">Report copyright <span class="hint" style="font-weight:400">(your content notice — shown in the footer &amp; on every printed page)</span></label>
+      <input type="text" id="copyright" placeholder="© 2026 Your Organisation — Confidential">
+
+      <label class="fld" style="margin-top:.6rem">Report logo <span class="hint" style="font-weight:400">(PNG/JPEG/SVG — inlined into the report)</span></label>
+      <div class="logo-row" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+        <img id="logoPreview" alt="" style="display:none;height:38px;max-width:160px;object-fit:contain;border-radius:6px">
+        <button type="button" id="logoPick" class="ghost">Choose logo ↑</button>
+        <button type="button" id="logoClear" class="ghost" style="display:none">Remove</button>
+        <input type="file" id="logoFile" accept="image/png,image/jpeg,image/svg+xml,image/gif,image/webp" hidden>
+      </div>
+
+      <div class="manifest-actions" style="margin-top:.6rem">
+        <button type="button" id="settingsExport" class="ghost">Export settings ↓</button>
+        <button type="button" id="settingsImport" class="ghost">Import settings ↑</button>
+        <button type="button" id="settingsClear" class="ghost">Clear</button>
+        <input type="file" id="settingsFile" accept=".json,application/json" hidden>
+      </div>
+    </details>
+
     <!-- Only shown once we detect an uploaded UCS is actually encrypted — the
          same reveal-on-detect pattern as the master-key box below. -->
     <div id="passGroup" style="display:none; margin-top:1rem;">

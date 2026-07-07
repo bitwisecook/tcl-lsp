@@ -13,6 +13,7 @@ import {
   GenerateOptions,
   GenerateResult,
   ReportBackend,
+  ReportSettings,
   selectBackend,
 } from "../report-backend";
 
@@ -30,6 +31,9 @@ interface FileMeta {
 const ROLES = ["auto", "gtm", "ltm", "afm"];
 const LS_MANIFEST = "f5report-arch-manifest";
 const LS_META = "f5report-arch-meta";
+// Report branding/front-matter the builder remembers on this device and inlines
+// into the generated report. Mirrors the wasm `ReportSettings` shape.
+const LS_SETTINGS = "f5report-settings";
 
 (function () {
   "use strict";
@@ -51,8 +55,14 @@ const LS_META = "f5report-arch-meta";
   const manifestEl = byId<HTMLTextAreaElement>("manifest");
   const mkuGroup = byId("mkuGroup");
   const mkuNote = byId("mkuNote");
+  const frontMatterEl = byId<HTMLTextAreaElement>("frontMatter");
+  const copyrightEl = byId<HTMLInputElement>("copyright");
+  const logoPreviewEl = byId<HTMLImageElement>("logoPreview");
+  const logoClearBtn = byId<HTMLButtonElement>("logoClear");
 
   let files: File[] = [];
+  // Current report logo as an inlined data: URI ("" = none), set by the picker.
+  let logoDataUri = "";
   let meta: Record<string, FileMeta> = {};
   let lastUrl: string | null = null;
   let ready = false;
@@ -101,6 +111,47 @@ const LS_META = "f5report-arch-meta";
       if (m) manifestEl.value = m;
       const mt = localStorage.getItem(LS_META);
       if (mt) meta = (JSON.parse(mt) as Record<string, FileMeta>) || {};
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // --- report settings (front matter / copyright / logo) --------------------
+  function currentSettings(): ReportSettings {
+    return {
+      frontMatter: frontMatterEl.value,
+      copyright: copyrightEl.value,
+      logo: logoDataUri,
+    };
+  }
+  function reflectLogo(): void {
+    if (logoDataUri) {
+      logoPreviewEl.src = logoDataUri;
+      logoPreviewEl.style.display = "";
+      logoClearBtn.style.display = "";
+    } else {
+      logoPreviewEl.removeAttribute("src");
+      logoPreviewEl.style.display = "none";
+      logoClearBtn.style.display = "none";
+    }
+  }
+  function saveSettings(): void {
+    try {
+      localStorage.setItem(LS_SETTINGS, JSON.stringify(currentSettings()));
+    } catch {
+      /* storage unavailable */
+    }
+  }
+  function applySettings(s: ReportSettings): void {
+    frontMatterEl.value = s.frontMatter || "";
+    copyrightEl.value = s.copyright || "";
+    logoDataUri = s.logo || "";
+    reflectLogo();
+  }
+  function restoreSettings(): void {
+    try {
+      const raw = localStorage.getItem(LS_SETTINGS);
+      if (raw) applySettings(JSON.parse(raw) as ReportSettings);
     } catch {
       /* ignore */
     }
@@ -319,6 +370,75 @@ const LS_META = "f5report-arch-meta";
     });
   })();
 
+  // --- report settings: persistence, logo picker, export/import -------------
+  (function initSettingsControls() {
+    restoreSettings();
+    frontMatterEl.addEventListener("input", saveSettings);
+    copyrightEl.addEventListener("input", saveSettings);
+
+    const logoInput = byId<HTMLInputElement>("logoFile");
+    byId("logoPick").addEventListener("click", () => logoInput.click());
+    logoInput.addEventListener("change", () => {
+      const f = logoInput.files && logoInput.files[0];
+      if (!f) return;
+      if (f.size > 512 * 1024) {
+        setStatus("logo is larger than 512 KB — pick a smaller image", "err");
+        logoInput.value = "";
+        return;
+      }
+      const r = new FileReader();
+      r.onload = () => {
+        logoDataUri = String(r.result || ""); // a data: URI (readAsDataURL)
+        reflectLogo();
+        saveSettings();
+      };
+      r.readAsDataURL(f);
+      logoInput.value = "";
+    });
+    logoClearBtn.addEventListener("click", () => {
+      logoDataUri = "";
+      reflectLogo();
+      saveSettings();
+    });
+
+    byId("settingsExport").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(currentSettings(), null, 2) + "\n"], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "f5report-settings.json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+
+    const settingsFile = byId<HTMLInputElement>("settingsFile");
+    byId("settingsImport").addEventListener("click", () => settingsFile.click());
+    settingsFile.addEventListener("change", () => {
+      const f = settingsFile.files && settingsFile.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        try {
+          applySettings(JSON.parse(String(r.result || "{}")) as ReportSettings);
+          saveSettings();
+        } catch {
+          setStatus("could not read that settings file", "err");
+        }
+      };
+      r.readAsText(f);
+      settingsFile.value = "";
+    });
+
+    byId("settingsClear").addEventListener("click", () => {
+      applySettings({});
+      saveSettings();
+    });
+  })();
+
   // --- backend readiness ----------------------------------------------------
   backend
     .ready()
@@ -451,6 +571,7 @@ const LS_META = "f5report-arch-meta";
       manifest: buildManifest(),
       generatedAt: utcStamp(),
       reportId: reportId(),
+      settings: currentSettings(),
     };
     const res = await backend.generate(files, opts);
     if (res.locked) revealMku(1);
