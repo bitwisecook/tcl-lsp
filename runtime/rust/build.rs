@@ -18,8 +18,7 @@
 
 //! Build the bignum backend: compile reference libtommath to a static archive
 //! and link it, so the `TCL_BIGNUM_TYPE` obj rep can FFI the `mp_*` functions
-//! (the numeric tower's bignum rung — see
-//! `docs/design/runtime/rust-runtime-port.md`, EXP-BIGNUM).
+//! (the numeric tower's bignum rung — EXP-BIGNUM).
 //!
 //! Recipe (validated native + wasm32, `experiments/bignum/`): build **pristine**
 //! libtommath with `-DTCL_WITH_EXTERNAL_TOMMATH` (so its `.c` files use the real

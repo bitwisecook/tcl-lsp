@@ -75,8 +75,7 @@ in fact done — verify against current code before re-opening any of them.
 ## Remaining / discovered work
 
 Ordered by value. Each is in-scope Rust code-quality work (the standalone Python
-implementation remains out of scope; the former Zig runtime has been retired
-and replaced by the Rust runtime).
+implementation remains out of scope).
 
 ### 1. Reserved diagnostic codes not yet emitted (implement when support lands)
 

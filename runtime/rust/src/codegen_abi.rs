@@ -24,7 +24,7 @@
 //! unmodified C Tcl extension). This module exports the **compiler's** runtime
 //! ABI: the small set of `tcl_*` host functions the AOT WASM backend
 //! (`rust/tcl-compiler/src/codegen/wasm/backend.rs`) emits `call`s to. The
-//! reference set is the retiring Zig/Python `compiler/codegen/wasm/_imports.py`.
+//! reference set is the retiring Python `compiler/codegen/wasm/_imports.py`.
 //!
 //! ## The eval-fallback tier
 //!

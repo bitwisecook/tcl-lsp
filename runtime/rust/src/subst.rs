@@ -66,7 +66,7 @@ pub fn scan(src: &[u8], flags: SubstFlags) -> WordBody<'_> {
 /// Resolve a scanned [`WordBody`] to bytes. Literals are copied and backslashes
 /// decoded here; `var` resolves a variable reference (name + optional resolved
 /// index), `cmd` resolves a command substitution (the inner script). Either
-/// returning `None` contributes nothing (matching the Zig: an unset var / empty
+/// returning `None` contributes nothing (an unset var / empty
 /// result appends nothing) — error propagation is layered on with the eval loop.
 pub fn resolve_with<V, C>(body: &WordBody, var: &V, cmd: &C) -> Vec<u8>
 where

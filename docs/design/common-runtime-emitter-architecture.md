@@ -20,7 +20,7 @@ The repo already has a shared compiler frontend (lexer → green/red CST → IR 
 CFG → SSA → optimiser) feeding **two codegen backends** that live side by side
 (`compiler/codegen/bytecode/` and `compiler/codegen/wasm/`;
 [docs/design/compiler/codegen-module-map.md]) and **multiple runtimes** (the Rust
-WASM runtime `runtime/rust/`, which replaced the retired Zig runtime, and the
+WASM runtime `runtime/rust/`, and the
 Python reference VM `tooling/vm/`). We are adding a native, idiomatic Rust **bytecode
 VM** that executes the TCLVM bytecode the Rust codegen already emits
 (`rust/tcl-compiler/src/codegen/`).
@@ -541,10 +541,7 @@ not Rust today:
   and only becomes real once/if the WASM emitter is ported to Rust (a large,
   separate effort, explicitly out of scope here — §7).
 
-The **canonical WASM runtime is now Rust** (`runtime/rust`, the port that
-superseded the retired Zig runtime), so — unlike the old Zig runtime, which could
-only converge by **API parity** (the command-parity gate
-`scripts/check/wasm_command_parity.py` + the C Tcl 9 suite as oracle) — it *does*
+The **canonical WASM runtime is now Rust** (`runtime/rust`), so it *does*
 implement `tcl-runtime-api` and shares concrete code via `tcl-cmd-core`; that
 convergence is the highest-value one below.
 
@@ -621,8 +618,7 @@ tclExecute.c`). Evidence this matters: the *recursive* tree-walking
 `runtime/rust` cannot suspend mid-evaluation, so it implements `yield` with **OS
 worker threads + channel handoff** (`runtime/rust/src/cmd_coro.rs`: "yield must
 suspend execution arbitrarily deep in the recursive evaluator… rather than
-rewrite"), and the former Zig runtime needed **asyncify** (wasm-opt call-stack
-save/restore) for the same reason. A bytecode VM whose activation
+rewrite"). A bytecode VM whose activation
 stack *is data* needs neither. This is the **single biggest architectural reason
 to prefer a bytecode VM**, and it is free only if NRE is designed in from M2
 (proc calls), not retrofitted.

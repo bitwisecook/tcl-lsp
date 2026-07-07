@@ -28,7 +28,7 @@
 //!
 //! ## Why no deferred-free queue
 //!
-//! The Zig runtime defers frees to a drain queue (`tcl_obj_drain_pending`) to
+//! A drain-queue design defers frees to
 //! survive an aliasing hazard: releasing a command's argv after dispatch could
 //! free the result if it aliased an argv element. We avoid the queue (and match
 //! `tclObj.c`'s immediate `TclFreeObj`) because [`set_result`] **retains** the
@@ -1560,8 +1560,8 @@ impl Interp {
     }
 
     /// `uplevel`: evaluate `script` in the variable scope **and** namespace of
-    /// frame `target_level` (the Zig oracle's "restore caller ns + frame depth
-    /// together" discovery), then restore. Transparent — the body's completion
+    /// frame `target_level` (restore caller ns + frame depth
+    /// together), then restore. Transparent — the body's completion
     /// code (incl. `return`) propagates unchanged.
     pub(crate) fn eval_uplevel(&mut self, target_level: usize, script: &[u8]) -> Code {
         let prev_level = self.frames.borrow_mut().set_active_level(target_level);
@@ -2553,7 +2553,7 @@ impl Interp {
     // -- introspection (`info` / `array`) -------------------------------------
 
     /// `info exists name` — whether a scalar/array/element variable is set
-    /// (splitting `arr(key)`, the Zig discovery).
+    /// (splitting `arr(key)`).
     pub(crate) fn var_exists(&self, name: &[u8]) -> bool {
         let (base, elem) = crate::frame::split_array_ref(name);
         match elem {
@@ -5729,7 +5729,7 @@ impl Interp {
                 Ok(obj)
             }
             WordBody::Parts(parts) => {
-                // Object-passthrough fast path (Zig lesson #1/#4): a word that is
+                // Object-passthrough fast path: a word that is
                 // *exactly one* substitution returns that value's **object**
                 // (preserving its internal rep), not a stringified copy. This is
                 // what keeps `$list`→`lindex`/`llength` etc. O(1) instead of

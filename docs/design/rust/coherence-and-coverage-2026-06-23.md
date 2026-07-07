@@ -104,7 +104,7 @@ and section that reviews it, so completeness is auditable at a glance. Abbreviat
 | **Taint tracking (T-codes)** | AQ §F, PROD §E | PARTIAL — TNT-01 missing; not wired into the `tcl` CLI (PROD) |
 | **Lattices** | AQ §D3 | Lattice fixpoints written correctly (in-place); only the String keys hurt |
 | **Registries** | AQ §A2/§C | Source of truth for compiler/codegen; runtimes hand-maintain tables |
-| **Docs true to Rust** | AQ §E | Stale: AGENTS.md + ~16 headers describe a Python/Zig/bootstrap world |
+| **Docs true to Rust** | AQ §E | Stale: AGENTS.md + ~16 headers describe a Python/bootstrap world |
 | **WASM** | WS, PROD §E2 | WASM codegen path broken (PROD) |
 | **tclvm** | WS, AQ §C | Outlier: unused `tcl-registry` dep + separate HashMap dispatch |
 | **Runtime layers** | WS, AQ §A1/§C | `ValueOps` seam shares command logic across both runtimes |

@@ -158,7 +158,7 @@ fix unlocks it). The structural gaps behind the scoreboard:
 
 ## 3. `runtime/rust` — tree-walking runtime port 🟡 (off-workspace)
 
-`runtime/rust/` is the standalone Rust port of the former Zig WASM runtime,
+`runtime/rust/` is the standalone Rust WASM runtime,
 kept out of `cargo test --workspace` (it needs raw-pointer
 `unsafe` over shared linear memory) and gated via `make runtime-rust-test`. It is
 the eventual in-process tree-walking interpreter and the wasm32 runtime the

@@ -11,8 +11,8 @@ the implementation. The runtime is the Rust crate `tcl-runtime`
 > the per-subsystem rows fill in incrementally as the audit proceeds
 > against the Rust runtime (`runtime/rust/`). The `cargo xtask
 > refcount-contract` lint that once flagged exports missing a row
-> walked the Zig runtime's exports and was **retired together with
-> that runtime** (see [Lint script](#lint-script) below); the rows
+> walked the runtime's exports and was **retired** (see
+> [Lint script](#lint-script) below); the rows
 > are maintained by hand for now.
 
 ## Categories

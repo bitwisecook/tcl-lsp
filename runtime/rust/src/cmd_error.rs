@@ -66,7 +66,7 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // body still evaluates as its own frame.
     let code = interp.eval_control_body(argv[1]);
     // Snapshot the body's result BEFORE we overwrite the interp result with the
-    // catch return value (the Zig "read before clear" discovery). `var_set`
+    // catch return value (read the value before clearing the result). `var_set`
     // retains it into the result var, so it survives the later `set_result`.
     let result = interp.get_obj_result();
 

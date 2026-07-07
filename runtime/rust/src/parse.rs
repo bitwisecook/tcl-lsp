@@ -40,7 +40,7 @@
 //!   [`Command`](WordPart::Command).
 //!
 //! `Variable`/`Command`/literal-`Text` borrow `&'s [u8]` from the source —
-//! zero-copy on the fast path, and the borrow makes the Zig `parse_cache`
+//! zero-copy on the fast path, and the borrow makes the `parse_cache`
 //! stale-slab hazard (memory-management.md MM-B.6) a compile error. A `Text`
 //! run whose escapes were decoded owns its bytes (`Cow::Owned`). The module is
 //! `unsafe`-free.
@@ -163,7 +163,7 @@ pub fn skip_command_subst(src: &[u8], pos: usize) -> usize {
 /// Is `c` a valid first byte of an unbraced `$name` variable reference?
 /// Letters, digits, underscore, or `:` (namespace separator). Crucially, a `$`
 /// **not** followed by one of these (or `{`) is a literal `$` in Tcl
-/// (`tclParse.c` `Tcl_ParseVarName`) — the Zig PoC mishandled this.
+/// (`tclParse.c` `Tcl_ParseVarName`).
 fn is_var_name_byte(c: u8) -> bool {
     c.is_ascii_alphanumeric() || c == b'_' || c == b':'
 }
@@ -827,7 +827,7 @@ mod tests {
         assert_eq!(got, vec![&b"cmd"[..], b"a", b"b", b"c"]);
     }
 
-    // ---- component decomposition (what the Zig token tree left as a TODO) ----
+    // ---- component decomposition ----
 
     #[test]
     fn bracket_subst_decomposes_in_one_word() {

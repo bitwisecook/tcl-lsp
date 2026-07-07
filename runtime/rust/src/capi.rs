@@ -172,7 +172,7 @@ pub unsafe extern "C" fn tcl_runtime_delete_interp(interp: *mut Interp) {
     }
 }
 
-// ---- leak-check test exports (mirror the Zig `tcl_test_*` surface) ----
+// ---- leak-check test exports (the `tcl_test_*` surface) ----
 
 /// Reset the alloc/free/double-free counters (`tcl_test_reset_counters`).
 #[no_mangle]
