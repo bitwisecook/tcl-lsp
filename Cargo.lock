@@ -291,6 +291,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "bigip-report-gen-rust"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "chrono",
+ "ipnet",
+ "minijinja",
+ "pulldown-cmark",
+ "regex",
+ "serde",
+ "serde_json",
+ "tcl-bigip",
+ "tcl-bigip-io",
+ "tcl-bigip-query",
+ "tcl-diagram",
+ "tcl-f5mku",
+ "tcl-lexer",
+ "tcl-registry",
+]
+
+[[package]]
 name = "bit-set"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4034,27 +4055,6 @@ dependencies = [
  "temp-env",
  "ureq",
  "x509-parser",
-]
-
-[[package]]
-name = "tcl-bigip-report"
-version = "0.1.0"
-dependencies = [
- "base64",
- "chrono",
- "ipnet",
- "minijinja",
- "pulldown-cmark",
- "regex",
- "serde",
- "serde_json",
- "tcl-bigip",
- "tcl-bigip-io",
- "tcl-bigip-query",
- "tcl-diagram",
- "tcl-f5mku",
- "tcl-lexer",
- "tcl-registry",
 ]
 
 [[package]]

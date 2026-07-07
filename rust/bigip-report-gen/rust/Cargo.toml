@@ -1,0 +1,70 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name = "bigip-report-gen-rust"
+publish.workspace = true
+description = "Standalone HTML BIG-IP estate report built from the f5-query engine (the Rust port of the f5report generator)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+# The query engine, without the network-probe layer so this crate also builds
+# for wasm32 (the in-browser report generator). A report never probes — but the
+# `x509` surface (pure Rust: x509-parser + sha2, no socket/TLS) is on so the
+# certs tab can parse certificate files read out of a UCS filestore.
+tcl-bigip-query = { path = "../../tcl-bigip-query", default-features = false, features = ["x509"] }
+# The BIG-IP object model + parser. The query DSL only projects the `ltm`
+# module, so the certificate inventory reads `sys file ssl-cert` objects from
+# the parsed model directly (the same parser the engine uses).
+tcl-bigip = { path = "../../tcl-bigip" }
+# The real Tcl tokeniser + its HTML highlighter, for the iRule source view.
+tcl-lexer = { path = "../../tcl-lexer", features = ["html"] }
+# IR-based control-flow diagram → Mermaid, for the iRule flowchart.
+tcl-diagram = { path = "../../tcl-diagram" }
+tcl-registry = { path = "../../tcl-registry" }
+# F5 master-key (`f5mku`) secret decryption. `default-features = false` drops
+# the `rand`/getrandom salt path (only `encrypt` needs it), keeping the wasm
+# build entropy-free — a report only ever *decrypts*.
+tcl-f5mku = { path = "../../tcl-f5mku", default-features = false }
+regex = "1"
+ipnet = "2"
+base64 = "0.22"
+# CommonMark + GFM for the user-supplied report front-matter, rendered to HTML at
+# generation time (shared by the Python, Rust and wasm backends via one impl).
+# `default-features = false` keeps the wasm build lean; raw HTML is stripped in
+# `markdown.rs` so front-matter can't break the single-file document.
+pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
+# Parse the x509 ISO validity strings to an epoch (for the live countdown) and a
+# human date. `default-features = false` — no clock; a report is time-free.
+chrono = { version = "0.4", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+minijinja = { version = "2", default-features = false, features = ["builtins", "macros", "loop_controls", "serde", "json"] }
+
+[dev-dependencies]
+# Load the shared UCS fixtures the Python f5report tests use, so the port is
+# validated against the same inputs.
+tcl-bigip-io = { path = "../../tcl-bigip-io" }
+
+[lints]
+workspace = true

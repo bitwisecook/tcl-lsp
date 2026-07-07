@@ -26,8 +26,8 @@ ROOT     := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 EXT_DIR         := $(ROOT)editors/vscode
 OUT_DIR         := $(EXT_DIR)/out
 # Shared TypeScript front-end for the BIG-IP report generators (built to
-# rust/bigip-report/shared/dist and synced into the Python f5report package).
-REPORT_SHARED_DIR := $(ROOT)rust/bigip-report/shared
+# rust/bigip-report-gen/frontend/dist and synced into the Python f5report package).
+REPORT_SHARED_DIR := $(ROOT)rust/bigip-report-gen/frontend
 # The compiler-explorer GUI shell lives in the `tcl` crate; `make explorer-wasm`
 # builds the Rust → WASM core + Mermaid into it, and `build.rs` embeds the whole
 # bundle into the `tcl` binary (served by `tcl explore --serve`).
@@ -105,7 +105,7 @@ VSIX_FILE      := $(BUILD_DIR)/tcl-lsp-vscode-$(VERSION).vsix
 # Self-contained BIG-IP report .pyz (native `_engine` + MiniJinja bundled by shiv).
 # Native + abi3, so the artefact is OS/arch-specific but runs on any CPython
 # >= 3.9 for that platform; the tag keeps CI matrix outputs from clobbering.
-REPORT_PY_DIR  := $(ROOT)rust/bigip-report/py
+REPORT_PY_DIR  := $(ROOT)rust/bigip-report-gen/python
 REPORT_WHEELS  := $(BUILD_DIR)/report-wheels
 REPORT_PYZ_OS   := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 REPORT_PYZ_ARCH := $(shell uname -m)
@@ -395,9 +395,9 @@ typecheck-report-ts: $(REPORT_NPM_STAMP) ## Type-check the shared report front-e
 check-report-assets: build-report-assets ## Verify committed report dist/ + f5report-synced assets are up to date
 	@echo "==> Checking shared report assets are in sync"
 	@cd $(ROOT) && git diff --exit-code -- \
-		rust/bigip-report/shared/dist \
-		rust/bigip-report/py/python/f5report/templates \
-		rust/bigip-report/py/python/f5report/vendor \
+		rust/bigip-report-gen/frontend/dist \
+		rust/bigip-report-gen/python/python/f5report/templates \
+		rust/bigip-report-gen/python/python/f5report/vendor \
 		|| { echo "ERROR: report assets are stale — run 'make build-report-assets' and commit the result"; exit 1; }
 
 test-ext: ## Run VS Code extension integration tests; skip with SKIP_TEST_EXT=1
@@ -1147,10 +1147,10 @@ explorer-build: explorer-wasm $(MERMAID_JS) ## Build the compiler-explorer GUI b
 	@echo "==> Compiler explorer bundle ready in $(EXPLORER_STATIC) — rebuild the tcl binary to embed it"
 
 .PHONY: report-wasm
-report-wasm: ## Build the in-browser BIG-IP report generator (Rust → WASM) into rust/bigip-report-wasm/dist/
+report-wasm: ## Build the in-browser BIG-IP report generator (Rust → WASM) into rust/bigip-report-gen/wasm/dist/
 	@command -v wasm-bindgen >/dev/null 2>&1 || { \
 		echo "wasm-bindgen not found — 'cargo install wasm-bindgen-cli --version 0.2.126'"; exit 1; }
-	bash $(ROOT)rust/bigip-report-wasm/build-wasm.sh
+	bash $(ROOT)rust/bigip-report-gen/wasm/build-wasm.sh
 
 compiler-explorer-gui: explorer-build ## Build the GUI bundle and serve it via the native tcl binary
 	@echo "==> Building tcl (embeds the GUI) and serving at http://localhost:8080"

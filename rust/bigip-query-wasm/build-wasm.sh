@@ -26,7 +26,7 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
-vendor="$here/../bigip-report/shared/public/vendor"
+vendor="$here/../bigip-report-gen/assets"
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT
 

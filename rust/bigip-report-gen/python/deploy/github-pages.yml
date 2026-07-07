@@ -1,0 +1,213 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: Deploy GitHub Pages (BIG-IP report + compiler explorer)
+
+# Builds the two static, self-contained web apps this repo publishes and serves
+# them from ONE GitHub Pages deployment (Pages serves a single artifact per
+# repo, so both must ship together or they clobber each other):
+#
+#   /bigip-report-demo/  — the interactive f5report example, rendered from the
+#                          committed sample UCS fixtures (Rust + PyO3 + maturin).
+#   /compiler-explorer/  — the Tcl compiler explorer GUI, whose core is compiled
+#                          Rust → WASM and runs entirely client-side (no backend,
+#                          so it works as static hosting). Bundle built by
+#                          `make explorer-build` into rust/tcl-cli/gui/.
+#
+# This supersedes the old `pages.yml` (Python `make explorer-build-cdn`), which
+# no longer exists on the Python-free `rust` line.
+on:
+  push:
+    # `rust` is the active development line these features land on; `main` is the
+    # long-term default. Deploy from whichever holds the merged code.
+    branches: [rust, main]
+    paths:
+      # BIG-IP report generator + demo sources (query engine, model, renderer).
+      - "rust/bigip-report-gen/python/**"
+      - "rust/bigip-report-gen/rust/**"
+      - "rust/bigip-report-gen/frontend/**"
+      - "rust/bigip-query-wasm/**"
+      - "rust/bigip-report-gen/wasm/**"
+      - "rust/tcl-bigip-query/**"
+      - "rust/tcl-bigip/**"
+      - "rust/tcl-bigip-io/**"
+      # Compiler-explorer sources: the WASM shell + the compiler/analysis core
+      # it embeds, so highlighting/analysis fixes redeploy the live explorer.
+      - "rust/tcl-explorer-wasm/**"
+      - "rust/tcl-cli/gui/**"
+      - "rust/tcl-lexer/**"
+      - "rust/tcl-syntax/**"
+      - "rust/tcl-registry/**"
+      - "rust/tcl-compiler/**"
+      - "rust/tcl-lsp-core/**"
+      - ".github/workflows/github-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # rust-toolchain.toml pins the channel (stable). Cache both crate trees:
+      # the workspace member the report links (bigip-report-gen/python) and the
+      # standalone WASM crate (tcl-explorer-wasm has its own lockfile).
+      - name: Cache cargo + build
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: |
+            rust/bigip-report-gen/python
+            rust/tcl-explorer-wasm
+
+      # ── Compiler Explorer (Rust → WASM, client-side, no backend) ──────────
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install wasm-pack + wasm-bindgen-cli
+        uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2.82.7
+        with:
+          # wasm-bindgen-cli must match the wasm-bindgen crate version pinned in
+          # rust/bigip-report-gen/wasm/Cargo.toml.
+          tool: wasm-pack,wasm-bindgen-cli@0.2.126
+
+      # No wasm-opt/binaryen: it is intentionally disabled for this module
+      # (see rust/tcl-explorer-wasm/Cargo.toml + the explorer-wasm Make target).
+      # `make explorer-build` verifies the externref table is growable via
+      # scripts/verify-explorer-wasm.mjs (node is preinstalled on the runner).
+      - name: Build the compiler-explorer GUI bundle (WASM + Mermaid)
+        # Emits the wasm/js bundle + vendored Mermaid into rust/tcl-cli/gui/.
+        run: make explorer-build
+
+      - name: Build the in-browser report generator (Rust → WASM)
+        # Assembles the single-file upload app into
+        # rust/bigip-report-gen/wasm/dist/index.html (WASM + glue inlined).
+        # build-wasm.sh skips wasm-opt for the same externref-table reason as
+        # the explorer, and verifies the module's externref table is growable.
+        run: bash rust/bigip-report-gen/wasm/build-wasm.sh
+
+      # ── Shared report front-end (TypeScript → dist/, synced into f5report) ─
+      # Builds rust/bigip-report-gen/frontend/src → dist/*.js and syncs the built JS +
+      # styles + freshly-vendored wasm into the Python package, so maturin
+      # embeds current assets. Node is preinstalled on the runner.
+      - name: Build the shared report front-end (TypeScript)
+        run: |
+          cd rust/bigip-report-gen/frontend
+          npm ci
+          npm run build
+
+      # ── BIG-IP report (PyO3 + maturin) ────────────────────────────────────
+      - name: Set up Python 3.14
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.14"
+          allow-prereleases: true
+
+      - name: Render the report and assemble the Pages site
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip maturin
+          # maturin develop installs f5report editable against the source tree,
+          # so the vendored Mermaid + wasm engine (committed under
+          # python/f5report/vendor/) are embedded — GitHub Pages has no strict
+          # CSP, so the in-browser query console works when hosted.
+          ( cd rust/bigip-report-gen/python && maturin develop --release )
+
+          # BIG-IP report → /bigip-report-demo/
+          mkdir -p site/bigip-report-demo
+          python -m f5report \
+            rust/bigip-report-gen/python/tests/data/lab-device-01.ucs \
+            rust/bigip-report-gen/python/tests/data/lab-device-02.ucs \
+            -t "F5 BIG-IP Estate — example report" \
+            -o site/bigip-report-demo/index.html
+
+          # Interactive report generator (upload a UCS/SCF, all in-browser) →
+          # /bigip-report-generator/ (single self-contained file built above).
+          mkdir -p site/bigip-report-generator
+          cp rust/bigip-report-gen/wasm/dist/index.html site/bigip-report-generator/index.html
+
+          # Compiler Explorer → /compiler-explorer/ (bundle built above; the
+          # wasm/js/mermaid assets are gitignored build outputs, so copy the
+          # whole GUI dir minus its .gitignore).
+          mkdir -p site/compiler-explorer
+          cp -r rust/tcl-cli/gui/. site/compiler-explorer/
+          rm -f site/compiler-explorer/.gitignore
+
+          # Root landing page linking both apps (the shared Pages root).
+          cat > site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>tcl-lsp — demos</title>
+            <style>
+              body { font: 16px/1.5 system-ui, sans-serif; max-width: 40rem;
+                     margin: 4rem auto; padding: 0 1rem; }
+              h1 { font-size: 1.4rem; }
+              a { color: #0645ad; }
+              li { margin: .5rem 0; }
+            </style>
+          </head>
+          <body>
+            <h1>tcl-lsp — live demos</h1>
+            <ul>
+              <li><a href="compiler-explorer/">Tcl compiler explorer</a> —
+                  lex / parse / bytecode / diagnostics, compiled to WASM and run
+                  in your browser.</li>
+              <li><a href="bigip-report-generator/">F5 BIG-IP report generator</a> —
+                  upload your own <code>.ucs</code> / <code>bigip.conf</code>
+                  and generate a report entirely in your browser (nothing is
+                  uploaded; encrypted UCS + <code>f5mku</code> secrets
+                  supported).</li>
+              <li><a href="bigip-report-demo/">F5 BIG-IP estate report</a> —
+                  an example report with an in-browser query console, rendered
+                  from sample UCS fixtures.</li>
+            </ul>
+          </body>
+          </html>
+          HTML
+
+          # .nojekyll keeps Pages from post-processing the single-file apps.
+          touch site/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
