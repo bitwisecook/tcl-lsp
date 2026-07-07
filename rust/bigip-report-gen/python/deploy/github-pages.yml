@@ -100,22 +100,25 @@ jobs:
         # Emits the wasm/js bundle + vendored Mermaid into rust/tcl-cli/gui/.
         run: make explorer-build
 
+      # ── Shared report front-end (TypeScript → dist/, synced into f5report) ─
+      # Builds rust/bigip-report-gen/frontend/src → dist/*.js and syncs the built JS +
+      # styles + freshly-vendored wasm into the Python package, so maturin
+      # embeds current assets. Node is preinstalled on the runner. Must run
+      # BEFORE build-wasm.sh below: that script inlines the built front-end
+      # templates (frontend/public/templates/input.html) into the single-file
+      # report app, so the front-end has to be built first.
+      - name: Build the shared report front-end (TypeScript)
+        run: |
+          cd rust/bigip-report-gen/frontend
+          npm ci
+          npm run build
+
       - name: Build the in-browser report generator (Rust → WASM)
         # Assembles the single-file upload app into
         # rust/bigip-report-gen/wasm/dist/index.html (WASM + glue inlined).
         # build-wasm.sh skips wasm-opt for the same externref-table reason as
         # the explorer, and verifies the module's externref table is growable.
         run: bash rust/bigip-report-gen/wasm/build-wasm.sh
-
-      # ── Shared report front-end (TypeScript → dist/, synced into f5report) ─
-      # Builds rust/bigip-report-gen/frontend/src → dist/*.js and syncs the built JS +
-      # styles + freshly-vendored wasm into the Python package, so maturin
-      # embeds current assets. Node is preinstalled on the runner.
-      - name: Build the shared report front-end (TypeScript)
-        run: |
-          cd rust/bigip-report-gen/frontend
-          npm ci
-          npm run build
 
       # ── BIG-IP report (PyO3 + maturin) ────────────────────────────────────
       - name: Set up Python 3.14

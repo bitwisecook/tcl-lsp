@@ -57,8 +57,11 @@ echo "==> assembling single-file dist/index.html from the shared builder page"
 # inlines the wasm generator behind it. `shared/dist/input.js` must be built
 # first (`cd ../frontend && npm run build`); CI builds it before this.
 shared="$here/../frontend"
+# input.html is the shared builder-page template (canonical copy under the
+# report-gen `templates/` dir — the same one build.mjs reads via `../templates`);
+# input.css/input.js come from the front-end (src + built dist/).
 python3 - \
-    "$shared/public/templates/input.html" "$shared/src/styles/input.css" \
+    "$here/../templates/input.html" "$shared/src/styles/input.css" \
     "$shared/dist/input.js" "$out/bigip_report_wasm.js" \
     "$out/bigip_report_wasm_bg.wasm" "$dist/index.html" <<'PY'
 import base64, sys
