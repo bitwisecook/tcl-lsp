@@ -200,6 +200,33 @@ impl Analyser {
         if sig.is_known(first_arg) {
             return;
         }
+        // The subcommand is unknown *in the active dialect*.  Before reporting
+        // it as nonexistent, check whether it exists in some *other* dialect —
+        // e.g. `info cmdtype` is a real subcommand introduced in Tcl 9.0 but
+        // absent from the default 8.6 profile (issue #812).  That is the
+        // subcommand-level analogue of the W002 disabled-in-dialect check for
+        // whole commands (`emit_w002_disabled_command`): it EXISTS, just not
+        // here, so it must be reported as disabled-in-dialect rather than as an
+        // "Unknown subcommand" with a misleading spelling suggestion.
+        if let Some(CommandSignature::WithSubcommands(any_sig)) =
+            signature_for_command(registry, cmd_name, DialectSet::all())
+            && any_sig.is_known(first_arg)
+        {
+            let span = match arg_tokens.first() {
+                Some(sub_tok) => tcl_lexer::Span::new(cmd_tok.span.start(), sub_tok.span.end()),
+                None => cmd_tok.span,
+            };
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: DiagCode::W002,
+                span,
+                message: format!(
+                    "'{cmd_name} {first_arg}' is disabled in the active dialect profile"
+                ),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+            return;
+        }
         let mut message = format!("Unknown subcommand '{first_arg}' for '{cmd_name}'");
         let candidates: Vec<&str> = sig.subcommands.keys().map(String::as_str).collect();
         let suggestions = crate::text::suggest_similar(first_arg, candidates.iter().copied(), 1, 3);

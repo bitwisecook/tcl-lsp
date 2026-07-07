@@ -425,11 +425,15 @@ mod diagnostics {
     }
 
     #[test]
-    fn package_files_is_unknown_under_tcl86_per_tclsh() {
+    fn package_files_is_disabled_under_tcl86_per_tclsh() {
         // Under tcl8.6 `package files` is NOT a subcommand — tclsh8.6 errors
         //   `bad option "files": must be forget, ifneeded, names, …`
-        // so W001 here is correct. (tclsh9.0 added `files`; this test pins 8.6.)
-        assert!(fires("package files mypackage", D, "W001"));
+        // (tclsh9.0 added `files`; this test pins 8.6.)  Because `files` *is* a
+        // real subcommand in 9.0, this is W002 ("disabled in the active dialect
+        // profile"), not W001 ("Unknown subcommand") which is reserved for a
+        // name that exists in no dialect (issue #812).
+        assert!(fires("package files mypackage", D, "W002"));
+        assert!(!fires("package files mypackage", D, "W001"));
     }
 
     #[test]

@@ -820,9 +820,15 @@ fn command_version_gates_fire_w123() {
 }
 
 #[test]
-fn subcommand_version_gates_fire_w001() {
-    // Subcommands added or removed across 8.4-9.1 must warn (W001 unknown
-    // subcommand) in dialects where they do not exist.
+fn subcommand_version_gates_fire_w002() {
+    // A subcommand added or removed across 8.4-9.1 still *exists* — just not in
+    // every dialect.  Used in a dialect where it is absent it must warn with
+    // W002 ("disabled in the active dialect profile"), the subcommand-level
+    // analogue of the whole-command W002 check, NOT W001 ("Unknown
+    // subcommand"), which is reserved for a name that exists in no dialect at
+    // all (a genuine typo).  This is issue #812: `info cmdtype` is a real Tcl
+    // 9.0 subcommand, so flagging it as "unknown" under the default 8.6 profile
+    // was wrong.
     let added = [
         // (snippet, first dialect it exists in, an older dialect)
         ("string reverse abc", "tcl8.5", "tcl8.4"),
@@ -838,27 +844,31 @@ fn subcommand_version_gates_fire_w001() {
         ("clock add 0 1 day", "tcl8.5", "tcl8.4"),
         ("clock microseconds", "tcl8.5", "tcl8.4"),
         ("clock milliseconds", "tcl8.5", "tcl8.4"),
+        // Issue #812: `info cmdtype` is new in Tcl 9.0.
+        ("info cmdtype foo", "tcl9.0", "tcl8.6"),
     ];
     for (snippet, ok, old) in added {
+        let old_diags = Analyser::new().analyse(snippet, old).diagnostics;
         assert!(
-            Analyser::new()
-                .analyse(snippet, old)
-                .diagnostics
-                .iter()
-                .any(|d| d.code == DiagCode::W001),
-            "expected W001 for {snippet:?} on {old}"
+            old_diags.iter().any(|d| d.code == DiagCode::W002),
+            "expected W002 for {snippet:?} on {old}"
+        );
+        assert!(
+            !old_diags.iter().any(|d| d.code == DiagCode::W001),
+            "unexpected W001 (should be W002) for {snippet:?} on {old}"
         );
         assert!(
             !Analyser::new()
                 .analyse(snippet, ok)
                 .diagnostics
                 .iter()
-                .any(|d| d.code == DiagCode::W001),
-            "unexpected W001 for {snippet:?} on {ok}"
+                .any(|d| d.code == DiagCode::W001 || d.code == DiagCode::W002),
+            "unexpected W001/W002 for {snippet:?} on {ok}"
         );
     }
     // `trace variable/vdelete/vinfo` were removed in 9.0: known in 8.6, gone in
-    // 9.0.
+    // 9.0.  In 9.0 they still resolve in an older dialect, so they are W002
+    // (disabled here), not W001 (unknown everywhere).
     for snippet in [
         "trace variable v w {}",
         "trace vdelete v w {}",
@@ -871,32 +881,53 @@ fn subcommand_version_gates_fire_w001() {
                 .analyse(snippet, "tcl8.6")
                 .diagnostics
                 .iter()
-                .any(|d| d.code == DiagCode::W001),
-            "unexpected W001 for {snippet:?} on tcl8.6"
+                .any(|d| d.code == DiagCode::W001 || d.code == DiagCode::W002),
+            "unexpected W001/W002 for {snippet:?} on tcl8.6"
+        );
+        let nine = Analyser::new().analyse(snippet, "tcl9.0").diagnostics;
+        assert!(
+            nine.iter().any(|d| d.code == DiagCode::W002),
+            "expected W002 for {snippet:?} on tcl9.0 (removed, but exists in 8.x)"
         );
         assert!(
-            Analyser::new()
-                .analyse(snippet, "tcl9.0")
-                .diagnostics
-                .iter()
-                .any(|d| d.code == DiagCode::W001),
-            "expected W001 for {snippet:?} on tcl9.0 (removed)"
+            !nine.iter().any(|d| d.code == DiagCode::W001),
+            "unexpected W001 (should be W002) for {snippet:?} on tcl9.0"
         );
     }
+    // A subcommand that exists in *no* dialect is still a genuine W001.
+    let typo = Analyser::new().analyse("string bogusxyz abc", "tcl8.6").diagnostics;
+    assert!(
+        typo.iter().any(|d| d.code == DiagCode::W001),
+        "expected W001 for a genuinely unknown subcommand"
+    );
+    assert!(
+        !typo.iter().any(|d| d.code == DiagCode::W002),
+        "unexpected W002 for a genuinely unknown subcommand"
+    );
 }
 
 #[test]
 fn info_frame_is_dialect_gated_to_8_5_plus() {
     // `info frame` was introduced in Tcl 8.5 (TIP 280); it does not exist in
-    // 8.4, so an unknown-subcommand W001 must fire there but not in 8.5+.
+    // 8.4.  Because it *does* exist in 8.5+, using it under 8.4 is W002
+    // ("disabled in the active dialect profile"), not W001 ("Unknown
+    // subcommand") — the subcommand exists, just not in that dialect (#812).
     assert!(
-        has_code("info frame\n", "tcl8.4", "W001"),
-        "info frame should be unknown in tcl8.4"
+        has_code("info frame\n", "tcl8.4", "W002"),
+        "info frame should be disabled-in-dialect (W002) in tcl8.4"
+    );
+    assert!(
+        !has_code("info frame\n", "tcl8.4", "W001"),
+        "info frame is a real subcommand, so not W001 in tcl8.4"
     );
     for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         assert!(
             !has_code("info frame\n", dialect, "W001"),
             "info frame should be known in {dialect}"
+        );
+        assert!(
+            !has_code("info frame\n", dialect, "W002"),
+            "info frame should be enabled in {dialect}"
         );
     }
 }
