@@ -1614,7 +1614,7 @@ const PT_IMPORT_API_CMDS: &[Row] = &[(
 const REPORT_CMDS: &[Row] = &[
     (
         "report::defstyle",
-        Arity::exact(1),
+        Arity::exact(3),
         &["report::defstyle styleName arguments script"],
         "Defines the new style styleName.",
     ),
