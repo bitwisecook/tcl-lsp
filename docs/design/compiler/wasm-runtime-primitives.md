@@ -265,7 +265,7 @@ The intended trim policy:
   records in TZif are dead weight for our renderer.
 
 The trimmer should live in `scripts/trim_tzdata.py` and run at
-runtime build time (idempotent, like `fetch_tcl_regex.sh`).
+runtime build time (idempotent, a build-time fetch/generate step).
 Output goes to a data blob under `runtime/rust/` and is embedded
 into the runtime binary (via Rust's `include_bytes!`) from the clock module.
 
