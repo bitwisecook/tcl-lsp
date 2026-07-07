@@ -190,3 +190,8 @@
 /* Headings + running header/footer only exist for print; hide on screen. */
 .print-heading, .print-doc-title, .print-doc-sub,
 .print-running-head, .print-running-foot { display: none; }
+
+/* The on-screen footer logo row is redundant in print (the per-page running
+ * foot already carries the branding + copyright); drop it so it doesn't print
+ * as a stray row on the last page. */
+@media print { .foot-logos { display: none; } }

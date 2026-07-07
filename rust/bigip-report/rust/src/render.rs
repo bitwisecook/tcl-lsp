@@ -106,6 +106,9 @@ pub struct RenderOptions {
     /// architecture editor keys its localStorage per report. Empty = the report's
     /// own JS mints and persists one on first load.
     pub report_id: String,
+    /// Optional copyright / confidentiality notice rendered in the report footer
+    /// (screen, mobile and every printed page). Empty = no notice.
+    pub copyright: String,
 }
 
 impl Default for RenderOptions {
@@ -118,6 +121,7 @@ impl Default for RenderOptions {
             files: std::collections::HashMap::new(),
             architecture: None,
             report_id: String::new(),
+            copyright: String::new(),
         }
     }
 }
@@ -171,6 +175,7 @@ pub fn render_report(model: J, opts: &RenderOptions) -> Result<String, ReportErr
     // Build the render context: the data model + assets + flags.
     let mut ctx: Map<String, J> = data;
     ctx.insert("title".into(), J::String(opts.title.clone()));
+    ctx.insert("copyright".into(), J::String(opts.copyright.clone()));
     ctx.insert("report_id".into(), J::String(opts.report_id.clone()));
     ctx.insert(
         "f5q_manual".into(),

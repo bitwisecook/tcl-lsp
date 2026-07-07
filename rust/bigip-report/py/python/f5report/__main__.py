@@ -57,6 +57,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-console", action="store_true",
                         help="omit the in-browser WASM query console (smaller page; "
                         "suitable for hosting where a strict CSP blocks WebAssembly)")
+    parser.add_argument("--copyright", metavar="TEXT", default=None,
+                        help="copyright / confidentiality notice shown in the report "
+                        "footer (screen, mobile and print); or read from --copyright-file")
+    parser.add_argument("--copyright-file", metavar="FILE", default=None,
+                        help="read the footer copyright notice from FILE")
     parser.add_argument("--json", action="store_true",
                         help="emit the report model as JSON instead of HTML")
     parser.add_argument("--version", action="version",
@@ -71,6 +76,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"f5-report: could not read --f5mku-file: {exc}", file=sys.stderr)
             return 2
 
+    copyright_notice = args.copyright or ""
+    if args.copyright_file:
+        try:
+            copyright_notice = open(args.copyright_file, encoding="utf-8").read().strip()
+        except OSError as exc:
+            print(f"f5-report: could not read --copyright-file: {exc}", file=sys.stderr)
+            return 2
+
     try:
         sources = load_paths(
             args.inputs, passphrase=args.passphrase, include_extras=args.include_extras
@@ -82,14 +95,16 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.json:
             out = json.dumps(
-                collect_model(sources, title=args.title, master_key=master_key),
+                collect_model(sources, title=args.title, master_key=master_key,
+                              copyright=copyright_notice),
                 indent=2, default=str,
             )
         else:
             out = build_report(sources, title=args.title,
                                embed_console=False if args.no_console else None,
                                master_key=master_key,
-                               report_id=str(_uuid.uuid4()))
+                               report_id=str(_uuid.uuid4()),
+                               copyright=copyright_notice)
     except Exception as exc:  # noqa: BLE001 — surface a clean CLI error (e.g. wrong master key)
         print(f"f5-report: {exc}", file=sys.stderr)
         return 2

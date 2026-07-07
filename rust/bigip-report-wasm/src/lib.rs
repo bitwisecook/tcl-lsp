@@ -248,6 +248,7 @@ pub fn generate_report(
     embed_console: bool,
     architecture_manifest: &str,
     report_id: &str,
+    settings_json: &str,
 ) -> Result<String, JsError> {
     let sources: Vec<Source> = serde_json::from_str(sources_json)
         .map_err(|e| JsError::new(&format!("invalid sources JSON: {e}")))?;
@@ -273,6 +274,24 @@ pub fn generate_report(
     } else {
         Some(architecture_manifest.to_owned())
     };
+    // Optional report settings the builder page persists / exports as JSON: the
+    // report *content* copyright notice (distinct from the fixed tooling
+    // copyright in the footer) and, in later phases, the front-matter and logo.
+    // Parsed leniently via `Value` (no serde-derive dep) so an empty string or
+    // an older builder page still works; only `copyright` is consumed today.
+    let settings: serde_json::Value = if settings_json.trim().is_empty() {
+        serde_json::Value::Null
+    } else {
+        serde_json::from_str(settings_json)
+            .map_err(|e| JsError::new(&format!("invalid settings JSON: {e}")))?
+    };
+    let setting = |key: &str| {
+        settings
+            .get(key)
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_owned()
+    };
     let opts = RenderOptions {
         title: title.to_owned(),
         generated_at: generated_at.to_owned(),
@@ -281,6 +300,7 @@ pub fn generate_report(
         files,
         architecture,
         report_id: report_id.to_owned(),
+        copyright: setting("copyright"),
     };
     build_report(&sources, &opts).map_err(|e| JsError::new(&e.to_string()))
 }

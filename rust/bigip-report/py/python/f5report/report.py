@@ -682,6 +682,7 @@ def collect_model(
     title: str = "F5 BIG-IP Configuration Report",
     master_key: str | None = None,
     manifest: str | None = None,
+    copyright: str = "",
 ) -> dict[str, Any]:
     """Build the full report model from loaded ``(uri, text)`` sources.
 
@@ -722,6 +723,7 @@ def collect_model(
 
     return {
         "title": title,
+        "copyright": copyright,
         "engine_version": _engine.__version__,
         "git_hash": getattr(_engine, "__git_hash__", "unknown"),
         "devices": devices,
@@ -740,6 +742,7 @@ def build_report(
     master_key: str | None = None,
     report_id: str = "",
     manifest: str | None = None,
+    copyright: str = "",
 ) -> str:
     """Collect the model and render it to a standalone HTML document.
 
@@ -749,7 +752,8 @@ def build_report(
     is the optional builder DSL that overrides architecture auto-detection.
     """
     return render_report(
-        collect_model(sources, title=title, master_key=master_key, manifest=manifest),
+        collect_model(sources, title=title, master_key=master_key, manifest=manifest,
+                      copyright=copyright),
         embed_console=embed_console,
         report_id=report_id,
     )

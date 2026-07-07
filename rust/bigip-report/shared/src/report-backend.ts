@@ -19,6 +19,23 @@ export interface GenerateOptions {
   generatedAt: string;
   /** Per-report UUID; the report keys its localStorage (arch editor) on this. */
   reportId: string;
+  /**
+   * Report settings the builder persists / exports as JSON: the report *content*
+   * copyright notice (distinct from the fixed tooling copyright), and — in later
+   * phases — the Markdown front-matter and logo. Serialised straight to the wasm
+   * `generate_report` settings argument. Empty object = no settings.
+   */
+  settings?: ReportSettings;
+}
+
+/** Persisted/exported builder settings baked into the generated report. */
+export interface ReportSettings {
+  /** Report content copyright notice (the tooling copyright is fixed). */
+  copyright?: string;
+  /** Markdown front-matter for the Front-matter tab. */
+  frontMatter?: string;
+  /** Inlined report logo as a data-URI. */
+  logo?: string;
 }
 
 export interface GenerateResult {
@@ -65,6 +82,7 @@ interface WasmBindgen {
     embedConsole: boolean,
     manifest: string,
     reportId: string,
+    settingsJson: string,
   ): string;
   // Added in Phase C (guarded with `in` checks until the wasm exports them).
   build_architecture?(devicesJson: string, manifest: string): string;
@@ -168,6 +186,7 @@ export class WasmBackend implements ReportBackend {
       opts.embedConsole,
       opts.manifest,
       opts.reportId,
+      JSON.stringify(opts.settings ?? {}),
     );
     return { html, deviceCount: sources.length, locked: secretTotal > 0 && !opts.masterKey };
   }

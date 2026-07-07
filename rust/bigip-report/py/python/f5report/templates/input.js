@@ -77,7 +77,8 @@
         opts.generatedAt,
         opts.embedConsole,
         opts.manifest,
-        opts.reportId
+        opts.reportId,
+        JSON.stringify(opts.settings ?? {})
       );
       return { html, deviceCount: sources.length, locked: secretTotal > 0 && !opts.masterKey };
     }

@@ -208,6 +208,21 @@ pre.code.tcl .diag.flash{background:rgba(191,135,0,.25);border-radius:3px}
 .foot code{background:var(--tag-bg);padding:1px 5px;border-radius:4px}
 .foot-build{margin:6px 0 0;font-size:11px;color:var(--muted)}
 .foot-build code{font-family:var(--mono);font-size:10px}
+/* Which backend rendered this report: (py) Jinja/PyO3 or (rust) WASM. A
+ * Bootstrap-style pill badge — fully-rounded (semicircle) ends. */
+.foot-backend{display:inline-block;padding:.18em .6em;font-family:var(--mono);
+  font-size:.85em;font-weight:700;line-height:1;border-radius:10rem;
+  color:#fff;background:var(--accent,#2563eb);vertical-align:baseline}
+/* Tooling copyright — links to the LICENSE on GitHub. */
+.attrib a.tool-copyright{white-space:nowrap}
+/* User-supplied report copyright notice (shown on screen + print). */
+.foot-copyright{margin:10px 0 0;font-size:12px;color:var(--ink);white-space:pre-line}
+/* Footer branding: placeholder f5q mark + the tcl-lsp mark (links to GitHub). */
+.foot-logos{display:flex;gap:18px;align-items:center;justify-content:center;margin:14px 0 2px;color:var(--muted)}
+.foot-logo{display:inline-flex;align-items:center;color:inherit;opacity:.75;transition:opacity .12s}
+.foot-logo svg{display:block;height:24px;width:auto}
+a.foot-logo{text-decoration:none}
+a.foot-logo:hover,a.foot-logo:focus-visible{opacity:1;color:var(--accent,#2563eb);outline:none}
 
 /* Attribution — the bitwisecook BIG-IP Report Generator. Shown small in the
    footer and (print only) as a page footer; also embedded invisibly in the
