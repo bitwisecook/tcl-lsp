@@ -1781,6 +1781,28 @@ disabled = O109
 For the complete reference, see
 [`docs/kcs/kcs-howto-suppress-diagnostics.md`](docs/kcs/kcs-howto-suppress-diagnostics.md).
 
+## Multi-file projects and `package require`
+
+In a project with an "entry" file that runs the `package require`s and then
+`source`s the rest, the individual modules use the required commands without a
+`package require` of their own.  The missing-`package require` check
+([W120](docs/kcs/codes/kcs-diagnostic-w120-missing-package-require.md)) does
+**not** flag them:
+
+- **Automatically** — the server builds a workspace `source` graph and each
+  module inherits the `package require`s of every file that (transitively)
+  `source`s it.  Only literal `source path.tcl` targets are followed.
+- **Explicitly** — when the entry file uses a computed `source` path (or you
+  prefer to pin it), list the entry files in `.tcl-lsp.ini`; their combined
+  requires then apply project-wide and the automatic path is turned off:
+
+  ```ini
+  [project]
+  entryPoints =
+      main.tcl
+      src/app.tcl
+  ```
+
 ## Diagnostic codes
 
 ### Errors

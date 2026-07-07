@@ -36,6 +36,23 @@ fn global_section_top_level_keys() {
 }
 
 #[test]
+fn project_entry_points_list() {
+    // Newline-continuation list of entry files under [project].
+    let ini = "[project]\n\
+               entryPoints =\n\
+               \x20   main.tcl\n\
+               \x20   src/app.tcl\n";
+    let s = settings_from_ini(ini, Layer::Project);
+    assert_eq!(s["entryPoints"], json!(["main.tcl", "src/app.tcl"]));
+    // A comma-separated one-liner is equivalent.
+    let comma = settings_from_ini("[project]\nentryPoints = main.tcl, src/app.tcl\n", Layer::Project);
+    assert_eq!(comma["entryPoints"], json!(["main.tcl", "src/app.tcl"]));
+    // Absent key ⇒ no entryPoints emitted (auto-detection stays on).
+    let none = settings_from_ini("[project]\ndialect = tcl9.0\n", Layer::Project);
+    assert!(none.get("entryPoints").is_none());
+}
+
+#[test]
 fn project_layer_reads_project_section_only() {
     let ini = "[global]\ndialect = tcl8.6\n[project]\ndialect = tcl9.0\n";
     // As a project file, the [project] dialect is honoured and [global] ignored.

@@ -310,6 +310,13 @@ struct DiagInputs {
     workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
     /// Package database for the W120 workspace-refinement post-filter (#723).
     package_resolver: Arc<RwLock<PackageResolver>>,
+    /// `.tcl-lsp.ini [project] entryPoints` for this document's folder (#804):
+    /// when non-empty, the W120 refinement inherits these entries' requires and
+    /// disables the automatic `source`-graph inheritance.
+    entry_points: Vec<String>,
+    /// The document's workspace-folder root, used to resolve relative
+    /// `entry_points` to file URIs. `None` for a no-folder session.
+    folder_root: Option<PathBuf>,
     /// The salsa db handle.  Each run clones a *fresh, short-lived* snapshot and
     /// drops it immediately, so an idle worker never holds a clone across the
     /// debounce sleep (which would block the next edit's `set_text` — salsa's
@@ -691,6 +698,8 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         documents,
         workspace_index,
         package_resolver,
+        entry_points,
+        folder_root,
         db,
         db_project,
         pull_diag_cache,
@@ -765,6 +774,8 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
             db_project: &db_project,
             workspace_index: &workspace_index,
             package_resolver: &package_resolver,
+            entry_points: &entry_points,
+            folder_root: folder_root.as_deref(),
             xc_diagnostics,
         },
     )
@@ -780,6 +791,9 @@ struct AnalyserPathInputs<'a> {
     db_project: &'a Arc<Mutex<Option<tcl_lsp_db::Project>>>,
     workspace_index: &'a Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
     package_resolver: &'a Arc<RwLock<PackageResolver>>,
+    /// #804 W120 inheritance for this document's folder (see [`DiagInputs`]).
+    entry_points: &'a [String],
+    folder_root: Option<&'a Path>,
     xc_diagnostics: bool,
 }
 
@@ -837,10 +851,26 @@ async fn run_diagnostics_analyser_path(
             ControlFlow::Break(settled) => return settled,
         };
 
+    // #804: extra requires this document inherits from configured entry points
+    // or its `source` ancestors, resolved against the live workspace index.
+    // Only computed when there is a W120 to refine — otherwise the index lock
+    // and `source`-graph walk are wasted work on the hot diagnostics path.
+    let inherited_requires = if analyser_diags.iter().any(|d| d.code == DiagCode::W120) {
+        let index = inputs.workspace_index.read().await;
+        compute_inherited_requires(
+            &index,
+            delivery.uri,
+            inputs.entry_points,
+            inputs.folder_root,
+        )
+    } else {
+        Vec::new()
+    };
     let result = refine_and_lift_diagnostics(
         &analysis,
         analyser_diags,
         &compiler_diags,
+        &inherited_requires,
         inputs.package_resolver,
         inputs.registry,
         lift_inputs,
@@ -881,15 +911,18 @@ async fn refine_and_lift_diagnostics(
     analysis: &Arc<AnalysisResult>,
     analyser_diags: Vec<tcl_compiler::analyser::Diagnostic>,
     compiler_diags: &Arc<tcl_lsp_db::CompilerDiagnostics>,
+    inherited_requires: &[String],
     package_resolver: &Arc<RwLock<PackageResolver>>,
     registry: &Arc<CommandRegistry>,
     inputs: &LiftInputs<'_>,
 ) -> Result<Vec<tower_lsp_server::ls_types::Diagnostic>, tokio::task::JoinError> {
-    // #723: refine the analyser's single-file W120 against the workspace
-    // package database (shared with the pull path via `refine_workspace_w120`).
+    // #723 + #804: refine the analyser's single-file W120 against the workspace
+    // package database and the requires inherited from entry points / `source`
+    // ancestors (shared with the pull path via `refine_workspace_w120`).
     let analyser_diags = refine_workspace_w120(
         analyser_diags,
         analysis.as_ref(),
+        inherited_requires,
         package_resolver,
         registry,
     )
@@ -1385,6 +1418,12 @@ struct FolderConfig {
     generic_variable_patterns: FolderGenericPatterns,
     /// `tclLsp.libraryPaths` override; `None` inherits the global set.
     library_paths: Option<Vec<String>>,
+    /// `.tcl-lsp.ini [project] entryPoints` — the project's "main" files (paths
+    /// relative to the folder root). When set, the W120 workspace refinement
+    /// treats these entries' `package require`s as available across the folder
+    /// and disables the automatic `source`-graph inheritance. `None` / empty
+    /// leaves auto-detection on.
+    entry_points: Option<Vec<String>>,
 }
 
 /// Pick the value associated with the **longest** folder URI that `uri` sits
@@ -4179,6 +4218,7 @@ impl Backend {
         let generic_variable_patterns = self.resolved_generic_variable_patterns(uri).await;
         let style_line_length = self.resolved_style_line_length(uri).await;
         let diagnostics_enabled = self.feature_enabled("diagnostics", uri).await;
+        let (entry_points, folder_root) = self.w120_inheritance_config(uri).await;
         DiagInputs {
             client: self.client.clone(),
             registry,
@@ -4191,6 +4231,8 @@ impl Backend {
             documents: Arc::clone(&self.documents),
             workspace_index: Arc::clone(&self.workspace_index),
             package_resolver: Arc::clone(&self.package_resolver),
+            entry_points,
+            folder_root,
             db: Arc::clone(&self.db),
             db_files: Arc::clone(&self.db_files),
             db_project: Arc::clone(&self.db_project),
@@ -4206,6 +4248,39 @@ impl Backend {
                 .client_supports_pull_diagnostics
                 .load(std::sync::atomic::Ordering::Relaxed),
         }
+    }
+
+    /// The project entry points and folder root that govern the #804 W120
+    /// inheritance for `uri`: the longest matching workspace folder's
+    /// `.tcl-lsp.ini [project] entryPoints` (empty ⇒ automatic `source`-graph
+    /// mode) and that folder's filesystem root (to resolve relative entry
+    /// paths).
+    async fn w120_inheritance_config(&self, uri: &Uri) -> (Vec<String>, Option<PathBuf>) {
+        let configs = self.folder_configs.lock().await;
+        let mut best: Option<&(Uri, FolderConfig)> = None;
+        for entry in configs.iter() {
+            if uri_under_folder(uri.as_str(), entry.0.as_str())
+                && best.is_none_or(|b| entry.0.as_str().len() > b.0.as_str().len())
+            {
+                best = Some(entry);
+            }
+        }
+        match best {
+            Some((folder, fc)) => (
+                fc.entry_points.clone().unwrap_or_default(),
+                folder.to_file_path().map(std::borrow::Cow::into_owned),
+            ),
+            None => (Vec::new(), None),
+        }
+    }
+
+    /// The extra `package require` names `uri` inherits for the W120 refinement
+    /// (#804), resolved live against the current workspace index. Empty in the
+    /// common single-file / no-project case.
+    async fn inherited_package_requires(&self, uri: &Uri) -> Vec<String> {
+        let (entry_points, folder_root) = self.w120_inheritance_config(uri).await;
+        let index = self.workspace_index.read().await;
+        compute_inherited_requires(&index, uri, &entry_points, folder_root.as_deref())
     }
 
     /// Build the **complete** diagnostic set for a document — analyser +
@@ -4317,9 +4392,19 @@ impl Backend {
         // database, mirroring the push path's `refine_and_lift_diagnostics`, so a
         // workspace whose `pkgIndex.tcl`/`libraryPaths` prove a required package
         // transitively provides the flagged package suppresses the false W120.
+        // #804: also inherit the requires of the project's entry files / the
+        // `source` ancestors of this document. Only computed when there is a
+        // W120 to refine, matching the push path — otherwise the workspace-index
+        // lock and `source`-graph walk are avoidable work.
+        let inherited_requires = if analyser_diags.iter().any(|d| d.code == DiagCode::W120) {
+            self.inherited_package_requires(uri).await
+        } else {
+            Vec::new()
+        };
         let analyser_diags = refine_workspace_w120(
             analyser_diags,
             analysis.as_ref(),
+            &inherited_requires,
             &self.package_resolver,
             &registry,
         )
@@ -7998,6 +8083,20 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
                 .collect(),
         );
     }
+    // `.tcl-lsp.ini [project] entryPoints` per-folder value.
+    if let Some(points) = obj
+        .get("entryPoints")
+        .and_then(serde_json::Value::as_array)
+    {
+        fc.entry_points = Some(
+            points
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+                .collect(),
+        );
+    }
     // The disabled-diagnostics and non-ASCII helpers expect the value wrapped
     // under `tclLsp`; the per-folder pull hands us the section content directly.
     let wrapped = serde_json::json!({ "tclLsp": cfg });
@@ -8426,22 +8525,76 @@ fn refine_w120_diagnostics(
 async fn refine_workspace_w120(
     analyser_diags: Vec<tcl_compiler::analyser::Diagnostic>,
     analysis: &AnalysisResult,
+    inherited_requires: &[String],
     package_resolver: &Arc<RwLock<PackageResolver>>,
     registry: &CommandRegistry,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
     if !analyser_diags.iter().any(|d| d.code == DiagCode::W120) {
         return analyser_diags;
     }
-    let pkg_requires: Vec<String> = analysis
+    // The document's own `package require`s plus any inherited from the
+    // project's entry files / `source` ancestors (#804): a module `source`d by
+    // an entry that already required the package should not be flagged.
+    let mut pkg_requires: Vec<String> = analysis
         .package_requires
         .iter()
         .map(|pr| pr.name.clone())
         .collect();
+    pkg_requires.extend(inherited_requires.iter().cloned());
     if pkg_requires.is_empty() {
         return analyser_diags;
     }
     let resolver = package_resolver.read().await;
     refine_w120_diagnostics(analyser_diags, &pkg_requires, &resolver, registry)
+}
+
+/// The extra `package require` names available to `uri` for the #804 W120
+/// refinement: from the project's configured entry points when set (which
+/// disables auto-detection), else from the workspace `source` graph — every
+/// file that transitively `source`s `uri` shares its requires.  Operates on an
+/// already-locked index so both the push and pull paths can call it.
+fn compute_inherited_requires(
+    index: &core_workspace_index::WorkspaceIndex,
+    uri: &Uri,
+    entry_points: &[String],
+    folder_root: Option<&Path>,
+) -> Vec<String> {
+    if entry_points.is_empty() {
+        return index.source_ancestor_package_requires(uri.as_str(), resolve_source_uri);
+    }
+    // Explicit entry points: the union of their requires, project-wide.
+    let mut out: Vec<String> = Vec::new();
+    for ep in entry_points {
+        if let Some(entry_uri) = entry_point_uri(ep, folder_root) {
+            out.extend(index.package_requires_for(&entry_uri));
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
+/// Resolve a literal `source` path written in `parent_uri` to the child
+/// document's URI string, keyed the same way the workspace index keys
+/// documents (`Uri::from_file_path`).  `None` for a non-`file:` URI or an
+/// unmappable path.
+fn resolve_source_uri(parent_uri: &str, raw_path: &str) -> Option<String> {
+    let parent = Uri::from_str(parent_uri).ok()?;
+    let parent_path = parent.to_file_path()?;
+    let child = tcl_lsp_core::source_graph::resolve_source_target(parent_path.as_ref(), raw_path);
+    Uri::from_file_path(&child).map(|u| u.as_str().to_owned())
+}
+
+/// Resolve a configured entry-point path (relative to `folder_root`, or
+/// absolute) to its document URI string.
+fn entry_point_uri(entry: &str, folder_root: Option<&Path>) -> Option<String> {
+    let raw = Path::new(entry);
+    let path = if raw.is_absolute() {
+        raw.to_path_buf()
+    } else {
+        tcl_lsp_core::source_graph::resolve_under(folder_root?, entry)
+    };
+    Uri::from_file_path(&path).map(|u| u.as_str().to_owned())
 }
 
 /// The package name a W120 says is missing, read from its quick-fix
@@ -9667,6 +9820,93 @@ mod tests {
         assert!(
             has_w120(&out),
             "plain doesn't provide Tk ⇒ W120 kept: {out:?}"
+        );
+    }
+
+    // ---- #804 W120 entry-point / source-graph inheritance ------------------
+
+    fn ws_index(docs: &[(&Uri, &str)]) -> core_workspace_index::WorkspaceIndex {
+        let analyses: Vec<(String, tcl_compiler::analyser::AnalysisResult)> = docs
+            .iter()
+            .map(|(uri, src)| {
+                let mut a = tcl_compiler::analyser::Analyser::new();
+                ((*uri).as_str().to_owned(), a.analyse(src, "tcl8.6").clone())
+            })
+            .collect();
+        core_workspace_index::WorkspaceIndex::from_documents(
+            analyses.iter().map(|(u, a)| (u.as_str(), a)),
+        )
+    }
+
+    #[test]
+    fn source_uri_resolution_matches_from_file_path() {
+        // The resolver must produce the exact URI string the index keys the
+        // child document by, or the graph edge won't connect.
+        let app = Uri::from_file_path("/proj/app.tcl").unwrap();
+        let child = resolve_source_uri(app.as_str(), "lib/util.tcl").unwrap();
+        let expected = Uri::from_file_path("/proj/lib/util.tcl").unwrap();
+        assert_eq!(child, expected.as_str());
+    }
+
+    #[test]
+    fn auto_source_graph_inherits_entry_requires() {
+        // app.tcl requires Tk and sources lib/util.tcl; util inherits Tk, so a
+        // Tk W120 in util is suppressed with no configuration at all.
+        let app = Uri::from_file_path("/proj/app.tcl").unwrap();
+        let util = Uri::from_file_path("/proj/lib/util.tcl").unwrap();
+        let index = ws_index(&[
+            (&app, "package require Tk\nsource lib/util.tcl\n"),
+            (&util, "proc u {} {}\n"),
+        ]);
+        let inherited = compute_inherited_requires(&index, &util, &[], None);
+        assert_eq!(inherited, vec!["Tk".to_owned()]);
+        // The entry file itself inherits nothing.
+        assert!(compute_inherited_requires(&index, &app, &[], None).is_empty());
+    }
+
+    #[test]
+    fn explicit_entry_points_override_source_graph() {
+        // main.tcl requires Tk but does NOT source other.tcl; with main.tcl set
+        // as an entry point, other.tcl still inherits Tk (project-wide), and the
+        // auto source-graph is bypassed entirely.
+        let root = PathBuf::from("/proj");
+        let main = Uri::from_file_path("/proj/main.tcl").unwrap();
+        let other = Uri::from_file_path("/proj/other.tcl").unwrap();
+        let index = ws_index(&[
+            (&main, "package require Tk\n"),
+            (&other, "proc o {} {}\n"),
+        ]);
+        // Auto mode: other.tcl is not sourced by main, so it inherits nothing.
+        assert!(compute_inherited_requires(&index, &other, &[], Some(&root)).is_empty());
+        // Explicit entry point: other.tcl inherits main.tcl's Tk.
+        let entries = vec!["main.tcl".to_owned()];
+        let inherited = compute_inherited_requires(&index, &other, &entries, Some(&root));
+        assert_eq!(inherited, vec!["Tk".to_owned()]);
+    }
+
+    #[test]
+    fn entry_point_paths_resolve_relative_and_absolute() {
+        let root = PathBuf::from("/proj");
+        let rel = entry_point_uri("src/main.tcl", Some(&root)).unwrap();
+        assert_eq!(
+            rel,
+            Uri::from_file_path("/proj/src/main.tcl").unwrap().as_str()
+        );
+        let abs = entry_point_uri("/opt/app.tcl", Some(&root)).unwrap();
+        assert_eq!(abs, Uri::from_file_path("/opt/app.tcl").unwrap().as_str());
+        // A relative entry with no folder root can't be resolved.
+        assert!(entry_point_uri("main.tcl", None).is_none());
+    }
+
+    #[test]
+    fn folder_config_parses_entry_points() {
+        let cfg = serde_json::json!({
+            "entryPoints": ["main.tcl", "src/app.tcl"],
+        });
+        let fc = parse_folder_config(&cfg).unwrap();
+        assert_eq!(
+            fc.entry_points,
+            Some(vec!["main.tcl".to_owned(), "src/app.tcl".to_owned()])
         );
     }
 
@@ -11130,6 +11370,117 @@ mod tests {
             !diag_codes(&refined).iter().any(|c| c == "W120"),
             "the pull path must refine away the W120 once the workspace proves \
              http is transitively available, got: {:?}",
+            diag_codes(&refined),
+        );
+    }
+
+    /// #804: a module `source`d by an entry file that ran `package require`
+    /// inherits that require, so the sourced module's W120 for the same package
+    /// is suppressed by the automatic workspace `source` graph — no config.
+    #[tokio::test]
+    async fn source_graph_inheritance_suppresses_w120_in_sourced_module() {
+        let backend = test_backend();
+        // Resolver that knows `http` (so the require is not "unknowable").
+        let http_ws = TmpWs::new("srcgraph-http");
+        http_ws.write(
+            "http/http.tcl",
+            "package provide http 2.9\nproc http::register {a b c} {}\n",
+        );
+        http_ws.write(
+            "http/pkgIndex.tcl",
+            "package ifneeded http 2.9 [list source [file join $dir http.tcl]]\n",
+        );
+        {
+            let mut resolver = PackageResolver::new();
+            resolver.scan_tree(&http_ws.0, 100);
+            *backend.package_resolver.write().await = resolver;
+        }
+        let app = Uri::from_file_path("/proj/app.tcl").unwrap();
+        let util = Uri::from_file_path("/proj/lib/util.tcl").unwrap();
+        // util.tcl uses http::register with no local `package require`.
+        let util_src = "http::register foo 80 bar\n";
+
+        // Control: with the entry file NOT indexed, util inherits nothing, so
+        // the single-file W120 stands.
+        let unrefined = backend
+            .full_diagnostics_for(&util, util_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            diag_codes(&unrefined).iter().any(|c| c == "W120"),
+            "without the entry file indexed the W120 must stand, got: {:?}",
+            diag_codes(&unrefined),
+        );
+
+        // Index the entry file: it requires http and sources lib/util.tcl.
+        {
+            let mut a = tcl_compiler::analyser::Analyser::new();
+            let analysis = a
+                .analyse("package require http\nsource lib/util.tcl\n", "tcl8.6")
+                .clone();
+            backend
+                .workspace_index
+                .write()
+                .await
+                .add_document(app.as_str(), &analysis);
+        }
+        let refined = backend
+            .full_diagnostics_for(&util, util_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !diag_codes(&refined).iter().any(|c| c == "W120"),
+            "the sourced module must inherit the entry file's `package require http`, got: {:?}",
+            diag_codes(&refined),
+        );
+    }
+
+    /// #804: an explicitly configured `[project] entryPoints` makes that entry
+    /// file's requires available project-wide even when it does NOT `source` the
+    /// module — and it disables the automatic source-graph path.
+    #[tokio::test]
+    async fn explicit_entry_point_config_suppresses_w120_project_wide() {
+        let backend = test_backend();
+        let http_ws = TmpWs::new("entrypt-http");
+        http_ws.write(
+            "http/http.tcl",
+            "package provide http 2.9\nproc http::register {a b c} {}\n",
+        );
+        http_ws.write(
+            "http/pkgIndex.tcl",
+            "package ifneeded http 2.9 [list source [file join $dir http.tcl]]\n",
+        );
+        {
+            let mut resolver = PackageResolver::new();
+            resolver.scan_tree(&http_ws.0, 100);
+            *backend.package_resolver.write().await = resolver;
+        }
+        let folder = Uri::from_file_path("/proj").unwrap();
+        let main = Uri::from_file_path("/proj/main.tcl").unwrap();
+        let other = Uri::from_file_path("/proj/other.tcl").unwrap();
+        // main.tcl requires http but does NOT source other.tcl.
+        {
+            let mut a = tcl_compiler::analyser::Analyser::new();
+            let analysis = a.analyse("package require http\n", "tcl8.6").clone();
+            backend
+                .workspace_index
+                .write()
+                .await
+                .add_document(main.as_str(), &analysis);
+        }
+        // Configure main.tcl as the project entry point.
+        {
+            let fc = FolderConfig {
+                entry_points: Some(vec!["main.tcl".to_owned()]),
+                ..FolderConfig::default()
+            };
+            *backend.folder_configs.lock().await = vec![(folder.clone(), fc)];
+        }
+        let other_src = "http::register foo 80 bar\n";
+        let refined = backend
+            .full_diagnostics_for(&other, other_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !diag_codes(&refined).iter().any(|c| c == "W120"),
+            "an explicit entry point's requires must apply project-wide, got: {:?}",
             diag_codes(&refined),
         );
     }

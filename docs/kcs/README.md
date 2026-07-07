@@ -100,6 +100,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-howto-suppress-diagnostics.md](kcs-howto-suppress-diagnostics.md)
   — turn a diagnostic, warning, optimisation, or shimmer off inline,
   file-wide, per-project, per-editor, or globally.
+- [kcs-howto-configure-project-entry-points.md](kcs-howto-configure-project-entry-points.md)
+  — stop W120 warnings in files loaded by an entry file, via the
+  automatic `source` graph or a manual `entryPoints` list.
 - [kcs-howto-bind-sublime-tcl-commands.md](kcs-howto-bind-sublime-tcl-commands.md)
   — add keyboard shortcuts for the Tcl package's commands in Sublime
   Text using the bundled example keymap.
