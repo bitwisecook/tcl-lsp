@@ -32,7 +32,7 @@ no shelling out** to the `f5-query` binary, no re-implementation of the config
 parser in Python.
 
 ```
-┌───────────────┐   PyO3    ┌────────────────────┐   Jinja   ┌─────────────┐
+┌───────────────┐   PyO3    ┌────────────────────┐ MiniJinja ┌─────────────┐
 │  f5report     │ ───────►  │  _engine (Rust)    │           │ report.html │
 │ (Python 3.9+) │           │  tcl-bigip-query   │           │ (1 file)    │
 │  report.py    │ ◄───────  │  tcl-bigip-io (UCS)│  ───────► │ dark/light  │
@@ -47,7 +47,7 @@ parser in Python.
 | `src/lib.rs` | The PyO3 extension module `f5report._engine`: `query()`, `load_paths()`, `ucs_to_scf()`, `sys_file_ssl_certs()` / `sys_file_ssl_keys()` (cert inventory), `decrypt_secrets()` (`f5mku` master-key secret decryption). Converts engine `Value`s to native Python objects (no JSON round-trip). |
 | `python/f5report/report.py` | Runs the engine queries and shapes the report model, incl. the `referenced_by` graph → orphan detection. |
 | `python/f5report/certs.py` | The SSL-certificate + private-key expiry inventory (answers "which certs are expiring, and what do they front?"). |
-| `python/f5report/render.py` + `templates/` | Jinja rendering to one standalone HTML file (embedded CSS/JS, no external assets). |
+| `python/f5report/render.py` + `templates/` | MiniJinja rendering to one standalone HTML file (embedded CSS/JS, no external assets). |
 | `python/f5report/__main__.py` | The `f5-report` CLI (`--f5mku` / `--f5mku-file` reveal `$M$` secrets). |
 | `tests/` | pytest suite + real-world config fixtures (see `tests/data/PROVENANCE.md`). |
 

@@ -16,7 +16,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Jinja rendering for f5report.
+"""MiniJinja rendering for f5report.
 
 Kept deliberately small: the interesting work (parsing configs, projecting
 objects, walking the reference graph) is done by the query engine in
@@ -38,7 +38,7 @@ import minijinja
 from . import _engine
 
 # One template, one engine. The Python and Rust generators render the *same*
-# MiniJinja template (`report.minijinja.html.j2`) so they cannot drift: MiniJinja
+# MiniJinja template (`report.html.j2`) so they cannot drift: MiniJinja
 # is Jinja2-compatible and ships a native Python binding backed by the same Rust
 # engine the report generator embeds. See render.rs for the mirrored setup.
 
@@ -106,9 +106,9 @@ def _has_vendor(name: str) -> bool:
 def _asset_text(name: str) -> str:
     """Read a CSS/JS asset from the templates dir verbatim.
 
-    These are emitted with ``| safe`` rather than ``{% include %}`` so Jinja
+    These are emitted with ``| safe`` rather than ``{% include %}`` so MiniJinja
     never parses them — the embedded JS/CSS can contain ``{{`` / ``}}`` / ``{%``
-    sequences that would otherwise collide with Jinja's own delimiters.
+    sequences that would otherwise collide with MiniJinja's own delimiters.
     """
     return resources.files("f5report.templates").joinpath(name).read_text("utf-8")
 
@@ -171,5 +171,5 @@ def render_report(
     else:
         model["has_console"] = False
 
-    template_src = _asset_text("report.minijinja.html.j2")
+    template_src = _asset_text("report.html.j2")
     return _build_env(template_src).render_template("report", **model)

@@ -102,7 +102,7 @@ JETBRAINS_CHANNEL   := $(if $(filter true,$(IS_PRERELEASE)),eap,)
 
 # Derived paths
 VSIX_FILE      := $(BUILD_DIR)/tcl-lsp-vscode-$(VERSION).vsix
-# Self-contained BIG-IP report .pyz (native `_engine` + jinja2 bundled by shiv).
+# Self-contained BIG-IP report .pyz (native `_engine` + MiniJinja bundled by shiv).
 # Native + abi3, so the artefact is OS/arch-specific but runs on any CPython
 # >= 3.9 for that platform; the tag keeps CI matrix outputs from clobbering.
 REPORT_PY_DIR  := $(ROOT)rust/bigip-report/py
@@ -360,7 +360,7 @@ build-report-assets: $(REPORT_NPM_STAMP) ## Build the shared BIG-IP report front
 	@echo "==> Building shared BIG-IP report front-end (esbuild)"
 	cd $(REPORT_SHARED_DIR) && $(NPM) run build
 
-build-report-pyz: build-report-assets ## Build a self-contained f5report .pyz (native engine + jinja2, via maturin + shiv)
+build-report-pyz: build-report-assets ## Build a self-contained f5report .pyz (native engine + MiniJinja, via maturin + shiv)
 	@echo "==> Building self-contained f5report .pyz for $(REPORT_PYZ_OS)-$(REPORT_PYZ_ARCH)"
 	@command -v maturin >/dev/null 2>&1 || { echo "ERROR: 'maturin' not found — install with 'pip install maturin'"; exit 1; }
 	@command -v shiv    >/dev/null 2>&1 || { echo "ERROR: 'shiv' not found — install with 'pip install shiv'"; exit 1; }
@@ -373,7 +373,7 @@ build-report-pyz: build-report-assets ## Build a self-contained f5report .pyz (n
 		--manifest-path $(REPORT_PY_DIR)/Cargo.toml \
 		--out $(REPORT_WHEELS)
 	@rm -f $(REPORT_PYZ)
-	@# shiv bundles the wheel + its deps (jinja2) into one .pyz; on first run it
+	@# shiv bundles the wheel + its deps (minijinja) into one .pyz; on first run it
 	@# unpacks to a per-user cache (needed because CPython can't import the native
 	@# `_engine` .so straight from the zip). `-c f5-report` is the project script.
 	shiv --console-script f5-report --output-file $(REPORT_PYZ) \

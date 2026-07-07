@@ -24,8 +24,9 @@
 //! elkjs topology / listener / certificate views, and the in-browser
 //! `f5-query` WebAssembly console — with no external assets and no CDN.
 //!
-//! Uses `minijinja` (pure Rust, so it also builds for wasm32) in place of
-//! Jinja2. The template is [`REPORT_TEMPLATE`]; the CSS / JS / elkjs / wasm
+//! Uses `minijinja` (pure Rust, so it also builds for wasm32) — the same
+//! engine the Python `f5report` package renders through. The template is
+//! [`REPORT_TEMPLATE`]; the CSS / JS / elkjs / wasm
 //! assets are the same vendored artifacts the Python `f5report` package ships,
 //! embedded at compile time so the two generators stay byte-identical.
 
@@ -36,10 +37,9 @@ use serde_json::{Map, Value as J, json};
 use crate::model::collect_model_full;
 use crate::query::{ReportError, Source};
 
-// The template we own (adapted from `f5report`'s `report.html.j2` for minijinja
-// and extended with the SSL-certificate tab).
+// The single shared report template both generators render (`report.html.j2`).
 const REPORT_TEMPLATE: &str =
-    include_str!("../../shared/public/templates/report.minijinja.html.j2");
+    include_str!("../../shared/public/templates/report.html.j2");
 
 // Front-end shared with the Python `f5report` generator: TypeScript sources live
 // in `rust/bigip-report/shared/src` (`pages/`, `search/`, `styles/`), built to

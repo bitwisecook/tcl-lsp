@@ -8,7 +8,7 @@
 // its wheel stays self-contained (no Node needed at wheel-build time — same
 // precedent as the vendored wasm). Both backends render the SAME template:
 // Python via the `minijinja` binding, Rust via `include_str!` of
-// `public/templates/report.minijinja.html.j2` (plus `dist/`, `src/styles/`,
+// `public/templates/report.html.j2` (plus `dist/`, `src/styles/`,
 // `public/vendor/`). The rendered report is always ONE self-contained HTML file
 // with every asset inlined.
 //
@@ -71,7 +71,7 @@ async function build() {
 }
 
 // ---- sync built assets into the self-contained Python package --------------
-// Only the assets the Jinja2 template (`report.jinja2.html.j2`) references are
+// Only the assets the template (`report.html.j2`) references are
 // synced; APM / elk-graph stay Rust-only, as they always have been.
 const PY_JS = ["input", "report", "topology", "console", "certs", "secrets", "forensics", "irule-flow", "irule-format", "print", "elk-graph", "apm"];
 const PY_CSS = ["input", "report", "topology", "certs", "secrets", "forensics", "print", "apm"];
@@ -86,7 +86,7 @@ function sync() {
   // ONE template for both backends: the Python `f5report` package renders the
   // same MiniJinja template the Rust generator embeds (via the `minijinja`
   // Python binding), so the two can never drift.
-  copyFileSync(join(templatesDir, "report.minijinja.html.j2"), join(pyTemplates, "report.minijinja.html.j2"));
+  copyFileSync(join(templatesDir, "report.html.j2"), join(pyTemplates, "report.html.j2"));
   // The builder page the f5report web server serves.
   copyFileSync(join(templatesDir, "input.html"), join(pyTemplates, "input.html"));
 }

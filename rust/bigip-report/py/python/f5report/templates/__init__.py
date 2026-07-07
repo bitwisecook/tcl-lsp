@@ -16,7 +16,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Jinja templates + CSS/JS assets, loaded via ``importlib.resources.files``.
+"""MiniJinja templates + CSS/JS assets, loaded via ``importlib.resources.files``.
 
 Kept a regular package (this file), not an implicit namespace package, so
 ``resources.files("f5report.templates")`` resolves the CSS/JS assets on every

@@ -2,7 +2,7 @@
 # artefacts to the GitHub Release.
 #
 # The `.pyz` bundles the native `_engine` extension (Rust query engine via PyO3)
-# together with its Python deps (jinja2), built by `shiv`. Because the compiled
+# together with its Python deps (minijinja), built by `shiv`. Because the compiled
 # engine is baked in, each artefact is OS/arch-specific (but runs on any CPython
 # >= 3.9 for that platform — the extension is abi3). `GIT_HASH` is injected at
 # build time so the report footer shows the commit the `.pyz` was built from

@@ -52,7 +52,7 @@ The report is then served at `https://<owner>.github.io/<repo>/`.
 # Shipping a self-contained `.pyz`
 
 `report-pyz.yml` builds a single-file, self-contained `f5report` command — the
-native `_engine` extension plus its Python deps (jinja2) bundled by
+native `_engine` extension plus its Python deps (minijinja) bundled by
 [`shiv`](https://shiv.readthedocs.io/) — for Linux, macOS and Windows, and
 attaches the artefacts to the GitHub Release.
 

@@ -247,7 +247,7 @@ pre.code.tcl .diag.flash{background:rgba(191,135,0,.25);border-radius:3px}
 .foot code{background:var(--tag-bg);padding:1px 5px;border-radius:4px}
 .foot-build{margin:6px 0 0;font-size:11px;color:var(--muted)}
 .foot-build code{font-family:var(--mono);font-size:10px}
-/* Which backend rendered this report: (py) Jinja/PyO3 or (rust) WASM. A
+/* Which backend rendered this report: (py) MiniJinja/PyO3 or (rust) WASM. A
  * Bootstrap-style pill badge — fully-rounded (semicircle) ends. */
 .foot-backend{display:inline-block;padding:.18em .6em;font-family:var(--mono);
   font-size:.85em;font-weight:700;line-height:1;border-radius:10rem;

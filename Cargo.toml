@@ -88,7 +88,7 @@ members = [
     "rust/tcl-debugger",
     "rust/xtask",
 ]
-exclude = 
+exclude = [
     "editors/zed",
     # PyO3 bindings for the BIG-IP query engine (built with maturin, not cargo).
     # Excluded for the same reason as `editors/zed`: PyO3's generated glue trips
@@ -115,7 +115,7 @@ exclude =
     # so the LSP/compiler workstream cannot regress on runtime-port churn.
     # Gated separately via `make runtime-rust-test`.
     "runtime/rust",
-
+]
 
 [workspace.package]
 publish = false
