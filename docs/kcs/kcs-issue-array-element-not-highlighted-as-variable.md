@@ -89,17 +89,28 @@ safe to paint as one token.
      dynamic-name or read reference elevates to a plain `Variable`.
    The same single-token `Esc` geometry gate applies to every source, so a
    computed subscript stays multi-token and its inner `$var` survives.
+5. The mechanism is role-general, not variable-only. A parameter the analyser
+   infers to name a **command** — used as a command head (`$cmd args`) or a
+   `CommandPrefix` argument (registry or stub `:command_prefix`) — elevates the
+   call-site literal to a `Function` (`ArgOverride::CommandRef`), so
+   `dispatch greet …` paints `greet` as a command. And a param whose value is
+   **carried through a local** (`set n $p; set $n 1` / `$n …`) still resolves
+   back to the param, via value-copy tracking in the inference, so the role is
+   not lost to an intermediate assignment.
 
 ## File-path anchors
 
 - `rust/tcl-lsp-core/src/semantic_tokens.rs` — `insert_var_role_overrides`,
-  `VarNameArgRoles`, `add_stub_var_roles`, `proc_var_write_indices` /
-  `proc_var_read_indices`, `ArgOverride::VarDecl` / `VarRef`
+  `insert_command_role_overrides`, `VarNameArgRoles`, `add_stub_var_roles`,
+  `proc_var_write_indices` / `proc_var_read_indices` / `proc_command_indices`,
+  `ArgOverride::VarDecl` / `VarRef` / `CommandRef`
 - `rust/tcl-lsp-db/src/lib.rs` — `project_proc_var_index` (workspace-merged
   inferred roles), `semantic_tokens` / `semantic_tokens_project` wiring
 - `rust/tcl-compiler/src/analyser/param_traits.rs` — proc parameter trait
   inference: `upvar` / `namespace upvar` aliases, dynamic names (`var_substitutions`,
-  `scan_commands_bounded` command-substitution descent), compound array names
+  `scan_commands_bounded` command-substitution descent), compound array names,
+  command roles (head + `CommandPrefix`), value-copy tracking (`Aliases`)
+- `rust/tcl-compiler/src/analyser/types.rs` — `ProcArgTrait::Command`
 - `rust/tcl-registry/src/stub_overlay.rs` — `# tcl-lsp: stub … :var` / `:var_read`
   roles
 - `rust/tcl-compiler/src/segmenter.rs` — `SegmentedCommand::single_token_word`
