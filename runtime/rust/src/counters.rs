@@ -19,7 +19,7 @@
 //! Alloc / free / double-free counters — the leak-check instrumentation
 //! (`memory-management.md` MM-C). These back the T1.1 acceptance gate (a
 //! balanced round-trip leaves zero residual) and the T1.3 frame/var leak tests,
-//! mirroring the Zig runtime's `tcl_test_*` surface.
+//! the `tcl_test_*` leak-check surface.
 //!
 //! **Thread-local**, not global. The production runtime is a single-threaded
 //! WASM reactor, so per-thread counters are semantically identical there (one
@@ -69,8 +69,7 @@ fn get(key: &'static std::thread::LocalKey<Cell<i64>>) -> i64 {
     key.with(|c| c.get())
 }
 
-/// Total `TclObj` headers allocated since the last reset (parity with the Zig
-/// `tcl_test_alloc_count`).
+/// Total `TclObj` headers allocated since the last reset (`tcl_test_alloc_count`).
 pub fn alloc_count() -> i64 {
     get(&OBJS_ALLOCED)
 }

@@ -28,8 +28,8 @@
 //! so the struct must be `#[repr(C)]` with the exact field order
 //! `tcl.h` declares — `{ refCount, bytes, length, typePtr, internalRep }`. On
 //! `wasm32` that is `{ isize, ptr, isize, ptr, <8-byte union> }`. This is the
-//! single canonical obj model for the port (the Zig runtime's 32-byte
-//! handle/tagged-immediate layout is a Zig-internal codegen detail; the Rust
+//! single canonical obj model for the port (the codegen's 32-byte
+//! handle/tagged-immediate layout is a separate codegen detail; the Rust
 //! port serves the same `tcl_*`/`obj_*` codegen primitives over the
 //! ABI-faithful struct, with the immediate/inline-string optimisations layered
 //! on later — see T1.5/S6).
@@ -56,7 +56,7 @@ pub type TclSize = isize;
 pub type TclWideInt = i64;
 
 /// `Tcl_ObjType` — the registered type descriptor (`tcl.h`). The four procs are
-/// the **shimmer keystone** (`rust-runtime-port.md` value-kinds): the runtime
+/// the **shimmer keystone** (value-kinds): the runtime
 /// dispatches free / dup / string-generation through `typePtr`, so built-in
 /// types (int, double, list, …) and extension-registered custom types share one
 /// mechanism — type handling is open, never a closed enum (the §6/Track-2

@@ -11,8 +11,8 @@ the implementation. The runtime is the Rust crate `tcl-runtime`
 > the per-subsystem rows fill in incrementally as the audit proceeds
 > against the Rust runtime (`runtime/rust/`). The `cargo xtask
 > refcount-contract` lint that once flagged exports missing a row
-> walked the Zig runtime's exports and was **retired together with
-> that runtime** (see [Lint script](#lint-script) below); the rows
+> walked the runtime's exports and was **retired** (see
+> [Lint script](#lint-script) below); the rows
 > are maintained by hand for now.
 
 ## Categories
@@ -185,11 +185,9 @@ remaining `-inline`/`-indices` storage paths.)
 
 ## Lint script
 
-**Retired.** The `cargo xtask refcount-contract` lint (S0.1
-deliverable) walked every `pub export fn` in the Zig runtime
-(`runtime/zig/`) and warned on any export missing a row. It was
-**removed together with the Zig runtime**, as was the even earlier
-Python `scripts/check/refcount_contract.py` it had been ported from.
+**Retired.** The `cargo xtask refcount-contract` lint (S0.1 deliverable) and
+the even earlier Python `scripts/check/refcount_contract.py` it had been ported
+from have both been removed.
 No automated gate enforces this contract today: the rows above are
 maintained by hand against the Rust runtime (`runtime/rust/`). The
 refcount **discipline** they document still applies in full — only

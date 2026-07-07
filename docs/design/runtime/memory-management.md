@@ -6,18 +6,16 @@ The WASM runtime allocates TclObjs and their string buffers on
 the wasm linear memory.  The runtime is now the Rust crate
 `tcl-runtime` (`runtime/rust/`), whose object lifecycle lives in
 `runtime/rust/src/obj.rs` and allocates through Rust's global
-allocator.  The allocator history below belongs to the **former
-Zig runtime**, whose hand-rolled "bump pointer + size-class
-free-lists" scheme worked fine for bounded workloads but had three
-structural defects.  The Rust runtime inherits none of the
-allocator-coherence defects (#1) because it never bump-allocates;
-the refcount discipline (#2, #3, and Phase MM-B) still applies and
-is the substance of this document:
+allocator.  The three structural defects below motivated the
+refcount discipline that is the substance of this document.  The
+Rust runtime inherits none of the allocator-coherence defects (#1)
+because it never bump-allocates; the refcount discipline (#2, #3,
+and Phase MM-B) still applies:
 
-1. **Heap incoherence with wasi-libc** (former Zig runtime).  The
+1. **Heap incoherence with wasi-libc.**  The
    vendored Spencer regex engine called `MALLOC`/`FREE` which bind
    to wasi-libc's dlmalloc.  dlmalloc's heap starts at `__heap_base`
-   and grows upward.  The Zig bump pointer started at a fixed offset
+   and grows upward.  A bump allocator started at a fixed offset
    (originally 64 KB, then 17 MB after the Phase 1.3 data-segment
    fix) and *also* grew upward.  On heavy regex workloads —
    `regexp.test` compiles thousands of regex_t — wasi-libc's heap
@@ -33,7 +31,7 @@ is the substance of this document:
    provides `incr_ref_count` / `decr_ref_count` (exported over the
    C ABI as `Tcl_IncrRefCount` / `Tcl_DecrRefCount`), with
    `decr_ref_count` freeing the object when the count reaches zero.
-   The hazard the former Zig runtime hit was that only a couple of
+   The hazard was that only a couple of
    call sites actually retained/released, so the frame, proc,
    namespace, and dispatch layers held TclObj references without
    retaining them and every freshly-allocated TclObj was effectively
@@ -54,47 +52,11 @@ is the substance of this document:
 This document records how #1 was resolved and plans the staged
 refcount solution for #2 and #3 that the Rust runtime follows.
 
-## Phase MM-A — coherent allocator (former Zig runtime; moot under Rust)
-
-This phase was the former Zig runtime's allocator fix.  The Rust
-runtime does not need it: it allocates through Rust's global
-allocator in `runtime/rust/src/obj.rs`, has no second bump heap,
-and its regex engine is the pure-Rust `tcl-regex` crate — so the
-cross-allocator corruption class cannot arise.  Retained here as
-design history:
-
-The Zig `alloc` entry point routed every
-allocation through wasi-libc `malloc`.  `free_obj` and
-`free_sized` routed through `free`.  The size-class free-lists were
-kept as a no-op layer for ABI compat (callers that read them
-still see a valid empty list) but are never populated.
-
-Effect:
-- One coherent heap shared with the regex engine.  No more
-  cross-allocator corruption.
-- `regfree_safe` (the wrapper around the engine's `TclReFree`)
-  goes back to calling the real engine cleanup on success-path
-  callers, since the call_indirect now lands on a sane heap.
-- The bump pointer is gone.  `tcl_test_heap_ptr` returns 0 (kept
-  as a stub for the existing test export).
-- `@wasmMemoryGrow` calls inside our allocator are gone — wasi-
-  libc handles linear-memory growth via its own sbrk path.
-
-Trade-off: per-allocation cost rises from ~5 ns (bump add) to
-~100 ns (libc malloc).  For tcltest workloads this is invisible
-— the parser, dispatch, and command bodies dominate by orders of
-magnitude.  For per-op microbenchmarks (`set`, `incr`, etc.) the
-cost shows up in the alloc-bound ones; we accept that trade for
-correctness.
-
 ## Phase MM-B — finish refcounting
 
-The retain/release audit below was first carried out on the former
-Zig runtime; its findings define the discipline the Rust runtime
-implements.  File citations point at the Rust module that now owns
-each subsystem (some Zig-internal symbol names in the historical
-audit narratives, e.g. `execute_parsed_command` / `eval_command`,
-have no verbatim Rust equivalent and are kept as design history).
+The retain/release audit below defines the discipline the Rust
+runtime implements.  File citations point at the Rust module that
+now owns each subsystem.
 
 Goal: every TclObj reference holder explicitly retains and
 releases.  Once that's true, refcount-driven `free` is the

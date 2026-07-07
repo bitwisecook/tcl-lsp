@@ -923,7 +923,7 @@ validation, `::tcl::dict::map`, `dict map` `break`, `lsort -unique` keep-last),
 control (`try` array-element bind), and `namespace which -variable` all match
 tclsh — so the `bug_*` tests now stand as **regression guards** rather than a
 TODO list. The fix detail is in
-[the history archive](rust-rewrite-history.md) (2026-06-25). New VM commands or
+the history archive (2026-06-25). New VM commands or
 opcodes should extend these suites, oracle-pinned, before landing.
 
 ## TEST-MIGRATE — incremental pytest → Rust ports (non-destructive)
@@ -1120,7 +1120,7 @@ ships).
 | Category | Disposition | What it means here |
 | --- | --- | --- |
 | **Ported** | majority | Behaviour lives in a landed crate with a Rust test (unit `#[cfg(test)]`, the `tcltest` reference sweeps, or a `*_parity.rs` differential). The pytest stays as the bridge regression net. |
-| **Deferred** | large minority | The Rust replacement has **not landed**. Named blocking tracks: **RT-WASM** (Zig→WASM runtime + emitter), **RT-VM** (TclOO, child/safe `interp`, full `trace`), **SRV-ROPE** (rope-backed document store), **SRV-LSP / PYTHON-RETIRE** (Python `server/` glue), **PKG** (package resolver), **PGO** (no track yet). |
+| **Deferred** | large minority | The Rust replacement has **not landed**. Named blocking tracks: **RT-WASM** (WASM runtime + emitter), **RT-VM** (TclOO, child/safe `interp`, full `trace`), **SRV-ROPE** (rope-backed document store), **SRV-LSP / PYTHON-RETIRE** (Python `server/` glue), **PKG** (package resolver), **PGO** (no track yet). |
 | **Bridge-only** | small | Tests a Python-binding / Python-server / `ai/` concept with no Rust analogue (PyO3 identity, asyncio supersession, editor manifests, MCP/skills). Lives in pytest until the Python layer retires. |
 | **Remove-at-end** | few | Low-value / meta / cross-surface-staleness checks (assertion-strength linter, doc-presence greps, external-tool drift). Deleted in the final sweep. |
 
@@ -1135,7 +1135,7 @@ of which are ported in this pass.
 
 | Cluster | Files | Owning crate(s) / track | Dominant disposition |
 | --- | ---: | --- | --- |
-| `test_wasm_*` (+ `codegen/wasm`) | 64 | `tcl-compiler::codegen::wasm` + `runtime/zig` | **Deferred (RT-WASM)** — every file links/runs a `.wasm`; runtime+emitter not landed |
+| `test_wasm_*` (+ `codegen/wasm`) | 64 | `tcl-compiler::codegen::wasm` + `runtime/rust` | **Deferred (RT-WASM)** — every file links/runs a `.wasm`; runtime+emitter not landed |
 | `test_vm_*` | 32 | `tcl-vm` (RT-VM) | **Ported** via `tcl-vm/tests/{language,builtins}_e2e.rs`, `cmd_*.rs::tests`, `tmp/parity.sh` tcltest sweep; **Deferred(RT-VM)** for `oo`×3 / `interp` / `safe_mode`; 1 Remove-at-end |
 | `test_f5_*` | 34 | `tcl-bigip`, `tcl-bigip-query`, `tcl-bigip-io`, `f5-cli` | **Ported** (per-module `mod tests` + `f5-cli/tests/*_parity.rs`); a few Deferred(TOOL-F5 external tshark/TLS) + Bridge-only (plugin loader, fluent API) |
 | `test_bigip_*` / `test_irule(s)_*` | 31 | `tcl-bigip`, `tcl-irules`, `tcl-compiler::analyser::irules_*` | **Ported**; Deferred(SRV-LSP) for the LSP-feature halves; Bridge-only for the `*_parity` harnesses + `ai/` consumers |
@@ -1147,7 +1147,7 @@ of which are ported in this pass.
 | tooling (debugger/explorer/minifier/registry/tk/issue/…) | 30 | `tcl-debugger`, `tcl-explorer`, `tcl-lsp-core`, `tcl-registry`, `tcl-compiler` | **Ported** (debugger/minifier/type/tk-diag/registry); Deferred(SRV-LSP) for per-folder/user-config glue; Bridge-only for `ai/` + TUI |
 | misc A | 37 | mixed (compiler / lsp / registry / vm) | **Ported** for the analyser/optimiser/registry files; **Deferred** (SRV-LSP/SRV-ROPE/RT-VM) for the server-glue + runtime files |
 | misc B | 37 | mixed (compiler / lsp / rope / bigip) | **Ported** for FE/formatting modules; **Deferred** (SRV-LSP/SRV-ROPE/RT) for server-glue, rope, and wasm-runtime files; Bridge-only for `ai/` |
-| subdirs (`lsp_e2e`/`registry_contract`/`tclpkg`/`runtime`/`external`) | 44 | SRV-LSP, `tcl-registry`, `tcl-pkg` (TOOL-TCLPKG ✅), `runtime/zig`, infra | `tclpkg`/`registry_contract` **Ported**; `lsp_e2e` Bridge-only (shared harness drives the Rust server too); `runtime/` Deferred(RT-VM/WASM); `external/` Remove-at-end |
+| subdirs (`lsp_e2e`/`registry_contract`/`tclpkg`/`runtime`/`external`) | 44 | SRV-LSP, `tcl-registry`, `tcl-pkg` (TOOL-TCLPKG ✅), `runtime/rust`, infra | `tclpkg`/`registry_contract` **Ported**; `lsp_e2e` Bridge-only (shared harness drives the Rust server too); `runtime/` Deferred(RT-VM/WASM); `external/` Remove-at-end |
 
 ### Genuine portable gaps (landed crate, zero/thin unit coverage)
 

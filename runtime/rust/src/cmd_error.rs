@@ -19,8 +19,7 @@
 //! `catch` + `error` — the exception foundation (PC-4, toward running tcltest).
 //!
 //! Modelled on C Tcl 9 (`tclCmdAH.c` `Tcl_CatchObjCmd`, `tclProc.c`/`tclResult.c`
-//! `Tcl_ErrorObjCmd`) and the Zig oracle's catch discoveries
-//! (`tcltest-bringup.md` appendix). `catch` snapshots the body's completion code
+//! `Tcl_ErrorObjCmd`). `catch` snapshots the body's completion code
 //! and result **before** resetting the interp result; `error` stamps the
 //! `::errorInfo` / `::errorCode` globals on every error (`NONE` default).
 //!
@@ -67,7 +66,7 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // body still evaluates as its own frame.
     let code = interp.eval_control_body(argv[1]);
     // Snapshot the body's result BEFORE we overwrite the interp result with the
-    // catch return value (the Zig "read before clear" discovery). `var_set`
+    // catch return value (read the value before clearing the result). `var_set`
     // retains it into the result var, so it survives the later `set_result`.
     let result = interp.get_obj_result();
 

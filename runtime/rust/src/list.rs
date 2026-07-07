@@ -19,7 +19,7 @@
 //! The Tcl **list** value type (T1.6) — the first user of the typed-internal-rep
 //! machinery (`obj::change_type` / `free`/`dup`/`update_string` via `typePtr`).
 //!
-//! ## Representation decision (re-derived; see `rust-runtime-port.md`)
+//! ## Representation decision (re-derived)
 //!
 //! Canonical Tcl (`tclListObj.c`) backs a list obj with a `List` struct holding
 //! a **contiguous, growable `Tcl_Obj *` array**. The op-profile forces this:

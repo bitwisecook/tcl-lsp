@@ -9,8 +9,7 @@ The Rust interpreters target several backends with different capabilities:
 | eBPF       | `bpf-tcl` (DSL subset → eBPF)   | ✗ | ✗ | ✗ | ✗ | ✗ |
 
 The upstream Tcl 9 tcltest suite is a fixed contract — we never edit
-`tcltest.tcl`, `init.tcl`, or any `.test` file (see
-[`tcltest-bringup.md`](tcltest-bringup.md)). A test that needs a capability a
+`tcltest.tcl`, `init.tcl`, or any `.test` file. A test that needs a capability a
 backend lacks must therefore be **skipped**, not failed, so the backend's
 pass / fail / skip line matches what that backend can honestly run. C tclsh
 does the same thing with its `win` / `unix` / `nonPortable` constraints.

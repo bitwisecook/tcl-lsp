@@ -21,9 +21,8 @@
 //! Both are **transparent**: the body's completion code (including `return`)
 //! propagates unchanged (unlike a proc/`source`, which map `return`→Ok). `eval`
 //! runs in the current scope; `uplevel ?level?` runs in an enclosing frame's
-//! variable scope *and* namespace (C Tcl `tclProc.c` `Tcl_UplevelObjCmd`; the
-//! Zig oracle's "restore caller ns + depth together" discovery — see
-//! `tcltest-bringup.md`). Multiple args are space-joined (the `concat`-style
+//! variable scope *and* namespace (C Tcl `tclProc.c` `Tcl_UplevelObjCmd` —
+//! restore caller ns + depth together). Multiple args are space-joined (the `concat`-style
 //! eval form). Level parsing is shared with `upvar` ([`crate::cmd_var::parse_level`]).
 //!
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.

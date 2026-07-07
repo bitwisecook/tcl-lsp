@@ -1,0 +1,60 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "f5report"
+version = "0.1.0"
+description = "Interactive HTML reports for F5 BIG-IP configs, powered by the f5-query engine via PyO3"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "tcl-lsp contributors" }]
+keywords = ["f5", "big-ip", "bigip", "report", "irules", "pyo3"]
+dependencies = [
+    # MiniJinja (Jinja2-compatible) is the single templating engine shared with
+    # the Rust generator, so the two backends render the identical template.
+    "minijinja>=2.0",
+]
+
+[project.scripts]
+f5-report = "f5report.__main__:main"
+f5-report-web = "f5report.web:main"
+
+[tool.maturin]
+# Mixed Rust/Python layout: the native extension (`_engine`) is compiled into
+# the `f5report` package that lives under `python/`.
+python-source = "python"
+module-name = "f5report._engine"
+features = ["pyo3/extension-module"]
+# The front-end assets (templates/JS/CSS + vendored wasm) are build outputs of
+# `npm run build` (rust/bigip-report/shared/build.mjs), synced into the package
+# on disk but NOT checked in (see .gitignore). maturin otherwise skips
+# git-ignored files, so force them into the wheel here. Every wheel build runs
+# the shared front-end build first, so they are present on disk.
+include = [
+    "python/f5report/templates/*.js",
+    "python/f5report/templates/*.css",
+    "python/f5report/templates/*.j2",
+    "python/f5report/templates/*.html",
+    "python/f5report/vendor/*.js",
+    "python/f5report/vendor/*.wasm",
+]

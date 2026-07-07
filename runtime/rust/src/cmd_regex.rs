@@ -32,8 +32,7 @@
 //! (and stubbed out on wasm32, where the C FFI cannot link); it is now the
 //! safe-Rust `tcl-regex` crate, which works on every target and is validated
 //! against tclsh 9.0 (`reg.test`). The same engine is re-exported to C via the
-//! C-ABI shim in [`crate::regex_capi`]. This is the M3 regex wall in
-//! `docs/design/runtime/tcltest-bringup.md`.
+//! C-ABI shim in [`crate::regex_capi`].
 //!
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]

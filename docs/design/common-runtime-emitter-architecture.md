@@ -12,7 +12,7 @@
 > behavioural **oracle**. The WASM side migrates onto these interfaces *later*,
 > guided by [§7 WASM migration steering](#7-wasm-migration-steering). The
 > near-term implementation target is the bytecode VM + the emitter trait on the
-> Rust side ([docs/design/runtime/rust-runtime-port.md] discipline).
+> Rust side.
 
 ## 1. Why this document exists
 
@@ -20,7 +20,7 @@ The repo already has a shared compiler frontend (lexer → green/red CST → IR 
 CFG → SSA → optimiser) feeding **two codegen backends** that live side by side
 (`compiler/codegen/bytecode/` and `compiler/codegen/wasm/`;
 [docs/design/compiler/codegen-module-map.md]) and **multiple runtimes** (the Rust
-WASM runtime `runtime/rust/`, which replaced the retired Zig runtime, and the
+WASM runtime `runtime/rust/`, and the
 Python reference VM `tooling/vm/`). We are adding a native, idiomatic Rust **bytecode
 VM** that executes the TCLVM bytecode the Rust codegen already emits
 (`rust/tcl-compiler/src/codegen/`).
@@ -541,10 +541,7 @@ not Rust today:
   and only becomes real once/if the WASM emitter is ported to Rust (a large,
   separate effort, explicitly out of scope here — §7).
 
-The **canonical WASM runtime is now Rust** (`runtime/rust`, the port that
-superseded the retired Zig runtime), so — unlike the old Zig runtime, which could
-only converge by **API parity** (the command-parity gate
-`scripts/check/wasm_command_parity.py` + the C Tcl 9 suite as oracle) — it *does*
+The **canonical WASM runtime is now Rust** (`runtime/rust`), so it *does*
 implement `tcl-runtime-api` and shares concrete code via `tcl-cmd-core`; that
 convergence is the highest-value one below.
 
@@ -583,8 +580,7 @@ The migration path, for when we choose to converge them:
    frame-alias bit-tagging, `Tcl_Obj` 24-byte layout) as explicitly *not* part of
    the shared interface.
 5. **Never regress** the compiler/LSP or the Rust runtime; the C Tcl 9 test suite
-   (`tmp/tcl9.0.3/tests/*.test`) stays the gold standard
-   ([docs/design/runtime/rust-runtime-port.md]).
+   (`tmp/tcl9.0.3/tests/*.test`) stays the gold standard.
 
 ## 8. Longest poles / risks (call these out before building)
 
@@ -622,8 +618,7 @@ tclExecute.c`). Evidence this matters: the *recursive* tree-walking
 `runtime/rust` cannot suspend mid-evaluation, so it implements `yield` with **OS
 worker threads + channel handoff** (`runtime/rust/src/cmd_coro.rs`: "yield must
 suspend execution arbitrarily deep in the recursive evaluator… rather than
-rewrite"), and the former Zig runtime needed **asyncify** (wasm-opt call-stack
-save/restore) for the same reason. A bytecode VM whose activation
+rewrite"). A bytecode VM whose activation
 stack *is data* needs neither. This is the **single biggest architectural reason
 to prefer a bytecode VM**, and it is free only if NRE is designed in from M2
 (proc calls), not retrofitted.
@@ -678,5 +673,4 @@ panicking stub and drop the compiler entirely.
 - [docs/design/compiler/wasm-runtime-primitives.md] — the import boundary.
 - [docs/design/runtime/namespace-tree.md], [docs/design/runtime/proc-call-and-stack-traces.md], [docs/design/runtime/command-introspection.md], [docs/design/runtime/trace-implementation.md], [docs/design/runtime/rename-alias.md], [docs/design/runtime/child-interp.md] — the family-B subsystems.
 - [docs/design/runtime/c-extension-abi.md] — why the value model can't be one type.
-- [docs/design/runtime/rust-runtime-port.md] — the Rust runtime-port discipline this VM rides alongside.
 - [docs/design/contracts/vm-bytecode-test-boundary.md] — bytecode identity/test boundary.

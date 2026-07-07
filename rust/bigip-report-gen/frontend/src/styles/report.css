@@ -1,0 +1,623 @@
+/*
+ * tcl-lsp — a language server and toolchain for Tcl
+ * Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+/* f5report — self-contained styling. Light/dark aware, no external assets. */
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --ink:#1b2230; --muted:#6b7688; --line:#e4e8ee;
+  --accent:#0b6ea8; --accent-ink:#ffffff;
+  --blue:#1f6feb; --green:#1a7f5a; --amber:#9a6a00; --red:#b4232a;
+  --search-hi:#c2410c; /* dark orange (light theme) */
+  --tag-bg:#eef1f5; --tag-ink:#3a4657; --chip:#ffffff; --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+}
+:root[data-theme="dark"]{
+  --bg:#0d1117; --panel:#161b22; --ink:#e6edf3; --muted:#8b98a8; --line:#232c37;
+  --accent:#2f9fd0; --accent-ink:#04121a;
+  --blue:#4a9bff; --green:#3fb98a; --amber:#e3b341; --red:#f26d74;
+  --search-hi:#fb923c; /* orange (dark theme) */
+  --tag-bg:#232c37; --tag-ink:#c6d2df; --chip:#1b222c; --shadow:none;
+}
+@media (prefers-color-scheme:dark){
+  :root[data-theme="auto"]{
+    --bg:#0d1117; --panel:#161b22; --ink:#e6edf3; --muted:#8b98a8; --line:#232c37;
+    --accent:#2f9fd0; --accent-ink:#04121a;
+    --blue:#4a9bff; --green:#3fb98a; --amber:#e3b341; --red:#f26d74;
+    --search-hi:#fb923c;
+    --tag-bg:#232c37; --tag-ink:#c6d2df; --chip:#1b222c; --shadow:none;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.45}
+h1,h2{margin:0;font-weight:650;letter-spacing:-.01em}
+a{color:var(--blue);text-decoration:none}
+code{font-family:var(--mono)}
+
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;
+  gap:16px;padding:12px 22px;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:14px}
+.logo{display:grid;place-items:center;width:38px;height:38px;border-radius:10px;
+  background:linear-gradient(135deg,var(--accent),var(--blue));color:#fff;font-size:20px}
+/* User-supplied report logo (inlined data-URI): show at its aspect ratio, no
+ * gradient background. Capped so a wide wordmark or tall badge both fit. */
+.logo-custom{background:none;width:auto;height:38px;max-width:160px;object-fit:contain;border-radius:6px}
+.topbar h1{font-size:17px}
+.sub{margin:2px 0 0;color:var(--muted);font-size:12px}
+.topbar-actions{display:flex;align-items:center;gap:10px}
+#globalSearch{width:min(360px,40vw);padding:8px 12px;border:1px solid var(--line);border-radius:9px;
+  background:var(--bg);color:var(--ink);font-size:13px}
+#globalSearch:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
+#themeToggle{width:38px;height:38px;border:1px solid var(--line);border-radius:9px;background:var(--bg);
+  color:var(--ink);font-size:17px;cursor:pointer}
+#themeToggle:hover{border-color:var(--accent)}
+
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding:20px 22px 8px}
+.chip{background:var(--chip);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow)}
+.chip-val{display:block;font-size:26px;font-weight:680;letter-spacing:-.02em}
+.chip-lbl{display:block;margin-top:2px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.chip.warn .chip-val{color:var(--amber)} .chip.ok .chip-val{color:var(--green)}
+
+.device-switch{display:flex;gap:8px;padding:8px 22px 0;flex-wrap:wrap}
+.dev-tab{padding:8px 14px;border:1px solid var(--line);border-radius:9px 9px 0 0;background:var(--bg);
+  color:var(--muted);cursor:pointer;font-weight:600}
+.dev-tab.active{background:var(--panel);color:var(--ink);border-bottom-color:var(--panel)}
+
+.device{display:none;padding:8px 22px 40px}
+.device.active{display:block}
+/* partition filter */
+.partition-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 2px}
+.partition-lbl{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.partition-filter{padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);
+  color:var(--ink);font-size:13px;font-family:var(--mono)}
+.partition-filter:focus{outline:2px solid var(--accent);border-color:transparent}
+.partition-note{color:var(--muted);font-size:12px}
+.partition-note code{font-family:var(--mono);color:var(--ink)}
+tr.part-hidden{display:none !important}
+.device-head{display:flex;align-items:baseline;gap:14px;margin:14px 0 6px}
+.device-head h2{font-size:20px}
+.device-meta{display:flex;gap:8px}
+.badge{font-size:11px;padding:3px 8px;border-radius:20px;background:var(--tag-bg);color:var(--tag-ink);font-family:var(--mono)}
+.badge.muted{color:var(--muted)}
+
+.insights{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px;margin:12px 0 18px}
+.insight{display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel);font-size:13px}
+.insight .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.insight.warn .dot{background:var(--amber)} .insight.info .dot{background:var(--blue)}
+.insight.ok .dot{background:var(--green)} .insight.warn{border-color:color-mix(in srgb,var(--amber) 40%,var(--line))}
+
+.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:14px}
+.tab{padding:9px 14px;border:none;background:none;color:var(--muted);cursor:pointer;font-weight:600;
+  border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;align-items:center;gap:7px}
+@media (hover:hover){.tab:hover{color:var(--ink)}}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab .n{font-size:11px;background:var(--tag-bg);color:var(--tag-ink);padding:1px 7px;border-radius:20px;font-weight:600}
+
+.panel{display:none}
+.panel.active{display:block}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel);box-shadow:var(--shadow)}
+table.grid{width:100%;border-collapse:collapse;font-size:13px}
+.grid thead th{position:sticky;top:0;background:var(--panel);text-align:left;padding:10px 12px;
+  color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line);z-index:1}
+.grid tbody td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+@media (hover:hover){.grid tbody tr.searchable:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}}
+.grid tbody tr.hidden{display:none}
+/* search results are two-toned: a row that directly matches the query is
+   recoloured with the primary accent; a row shown only because it is *linked*
+   to a match gets a second (orange) accent, so match vs. association reads at a
+   glance. Tags keep their own colours. */
+.grid tbody tr.search-hit td,
+.grid tbody tr.search-hit td .namelink,
+.grid tbody tr.search-hit td.small,
+.grid tbody tr.search-hit td .muted{color:var(--accent) !important}
+.grid tbody tr.search-linked td,
+.grid tbody tr.search-linked td .namelink,
+.grid tbody tr.search-linked td.small,
+.grid tbody tr.search-linked td .muted{color:var(--search-hi) !important}
+.grid tbody tr.search-hit td .tag,
+.grid tbody tr.search-linked td .tag{opacity:.85}
+.grid tbody tr.orphan td:first-child,.grid tbody tr.orphan td:nth-child(2){box-shadow:inset 3px 0 0 var(--amber)}
+.grid tr.is-disabled{opacity:.62}
+.mono{font-family:var(--mono);font-size:12px}
+.strong{font-weight:640}
+.small{font-size:11px;color:var(--muted)}
+.muted{color:var(--muted)}
+.clip{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.tag{display:inline-block;margin:1px 3px 1px 0;padding:1px 7px;border-radius:6px;background:var(--tag-bg);
+  color:var(--tag-ink);font-family:var(--mono);font-size:11px}
+.tag.blue{background:color-mix(in srgb,var(--blue) 16%,transparent);color:var(--blue)}
+.tag.green{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
+.tag.amber{background:color-mix(in srgb,var(--amber) 18%,transparent);color:var(--amber)}
+.tag.red{background:color-mix(in srgb,var(--red) 16%,transparent);color:var(--red)}
+.ref{border-bottom:1px dotted var(--blue)}
+.info-i{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--tag-bg);
+  color:var(--muted);font-size:10px;font-style:italic;cursor:help}
+
+tr.expandable{cursor:pointer}
+.expander{color:var(--muted);width:22px;text-align:center;transition:transform .12s}
+tr.expandable.open .expander{transform:rotate(90deg);color:var(--accent)}
+tr.detail{display:none;background:color-mix(in srgb,var(--accent) 4%,transparent)}
+tr.detail.open{display:table-row}
+/* ---- Front-matter tab (rendered user Markdown) ------------------------- */
+.front-matter{max-width:52rem}
+.md-body{line-height:1.6;font-size:14px;color:var(--ink)}
+.md-body h1,.md-body h2,.md-body h3,.md-body h4{line-height:1.25;margin:1.4em 0 .5em;font-weight:650}
+.md-body h1{font-size:1.7em;border-bottom:1px solid var(--line);padding-bottom:.25em}
+.md-body h2{font-size:1.35em;border-bottom:1px solid var(--line);padding-bottom:.2em}
+.md-body h3{font-size:1.15em}
+.md-body p,.md-body ul,.md-body ol,.md-body blockquote,.md-body table,.md-body pre{margin:.7em 0}
+.md-body ul,.md-body ol{padding-left:1.6em}
+.md-body li{margin:.2em 0}
+.md-body a{color:var(--accent,#2563eb)}
+.md-body code{font-family:var(--mono);font-size:.9em;background:var(--tag-bg);padding:1px 5px;border-radius:4px}
+.md-body pre{background:var(--tag-bg);padding:12px 14px;border-radius:8px;overflow:auto}
+.md-body pre code{background:none;padding:0}
+.md-body blockquote{border-left:3px solid var(--line);padding-left:1em;color:var(--muted);margin-left:0}
+.md-body table{border-collapse:collapse}
+.md-body th,.md-body td{border:1px solid var(--line);padding:5px 10px;text-align:left}
+.md-body img{max-width:100%}
+
+/* ---- Object Index tab -------------------------------------------------- */
+.objindex-bar{margin:0 0 14px}
+.objindex-filter{width:100%;max-width:420px;padding:8px 12px;border:1px solid var(--line);
+  border-radius:8px;background:var(--bg);color:var(--ink);font-size:13px}
+.objindex-filter:focus{outline:none;border-color:var(--accent)}
+.objindex-view{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;align-items:start}
+.objindex-group{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+.objindex-h{margin:0;padding:8px 12px;font-size:12px;display:flex;align-items:center;gap:8px;
+  border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.objindex-count{margin-left:auto;color:var(--muted);font-family:var(--mono);font-size:11px}
+.objindex-list{list-style:none;margin:0;padding:4px 0;max-height:340px;overflow:auto}
+.objindex-item{padding:5px 12px;cursor:pointer;display:flex;flex-direction:column;gap:1px;line-height:1.3}
+.objindex-item:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.objindex-name{font-weight:600;font-size:13px}
+.objindex-path{font-size:10.5px;color:var(--muted);word-break:break-all}
+.oi-hidden{display:none}
+
+/* Deep-link target highlight: flashed when jumped to from a drawer / index. */
+@keyframes rowFlash{0%{background:color-mix(in srgb,var(--accent) 42%,transparent)}100%{background:transparent}}
+tr.row-flash>td{animation:rowFlash 1.5s ease-out}
+.subgrid{width:100%;border-collapse:collapse;margin:4px 0}
+.subgrid th{text-align:left;padding:5px 10px;color:var(--muted);font-size:10px;text-transform:uppercase}
+.subgrid td{padding:5px 10px;border-top:1px solid var(--line)}
+pre.code{margin:6px 0;padding:12px 14px;background:var(--bg);border-radius:8px;overflow-x:auto;
+  font-family:var(--mono);font-size:12px;line-height:1.5;max-height:340px}
+.records{display:flex;flex-wrap:wrap;gap:6px;padding:6px 0}
+.records code{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px 8px;font-size:11px}
+
+/* iRule code toolbar + Format / Diagnostics buttons (irule-format.js). */
+.code-toolbar{display:flex;justify-content:flex-end;gap:6px;margin:6px 0 -2px}
+.code-tool-btn{font:600 11px/1 var(--mono);cursor:pointer;padding:4px 10px;
+  background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px}
+.code-tool-btn:hover{border-color:var(--accent);color:var(--accent)}
+.code-tool-btn:disabled{opacity:.6;cursor:progress}
+.code-tool-btn.is-active{background:var(--accent);color:#fff;border-color:var(--accent)}
+@media print{.code-toolbar{display:none}}
+
+/* Inline diagnostic underlines overlaid on the highlighted iRule source. */
+pre.code.tcl .diag{text-decoration:underline wavy;text-decoration-thickness:1px;
+  text-underline-offset:2px;cursor:help;-webkit-text-decoration:underline wavy}
+pre.code.tcl .diag-error{text-decoration-color:#cf222e}
+pre.code.tcl .diag-warning{text-decoration-color:#bf8700}
+pre.code.tcl .diag-info{text-decoration-color:#0969da}
+pre.code.tcl .diag-suggestion{text-decoration-color:#8250df}
+pre.code.tcl .diag-hint{text-decoration-color:var(--muted)}
+pre.code.tcl .diag.flash{background:rgba(191,135,0,.25);border-radius:3px}
+
+/* Diagnostics summary panel below the code. */
+.irule-diags{margin:8px 0 4px;border:1px solid var(--line);border-radius:8px;
+  background:var(--bg);overflow:hidden;font-size:12px}
+.irule-diags-empty{padding:10px 12px;color:var(--muted)}
+.irule-diags-head{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line)}
+.diag-badge{font:600 11px/1 var(--mono);padding:3px 8px;border-radius:999px;color:#fff}
+.diag-list{list-style:none;margin:0;padding:4px 0;max-height:260px;overflow-y:auto}
+.diag-row{display:grid;grid-template-columns:auto auto auto 1fr;gap:8px;align-items:baseline;
+  padding:4px 12px;cursor:pointer}
+.diag-row:hover,.diag-row.hot{background:rgba(128,128,128,.12)}
+.diag-sev{font:600 10px/1.4 var(--mono);text-transform:uppercase;padding:2px 6px;border-radius:4px;color:#fff}
+.diag-code{font:600 11px/1.4 var(--mono);color:var(--muted)}
+.diag-loc{font:11px/1.4 var(--mono);color:var(--muted)}
+.diag-msg{font-size:12px}
+.diag-error .diag-sev,.diag-badge.diag-error{background:#cf222e}
+.diag-warning .diag-sev,.diag-badge.diag-warning{background:#bf8700}
+.diag-info .diag-sev,.diag-badge.diag-info{background:#0969da}
+.diag-suggestion .diag-sev,.diag-badge.diag-suggestion{background:#8250df}
+.diag-hint .diag-sev,.diag-badge.diag-hint{background:#6e7781}
+@media print{.irule-diags{display:none}}
+
+.foot{padding:22px;color:var(--muted);font-size:12px;text-align:center;border-top:1px solid var(--line)}
+.foot code{background:var(--tag-bg);padding:1px 5px;border-radius:4px}
+.foot-build{margin:6px 0 0;font-size:11px;color:var(--muted)}
+.foot-build code{font-family:var(--mono);font-size:10px}
+/* Which backend rendered this report: (py) MiniJinja/PyO3 or (rust) WASM. A
+ * Bootstrap-style pill badge — fully-rounded (semicircle) ends. */
+.foot-backend{display:inline-block;padding:.18em .6em;font-family:var(--mono);
+  font-size:.85em;font-weight:700;line-height:1;border-radius:10rem;
+  color:#fff;background:var(--accent,#2563eb);vertical-align:baseline}
+/* Tooling copyright — links to the LICENSE on GitHub. */
+.attrib a.tool-copyright{white-space:nowrap}
+/* User-supplied report copyright notice (shown on screen + print). */
+.foot-copyright{margin:10px 0 0;font-size:12px;color:var(--ink);white-space:pre-line}
+/* Footer branding: placeholder f5q mark + the tcl-lsp mark (links to GitHub). */
+.foot-logos{display:flex;gap:18px;align-items:center;justify-content:center;margin:14px 0 2px;color:var(--muted)}
+.foot-logo{display:inline-flex;align-items:center;color:inherit;opacity:.75;transition:opacity .12s}
+.foot-logo svg{display:block;height:24px;width:auto}
+a.foot-logo{text-decoration:none}
+a.foot-logo:hover,a.foot-logo:focus-visible{opacity:1;color:var(--accent,#2563eb);outline:none}
+
+/* Attribution — the bitwisecook BIG-IP Report Generator. Shown small in the
+   footer and (print only) as a page footer; also embedded invisibly in the
+   document head/body for provenance. */
+.attrib{color:var(--muted)}
+.attrib a{color:var(--accent,#2563eb);text-decoration:none}
+.attrib a:hover{text-decoration:underline}
+.brand .by{display:block;font-size:11px;color:var(--muted);margin-top:1px}
+.brand .by a{color:inherit;text-decoration:none}
+.brand .by a:hover{text-decoration:underline}
+.visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.print-only{display:none}
+
+
+.chip.chip-link{cursor:pointer;transition:transform .08s,box-shadow .08s}
+@media (hover:hover){.chip.chip-link:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.12)}}
+.chip.chip-link:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:2px}
+
+/* ---- F5 Sites — community / support / security-IR resources tab ---------- */
+.f5sites-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:4px 0 22px}
+.f5sites-group{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:14px 16px;box-shadow:var(--shadow)}
+.f5sites-group h3{font-size:12px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.f5sites-group.danger{border-color:color-mix(in srgb,var(--amber) 45%,var(--line))}
+.f5sites-group.danger h3{color:var(--amber)}
+.f5sites-links{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+.f5sites-links a{display:block;padding:6px 8px;border-radius:7px;color:var(--ink);font-size:13px;text-decoration:none}
+.f5sites-links a::after{content:"\2197";color:var(--muted);font-size:10px;margin-left:5px;vertical-align:1px}
+@media (hover:hover){.f5sites-links a:hover{background:var(--bg);color:var(--accent)}}
+.f5sites-links a:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.f5sites-links .k{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--muted);background:var(--tag-bg);border-radius:5px;padding:1px 5px;margin-right:6px}
+.f5sites-h{font-size:14px;margin:6px 0 8px}
+.f5sites-ioc{margin:14px 0 4px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--amber) 40%,var(--line));border-left:3px solid var(--amber);border-radius:9px;background:color-mix(in srgb,var(--amber) 6%,var(--panel));font-size:12.5px;line-height:1.55}
+.f5sites-ioc code{font-family:var(--mono);font-size:11px;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+
+/* ---- Print stylesheet ---------------------------------------------------- */
+@media print {
+  :root{color-scheme:light}
+  body{background:#fff;color:#000}
+  /* Print exactly what is on screen: the active device + active tab, with any
+     search / row / secret filters already applied (rows hidden in the UI stay
+     hidden, revealed secrets stay revealed). Only the interactive chrome and
+     the toggle buttons are stripped. */
+  .topbar-actions,#f5qbar,#drawerScrim,#objDrawer,
+  .topo-controls,.qc-bar,.lm-form,.cert-controls,
+  .secret-reveal,.secret-reveal-all,.expander{display:none!important}
+  pre.code{white-space:pre-wrap}
+  table.grid{font-size:10px}
+  thead{display:table-header-group}
+  tr{break-inside:avoid}
+  a{color:#000;text-decoration:underline}
+  .print-only{display:block}
+  .foot{border-top:1px solid #999}
+}
+
+/* Clickable references (objlink applied by topology.js to data-oid/data-oref). */
+.tag.objlink,a.ref.objlink{text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+
+/* iRule (Tcl) syntax highlighting — colours the real tcl-lexer token stream. */
+pre.code.tcl .tk-cmd{color:#8250df;font-weight:600}
+pre.code.tcl .tk-ns{color:#0550ae}
+pre.code.tcl .tk-event{color:#116329;font-weight:600}
+pre.code.tcl .tk-var{color:#953800}
+pre.code.tcl .tk-comment{color:var(--muted);font-style:italic}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) pre.code.tcl .tk-cmd{color:#d2a8ff}
+  :root:not([data-theme="light"]) pre.code.tcl .tk-ns{color:#79c0ff}
+  :root:not([data-theme="light"]) pre.code.tcl .tk-event{color:#7ee787}
+  :root:not([data-theme="light"]) pre.code.tcl .tk-var{color:#ffa657}
+}
+:root[data-theme="dark"] pre.code.tcl .tk-cmd{color:#d2a8ff}
+:root[data-theme="dark"] pre.code.tcl .tk-ns{color:#79c0ff}
+:root[data-theme="dark"] pre.code.tcl .tk-event{color:#7ee787}
+:root[data-theme="dark"] pre.code.tcl .tk-var{color:#ffa657}
+
+/* iRule control-flow flowchart (Mermaid, rendered lazily on row expand). */
+.irule-flow{margin:4px 0 10px}
+.irule-flow-diagram{overflow-x:auto;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--card);min-height:0}
+.irule-flow-diagram svg{max-width:100%;height:auto}
+/* Reconstructed dynamic object-name patterns (deep orphan analysis). */
+.attach-pat{display:inline-block;padding:1px 7px;border-radius:6px;
+  background:color-mix(in srgb,var(--blue) 12%,transparent);color:var(--blue);
+  font-family:var(--mono,monospace);font-size:11px;cursor:help}
+/* Per-iRule referenced / potentially-referenced objects table. */
+.irule-refs{margin:2px 0 12px;font-size:12px}
+.refs-static{margin:2px 0 10px;line-height:1.9}
+.refs-lbl{color:var(--muted);margin-right:4px;font-weight:600}
+.ref-obj{display:inline-block;margin:1px 3px 1px 0;padding:1px 6px;border-radius:6px;
+  background:var(--tag-bg);color:var(--tag-ink);cursor:pointer;
+  text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+.refs-none{margin:2px 0 8px;font-size:12px}
+.refs-dyn{margin:6px 0 10px}
+.refs-ctx{color:var(--muted);margin-bottom:4px}
+.refs-ctx code{font-family:var(--mono,monospace);color:var(--ink)}
+.refs-table{width:100%;border-collapse:collapse;font-size:12px}
+.refs-table th,.refs-table td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.refs-table th{color:var(--muted);font-weight:600}
+
+/* ---- Built-in / system object visibility --------------------------------- */
+.view-controls{margin:6px 0 2px;font-size:12px}
+.sys-toggle{display:inline-flex;align-items:center;gap:7px;color:var(--muted);cursor:pointer}
+.sys-toggle input{width:15px;height:15px;cursor:pointer}
+.sys-toggle code{font-family:var(--mono);color:var(--ink)}
+tr.sys-row{display:none}
+.device.show-system-on tr.sys-row{display:table-row}
+.device.show-system-on tr.sys-row.detail{display:table-row}
+
+/* ---- App bundling -------------------------------------------------------- */
+.app-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;
+  padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.app-bar-lbl{font-weight:600;font-size:13px}
+.app-name{padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);
+  color:var(--ink);font-size:13px;min-width:160px}
+.app-name:focus{outline:2px solid var(--accent);border-color:transparent}
+.app-save{padding:7px 12px;border:1px solid var(--accent);border-radius:8px;
+  background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent);
+  font-weight:600;cursor:pointer;font-size:13px}
+.app-hint{font-size:12px}
+.app-col{width:32px;text-align:center}
+.app-col input{width:16px;height:16px;cursor:pointer}
+.app-badge{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
+.apps-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.app-card{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);
+  border-radius:10px;background:var(--panel)}
+.app-open{border:none;background:none;color:var(--accent);font-weight:650;font-size:15px;cursor:pointer;text-align:left}
+.app-open.active{text-decoration:underline}
+.app-card .muted{margin-left:auto}
+.app-tag{font:600 10px/1 var(--mono);text-transform:uppercase;letter-spacing:.03em;
+  padding:3px 7px;border-radius:999px;color:#fff}
+.app-tag-iapp{background:#8250df}
+.app-tag-folder{background:#0969da}
+.app-tag-manual{background:#6e7781}
+.app-del{border:1px solid var(--line);background:var(--bg);color:var(--muted);border-radius:6px;
+  width:26px;height:26px;cursor:pointer}
+.app-detail-head{display:flex;align-items:baseline;gap:12px;margin:6px 0}
+.app-detail-head h3{margin:0;font-size:18px}
+.app-vs-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.app-chip{border:1px solid var(--blue);border-radius:20px;padding:3px 12px;font-size:12px;cursor:pointer;
+  background:color-mix(in srgb,var(--blue) 12%,transparent);color:var(--blue);font-family:var(--mono)}
+.app-flow{margin:6px 0 16px}
+.app-pipe{margin:8px 0 14px}
+.app-pipe-vs{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:3px}
+.app-pipe-diagram{overflow-x:auto;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--panel)}
+.app-pipe-diagram svg{max-width:100%;height:auto}
+.app-flow-title,.app-obj-type{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.app-flow-diagram{overflow-x:auto;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--panel)}
+.app-objs{display:flex;flex-direction:column;gap:12px}
+.app-obj{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel);scroll-margin-top:16px}
+.app-obj-flash{outline:2px solid var(--accent);outline-offset:2px}
+.app-obj-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.app-obj-name{font-weight:600}
+.app-obj-drawer{margin-left:auto;border:1px solid var(--line);background:var(--bg);color:var(--muted);
+  border-radius:6px;width:26px;height:26px;cursor:pointer}
+.app-obj-flow{overflow-x:auto;margin:4px 0 8px}
+.app-obj-flow svg{max-width:100%;height:auto}
+pre.code.conf{white-space:pre;overflow-x:auto}
+.conf-key{color:#8250df;font-weight:600}
+.conf-path{color:#0550ae}
+.conf-link{text-decoration:underline;text-decoration-style:dotted;cursor:pointer}
+:root[data-theme="dark"] .conf-key{color:#d2a8ff}
+:root[data-theme="dark"] .conf-path{color:#79c0ff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .conf-key{color:#d2a8ff}
+  :root:not([data-theme="light"]) .conf-path{color:#79c0ff}}
+
+/* ---- Touch / iOS Safari tap reliability ---------------------------------- */
+/* On iOS Safari a tap on a non-native control (the count chips are <div
+   role=button>, object links are <span>) or on a control inside a scrollable
+   strip can be swallowed — interpreted as a double-tap-zoom wait, a scroll pan,
+   or the start of a text selection — so navigation feels dead. `touch-action:
+   manipulation` removes the 300ms double-tap delay and fires the click
+   immediately; disabling text selection stops a tap from starting a selection;
+   an explicit pointer cursor keeps Safari's own click-synthesis happy. */
+.tab,.dev-tab,.chip.chip-link,.objlink,.ref-obj,.expander,tr.expandable{
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;cursor:pointer;
+}
+.tab,.dev-tab,.chip.chip-link,.objlink,.ref-obj,.expander{
+  -webkit-user-select:none;user-select:none;
+}
+
+/* ---- Responsive / mobile ------------------------------------------------- */
+/* Keep wide content (tables, code, diagrams) scrolling inside its own container
+   rather than widening the page. We deliberately do NOT set overflow-x on
+   html/body — on iOS WebKit that caps vertical scrolling — so instead each wide
+   block is capped/contained on small screens (see the mobile rules below). */
+html,body{max-width:100%}
+.refs-dyn{overflow-x:auto}
+
+@media (max-width:760px){
+  body{font-size:13px}
+  /* Topbar: let the brand + search + actions wrap instead of overflowing. */
+  .topbar{flex-wrap:wrap;gap:8px;padding:10px 14px}
+  .topbar h1{font-size:15px}
+  .topbar-actions{width:100%;order:3}
+  #globalSearch{flex:1 1 auto;width:auto;min-width:0}
+  .summary{grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;padding:14px 14px 4px}
+  .chip{padding:11px 12px}
+  .chip-val{font-size:22px}
+  .device{padding:8px 14px 32px}
+  .device-switch{padding:8px 14px 0}
+  .insights{grid-template-columns:1fr;margin:10px 0 14px}
+
+  /* Tabs: a single, horizontally-scrollable row (never a tall wrapped block)
+     so every panel is one tap away and the tapped tab reads clearly. */
+  .tabs{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+    gap:2px;margin-bottom:12px;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:0 0 auto;padding:11px 13px;white-space:nowrap;min-height:44px}
+  /* Clearer active state on touch: a filled pill, not just a hairline border. */
+  .tab.active{background:color-mix(in srgb,var(--accent) 14%,transparent);
+    border-radius:8px 8px 0 0}
+
+  /* Denser tables; keep them scrollable inside .tablewrap. */
+  table.grid{font-size:12px}
+  .grid thead th,.grid tbody td{padding:8px 9px}
+  .refs-table th,.refs-table td{padding:4px 6px}
+
+  /* Detail-row content (iRule source, reference tables, flowcharts) must not
+     force the table cell wider than the screen — otherwise a big Mermaid SVG
+     pushes the source / tables far off to the right and they look "missing".
+     Cap wide content to the viewport; each piece scrolls inside itself. */
+  .irule-flow-diagram,.app-obj-flow,.app-flow-diagram{max-width:88vw}
+  .irule-flow-diagram svg,.app-obj-flow svg,.app-flow-diagram svg{max-width:86vw}
+  pre.code{max-width:88vw;white-space:pre-wrap;word-break:break-word}
+  .irule-refs,.refs-table,.refs-dyn{max-width:88vw}
+  tr.detail>td{max-width:100vw}
+}
+
+@media (max-width:420px){
+  .summary{grid-template-columns:1fr 1fr}
+  .chip-val{font-size:20px}
+  .device-head{flex-wrap:wrap;gap:6px}
+  .device-head h2{font-size:17px}
+}
+
+/* Coarse-pointer (touch) devices: bigger hit targets regardless of width. */
+@media (pointer:coarse){
+  .tab{min-height:44px}
+  .chip.chip-link,.dev-tab,.expander,.ref-obj{min-height:32px}
+  tr.expandable{cursor:pointer}
+}
+
+/* --- Architecture (multi-device tiers) ------------------------------------ */
+.architecture{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:16px 18px;margin:0 0 18px}
+.arch-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.arch-head h2{margin:0;font-size:16px}
+.arch-diagram{margin:4px 0 14px;overflow-x:auto}
+.arch-diagram:empty{display:none}
+.arch-diagram svg{display:block;margin:0 auto}
+.arch-tiers-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;margin:0 0 6px}
+.arch-tiers{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;align-items:stretch}
+.arch-tier{flex:0 0 auto;min-width:150px;border:1px dashed var(--line);border-radius:10px;padding:10px;
+  display:flex;flex-direction:column;gap:8px;background:color-mix(in srgb,var(--bg) 50%,transparent)}
+.arch-tier-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+.arch-node{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--panel);
+  display:flex;flex-direction:column;gap:2px;border-left:3px solid var(--muted)}
+.arch-node-name{font-family:var(--mono);font-size:12px;font-weight:600}
+.arch-node-role{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.arch-role-gtm{border-left-color:var(--green)}
+.arch-role-ltm{border-left-color:var(--blue)}
+.arch-role-afm,.arch-role-firewall{border-left-color:var(--amber)}
+.arch-links{margin-top:14px}
+.arch-arrow{text-align:center;color:var(--muted);font-size:15px}
+
+/* --- GTM + Firewall panels ------------------------------------------------- */
+.subhead{margin:18px 0 8px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+.subhead:first-child{margin-top:4px}
+.subhead .n{background:var(--tag-bg);color:var(--muted);border-radius:10px;padding:0 8px;font-size:11px;font-weight:600}
+.rule-list-block{margin:0 0 14px}
+.rule-list-name{margin:10px 0 6px;font-size:12px}
+.fw-rules td{vertical-align:top}
+
+/* ---- global "search everything" results overlay -------------------------- */
+/* Elements hidden while the cross-device results list is showing. */
+.search-obscured{display:none !important}
+.search-results{margin:18px 22px;background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.search-results-head{padding:12px 16px;border-bottom:1px solid var(--line);
+  color:var(--muted);font-size:13px;font-weight:600}
+.search-results-count{color:var(--ink)}
+.search-results-list{max-height:70vh;overflow-y:auto}
+.search-result{display:grid;grid-template-columns:minmax(120px,max-content) 1fr auto auto auto;
+  gap:14px;align-items:center;width:100%;text-align:left;padding:10px 16px;border:0;
+  border-bottom:1px solid var(--line);background:transparent;color:var(--ink);
+  cursor:pointer;font-family:inherit;font-size:13px}
+.search-result:last-child{border-bottom:0}
+.search-result:hover,.search-result:focus-visible{background:var(--bg);outline:none}
+.search-result .sr-type{color:var(--muted);font-size:11px;text-transform:uppercase;
+  letter-spacing:.04em;font-weight:600}
+.search-result .sr-name{font-weight:600;overflow-wrap:anywhere}
+.search-result .sr-dev{color:var(--muted);font-size:12px;white-space:nowrap}
+.search-result .sr-tier{color:var(--muted);font-size:11px;border:1px solid var(--line);
+  border-radius:10px;padding:1px 8px;white-space:nowrap}
+.search-result .sr-tier:empty{display:none}
+.search-result .sr-why{color:var(--accent);font-size:11px;white-space:nowrap;min-width:56px;text-align:right}
+@media (max-width:640px){
+  .search-result{grid-template-columns:1fr auto;gap:4px 10px}
+  .search-result .sr-type{grid-row:1;grid-column:1}
+  .search-result .sr-why{grid-row:1;grid-column:2}
+  .search-result .sr-name{grid-row:2;grid-column:1/3}
+  .search-result .sr-dev{grid-row:3;grid-column:1}
+  .search-result .sr-tier{grid-row:3;grid-column:2;justify-self:end}
+}
+
+/* ---- embedded f5-query manual panel -------------------------------------- */
+.f5q-manual{margin:18px 22px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.f5q-manual>summary{padding:12px 16px;cursor:pointer;font-weight:600;color:var(--ink)}
+.f5q-manual>summary:hover{color:var(--accent)}
+.f5q-manual-body{margin:0;padding:0 16px 16px;max-height:70vh;overflow:auto;
+  font-family:var(--mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:12px;
+  line-height:1.5;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* ---- architecture / topology DSL editor ---------------------------------- */
+.arch-editor{margin:14px 22px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.arch-editor>summary{padding:12px 16px;cursor:pointer;font-weight:600;color:var(--ink)}
+.arch-editor>summary:hover{color:var(--accent)}
+.arch-editor-hint{margin:0 16px;color:var(--muted);font-size:12px;line-height:1.5}
+.arch-editor-ta{display:block;width:calc(100% - 32px);margin:10px 16px;padding:10px 12px;
+  border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);
+  font-family:var(--mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:12px;resize:vertical}
+.arch-editor-actions{display:flex;gap:10px;align-items:center;margin:0 16px 14px;flex-wrap:wrap}
+.arch-editor-actions button{padding:7px 14px;border:1px solid var(--line);border-radius:8px;
+  background:var(--bg);color:var(--ink);font:inherit;font-size:13px;cursor:pointer}
+.arch-editor-actions button:hover{border-color:var(--accent);color:var(--accent)}
+.arch-editor-status{color:var(--muted);font-size:12px}
+.arch-editor-guide{margin:0 16px 14px}
+.arch-editor-guide>summary{cursor:pointer;color:var(--muted);font-size:12px}
+.arch-editor-guide pre{margin:8px 0 0;padding:10px 12px;background:var(--bg);border:1px solid var(--line);
+  border-radius:8px;font-size:11px;line-height:1.5;overflow:auto;white-space:pre-wrap;color:var(--ink)}
+
+/* ---- diagram viewer: click any diagram to expand + pan/zoom -------------- */
+/* A small expand affordance sits in the corner of every diagram host; hitting
+   it opens a full-window overlay you can drag/scroll/pinch like a map. */
+.dv-expand{position:absolute;top:8px;right:8px;z-index:3;width:30px;height:30px;padding:0;
+  display:inline-flex;align-items:center;justify-content:center;font-size:15px;line-height:1;
+  border:1px solid var(--line);border-radius:8px;color:var(--muted);cursor:pointer;opacity:0;
+  background:color-mix(in srgb,var(--card,var(--panel)) 82%,transparent);
+  transition:opacity .14s,color .14s,border-color .14s}
+.dv-expand:hover,.dv-expand:focus-visible{color:var(--accent);border-color:var(--accent);opacity:1}
+.irule-flow-diagram:hover .dv-expand,.app-pipe-diagram:hover .dv-expand,
+.app-flow-diagram:hover .dv-expand,.app-obj-flow:hover .dv-expand,
+.arch-diagram:hover .dv-expand,.diag-host:hover .dv-expand{opacity:.9}
+
+body.dv-open{overflow:hidden}
+.dv-overlay{position:fixed;inset:0;z-index:2000;background:color-mix(in srgb,var(--bg) 86%,#000)}
+.dv-overlay[hidden]{display:none}
+.dv-viewport{position:absolute;inset:0;overflow:hidden;cursor:grab;touch-action:none}
+.dv-viewport.grabbing{cursor:grabbing}
+.dv-canvas{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
+.dv-canvas svg{max-width:none!important;width:100%;height:100%;display:block}
+.dv-toolbar{position:absolute;top:14px;right:14px;z-index:2;display:flex;gap:6px}
+.dv-btn{min-width:36px;height:36px;padding:0 11px;font:inherit;font-size:15px;line-height:1;
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+  border:1px solid var(--line);border-radius:9px;background:var(--card,var(--panel));color:var(--ink)}
+.dv-btn:hover{border-color:var(--accent);color:var(--accent)}
+.dv-hint{position:absolute;left:14px;bottom:14px;z-index:2;color:var(--muted);font-size:12px;
+  pointer-events:none;padding:5px 9px;border:1px solid var(--line);border-radius:8px;
+  background:color-mix(in srgb,var(--card,var(--panel)) 78%,transparent)}
+
+@media print{.dv-expand,.dv-overlay{display:none!important}}

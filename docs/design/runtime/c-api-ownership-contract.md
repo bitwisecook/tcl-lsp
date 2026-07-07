@@ -7,8 +7,7 @@ does to each `Tcl_Obj` handle's refcount) and an error-path category (how it
 signals and records failure). This doc fixes those categories and records one
 row per shipped function. It is the C-API sibling of
 [`refcount-contract.md`](refcount-contract.md) (the *internal* `tcl_*`/`obj_*`
-runtime exports) and is the **T2.1** deliverable of
-[`rust-runtime-port.md`](rust-runtime-port.md); see `c-extension-abi.md` §13.1.
+runtime exports) and is the **T2.1** deliverable; see `c-extension-abi.md` §13.1.
 
 > Status: **scaffolding — surface enumerated, categories fixed.** Rows cover the
 > authored C-API header surface, which is the
@@ -344,4 +343,4 @@ under the function they expand to), and the stub-table data pointers are nominal
 
 - Internal runtime contract: [`refcount-contract.md`](refcount-contract.md).
 - ABI + the §13.1 scoping this closes: [`c-extension-abi.md`](c-extension-abi.md).
-- Tracking + status: [`rust-runtime-port.md`](rust-runtime-port.md) (T2.1).
+- Tracking + status: T2.1 (runtime port).

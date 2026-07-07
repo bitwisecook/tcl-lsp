@@ -23,8 +23,6 @@ index does not duplicate its per-row detail, to avoid staleness):
 - **VM tcltest parity:** [`rust-vm-tier-parity.md`](rust-vm-tier-parity.md) —
   per-stem `passed/skipped/failed` vs C Tcl 9, regenerate with
   `scripts/dev/rust_vm_tier_gap.py`.
-- **runtime/rust detail:** [`rust-runtime-port.md`](rust-runtime-port.md) — the
-  per-subsystem T-task breakdown.
 
 **Tiered delivery plan** — how the VMs and the runtime are brought to C-Tcl
 parity, bottom-up. These are the *plan* documents (the trackers above are the
@@ -35,9 +33,6 @@ parity, bottom-up. These are the *plan* documents (the trackers above are the
   why a lower tier gates the ones above it). The delivery order: bring the
   runtime to C parity one tier at a time, bottom-up, and lock each green tier
   so later work can't silently regress it.
-- **The `tcltest` bring-up plan:** [`tcltest-bringup.md`](tcltest-bringup.md) —
-  running the unmodified pure-Tcl standard library and real C Tcl 9 `*.test`
-  files on `runtime/rust` by porting the C command surface the library assumes.
 
 Status legend: ✅ done · 🟢 done bar listed residuals · 🟡 partial · 🔴 not started.
 
@@ -48,7 +43,7 @@ Status legend: ✅ done · 🟢 done bar listed residuals · 🟡 partial · �
 | RT-WASM — WASM emitter | 🟡 | ~1.5 K Rust LOC vs ~20.6 K Python / 49 modules — **largest single gap** |
 | RT-VM — opcodes | 🟡 | **98 executed · 39 enum-only · 54 missing** of 191 (`tclvm-opcode-status.md`) |
 | RT-VM — tcltest parity | 🟡 | **28 MATCH · 59 gap · 10 crash** of 97 stems (`rust-vm-tier-parity.md`) |
-| runtime/rust — tree-walking port | 🟡 | most subsystems partial (`rust-runtime-port.md`) |
+| runtime/rust — tree-walking port | 🟡 | most subsystems partial |
 
 **Cross-cutting reality:** TclOO and coroutines are **implemented in
 `runtime/rust`** (`runtime/rust/src/cmd_oo.rs`, `cmd_coro.rs`) but are **entirely
@@ -163,12 +158,11 @@ fix unlocks it). The structural gaps behind the scoreboard:
 
 ## 3. `runtime/rust` — tree-walking runtime port 🟡 (off-workspace)
 
-`runtime/rust/` is the standalone Rust port of the former Zig WASM runtime,
+`runtime/rust/` is the standalone Rust WASM runtime,
 kept out of `cargo test --workspace` (it needs raw-pointer
 `unsafe` over shared linear memory) and gated via `make runtime-rust-test`. It is
 the eventual in-process tree-walking interpreter and the wasm32 runtime the
-emitted modules link against. Per [`rust-runtime-port.md`](rust-runtime-port.md),
-most subsystems are **partial**:
+emitted modules link against. Most subsystems are **partial**:
 
 - **`TclObj` + refcount / shimmer** (T1.1) — partial; round-trips leak-clean, but
   the full typed-rep machinery is incomplete.

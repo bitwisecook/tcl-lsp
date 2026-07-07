@@ -246,8 +246,7 @@ which **per-item incremental analysis** targets — see
   single-parse / MVCC destination (salsa engine decision recorded).
 - [`docs/rust-rewrite.md`](../../rust-rewrite.md) — porting principles, the
   durable reference, and the **live remaining-work plan** (parallel tracks in
-  dependency order). The landed chunk-log history is in
-  [`docs/rust-rewrite-history.md`](../../rust-rewrite-history.md).
+  dependency order).
 - [`compiler-pipeline-parity.md`](compiler-pipeline-parity.md) — deep
   Rust-vs-Python parity audit of the lexer, CST, IR/CFG/SSA, analyses,
   optimiser, and bytecode codegen, with a per-code coverage table.

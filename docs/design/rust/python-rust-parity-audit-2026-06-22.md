@@ -337,7 +337,7 @@ positives and a handful of recall gaps.
 | 9 | `tcl-wasm` eval-fallback + no `--link` | codegen | no real/standalone WASM (RT-WASM 🟡) | large (ongoing track) |
 | 10 | Lowering: dynamic `uplevel $body`→`Call`; `namespace eval` body discarded | lowering precision/soundness | narrow analysis regressions | small–medium |
 | 11 | O103 fall-off-end fold | **shared** miscompile (both backends) | folds conditionally-returning proc to a constant | small (require all-exits-return) |
-| 12 | Stale tracking docs (registry audit, optimiser-parity, pipeline-parity) — 🟢 **refreshed 2026-06-25** (`rust-rewrite.md`, `rust-rewrite-history.md`, `rust-rewrite-test-audit.md`, and this audit's gaps #6/#8 annotated) | process | misstate the position in both directions | regenerate/retire |
+| 12 | Stale tracking docs (registry audit, optimiser-parity, pipeline-parity) — 🟢 **refreshed 2026-06-25** (`rust-rewrite.md`, `rust-rewrite-test-audit.md`, and this audit's gaps #6/#8 annotated) | process | misstate the position in both directions | regenerate/retire |
 
 **Recommendations, in priority order:**
 

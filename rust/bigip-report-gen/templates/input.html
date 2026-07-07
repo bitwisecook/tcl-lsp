@@ -1,0 +1,128 @@
+<!doctype html>
+<!-- Shared BIG-IP report *builder* / input page. Consumed by both the wasm app
+     (rust/bigip-report-wasm, which inlines the wasm payload) and the f5report
+     web server. Substitution tokens: __STYLES__, __WASM_PAYLOAD__, __INPUT_JS__. -->
+<html lang="en" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>F5 BIG-IP Report Generator</title>
+__STYLES__
+</head>
+<body>
+<div class="wrap">
+  <h1>F5 BIG-IP Report Generator</h1>
+  <p class="tagline">Turn one or more <code>.ucs</code> backups or <code>bigip.conf</code> / SCF files into one interactive, self-contained HTML report — virtual servers, pools, iRules, GTM/DNS, AFM firewall &amp; NAT, an SSL-certificate expiry inventory, a topology explorer, a listener simulator and a live <code>f5-query</code> console. Load several devices to see how they relate as tiers (GTM → LTM tier 1 → LTM tier 2, …).</p>
+
+  <div class="privacy" id="privacy">
+    <span class="lock" aria-hidden="true">🔒</span>
+    <div>
+      <b>Everything runs entirely in your browser.</b> Your configuration is read, decrypted and rendered locally by WebAssembly on <em>this device</em>. It is <b>never uploaded</b> — no server, no API, no network request touches your data. Once this page has loaded you can even go offline (or save it and open it from disk) and it still works.
+      <div class="small">Encrypted UCS files are decrypted in-page with a pure-Rust OpenPGP implementation; the passphrase you enter never leaves the browser either.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <label class="fld" for="picker">Configuration files</label>
+    <div class="drop" id="drop" role="button" tabindex="0" aria-controls="picker">
+      <div class="big">Drop files here, or click to choose</div>
+      <div class="sub"><code>.ucs</code> (plain or encrypted) · <code>bigip.conf</code> · <code>.scf</code> — one or more devices</div>
+    </div>
+    <input type="file" id="picker" multiple accept=".ucs,.scf,.conf,.txt,text/plain,application/octet-stream">
+    <ul class="files" id="fileList"></ul>
+
+    <details class="arch-adv" id="archAdv" style="display:none">
+      <summary>Architecture — how these devices relate <span class="hint" style="font-weight:400">(optional)</span></summary>
+      <p class="sub" style="margin:.5rem 0">Give each file a <b>role</b> and <b>tier</b> above to describe the topology — e.g. a GTM at tier 0 in front of an LTM tier 1 in front of an LTM tier 2. Inter-device links are auto-detected from address overlap (a pool member or GTM server address that another device serves), and drawn in the report's Architecture view. To declare links explicitly, define network zones, DNS zones or NAT/service maps, or override the auto result, write a small <b>Tcl manifest</b> below — it wins over the per-file choices, and is remembered in this browser.</p>
+      <textarea id="manifest" rows="7" spellcheck="false" placeholder='# a small Tcl script — one command per device / link / zone
+device gtm.ucs  -role gtm -tier 0 -label "DNS Edge"
+device edge.ucs -role ltm -tier 1
+device core.ucs -role ltm -tier 2
+
+# links are auto-detected; declare extras here
+link gtm.ucs  edge.ucs
+link edge.ucs core.ucs -label internal'></textarea>
+      <div class="arch-adv-actions">
+        <button type="button" id="manifestFromFiles" class="ghost">Fill from files above</button>
+        <button type="button" id="manifestSave" class="ghost">Save .tcl ↓</button>
+        <button type="button" id="manifestLoad" class="ghost">Load .tcl ↑</button>
+        <button type="button" id="manifestClear" class="ghost">Clear</button>
+        <input type="file" id="manifestFile" accept=".tcl,.txt,text/plain" hidden>
+      </div>
+    </details>
+
+    <div style="margin-top:1rem;">
+      <label class="fld" for="title">Report title</label>
+      <input type="text" id="title" placeholder="F5 BIG-IP Configuration Report">
+    </div>
+
+    <!-- Report branding / front-matter. Everything here is remembered in this
+         browser and inlined into the generated report (nothing is uploaded).
+         Export/import moves the defaults between machines. -->
+    <details class="settings-adv" id="settingsAdv">
+      <summary>Branding &amp; front matter <span class="hint" style="font-weight:400">— logo, copyright, intro (remembered on this device)</span></summary>
+
+      <label class="fld" for="frontMatter" style="margin-top:.6rem">Front matter <span class="hint" style="font-weight:400">(Markdown — shown as the report's first tab)</span></label>
+      <textarea id="frontMatter" rows="6" spellcheck="false" placeholder="# Executive summary&#10;&#10;Scope, caveats, contacts… (Markdown: **bold**, lists, tables)"></textarea>
+
+      <label class="fld" for="copyright" style="margin-top:.6rem">Report copyright <span class="hint" style="font-weight:400">(your content notice — shown in the footer &amp; on every printed page)</span></label>
+      <input type="text" id="copyright" placeholder="© 2026 Your Organisation — Confidential">
+
+      <label class="fld" style="margin-top:.6rem">Report logo <span class="hint" style="font-weight:400">(PNG/JPEG/SVG — inlined into the report)</span></label>
+      <div class="logo-row" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+        <img id="logoPreview" alt="" style="display:none;height:38px;max-width:160px;object-fit:contain;border-radius:6px">
+        <button type="button" id="logoPick" class="ghost">Choose logo ↑</button>
+        <button type="button" id="logoClear" class="ghost" style="display:none">Remove</button>
+        <input type="file" id="logoFile" accept="image/png,image/jpeg,image/svg+xml,image/gif,image/webp" hidden>
+      </div>
+
+      <div class="manifest-actions" style="margin-top:.6rem">
+        <button type="button" id="settingsExport" class="ghost">Export settings ↓</button>
+        <button type="button" id="settingsImport" class="ghost">Import settings ↑</button>
+        <button type="button" id="settingsClear" class="ghost">Clear</button>
+        <input type="file" id="settingsFile" accept=".json,application/json" hidden>
+      </div>
+    </details>
+
+    <!-- Only shown once we detect an uploaded UCS is actually encrypted — the
+         same reveal-on-detect pattern as the master-key box below. -->
+    <div id="passGroup" style="display:none; margin-top:1rem;">
+      <label class="fld" for="pass">UCS passphrase <span class="hint" style="font-weight:400">(only for encrypted UCS)</span></label>
+      <input type="password" id="pass" autocomplete="off" placeholder="passphrase for the encrypted UCS">
+      <p class="hint" id="passNote">One or more uploaded UCS archives are encrypted. Enter the passphrase to decrypt and read them — it stays in your browser and is never sent anywhere.</p>
+    </div>
+
+    <!-- Only shown once we detect the config actually carries $M$ secrets. -->
+    <div id="mkuGroup" style="display:none; margin-top:1rem;">
+      <label class="fld" for="mku">Master key <span class="hint" style="font-weight:400">(<code>f5mku -K</code>)</span></label>
+      <input type="password" id="mku" autocomplete="off" placeholder="base64 unit master key — decrypts $M$ secrets">
+      <p class="hint" id="mkuNote">This config contains encrypted secrets (SSL private-key passphrases, …). Enter the unit master key to decrypt and reveal them — without it those values stay locked in the report. Decryption happens here in your browser; the key is never sent anywhere.</p>
+    </div>
+
+    <label class="check"><input type="checkbox" id="console" checked> Embed the in-browser <code>f5-query</code> console (larger file)</label>
+
+    <div class="actions">
+      <button class="primary" id="go" disabled>Generate report</button>
+      <span class="status" id="status">loading engine…</span>
+    </div>
+
+    <div class="result" id="result">
+      <b>Report ready.</b> It downloaded automatically.
+      <div class="dl">
+        <a href="#" id="openTab" target="_blank" rel="noopener">Open in a new tab ↗</a>
+        <a href="#" id="dlAgain">Download again ↓</a>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Powered by <a href="https://github.com/bitwisecook/tcl-lsp" rel="noopener">tcl-lsp</a>'s BIG-IP query engine ·
+    <span id="ver"></span>
+  </footer>
+</div>
+
+__WASM_PAYLOAD__
+__INPUT_JS__
+</body>
+</html>

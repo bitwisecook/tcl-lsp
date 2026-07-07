@@ -22,7 +22,7 @@
 > runtime/tooling parity work** (the RT-VM / RT-WASM runtime scope plus a
 > handful of non-Python tooling residuals) **and enduring porting
 > guidance** for the Rust workspace. The narrative of the retirement
-> close-out lives in the [history archive](rust-rewrite-history.md).
+> close-out lives in the history archive.
 
 tcl-lsp was ~360K lines of Python, organised (from the May-2026
 reorganisation) into seven concern packages — `shared/`, `compiler/`,
@@ -123,7 +123,7 @@ The end state reached:
 The port proceeded bottom-up, in dependency order: each layer's
 behaviour was reproduced and proven against the Python oracle before the
 layer above it leaned on it. The landed history is in the
-[archive](rust-rewrite-history.md); what genuinely remains — the RT-VM /
+archive; what genuinely remains — the RT-VM /
 RT-WASM runtime scope plus a handful of non-Python tooling residuals —
 is the [Remaining work](#remaining-work) section below.
 
@@ -139,7 +139,7 @@ per-subsystem status and the crate → remaining-work mapping are the
 [Subsystem status](#subsystem-status-current-reality) and
 [Track map](#track-map-dependency-order) tables under **Remaining work** below.
 They supersede the historical coverage matrix and per-spec tracking tables, now
-in the [archive](rust-rewrite-history.md).
+in the archive.
 
 ## Non-negotiable principles
 
@@ -657,7 +657,7 @@ Python behaviour it mirrors. Per-task workflow: rebase the touched files off
 `main`, port the delta, run the differential parity gates
 (`differential_codegen` / `differential_segment` / `differential_incremental`
 plus the `test_fp_*` ground-truth battery), and keep `make prep-pr` green. The
-full historical drift log is in the [history archive](rust-rewrite-history.md).
+full historical drift log is in the history archive.
 
 > **Historical (dated 2026-07-01 snapshot).** With the Python tree retired from
 > this branch there is no longer an in-tree Python oracle to sync *into*; `main`
@@ -706,21 +706,21 @@ The **`test_fp_*` false-positive / ground-truth battery** (locked against
 `tclsh9.0`) is the analyser's acceptance gate and must be carried verbatim into
 Rust. The full file-by-file disposition (which test maps to which crate, the
 E2E migration list, and the flagged coverage gaps) is preserved in the
-[history archive](rust-rewrite-history.md#testing-strategy--porting-the-14k-test-pytest-suite-to-rust).
+history archive.
 
 ---
 
 ## Remaining work
 
 This is the live plan. Everything below is **not yet done**; landed work lives
-in the [history archive](rust-rewrite-history.md), and the deep per-item
+in the history archive, and the deep per-item
 evidence behind each front-end gap is in
 [`design/rust/compiler-pipeline-parity.md`](design/rust/compiler-pipeline-parity.md).
 The plan reflects current source as of 2026-07-01 (`rust` branch), re-verified
 that day against the crate source and cross-checked against the Python oracle on
 `main`. The **FE-DATAFLOW**, **FE-TYPESHIM**, **FE-VARESCAPE**, **FE-DIAG**
 front-end tracks and **SRV-LSP** have landed; their detail moved to the
-[history archive](rust-rewrite-history.md) and they survive here only as table
+history archive and they survive here only as table
 rows (✅ / 🟢).
 
 > **Scope of this plan.** The gaps tracked here are the **tooling, LSP,
@@ -781,8 +781,7 @@ Task status is either **open** or **partial** (with a note on what remains).
   Trust this plan and the source over the archive's dated rows.
 - **This document is a forward-looking plan, not a changelog.** It lists only
   **open** / **partial** work. The narrative of *what landed and why* is
-  history — record it in [`rust-rewrite-history.md`](rust-rewrite-history.md),
-  not here. When a track finishes, delete its detailed `####` section and leave
+  history — record it in git, not here. When a track finishes, delete its detailed `####` section and leave
   only its rows in the subsystem-status and track-map tables (mark them ✅ /
   🟢); add the landed detail to the history file in the same change. Do **not**
   accumulate `**done**` bullets in this plan.
@@ -794,9 +793,7 @@ Task status is either **open** or **partial** (with a note on what remains).
   `tclExecute.c` files the ports mirror. Gate version-specific behaviour (e.g.
   `0o` / `0b` integer prefixes exist in 8.5+ but not 8.4; `{*}` expansion is
   8.5+) on the registry / `LexerConfig` dialect flags, never hardcode one
-  version. C Tcl 9.0.3 is the reference standard — see
-  [`rust-rewrite-history.md`](rust-rewrite-history.md) §"C Tcl 9.0.3 is the
-  reference standard".
+  version. C Tcl 9.0.3 is the reference standard.
 - **A discovery in one track that affects another must update the other
   track's entry here, in the same change.** When working a track surfaces a
   wrong assumption, a shared invariant, or a handoff (e.g. a residual that
@@ -810,19 +807,19 @@ listed residuals · 🟡 partial · 🔴 not started.
 
 | Subsystem | Crate(s) | Status | Remaining (→ track) |
 |---|---|---|---|
-| Lexer / segmenter / expr-lexer / CST | `tcl-lexer`, `tcl-syntax`, `tcl-compiler::parsing` | ✅ | FE-LEX complete — `${name}` brace-depth, quoted `\<nl>`, nested-body E202/E203 landed (see [history](rust-rewrite-history.md), 2026-06-19) |
+| Lexer / segmenter / expr-lexer / CST | `tcl-lexer`, `tcl-syntax`, `tcl-compiler::parsing` | ✅ | FE-LEX complete — `${name}` brace-depth, quoted `\<nl>`, nested-body E202/E203 landed (see history, 2026-06-19) |
 | IR / lowering / CFG / SSA | `tcl-compiler` | ✅ | `IRUpFrame` clobber + dynamic-`uplevel` barrier (`body_has_dynamic_barrier`) + minor IR fields landed under **FE-DATAFLOW** / **FE-DIAG** |
-| SCCP / intervals / memory-SSA | `tcl-compiler` | ✅ | escaping-var widening, optimistic deferral, static-loop folding, W233 interval path, `complexity_guard` all landed — **FE-DATAFLOW** complete (see [history](rust-rewrite-history.md)) |
+| SCCP / intervals / memory-SSA | `tcl-compiler` | ✅ | escaping-var widening, optimistic deferral, static-loop folding, W233 interval path, `complexity_guard` all landed — **FE-DATAFLOW** complete (see history) |
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | ✅ | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) ported (`tcl-compiler::shimmer::byte_array` + `tcl-registry` `BytePayloadSpec`) — **FE-TYPESHIM** complete |
-| var-escape | `tcl-compiler::var_escape` | ✅ | orchestrator (`analyse_var_escape` IR + CU paths) + `pure_leaf` family (`safe_to_inline`/`safe_to_dce`/`safe_for_frame_elision`) + transitive fixpoint landed (FE-VARESCAPE complete, see [history](rust-rewrite-history.md)) |
-| Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | ✅ | every O-code pass + the **full inliner** (v0/verbatim **and** v3 α-rename + parameter binding + return-as-break wrap, `tcl-compiler::inlining{,::rename}`) landed (see [history](rust-rewrite-history.md)). Out of scope: v3's execution-differential verification is owned by its consumer (**RT-WASM**); the optional non-correctness O110 rewrites are gated on the iRules `MatchesGlob`/`MatchesRegex` expr operators → **FE-OPT** |
+| var-escape | `tcl-compiler::var_escape` | ✅ | orchestrator (`analyse_var_escape` IR + CU paths) + `pure_leaf` family (`safe_to_inline`/`safe_to_dce`/`safe_for_frame_elision`) + transitive fixpoint landed (FE-VARESCAPE complete, see history) |
+| Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | ✅ | every O-code pass + the **full inliner** (v0/verbatim **and** v3 α-rename + parameter binding + return-as-break wrap, `tcl-compiler::inlining{,::rename}`) landed (see history). Out of scope: v3's execution-differential verification is owned by its consumer (**RT-WASM**); the optional non-correctness O110 rewrites are gated on the iRules `MatchesGlob`/`MatchesRegex` expr operators → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟢 | state-mutating statement-position specialisations + `expr` const-fold + byte-wise `esc` + the `set x [cmd]` inline re-land landed (byte-true vs tclsh9.0; VM opcodes implemented to match); residual: bare-statement `string`/`regexp`/`lindex`/`lreplace` (value-discarded) → **FE-CODEGEN** |
-| Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes); `ProcArgTrait::DynamicNameLocal` added so caller-side W211/W214/dead-store false positives stay suppressed (parity-audit gap #6, 2026-06-25) — see [history](rust-rewrite-history.md). The two consumer-wiring residuals (per-check config toggles, flow-warning code actions) landed under **SRV-LSP** |
-| F5 dialect diagnostics | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, `f5-xc` | ✅ | all four families ported & consumer-wired: TK1001-3 (analyser), BIGIP6001-11 + IAPP7001-3 (routed into the native server via `f5_dialect_diagnostics`, push+pull), and XC100-301 (new **`f5-xc`** crate — `translate_irule` IR-walker + `get_xc_diagnostics`, parity-tested vs the Python oracle; opt-in `xcDiagnostics` toggle wired into the `f5-irules` diagnostics path) — see [history](rust-rewrite-history.md) → **FE-DIAG-F5** |
+| Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes); `ProcArgTrait::DynamicNameLocal` added so caller-side W211/W214/dead-store false positives stay suppressed (parity-audit gap #6, 2026-06-25) — see history. The two consumer-wiring residuals (per-check config toggles, flow-warning code actions) landed under **SRV-LSP** |
+| F5 dialect diagnostics | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, `f5-xc` | ✅ | all four families ported & consumer-wired: TK1001-3 (analyser), BIGIP6001-11 + IAPP7001-3 (routed into the native server via `f5_dialect_diagnostics`, push+pull), and XC100-301 (new **`f5-xc`** crate — `translate_irule` IR-walker + `get_xc_diagnostics`, parity-tested vs the Python oracle; opt-in `xcDiagnostics` toggle wired into the `f5-irules` diagnostics path) — see history → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/rust`, new `tcl-wasm` | 🟡 | **separate scope** → [`design/runtime/runtime-execution-gaps.md`](design/runtime/runtime-execution-gaps.md) §1 (RT-WASM). Headline: eval-fallback emitter + `tcl compwasm` wiring landed; ~1.5 K Rust LOC vs the ~20.6 K-LOC / 49-module Python emitter — the largest single gap |
 | Bytecode VM | `tcl-vm` | 🟡 | **separate scope** → [`design/runtime/runtime-execution-gaps.md`](design/runtime/runtime-execution-gaps.md) §2 (RT-VM). Headline: differential `bug_*` cmd-tests all closed (2026-06-25); 98/39/54 of 191 opcodes; 28/59/10 of 97 tcltest stems; TclOO/coroutine still VM-absent |
 | Regex engine (ARE) | `tcl-regex` | ✅ | pure-Rust port of Tcl 9's Henry-Spencer ARE engine (no C FFI, no `unsafe`). Passes `reg.test` 544/544 + the `regexp.test` command corpus (engine-relevant cases) as Rust cargo tests vs the real engine. Drives **both** runtimes via the `cmd-core` `RegexEngine` provider — the VM (replacing the `regex` crate) and `runtime/rust` (replacing the C Henry-Spencer engine: `build.rs`/FFI/`regex_shim` removed, so `regexp` now works on wasm32 too). C consumers link the `runtime/rust` C-ABI shim (`regex_capi`, `TclReComp`/`TclReExec`/…). Residual: cmd-plumbing `-about`/`regsub -command`/`-start`-validation gaps live in `tcl-cmd-core`. See [rust-regex-port.md](design/runtime/rust-regex-port.md) |
-| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed; BIG-IP find-references / document-links / code-action providers + "Generate docstring" parity landed (parity-audit gap #8, 2026-06-25) — see [history](rust-rewrite-history.md). The document-store / per-edit-incrementality work is its own **SRV-INCREMENTAL** track (the rope was measured and demoted; design in [`design/srv-incremental/`](design/srv-incremental/README.md)) |
+| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed; BIG-IP find-references / document-links / code-action providers + "Generate docstring" parity landed (parity-audit gap #8, 2026-06-25) — see history. The document-store / per-edit-incrementality work is its own **SRV-INCREMENTAL** track (the rope was measured and demoted; design in [`design/srv-incremental/`](design/srv-incremental/README.md)) |
 | Document store / incrementality | `tcl-lsp-db`, `tcl-compiler`, `tcl-lsp-server`, `tcl-lexer` | 🟢 | persisted incremental `LineIndex` (Task 1), per-function check memo (2a), incremental interprocedural-taint memo (2b), **the full cross-file cascade (Task 6 — W123 + arity, per-symbol `command_arity` early-cutoff, corpus-scale multi-file fuzzer)**, **Task 4 (per-procedure `optimise_unit` memo)**, and **Task 3 (incremental per-item IR lowering, `lower_proc_body` memo) gated v1** all landed byte-identical (full-corpus-verified); **Tasks 5 (windowed re-lex) + 7 (rope store) dropped — rope-dependent, removed from scope 2026-06-30**; residual: broaden the Task 3 body-cache eligibility gate → **SRV-INCREMENTAL** (see [`design/srv-incremental/`](design/srv-incremental/README.md)) |
 | `tcl` CLI | `tcl-cli` | ✅ | all 26 verbs ported & dispatched (`dis`/`compwasm` + `pkg`/`venv`/`docker` wired via TOOL-TCLPKG) → **TOOL-CLI** |
 | `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --tshark/--keylog/--tshark-filter` + `--simulate` (iRule run live on `tcl-vm` via `tcl-irule-test`) landed; residual: `f5 irule lint/context/trace/pgo` sub-verbs unimplemented (parse + exit 2), SSH/scp fetch transport unimplemented (REST works; SSH parses + exits 2), `registry-dump --section commands` unimplemented → **TOOL-F5** |
@@ -833,7 +830,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); generator grammar broadened to procs/namespaces/dict/`catch`/`try`/`switch` (RT-VM-gated work done, 1.5 K-iter campaign @ 0 findings); WASM-runnability arm landed (`wasm-check`: compile→`wasmtime`, 600-program campaign clean); WASM **value**-differential arm landed (`wasm-diff`: in-process wasmtime with a `tcl-vm`-backed eval-fallback host, fuel-bounded `WasmHang` detection — verifies control-flow codegen, already caught a non-terminating-loop bug the runnability arm can't); residual: re-back that arm with the **real linked Rust runtime** for a full value differential, gated on **RT-WASM** → **TOOL-FUZZ** |
 | Debugger | `tcl-debugger` | ✅ | record-and-replay step debugger over `tcl-vm` (VM debug-hook seam) with a `tcl-debug` CLI **and** a DAP server for editors (`--dap`): breakpoints, step in/over/out, continue, stack/scopes/variables, evaluate → **TOOL-DEBUGGER** |
 | iRule test framework | `tcl-irule-test` | 🟢 | SCF→orchestrator topology generator + `LiveSession` running the TMM-sim orchestrator live on `tcl-vm` (load iRule, fire events, read pool/logs/decisions; 14 integration tests green); framework Tcl embedded for self-contained consumers. Residual: auto-broadening coverage **plus** the session's `event dispatch` / `class match` handlers (not yet implemented) → **TOOL-IRULE-TEST** |
-| PyO3 public API + retirement | — | ✅ | **done (Python fully retired; PyO3 surface not shipped — `tcl-lsp-py`/`tcl-lsp-rust` crates removed).** Source/CI/release/editors/tests are native; `scripts`→`xtask` done; the `lsp_e2e` suite ported to native `*_e2e.rs` (see [history](rust-rewrite-history.md) → *PYTHON-RETIRE*) |
+| PyO3 public API + retirement | — | ✅ | **done (Python fully retired; PyO3 surface not shipped — `tcl-lsp-py`/`tcl-lsp-rust` crates removed).** Source/CI/release/editors/tests are native; `scripts`→`xtask` done; the `lsp_e2e` suite ported to native `*_e2e.rs` (see history → *PYTHON-RETIRE*) |
 | `ai/` (MCP + skills) | `tcl-mcp` | ✅ | native — the Claude skills call the native `tcl-mcp` MCP tools; the Python `ai/` engine imports are gone |
 
 ### Track map (dependency order)
@@ -876,7 +873,7 @@ the `set x [cmd]` pure-command-substitution assign, the non-proc `dict` mutators
 (ensemble `invokeReplace`), and `{*}` expansion inside command substitutions
 have all landed byte-true vs tclsh 9.0 (their bytecode-VM opcode counterparts
 implemented in `tcl-vm` so codegen runs end-to-end; detail in the
-[history archive](rust-rewrite-history.md)). **Residual:**
+history archive). **Residual:**
 - **open** statement-position specialisations for the *value-returning*
   commands used as bare statements — `string` / `regexp` / `lindex` /
   `lreplace` (result discarded; the value-position inline forms exist, so this
@@ -889,7 +886,7 @@ Owns new analyser slices on `tcl-bigip` / `f5-xc` and the tk dialect. The
 per-family port decision (the track's explicit "decide Python-only vs Rust
 per family") is made: **TK1001-1003**, **BIGIP6001-6011**,
 **IAPP7001-7003**, and **XC100-301** are all landed (detail in the
-[history archive](rust-rewrite-history.md) → *FE-DIAG-F5*).
+history archive → *FE-DIAG-F5*).
 - **landed** **XC100-301** (BIG-IP→F5-XC translator) — the gating subsystem
   (the `translator.py` ~1.2 K LOC IR-walker + the 13-type `xc_model` +
   `mapping`) is ported to the new **`f5-xc`** crate
@@ -913,7 +910,7 @@ surface through the native server's diagnostics path (the
 validators (`validate_bigip_source` /
 `validate_iapp_{presentation,implementation}`) are **now routed into the
 native server** (`tcl-lsp-server`'s `f5_dialect_diagnostics` file-type
-dispatch — landed, see [history](rust-rewrite-history.md) → *FE-DIAG-F5*):
+dispatch — landed, see history → *FE-DIAG-F5*):
 a BIG-IP-config document publishes `BIGIP6001-6011` and an iApp APL
 presentation publishes `IAPP7001-7003` (with sibling-implementation
 cross-checking) on both the push and pull diagnostics paths, the analogue
@@ -936,16 +933,12 @@ That index is the single entry point for the runtime scope. It links the live,
 regenerable trackers (VM opcode coverage in
 [`design/runtime/tclvm-opcode-status.md`](design/runtime/tclvm-opcode-status.md),
 per-stem tcltest parity in
-[`design/runtime/rust-vm-tier-parity.md`](design/runtime/rust-vm-tier-parity.md),
-the tree-walking-port breakdown in
-[`design/runtime/rust-runtime-port.md`](design/runtime/rust-runtime-port.md)) and
+[`design/runtime/rust-vm-tier-parity.md`](design/runtime/rust-vm-tier-parity.md)) and
 the tiered delivery plan (the capability ladder in
-[`design/runtime/tcl-test-tiers.md`](design/runtime/tcl-test-tiers.md), the
-`tcltest` bring-up plan in
-[`design/runtime/tcltest-bringup.md`](design/runtime/tcltest-bringup.md)).
+[`design/runtime/tcl-test-tiers.md`](design/runtime/tcl-test-tiers.md)).
 The landed runtime work (the 2026-06-19 parity push, the 2026-06-21/22
 follow-ons, and the 2026-06-25 differential-cmd-test closures) is in the
-[history archive](rust-rewrite-history.md).
+history archive.
 
 ### Stage 3 — LSP server (SRV-LSP) — complete
 
@@ -955,7 +948,7 @@ sharing + debounce, `spawn_blocking` panic containment, the `semantic_tokens`
 token memo, `codeLens/resolve`, inlay type hints) and the two consumer-wiring
 residuals handed over from **FE-DIAG** — GAP-C1 per-check config toggles and the
 IRULE5002/5004 flow-warning code actions — are all shipped; the detail is in the
-[history archive](rust-rewrite-history.md).
+history archive.
 
 The **BIG-IP LSP surface** (parity-audit gap #8) is now substantially closed
 (2026-06-25): the dialect-specific find-references (`tcl-bigip::refs`),
@@ -1034,7 +1027,7 @@ These own distinct crates and parallelise; the ones marked *depends* are gated
 on a library track above. This is the layer that, per the `tcl`/`f5` pattern
 already started, brings **every** Python tool across to Rust. **Most of the
 stage has landed** — the landing logs are in the
-[history archive](rust-rewrite-history.md) and the tracks survive in the
+history archive and the tracks survive in the
 subsystem-status / track-map tables above. Only the 🟢 tracks carry residuals:
 
 - **TOOL-EXPLORER** 🟢 *(depends on RT-WASM)* — the rich per-instruction web-GUI
@@ -1055,7 +1048,7 @@ subsystem-status / track-map tables above. Only the 🟢 tracks carry residuals:
   mutators), `switch`, `catch`, and `try`/`on error`/`finally`, all over the
   surface RT-VM implements (validated by a 1.5 K-iteration `tclvm`-vs-`tclsh9.0`
   campaign at 0 findings — detail in the
-  [history archive](rust-rewrite-history.md)). The **WASM-runnability arm** of
+  history archive). The **WASM-runnability arm** of
   the third backend has also **landed** (2026-06-22): the `wasm-check`
   subcommand compiles each generated program to the eval-fallback WASM module
   and runs it under `wasmtime` (with the proven `tcl_*` host stub), flagging
@@ -1086,7 +1079,7 @@ subsystem-status / track-map tables above. Only the 🟢 tracks carry residuals:
 
 **TOOL-TCLPKG**, **TOOL-REFACTOR**, **TOOL-DEBUGGER**, and **TOOL-CLI** are ✅
 complete (their landing logs are in the
-[history archive](rust-rewrite-history.md)).
+history archive).
 
 ### Stage 5 — PyO3 interfaces & Python retirement (API-PYO3) — complete
 
@@ -1101,7 +1094,7 @@ shipped** — the binding crates `tcl-lsp-py` / `tcl-lsp-rust` were removed rath
 than published — and `ai/` was re-pointed onto the native `tcl-mcp` MCP tools.
 CI/CD, release artefacts, and the editor extensions are all Python-free. The
 full close-out narrative (what was deleted, the e2e port, the editor bundling)
-is in the [history archive](rust-rewrite-history.md) → *PYTHON-RETIRE*.
+is in the history archive → *PYTHON-RETIRE*.
 
 ### Cross-cutting (fold into the owning track)
 
@@ -1115,6 +1108,6 @@ is in the [history archive](rust-rewrite-history.md) → *PYTHON-RETIRE*.
 
 The full dated chunk-log — every landed `SYNC-*`, `GAP-AUDIT`, `ARCH*`, `C*`,
 and `S*` entry, the per-spec command-tracking tables, and the detailed
-sub-plans of work that has shipped — is archived in
-[`rust-rewrite-history.md`](rust-rewrite-history.md). It is provenance, not a
+sub-plans of work that has shipped — has been archived out of this tree
+(recoverable from git). It is provenance, not a
 plan; this document and the source are authoritative for current status.

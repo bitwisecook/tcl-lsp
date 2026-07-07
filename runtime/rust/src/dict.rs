@@ -19,7 +19,7 @@
 //! The Tcl **dict** value type (T1.6) — an *insertion-ordered* map.
 //!
 //! ## Representation decision (evidence-based; experiment in
-//! `experiments/dict_rep.rs`, numbers in `rust-runtime-port.md`)
+//! `experiments/dict_rep.rs`)
 //!
 //! A dict needs **by-key** get/set (hot, incl. `dict set` build loops) **and
 //! insertion-ordered** iteration (`dict keys`/`dict for`/`dict values`, Tcl

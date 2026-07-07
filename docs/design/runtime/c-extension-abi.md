@@ -154,7 +154,7 @@ load-time-registered command can be resolved.
 
 ### 5.1 Model A — whole-program static link
 
-Compile the extension `.c` to a WASM object with clang + wasi-sdk (or `zig cc`);
+Compile the extension `.c` to a WASM object with clang + wasi-sdk;
 link it with the runtime's objects via `wasm-ld` into a single module. Same model as
 `core/compiler/codegen/wasm_link.py`'s whole-program link. Simplest deployment;
 proves API compatibility, Rust↔C wasm interop, and the §4.5 callback. This was
@@ -207,8 +207,6 @@ are language-agnostic; they are independent of the runtime's implementation lang
   used internally by an extension resolve to wasi-libc; for memory that crosses
   the boundary, the extension must use `Tcl_Alloc` (which is the runtime's
   allocator) — this is already the Tcl convention.
-- **`zig cc`** (clang + bundled wasi-libc, no separate sysroot) — an equivalent
-  the original spikes used; works wherever a Zig toolchain is already present.
 
 A production runtime should additionally route `Tcl_Alloc`/`ckalloc` to its own
 allocator so all boundary-crossing memory is single-owner.
@@ -260,9 +258,9 @@ library**, never the Tcl API.
 
 - **C compiler:** clang + a WASI sysroot (wasi-sdk) is the project standard —
   a hermetic C→wasm cross-compiler with libc, independent of the runtime's
-  language (`runtime/rust/build.rs` uses it for the libtommath tower). `zig cc`
-  is an equivalent (it *is* clang + bundled wasi-libc underneath), which is why
-  the runtime's language never gates extension compilation.
+  language (`runtime/rust/build.rs` uses it to build the libtommath tower).
+  Because the C toolchain is external to the runtime, the runtime's language
+  never gates extension compilation.
 - **Linker:** `wasm-ld`. Main module: `--export-table --growable-table`
   (+ exported `memory`). Side module: `--experimental-pic -shared --no-entry
   --import-memory --import-table`.
@@ -270,23 +268,22 @@ library**, never the Tcl API.
   The spike loader is Python + `wasmtime`; production would put the loader in
   the runtime itself.
 
-## 9. Runtime-language analysis (Rust, ported from Zig)
+## 9. Runtime-language analysis (Rust)
 
-The mechanism is language-agnostic. The runtime is now Rust, ported from the
-former Zig implementation; what the language choice changed:
+The mechanism is language-agnostic; the runtime is Rust. What the language
+provides for the ABI surface:
 
-| Concern | Rust | Zig |
-|---|---|---|
-| Export C ABI symbols | `#[no_mangle] extern "C"` | `export fn` |
-| `Tcl_Obj` layout | `#[repr(C)]` | `extern struct` |
-| Consume `tcl.h` for self-consistency | `bindgen` (build step) | `@cImport` (native) |
-| Compile the extension's C | external clang + wasi-sdk (or `zig cc`) | bundled `zig cc` |
-| Safety in the obj/memory layer | partial — raw-pointer `unsafe` over shared memory | manual |
+| Concern | Rust |
+|---|---|
+| Export C ABI symbols | `#[no_mangle] extern "C"` |
+| `Tcl_Obj` layout | `#[repr(C)]` |
+| Consume `tcl.h` for self-consistency | `bindgen` (build step) |
+| Compile the extension's C | external clang + wasi-sdk |
+| Safety in the obj/memory layer | partial — raw-pointer `unsafe` over shared memory |
 
-Net: Rust is fully **capable**; it costs *ergonomics* (`bindgen` vs `@cImport`,
-external clang + wasi-sdk vs a bundled compiler), not capability. Rust's safety benefit is real for the
-pure-logic halves and partial in the `Tcl_Obj`/shared-memory layer, which is
-inherently `unsafe`.
+Net: Rust is fully **capable**. Its safety benefit is real for the pure-logic
+halves and partial in the `Tcl_Obj`/shared-memory layer, which is inherently
+`unsafe`.
 
 ## 10. The regex engine is the first C library
 
@@ -362,8 +359,7 @@ decision, both are required before shipping.
 > `scripts/check_c_api_ownership.py` (`make check-c-api-ownership`, in
 > `_prep-pr-checks-noty`) rejects any un-annotated C-API export. Remaining: encode
 > the categories in the `runtime/rust/` impls and extend the gate to the real
-> `#[no_mangle] extern "C"` exports. Tracked as T2.1 in
-> [`rust-runtime-port.md`](rust-runtime-port.md).
+> `#[no_mangle] extern "C"` exports.
 
 **Why.** The spikes leak every `Tcl_Obj` and only return `TCL_OK`, so the
 refcount-ownership and error protocols — the contracts that make extensions

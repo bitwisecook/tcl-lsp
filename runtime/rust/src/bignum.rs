@@ -17,8 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The bignum rung of the numeric tower: the `TCL_BIGNUM_TYPE` obj rep over
-//! libtommath `mp_int`, the representation chosen + validated in EXP-BIGNUM
-//! (`docs/design/runtime/rust-runtime-port.md`).
+//! libtommath `mp_int`, the representation chosen + validated in EXP-BIGNUM.
 //!
 //! `mp_int` **is** our bignum — the same representation C extensions get via
 //! `Tcl_GetBignumFromObj` (we ship `tclTomMath.h` + export the `TclBN_*` stubs,

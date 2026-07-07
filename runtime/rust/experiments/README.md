@@ -1,7 +1,6 @@
 # `runtime/rust/experiments/` — throwaway data-structure experiments
 
-Per the porting method (`docs/design/runtime/rust-runtime-port.md`, "Choosing
-algorithms & data structures"): when a value type has a real crossover question,
+Per the porting method — when a value type has a real crossover question,
 **measure candidates compiled to WASM under `wasmtime`** (the real target —
 constant factors differ from the host) before committing to a representation.
 

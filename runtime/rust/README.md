@@ -1,7 +1,6 @@
 # `tcl-runtime` — Rust port of the Tcl WASM runtime
 
-The Rust runtime (Track 1 of
-[`docs/design/runtime/rust-runtime-port.md`](../../docs/design/runtime/rust-runtime-port.md)):
+The Rust runtime (Track 1 of the runtime port):
 every allocation is balanced by a refcount-driven free, and the alloc/free
 counters prove it.
 
@@ -15,8 +14,8 @@ counters prove it.
   immediate refcount-driven free (`TclFreeObj`), on-demand int→string shimmer.
 - **`interp`** — a minimal result-only `Interp` exercising the
   `Tcl_SetObjResult`/`Tcl_GetObjResult` ownership handshake.
-- **`counters`** — leak-check instrumentation (`tcl_test_*`), mirroring the Zig
-  runtime's surface (`memory-management.md` MM-C).
+- **`counters`** — leak-check instrumentation (`tcl_test_*`); see
+  `memory-management.md` MM-C.
 - **`capi`** — the `#[no_mangle] extern "C"` C-API exports for the above.
 
 ## Not yet (later Track-1 chunks)
@@ -24,7 +23,7 @@ counters prove it.
 Parse/subst (T1.2), eval loop + frames (T1.3), namespaces + command table
 (T1.4), builtins (T1.5), and the `tcl_*`/`obj_*` codegen-import re-exports + the
 wasm `memory`/table exports (T1.6). The codegen handle/tagged-immediate and
-inline-string optimisations (the Zig 32-byte layout) layer on at T1.5/S6 over
+inline-string optimisations (the 32-byte layout) layer on at T1.5/S6 over
 this ABI-faithful struct.
 
 ## Why it's outside the workspace
