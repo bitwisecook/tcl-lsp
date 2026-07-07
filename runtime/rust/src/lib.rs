@@ -46,11 +46,12 @@
 //! re-exports and the wasm `memory`/table exports land in T1.6.
 
 // On `wasm32-unknown-unknown` the native-only features — coroutines (native
-// stack swap + threads), the ARE regex FFI, and the libtommath bignum tower —
-// are all cfg-disabled (see the `BrowserHost`, `have_regex`, and `have_tommath`
-// gates below), so the machinery that drives them (coroutine context fields and
-// swap methods, the OO exec frame, the rand seed, the conditional line-base
-// bookkeeping) is unreachable on that target. Native is the primary build where
+// stack swap + threads) and the libtommath bignum tower — are cfg-disabled (see
+// the `BrowserHost` and `have_tommath` gates below), so the machinery that
+// drives them (coroutine context fields and swap methods, the OO exec frame,
+// the rand seed, the conditional line-base bookkeeping) is unreachable on that
+// target. (The ARE regex engine is the pure-Rust `tcl-regex` crate now, not a
+// C FFI, so it builds on wasm32 too — no gate.) Native is the primary build where
 // `clippy -D warnings` runs and nothing is dead; only the wasm32 build sees this
 // dead code, so the allow is scoped to that target alone.
 #![cfg_attr(target_arch = "wasm32", allow(dead_code, unused_imports))]

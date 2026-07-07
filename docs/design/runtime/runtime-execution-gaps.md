@@ -182,10 +182,11 @@ emitted modules link against. Most subsystems are **partial**:
 - **builtins (`cmds/`)** — a large surface runs (drives the unmodified Tcl 9
   library to `package require tcltest`), but the tcltest sweep is incomplete
   (e.g. `dict.test` 272/373, `lrange` 1759/1766); per-command parity ongoing.
-- **regex** — the **C** Henry-Spencer ARE engine is linked today (`have_regex`,
-  `build.rs` + FFI shim); the **Rust port of the algorithm is the end-stage
-  swap** (`tcl-regex` already exists workspace-side, so a convergence, not a
-  fresh port).
+- **regex** — the pure-Rust `tcl-regex` ARE engine drives `regexp`/`regsub`.
+  The former **C** Henry-Spencer engine (`build.rs` + FFI shim, `have_regex`)
+  has been removed, so regex now builds on `wasm32` too; nothing vendors or
+  fetches the C sources. C consumers still link the engine — through the
+  pure-Rust `regex_capi` C-ABI shim (`TclReComp`/`TclReExec`/…), not C sources.
 - **OO / coroutines** — `cmd_oo.rs` (TclOO: classes, super-classes, `oo::define`,
   method dispatch) and `cmd_coro.rs` are implemented here; native stack-swap +
   threads are `cfg`-gated off under the `BrowserHost` capability host on wasm32.

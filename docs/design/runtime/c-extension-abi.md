@@ -287,6 +287,15 @@ halves and partial in the `Tcl_Obj`/shared-memory layer, which is inherently
 
 ## 10. The regex engine is the first C library
 
+> **Superseded.** This section argued for keeping the C Henry-Spencer engine as
+> the runtime's first vendored C library. That is no longer the design: the ARE
+> engine is now the pure-Rust `tcl-regex` crate (bit-for-bit fidelity —
+> backreferences, lookahead, POSIX leftmost-longest — verified against
+> `reg.test`), with **no C compiled, vendored, or fetched**. The direction is
+> reversed: rather than C being linked into the runtime, C consumers link the
+> *Rust* engine through the `regex_capi` C-ABI shim (`TclReComp`/`TclReExec`/…).
+> The rationale below is retained as historical context.
+
 Tcl's Henry Spencer ARE engine is already C, already compiled into the runtime
 (the vendored `tcl-regex` engine). Once "compile C against the runtime" exists,
 the regex engine *is* the first such C library — keeping it gives bit-for-bit
