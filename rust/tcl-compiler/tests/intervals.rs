@@ -172,6 +172,18 @@ fn loop_body_block(fu: &FunctionUnit) -> tcl_compiler::cfg::BlockId {
         .expect("a comparison-guarded branch")
 }
 
+/// Predecessor count per block — `refine_interval` requires a guarded branch
+/// target have a single entry edge before applying its constraint (issue 148).
+fn pred_counts(
+    fu: &FunctionUnit,
+) -> std::collections::HashMap<tcl_compiler::cfg::BlockId, usize> {
+    fu.cfg
+        .predecessors()
+        .into_iter()
+        .map(|(bid, preds)| (bid, preds.len()))
+        .collect()
+}
+
 // ===========================================================================
 // Dynamic lindex out of range (W230).
 // ===========================================================================
@@ -226,6 +238,23 @@ mod dynamic_lindex_out_of_range {
     fn unknown_param_index_silent() {
         // A param index has no bound (TOP) — not provably out of range.
         let src = "proc f {i} { set x [lindex {a b c} $i] }";
+        assert_eq!(count(src, "W230"), 0);
+    }
+
+    #[test]
+    fn break_exit_does_not_apply_loop_guard_silent() {
+        // `n` is unknown; a `break` inside `while {$n < 5}` reaches the loop
+        // exit *without* satisfying the `n >= 5` false-edge guard. The exit
+        // merge (two predecessors: the header false edge and the break edge)
+        // must NOT refine `n` to `[5, +inf)` — doing so would fire a false
+        // W230 on `lindex {a b c} $n`, since on the break path `n` may be in
+        // range (issue 148). The exit block has >1 predecessor, so the guard
+        // is not edge-dominating and must not apply.
+        let src = "proc f {} {\n\
+            \x20   set n [bar]\n\
+            \x20   while {$n < 5} { if {[foo]} { break } }\n\
+            \x20   set x [lindex {a b c} $n]\n\
+            }";
         assert_eq!(count(src, "W230"), 0);
     }
 
@@ -830,7 +859,16 @@ mod guard_narrowing {
             // Only consider versions that actually have a base interval (skip
             // version 0 / undefined which refine to TOP).
             iv.get(&(sym, ver)).is_some_and(|_| {
-                let r = refine_interval(&iv, &fu.cfg, &fu.ssa, body, "i", ver, &gi);
+                let pc = pred_counts(fu);
+                let r = refine_interval(
+                    &iv,
+                    &fu.cfg,
+                    &fu.ssa,
+                    body,
+                    "i",
+                    ver,
+                    tcl_compiler::intervals::GuardTables { guard_index: &gi, pred_counts: &pc },
+                );
                 !r.is_top() && !r.is_bottom() && r.hi == Some(9)
             })
         });
@@ -869,7 +907,16 @@ mod guard_narrowing {
                 continue; // not a widened-above version (e.g. the init const)
             }
             saw_widened = true;
-            let r = refine_interval(&iv, &fu.cfg, &fu.ssa, body, "i", ver, &gi);
+            let pc = pred_counts(fu);
+            let r = refine_interval(
+                &iv,
+                &fu.cfg,
+                &fu.ssa,
+                body,
+                "i",
+                ver,
+                tcl_compiler::intervals::GuardTables { guard_index: &gi, pred_counts: &pc },
+            );
             if r.is_bottom() {
                 continue;
             }
@@ -952,3 +999,4 @@ mod interval_arithmetic_observable {
         assert_eq!((header.lo, header.hi), (Some(0), None));
     }
 }
+

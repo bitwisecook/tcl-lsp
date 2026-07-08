@@ -974,7 +974,11 @@ fn bi_add(args: &[Value]) -> Result<Value, QueryError> {
                         ));
                     }
                     Value::Int(i) => {
-                        isum += i;
+                        // Checked, like the `+` operator: a clean error, never
+                        // a debug panic / release wraparound (issue 193).
+                        isum = isum.checked_add(*i).ok_or_else(|| {
+                            QueryError::builtin("add: integer sum overflows i64".to_string())
+                        })?;
                         fsum += *i as f64;
                     }
                     Value::Float(f) => {

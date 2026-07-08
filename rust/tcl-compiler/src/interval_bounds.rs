@@ -580,6 +580,11 @@ where
         ssa,
         intervals: compute_intervals(cfg, ssa, values),
         guard_index: build_guard_index(cfg, ssa),
+        pred_counts: cfg
+            .predecessors()
+            .into_iter()
+            .map(|(bid, preds)| (bid, preds.len()))
+            .collect(),
         lengths: list_length_map(ssa),
         str_lengths: string_length_map(ssa),
         phi_index: ssa
@@ -635,6 +640,9 @@ struct BoundsCtx<'a> {
     ssa: &'a SsaFunction,
     intervals: HashMap<ValueKey, Interval>,
     guard_index: HashMap<ValueKey, Vec<BlockId>>,
+    /// Predecessor count per block — used to require a guarded branch target
+    /// have a single entry edge before its constraint is applied (issue 148).
+    pred_counts: HashMap<BlockId, usize>,
     lengths: HashMap<ValueKey, i64>,
     str_lengths: HashMap<ValueKey, i64>,
     phi_index: PhiIndex<'a>,
@@ -729,7 +737,10 @@ impl BoundsCtx<'_> {
             site.bn,
             &index_var,
             index_version,
-            &self.guard_index,
+            crate::intervals::GuardTables {
+                guard_index: &self.guard_index,
+                pred_counts: &self.pred_counts,
+            },
         );
         if iv.is_top() || iv.is_bottom() {
             return;
@@ -908,6 +919,11 @@ where
     }
     let intervals = compute_intervals(cfg, ssa, values);
     let guard_index = build_guard_index(cfg, ssa);
+    let pred_counts: HashMap<BlockId, usize> = cfg
+        .predecessors()
+        .into_iter()
+        .map(|(bid, preds)| (bid, preds.len()))
+        .collect();
 
     let env_for =
         |uses: &HashMap<Symbol, Version>, bn: crate::cfg::BlockId| -> HashMap<String, Interval> {
@@ -917,7 +933,18 @@ where
                     let name = ssa.var_name(sym);
                     (
                         name.to_owned(),
-                        refine_interval(&intervals, cfg, ssa, bn, name, ver, &guard_index),
+                        refine_interval(
+                            &intervals,
+                            cfg,
+                            ssa,
+                            bn,
+                            name,
+                            ver,
+                            crate::intervals::GuardTables {
+                                guard_index: &guard_index,
+                                pred_counts: &pred_counts,
+                            },
+                        ),
                     )
                 })
                 .collect()

@@ -29,8 +29,9 @@
 //! Only the span-carrying parts of a [`FunctionUnit`] are traversed (every
 //! other lattice field — `types`/`taints`/`rendered_props`/`def_use`/
 //! `memory_ssa`/SSA phis — is span-free): the CFG block statements +
-//! terminators + loop-node spans, the SSA blocks' cloned statements (read for
-//! positions by some emitters), and the SCCP constant-branch spans.
+//! terminators + loop-node spans + inlined-`eval` body spans, the SSA blocks'
+//! cloned statements (read for positions by some emitters), and the SCCP
+//! constant-branch spans.
 //! `ExprNode` carries *relative* offsets anchored to a statement span we shift,
 //! so it needs no rebasing.
 
@@ -57,6 +58,13 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
     for loop_node in fu.cfg.loop_nodes.values_mut() {
         shift(&mut loop_node.span, delta);
         rebase_statement(&mut loop_node.for_stmt, delta);
+    }
+    // The inlined-`eval {…}` body spans are absolute, span-carrying state too;
+    // without shifting them a cache-hit, offset-rebased unit keeps stale
+    // offsets for any consumer (error-region mapping / explorer views) — issue
+    // 149.
+    for span in &mut fu.cfg.inline_eval_spans {
+        shift(span, delta);
     }
     // SSA holds its own clones of the IR statements; some emitters read spans
     // from them (`stmt.statement.span()`), so rebase those too.
@@ -272,5 +280,34 @@ fn rebase_branching_statement(stmt: &mut Statement, delta: i64) {
             }
         }
         _ => unreachable!("rebase_branching_statement called on non-branching statement"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compilation_unit::CompilationUnit;
+    use tcl_registry::CommandRegistry;
+
+    /// A cache-hit, offset-rebased unit must shift its inlined-`eval` body
+    /// spans along with every other absolute span, or error-region / explorer
+    /// consumers see stale offsets (issue 149).
+    #[test]
+    fn rebase_shifts_inline_eval_spans() {
+        let reg = CommandRegistry::build_default();
+        // A static `eval {…}` body is flattened inline and its command span
+        // recorded in `inline_eval_spans`.
+        let cu = CompilationUnit::build_for("proc f {} { eval { set x 1 } }", &reg, false);
+        let mut fu = cu.function("::f").expect("::f built").clone();
+        assert!(
+            !fu.cfg.inline_eval_spans.is_empty(),
+            "an inlined eval body should record a span",
+        );
+        let before: Vec<Span> = fu.cfg.inline_eval_spans.clone();
+        rebase_function_unit(&mut fu, 100);
+        for (b, a) in before.iter().zip(&fu.cfg.inline_eval_spans) {
+            assert_eq!(a.start(), b.start() + 100);
+            assert_eq!(a.end(), b.end() + 100);
+        }
     }
 }

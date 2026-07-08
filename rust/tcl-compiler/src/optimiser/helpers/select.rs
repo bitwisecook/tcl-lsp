@@ -26,8 +26,8 @@
 //!    earlier, higher-priority, longer rewrites win.
 //! 3. Any rewrite overlapping a previously-kept rewrite is
 //!    dropped. If the dropped rewrite had a group id, every
-//!    surviving group member loses its group (all-or-nothing
-//!    application).
+//!    surviving member of that group is dropped too — the group is
+//!    applied all-or-nothing, never partially.
 //! 4. Output is sorted by `start` with hints merged back in.
 
 use std::collections::HashSet;
@@ -81,15 +81,14 @@ pub fn select_non_overlapping(optimisations: &[Optimisation]) -> Vec<Optimisatio
         selected.push(opt);
     }
 
-    // Clear group from survivors whose sibling was dropped.
+    // Drop survivors whose sibling was dropped: a group is applied
+    // all-or-nothing. Merely clearing the group and keeping the survivors would
+    // apply the group *partially* — e.g. a fold that deletes
+    // `set s ""; append s foo` and rewrites the final `append s bar`, if the
+    // rewrite loses an overlap, would leave the deletions in place and change
+    // the result to `s == "bar"` (issue 153).
     if !dropped_groups.is_empty() {
-        for opt in &mut selected {
-            if let Some(g) = opt.group
-                && dropped_groups.contains(&g)
-            {
-                opt.group = None;
-            }
-        }
+        selected.retain(|opt| opt.group.is_none_or(|g| !dropped_groups.contains(&g)));
     }
 
     let mut out = selected;
@@ -146,22 +145,36 @@ mod tests {
     }
 
     #[test]
-    fn group_id_cleared_when_sibling_dropped() {
-        // Two members of group 7. The later one overlaps a
-        // higher-priority rewrite and is dropped → the surviving
-        // member loses its group.
+    fn group_dropped_entirely_when_sibling_dropped() {
+        // Two members of group 7. The later one overlaps a higher-priority
+        // rewrite and is dropped → the *surviving* member must be dropped too,
+        // so the group is never applied partially (issue 153). Only the
+        // higher-priority non-group rewrite remains.
         let opts = vec![
             grouped(DiagCode::O101, 0, 5, 7),
             opt(DiagCode::O112, 10, 20),
             grouped(DiagCode::O101, 10, 15, 7),
         ];
         let out = select_non_overlapping(&opts);
-        assert_eq!(out.len(), 2);
-        let surviving = out.iter().find(|o| o.span == Span::new(0, 5)).unwrap();
-        assert_eq!(
-            surviving.group, None,
-            "group should be cleared when sibling dropped",
+        assert_eq!(out.len(), 1, "surviving group member must be dropped: {out:?}");
+        assert_eq!(out[0].code, DiagCode::O112);
+        assert!(
+            !out.iter().any(|o| o.span == Span::new(0, 5)),
+            "the group-7 survivor must not be applied",
         );
+    }
+
+    #[test]
+    fn intact_group_all_kept() {
+        // FP-guard: when no member of a group is dropped, every member survives
+        // with its group intact.
+        let opts = vec![
+            grouped(DiagCode::O101, 0, 5, 7),
+            grouped(DiagCode::O101, 10, 15, 7),
+        ];
+        let out = select_non_overlapping(&opts);
+        assert_eq!(out.len(), 2);
+        assert!(out.iter().all(|o| o.group == Some(7)));
     }
 
     #[test]
