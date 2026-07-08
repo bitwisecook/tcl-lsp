@@ -1269,6 +1269,110 @@ fn extract_proc_action(source: &str, range: LspRange) -> Vec<CodeAction> {
     }]
 }
 
+/// Split one Tcl command line into its words' raw source slices, respecting
+/// `{…}` / `"…"` grouping, `[…]` command-substitution nesting, and backslash
+/// escapes.  Unlike `str::split_whitespace`, a braced argument `{a b}` stays a
+/// single word rather than shredding into `{a` and `b}` (issue 179).
+fn split_tcl_words(line: &str) -> Vec<&str> {
+    let bytes = line.as_bytes();
+    let n = bytes.len();
+    let mut words = Vec::new();
+    let mut i = 0;
+    while i < n {
+        while i < n && matches!(bytes[i], b' ' | b'\t') {
+            i += 1;
+        }
+        if i >= n {
+            break;
+        }
+        let start = i;
+        let mut brace: i32 = 0;
+        let mut bracket: i32 = 0;
+        let mut in_quote = false;
+        while i < n {
+            match bytes[i] {
+                b'\\' if i + 1 < n => {
+                    i += 2;
+                    continue;
+                }
+                b'{' if !in_quote => brace += 1,
+                b'}' if !in_quote && brace > 0 => brace -= 1,
+                b'"' if brace == 0 && bracket == 0 => in_quote = !in_quote,
+                b'[' if !in_quote && brace == 0 => bracket += 1,
+                b']' if !in_quote && brace == 0 && bracket > 0 => bracket -= 1,
+                b' ' | b'\t' if brace == 0 && bracket == 0 && !in_quote => break,
+                _ => {}
+            }
+            i += 1;
+        }
+        // `start` and the break position are ASCII boundaries; a `\`-skip may
+        // leave `i` mid-char, so clamp to `n` (also an ASCII boundary).
+        words.push(&line[start..i.min(n)]);
+    }
+    words
+}
+
+/// End index (exclusive) of a bare `$name` variable name in `chars` starting at
+/// `start`, colon-run aware like C Tcl (`$a::b`, `$a:::b`), stopping at a lone
+/// `:`.  Shared shape with `hover::scan_var_name_end`.
+fn scan_var_name_end(chars: &[char], start: usize) -> usize {
+    let mut end = start;
+    while end < chars.len() {
+        let c = chars[end];
+        if c.is_alphanumeric() || c == '_' {
+            end += 1;
+        } else if c == ':' && chars.get(end + 1) == Some(&':') {
+            end += 2;
+            while chars.get(end) == Some(&':') {
+                end += 1;
+            }
+        } else {
+            break;
+        }
+    }
+    end
+}
+
+/// Substitute `$name` / `${name}` variable *references* in `body` from the
+/// `(name, replacement)` map, matching only *complete* names.  A naive
+/// `str::replace("$n", …)` would corrupt `$nn` (prefix sharing) or a `$name`
+/// embedded in a longer token; this scans references and replaces whole ones
+/// (issue 179).
+fn substitute_var_refs(body: &str, subs: &[(&str, &str)]) -> String {
+    let lookup = |name: &str| subs.iter().find(|(n, _)| *n == name).map(|(_, r)| *r);
+    let chars: Vec<char> = body.chars().collect();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '$' {
+            if chars.get(i + 1) == Some(&'{') {
+                // `${name}` — literal name up to the first `}`.
+                if let Some(rel) = chars[i + 2..].iter().position(|&c| c == '}') {
+                    let name: String = chars[i + 2..i + 2 + rel].iter().collect();
+                    if let Some(rep) = lookup(&name) {
+                        out.push_str(rep);
+                        i = i + 2 + rel + 1;
+                        continue;
+                    }
+                }
+            } else {
+                let end = scan_var_name_end(&chars, i + 1);
+                if end > i + 1 {
+                    let name: String = chars[i + 1..end].iter().collect();
+                    if let Some(rep) = lookup(&name) {
+                        out.push_str(rep);
+                        i = end;
+                        continue;
+                    }
+                }
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
 /// `refactor.inline` — inline a single-command proc at the call cursor.
 /// Declines branchy / control-flow bodies.
 fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) -> Vec<CodeAction> {
@@ -1281,7 +1385,10 @@ fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) 
         .split('\n')
         .nth(range.start_line as usize)
         .unwrap_or("");
-    let toks: Vec<&str> = line.split_whitespace().collect();
+    // Split the call into proper Tcl words, respecting `{…}` / `"…"` / `[…]`
+    // grouping — `split_whitespace` would shred a braced argument `{a b}` into
+    // `{a` and `b}` (issue 179).
+    let toks: Vec<&str> = split_tcl_words(line);
     let Some(&head) = toks.first() else {
         return Vec::new();
     };
@@ -1321,15 +1428,17 @@ fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) 
     {
         return Vec::new();
     }
-    // Map call args onto params.
+    // Map call args onto params, then substitute variable *references* — not
+    // by naive string replace, which would rewrite `$nn` when the param is `n`
+    // (prefix sharing) and mangle `$name` inside a longer token (issue 179).
     let call_args: Vec<&str> = toks[1..].to_vec();
-    let mut inlined = body_raw.to_string();
-    for (i, p) in proc_def.params.iter().enumerate() {
-        let Some(arg) = call_args.get(i) else { break };
-        inlined = inlined
-            .replace(&format!("${{{}}}", p.name), arg)
-            .replace(&format!("${}", p.name), arg);
-    }
+    let subs: Vec<(&str, &str)> = proc_def
+        .params
+        .iter()
+        .enumerate()
+        .filter_map(|(i, p)| call_args.get(i).map(|arg| (p.name.as_str(), *arg)))
+        .collect();
+    let inlined = substitute_var_refs(body_raw, &subs);
     // Replace the whole call line.
     vec![CodeAction {
         title: format!("Inline proc '{}'", proc_def.name),
@@ -1911,6 +2020,53 @@ mod tests {
             .collect();
         assert_eq!(titles.len(), 2);
         assert!(titles.contains(&"A") && titles.contains(&"B"));
+    }
+
+    // refactor.inline — proc inlining (issue 179)
+
+    fn line_range(line: u32) -> LspRange {
+        LspRange {
+            start_line: line,
+            start_character: 0,
+            end_line: line,
+            end_character: 0,
+        }
+    }
+
+    fn inline_edit_text(src: &str, call_line: u32) -> String {
+        let mut a = Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        let actions = code_actions(src, line_range(call_line), Some(&analysis));
+        let act = actions
+            .iter()
+            .find(|a| a.title.starts_with("Inline proc "))
+            .unwrap_or_else(|| panic!("expected an inline action in {actions:?}"));
+        act.edits[0].new_text.clone()
+    }
+
+    #[test]
+    fn tp_inline_preserves_braced_argument_as_one_word() {
+        // `f {a b}` — the braced argument is a single value; inlining `$p`
+        // must yield `puts {a b}`, not `puts {a` from a whitespace split
+        // (issue 179).
+        let src = "proc f {p} { puts $p }\nf {a b}\n";
+        assert_eq!(inline_edit_text(src, 1), "puts {a b}");
+    }
+
+    #[test]
+    fn tp_inline_does_not_substitute_prefix_sharing_name() {
+        // Param `n`; body reads `$nn` (a different variable) and `$n`. Only the
+        // complete `$n` reference is replaced — `$nn` must survive intact,
+        // where a naive `replace("$n", …)` would corrupt it (issue 179).
+        let src = "proc g {n} { set x $nn$n }\ng 5\n";
+        assert_eq!(inline_edit_text(src, 1), "set x $nn5");
+    }
+
+    #[test]
+    fn tp_inline_substitutes_braced_var_reference() {
+        // `${p}` is a complete reference and is substituted; `${pq}` is not.
+        let src = "proc h {p} { set x ${p}${pq} }\nh 9\n";
+        assert_eq!(inline_edit_text(src, 1), "set x 9${pq}");
     }
 
     // W213 unset -nocomplain action
