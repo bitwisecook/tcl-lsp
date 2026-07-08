@@ -1068,7 +1068,15 @@ impl<'src> Lexer<'src> {
                     // consumes it zero-width.
                     break;
                 }
-                self.pos += 1;
+                // A ghost is a virtual insertion, so consuming one is
+                // zero-width even when it does not fully close the command
+                // (nesting ≥ 2): remove the ghost and re-examine the *real*
+                // byte at this offset on the next iteration. The previous
+                // `self.pos += 1` skipped that real byte and left the ghost in
+                // place, mis-boundarying recovery and (for a ghost at EOF)
+                // driving `pos` to `len + 1` — a span past the buffer that
+                // panics `SourceMap::text` (RUST_ISSUE_027).
+                self.ghosts.remove(&self.pos);
                 continue;
             }
             match ch {
@@ -2667,6 +2675,45 @@ mod tests {
                 .all(|w| w.message != "missing close-bracket"),
             "ghost should suppress the unterminated warning: {warnings:?}",
         );
+    }
+
+    #[test]
+    fn ghost_bracket_at_eof_with_deep_nesting_stays_in_bounds() {
+        // RUST_ISSUE_027: a ghost `]` consumed while nesting is ≥ 2 must be
+        // zero-width — it must not advance `pos` past the real byte (here past
+        // EOF to `len + 1`), which produced a token span one past the buffer and
+        // panicked `SourceMap::text`.
+        let src = "[a[b"; // outer `[` (level 1) then inner `[b` (level 2)
+        let len = u32::try_from(src.len()).unwrap();
+        let mut ghosts = std::collections::BTreeMap::new();
+        ghosts.insert(len, b']'); // a single ghost at EOF — closes one level
+        let lexer = Lexer::new(src).with_ghosts(ghosts);
+        let (tokens, _warnings) = lexer.tokenise_all_with_warnings().expect("lex ok");
+        for t in &tokens {
+            assert!(
+                t.span.end() <= len,
+                "token span end {} exceeds source length {len}: {t:?}",
+                t.span.end()
+            );
+        }
+    }
+
+    #[test]
+    fn ghost_bracket_mid_stream_with_nesting_does_not_skip_real_byte() {
+        // A ghost `]` at an interior offset with level ≥ 2 must not swallow the
+        // real byte sitting at that offset.
+        let src = "[a[bc"; // `[`0 `a`1 `[`2 `b`3 `c`4
+        let mut ghosts = std::collections::BTreeMap::new();
+        ghosts.insert(3u32, b']'); // ghost at `b`, level is 2 here
+        let lexer = Lexer::new(src).with_ghosts(ghosts);
+        let (tokens, _warnings) = lexer.tokenise_all_with_warnings().expect("lex ok");
+        // The `b` byte must still fall within the emitted Cmd token (not skipped
+        // out of the span).
+        let cmd = tokens
+            .iter()
+            .find(|t| t.kind == TokenType::Cmd)
+            .expect("a Cmd token");
+        assert!(cmd.span.end() <= u32::try_from(src.len()).unwrap());
     }
 
     #[test]

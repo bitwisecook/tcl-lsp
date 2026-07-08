@@ -356,7 +356,12 @@ impl<'s> Inner<'s> {
             match self.b[self.i] {
                 b'[' => lvl += 1,
                 b']' => lvl -= 1,
-                b'\\' => {
+                // Skip the escaped byte, but only when one exists: a trailing
+                // `\` at end-of-input must not combine with the unconditional
+                // `self.i += 1` below to push `i` to `len + 1`, which then
+                // panics the out-of-bounds `self.s[start..self.i]` slice in
+                // `tok` (RUST_ISSUE_026).
+                b'\\' if self.i + 1 < self.b.len() => {
                     self.i += 1;
                 }
                 _ => {}
@@ -370,7 +375,9 @@ impl<'s> Inner<'s> {
         let start = self.i;
         self.i += 1;
         while self.i < self.b.len() && self.b[self.i] != b'"' {
-            if self.b[self.i] == b'\\' {
+            // Skip the escaped byte only when it exists (a trailing `\` must not
+            // push `i` past the end and panic `tok`'s slice — RUST_ISSUE_026).
+            if self.b[self.i] == b'\\' && self.i + 1 < self.b.len() {
                 self.i += 1;
             }
             self.i += 1;
@@ -501,6 +508,25 @@ mod tests {
     #[test]
     fn integer() {
         assert_eq!(texts("42"), vec!["42"]);
+    }
+
+    #[test]
+    fn trailing_backslash_in_command_does_not_panic() {
+        // RUST_ISSUE_026: a `[...` command substitution ending in a bare `\`
+        // must not push the cursor past end-of-input (out-of-bounds slice in
+        // `tok`). The whole token, backslash included, is returned.
+        let toks = tokenise_expr(r"[a \", None);
+        assert!(toks.iter().any(|t| t.kind == ExprTokenType::Command));
+        // A realistic reachable form: `if {$x && [foo \` body extracted and
+        // re-tokenised must not crash.
+        let _ = tokenise_expr(r"$x && [foo \", None);
+    }
+
+    #[test]
+    fn trailing_backslash_in_quoted_does_not_panic() {
+        // RUST_ISSUE_026: a `"...` string ending in a bare `\`.
+        let toks = tokenise_expr(r#""a\"#, None);
+        assert!(toks.iter().any(|t| t.kind == ExprTokenType::String));
     }
 
     #[test]
