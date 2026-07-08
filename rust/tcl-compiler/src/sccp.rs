@@ -362,9 +362,14 @@ fn seed_live_in_roots<S: std::hash::BuildHasher>(
         for phi in &ssa_block.phis {
             defined_keys.insert((phi.name, phi.version));
             for inc in phi.incoming.values() {
-                if *inc > 0 {
-                    used_keys.insert((phi.name, *inc));
-                }
+                // Record every phi feed, including the version-0 (entry /
+                // live-in) incoming: it is never a def, so it drops through
+                // to the `used_keys.difference(&defined_keys)` seeding below
+                // and is pinned `Overdefined`. This is what lets the phi
+                // join at [`sccp_process_phis`] see the caller's value
+                // instead of silently dropping it and folding to the
+                // defined-arm constant.
+                used_keys.insert((phi.name, *inc));
             }
         }
         for s in &ssa_block.statements {
@@ -453,11 +458,23 @@ fn sccp_process_phis(
         let mut phi_val = LatticeValue::Unknown;
         for pred in incoming_exec {
             let incoming_ver = phi.incoming.get(pred).copied().unwrap_or(0);
-            if incoming_ver == 0 {
-                continue;
-            }
+            // A version-0 incoming is the entry / live-in root (a proc
+            // parameter, global, or other caller-supplied value). Its
+            // runtime value is unknown at compile time, so it joins in as
+            // `Overdefined` — never skipped. Skipping it would let a phi
+            // that merges a live-in with a defined-arm constant fold to
+            // that constant, miscompiling any `if {$param} { set x k }`
+            // followed by a test on `x`. This mirrors the interval pass,
+            // which joins `TOP` for `inc == 0` (intervals.rs:570-574).
+            // `seed_live_in_roots` pins `(name, 0)` `Overdefined`; the
+            // explicit default keeps the join correct even if a feed was
+            // never seeded.
             let key: ValueKey = (phi.name, incoming_ver);
-            let candidate = values.get(&key).cloned().unwrap_or(LatticeValue::Unknown);
+            let candidate = values.get(&key).cloned().unwrap_or(if incoming_ver == 0 {
+                LatticeValue::Overdefined
+            } else {
+                LatticeValue::Unknown
+            });
             phi_val = join(&phi_val, &candidate);
         }
         if set_value(values, (phi.name, phi.version), &phi_val) {
@@ -1601,6 +1618,57 @@ mod tests {
             }
         }
         ssa
+    }
+
+    #[test]
+    fn phi_join_widens_version_zero_livein_to_overdefined() {
+        // A phi merging a version-0 live-in (a proc parameter / global /
+        // other caller-supplied root) with a defined-arm constant must widen
+        // to Overdefined — the caller's value cannot vanish from the merge.
+        // Otherwise `if {$c} { set x 5 }; if {$x == 5} {A} else {B}` folds the
+        // second test always-true and deletes the else arm. Mirrors the
+        // interval pass joining TOP for `inc == 0` (intervals.rs:570-574).
+        let mut ssa = bare_ssa();
+        let x = ssa.intern_var("x");
+        let mut block = empty_ssa_block("merge");
+        block.phis.push(crate::ssa::Phi {
+            name: x,
+            version: 2,
+            incoming: HashMap::from([(BlockId(1), 0), (BlockId(2), 1)]),
+        });
+        // `seed_live_in_roots` pins the version-0 root Overdefined.
+        let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
+        values.insert((x, 0), LatticeValue::Overdefined);
+        values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
+        assert!(sccp_process_phis(
+            &mut values,
+            &block,
+            &[BlockId(1), BlockId(2)]
+        ));
+        assert_eq!(values.get(&(x, 2)), Some(&LatticeValue::Overdefined));
+    }
+
+    #[test]
+    fn phi_join_defaults_missing_version_zero_feed_to_overdefined() {
+        // Defence in depth: even if a version-0 feed was never seeded, the
+        // join must treat it as Overdefined rather than skipping it (which
+        // would leave the phi holding the defined-arm constant).
+        let mut ssa = bare_ssa();
+        let x = ssa.intern_var("x");
+        let mut block = empty_ssa_block("merge");
+        block.phis.push(crate::ssa::Phi {
+            name: x,
+            version: 2,
+            incoming: HashMap::from([(BlockId(1), 0), (BlockId(2), 1)]),
+        });
+        let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
+        values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
+        assert!(sccp_process_phis(
+            &mut values,
+            &block,
+            &[BlockId(1), BlockId(2)]
+        ));
+        assert_eq!(values.get(&(x, 2)), Some(&LatticeValue::Overdefined));
     }
 
     #[test]

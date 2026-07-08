@@ -19,15 +19,15 @@ Direct gate runs (fmt, clippy, `cargo test --workspace --all-features`, `cargo x
 - **signed-vs-unsigned / bounded-int semantics** — eBPF emits unsigned `DIV`/`MOD`/`RSH` for signed Tcl ints; the VM wraps `<<`/`**` past i128 where the runtime promotes to bignum.
 - **retired-Python tooling leftovers** — a nonexistent `tooling/` tree breaks `make test-slow`, and stale `uv`/`pytest`/`.pyz` references linger in scripts, workflows, and the session hook.
 
-## Critical (5)
+## Critical (5) — ✅ all fixed
 
-| # | Subsystem | Location | Issue | Verified |
-|---|---|---|---|---|
-| [001](rust-issues/RUST_ISSUE_001.md) | Compiler middle-end (CFG/SSA/SCCP/optimiser) | `rust/tcl-compiler/src/sccp.rs:455-457` | SCCP's phi join skips version-0 incoming operands, so a parameter's (or any live-in's) runtime value silently vanishes from the merge and the phi fol… | ✓ |
-| [002](rust-issues/RUST_ISSUE_002.md) | Compiler middle-end (CFG/SSA/SCCP/optimiser) | `rust/tcl-compiler/src/inline_uplevel.rs:183-227` | uplevel-passthrough inlining splices the body into the caller without rejecting return/break/continue, changing return-code semantics |  |
-| [003](rust-issues/RUST_ISSUE_003.md) | Compiler middle-end (CFG/SSA/SCCP/optimiser) | `rust/tcl-compiler/src/optimiser/propagation.rs:903-915` | fold_return_under_lattice Path 3 builds the eval env flow-insensitively from *every* Const lattice entry ("preferring a non-zero version"), and the e… |  |
-| [004](rust-issues/RUST_ISSUE_004.md) | LSP display features | `rust/tcl-lsp-core/src/semantic_tokens.rs:4597` | fixed 2-byte escape slice splits a multibyte char and panics the whole semantic-tokens request | ✓ |
-| [005](rust-issues/RUST_ISSUE_005.md) | Build tooling & CI | `Makefile:35,343-345` | test-tclpkg-tcl cd's into tooling/tclpkg/tcl, which does not exist on this branch, so the mandatory make test-slow gate can never pass. [VERIFIED: no… | ✓ |
+| Fixed | # | Subsystem | Location | Issue | Verified |
+|---|---|---|---|---|---|
+| ✅ | [001](rust-issues/RUST_ISSUE_001.md) | Compiler middle-end (CFG/SSA/SCCP/optimiser) | `rust/tcl-compiler/src/sccp.rs:455-457` | SCCP's phi join skips version-0 incoming operands, so a parameter's (or any live-in's) runtime value silently vanishes from the merge and the phi fol… | ✓ |
+| ✅ | [002](rust-issues/RUST_ISSUE_002.md) | Compiler middle-end (CFG/SSA/SCCP/optimiser) | `rust/tcl-compiler/src/inline_uplevel.rs:183-227` | uplevel-passthrough inlining splices the body into the caller without rejecting return/break/continue, changing return-code semantics |  |
+| ✅ | [003](rust-issues/RUST_ISSUE_003.md) | Compiler middle-end (CFG/SSA/SCCP/optimiser) | `rust/tcl-compiler/src/optimiser/propagation.rs:903-915` | fold_return_under_lattice Path 3 builds the eval env flow-insensitively from *every* Const lattice entry ("preferring a non-zero version"), and the e… |  |
+| ✅ | [004](rust-issues/RUST_ISSUE_004.md) | LSP display features | `rust/tcl-lsp-core/src/semantic_tokens.rs:4597` | fixed 2-byte escape slice splits a multibyte char and panics the whole semantic-tokens request | ✓ |
+| ✅ | [005](rust-issues/RUST_ISSUE_005.md) | Build tooling & CI | `Makefile:35,343-345` | test-tclpkg-tcl cd's into tooling/tclpkg/tcl, which does not exist on this branch, so the mandatory make test-slow gate can never pass. [VERIFIED: no… | ✓ |
 
 ## High (55)
 

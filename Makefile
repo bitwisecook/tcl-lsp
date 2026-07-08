@@ -32,7 +32,6 @@ REPORT_SHARED_DIR := $(ROOT)rust/bigip-report-gen/frontend
 # builds the Rust → WASM core + Mermaid into it, and `build.rs` embeds the whole
 # bundle into the `tcl` binary (served by `tcl explore --serve`).
 EXPLORER_STATIC := $(ROOT)rust/tcl-cli/gui
-TCLPKG_TCL_DIR  := $(ROOT)tooling/tclpkg/tcl
 
 # Committed test-slow proof.  `.test-slow.stamp` certifies that
 # `make test-slow` passed against the current tree (the CI PR gate and
@@ -174,7 +173,6 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: rust-check check-all test-slow verify-test-slow-stamp prep-pr install-hooks
 # Tests
 .PHONY: test test-ext test-ext-rust test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all
-.PHONY: test-tclpkg-tcl
 .PHONY: capture-bytecode-refs
 .PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-audit-option-dialects
 # Lint / format / typecheck
@@ -339,10 +337,9 @@ format: format-ts ## Format TypeScript code
 
 # The lsp_e2e suite is now native: rust/tcl-lsp-server/tests/*_e2e.rs, run by
 # `cargo test` (see test-rust). The old Python pytest drivers were retired.
-
-test-tclpkg-tcl: ensure-tcl-deps ## Run pure-Tcl tclpkg tests (requires tclsh8.6+)
-	@echo "==> Running pure-Tcl tclpkg tests"
-	cd $(TCLPKG_TCL_DIR) && for t in tests/*_test.tcl; do tclsh8.6 "$$t" || exit 1; done
+# The pure-Tcl tclpkg suite (formerly `test-tclpkg-tcl`, driven out of the
+# retired `tooling/tclpkg/tcl` tree) is likewise gone: tclpkg is now the
+# `tcl-pkg` Rust crate, exercised by `test-rust`.
 
 lint-ts: $(NPM_STAMP) ## Lint/format-check TypeScript extension code
 	@echo "==> Linting TypeScript code (ESLint + Prettier check)"
@@ -781,7 +778,7 @@ check-all: ## Full lint + typecheck (TS, Rust); writes tmp/check-all.stamp on su
 # subsumes check-all by running prep-pr).
 #
 # Covers: prep-pr (format/codegen/lint/typecheck/test-rust/parity) +
-# Rust lint/typecheck + tclpkg + VS Code extension + Emacs eglot +
+# Rust lint/typecheck + VS Code extension + Emacs eglot +
 # VSIX smoke + Rust workspace tests + the Rust runtime port
 # (runtime-rust-test — the standalone runtime/rust crate is excluded from
 # the workspace, so cargo test --workspace does not cover it).
@@ -804,7 +801,7 @@ test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp 
 	@NPROC="$(NPROC)" MAKE="$(MAKE)" \
 		bash $(ROOT)scripts/dev/test-slow-runner.sh \
 			--serial "capture-bytecode-refs prep-pr" \
-			--parallel "check-rust test-tclpkg-tcl test-ext _prep-pr-smoke test-emacs test-rust runtime-rust-test"
+			--parallel "check-rust test-ext _prep-pr-smoke test-emacs test-rust runtime-rust-test"
 	@mkdir -p $(ROOT)tmp
 	@# Committed proof for the CI PR gate (content fingerprint of the
 	@# tree, excluding the stamp itself).  Written before the local tmp

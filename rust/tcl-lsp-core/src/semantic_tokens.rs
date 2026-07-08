@@ -4593,8 +4593,14 @@ fn push_escape_subtokens(
                     entries,
                 );
             }
-            // Minimal `\X` (two chars); richer `\uHHHH` widths aren't handled.
-            let esc = &text[i..(i + 2).min(text.len())];
+            // Minimal `\X` (backslash + one full character); richer
+            // `\uHHHH` widths aren't handled. `X` may be multi-byte
+            // (`\é`, `\你`, `\€`), so advance by the escaped char's real
+            // UTF-8 width rather than a fixed 2 bytes — a fixed +2 would
+            // slice inside the char and panic the whole request.
+            let esc_char_len = text[i + 1..].chars().next().map_or(1, char::len_utf8);
+            let esc_end = i + 1 + esc_char_len;
+            let esc = &text[i..esc_end];
             push_subtoken(
                 source,
                 line_index,
@@ -4604,7 +4610,7 @@ fn push_escape_subtokens(
                 entries,
             );
             emitted = true;
-            i += 2;
+            i = esc_end;
             run_start = i;
         } else {
             i += 1;
@@ -6924,6 +6930,26 @@ mod tests {
         );
         // `\d` is an ARE class shortcut → char class.
         assert!(ks.contains(&(TokenKind::RegexpCharClass as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn escape_before_multibyte_char_does_not_panic() {
+        // Regression: `\<non-ASCII>` inside a string used to slice a fixed 2
+        // bytes at the backslash, landing inside the multi-byte char and
+        // panicking the whole semantic-tokens request. The escape must span
+        // the backslash plus the full UTF-8 char.
+        for src in [
+            "puts \"\\é\"\n",
+            "puts \"a\\你b\"\n",
+            "puts \"\\€\"\n",
+            "puts \"x\\é\\你\"\n",
+        ] {
+            let ks = kinds(src, "tcl", &reg());
+            assert!(
+                ks.contains(&(TokenKind::Escape as u32)),
+                "expected an Escape sub-token for {src:?}, got {ks:?}",
+            );
+        }
     }
 
     #[test]
