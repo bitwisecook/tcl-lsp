@@ -2056,7 +2056,11 @@ pub fn find_var_at_position(source: &str, line: u32, character: u32) -> Option<S
     }
 
     let mut pos = cursor;
-    let stop_chars: &[char] = &[' ', '\t', '\n', ';', '{', '}', '[', ']', '"'];
+    // `$` is a delimiter: in a `$a$b` concatenation the left-scan must stop at
+    // the inner `$` so a cursor on `b` resolves `b`, not `a`. Omitting it walked
+    // left across the whole concatenation to the first `$` and always returned
+    // the first variable (RUST_ISSUE_108). Mirrors `WORD_DELIMS`.
+    let stop_chars: &[char] = &[' ', '\t', '\n', ';', '{', '}', '[', ']', '"', '$'];
     while pos > 0 && !stop_chars.contains(&chars[pos - 1]) {
         pos -= 1;
     }
@@ -2702,6 +2706,19 @@ mod tests {
     fn find_var_at_position_returns_none_for_bare_word() {
         let src = "set x 1\n";
         assert!(find_var_at_position(src, 0, 4).is_none());
+    }
+
+    #[test]
+    fn find_var_at_position_resolves_second_var_of_concatenation() {
+        // RUST_ISSUE_108: `set z $x$y` — a cursor on `y` must resolve `y`, not
+        // walk left across the `$` to the first variable `x`.
+        let src = "set z $x$y\n";
+        // Columns: s(0)e(1)t(2) (3)z(4) (5)$(6)x(7)$(8)y(9)
+        assert_eq!(find_var_at_position(src, 0, 9), Some("y".to_owned())); // on `y`
+        assert_eq!(find_var_at_position(src, 0, 7), Some("x".to_owned())); // on `x`
+        // Three-way concatenation resolves the middle var too.
+        let src3 = "set w $a$b$c\n";
+        assert_eq!(find_var_at_position(src3, 0, 9), Some("b".to_owned()));
     }
 
     #[test]

@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | LSP display features |
 | **Location** | `rust/tcl-lsp-core/src/selection_range.rs:150` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

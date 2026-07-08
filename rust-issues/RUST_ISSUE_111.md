@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | LSP display features |
 | **Location** | `rust/tcl-lsp-core/src/document_links.rs:187` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding
