@@ -253,4 +253,29 @@ suite("Diagnostics", () => {
       `dispatch over created object names must not fire W307, got [${codes}]`,
     );
   });
+
+  // Issue #832: `autoloadLibrary.tcl` calls two commands the workspace's
+  // `rbclib/tclIndex` auto-loads (`Rbc_ActiveLegend` / `Rbc_ZoomStack`, the
+  // BLT/Rbc idiom) with no `package require`, plus one genuinely-unknown
+  // command. The package database resolves the library commands exactly as
+  // go-to-definition does, so they must NOT be flagged "Unknown command"
+  // (W123) — while the genuine unknown still is. `xcDiagnostics` stays off.
+  test("auto_path library commands are not unknown (issue #832)", async () => {
+    const uri = getDocUri("autoloadLibrary.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const w123On = (diags: vscode.Diagnostic[], line: number) =>
+      diags.some((d) => codeOf(d) === "W123" && d.range.start.line === line);
+    // Settle on the loaded-database state: the genuine unknown (line 2) is
+    // flagged AND the library calls (lines 0-1) are not — the exact fixed shape.
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => w123On(diags, 2) && !w123On(diags, 0) && !w123On(diags, 1),
+    });
+    assert.ok(!w123On(diagnostics, 0), "Rbc_ActiveLegend (auto-loaded) must not be W123");
+    assert.ok(!w123On(diagnostics, 1), "Rbc_ZoomStack (auto-loaded) must not be W123");
+    assert.ok(
+      w123On(diagnostics, 2),
+      "the genuinely-unknown command must still be W123 (check stays live)",
+    );
+  });
 });

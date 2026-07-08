@@ -774,6 +774,52 @@ impl PackageResolver {
     pub fn auto_command_names(&self) -> Vec<&str> {
         self.auto_index.keys().map(String::as_str).collect()
     }
+
+    /// Whether the scanned `auto_path` can auto-load the bare command `cmd`
+    /// (used in `namespace`) — i.e. some `tclIndex` on the path maps one of its
+    /// [`auto_qualify`] candidates to a defining file.
+    ///
+    /// This is the package-database analogue of the built-in command registry:
+    /// a command an installed library makes available through its auto-load
+    /// index is as *resolvable* as a built-in, so the unknown-command (W123)
+    /// check must treat it as known rather than flag it (issue #832). The
+    /// decision is data-driven — it never matches on a specific command name.
+    #[must_use]
+    pub fn auto_loads_command(&self, cmd: &str, namespace: &str) -> bool {
+        !self.resolve_auto_command(cmd, namespace).is_empty()
+    }
+
+    /// The union of command names defined by the implementation files of every
+    /// package in `available`, each resolved to its source files (via
+    /// [`Self::resolve`]) and then read + parsed by the caller-supplied
+    /// `defined_commands` extractor.
+    ///
+    /// The extractor is injected (rather than parsing here) so the command-name
+    /// discovery can run through the compiler's registry-driven symbol-definer
+    /// machinery — the same `proc` / `oo::class` / `interp alias` set the
+    /// analyser records — instead of a hand-rolled `proc`-name scan. Keeping it
+    /// out of the resolver also keeps this crate's package database free of a
+    /// compile dependency on the analyser and makes the method unit-testable
+    /// with a stub extractor.
+    ///
+    /// Used by the W123 refinement for a command provided by a `pkgIndex.tcl`
+    /// package with no `tclIndex` (so [`Self::auto_loads_command`] can't see it)
+    /// that the document's requires — or the requires it inherits from a
+    /// `source` ancestor / entry point — pull in.
+    #[must_use]
+    pub fn package_defined_commands(
+        &self,
+        available: &[String],
+        defined_commands: &dyn Fn(&Path) -> Vec<String>,
+    ) -> HashSet<String> {
+        let mut out = HashSet::new();
+        for pkg in available {
+            for file in self.resolve(pkg, None) {
+                out.extend(defined_commands(&file));
+            }
+        }
+        out
+    }
 }
 
 /// List the `*.tcl` files directly in `dir` (the `pkg_mkIndex` fallback).

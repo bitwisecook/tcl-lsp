@@ -888,3 +888,78 @@ fn report_object_methods_have_no_unknown_command() {
         "report object methods resolve: {diags:?}"
     );
 }
+
+// -- Issue #832: command defined in an auto_path library ------------------
+// A command a `tclIndex` on the configured `libraryPaths` auto-loads (the
+// BLT/Rbc idiom: `Rbc_ZoomStack` / `Rbc_ActiveLegend`) must not be flagged
+// "Unknown command" (W123), end-to-end against the packaged server, with
+// `xcDiagnostics` left at its default (off).  The package database resolves the
+// command exactly as go-to-definition does; the diagnostic must agree.
+
+/// Per-call counter so repeat runs don't collide on the temp dir.
+static RBC_LIB_N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+#[test]
+fn autoload_library_command_not_unknown_issue_832() {
+    use std::sync::atomic::Ordering;
+
+    // A library dir with a `tclIndex` that auto-loads two global procs by bare
+    // name — no `package require` needed, the exact shape from the issue.
+    let libdir = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-rbc-{}-{}",
+        std::process::id(),
+        RBC_LIB_N.fetch_add(1, Ordering::Relaxed)
+    ));
+    let pkgdir = libdir.join("rbc");
+    std::fs::create_dir_all(&pkgdir).expect("mk rbc lib dir");
+    std::fs::write(
+        pkgdir.join("graph.tcl"),
+        "proc Rbc_ActiveLegend {graph} {}\nproc Rbc_ZoomStack {graph args} {}\n",
+    )
+    .expect("write graph.tcl");
+    std::fs::write(
+        pkgdir.join("tclIndex"),
+        "# Tcl autoload index file, version 2.0\n\
+         set auto_index(Rbc_ActiveLegend) [list source [file join $dir graph.tcl]]\n\
+         set auto_index(Rbc_ZoomStack) [list source [file join $dir graph.tcl]]\n",
+    )
+    .expect("write tclIndex");
+
+    // Point the server's auto_path (`libraryPaths`) at the library's parent dir;
+    // `scan_path` descends into the `rbc/` subdir (C-Tcl auto_path rule) at
+    // startup, so its `tclIndex` enters the package database.
+    let mut lsp = Lsp::with_config(serde_json::json!({
+        "features": { "linkedEditingRange": true },
+        "libraryPaths": [ libdir.to_string_lossy() ],
+    }));
+
+    let uri = unique_uri("tcl");
+    let src = "Rbc_ActiveLegend .g\nRbc_ZoomStack .g\n";
+    lsp.open_document(&uri, src);
+
+    // The package database is (re)built asynchronously at startup; poll the
+    // deterministic pull path until it is live (W123 clears) or the deadline.
+    let mut diags = lsp.pull_diagnostics(&uri);
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    while has_code(&diags, "W123") && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+        diags = lsp.pull_diagnostics(&uri);
+    }
+    assert!(
+        !has_code(&diags, "W123"),
+        "auto_path library commands must not be W123 (#832), got: {:?}",
+        codes(&diags),
+    );
+
+    // Control: a typo the `tclIndex` does not declare still fires W123 — the
+    // database is loaded and the check is data-driven, not disabled wholesale.
+    let typo = unique_uri("tcl");
+    let tdiags = lsp.open_ready(&typo, "Rbc_ActveLegend .g\n");
+    assert!(
+        has_code(&tdiags, "W123"),
+        "a command no index declares must still be W123, got: {:?}",
+        codes(&tdiags),
+    );
+
+    let _ = std::fs::remove_dir_all(&libdir);
+}

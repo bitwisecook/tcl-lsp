@@ -450,3 +450,114 @@ fn resolver_first_provider_wins() {
     resolver.scan_path(&second);
     assert_eq!(resolver.resolve("dup", None), vec![first.join("dup.tcl")]);
 }
+
+// ---------------------------------------------------------------------------
+// `auto_loads_command` — the W123 "command defined in library path" oracle
+// (issue #832).  A library that ships a `tclIndex` makes its procs auto-loadable
+// by bare name with no `package require`, exactly the Rbc_* / BLT idiom in the
+// issue.  These pin the TP / FP / TN / FN arms of that resolvability check.
+// ---------------------------------------------------------------------------
+
+/// TN control — the resolvability oracle answers *yes* for a command the scanned
+/// `tclIndex` genuinely provides, so the W123 that would fire on it is a true
+/// negative (correctly not flagged).
+#[test]
+fn auto_loads_command_true_for_tclindex_global_proc() {
+    let td = TempDir::new("autoloads-tn");
+    let dir = td.path();
+    // A BLT/Rbc-style library dir: a global proc registered by an auto_mkindex
+    // `tclIndex` (global names stored without a leading `::`, per auto_qualify).
+    write(&dir.join("graph.tcl"), "proc Rbc_ActiveLegend {graph} {}\n");
+    write(
+        &dir.join("tclIndex"),
+        "# Tcl autoload index file, version 2.0\n\
+         set auto_index(Rbc_ActiveLegend) [list source [file join $dir graph.tcl]]\n",
+    );
+    let mut resolver = PackageResolver::new();
+    resolver.scan_path(dir);
+    assert!(
+        resolver.auto_loads_command("Rbc_ActiveLegend", "::"),
+        "a global proc in a scanned tclIndex must be reported auto-loadable"
+    );
+}
+
+/// TP control — a genuinely-unknown command (no index maps it) must *not* be
+/// reported resolvable, so its W123 correctly stands (a true positive).
+#[test]
+fn auto_loads_command_false_for_unknown_name() {
+    let td = TempDir::new("autoloads-tp");
+    let dir = td.path();
+    write(&dir.join("graph.tcl"), "proc Rbc_ActiveLegend {graph} {}\n");
+    write(
+        &dir.join("tclIndex"),
+        "# Tcl autoload index file, version 2.0\n\
+         set auto_index(Rbc_ActiveLegend) [list source [file join $dir graph.tcl]]\n",
+    );
+    let mut resolver = PackageResolver::new();
+    resolver.scan_path(dir);
+    // A typo of the real command is not in the index → not resolvable.
+    assert!(
+        !resolver.auto_loads_command("Rbc_ActveLegend", "::"),
+        "a name no tclIndex declares must not be reported auto-loadable"
+    );
+    // An empty resolver knows nothing.
+    assert!(!PackageResolver::new().auto_loads_command("Rbc_ActiveLegend", "::"));
+}
+
+/// A namespaced auto-load key resolves for a bare call inside that namespace but
+/// not for the same tail in the global namespace — the `auto_qualify` candidate
+/// order is honoured, not a blanket tail match.
+#[test]
+fn auto_loads_command_respects_namespace_qualification() {
+    let td = TempDir::new("autoloads-ns");
+    let dir = td.path();
+    write(&dir.join("h.tcl"), "proc ::http::geturl {u} {}\n");
+    write(
+        &dir.join("tclIndex"),
+        "# Tcl autoload index file, version 2.0\n\
+         set auto_index(::http::geturl) [list source [file join $dir h.tcl]]\n",
+    );
+    let mut resolver = PackageResolver::new();
+    resolver.scan_path(dir);
+    assert!(resolver.auto_loads_command("geturl", "::http"));
+    assert!(!resolver.auto_loads_command("geturl", "::"));
+}
+
+// ---------------------------------------------------------------------------
+// `package_defined_commands` — the secondary W123 oracle for a `pkgIndex`-only
+// package (no `tclIndex`) whose implementation source files define the command.
+// The extractor is injected; here a stub stands in for the analyser.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn package_defined_commands_unions_available_package_sources() {
+    let td = TempDir::new("pkgcmds");
+    let dir = td.path();
+    write(&dir.join("mylib.tcl"), "proc mylib::draw {} {}\n");
+    write(
+        &dir.join("pkgIndex.tcl"),
+        "package ifneeded mylib 1.0 [list source [file join $dir mylib.tcl]]\n",
+    );
+    let mut resolver = PackageResolver::new();
+    resolver.scan_path(dir);
+    // Stub extractor: report the tail `draw` for the resolved implementation
+    // file (standing in for the registry-driven analyser extraction).
+    let extract = |path: &Path| -> Vec<String> {
+        if path.file_name().and_then(|n| n.to_str()) == Some("mylib.tcl") {
+            vec!["draw".to_owned()]
+        } else {
+            Vec::new()
+        }
+    };
+    let cmds = resolver.package_defined_commands(&["mylib".to_owned()], &extract);
+    assert!(
+        cmds.contains("draw"),
+        "available package's command surfaced"
+    );
+    // A package the paths don't know contributes nothing (no source files).
+    let none = resolver.package_defined_commands(&["absent".to_owned()], &extract);
+    assert!(none.is_empty());
+    // No available packages ⇒ empty, extractor never consulted.
+    let empty = resolver.package_defined_commands(&[], &extract);
+    assert!(empty.is_empty());
+}
