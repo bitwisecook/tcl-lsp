@@ -73,20 +73,28 @@ struct ParsedCommand {
 
 // Token → raw source reconstruction
 
-/// Collapse `\<newline>` continuations to a single space.  Inside
-/// `[]` and `"…"` this is semantics-preserving and keeps the
-/// formatter idempotent.
-fn normalise_backslash_newline(text: &str) -> String {
+/// Collapse `\<newline>` continuations to a single space.
+///
+/// `keep_preceding` controls whitespace *before* the backslash. Inside a
+/// double-quoted string that whitespace is literal data, so it must survive
+/// (`"a \<nl> b"` is the value `a  b`, two spaces — `RUST_ISSUE_104`); pass
+/// `true`. Inside a command substitution `[…]` (and bare word contexts) the
+/// whole `<ws>\<nl><ws>` run is inter-word spacing the lexer collapses to a
+/// single space, so the preceding whitespace must be trimmed (`[cat a \<nl> b]`
+/// → `[cat a b]`); pass `false`.
+fn normalise_backslash_newline(text: &str, keep_preceding: bool) -> String {
     let mut out = String::with_capacity(text.len());
     let bytes = text.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'\\' && i + 1 < bytes.len() && bytes[i + 1] == b'\n' {
-            // Tcl replaces `\<newline><following-ws>` with a single space, but
-            // keeps any whitespace *before* the backslash — that is string data.
-            // Popping the preceding spaces turned `a \<nl> b` (value `a  b`,
-            // two spaces) into `a b` (`RUST_ISSUE_104`). Only the backslash,
-            // the newline, and the following whitespace run collapse.
+            if !keep_preceding {
+                // Trim the whitespace already emitted before the backslash so
+                // the continuation collapses to a single inter-word space.
+                while out.ends_with([' ', '\t']) {
+                    out.pop();
+                }
+            }
             i += 2;
             while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
                 i += 1;
@@ -126,7 +134,10 @@ fn reconstruct_raw(sm: &SourceMap, tok: Token, in_quotes: bool) -> String {
     match tok.kind {
         TokenType::Str if in_quotes => sm.text(tok.span).to_owned(),
         TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
-        TokenType::Cmd => format!("[{}]", normalise_backslash_newline(sm.token_text(tok))),
+        TokenType::Cmd => format!(
+            "[{}]",
+            normalise_backslash_newline(sm.token_text(tok), false)
+        ),
         TokenType::Var => {
             let raw = sm.text(tok.span);
             if raw.starts_with("${") {
@@ -393,7 +404,11 @@ fn format_comment(comment_text: &str, config: &FormatterConfig) -> String {
     let is_commented_code = !after_hashes.chars().next().is_some_and(char::is_whitespace);
     let hashes = "#".repeat(num_hashes);
     if is_commented_code {
-        format!("{hashes}{}", normalise_backslash_newline(after_hashes))
+        // Commented-out code is not string data; collapse continuations fully.
+        format!(
+            "{hashes}{}",
+            normalise_backslash_newline(after_hashes, false)
+        )
     } else if config.space_after_comment_hash {
         format!("{hashes}{}", after_hashes.trim_end())
     } else {
@@ -1000,7 +1015,11 @@ fn append_word_arg(
     let arg = &args[i];
     let mut raw = reconstruct_arg(sm, arg, config.enforce_braced_variables);
     if raw.contains('\n') {
-        let collapsed = normalise_backslash_newline(&raw).trim().to_owned();
+        // Keep whitespace before the backslash only for a quoted string, where
+        // it is literal data (RUST_ISSUE_104); a bare/continued word collapses.
+        let collapsed = normalise_backslash_newline(&raw, arg.is_quoted)
+            .trim()
+            .to_owned();
         if collapsed.is_empty() {
             return false;
         }
