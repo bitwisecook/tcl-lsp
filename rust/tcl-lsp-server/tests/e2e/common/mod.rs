@@ -384,12 +384,46 @@ impl Lsp {
 
     /// Force `uri`'s analysis snapshot to `text` at `version` and block until it
     /// is built. Returns `version`.
+    ///
+    /// The barrier is a **synchronous `textDocument/diagnostic` pull request**,
+    /// not an await on a version-tagged `publishDiagnostics` push. That push is
+    /// produced by the server's debounced, coalescing diagnostics scheduler, and
+    /// a no-op full replace (`text` == the buffer's current content) is a salsa
+    /// cache hit: the push tagged with this *exact* version can be legitimately
+    /// coalesced away or delayed far past the timeout under CI load, so awaiting
+    /// it tripped the barrier's 30s timeout intermittently — a flake, not an
+    /// oracle divergence. The pull handler instead reads the *live* buffer and
+    /// returns once diagnostics for the document's current revision are settled
+    /// (served from the push cache when it already published that revision, else
+    /// computed synchronously on demand). It is therefore a deterministic
+    /// "analysis settled at the final content" signal the debounce/coalescer
+    /// cannot suppress, with [`Lsp::request`]'s own timeout as the safety net.
     pub fn settle_analysis(&mut self, uri: &str, version: i64, text: &str) -> i64 {
-        let cursor = self.notification_cursor();
         self.replace_document(uri, version, text);
-        self.await_diagnostics_version(uri, Some(version), DEFAULT_TIMEOUT);
-        self.await_log(&["workspace_state.update", uri], DEFAULT_TIMEOUT, cursor);
+        let _ = self.pull_diagnostics(uri);
         version
+    }
+
+    /// Issue a synchronous `textDocument/diagnostic` pull request for `uri` and
+    /// return the reported diagnostics. The pull handler reads the *live* buffer
+    /// and computes (or returns the already-settled) diagnostics for the current
+    /// revision, so — unlike the debounced push channel — the response is a
+    /// deterministic barrier: it only returns once the server has analysed the
+    /// document's latest content, and cannot be dropped by the diagnostics
+    /// debounce/coalescer.
+    pub fn pull_diagnostics(&mut self, uri: &str) -> Vec<Value> {
+        let report = self.request(
+            "textDocument/diagnostic",
+            json!({ "textDocument": { "uri": uri } }),
+        );
+        // A `full` report carries `items`; an `unchanged` report (only returned
+        // when a matching `previousResultId` is replayed, which this never sends)
+        // carries none.
+        report
+            .get("items")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
     }
 
     // -- awaiting --------------------------------------------------------

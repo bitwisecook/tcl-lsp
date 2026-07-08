@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, sleep, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnostics, waitForEffectiveConfig } from "./helper";
 
 suite("Diagnostics", () => {
   const docUri = getDocUri("diagnostics.tcl");
@@ -145,9 +145,12 @@ suite("Diagnostics", () => {
     const config = vscode.workspace.getConfiguration("tclLsp.optimiser");
     await config.update("enabled", false, vscode.ConfigurationTarget.Global);
 
-    // Allow the pull-model config round-trip to complete so the
-    // server applies optimiser.enabled=false before analysing.
-    await sleep(500);
+    // Wait on the server's resolved config (message passing) rather than a
+    // fixed sleep, so the optimiser.enabled=false round-trip is observed to
+    // have applied before analysing.
+    await waitForEffectiveConfig(cleanUri, (cfg) => cfg.optimiser_enabled === false, {
+      label: "optimiser.enabled = false",
+    });
 
     try {
       await activate(cleanUri);
