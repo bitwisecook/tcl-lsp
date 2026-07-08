@@ -917,6 +917,28 @@ fn family_control_flow_shapes() {
     }
 }
 
+/// `resolve_option_terminator` must accept a unique subcommand prefix the same
+/// way ensemble dispatch (and `arg_indices_for_role`) does, so an abbreviated
+/// subcommand keeps its subcommand-scoped `--` terminator profile (issue 158).
+#[test]
+fn terminator_resolves_subcommand_prefix() {
+    let reg = registry_for_dialect("f5-irules");
+    // `class match` (F5 iRules) declares a subcommand-scoped `--` terminator.
+    let exact = reg
+        .resolve_option_terminator("class", &["match", "-nocase", "--"], DialectSet::IRULES)
+        .expect("class match declares a -- terminator");
+    assert_eq!(exact.subcommand, Some("match"));
+    assert!(exact.options.iter().any(|o| o.name == "--"));
+
+    // The unique prefix `ma` must resolve to the same `match` profile.
+    let abbrev = reg
+        .resolve_option_terminator("class", &["ma", "-nocase", "--"], DialectSet::IRULES)
+        .expect("abbreviated `class ma` must keep the -- terminator");
+    assert_eq!(abbrev.subcommand, Some("match"));
+    assert_eq!(abbrev.scan_start, exact.scan_start);
+    assert!(abbrev.options.iter().any(|o| o.name == "--"));
+}
+
 /// String / dict / list operations: subcommand-bearing ensemble shape.
 ///
 /// tclsh: the `string` / `dict` subcommand sets, and the `string is` class set,

@@ -395,9 +395,12 @@ impl CommandRegistry {
         class_name: &str,
         method: &str,
     ) -> Option<&crate::spec::SubCommand> {
-        let mut queue = vec![class_name.to_string()];
+        // FIFO so the walk is genuinely breadth-first and visits siblings in
+        // declaration order — `Vec::pop` would make this a reversed-sibling
+        // depth-first search, contradicting the documented contract.
+        let mut queue = std::collections::VecDeque::from([class_name.to_string()]);
         let mut seen = std::collections::HashSet::new();
-        while let Some(cls) = queue.pop() {
+        while let Some(cls) = queue.pop_front() {
             if !seen.insert(cls.clone()) {
                 continue;
             }
@@ -408,7 +411,7 @@ impl CommandRegistry {
                 return Some(m);
             }
             for sup in class_spec.superclasses {
-                queue.push((*sup).to_string());
+                queue.push_back((*sup).to_string());
             }
         }
         None
@@ -937,9 +940,16 @@ impl CommandRegistry {
 
         let warn_flag = spec.traits.contains(Traits::WARN_WITHOUT_TERMINATOR);
 
-        // Subcommand-scoped first.
+        // Subcommand-scoped first. Resolve the subcommand word the same way
+        // ensemble dispatch does — accepting a unique prefix abbreviation
+        // (`string le` ⇒ `length`) — so an abbreviated subcommand keeps its
+        // `--` terminator profile, matching `arg_indices_for_role`.
         if let Some(first) = args.first()
-            && let Some(sub) = spec.subcommand(first)
+            && let Some(sub) = if dialect.is_empty() {
+                spec.resolve_subcommand(first)
+            } else {
+                spec.resolve_subcommand_for_dialect(first, dialect)
+            }
             && sub.options.iter().any(|o| o.name == "--")
         {
             return Some(ResolvedTerminator {
@@ -1133,6 +1143,70 @@ impl std::fmt::Debug for CommandRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn instance_method_walks_superclasses_breadth_first() {
+        use crate::spec::{ObjectClassSpec, SubCommand};
+
+        // Diamond hierarchy: Diamond → {Left, Right} → Base. Both Left and
+        // Right (and Base) define `m`; a breadth-first walk in declaration
+        // order must find Left's `m` first, whereas a `Vec::pop` LIFO walk
+        // would reverse the siblings and return Right's.
+        static M_LEFT: [SubCommand; 1] = [SubCommand {
+            name: "m",
+            detail: "left",
+            ..SubCommand::DEFAULT
+        }];
+        static M_RIGHT: [SubCommand; 1] = [SubCommand {
+            name: "m",
+            detail: "right",
+            ..SubCommand::DEFAULT
+        }];
+        static M_BASE: [SubCommand; 1] = [SubCommand {
+            name: "m",
+            detail: "base",
+            ..SubCommand::DEFAULT
+        }];
+        static DIAMOND: ObjectClassSpec = ObjectClassSpec {
+            class_name: "Diamond",
+            instance_methods: &[],
+            superclasses: &["Left", "Right"],
+            allow_unknown_methods: false,
+        };
+        static LEFT: ObjectClassSpec = ObjectClassSpec {
+            class_name: "Left",
+            instance_methods: &M_LEFT,
+            superclasses: &["Base"],
+            allow_unknown_methods: false,
+        };
+        static RIGHT: ObjectClassSpec = ObjectClassSpec {
+            class_name: "Right",
+            instance_methods: &M_RIGHT,
+            superclasses: &["Base"],
+            allow_unknown_methods: false,
+        };
+        static BASE: ObjectClassSpec = ObjectClassSpec {
+            class_name: "Base",
+            instance_methods: &M_BASE,
+            superclasses: &[],
+            allow_unknown_methods: false,
+        };
+
+        let mut reg = CommandRegistry::build_default();
+        for oc in [&DIAMOND, &LEFT, &RIGHT, &BASE] {
+            reg.insert(CommandSpec {
+                name: oc.class_name,
+                object_class: Some(oc),
+                ..CommandSpec::DEFAULT
+            });
+        }
+
+        let resolved = reg.instance_method("Diamond", "m").expect("method resolves");
+        assert_eq!(
+            resolved.detail, "left",
+            "breadth-first, declaration-ordered walk visits Left before Right"
+        );
+    }
 
     #[test]
     fn build_default_has_commands() {

@@ -63,7 +63,7 @@
 //! than by fixed argument roles: `self …` (a nested member) and
 //! `property … -get/-set …` (flag-keyed bodies).
 
-use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind};
+use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind, MemberSpec};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 /// The definition-body grammar for `command`'s body when it is an *outer*
@@ -178,17 +178,8 @@ fn member_role_indices(
         return Vec::new();
     };
     match member.kind {
-        MemberKind::Flat => {
-            if role == ArgRole::VarWrite && member.all_args_var {
-                (0..args.len()).collect()
-            } else {
-                member
-                    .indices_for(role)
-                    .filter(|&i| i < args.len())
-                    .collect()
-            }
-        }
-        MemberKind::Wrapper => wrapper_member_indices(grammar, args, role),
+        MemberKind::Flat => flat_member_indices(member, args, role),
+        MemberKind::Wrapper => wrapper_member_indices(grammar, member, args, role),
         MemberKind::FlagKeyed => {
             if role == ArgRole::Body {
                 collect_property_body_indices(args)
@@ -199,28 +190,52 @@ fn member_role_indices(
     }
 }
 
+/// The `role`-carrying argument indices for a flat member, given `args`
+/// (0-based *after* the member keyword).  Handles the unbounded `variable a b
+/// c` form (`all_args_var`) as well as the fixed `arg_roles` layout.
+fn flat_member_indices(member: &MemberSpec, args: &[&str], role: ArgRole) -> Vec<usize> {
+    if role == ArgRole::VarWrite && member.all_args_var {
+        (0..args.len()).collect()
+    } else {
+        member
+            .indices_for(role)
+            .filter(|&i| i < args.len())
+            .collect()
+    }
+}
+
 /// A [`MemberKind::Wrapper`] member (`self method …`, itcl `public method …`)
 /// nests an inner member keyword at `args[0]`; the inner member's own roles
-/// apply shifted one place right (past the wrapper word).  `args` is the
-/// wrapper call minus the wrapper word itself (so `args[0]` is
-/// `method`/`constructor`/`variable`/…).
+/// (including its `variable a b c` unbounded form) apply shifted one place
+/// right (past the wrapper word).  `args` is the wrapper call minus the wrapper
+/// word itself (so `args[0]` is `method`/`constructor`/`variable`/…).
+///
+/// When the following word is *not* a recognised inner member and the wrapper
+/// declares [`MemberSpec::wrapper_block_body`] (`TclOO`'s `private { … }` /
+/// `self { … }`), the wrapper's own roles apply directly — `args[0]` is the
+/// definition-script body — rather than resolving nothing.
 fn wrapper_member_indices(
     grammar: &DefinitionBodyGrammar,
+    member: &MemberSpec,
     args: &[&str],
     role: ArgRole,
 ) -> Vec<usize> {
-    let Some((inner, _)) = args.split_first() else {
+    let Some((inner, rest)) = args.split_first() else {
         return Vec::new();
     };
-    grammar
-        .member(inner)
-        .map(|m| {
-            m.indices_for(role)
-                .map(|i| i + 1)
-                .filter(|&i| i < args.len())
-                .collect()
-        })
-        .unwrap_or_default()
+    if let Some(m) = grammar.member(inner) {
+        // Shift the inner member's indices one place right, past the wrapper.
+        return flat_member_indices(m, rest, role)
+            .into_iter()
+            .map(|i| i + 1)
+            .collect();
+    }
+    if member.wrapper_block_body {
+        // Bare script-block form: the wrapper's own roles (a single body at
+        // arg 0) apply unshifted.
+        return flat_member_indices(member, args, role);
+    }
+    Vec::new()
 }
 
 /// Collect the `-set BODY` / `-get BODY` flag-value indices of an inner
@@ -336,6 +351,41 @@ mod tests {
             member_body_indices(g, "property", &["name", "-set", "s", "-get", "z"]),
             vec![2, 4]
         );
+    }
+
+    /// `TclOO`'s `private` (and `self`) accept both the prefix-wrapper form
+    /// (`private method m {} {…}`) and the bare script-block form
+    /// (`private { … }`).  The wrapper must recurse into the inner member's
+    /// roles for the former and treat arg 0 as the body for the latter
+    /// (issue 157).
+    #[test]
+    fn tcloo_private_wrapper_and_block_forms() {
+        let g = &TCLOO_GRAMMAR;
+        // Prefix-wrapper form: body/params/name come from the inner `method`,
+        // shifted past the `private` word — NOT arg 0 (`method`) as a script.
+        assert_eq!(
+            member_body_indices(g, "private", &["method", "m", "{a}", "body"]),
+            vec![3]
+        );
+        assert_eq!(
+            member_param_indices(g, "private", &["method", "m", "{a}", "body"]),
+            vec![2]
+        );
+        // `private variable a b c` — the inner unbounded `variable` form: every
+        // trailing word is a declared name (shifted past `private`).
+        assert_eq!(
+            member_var_indices(g, "private", &["variable", "a", "b", "c"]),
+            vec![1, 2, 3]
+        );
+        // Bare script-block form: arg 0 is the definition-script body.
+        assert_eq!(member_body_indices(g, "private", &["{body}"]), vec![0]);
+        assert!(member_param_indices(g, "private", &["{body}"]).is_empty());
+        // `self` shares the same dual shape.
+        assert_eq!(
+            member_body_indices(g, "self", &["method", "m", "{}", "body"]),
+            vec![3]
+        );
+        assert_eq!(member_body_indices(g, "self", &["{body}"]), vec![0]);
     }
 
     #[test]
