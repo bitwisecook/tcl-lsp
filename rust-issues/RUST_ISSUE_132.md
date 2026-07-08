@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Support crates & regex |
 | **Location** | `rust/tcl-regex/src/parser.rs:1552-1554` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

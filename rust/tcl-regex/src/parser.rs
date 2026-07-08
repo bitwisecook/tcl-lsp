@@ -1548,9 +1548,13 @@ impl Parser<'_> {
                 }
                 match ClassKind::from_name(&name) {
                     Some(mut k) => {
-                        // [:lower:]/[:upper:] become alnum under -nocase.
+                        // Under -nocase, C Tcl's `cclass()` remaps CC_UPPER /
+                        // CC_LOWER to CC_ALPHA — *letters*, not alnum. Folding to
+                        // `Alnum` wrongly matched digits, so
+                        // `regexp -nocase {[[:upper:]]} 5` matched here but not
+                        // in tclsh (RUST_ISSUE_132).
                         if set.nocase && matches!(k, ClassKind::Lower | ClassKind::Upper) {
-                            k = ClassKind::Alnum;
+                            k = ClassKind::Alpha;
                         }
                         set.classes.push(k);
                     }
