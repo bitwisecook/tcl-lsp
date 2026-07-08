@@ -1186,6 +1186,14 @@ fn run_outdated(common: &PkgCommon) -> anyhow::Result<u8> {
     Ok(0)
 }
 
+/// Whether any of `requires` (a list of `name@version` requirement strings)
+/// names `package`.  Matches the requirement's package *name* — the part
+/// before `@` — not a substring, so `why http` does not falsely match a
+/// dependent that requires `shttp@1.0` or `http2@…` (issue 197).
+fn requires_package(requires: &[String], package: &str) -> bool {
+    requires.iter().any(|r| locked_req_name(r) == package)
+}
+
 fn run_why(package: &str, common: &PkgCommon) -> anyhow::Result<u8> {
     let lf = match read_lock_or_report(common) {
         Ok(l) => l,
@@ -1198,7 +1206,7 @@ fn run_why(package: &str, common: &PkgCommon) -> anyhow::Result<u8> {
     let dependents: Vec<&LockedPackage> = lf
         .packages
         .iter()
-        .filter(|other| other.requires.iter().any(|r| r.contains(package)))
+        .filter(|other| requires_package(&other.requires, package))
         .collect();
     if common.json {
         let names: Vec<String> = dependents.iter().map(|d| d.name.clone()).collect();
@@ -1718,4 +1726,28 @@ fn locked_to_json(pkg: &LockedPackage) -> Value {
         },
         "version": pkg.version,
     })
+}
+
+#[cfg(test)]
+mod why_tests {
+    use super::requires_package;
+
+    #[test]
+    fn requires_package_matches_name_not_substring() {
+        let reqs = vec![
+            "shttp@1.0".to_string(),
+            "http2@3.0".to_string(),
+            "http@2.0".to_string(),
+        ];
+        // Exact name match only.
+        assert!(requires_package(&reqs, "http"));
+        assert!(requires_package(&reqs, "shttp"));
+        assert!(requires_package(&reqs, "http2"));
+        // Substrings that are not the full name must NOT match (issue 197).
+        assert!(!requires_package(&reqs, "ttp"));
+        assert!(!requires_package(&reqs, "htt"));
+        // A dependent whose only requirement is `shttp` is not a dependent of
+        // `http`.
+        assert!(!requires_package(&["shttp@1.0".to_string()], "http"));
+    }
 }

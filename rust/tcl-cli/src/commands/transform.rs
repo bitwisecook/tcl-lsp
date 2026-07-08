@@ -215,8 +215,14 @@ pub fn run_minify(
         &input.dialect,
     )?;
 
-    if let (Some(path), Some(map)) = (symbol_map, map) {
-        write_text_output(&OutputTarget::File(path.to_path_buf()), &map.format())?;
+    if let Some(path) = symbol_map {
+        // Always honour `--symbol-map FILE`, even for plain minify (which does
+        // no renaming and so produces an empty, identity symbol map).
+        // Skipping the write left the file uncreated, so a later
+        // `unminify-error` failed on a missing path — and the flag's help
+        // documents no dependency on `--compact`/`--aggressive` (issue 198).
+        let map_text = map.unwrap_or_default().format();
+        write_text_output(&OutputTarget::File(path.to_path_buf()), &map_text)?;
     }
     Ok(0)
 }

@@ -173,6 +173,13 @@ pub fn which_tmm(args: &Value) -> Value {
     })
 }
 
+/// Upper bound on `suggest_sources`' `tmm_count`: one `Vec` bucket is allocated
+/// per TMM id, so an unbounded value (a client sending e.g. `1_000_000_000_000`)
+/// would try to allocate terabytes and abort the whole MCP server. The
+/// candidate-tuple ceiling — 254 source octets × 254 source ports — is the most
+/// buckets that can ever be filled anyway (issue 199).
+const MAX_TMM_COUNT: i64 = 254 * 254;
+
 /// `fakecmp_suggest_sources` — source tuples that spread across every TMM.
 pub fn suggest_sources(args: &Value) -> Value {
     let tmm_count = arg_int(args, "tmm_count");
@@ -181,10 +188,10 @@ pub fn suggest_sources(args: &Value) -> Value {
     let dst_port = args.get("dst_port").and_then(Value::as_i64).unwrap_or(443);
 
     let mut errors = Vec::new();
-    if tmm_count.is_none_or(|c| c < 2) {
+    if tmm_count.is_none_or(|c| !(2..=MAX_TMM_COUNT).contains(&c)) {
         errors.push(field_error(
             "tmm_count",
-            "must be >= 2",
+            &format!("must be between 2 and {MAX_TMM_COUNT}"),
             &arg_display(args, "tmm_count"),
         ));
     }
@@ -238,4 +245,29 @@ pub fn suggest_sources(args: &Value) -> Value {
              ::orch::configure -client_addr $addr -client_port $port \
              before each ::orch::run_http_request call.",
     })
+}
+
+#[cfg(test)]
+mod suggest_sources_tests {
+    use super::suggest_sources;
+    use serde_json::json;
+
+    #[test]
+    fn pathological_tmm_count_is_rejected_not_allocated() {
+        // A huge tmm_count must produce a validation error rather than
+        // attempting a terabyte per-TMM bucket allocation that OOM-aborts the
+        // server (issue 199).
+        let out = suggest_sources(&json!({ "tmm_count": 1_000_000_000_000i64, "count": 1 }));
+        let s = out.to_string();
+        assert!(s.contains("tmm_count"), "expected a tmm_count error: {s}");
+        assert!(s.contains("between 2 and"), "expected the range message: {s}");
+        // It must NOT have built a plan.
+        assert!(!s.contains("\"plan\""), "no plan should be produced: {s}");
+    }
+
+    #[test]
+    fn ordinary_tmm_count_produces_a_plan() {
+        let out = suggest_sources(&json!({ "tmm_count": 4, "count": 1 }));
+        assert!(out.get("plan").is_some(), "a valid request yields a plan: {out}");
+    }
 }
