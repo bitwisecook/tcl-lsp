@@ -205,6 +205,17 @@ proc broken {x {
 string length "a" "b"   ;# E003: too many arguments
 ```
 
+### Special-variable awareness
+
+Interpreter-provided globals — `auto_path`, `env`, `errorInfo`, `tcl_platform`,
+`argv`, and the iRules `static::` namespace — are modelled in a
+dialect-versioned registry. A write the runtime consumes is never mis-flagged as
+unused or dead (`set auto_path ../` no longer reports "never read"), hovering one
+shows its purpose and dialect-valid array keys, and reads of external input
+(`env`, `argv`) are treated as tainted so `exec $env(CMD)` is flagged. The set
+follows the file's dialect — iRules files see `static::` and the BIG-IP
+`tcl_platform` keys instead of `env` / `argv`.
+
 ### Semantic highlighting
 
 Variables, procs, keywords, and strings are classified using SSA-informed type

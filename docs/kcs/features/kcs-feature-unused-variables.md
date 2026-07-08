@@ -28,6 +28,7 @@ all-editors, MCP, Claude skill, warning
 - **Disable the quick-fix code actions**: Set `tclLsp.optimiser.O126` to `false` to disable unused-variable removal, or `tclLsp.optimiser.O109` to `false` for dead-store removal. Disable the entire optimiser with `tclLsp.optimiser.enabled`.
 - **Suppress for a single variable**: Prefix the variable name with `_` (e.g., `set _unused [expr {1+1}]`). Variables starting with `_` are excluded from W211 and O126 checks.
 - **Suppress for iRules cross-event variables**: Variables that flow across `when` event boundaries (connection-scope variables) are automatically excluded — no manual suppression needed.
+- **Interpreter special variables are exempt**: A write to a runtime-consumed special variable (`set auto_path …`, `set env(X) …`, `set tcl_precision …`) is never flagged W211/W220, because the interpreter reads it even when your script does not. See [Special variable recognition](kcs-feature-special-variables.md).
 
 ## Diagnostic codes
 

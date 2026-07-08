@@ -302,6 +302,10 @@ are its rules, and what are the failure modes". One contract per file.
 
 - [command-registry-event-model.md](contracts/command-registry-event-model.md)
   — command and event registry ownership rules.
+- [special-variable-registry.md](special-variable-registry.md) — the
+  dialect-versioned registry of interpreter-provided special variables
+  (`auto_path`, `env`, `tcl_platform`, iRules `static::`): its data model,
+  dialect resolution, and the analyser / taint / side-effect / hover consumers.
 - [registry-contract-tests.md](contracts/registry-contract-tests.md) —
   the language-agnostic registry shape contract, golden fixtures, and the
   front-end-driven tests that validate them (including the `rust` branch).

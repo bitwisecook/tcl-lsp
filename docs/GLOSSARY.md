@@ -29,7 +29,7 @@ flowchart LR
 
 ## Alphabetic index
 
-[AST](#ast) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dominator / idom](#dominator--idom) · [Dominance frontier](#dominance-frontier) · [Escape tag](#escape-tag) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis)
+[AST](#ast) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dominator / idom](#dominator--idom) · [Dominance frontier](#dominance-frontier) · [Escape tag](#escape-tag) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis)
 
 ---
 
@@ -655,6 +655,20 @@ store elimination. Implemented in `tcl_compiler::side_effects`.
 
 See also: [Side-effects system](design/compiler/side-effects-system.md).
 KCS tag: `side-effects`.
+
+### Special variable
+
+An interpreter-, `init.tcl`-, or platform-provided global that behaves
+unlike a user variable: its write is observed by the runtime even when
+the script never reads it back (`auto_path`), its read is always defined
+(never read-before-set), and it may carry a write side-effect
+(`tcl_precision`) or be a taint source (`env`, `argv`). Modelled in the
+dialect-versioned `tcl_registry::special_vars` registry, which the
+analyser, taint / side-effect passes, and hover provider consult instead
+of hardcoding name lists. Dialect-aware — iRules provides the `static::`
+namespace and BIG-IP `tcl_platform` keys but not `env` / `argv`.
+
+See also: [Special-variable registry](design/special-variable-registry.md).
 
 ### Execution intent
 
