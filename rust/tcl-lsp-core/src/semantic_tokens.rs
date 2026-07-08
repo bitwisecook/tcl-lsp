@@ -6022,6 +6022,44 @@ mod tests {
     }
 
     #[test]
+    fn command_prefix_callback_head_highlights_as_function() {
+        // A registry `CommandPrefix` callback head retags as a Function — driven
+        // by the declarative role (no analysis needed).  Covers a core
+        // `-command` and a Tk `scale -command` (the script→prefix conversion):
+        // under the old `script()` a bareword single-word callback head was not
+        // recursed, so it did not highlight; as a prefix it now does.
+        let registry = reg();
+        let slice = |src: &str, line: u32, col: u32, len: u32| -> String {
+            src.lines()
+                .nth(line as usize)
+                .and_then(|l| l.get(col as usize..(col + len) as usize))
+                .unwrap_or_default()
+                .to_owned()
+        };
+        let highlights_fn = |src: &str, name: &str| {
+            decode_full(src, "tcl9.0", &registry)
+                .iter()
+                .any(|&(line, col, len, k, _)| {
+                    k == TokenKind::Function as u32 && slice(src, line, col, len) == name
+                })
+        };
+        assert!(
+            highlights_fn(
+                "proc myCompare {a b} { expr {$a - $b} }\nlsort -command myCompare {3 1 2}\n",
+                "myCompare",
+            ),
+            "the lsort -command callback head must highlight as a Function"
+        );
+        assert!(
+            highlights_fn(
+                "proc onScale {v} { }\nscale .s -command onScale\n",
+                "onScale",
+            ),
+            "the Tk scale -command callback head must highlight as a Function (script→prefix conversion)"
+        );
+    }
+
+    #[test]
     fn method_body_recurses_in_class_definition_script() {
         // `oo::class create C { method m {} { set z 3 } }` — the method body
         // must be tokenised (C Tcl evaluates it as a script), so `set` reads
