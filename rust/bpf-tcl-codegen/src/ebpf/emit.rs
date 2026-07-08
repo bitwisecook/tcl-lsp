@@ -36,8 +36,8 @@ use tcl_lexer::Span;
 
 use crate::ebpf::insn::{
     ADD, AND, DIV, Insn, JEQ, JNE, JSGE, JSGT, JSLE, JSLT, LSH, MOD, MUL, OR, R0, R1, R2, R3, R6,
-    R7, R10, RSH, SUB, SZ_B, SZ_DW, SZ_H, SZ_W, XOR, alu64_imm, alu64_reg, call, exit, ja, jmp_imm,
-    jmp_reg, ldx, mov64_imm, mov64_reg, neg64, st_imm, stx,
+    R7, R10, RSH, SUB, SZ_B, SZ_DW, SZ_H, SZ_W, XOR, alu64_imm, alu64_reg, alu64_reg_off, call,
+    exit, ja, jmp_imm, jmp_reg, ldx, mov64_imm, mov64_reg, neg64, st_imm, stx,
 };
 
 /// Packet `data` pointer (loaded from the metadata buffer; callee-saved).
@@ -192,7 +192,8 @@ fn emit_inst(inst: &Inst, pend: &mut Vec<Pending>) -> Result<(), BpfError> {
         Inst::Bin { dst, op, a, b, .. } => {
             pend.push(Pending::Ins(ldx(SZ_DW, R1, R10, slot_off(a.0))));
             pend.push(Pending::Ins(ldx(SZ_DW, R2, R10, slot_off(b.0))));
-            pend.push(Pending::Ins(alu64_reg(bin_alu(*op), R1, R2)));
+            let (alu_op, off) = bin_alu(*op);
+            pend.push(Pending::Ins(alu64_reg_off(alu_op, R1, R2, off)));
             pend.push(Pending::Ins(stx(SZ_DW, R10, R1, slot_off(dst.0))));
         }
         Inst::Un { dst, op, a, .. } => {
@@ -287,18 +288,26 @@ fn emit_term(term: &Term, pend: &mut Vec<Pending>) {
     }
 }
 
-fn bin_alu(op: IntBinOp) -> u8 {
+/// Map an [`IntBinOp`] to its eBPF ALU opcode plus the instruction `off` field.
+///
+/// Tcl integers are signed 64-bit — the CFG lowers comparisons to signed jumps
+/// (`JSLT`, …) and uses sign-extending moves — so `/` and `%` must use the
+/// **signed** eBPF division ops. BPF_SDIV / BPF_SMOD are encoded as `DIV` /
+/// `MOD` with `off == 1`; the plain unsigned `DIV` / `MOD` (off 0) reinterpret a
+/// negative operand as a huge unsigned value, giving a catastrophically wrong
+/// result silently (RUST_ISSUE_031). Every other op keeps `off == 0`.
+fn bin_alu(op: IntBinOp) -> (u8, i16) {
     match op {
-        IntBinOp::Add => ADD,
-        IntBinOp::Sub => SUB,
-        IntBinOp::Mul => MUL,
-        IntBinOp::Div => DIV,
-        IntBinOp::Mod => MOD,
-        IntBinOp::And => AND,
-        IntBinOp::Or => OR,
-        IntBinOp::Xor => XOR,
-        IntBinOp::Shl => LSH,
-        IntBinOp::Shr => RSH,
+        IntBinOp::Add => (ADD, 0),
+        IntBinOp::Sub => (SUB, 0),
+        IntBinOp::Mul => (MUL, 0),
+        IntBinOp::Div => (DIV, 1),
+        IntBinOp::Mod => (MOD, 1),
+        IntBinOp::And => (AND, 0),
+        IntBinOp::Or => (OR, 0),
+        IntBinOp::Xor => (XOR, 0),
+        IntBinOp::Shl => (LSH, 0),
+        IntBinOp::Shr => (RSH, 0),
     }
 }
 
@@ -351,6 +360,34 @@ mod tests {
         let n = obj.insns.len();
         assert_eq!(obj.insns[n - 1].op, 0x95); // exit
         assert_eq!(obj.insns[n - 2].dst, R0); // ldx r0, [r10-..]
+    }
+
+    #[test]
+    fn division_uses_signed_ops() {
+        // RUST_ISSUE_031: `/` and `%` on signed Tcl integers must emit the
+        // signed eBPF ops (BPF_SDIV / BPF_SMOD = DIV / MOD with off == 1), not
+        // the unsigned forms that mangle negative operands.
+        let div_op = alu64_reg_off(DIV, R1, R2, 1).op;
+        let mod_op = alu64_reg_off(MOD, R1, R2, 1).op;
+        let obj = emit_src(
+            "when SOCKET_FILTER {\n\
+             setint x {0 - 8}\n\
+             setint y {$x / 2}\n\
+             setint z {$x % 3}\n\
+             accept\n}\n",
+        );
+        let div = obj
+            .insns
+            .iter()
+            .find(|i| i.op == div_op)
+            .expect("a signed div instruction");
+        assert_eq!(div.off, 1, "division must be signed (off==1)");
+        let modi = obj
+            .insns
+            .iter()
+            .find(|i| i.op == mod_op)
+            .expect("a signed mod instruction");
+        assert_eq!(modi.off, 1, "modulo must be signed (off==1)");
     }
 
     #[test]

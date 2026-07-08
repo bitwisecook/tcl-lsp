@@ -141,11 +141,20 @@ pub fn alu64_imm(alu_op: u8, dst: u8, imm: i32) -> Insn {
 
 /// `dst = dst <alu_op> src` (64-bit).
 pub fn alu64_reg(alu_op: u8, dst: u8, src: u8) -> Insn {
+    alu64_reg_off(alu_op, dst, src, 0)
+}
+
+/// `dst = dst <alu_op> src` (64-bit) with an explicit `off` field.
+///
+/// `off` selects the signed variant of `DIV` / `MOD`: BPF_SDIV / BPF_SMOD are
+/// encoded as `DIV` / `MOD` with `off == 1` (the sign-aware division extension).
+/// For all other ALU ops `off` is 0.
+pub fn alu64_reg_off(alu_op: u8, dst: u8, src: u8, off: i16) -> Insn {
     Insn {
         op: ALU64 | X | alu_op,
         dst,
         src,
-        off: 0,
+        off,
         imm: 0,
     }
 }
