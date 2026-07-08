@@ -31,10 +31,14 @@
 //! * `\…` — standard backslash processing via
 //!   [`tcl_lexer::backslash_subst`]. Handles `\n \t \xNN \uNNNN`
 //!   and octal / continuation-line forms.
-//! * `[…]` — left as a literal `[…]` string (the `-nocommands`
-//!   flag is exactly this: skip command substitution). Unbalanced
-//!   `[` / `]` pairs are a user error in real Tcl; we reject them
-//!   by returning `None`.
+//! * `[` / `]` — ordinary literal characters. `-nocommands` disables
+//!   *command* substitution only, so `[` no longer opens a command
+//!   substitution: it (and `]`) are copied verbatim while any `$var`
+//!   / `\escape` *inside* the brackets is still substituted. This
+//!   mirrors the VM's `subst_command` with `commands = false`
+//!   (`subst.rs`), where the `[` arm is gated on `commands` and a
+//!   bare `[` falls through to the literal-copy path. There is no
+//!   bracket matching and an unbalanced `[` is not an error.
 //! * `$a(b)` — array references are refused.
 //! * `$::ns::var` — namespace-qualified var refs are refused.
 
@@ -122,18 +126,9 @@ pub fn subst_nocommands<S: BuildHasher>(
             i += 1;
             continue;
         }
-        if c == b'[' {
-            let close = match_bracket(bytes, i)?;
-            out.push_str(&template[i..=close]);
-            i = close + 1;
-            continue;
-        }
-        if c == b']' {
-            // A stray ``]`` without a matching ``[`` — output it.
-            out.push(']');
-            i += 1;
-            continue;
-        }
+        // `[` and `]` are literal under -nocommands (command substitution
+        // is disabled); `$`/`\` inside them were already handled above, so
+        // they need no special case — they fall through to the copy path.
         // ASCII fast path; for non-ASCII we read as a char.
         if c < 128 {
             out.push(c as char);
@@ -203,31 +198,25 @@ fn backslash_end(bytes: &[u8], start: usize) -> usize {
             }
             j
         }
-        _ => start + 2,
+        // `\` before any other character: skip the backslash plus the
+        // full width of the following (possibly multi-byte UTF-8)
+        // character. A fixed `start + 2` here would split a multi-byte
+        // char and panic the `&template[i..j]` slice (mirrors the VM's
+        // `subst.rs` `other => 1 + utf8_char_len(other)`).
+        _ => start + 1 + utf8_char_len(c),
     }
 }
 
-fn match_bracket(bytes: &[u8], start: usize) -> Option<usize> {
-    let n = bytes.len();
-    let mut depth = 1i32;
-    let mut i = start + 1;
-    while i < n {
-        let c = bytes[i];
-        if c == b'\\' && i + 1 < n {
-            i += 2;
-            continue;
-        }
-        if c == b'[' {
-            depth += 1;
-        } else if c == b']' {
-            depth -= 1;
-            if depth == 0 {
-                return Some(i);
-            }
-        }
-        i += 1;
+/// Byte width of the UTF-8 character whose leading byte is `first`.
+/// Continuation and invalid leading bytes count as 1 so the caller always
+/// advances. Mirrors `tcl-vm`'s `subst::utf8_char_len`.
+fn utf8_char_len(first: u8) -> usize {
+    match first {
+        0xC0..=0xDF => 2,
+        0xE0..=0xEF => 3,
+        0xF0..=0xF7 => 4,
+        _ => 1,
     }
-    None
 }
 
 fn is_complex_var_name(name: &str) -> bool {
@@ -290,9 +279,46 @@ mod tests {
     }
 
     #[test]
-    fn unbalanced_bracket_refused() {
+    fn unbalanced_bracket_is_literal() {
+        // -nocommands disables command substitution, so `[` is an
+        // ordinary character and an unclosed `[` is NOT an error
+        // (matches tclsh: `subst -nocommands {[unbalanced}` → `[unbalanced`).
         let m: HashMap<String, String> = HashMap::new();
-        assert!(subst_nocommands("[unbalanced", &m).is_none());
+        assert_eq!(
+            subst_nocommands("[unbalanced", &m).as_deref(),
+            Some("[unbalanced")
+        );
+    }
+
+    #[test]
+    fn vars_inside_brackets_are_substituted() {
+        // RUST_ISSUE_019: `$field` inside `[...]` still substitutes under
+        // -nocommands; only the command is not executed. `\$obj` decodes to
+        // a literal `$obj`. Mirrors tclsh:
+        //   subst -nocommands {[dict get \$obj $field]} → [dict get $obj email]
+        let m = map_of(&[("field", "email")]);
+        assert_eq!(
+            subst_nocommands(r"[dict get \$obj $field]", &m).as_deref(),
+            Some("[dict get $obj email]")
+        );
+    }
+
+    #[test]
+    fn missing_var_inside_brackets_refused() {
+        // A variable miss anywhere (even inside brackets) refuses the whole
+        // evaluation so the caller keeps the runtime dispatch path.
+        let m: HashMap<String, String> = HashMap::new();
+        assert!(subst_nocommands("[cmd $missing]", &m).is_none());
+    }
+
+    #[test]
+    fn backslash_before_multibyte_char() {
+        // RUST_ISSUE_017: `\é` must not split the 2-byte `é` and panic; the
+        // backslash is dropped and the following char is emitted verbatim.
+        let m: HashMap<String, String> = HashMap::new();
+        assert_eq!(subst_nocommands(r"\é", &m).as_deref(), Some("é"));
+        assert_eq!(subst_nocommands(r"a\€b", &m).as_deref(), Some("a€b"));
+        assert_eq!(subst_nocommands(r"\🎉", &m).as_deref(), Some("🎉"));
     }
 
     #[test]
