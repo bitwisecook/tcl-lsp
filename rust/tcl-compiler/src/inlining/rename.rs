@@ -65,18 +65,35 @@ pub(super) fn rewrite_script(script: &Script, rename: &HashMap<String, String>) 
 
 /// Apply `rename` to a variable-name field, handling array-element
 /// references. For `arr(idx)` shapes the array base carries the binding
-/// identity; the `(idx)` suffix is preserved verbatim.
+/// identity and the `(idx)` suffix is a substituted context whose own `$var`
+/// references are α-renamed too (see [`rewrite_array_index_tail`]).
 fn rename_var_name(name: &str, rename: &HashMap<String, String>) -> String {
     if let Some(paren) = name.find('(') {
         let base = &name[..paren];
         let tail = &name[paren..];
-        match rename.get(base) {
-            Some(renamed) => format!("{renamed}{tail}"),
-            None => name.to_owned(),
-        }
+        // Both the array base *and* any `$var` inside the index need the
+        // rename: `set arr($idx) …` substitutes `$idx`, so an inlined body's
+        // index reference must map to the renamed inline local, not capture the
+        // caller's variable (RUST_ISSUE_020). The base is renamed only when it
+        // is a tracked local; the tail is rewritten regardless (its `$var`
+        // might be a local even when the base is a caller global).
+        let renamed_base = rename.get(base).map_or(base, String::as_str);
+        format!("{renamed_base}{}", rewrite_array_index_tail(tail, rename))
     } else {
         rename.get(name).cloned().unwrap_or_else(|| name.to_owned())
     }
+}
+
+/// Rewrite the `(idx)` array-index tail of an *unbraced* variable reference.
+/// The index is a substituted context (`arr($idx)`), so any `$var` / `${var}`
+/// inside it is α-renamed via the value-string rewriter rather than copied
+/// verbatim (RUST_ISSUE_020). A braced `${arr(idx)}` name is *not* a
+/// substituted context and must not be routed here.
+fn rewrite_array_index_tail(tail: &str, rename: &HashMap<String, String>) -> String {
+    if tail.is_empty() {
+        return String::new();
+    }
+    rewrite_value_string(tail, rename)
 }
 
 /// Rename a binding-position local: a renamed name maps through, an
@@ -506,13 +523,13 @@ fn rewrite_value_string(text: &str, rename: &HashMap<String, String>) -> String 
         }
         let name: String = chars[i + 1..j].iter().collect();
         let (base, tail) = split_array(&name);
-        if let Some(renamed) = rename.get(base) {
-            out.push('$');
-            out.push_str(renamed);
-            out.push_str(tail);
-        } else {
-            out.extend(chars[i..j].iter());
-        }
+        // Emit the base (renamed when it is a tracked local) followed by the
+        // rewritten index tail — the index is a substituted context, so a
+        // `$var` inside it (`$arr($idx)`) is α-renamed too instead of copied
+        // verbatim (RUST_ISSUE_020).
+        out.push('$');
+        out.push_str(rename.get(base).map_or(base, String::as_str));
+        out.push_str(&rewrite_array_index_tail(tail, rename));
         i = j;
     }
     out
@@ -640,5 +657,39 @@ mod tests {
     fn value_string_unmapped_passes_through() {
         let r = rn(&[("x", "y")]);
         assert_eq!(rewrite_value_string("$other", &r), "$other");
+    }
+
+    #[test]
+    fn value_string_renames_var_inside_array_index() {
+        // RUST_ISSUE_020: `$arr($idx)` — both the base and the `$idx` inside the
+        // index are α-renamed, so an inlined body reads the renamed inline
+        // local, not the caller's `idx`.
+        let r = rn(&[("arr", "__inline_arr"), ("idx", "__inline_idx")]);
+        assert_eq!(
+            rewrite_value_string("$arr($idx)", &r),
+            "$__inline_arr($__inline_idx)"
+        );
+        // The index var is renamed even when the base is an untracked caller
+        // global.
+        let r2 = rn(&[("idx", "__inline_idx")]);
+        assert_eq!(rewrite_value_string("$g($idx)", &r2), "$g($__inline_idx)");
+    }
+
+    #[test]
+    fn assign_target_renames_var_inside_array_index() {
+        // `set arr($idx) …` — the assignment target's index var must rename too.
+        let r = rn(&[("arr", "__inline_arr"), ("idx", "__inline_idx")]);
+        assert_eq!(
+            rename_var_name("arr($idx)", &r),
+            "__inline_arr($__inline_idx)"
+        );
+    }
+
+    #[test]
+    fn braced_array_name_index_is_literal() {
+        // `${arr(idx)}` is a literal variable name — no substitution inside the
+        // braces — so the index is not treated as a $var context.
+        let r = rn(&[("arr", "z"), ("idx", "renamed")]);
+        assert_eq!(rewrite_value_string("${arr(idx)}", &r), "${z(idx)}");
     }
 }
