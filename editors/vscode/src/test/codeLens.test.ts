@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { activate, getDocUri, pollUntil, sleep } from "./helper";
+import { activate, getDocUri, pollUntil } from "./helper";
 
 suite("Code Lens", () => {
   const docUri = getDocUri("procs.tcl");
@@ -118,12 +118,16 @@ suite("Code Lens", () => {
   test("resolved lens invokes the showReferences command with locations", async () => {
     const refsUri = getDocUri("codeLensRefs.tcl");
     await activate(refsUri);
-    await sleep(500);
-    const lenses = (await vscode.commands.executeCommand(
-      "vscode.executeCodeLensProvider",
-      refsUri,
-      100,
-    )) as vscode.CodeLens[] | undefined;
+    // Poll the provider (message passing) until the server has published its
+    // first batch of lenses, rather than sleeping on a fixed delay.
+    const lenses = await pollUntil(
+      () =>
+        vscode.commands.executeCommand("vscode.executeCodeLensProvider", refsUri, 100) as Thenable<
+          vscode.CodeLens[] | undefined
+        >,
+      (ls) => Array.isArray(ls) && ls.length > 0,
+      { label: "codeLens published" },
+    );
     assert.ok(lenses, "codeLens result should not be null");
 
     const withCommand = lenses.filter((l) => l.command && l.command.command);
