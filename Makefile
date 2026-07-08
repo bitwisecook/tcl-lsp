@@ -161,7 +161,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: build-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime build-editor-zed publish-zed publish-all publish-verify publish-flow
 .PHONY: release release-tag release-sums
 # Rust runtime port
-.PHONY: runtime-rust-test runtime-rust-lint vm-test vm-lint
+.PHONY: runtime-rust-test runtime-rust-lint zed-query-check vm-test vm-lint
 # Screenshots
 .PHONY: screenshot screenshots clean-screenshots
 # Cleanup
@@ -298,7 +298,7 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 
 # Test targets
 
-test: test-rust test-ext runtime-rust-test ## Run all tests (Rust workspace + VS Code extension + Rust runtime port)
+test: test-rust test-ext runtime-rust-test zed-query-check ## Run all tests (Rust workspace + VS Code extension + Rust runtime port)
 
 lint: lint-ts ## Run all lint and style checks
 
@@ -766,7 +766,7 @@ test-slow: ## Comprehensive local gate (everything)
 	@NPROC="$(NPROC)" MAKE="$(MAKE)" \
 		bash $(ROOT)scripts/dev/test-slow-runner.sh \
 			--serial "prep-pr" \
-			--parallel "check-rust test-ext _prep-pr-smoke test-emacs test-rust runtime-rust-test"
+			--parallel "check-rust test-ext _prep-pr-smoke test-emacs test-rust runtime-rust-test zed-query-check"
 	@echo "==> test-slow: PASSED"
 
 ensure-test-deps: ## Install optional test-slow host deps for the host platform
@@ -1356,6 +1356,9 @@ runtime-rust-test: ## Run the Rust runtime port's cargo test (leak round-trip + 
 
 runtime-rust-lint: ## Rust runtime port: cargo fmt --check + clippy -D warnings
 	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+
+zed-query-check: ## Validate the generated Zed highlight queries against the pinned tree-sitter grammar
+	cd $(ROOT)rust/zed-query-check && cargo test
 
 vm-test: ## Run the bytecode VM crates' cargo test (tcl-bytecode + tcl-runtime-api + tcl-vm)
 	cargo test -p tcl-bytecode -p tcl-runtime-api -p tcl-vm
