@@ -343,8 +343,11 @@ impl WorkspaceIndex {
         std::collections::HashSet<&str>,
         std::collections::HashMap<String, Vec<String>>,
     ) {
-        let known: std::collections::HashSet<&str> =
-            self.classes.iter().map(|c| c.qualified_name.as_str()).collect();
+        let known: std::collections::HashSet<&str> = self
+            .classes
+            .iter()
+            .map(|c| c.qualified_name.as_str())
+            .collect();
         let tail_index = build_tail_index(self.classes.iter().map(|c| &c.qualified_name));
         (known, tail_index)
     }
@@ -360,9 +363,12 @@ impl WorkspaceIndex {
         let mut out: Vec<&WorkspaceClass> = Vec::new();
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         for name in wc.superclasses.iter().chain(wc.mixins.iter()) {
-            let Some(q) =
-                resolve_class_name(name, &wc.qualified_name, |cand| known.contains(cand), &tail_index)
-            else {
+            let Some(q) = resolve_class_name(
+                name,
+                &wc.qualified_name,
+                |cand| known.contains(cand),
+                &tail_index,
+            ) else {
                 continue;
             };
             if !seen.insert(q.clone()) {
@@ -385,8 +391,13 @@ impl WorkspaceIndex {
             .iter()
             .filter(|c| {
                 c.superclasses.iter().chain(c.mixins.iter()).any(|s| {
-                    resolve_class_name(s, &c.qualified_name, |cand| known.contains(cand), &tail_index)
-                        .as_deref()
+                    resolve_class_name(
+                        s,
+                        &c.qualified_name,
+                        |cand| known.contains(cand),
+                        &tail_index,
+                    )
+                    .as_deref()
                         == Some(class_qname)
                 })
             })
@@ -491,7 +502,9 @@ impl WorkspaceIndex {
                 // Inherits `method` (has a definer ancestor) and cannot resolve
                 // it to a definer outside the family.
                 !defining_ancestors.is_empty()
-                    && defining_ancestors.iter().all(|a| family_set.contains(a.as_str()))
+                    && defining_ancestors
+                        .iter()
+                        .all(|a| family_set.contains(a.as_str()))
             })
             .collect()
     }
@@ -642,6 +655,64 @@ impl WorkspaceIndex {
             .collect()
     }
 
+    /// Proc definitions whose **fully-qualified** name equals `qualified_name`
+    /// (leading `::` ignored), excluding `exclude_uri`.
+    ///
+    /// This is the correct matcher for cross-document **rename**: a proc in
+    /// another file is the *same* proc only when its qualified name matches, so
+    /// renaming `::a::helper` must not touch a `proc helper` inside
+    /// `namespace eval ::b` (whose qualified name is `::b::helper`). The looser
+    /// [`Self::proc_definitions`] matches by simple name for go-to-definition
+    /// and must not be reused here (`RUST_ISSUE_036`).
+    #[must_use]
+    pub fn proc_definitions_qualified<'a>(
+        &'a self,
+        qualified_name: &str,
+        exclude_uri: &str,
+    ) -> Vec<&'a WorkspaceProc> {
+        let target = qualified_name.trim_start_matches("::");
+        self.procs
+            .iter()
+            .filter(|p| p.uri != exclude_uri)
+            .filter(|p| p.qualified_name.trim_start_matches("::") == target)
+            .collect()
+    }
+
+    /// Class definitions whose fully-qualified name equals `qualified_name`
+    /// (leading `::` ignored), excluding `exclude_uri`. The class analogue of
+    /// [`Self::proc_definitions_qualified`] for cross-document rename.
+    #[must_use]
+    pub fn class_definitions_qualified<'a>(
+        &'a self,
+        qualified_name: &str,
+        exclude_uri: &str,
+    ) -> Vec<&'a WorkspaceClass> {
+        let target = qualified_name.trim_start_matches("::");
+        self.classes
+            .iter()
+            .filter(|c| c.uri != exclude_uri)
+            .filter(|c| c.qualified_name.trim_start_matches("::") == target)
+            .collect()
+    }
+
+    /// Whether some proc or class *other than* the target `qualified_name`
+    /// shares the `simple_name` under a different namespace anywhere in the
+    /// workspace. When true, a bare simple-name call site is ambiguous and
+    /// cross-document rename must not rewrite it by simple name alone.
+    #[must_use]
+    fn simple_name_defined_elsewhere(&self, simple_name: &str, qualified_name: &str) -> bool {
+        let target = qualified_name.trim_start_matches("::");
+        let differs =
+            |name: &str, qn: &str| name == simple_name && qn.trim_start_matches("::") != target;
+        self.procs
+            .iter()
+            .any(|p| differs(&p.name, &p.qualified_name))
+            || self
+                .classes
+                .iter()
+                .any(|c| differs(&c.name, &c.qualified_name))
+    }
+
     /// Every indexed invocation site.
     #[must_use]
     pub fn invocations(&self) -> &[WorkspaceInvocation] {
@@ -672,11 +743,17 @@ impl WorkspaceIndex {
     /// `exclude_uri` (the caller's own document, whose call
     /// sites the single-doc provider already surfaces).
     ///
-    /// Matches the call-site head against the proc's simple
-    /// name, its qualified name, the `::`-stripped qualified
-    /// name, or the call site's `resolved_qualified_name` —
-    /// the same matching the in-document references provider
-    /// uses.
+    /// Matches the call-site head against the proc's qualified name, the
+    /// `::`-stripped qualified name, or the call site's
+    /// `resolved_qualified_name`.
+    ///
+    /// A **bare simple-name** call is matched only when the simple name is
+    /// unambiguous across the workspace — i.e. no *other* namespace defines a
+    /// proc/class of the same simple name (`RUST_ISSUE_036`). When two files
+    /// define `::a::helper` and `::b::helper`, a bare `helper` call could
+    /// resolve to either, so cross-document rename rewrites only the explicitly
+    /// qualified or resolution-confirmed call sites — never an ambiguous bare
+    /// call that might belong to the *other* proc.
     #[must_use]
     pub fn invocations_of<'a>(
         &'a self,
@@ -685,14 +762,18 @@ impl WorkspaceIndex {
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceInvocation> {
         let qname_no_prefix = qualified_name.strip_prefix("::").unwrap_or(qualified_name);
+        let target_norm = qualified_name.trim_start_matches("::");
+        let bare_is_safe = !self.simple_name_defined_elsewhere(simple_name, qualified_name);
         self.invocations
             .iter()
             .filter(|i| i.uri != exclude_uri)
             .filter(|i| {
-                i.name == simple_name
-                    || i.name == qualified_name
+                i.name == qualified_name
                     || i.name == qname_no_prefix
-                    || i.resolved_qualified_name.as_deref() == Some(qualified_name)
+                    || i.resolved_qualified_name
+                        .as_deref()
+                        .is_some_and(|r| r.trim_start_matches("::") == target_norm)
+                    || (bare_is_safe && i.name == simple_name)
             })
             .collect()
     }
@@ -729,7 +810,10 @@ mod tests {
         assert_eq!(names, vec!["Dog"]);
         // Dog's subclasses: Puppy (c.tcl).
         let dog_subs = index.subclasses_of("::Dog");
-        assert_eq!(dog_subs.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["Puppy"]);
+        assert_eq!(
+            dog_subs.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            vec!["Puppy"]
+        );
     }
 
     #[test]
@@ -739,7 +823,9 @@ mod tests {
         // namespace), never ::B::Base — and a subclass in a *third*
         // namespace with no local Base must abstain (ambiguous tail), not
         // guess.
-        let a = analyse("oo::class create ::A::Base {}\noo::class create ::A::Derived {\n    superclass Base\n}\n");
+        let a = analyse(
+            "oo::class create ::A::Base {}\noo::class create ::A::Derived {\n    superclass Base\n}\n",
+        );
         let b = analyse("oo::class create ::B::Base {}\n");
         let c = analyse("oo::class create ::C::Widget {\n    superclass Base\n}\n");
         let index = WorkspaceIndex::from_documents([
@@ -748,9 +834,16 @@ mod tests {
             ("file:///c.tcl", &c),
         ]);
         // ::A::Base's subclasses: only ::A::Derived (owner-aware pick).
-        let a_subs: Vec<&str> =
-            index.subclasses_of("::A::Base").iter().map(|c| c.qualified_name.as_str()).collect();
-        assert_eq!(a_subs, vec!["::A::Derived"], "owner-aware resolution mis-linked");
+        let a_subs: Vec<&str> = index
+            .subclasses_of("::A::Base")
+            .iter()
+            .map(|c| c.qualified_name.as_str())
+            .collect();
+        assert_eq!(
+            a_subs,
+            vec!["::A::Derived"],
+            "owner-aware resolution mis-linked"
+        );
         // ::B::Base gets no subclass from the ambiguous bare `Base` names.
         assert!(
             index.subclasses_of("::B::Base").is_empty(),
@@ -773,8 +866,10 @@ mod tests {
         // Base `speak` in a.tcl; Dog overrides it in b.tcl; Cat overrides it
         // in c.tcl; unrelated Engine::speak in d.tcl must stay out.
         let animal = analyse("oo::class create Animal {\n    method speak {} {}\n}\n");
-        let dog = analyse("oo::class create Dog {\n    superclass Animal\n    method speak {} {}\n}\n");
-        let cat = analyse("oo::class create Cat {\n    superclass Animal\n    method speak {} {}\n}\n");
+        let dog =
+            analyse("oo::class create Dog {\n    superclass Animal\n    method speak {} {}\n}\n");
+        let cat =
+            analyse("oo::class create Cat {\n    superclass Animal\n    method speak {} {}\n}\n");
         let engine = analyse("oo::class create Engine {\n    method speak {} {}\n}\n");
         let index = WorkspaceIndex::from_documents([
             ("file:///a.tcl", &animal),
@@ -790,7 +885,11 @@ mod tests {
             .collect();
         fam.sort_unstable();
         fam.dedup();
-        assert_eq!(fam, vec!["::Animal", "::Cat", "::Dog"], "cross-file family wrong");
+        assert_eq!(
+            fam,
+            vec!["::Animal", "::Cat", "::Dog"],
+            "cross-file family wrong"
+        );
         // Unrelated Engine::speak must not be pulled in.
         assert!(
             !index
@@ -812,7 +911,10 @@ mod tests {
             .iter()
             .map(|wc| wc.qualified_name.as_str())
             .collect();
-        assert!(fam2.contains(&"::Animal") && fam2.contains(&"::Dog"), "{fam2:?}");
+        assert!(
+            fam2.contains(&"::Animal") && fam2.contains(&"::Dog"),
+            "{fam2:?}"
+        );
     }
 
     #[test]
@@ -822,7 +924,9 @@ mod tests {
         // Car in c.tcl/d.tcl.  Seeding from Animal, Dog is an inheritor and
         // Car (disjoint hierarchy) is not.
         let animal = analyse("oo::class create Animal {\n    method speak {} {}\n}\n");
-        let dog = analyse("oo::class create Dog {\n    superclass Animal\n    method describe {} { my speak }\n}\n");
+        let dog = analyse(
+            "oo::class create Dog {\n    superclass Animal\n    method describe {} { my speak }\n}\n",
+        );
         let engine = analyse("oo::class create Engine {\n    method speak {} {}\n}\n");
         let car = analyse("oo::class create Car {\n    superclass Engine\n}\n");
         let index = WorkspaceIndex::from_documents([
@@ -862,9 +966,7 @@ mod tests {
         // Family seeded from A does not include B, so `Both` (which can reach
         // B::run too) is abstained on.
         assert!(
-            index
-                .method_inheritor_classes("::A", "run")
-                .is_empty(),
+            index.method_inheritor_classes("::A", "run").is_empty(),
             "must abstain when an out-of-family definer ancestor exists",
         );
     }

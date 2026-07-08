@@ -568,6 +568,95 @@ fn e003_not_emitted_for_leading_switches() {
 }
 
 #[test]
+fn e003_not_emitted_for_value_taking_leading_option() {
+    // RUST_ISSUE_022: `-start` consumes a value word, so
+    // `regsub -start 0 $exp $str $sub out` is `-start` + its value +
+    // 4 positional (exp/string/subSpec/varName) = max arity 4 → valid.
+    // A name-only leading-option skip miscounted the `0` value word as a
+    // positional and tripped a false E003.
+    for snippet in [
+        "regsub -start 0 $exp $str $sub out",
+        "regsub -all -start 3 {a} $b {} c",
+    ] {
+        let mut a = Analyser::new();
+        let result = a.analyse(snippet, "tcl8.6");
+        let e003: Vec<&Diagnostic> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::E003)
+            .collect();
+        assert!(
+            e003.is_empty(),
+            "unexpected E003 for value-taking option in {snippet:?}: {e003:?}"
+        );
+    }
+}
+
+#[test]
+fn e003_still_fires_past_value_taking_option() {
+    // The value-word skip must not mask a genuine over-arity: after
+    // `-start 0` there are 5 positional words (> max 4) → real E003.
+    let mut a = Analyser::new();
+    let result = a.analyse("regsub -start 0 a b c d e", "tcl8.6");
+    assert!(
+        result.diagnostics.iter().any(|d| d.code == DiagCode::E003),
+        "expected E003 past a value-taking option, got {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn interp_optional_path_subcommands_no_arity_error() {
+    // RUST_ISSUE_025: `interp issafe`/`exists`/`hidden` take an optional
+    // `?path?`; the zero-arg idiom must not trip E002.
+    for snippet in ["interp issafe", "interp exists", "interp hidden"] {
+        let mut a = Analyser::new();
+        let result = a.analyse(snippet, "tcl8.6");
+        let arity_err: Vec<&Diagnostic> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::E002 || d.code == DiagCode::E003)
+            .collect();
+        assert!(
+            arity_err.is_empty(),
+            "unexpected arity error for {snippet:?}: {arity_err:?}"
+        );
+    }
+    // The one-arg form is still accepted.
+    let mut a = Analyser::new();
+    let ok = a.analyse("interp issafe child", "tcl8.6");
+    assert!(
+        !ok.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::E002 || d.code == DiagCode::E003),
+    );
+}
+
+#[test]
+fn interp_create_with_options_no_arity_error() {
+    // RUST_ISSUE_025: `interp create -safe -- name` — the option words are
+    // skipped, leaving one positional (`name`) within the 0..=1 bound.
+    let mut a = Analyser::new();
+    let result = a.analyse("interp create -safe -- child", "tcl8.6");
+    assert!(
+        !result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::E002 || d.code == DiagCode::E003),
+        "unexpected arity error for `interp create -safe -- child`: {:?}",
+        result.diagnostics
+    );
+    // Two positional names is a genuine over-arity.
+    let mut a2 = Analyser::new();
+    let over = a2.analyse("interp create a b", "tcl8.6");
+    assert!(
+        over.diagnostics.iter().any(|d| d.code == DiagCode::E003),
+        "expected E003 for two-name `interp create`, got {:?}",
+        over.diagnostics
+    );
+}
+
+#[test]
 fn e003_fires_on_genuine_over_arity() {
     // 5 positional args for `regsub` (max 4) is a real error.
     let mut a = Analyser::new();
@@ -764,11 +853,11 @@ fn w001_accepts_unique_prefix_subcommand_abbreviations() {
     // Tcl ensemble dispatch accepts unique-prefix abbreviations; the analyser
     // must not flag them as unknown subcommands (W001).
     for snippet in [
-        "string le $s",       // length
-        "string leng $s",     // length
-        "info ex v",          // exists
-        "dict k $d",          // keys
-        "string rev $s",      // reverse
+        "string le $s",   // length
+        "string leng $s", // length
+        "info ex v",      // exists
+        "dict k $d",      // keys
+        "string rev $s",  // reverse
     ] {
         assert!(
             !has_code(snippet, "tcl8.6", "W001"),
@@ -895,7 +984,9 @@ fn subcommand_version_gates_fire_w002() {
         );
     }
     // A subcommand that exists in *no* dialect is still a genuine W001.
-    let typo = Analyser::new().analyse("string bogusxyz abc", "tcl8.6").diagnostics;
+    let typo = Analyser::new()
+        .analyse("string bogusxyz abc", "tcl8.6")
+        .diagnostics;
     assert!(
         typo.iter().any(|d| d.code == DiagCode::W001),
         "expected W001 for a genuinely unknown subcommand"

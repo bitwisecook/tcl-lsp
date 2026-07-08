@@ -727,7 +727,7 @@ pub fn parse_zone(source: &str, _uri: &str) -> Result<Value, QueryError> {
             last_owner.clone()
         } else {
             let o = zone_fqdn(toks.remove(0), &origin);
-            last_owner = o.clone();
+            last_owner.clone_from(&o);
             o
         };
 
@@ -756,7 +756,11 @@ pub fn parse_zone(source: &str, _uri: &str) -> Result<Value, QueryError> {
         rec.insert("ttl".to_string(), Value::Str(ttl));
         rec.insert(
             "class".to_string(),
-            Value::Str(if class.is_empty() { "IN".to_string() } else { class }),
+            Value::Str(if class.is_empty() {
+                "IN".to_string()
+            } else {
+                class
+            }),
         );
         rec.insert("type".to_string(), Value::Str(rtype.clone()));
         rec.insert("rdata".to_string(), Value::Str(rdata.clone()));

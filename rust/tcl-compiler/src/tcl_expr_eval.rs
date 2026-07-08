@@ -482,7 +482,13 @@ fn apply_binary(op: BinOp, a: TclValue, b: TclValue) -> Option<TclValue> {
         },
         BinOp::RShift => match (a, b) {
             (TclValue::Int(x), TclValue::Int(y)) if y >= 0 => {
-                if y > 64 {
+                // At y == 64 the value has been fully shifted out, so an
+                // arithmetic right shift yields the sign bit replicated
+                // (0 for non-negative, -1 for negative). Executing `x >> 64`
+                // here would panic on shift-overflow in debug builds and mask
+                // to `x >> 0` in release. The boundary is therefore `>= 64`,
+                // not `> 64` (i64 has 64 bits).
+                if y >= 64 {
                     Some(TclValue::Int(if x >= 0 { 0 } else { -1 }))
                 } else {
                     Some(TclValue::Int(x >> y))
@@ -1018,6 +1024,19 @@ mod tests {
         assert_eq!(eval_str("16 >> 2"), Some(TclValue::Int(4)));
         // Negative shift count is undefined.
         assert_eq!(eval_str("1 << -1"), None);
+    }
+
+    #[test]
+    fn right_shift_at_and_past_width() {
+        // RUST_ISSUE_018: `x >> 64` must not execute a 64-bit shift (which
+        // panics in debug / masks to `x >> 0` in release). At >= 64 the
+        // result is the replicated sign bit.
+        assert_eq!(eval_str("5 >> 64"), Some(TclValue::Int(0)));
+        assert_eq!(eval_str("5 >> 65"), Some(TclValue::Int(0)));
+        assert_eq!(eval_str("-5 >> 64"), Some(TclValue::Int(-1)));
+        assert_eq!(eval_str("-5 >> 100"), Some(TclValue::Int(-1)));
+        // Just below the boundary still shifts normally.
+        assert_eq!(eval_str("-1 >> 63"), Some(TclValue::Int(-1)));
     }
 
     #[test]

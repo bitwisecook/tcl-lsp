@@ -609,7 +609,10 @@ proc wire_namespace_vars {} {
             .into_iter()
             .filter(|v| v.kind() == LatticeKind::ConstSet)
             .collect();
-        assert!(!cs.is_empty(), "x must fold to a CONSTSET over [list a b c]");
+        assert!(
+            !cs.is_empty(),
+            "x must fold to a CONSTSET over [list a b c]"
+        );
         assert_constset_strs(cs[0], &["a", "b", "c"]);
     }
 

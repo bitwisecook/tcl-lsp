@@ -1515,7 +1515,8 @@ fn fold_builtin_cmd_subst_raw(
         // lives on the matching subcommand and sees the args after it.
         let (sub, sub_rest) = rest.split_first()?;
         let arg_refs: Vec<&str> = sub_rest.iter().map(String::as_str).collect();
-        spec.resolve_subcommand(sub)?.run_const_fold(&arg_refs, dialect)
+        spec.resolve_subcommand(sub)?
+            .run_const_fold(&arg_refs, dialect)
     }
 }
 

@@ -67,50 +67,57 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Cancel a script evaluation.",
         synopsis: "interp cancel ?-unwind? ?--? ?result?",
         return_type: Some(TclType::String),
-        options: const { &[
-            OptionSpec {
-                name: "-unwind",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "--",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-        ] },
+        options: const {
+            &[
+                OptionSpec {
+                    name: "-unwind",
+                    value: OptionValue::flag(),
+                    detail: "",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "--",
+                    value: OptionValue::flag(),
+                    detail: "",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+            ]
+        },
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "create",
-        arity: Arity::new(0, 2),
+        // Positional arity is `?name?` only (0..=1); the `-safe` / `--`
+        // option words are consumed by the leading-option skip, not counted
+        // here. A prior `Arity::new(0, 2)` masked a genuine extra-name error.
+        arity: Arity::new(0, 1),
         detail: "Create a child interpreter.",
         synopsis: "interp create ?-safe? ?--? ?name?",
         return_type: Some(TclType::String),
-        options: const { &[
-            OptionSpec {
-                name: "-safe",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "--",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-        ] },
+        options: const {
+            &[
+                OptionSpec {
+                    name: "-safe",
+                    value: OptionValue::flag(),
+                    detail: "",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "--",
+                    value: OptionValue::flag(),
+                    detail: "",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+            ]
+        },
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -142,9 +149,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "exists",
-        arity: Arity::exact(1),
+        // `path` is optional in every release: `interp exists` with no path
+        // returns 1 (the current interpreter always exists).
+        arity: Arity::new(0, 1),
         detail: "Check if interpreter exists.",
-        synopsis: "interp exists path",
+        synopsis: "interp exists ?path?",
         pure: true,
         return_type: Some(TclType::Boolean),
         ..SubCommand::DEFAULT
@@ -159,9 +168,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "hidden",
-        arity: Arity::exact(1),
+        // `path` is optional (`interp hidden` lists the current interpreter's
+        // hidden commands).
+        arity: Arity::new(0, 1),
         detail: "List hidden commands.",
-        synopsis: "interp hidden path",
+        synopsis: "interp hidden ?path?",
         pure: true,
         return_type: Some(TclType::List),
         ..SubCommand::DEFAULT
@@ -180,39 +191,43 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Invoke a hidden command.",
         synopsis: "interp invokehidden path ?-option ...? hiddenCmdName ?arg ...?",
         return_type: Some(TclType::String),
-        options: const { &[
-            OptionSpec {
-                name: "-global",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "-namespace",
-                value: OptionValue::name("ns"),
-                detail: "Namespace in which to invoke the hidden command.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "--",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-        ] },
+        options: const {
+            &[
+                OptionSpec {
+                    name: "-global",
+                    value: OptionValue::flag(),
+                    detail: "",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "-namespace",
+                    value: OptionValue::name("ns"),
+                    detail: "Namespace in which to invoke the hidden command.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "--",
+                    value: OptionValue::flag(),
+                    detail: "",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+            ]
+        },
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "issafe",
-        arity: Arity::exact(1),
+        // `path` is optional (`interp issafe` reports on the current
+        // interpreter).
+        arity: Arity::new(0, 1),
         detail: "Check if interpreter is safe.",
-        synopsis: "interp issafe path",
+        synopsis: "interp issafe ?path?",
         pure: true,
         return_type: Some(TclType::Boolean),
         ..SubCommand::DEFAULT

@@ -598,7 +598,10 @@ fn test_bind_script_body_recursion() {
     assert!(has_var, "bind script body vars not recursed: {tokens:?}");
     // `if` inside the body is a keyword.
     let words = keyword_words(&mut lsp, &lg, &uri, src);
-    assert!(words.contains("if"), "expected `if` keyword in bind body: {words:?}");
+    assert!(
+        words.contains("if"),
+        "expected `if` keyword in bind body: {words:?}"
+    );
 }
 
 #[test]
@@ -613,7 +616,10 @@ fn test_bind_query_forms_do_not_recurse() {
     let puts_recursed = tokens
         .iter()
         .any(|t| covered(src, t) == "puts" && t.ttype == "function");
-    assert!(!puts_recursed, "bind query form must not recurse a body: {tokens:?}");
+    assert!(
+        !puts_recursed,
+        "bind query form must not recurse a body: {tokens:?}"
+    );
 }
 
 // -- TestStructuralKeywords ----------------------------------------------
@@ -1120,7 +1126,10 @@ fn test_tcloo_body_variable_declares_every_name() {
             .iter()
             .find(|t| covered(src, t) == name)
             .unwrap_or_else(|| panic!("no token covers {name:?}: {tokens:?}"));
-        assert_eq!(t.ttype, "variable", "`{name}` must be a variable: {tokens:?}");
+        assert_eq!(
+            t.ttype, "variable",
+            "`{name}` must be a variable: {tokens:?}"
+        );
     }
 }
 
@@ -1197,7 +1206,10 @@ fn test_global_declares_every_name() {
             .iter()
             .find(|t| covered(src, t) == name)
             .unwrap_or_else(|| panic!("no token covers {name:?}: {tokens:?}"));
-        assert_eq!(t.ttype, "variable", "`{name}` in `global` must be a variable");
+        assert_eq!(
+            t.ttype, "variable",
+            "`{name}` in `global` must be a variable"
+        );
     }
 }
 
@@ -1216,7 +1228,10 @@ fn test_foreach_loop_variables_are_variables() {
             .any(|t| covered(src, t) == word && t.ttype == "variable")
     };
     for name in ["item", "key", "val"] {
-        assert!(is_var(name), "loop variable `{name}` must be a variable: {tokens:?}");
+        assert!(
+            is_var(name),
+            "loop variable `{name}` must be a variable: {tokens:?}"
+        );
     }
 }
 
@@ -1237,7 +1252,10 @@ fn test_proc_and_lambda_parameters_are_variables() {
             .any(|t| covered(src, t) == word && t.ttype == "variable")
     };
     for name in ["name", "age", "alpha", "beta", "mk", "mv"] {
-        assert!(is_var(name), "`{name}` must be a variable declaration: {tokens:?}");
+        assert!(
+            is_var(name),
+            "`{name}` must be a variable declaration: {tokens:?}"
+        );
     }
 }
 
@@ -1257,7 +1275,11 @@ fn test_upvar_and_dict_update_locals_are_variables() {
             .find(|t| covered(src, t) == word)
             .map(|t| t.ttype.clone())
     };
-    assert_eq!(kind_of("localvar").as_deref(), Some("variable"), "{tokens:?}");
+    assert_eq!(
+        kind_of("localvar").as_deref(),
+        Some("variable"),
+        "{tokens:?}"
+    );
     assert_eq!(kind_of("thevar").as_deref(), Some("variable"), "{tokens:?}");
     assert_eq!(kind_of("othervar").as_deref(), Some("string"), "{tokens:?}");
     assert_eq!(kind_of("thekey").as_deref(), Some("string"), "{tokens:?}");
@@ -1279,17 +1301,23 @@ fn test_snit_type_body_members_highlight() {
     // `barks` (declaration) and `volume` (method param) are variables.
     for name in ["barks", "volume"] {
         assert!(
-            tokens.iter().any(|t| covered(src, t) == name && t.ttype == "variable"),
+            tokens
+                .iter()
+                .any(|t| covered(src, t) == name && t.ttype == "variable"),
             "snit `{name}` must be a variable: {tokens:?}",
         );
     }
     // `typemethod` is a member keyword; the method body's `return` is recursed.
     assert!(
-        tokens.iter().any(|t| covered(src, t) == "typemethod" && t.ttype == "keyword"),
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == "typemethod" && t.ttype == "keyword"),
         "`typemethod` must be a keyword: {tokens:?}",
     );
     assert!(
-        tokens.iter().any(|t| covered(src, t) == "return" && t.ttype == "keyword"),
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == "return" && t.ttype == "keyword"),
         "a snit method body must be recursed: {tokens:?}",
     );
 }
@@ -1311,20 +1339,26 @@ fn test_itcl_class_body_members_highlight() {
     // Declarations + a method parameter are variables (incl. the wrapped ones).
     for name in ["barks", "volume", "secret"] {
         assert!(
-            tokens.iter().any(|t| covered(src, t) == name && t.ttype == "variable"),
+            tokens
+                .iter()
+                .any(|t| covered(src, t) == name && t.ttype == "variable"),
             "itcl `{name}` must be a variable: {tokens:?}",
         );
     }
     // The access modifier and the inner wrapped keyword are both keywords.
     for kw in ["inherit", "public", "method", "private"] {
         assert!(
-            tokens.iter().any(|t| covered(src, t) == kw && t.ttype == "keyword"),
+            tokens
+                .iter()
+                .any(|t| covered(src, t) == kw && t.ttype == "keyword"),
             "itcl `{kw}` must be a keyword: {tokens:?}",
         );
     }
     // The wrapped method body is recursed (`set` is a command there).
     assert!(
-        tokens.iter().any(|t| covered(src, t) == "set" && t.ttype == "function"),
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == "set" && t.ttype == "function"),
         "an itcl method body must be recursed: {tokens:?}",
     );
 }

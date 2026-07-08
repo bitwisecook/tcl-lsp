@@ -342,6 +342,48 @@ fn resolve_device(matcher: &str, devices: &[J]) -> Option<usize> {
 /// link gtm.ucs  edge.ucs
 /// link edge.ucs core.ucs -label internal
 /// ```
+/// Collect every value for a repeated `-flag` (e.g. `zone dmz -cidr a -cidr b`).
+fn collect_flag(words: &[String], flag: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i + 1 < words.len() {
+        if words[i] == flag {
+            out.push(words[i + 1].clone());
+        }
+        i += 2;
+    }
+    out
+}
+
+/// First value for a `-flag`, if present.
+fn first_flag(words: &[String], flag: &str) -> Option<String> {
+    let mut i = 0;
+    while i + 1 < words.len() {
+        if words[i] == flag {
+            return Some(words[i + 1].clone());
+        }
+        i += 2;
+    }
+    None
+}
+
+/// Read `-flag value` pairs from a word slice into (role, tier, label).
+fn read_opts(words: &[String]) -> (Option<String>, Option<i64>, Option<String>) {
+    let (mut role, mut tier, mut label) = (None, None, None);
+    let mut i = 0;
+    while i + 1 < words.len() {
+        let (flag, val) = (words[i].as_str(), words[i + 1].clone());
+        match flag {
+            "-role" => role = Some(val),
+            "-tier" => tier = val.parse::<i64>().ok(),
+            "-label" | "-name" => label = Some(val),
+            _ => {}
+        }
+        i += 2;
+    }
+    (role, tier, label)
+}
+
 fn parse_manifest(text: &str) -> Result<Manifest, String> {
     let commands = tcl_commands(text)?;
     let mut devices = Vec::new();
@@ -352,47 +394,6 @@ fn parse_manifest(text: &str) -> Result<Manifest, String> {
     let mut cidr_names = Vec::new();
     let mut service_map_file = None;
     let mut nat_map_file = None;
-
-    // Collect every value for a repeated `-flag` (e.g. `zone dmz -cidr a -cidr b`).
-    let collect_flag = |words: &[String], flag: &str| -> Vec<String> {
-        let mut out = Vec::new();
-        let mut i = 0;
-        while i + 1 < words.len() {
-            if words[i] == flag {
-                out.push(words[i + 1].clone());
-            }
-            i += 2;
-        }
-        out
-    };
-    // First value for a `-flag`, if present.
-    let first_flag = |words: &[String], flag: &str| -> Option<String> {
-        let mut i = 0;
-        while i + 1 < words.len() {
-            if words[i] == flag {
-                return Some(words[i + 1].clone());
-            }
-            i += 2;
-        }
-        None
-    };
-
-    // Read `-flag value` pairs from a word slice into (role, tier, label).
-    let read_opts = |words: &[String]| -> (Option<String>, Option<i64>, Option<String>) {
-        let (mut role, mut tier, mut label) = (None, None, None);
-        let mut i = 0;
-        while i + 1 < words.len() {
-            let (flag, val) = (words[i].as_str(), words[i + 1].clone());
-            match flag {
-                "-role" => role = Some(val),
-                "-tier" => tier = val.parse::<i64>().ok(),
-                "-label" | "-name" => label = Some(val),
-                _ => {}
-            }
-            i += 2;
-        }
-        (role, tier, label)
-    };
 
     for cmd in commands {
         match cmd.first().map(String::as_str) {
@@ -670,67 +671,11 @@ pub fn build_architecture(devices: &[J], manifest_text: Option<&str>) -> J {
 
     let tiers = assign_tiers(n, &links, &tier_over);
 
-    // Shape the device entries with their resolved role/tier/label.
-    let mut dev_json: Vec<J> = Vec::with_capacity(n);
-    for (i, d) in devices.iter().enumerate() {
-        let dm = d.as_object();
-        let uri = dm.map_or("", |m| bstr(m, "uri")).to_string();
-        let name = dm.map_or("", |m| bstr(m, "name")).to_string();
-        let role = role_over.get(&i).cloned().unwrap_or_else(|| {
-            if dm.is_some_and(looks_like_gtm) {
-                "gtm".to_string()
-            } else {
-                "ltm".to_string()
-            }
-        });
-        let label = label_over.get(&i).cloned().unwrap_or_else(|| name.clone());
-        let mut o = Map::new();
-        o.insert("index".into(), J::from(i));
-        o.insert("uri".into(), J::String(uri));
-        o.insert("name".into(), J::String(name));
-        o.insert("label".into(), J::String(label));
-        o.insert("role".into(), J::String(role));
-        o.insert("tier".into(), J::from(tiers[i]));
-        dev_json.push(J::Object(o));
-    }
+    let dev_json = shape_device_json(devices, &role_over, &label_over, &tiers);
 
     // Shape the links, sorted for a stable, tier-ascending render.
     links.sort_by(|a, b| (tiers[a.from], a.from, a.to).cmp(&(tiers[b.from], b.from, b.to)));
-    let link_json: Vec<J> = links
-        .iter()
-        .map(|l| {
-            let vias: Vec<J> = l
-                .vias
-                .iter()
-                .map(|v| {
-                    let mut vo = Map::new();
-                    vo.insert("address".into(), J::String(v.address.clone()));
-                    vo.insert("fromObj".into(), J::String(v.from_obj.clone()));
-                    vo.insert("toObj".into(), J::String(v.to_obj.clone()));
-                    vo.insert("port".into(), J::String(v.port.clone()));
-                    J::Object(vo)
-                })
-                .collect();
-            let label_of = |i: usize| -> String {
-                dev_json
-                    .get(i)
-                    .and_then(J::as_object)
-                    .map_or(String::new(), |m| bstr(m, "label").to_string())
-            };
-            let mut o = Map::new();
-            o.insert("from".into(), J::from(l.from));
-            o.insert("to".into(), J::from(l.to));
-            o.insert("fromLabel".into(), J::String(label_of(l.from)));
-            o.insert("toLabel".into(), J::String(label_of(l.to)));
-            o.insert("source".into(), J::String(l.source.clone()));
-            if let Some(lbl) = &l.label {
-                o.insert("label".into(), J::String(lbl.clone()));
-            }
-            o.insert("viaCount".into(), J::from(l.vias.len()));
-            o.insert("vias".into(), J::Array(vias));
-            J::Object(o)
-        })
-        .collect();
+    let link_json = shape_link_json(&links, &dev_json);
 
     let graph = build_graph(&dev_json, &links, &tiers);
 
@@ -772,6 +717,78 @@ pub fn build_architecture(devices: &[J], manifest_text: Option<&str>) -> J {
         arch.insert("manifestError".into(), J::String(e));
     }
     J::Object(arch)
+}
+
+/// Shape the device entries with their resolved role/tier/label.
+fn shape_device_json(
+    devices: &[J],
+    role_over: &BTreeMap<usize, String>,
+    label_over: &BTreeMap<usize, String>,
+    tiers: &[i64],
+) -> Vec<J> {
+    let mut dev_json: Vec<J> = Vec::with_capacity(devices.len());
+    for (i, d) in devices.iter().enumerate() {
+        let dm = d.as_object();
+        let uri = dm.map_or("", |m| bstr(m, "uri")).to_string();
+        let name = dm.map_or("", |m| bstr(m, "name")).to_string();
+        let role = role_over.get(&i).cloned().unwrap_or_else(|| {
+            if dm.is_some_and(looks_like_gtm) {
+                "gtm".to_string()
+            } else {
+                "ltm".to_string()
+            }
+        });
+        let label = label_over.get(&i).cloned().unwrap_or_else(|| name.clone());
+        let mut o = Map::new();
+        o.insert("index".into(), J::from(i));
+        o.insert("uri".into(), J::String(uri));
+        o.insert("name".into(), J::String(name));
+        o.insert("label".into(), J::String(label));
+        o.insert("role".into(), J::String(role));
+        o.insert("tier".into(), J::from(tiers[i]));
+        dev_json.push(J::Object(o));
+    }
+    dev_json
+}
+
+/// Shape the (already-sorted) links into their JSON form, labelling endpoints
+/// from the shaped device entries.
+fn shape_link_json(links: &[Link], dev_json: &[J]) -> Vec<J> {
+    links
+        .iter()
+        .map(|l| {
+            let vias: Vec<J> = l
+                .vias
+                .iter()
+                .map(|v| {
+                    let mut vo = Map::new();
+                    vo.insert("address".into(), J::String(v.address.clone()));
+                    vo.insert("fromObj".into(), J::String(v.from_obj.clone()));
+                    vo.insert("toObj".into(), J::String(v.to_obj.clone()));
+                    vo.insert("port".into(), J::String(v.port.clone()));
+                    J::Object(vo)
+                })
+                .collect();
+            let label_of = |i: usize| -> String {
+                dev_json
+                    .get(i)
+                    .and_then(J::as_object)
+                    .map_or(String::new(), |m| bstr(m, "label").to_string())
+            };
+            let mut o = Map::new();
+            o.insert("from".into(), J::from(l.from));
+            o.insert("to".into(), J::from(l.to));
+            o.insert("fromLabel".into(), J::String(label_of(l.from)));
+            o.insert("toLabel".into(), J::String(label_of(l.to)));
+            o.insert("source".into(), J::String(l.source.clone()));
+            if let Some(lbl) = &l.label {
+                o.insert("label".into(), J::String(lbl.clone()));
+            }
+            o.insert("viaCount".into(), J::from(l.vias.len()));
+            o.insert("vias".into(), J::Array(vias));
+            J::Object(o)
+        })
+        .collect()
 }
 
 /// Shape the manifest's zone / interface / dns-zone / map declarations into the
@@ -917,7 +934,7 @@ mod tests {
             serde_json::json!({"uri": "edge.ucs", "name": "edge"}),
             serde_json::json!({"uri": "core.ucs", "name": "core"}),
         ];
-        let manifest = r#"
+        let manifest = r"
 device edge.ucs -role ltm -tier 1
 zone external -cidr 0.0.0.0/0
 zone dmz -cidr 192.0.2.0/24 -cidr 2001:db8:dmz::/48
@@ -926,7 +943,7 @@ dns-zone example.com -file example.com.zone -zone dmz
 cidr-name 10.1.0.0/16 {Datacenter A}
 service-map -file services.csv
 nat-map -file nat.csv
-"#;
+";
         let arch = build_architecture(&devices, Some(manifest));
         let o = arch.as_object().unwrap();
 
@@ -946,7 +963,10 @@ nat-map -file nat.csv
         assert_eq!(dns[0]["zone"], "dmz");
 
         let maps = o["maps"].as_object().unwrap();
-        assert_eq!(maps["cidrNames"].as_array().unwrap()[0]["label"], "Datacenter A");
+        assert_eq!(
+            maps["cidrNames"].as_array().unwrap()[0]["label"],
+            "Datacenter A"
+        );
         assert_eq!(maps["serviceMap"], "services.csv");
         assert_eq!(maps["natMap"], "nat.csv");
     }

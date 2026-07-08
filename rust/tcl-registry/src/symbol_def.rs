@@ -111,7 +111,12 @@ impl SymbolDef {
     /// no description argument, and every call treated as a definition.
     #[must_use]
     pub const fn new(name_arg: u8, kind: DefinedSymbolKind) -> Self {
-        Self { name_arg, detail_arg: None, requires_arg: None, kind }
+        Self {
+            name_arg,
+            detail_arg: None,
+            requires_arg: None,
+            kind,
+        }
     }
 
     /// Set the description argument index (see [`Self::detail_arg`]).

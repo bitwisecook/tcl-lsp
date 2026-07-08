@@ -501,7 +501,10 @@ fn imported_command_resolves_to_qualified_spec() {
 fn defstyle_scoped_command_hover() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "::report::defstyle st {} {\n    top set foo\n    columns\n}\n");
+    lsp.open_ready(
+        &uri,
+        "::report::defstyle st {} {\n    top set foo\n    columns\n}\n",
+    );
     // `top` (line 1, char 5) surfaces the scoped-environment hover.
     let h = hover(&mut lsp, &uri, 1, 5);
     assert!(h.contains("report style"), "scoped env hover: {h}");

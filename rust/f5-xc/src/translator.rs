@@ -26,7 +26,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
-use tcl_compiler::ir::{Module, Script, Statement, SwitchArm, when_event_name};
+use tcl_compiler::ir::{Module, Script, Statement, SwitchArm, SwitchMode, when_event_name};
 use tcl_compiler::lowering::lower_to_ir_with_config;
 use tcl_compiler::segmenter::segment_commands;
 use tcl_lexer::Span;
@@ -166,8 +166,11 @@ fn switch_subject_kind(subject: &str) -> Option<&'static str> {
     }
 }
 
-/// Convert a glob pattern like `/api/*` to an XC path match.
-fn glob_to_prefix(pattern: &str) -> XCPathMatch {
+/// Convert a glob pattern like `/api/*` to an XC path match. A single
+/// trailing `*` (with no other wildcard) becomes a `prefix` match; any
+/// other glob wildcard becomes a `regex`; a wildcard-free pattern is
+/// `exact`.
+fn glob_to_path_match(pattern: &str) -> XCPathMatch {
     let no_q = !pattern.contains('?');
     let star_only_at_end = pattern.ends_with('*') && !pattern[..pattern.len() - 1].contains('*');
     if star_only_at_end && no_q {
@@ -180,9 +183,93 @@ fn glob_to_prefix(pattern: &str) -> XCPathMatch {
             };
         }
     }
+    if pattern.contains(['*', '?']) {
+        return XCPathMatch {
+            match_type: "regex".to_owned(),
+            value: glob_to_regex(pattern),
+            invert: false,
+        };
+    }
     XCPathMatch {
         match_type: "exact".to_owned(),
         value: pattern.to_owned(),
+        invert: false,
+    }
+}
+
+/// Prefix a regex value with the case-insensitive flag when `nocase` is set.
+fn apply_nocase(regex: String, nocase: bool) -> String {
+    if nocase {
+        format!("(?i){regex}")
+    } else {
+        regex
+    }
+}
+
+/// Anchored regex that matches `pattern` literally.
+fn literal_to_regex(pattern: &str) -> String {
+    format!("^{}$", re_escape(pattern))
+}
+
+/// Translate one `switch` arm pattern to an XC path match, honouring the
+/// switch's [`SwitchMode`] and `nocase` flag.
+fn switch_path_match(pattern: &str, mode: SwitchMode, nocase: bool) -> XCPathMatch {
+    match mode {
+        SwitchMode::Regexp => XCPathMatch {
+            match_type: "regex".to_owned(),
+            value: apply_nocase(pattern.to_owned(), nocase),
+            invert: false,
+        },
+        SwitchMode::Glob if nocase => XCPathMatch {
+            match_type: "regex".to_owned(),
+            value: apply_nocase(glob_to_regex(pattern), nocase),
+            invert: false,
+        },
+        SwitchMode::Glob => glob_to_path_match(pattern),
+        SwitchMode::Exact if nocase => XCPathMatch {
+            match_type: "regex".to_owned(),
+            value: apply_nocase(literal_to_regex(pattern), nocase),
+            invert: false,
+        },
+        SwitchMode::Exact => XCPathMatch {
+            match_type: "exact".to_owned(),
+            value: pattern.to_owned(),
+            invert: false,
+        },
+    }
+}
+
+/// Translate one `switch` arm pattern to an XC host match, honouring the
+/// switch's [`SwitchMode`] and `nocase` flag. The host model supports only
+/// `exact` and `regex`, so glob patterns are lowered to regex.
+fn switch_host_match(pattern: &str, mode: SwitchMode, nocase: bool) -> XCHostMatch {
+    match mode {
+        SwitchMode::Regexp => XCHostMatch {
+            match_type: "regex".to_owned(),
+            value: apply_nocase(pattern.to_owned(), nocase),
+        },
+        SwitchMode::Glob => XCHostMatch {
+            match_type: "regex".to_owned(),
+            value: apply_nocase(glob_to_regex(pattern), nocase),
+        },
+        SwitchMode::Exact if nocase => XCHostMatch {
+            match_type: "regex".to_owned(),
+            value: apply_nocase(literal_to_regex(pattern), nocase),
+        },
+        SwitchMode::Exact => XCHostMatch {
+            match_type: "exact".to_owned(),
+            value: pattern.to_owned(),
+        },
+    }
+}
+
+/// Translate one `switch` arm pattern to an XC method match. HTTP methods
+/// are an enumerated, case-insensitive token set, so the XC method match
+/// cannot express glob/regex patterns; the pattern is upper-cased and
+/// matched as a literal method regardless of `mode`/`nocase`.
+fn switch_method_match(pattern: &str) -> XCMethodMatch {
+    XCMethodMatch {
+        methods: vec![pattern.to_uppercase()],
         invert: false,
     }
 }
@@ -917,11 +1004,15 @@ fn walk_statement(
             arms,
             default_body,
             span,
+            mode,
+            nocase,
             ..
         } => walk_switch(
             subject,
             arms,
             default_body.as_ref(),
+            *mode,
+            *nocase,
             *span,
             ctx,
             registry,
@@ -962,7 +1053,14 @@ fn walk_statement(
                 }
             }
             if let Some(eb) = else_body {
-                walk_script(eb, ctx, registry, depth + 1, &EnclosingContext::default());
+                // The `else` runs when every clause condition is false, but the
+                // outer (enclosing) criteria still hold — mirror `walk_switch`'s
+                // default-body handling, which keeps `enclosing` and only clears
+                // its own key. Preserve `enclosing` so an `else`-body action does
+                // not become an unconditional catch-all route (RUST_ISSUE_044).
+                // Any criterion the `if` clauses matched on is not part of
+                // `enclosing`, so it is already excluded here.
+                walk_script(eb, ctx, registry, depth + 1, enclosing);
             }
             if any_matched {
                 ctx.items.push(TranslationItem {
@@ -1037,11 +1135,96 @@ fn walk_statement(
     }
 }
 
+/// Which criterion a recognised `switch` subject constrains.
+#[derive(Debug, Clone, Copy)]
+enum SwitchTarget {
+    Path,
+    Host,
+    Method,
+}
+
+/// The pattern-matching semantics of a recognised `switch`, derived from its
+/// subject and its IR-carried `mode`/`nocase`.
+#[derive(Debug, Clone, Copy)]
+struct SwitchArmSpec {
+    target: SwitchTarget,
+    mode: SwitchMode,
+    nocase: bool,
+}
+
+/// Layer one arm's `pattern` (translated per the switch's mode/nocase) onto
+/// `base`, replacing only the target criterion.
+fn arm_context(base: &EnclosingContext, spec: SwitchArmSpec, pattern: &str) -> EnclosingContext {
+    let mut enc = base.clone();
+    match spec.target {
+        SwitchTarget::Path => enc.path = Some(switch_path_match(pattern, spec.mode, spec.nocase)),
+        SwitchTarget::Host => enc.host = Some(switch_host_match(pattern, spec.mode, spec.nocase)),
+        SwitchTarget::Method => enc.method = Some(switch_method_match(pattern)),
+    }
+    enc
+}
+
+/// Walk the arms (and default body) of a recognised `switch`.
+///
+/// Fall-through arms (`"/a*" -`) carry `body: None`; their pattern must be
+/// attached to the following non-fall-through arm's body so that every
+/// pattern routes to an action (`RUST_ISSUE_047`). Each arm's pattern is
+/// translated honouring the switch mode/nocase (`RUST_ISSUE_046`), and the
+/// default body keeps `enclosing` with only the switch's own key cleared.
+fn walk_switch_arms(
+    spec: SwitchArmSpec,
+    arms: &[SwitchArm],
+    default_body: Option<&Script>,
+    ctx: &mut TranslationContext,
+    registry: &CommandRegistry,
+    depth: u32,
+    enclosing: &EnclosingContext,
+) {
+    // Patterns of preceding fall-through arms awaiting a shared body.
+    let mut pending: Vec<&str> = Vec::new();
+    for arm in arms {
+        match arm.body.as_ref() {
+            // Fall-through arm: defer its pattern to the next arm with a body.
+            None => pending.push(&arm.pattern),
+            Some(body) => {
+                pending.push(&arm.pattern);
+                for pattern in pending.drain(..) {
+                    let enc = arm_context(enclosing, spec, pattern);
+                    walk_script(body, ctx, registry, depth + 1, &enc);
+                }
+            }
+        }
+    }
+    if let Some(db) = default_body {
+        // Fall-through patterns immediately preceding `default`
+        // (`"/old" - default { … }`) share the default arm's body: lowering
+        // peels `default` into `default_body` while the preceding
+        // fall-through arm stays in `arms` with `body: None`, so `pending`
+        // still holds those patterns here. Tcl runs the default body for each
+        // such pattern too, so emit a criterion-specific route for every
+        // pending pattern before the catch-all route with the key cleared
+        // (`RUST_ISSUE_047`).
+        for pattern in pending.drain(..) {
+            let enc = arm_context(enclosing, spec, pattern);
+            walk_script(db, ctx, registry, depth + 1, &enc);
+        }
+        let mut enc = enclosing.clone();
+        match spec.target {
+            SwitchTarget::Path => enc.path = None,
+            SwitchTarget::Host => enc.host = None,
+            SwitchTarget::Method => enc.method = None,
+        }
+        walk_script(db, ctx, registry, depth + 1, &enc);
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn walk_switch(
     subject: &str,
     arms: &[SwitchArm],
     default_body: Option<&Script>,
+    mode: SwitchMode,
+    nocase: bool,
     span: Span,
     ctx: &mut TranslationContext,
     registry: &CommandRegistry,
@@ -1051,23 +1234,12 @@ fn walk_switch(
     let kind = switch_subject_kind(subject);
     match kind {
         Some("path") => {
-            for arm in arms {
-                let Some(body) = arm.body.as_ref() else {
-                    continue;
-                };
-                if arm.fallthrough {
-                    continue;
-                }
-                let path_match = glob_to_prefix(&arm.pattern);
-                let mut enc = enclosing.clone();
-                enc.path = Some(path_match);
-                walk_script(body, ctx, registry, depth + 1, &enc);
-            }
-            if let Some(db) = default_body {
-                let mut enc = enclosing.clone();
-                enc.path = None;
-                walk_script(db, ctx, registry, depth + 1, &enc);
-            }
+            let spec = SwitchArmSpec {
+                target: SwitchTarget::Path,
+                mode,
+                nocase,
+            };
+            walk_switch_arms(spec, arms, default_body, ctx, registry, depth, enclosing);
             ctx.items.push(translated_route_item(
                 format!("switch {subject}"),
                 span,
@@ -1076,26 +1248,12 @@ fn walk_switch(
             ));
         }
         Some("host") => {
-            for arm in arms {
-                let Some(body) = arm.body.as_ref() else {
-                    continue;
-                };
-                if arm.fallthrough {
-                    continue;
-                }
-                let host_match = XCHostMatch {
-                    match_type: "exact".to_owned(),
-                    value: arm.pattern.clone(),
-                };
-                let mut enc = enclosing.clone();
-                enc.host = Some(host_match);
-                walk_script(body, ctx, registry, depth + 1, &enc);
-            }
-            if let Some(db) = default_body {
-                let mut enc = enclosing.clone();
-                enc.host = None;
-                walk_script(db, ctx, registry, depth + 1, &enc);
-            }
+            let spec = SwitchArmSpec {
+                target: SwitchTarget::Host,
+                mode,
+                nocase,
+            };
+            walk_switch_arms(spec, arms, default_body, ctx, registry, depth, enclosing);
             ctx.items.push(translated_route_item(
                 format!("switch {subject}"),
                 span,
@@ -1104,26 +1262,12 @@ fn walk_switch(
             ));
         }
         Some("method") => {
-            for arm in arms {
-                let Some(body) = arm.body.as_ref() else {
-                    continue;
-                };
-                if arm.fallthrough {
-                    continue;
-                }
-                let method_match = XCMethodMatch {
-                    methods: vec![arm.pattern.to_uppercase()],
-                    invert: false,
-                };
-                let mut enc = enclosing.clone();
-                enc.method = Some(method_match);
-                walk_script(body, ctx, registry, depth + 1, &enc);
-            }
-            if let Some(db) = default_body {
-                let mut enc = enclosing.clone();
-                enc.method = None;
-                walk_script(db, ctx, registry, depth + 1, &enc);
-            }
+            let spec = SwitchArmSpec {
+                target: SwitchTarget::Method,
+                mode,
+                nocase,
+            };
+            walk_switch_arms(spec, arms, default_body, ctx, registry, depth, enclosing);
             ctx.items.push(TranslationItem {
                 status: TranslateStatus::Translated,
                 kind: XCConstructKind::ServicePolicyRule,
@@ -1144,13 +1288,16 @@ fn walk_switch(
                 note: "Cannot statically determine match criteria".to_owned(),
                 diagnostic_code: "XC200".to_owned(),
             });
+            // The subject is dynamic, so no arm pattern can be mapped to a
+            // criterion — but the enclosing criteria still apply, so preserve
+            // them rather than dropping to a catch-all (RUST_ISSUE_044).
             for arm in arms {
                 if let Some(body) = arm.body.as_ref() {
-                    walk_script(body, ctx, registry, depth + 1, &EnclosingContext::default());
+                    walk_script(body, ctx, registry, depth + 1, enclosing);
                 }
             }
             if let Some(db) = default_body {
-                walk_script(db, ctx, registry, depth + 1, &EnclosingContext::default());
+                walk_script(db, ctx, registry, depth + 1, enclosing);
             }
         }
     }

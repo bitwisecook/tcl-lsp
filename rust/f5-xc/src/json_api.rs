@@ -78,6 +78,47 @@ fn query_match_dict(m: &XCQueryMatch) -> Value {
     Value::Object(o)
 }
 
+/// Build the `match` object for a route from every recorded criterion
+/// (path, host, method, headers, query, cookies). Shared by the simple,
+/// redirect, and direct-response route renderers so none silently drops a
+/// criterion the translator recorded (`RUST_ISSUE_045`).
+fn route_match_map(route: &XCRoute) -> Map<String, Value> {
+    let mut m = Map::new();
+    if let Some(pm) = &route.path_match {
+        m.insert("path".to_owned(), path_match_dict(pm));
+    }
+    if let Some(hm) = &route.host_match {
+        m.insert(
+            "host".to_owned(),
+            obj(vec![(hm.match_type.as_str(), json!(hm.value))]),
+        );
+    }
+    if let Some(mm) = &route.method_match {
+        let mut method = Map::new();
+        method.insert("methods".to_owned(), json!(mm.methods));
+        if mm.invert {
+            method.insert("invert_matcher".to_owned(), json!(true));
+        }
+        m.insert("http_method".to_owned(), Value::Object(method));
+    }
+    if !route.header_matches.is_empty() {
+        m.insert(
+            "headers".to_owned(),
+            Value::Array(route.header_matches.iter().map(header_match_dict).collect()),
+        );
+    }
+    if let Some(qm) = &route.query_match {
+        m.insert("query_params".to_owned(), json!([query_match_dict(qm)]));
+    }
+    if !route.cookie_matches.is_empty() {
+        m.insert(
+            "cookies".to_owned(),
+            Value::Array(route.cookie_matches.iter().map(cookie_match_dict).collect()),
+        );
+    }
+    m
+}
+
 fn render_origin_pool(pool: &XCOriginPool, namespace: &str) -> Value {
     json!({
         "metadata": { "name": pool.name, "namespace": namespace },
@@ -104,31 +145,7 @@ fn render_simple_route(route: &XCRoute) -> Value {
     let mut result = Map::new();
     result.insert("type".to_owned(), json!("simple_route"));
 
-    let mut m = Map::new();
-    if let Some(pm) = &route.path_match {
-        m.insert("path".to_owned(), path_match_dict(pm));
-    }
-    if let Some(hm) = &route.host_match {
-        m.insert(
-            "host".to_owned(),
-            obj(vec![(hm.match_type.as_str(), json!(hm.value))]),
-        );
-    }
-    if !route.header_matches.is_empty() {
-        m.insert(
-            "headers".to_owned(),
-            Value::Array(route.header_matches.iter().map(header_match_dict).collect()),
-        );
-    }
-    if let Some(qm) = &route.query_match {
-        m.insert("query_params".to_owned(), json!([query_match_dict(qm)]));
-    }
-    if !route.cookie_matches.is_empty() {
-        m.insert(
-            "cookies".to_owned(),
-            Value::Array(route.cookie_matches.iter().map(cookie_match_dict).collect()),
-        );
-    }
+    let m = route_match_map(route);
     if !m.is_empty() {
         result.insert("match".to_owned(), Value::Object(m));
     }
@@ -165,8 +182,9 @@ fn render_simple_route(route: &XCRoute) -> Value {
 fn render_redirect_route(route: &XCRoute) -> Value {
     let mut result = Map::new();
     result.insert("type".to_owned(), json!("redirect_route"));
-    if let Some(pm) = &route.path_match {
-        result.insert("match".to_owned(), obj(vec![("path", path_match_dict(pm))]));
+    let m = route_match_map(route);
+    if !m.is_empty() {
+        result.insert("match".to_owned(), Value::Object(m));
     }
     if let Some(redirect) = &route.redirect {
         let mut action = Map::new();
@@ -185,8 +203,9 @@ fn render_redirect_route(route: &XCRoute) -> Value {
 fn render_direct_response_route(route: &XCRoute) -> Value {
     let mut result = Map::new();
     result.insert("type".to_owned(), json!("direct_response_route"));
-    if let Some(pm) = &route.path_match {
-        result.insert("match".to_owned(), obj(vec![("path", path_match_dict(pm))]));
+    let m = route_match_map(route);
+    if !m.is_empty() {
+        result.insert("match".to_owned(), Value::Object(m));
     }
     if let Some(dr) = &route.direct_response {
         let mut action = Map::new();

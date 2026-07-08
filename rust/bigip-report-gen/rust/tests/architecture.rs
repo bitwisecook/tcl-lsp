@@ -24,8 +24,8 @@
 
 use std::collections::HashMap;
 
-use serde_json::Value as J;
 use bigip_report_gen_rust::{Source, collect_model, collect_model_with_architecture};
+use serde_json::Value as J;
 
 /// Empty cert-PEM map for the architecture-only tests (source-scoped:
 /// `uri -> {cache_path -> pem}`).

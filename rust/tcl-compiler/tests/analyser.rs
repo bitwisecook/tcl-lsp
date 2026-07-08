@@ -2101,7 +2101,11 @@ mod report_scoped_commands {
                    \x20 topdatasep enable\n\
                    \x20 columns\n\
                    }\n";
-        assert!(w123(src).is_empty(), "no W123 inside a valid style body: {:?}", w123(src));
+        assert!(
+            w123(src).is_empty(),
+            "no W123 inside a valid style body: {:?}",
+            w123(src)
+        );
         assert!(!fires(src, D, "E001"));
         assert!(!fires(src, D, "E002"));
         assert!(!fires(src, D, "E003"));
@@ -2114,7 +2118,11 @@ mod report_scoped_commands {
         let src = "::report::defstyle st {} {\n\
                    \x20 top set [string repeat \"= \" [columns]]\n\
                    }\n";
-        assert!(w123(src).is_empty(), "columns in a substitution resolves: {:?}", w123(src));
+        assert!(
+            w123(src).is_empty(),
+            "columns in a substitution resolves: {:?}",
+            w123(src)
+        );
     }
 
     #[test]
@@ -2127,7 +2135,11 @@ mod report_scoped_commands {
                    \x20 simpletable\n\
                    \x20 tcaption $n\n\
                    }\n";
-        assert!(w123(src).is_empty(), "sibling style resolves: {:?}", w123(src));
+        assert!(
+            w123(src).is_empty(),
+            "sibling style resolves: {:?}",
+            w123(src)
+        );
     }
 
     #[test]
@@ -2141,7 +2153,11 @@ mod report_scoped_commands {
                    \x20 top get\n\
                    }\n";
         for code in ["W123", "E001", "E002", "E003", "W001"] {
-            assert!(!fires(src, D, code), "{code} should not fire: {:?}", codes_of(src));
+            assert!(
+                !fires(src, D, code),
+                "{code} should not fire: {:?}",
+                codes_of(src)
+            );
         }
     }
 
@@ -2152,34 +2168,56 @@ mod report_scoped_commands {
         // `toop` / `dataa` are not scoped commands → still W123.
         let src = "::report::defstyle st {} {\n  toop set x\n  dataa set y\n}\n";
         let w = w123(src);
-        assert!(w.iter().any(|m| m.contains("toop")), "typo `toop` flagged: {w:?}");
-        assert!(w.iter().any(|m| m.contains("dataa")), "typo `dataa` flagged: {w:?}");
+        assert!(
+            w.iter().any(|m| m.contains("toop")),
+            "typo `toop` flagged: {w:?}"
+        );
+        assert!(
+            w.iter().any(|m| m.contains("dataa")),
+            "typo `dataa` flagged: {w:?}"
+        );
     }
 
     #[test]
     fn tp_unknown_operation_flagged_w001() {
         let src = "::report::defstyle st {} {\n  top bogus\n}\n";
-        assert!(fires(src, D, "W001"), "unknown op `top bogus` → W001: {:?}", codes_of(src));
+        assert!(
+            fires(src, D, "W001"),
+            "unknown op `top bogus` → W001: {:?}",
+            codes_of(src)
+        );
     }
 
     #[test]
     fn tp_bare_ensemble_requires_operation_e001() {
         let src = "::report::defstyle st {} {\n  top\n}\n";
-        assert!(fires(src, D, "E001"), "bare `top` → E001: {:?}", codes_of(src));
+        assert!(
+            fires(src, D, "E001"),
+            "bare `top` → E001: {:?}",
+            codes_of(src)
+        );
     }
 
     #[test]
     fn tp_operation_too_few_args_e002() {
         // `top set` needs the template value.
         let src = "::report::defstyle st {} {\n  top set\n}\n";
-        assert!(fires(src, D, "E002"), "`top set` (no value) → E002: {:?}", codes_of(src));
+        assert!(
+            fires(src, D, "E002"),
+            "`top set` (no value) → E002: {:?}",
+            codes_of(src)
+        );
     }
 
     #[test]
     fn tp_plain_command_too_many_args_e003() {
         // `columns` takes no arguments.
         let src = "::report::defstyle st {} {\n  columns extra\n}\n";
-        assert!(fires(src, D, "E003"), "`columns extra` → E003: {:?}", codes_of(src));
+        assert!(
+            fires(src, D, "E003"),
+            "`columns extra` → E003: {:?}",
+            codes_of(src)
+        );
     }
 
     // ---- FP guard: the scoped env must not wrongly suppress real code ----
@@ -2190,8 +2228,11 @@ mod report_scoped_commands {
         // scoped env must not swallow them.  `set` with one arg is fine; a
         // genuinely unknown core-looking head is still W123.
         let src = "::report::defstyle st {} {\n  set x 1\n  frobnicate a b\n}\n";
-        assert!(w123(src).iter().any(|m| m.contains("frobnicate")),
-            "unknown non-scoped head still W123: {:?}", w123(src));
+        assert!(
+            w123(src).iter().any(|m| m.contains("frobnicate")),
+            "unknown non-scoped head still W123: {:?}",
+            w123(src)
+        );
     }
 
     // ---- FN guard / scoping: scoped commands are unknown OUTSIDE the body ----
@@ -2201,8 +2242,14 @@ mod report_scoped_commands {
         // `top` / `columns` at top level are not real commands.
         let src = "top set x\ncolumns\n";
         let w = w123(src);
-        assert!(w.iter().any(|m| m.contains("top")), "`top` unknown outside body: {w:?}");
-        assert!(w.iter().any(|m| m.contains("columns")), "`columns` unknown outside body: {w:?}");
+        assert!(
+            w.iter().any(|m| m.contains("top")),
+            "`top` unknown outside body: {w:?}"
+        );
+        assert!(
+            w.iter().any(|m| m.contains("columns")),
+            "`columns` unknown outside body: {w:?}"
+        );
     }
 
     // ---- report namespace + object commands ----
@@ -2213,7 +2260,11 @@ mod report_scoped_commands {
         // (only W120 missing-require remains, which is correct).
         let src = "::report::styles\n::report::rmstyle foo\n::report::stylebody foo\n\
                    ::report::stylearguments foo\n";
-        assert!(w123(src).is_empty(), "report namespace commands known: {:?}", w123(src));
+        assert!(
+            w123(src).is_empty(),
+            "report namespace commands known: {:?}",
+            w123(src)
+        );
     }
 
     #[test]
@@ -2221,6 +2272,10 @@ mod report_scoped_commands {
         // `report::report` binds `r` as an object command; `r <method>` resolves
         // through the registry object class — no W123 on `r`.
         let src = "package require report\n::report::report r 3\nr data set x\nr printmatrix m\n";
-        assert!(w123(src).is_empty(), "report object methods resolve: {:?}", w123(src));
+        assert!(
+            w123(src).is_empty(),
+            "report object methods resolve: {:?}",
+            w123(src)
+        );
     }
 }

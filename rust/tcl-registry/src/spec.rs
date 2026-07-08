@@ -664,6 +664,37 @@ impl CommandSpec {
         names
     }
 
+    /// The declared [`OptionSpec`]s available in *dialect* (canonical
+    /// options plus every command-form option), deduped by name.
+    ///
+    /// The name-only [`Self::switch_names`] is enough to *recognise* a
+    /// leading option, but the analyser's arity check also needs to know
+    /// how many *value* words each option consumes (`-start 0` is two
+    /// words, not one), so a value word is not miscounted as a positional
+    /// argument. Returning the specs lets a consumer call
+    /// [`OptionSpec::value_word_count`]. Kept next to `switch_names` so the
+    /// two stay dialect-consistent.
+    #[must_use]
+    pub fn option_specs(&self, dialect: Option<DialectSet>) -> Vec<&'static OptionSpec> {
+        let mut specs: Vec<&'static OptionSpec> = Vec::new();
+        let mut consider = |opt: &'static OptionSpec| {
+            if opt.supports_dialect(dialect, self.dialects)
+                && !specs.iter().any(|o| o.name == opt.name)
+            {
+                specs.push(opt);
+            }
+        };
+        for opt in self.options {
+            consider(opt);
+        }
+        for form in self.command_forms {
+            for opt in form.options {
+                consider(opt);
+            }
+        }
+        specs
+    }
+
     /// Like [`Self::switch_names`], but optionally including documented
     /// abbreviation aliases (`-bd` for `-borderwidth`) and filtering by the
     /// resolved package version (dropping options whose `min_version` is
@@ -1105,6 +1136,29 @@ impl SubCommand {
             }
         }
         names
+    }
+
+    /// The declared [`OptionSpec`]s for this subcommand available in
+    /// *dialect* (see [`CommandSpec::option_specs`]). Carries the value
+    /// arity the analyser's arity check needs so a value-taking option's
+    /// value word (`file link -symbolic dst src`) is not miscounted as a
+    /// positional argument.
+    #[must_use]
+    pub fn option_specs(
+        &self,
+        dialect: Option<DialectSet>,
+        parent_dialects: Option<DialectSet>,
+    ) -> Vec<&'static OptionSpec> {
+        let effective_parent = self.dialects.or(parent_dialects);
+        let mut specs: Vec<&'static OptionSpec> = Vec::new();
+        for opt in self.options {
+            if opt.supports_dialect(dialect, effective_parent)
+                && !specs.iter().any(|o| o.name == opt.name)
+            {
+                specs.push(opt);
+            }
+        }
+        specs
     }
 
     /// Look up enumerable argument values for the 0-based

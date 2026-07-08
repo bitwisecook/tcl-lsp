@@ -291,8 +291,7 @@ fn next_dispatch_target(
         None
     };
     let hierarchy = analysis.class_hierarchy();
-    let next_class =
-        hierarchy.next_provider(&class_q, &method, &class_q, start_from.as_deref())?;
+    let next_class = hierarchy.next_provider(&class_q, &method, &class_q, start_from.as_deref())?;
     lookup_method_in_class(analysis, next_class, &method)
 }
 
@@ -780,7 +779,10 @@ mod tests {
         // Cursor inside the real `nextto` (line 9, col 44).
         let locs = definition(src, 9, 44, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");
-        assert_eq!(locs[0].start_line, 1, "should land on A::greet, not the string decoy");
+        assert_eq!(
+            locs[0].start_line, 1,
+            "should land on A::greet, not the string decoy"
+        );
         assert_eq!(locs[0].start_character, 11);
     }
 

@@ -38,32 +38,34 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "IP::addr IP_ADDR_MASK 'equals' IP_ADDR_MASK",
         }],
-        options: const { &[
-            OptionSpec {
-                name: "-swap",
-                value: OptionValue::flag(),
-                detail: "Swap byte order.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "-ipv4",
-                value: OptionValue::flag(),
-                detail: "Parse as IPv4 address.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "-ipv6",
-                value: OptionValue::flag(),
-                detail: "Parse as IPv6 address.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-        ] },
+        options: const {
+            &[
+                OptionSpec {
+                    name: "-swap",
+                    value: OptionValue::flag(),
+                    detail: "Swap byte order.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "-ipv4",
+                    value: OptionValue::flag(),
+                    detail: "Parse as IPv4 address.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "-ipv6",
+                    value: OptionValue::flag(),
+                    detail: "Parse as IPv6 address.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+            ]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,

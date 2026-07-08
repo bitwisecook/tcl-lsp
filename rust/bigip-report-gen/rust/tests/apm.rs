@@ -22,8 +22,8 @@
 //! access policy (logon page → AD auth → resource assign → allow/deny) with a
 //! network-access resource, lease pool, webtops and remote-desktop resources.
 
-use serde_json::Value as J;
 use bigip_report_gen_rust::{RenderOptions, build_report, collect_model};
+use serde_json::Value as J;
 
 fn scf() -> (String, String) {
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/apm.scf");

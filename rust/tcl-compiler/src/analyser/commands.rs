@@ -869,10 +869,12 @@ impl Analyser {
                 // so the in-walk arity / subcommand checks resolve them too.
                 if let Some(env) = body_scope {
                     let start = body_tok.span.start() + u32::from(body_tok.content_offset);
-                    self.result.scoped_command_regions.push(super::types::ScopedBodyRegion {
-                        span: tcl_lexer::Span::new(start, body_tok.span.end()),
-                        env,
-                    });
+                    self.result
+                        .scoped_command_regions
+                        .push(super::types::ScopedBodyRegion {
+                            span: tcl_lexer::Span::new(start, body_tok.span.end()),
+                            env,
+                        });
                     self.body_scope_stack.push(env);
                     self.analyse_body(body_text, body_tok, scope_path);
                     self.body_scope_stack.pop();
@@ -1440,9 +1442,7 @@ impl Analyser {
                 // Known user class: record the object → class mapping (for
                 // `$obj method` / method validation) and the created command
                 // name.
-                self.result
-                    .instance_classes
-                    .insert(name.clone(), class_q);
+                self.result.instance_classes.insert(name.clone(), class_q);
                 self.result.created_instance_commands.insert(name.clone());
             } else if self.command_head_could_be_external_class(cmd_name) {
                 // Unknown (external-package) class: the `create NAME` idiom
@@ -1467,7 +1467,10 @@ impl Analyser {
         if head.is_empty() || head.starts_with(['$', '[']) {
             return false;
         }
-        let known = self.registry.as_ref().is_some_and(|r| r.get(head).is_some())
+        let known = self
+            .registry
+            .as_ref()
+            .is_some_and(|r| r.get(head).is_some())
             || self.result.all_procs.contains_key(head)
             || self.result.all_procs.contains_key(&format!("::{head}"));
         !known

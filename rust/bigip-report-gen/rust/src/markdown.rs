@@ -18,7 +18,7 @@
 
 //! The single Markdown → HTML renderer for user-supplied report front-matter.
 //!
-//! Shared by every backend — the Python generator calls it through PyO3
+//! Shared by every backend — the Python generator calls it through `PyO3`
 //! (`_engine.render_markdown`), the Rust generator through `render.rs`, and the
 //! in-browser generator through the wasm bindings — so front-matter renders
 //! identically no matter which produced the report, and the report stays a
@@ -30,9 +30,10 @@
 
 use pulldown_cmark::{Event, Options, Parser, html};
 
-/// Render CommonMark + common GFM extensions (tables, strikethrough, task
+/// Render `CommonMark` + common GFM extensions (tables, strikethrough, task
 /// lists, footnotes, smart punctuation) to an HTML fragment, dropping any raw
 /// HTML the source contained.
+#[must_use]
 pub fn render_markdown(md: &str) -> String {
     let mut opts = Options::empty();
     opts.insert(Options::ENABLE_TABLES);
@@ -41,8 +42,8 @@ pub fn render_markdown(md: &str) -> String {
     opts.insert(Options::ENABLE_FOOTNOTES);
     opts.insert(Options::ENABLE_SMART_PUNCTUATION);
 
-    let parser = Parser::new_ext(md, opts)
-        .filter(|ev| !matches!(ev, Event::Html(_) | Event::InlineHtml(_)));
+    let parser =
+        Parser::new_ext(md, opts).filter(|ev| !matches!(ev, Event::Html(_) | Event::InlineHtml(_)));
 
     let mut out = String::new();
     html::push_html(&mut out, parser);
@@ -64,7 +65,10 @@ mod tests {
     #[test]
     fn strips_raw_html() {
         let html = render_markdown("ok <script>alert(1)</script> done");
-        assert!(!html.contains("<script>"), "raw HTML must be stripped: {html}");
+        assert!(
+            !html.contains("<script>"),
+            "raw HTML must be stripped: {html}"
+        );
     }
 
     #[test]

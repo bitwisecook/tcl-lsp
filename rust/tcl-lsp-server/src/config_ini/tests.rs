@@ -45,7 +45,10 @@ fn project_entry_points_list() {
     let s = settings_from_ini(ini, Layer::Project);
     assert_eq!(s["entryPoints"], json!(["main.tcl", "src/app.tcl"]));
     // A comma-separated one-liner is equivalent.
-    let comma = settings_from_ini("[project]\nentryPoints = main.tcl, src/app.tcl\n", Layer::Project);
+    let comma = settings_from_ini(
+        "[project]\nentryPoints = main.tcl, src/app.tcl\n",
+        Layer::Project,
+    );
     assert_eq!(comma["entryPoints"], json!(["main.tcl", "src/app.tcl"]));
     // Absent key ⇒ no entryPoints emitted (auto-detection stays on).
     let none = settings_from_ini("[project]\ndialect = tcl9.0\n", Layer::Project);

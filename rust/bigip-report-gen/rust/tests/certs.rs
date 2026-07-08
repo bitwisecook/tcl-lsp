@@ -19,8 +19,8 @@
 //! SSL-certificate tab: exercise the cert projection + cross-reference with an
 //! inline config (the lab UCS fixtures terminate no TLS, so carry no certs).
 
-use serde_json::Value as J;
 use bigip_report_gen_rust::{Source, collect_model, collect_model_with_certs};
+use serde_json::Value as J;
 
 const SCF: &str = r#"
 sys global-settings {
@@ -556,7 +556,9 @@ fn irule_flowchart_is_graph_json() {
     let g: serde_json::Value = serde_json::from_str(fc).expect("flowchart is JSON graph");
     let nodes = g["nodes"].as_array().expect("nodes array");
     assert!(
-        nodes.iter().any(|n| n["label"].as_str() == Some("HTTP_REQUEST")),
+        nodes
+            .iter()
+            .any(|n| n["label"].as_str() == Some("HTTP_REQUEST")),
         "event node present: {fc}"
     );
     assert!(g["edges"].is_array(), "edges array present: {fc}");

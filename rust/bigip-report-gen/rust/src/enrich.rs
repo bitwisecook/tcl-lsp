@@ -27,7 +27,7 @@
 //! DNS / NAT file enrichment (zone files, NAT CSV) layers on top of this via
 //! the query engine's side-inputs.
 
-use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::net::IpAddr;
 use std::str::FromStr;
 
@@ -87,23 +87,23 @@ fn parse_nets(items: &[(String, String)]) -> Vec<(IpNet, String)> {
             Some((net, label.clone()))
         })
         .collect();
-    out.sort_by(|a, b| b.0.prefix_len().cmp(&a.0.prefix_len()));
+    out.sort_by_key(|b| std::cmp::Reverse(b.0.prefix_len()));
     out
 }
 
 /// Collect the distinct addresses and ports referenced across every device.
 fn collect_addrs_ports(devices: &[J]) -> (Vec<String>, Vec<i64>) {
-    let mut addrs: BTreeMap<String, ()> = BTreeMap::new();
-    let mut ports: BTreeMap<i64, ()> = BTreeMap::new();
+    let mut addrs: BTreeSet<String> = BTreeSet::new();
+    let mut ports: BTreeSet<i64> = BTreeSet::new();
     {
         let mut add_addr = |s: &str| {
             if to_ip(s).is_some() {
-                addrs.insert(s.trim().to_string(), ());
+                addrs.insert(s.trim().to_string());
             }
         };
         let mut add_port = |s: &str| {
             if let Ok(p) = s.trim().parse::<i64>() {
-                ports.insert(p, ());
+                ports.insert(p);
             }
         };
         for d in devices {
@@ -130,7 +130,7 @@ fn collect_addrs_ports(devices: &[J]) -> (Vec<String>, Vec<i64>) {
             }
         }
     }
-    (addrs.into_keys().collect(), ports.into_keys().collect())
+    (addrs.into_iter().collect(), ports.into_iter().collect())
 }
 
 /// Build the `enrichment` model block from the model devices and the already-
@@ -155,7 +155,7 @@ pub fn build_enrichment(devices: &[J], architecture: &J) -> J {
             }
         }
     }
-    zone_nets.sort_by(|a, b| b.0.prefix_len().cmp(&a.0.prefix_len()));
+    zone_nets.sort_by_key(|b| std::cmp::Reverse(b.0.prefix_len()));
 
     // cidr-name entries.
     let cidr_pairs: Vec<(String, String)> = arch
@@ -179,8 +179,14 @@ pub fn build_enrichment(devices: &[J], architecture: &J) -> J {
     let mut addr_map = Map::new();
     for a in addrs {
         let Some(ip) = to_ip(&a) else { continue };
-        let zone = zone_nets.iter().find(|(n, _)| net_contains(n, ip)).map(|(_, l)| l);
-        let cidr_name = cidr_nets.iter().find(|(n, _)| net_contains(n, ip)).map(|(_, l)| l);
+        let zone = zone_nets
+            .iter()
+            .find(|(n, _)| net_contains(n, ip))
+            .map(|(_, l)| l);
+        let cidr_name = cidr_nets
+            .iter()
+            .find(|(n, _)| net_contains(n, ip))
+            .map(|(_, l)| l);
         if zone.is_none() && cidr_name.is_none() {
             continue;
         }

@@ -13,11 +13,10 @@
 //! *designed* to handle (a control-flow join of two known classes) — a
 //! correct `Resolved` set.
 
-
+use tcl_compiler::analyser::class_lattice::TopReason;
 use tcl_compiler::analyser::class_lattice::{
     AblationConfig, DispatchVerdict, NsContext, SiteReport, analyse_dispatch,
 };
-use tcl_compiler::analyser::class_lattice::TopReason;
 use tcl_compiler::analyser::state::Analyser;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
@@ -28,7 +27,8 @@ fn resolve(src: &str) -> Vec<SiteReport> {
     let reg = CommandRegistry::build_default();
     let mut a = Analyser::new();
     let result = a.analyse(src, "tcl8.6");
-    let cu = CompilationUnit::build_for(src, &reg, false).with_interprocedural(&reg, Some("tcl8.6"));
+    let cu =
+        CompilationUnit::build_for(src, &reg, false).with_interprocedural(&reg, Some("tcl8.6"));
     let ns = NsContext::from_result(&result);
     let (reports, _stats) = analyse_dispatch(
         &cu,
@@ -77,8 +77,15 @@ fn factory_return_abstains() {
     // is forbidden is a confident *wrong* class.
     match verdict_for(&src, "o", "speak") {
         DispatchVerdict::Abstain(TopReason::FactoryReturn) => {}
-        DispatchVerdict::Resolved { classes, method_known, .. } => {
-            assert!(classes.iter().all(|c| c == "::Dog"), "must not name a wrong class: {classes:?}");
+        DispatchVerdict::Resolved {
+            classes,
+            method_known,
+            ..
+        } => {
+            assert!(
+                classes.iter().all(|c| c == "::Dog"),
+                "must not name a wrong class: {classes:?}"
+            );
             assert!(method_known);
         }
         v @ DispatchVerdict::Abstain(_) => panic!("unexpected verdict: {v:?}"),
@@ -127,11 +134,13 @@ fn bare_parameter_receiver_abstains_unknown() {
 fn control_flow_join_resolves_the_set_correctly() {
     // The one case the lattice is *designed* to nail: a join of two known
     // classes, both of which implement the method.
-    let src = with_classes(
-        "if {$flag} { set o [Dog new] } else { set o [Cat new] }\n$o speak",
-    );
+    let src = with_classes("if {$flag} { set o [Dog new] } else { set o [Cat new] }\n$o speak");
     match verdict_for(&src, "o", "speak") {
-        DispatchVerdict::Resolved { classes, method_known, .. } => {
+        DispatchVerdict::Resolved {
+            classes,
+            method_known,
+            ..
+        } => {
             assert!(classes.contains("::Dog"), "classes={classes:?}");
             assert!(classes.contains("::Cat"), "classes={classes:?}");
             assert!(method_known, "both Dog and Cat implement speak");
@@ -145,7 +154,11 @@ fn concrete_binding_resolves() {
     // Positive control: a plain local constructor resolves cleanly.
     let src = with_classes("set o [Dog new]\n$o speak");
     match verdict_for(&src, "o", "speak") {
-        DispatchVerdict::Resolved { classes, method_known, providers } => {
+        DispatchVerdict::Resolved {
+            classes,
+            method_known,
+            providers,
+        } => {
             assert_eq!(classes.iter().cloned().collect::<Vec<_>>(), vec!["::Dog"]);
             assert!(method_known);
             assert!(providers.contains("::Dog"));
@@ -160,10 +173,16 @@ fn unknown_method_on_known_class_is_resolved_not_abstained() {
     // resolver *names the class* (not ⊤) but flags the method unknown.
     let src = with_classes("set o [Dog new]\n$o fly");
     match verdict_for(&src, "o", "fly") {
-        DispatchVerdict::Resolved { method_known, classes, .. } => {
+        DispatchVerdict::Resolved {
+            method_known,
+            classes,
+            ..
+        } => {
             assert!(classes.contains("::Dog"));
             assert!(!method_known, "Dog has no `fly` and no unknown handler");
         }
-        v @ DispatchVerdict::Abstain(_) => panic!("expected resolved-but-unknown-method, got {v:?}"),
+        v @ DispatchVerdict::Abstain(_) => {
+            panic!("expected resolved-but-unknown-method, got {v:?}")
+        }
     }
 }

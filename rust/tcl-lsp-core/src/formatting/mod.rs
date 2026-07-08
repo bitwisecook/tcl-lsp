@@ -214,10 +214,9 @@ pub fn range_formatting(
 /// policy.
 fn finalise_slice(text: &str, config: &FormatterConfig) -> String {
     let mut out = if config.trim_trailing_whitespace {
-        text.split('\n')
-            .map(str::trim_end)
-            .collect::<Vec<_>>()
-            .join("\n")
+        // Brace/quote-aware trim so a multi-line string literal's interior is
+        // preserved (RUST_ISSUE_037).
+        engine::trim_trailing_ws_preserving_literals(text)
     } else {
         text.to_owned()
     };

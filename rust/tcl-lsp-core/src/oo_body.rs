@@ -305,11 +305,17 @@ mod tests {
     #[test]
     fn tcloo_member_body_indices_cover_every_shape() {
         let g = &TCLOO_GRAMMAR;
-        assert_eq!(member_body_indices(g, "constructor", &["{}", "body"]), vec![1]);
+        assert_eq!(
+            member_body_indices(g, "constructor", &["{}", "body"]),
+            vec![1]
+        );
         assert_eq!(member_body_indices(g, "destructor", &["body"]), vec![0]);
         assert_eq!(member_body_indices(g, "initialise", &["body"]), vec![0]);
         assert_eq!(member_body_indices(g, "private", &["body"]), vec![0]);
-        assert_eq!(member_body_indices(g, "method", &["n", "{}", "body"]), vec![2]);
+        assert_eq!(
+            member_body_indices(g, "method", &["n", "{}", "body"]),
+            vec![2]
+        );
         assert_eq!(
             member_body_indices(g, "classmethod", &["n", "{a}", "body"]),
             vec![2]
@@ -318,7 +324,10 @@ mod tests {
             member_body_indices(g, "self", &["constructor", "{}", "body"]),
             vec![2]
         );
-        assert_eq!(member_body_indices(g, "self", &["destructor", "body"]), vec![1]);
+        assert_eq!(
+            member_body_indices(g, "self", &["destructor", "body"]),
+            vec![1]
+        );
         assert_eq!(
             member_body_indices(g, "self", &["method", "n", "{}", "body"]),
             vec![3]
@@ -332,8 +341,14 @@ mod tests {
     #[test]
     fn tcloo_member_param_indices() {
         let g = &TCLOO_GRAMMAR;
-        assert_eq!(member_param_indices(g, "method", &["n", "{a}", "b"]), vec![1]);
-        assert_eq!(member_param_indices(g, "constructor", &["{a}", "b"]), vec![0]);
+        assert_eq!(
+            member_param_indices(g, "method", &["n", "{a}", "b"]),
+            vec![1]
+        );
+        assert_eq!(
+            member_param_indices(g, "constructor", &["{a}", "b"]),
+            vec![0]
+        );
         assert_eq!(
             member_param_indices(g, "self", &["method", "n", "{a}", "b"]),
             vec![2]
@@ -348,10 +363,22 @@ mod tests {
             member_body_indices(g, "typemethod", &["n", "{a}", "body"]),
             vec![2]
         );
-        assert_eq!(member_param_indices(g, "typemethod", &["n", "{a}", "b"]), vec![1]);
-        assert_eq!(member_body_indices(g, "typeconstructor", &["body"]), vec![0]);
-        assert_eq!(member_body_indices(g, "onconfigure", &["-o", "vv", "body"]), vec![2]);
-        assert_eq!(member_var_indices(g, "onconfigure", &["-o", "vv", "body"]), vec![1]);
+        assert_eq!(
+            member_param_indices(g, "typemethod", &["n", "{a}", "b"]),
+            vec![1]
+        );
+        assert_eq!(
+            member_body_indices(g, "typeconstructor", &["body"]),
+            vec![0]
+        );
+        assert_eq!(
+            member_body_indices(g, "onconfigure", &["-o", "vv", "body"]),
+            vec![2]
+        );
+        assert_eq!(
+            member_var_indices(g, "onconfigure", &["-o", "vv", "body"]),
+            vec![1]
+        );
         assert_eq!(member_body_indices(g, "oncget", &["-o", "body"]), vec![1]);
         assert_eq!(member_var_indices(g, "typevariable", &["v"]), vec![0]);
         assert_eq!(member_var_indices(g, "component", &["c"]), vec![0]);
@@ -360,7 +387,10 @@ mod tests {
     #[test]
     fn tcloo_variable_marks_every_name() {
         let g = &TCLOO_GRAMMAR;
-        assert_eq!(member_var_indices(g, "variable", &["a", "b", "c"]), vec![0, 1, 2]);
+        assert_eq!(
+            member_var_indices(g, "variable", &["a", "b", "c"]),
+            vec![0, 1, 2]
+        );
     }
 
     #[test]
@@ -376,7 +406,9 @@ mod tests {
         let reg = registry();
         let tcloo = Some(&TCLOO_GRAMMAR);
         // Entering an outer (metaclass create) body switches on.
-        assert!(next_definition_grammar("oo::class", &["create", "C", "{b}"], None, &reg).is_some());
+        assert!(
+            next_definition_grammar("oo::class", &["create", "C", "{b}"], None, &reg).is_some()
+        );
         assert!(next_definition_grammar("snit::type", &["C", "{b}"], None, &reg).is_some());
         // `oo::define` script form switches on; member form does not.
         assert!(next_definition_grammar("oo::define", &["C", "{script}"], None, &reg).is_some());

@@ -39,7 +39,6 @@
 //! path sensitivity) — deliberately, since the question is "what is the
 //! most interprocedural flow could buy?".
 
-
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -127,8 +126,13 @@ fn loopvar_binding(src: &str, lo: u32, hi: u32, var: &str) -> Option<(&'static s
     let region = &src[lo..hi];
     // Match `foreach … var … LIST`, `lmap … var … LIST`,
     // `dict for {k var} DICT`, `dict map {k var} DICT`, `upvar … var`.
-    for (kw, kind) in [("foreach", "foreach"), ("lmap", "lmap"), ("dict for", "dict-for"),
-                       ("dict map", "dict-map"), ("upvar", "upvar")] {
+    for (kw, kind) in [
+        ("foreach", "foreach"),
+        ("lmap", "lmap"),
+        ("dict for", "dict-for"),
+        ("dict map", "dict-map"),
+        ("upvar", "upvar"),
+    ] {
         let mut from = 0usize;
         while let Some(p) = region[from..].find(kw) {
             let start = from + p;
@@ -137,10 +141,13 @@ fn loopvar_binding(src: &str, lo: u32, hi: u32, var: &str) -> Option<(&'static s
             let after = start + kw.len();
             if ok_before {
                 // Look at the words up to end-of-line: does the var list contain `var`?
-                let eol = region[after..].find('\n').map_or(region.len(), |i| after + i);
+                let eol = region[after..]
+                    .find('\n')
+                    .map_or(region.len(), |i| after + i);
                 let head = &region[after..eol];
                 // var must appear as a bare word (loop var) — not `$var`.
-                if head.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == ':'))
+                if head
+                    .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == ':'))
                     .any(|w| w == var)
                 {
                     // Collection = the expression after the (possibly braced)
@@ -155,7 +162,10 @@ fn loopvar_binding(src: &str, lo: u32, hi: u32, var: &str) -> Option<(&'static s
                         h.split_once(char::is_whitespace).map_or("", |(_, t)| t)
                     };
                     // Trim a trailing `{…}` body.
-                    let coll = rest.trim().split_once('{').map_or(rest.trim(), |(c, _)| c.trim());
+                    let coll = rest
+                        .trim()
+                        .split_once('{')
+                        .map_or(rest.trim(), |(c, _)| c.trim());
                     return Some((kind, coll.to_string()));
                 }
             }
@@ -165,7 +175,11 @@ fn loopvar_binding(src: &str, lo: u32, hi: u32, var: &str) -> Option<(&'static s
     None
 }
 
-fn analyse_file(path: &Path, reg: &CommandRegistry, merged: &HashMap<String, ClassDef>) -> Option<FileUnit> {
+fn analyse_file(
+    path: &Path,
+    reg: &CommandRegistry,
+    merged: &HashMap<String, ClassDef>,
+) -> Option<FileUnit> {
     let src = std::fs::read_to_string(path).ok()?;
     if src.len() > 2_000_000 {
         return None;
@@ -199,7 +213,15 @@ fn analyse_file(path: &Path, reg: &CommandRegistry, merged: &HashMap<String, Cla
                 });
             }
         }
-        FileUnit { cu, ns, result, src, sites: a.var_command_sites.clone(), values, scopes }
+        FileUnit {
+            cu,
+            ns,
+            result,
+            src,
+            sites: a.var_command_sites.clone(),
+            values,
+            scopes,
+        }
     }))
     .ok()
 }
@@ -219,7 +241,9 @@ fn strip_dollar(text: &str) -> Option<String> {
         .and_then(|r| r.strip_suffix('}'))
         .unwrap_or(rest);
     (!inner.is_empty()
-        && inner.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':'))
+        && inner
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':'))
     .then(|| inner.to_string())
 }
 
@@ -232,7 +256,10 @@ fn container_var(list_arg: &str) -> Option<String> {
     if let Some(v) = strip_dollar(a) {
         return Some(v);
     }
-    let inner = a.strip_prefix('[').and_then(|s| s.strip_suffix(']'))?.trim();
+    let inner = a
+        .strip_prefix('[')
+        .and_then(|s| s.strip_suffix(']'))?
+        .trim();
     let rest = inner.strip_prefix("dict ")?;
     // `dict values $X` → objects; `dict keys` → names (reject).
     let rest = rest.trim_start();
@@ -291,7 +318,10 @@ fn build_units(roots: &[PathBuf]) -> (Vec<FileUnit>, HashMap<String, ClassDef>) 
     let mut merged: HashMap<String, ClassDef> = HashMap::new();
     let mut srcs: Vec<PathBuf> = Vec::new();
     for p in &files {
-        if let Some(src) = std::fs::read_to_string(p).ok().filter(|s| s.len() <= 2_000_000) {
+        if let Some(src) = std::fs::read_to_string(p)
+            .ok()
+            .filter(|s| s.len() <= 2_000_000)
+        {
             let mut a = Analyser::new();
             let r = a.analyse(&src, "tcl8.6");
             for (k, v) in r.all_classes {
@@ -318,7 +348,10 @@ fn build_proc_registry(
     let mut proc_params: HashMap<String, Vec<String>> = HashMap::new();
     for u in units {
         for (qn, pd) in &u.result.all_procs {
-            proc_params.insert(qn.clone(), pd.params.iter().map(|p| p.name.clone()).collect());
+            proc_params.insert(
+                qn.clone(),
+                pd.params.iter().map(|p| p.name.clone()).collect(),
+            );
         }
     }
     let mut bare_to_q: HashMap<String, Vec<String>> = HashMap::new();
@@ -364,9 +397,20 @@ fn build_coll_elem(
         }
     };
     if std::env::var("CEDBG").is_ok() {
-        let da: usize = units.iter().map(|u| u.src.lines().filter(|l| l.trim_start().starts_with("dict append")).count()).sum();
+        let da: usize = units
+            .iter()
+            .map(|u| {
+                u.src
+                    .lines()
+                    .filter(|l| l.trim_start().starts_with("dict append"))
+                    .count()
+            })
+            .sum();
         let srclines: usize = units.iter().map(|u| u.src.lines().count()).sum();
-        eprintln!("[CEDBG] units={} src_lines={srclines} dict-append-lines={da}", units.len());
+        eprintln!(
+            "[CEDBG] units={} src_lines={srclines} dict-append-lines={da}",
+            units.len()
+        );
     }
     for u in units {
         for raw in u.src.lines() {
@@ -465,9 +509,9 @@ fn receiver_taxonomy(
                 }
             } else if in_class_var {
                 n_instvar += 1;
-                let bound = units.iter().any(|u2| {
-                    u2.values.get(var).and_then(classes_of).is_some()
-                });
+                let bound = units
+                    .iter()
+                    .any(|u2| u2.values.get(var).and_then(classes_of).is_some());
                 if bound {
                     instvar_recoverable += 1;
                 }
@@ -475,8 +519,10 @@ fn receiver_taxonomy(
                 n_global += 1;
                 if std::env::var("SAMPLE").is_ok() && n_global <= 40 {
                     let scope = encl.map_or("TOP", |s| s.qname.as_str());
-                    eprintln!("  other: ${var} {} in scope [{scope}]",
-                        rep.method.as_deref().unwrap_or(""));
+                    eprintln!(
+                        "  other: ${var} {} in scope [{scope}]",
+                        rep.method.as_deref().unwrap_or("")
+                    );
                 }
             }
         }
@@ -511,7 +557,11 @@ fn parameter_ceiling(
     let hop_counts = |param_class: &ParamClass| -> usize {
         param_sites
             .iter()
-            .filter(|(q, p)| param_class.get(&(q.clone(), p.clone())).is_some_and(|s| !s.is_empty()))
+            .filter(|(q, p)| {
+                param_class
+                    .get(&(q.clone(), p.clone()))
+                    .is_some_and(|s| !s.is_empty())
+            })
             .count()
     };
     let mut ceiling_by_hop: Vec<usize> = Vec::new();
@@ -526,13 +576,27 @@ fn parameter_ceiling(
             for (_qn, fu) in cu_units {
                 for block in fu.cfg.blocks.values() {
                     for stmt in &block.statements {
-                        let (Statement::Call { command, args, span, .. }
-                        | Statement::Barrier { command, args, span, .. }) = stmt
+                        let (Statement::Call {
+                            command,
+                            args,
+                            span,
+                            ..
+                        }
+                        | Statement::Barrier {
+                            command,
+                            args,
+                            span,
+                            ..
+                        }) = stmt
                         else {
                             continue;
                         };
-                        let Some(callee) = resolve_call(command, proc_params, bare_to_q) else { continue };
-                        let Some(params) = proc_params.get(&callee) else { continue };
+                        let Some(callee) = resolve_call(command, proc_params, bare_to_q) else {
+                            continue;
+                        };
+                        let Some(params) = proc_params.get(&callee) else {
+                            continue;
+                        };
                         let caller_scope = enclosing(&u.scopes, span.start());
                         for (i, arg) in args.iter().enumerate() {
                             let Some(pname) = params.get(i) else { break };
@@ -578,26 +642,27 @@ fn print_report(
     units: &[FileUnit],
     merged: &HashMap<String, ClassDef>,
     coll_elem: &HashMap<String, HashSet<String>>,
-    tax: Taxonomy,
+    tax: &Taxonomy,
     param_class: &ParamClass,
     ceiling_by_hop: &[usize],
 ) {
-    let Taxonomy {
-        n_unknown,
-        n_param,
-        n_instvar,
-        n_iter,
-        iter_typeable,
-        n_upvar,
-        n_global,
-        instvar_recoverable,
-        param_sites,
-    } = tax;
+    // ---- report ----
+    println!("# mro_interproc — interprocedural object→class ceiling");
+    println!("files={} merged_classes={}", units.len(), merged.len());
+    print_coll_elem_debug(coll_elem);
+    println!();
+    print_receiver_taxonomy(tax);
+    print_parameter_ceiling(tax, param_class, ceiling_by_hop);
+}
 
-    // Single vs multi class among recovered param sites.
+/// Single vs multi class counts among recovered param sites.
+fn count_recovered_param_classes(
+    param_sites: &[(String, String)],
+    param_class: &ParamClass,
+) -> (usize, usize) {
     let mut recovered_single = 0usize;
     let mut recovered_multi = 0usize;
-    for (q, p) in &param_sites {
+    for (q, p) in param_sites {
         if let Some(s) = param_class.get(&(q.clone(), p.clone())) {
             match s.len() {
                 0 => {}
@@ -606,26 +671,62 @@ fn print_report(
             }
         }
     }
-    let param_recovered = recovered_single + recovered_multi;
+    (recovered_single, recovered_multi)
+}
 
-    // ---- report ----
-    println!("# mro_interproc — interprocedural object→class ceiling");
-    println!("files={} merged_classes={}", units.len(), merged.len());
+/// Optional `CEDBG`-gated dump of the collection-element map.
+fn print_coll_elem_debug(coll_elem: &HashMap<String, HashSet<String>>) {
     if std::env::var("CEDBG").is_ok() {
         eprintln!("[CEDBG] coll_elem entries: {}", coll_elem.len());
         for (k, v) in coll_elem.iter().take(15) {
             eprintln!("[CEDBG]   {k} -> {v:?}");
         }
     }
-    println!();
+}
+
+/// Receiver taxonomy plus the container and instance-variable ceilings.
+fn print_receiver_taxonomy(tax: &Taxonomy) {
+    let &Taxonomy {
+        n_unknown,
+        n_param,
+        n_instvar,
+        n_iter,
+        iter_typeable,
+        n_upvar,
+        n_global,
+        instvar_recoverable,
+        ..
+    } = tax;
+
     println!("## Receiver taxonomy of `unknown` ⊤ abstentions");
-    let pct = |n: usize| if n_unknown == 0 { 0.0 } else { 100.0 * as_f64(n) / as_f64(n_unknown) };
+    let pct = |n: usize| {
+        if n_unknown == 0 {
+            0.0
+        } else {
+            100.0 * as_f64(n) / as_f64(n_unknown)
+        }
+    };
     println!("  total unknown-⊤ sites:        {n_unknown}");
-    println!("    proc/method parameter:      {n_param}  ({:.1}%)", pct(n_param));
-    println!("    container iteration:        {n_iter}  ({:.1}%)   [foreach/lmap/dict-for over a collection]", pct(n_iter));
-    println!("    class instance variable:    {n_instvar}  ({:.1}%)", pct(n_instvar));
-    println!("    upvar alias:                {n_upvar}  ({:.1}%)", pct(n_upvar));
-    println!("    global / other:             {n_global}  ({:.1}%)", pct(n_global));
+    println!(
+        "    proc/method parameter:      {n_param}  ({:.1}%)",
+        pct(n_param)
+    );
+    println!(
+        "    container iteration:        {n_iter}  ({:.1}%)   [foreach/lmap/dict-for over a collection]",
+        pct(n_iter)
+    );
+    println!(
+        "    class instance variable:    {n_instvar}  ({:.1}%)",
+        pct(n_instvar)
+    );
+    println!(
+        "    upvar alias:                {n_upvar}  ({:.1}%)",
+        pct(n_upvar)
+    );
+    println!(
+        "    global / other:             {n_global}  ({:.1}%)",
+        pct(n_global)
+    );
     println!();
     println!("## Container element-typing ceiling (iteration over a typed object collection)");
     println!("  typeable container receivers: {iter_typeable} / {n_iter}");
@@ -633,20 +734,61 @@ fn print_report(
     println!("## Instance-variable ceiling (intra-class constructor binding)");
     println!("  recoverable instance-var receivers: {instvar_recoverable} / {n_instvar}");
     println!();
+}
+
+/// Parameter ceiling by hop plus the combined ceiling over the unknown bucket.
+fn print_parameter_ceiling(tax: &Taxonomy, param_class: &ParamClass, ceiling_by_hop: &[usize]) {
+    let Taxonomy {
+        n_unknown,
+        iter_typeable,
+        instvar_recoverable,
+        param_sites,
+        ..
+    } = tax;
+    let (n_unknown, iter_typeable, instvar_recoverable) =
+        (*n_unknown, *iter_typeable, *instvar_recoverable);
+
+    let (recovered_single, recovered_multi) =
+        count_recovered_param_classes(param_sites, param_class);
+    let param_recovered = recovered_single + recovered_multi;
+
     println!("## Parameter ceiling (caller→param class propagation)");
     for (h, c) in ceiling_by_hop.iter().enumerate() {
-        let tag = if h == 0 { "1-hop" } else if h + 1 == ceiling_by_hop.len() { "fixpoint" } else { "iter" };
-        println!("  after hop {}: {c} / {} param sites resolvable  [{tag}]", h + 1, param_sites.len());
+        let tag = if h == 0 {
+            "1-hop"
+        } else if h + 1 == ceiling_by_hop.len() {
+            "fixpoint"
+        } else {
+            "iter"
+        };
+        println!(
+            "  after hop {}: {c} / {} param sites resolvable  [{tag}]",
+            h + 1,
+            param_sites.len()
+        );
     }
-    let param_pct = if param_sites.is_empty() { 0.0 } else { 100.0 * as_f64(param_recovered) / as_f64(param_sites.len()) };
-    println!("  fixpoint recovered: {param_recovered} / {} ({:.1}%)  [single-class {recovered_single}, multi-class {recovered_multi}]",
-        param_sites.len(), param_pct);
+    let param_pct = if param_sites.is_empty() {
+        0.0
+    } else {
+        100.0 * as_f64(param_recovered) / as_f64(param_sites.len())
+    };
+    println!(
+        "  fixpoint recovered: {param_recovered} / {} ({:.1}%)  [single-class {recovered_single}, multi-class {recovered_multi}]",
+        param_sites.len(),
+        param_pct
+    );
     println!();
     // Combined ceiling: how much of the unknown-⊤ bucket becomes resolvable.
     let combined = param_recovered + instvar_recoverable + iter_typeable;
     println!("## Combined ceiling over `unknown` ⊤ (all three levers)");
-    println!("  {combined} / {n_unknown} unknown-⊤ sites recoverable ({:.1}%)",
-        if n_unknown == 0 { 0.0 } else { 100.0 * as_f64(combined) / as_f64(n_unknown) });
+    println!(
+        "  {combined} / {n_unknown} unknown-⊤ sites recoverable ({:.1}%)",
+        if n_unknown == 0 {
+            0.0
+        } else {
+            100.0 * as_f64(combined) / as_f64(n_unknown)
+        }
+    );
     println!("    container element-typing: {iter_typeable}");
     println!("    interproc param flow:     {param_recovered}  (single-class {recovered_single})");
     println!("    instance-var binding:     {instvar_recoverable}");
@@ -665,5 +807,12 @@ fn main() {
     let tax = receiver_taxonomy(&units, &merged, &coll_elem);
     let (param_class, ceiling_by_hop) =
         parameter_ceiling(&units, &proc_params, &bare_to_q, &tax.param_sites);
-    print_report(&units, &merged, &coll_elem, tax, &param_class, &ceiling_by_hop);
+    print_report(
+        &units,
+        &merged,
+        &coll_elem,
+        &tax,
+        &param_class,
+        &ceiling_by_hop,
+    );
 }

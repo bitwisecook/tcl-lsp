@@ -35,14 +35,16 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "IPFIX::destination ((open (-publisher LOG_PUBLISHER)) |",
         }],
-        options: const { &[OptionSpec {
-            name: "-publisher",
-            value: OptionValue::value(""),
-            detail: "Option -publisher.",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "-publisher",
+                value: OptionValue::value(""),
+                detail: "Option -publisher.",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,

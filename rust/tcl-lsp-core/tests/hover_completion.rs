@@ -678,7 +678,11 @@ fn hover_on_scoped_line_command() {
     let reg = registry();
     // `top` on line 1 (char 5).
     let h = hover(DEFSTYLE_BODY, 1, 5, &analysis, Some(&reg)).expect("hover on scoped `top`");
-    assert!(h.value.contains("report style"), "env name present: {}", h.value);
+    assert!(
+        h.value.contains("report style"),
+        "env name present: {}",
+        h.value
+    );
     assert!(h.value.contains("separator"), "top described: {}", h.value);
 }
 
@@ -688,7 +692,11 @@ fn hover_on_scoped_operation() {
     let reg = registry();
     // `set` operation on line 1 (char 9).
     let h = hover(DEFSTYLE_BODY, 1, 9, &analysis, Some(&reg)).expect("hover on scoped op `set`");
-    assert!(h.value.contains("operation"), "operation marker: {}", h.value);
+    assert!(
+        h.value.contains("operation"),
+        "operation marker: {}",
+        h.value
+    );
     assert!(h.value.contains("top set"), "head+op named: {}", h.value);
 }
 
@@ -699,7 +707,11 @@ fn hover_on_scoped_config_command() {
     // `columns` on line 2 (char 7).
     let h = hover(DEFSTYLE_BODY, 2, 7, &analysis, Some(&reg)).expect("hover on scoped `columns`");
     assert!(h.value.contains("columns"), "name present: {}", h.value);
-    assert!(h.value.contains("number of columns"), "described: {}", h.value);
+    assert!(
+        h.value.contains("number of columns"),
+        "described: {}",
+        h.value
+    );
 }
 
 #[test]
@@ -722,7 +734,10 @@ fn completion_offers_scoped_command_heads() {
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"top"), "offers `top`: {labels:?}");
     assert!(labels.contains(&"topdata"), "offers `topdata`: {labels:?}");
-    assert!(labels.contains(&"topdatasep"), "offers `topdatasep`: {labels:?}");
+    assert!(
+        labels.contains(&"topdatasep"),
+        "offers `topdatasep`: {labels:?}"
+    );
 }
 
 #[test]
@@ -745,5 +760,8 @@ fn completion_scoped_heads_not_offered_outside_body() {
     let reg = registry();
     let items = completions(src, 0, 2, &analysis, Some(&reg), None, "tcl8.6");
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
-    assert!(!labels.contains(&"topdatasep"), "scoped-only head leaked: {labels:?}");
+    assert!(
+        !labels.contains(&"topdatasep"),
+        "scoped-only head leaked: {labels:?}"
+    );
 }

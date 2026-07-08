@@ -35,14 +35,16 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "active_nodes ('-list')? POOL_OBJ",
         }],
-        options: const { &[OptionSpec {
-            name: "-list",
-            value: OptionValue::flag(),
-            detail: "Return as list instead of count.",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "-list",
+                value: OptionValue::flag(),
+                detail: "Return as list instead of count.",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,

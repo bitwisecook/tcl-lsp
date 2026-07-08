@@ -53,8 +53,8 @@ use tcl_compiler::taint_interproc::{InterprocTaintResult, ProcTaintSummary as Re
 
 use tcl_compiler::analyser::per_item::{BodyFragment, DeferredBody, analyse_proc_body_isolated};
 use tcl_compiler::analyser::{
-    Analyser, AnalysisResult, ClassDef, ClassHierarchy, FileDecls, ItemSig, ItemTree,
-    NonAsciiMode, build_class_hierarchy,
+    Analyser, AnalysisResult, ClassDef, ClassHierarchy, FileDecls, ItemSig, ItemTree, NonAsciiMode,
+    build_class_hierarchy,
 };
 use tcl_compiler::signature_scan::types::ParamDef;
 use tcl_lsp_core::document_symbols::DocumentSymbol;

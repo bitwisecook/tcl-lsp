@@ -258,8 +258,7 @@ pub fn hover_with_dialect(
         {
             return Some(Hover::markdown(text));
         }
-        if let Some(text) =
-            subcommand_hover_text(source, line, character, registry, &word, dialect)
+        if let Some(text) = subcommand_hover_text(source, line, character, registry, &word, dialect)
         {
             return Some(Hover::markdown(text));
         }
@@ -331,7 +330,9 @@ fn builtin_command_hover_text(
     // `test` under `namespace import ::tcltest::*` hovers as `tcltest::test`
     // (mirrors the analyser's imported-command body resolution, scoped + ordered
     // to imports actually in effect at the cursor).
-    let (name, spec): (Cow<'_, str>, _) = if let Some(spec) = registry.get(name) { (Cow::Borrowed(name), spec) } else {
+    let (name, spec): (Cow<'_, str>, _) = if let Some(spec) = registry.get(name) {
+        (Cow::Borrowed(name), spec)
+    } else {
         let (qual, spec) = resolve_imported_command(registry, name, analysis, cursor_offset)?;
         (Cow::Owned(qual), spec)
     };
@@ -2893,9 +2894,13 @@ mod tests {
         // **Requires** line (none would appear without the injection).
         let mut registry = CommandRegistry::build_default();
         registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
-        let text =
-            builtin_command_hover_text(&registry, "DIAMETER::retransmission_default", &analyse(""), u32::MAX)
-                .expect("hover");
+        let text = builtin_command_hover_text(
+            &registry,
+            "DIAMETER::retransmission_default",
+            &analyse(""),
+            u32::MAX,
+        )
+        .expect("hover");
         assert!(
             text.contains("**Requires**: profile DIAMETER or DIAMETERSESSION or DIAMETER_ENDPOINT"),
             "{text}"
@@ -2989,7 +2994,10 @@ mod tests {
         let text = class_hover_text(&analysis, &b);
         assert!(text.contains("**MRO**"), "MRO missing: {text}");
         assert!(text.contains("::B → ::A"), "MRO chain wrong: {text}");
-        assert!(text.contains("**Subclasses**") && text.contains("::C"), "subclasses missing: {text}");
+        assert!(
+            text.contains("**Subclasses**") && text.contains("::C"),
+            "subclasses missing: {text}"
+        );
     }
 
     #[test]
@@ -2998,10 +3006,16 @@ mod tests {
         let analysis = analyse(src);
         // B::greet overrides A::greet.
         let over = oo_method_resolution_note(&analysis, "::B", "greet").unwrap_or_default();
-        assert!(over.contains("overrides") && over.contains("::A::greet"), "{over}");
+        assert!(
+            over.contains("overrides") && over.contains("::A::greet"),
+            "{over}"
+        );
         // C inherits greet from A.
         let inh = oo_method_resolution_note(&analysis, "::C", "greet").unwrap_or_default();
-        assert!(inh.contains("inherited from") && inh.contains("::A"), "{inh}");
+        assert!(
+            inh.contains("inherited from") && inh.contains("::A"),
+            "{inh}"
+        );
         // A::greet defined only here — no note.
         assert!(oo_method_resolution_note(&analysis, "::A", "greet").is_none());
     }
@@ -3522,7 +3536,8 @@ mod tests {
     #[test]
     fn builtin_command_hover_surfaces_summary_from_registry() {
         let registry = tcl_registry::CommandRegistry::build_default();
-        let t = builtin_command_hover_text(&registry, "puts", &analyse(""), u32::MAX).expect("hover");
+        let t =
+            builtin_command_hover_text(&registry, "puts", &analyse(""), u32::MAX).expect("hover");
         assert!(t.contains("built-in command"), "{t}");
         assert!(t.contains("`puts`"), "{t}");
     }
@@ -3530,7 +3545,8 @@ mod tests {
     #[test]
     fn builtin_command_hover_lists_subcommands() {
         let registry = tcl_registry::CommandRegistry::build_default();
-        let t = builtin_command_hover_text(&registry, "string", &analyse(""), u32::MAX).expect("hover");
+        let t =
+            builtin_command_hover_text(&registry, "string", &analyse(""), u32::MAX).expect("hover");
         assert!(t.contains("Subcommands:"), "{t}");
         assert!(t.contains("length"), "{t}");
     }
@@ -3539,7 +3555,8 @@ mod tests {
     fn builtin_command_hover_returns_none_for_unknown() {
         let registry = tcl_registry::CommandRegistry::build_default();
         assert!(
-            builtin_command_hover_text(&registry, "totallyMadeUpCommand", &analyse(""), u32::MAX).is_none()
+            builtin_command_hover_text(&registry, "totallyMadeUpCommand", &analyse(""), u32::MAX)
+                .is_none()
         );
     }
 
@@ -3547,8 +3564,8 @@ mod tests {
     fn subcommand_hover_surfaces_for_string_length() {
         let registry = tcl_registry::CommandRegistry::build_default();
         let src = "string length $name\n";
-        let t = subcommand_hover_text(src, 0, 10, &registry, "length", ALL)
-            .expect("subcommand hover");
+        let t =
+            subcommand_hover_text(src, 0, 10, &registry, "length", ALL).expect("subcommand hover");
         assert!(t.contains("`string length`"), "{t}");
         assert!(t.contains("subcommand"), "{t}");
     }
@@ -3570,8 +3587,7 @@ mod tests {
         // `info class def` is `definition` in 8.6 (unique) but ambiguous with
         // `definitionnamespace` in 9.0 (verified against tclsh).
         let src = "info class def ::C\n";
-        let t86 =
-            sub_subcommand_hover_text(src, 0, 11, &registry, "def", DialectSet::TCL86);
+        let t86 = sub_subcommand_hover_text(src, 0, 11, &registry, "def", DialectSet::TCL86);
         assert!(
             t86.is_some_and(|t| t.contains("`info class definition`")),
             "8.6 should resolve `def` to definition",
@@ -3582,9 +3598,7 @@ mod tests {
         );
         // `string rev` (reverse, 8.5+) hovers in 8.6 but not in 8.4.
         let src = "string rev abc\n";
-        assert!(
-            subcommand_hover_text(src, 0, 8, &registry, "rev", DialectSet::TCL86).is_some(),
-        );
+        assert!(subcommand_hover_text(src, 0, 8, &registry, "rev", DialectSet::TCL86).is_some(),);
         assert!(
             subcommand_hover_text(src, 0, 8, &registry, "rev", DialectSet::TCL84).is_none(),
             "`string rev` is unknown in 8.4",
@@ -3610,8 +3624,8 @@ mod tests {
         assert!(t.contains("subcommand"), "{t}");
         // Unique-prefix abbreviation resolves to the canonical op.
         let src = "info class super $cls\n";
-        let t = sub_subcommand_hover_text(src, 0, 11, &registry, "super", ALL)
-            .expect("prefix hover");
+        let t =
+            sub_subcommand_hover_text(src, 0, 11, &registry, "super", ALL).expect("prefix hover");
         assert!(t.contains("`info class superclasses`"), "{t}");
         // The first-level subcommand word itself is not a sub-subcommand.
         assert!(

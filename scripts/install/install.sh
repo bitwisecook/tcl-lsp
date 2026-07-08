@@ -1592,6 +1592,32 @@ looks_like_our_native_mcp() {
     esac
 }
 
+looks_like_our_native_cli() {
+    # Our `tcl` and `f5` CLIs ship as native binaries (RUST_ISSUE_057), not
+    # Python zipapps, so looks_like_our_zipapp can't recognise a prior
+    # install of them. As with looks_like_our_native_mcp, a native binary
+    # can't be introspected structurally, so match on the artefact names the
+    # installer itself writes — `tcl`/`f5`, honouring any TCL_LSP_SUFFIX
+    # (INSTALL_SUFFIX) and a Windows `.exe`.
+    f="$1"
+    [ -f "$f" ] && [ -x "$f" ] || return 1
+    case "$(basename "$f")" in
+        "tcl${INSTALL_SUFFIX}" | "tcl${INSTALL_SUFFIX}.exe") return 0 ;;
+        "f5${INSTALL_SUFFIX}" | "f5${INSTALL_SUFFIX}.exe") return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# True when $1 is an artefact this installer produces — a Python zipapp, the
+# native MCP binary, or a native `tcl`/`f5` CLI. Used by the overwrite paths
+# to decide whether an existing file at a target path is our own artefact
+# (safe to replace in place) rather than an unrelated file.
+looks_like_ours() {
+    looks_like_our_zipapp "$1" \
+        || looks_like_our_native_mcp "$1" \
+        || looks_like_our_native_cli "$1"
+}
+
 propose_update_mcp() {
     [ "${TCL_LSP_NO_MCP:-0}" = "1" ] && return 0
     p="$(find_existing_mcp)" || return 0
@@ -1895,12 +1921,12 @@ plan_overwrite_check() {
     # the decision so phase 3 doesn't have to ask again.
     dst="$1"
     [ -e "$dst" ] || return 0
-    looks_like_our_zipapp "$dst" && return 0
-    # The native MCP binary isn't a zipapp — recognise it as ours too so an
-    # in-place update of `tcl-mcp` doesn't trip the "unrelated file" prompt.
-    looks_like_our_native_mcp "$dst" && return 0
+    # Recognise every flavour of artefact we produce — zipapp, native MCP
+    # binary, or native `tcl`/`f5` CLI — so an in-place update doesn't trip
+    # the "unrelated file" prompt (which aborts non-interactive upgrades).
+    looks_like_ours "$dst" && return 0
     warn "$dst already exists and is not a recognised tcl-lsp artefact"
-    warn "(not our zipapp, and not the native tcl-mcp binary)"
+    warn "(not our zipapp, native MCP binary, or native CLI)"
     if ! ask_default_no "Overwrite $dst anyway? [y/N]"; then
         die "aborted: existing $dst is unrelated and overwrite declined.
 Re-run with TCL_LSP_PREFIX=/other/dir, or remove $dst first."
@@ -1914,7 +1940,7 @@ write_target() {
     # approved overwriting); phase 3 catches anything that appeared
     # between phases.
     src="$1"; dst="$2"
-    if [ -e "$dst" ] && ! looks_like_our_zipapp "$dst"; then
+    if [ -e "$dst" ] && ! looks_like_ours "$dst"; then
         case " $OVERWRITE_OK " in
             *" $dst "*) : ;;
             *) die "internal: $dst exists and was not pre-approved for overwrite (created between phase 2 and 3?)" ;;

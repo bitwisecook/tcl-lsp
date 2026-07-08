@@ -78,61 +78,25 @@ fn set_list(interp: &mut Interp, elems: &[*mut TclObj]) {
     interp.set_result(list::new_list_obj(elems));
 }
 
-/// Parse a plain signed decimal integer (for list indices / counts).
+/// Parse a Tcl integer (for `lrepeat` / `string repeat` counts): decimal or a
+/// `0x`/`0o`/`0b` radix, with an optional sign — the full Tcl integer grammar,
+/// not decimal-only, so `string repeat x 0x3` yields `xxx` as real Tcl does
+/// (RUST_ISSUE_028). Delegates to the shared radix-aware core.
 fn parse_isize(b: &[u8]) -> Option<isize> {
-    let s = core::str::from_utf8(b).ok()?.trim();
-    s.parse::<isize>().ok()
+    let v = tcl_cmd_core::sort::parse_wide(b)?;
+    isize::try_from(v).ok()
 }
 
-/// Parse a leading optionally-signed integer, returning its value and the
-/// unconsumed tail. `None` if no digits follow the optional sign.
-fn parse_int_prefix(s: &[u8]) -> Option<(isize, &[u8])> {
-    let mut i = 0;
-    if matches!(s.first(), Some(b'+' | b'-')) {
-        i += 1;
-    }
-    let digits_start = i;
-    while i < s.len() && s[i].is_ascii_digit() {
-        i += 1;
-    }
-    if i == digits_start {
-        return None;
-    }
-    let val = parse_isize(&s[..i])?;
-    Some((val, &s[i..]))
-}
-
-/// Resolve a Tcl list index spec against a list of `len` elements. Supports the
-/// full `TclGetIntForIndex` grammar: an integer, `end`, and a base (`end` or an
-/// integer) with an optional `±integer` offset (`end-2`, `0-1`, `-2+1`, …).
-/// Returns a (possibly out-of-range) signed index; callers clamp/range-check.
+/// Resolve a Tcl list index spec against a container of `len` elements via the
+/// shared, radix-aware [`tcl_cmd_core::index`] core — the same parser `lindex`
+/// / `lrange` / `lreplace` / `linsert` use — so a hex index like `0x1` or
+/// `end-0x1` resolves the way real Tcl's `Tcl_GetIntForIndex` does instead of
+/// being rejected by a decimal-only reader (RUST_ISSUE_028). Returns a
+/// (possibly out-of-range) signed index; callers clamp/range-check.
 pub(crate) fn index_spec(spec: &[u8], len: usize) -> Option<isize> {
-    let len = len as isize;
-    let s = {
-        let t = core::str::from_utf8(spec).ok()?.trim();
-        t.as_bytes()
-    };
-    if s.is_empty() {
-        return None;
-    }
-    // Base: `end` or a signed integer.
-    let (base, rest) = if let Some(r) = s.strip_prefix(b"end") {
-        (len - 1, r)
-    } else {
-        parse_int_prefix(s)?
-    };
-    if rest.is_empty() {
-        return Some(base);
-    }
-    // Optional offset: a `+`/`-` connector then a (possibly signed) integer, so
-    // `end--1` is `end - (-1)` and `0-1` is `0 - 1` (matches `GetEndOffsetFromObj`).
-    let connector = rest[0];
-    if connector != b'+' && connector != b'-' {
-        return None;
-    }
-    let operand = parse_isize(&rest[1..])?;
-    let offset = if connector == b'-' { -operand } else { operand };
-    Some(base + offset)
+    let s = core::str::from_utf8(spec).ok()?;
+    let v = tcl_cmd_core::index::resolve_opt(s, len)?;
+    isize::try_from(v).ok()
 }
 
 // -- commands --------------------------------------------------------------
@@ -1108,6 +1072,18 @@ mod tests {
             ok(b"set x {a  b   c}; llength $x; set y $x; lappend x d; set x"),
             b"a b c d"
         );
+    }
+
+    #[test]
+    fn hex_indices_and_counts_accepted() {
+        // RUST_ISSUE_028: lset/ledit and string index/repeat now share the
+        // radix-aware index/integer core, so hex specs resolve like real Tcl.
+        assert_eq!(ok(b"set x {a b c}; lset x 0x1 Z; set x"), b"a Z c");
+        assert_eq!(ok(b"string index abcdef 0x2"), b"c");
+        assert_eq!(ok(b"string index abcdef end-0x1"), b"e");
+        assert_eq!(ok(b"string repeat x 0x3"), b"xxx");
+        // lrepeat count is radix-aware too.
+        assert_eq!(ok(b"lrepeat 0x2 a"), b"a a");
     }
 
     #[test]

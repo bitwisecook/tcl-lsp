@@ -308,7 +308,11 @@ pub fn last<O: ValueOps>(
         .unwrap_or(0)
         .min(hay.len().saturating_sub(1));
     let mut idx: i64 = -1;
-    if last + 1 >= needle.len() {
+    // `needle.len() <= hay.len()` guards the `hay[i..i + needle.len()]` slice:
+    // without it, an empty (or too-short) haystack with an explicit index
+    // (`string last a "" 0`) drives `last` to 0, passes `last + 1 >= needle`,
+    // and slices past the end. `string first` has the same guard.
+    if needle.len() <= hay.len() && last + 1 >= needle.len() {
         let hi = last + 1 - needle.len();
         for i in (0..=hi).rev() {
             if hay[i..i + needle.len()] == needle[..] {
@@ -618,29 +622,7 @@ mod tests {
         s.chars().collect()
     }
 
-    #[test]
-    fn word_start_finds_word_boundaries() {
-        // Tcl `string wordstart` semantics. "abc def" = indices a0 b1 c2 ' '3 d4 e5 f6.
-        let c = chars("abc def");
-        assert_eq!(word_start(&c, 1), 0); // inside "abc"
-        assert_eq!(word_start(&c, 5), 4); // inside "def"
-        assert_eq!(word_start(&c, 3), 3); // the space is its own word
-        assert_eq!(word_start(&c, 0), 0);
-        assert_eq!(word_start(&c, 100), 4); // clamps to last char of "def"
-        assert_eq!(word_start(&[], 3), 0); // empty
-    }
-
-    #[test]
-    fn word_end_finds_word_boundaries() {
-        // Tcl `string wordend` — end is one past the last word char.
-        let c = chars("abc def");
-        assert_eq!(word_end(&c, 1), 3); // end of "abc" (exclusive)
-        assert_eq!(word_end(&c, 4), 7); // end of "def"
-        assert_eq!(word_end(&c, 3), 4); // a non-word char advances exactly one
-        assert_eq!(word_end(&c, 100), 7); // past end → length
-    }
-
-    /// A minimal string-backed [`ValueOps`] for the `string last` unit tests.
+    /// A throwaway string-only `ValueOps` for the `first`/`last` index tests.
     #[derive(Default)]
     struct StrOps;
 
@@ -682,29 +664,71 @@ mod tests {
         }
     }
 
-    fn last_of(needle: &str, haystack: &str, index: Option<&str>) -> String {
+    fn last_of(needle: &str, haystack: &str, last_index: Option<&str>) -> i64 {
         let mut ops = StrOps;
-        let (n, h) = (needle.to_owned(), haystack.to_owned());
-        let idx = index.map(str::to_owned);
-        last(&mut ops, &n, &h, idx.as_ref()).expect("string last succeeds")
+        let n = needle.to_owned();
+        let h = haystack.to_owned();
+        let li = last_index.map(str::to_owned);
+        let r = last(&mut ops, &n, &h, li.as_ref()).expect("string last");
+        r.parse().unwrap()
+    }
+
+    #[test]
+    fn string_last_empty_haystack_with_index_does_not_panic() {
+        // RUST_ISSUE_052: `string last a "" 0` must return -1, not panic on an
+        // out-of-bounds slice of the empty haystack.
+        assert_eq!(last_of("a", "", Some("0")), -1);
+        assert_eq!(last_of("a", "", None), -1);
+        // Needle longer than haystack with an explicit index.
+        assert_eq!(last_of("abc", "ab", Some("1")), -1);
+    }
+
+    #[test]
+    fn string_last_basic() {
+        assert_eq!(last_of("a", "banana", None), 5);
+        assert_eq!(last_of("an", "banana", None), 3);
+        assert_eq!(last_of("an", "banana", Some("2")), 1);
+        assert_eq!(last_of("z", "banana", None), -1);
+    }
+
+    #[test]
+    fn word_start_finds_word_boundaries() {
+        // Tcl `string wordstart` semantics. "abc def" = indices a0 b1 c2 ' '3 d4 e5 f6.
+        let c = chars("abc def");
+        assert_eq!(word_start(&c, 1), 0); // inside "abc"
+        assert_eq!(word_start(&c, 5), 4); // inside "def"
+        assert_eq!(word_start(&c, 3), 3); // the space is its own word
+        assert_eq!(word_start(&c, 0), 0);
+        assert_eq!(word_start(&c, 100), 4); // clamps to last char of "def"
+        assert_eq!(word_start(&[], 3), 0); // empty
+    }
+
+    #[test]
+    fn word_end_finds_word_boundaries() {
+        // Tcl `string wordend` — end is one past the last word char.
+        let c = chars("abc def");
+        assert_eq!(word_end(&c, 1), 3); // end of "abc" (exclusive)
+        assert_eq!(word_end(&c, 4), 7); // end of "def"
+        assert_eq!(word_end(&c, 3), 4); // a non-word char advances exactly one
+        assert_eq!(word_end(&c, 100), 7); // past end → length
     }
 
     #[test]
     fn string_last_empty_haystack_is_minus_one_not_panic() {
         // Regression: `string last a {} 0` clamped `last` to 0 and then sliced
         // an empty haystack, panicking. An empty haystack holds no match → -1.
-        assert_eq!(last_of("a", "", Some("0")), "-1");
-        assert_eq!(last_of("a", "", None), "-1");
-        assert_eq!(last_of("abc", "", Some("end")), "-1");
+        assert_eq!(last_of("a", "", Some("0")), -1);
+        assert_eq!(last_of("a", "", None), -1);
+        assert_eq!(last_of("abc", "", Some("end")), -1);
     }
 
     #[test]
     fn string_last_finds_last_occurrence() {
-        assert_eq!(last_of("a", "banana", None), "5");
-        assert_eq!(last_of("an", "banana", None), "3");
+        assert_eq!(last_of("a", "banana", None), 5);
+        assert_eq!(last_of("an", "banana", None), 3);
         // Bounded search: last "an" ending at or before index 2.
-        assert_eq!(last_of("an", "banana", Some("2")), "1");
+        assert_eq!(last_of("an", "banana", Some("2")), 1);
         // No match → -1.
-        assert_eq!(last_of("z", "banana", None), "-1");
+        assert_eq!(last_of("z", "banana", None), -1);
     }
 }

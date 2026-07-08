@@ -946,10 +946,18 @@ impl Analyser {
                 for stmt in &block.statements {
                     match stmt {
                         // `Foo new …` / `Foo create obj …`
-                        Statement::Call { command, args, span, .. }
-                        | Statement::Barrier { command, args, span, .. }
-                            if is_ctor_sub(args.first()) && is_abstract(command) =>
-                        {
+                        Statement::Call {
+                            command,
+                            args,
+                            span,
+                            ..
+                        }
+                        | Statement::Barrier {
+                            command,
+                            args,
+                            span,
+                            ..
+                        } if is_ctor_sub(args.first()) && is_abstract(command) => {
                             flag(*span, command);
                         }
                         // `set o [Foo new …]`

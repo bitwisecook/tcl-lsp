@@ -1330,9 +1330,9 @@ fn builtin_completions(
         // same floor W135 checks.  A package required without a version, or not
         // required at all, yields no floor and stays permissive.
         .filter(|n| {
-            registry
-                .get(n)
-                .is_none_or(|spec| spec.available_for_version(package_version_floor(analysis, spec)))
+            registry.get(n).is_none_or(|spec| {
+                spec.available_for_version(package_version_floor(analysis, spec))
+            })
         })
         .collect();
     names.sort_unstable();
@@ -1467,11 +1467,21 @@ mod tests {
         let items = completions(src, 8, 3, &analysis, Some(&registry), None, "tcl8.6");
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"bark"), "own method missing: {labels:?}");
-        assert!(labels.contains(&"eat"), "inherited method missing: {labels:?}");
+        assert!(
+            labels.contains(&"eat"),
+            "inherited method missing: {labels:?}"
+        );
         assert!(labels.contains(&"destroy"), "builtin missing: {labels:?}");
         // The inherited one is labelled as such.
         let eat = items.iter().find(|i| i.label == "eat").unwrap();
-        assert!(eat.detail.as_deref().unwrap_or("").contains("inherited from ::Animal"), "{:?}", eat.detail);
+        assert!(
+            eat.detail
+                .as_deref()
+                .unwrap_or("")
+                .contains("inherited from ::Animal"),
+            "{:?}",
+            eat.detail
+        );
     }
 
     #[test]
@@ -1485,7 +1495,10 @@ mod tests {
         // Cursor after `$d ` on line 5.
         let items = completions(src, 5, 3, &analysis, Some(&registry), None, "tcl8.6");
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
-        assert!(labels.contains(&"bark"), "instance method missing: {labels:?}");
+        assert!(
+            labels.contains(&"bark"),
+            "instance method missing: {labels:?}"
+        );
         assert!(
             !labels.contains(&"build"),
             "class-side method must not appear on an instance: {labels:?}",
@@ -1499,8 +1512,14 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let items = completions(src, 6, 4, &analysis, Some(&registry), None, "tcl8.6");
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
-        assert!(labels.contains(&"bark") && labels.contains(&"beg"), "{labels:?}");
-        assert!(!labels.contains(&"sit"), "partial `b` should exclude sit: {labels:?}");
+        assert!(
+            labels.contains(&"bark") && labels.contains(&"beg"),
+            "{labels:?}"
+        );
+        assert!(
+            !labels.contains(&"sit"),
+            "partial `b` should exclude sit: {labels:?}"
+        );
     }
 
     #[test]
@@ -1818,8 +1837,14 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let items = completions(src, 0, 12, &analysis, Some(&registry), None, "tcl8.6");
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
-        assert!(labels.contains(&"class"), "expected `class`; got {labels:?}");
-        assert!(labels.contains(&"methods"), "expected `methods`; got {labels:?}");
+        assert!(
+            labels.contains(&"class"),
+            "expected `class`; got {labels:?}"
+        );
+        assert!(
+            labels.contains(&"methods"),
+            "expected `methods`; got {labels:?}"
+        );
         // Descriptions are surfaced as detail.
         assert!(
             items
@@ -1834,7 +1859,11 @@ mod tests {
         let analysis = analyse(src);
         let items = completions(src, 0, 16, &analysis, Some(&registry), None, "tcl8.6");
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
-        assert_eq!(labels, vec!["superclasses"], "prefix should filter; got {labels:?}");
+        assert_eq!(
+            labels,
+            vec!["superclasses"],
+            "prefix should filter; got {labels:?}"
+        );
     }
 
     #[test]

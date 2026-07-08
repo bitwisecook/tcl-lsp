@@ -101,6 +101,15 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script) {
         if later_use {
             continue;
         }
+        // Sinking relocates `stmt` past the decision's condition and past the
+        // statements that precede its use inside the target branch. If any of
+        // those redefine a variable the assignment's RHS *reads*, the moved
+        // computation would observe a different value — a miscompile. The
+        // earlier guards only protect the assigned variable itself, not its
+        // read-set (RUST_ISSUE_016).
+        if sink_rhs_clobbered_by_decision(stmt, decision) {
+            continue;
+        }
         emit_sink(ctx, stmt, span, decision, &var);
     }
 
@@ -311,6 +320,136 @@ fn statement_defines_var(stmt: &Statement, var: &str) -> bool {
         | Statement::AssignValue { name, .. }
         | Statement::AssignExpr { name, .. } => name == var,
         Statement::Call { defs, .. } => defs.iter().any(|d| d == var),
+        _ => false,
+    }
+}
+
+/// The variables a single statement writes at its own level (not recursing
+/// into nested bodies): the assignment / `incr` target, a `Call`'s recorded
+/// `defs`, or a `foreach` loop variable.
+fn stmt_defined_vars(stmt: &Statement) -> Vec<&str> {
+    match stmt {
+        Statement::AssignConst { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::Incr { name, .. } => vec![name.as_str()],
+        Statement::Call { defs, .. } => defs.iter().map(String::as_str).collect(),
+        Statement::Foreach { iterators, .. } => iterators
+            .iter()
+            .flat_map(|it| it.vars.iter().map(String::as_str))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Whether relocating the sinkable assignment `sink` into `decision` could let
+/// a redefinition change the value its RHS reads.
+///
+/// Sound and conservative: `sinkable_assignment` guarantees the RHS contains no
+/// command substitution, so its read-set is exactly its `$var` references. The
+/// sink is unsafe when either the decision's condition contains a command
+/// substitution that could write a read variable (`[regexp … -> a]`), or any
+/// statement in a branch body (at any nesting) redefines a read variable.
+fn sink_rhs_clobbered_by_decision(sink: &Statement, decision: &Statement) -> bool {
+    if assignment_reads_any_var(sink) && decision_condition_has_command_subst(decision) {
+        return true;
+    }
+    decision_branch_bodies(decision)
+        .iter()
+        .any(|body| script_redefines_sink_read(body, sink))
+}
+
+/// Whether the assignment `sink` reads at least one variable in its RHS.
+fn assignment_reads_any_var(sink: &Statement) -> bool {
+    match sink {
+        Statement::AssignValue { value, .. } => value.contains('$'),
+        Statement::AssignExpr { expr, .. } => !expr.vars().is_empty(),
+        // A constant assignment (and anything else) reads nothing.
+        _ => false,
+    }
+}
+
+/// Whether any `If`/`While`/`For` condition in `decision` contains a command
+/// substitution (which may write an output variable we cannot cheaply name).
+fn decision_condition_has_command_subst(decision: &Statement) -> bool {
+    match decision {
+        Statement::If { clauses, .. } => {
+            clauses.iter().any(|c| expr_has_command_subst(&c.condition))
+        }
+        // A switch subject is a value word; a `[cmd]` there would have blocked
+        // `sinkable_assignment` upstream only for the assignment, not here, so
+        // treat a bracketed subject conservatively.
+        Statement::Switch { subject, .. } => subject.contains('['),
+        _ => false,
+    }
+}
+
+/// Whether any statement in `script` (recursively) redefines a variable the
+/// `sink` assignment's RHS reads.
+fn script_redefines_sink_read(script: &Script, sink: &Statement) -> bool {
+    script
+        .statements
+        .iter()
+        .any(|s| stmt_redefines_sink_read(s, sink))
+}
+
+fn stmt_redefines_sink_read(stmt: &Statement, sink: &Statement) -> bool {
+    if stmt_defined_vars(stmt)
+        .iter()
+        .any(|d| statement_uses_var(sink, d))
+    {
+        return true;
+    }
+    // Recurse into nested compound bodies — a redefinition before the use can
+    // sit at any nesting level the sink descends into.
+    match stmt {
+        Statement::If {
+            clauses, else_body, ..
+        } => {
+            clauses
+                .iter()
+                .any(|c| script_redefines_sink_read(&c.body, sink))
+                || else_body
+                    .as_ref()
+                    .is_some_and(|b| script_redefines_sink_read(b, sink))
+        }
+        Statement::For {
+            init, next, body, ..
+        } => {
+            script_redefines_sink_read(init, sink)
+                || script_redefines_sink_read(next, sink)
+                || script_redefines_sink_read(body, sink)
+        }
+        Statement::While { body, .. }
+        | Statement::Foreach { body, .. }
+        | Statement::Catch { body, .. }
+        | Statement::UpFrame { body, .. }
+        | Statement::Block { body, .. } => script_redefines_sink_read(body, sink),
+        Statement::Try {
+            body,
+            handlers,
+            finally_body,
+            ..
+        } => {
+            script_redefines_sink_read(body, sink)
+                || handlers
+                    .iter()
+                    .any(|h| script_redefines_sink_read(&h.body, sink))
+                || finally_body
+                    .as_ref()
+                    .is_some_and(|fb| script_redefines_sink_read(fb, sink))
+        }
+        Statement::Switch {
+            arms, default_body, ..
+        } => {
+            arms.iter().any(|a| {
+                a.body
+                    .as_ref()
+                    .is_some_and(|b| script_redefines_sink_read(b, sink))
+            }) || default_body
+                .as_ref()
+                .is_some_and(|b| script_redefines_sink_read(b, sink))
+        }
         _ => false,
     }
 }
@@ -700,6 +839,46 @@ mod tests {
         assert!(
             opts.iter().all(|o| o.code != DiagCode::O125),
             "condition use must suppress O125, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn branch_redefining_rhs_read_suppresses_sink() {
+        // RUST_ISSUE_016: the branch body redefines `a`, which the assignment's
+        // RHS reads, before the use of `x`. Sinking `set x [expr {$a + 1}]`
+        // there would compute it against the modified `a` — must not emit O125.
+        let opts = run_pass(
+            "proc ::f {a c} { set x [expr {$a + 1}]; if {$c} { set a 0; puts $x } else { puts no } }",
+        );
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O125),
+            "sink past a redefinition of an RHS read must be suppressed, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn branch_not_redefining_rhs_read_still_sinks() {
+        // Control: the branch does not touch `a`, so the RHS read is safe and
+        // the sink is still emitted.
+        let opts = run_pass(
+            "proc ::f {a c} { set x [expr {$a + 1}]; if {$c} { puts $x } else { puts no } }",
+        );
+        assert!(
+            opts.iter().any(|o| o.code == DiagCode::O125),
+            "a safe sink must still be emitted, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn condition_command_subst_writing_rhs_read_suppresses_sink() {
+        // RUST_ISSUE_016: a condition command substitution may write an output
+        // variable the RHS reads; conservatively suppress the sink.
+        let opts = run_pass(
+            "proc ::f {a s} { set x [expr {$a + 1}]; if {[regexp {b} $s -> a]} { puts $x } else { puts no } }",
+        );
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O125),
+            "sink past a condition cmd-subst that may write an RHS read must be suppressed, got {opts:?}",
         );
     }
 

@@ -75,7 +75,11 @@ pub fn events_for_profile(profile: &str) -> Vec<&'static str> {
 pub fn events_in_category(category: &str) -> Vec<&'static str> {
     let mut out: Vec<&'static str> = EVENT_FACTS
         .iter()
-        .filter(|e| e.categories.iter().any(|c| c.eq_ignore_ascii_case(category)))
+        .filter(|e| {
+            e.categories
+                .iter()
+                .any(|c| c.eq_ignore_ascii_case(category))
+        })
         .map(|e| e.event)
         .collect();
     out.sort_unstable();

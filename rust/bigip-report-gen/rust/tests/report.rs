@@ -24,9 +24,9 @@
 
 #![allow(clippy::cast_possible_truncation)]
 
+use bigip_report_gen_rust::{RenderOptions, Source, build_report, collect_model};
 use serde_json::Value as J;
 use tcl_bigip_io::ucs_to_scf;
-use bigip_report_gen_rust::{RenderOptions, Source, build_report, collect_model};
 
 const DATA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../python/tests/data");
 
@@ -245,10 +245,7 @@ fn footer_shows_version_and_git_hash() {
         html.contains(bigip_report_gen_rust::GIT_DESCRIBE),
         "git describe version in footer"
     );
-    assert!(
-        html.contains(">rust<"),
-        "backend badge in footer"
-    );
+    assert!(html.contains(">rust<"), "backend badge in footer");
 
     // The print running header (title) + footer (attribution/version/hash) are
     // emitted so the print stylesheet can repeat them on every page.

@@ -139,8 +139,12 @@ pub(super) fn scan(
             // snit types/widgets create instances via `Name create obj` /
             // `Name %AUTO%` / a widget's `Name .path`, so record them as classes
             // to type those constructors' receivers (same shape as itcl).
-            "snit::type" | "::snit::type" | "snit::widget" | "::snit::widget"
-            | "snit::widgetadaptor" | "::snit::widgetadaptor" => {
+            "snit::type"
+            | "::snit::type"
+            | "snit::widget"
+            | "::snit::widget"
+            | "snit::widgetadaptor"
+            | "::snit::widgetadaptor" => {
                 handlers::handle_snit_type(texts, argv, ns_prefix, &mut ctx.result);
             }
             "if" => handle_if(texts, argv, ns_prefix, known_commands, ctx),

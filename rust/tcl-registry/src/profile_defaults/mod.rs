@@ -89,7 +89,12 @@ impl BigipVersion {
     pub fn parse(s: &str) -> Option<Self> {
         let mut parts = s.trim().split('.');
         let major: u16 = parts.next()?.trim().parse().ok()?;
-        let mut next = || parts.next().and_then(|p| p.trim().parse().ok()).unwrap_or(0);
+        let mut next = || {
+            parts
+                .next()
+                .and_then(|p| p.trim().parse().ok())
+                .unwrap_or(0)
+        };
         Some(Self::new(major, next(), next(), next()))
     }
 }
@@ -325,7 +330,10 @@ static SSL_OPTIONS_BANDS: &[FieldDefault] = &[
     FieldDefault {
         field: "options",
         value: "dont-insert-empty-fragments no-tlsv1.3",
-        range: VersionRange::between(BigipVersion::new(14, 0, 0, 0), BigipVersion::new(17, 1, 0, 0)),
+        range: VersionRange::between(
+            BigipVersion::new(14, 0, 0, 0),
+            BigipVersion::new(17, 1, 0, 0),
+        ),
     },
     FieldDefault {
         field: "options",
@@ -354,7 +362,6 @@ fn normalise_type(t: &str) -> String {
         .map(|c| c.to_ascii_uppercase())
         .collect()
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -439,7 +446,10 @@ mod tests {
             Some(orig)
         );
         // No version → current (newest).
-        assert_eq!(profile_field_default("CLIENTSSL", "options", None), Some(cur));
+        assert_eq!(
+            profile_field_default("CLIENTSSL", "options", None),
+            Some(cur)
+        );
         // server-ssl shares the identical history.
         assert_eq!(
             profile_field_default("SERVERSSL", "options", Some(v("13.1"))),
@@ -506,13 +516,25 @@ mod tests {
         // A nested block is flattened to a faithful tmsh string.
         assert_eq!(
             profile_field_default("clientssl", "cert-key-chain", None),
-            Some("{ default { cert /Common/default.crt chain none key /Common/default.key passphrase none } }")
+            Some(
+                "{ default { cert /Common/default.crt chain none key /Common/default.key passphrase none } }"
+            )
         );
         // Application + transport + TLS + niche types all present.
-        for ty in ["TCP", "UDP", "FASTL4", "HTTP", "HTTP2", "CLIENTSSL", "SERVERSSL", "ONECONNECT", "SCTP", "REWRITE"] {
+        for ty in [
+            "TCP",
+            "UDP",
+            "FASTL4",
+            "HTTP",
+            "HTTP2",
+            "CLIENTSSL",
+            "SERVERSSL",
+            "ONECONNECT",
+            "SCTP",
+            "REWRITE",
+        ] {
             assert!(
-                !profile_field_defaults(ty, None).is_empty()
-                    || profile_tmsh_kind(ty).is_some(),
+                !profile_field_defaults(ty, None).is_empty() || profile_tmsh_kind(ty).is_some(),
                 "missing profile type {ty}"
             );
         }
@@ -538,7 +560,10 @@ mod tests {
     #[test]
     fn tmsh_kind_and_inventory() {
         assert_eq!(profile_tmsh_kind("HTTP"), Some("ltm profile http"));
-        assert_eq!(profile_tmsh_kind("ONECONNECT"), Some("ltm profile one-connect"));
+        assert_eq!(
+            profile_tmsh_kind("ONECONNECT"),
+            Some("ltm profile one-connect")
+        );
         assert!(profile_tmsh_kind("NOPE").is_none());
         let all = profiles_with_defaults();
         assert!(all.contains(&"TCP"));
@@ -570,8 +595,13 @@ mod tests {
             for (field, entries) in by_field {
                 for (i, a) in entries.iter().enumerate() {
                     for b in &entries[i + 1..] {
-                        let overlap = a.range.min.is_none_or(|m| b.range.max.is_none_or(|x| m < x))
-                            && b.range.min.is_none_or(|m| a.range.max.is_none_or(|x| m < x));
+                        let overlap = a
+                            .range
+                            .min
+                            .is_none_or(|m| b.range.max.is_none_or(|x| m < x))
+                            && b.range
+                                .min
+                                .is_none_or(|m| a.range.max.is_none_or(|x| m < x));
                         assert!(
                             !overlap,
                             "{}::{field} has overlapping version ranges {:?} / {:?}",

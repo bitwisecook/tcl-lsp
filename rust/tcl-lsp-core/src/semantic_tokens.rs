@@ -85,8 +85,8 @@ use tcl_lexer::{LineIndex, Span, Token, TokenType};
 
 use crate::definition::utf16_len;
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar, MemberKind};
+use tcl_registry::dialects::DialectSet;
 
 /// Encoded semantic-tokens response.  The `data` array is
 /// the LSP packed integer encoding (5 ints per token: line
@@ -252,16 +252,10 @@ const MOD_DECLARATION: u32 = 1 << 0;
 /// `LANGUAGE_KEYWORD` trait.
 const LANGUAGE_KEYWORD_SUB_KEYWORDS: &[&str] = &[
     // Clause keywords of if / try / switch — not standalone commands.
-    "else",
-    "elseif",
-    "on",
-    "trap",
-    "finally",
+    "else", "elseif", "on", "trap", "finally",
     // TclOO method-body helper commands (used inside a method body, not
     // definition-context members) without a standalone CommandSpec.
-    "callback",
-    "mymethod",
-    "link",
+    "callback", "mymethod", "link",
 ];
 
 /// Classify a command-head token name: a name is a `keyword`
@@ -370,13 +364,19 @@ impl VarNameArgRoles {
         out_command: &mut FxHashMap<String, Vec<u32>>,
     ) {
         for (name, indices) in &self.write {
-            out_write.entry(name.clone()).or_insert_with(|| indices.clone());
+            out_write
+                .entry(name.clone())
+                .or_insert_with(|| indices.clone());
         }
         for (name, indices) in &self.read {
-            out_read.entry(name.clone()).or_insert_with(|| indices.clone());
+            out_read
+                .entry(name.clone())
+                .or_insert_with(|| indices.clone());
         }
         for (name, indices) in &self.command {
-            out_command.entry(name.clone()).or_insert_with(|| indices.clone());
+            out_command
+                .entry(name.clone())
+                .or_insert_with(|| indices.clone());
         }
     }
 }
@@ -1205,7 +1205,9 @@ fn insert_oo_body_overrides(
     if grammar
         .member(head)
         .is_some_and(|m| m.kind == MemberKind::Wrapper)
-        && arg_texts.first().is_some_and(|inner| grammar.is_member(inner))
+        && arg_texts
+            .first()
+            .is_some_and(|inner| grammar.is_member(inner))
         && let Some(tok) = seg.argv.get(1)
     {
         overrides
@@ -1318,6 +1320,26 @@ fn mark_literal_fragments(
     }
 }
 
+/// Retag the literal fragments of any word the compiler flagged as a regex
+/// source (`set pat {…}` that later feeds `regexp`/`regsub`) so they highlight
+/// as regex.  Keyed on the def-site word start; the compiler-supplied span is
+/// authoritative for the fragment scan (the segmenter's token span can clamp a
+/// closing delimiter).
+fn mark_regex_source_words(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    regex_sources: &FxHashMap<u32, tcl_lexer::Span>,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    if regex_sources.is_empty() {
+        return;
+    }
+    for word in &seg.argv {
+        if let Some(&full_span) = regex_sources.get(&word.span.start()) {
+            mark_literal_fragments(seg, full_span, ArgOverride::RegexPattern, overrides);
+        }
+    }
+}
+
 /// Conversion-string overrides for the format families: `format`/`scan`
 /// (sprintf), `clock format/scan -format`, and `binary format/scan`.
 fn insert_format_overrides(
@@ -1393,7 +1415,10 @@ fn insert_format_overrides(
 /// pass, which runs first and would block the more specific role token.
 fn role_claimed_by_token_pass(role: Option<tcl_registry::ArgRole>) -> bool {
     use tcl_registry::ArgRole;
-    matches!(role, Some(ArgRole::Body | ArgRole::Expr | ArgRole::VarWrite))
+    matches!(
+        role,
+        Some(ArgRole::Body | ArgRole::Expr | ArgRole::VarWrite)
+    )
 }
 
 /// Resolve a `-word` against a command's declared option names, accepting a
@@ -1493,7 +1518,9 @@ fn insert_option_and_subcommand_overrides(
         // ensemble dispatch does.  General over any registry-declared two-level
         // ensemble, not just `info`.
         if let Some(sub_sub_text) = seg.texts.get(2)
-            && sub.resolve_sub_subcommand_for_dialect(sub_sub_text, dialect).is_some()
+            && sub
+                .resolve_sub_subcommand_for_dialect(sub_sub_text, dialect)
+                .is_some()
             && let Some(tok) = seg.argv.get(2)
         {
             overrides
@@ -1828,13 +1855,12 @@ fn insert_registry_method_options(
                 if !matches!(val_tok.kind, TokenType::Esc | TokenType::Str) {
                     continue;
                 }
-                let kind = if !values.is_empty()
-                    && values.iter().any(|v| v.value == val_text.as_str())
-                {
-                    TokenKind::EnumMember
-                } else {
-                    TokenKind::OptionValue
-                };
+                let kind =
+                    if !values.is_empty() && values.iter().any(|v| v.value == val_text.as_str()) {
+                        TokenKind::EnumMember
+                    } else {
+                        TokenKind::OptionValue
+                    };
                 overrides
                     .entry(val_tok.span.start())
                     .or_insert(ArgOverride::Kind(kind));
@@ -1947,7 +1973,10 @@ fn insert_user_configure_options(
         // The immediately-following literal word is this property's value.
         if let Some(val_tok) = seg.argv.get(i + 1)
             && matches!(val_tok.kind, TokenType::Esc | TokenType::Str)
-            && seg.texts.get(i + 1).is_some_and(|w| !w.starts_with('-') && w != "--")
+            && seg
+                .texts
+                .get(i + 1)
+                .is_some_and(|w| !w.starts_with('-') && w != "--")
         {
             overrides
                 .entry(val_tok.span.start())
@@ -1971,7 +2000,10 @@ fn object_handle_name(head_text: &str) -> Option<&str> {
 
 /// The registry class named by a direct `[Class new|create …]` command-head
 /// dispatch, or `None` when the head is not such a constructor call.
-fn constructor_class_of_head<'r>(head_text: &str, registry: &'r CommandRegistry) -> Option<&'r str> {
+fn constructor_class_of_head<'r>(
+    head_text: &str,
+    registry: &'r CommandRegistry,
+) -> Option<&'r str> {
     let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution(head_text)?;
     if !args.first().is_some_and(|s| s == "new" || s == "create") {
         return None;
@@ -2004,7 +2036,10 @@ fn definer_class_name<'s>(
         // registry's definer-family grammar, not a hardcoded name list.
         _ if seg.texts.len() >= 3
             && matches!(
-                registry.get(head).and_then(|s| s.definition_body).map(|g| g.family),
+                registry
+                    .get(head)
+                    .and_then(|s| s.definition_body)
+                    .map(|g| g.family),
                 Some(DefinerFamily::Snit | DefinerFamily::Itcl)
             ) =>
         {
@@ -2049,9 +2084,12 @@ fn insert_self_method_overrides(
     enclosing_class: Option<&str>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let (Some(hierarchy), Some(class_name), Some(head), Some(method)) =
-        (classes, enclosing_class, seg.texts.first(), seg.texts.get(1))
-    else {
+    let (Some(hierarchy), Some(class_name), Some(head), Some(method)) = (
+        classes,
+        enclosing_class,
+        seg.texts.first(),
+        seg.texts.get(1),
+    ) else {
         return;
     };
     // `my` is a bareword; `$self` / `$this` are variable handles for the object
@@ -2232,12 +2270,7 @@ fn insert_oo_define_keyword_overrides(
     mark_keyword(2);
     // `self` introduces the real definition keyword (`method`, `constructor`,
     // …) at `seg.texts[3]`.
-    if first == "self"
-        && seg
-            .texts
-            .get(3)
-            .is_some_and(|w| grammar.is_member(w))
-    {
+    if first == "self" && seg.texts.get(3).is_some_and(|w| grammar.is_member(w)) {
         mark_keyword(3);
     }
 }
@@ -3591,8 +3624,15 @@ fn emit_command_head(
     registry: &CommandRegistry,
     entries: &mut Vec<Entry>,
 ) {
-    let CommandHead { tok: head_tok, text: head_text, resolved: resolved_head } = head;
-    let HeadContext { oo_grammar, scoped_env } = head_ctx;
+    let CommandHead {
+        tok: head_tok,
+        text: head_text,
+        resolved: resolved_head,
+    } = head;
+    let HeadContext {
+        oo_grammar,
+        scoped_env,
+    } = head_ctx;
     // A member sub-keyword of the enclosing definition body (`method`,
     // `typemethod`, `constructor`, …) is a keyword — context-sensitively, so a
     // same-named user proc outside a definition body is unaffected.  This
@@ -3746,8 +3786,15 @@ fn collect_script(
             emit_command_head(
                 line_index,
                 full_source,
-                CommandHead { tok: head_tok, text: head_text, resolved: resolved_head },
-                HeadContext { oo_grammar: ctx.oo_grammar, scoped_env: ctx.scoped_env },
+                CommandHead {
+                    tok: head_tok,
+                    text: head_text,
+                    resolved: resolved_head,
+                },
+                HeadContext {
+                    oo_grammar: ctx.oo_grammar,
+                    scoped_env: ctx.scoped_env,
+                },
                 registry,
                 entries,
             );
@@ -3779,21 +3826,8 @@ fn collect_script(
         // class's MRO (the most common `TclOO` dispatch form).
         insert_self_method_overrides(&seg, ctx.classes, ctx.enclosing_class, &mut overrides);
         // Regex-source tracking: retag a `set` value word that feeds a regexp
-        // pattern as a (substitution-aware) regex.  Keyed on the def-site word
-        // start; the compiler-supplied span is authoritative for the fragment
-        // scan (the segmenter's token span can clamp a closing delimiter).
-        if !ctx.regex_sources.is_empty() {
-            for word in &seg.argv {
-                if let Some(&full_span) = ctx.regex_sources.get(&word.span.start()) {
-                    mark_literal_fragments(
-                        &seg,
-                        full_span,
-                        ArgOverride::RegexPattern,
-                        &mut overrides,
-                    );
-                }
-            }
-        }
+        // pattern as a (substitution-aware) regex.
+        mark_regex_source_words(&seg, ctx.regex_sources, &mut overrides);
 
         // The definition-body grammar the recursion into THIS command's body
         // arguments should carry: an outer definer body switches to its
@@ -4226,7 +4260,10 @@ fn imported_command_aliases(
             continue;
         }
         let qualified = format!("{ns}::{name}");
-        if registry.get(&qualified).is_some_and(|s| s.is_namespace_exported) {
+        if registry
+            .get(&qualified)
+            .is_some_and(|s| s.is_namespace_exported)
+        {
             record(name.clone(), qualified, *off);
         }
     }
@@ -4253,7 +4290,15 @@ fn augment_loop_var_handles(
     if object_collections.is_empty() {
         return;
     }
-    scan_loop_vars(source, source, 0, dialect, object_collections, object_classes, 0);
+    scan_loop_vars(
+        source,
+        source,
+        0,
+        dialect,
+        object_collections,
+        object_classes,
+        0,
+    );
 }
 
 /// Add a loop variable → element-class set entry to the handle map (skips an
@@ -4304,8 +4349,7 @@ fn scan_loop_vars(
         }
         // `foreach VARS LIST ?VARS LIST …? BODY` / `lmap …` — every variable of
         // a group iterating an object collection is an element.
-        if matches!(texts.first().map(String::as_str), Some("foreach" | "lmap"))
-            && texts.len() >= 4
+        if matches!(texts.first().map(String::as_str), Some("foreach" | "lmap")) && texts.len() >= 4
         {
             let pairs = &texts[1..texts.len() - 1];
             let mut i = 0;
@@ -4424,7 +4468,10 @@ fn scan_snit_handles(
                     && !type_name.contains(['$', '[', ' '])
                 {
                     let qualified = format!("::{}", type_name.trim_start_matches("::"));
-                    handles.entry(name.to_owned()).or_default().insert(qualified);
+                    handles
+                        .entry(name.to_owned())
+                        .or_default()
+                        .insert(qualified);
                 }
             }
             // `set NAME [TYPE inst …]` — snit bare-word constructor.
@@ -4507,7 +4554,11 @@ fn collect_entries(
         &mut extra_command,
     );
     if let Some(roles) = proc_roles {
-        roles.extend_into(&mut extra_var_write, &mut extra_var_read, &mut extra_command);
+        roles.extend_into(
+            &mut extra_var_write,
+            &mut extra_var_read,
+            &mut extra_command,
+        );
     }
 
     // Regex-source spans: the def-site literal words (`set my_re ".*"`) whose
@@ -5347,7 +5398,11 @@ mod tests {
         // (`-template`, `-level`, …) colour their following literal as an
         // OptionValue, while boolean switches (`-inline`) do not. argparse is
         // registered (package-gated), so the classifier resolves its spec.
-        let ks = kinds("argparse -template foo -level 2 -inline {d}\n", "tcl", &reg());
+        let ks = kinds(
+            "argparse -template foo -level 2 -inline {d}\n",
+            "tcl",
+            &reg(),
+        );
         let n_val = ks
             .iter()
             .filter(|&&k| k == TokenKind::OptionValue as u32)
@@ -5391,8 +5446,10 @@ mod tests {
             decode_full(src, "tcl", &reg())
                 .into_iter()
                 .find(|&(_, c, _, _, _)| c == col)
-                .map(|(_, _, _, k, _)| k)
-                .unwrap_or_else(|| panic!("no token at column {col} in {src:?}"))
+                .map_or_else(
+                    || panic!("no token at column {col} in {src:?}"),
+                    |(_, _, _, k, _)| k,
+                )
         };
 
         // `info object class $obj` — column 12 is `class`.
@@ -5457,8 +5514,10 @@ mod tests {
             decode_full(src, dialect, &reg())
                 .into_iter()
                 .find(|&(_, c, _, _, _)| c == col)
-                .map(|(_, _, _, k, _)| k)
-                .unwrap_or_else(|| panic!("no token at col {col} in {src:?}"))
+                .map_or_else(
+                    || panic!("no token at col {col} in {src:?}"),
+                    |(_, _, _, k, _)| k,
+                )
         };
         // `string rev` is `reverse` (added 8.5): a keyword in 8.6, but an
         // unknown word in 8.4 where `reverse` does not exist (verified: tclsh8.4
@@ -5631,9 +5690,9 @@ mod tests {
             "append log(err) x\n",
         ] {
             let toks = decode_full(src, "tcl", &reg());
-            let decl = toks.iter().any(|(_, _, _, k, m)| {
-                *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
-            });
+            let decl = toks
+                .iter()
+                .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION);
             assert!(
                 decl,
                 "expected an array-element variable declaration; got {toks:?} for {src:?}"
@@ -5655,9 +5714,9 @@ mod tests {
     fn namespaced_array_element_write_is_variable_declaration() {
         // A namespaced array (`::ns::arr(key)`) is still a plain element.
         let toks = decode_full("set ::ns::arr(key) 1\n", "tcl", &reg());
-        let decl = toks.iter().any(|(_, _, _, k, m)| {
-            *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
-        });
+        let decl = toks
+            .iter()
+            .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION);
         assert!(
             decl,
             "expected a variable declaration for the namespaced array element; got {toks:?}"
@@ -5707,17 +5766,17 @@ mod tests {
             "array get arr\n",
         ] {
             let toks = decode_full(src, "tcl", &reg());
-            let var_ref = toks.iter().any(|(_, _, _, k, m)| {
-                *k == TokenKind::Variable as u32 && *m == 0
-            });
+            let var_ref = toks
+                .iter()
+                .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == 0);
             assert!(
                 var_ref,
                 "expected a plain Variable reference for {src:?}; got {toks:?}"
             );
             // A read must not carry the declaration modifier.
-            let decl = toks.iter().any(|(_, _, _, k, m)| {
-                *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
-            });
+            let decl = toks
+                .iter()
+                .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION);
             assert!(!decl, "a read must not declare; got {toks:?} for {src:?}");
         }
     }
@@ -5767,9 +5826,9 @@ mod tests {
                    # tcl-lsp: stubs-end\n\
                    myexists arr(key)\n";
         let toks = decode_full(src, "tcl", &reg());
-        let var_ref = toks.iter().any(|(line, _, _, k, m)| {
-            *line == 3 && *k == TokenKind::Variable as u32 && *m == 0
-        });
+        let var_ref = toks
+            .iter()
+            .any(|(line, _, _, k, m)| *line == 3 && *k == TokenKind::Variable as u32 && *m == 0);
         assert!(
             var_ref,
             "expected the stubbed :var_read array element as a reference; got {toks:?}"
@@ -5940,10 +5999,14 @@ mod tests {
         // Without analysis, `greet` is an unknown command's plain string arg.
         let plain = decode_semantic(&full_with_cu(src, "tcl9.0", &registry, Some(&cu)));
         let greet_fn = |toks: &[(u32, u32, u32, u32, u32)]| {
-            toks.iter()
-                .any(|&(line, col, _, k, _)| line == 3 && col == 9 && k == TokenKind::Function as u32)
+            toks.iter().any(|&(line, col, _, k, _)| {
+                line == 3 && col == 9 && k == TokenKind::Function as u32
+            })
         };
-        assert!(!greet_fn(&plain), "no command role without analysis; got {plain:?}");
+        assert!(
+            !greet_fn(&plain),
+            "no command role without analysis; got {plain:?}"
+        );
         // With analysis, `greet` (col 9 on the call line) highlights as a command.
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
@@ -6189,9 +6252,8 @@ mod tests {
         // resolved *method* is a plain Function (no `defaultLibrary`), which is
         // the signal that distinguishes resolution from the built-in.
         let user_method_on_dispatch_line = |toks: &[(u32, u32, u32, u32, u32)]| {
-            toks.iter().any(|&(l, _, _, k, m)| {
-                l == 4 && k == TokenKind::Function as u32 && m == 0
-            })
+            toks.iter()
+                .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Function as u32 && m == 0)
         };
         // Without analysis: `configure` stays an unresolved string — only
         // `dict` (defaultLibrary) is a Function on the line.
@@ -6201,8 +6263,13 @@ mod tests {
             "without analysis, no user method resolves; got {plain:?}"
         );
         // With analysis: the dynamic dispatch resolves `configure` as a method.
-        let toks =
-            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
         assert!(
             user_method_on_dispatch_line(&toks),
             "`configure` on the retrieved Pin should resolve to a method; got {toks:?}"
@@ -6226,8 +6293,13 @@ mod tests {
                    }\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks =
-            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
         // `configure` on the loop var resolves to a user method (plain Function,
         // no `defaultLibrary`) on the `dump` method's line.
         assert!(
@@ -6251,8 +6323,13 @@ mod tests {
                    }\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks =
-            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
         // `my helper` on line 2 resolves the sibling method.
         assert!(
             toks.iter()
@@ -6276,8 +6353,13 @@ mod tests {
                    }\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks =
-            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
         assert!(
             toks.iter()
                 .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Function as u32 && m == 0),
@@ -6303,8 +6385,13 @@ mod tests {
                    }\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks =
-            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
         // `$axis draw` on line 5 resolves the component's method.
         assert!(
             toks.iter()
@@ -6330,8 +6417,13 @@ mod tests {
                    }\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks =
-            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
         // `$eng run` on line 4 resolves the method.
         assert!(
             toks.iter()
@@ -6354,11 +6446,17 @@ mod tests {
                    $x run\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks =
-            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
         // `$x run` on line 3 must stay unresolved (`run` not a Function token).
         assert!(
-            !toks.iter()
+            !toks
+                .iter()
                 .any(|&(l, _, _, k, _)| l == 3 && k == TokenKind::Function as u32),
             "expected `$x run` on a typemethod result to abstain; got {toks:?}"
         );
@@ -6377,8 +6475,13 @@ mod tests {
                    }\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks =
-            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
         // `configure` resolves (Function) and `-node` is a decorator on line 2.
         assert!(
             toks.iter()
@@ -6405,8 +6508,13 @@ mod tests {
                    $o mrun\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks =
-            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
         assert!(
             toks.iter()
                 .any(|&(l, _, _, k, m)| l == 3 && k == TokenKind::Function as u32 && m == 0),
@@ -6428,8 +6536,13 @@ mod tests {
                    connect $p n1\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks =
-            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
         // `configure` on the proc's object parameter (line 1) resolves.
         assert!(
             toks.iter()
@@ -6438,9 +6551,176 @@ mod tests {
         );
     }
 
+    /// Expected outcome for a `tcloo_dispatch_cases` fixture row.
+    #[derive(Clone, Copy, PartialEq)]
+    enum Expect {
+        Resolve,
+        Abstain,
+    }
+
+    use Expect::{Abstain, Resolve};
+
+    /// The `TclOO` object-method dispatch fixture rows:
+    /// `(name, source, method word, 0-based dispatch line, expectation)`.
+    const TCLOO_DISPATCH_CASES: &[(&str, &str, &str, u32, Expect)] = &[
+        // ---- statically determinable → resolve ----
+        (
+            "var_new",
+            "oo::class create C { method mrun {} {} }\nset o [C new]\n$o mrun\n",
+            "mrun",
+            2,
+            Resolve,
+        ),
+        (
+            "direct_new",
+            "oo::class create C { method mrun {} {} }\n[C new] mrun\n",
+            "mrun",
+            1,
+            Resolve,
+        ),
+        (
+            "configurable_property",
+            "oo::configurable create C { property node }\nset o [C new]\n$o configure -node 1\n",
+            "configure",
+            2,
+            Resolve,
+        ),
+        (
+            "inherited_method",
+            "oo::class create B { method base {} {} }\noo::class create D { superclass B }\nset o [D new]\n$o base\n",
+            "base",
+            3,
+            Resolve,
+        ),
+        (
+            "mixin_method",
+            "oo::class create M { method mixm {} {} }\noo::class create C { mixin M }\nset o [C new]\n$o mixm\n",
+            "mixm",
+            3,
+            Resolve,
+        ),
+        (
+            "dict_collection",
+            "oo::class create C { method mrun {} {} }\ndict set d k [C new]\n[dict get $d k] mrun\n",
+            "mrun",
+            2,
+            Resolve,
+        ),
+        (
+            "foreach_loopvar",
+            "oo::class create C { method mrun {} {} }\nlappend objs [C new]\nforeach o $objs { $o mrun }\n",
+            "mrun",
+            2,
+            Resolve,
+        ),
+        (
+            "interproc_param",
+            "oo::class create C { method mrun {} {} }\nproc f {o} { $o mrun }\nset p [C new]\nf $p\n",
+            "mrun",
+            1,
+            Resolve,
+        ),
+        (
+            "proc_return",
+            "oo::class create C { method mrun {} {} }\nproc make {} { return [C new] }\nset o [make]\n$o mrun\n",
+            "mrun",
+            3,
+            Resolve,
+        ),
+        (
+            "my_self_call",
+            "oo::class create C {\n  method helper {} {}\n  method run {} { my helper }\n}\n",
+            "helper",
+            2,
+            Resolve,
+        ),
+        (
+            "snit_self_call",
+            "snit::type C {\n  method helper {} {}\n  method run {} { $self helper }\n}\n",
+            "helper",
+            2,
+            Resolve,
+        ),
+        (
+            "itcl_this_call",
+            "itcl::class C {\n  method helper {} {}\n  method run {} { $this helper }\n}\n",
+            "helper",
+            2,
+            Resolve,
+        ),
+        (
+            "snit_install_component",
+            "snit::widget Ax { method draw {} {} }\nsnit::widget C {\n  constructor {} { install ax using Ax $win.a\n    $ax draw }\n}\n",
+            "draw",
+            3,
+            Resolve,
+        ),
+        (
+            "snit_bare_constructor",
+            "snit::type Eng { method run {} {} }\nsnit::type C {\n  variable e\n  constructor {} { set e [Eng ${selfns}::x] }\n  method go {} { $e run }\n}\n",
+            "run",
+            4,
+            Resolve,
+        ),
+        (
+            "oo_define_added",
+            "oo::class create C {}\noo::define C { method added {} {} }\nset o [C new]\n$o added\n",
+            "added",
+            3,
+            Resolve,
+        ),
+        (
+            "registry_class",
+            "set c [ticklecharts::chart new]\n$c Xaxis -name x\n",
+            "Xaxis",
+            1,
+            Resolve,
+        ),
+        // ---- genuinely dynamic → must abstain (soundness) ----
+        (
+            "introspection_class",
+            "oo::class create C { method mrun {} {} }\nset o [C new]\nset cls [info object class $o]\n[$cls new] mrun\n",
+            "mrun",
+            3,
+            Abstain,
+        ),
+        (
+            "oo_copy",
+            "oo::class create C { method mrun {} {} }\nset a [C new]\nset b [oo::copy $a]\n$b mrun\n",
+            "mrun",
+            3,
+            Abstain,
+        ),
+        (
+            "unknown_param",
+            "proc f {o} { $o mrun }\n",
+            "mrun",
+            0,
+            Abstain,
+        ),
+        // ---- not yet modelled, but abstains safely (flip to Resolve when done) ----
+        (
+            "named_object", // TODO(phase-3): resolve via created_instance_commands
+            "oo::class create C { method mrun {} {} }\nC create obj\nobj mrun\n",
+            "mrun",
+            2,
+            Abstain,
+        ),
+        (
+            // The snit *named-constructor* shape: `$o` bound by `foo create
+            // x` types as `foo` (the signature scan records snit types as
+            // classes), so the dispatch resolves like any handle.
+            "snit_named_object",
+            "snit::type foo { method smeth {} {} }\nset o [foo create x]\n$o smeth\n",
+            "smeth",
+            2,
+            Resolve,
+        ),
+    ];
+
     /// Golden fixture for `TclOO` object-method dispatch resolution — validated
     /// against the Tcler's-wiki pattern catalogue and a real corpus (tcllib,
-    /// tklib, SpiceGenTcl).  Two guarantees:
+    /// tklib, `SpiceGenTcl`).  Two guarantees:
     ///
     /// * **`Resolve`** — a statically-determinable dispatch colours its method a
     ///   callable (regression guard for every form we support).
@@ -6454,126 +6734,7 @@ mod tests {
     fn tcloo_dispatch_pattern_fixture() {
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
-        #[derive(Clone, Copy, PartialEq)]
-        enum Expect {
-            Resolve,
-            Abstain,
-        }
-        use Expect::{Abstain, Resolve};
-        // (name, source, method word, 0-based dispatch line, expectation)
-        let cases: &[(&str, &str, &str, u32, Expect)] = &[
-            // ---- statically determinable → resolve ----
-            (
-                "var_new",
-                "oo::class create C { method mrun {} {} }\nset o [C new]\n$o mrun\n",
-                "mrun", 2, Resolve,
-            ),
-            (
-                "direct_new",
-                "oo::class create C { method mrun {} {} }\n[C new] mrun\n",
-                "mrun", 1, Resolve,
-            ),
-            (
-                "configurable_property",
-                "oo::configurable create C { property node }\nset o [C new]\n$o configure -node 1\n",
-                "configure", 2, Resolve,
-            ),
-            (
-                "inherited_method",
-                "oo::class create B { method base {} {} }\noo::class create D { superclass B }\nset o [D new]\n$o base\n",
-                "base", 3, Resolve,
-            ),
-            (
-                "mixin_method",
-                "oo::class create M { method mixm {} {} }\noo::class create C { mixin M }\nset o [C new]\n$o mixm\n",
-                "mixm", 3, Resolve,
-            ),
-            (
-                "dict_collection",
-                "oo::class create C { method mrun {} {} }\ndict set d k [C new]\n[dict get $d k] mrun\n",
-                "mrun", 2, Resolve,
-            ),
-            (
-                "foreach_loopvar",
-                "oo::class create C { method mrun {} {} }\nlappend objs [C new]\nforeach o $objs { $o mrun }\n",
-                "mrun", 2, Resolve,
-            ),
-            (
-                "interproc_param",
-                "oo::class create C { method mrun {} {} }\nproc f {o} { $o mrun }\nset p [C new]\nf $p\n",
-                "mrun", 1, Resolve,
-            ),
-            (
-                "proc_return",
-                "oo::class create C { method mrun {} {} }\nproc make {} { return [C new] }\nset o [make]\n$o mrun\n",
-                "mrun", 3, Resolve,
-            ),
-            (
-                "my_self_call",
-                "oo::class create C {\n  method helper {} {}\n  method run {} { my helper }\n}\n",
-                "helper", 2, Resolve,
-            ),
-            (
-                "snit_self_call",
-                "snit::type C {\n  method helper {} {}\n  method run {} { $self helper }\n}\n",
-                "helper", 2, Resolve,
-            ),
-            (
-                "itcl_this_call",
-                "itcl::class C {\n  method helper {} {}\n  method run {} { $this helper }\n}\n",
-                "helper", 2, Resolve,
-            ),
-            (
-                "snit_install_component",
-                "snit::widget Ax { method draw {} {} }\nsnit::widget C {\n  constructor {} { install ax using Ax $win.a\n    $ax draw }\n}\n",
-                "draw", 3, Resolve,
-            ),
-            (
-                "snit_bare_constructor",
-                "snit::type Eng { method run {} {} }\nsnit::type C {\n  variable e\n  constructor {} { set e [Eng ${selfns}::x] }\n  method go {} { $e run }\n}\n",
-                "run", 4, Resolve,
-            ),
-            (
-                "oo_define_added",
-                "oo::class create C {}\noo::define C { method added {} {} }\nset o [C new]\n$o added\n",
-                "added", 3, Resolve,
-            ),
-            (
-                "registry_class",
-                "set c [ticklecharts::chart new]\n$c Xaxis -name x\n",
-                "Xaxis", 1, Resolve,
-            ),
-            // ---- genuinely dynamic → must abstain (soundness) ----
-            (
-                "introspection_class",
-                "oo::class create C { method mrun {} {} }\nset o [C new]\nset cls [info object class $o]\n[$cls new] mrun\n",
-                "mrun", 3, Abstain,
-            ),
-            (
-                "oo_copy",
-                "oo::class create C { method mrun {} {} }\nset a [C new]\nset b [oo::copy $a]\n$b mrun\n",
-                "mrun", 3, Abstain,
-            ),
-            (
-                "unknown_param",
-                "proc f {o} { $o mrun }\n",
-                "mrun", 0, Abstain,
-            ),
-            // ---- not yet modelled, but abstains safely (flip to Resolve when done) ----
-            (
-                "named_object", // TODO(phase-3): resolve via created_instance_commands
-                "oo::class create C { method mrun {} {} }\nC create obj\nobj mrun\n",
-                "mrun", 2, Abstain,
-            ),
-            (
-                // The snit *named-constructor* shape: `$o` bound by `foo create
-                // x` types as `foo` (the signature scan records snit types as
-                // classes), so the dispatch resolves like any handle.
-                "snit_named_object",
-                "snit::type foo { method smeth {} {} }\nset o [foo create x]\n$o smeth\n",
-                "smeth", 2, Resolve,
-            ),
-        ];
+        let cases = TCLOO_DISPATCH_CASES;
         let registry = reg();
         let mut failures = Vec::new();
         for &(name, src, method, line, expect) in cases {
@@ -6593,20 +6754,27 @@ mod tests {
             let mcol = src_line.match_indices(method).find_map(|(i, _)| {
                 let before = src_line.as_bytes().get(i.wrapping_sub(1)).copied();
                 let after = src_line.as_bytes().get(i + method.len()).copied();
-                let boundary = |b: Option<u8>| b.is_none_or(|b| !b.is_ascii_alphanumeric() && b != b'_');
-                (boundary(before) && boundary(after)).then_some(i as u32)
+                let boundary =
+                    |b: Option<u8>| b.is_none_or(|b| !b.is_ascii_alphanumeric() && b != b'_');
+                (boundary(before) && boundary(after))
+                    .then(|| u32::try_from(i).expect("column fits u32"))
             });
             // The method resolves iff *its own* token is a callable `Function`.
             let resolved = mcol.is_some_and(|c| {
-                toks.iter()
-                    .any(|&(l, tc, _, k, _)| l == line && tc == c && k == TokenKind::Function as u32)
+                toks.iter().any(|&(l, tc, _, k, _)| {
+                    l == line && tc == c && k == TokenKind::Function as u32
+                })
             });
             let ok = match expect {
                 Resolve => resolved,
                 Abstain => !resolved,
             };
             if !ok {
-                let want = if expect == Resolve { "resolve" } else { "abstain" };
+                let want = if expect == Resolve {
+                    "resolve"
+                } else {
+                    "abstain"
+                };
                 failures.push(format!(
                     "  {name}: `{method}` expected to {want} but did not"
                 ));
@@ -6634,8 +6802,13 @@ mod tests {
         let hierarchy = build_class_hierarchy(Analyser::new().analyse(lib, "tcl9.0").all_classes);
         let user = "[::Pin new] configure -node 5\n";
         let cu = CompilationUnit::build_for(user, &registry, false);
-        let toks =
-            decode_semantic(&full_with_cu_and_classes(user, "tcl9.0", &registry, Some(&cu), Some(&hierarchy)));
+        let toks = decode_semantic(&full_with_cu_and_classes(
+            user,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&hierarchy),
+        ));
         // `configure` (col 12, after `[::Pin new] `) resolves to a method.
         assert!(
             toks.iter().any(|&(l, c, _, k, m)| l == 0
@@ -6645,8 +6818,13 @@ mod tests {
             "cross-file `[::Pin new] configure` should resolve; got {toks:?}"
         );
         // Without the hierarchy it stays an unresolved string.
-        let none =
-            decode_semantic(&full_with_cu_and_classes(user, "tcl9.0", &registry, Some(&cu), None));
+        let none = decode_semantic(&full_with_cu_and_classes(
+            user,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            None,
+        ));
         assert!(
             none.iter()
                 .any(|&(l, c, _, k, _)| l == 0 && c == 12 && k == TokenKind::String as u32),
@@ -6671,8 +6849,13 @@ mod tests {
                    }\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks =
-            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
         assert!(
             toks.iter()
                 .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Function as u32 && m == 0),
@@ -6692,8 +6875,13 @@ mod tests {
                    $p configure -node 5\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks =
-            decode_semantic(&full_with_cu_and_analysis(src, "tcl9.0", &registry, Some(&cu), Some(&analysis)));
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
         // `configure` at line 2 resolves to a Function.
         assert!(
             toks.iter()
@@ -6813,9 +7001,8 @@ mod tests {
         // is not swallowed into one command-head token (which would hide the
         // substitution and mislabel a dynamic command as a resolved one).
         assert!(
-            toks.iter().any(|&(l, c, _, k, _)| l == 0
-                && c == 6
-                && k == TokenKind::Variable as u32),
+            toks.iter()
+                .any(|&(l, c, _, k, _)| l == 0 && c == 6 && k == TokenKind::Variable as u32),
             "expected a `$node` variable fragment at col 6; got {toks:?}"
         );
         // No token is a `Function` command head spanning the computed word.
@@ -7582,4 +7769,3 @@ mod tests {
         );
     }
 }
-

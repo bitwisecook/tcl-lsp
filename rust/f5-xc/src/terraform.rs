@@ -22,8 +22,9 @@
 //! faithful port of `dialects/f5/xc/terraform.py`.
 
 use crate::model::{
-    TranslateStatus, XCCookieMatch, XCHeaderAction, XCHeaderMatch, XCOriginPool, XCPathMatch,
-    XCQueryMatch, XCRoute, XCServicePolicy, XCTranslationResult, XCWafExclusionRule,
+    TranslateStatus, XCCookieMatch, XCHeaderAction, XCHeaderMatch, XCHostMatch, XCMethodMatch,
+    XCOriginPool, XCPathMatch, XCQueryMatch, XCRoute, XCServicePolicy, XCTranslationResult,
+    XCWafExclusionRule,
 };
 
 /// Escape and quote a Terraform string value.
@@ -46,6 +47,60 @@ fn path_match_block(m: &XCPathMatch, level: usize) -> String {
     }
     lines.push(format!("{p}}}"));
     lines.join("\n")
+}
+
+fn host_match_block(m: &XCHostMatch, level: usize) -> String {
+    let p = pad(level);
+    [
+        format!("{p}host {{"),
+        format!("{p}  {} = {}", m.match_type, quote(&m.value)),
+        format!("{p}}}"),
+    ]
+    .join("\n")
+}
+
+fn method_match_block(m: &XCMethodMatch, level: usize) -> String {
+    let p = pad(level);
+    let methods = m
+        .methods
+        .iter()
+        .map(|x| quote(x))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let mut lines = vec![
+        format!("{p}http_method {{"),
+        format!("{p}  methods = [{methods}]"),
+    ];
+    if m.invert {
+        lines.push(format!("{p}  invert_matcher = true"));
+    }
+    lines.push(format!("{p}}}"));
+    lines.join("\n")
+}
+
+/// Emit every recorded match criterion of a route (path, host, method,
+/// headers, query, cookies) as indented HCL blocks. Shared by the simple,
+/// redirect, and direct-response route renderers so none silently drops a
+/// criterion the translator recorded (`RUST_ISSUE_045`).
+fn route_match_blocks(route: &XCRoute, level: usize, lines: &mut Vec<String>) {
+    if let Some(pm) = &route.path_match {
+        lines.push(path_match_block(pm, level));
+    }
+    if let Some(hm) = &route.host_match {
+        lines.push(host_match_block(hm, level));
+    }
+    if let Some(mm) = &route.method_match {
+        lines.push(method_match_block(mm, level));
+    }
+    for hdr in &route.header_matches {
+        lines.push(header_match_block(hdr, level));
+    }
+    if let Some(qm) = &route.query_match {
+        lines.push(query_match_block(qm, level));
+    }
+    for cookie in &route.cookie_matches {
+        lines.push(cookie_match_block(cookie, level));
+    }
 }
 
 fn header_match_block(m: &XCHeaderMatch, level: usize) -> String {
@@ -123,18 +178,7 @@ fn render_simple_route(route: &XCRoute, level: usize) -> String {
     let p = pad(level);
     let mut lines = vec![format!("{p}simple_route {{")];
 
-    if let Some(pm) = &route.path_match {
-        lines.push(path_match_block(pm, level + 1));
-    }
-    for hdr in &route.header_matches {
-        lines.push(header_match_block(hdr, level + 1));
-    }
-    if let Some(qm) = &route.query_match {
-        lines.push(query_match_block(qm, level + 1));
-    }
-    for cookie in &route.cookie_matches {
-        lines.push(cookie_match_block(cookie, level + 1));
-    }
+    route_match_blocks(route, level + 1, &mut lines);
 
     if let Some(op) = &route.origin_pool {
         lines.push(format!("{p}  origin_pools {{"));
@@ -181,9 +225,7 @@ fn render_redirect_route(route: &XCRoute, level: usize) -> String {
     let p = pad(level);
     let mut lines = vec![format!("{p}redirect_route {{")];
 
-    if let Some(pm) = &route.path_match {
-        lines.push(path_match_block(pm, level + 1));
-    }
+    route_match_blocks(route, level + 1, &mut lines);
 
     lines.push(format!("{p}  redirect_route_action {{"));
     if let Some(redirect) = &route.redirect {
@@ -204,9 +246,7 @@ fn render_direct_response_route(route: &XCRoute, level: usize) -> String {
     let p = pad(level);
     let mut lines = vec![format!("{p}direct_response_route {{")];
 
-    if let Some(pm) = &route.path_match {
-        lines.push(path_match_block(pm, level + 1));
-    }
+    route_match_blocks(route, level + 1, &mut lines);
 
     if let Some(dr) = &route.direct_response {
         lines.push(format!("{p}  direct_response_action {{"));
@@ -286,27 +326,10 @@ fn render_service_policy(policy: &XCServicePolicy, namespace: &str) -> String {
             lines.push(path_match_block(pm, 4));
         }
         if let Some(hm) = &rule.host_match {
-            lines.push("        host {".to_owned());
-            lines.push(format!(
-                "          {} = {}",
-                hm.match_type,
-                quote(&hm.value)
-            ));
-            lines.push("        }".to_owned());
+            lines.push(host_match_block(hm, 4));
         }
         if let Some(mm) = &rule.method_match {
-            lines.push("        http_method {".to_owned());
-            let methods = mm
-                .methods
-                .iter()
-                .map(|m| quote(m))
-                .collect::<Vec<_>>()
-                .join(", ");
-            lines.push(format!("          methods = [{methods}]"));
-            if mm.invert {
-                lines.push("          invert_matcher = true".to_owned());
-            }
-            lines.push("        }".to_owned());
+            lines.push(method_match_block(mm, 4));
         }
         for hdr in &rule.header_matches {
             lines.push(header_match_block(hdr, 4));

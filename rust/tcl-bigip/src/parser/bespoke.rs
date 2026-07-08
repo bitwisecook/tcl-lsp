@@ -255,29 +255,88 @@ fn property_names_for(module: &str, object_type: &str) -> Vec<String> {
         })
 }
 
+/// Quote-aware tokeniser for inline sibling-property splitting.
+///
+/// A double-quoted run is kept as a single token (quotes preserved) so a
+/// multi-word scalar value like `"TLS enabled for clients"` is never
+/// re-split on its inner whitespace, and its inner words are never
+/// re-interpreted as property names. Backslash escapes are passed through
+/// verbatim so slicing never lands mid-char.
+fn tokenize_quote_aware(value: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut token = String::new();
+    let mut in_quote = false;
+    let mut chars = value.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '"' => {
+                in_quote = !in_quote;
+                token.push(c);
+            }
+            '\\' => {
+                token.push(c);
+                if let Some(n) = chars.next() {
+                    token.push(n);
+                }
+            }
+            c if !in_quote && c.is_whitespace() => {
+                if !token.is_empty() {
+                    out.push(std::mem::take(&mut token));
+                }
+            }
+            c => token.push(c),
+        }
+    }
+    if !token.is_empty() {
+        out.push(token);
+    }
+    out
+}
+
+/// Net brace depth of a token, ignoring braces inside a quoted run so a
+/// quoted scalar containing `{`/`}` cannot desynchronise depth tracking.
+fn brace_delta(tok: &str) -> i64 {
+    let mut depth: i64 = 0;
+    let mut in_quote = false;
+    let mut chars = tok.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '"' => in_quote = !in_quote,
+            '\\' => {
+                chars.next();
+            }
+            '{' if !in_quote => depth += 1,
+            '}' if !in_quote => depth -= 1,
+            _ => {}
+        }
+    }
+    depth
+}
+
 /// Re-split a read-to-EOL value containing inline sibling properties.
 /// Returns the additional inline pairs plus an optional `__head__` (the
 /// owning key's real first-token value).
+///
+/// Splitting is quote-aware: a quoted multi-word scalar value is kept
+/// intact and its inner words are not matched against `known`.
 fn split_inline_keys(value: &str, known: &[String]) -> HashMap<String, String> {
     let mut out: HashMap<String, String> = HashMap::new();
-    let tokens: Vec<&str> = value.split_whitespace().collect();
+    let tokens = tokenize_quote_aware(value);
     if tokens.is_empty() {
         return out;
     }
     let key_set: std::collections::HashSet<&str> = known.iter().map(String::as_str).collect();
     let mut current_key: Option<&str> = None;
-    let mut current_value: Vec<&str> = vec![tokens[0]];
-    let mut brace_depth: i64 = i64::try_from(tokens[0].matches('{').count()).unwrap_or(0)
-        - i64::try_from(tokens[0].matches('}').count()).unwrap_or(0);
+    let mut current_value: Vec<&str> = vec![tokens[0].as_str()];
+    let mut brace_depth: i64 = brace_delta(&tokens[0]);
     let mut head: Option<String> = None;
-    for &tok in &tokens[1..] {
+    for tok in &tokens[1..] {
         if brace_depth > 0 {
             current_value.push(tok);
-            brace_depth += i64::try_from(tok.matches('{').count()).unwrap_or(0)
-                - i64::try_from(tok.matches('}').count()).unwrap_or(0);
+            brace_depth += brace_delta(tok);
             continue;
         }
-        if key_set.contains(tok) {
+        if key_set.contains(tok.as_str()) {
             let joined = current_value.join(" ");
             if let Some(k) = current_key {
                 out.insert(k.to_owned(), joined);
@@ -289,8 +348,7 @@ fn split_inline_keys(value: &str, known: &[String]) -> HashMap<String, String> {
             continue;
         }
         current_value.push(tok);
-        brace_depth += i64::try_from(tok.matches('{').count()).unwrap_or(0)
-            - i64::try_from(tok.matches('}').count()).unwrap_or(0);
+        brace_depth += brace_delta(tok);
     }
     let Some(k) = current_key else {
         return HashMap::new();
@@ -1380,12 +1438,14 @@ pub fn parse_net_route(full_path: &str, body: &str, range: Range) -> BigipNetRou
     let props = split_compact_props(body, &known);
     let network_raw = props.get("network").cloned().unwrap_or_default();
     let gw_raw = props.get("gw").cloned().unwrap_or_default();
-    obj.is_default_route = network_raw == "default";
     obj.network = if network_raw.is_empty() {
         None
     } else {
         Network::try_parse(&network_raw)
     };
+    // Derive the default-route flag from the parsed network so a
+    // route-domain-qualified `default%N` is still recognised.
+    obj.is_default_route = obj.network.as_ref().is_some_and(Network::is_default);
     obj.gw = if gw_raw.is_empty() {
         None
     } else {
@@ -2126,6 +2186,43 @@ mod tests {
             v.destination.as_ref().unwrap().to_string(),
             "/Common/10.0.0.2:443"
         );
+    }
+
+    #[test]
+    fn quoted_description_not_resplit_into_phantom_props() {
+        // A quoted multi-word description whose inner words match known
+        // property names (`enabled`) must stay intact and must not fabricate
+        // sibling props. The real bare `disabled` flag must still register.
+        let src = "\
+ltm virtual /Common/tls_vs {
+    description \"TLS enabled for clients\"
+    disabled
+    destination /Common/10.0.0.9:443
+}
+";
+        let cfg = parse_bigip_conf(src, "Common");
+        let ModelObject::VirtualServer(v) = find(&cfg, "virtual_servers", "/Common/tls_vs") else {
+            panic!("not a virtual");
+        };
+        // Description preserved verbatim (unquoted), not truncated to "TLS".
+        assert_eq!(v.description, "TLS enabled for clients");
+        // Explicitly-disabled VS is not flipped to enabled by a phantom prop.
+        assert_eq!(v.state, "disabled");
+    }
+
+    #[test]
+    fn split_inline_keys_is_quote_aware() {
+        // Direct unit test of the splitter: the `enabled` inside the quoted
+        // description is not treated as a property boundary; the trailing bare
+        // `disabled` is.
+        let known = vec!["enabled".to_owned(), "disabled".to_owned()];
+        let out = split_inline_keys("\"TLS enabled for clients\" disabled", &known);
+        assert_eq!(
+            out.get("__head__").map(String::as_str),
+            Some("\"TLS enabled for clients\"")
+        );
+        assert_eq!(out.get("disabled").map(String::as_str), Some(""));
+        assert!(!out.contains_key("enabled"));
     }
 
     #[test]

@@ -45,14 +45,16 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "ACL::eval ('-l7')?",
         }],
-        options: const { &[OptionSpec {
-            name: "-l7",
-            value: OptionValue::flag(),
-            detail: "Evaluate L7 ACLs.",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "-l7",
+                value: OptionValue::flag(),
+                detail: "Evaluate L7 ACLs.",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::AsmState,
             reads: true,

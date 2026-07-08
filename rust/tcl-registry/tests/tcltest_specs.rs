@@ -110,7 +110,11 @@ fn test_command_declares_a_symbol_definer() {
         .defines_symbol("tcltest::test", DialectSet::ALL_TCL)
         .expect("tcltest::test should declare a symbol definer");
     assert_eq!(sym.name_arg, 0, "test name is the first argument");
-    assert_eq!(sym.detail_arg, Some(1), "test description is the second argument");
+    assert_eq!(
+        sym.detail_arg,
+        Some(1),
+        "test description is the second argument"
+    );
     assert_eq!(sym.kind, DefinedSymbolKind::Test);
 
     // The `commands_defining_symbols` aggregate lists it.
@@ -184,7 +188,10 @@ fn c_harness_commands_are_registered_and_version_gated() {
     let fork = r.get("testfork").expect("testfork registered");
     assert!(fork.supports_dialect(DialectSet::TCL85), "testfork in 8.5");
     assert!(fork.supports_dialect(DialectSet::TCL91), "testfork in 9.1");
-    assert!(!fork.supports_dialect(DialectSet::TCL84), "testfork not 8.4");
+    assert!(
+        !fork.supports_dialect(DialectSet::TCL84),
+        "testfork not 8.4"
+    );
 
     // The default-encoding-dir + get-open-file commands exist 8.4-8.6 and were
     // removed in 9.0.
@@ -383,7 +390,8 @@ fn configure_iterations_option_needs_tcltest_2_6() {
     // The 18 pre-2.6 options stay available everywhere.
     for opt in ["-verbose", "-match", "-debug", "-singleproc", "-loadfile"] {
         assert!(
-            spec.find_option(opt, Some(DialectSet::TCL84), None).is_some(),
+            spec.find_option(opt, Some(DialectSet::TCL84), None)
+                .is_some(),
             "{opt} should be available under Tcl 8.4"
         );
     }

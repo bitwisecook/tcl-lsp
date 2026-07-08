@@ -677,8 +677,7 @@ fn hash_inside_multiline_literal_is_string_not_overlapping_comment() {
 
 #[test]
 fn oo_body_variable_highlights_every_name() {
-    let src =
-        "oo::class create Foo {\n    variable width height depth\n    method m {} { return 1 }\n}\n";
+    let src = "oo::class create Foo {\n    variable width height depth\n    method m {} { return 1 }\n}\n";
     // Each of `width`, `height`, `depth` in the class-body `variable`
     // declaration is a variable, not a bareword string.
     for name in ["width", "height", "depth"] {
@@ -1168,7 +1167,6 @@ fn snit_member_keyword_only_inside_body() {
     );
 }
 
-
 // ---------------------------------------------------------------------------
 // [incr Tcl] — `itcl::class` definition bodies. Members (method / proc /
 // variable / common / constructor / destructor / inherit) plus the access
@@ -1201,8 +1199,14 @@ fn itcl_class_members_highlight() {
         );
     }
     // Instance variable declaration + method parameter are variables.
-    assert_eq!(kind_of_word(src, "tcl8.6", "contents").as_deref(), Some("variable"));
-    assert_eq!(kind_of_word(src, "tcl8.6", "value").as_deref(), Some("variable"));
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "contents").as_deref(),
+        Some("variable")
+    );
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "value").as_deref(),
+        Some("variable")
+    );
 }
 
 #[test]
@@ -1223,8 +1227,14 @@ fn itcl_access_modifier_wraps_inner_member() {
         );
     }
     // The wrapped method's parameter and the wrapped variable's name resolve.
-    assert_eq!(kind_of_word(src, "tcl8.6", "ww").as_deref(), Some("variable"));
-    assert_eq!(kind_of_word(src, "tcl8.6", "secret").as_deref(), Some("variable"));
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "ww").as_deref(),
+        Some("variable")
+    );
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "secret").as_deref(),
+        Some("variable")
+    );
 }
 
 #[test]
@@ -1255,10 +1265,11 @@ fn itcl_variable_config_body_recurses() {
         decode(src, "tcl8.6"),
     );
     // The declared name is still a variable.
-    assert_eq!(kind_of_word(src, "tcl8.6", "color").as_deref(), Some("variable"));
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "color").as_deref(),
+        Some("variable")
+    );
 }
-
-
 
 #[test]
 fn itcl_body_external_definition_highlights() {
@@ -1292,8 +1303,14 @@ fn itcl_body_external_definition_highlights() {
 #[test]
 fn scoped_report_line_command_is_function() {
     let src = "::report::defstyle st {} {\n    top set foo\n    columns\n}\n";
-    assert_eq!(kind_of_word(src, "tcl8.6", "top"), Some("function".to_string()));
-    assert_eq!(kind_of_word(src, "tcl8.6", "columns"), Some("function".to_string()));
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "top"),
+        Some("function".to_string())
+    );
+    assert_eq!(
+        kind_of_word(src, "tcl8.6", "columns"),
+        Some("function".to_string())
+    );
 }
 
 #[test]
@@ -1302,7 +1319,8 @@ fn scoped_report_operation_is_keyword() {
     // The `set` operation word after `top` colours as a subcommand keyword.
     let t = decode(src, "tcl8.6");
     assert!(
-        t.iter().any(|x| x.ttype == "keyword" && tok_text(src, x) == "set"),
+        t.iter()
+            .any(|x| x.ttype == "keyword" && tok_text(src, x) == "set"),
         "`set` op is a keyword: {t:?}",
     );
 }
@@ -1316,7 +1334,10 @@ fn scoped_report_command_not_highlighted_outside_body() {
     // not classified as a keyword and that a genuinely scoped-only op word is
     // absent.  The key scoping fact: `topdatasep` is unknown at top level.
     let src2 = "topdatasep enable\n";
-    assert_ne!(kind_of_word(src2, "tcl8.6", "enable"), Some("keyword".to_string()),
-        "`enable` is not a scoped op outside a style body");
+    assert_ne!(
+        kind_of_word(src2, "tcl8.6", "enable"),
+        Some("keyword".to_string()),
+        "`enable` is not a scoped op outside a style body"
+    );
     let _ = src;
 }

@@ -503,8 +503,7 @@ fn fmt_group_braces_and_style() -> (&'static str, Vec<FmtSetting>) {
                 field: "brace_style",
                 default: json!("k_and_r"),
                 json_type: "string",
-                description:
-                    "Brace placement style. K&R places the opening brace at the end of the line.",
+                description: "Brace placement style. K&R places the opening brace at the end of the line.",
                 enum_values: &["k_and_r"],
                 ..FmtSetting::DEFAULT
             },
@@ -512,8 +511,7 @@ fn fmt_group_braces_and_style() -> (&'static str, Vec<FmtSetting>) {
                 field: "space_between_braces",
                 default: json!(true),
                 json_type: "boolean",
-                description:
-                    "Insert spaces inside single-line braces: `{ body }` instead of `{body}`.",
+                description: "Insert spaces inside single-line braces: `{ body }` instead of `{body}`.",
                 ..FmtSetting::DEFAULT
             },
             FmtSetting {
@@ -550,8 +548,7 @@ fn fmt_group_line_length() -> (&'static str, Vec<FmtSetting>) {
                 field: "goal_line_length",
                 default: json!(100),
                 json_type: "integer",
-                description:
-                    "Soft target for line length. The formatter prefers to stay within this limit.",
+                description: "Soft target for line length. The formatter prefers to stay within this limit.",
                 minimum: Some(40),
                 ..FmtSetting::DEFAULT
             },
@@ -681,8 +678,7 @@ fn fmt_group_docstrings() -> (&'static str, Vec<FmtSetting>) {
                 field: "docstring_tag_style",
                 default: json!("doxygen"),
                 json_type: "string",
-                description:
-                    "Tag format used in docstrings for parameter and return documentation.",
+                description: "Tag format used in docstrings for parameter and return documentation.",
                 enum_values: &["doxygen", "plain", "none"],
                 enum_descriptions: &[
                     "Doxygen-style tags: @param, @return, @brief.",

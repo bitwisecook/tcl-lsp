@@ -132,10 +132,11 @@ use tower_lsp_server::{Client, LanguageServer};
 #[derive(Debug, Clone)]
 struct DocumentState {
     text: String,
-    /// Persisted line-start index for `text`, patched in place on each edit
-    /// (`LineIndex::apply_edit`) rather than rebuilt per position lookup.
-    /// Kept in lock-step with `text`: every mutation
-    /// of `text` updates this alongside it.
+    /// Persisted line-start index for `text`, built with the **LSP** EOL model
+    /// ([`tcl_lexer::LineIndex::new_lsp`]) so the server's `(line, character)`
+    /// coordinates match the client's (`\n`, `\r\n`, and lone `\r` all break a
+    /// line). Kept in lock-step with `text`: every mutation of `text` rebuilds
+    /// this alongside it (see [`apply_content_change_indexed`]).
     line_index: tcl_lexer::LineIndex,
     dialect: String,
     /// The LSP `languageId` the client opened this document with (empty
@@ -157,7 +158,7 @@ struct DocumentState {
 
 impl DocumentState {
     fn new(text: String, dialect: String) -> Self {
-        let line_index = tcl_lexer::LineIndex::new(&text);
+        let line_index = tcl_lexer::LineIndex::new_lsp(&text);
         Self {
             text,
             line_index,
@@ -169,7 +170,7 @@ impl DocumentState {
     }
 
     fn with_version(text: String, dialect: String, version: i32) -> Self {
-        let line_index = tcl_lexer::LineIndex::new(&text);
+        let line_index = tcl_lexer::LineIndex::new_lsp(&text);
         Self {
             text,
             line_index,
@@ -2167,12 +2168,18 @@ impl Backend {
             let Some(tdoc) = self.read_document(&target_uri).await else {
                 continue;
             };
-            let li = tcl_lexer::LineIndex::new(&tdoc.text);
+            let li = tcl_lexer::LineIndex::new_lsp(&tdoc.text);
             let start = li.position_at_utf16(name_span.start(), &tdoc.text);
             let end = li.position_at_utf16(name_span.end(), &tdoc.text);
             let range = Range {
-                start: Position { line: start.line, character: start.character.get() },
-                end: Position { line: end.line, character: end.character.get() },
+                start: Position {
+                    line: start.line,
+                    character: start.character.get(),
+                },
+                end: Position {
+                    line: end.line,
+                    character: end.character.get(),
+                },
             };
             lifted.push(TypeHierarchyItem {
                 name: qname,
@@ -2659,10 +2666,16 @@ impl Backend {
             let mut m: std::collections::HashMap<String, (Vec<String>, Vec<String>)> =
                 std::collections::HashMap::new();
             for wc in index.method_override_family(seed_class, method) {
-                m.entry(wc.uri.clone()).or_default().0.push(wc.qualified_name.clone());
+                m.entry(wc.uri.clone())
+                    .or_default()
+                    .0
+                    .push(wc.qualified_name.clone());
             }
             for wc in index.method_inheritor_classes(seed_class, method) {
-                m.entry(wc.uri.clone()).or_default().1.push(wc.qualified_name.clone());
+                m.entry(wc.uri.clone())
+                    .or_default()
+                    .1
+                    .push(wc.qualified_name.clone());
             }
             m
         };
@@ -2713,8 +2726,14 @@ impl Backend {
                 let end = line_index.position_at_utf16(span.end(), &target_doc.text);
                 let edit = TextEdit {
                     range: Range {
-                        start: Position { line: start.line, character: start.character.get() },
-                        end: Position { line: end.line, character: end.character.get() },
+                        start: Position {
+                            line: start.line,
+                            character: start.character.get(),
+                        },
+                        end: Position {
+                            line: end.line,
+                            character: end.character.get(),
+                        },
                     },
                     new_text: new_name.to_owned(),
                 };
@@ -3058,7 +3077,7 @@ impl Backend {
                 let applied = tcl_compiler::optimiser::apply_optimisations(&text, &opts);
                 (applied, opts)
             };
-            let line_index = tcl_lexer::LineIndex::new(&text);
+            let line_index = tcl_lexer::LineIndex::new_lsp(&text);
             let items: Vec<serde_json::Value> = opts
                 .iter()
                 .map(|o| {
@@ -4295,6 +4314,58 @@ impl Backend {
     /// (hover/save), not per-keystroke, so they need no salsa file handle, and
     /// the analyser result still comes through the shared [`Self::analysis_for`]
     /// cache.
+    /// The project's proc arities for cross-file resolution, or `None` when
+    /// `xcDiagnostics` is off.  Computed inside `spawn_blocking`: on a cold
+    /// cache this tracked query can demand `item_sigs` / `item_tree` for every
+    /// project file, so it must not run on the async event-loop thread.
+    async fn project_arities_if(
+        &self,
+        xc_on: bool,
+    ) -> Option<Arc<HashMap<String, Vec<(usize, usize)>>>> {
+        if !xc_on {
+            return None;
+        }
+        let db = self.db.lock().await.clone();
+        let project = *self.db_project.lock().await;
+        match project {
+            Some(p) => {
+                tokio::task::spawn_blocking(move || tcl_lsp_db::project_command_arities(&db, p))
+                    .await
+                    .ok()
+            }
+            None => None,
+        }
+    }
+
+    /// Run the compiler-check diagnostics for `text` off the event-loop thread.
+    async fn compiler_diagnostics_for(
+        &self,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        registry: &Arc<CommandRegistry>,
+    ) -> tcl_lsp_db::CompilerDiagnostics {
+        let (c_text, c_dialect, c_registry) =
+            (text.to_owned(), dialect.to_owned(), Arc::clone(registry));
+        // URI-scoped (folder/project override aware), matching the push
+        // path's `resolved_generic_variable_patterns(uri)` so IRULE4002
+        // honours a folder's `diagnostics.genericVariablePatterns` override.
+        let c_generic = self.resolved_generic_variable_patterns(uri).await;
+        tokio::task::spawn_blocking(move || {
+            tcl_lsp_db::compiler_check_diagnostics_uncached(
+                &c_text,
+                &c_registry,
+                &c_dialect,
+                c_generic.as_deref(),
+            )
+        })
+        .await
+        .unwrap_or_else(|_| tcl_lsp_db::CompilerDiagnostics {
+            checks: Vec::new(),
+            optimisations: Vec::new(),
+        })
+    }
+
     async fn full_diagnostics_for(
         &self,
         uri: &Uri,
@@ -4336,42 +4407,10 @@ impl Backend {
         // for every project file — now the *whole* workspace — so it must not run
         // on the async event-loop thread and stall other LSP traffic.
         let xc_on = self.xc_diagnostics_enabled(uri).await;
-        let project_arities = if xc_on {
-            let db = self.db.lock().await.clone();
-            let project = *self.db_project.lock().await;
-            match project {
-                Some(p) => {
-                    tokio::task::spawn_blocking(move || tcl_lsp_db::project_command_arities(&db, p))
-                        .await
-                        .ok()
-                }
-                None => None,
-            }
-        } else {
-            None
-        };
-
-        let compiler_diags = {
-            let (c_text, c_dialect, c_registry) =
-                (text.clone(), dialect.clone(), Arc::clone(&registry));
-            // URI-scoped (folder/project override aware), matching the push
-            // path's `resolved_generic_variable_patterns(uri)` so IRULE4002
-            // honours a folder's `diagnostics.genericVariablePatterns` override.
-            let c_generic = self.resolved_generic_variable_patterns(uri).await;
-            tokio::task::spawn_blocking(move || {
-                tcl_lsp_db::compiler_check_diagnostics_uncached(
-                    &c_text,
-                    &c_registry,
-                    &c_dialect,
-                    c_generic.as_deref(),
-                )
-            })
-            .await
-            .unwrap_or_else(|_| tcl_lsp_db::CompilerDiagnostics {
-                checks: Vec::new(),
-                optimisations: Vec::new(),
-            })
-        };
+        let project_arities = self.project_arities_if(xc_on).await;
+        let compiler_diags = self
+            .compiler_diagnostics_for(uri, &text, &dialect, &registry)
+            .await;
 
         let xc_for_irules = dialect == "f5-irules" && xc_on;
         // Cross-file resolution — W123 suppression + E002/E003 arity,
@@ -6268,8 +6307,9 @@ impl LanguageServer for Backend {
                     &text, &registry, false,
                 ))
             });
-            let analysis = cached_analysis
-                .unwrap_or_else(|| Arc::new(tcl_compiler::analyser::Analyser::new().analyse(&text, &dialect)));
+            let analysis = cached_analysis.unwrap_or_else(|| {
+                Arc::new(tcl_compiler::analyser::Analyser::new().analyse(&text, &dialect))
+            });
             core_semantic_tokens::range_with_cu_and_analysis(
                 &text,
                 &dialect,
@@ -6334,11 +6374,14 @@ impl LanguageServer for Backend {
                 all.push(SymbolInformation {
                     name: s.name,
                     kind: match s.kind {
-                        CoreWorkspaceSymbolKind::Function => SymbolKind::FUNCTION,
+                        // A tcltest case has no dedicated LSP kind; it lists as
+                        // a function alongside real functions.
+                        CoreWorkspaceSymbolKind::Function | CoreWorkspaceSymbolKind::Test => {
+                            SymbolKind::FUNCTION
+                        }
                         CoreWorkspaceSymbolKind::Class => SymbolKind::CLASS,
                         CoreWorkspaceSymbolKind::Method => SymbolKind::METHOD,
                         CoreWorkspaceSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
-                        CoreWorkspaceSymbolKind::Test => SymbolKind::FUNCTION,
                         CoreWorkspaceSymbolKind::Constant => SymbolKind::CONSTANT,
                         CoreWorkspaceSymbolKind::Operator => SymbolKind::OPERATOR,
                     },
@@ -7363,7 +7406,7 @@ fn materialise_selection_range(
 /// `character` is a UTF-16 code-unit offset. `None` when the line is
 /// out of range.
 fn line_col_to_byte_offset(source: &str, line: u32, col: u32) -> Option<usize> {
-    let index = tcl_lexer::LineIndex::new(source);
+    let index = tcl_lexer::LineIndex::new_lsp(source);
     if line as usize >= index.line_count() {
         return None;
     }
@@ -7753,11 +7796,13 @@ fn formatter_config_from(
     dialect: &str,
 ) -> core_formatting::FormatterConfig {
     use core_formatting::IndentStyle;
-    let mut cfg = core_formatting::FormatterConfig::default();
-    // Tokenise with the document's dialect so, e.g., an `.irul` file's
-    // `if {expr}{body}` (`}{` valid in TMM) is parsed and re-emitted as `} {`
-    // rather than left unchanged by the stock-Tcl lexer.
-    cfg.lexer_config = tcl_lexer::LexerConfig::for_dialect(dialect);
+    let mut cfg = core_formatting::FormatterConfig {
+        // Tokenise with the document's dialect so, e.g., an `.irul` file's
+        // `if {expr}{body}` (`}{` valid in TMM) is parsed and re-emitted as
+        // `} {` rather than left unchanged by the stock-Tcl lexer.
+        lexer_config: tcl_lexer::LexerConfig::for_dialect(dialect),
+        ..Default::default()
+    };
     if let Some(obj) = formatting.as_object() {
         apply_formatting_object(obj, &mut cfg);
     }
@@ -8097,10 +8142,7 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
         );
     }
     // `.tcl-lsp.ini [project] entryPoints` per-folder value.
-    if let Some(points) = obj
-        .get("entryPoints")
-        .and_then(serde_json::Value::as_array)
-    {
+    if let Some(points) = obj.get("entryPoints").and_then(serde_json::Value::as_array) {
         fc.entry_points = Some(
             points
                 .iter()
@@ -8129,15 +8171,23 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
 fn apply_content_change(text: &str, range: Option<Range>, new_text: &str) -> String {
     // Throwaway index for the splice-behaviour tests; the live path persists one
     // through [`apply_content_change_indexed`].
-    let mut index = tcl_lexer::LineIndex::new(text);
+    let mut index = tcl_lexer::LineIndex::new_lsp(text);
     apply_content_change_indexed(text, range, new_text, &mut index)
 }
 
 /// [`apply_content_change`] that resolves the edit through a **persisted**
-/// [`tcl_lexer::LineIndex`] and **patches it in place** to match the returned
-/// text — so neither the offset resolution nor the
-/// index maintenance rescans the whole document.  A full-document replacement
-/// (`range == None`) rebuilds the index from the new text.
+/// [`tcl_lexer::LineIndex`] built with the LSP end-of-line model
+/// ([`tcl_lexer::LineIndex::new_lsp`]), then rebuilds it from the spliced
+/// result so it stays consistent with the returned text.
+///
+/// The index **must** use the LSP EOL model (`\n`, `\r\n`, *and lone `\r`*):
+/// the client resolves the incoming `range` against that model, so a `\n`-only
+/// index would resolve a bare-`\r` file's edit to the wrong byte offset and
+/// corrupt the shadow buffer. The `\n`-only [`tcl_lexer::LineIndex::apply_edit`]
+/// cannot maintain an LSP index incrementally across CR/LF boundary ambiguity,
+/// and re-analysis after a change is whole-document regardless, so the index is
+/// rebuilt (not patched) — correctness over a micro-optimisation that never
+/// dominated the change handler's cost.
 fn apply_content_change_indexed(
     text: &str,
     range: Option<Range>,
@@ -8145,7 +8195,7 @@ fn apply_content_change_indexed(
     index: &mut tcl_lexer::LineIndex,
 ) -> String {
     let Some(range) = range else {
-        *index = tcl_lexer::LineIndex::new(new_text);
+        *index = tcl_lexer::LineIndex::new_lsp(new_text);
         return new_text.to_owned();
     };
     let a = index.offset_at_utf16(
@@ -8161,16 +8211,12 @@ fn apply_content_change_indexed(
     let len = text.len();
     let start = a.min(b).min(len);
     let end = a.max(b).min(len);
-    // Patch the index for the same [start, end) → new_text splice applied below.
-    index.apply_edit(
-        u32::try_from(start).expect("offset fits u32"),
-        u32::try_from(end).expect("offset fits u32"),
-        new_text,
-    );
     let mut out = String::with_capacity(len - (end - start) + new_text.len());
     out.push_str(&text[..start]);
     out.push_str(new_text);
     out.push_str(&text[end..]);
+    // Rebuild the LSP-EOL index from the spliced document.
+    *index = tcl_lexer::LineIndex::new_lsp(&out);
     out
 }
 
@@ -8625,7 +8671,7 @@ fn lift_analyser_diagnostics(
     text: &str,
     diagnostics: &[tcl_compiler::analyser::Diagnostic],
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-    let line_index = tcl_lexer::LineIndex::new(text);
+    let line_index = tcl_lexer::LineIndex::new_lsp(text);
     // Default-off codes are suppressed at the analyser via the seeded disabled
     // set (see `default_disabled_set` / `settings_disabled_diagnostics`), so no
     // publish-time filter is needed here — and removing it is what lets
@@ -8787,7 +8833,7 @@ fn lift_compiler_diagnostics(
     use tcl_compiler::compiler_checks::Severity as CheckSeverity;
     use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
 
-    let line_index = tcl_lexer::LineIndex::new(text);
+    let line_index = tcl_lexer::LineIndex::new_lsp(text);
     let mut out: Vec<tower_lsp_server::ls_types::Diagnostic> = Vec::new();
 
     // Compiler checks: GVN / shimmer / thunking / taint / iRules-flow / SCCP,
@@ -9425,15 +9471,14 @@ fn lift_line_range(r: core_symbols::LineRange) -> Range {
 
 fn lift_symbol_kind(k: CoreSymbolKind) -> SymbolKind {
     match k {
-        CoreSymbolKind::Function => SymbolKind::FUNCTION,
+        // A tcltest case has no dedicated LSP kind; it lists as a function.
+        CoreSymbolKind::Function | CoreSymbolKind::Test => SymbolKind::FUNCTION,
         CoreSymbolKind::Method => SymbolKind::METHOD,
         CoreSymbolKind::Class => SymbolKind::CLASS,
         CoreSymbolKind::Property => SymbolKind::PROPERTY,
         CoreSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
         CoreSymbolKind::Namespace => SymbolKind::NAMESPACE,
         CoreSymbolKind::Variable => SymbolKind::VARIABLE,
-        // A tcltest case has no dedicated LSP kind; it lists as a function.
-        CoreSymbolKind::Test => SymbolKind::FUNCTION,
         // tcltest constraints / custom-match modes.
         CoreSymbolKind::Constant => SymbolKind::CONSTANT,
         CoreSymbolKind::Operator => SymbolKind::OPERATOR,
@@ -9643,6 +9688,30 @@ mod tests {
         assert_eq!(
             normalize_config_payload(&composed),
             serde_json::json!({ "optimiser": { "O109": false, "O110": false } }),
+        );
+    }
+
+    #[test]
+    fn normalize_config_payload_scalar_object_collision_does_not_panic() {
+        // RUST_ISSUE_032: a flat scalar key that collides with a deeper dotted
+        // key in the same payload must not panic the server; the nested
+        // structure wins over the conflicting scalar.
+        let collide = serde_json::json!({
+            "tclLsp.optimiser": true,
+            "tclLsp.optimiser.enabled": false,
+        });
+        assert_eq!(
+            normalize_config_payload(&collide),
+            serde_json::json!({ "optimiser": { "enabled": false } }),
+        );
+        // The reverse spelling (scalar under a nested prefix) also survives.
+        let collide2 = serde_json::json!({
+            "tclLsp": { "style": "x" },
+            "tclLsp.style.nonAscii": "escape",
+        });
+        assert_eq!(
+            normalize_config_payload(&collide2),
+            serde_json::json!({ "style": { "nonAscii": "escape" } }),
         );
     }
 
@@ -9919,10 +9988,7 @@ mod tests {
         let root = PathBuf::from("/proj");
         let main = Uri::from_file_path("/proj/main.tcl").unwrap();
         let other = Uri::from_file_path("/proj/other.tcl").unwrap();
-        let index = ws_index(&[
-            (&main, "package require Tk\n"),
-            (&other, "proc o {} {}\n"),
-        ]);
+        let index = ws_index(&[(&main, "package require Tk\n"), (&other, "proc o {} {}\n")]);
         // Auto mode: other.tcl is not sourced by main, so it inherits nothing.
         assert!(compute_inherited_requires(&index, &other, &[], Some(&root)).is_empty());
         // Explicit entry point: other.tcl inherits main.tcl's Tk.
@@ -10894,7 +10960,7 @@ mod tests {
         assert_eq!(line_col_to_byte_offset(text, 0, 1), Some(2));
         assert_eq!(line_col_to_byte_offset(text, 0, 3), Some(6));
 
-        let line_index = tcl_lexer::LineIndex::new(text);
+        let line_index = tcl_lexer::LineIndex::new_lsp(text);
         let range = lift_span(text, &line_index, tcl_lexer::Span::new(6, 7));
         assert_eq!(range.start, pos(0, 3));
         assert_eq!(range.end, pos(0, 4));
@@ -10939,7 +11005,7 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         let mut text = "abc\ndef\nghi\n".to_string();
-        let mut index = tcl_lexer::LineIndex::new(&text);
+        let mut index = tcl_lexer::LineIndex::new_lsp(&text);
         let edits = [
             (
                 Some(Range {
@@ -10968,9 +11034,36 @@ mod tests {
             text = apply_content_change_indexed(&text, range, new_text, &mut index);
             assert_eq!(
                 line_starts(&index),
-                line_starts(&tcl_lexer::LineIndex::new(&text)),
+                line_starts(&tcl_lexer::LineIndex::new_lsp(&text)),
                 "persisted index diverged from rebuild after edit {new_text:?} -> {text:?}"
             );
+        }
+    }
+
+    /// `RUST_ISSUE_033`: an incremental edit on an old-Mac (bare-`\r`) buffer must
+    /// resolve against the LSP EOL model so the splice lands at the right byte
+    /// and the shadow buffer stays correct.
+    #[test]
+    fn apply_content_change_indexed_handles_bare_cr_document() {
+        // Client models "a\rb\rc" as 3 lines (0="a", 1="b", 2="c").
+        let mut text = "a\rb\rc".to_string();
+        let mut index = tcl_lexer::LineIndex::new_lsp(&text);
+        // Replace line 1 ("b") with "BB": range (1,0)..(1,1).
+        text = apply_content_change_indexed(
+            &text,
+            Some(Range {
+                start: pos(1, 0),
+                end: pos(1, 1),
+            }),
+            "BB",
+            &mut index,
+        );
+        assert_eq!(text, "a\rBB\rc", "edit spliced at the wrong offset");
+        // The persisted index matches a fresh LSP rebuild.
+        let rebuilt = tcl_lexer::LineIndex::new_lsp(&text);
+        assert_eq!(index.line_count(), rebuilt.line_count());
+        for l in 0..u32::try_from(index.line_count()).unwrap() {
+            assert_eq!(index.line_start(l), rebuilt.line_start(l), "line {l}");
         }
     }
 
@@ -13957,7 +14050,12 @@ mod tests {
         let backend = test_backend();
         let animal = Uri::from_str("file:///animal.tcl").unwrap();
         let dog = Uri::from_str("file:///dog.tcl").unwrap();
-        register(&backend, &animal, "oo::class create Animal {\n    method speak {} {}\n}\n").await;
+        register(
+            &backend,
+            &animal,
+            "oo::class create Animal {\n    method speak {} {}\n}\n",
+        )
+        .await;
         register(
             &backend,
             &dog,
@@ -13966,7 +14064,9 @@ mod tests {
         .await;
         let params = RenameParams {
             text_document_position: TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier { uri: animal.clone() },
+                text_document: TextDocumentIdentifier {
+                    uri: animal.clone(),
+                },
                 position: Position::new(1, 11), // on `speak` in Animal's decl
             },
             new_name: "vocalise".to_owned(),
@@ -13974,8 +14074,14 @@ mod tests {
         };
         let edit = backend.rename(params).await.expect("ok").expect("some");
         let changes = edit.changes.expect("changes");
-        assert!(changes.contains_key(&animal), "base doc edits missing: {changes:?}");
-        assert!(changes.contains_key(&dog), "override doc edits missing: {changes:?}");
+        assert!(
+            changes.contains_key(&animal),
+            "base doc edits missing: {changes:?}"
+        );
+        assert!(
+            changes.contains_key(&dog),
+            "override doc edits missing: {changes:?}"
+        );
         // Every edit renames to `vocalise`.
         assert!(changes.values().flatten().all(|e| e.new_text == "vocalise"));
         // dog.tcl: the override declaration (line 2) + the `$d speak` call
@@ -13997,7 +14103,12 @@ mod tests {
         let backend = test_backend();
         let animal = Uri::from_str("file:///animal.tcl").unwrap();
         let dog = Uri::from_str("file:///dog.tcl").unwrap();
-        register(&backend, &animal, "oo::class create Animal {\n    method speak {} {}\n}\n").await;
+        register(
+            &backend,
+            &animal,
+            "oo::class create Animal {\n    method speak {} {}\n}\n",
+        )
+        .await;
         register(
             &backend,
             &dog,
@@ -14006,7 +14117,9 @@ mod tests {
         .await;
         let params = RenameParams {
             text_document_position: TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier { uri: animal.clone() },
+                text_document: TextDocumentIdentifier {
+                    uri: animal.clone(),
+                },
                 position: Position::new(1, 11), // on `speak` in Animal's decl
             },
             new_name: "vocalise".to_owned(),
@@ -14014,7 +14127,10 @@ mod tests {
         };
         let edit = backend.rename(params).await.expect("ok").expect("some");
         let changes = edit.changes.expect("changes");
-        assert!(changes.contains_key(&animal), "base doc edits missing: {changes:?}");
+        assert!(
+            changes.contains_key(&animal),
+            "base doc edits missing: {changes:?}"
+        );
         assert!(
             changes.contains_key(&dog),
             "subclass-only doc edits missing: {changes:?}",

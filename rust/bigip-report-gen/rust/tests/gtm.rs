@@ -18,8 +18,8 @@
 
 //! GTM projection + GTM->LTM architecture linking, from inline SCF sources.
 
-use serde_json::Value as J;
 use bigip_report_gen_rust::{Source, collect_model};
+use serde_json::Value as J;
 
 /// A GTM (DNS) device: a wide-IP -> pool -> member chain, plus a `gtm server`
 /// whose virtual-server destination (10.1.0.10:443) is the LTM tier's virtual.

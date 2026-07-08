@@ -56,11 +56,14 @@ mod services;
 pub use tcl_lexer::highlight_tcl;
 
 pub use forensics::collect_forensics;
+pub use markdown::render_markdown;
 pub use model::{
     ENGINE_VERSION, GIT_DESCRIBE, GIT_HASH, collect_model, collect_model_full,
     collect_model_with_architecture, collect_model_with_certs,
 };
 pub use query::{ReportError, Source};
+pub use render::{RenderOptions, build_report};
+pub use secrets::{collect_secrets, count_encrypted_secrets, decrypt_secrets};
 /// Architecture / topology detection, hoisted into the query engine so the
 /// report, the Python binding, and the console wasm all share it. Re-exported
 /// here for compatibility.
@@ -68,6 +71,3 @@ pub use tcl_bigip_query::build_architecture;
 /// The full f5-query manual (grammar + builtins + cookbook), re-exported so the
 /// wasm builder / report can embed a reference panel.
 pub use tcl_bigip_query::manual::format_manual;
-pub use markdown::render_markdown;
-pub use render::{RenderOptions, build_report};
-pub use secrets::{collect_secrets, count_encrypted_secrets, decrypt_secrets};

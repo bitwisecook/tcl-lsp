@@ -168,7 +168,8 @@ fn collect_sites(
     }
     // Segment with local spans (offset 0); `base` is the absolute byte offset of
     // `source`, added only when recording an absolute position.
-    for seg in segment_commands_with_offset_and_config(source, 0, LexerConfig::for_dialect(dialect)) {
+    for seg in segment_commands_with_offset_and_config(source, 0, LexerConfig::for_dialect(dialect))
+    {
         if let (Some(head), Some(method_tok)) = (seg.argv.first(), seg.argv.get(1))
             && let Some(form) = receiver_form(head, &seg)
         {
@@ -185,8 +186,12 @@ fn collect_sites(
                 _ => continue,
             };
             let s = tok.span.start() as usize + co;
-            let e = (tok.span.end() as usize).saturating_sub(close).min(source.len());
-            if e > s && let Some(inner) = source.get(s..e) {
+            let e = (tok.span.end() as usize)
+                .saturating_sub(close)
+                .min(source.len());
+            if e > s
+                && let Some(inner) = source.get(s..e)
+            {
                 collect_sites(
                     inner,
                     base + u32::try_from(s).unwrap_or(0),
@@ -214,7 +219,9 @@ fn decode_kinds(data: &[u32]) -> HashMap<(u32, u32), u32> {
     let mut out = HashMap::new();
     let (mut line, mut col) = (0u32, 0u32);
     for c in data.chunks(5) {
-        let [dl, dc, _len, kind, _mods] = *c else { break };
+        let [dl, dc, _len, kind, _mods] = *c else {
+            break;
+        };
         if dl > 0 {
             line += dl;
             col = dc;
@@ -241,7 +248,9 @@ fn line_starts(src: &str) -> Vec<usize> {
 /// the approximation is exact in practice.
 fn byte_to_line_col(line_starts: &[usize], src: &str, byte: u32) -> (u32, u32) {
     let byte = byte as usize;
-    let line = line_starts.partition_point(|&s| s <= byte).saturating_sub(1);
+    let line = line_starts
+        .partition_point(|&s| s <= byte)
+        .saturating_sub(1);
     let col = src
         .get(line_starts[line]..byte.min(src.len()))
         .map_or(0, |s| s.chars().map(|c| c.len_utf16() as u32).sum());

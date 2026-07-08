@@ -843,7 +843,10 @@ fn defstyle_body_scoped_commands_no_w123() {
                \x20   columns\n\
                }\n";
     let diags = lsp.open_ready(&uri, src);
-    assert!(!has_code(&diags, "W123"), "no W123 in a valid style body: {diags:?}");
+    assert!(
+        !has_code(&diags, "W123"),
+        "no W123 in a valid style body: {diags:?}"
+    );
 }
 
 #[test]
@@ -865,7 +868,10 @@ fn defstyle_bad_operation_is_w001() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "::report::defstyle st {} {\n    top bogus\n}\n");
-    assert!(has_code(&diags, "W001"), "unknown scoped op → W001: {diags:?}");
+    assert!(
+        has_code(&diags, "W001"),
+        "unknown scoped op → W001: {diags:?}"
+    );
 }
 
 #[test]
@@ -877,5 +883,8 @@ fn report_object_methods_have_no_unknown_command() {
         &uri,
         "package require report\n::report::report r 3\nr data set x\nr printmatrix m\n",
     );
-    assert!(!has_code(&diags, "W123"), "report object methods resolve: {diags:?}");
+    assert!(
+        !has_code(&diags, "W123"),
+        "report object methods resolve: {diags:?}"
+    );
 }

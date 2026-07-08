@@ -18,8 +18,8 @@
 
 //! AFM security-firewall + NAT projection into the report model.
 
-use serde_json::Value as J;
 use bigip_report_gen_rust::{Source, collect_model};
+use serde_json::Value as J;
 
 const FW: &str = r"#TMSH-VERSION: 15.1.0
 security firewall address-list /Common/webservers {

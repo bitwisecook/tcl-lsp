@@ -47,24 +47,26 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "CATEGORY::result (('category' ('-display' | '-id')? ('custom' | 'request_default' | 'request_default_and_custom')?) | 'safesearch')",
         }],
-        options: const { &[
-            OptionSpec {
-                name: "-display",
-                value: OptionValue::flag(),
-                detail: "Return categories in display name format.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "-id",
-                value: OptionValue::flag(),
-                detail: "Return categories in ID format.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-        ] },
+        options: const {
+            &[
+                OptionSpec {
+                    name: "-display",
+                    value: OptionValue::flag(),
+                    detail: "Return categories in display name format.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "-id",
+                    value: OptionValue::flag(),
+                    detail: "Return categories in ID format.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+            ]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::ClassificationState,
             reads: true,

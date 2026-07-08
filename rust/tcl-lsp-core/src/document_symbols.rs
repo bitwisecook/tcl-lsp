@@ -615,7 +615,9 @@ mod tests {
         let symbols = document_symbols(source, "tcl8.6");
         let names = names(&symbols);
         assert!(
-            !names.iter().any(|n| n.contains("undefined") || n.contains('$')),
+            !names
+                .iter()
+                .any(|n| n.contains("undefined") || n.contains('$')),
             "dynamic test name must not appear, got {names:?}"
         );
     }
@@ -640,7 +642,9 @@ mod tests {
         let source = "set test 5\n";
         let kinds = flat(&document_symbols(source, "tcl8.6"));
         assert!(
-            kinds.iter().any(|(n, k)| n == "test" && *k == SymbolKind::Variable),
+            kinds
+                .iter()
+                .any(|(n, k)| n == "test" && *k == SymbolKind::Variable),
             "expected a Variable named test, got {kinds:?}"
         );
         assert!(
@@ -673,7 +677,9 @@ mod tests {
         let ns = find(&symbols, "suite").expect("namespace symbol");
         assert_eq!(ns.kind, SymbolKind::Namespace);
         assert!(
-            ns.children.iter().any(|c| c.name == "suite-1" && c.kind == SymbolKind::Test),
+            ns.children
+                .iter()
+                .any(|c| c.name == "suite-1" && c.kind == SymbolKind::Test),
             "test should nest under the namespace: {:?}",
             ns.children
         );
@@ -719,7 +725,10 @@ mod tests {
         );
         let symbols = document_symbols(source, "tcl8.6");
         let names = names(&symbols);
-        assert!(names.contains(&"real-1"), "qualified test should record: {names:?}");
+        assert!(
+            names.contains(&"real-1"),
+            "qualified test should record: {names:?}"
+        );
     }
 
     #[test]
@@ -780,9 +789,18 @@ mod tests {
             "test t-1 {desc} -body { set x 1 } -result 1\n",
         );
         let kinds = flat(&document_symbols(source, "tcl8.6"));
-        assert!(kinds.contains(&("slow".to_string(), SymbolKind::Constant)), "{kinds:?}");
-        assert!(kinds.contains(&("approx".to_string(), SymbolKind::Operator)), "{kinds:?}");
-        assert!(kinds.contains(&("t-1".to_string(), SymbolKind::Test)), "{kinds:?}");
+        assert!(
+            kinds.contains(&("slow".to_string(), SymbolKind::Constant)),
+            "{kinds:?}"
+        );
+        assert!(
+            kinds.contains(&("approx".to_string(), SymbolKind::Operator)),
+            "{kinds:?}"
+        );
+        assert!(
+            kinds.contains(&("t-1".to_string(), SymbolKind::Test)),
+            "{kinds:?}"
+        );
     }
 
     #[test]

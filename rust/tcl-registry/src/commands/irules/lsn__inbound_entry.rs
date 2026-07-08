@@ -38,14 +38,16 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "LSN::inbound-entry (get | delete) IP_TUPLE IP_PROTOCOL",
         }],
-        options: const { &[OptionSpec {
-            name: "-mirror",
-            value: OptionValue::flag(),
-            detail: "Option -mirror.",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "-mirror",
+                value: OptionValue::flag(),
+                detail: "Option -mirror.",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::LsnState,
             reads: true,

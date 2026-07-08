@@ -510,6 +510,19 @@ fn sccp_process_statements(
                     changed = true;
                 }
             }
+            // A barrier also *defines* variables of its own (e.g. `dict for {x
+            // y} …` defines `x`/`y`). Those defs are opaque — the barrier can
+            // set them to anything — so set each to `Overdefined`. Without this
+            // the def key is never inserted (the widen loop above only touches
+            // keys already present), so it stays `Unknown` and vanishes from a
+            // downstream phi join, letting a phi that merges a barrier-def with
+            // a constant fold to that constant and miscompile a following test
+            // (RUST_ISSUE_015).
+            for (&var, ver) in &stmt_ssa.defs {
+                if set_value(values, (var, *ver), &LatticeValue::Overdefined) {
+                    changed = true;
+                }
+            }
             continue;
         }
         for (&var, ver) in &stmt_ssa.defs {
@@ -837,14 +850,13 @@ pub fn evaluate_def<S: std::hash::BuildHasher>(
             // constant list. Multi-variable and multi-list
             // foreaches are left as Overdefined.
             let elements = extract_foreach_elements(&args[0])
-                .or_else(|| {
-                    resolve_foreach_list_via_lattice(&args[0], &stmt_ssa.uses, values, ssa)
-                })
+                .or_else(|| resolve_foreach_list_via_lattice(&args[0], &stmt_ssa.uses, values, ssa))
                 .or_else(|| {
                     // `foreach v [list a b c]` — fold the command substitution
                     // to a constant list string, then split into elements.
                     let arg = args[0].trim();
-                    if arg.starts_with('[') && arg.ends_with(']')
+                    if arg.starts_with('[')
+                        && arg.ends_with(']')
                         && let Some(LatticeValue::Const(ConstValue::String(s))) =
                             try_fold_cmd_subst(arg, &stmt_ssa.uses, values, ssa)
                     {
@@ -1646,6 +1658,44 @@ mod tests {
             &[BlockId(1), BlockId(2)]
         ));
         assert_eq!(values.get(&(x, 2)), Some(&LatticeValue::Overdefined));
+    }
+
+    #[test]
+    fn barrier_own_defs_become_overdefined() {
+        // RUST_ISSUE_015: a barrier (e.g. `dict for {x y} $d {}`) defines its
+        // own variables. Those defs must be set Overdefined so they participate
+        // in a downstream phi join; otherwise the def key is never inserted and
+        // a phi merging the barrier-def with a constant folds to that constant.
+        let mut ssa = bare_ssa();
+        let x = ssa.intern_var("x");
+        let mut block = empty_ssa_block("barrier_block");
+        let mut defs: HashMap<Symbol, crate::ssa::Version> = HashMap::new();
+        defs.insert(x, 2);
+        block.statements.push(SsaStatement {
+            statement: Statement::Barrier {
+                span: Span::new(0, 0),
+                reason: "dict-for".into(),
+                command: "::tcl::dict::for".into(),
+                canonical_command: None,
+                args: vec!["d".into()],
+                tokens: None,
+            },
+            uses: HashMap::new(),
+            defs,
+        });
+        let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
+        let escaping: HashSet<String> = HashSet::new();
+        assert!(sccp_process_statements(
+            &mut values,
+            &block,
+            &ssa,
+            &escaping
+        ));
+        assert_eq!(
+            values.get(&(x, 2)),
+            Some(&LatticeValue::Overdefined),
+            "a barrier-defined variable must be Overdefined, not absent/Unknown"
+        );
     }
 
     #[test]

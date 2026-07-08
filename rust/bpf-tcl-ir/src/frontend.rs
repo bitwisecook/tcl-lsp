@@ -89,6 +89,32 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
         }
     }
 
+    // When a `when` block is present, only `when` calls and recognised
+    // declarations (`is_decl`) are consumed. Any other top-level statement —
+    // a stray `drop`, `load16 …`, `set …`, or an unknown command — would be
+    // silently dropped from the emitted program with no diagnostic, a silent
+    // mishandle. Reject it instead (RUST_ISSUE_012).
+    if saw_when {
+        for stmt in &module.top_level.statements {
+            let is_when = matches!(
+                stmt,
+                Statement::Call { command, canonical_command, .. }
+                    if canonical_command.as_deref().unwrap_or(command.as_str()) == "when"
+            );
+            if !is_when && !is_decl(stmt) {
+                let (name, span) = stray_stmt_info(stmt);
+                return Err(BpfError::new(
+                    BpfDiag::StrayTopLevel,
+                    span,
+                    format!(
+                        "top-level `{name}` is not a `when` block or a declaration; \
+                         it would be silently dropped — move it inside a `when` handler"
+                    ),
+                ));
+            }
+        }
+    }
+
     // No framework envelope: treat the top level (minus profile/field decls) as a
     // single anonymous SOCKET_FILTER program (the raw-DSL path, handy for tests).
     if !saw_when {
@@ -207,6 +233,26 @@ fn strip_decls(script: &Script) -> Script {
     Script::from_statements(kept)
 }
 
+/// A display name and span for a stray top-level statement, for the
+/// `StrayTopLevel` diagnostic.
+fn stray_stmt_info(stmt: &Statement) -> (String, Span) {
+    match stmt {
+        Statement::Call {
+            command,
+            canonical_command,
+            span,
+            ..
+        } => (
+            canonical_command
+                .as_deref()
+                .unwrap_or(command.as_str())
+                .to_owned(),
+            *span,
+        ),
+        _ => ("statement".to_owned(), stmt.span()),
+    }
+}
+
 fn is_decl(stmt: &Statement) -> bool {
     matches!(
         stmt,
@@ -241,6 +287,35 @@ mod tests {
         let module = compile_module("drop\n").expect("should compile");
         assert_eq!(module.programs.len(), 1);
         assert_eq!(module.programs[0].event, "SOCKET_FILTER");
+    }
+
+    #[test]
+    fn stray_top_level_statement_after_when_is_rejected() {
+        // RUST_ISSUE_012: a stray top-level statement alongside a `when` block
+        // must not be silently dropped — it is a hard error.
+        let err =
+            compile_module("when SOCKET_FILTER { setbuf pkt ctx\n accept }\ndrop\n").unwrap_err();
+        assert_eq!(err.code, BpfDiag::StrayTopLevel);
+        assert!(
+            err.msg.contains("drop"),
+            "message names the stray stmt: {}",
+            err.msg
+        );
+    }
+
+    #[test]
+    fn declarations_alongside_when_are_still_accepted() {
+        // A recognised declaration (`profile`) beside a `when` block is fine.
+        let src = "profile xdp\nwhen XDP { setbuf pkt ctx\n accept }\n";
+        // Either compiles or fails for an unrelated reason — but NOT StrayTopLevel.
+        if let Err(e) = compile_module(src) {
+            assert_ne!(
+                e.code,
+                BpfDiag::StrayTopLevel,
+                "a declaration must not be treated as stray: {}",
+                e.msg
+            );
+        }
     }
 
     #[test]

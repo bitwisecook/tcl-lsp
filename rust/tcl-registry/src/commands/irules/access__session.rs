@@ -99,14 +99,16 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Remove a session.",
         synopsis: "ACCESS::session remove ?-sid id?",
         mutator: true,
-        options: const { &[OptionSpec {
-            name: "-sid",
-            value: OptionValue::value("SESSION_ID"),
-            detail: "Session ID.",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "-sid",
+                value: OptionValue::value("SESSION_ID"),
+                detail: "Session ID.",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,

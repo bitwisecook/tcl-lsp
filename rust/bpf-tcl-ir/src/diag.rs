@@ -50,6 +50,10 @@ pub enum BpfDiag {
     CapabilityDenied,
     /// A malformed `attach`, or an attach that matches no program's type.
     BadAttach,
+    /// A top-level statement that is neither a `when` block nor a recognised
+    /// declaration when a `when` block is present — it would otherwise be
+    /// silently dropped from the emitted program.
+    StrayTopLevel,
     /// Too many values for the 512-byte eBPF stack.
     StackOverflow,
     /// An internal invariant failure (a compiler bug, not user error).
@@ -74,6 +78,7 @@ impl BpfDiag {
             BpfDiag::BadTemplate => "BPF011",
             BpfDiag::CapabilityDenied => "BPF012",
             BpfDiag::BadAttach => "BPF013",
+            BpfDiag::StrayTopLevel => "BPF014",
             BpfDiag::Internal => "BPF999",
         }
     }

@@ -336,6 +336,21 @@ mod taint_through_alias {
     }
 
     #[test]
+    fn taint_through_expr_command_substitution_still_warns() {
+        // RUST_ISSUE_021: a taint source nested in an `[expr {…}]` command
+        // substitution must propagate into the assigned variable, so a later
+        // `eval $x` fires T100. Storing the value through `expr` previously
+        // laundered the taint (join_uses saw no `$var`), a false negative.
+        assert!(fires("set x [expr {[HTTP::payload] + 1}]\neval $x", "T100"));
+    }
+
+    #[test]
+    fn untainted_expr_does_not_warn() {
+        // Control: an `[expr {…}]` with no taint source must not invent taint.
+        assert!(!fires("set x [expr {1 + 2}]\neval $x", "T100"));
+    }
+
+    #[test]
     fn untainted_alias_does_not_warn() {
         // Control (holds on the `run_all_checks` surface): a constant flowing
         // through the alias must not raise a taint sink warning — the closure

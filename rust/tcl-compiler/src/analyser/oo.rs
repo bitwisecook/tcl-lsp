@@ -165,9 +165,7 @@ fn itcl_unwrap<'a>(
 /// (`<onconfigure -foo>` vs `<onconfigure -bar>`).  Unused for named members.
 fn snit_member_label(member: &MemberSpec, keyword: &str, args: &[String]) -> String {
     let role_at_zero = member.arg_roles.iter().any(|(i, _)| *i == 0);
-    if !role_at_zero
-        && let Some(opt) = args.first()
-    {
+    if !role_at_zero && let Some(opt) = args.first() {
         return format!("<{keyword} {opt}>");
     }
     format!("<{keyword}>")
@@ -394,12 +392,7 @@ impl Analyser {
         if !body.is_empty() {
             let definer = SnitDefiner { grammar, is_widget };
             self.parse_snit_definition_body(
-                body,
-                body_tok,
-                &mut class,
-                &qualified,
-                scope_path,
-                &definer,
+                body, body_tok, &mut class, &qualified, scope_path, &definer,
             );
         }
         self.result.all_classes.insert(qualified, class.clone());
@@ -611,13 +604,16 @@ impl Analyser {
         // A named member (`method NAME …`) uses its name word; the nameless
         // forms fall back to the caller's synthetic label (`<constructor>`,
         // `<oncget -opt>`, …), or `<body>` when even that is empty.
-        let name = name_idx.and_then(|i| args.get(i)).cloned().unwrap_or_else(|| {
-            if label.is_empty() {
-                "<body>".to_string()
-            } else {
-                label.to_string()
-            }
-        });
+        let name = name_idx
+            .and_then(|i| args.get(i))
+            .cloned()
+            .unwrap_or_else(|| {
+                if label.is_empty() {
+                    "<body>".to_string()
+                } else {
+                    label.to_string()
+                }
+            });
         // Formal parameters: the parameter-list word, plus any `VarWrite` word
         // (snit 1.x `onconfigure`'s value variable) modelled as a bound local.
         let mut params: Vec<ParamDef> = params_idx
@@ -716,7 +712,9 @@ impl Analyser {
             ..Default::default()
         };
         if !body.is_empty() {
-            self.parse_itcl_definition_body(body, body_tok, &mut class, &qualified, scope_path, grammar);
+            self.parse_itcl_definition_body(
+                body, body_tok, &mut class, &qualified, scope_path, grammar,
+            );
         }
         self.result.all_classes.insert(qualified, class.clone());
         let path = scope_path.to_vec();
@@ -1130,9 +1128,14 @@ fn apply_oo_private(
             }
         }
         "classmethod" => {
-            if let Some(md) =
-                extract_method_def(member, inner_args, inner_tokens, "classmethod", "private", "")
-            {
+            if let Some(md) = extract_method_def(
+                member,
+                inner_args,
+                inner_tokens,
+                "classmethod",
+                "private",
+                "",
+            ) {
                 class_def.class_methods.insert(md.name.clone(), md);
             }
         }
@@ -1201,22 +1204,29 @@ fn apply_oo_subcommand(
             }
         }
         "method" => {
-            if let Some(md) =
-                member.and_then(|m| extract_method_def(m, sub_args, sub_tokens, "method", "public", ""))
+            if let Some(md) = member
+                .and_then(|m| extract_method_def(m, sub_args, sub_tokens, "method", "public", ""))
             {
                 class_def.methods.insert(md.name.clone(), md);
             }
         }
         "classmethod" => {
-            if let Some(md) = member
-                .and_then(|m| extract_method_def(m, sub_args, sub_tokens, "classmethod", "public", ""))
-            {
+            if let Some(md) = member.and_then(|m| {
+                extract_method_def(m, sub_args, sub_tokens, "classmethod", "public", "")
+            }) {
                 class_def.class_methods.insert(md.name.clone(), md);
             }
         }
         "constructor" => {
             if let Some(mut md) = member.and_then(|m| {
-                extract_method_def(m, sub_args, sub_tokens, "constructor", "public", "<constructor>")
+                extract_method_def(
+                    m,
+                    sub_args,
+                    sub_tokens,
+                    "constructor",
+                    "public",
+                    "<constructor>",
+                )
             }) {
                 // Anchor the name span on the `constructor`
                 // keyword token (argv[0]) — there's no name
@@ -1230,7 +1240,14 @@ fn apply_oo_subcommand(
         }
         "destructor" => {
             if let Some(mut md) = member.and_then(|m| {
-                extract_method_def(m, sub_args, sub_tokens, "destructor", "public", "<destructor>")
+                extract_method_def(
+                    m,
+                    sub_args,
+                    sub_tokens,
+                    "destructor",
+                    "public",
+                    "<destructor>",
+                )
             }) {
                 if let Some(kw) = argv.first() {
                     md.name_span = kw.span;
@@ -1410,7 +1427,7 @@ fn extract_method_def(
 mod tests {
     use super::*;
 
-    /// The TclOO definition-body grammar the `apply_oo_subcommand` /
+    /// The `TclOO` definition-body grammar the `apply_oo_subcommand` /
     /// `extract_method_def` helpers read their member argument layout from —
     /// the same `&'static` the analyser fetches from the registry at runtime.
     fn tcloo() -> &'static DefinitionBodyGrammar {
@@ -1901,7 +1918,10 @@ mod tests {
         assert_eq!(c.metaclass, "itcl::class");
         assert_eq!(c.superclasses, vec!["Base".to_string()]);
         assert!(c.methods.contains_key("spin"));
-        assert!(c.class_methods.contains_key("reset"), "proc is a class method");
+        assert!(
+            c.class_methods.contains_key("reset"),
+            "proc is a class method"
+        );
         assert_eq!(c.constructors.len(), 1);
         assert!(c.destructor.is_some());
         // `variable` + `common` declarations are recorded (implicit `this` is

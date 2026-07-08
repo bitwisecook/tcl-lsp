@@ -74,6 +74,15 @@ pub fn linked_editing_ranges(
     let line_index = LineIndex::new(source);
     let proc = cursor_proc(&line_index, source, line, character, &word, analysis)?;
 
+    // Every linked range must cover *identical* text (LSP contract: editing one
+    // mirrors verbatim into the others).  The declaration's name-span text is
+    // the canonical content; each call site is narrowed to the sub-span whose
+    // text equals it, so a namespace-qualified self-call (`::greet`) links only
+    // its `greet` tail — not the whole `::greet`, which would drop the `::` and
+    // corrupt the call under rename-as-you-type (RUST_ISSUE_040).
+    let decl_text = source
+        .get(proc.name_span.start() as usize..proc.name_span.end() as usize)
+        .unwrap_or("");
     let mut ranges: Vec<LspRange> = Vec::new();
     ranges.push(span_to_range(source, &line_index, proc.name_span));
 
@@ -92,7 +101,12 @@ pub fn linked_editing_ranges(
         if !span_contains(proc.body_span, inv.range.start()) {
             continue;
         }
-        ranges.push(span_to_range(source, &line_index, inv.range));
+        // Only link the sub-span of the call head whose source text is
+        // identical to the declaration name.
+        let Some(matched) = identical_text_subspan(source, inv.range, decl_text) else {
+            continue;
+        };
+        ranges.push(span_to_range(source, &line_index, matched));
     }
 
     dedup_ranges(&mut ranges);
@@ -133,6 +147,33 @@ fn cursor_proc<'a>(
 
 fn matches_self_call(name: &str, proc: &ProcDef) -> bool {
     name == proc.name || name == proc.qualified_name
+}
+
+/// The sub-span of a call-head span whose source text is *identical* to
+/// `decl_text`, so it can join a linked-editing group with the declaration
+/// (whose ranges must all share content).
+///
+/// * When the whole head equals `decl_text`, the full span is returned.
+/// * When the head is namespace-qualified and its final `::`-separated
+///   component equals `decl_text` (`::greet` / `ns::greet` for a `greet`
+///   declaration), the trailing-component sub-span is returned so the `::`
+///   qualifier is preserved through the edit.
+/// * Otherwise `None` — the texts differ and linking would corrupt one side.
+fn identical_text_subspan(source: &str, span: Span, decl_text: &str) -> Option<Span> {
+    let text = source.get(span.start() as usize..span.end() as usize)?;
+    if text == decl_text {
+        return Some(span);
+    }
+    // Trailing `::`-component match: `<qualifier>::<decl_text>`.
+    let tail_start = text.len().checked_sub(decl_text.len())?;
+    if tail_start >= 2
+        && &text[tail_start..] == decl_text
+        && &text[tail_start - 2..tail_start] == "::"
+    {
+        let start = span.start() + u32::try_from(tail_start).ok()?;
+        return Some(Span::new(start, span.end()));
+    }
+    None
 }
 
 fn span_contains(span: Span, offset: u32) -> bool {
@@ -202,6 +243,49 @@ mod tests {
             "expected declaration + recursive call, got {result:?}",
         );
         assert_eq!(result.word_pattern, WORD_PATTERN);
+    }
+
+    #[test]
+    fn qualified_self_call_links_only_the_name_tail() {
+        // RUST_ISSUE_040: `::greet` self-call must link only its `greet` tail so
+        // every linked range covers identical text (`greet`); linking the whole
+        // `::greet` would drop the `::` under rename-as-you-type.
+        let src = "proc greet {} { ::greet }\n";
+        let analysis = analyse(src);
+        let result = linked_editing_ranges(src, 0, 6, &analysis)
+            .expect("qualified self-call should link its name tail");
+        // Every range must have identical width to the 5-char `greet` decl.
+        for r in &result.ranges {
+            assert_eq!(
+                r.end_character - r.start_character,
+                5,
+                "a linked range covers different-width text than `greet`: {r:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn identical_text_subspan_matches_whole_and_tail() {
+        // whole match
+        assert_eq!(
+            identical_text_subspan("greet", Span::new(0, 5), "greet"),
+            Some(Span::new(0, 5))
+        );
+        // `::greet` (offsets 0..7): tail `greet` is 2..7
+        assert_eq!(
+            identical_text_subspan("::greet", Span::new(0, 7), "greet"),
+            Some(Span::new(2, 7))
+        );
+        // `ns::greet` (0..9): tail 4..9
+        assert_eq!(
+            identical_text_subspan("ns::greet", Span::new(0, 9), "greet"),
+            Some(Span::new(4, 9))
+        );
+        // A different name does not match.
+        assert_eq!(
+            identical_text_subspan("greeter", Span::new(0, 7), "greet"),
+            None
+        );
     }
 
     #[test]
