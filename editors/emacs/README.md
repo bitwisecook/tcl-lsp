@@ -21,12 +21,34 @@ if it is on your PATH, or an absolute path to it.
 Add to your `init.el`:
 
 ```elisp
+;; Dialect-specific derived modes so eglot sends a distinct `languageId` per
+;; file family. Routing `.irul` / `.iapp` / `.apl` / `.exp` through plain
+;; `tcl-mode` sends languageId "tcl", which the server maps to tcl8.6 — so the
+;; F5 iRules / iApps and Expect dialects never engage. The `:language-id` in
+;; each `eglot-server-programs` entry sets the id the server keys its dialect
+;; on (see `dialect_from_language_id`).
+(define-derived-mode f5-irules-mode tcl-mode "iRules")
+(define-derived-mode f5-iapps-mode  tcl-mode "iApp")
+(define-derived-mode expect-mode    tcl-mode "Expect")
+
+(add-to-list 'auto-mode-alist '("\\.iru?l\\'"  . f5-irules-mode)) ; .irul / .irule
+(add-to-list 'auto-mode-alist '("\\.iapp\\'"   . f5-iapps-mode))
+(add-to-list 'auto-mode-alist '("\\.apl\\'"    . f5-iapps-mode))
+(add-to-list 'auto-mode-alist '("\\.exp\\'"    . expect-mode))
+
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
-               '(tcl-mode . ("/path/to/tcl-lsp-server"))))
+               '(tcl-mode . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
+               '((f5-irules-mode :language-id "f5-irules") . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
+               '((f5-iapps-mode :language-id "f5-iapps") . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
+               '((expect-mode :language-id "expect") . ("/path/to/tcl-lsp-server"))))
 
-;; Auto-start on Tcl files
-(add-hook 'tcl-mode-hook #'eglot-ensure)
+;; Auto-start on Tcl and the dialect modes
+(dolist (h '(tcl-mode-hook f5-irules-mode-hook f5-iapps-mode-hook expect-mode-hook))
+  (add-hook h #'eglot-ensure))
 ```
 
 ## lsp-mode
@@ -50,10 +72,11 @@ Pass settings via eglot workspace configuration:
 (setq-default eglot-workspace-configuration
               '(:tclLsp (:dialect "tcl8.6"   ;; tcl8.4 | tcl8.5 | tcl8.6 | tcl9.0 | tcl9.1 | f5-irules | f5-iapps | f5-tmsh | f5-bigip | synopsys-eda-tcl | cadence-eda-tcl | xilinx-eda-tcl | intel-quartus-eda-tcl | mentor-eda-tcl | expect
                          :formatting (:indentSize 4 :maxLineLength 120))))
-
-;; Register .apl files for tcl-mode so eglot activates
-(add-to-list 'auto-mode-alist '("\\.apl\\'" . tcl-mode))
 ```
+
+`.apl` (and `.irul` / `.iapp` / `.exp`) files are handled by the dialect
+derived modes in the eglot setup above, which send the correct `languageId` —
+do **not** also map `.apl` to plain `tcl-mode`, or it would analyse as tcl8.6.
 
 ## Known issues
 

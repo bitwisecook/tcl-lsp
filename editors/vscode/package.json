@@ -3436,16 +3436,6 @@
             "description": "Format the document on save via textDocument/willSaveWaitUntil. Off by default; enable for format-on-save without relying on the editor's own editor.formatOnSave. Uses the resolved tclLsp.formatting.lineLength for the document's folder.",
             "order": 21
           },
-          "tclLsp.features.progress": {
-            "scope": "language-overridable",
-            "type": [
-              "boolean",
-              "null"
-            ],
-            "default": null,
-            "description": "Override work-done progress for long-running operations. When null, enabled.",
-            "order": 22
-          },
           "tclLsp.features.implementation": {
             "scope": "language-overridable",
             "type": [
