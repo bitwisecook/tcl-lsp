@@ -30,12 +30,16 @@ use std::time::{Duration, Instant};
 /// One backend's outcome on a script.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Outcome {
-    /// Process exited; carries normalised stdout and whether it reported an
+    /// Process exited; carries the **verbatim** stdout (lossy-UTF-8 decoded,
+    /// but no whitespace or blank-line normalisation) and whether it reported an
     /// error (non-zero exit). Stderr is folded into the error flag, not
     /// compared verbatim — error *message* text legitimately differs between
-    /// engines.
+    /// engines. Keeping stdout byte-faithful is what lets the differential
+    /// harness see trailing-whitespace / trailing-blank-line divergences
+    /// (`format "%-5s"` / `string repeat " "` padding) — the exact class of
+    /// output bug it exists to catch (RUST_ISSUE_030).
     Ran {
-        /// Normalised stdout.
+        /// Verbatim stdout (no whitespace normalisation).
         stdout: String,
         /// Whether the engine reported an error (non-zero exit).
         errored: bool,
@@ -85,7 +89,7 @@ pub fn run_backend(binary: &Path, script_file: &Path, timeout: Duration) -> Outc
                     .map(|o| o.stdout)
                     .unwrap_or_default();
                 return Outcome::Ran {
-                    stdout: normalise(&String::from_utf8_lossy(&out)),
+                    stdout: String::from_utf8_lossy(&out).into_owned(),
                     errored: !status.success(),
                 };
             }
@@ -100,21 +104,6 @@ pub fn run_backend(binary: &Path, script_file: &Path, timeout: Duration) -> Outc
             Err(e) => return Outcome::Unavailable(format!("wait: {e}")),
         }
     }
-}
-
-/// Normalise stdout for comparison: trailing whitespace per line removed and a
-/// single trailing newline, so insignificant spacing differences don't trip a
-/// false finding.
-fn normalise(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for line in s.lines() {
-        out.push_str(line.trim_end());
-        out.push('\n');
-    }
-    while out.ends_with("\n\n") {
-        out.pop();
-    }
-    out
 }
 
 /// Compare the reference (`tclsh`) and subject (`tclvm`) outcomes.
@@ -219,7 +208,29 @@ mod tests {
     }
 
     #[test]
-    fn normalise_trims_and_collapses() {
-        assert_eq!(normalise("a  \nb\n\n\n"), "a\nb\n");
+    fn trailing_whitespace_divergence_is_a_finding() {
+        // RUST_ISSUE_030: a padding/whitespace difference (`format "%-5s"`,
+        // `string repeat " "`) must surface as a StdoutMismatch, not be
+        // normalised away into a false Match.
+        assert_eq!(
+            compare(&ran("x    \n", false), &ran("x\n", false)),
+            Verdict::StdoutMismatch
+        );
+    }
+
+    #[test]
+    fn trailing_blank_line_divergence_is_a_finding() {
+        assert_eq!(
+            compare(&ran("x\n\n", false), &ran("x\n", false)),
+            Verdict::StdoutMismatch
+        );
+    }
+
+    #[test]
+    fn byte_identical_stdout_still_matches() {
+        assert_eq!(
+            compare(&ran("x    \n", false), &ran("x    \n", false)),
+            Verdict::Match
+        );
     }
 }
