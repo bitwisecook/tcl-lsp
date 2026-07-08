@@ -304,7 +304,11 @@ pub fn last<O: ValueOps>(
         .unwrap_or(0)
         .min(hay.len().saturating_sub(1));
     let mut idx: i64 = -1;
-    if last + 1 >= needle.len() {
+    // `needle.len() <= hay.len()` guards the `hay[i..i + needle.len()]` slice:
+    // without it, an empty (or too-short) haystack with an explicit index
+    // (`string last a "" 0`) drives `last` to 0, passes `last + 1 >= needle`,
+    // and slices past the end. `string first` has the same guard.
+    if needle.len() <= hay.len() && last + 1 >= needle.len() {
         let hi = last + 1 - needle.len();
         for i in (0..=hi).rev() {
             if hay[i..i + needle.len()] == needle[..] {
@@ -612,6 +616,75 @@ mod tests {
 
     fn chars(s: &str) -> Vec<char> {
         s.chars().collect()
+    }
+
+    /// A throwaway string-only `ValueOps` for the `first`/`last` index tests.
+    #[derive(Default)]
+    struct StrOps;
+
+    impl ValueOps for StrOps {
+        type Value = String;
+        fn new_str(&mut self, s: &str) -> String {
+            s.to_owned()
+        }
+        fn new_int(&mut self, n: i64) -> String {
+            n.to_string()
+        }
+        fn new_double(&mut self, f: f64) -> String {
+            tcl_syntax::number::format_double(f)
+        }
+        fn new_bool(&mut self, b: bool) -> String {
+            (if b { "1" } else { "0" }).to_owned()
+        }
+        fn new_list(&mut self, items: Vec<String>) -> String {
+            items.join(" ")
+        }
+        fn as_str(&mut self, v: &String) -> std::rc::Rc<str> {
+            std::rc::Rc::from(v.as_str())
+        }
+        fn as_int(&mut self, v: &String) -> Result<i64, tcl_syntax::value::ValueError> {
+            v.parse()
+                .map_err(|_| tcl_syntax::value::ValueError::NotInteger(v.clone()))
+        }
+        fn as_double(&mut self, _v: &String) -> Result<f64, tcl_syntax::value::ValueError> {
+            Ok(0.0)
+        }
+        fn as_bool(&mut self, _v: &String) -> Result<bool, tcl_syntax::value::ValueError> {
+            Ok(false)
+        }
+        fn list_elements(
+            &mut self,
+            v: &String,
+        ) -> Result<Vec<String>, tcl_syntax::value::ValueError> {
+            Ok(v.split_whitespace().map(str::to_owned).collect())
+        }
+    }
+
+    fn last_of(needle: &str, haystack: &str, last_index: Option<&str>) -> i64 {
+        let mut ops = StrOps;
+        let n = needle.to_owned();
+        let h = haystack.to_owned();
+        let li = last_index.map(str::to_owned);
+        let r = last(&mut ops, &n, &h, li.as_ref()).expect("string last");
+        r.parse().unwrap()
+    }
+
+    #[test]
+    fn string_last_empty_haystack_with_index_does_not_panic() {
+        // RUST_ISSUE_052: `string last a "" 0` must return -1, not panic on an
+        // out-of-bounds slice of the empty haystack.
+        assert_eq!(last_of("a", "", Some("0")), -1);
+        assert_eq!(last_of("a", "", None), -1);
+        // Needle longer than haystack with an explicit index.
+        assert_eq!(last_of("abc", "ab", Some("1")), -1);
+    }
+
+    #[test]
+    fn string_last_basic() {
+        assert_eq!(last_of("a", "banana", None), 5);
+        assert_eq!(last_of("an", "banana", None), 3);
+        assert_eq!(last_of("an", "banana", Some("2")), 1);
+        assert_eq!(last_of("z", "banana", None), -1);
     }
 
     #[test]

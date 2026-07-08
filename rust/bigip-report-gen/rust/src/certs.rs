@@ -93,7 +93,14 @@ fn cn(dn: &str) -> String {
     parts.push(buf);
     for p in &parts {
         let p = p.trim();
-        if p.len() >= 3 && p[..3].eq_ignore_ascii_case("CN=") {
+        // Compare the first three *bytes* (byte slicing is always safe);
+        // `p[..3]` panics when byte 3 falls inside a multi-byte character
+        // (e.g. a DN component `O=émission`). When the prefix is the ASCII
+        // "CN=", byte offset 3 is a valid char boundary, so `p[3..]` is safe.
+        if p.as_bytes()
+            .get(..3)
+            .is_some_and(|b| b.eq_ignore_ascii_case(b"CN="))
+        {
             return p[3..].to_string();
         }
     }
@@ -533,4 +540,31 @@ pub(crate) fn collect_certs(
     }
 
     J::Array(certs)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::cn;
+
+    #[test]
+    fn cn_basic() {
+        assert_eq!(cn("CN=example.com,O=Acme"), "example.com");
+        assert_eq!(cn("cn=lower"), "lower");
+    }
+
+    #[test]
+    fn cn_no_cn_component() {
+        assert_eq!(cn("O=Acme,C=US"), "");
+    }
+
+    #[test]
+    fn cn_multibyte_component_does_not_panic() {
+        // RUST_ISSUE_048: a DN component whose 3rd byte is inside a multi-byte
+        // character (`O=émission`, where `é` occupies bytes 2-3) must not
+        // panic the CN scan.
+        assert_eq!(cn("O=émission,CN=host.example.com"), "host.example.com");
+        // A component shorter than 3 bytes and a bare multi-byte string.
+        assert_eq!(cn("é"), "");
+        assert_eq!(cn("O=é"), "");
+    }
 }
