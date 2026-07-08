@@ -502,7 +502,7 @@ fn class_available(class: &str, version: Option<TclVersion>) -> bool {
     match class {
         "wideinteger" => version.is_some_and(|v| v >= TclVersion::V8_5),
         "entier" => version.is_some_and(|v| v >= TclVersion::V8_6),
-        "dict" => version == Some(TclVersion::V9_0),
+        "dict" => version >= Some(TclVersion::V9_0),
         _ => true,
     }
 }
@@ -578,7 +578,7 @@ fn tcl9_integer_number(s: &str) -> Option<Number> {
 /// A plain decimal of magnitude ≤ `2³²-1` is valid in every release
 /// (→ `1`); larger or Tcl-9-only forms bail unless the dialect is known.
 fn is_integer_class(s: &str, version: Option<TclVersion>) -> Option<String> {
-    if version == Some(TclVersion::V9_0) {
+    if version >= Some(TclVersion::V9_0) {
         return Some(
             if matches!(
                 tcl9_integer_number(s),
@@ -597,7 +597,7 @@ fn is_integer_class(s: &str, version: Option<TclVersion>) -> Option<String> {
         IntForm::Decimal { mag, .. } => {
             let within_32 = mag.is_some_and(|m| m <= U32_MAX);
             match version {
-                Some(TclVersion::V9_0) => Some("1".to_owned()),
+                Some(TclVersion::V9_0 | TclVersion::V9_1) => Some("1".to_owned()),
                 Some(_) => Some(if within_32 { "1" } else { "0" }.to_owned()),
                 None => within_32.then(|| "1".to_owned()),
             }
@@ -610,7 +610,7 @@ fn is_integer_class(s: &str, version: Option<TclVersion>) -> Option<String> {
 /// bound. 8.5/8.6 accept the unsigned-64-bit range; negative values bail
 /// there because that signed/unsigned boundary differs by dialect.
 fn is_wide_class(s: &str, version: Option<TclVersion>) -> Option<String> {
-    if version == Some(TclVersion::V9_0) {
+    if version >= Some(TclVersion::V9_0) {
         return Some(
             if matches!(tcl9_integer_number(s), Some(Number::Int(_))) {
                 "1"
@@ -627,7 +627,7 @@ fn is_wide_class(s: &str, version: Option<TclVersion>) -> Option<String> {
             if neg {
                 return None;
             }
-            let cap = if version == Some(TclVersion::V9_0) {
+            let cap = if version >= Some(TclVersion::V9_0) {
                 I64_MAX
             } else {
                 U64_MAX
@@ -648,7 +648,7 @@ fn is_wide_class(s: &str, version: Option<TclVersion>) -> Option<String> {
 /// known Tcl 9 uses the shared Tcl 9 number parser. Older known dialects
 /// accept the conservative plain-decimal subset at arbitrary precision.
 fn is_entier_class(s: &str, version: Option<TclVersion>) -> Option<String> {
-    if version == Some(TclVersion::V9_0) {
+    if version >= Some(TclVersion::V9_0) {
         return Some(
             if matches!(
                 tcl9_integer_number(s),
@@ -1588,6 +1588,25 @@ mod tests {
         // The empty-string shortcut is also version-gated.
         assert_eq!(is("dict", "", Some(V8_6)), None, "dict \"\" raises pre-9.0");
         assert_eq!(is("dict", "", Some(V9_0)).as_deref(), Some("1"));
+
+        // RUST_ISSUE_083: tcl9.1 must fold identically to 9.0 (it is a 9.0+
+        // superset), not degrade to the dialect-invariant 8.x subset. Assert
+        // parity with 9.0 across the version-sensitive classes.
+        let v91 = TclVersion::from_dialect(Some("tcl9.1"));
+        assert_eq!(v91, Some(TclVersion::V9_1));
+        for (class, val) in [
+            ("integer", "4294967296"),
+            ("integer", "1__0"),
+            ("wideinteger", "9223372036854775808"),
+            ("entier", "0xff__ff"),
+            ("dict", "a 1 b 2"),
+        ] {
+            assert_eq!(
+                is(class, val, v91),
+                is(class, val, Some(V9_0)),
+                "9.1 must match 9.0 for `string is {class} {val}`",
+            );
+        }
     }
 
     #[test]

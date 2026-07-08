@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Command registry |
 | **Location** | `rust/tcl-registry/src/commands/tcl/file_.rs:94` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: medium) |
 
 ## Finding

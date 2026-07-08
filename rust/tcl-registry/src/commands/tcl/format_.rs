@@ -206,7 +206,7 @@ impl Conversion {
         }
         let signed = parse_format_int(value, version)?;
         let n: u64 = match version {
-            Some(TclVersion::V9_0) => u64::from(u32::from_ne_bytes(
+            Some(TclVersion::V9_0 | TclVersion::V9_1) => u64::from(u32::from_ne_bytes(
                 i32::try_from(signed).ok()?.to_ne_bytes(),
             )),
             Some(_) => u64::from_ne_bytes(signed.to_ne_bytes()),
@@ -330,7 +330,7 @@ impl Conversion {
         let signed = parse_format_int(value, version)?;
         // The two's-complement bit pattern at the dialect's width.
         let n: u64 = match version {
-            Some(TclVersion::V9_0) => u64::from(u32::from_ne_bytes(
+            Some(TclVersion::V9_0 | TclVersion::V9_1) => u64::from(u32::from_ne_bytes(
                 i32::try_from(signed).ok()?.to_ne_bytes(),
             )),
             Some(_) => u64::from_ne_bytes(signed.to_ne_bytes()),
@@ -462,7 +462,7 @@ fn parse_decimal_arg(value: &str) -> Option<i64> {
 fn parse_format_int(value: &str, version: Option<TclVersion>) -> Option<i64> {
     match version {
         None => parse_decimal_arg(value),
-        Some(TclVersion::V9_0) => {
+        Some(TclVersion::V9_0 | TclVersion::V9_1) => {
             let big = parse_int_i128(value, false)?;
             // Reduce mod 2³² then reinterpret as a signed 32-bit int (the wrap).
             let wrapped = u32::try_from(big.rem_euclid(4_294_967_296)).ok()?;
