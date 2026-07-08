@@ -36,9 +36,6 @@
 //! `variable name value` still initialises the value. See `tclVar.c`
 //! (`Tcl_GlobalObjCmd` / `Tcl_VariableObjCmd` / `Tcl_UpvarObjCmd`) and
 //! `namespace-tree.md` §5.3 for the modelled semantics.
-//!
-//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use tcl_syntax::naming::is_qualified;
 

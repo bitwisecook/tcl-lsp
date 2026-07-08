@@ -32,9 +32,6 @@
 //! `count` is a number or `*` (all); native endian is little (the wasm/x86
 //! target). Also: the `u` unsigned scan modifier, and `binary encode`/`decode`
 //! (`hex`/`base64`/`uuencode`). Verified against tclsh 9.0.
-//!
-//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};

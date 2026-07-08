@@ -986,6 +986,7 @@ fn walk_script(
     }
 }
 
+// One flat arm per statement kind in the IR walk; splitting obscures the dispatch.
 #[allow(clippy::too_many_lines)]
 fn walk_statement(
     stmt: &Statement,
@@ -1218,6 +1219,8 @@ fn walk_switch_arms(
     }
 }
 
+// Threads the full translation context (registry, depth, enclosing scope, sink)
+// positionally through the recursive IR walk; a struct would just re-wrap it.
 #[allow(clippy::too_many_arguments)]
 fn walk_switch(
     subject: &str,
@@ -1327,6 +1330,7 @@ fn py_int(arg: Option<&String>) -> Option<i64> {
     arg.and_then(|s| s.trim().parse::<i64>().ok())
 }
 
+// One flat arm per translated command name; splitting obscures the dispatch.
 #[allow(clippy::too_many_lines)]
 fn walk_call(
     command: &str,
@@ -1692,6 +1696,7 @@ pub fn translate_irule_with_registry(
             .iter()
             .filter(|i| i.status == TranslateStatus::Partial)
             .count();
+        // Small item counts; the f64 coverage percentage is display-only.
         #[allow(clippy::cast_precision_loss)]
         let cov = ((translated as f64 + partial as f64 * 0.5) / total as f64) * 100.0;
         cov

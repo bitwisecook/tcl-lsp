@@ -22,9 +22,6 @@
 //! cross-cutting contract): `convertto`/`convertfrom` pass through, `system` is
 //! `utf-8`, and `dirs` is a no-op store (we don't load encoding files). C ref
 //! `tclEncoding.c`. Non-UTF-8 codecs are a deferred edge translation.
-//!
-//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::TclObj;

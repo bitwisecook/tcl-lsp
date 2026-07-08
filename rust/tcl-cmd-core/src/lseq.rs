@@ -259,6 +259,7 @@ where
 /// keyword→2 per position) — the pure `SequenceIdentifyArgument` dispatch. The
 /// length is the C argument table written out as one match, not decomposable
 /// without obscuring the 1:1 correspondence.
+// `too_many_lines`: one match arm per decode-key shape — the C argument table, 1:1.
 #[allow(clippy::too_many_lines)]
 fn plan_from<E>(decoded: &[Arg], mut use_doubles: u32) -> Result<Plan, LseqError<E>> {
     let key: u32 = decoded.iter().fold(0, |k, a| {

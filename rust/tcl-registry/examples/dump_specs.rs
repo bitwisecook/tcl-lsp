@@ -311,6 +311,8 @@ fn bigip_prop_sig(p: &tcl_registry::bigip::BigipPropertySpec) -> String {
     let numfmt = |v: Option<f64>| -> String {
         match v {
             None => String::new(),
+            // Guarded by `x.fract() == 0.0`: the value is integral, so the
+            // `as i64` cast is exact for the small spec numbers we dump here.
             #[allow(clippy::cast_possible_truncation)]
             Some(x) if x.fract() == 0.0 => format!("{}", x as i64),
             Some(x) => format!("{x}"),
@@ -343,7 +345,6 @@ fn bigip_prop_sig(p: &tcl_registry::bigip::BigipPropertySpec) -> String {
     )
 }
 
-#[allow(clippy::too_many_lines)]
 fn deep_dump(group: &str) {
     let specs = group_specs(group);
     for spec in &specs {
@@ -419,6 +420,8 @@ fn deep_dump(group: &str) {
     }
 }
 
+// Flat top-to-bottom argument parsing and dispatch for this debug dumper;
+// splitting it into helpers would scatter the one linear control flow.
 #[allow(clippy::too_many_lines)]
 fn main() {
     let group = std::env::args().nth(1).unwrap_or_else(|| {

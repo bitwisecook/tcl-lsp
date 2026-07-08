@@ -147,6 +147,9 @@ impl ObjectClassSpec {
 /// Use `..CommandSpec::DEFAULT` to fill unset fields with sensible
 /// defaults.
 #[derive(Debug, Clone)]
+// The remaining plain-bool fields are orthogonal config flags on a
+// compile-time metadata record (the behavioural set already lives in the
+// `traits` bitflags); enum-folding them would churn every command-spec literal.
 #[allow(clippy::struct_excessive_bools)]
 pub struct CommandSpec {
     /// Command name (e.g. `"for"`, `"dict"`, `"HTTP::header"`).

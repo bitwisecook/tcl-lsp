@@ -33,9 +33,6 @@
 //! safe-Rust `tcl-regex` crate, which works on every target and is validated
 //! against tclsh 9.0 (`reg.test`). The same engine is re-exported to C via the
 //! C-ABI shim in [`crate::regex_capi`].
-//!
-//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::interp::{drop_fresh, obj_bytes, Code, Interp};
 use crate::obj::{new_string_bytes, new_wide_int_obj, TclObj};

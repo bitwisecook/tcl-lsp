@@ -1188,6 +1188,8 @@ enum NumKind {
     Float,
 }
 
+// i64→f64 only for the cross-type numeric compare; the exact `i64` is kept
+// alongside, so precision loss past 2^53 never affects an int/int comparison.
 #[allow(clippy::cast_precision_loss)]
 fn num_parts(v: &Value) -> Option<(NumKind, f64, i64)> {
     match v {

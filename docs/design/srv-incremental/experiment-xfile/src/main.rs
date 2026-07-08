@@ -32,8 +32,6 @@
 //! early-cutoff (a body change backdates → zero dependents wake); (4) table
 //! rebuild scaling.
 
-#![allow(clippy::cast_precision_loss)]
-
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 

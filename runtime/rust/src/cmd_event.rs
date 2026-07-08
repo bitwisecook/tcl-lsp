@@ -27,7 +27,6 @@
 //!
 //! C refs: `tclEvent.c` (`Tcl_DoOneEvent`, `Tcl_AfterObjCmd`, `vwait`),
 //! `tclTimer.c`.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};

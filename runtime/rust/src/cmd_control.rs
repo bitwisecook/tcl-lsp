@@ -27,9 +27,6 @@
 //! need no tower.
 //!
 //! Semantics verified against tclsh 9.0.
-//!
-//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
 use crate::obj::TclObj;

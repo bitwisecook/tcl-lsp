@@ -70,6 +70,8 @@ fn read_text_lossy(path: &Path) -> std::io::Result<String> {
 }
 
 /// `f5 enrich-pcapng`.
+// Returns `Result` to match the uniform `run_*` command-dispatch signature;
+// handlers print their own errors and resolve to an exit code.
 #[allow(clippy::unnecessary_wraps)]
 pub fn run_enrich_pcapng(
     configs: &[PathBuf],

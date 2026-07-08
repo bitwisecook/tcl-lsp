@@ -22,14 +22,15 @@
 //! explanation types (`SessionExplain` / `ExplainFlowReport`) live with the
 //! driver in `f5-cli`, since they depend on the policy-evaluation model.
 
-#![allow(clippy::struct_excessive_bools)]
-
 /// One unique unidirectional L3/L4 flow extracted from a capture.
 ///
 /// Flows are keyed by exact 5-tuple `(src_ip, src_port, dst_ip, dst_port,
 /// proto)` — the two halves of a TCP connection occupy two flow entries that
 /// [`super::sessions::pair_connections`] later joins into a single
 /// [`Connection`].
+// The TCP-flag / TLS / HTTP booleans are independent per-flow observations
+// pulled straight from the capture, not a state machine to encode as enums.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Debug, Default)]
 pub struct Flow {
     /// Source IP (ipaddress-canonical form).

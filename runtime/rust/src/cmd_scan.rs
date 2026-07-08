@@ -22,9 +22,6 @@
 //! scanned values to `varName`s (returning the conversion count, `-1` on EOF
 //! before any conversion) or, with no vars, collects them into a list (*inline*
 //! mode).
-//!
-//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use tcl_cmd_core::scan::{scan_match, validate_format, Scanned};
 

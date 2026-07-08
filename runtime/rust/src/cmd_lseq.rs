@@ -34,8 +34,6 @@
 //!
 //! Semantics verified against tclsh 9.0.
 //!
-//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 #![cfg(have_tommath)]
 
 use crate::interp::{obj_bytes, Code, Interp};

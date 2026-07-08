@@ -128,6 +128,8 @@ struct Opts {
 ///
 /// # Errors
 /// Option/index/coercion errors as a [`LsearchError`] (message + optional code).
+// `too_many_lines`: flat option scan followed by the single search pass — one
+// linear reading of `Tcl_LsearchObjCmd`, splitting it would only hide the flow.
 #[allow(clippy::too_many_lines)]
 pub fn lsearch<O: ValueOps, E: RegexEngine>(
     ops: &mut O,

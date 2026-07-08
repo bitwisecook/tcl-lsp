@@ -18,6 +18,8 @@
 // expected to stay unresolved — this measures coverage, not correctness (the
 // fixture guards correctness / no-false-positives).
 
+// Coverage-stat arithmetic: counts cast to f64 for percentages and to u32 for
+// LSP positions; the magnitudes are tiny, so truncation/precision loss is moot.
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 
 use std::collections::HashMap;

@@ -355,6 +355,8 @@ fn load_system_layer(
 }
 
 /// Read a user/project layer and merge it into `merged`, honouring locks.
+// Threads the full layer-merge context (system baseline, lock set, and the
+// three mutable accumulators); a params struct would not shorten the call site.
 #[allow(clippy::too_many_arguments)]
 fn merge_lower_layer(
     layer: &'static str,
@@ -486,6 +488,8 @@ fn is_locked(path: &str, system: &Table, explicit: &[String], lock_all: bool) ->
 
 /// Deep-merge `incoming` into `acc`, refusing to override paths locked by the
 /// system layer and recording each refusal as a warning.
+// Recursive deep-merge that must carry the lock context (system/prefix/explicit/
+// lock_all/layer) alongside the accumulator down every level of nesting.
 #[allow(clippy::too_many_arguments)]
 fn merge_locked(
     acc: &mut Table,

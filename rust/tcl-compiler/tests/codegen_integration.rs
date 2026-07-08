@@ -21,8 +21,6 @@
 //! Builds small CFG fixtures and runs them through `codegen_function`
 //! / `codegen_module` to verify the resulting `FunctionAsm` shape.
 
-#![allow(clippy::cast_possible_truncation)]
-
 use std::collections::{HashMap, HashSet};
 
 use tcl_compiler::cfg::{Block, BlockId, CfgModule, Function as CfgFunction, Terminator};
@@ -294,6 +292,9 @@ fn if_const_true_dead_branch_eliminated() {
 fn switch_dispatch_emits_jump_table() {
     use tcl_compiler::expr_ast::BinOp;
 
+    // `end: pat.len() as u32` — the fixture patterns are short string literals
+    // nowhere near `u32::MAX`, so the source-range cast never truncates.
+    #[allow(clippy::cast_possible_truncation)]
     fn str_eq_branch(var: &str, pat: &str, tt: BlockId, ft: BlockId) -> Terminator {
         Terminator::Branch {
             condition: ExprNode::Binary {
@@ -589,6 +590,8 @@ fn foreach_emits_native_opcodes() {
 }
 
 #[test]
+// One linear hand-built CFG fixture plus its opcode assertions; splitting the
+// blocks across helpers would scatter the control-flow shape under test.
 #[allow(clippy::too_many_lines)]
 fn complex_foreach_body_emits_step_at_end() {
     // Build a foreach whose body is a branch (if condition → break).

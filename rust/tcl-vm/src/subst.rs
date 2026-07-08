@@ -145,7 +145,7 @@ fn utf8_char_len(first: u8) -> usize {
 /// multi-byte forms (`\xHH…`, `\uHHHH`, `\UHHHHHHHH`, octal `\ooo`, the
 /// `\<newline><whitespace>` line continuation) and a `\` before a multi-byte
 /// UTF-8 character. (`tcl_syntax::backslash::decode` then decodes that slice.)
-#[allow(clippy::many_single_char_names)]
+#[allow(clippy::many_single_char_names)] // b/i/j/k/n index the byte scan, mirroring C Tcl's TclParseBackslash.
 fn backslash_escape_len(b: &[u8], i: usize) -> usize {
     let n = b.len();
     if i + 1 >= n {
@@ -200,7 +200,7 @@ fn backslash_escape_len(b: &[u8], i: usize) -> usize {
 /// accumulated so far; a `continue` drops just that bracket's value and resumes;
 /// a `return` (or any other non-error code) substitutes the result and resumes.
 /// An unclosed `[` is a `missing close-bracket` error (subst-5.5).
-#[allow(clippy::many_single_char_names)]
+#[allow(clippy::many_single_char_names)] // b/s/i/n name the byte buffer and scan cursor, mirroring the C subst loop.
 pub fn subst_command(
     vm: &mut Vm,
     s: &str,

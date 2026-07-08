@@ -258,7 +258,6 @@ fn event_loop(
     }
 }
 
-#[allow(clippy::cast_possible_truncation)]
 fn draw(frame: &mut ratatui::Frame, app: &App) {
     let outer = Layout::default()
         .direction(Direction::Vertical)

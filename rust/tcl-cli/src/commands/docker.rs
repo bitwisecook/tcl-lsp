@@ -50,7 +50,6 @@ pub fn run(action: &DockerCommand) -> anyhow::Result<u8> {
     }
 }
 
-#[allow(clippy::too_many_lines)]
 fn run_create(action: &DockerCommand) -> anyhow::Result<u8> {
     let DockerCommand::Create {
         image,

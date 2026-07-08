@@ -37,8 +37,6 @@
 //!
 //! Semantics verified against tclsh 9.0.
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-
 use tcl_syntax::list::split_list;
 use tcl_syntax::value::ValueOps;
 
@@ -98,7 +96,11 @@ pub struct CommandJob<V> {
 ///
 /// # Errors
 /// Option/index/coercion errors as a [`LsortError`].
+// `too_many_lines`: option scan + key extraction + sort/build in one pass, mirrors
+// Tcl_LsortObjCmd. The `-stride`/`-index` values are validated `>= 2` / `>= 0`
+// before the `as usize` casts, so the truncation/sign-loss allows are safe here.
 #[allow(clippy::too_many_lines)]
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::Value>, LsortError> {
     if args.is_empty() {
         return Err(LsortError::msg(

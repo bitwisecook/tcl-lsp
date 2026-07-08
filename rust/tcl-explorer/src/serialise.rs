@@ -703,7 +703,6 @@ fn ssa_value_detail(
 /// analyses; `constantBranches`/`unreachableBlocks`/`inferredTypes` come from
 /// SCCP + the type lattice.
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry = registry_for_dialect(&result.dialect);
     let funcs: Vec<Value> = result
@@ -1516,6 +1515,8 @@ fn walk_barriers(script: &Script, scope: &str, out: &mut Vec<Ann>) {
 /// callouts come from the optimiser's **O109** findings (there is no
 /// standalone liveness pass); constant-branch + unreachable-block callouts
 /// come from `sccp`.
+// One flat pass aggregating every optimiser/shimmer/gvn/taint callout by line;
+// splitting the per-source arms would scatter one contract across helpers.
 #[allow(clippy::too_many_lines)]
 fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) -> (Value, Value) {
     let registry = registry_for_dialect(&result.dialect);
@@ -1720,6 +1721,8 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
 }
 
 /// Serialise a full pipeline result to the explorer contract JSON.
+// Assembles the whole explorer JSON contract field-by-field in one place;
+// each stage adds one top-level key, so the length is inherent to the schema.
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn serialise_result(result: &ExplorerResult) -> Value {

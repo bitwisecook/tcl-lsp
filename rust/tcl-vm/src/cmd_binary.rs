@@ -39,7 +39,7 @@ fn bytes_to_value(bytes: &[u8]) -> Value {
 }
 
 /// Decode a string back to bytes, taking the low 8 bits of each scalar.
-#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_possible_truncation)] // Keeping the low 8 bits (`as u8`) is the intended byte decode.
 fn value_to_bytes(v: &Value) -> Vec<u8> {
     v.to_str().chars().map(|c| c as u32 as u8).collect()
 }

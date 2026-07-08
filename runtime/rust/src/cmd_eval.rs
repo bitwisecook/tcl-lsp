@@ -24,9 +24,6 @@
 //! variable scope *and* namespace (C Tcl `tclProc.c` `Tcl_UplevelObjCmd` —
 //! restore caller ns + depth together). Multiple args are space-joined (the `concat`-style
 //! eval form). Level parsing is shared with `upvar` ([`crate::cmd_var::parse_level`]).
-//!
-//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::cmd_var::parse_level;
 use crate::interp::{obj_bytes, Code, Interp};

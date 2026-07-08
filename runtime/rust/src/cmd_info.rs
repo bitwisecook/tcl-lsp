@@ -26,9 +26,6 @@
 //! `script`, `tclversion`/`patchlevel`, `nameofexecutable`, and proc
 //! introspection `body`/`args`/`default`. `info errorstack` (TIP 348) is the
 //! remaining `CmdFrame`-adjacent item.
-//!
-//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::list;

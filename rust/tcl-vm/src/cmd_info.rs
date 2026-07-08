@@ -88,7 +88,7 @@ fn canonical_info_sub(sub: &str) -> Option<&'static str> {
     if count == 1 { found } else { None }
 }
 
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines)] // One subcommand-dispatch match; splitting obscures it.
 fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"info subcommand ?arg ...?\"");

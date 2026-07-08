@@ -27,7 +27,8 @@
 //! `$var`/`[cmd]` resolve through caller closures (the interp wires its frame +
 //! eval machinery; tests use mocks). Refcounts are managed by the [`Owned`] RAII
 //! guard so every early return in the shared walk releases cleanly.
-
+//!
+//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use core::cmp::Ordering;

@@ -161,7 +161,7 @@ fn get_path(cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
     Ok(v)
 }
 
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines)] // One subcommand-dispatch match; splitting obscures it.
 fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
     // Pure dict subcommands now live in the shared command core; the VM is a
     // thin adapter. Variable-mutating subcommands fall through to the legacy

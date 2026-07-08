@@ -21,6 +21,9 @@
 //! divergences across the tmp/ corpus so the fast path can be widened to cover
 //! them.  Run: `cargo run --release -p tcl-compiler --example per_item_divergence`.
 
+// Demonstration/experiment harness: percentage maths casts small counts to f64,
+// and `main` drives the divergence categorisation inline — neither the pedantic
+// precision-loss nor the length lint is worth acting on here.
 #![allow(clippy::cast_precision_loss, clippy::too_many_lines)]
 
 use std::collections::BTreeMap;

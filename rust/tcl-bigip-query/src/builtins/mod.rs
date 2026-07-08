@@ -839,6 +839,8 @@ fn pathological_regex() -> &'static Regex {
 
 // Plain builtins
 
+// char / element counts as `i64`; wrapping would need more than `i64::MAX`
+// items, impossible for an in-memory value.
 #[allow(clippy::cast_possible_wrap)]
 fn bi_length(args: &[Value]) -> Result<Value, QueryError> {
     let v = &args[0];
@@ -1327,6 +1329,8 @@ fn bi_tostring(args: &[Value]) -> Result<Value, QueryError> {
     }
 }
 
+// `f.floor()` is already integral; the `f64 -> i64` is the intended narrowing
+// (values beyond the `i64` range saturate, matching jq's `floor`).
 #[allow(clippy::cast_possible_truncation)]
 fn bi_floor(args: &[Value]) -> Result<Value, QueryError> {
     match as_number(&args[0], "floor", 1)? {
@@ -1336,6 +1340,8 @@ fn bi_floor(args: &[Value]) -> Result<Value, QueryError> {
     }
 }
 
+// `f.ceil()` is already integral; the `f64 -> i64` is the intended narrowing
+// (values beyond the `i64` range saturate, matching jq's `ceil`).
 #[allow(clippy::cast_possible_truncation)]
 fn bi_ceil(args: &[Value]) -> Result<Value, QueryError> {
     match as_number(&args[0], "ceil", 1)? {

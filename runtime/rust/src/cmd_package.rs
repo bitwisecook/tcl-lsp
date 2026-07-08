@@ -25,9 +25,6 @@
 //! follow TIP 268 (`min-`, `min-max`, bare `min` = same major), verified vs
 //! tclsh 9.0. The core `tcl`/`Tcl` packages are pre-provided at interp start
 //! (as C does before sourcing `init.tcl`).
-//!
-//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use std::collections::BTreeMap;
 

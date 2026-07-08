@@ -23,9 +23,6 @@
 //! [`Command::Proc`](crate::interp::Command); the call protocol
 //! (`Interp::call_proc`) pushes a frame, binds the args, and runs the body —
 //! see `proc-call-and-stack-traces.md` (PC-2). `puts` writes to stdout/stderr.
-//!
-//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::interp::{obj_bytes, CallMeta, Code, Interp, Param, ProcFrame};
 use crate::obj::TclObj;

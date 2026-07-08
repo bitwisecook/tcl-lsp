@@ -30,6 +30,7 @@ use super::remote::object_io::{self, dry_run_plan, parse_payload};
 use super::remote::os_error_string;
 
 /// Parameters for [`run_push`].
+// Each bool is a distinct user-facing CLI flag, not a state machine.
 #[allow(clippy::struct_excessive_bools)]
 pub struct PushArgs<'a> {
     pub kind: &'a str,

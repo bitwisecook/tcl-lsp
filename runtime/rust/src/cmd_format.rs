@@ -24,9 +24,6 @@
 //! precision (each a literal or `*` taken from an argument), positional
 //! specifiers (`%2$d`), and ignored size modifiers (`h`/`l`/`ll`/`L`/…).
 //! Integers are scanned as i64 (the bignum widening of `%d` is a follow-up).
-//!
-//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::TclObj;

@@ -37,9 +37,6 @@
 //! Simplifications (tracked): variable traces match by variable *name* (the
 //! namespace the trace was registered in is not distinguished). Command and
 //! execution traces are keyed by the resolved FQN (`Interp::resolve_cmd_fqn`).
-//!
-//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use tcl_cmd_core::trace as core_trace;
 

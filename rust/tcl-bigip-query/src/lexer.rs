@@ -208,6 +208,8 @@ fn escape(esc: char) -> char {
 ///
 /// Returns [`QueryError::Lex`] on an unterminated string, a stray `!` /
 /// `$`, or any character the scanner does not understand.
+// `too_many_lines`: a single scan loop with one arm per token class; splitting the
+// character dispatch into helpers would scatter the scanner state they share.
 #[allow(clippy::too_many_lines)]
 pub fn tokenise(source: &str) -> Result<Vec<Token>, QueryError> {
     let chars: Vec<char> = source.chars().collect();

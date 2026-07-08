@@ -1051,6 +1051,8 @@ pub struct SummaryDepsKey<'db> {
 /// summaries read (transitive, not just direct callees) is sound: a wrong/missed
 /// dependency is caught by the debug fixpoint guard in `converge_summaries_with`,
 /// which re-runs the real `infer_proc_summary`.
+// A cache-key builder that must observe every input the summary fixpoint reads;
+// bundling them into a struct would just move the argument list off-site.
 #[allow(clippy::too_many_arguments)]
 fn summary_deps_key<'db>(
     db: &'db dyn TclDb,
@@ -1517,7 +1519,6 @@ pub struct OptDepsKey<'db> {
 /// `pure` / …) change — **not** on every body edit, since most edits leave those
 /// summary fields untouched (a `set y 1` → `set y 2` edit re-keys only the edited
 /// proc's own `FnLatticeKey`, not every caller's `OptDepsKey`).
-#[allow(clippy::too_many_arguments)]
 fn opt_deps_key<'db>(
     db: &'db dyn TclDb,
     ia: &InterproceduralAnalysis,

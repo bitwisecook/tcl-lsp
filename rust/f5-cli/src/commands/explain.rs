@@ -129,6 +129,8 @@ fn non_empty_str(field: Option<&Value>) -> Option<&str> {
 
 type Section = (&'static str, Vec<String>);
 
+// One straight-line builder appending each config section in report order;
+// splitting it would scatter the virtual-server layout.
 #[allow(clippy::too_many_lines)]
 fn explain_virtual(model: &Model, vs: &Value) -> Vec<Section> {
     let mut sections: Vec<Section> = Vec::new();

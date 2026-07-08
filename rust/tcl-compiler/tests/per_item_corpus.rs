@@ -149,6 +149,7 @@ impl Rng {
         if n == 0 {
             0
         } else {
+            // `next() % (n as u64)` is in `[0, n)`, so it always fits in usize.
             #[allow(clippy::cast_possible_truncation)]
             let bounded = (self.next() % n as u64) as usize;
             bounded

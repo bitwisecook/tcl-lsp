@@ -32,11 +32,10 @@
 //! shared [`RegexEngine`](crate::regex::RegexEngine) provider, exactly as
 //! `regexp`/`regsub` do.
 
-// `ops`/`opts` and the regexp `so`/`eo` offsets are deliberately terse; the
-// codepoint offsets cast to the `i64` of the `{start end}` pairs (bounded by the
-// subject length, like the `regexp` core's `-indices`).
+// `ops`/`opts` and the regexp `so`/`eo` offsets are deliberately terse mirrors of
+// the C names and recur across the module's functions, so the similar-names allow
+// stays module-scoped. (The regexp offset cast is narrowed to `regexp_writes`.)
 #![allow(clippy::similar_names)]
-#![allow(clippy::cast_possible_wrap)]
 
 use tcl_syntax::glob::string_case_match;
 use tcl_syntax::value::ValueOps;
@@ -316,6 +315,9 @@ where
 /// Build the `-indexvar` (`{start end}` pairs) and `-matchvar` (substring list)
 /// values for a regexp match. Mirrors C's `matchFoundRegexp`: a non-participating
 /// or start-anchored empty group yields `{-1 -1}` / the empty string.
+// `so`/`eo` are codepoint offsets bounded by the subject length; the `i64` is the
+// `{start end}` pair format, like the `regexp` core's `-indices`.
+#[allow(clippy::cast_possible_wrap)]
 fn regexp_writes<O, V>(
     ops: &mut O,
     opts: &Options<V>,

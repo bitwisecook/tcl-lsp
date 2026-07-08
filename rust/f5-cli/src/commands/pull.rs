@@ -29,6 +29,7 @@ use super::remote::json_compat::dumps_indent2;
 use super::remote::object_io::{object_to_scf_stanza, pull_object};
 
 /// Parameters for [`run_pull`].
+// Each bool is a distinct user-facing CLI flag, not a state machine.
 #[allow(clippy::struct_excessive_bools)]
 pub struct PullArgs<'a> {
     pub kind: &'a str,

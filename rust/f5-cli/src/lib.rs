@@ -58,6 +58,7 @@ where
     }
 }
 
+// One flat arm per top-level verb; splitting this dispatch would obscure it.
 #[allow(clippy::too_many_lines)]
 fn dispatch(command: &Command) -> anyhow::Result<u8> {
     match command {

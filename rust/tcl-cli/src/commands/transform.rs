@@ -182,7 +182,6 @@ pub fn run_opt(
 }
 
 /// `tcl minify` — strip comments, collapse whitespace, join commands.
-#[allow(clippy::fn_params_excessive_bools)]
 pub fn run_minify(
     input: &InputArgs,
     compact: bool,

@@ -27,8 +27,7 @@
 //! (`file`). Toward loading the real `init.tcl`/`tcltest.tcl` (the M2 gate).
 //!
 //! Path handling is `/`-separated (Tcl's portable convention); fine on Unix /
-//! WASI. See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
+//! WASI.
 
 use tcl_platform::{Filesystem, HostError};
 

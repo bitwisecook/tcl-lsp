@@ -114,7 +114,6 @@ fn caller_text(calls: &[(usize, usize)]) -> String {
 #[test]
 #[ignore = "slow corpus sweep (~minutes over tmp/); run with --ignored"]
 #[allow(clippy::cast_possible_truncation)] // index modulo a tiny array
-#[allow(clippy::similar_names)] // fresh_* mirror the incremental bindings deliberately
 fn project_diagnostics_incremental_matches_fresh_over_corpus() {
     let dialect = "tcl8.6";
     let mut paths = Vec::new();

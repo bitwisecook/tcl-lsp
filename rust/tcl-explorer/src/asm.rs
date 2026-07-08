@@ -122,6 +122,8 @@ fn resolve_label(
 }
 
 /// Build one function's explorer entry, including its `sourceRange` wiring.
+// One flat builder for a function's whole explorer entry; `source_range` is a
+// prebuilt JSON `Value` that is moved into the entry (needless-ref would clone).
 #[allow(clippy::too_many_lines, clippy::needless_pass_by_value)]
 fn function_explorer(
     asm: &FunctionAsm,

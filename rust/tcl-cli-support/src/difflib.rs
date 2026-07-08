@@ -106,6 +106,8 @@ impl<'a> SequenceMatcher<'a> {
 
     /// Equivalent to `SequenceMatcher.find_longest_match` (no junk, so the
     /// junk-extension passes are no-ops and omitted).
+    // besti/bestj/bestsize and the `i` index mirror CPython difflib; the range
+    // loop uses `i` as an absolute index into `a` for the match-position math.
     #[allow(clippy::similar_names, clippy::needless_range_loop)]
     fn find_longest_match(&self, alo: usize, ahi: usize, blo: usize, bhi: usize) -> Match {
         let a = self.a;

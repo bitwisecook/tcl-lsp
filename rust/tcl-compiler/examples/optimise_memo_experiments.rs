@@ -29,6 +29,9 @@
 //!   how many procedure summaries changed (a *reachable-key* memo's locality).
 //! - **E3 key-build cost** — time to serialise `interproc` into a hashable key.
 
+// Demonstration/experiment harness: percentage and ratio maths casts small
+// counts to f64, and `main` drives several experiments inline — neither the
+// pedantic precision-loss nor the length lint is worth acting on here.
 #![allow(clippy::cast_precision_loss, clippy::too_many_lines)]
 
 use std::path::{Path, PathBuf};

@@ -76,7 +76,6 @@ const NOT_SUPPORTED_TOKENS: &[&str] = &[
 /// acceptance (lexical/dispatch wise) versus a "bad option" rejection.
 /// Declaration order is preserved in the JSON output and the console log,
 /// matching `dict` insertion order.
-#[allow(clippy::too_many_lines)]
 const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
     // ---- lsearch ----
     ("lsearch", None, "-stride", "lsearch -stride 2 {a 1} *"),
