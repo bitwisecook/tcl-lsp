@@ -36,6 +36,8 @@
 //! - [`events`] — iRules event metadata (176 events, firing order, flow chains).
 //! - [`profiles`] — F5 profile types (65 profiles), protocol namespaces (113),
 //!   and stack modification commands.
+//! - [`special_vars`] — dialect-versioned interpreter-provided variables
+//!   (`auto_path`, `env`, `tcl_platform`, the iRules `static::` namespace).
 //!
 //! ## One file per command
 //!
@@ -73,6 +75,7 @@ pub mod scoped;
 pub mod side_effects;
 pub mod snapshot;
 pub mod spec;
+pub mod special_vars;
 pub mod stub_overlay;
 pub mod symbol_def;
 pub mod taint;
@@ -125,6 +128,11 @@ pub use hover::ArgValue;
 pub use patterns::{FormatType, PatternType};
 pub use registry::{CommandRegistry, ResolvedTerminator};
 pub use spec::{BytePayloadSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSubCommand};
+pub use special_vars::{
+    SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, VarAccess, VarOrigin,
+    is_externally_read, is_special_var, special_var, special_var_in_dialect,
+    special_vars_for_dialect,
+};
 pub use symbol_def::{DefinedSymbolKind, SymbolDef};
 pub use taint::{SetterConstraint, TaintColour};
 pub use traits::Traits;

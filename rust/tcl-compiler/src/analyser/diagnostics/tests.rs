@@ -1656,6 +1656,46 @@ fn emit_cfg_ssa_diagnostics_w220_on_set_once_never_read() {
 }
 
 #[test]
+fn w220_suppressed_for_interpreter_special_variable_writes() {
+    // Issue #831: `set auto_path …` at top level configures the runtime
+    // package/auto-loader; the write is observed by the interpreter even
+    // though the script never reads `$auto_path` back, so it is not a dead
+    // store.  The special-variable set is sourced from the dialect-aware
+    // `tcl_registry::special_vars` registry.
+    // Neither the dead-store (W220) nor the unused-variable (W211) hint may
+    // fire — both were false positives on these writes.
+    for src in [
+        "set auto_path ../\n",
+        "lappend auto_path /some/dir\n",
+        "set env(FOO) bar\n",
+        "set tcl_precision 12\n",
+        "set errorInfo {}\n",
+    ] {
+        let mut a = Analyser::new();
+        let res = a.analyse(src, "tcl8.6");
+        assert!(
+            !res.diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W220 || d.code == DiagCode::W211),
+            "W220/W211 must not fire for special-var write {src:?}; got {:?}",
+            res.diagnostics,
+        );
+    }
+
+    // Control: a genuine top-level user variable written and never read is
+    // still flagged (the same shape as the issue's screenshot).
+    let mut a = Analyser::new();
+    let res = a.analyse("set myUnusedVar ../\n", "tcl8.6");
+    assert!(
+        res.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W220 || d.code == DiagCode::W211),
+        "a genuine dead/unused store must still be flagged; got {:?}",
+        res.diagnostics,
+    );
+}
+
+#[test]
 fn emit_cfg_ssa_diagnostics_w220_suppressed_for_substitution_hidden_reads() {
     // A variable read only inside a command substitution the
     // version-precise SSA can't see — a branch condition, an `expr`
