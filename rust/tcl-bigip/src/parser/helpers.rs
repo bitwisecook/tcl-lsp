@@ -137,6 +137,57 @@ pub fn extract_blocks(source: &str) -> Vec<Block> {
     blocks
 }
 
+/// Scan a property value starting at `pos` (guaranteed not to be a newline).
+/// Returns `(val_start, val_end, new_pos)`.
+///
+/// Three value shapes: a braced `{…}` block (quote- and escape-aware), a
+/// double-quoted string — which may contain an embedded literal newline, so it
+/// scans to the matching close quote rather than end-of-line (`RUST_ISSUE_116`) —
+/// and a bareword value to end-of-line. `val_end` is clamped to `length` so an
+/// unterminated quote can't overshoot the slice.
+fn scan_property_value(bytes: &[u8], length: usize, mut pos: usize) -> (usize, usize, usize) {
+    let val_start = pos;
+    if bytes[pos] == b'{' {
+        pos += 1;
+        let mut depth = 1;
+        while pos < length && depth > 0 {
+            match bytes[pos] {
+                b'{' => depth += 1,
+                b'}' => depth -= 1,
+                b'\\' if pos + 1 < length => pos += 1,
+                b'"' => {
+                    pos += 1;
+                    while pos < length && bytes[pos] != b'"' {
+                        if bytes[pos] == b'\\' && pos + 1 < length {
+                            pos += 1;
+                        }
+                        pos += 1;
+                    }
+                }
+                _ => {}
+            }
+            pos += 1;
+        }
+    } else if bytes[pos] == b'"' {
+        pos += 1;
+        while pos < length && bytes[pos] != b'"' {
+            if bytes[pos] == b'\\' && pos + 1 < length {
+                pos += 2;
+            } else {
+                pos += 1;
+            }
+        }
+        if pos < length {
+            pos += 1; // consume the closing quote
+        }
+    } else {
+        while pos < length && bytes[pos] != b'\n' {
+            pos += 1;
+        }
+    }
+    (val_start, pos.min(length), pos)
+}
+
 /// Parse top-level `key value` properties from a block body, capturing
 /// each value's span relative to the body.
 #[must_use]
@@ -190,57 +241,17 @@ pub fn parse_properties_with_spans(body: &str) -> Vec<(String, Property)> {
             continue;
         }
 
-        if bytes[pos] == b'{' {
-            let val_start = pos;
-            pos += 1;
-            let mut depth = 1;
-            while pos < length && depth > 0 {
-                match bytes[pos] {
-                    b'{' => depth += 1,
-                    b'}' => depth -= 1,
-                    b'\\' if pos + 1 < length => pos += 1,
-                    b'"' => {
-                        pos += 1;
-                        while pos < length && bytes[pos] != b'"' {
-                            if bytes[pos] == b'\\' && pos + 1 < length {
-                                pos += 1;
-                            }
-                            pos += 1;
-                        }
-                    }
-                    _ => {}
-                }
-                pos += 1;
-            }
-            // An unterminated quote inside the value runs `pos` past the end
-            // (the inner scan reaches `length`, then `pos += 1` overshoots);
-            // clamp before slicing so a stray `"` can't crash the parse.
-            let val_end = pos.min(length);
-            insert_prop(
-                &mut props,
-                Property {
-                    key,
-                    value: body[val_start..val_end].trim().to_owned(),
-                    value_start: Some(val_start),
-                    value_end: Some(val_end),
-                },
-            );
-        } else {
-            let val_start = pos;
-            while pos < length && bytes[pos] != b'\n' {
-                pos += 1;
-            }
-            let val_end = pos;
-            insert_prop(
-                &mut props,
-                Property {
-                    key,
-                    value: body[val_start..val_end].trim().to_owned(),
-                    value_start: Some(val_start),
-                    value_end: Some(val_end),
-                },
-            );
-        }
+        let (val_start, val_end, new_pos) = scan_property_value(bytes, length, pos);
+        pos = new_pos;
+        insert_prop(
+            &mut props,
+            Property {
+                key,
+                value: body[val_start..val_end].trim().to_owned(),
+                value_start: Some(val_start),
+                value_end: Some(val_end),
+            },
+        );
     }
 
     props
@@ -299,14 +310,37 @@ pub fn parse_list_block(braced: &str) -> Vec<String> {
         }
 
         let name_start = pos;
-        while pos < length && !matches!(bytes[pos], b' ' | b'\t' | b'\n' | b'\r' | b'{' | b'}') {
-            if bytes[pos] == b'\\' && pos + 1 < length {
-                pos += 2;
-                continue;
-            }
+        // A record key may be double-quoted because it contains spaces (a
+        // data-group key like `"Mozilla/5.0 (Windows)"`); scan the whole quoted
+        // run as one key instead of splitting it on the inner space
+        // (`RUST_ISSUE_115`). The list-body scan used to be unquote-aware even
+        // though header tokenising is.
+        let name = if bytes[pos] == b'"' {
             pos += 1;
-        }
-        let name = inner[name_start..pos].trim().to_owned();
+            let content_start = pos;
+            while pos < length && bytes[pos] != b'"' {
+                if bytes[pos] == b'\\' && pos + 1 < length {
+                    pos += 2;
+                } else {
+                    pos += 1;
+                }
+            }
+            let content = inner[content_start..pos].to_owned();
+            if pos < length {
+                pos += 1; // consume the closing quote
+            }
+            content
+        } else {
+            while pos < length && !matches!(bytes[pos], b' ' | b'\t' | b'\n' | b'\r' | b'{' | b'}')
+            {
+                if bytes[pos] == b'\\' && pos + 1 < length {
+                    pos += 2;
+                    continue;
+                }
+                pos += 1;
+            }
+            inner[name_start..pos].trim().to_owned()
+        };
 
         while pos < length && matches!(bytes[pos], b' ' | b'\t') {
             pos += 1;
@@ -575,6 +609,34 @@ mod tests {
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].0, "/Common/clientssl");
         assert!(entries[0].1.contains("context clientside"));
+    }
+
+    #[test]
+    fn list_block_key_may_be_quoted_with_spaces() {
+        // RUST_ISSUE_115: a data-group record key quoted because it contains
+        // spaces is one key, not several.
+        let keys = parse_list_block(r#"{ "Mozilla/5.0 (Windows)" { data blocked } }"#);
+        assert_eq!(keys, vec!["Mozilla/5.0 (Windows)".to_owned()]);
+        // FP-guard: ordinary unquoted keys still split on whitespace.
+        assert_eq!(
+            parse_list_block("{ /Common/a /Common/b }"),
+            vec!["/Common/a".to_owned(), "/Common/b".to_owned()]
+        );
+    }
+
+    #[test]
+    fn quoted_property_value_may_span_newlines() {
+        // RUST_ISSUE_116: a double-quoted value with an embedded newline is one
+        // value — `line two"` must not parse as a new key.
+        let body = "description \"line one\nline two\"\nmonitor /Common/http\n";
+        let props = parse_properties(body);
+        let map: std::collections::HashMap<_, _> = props
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+        assert_eq!(map.get("description"), Some(&"\"line one\nline two\""));
+        assert_eq!(map.get("monitor"), Some(&"/Common/http"));
+        assert!(!map.contains_key("line"), "no spurious `line` key: {map:?}");
     }
 
     #[test]
