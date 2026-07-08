@@ -7768,4 +7768,97 @@ mod tests {
             full_data.data.len(),
         );
     }
+
+    /// Every semantic-token type the server advertises in [`legend_token_types`]
+    /// must be handled by the VS Code extension — either a standard LSP type VS
+    /// Code themes natively, or an explicit `semanticTokenScopes` mapping. This
+    /// is the alignment guard: add a token type to the legend (e.g. from richer
+    /// lexing) without wiring the editor, and this test fails instead of the
+    /// token silently rendering as an unstyled default in every theme.
+    #[test]
+    fn vscode_semantic_token_scopes_cover_the_server_legend() {
+        // Standard LSP `SemanticTokenTypes` VS Code styles out of the box, so
+        // they need no custom `semanticTokenScopes` entry.
+        const STANDARD_LSP_TYPES: &[&str] = &[
+            "namespace",
+            "type",
+            "class",
+            "enum",
+            "interface",
+            "struct",
+            "typeParameter",
+            "parameter",
+            "variable",
+            "property",
+            "enumMember",
+            "event",
+            "function",
+            "method",
+            "macro",
+            "keyword",
+            "modifier",
+            "comment",
+            "string",
+            "number",
+            "regexp",
+            "operator",
+            "decorator",
+        ];
+
+        // The Tcl-family languages that exercise the *full* legend — iRules /
+        // iApps / BIG-IP code references BIG-IP `object`s and fires `event`s, so
+        // these blocks must map every non-standard token type. The narrower
+        // dialects (`tcl8.4`, EDA, `expect`) emit a subset and the bespoke
+        // `tcl-apl` uses its own token set, so they are not required to cover
+        // the whole legend here. `tcl-irule` is a superset of plain Tcl, so
+        // covering it covers every token a plain `.tcl` file can emit too.
+        const FULL_VOCAB: &[&str] = &["tcl", "tcl-irule", "tcl-iapp", "tcl-bigip"];
+
+        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let pkg = manifest.join("../../editors/vscode/package.json");
+        let text = std::fs::read_to_string(&pkg)
+            .unwrap_or_else(|e| panic!("reading {}: {e}", pkg.display()));
+        let json: serde_json::Value =
+            serde_json::from_str(&text).expect("package.json is valid JSON");
+
+        let blocks = json["contributes"]["semanticTokenScopes"]
+            .as_array()
+            .expect("contributes.semanticTokenScopes is an array");
+
+        let legend = legend_token_types();
+        let mut failures = Vec::new();
+        let mut checked_blocks = 0;
+
+        for block in blocks {
+            let lang = block["language"].as_str().unwrap_or_default();
+            if !FULL_VOCAB.contains(&lang) {
+                continue;
+            }
+            checked_blocks += 1;
+            let mapped: std::collections::BTreeSet<&str> = block["scopes"]
+                .as_object()
+                .map(|m| m.keys().map(String::as_str).collect())
+                .unwrap_or_default();
+
+            for &tok in &legend {
+                if !STANDARD_LSP_TYPES.contains(&tok) && !mapped.contains(tok) {
+                    failures.push(format!(
+                        "language `{lang}` does not handle legend token `{tok}` \
+                         (add it to contributes.semanticTokenScopes in \
+                         editors/vscode/package.json)"
+                    ));
+                }
+            }
+        }
+
+        assert!(
+            checked_blocks > 0,
+            "found no tcl* semanticTokenScopes blocks to check"
+        );
+        assert!(
+            failures.is_empty(),
+            "semantic-token legend not fully handled:\n  {}",
+            failures.join("\n  ")
+        );
+    }
 }

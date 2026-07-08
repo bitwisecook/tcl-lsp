@@ -875,6 +875,9 @@
       {
         "language": "tcl",
         "scopes": {
+          "object": [
+            "entity.name.type.bigip"
+          ],
           "operator": [
             "keyword.operator.format.tcl"
           ],
@@ -955,6 +958,9 @@
       {
         "language": "tcl-irule",
         "scopes": {
+          "object": [
+            "entity.name.type.bigip"
+          ],
           "operator": [
             "keyword.operator.format.tcl"
           ],
@@ -1035,6 +1041,9 @@
       {
         "language": "tcl-iapp",
         "scopes": {
+          "object": [
+            "entity.name.type.bigip"
+          ],
           "operator": [
             "keyword.operator.format.tcl"
           ],

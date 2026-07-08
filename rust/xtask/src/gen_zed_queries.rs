@@ -420,4 +420,97 @@ mod tests {
             );
         }
     }
+
+    /// Extract the quoted command tokens inside the three generated `#any-of?`
+    /// blocks of a committed `highlights.scm` — the actual data shipped to Zed,
+    /// parsed independently of how the generator formats it.
+    fn committed_generated_commands(src: &str) -> BTreeSet<String> {
+        let start = src
+            .find("--- generated from tcl-registry: control-flow")
+            .expect("generated-block start marker present");
+        let end = src
+            .find("; Highlight unset")
+            .expect("post-generated marker present");
+        let mut out = BTreeSet::new();
+        let mut rest = &src[start..end];
+        while let Some(i) = rest.find('"') {
+            rest = &rest[i + 1..];
+            let Some(j) = rest.find('"') else { break };
+            let tok = &rest[..j];
+            // Capture names (`@function.builtin`) are unquoted, so only real
+            // command tokens land here; skip the empty-bucket sentinel.
+            if !tok.is_empty() && tok != "\\u0000never" {
+                out.insert(tok.to_owned());
+            }
+            rest = &rest[j + 1..];
+        }
+        out
+    }
+
+    /// The strongest freshness guarantee: the command data actually present in
+    /// each committed query file must equal what the *live registry* classifies
+    /// for that language — parsed from the shipped file, so it holds regardless
+    /// of how the generator renders. A registry change that isn't regenerated
+    /// fails here even if someone hand-edited the file to look plausible.
+    #[test]
+    fn committed_command_data_equals_live_registry() {
+        for Target { dir, dialects } in targets() {
+            let reg = registry_for(dialects);
+            let b = classify(&reg, dialects);
+            let mut expected = BTreeSet::new();
+            expected.extend(b.control.iter().cloned());
+            expected.extend(b.keyword.iter().cloned());
+            expected.extend(b.builtin.iter().cloned());
+
+            let src = fs::read_to_string(
+                repo_root().join(format!("editors/zed/languages/{dir}/highlights.scm")),
+            )
+            .unwrap();
+            let committed = committed_generated_commands(&src);
+
+            assert_eq!(
+                committed, expected,
+                "{dir}: committed tree-sitter command data has drifted from the \
+                 registry — run `make generate`"
+            );
+        }
+    }
+
+    /// Ground-truth sentinels — hand-verified facts independent of the
+    /// generator's own classification logic, so a `classify`/filter regression
+    /// that still round-trips through `--check` is caught.
+    #[test]
+    fn ground_truth_sentinels() {
+        let read = |dir: &str| {
+            fs::read_to_string(
+                repo_root().join(format!("editors/zed/languages/{dir}/highlights.scm")),
+            )
+            .unwrap()
+        };
+        let tcl = read("tcl");
+        let irules = read("irules");
+        let has = |s: &str, c: &str| s.contains(&format!("\"{c}\""));
+
+        // Ambient core builtins must be present in the Tcl query.
+        for c in ["puts", "lappend", "lindex", "incr", "dict", "regsub"] {
+            assert!(has(&tcl, c), "tcl query is missing ambient builtin `{c}`");
+        }
+        // Package-gated library commands (Tk needs `package require Tk`) must be
+        // absent — the LSP semantic-token layer colours those, not tree-sitter.
+        for c in ["button", "canvas"] {
+            assert!(
+                !has(&tcl, c),
+                "tcl query wrongly includes package-gated `{c}`"
+            );
+        }
+        // Dialect scoping: the ambient F5 surface appears only in iRules.
+        assert!(
+            has(&irules, "HTTP::uri"),
+            "irules query is missing F5 `HTTP::uri`"
+        );
+        assert!(
+            !has(&tcl, "HTTP::uri"),
+            "tcl query wrongly includes iRules `HTTP::uri`"
+        );
+    }
 }
