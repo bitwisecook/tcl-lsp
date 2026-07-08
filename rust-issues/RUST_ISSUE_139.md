@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Build tooling & CI |
 | **Location** | `Makefile:831-909` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

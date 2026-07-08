@@ -793,6 +793,9 @@ ensure-tcl-deps: ## Install Tcl shells needed by Tcl/tclpkg tests and bytecode c
 		SKIP_OPENSSL=1 \
 		SKIP_PING=1 \
 		SKIP_RGXG=1 \
+		SKIP_WASI_SDK=1 \
+		SKIP_PYTHON_TK=1 \
+		SKIP_UV=1 \
 		SKIP_TCLLIB=1 \
 		bash $(ROOT)scripts/dev/ensure-test-deps.sh
 
@@ -812,6 +815,9 @@ ensure-rust-deps: ## Install Rust/rustup + wasm32-wasip2 target needed by check-
 			SKIP_OPENSSL=1 \
 			SKIP_PING=1 \
 			SKIP_RGXG=1 \
+			SKIP_WASI_SDK=1 \
+			SKIP_PYTHON_TK=1 \
+			SKIP_UV=1 \
 			SKIP_TCLLIB=1 \
 			bash $(ROOT)scripts/dev/ensure-test-deps.sh; \
 		echo "==> Ensuring wasm32-unknown-unknown target (compiler-explorer WASM)"; \
@@ -836,6 +842,9 @@ ensure-emacs-deps: ## Install Emacs needed by test-emacs
 			SKIP_OPENSSL=1 \
 			SKIP_PING=1 \
 			SKIP_RGXG=1 \
+			SKIP_WASI_SDK=1 \
+			SKIP_PYTHON_TK=1 \
+			SKIP_UV=1 \
 			SKIP_TCLLIB=1 \
 			bash $(ROOT)scripts/dev/ensure-test-deps.sh; \
 	fi
@@ -857,6 +866,9 @@ ensure-vscode-test-deps: ## Install xvfb for Linux headless VS Code extension te
 		SKIP_OPENSSL=1 \
 		SKIP_PING=1 \
 		SKIP_RGXG=1 \
+		SKIP_WASI_SDK=1 \
+		SKIP_PYTHON_TK=1 \
+		SKIP_UV=1 \
 		SKIP_TCLLIB=1 \
 		bash $(ROOT)scripts/dev/ensure-test-deps.sh
 

@@ -83,6 +83,10 @@ WASMTIME_VERSION="43.0.1"
 WASI_SDK_VERSION="25.0"
 TCLLIB_TAG="tcllib-2-0"
 TCLLIB_VERSION="2.0"
+# Minimum Node.js major — must track Makefile Prerequisites, AGENTS.md, README,
+# and the CI `node-version`. Distro apt/dnf packages (Ubuntu 24.04 ships Node
+# 18) fall below this, so install from NodeSource when they would.
+NODE_MIN_MAJOR="24"
 
 CHECK_ONLY=0
 if [ "${1:-}" = "--check" ]; then
@@ -115,7 +119,15 @@ elif [ "$OS" = "Linux" ]; then
             fi
             ;;
     esac
-    if [ "$(id -u)" != "0" ]; then SUDO="sudo"; fi
+fi
+
+# Privileged installs (writing to /opt, /usr/local/bin, apt/dnf) need sudo when
+# not already root — on macOS too, where `ensure_wasi_sdk`/`ensure_wasmtime`
+# `mkdir -p /opt/...` on root-owned /opt. Setting SUDO only in the Linux branch
+# meant the Darwin path ran those as the invoking user and aborted under `set
+# -e` (RUST_ISSUE_140). Homebrew invocations deliberately do not use $SUDO.
+if [ "$(id -u)" != "0" ] && command -v sudo >/dev/null 2>&1; then
+    SUDO="sudo"
 fi
 
 INSTALLABLE_SKIP_VARS=(
@@ -424,14 +436,46 @@ ensure_python_tk() {
 
 # ---------------------------------------------------------------- node + npm
 
+# Major version of the `node` on PATH, or empty if node is absent.
+node_current_major() {
+    command -v node >/dev/null 2>&1 || return 0
+    node --version 2>/dev/null | sed -n 's/^v\([0-9]\{1,\}\)\..*/\1/p'
+}
+
+# Install Node from NodeSource (apt/dnf), which ships the current major, rather
+# than the distro package (Ubuntu 24.04 apt = Node 18). The NodeSource `nodejs`
+# package bundles npm.
+install_node_from_nodesource() {
+    local scheme="$1" # deb | rpm
+    local setup="https://${scheme}.nodesource.com/setup_${NODE_MIN_MAJOR}.x"
+    info "Adding NodeSource repo ($setup)"
+    # shellcheck disable=SC2086
+    if ! curl -fsSL --connect-timeout 15 --max-time 600 "$setup" | $SUDO -E bash -; then
+        warn "NodeSource setup failed; falling back to the distro nodejs package"
+        return 1
+    fi
+    run_install "Node.js (NodeSource ${NODE_MIN_MAJOR}.x)" nodejs
+}
+
 ensure_node() {
     if [ "${SKIP_NODE:-}" = "1" ]; then info "SKIP_NODE=1 — skipping node"; return 0; fi
-    if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
-        info "node + npm already on PATH ($(node --version))"
+    local cur; cur="$(node_current_major)"
+    if [ -n "$cur" ] && [ "$cur" -ge "$NODE_MIN_MAJOR" ] && command -v npm >/dev/null 2>&1; then
+        info "node + npm already on PATH ($(node --version)); >= v${NODE_MIN_MAJOR}"
+    elif [ "$CHECK_ONLY" -eq 1 ]; then
+        if [ -n "$cur" ]; then
+            note_missing "Node.js >= ${NODE_MIN_MAJOR} (found v${cur})"
+        else
+            note_missing "Node.js >= ${NODE_MIN_MAJOR}"
+        fi
     else
+        if [ -n "$cur" ]; then
+            info "node v${cur} is below the v${NODE_MIN_MAJOR} minimum — upgrading"
+        fi
         case "$PKG" in
-            apt-get) run_install "Node.js (apt)" nodejs npm ;;
-            dnf|yum) run_install "Node.js (dnf)" nodejs npm ;;
+            apt-get) install_node_from_nodesource deb || run_install "Node.js (apt)" nodejs npm ;;
+            dnf|yum) install_node_from_nodesource rpm || run_install "Node.js (dnf)" nodejs npm ;;
+            # Homebrew's `node` formula tracks the current major (>= 24).
             brew)    run_install "Node.js (Homebrew)" node ;;
         esac
     fi

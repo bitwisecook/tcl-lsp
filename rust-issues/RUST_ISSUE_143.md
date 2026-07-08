@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Build tooling & CI |
 | **Location** | `editors/vscode/package.json (copy-core-js, copy-wasm)` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding
