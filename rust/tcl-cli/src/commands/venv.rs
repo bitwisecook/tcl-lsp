@@ -70,7 +70,7 @@ fn run_create(
     force: bool,
     json: bool,
 ) -> anyhow::Result<u8> {
-    let colour = ui::use_colour(Some(!json));
+    let colour = ui::use_colour_for_json(json);
     if force && path.exists() {
         // Only clobber an existing *venv* — an existing directory that isn't a
         // tclpkg venv (a typo'd path to a real project dir) must not be silently
@@ -120,7 +120,7 @@ fn run_create(
 }
 
 fn run_delete(path: &Path, force: bool, json: bool) -> anyhow::Result<u8> {
-    let colour = ui::use_colour(Some(!json));
+    let colour = ui::use_colour_for_json(json);
     if let Err(e) = delete_venv(path, force) {
         eprintln!("error: {e}");
         return Ok(1);
@@ -259,7 +259,7 @@ fn run_list(json: bool) -> anyhow::Result<u8> {
 }
 
 fn run_update(path: &Path, tcl: &str, json: bool) -> anyhow::Result<u8> {
-    let colour = ui::use_colour(Some(!json));
+    let colour = ui::use_colour_for_json(json);
     let venv_path = absolutise(path);
     let tclsh = match update_venv(&venv_path, tcl) {
         Ok(p) => p,

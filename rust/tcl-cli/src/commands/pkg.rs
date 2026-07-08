@@ -257,7 +257,7 @@ fn run_init(
         return Ok(1);
     }
 
-    let colour = ui::use_colour(Some(!json));
+    let colour = ui::use_colour_for_json(json);
     if json {
         println!(
             "{}",
@@ -274,7 +274,7 @@ fn run_init(
 #[allow(clippy::too_many_lines)] // the full install flow in one function
 fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result<u8> {
     let mpath = manifest_path(common);
-    let colour = ui::use_colour(Some(!common.json));
+    let colour = ui::use_colour_for_json(common.json);
 
     let manifest = match load_manifest(&mpath) {
         Ok(m) => m,
@@ -734,7 +734,7 @@ fn run_verify(common: &PkgCommon) -> anyhow::Result<u8> {
         Ok(l) => l,
         Err(code) => return Ok(code),
     };
-    let colour = ui::use_colour(Some(!common.json));
+    let colour = ui::use_colour_for_json(common.json);
     let mut failures = 0;
     for pkg in &lf.packages {
         if pkg.integrity.is_empty() {
@@ -812,7 +812,7 @@ fn run_add(
     common: &PkgCommon,
 ) -> anyhow::Result<u8> {
     let mpath = manifest_path(common);
-    let colour = ui::use_colour(Some(!common.json));
+    let colour = ui::use_colour_for_json(common.json);
     if let Err(e) = load_manifest(&mpath) {
         eprintln!("error: {e}");
         return Ok(1);
@@ -859,7 +859,7 @@ fn run_add(
 
 fn run_remove(package: &str, common: &PkgCommon) -> anyhow::Result<u8> {
     let mpath = manifest_path(common);
-    let colour = ui::use_colour(Some(!common.json));
+    let colour = ui::use_colour_for_json(common.json);
     if !mpath.is_file() {
         eprintln!("error: manifest not found: {}", mpath.display());
         return Ok(1);
@@ -938,7 +938,7 @@ fn is_word_char(c: char) -> bool {
 
 fn run_update(packages: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
     let mpath = manifest_path(common);
-    let colour = ui::use_colour(Some(!common.json));
+    let colour = ui::use_colour_for_json(common.json);
     let manifest = match load_manifest(&mpath) {
         Ok(m) => m,
         Err(e) => {
@@ -990,7 +990,7 @@ fn run_sync(common: &PkgCommon) -> anyhow::Result<u8> {
         Ok(l) => l,
         Err(code) => return Ok(code),
     };
-    let colour = ui::use_colour(Some(!common.json));
+    let colour = ui::use_colour_for_json(common.json);
     let lockpath = lockfile_path(common);
     if common.json {
         println!(
@@ -1093,7 +1093,7 @@ fn run_vendor(dir: &Path, common: &PkgCommon) -> anyhow::Result<u8> {
         Ok(l) => l,
         Err(code) => return Ok(code),
     };
-    let colour = ui::use_colour(Some(!common.json));
+    let colour = ui::use_colour_for_json(common.json);
     let cas = ContentAddressableStore::new(&tcl_pkg::cache_dir());
     if let Err(e) = std::fs::create_dir_all(dir) {
         eprintln!("error: {e}");
@@ -1273,7 +1273,7 @@ fn run_search(query: &str, json: bool, offline: bool) -> anyhow::Result<u8> {
 
 fn run_build(common: &PkgCommon) -> anyhow::Result<u8> {
     let mpath = manifest_path(common);
-    let colour = ui::use_colour(Some(!common.json));
+    let colour = ui::use_colour_for_json(common.json);
     let manifest = match load_manifest(&mpath) {
         Ok(m) => m,
         Err(e) => {
