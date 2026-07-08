@@ -495,3 +495,20 @@ fn imported_command_resolves_to_qualified_spec() {
         "bare imported `test` must hover as tcltest::test: {text:?}",
     );
 }
+
+// Issue #806 — hover on a scoped report::defstyle command.
+#[test]
+fn defstyle_scoped_command_hover() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "::report::defstyle st {} {\n    top set foo\n    columns\n}\n",
+    );
+    // `top` (line 1, char 5) surfaces the scoped-environment hover.
+    let h = hover(&mut lsp, &uri, 1, 5);
+    assert!(h.contains("report style"), "scoped env hover: {h}");
+    // `columns` (line 2, char 7) surfaces its description.
+    let c = hover(&mut lsp, &uri, 2, 7);
+    assert!(c.contains("number of columns"), "columns hover: {c}");
+}

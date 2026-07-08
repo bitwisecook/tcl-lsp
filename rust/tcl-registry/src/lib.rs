@@ -69,10 +69,12 @@ pub mod patterns;
 pub mod profile_defaults;
 pub mod profiles;
 pub mod registry;
+pub mod scoped;
 pub mod side_effects;
 pub mod snapshot;
 pub mod spec;
 pub mod stub_overlay;
+pub mod symbol_def;
 pub mod taint;
 pub mod traits;
 pub mod types;
@@ -98,10 +100,12 @@ pub mod prelude {
         ArgValue, FormKind, FormSpec, HoverSnippet, OptionArg, OptionArity, OptionSpec, OptionValue,
     };
     pub use crate::patterns::{FormatType, PatternType};
+    pub use crate::scoped::{ScopedCommand, ScopedCommandEnv};
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
     pub use crate::spec::{
         BytePayloadSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSubCommand,
     };
+    pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
     pub use crate::taint::{SetterConstraint, TaintColour};
     pub use crate::traits::Traits;
     pub use crate::types::TclType;
@@ -121,6 +125,7 @@ pub use hover::ArgValue;
 pub use patterns::{FormatType, PatternType};
 pub use registry::{CommandRegistry, ResolvedTerminator};
 pub use spec::{BytePayloadSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSubCommand};
+pub use symbol_def::{DefinedSymbolKind, SymbolDef};
 pub use taint::{SetterConstraint, TaintColour};
 pub use traits::Traits;
 pub use types::TclType;

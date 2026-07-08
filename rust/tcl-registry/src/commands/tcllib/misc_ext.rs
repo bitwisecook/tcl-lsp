@@ -2067,37 +2067,12 @@ const PT_IMPORT_API_CMDS: &[Row] = &[(
     "This command has to accept the a text containing a parsing expression grammar in some format.",
 )];
 
-/// The `report` package.
-//
-// `report::defstyle` is not here — it carries a proc-style parameter
-// list and a structural script body, so it has a dedicated spec in
-// `report__defstyle.rs` (the flat `Row` table can't express arg roles).
-const REPORT_CMDS: &[Row] = &[
-    (
-        "report::rmstyle",
-        Arity::exact(1),
-        &["report::rmstyle styleName"],
-        "Deletes the style styleName.",
-    ),
-    (
-        "report::stylearguments",
-        Arity::exact(1),
-        &["report::stylearguments styleName"],
-        "This introspection command returns the list of arguments associated with the style styleName.",
-    ),
-    (
-        "report::stylebody",
-        Arity::exact(1),
-        &["report::stylebody styleName"],
-        "This introspection command returns the script associated with the style styleName.",
-    ),
-    (
-        "report::styles",
-        Arity::exact(0),
-        &["report::styles"],
-        "This introspection command returns a list containing the names of all styles known to the package at the time of ",
-    ),
-];
+// The `report` package's commands all carry dedicated specs (arg roles, hover
+// snippets, the `report::report` object-method class, and the
+// `report::defstyle` style-script scoped environment) that the flat `Row` table
+// cannot express — see `report__report.rs`, `report__defstyle.rs`,
+// `report__rmstyle.rs`, `report__stylearguments.rs`, `report__stylebody.rs`,
+// and `report__styles.rs`.
 
 /// The `sha1` package.
 const SHA1_CMDS: &[Row] = &[
@@ -2824,7 +2799,6 @@ const GROUPS: &[(&str, &[Row])] = &[
     ("pt::peg", PT__PEG_CMDS),
     ("pt_export_api", PT_EXPORT_API_CMDS),
     ("pt_import_api", PT_IMPORT_API_CMDS),
-    ("report", REPORT_CMDS),
     ("sha1", SHA1_CMDS),
     ("sha2", SHA2_CMDS),
     ("simulation::annealing", SIMULATION__ANNEALING_CMDS),

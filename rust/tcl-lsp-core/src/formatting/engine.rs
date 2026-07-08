@@ -1172,6 +1172,11 @@ pub(crate) fn format_body(
 /// (command) separator, not part of a literal. The scan carries brace / quote /
 /// backslash state across lines and treats a `#`-first line at depth 0 as a
 /// comment (whose braces/quotes don't count), matching `mod::brace_delta`.
+///
+/// This covers both braced and double-quoted multi-line words. A lexer-token
+/// scan would miss the quoted case: `"…"` words tokenise as `ESC` runs rather
+/// than a single `Str` span, so the running brace/quote scan is what satisfies
+/// the issue's braced-*and-quoted* requirement.
 pub(crate) fn trim_trailing_ws_preserving_literals(text: &str) -> String {
     let mut depth: i32 = 0;
     let mut in_string = false;
@@ -1254,6 +1259,18 @@ mod tests {
     }
 
     #[test]
+    fn trailing_trim_preserves_spaces_inside_multiline_braces() {
+        // The spaces before the newline live inside the braced word, so they
+        // are part of the Tcl string value — trimming them would change the
+        // runtime string, not just presentation (default trim is enabled).
+        let out = fmt("set x {foo   \n   bar}\n");
+        assert!(
+            out.contains("foo   \n"),
+            "significant whitespace inside braces preserved: {out:?}",
+        );
+    }
+
+    #[test]
     fn trim_preserves_multiline_quoted_string_interior() {
         let input = "set x \"line1   \nline2\"\n";
         let out = fmt(input);
@@ -1268,6 +1285,14 @@ mod tests {
         // Ordinary code lines (outside any literal) are still trimmed.
         let out = trim_trailing_ws_preserving_literals("set a 1   \nset b 2   ");
         assert_eq!(out, "set a 1\nset b 2");
+    }
+
+    #[test]
+    fn trailing_trim_still_trims_ordinary_code_lines() {
+        // A trailing run of spaces on a real code line (not inside a literal)
+        // is still trimmed.
+        let out = fmt("set a 1   \nset b 2\n");
+        assert_eq!(out, "set a 1\nset b 2\n");
     }
 
     #[test]

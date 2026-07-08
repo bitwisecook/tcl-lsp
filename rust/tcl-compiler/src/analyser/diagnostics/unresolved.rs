@@ -289,6 +289,14 @@ impl Analyser {
             if self.result.created_instance_commands.contains(name) {
                 continue;
             }
+            // A bare head inside a scoped command environment (a
+            // `report::defstyle` style script, …) resolves against that
+            // environment's registry-declared command set — plus any sibling
+            // definitions it exposes (#806).  Registry data drives the check;
+            // no command name is matched here.
+            if self.is_scoped_command_resolved(name, inv.range) {
+                continue;
+            }
 
             // Unresolved.  Record the call site so a cross-file consumer can run
             // its arity check independently of the W123 toggle, then emit the W123
@@ -328,6 +336,34 @@ impl Analyser {
             });
         }
         self.result.command_invocations = invocations;
+    }
+
+    /// Whether the bare command head `name`, invoked at `range`, resolves
+    /// against a scoped command environment active at that position.
+    ///
+    /// A head is resolved when its call site falls inside a recorded
+    /// [`ScopedBodyRegion`](super::super::types::ScopedBodyRegion) whose
+    /// environment either lists `name` as one of its commands, exposes sibling
+    /// definitions of that name (a previously-defined `report::defstyle`
+    /// style), or accepts unknown heads outright.  Purely registry-data driven
+    /// — the scoped command set lives on the definer's spec, never here.
+    #[must_use]
+    fn is_scoped_command_resolved(&self, name: &str, range: tcl_lexer::Span) -> bool {
+        let offset = range.start();
+        self.result.scoped_command_regions.iter().any(|region| {
+            if !region.contains(offset) {
+                return false;
+            }
+            let env = region.env;
+            env.is_command(name)
+                || env.allow_unknown_commands
+                || (env.include_sibling_definitions
+                    && self
+                        .result
+                        .scoped_sibling_defs
+                        .get(env.name)
+                        .is_some_and(|names| names.contains(name)))
+        })
     }
 
     /// W120 — command used without a corresponding

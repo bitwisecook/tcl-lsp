@@ -6374,10 +6374,16 @@ impl LanguageServer for Backend {
                 all.push(SymbolInformation {
                     name: s.name,
                     kind: match s.kind {
-                        CoreWorkspaceSymbolKind::Function => SymbolKind::FUNCTION,
+                        // A tcltest case has no dedicated LSP kind; it lists as
+                        // a function alongside real functions.
+                        CoreWorkspaceSymbolKind::Function | CoreWorkspaceSymbolKind::Test => {
+                            SymbolKind::FUNCTION
+                        }
                         CoreWorkspaceSymbolKind::Class => SymbolKind::CLASS,
                         CoreWorkspaceSymbolKind::Method => SymbolKind::METHOD,
                         CoreWorkspaceSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
+                        CoreWorkspaceSymbolKind::Constant => SymbolKind::CONSTANT,
+                        CoreWorkspaceSymbolKind::Operator => SymbolKind::OPERATOR,
                     },
                     tags: None,
                     deprecated: None,
@@ -7886,21 +7892,21 @@ fn normalize_config_payload(payload: &serde_json::Value) -> serde_json::Value {
             let segments: Vec<&str> = path.split('.').collect();
             let mut cursor = &mut out;
             for seg in &segments[..segments.len() - 1] {
-                let entry = cursor
+                let slot = cursor
                     .entry((*seg).to_owned())
                     .or_insert_with(|| Value::Object(Map::new()));
-                // A flat scalar (`tclLsp.optimiser: true`) may collide with a
-                // deeper dotted key (`tclLsp.optimiser.enabled: false`) in the
-                // same payload. This function is explicitly designed to accept
-                // mixed-shape client config, so a collision must not panic the
-                // server: replace the scalar with an object and let the nested
-                // structure win. (`as_object_mut` cannot fail after this.)
-                if !entry.is_object() {
-                    *entry = Value::Object(Map::new());
+                // A colliding non-object at this segment — a mixed-shape payload
+                // that supplied both a scalar/object prefix and a dotted child
+                // (e.g. `tclLsp.features: false` alongside
+                // `tclLsp.features.semanticTokens: true`) — is replaced by an
+                // object so the deeper key can be inserted (last-writer-wins),
+                // rather than panicking on the descent.
+                if !slot.is_object() {
+                    *slot = Value::Object(Map::new());
                 }
-                cursor = entry
+                cursor = slot
                     .as_object_mut()
-                    .expect("entry was just ensured to be an object");
+                    .expect("slot was just ensured to be an object");
             }
             cursor.insert(segments[segments.len() - 1].to_owned(), value.clone());
         } else if key.starts_with("tclLsp.") {
@@ -9465,13 +9471,17 @@ fn lift_line_range(r: core_symbols::LineRange) -> Range {
 
 fn lift_symbol_kind(k: CoreSymbolKind) -> SymbolKind {
     match k {
-        CoreSymbolKind::Function => SymbolKind::FUNCTION,
+        // A tcltest case has no dedicated LSP kind; it lists as a function.
+        CoreSymbolKind::Function | CoreSymbolKind::Test => SymbolKind::FUNCTION,
         CoreSymbolKind::Method => SymbolKind::METHOD,
         CoreSymbolKind::Class => SymbolKind::CLASS,
         CoreSymbolKind::Property => SymbolKind::PROPERTY,
         CoreSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
         CoreSymbolKind::Namespace => SymbolKind::NAMESPACE,
         CoreSymbolKind::Variable => SymbolKind::VARIABLE,
+        // tcltest constraints / custom-match modes.
+        CoreSymbolKind::Constant => SymbolKind::CONSTANT,
+        CoreSymbolKind::Operator => SymbolKind::OPERATOR,
         CoreSymbolKind::Module => SymbolKind::MODULE,
     }
 }
@@ -9702,6 +9712,35 @@ mod tests {
         assert_eq!(
             normalize_config_payload(&collide2),
             serde_json::json!({ "style": { "nonAscii": "escape" } }),
+        );
+    }
+
+    #[test]
+    fn normalize_config_payload_survives_mixed_shape_collision() {
+        // A client that supplies both a scalar prefix and a dotted child at the
+        // same segment (`tclLsp.features` = false *and*
+        // `tclLsp.features.semanticTokens` = true) must not panic; the deeper
+        // key replaces the colliding scalar rather than crashing the server.
+        // (`serde_json`'s default `Map` orders keys, so `tclLsp.features` is
+        // folded before its dotted child regardless of literal order.)
+        let payload = serde_json::json!({
+            "tclLsp.features": false,
+            "tclLsp.features.semanticTokens": true,
+        });
+        assert_eq!(
+            normalize_config_payload(&payload),
+            serde_json::json!({ "features": { "semanticTokens": true } }),
+        );
+        // When the prefix is already an object, the dotted child merges into it
+        // (no collision, both keys kept) — the non-panicking path we must not
+        // regress.
+        let obj_prefix = serde_json::json!({
+            "tclLsp.features": { "hover": true },
+            "tclLsp.features.semanticTokens": true,
+        });
+        assert_eq!(
+            normalize_config_payload(&obj_prefix),
+            serde_json::json!({ "features": { "hover": true, "semanticTokens": true } }),
         );
     }
 
@@ -11733,6 +11772,16 @@ mod tests {
             lift_symbol_kind(CoreSymbolKind::Variable),
             SymbolKind::VARIABLE
         );
+        assert_eq!(lift_symbol_kind(CoreSymbolKind::Test), SymbolKind::FUNCTION);
+        assert_eq!(
+            lift_symbol_kind(CoreSymbolKind::Constant),
+            SymbolKind::CONSTANT
+        );
+        assert_eq!(
+            lift_symbol_kind(CoreSymbolKind::Operator),
+            SymbolKind::OPERATOR
+        );
+        assert_eq!(lift_symbol_kind(CoreSymbolKind::Module), SymbolKind::MODULE);
     }
 
     /// `lift_document_symbol` preserves the name / detail / kind /

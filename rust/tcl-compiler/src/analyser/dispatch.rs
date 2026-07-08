@@ -31,6 +31,7 @@
 use std::collections::{BTreeSet, HashMap};
 
 use tcl_registry::prelude::{DialectSet, OptionSpec};
+use tcl_registry::scoped::ScopedCommand;
 use tcl_registry::{ArgRole, Arity, CommandRegistry};
 
 /// Signature for a simple Tcl command.
@@ -189,6 +190,48 @@ pub fn signature_for_command(
         leading_options,
         leading_option_specs,
     }))
+}
+
+/// Build the signature for a [`ScopedCommand`] — a command available only
+/// inside a scoped body (`report::defstyle`'s `top` / `data` / `columns` / …).
+///
+/// An ensemble scoped command (non-empty `subcommands`) yields a
+/// [`CommandSignature::WithSubcommands`] so the per-subcommand arity + W001
+/// checks apply exactly as for a registry ensemble; a plain scoped command
+/// yields a [`CommandSignature::Simple`].  Scoped commands are not
+/// dialect-gated, so no dialect filtering is applied.
+#[must_use]
+pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature {
+    if !scoped.subcommands.is_empty() {
+        let mut subs: HashMap<String, CommandSig> = HashMap::new();
+        for sub in scoped.subcommands {
+            let arg_roles = sub
+                .arg_roles
+                .iter()
+                .map(|(idx, role)| (*idx, *role))
+                .collect();
+            subs.insert(
+                sub.name.to_string(),
+                CommandSig {
+                    arity: sub.arity,
+                    arg_roles,
+                    // Scoped ensemble operations declare no option flags.
+                    leading_options: BTreeSet::new(),
+                    leading_option_specs: Vec::new(),
+                },
+            );
+        }
+        return CommandSignature::WithSubcommands(SubcommandSig {
+            subcommands: subs,
+            allow_unknown: scoped.allow_unknown_subcommands,
+        });
+    }
+    CommandSignature::Simple(CommandSig {
+        arity: scoped.arity,
+        arg_roles: HashMap::new(),
+        leading_options: BTreeSet::new(),
+        leading_option_specs: Vec::new(),
+    })
 }
 
 #[cfg(test)]

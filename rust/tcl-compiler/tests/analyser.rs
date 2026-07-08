@@ -2064,3 +2064,218 @@ mod canonicalisation_matrix {
         ));
     }
 }
+
+// ===========================================================================
+// Issue #806 — report::defstyle scoped command environment.
+//
+// The style script exposes the report configuration methods (`top`, `data`,
+// `columns`, …) as commands available only inside the body.  The registry-
+// driven scoped environment resolves them there (no W123 / arity false
+// positives) while still catching genuine typos and misuse (TP), and keeps
+// them unknown outside the body (correct scoping).  Organised as a
+// TP / FP / TN / FN matrix.
+// ===========================================================================
+mod report_scoped_commands {
+    use super::*;
+
+    fn codes_of(src: &str) -> Vec<String> {
+        codes(src, D)
+    }
+    fn w123(src: &str) -> Vec<String> {
+        analyser_diags(src, D)
+            .into_iter()
+            .filter(|(c, _, _)| c == "W123")
+            .map(|(_, m, _)| m)
+            .collect()
+    }
+
+    // ---- TN: valid scoped usage draws no unknown-command / arity error ----
+
+    #[test]
+    fn tn_valid_body_no_w123() {
+        // The exact shape from the issue screenshot: line codes + operations.
+        let src = "::report::defstyle simpletable {} {\n\
+                   \x20 top set [split \"x\"]\n\
+                   \x20 data set [split \"y\"]\n\
+                   \x20 bottom enable\n\
+                   \x20 topdatasep enable\n\
+                   \x20 columns\n\
+                   }\n";
+        assert!(
+            w123(src).is_empty(),
+            "no W123 inside a valid style body: {:?}",
+            w123(src)
+        );
+        assert!(!fires(src, D, "E001"));
+        assert!(!fires(src, D, "E002"));
+        assert!(!fires(src, D, "E003"));
+        assert!(!fires(src, D, "W001"));
+    }
+
+    #[test]
+    fn tn_nested_substitution_scoped_command_resolves() {
+        // `[columns]` nested inside a `set` value is still a scoped command.
+        let src = "::report::defstyle st {} {\n\
+                   \x20 top set [string repeat \"= \" [columns]]\n\
+                   }\n";
+        assert!(
+            w123(src).is_empty(),
+            "columns in a substitution resolves: {:?}",
+            w123(src)
+        );
+    }
+
+    #[test]
+    fn tn_sibling_style_resolves() {
+        // A later style body may invoke a previously-defined style by name.
+        let src = "::report::defstyle simpletable {} {\n\
+                   \x20 top enable\n\
+                   }\n\
+                   ::report::defstyle captionedtable {n} {\n\
+                   \x20 simpletable\n\
+                   \x20 tcaption $n\n\
+                   }\n";
+        assert!(
+            w123(src).is_empty(),
+            "sibling style resolves: {:?}",
+            w123(src)
+        );
+    }
+
+    #[test]
+    fn tn_config_methods_valid_arity() {
+        let src = "::report::defstyle st {} {\n\
+                   \x20 size 0 10\n\
+                   \x20 size 1 dyn\n\
+                   \x20 pad 0 both { }\n\
+                   \x20 justify 0 center\n\
+                   \x20 tcaption 1\n\
+                   \x20 top get\n\
+                   }\n";
+        for code in ["W123", "E001", "E002", "E003", "W001"] {
+            assert!(
+                !fires(src, D, code),
+                "{code} should not fire: {:?}",
+                codes_of(src)
+            );
+        }
+    }
+
+    // ---- TP: genuine errors inside the body are still reported ----
+
+    #[test]
+    fn tp_typo_command_flagged() {
+        // `toop` / `dataa` are not scoped commands → still W123.
+        let src = "::report::defstyle st {} {\n  toop set x\n  dataa set y\n}\n";
+        let w = w123(src);
+        assert!(
+            w.iter().any(|m| m.contains("toop")),
+            "typo `toop` flagged: {w:?}"
+        );
+        assert!(
+            w.iter().any(|m| m.contains("dataa")),
+            "typo `dataa` flagged: {w:?}"
+        );
+    }
+
+    #[test]
+    fn tp_unknown_operation_flagged_w001() {
+        let src = "::report::defstyle st {} {\n  top bogus\n}\n";
+        assert!(
+            fires(src, D, "W001"),
+            "unknown op `top bogus` → W001: {:?}",
+            codes_of(src)
+        );
+    }
+
+    #[test]
+    fn tp_bare_ensemble_requires_operation_e001() {
+        let src = "::report::defstyle st {} {\n  top\n}\n";
+        assert!(
+            fires(src, D, "E001"),
+            "bare `top` → E001: {:?}",
+            codes_of(src)
+        );
+    }
+
+    #[test]
+    fn tp_operation_too_few_args_e002() {
+        // `top set` needs the template value.
+        let src = "::report::defstyle st {} {\n  top set\n}\n";
+        assert!(
+            fires(src, D, "E002"),
+            "`top set` (no value) → E002: {:?}",
+            codes_of(src)
+        );
+    }
+
+    #[test]
+    fn tp_plain_command_too_many_args_e003() {
+        // `columns` takes no arguments.
+        let src = "::report::defstyle st {} {\n  columns extra\n}\n";
+        assert!(
+            fires(src, D, "E003"),
+            "`columns extra` → E003: {:?}",
+            codes_of(src)
+        );
+    }
+
+    // ---- FP guard: the scoped env must not wrongly suppress real code ----
+
+    #[test]
+    fn fp_core_commands_still_checked_in_body() {
+        // Core commands inside the body keep their normal arity checks — a
+        // scoped env must not swallow them.  `set` with one arg is fine; a
+        // genuinely unknown core-looking head is still W123.
+        let src = "::report::defstyle st {} {\n  set x 1\n  frobnicate a b\n}\n";
+        assert!(
+            w123(src).iter().any(|m| m.contains("frobnicate")),
+            "unknown non-scoped head still W123: {:?}",
+            w123(src)
+        );
+    }
+
+    // ---- FN guard / scoping: scoped commands are unknown OUTSIDE the body ----
+
+    #[test]
+    fn fn_scoped_command_unknown_outside_body() {
+        // `top` / `columns` at top level are not real commands.
+        let src = "top set x\ncolumns\n";
+        let w = w123(src);
+        assert!(
+            w.iter().any(|m| m.contains("top")),
+            "`top` unknown outside body: {w:?}"
+        );
+        assert!(
+            w.iter().any(|m| m.contains("columns")),
+            "`columns` unknown outside body: {w:?}"
+        );
+    }
+
+    // ---- report namespace + object commands ----
+
+    #[test]
+    fn report_namespace_commands_known() {
+        // The dedicated specs make the introspection commands resolvable
+        // (only W120 missing-require remains, which is correct).
+        let src = "::report::styles\n::report::rmstyle foo\n::report::stylebody foo\n\
+                   ::report::stylearguments foo\n";
+        assert!(
+            w123(src).is_empty(),
+            "report namespace commands known: {:?}",
+            w123(src)
+        );
+    }
+
+    #[test]
+    fn report_object_methods_resolve() {
+        // `report::report` binds `r` as an object command; `r <method>` resolves
+        // through the registry object class — no W123 on `r`.
+        let src = "package require report\n::report::report r 3\nr data set x\nr printmatrix m\n";
+        assert!(
+            w123(src).is_empty(),
+            "report object methods resolve: {:?}",
+            w123(src)
+        );
+    }
+}

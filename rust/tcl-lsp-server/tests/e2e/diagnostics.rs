@@ -824,3 +824,67 @@ fn w123_silent_for_create_named_object_literal_dispatch() {
         codes(&diags),
     );
 }
+
+// ---------------------------------------------------------------------------
+// Issue #806 — report::defstyle scoped command environment.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn defstyle_body_scoped_commands_no_w123() {
+    // The report configuration methods (top/data/columns/…) are scoped
+    // commands inside the style script — no unknown-command diagnostic.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "::report::defstyle simpletable {} {\n\
+               \x20   top set [split \"x\"]\n\
+               \x20   data set [split \"y\"]\n\
+               \x20   bottom enable\n\
+               \x20   topdatasep enable\n\
+               \x20   columns\n\
+               }\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "W123"),
+        "no W123 in a valid style body: {diags:?}"
+    );
+}
+
+#[test]
+fn defstyle_body_typo_still_w123() {
+    // A genuine typo inside the body is still an unknown command.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "::report::defstyle st {} {\n    toop set x\n}\n");
+    assert!(has_code(&diags, "W123"), "typo `toop` flagged: {diags:?}");
+    assert!(
+        diags.iter().any(|d| message(d).contains("toop")),
+        "message names the typo: {diags:?}",
+    );
+}
+
+#[test]
+fn defstyle_bad_operation_is_w001() {
+    // `top bogus` — unknown ensemble operation of a scoped command.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "::report::defstyle st {} {\n    top bogus\n}\n");
+    assert!(
+        has_code(&diags, "W001"),
+        "unknown scoped op → W001: {diags:?}"
+    );
+}
+
+#[test]
+fn report_object_methods_have_no_unknown_command() {
+    // `report::report` binds `r`; `r <method>` resolves via the object class.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "package require report\n::report::report r 3\nr data set x\nr printmatrix m\n",
+    );
+    assert!(
+        !has_code(&diags, "W123"),
+        "report object methods resolve: {diags:?}"
+    );
+}

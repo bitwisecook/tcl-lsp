@@ -613,6 +613,39 @@ impl CommandRegistry {
         }
     }
 
+    /// The symbol-definer descriptor for `name` in `dialect`, if the command
+    /// binds a navigable definition name (a `tcltest::test` case, …).
+    ///
+    /// A leading `::` falls back to the bare name, as with [`Self::get`].  The
+    /// analyser and signature scanner consult this to record outline symbols
+    /// generically — the argument index and outline category come from the
+    /// [`crate::symbol_def::SymbolDef`], never from a command-name check.
+    #[must_use]
+    pub fn defines_symbol(
+        &self,
+        name: &str,
+        dialect: DialectSet,
+    ) -> Option<&crate::symbol_def::SymbolDef> {
+        self.get_for_dialect(name, dialect)
+            .and_then(|s| s.defines_symbol.as_ref())
+    }
+
+    /// Every command name that declares a [`crate::symbol_def::SymbolDef`] in
+    /// any registered spec, for consumers (the signature scanner) that
+    /// precompute a symbol-definer lookup set rather than querying per-call.
+    #[must_use]
+    pub fn commands_defining_symbols(&self) -> Vec<&str> {
+        self.by_name
+            .iter()
+            .filter_map(|(name, specs)| {
+                specs
+                    .iter()
+                    .any(|s| s.defines_symbol.is_some())
+                    .then_some(name.as_str())
+            })
+            .collect()
+    }
+
     /// Return all command specs whose traits include `t`.
     #[must_use]
     pub fn commands_with_trait(&self, t: Traits) -> Vec<&str> {

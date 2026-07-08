@@ -34,6 +34,7 @@ use crate::hooks::{
 use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
 use crate::patterns::{FormatType, PatternType};
 use crate::side_effects::{SideEffect, StorageType};
+use crate::symbol_def::SymbolDef;
 use crate::taint::{SetterConstraint, TaintColour};
 use crate::traits::Traits;
 use crate::types::TclType;
@@ -423,6 +424,39 @@ pub struct CommandSpec {
     /// megawidget class factory whose `new` / `create` returns an object handle
     /// dispatched as `$obj <method> …`.  See [`ObjectClassSpec`].
     pub object_class: Option<&'static ObjectClassSpec>,
+
+    /// Symbol-definer descriptor — `Some` when one of this command's arguments
+    /// binds a definition *name* the document outline should list (a
+    /// `tcltest::test NAME …` case, …).  The consumer reads which argument
+    /// holds the name and what outline category to file it under from the
+    /// [`SymbolDef`], never from a command-name check — see
+    /// [`crate::symbol_def`].  Distinct from [`Traits::DEFINES_PROCEDURE`] /
+    /// [`Self::definition_body`], which carry the richer proc / class records;
+    /// this is the lightweight "bind a navigable name" case.  `None` = the
+    /// command defines no outline symbol.
+    pub defines_symbol: Option<SymbolDef>,
+
+    /// Scoped command environment — `Some` when this command's
+    /// [`ArgRole::Body`] argument runs in a context that exposes a curated set
+    /// of extra commands available *only* inside that body (a safe interpreter,
+    /// a definition DSL).  The archetype is `report::defstyle`, whose style
+    /// script exposes the report configuration methods (`top`, `data`,
+    /// `columns`, …).  The compiler / LSP push this environment while walking
+    /// the body and resolve command heads against it — keeping the scoped
+    /// command set registry *data*, never a `match cmd_name` in a walker.  See
+    /// [`crate::scoped`].
+    pub body_scope: Option<&'static crate::scoped::ScopedCommandEnv>,
+
+    /// Object-factory instance-name argument — `Some(idx)` when this command
+    /// creates an object *command* named by its `idx`-th argument (0-based,
+    /// after the command name), of the class given by its own
+    /// [`Self::object_class`].  Unlike a `TclOO` `create`/`new` factory (driven
+    /// by [`Traits::IS_OO_METACLASS`]), a namespace factory such as
+    /// `report::report reportName columns …` names its instance positionally,
+    /// so the analyser reads the index from here rather than a hardcoded shape.
+    /// The bound name resolves later `reportName <method> …` dispatch through
+    /// `object_class`.  `None` for a command that creates no object command.
+    pub creates_instance_at: Option<u8>,
 }
 
 impl CommandSpec {
@@ -483,6 +517,9 @@ impl CommandSpec {
         byte_array_payload: None,
         definition_body: None,
         object_class: None,
+        defines_symbol: None,
+        body_scope: None,
+        creates_instance_at: None,
     };
 
     /// Run this command's constant folder for `args` under the optimiser's

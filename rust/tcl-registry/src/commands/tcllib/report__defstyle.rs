@@ -62,6 +62,12 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         tcllib_package: Some("report"),
         required_package: Some("report"),
+        // The style script runs in a safe interpreter that aliases the report
+        // configuration methods (`top`, `data`, `columns`, …) as commands, plus
+        // every previously-defined style.  That command set is registry data,
+        // so the analyser / LSP resolve those heads inside the body instead of
+        // flagging them unknown (#806).
+        body_scope: Some(&crate::scoped::REPORT_DEFSTYLE_ENV),
         ..CommandSpec::DEFAULT
     }
 }

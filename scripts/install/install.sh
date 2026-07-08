@@ -1958,25 +1958,20 @@ write_target() {
 
 
 install_cli() {
-    # Install CLI $1 (tcl or f5) to its prefix_for() dir.
-    #
-    # The release pipeline publishes prebuilt native binaries per target triple
-    # (see the publish-native-binaries CI job), not Python zipapps: the `tcl`
-    # CLI ships as `tcl-<triple>` and the `f5` CLI ships as `f5-query-<triple>`.
-    # Mirrors install_mcp_native's `tcl-mcp-<triple>` scheme.
+    # Install CLI $1 (tcl or f5) to its prefix_for() dir.  The CLIs ship as
+    # native per-triple binaries (`tcl-<triple>` / `f5-query-<triple>`, per the
+    # publish-native-binaries CI job); the Python zipapp builds are retired.
     name="$1"
     final_name="${name}${INSTALL_SUFFIX}"
     dir="$(prefix_for "$name")"
     ensure_tag
-    # Map the CLI name to its release-asset base name. The f5 CLI is published
-    # as `f5-query` but installs locally as `f5`.
+    # The published asset's base name: the `f5` CLI binary is `f5-query`.
     case "$name" in
-        tcl) asset_base="tcl" ;;
-        f5)  asset_base="f5-query" ;;
-        *)   die "internal: unknown CLI '$name'" ;;
+        f5) asset_base="f5-query" ;;
+        *)  asset_base="$name" ;;
     esac
-    triple="$(host_triple)" \
-        || die "no prebuilt $name binary for $(uname -sm 2>/dev/null): unsupported platform"
+    triple="$(host_triple)" || die "no native $name binary for \
+$(uname -sm 2>/dev/null) — this platform has no published CLI build."
     asset="${asset_base}-${triple}"
     url="$(asset_url "$asset")"
     log "resolved $name -> $asset (tag $RESOLVED_TAG)"
@@ -1984,7 +1979,7 @@ install_cli() {
     tmpfile="$WORKDIR/$asset"
     download "$url" "$tmpfile"
     # Verify against SHA256SUMS when the asset is listed (fatal on mismatch);
-    # otherwise install unverified with a warning (mirrors install_mcp_native).
+    # otherwise install unverified with a warning — mirrors install_mcp_native.
     if ensure_sums && awk -v a="$asset" '$2==a || $2=="*"a {f=1} END{exit !f}' "$SUMS_PATH" 2>/dev/null; then
         verify_artefact "$asset" "$tmpfile"
     else
@@ -2166,7 +2161,7 @@ MCP_NATIVE=0
 PRIOR_MCP_PATH=""
 
 # Map the host OS/arch to the Rust target triple used in the per-triple native
-# release asset names (`tcl-<triple>`, `f5-query-<triple>`, `tcl-mcp-<triple>`;
+# release asset names (`tcl-mcp-<triple>`, `tcl-<triple>`, `f5-query-<triple>`;
 # see the publish-native-binaries CI job). Prints the triple, or returns 1 for a
 # platform without a published native binary.
 host_triple() {

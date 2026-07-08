@@ -477,6 +477,11 @@ impl Analyser {
         // trailing variable arguments; bind them so completion/hover/definition
         // see the destructured / captured names.
         self.handle_var_binding_command(cmd_name, args, arg_tokens, scope_path);
+        // Registry symbol-definer commands (`tcltest::test NAME …`) contribute a
+        // lightweight named definition to the outline.  Void handler — it only
+        // records the symbol; the body still recurses via the generic
+        // `ArgRole::Body` walk below.
+        self.handle_defines_symbol(cmd_name, args, arg_tokens, arg_single, scope_path);
 
         // Side-effect-only handlers. Same idempotent pattern.
         self.handle_namespace_ensemble(cmd_name, args, scope_path);
@@ -780,6 +785,10 @@ impl Analyser {
         // body walk reaches inside the imported command's body. Conservative:
         // only when the bare name owns no body itself,
         // and only against a namespace explicitly imported in this document.
+        // The registry command name that actually owns the body role — usually
+        // `cmd_name`, but the qualified target when an import fallback resolved
+        // it.  Used to read the scoped-body environment from the same spec.
+        let mut body_cmd_owned: Option<String> = None;
         if body_indices.is_empty() && !cmd_name.contains("::") {
             for imp in &self.result.namespace_imports {
                 // An import is only in effect where it was made: in its own
@@ -804,12 +813,42 @@ impl Analyser {
                 );
                 if !idxs.is_empty() {
                     body_indices = idxs;
+                    body_cmd_owned = Some(candidate);
                     break;
                 }
             }
         }
         if body_indices.is_empty() {
             return;
+        }
+        // Scoped command environment for this command's body args, if any — the
+        // curated command set a `report::defstyle` style script (etc.) exposes.
+        // Both the environment pointer and the sibling-definition name index are
+        // `Copy`, so extracting them here ends the `registry` borrow before the
+        // `&mut self` body recursion below.
+        let body_cmd: &str = body_cmd_owned.as_deref().unwrap_or(cmd_name);
+        let body_scope: Option<&'static tcl_registry::scoped::ScopedCommandEnv> =
+            registry.get(body_cmd).and_then(|s| s.body_scope);
+        let sibling_name_idx = if body_scope.is_some_and(|e| e.include_sibling_definitions) {
+            registry
+                .arg_indices_for_role(body_cmd, &body_args, tcl_registry::arg_role::ArgRole::Name)
+                .first()
+                .copied()
+        } else {
+            None
+        };
+        // A definer that makes its own instances callable inside sibling bodies
+        // (a later `report::defstyle` may invoke an earlier style by name):
+        // record the defined name so the W123 pass treats it as known there.
+        if let (Some(env), Some(ni)) = (body_scope, sibling_name_idx)
+            && let Some(name) = args.get(ni)
+            && !name.is_empty()
+        {
+            self.result
+                .scoped_sibling_defs
+                .entry(env.name)
+                .or_default()
+                .insert(name.clone());
         }
         let prev_event = self.current_event.clone();
         if cmd_name == "when" && !args.is_empty() {
@@ -824,7 +863,24 @@ impl Analyser {
             {
                 let is_single_token = arg_single.get(idx).copied().unwrap_or(false);
                 self.emit_w105_unbraced_body(cmd_name, body_text, body_tok, is_single_token);
-                self.analyse_body(body_text, body_tok, scope_path);
+                // When the body runs in a scoped command environment, record its
+                // region (so the post-walk W123 pass and the LSP providers can
+                // resolve the scoped heads by position) and push the environment
+                // so the in-walk arity / subcommand checks resolve them too.
+                if let Some(env) = body_scope {
+                    let start = body_tok.span.start() + u32::from(body_tok.content_offset);
+                    self.result
+                        .scoped_command_regions
+                        .push(super::types::ScopedBodyRegion {
+                            span: tcl_lexer::Span::new(start, body_tok.span.end()),
+                            env,
+                        });
+                    self.body_scope_stack.push(env);
+                    self.analyse_body(body_text, body_tok, scope_path);
+                    self.body_scope_stack.pop();
+                } else {
+                    self.analyse_body(body_text, body_tok, scope_path);
+                }
             }
         }
         if is_conditional {
@@ -1343,6 +1399,29 @@ impl Analyser {
             if shape_a || shape_b {
                 pending.push((cmd_name.to_owned(), args.to_vec()));
             }
+            return;
+        }
+        // Registry-driven object factory: a command whose spec declares
+        // `creates_instance_at` binds the object command it names positionally
+        // (`report::report reportName columns …`) so a later `reportName
+        // <method>` / `$var method` dispatch resolves through the command's
+        // `object_class`.  The naming shape is registry data — no hardcoded
+        // `create` / `new` idiom.
+        let factory = self
+            .registry
+            .as_ref()
+            .and_then(|r| r.get(cmd_name))
+            .and_then(|s| {
+                s.creates_instance_at
+                    .map(|idx| (idx, s.object_class.map(|oc| oc.class_name.to_string())))
+            });
+        if let Some((idx, class_name)) = factory
+            && let Some(name) = args.get(idx as usize)
+            && is_plain_created_name(name)
+        {
+            let class = class_name.unwrap_or_else(|| cmd_name.to_string());
+            self.result.instance_classes.insert(name.clone(), class);
+            self.result.created_instance_commands.insert(name.clone());
             return;
         }
         // Pattern A: `set VAR [CLASS new|create ...]`.

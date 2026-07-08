@@ -660,3 +660,108 @@ fn completion_on_empty_source_does_not_panic() {
 // completion require a loaded iRules dialect registry and are exercised in
 // completion.rs's in-crate tests; they are out of this plain-Tcl port's
 // surface.
+
+// ==================================================================
+// Issue #806 — report::defstyle scoped command environment.
+//
+// Inside a report::defstyle style script, the report configuration
+// methods (top/data/columns/…) are available as commands.  Hover and
+// completion resolve them from the registry-declared scoped environment.
+// ==================================================================
+
+const DEFSTYLE_BODY: &str =
+    "::report::defstyle simpletable {} {\n    top set foo\n    columns\n}\n";
+
+#[test]
+fn hover_on_scoped_line_command() {
+    let analysis = analyse(DEFSTYLE_BODY);
+    let reg = registry();
+    // `top` on line 1 (char 5).
+    let h = hover(DEFSTYLE_BODY, 1, 5, &analysis, Some(&reg)).expect("hover on scoped `top`");
+    assert!(
+        h.value.contains("report style"),
+        "env name present: {}",
+        h.value
+    );
+    assert!(h.value.contains("separator"), "top described: {}", h.value);
+}
+
+#[test]
+fn hover_on_scoped_operation() {
+    let analysis = analyse(DEFSTYLE_BODY);
+    let reg = registry();
+    // `set` operation on line 1 (char 9).
+    let h = hover(DEFSTYLE_BODY, 1, 9, &analysis, Some(&reg)).expect("hover on scoped op `set`");
+    assert!(
+        h.value.contains("operation"),
+        "operation marker: {}",
+        h.value
+    );
+    assert!(h.value.contains("top set"), "head+op named: {}", h.value);
+}
+
+#[test]
+fn hover_on_scoped_config_command() {
+    let analysis = analyse(DEFSTYLE_BODY);
+    let reg = registry();
+    // `columns` on line 2 (char 7).
+    let h = hover(DEFSTYLE_BODY, 2, 7, &analysis, Some(&reg)).expect("hover on scoped `columns`");
+    assert!(h.value.contains("columns"), "name present: {}", h.value);
+    assert!(
+        h.value.contains("number of columns"),
+        "described: {}",
+        h.value
+    );
+}
+
+#[test]
+fn hover_on_scoped_command_only_inside_body() {
+    // `top` outside any style body is not a scoped command → no scoped hover.
+    let src = "top set foo\n";
+    let analysis = analyse(src);
+    let reg = registry();
+    let h = hover(src, 0, 1, &analysis, Some(&reg));
+    // Either no hover, or at least not the scoped-environment hover.
+    assert!(h.is_none_or(|x| !x.value.contains("report style")));
+}
+
+#[test]
+fn completion_offers_scoped_command_heads() {
+    let src = "::report::defstyle st {} {\n    to\n}\n";
+    let analysis = analyse(src);
+    let reg = registry();
+    let items = completions(src, 1, 6, &analysis, Some(&reg), None, "tcl8.6");
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(labels.contains(&"top"), "offers `top`: {labels:?}");
+    assert!(labels.contains(&"topdata"), "offers `topdata`: {labels:?}");
+    assert!(
+        labels.contains(&"topdatasep"),
+        "offers `topdatasep`: {labels:?}"
+    );
+}
+
+#[test]
+fn completion_offers_scoped_operations() {
+    let src = "::report::defstyle st {} {\n    top \n}\n";
+    let analysis = analyse(src);
+    let reg = registry();
+    let items = completions(src, 1, 8, &analysis, Some(&reg), None, "tcl8.6");
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    for op in ["set", "get", "enable", "disable", "enabled"] {
+        assert!(labels.contains(&op), "offers op `{op}`: {labels:?}");
+    }
+}
+
+#[test]
+fn completion_scoped_heads_not_offered_outside_body() {
+    // At top level, `to` must not surface the scoped-only `topdatasep`.
+    let src = "to\n";
+    let analysis = analyse(src);
+    let reg = registry();
+    let items = completions(src, 0, 2, &analysis, Some(&reg), None, "tcl8.6");
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(
+        !labels.contains(&"topdatasep"),
+        "scoped-only head leaked: {labels:?}"
+    );
+}
