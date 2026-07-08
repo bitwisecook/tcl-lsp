@@ -30,6 +30,14 @@
 //! * A **read is always defined** — the interpreter seeds the variable before
 //!   user code runs — so a bare read is never read-before-set.
 //!
+//! Beyond existence, each spec records the *effects* a read or write carries so
+//! the side-effect and taint analyses can consult one table instead of
+//! hardcoding names: [`SpecialVarSpec::write_effect`] names the interpreter
+//! state a write mutates (the auto-loader path, float precision, the process
+//! environment, …), and [`SpecialVarSpec::read_taint`] marks the
+//! attacker-influenced external-input variables (`env`, `argv`, `argv0`) as
+//! taint sources so a flow like `exec $env(CMD)` is seen as tainted.
+//!
 //! The set is **dialect-versioned**: it is a [`DialectSet`] membership table
 //! exactly like [`crate::spec::CommandSpec`]. Standard Tcl, F5 iRules, and (in
 //! future) Tk / EDA shells each provide a slightly different set — iRules has
@@ -39,6 +47,8 @@
 //! no consumer hardcodes a name list.
 
 use crate::dialects::DialectSet;
+use crate::side_effects::SideEffectTarget;
+use crate::taint::TaintColour;
 
 /// The value shape a special variable holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -124,6 +134,20 @@ pub struct SpecialVarSpec {
     /// The CMP-safe form is the `static::` alias (e.g.
     /// `static::tcl_platform`). Always false outside iRules.
     pub cmp_unsafe: bool,
+    /// The extra interpreter/runtime state a *write* to this variable mutates,
+    /// beyond the plain variable slot — the auto-loader search path
+    /// (`auto_path`), the float-formatting precision (`tcl_precision`), the
+    /// process environment (`env`), … `None` for read-only info globals and
+    /// pure-data globals (`argv`) whose write carries no side effect. Lets the
+    /// side-effect / optimiser passes treat `set auto_path …` as an
+    /// interpreter-state mutation rather than an ordinary assignment.
+    pub write_effect: Option<SideEffectTarget>,
+    /// The taint colour a *read* of this variable produces when it is the
+    /// interpreter-provided global (not shadowed by a local of the same name).
+    /// `Some(TaintColour::TAINTED)` for attacker-influenced external input —
+    /// the process environment (`env`) and the command line (`argv`, `argv0`) —
+    /// so a flow like `exec $env(CMD)` is seen as tainted. `None` otherwise.
+    pub read_taint: Option<TaintColour>,
     /// One-line hover summary.
     pub summary: &'static str,
 }
@@ -145,12 +169,38 @@ impl SpecialVarSpec {
 }
 
 /// Resolve a dialect *name* to the [`DialectSet`] flag used for membership
-/// tests. Empty, generic (`"tcl"`), or config-only (`"f5-bigip"`) names — any
-/// name [`DialectSet::parse`] does not recognise — resolve to the union of all
-/// standard Tcl versions, so plain-Tcl analysis sees the full standard set.
+/// tests.
+///
+/// * An unrecognised name — empty, generic (`"tcl"`), or config-only
+///   (`"f5-bigip"` / `"f5-tmsh"`) — resolves to every standard Tcl version, so
+///   plain-Tcl analysis sees the full standard set.
+/// * The **restricted** F5 embedded dialects (iRules, iApps) resolve to only
+///   their own bit: their interpreter does not provide the command-line /
+///   auto-loader / environment globals, so `env` / `argv` / `auto_path` must
+///   *not* be recognised there.
+/// * A specific Tcl version (`tcl8.6`) keeps its exact bit, so per-key version
+///   gating (`tcl_platform(pointerSize)` is 8.6+) stays precise while the
+///   `ALL_TCL`-gated specs still intersect it.
+/// * Every other parseable dialect is a Tcl **superset** — Tk, Expect, the EDA
+///   shells, BPF — that ships the standard interpreter globals on top of its
+///   own commands, so its bit is widened with `ALL_TCL` (the standard globals
+///   are recognised there just as they were before this registry existed).
 #[must_use]
 pub fn resolve_dialect(dialect: &str) -> DialectSet {
-    DialectSet::parse(dialect).unwrap_or(DialectSet::ALL_TCL)
+    let Some(parsed) = DialectSet::parse(dialect) else {
+        return DialectSet::ALL_TCL;
+    };
+    if parsed.intersects(DialectSet::IRULES | DialectSet::IAPPS) {
+        // Restricted embedded interpreter — only its own globals.
+        parsed
+    } else if parsed.intersects(DialectSet::ALL_TCL) {
+        // A specific Tcl version — keep the exact bit for per-key gating.
+        parsed
+    } else {
+        // A Tcl superset (Tk / Expect / EDA / BPF) — provides the standard
+        // globals in addition to its own.
+        parsed | DialectSet::ALL_TCL
+    }
 }
 
 /// Look up a special variable by bare name, ignoring dialect.
@@ -187,6 +237,23 @@ pub fn is_special_var(name: &str, dialect: &str) -> bool {
 #[must_use]
 pub fn is_externally_read(name: &str, dialect: &str) -> bool {
     special_var_in_dialect(name, dialect).is_some_and(|v| v.externally_read)
+}
+
+/// The extra interpreter/runtime state a *write* to special variable `name`
+/// mutates in `dialect`, or `None` if `name` is not a writable-with-effect
+/// special variable there. Lets the side-effect analysis treat
+/// `set auto_path …` as an [`SideEffectTarget::InterpState`] mutation.
+#[must_use]
+pub fn special_var_write_effect(name: &str, dialect: &str) -> Option<SideEffectTarget> {
+    special_var_in_dialect(name, dialect).and_then(|v| v.write_effect)
+}
+
+/// The taint colour a *read* of special variable `name` produces in `dialect`,
+/// or `None` if reading it is not a taint source there. `env` / `argv` /
+/// `argv0` are attacker-influenced external input.
+#[must_use]
+pub fn special_var_read_taint(name: &str, dialect: &str) -> Option<TaintColour> {
+    special_var_in_dialect(name, dialect).and_then(|v| v.read_taint)
 }
 
 /// Iterate the special variables available in `dialect`, in table order.
@@ -282,6 +349,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: None,
+        read_taint: None,
         summary: "Number of command-line arguments in `argv`.",
     },
     SpecialVarSpec {
@@ -293,6 +362,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: None,
+        read_taint: Some(TaintColour::TAINTED),
         summary: "List of command-line arguments passed after the script name.",
     },
     SpecialVarSpec {
@@ -304,6 +375,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: None,
+        read_taint: Some(TaintColour::TAINTED),
         summary: "Name of the script (or interpreter) being executed.",
     },
     // ── Auto-loader / package machinery (init.tcl) ─────────────────────────
@@ -316,6 +389,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "Search path (a list of directories) the package/auto-loader \
                   consults at runtime. Usually configured, not read, by scripts.",
     },
@@ -328,6 +403,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "Maps an auto-loadable command name to the script that defines it.",
     },
     SpecialVarSpec {
@@ -339,6 +416,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "Cache mapping external command names to their resolved executable paths.",
     },
     SpecialVarSpec {
@@ -350,6 +429,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "When set, disables auto-execution of external commands from the shell.",
     },
     SpecialVarSpec {
@@ -361,6 +442,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "When set, disables the auto-loader (`unknown` will not auto-load).",
     },
     // ── Environment ────────────────────────────────────────────────────────
@@ -373,6 +456,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: Some(TaintColour::TAINTED),
         summary: "The process environment. Writes propagate to child processes; \
                   keys are environment-variable names.",
     },
@@ -386,6 +471,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "Human-readable stack trace of the most recent error.",
     },
     SpecialVarSpec {
@@ -397,6 +484,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "Machine-readable error code (a list) of the most recent error.",
     },
     // ── Interpreter / library description ──────────────────────────────────
@@ -409,6 +498,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: false,
         cmp_unsafe: true,
+        write_effect: None,
+        read_taint: None,
         summary: "Interpreter version as `major.minor` (e.g. `8.6`).",
     },
     SpecialVarSpec {
@@ -420,6 +511,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: false,
         cmp_unsafe: true,
+        write_effect: None,
+        read_taint: None,
         summary: "Full patch level of the interpreter (e.g. `8.6.13`).",
     },
     SpecialVarSpec {
@@ -431,6 +524,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "Directory holding the standard Tcl script library (`init.tcl` et al.).",
     },
     SpecialVarSpec {
@@ -442,6 +537,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "List of directories where binary packages are installed.",
     },
     SpecialVarSpec {
@@ -453,6 +550,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: TCL_PLATFORM_KEYS,
         externally_read: false,
         cmp_unsafe: true,
+        write_effect: None,
+        read_taint: None,
         summary: "Array of platform / build information. On iRules, reports BIG-IP \
                   values and is CMP-safe only via `static::tcl_platform`.",
     },
@@ -465,6 +564,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "Number of significant digits used when converting floats to strings.",
     },
     SpecialVarSpec {
@@ -476,6 +577,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "Path of the user-specific startup script sourced by an interactive shell.",
     },
     SpecialVarSpec {
@@ -487,6 +590,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "True when the interpreter is running interactively (a REPL).",
     },
     SpecialVarSpec {
@@ -498,6 +603,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "Regexp matching word characters, used by `tcl_wordBreakAfter` and friends.",
     },
     SpecialVarSpec {
@@ -509,6 +616,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "Regexp matching non-word characters, used by the word-break helpers.",
     },
     SpecialVarSpec {
@@ -520,6 +629,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "Bytecode-compiler trace level (debug builds).",
     },
     SpecialVarSpec {
@@ -531,6 +642,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "Bytecode-execution trace level (debug builds).",
     },
     SpecialVarSpec {
@@ -542,6 +655,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "Script evaluated to print the primary interactive prompt.",
     },
     SpecialVarSpec {
@@ -553,6 +668,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
         summary: "Script evaluated to print the continuation prompt for an incomplete command.",
     },
     // ── iRules-specific ────────────────────────────────────────────────────
@@ -565,6 +682,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
+        write_effect: None,
+        read_taint: None,
         summary: "iRules CMP-safe global namespace. Values under `static::` are shared \
                   read-only across TMMs without demoting the virtual server from CMP.",
     },
@@ -665,5 +784,74 @@ mod tests {
         assert!(irules.contains(&"static"));
         assert!(irules.contains(&"tcl_platform"));
         assert!(!irules.contains(&"argv"));
+    }
+
+    #[test]
+    fn write_effects_are_recorded_for_interpreter_state_writes() {
+        // Writing these mutates interpreter/runtime state, not just a variable.
+        for name in ["auto_path", "tcl_precision", "env", "tcl_library"] {
+            assert_eq!(
+                special_var_write_effect(name, "tcl8.6"),
+                Some(SideEffectTarget::InterpState),
+                "{name} should carry an InterpState write effect",
+            );
+        }
+        // Read-only info globals and pure-data globals carry no write effect.
+        for name in ["tcl_version", "tcl_platform", "argv", "argc"] {
+            assert_eq!(special_var_write_effect(name, "tcl8.6"), None, "{name}");
+        }
+    }
+
+    #[test]
+    fn read_taint_marks_external_input_variables() {
+        for name in ["env", "argv", "argv0"] {
+            assert_eq!(
+                special_var_read_taint(name, "tcl8.6"),
+                Some(TaintColour::TAINTED),
+                "{name} is attacker-influenced external input",
+            );
+        }
+        // Interpreter-provided info is not attacker-controlled.
+        for name in ["tcl_version", "tcl_platform", "auto_path"] {
+            assert_eq!(special_var_read_taint(name, "tcl8.6"), None, "{name}");
+        }
+    }
+
+    #[test]
+    fn tcl_derived_dialects_keep_the_standard_globals() {
+        // Regression for the dialect-resolution fix: Tk / Expect / EDA shells
+        // are Tcl supersets and must still recognise the standard interpreter
+        // globals (they did before the registry existed).
+        for dialect in ["tk", "expect", "synopsys-eda-tcl", "cadence-eda-tcl"] {
+            assert!(
+                is_special_var("env", dialect),
+                "env must be a special var in {dialect}",
+            );
+            assert!(is_special_var("auto_path", dialect), "{dialect}");
+            assert!(is_special_var("argv", dialect), "{dialect}");
+            // The write-effect / taint queries resolve there too.
+            assert_eq!(
+                special_var_read_taint("env", dialect),
+                Some(TaintColour::TAINTED),
+                "{dialect}",
+            );
+        }
+        // The restricted F5 embedded dialects still do NOT get them.
+        assert!(!is_special_var("env", "f5-irules"));
+        assert!(!is_special_var("argv", "f5-irules"));
+        assert!(!is_special_var("auto_path", "f5-iapps"));
+    }
+
+    #[test]
+    fn version_dialects_keep_exact_bit_for_per_key_gating() {
+        // A specific Tcl version must not be widened to ALL_TCL, or per-key
+        // version gating (pointerSize is 8.6+) would leak into 8.4.
+        assert_eq!(resolve_dialect("tcl8.4"), DialectSet::TCL84);
+        let spec = special_var("tcl_platform").unwrap();
+        let keys_84: Vec<_> = spec
+            .keys_in(resolve_dialect("tcl8.4"))
+            .map(|k| k.key)
+            .collect();
+        assert!(!keys_84.contains(&"pointerSize"));
     }
 }

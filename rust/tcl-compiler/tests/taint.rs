@@ -2999,3 +2999,47 @@ mod irule3103_edge_cases {
         assert!(ws[0].message.contains("HTTP::query"));
     }
 }
+
+// ===========================================================================
+// Interpreter special-variable taint sources (`env`, `argv`, `argv0`).
+//
+// Reading the process environment or the command line is attacker-influenced
+// external input, seeded from the dialect-aware special-variable registry
+// (`tcl_registry::special_vars`). The restricted iRules interpreter provides
+// none of them, so they are sources only in the standard Tcl dialects.
+// ===========================================================================
+mod special_variable_sources {
+    use super::*;
+
+    #[test]
+    fn env_read_flows_tainted_into_code_sink() {
+        let ws = of_code("eval $env(CMD)", D, "T100");
+        assert!(!ws.is_empty(), "eval of $env(...) should fire T100");
+    }
+
+    #[test]
+    fn argv_read_flows_tainted_into_code_sink() {
+        let ws = of_code("eval $argv", D, "T100");
+        assert!(!ws.is_empty(), "eval of $argv should fire T100");
+    }
+
+    #[test]
+    fn argv0_read_flows_tainted_into_code_sink() {
+        let ws = of_code("eval $argv0", D, "T100");
+        assert!(!ws.is_empty(), "eval of $argv0 should fire T100");
+    }
+
+    #[test]
+    fn local_shadow_is_not_a_source() {
+        // A local `set argv …` shadows the interpreter global: the read sees
+        // the clean literal (higher SSA version), so no taint reaches the sink.
+        assert_eq!(codes("set argv clean\neval $argv", D), Vec::<String>::new());
+    }
+
+    #[test]
+    fn env_is_not_a_source_in_irules() {
+        // The restricted iRules interpreter has no `env`, so it is not seeded
+        // as a taint source there.
+        assert!(of_code("eval $env(CMD)", IR, "T100").is_empty());
+    }
+}

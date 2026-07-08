@@ -131,7 +131,7 @@ pub use spec::{BytePayloadSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSub
 pub use special_vars::{
     SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, VarAccess, VarOrigin,
     is_externally_read, is_special_var, special_var, special_var_in_dialect,
-    special_vars_for_dialect,
+    special_var_read_taint, special_var_write_effect, special_vars_for_dialect,
 };
 pub use symbol_def::{DefinedSymbolKind, SymbolDef};
 pub use taint::{SetterConstraint, TaintColour};
