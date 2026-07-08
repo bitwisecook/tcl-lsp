@@ -1241,6 +1241,21 @@ pub struct Backend {
     /// Keyed by URI; the entry is refreshed on every `full` / `full/delta`
     /// response and evicted on `did_close`.
     last_semantic_tokens: Mutex<HashMap<Uri, (String, Vec<u32>)>>,
+    /// Serialises the document-sync notification handlers (`did_open` /
+    /// `did_change` / `did_close`) so their buffer mutations apply in the exact
+    /// order the client sent them.
+    ///
+    /// `tower_lsp_server` drives incoming messages through
+    /// `buffer_unordered(max_concurrency)` — several handler futures run
+    /// concurrently and complete in any order — so two rapid incremental
+    /// `didChange`s could otherwise acquire `documents` out of stream order and
+    /// splice their (position-relative) edits against the wrong base text,
+    /// corrupting the buffer under load. Every mutating handler acquires this
+    /// lock as its **first** await; because `buffer_unordered` first-polls the
+    /// handler futures in stream order and tokio's `Mutex` grants FIFO, the
+    /// lock is acquired — and thus edits are applied — in the order received.
+    /// Request handlers do not take it, so read concurrency is unaffected.
+    edit_serialize: Mutex<()>,
 }
 
 /// Resolved `tclLsp.features.*` toggle state.
@@ -1501,6 +1516,7 @@ impl Backend {
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Mutex::new(HashMap::new()),
+            edit_serialize: Mutex::new(()),
         }
     }
 
@@ -4855,6 +4871,10 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
+        // Apply document-sync mutations in stream order (see `edit_serialize`).
+        // Must be the first await so FIFO lock acquisition tracks the order
+        // `buffer_unordered` first-polls these handler futures.
+        let _edit_order = self.edit_serialize.lock().await;
         let dialect = self
             .dialect_for_open(
                 &params.text_document.uri,
@@ -4895,6 +4915,12 @@ impl LanguageServer for Backend {
         // current text. Apply them in order. (The re-analysis below is
         // still whole-document and is not bounded to `reparse_window`,
         // though the primitives exist in `tcl-lexer`.)
+        // Apply document-sync mutations in stream order (see `edit_serialize`).
+        // Must be the first await so FIFO lock acquisition tracks the order
+        // `buffer_unordered` first-polls these handler futures — otherwise two
+        // rapid incremental edits can splice out of order and corrupt the
+        // buffer under load.
+        let _edit_order = self.edit_serialize.lock().await;
         let uri = params.text_document.uri.clone();
         if params.content_changes.is_empty() {
             return;
@@ -5044,6 +5070,9 @@ impl LanguageServer for Backend {
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
+        // Apply document-sync mutations in stream order (see `edit_serialize`).
+        // First await so a close can't be reordered ahead of an in-flight edit.
+        let _edit_order = self.edit_serialize.lock().await;
         let uri = &params.text_document.uri;
         {
             // Remove the live document + its index entry while holding
@@ -11911,6 +11940,7 @@ mod tests {
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Mutex::new(HashMap::new()),
+            edit_serialize: Mutex::new(()),
         }
     }
 
