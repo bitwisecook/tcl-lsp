@@ -77,7 +77,11 @@ pub fn prepare(
 /// de-duplicated.  Empty when the class is unknown or has none in this
 /// document.
 #[must_use]
-pub fn supertypes(class_name: &str, source: &str, analysis: &AnalysisResult) -> Vec<TypeHierarchyItem> {
+pub fn supertypes(
+    class_name: &str,
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Vec<TypeHierarchyItem> {
     let line_index = LineIndex::new(source);
     let tail_index = build_tail_index(analysis.all_classes.keys());
     let Some(cd) = resolve_class(class_name, "", analysis, &tail_index) else {
@@ -107,7 +111,11 @@ pub fn supertypes(class_name: &str, source: &str, analysis: &AnalysisResult) -> 
 /// superclass, via the (namespace-aware) class-hierarchy subclass map.
 /// Sorted by qualified name for determinism.
 #[must_use]
-pub fn subtypes(class_name: &str, source: &str, analysis: &AnalysisResult) -> Vec<TypeHierarchyItem> {
+pub fn subtypes(
+    class_name: &str,
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Vec<TypeHierarchyItem> {
     let line_index = LineIndex::new(source);
     let tail_index = build_tail_index(analysis.all_classes.keys());
     let Some(cd) = resolve_class(class_name, "", analysis, &tail_index) else {

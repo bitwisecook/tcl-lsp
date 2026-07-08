@@ -40,14 +40,16 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "GTP::payload",
         }],
-        options: const { &[OptionSpec {
-            name: "-message",
-            value: OptionValue::value(""),
-            detail: "Option -message.",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "-message",
+                value: OptionValue::value(""),
+                detail: "Option -message.",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,

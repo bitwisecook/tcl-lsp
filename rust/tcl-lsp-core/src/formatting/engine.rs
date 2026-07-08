@@ -1155,8 +1155,15 @@ mod tests {
         // Plain-Tcl default preset does not synthesise the separator, so it
         // leaves the (invalid-in-stock-Tcl) input alone rather than inventing a
         // parse — no accidental change to non-iRule formatting.
-        let plain = format_tcl("if { 1 }{\n    pool p\n}\n", &FormatterConfig::default(), &registry);
-        assert!(plain.contains("}{"), "default preset should not rewrite `}}{{`");
+        let plain = format_tcl(
+            "if { 1 }{\n    pool p\n}\n",
+            &FormatterConfig::default(),
+            &registry,
+        );
+        assert!(
+            plain.contains("}{"),
+            "default preset should not rewrite `}}{{`"
+        );
     }
 
     /// Each `(input, expected)` pair is the expected formatted output

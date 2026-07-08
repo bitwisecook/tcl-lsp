@@ -99,7 +99,9 @@ pub mod prelude {
     };
     pub use crate::patterns::{FormatType, PatternType};
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
-    pub use crate::spec::{BytePayloadSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSubCommand};
+    pub use crate::spec::{
+        BytePayloadSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSubCommand,
+    };
     pub use crate::taint::{SetterConstraint, TaintColour};
     pub use crate::traits::Traits;
     pub use crate::types::TclType;

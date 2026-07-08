@@ -1399,14 +1399,15 @@ impl Analyser {
         //    create method …` (a class literally named `create`) must not be
         //    mistaken for a creation and stolen from `handle_oo_define_command`.
         // define/objdefine carry no `IS_OO_METACLASS`, so they fall through.
-        let is_class_definer = self.registry.as_ref().and_then(|r| r.get(cmd_name)).is_some_and(
-            |s| {
+        let is_class_definer = self
+            .registry
+            .as_ref()
+            .and_then(|r| r.get(cmd_name))
+            .is_some_and(|s| {
                 s.traits.contains(tcl_registry::Traits::IS_OO_METACLASS)
-                    && s.definition_body.is_some_and(|g| {
-                        g.family == tcl_registry::definer::DefinerFamily::TclOo
-                    })
-            },
-        );
+                    && s.definition_body
+                        .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::TclOo)
+            });
         if !is_class_definer || args.len() < 2 || arg_tokens.len() < 2 {
             return false;
         }
@@ -1439,12 +1440,7 @@ impl Analyser {
         if let (Some(body_text), Some(body_tok)) = (args.get(2), body_tok_opt) {
             let grammar = self.definition_grammar(cmd_name);
             self.parse_oo_definition_body(
-                body_text,
-                body_tok,
-                &mut class,
-                &qualified,
-                scope_path,
-                grammar,
+                body_text, body_tok, &mut class, &qualified, scope_path, grammar,
             );
         }
         // Register globally and in the current scope, the same as

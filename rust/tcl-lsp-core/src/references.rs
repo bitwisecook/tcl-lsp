@@ -426,8 +426,7 @@ pub(crate) fn method_references_for_class(
     let hierarchy = analysis.class_hierarchy();
     let mut bodies: Vec<Span> = collect_member_bodies(class_def);
     for (other_q, other_cd) in &analysis.all_classes {
-        if other_q.as_str() != class_q
-            && hierarchy.method_target(other_q, method) == Some(class_q)
+        if other_q.as_str() != class_q && hierarchy.method_target(other_q, method) == Some(class_q)
         {
             bodies.extend(collect_member_bodies(other_cd));
         }
@@ -534,7 +533,9 @@ pub(crate) fn inherited_method_call_sites(
     };
     let bodies = collect_member_bodies(class_def);
     let mut spans = scan_my_method_sites(source, dialect, &bodies, method, None);
-    spans.extend(find_obj_method_call_sites(source, dialect, analysis, class_q, method));
+    spans.extend(find_obj_method_call_sites(
+        source, dialect, analysis, class_q, method,
+    ));
     spans
 }
 

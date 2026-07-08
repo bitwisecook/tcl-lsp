@@ -837,14 +837,13 @@ pub fn evaluate_def<S: std::hash::BuildHasher>(
             // constant list. Multi-variable and multi-list
             // foreaches are left as Overdefined.
             let elements = extract_foreach_elements(&args[0])
-                .or_else(|| {
-                    resolve_foreach_list_via_lattice(&args[0], &stmt_ssa.uses, values, ssa)
-                })
+                .or_else(|| resolve_foreach_list_via_lattice(&args[0], &stmt_ssa.uses, values, ssa))
                 .or_else(|| {
                     // `foreach v [list a b c]` — fold the command substitution
                     // to a constant list string, then split into elements.
                     let arg = args[0].trim();
-                    if arg.starts_with('[') && arg.ends_with(']')
+                    if arg.starts_with('[')
+                        && arg.ends_with(']')
                         && let Some(LatticeValue::Const(ConstValue::String(s))) =
                             try_fold_cmd_subst(arg, &stmt_ssa.uses, values, ssa)
                     {

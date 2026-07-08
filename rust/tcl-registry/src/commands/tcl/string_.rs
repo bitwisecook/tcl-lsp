@@ -873,24 +873,26 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_compare),
-        options: const { &[
-            OptionSpec {
-                name: "-nocase",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "-length",
-                value: OptionValue::value("int"),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-        ] },
+        options: const {
+            &[
+                OptionSpec {
+                    name: "-nocase",
+                    value: OptionValue::flag(),
+                    detail: "",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "-length",
+                    value: OptionValue::value("int"),
+                    detail: "",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+            ]
+        },
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -901,24 +903,26 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::Boolean),
         const_fold: Some(fold_equal),
-        options: const { &[
-            OptionSpec {
-                name: "-nocase",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "-length",
-                value: OptionValue::value("int"),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-        ] },
+        options: const {
+            &[
+                OptionSpec {
+                    name: "-nocase",
+                    value: OptionValue::flag(),
+                    detail: "",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "-length",
+                    value: OptionValue::value("int"),
+                    detail: "",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+            ]
+        },
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -980,24 +984,26 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::Boolean),
         const_fold_versioned: Some(fold_is),
-        options: const { &[
-            OptionSpec {
-                name: "-strict",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "-failindex",
-                value: OptionValue::value("varname"),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-        ] },
+        options: const {
+            &[
+                OptionSpec {
+                    name: "-strict",
+                    value: OptionValue::flag(),
+                    detail: "",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "-failindex",
+                    value: OptionValue::value("varname"),
+                    detail: "",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+            ]
+        },
         // First sub-arg (index 0 after `is`) is the character
         // class — complete it from the fixed class set.
         arg_values: &[(0, IS_CLASSES)],
@@ -1038,14 +1044,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_string_map),
-        options: const { &[OptionSpec {
-            name: "-nocase",
-            value: OptionValue::flag(),
-            detail: "",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "-nocase",
+                value: OptionValue::flag(),
+                detail: "",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         arg_types: &[(
             0,
             ArgTypeHint {
@@ -1062,14 +1070,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string match ?-nocase? pattern string",
         pure: true,
         return_type: Some(TclType::Boolean),
-        options: const { &[OptionSpec {
-            name: "-nocase",
-            value: OptionValue::flag(),
-            detail: "",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "-nocase",
+                value: OptionValue::flag(),
+                detail: "",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         ..SubCommand::DEFAULT
     },
     SubCommand {

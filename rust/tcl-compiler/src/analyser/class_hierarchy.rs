@@ -192,7 +192,11 @@ pub fn resolve_class_name<S: std::hash::BuildHasher>(
         let cand = if ns.is_empty() {
             format!("::{}", name.trim_start_matches("::"))
         } else {
-            format!("{}::{}", ns.trim_end_matches("::"), name.trim_start_matches("::"))
+            format!(
+                "{}::{}",
+                ns.trim_end_matches("::"),
+                name.trim_start_matches("::")
+            )
         };
         if is_known(&cand) {
             return Some(cand);
@@ -200,7 +204,9 @@ pub fn resolve_class_name<S: std::hash::BuildHasher>(
         if ns.is_empty() {
             break;
         }
-        ns = ns.rsplit_once("::").map_or(String::new(), |(head, _)| head.to_string());
+        ns = ns
+            .rsplit_once("::")
+            .map_or(String::new(), |(head, _)| head.to_string());
     }
     // Globally-unique simple-name match (the `namespace import` case).
     //
@@ -230,7 +236,10 @@ pub fn build_tail_index<'a>(
     let mut tail_index: HashMap<String, Vec<String>> = HashMap::new();
     for qname in qnames {
         let tail = qname.rsplit("::").next().unwrap_or(qname);
-        tail_index.entry(tail.to_string()).or_default().push(qname.clone());
+        tail_index
+            .entry(tail.to_string())
+            .or_default()
+            .push(qname.clone());
     }
     tail_index
 }
@@ -554,7 +563,11 @@ mod tests {
         ]);
         let h = build_class_hierarchy(classes);
         assert!(h.is_subtype("::B", "::M"));
-        assert!(h.subclasses["::M"].contains("::B"), "{:?}", h.subclasses["::M"]);
+        assert!(
+            h.subclasses["::M"].contains("::B"),
+            "{:?}",
+            h.subclasses["::M"]
+        );
         assert!(h.subclasses["::A"].contains("::B"));
         // Transitive closure agrees.
         assert!(h.transitive_subtypes["::M"].contains("::B"));
@@ -634,7 +647,10 @@ mod tests {
         ]);
         let h = build_class_hierarchy(classes);
         assert_eq!(h.mro_map["::Ns::Sub"], vec!["::Ns::Sub", "::Ns::Base"]);
-        assert_eq!(h.method_target("::Ns::Sub", "inherited"), Some("::Ns::Base"));
+        assert_eq!(
+            h.method_target("::Ns::Sub", "inherited"),
+            Some("::Ns::Base")
+        );
     }
 
     #[test]
@@ -648,7 +664,10 @@ mod tests {
             cls("::Core", &["Device"], &[], &[]),
         ]);
         let h = build_class_hierarchy(classes);
-        assert_eq!(h.method_target("::Core", "genSPICEString"), Some("::SpiceGenTcl::Device"));
+        assert_eq!(
+            h.method_target("::Core", "genSPICEString"),
+            Some("::SpiceGenTcl::Device")
+        );
     }
 
     #[test]

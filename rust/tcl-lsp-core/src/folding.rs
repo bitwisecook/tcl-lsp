@@ -373,9 +373,7 @@ fn collect_body_folds(
         // no `CommandSpec`; their body indices come from the enclosing
         // definition-body grammar ([`crate::oo_body`]).
         let body_indices: Vec<usize> = match oo_grammar {
-            Some(g) if is_member(g, cmd.name()) => {
-                member_body_indices(g, cmd.name(), &args_borrow)
-            }
+            Some(g) if is_member(g, cmd.name()) => member_body_indices(g, cmd.name(), &args_borrow),
             _ => ctx
                 .registry
                 .arg_indices_for_role(cmd.name(), &args_borrow, ArgRole::Body),

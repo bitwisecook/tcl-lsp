@@ -452,7 +452,9 @@ fn arg_object_class<S: std::hash::BuildHasher>(
     let stripped = text.trim();
     if is_pure_var_ref(stripped) {
         let t = lookup_var_type(normalise_var_name(stripped), uses, types, ssa)?;
-        return (t.tcl_type == Some(TclType::Object)).then_some(t.class_name).flatten();
+        return (t.tcl_type == Some(TclType::Object))
+            .then_some(t.class_name)
+            .flatten();
     }
     if stripped.starts_with('[')
         && stripped.ends_with(']')
@@ -603,8 +605,7 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
                 // A `dict get $coll k` / `lindex $coll i` on an object-homogeneous
                 // collection yields an `OBJECT(element_class)` — resolved before
                 // the command's declared (`String`/`Overdefined`) return type.
-                if let Some(t) =
-                    container_retrieval_object_type(&cmd, &arg_refs, uses, types, ssa)
+                if let Some(t) = container_retrieval_object_type(&cmd, &arg_refs, uses, types, ssa)
                 {
                     return t;
                 }
@@ -1124,10 +1125,9 @@ mod tests {
                    set p [dict get $pins a]\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").expect("top level");
-        let pins_ok = fu
-            .types
-            .iter()
-            .any(|((name, _), t)| fu.ssa.var_name(*name) == "pins" && t.element_class() == Some("::Pin"));
+        let pins_ok = fu.types.iter().any(|((name, _), t)| {
+            fu.ssa.var_name(*name) == "pins" && t.element_class() == Some("::Pin")
+        });
         assert!(
             pins_ok,
             "pins should be Dict<OBJECT(::Pin)>; got {:?}",

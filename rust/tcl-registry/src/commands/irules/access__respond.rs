@@ -48,24 +48,26 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "ACCESS::respond STATUS_CODE (ifile | -ifile) IFILE_OBJ",
         }],
-        options: const { &[
-            OptionSpec {
-                name: "-ifile",
-                value: OptionValue::flag(),
-                detail: "Option -ifile.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "-content",
-                value: OptionValue::value(""),
-                detail: "Option -content.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-        ] },
+        options: const {
+            &[
+                OptionSpec {
+                    name: "-ifile",
+                    value: OptionValue::flag(),
+                    detail: "Option -ifile.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "-content",
+                    value: OptionValue::value(""),
+                    detail: "Option -content.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+            ]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: false,

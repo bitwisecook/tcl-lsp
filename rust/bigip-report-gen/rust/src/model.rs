@@ -1755,10 +1755,7 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>, 
                     om.insert("partition".into(), J::String(part));
                     // Folder path (`/Common/App_X`, empty for partition-root),
                     // for display and the apps grouping.
-                    om.insert(
-                        "folder".into(),
-                        J::String(folder_of(bstr(om, "fullPath"))),
-                    );
+                    om.insert("folder".into(), J::String(folder_of(bstr(om, "fullPath"))));
                 }
             }
         }

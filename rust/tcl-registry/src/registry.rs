@@ -1484,16 +1484,9 @@ mod tests {
     #[test]
     fn option_value_alias_matches_and_dynamic_flag_skipped() {
         use crate::hover::OptionValue;
-        let options = [opt_with_alias(
-            "-command",
-            &["-cmd"],
-            OptionValue::script(),
-        )];
+        let options = [opt_with_alias("-command", &["-cmd"], OptionValue::script())];
         // Alias resolves to the same value role.
-        assert_eq!(
-            indices(&options, &["-cmd", "{x}"], ArgRole::Body),
-            vec![1]
-        );
+        assert_eq!(indices(&options, &["-cmd", "{x}"], ArgRole::Body), vec![1]);
         // A `$var` in flag position isn't an option name → treated as a
         // positional, so the real `-command` after it still resolves.
         assert_eq!(
@@ -1614,7 +1607,11 @@ mod tests {
         // `pathName bind tagOrId sequence script` binds a deferred handler.
         let reg = CommandRegistry::build_default();
         assert_eq!(
-            reg.arg_indices_for_role("canvas", &["bind", "item", "<Button>", "{p}"], ArgRole::Body),
+            reg.arg_indices_for_role(
+                "canvas",
+                &["bind", "item", "<Button>", "{p}"],
+                ArgRole::Body
+            ),
             vec![3],
             "the canvas bind subcommand's trailing script is a body",
         );
@@ -1630,7 +1627,12 @@ mod tests {
         // ttk (themed Tk) widgets were introduced in Tk 8.5, so they must be
         // gated out when only an older Tk is guaranteed by `package require`.
         let reg = CommandRegistry::build_default();
-        for name in ["ttk::button", "ttk::treeview", "ttk::notebook", "ttk::style"] {
+        for name in [
+            "ttk::button",
+            "ttk::treeview",
+            "ttk::notebook",
+            "ttk::style",
+        ] {
             let spec = reg.get(name).unwrap_or_else(|| panic!("{name} registered"));
             assert!(
                 !spec.available_for_version(Some("8.4")),
@@ -1675,7 +1677,11 @@ mod tests {
         // prefix Tk appends offset/maxChars to, not a recursed script body.
         let reg = CommandRegistry::build_default();
         assert_eq!(
-            reg.arg_indices_for_role("selection", &["handle", ".w", "getData"], ArgRole::CommandPrefix),
+            reg.arg_indices_for_role(
+                "selection",
+                &["handle", ".w", "getData"],
+                ArgRole::CommandPrefix
+            ),
             vec![2],
             "the selection handle command prefix is captured",
         );

@@ -36,14 +36,16 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "call ?-debug? <proc_name> ?arg ...?",
         }],
-        options: const { &[OptionSpec {
-            name: "-debug",
-            value: OptionValue::flag(),
-            detail: "Enable debug mode.",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "-debug",
+                value: OptionValue::flag(),
+                detail: "Enable debug mode.",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::ProcDefinition,
             reads: true,

@@ -37,32 +37,34 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "CRYPTO::hash (('-alg' ('md5' | 'ripemd160' | 'sha1' | 'sha224' | 'sha256' | 'sha384'",
         }],
-        options: const { &[
-            OptionSpec {
-                name: "-alg",
-                value: OptionValue::value("ALG"),
-                detail: "Hash algorithm.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "-ctx",
-                value: OptionValue::value("CTX_VAR"),
-                detail: "Context variable for multi-step operations.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "-final",
-                value: OptionValue::flag(),
-                detail: "Finalize context-based operation.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-        ] },
+        options: const {
+            &[
+                OptionSpec {
+                    name: "-alg",
+                    value: OptionValue::value("ALG"),
+                    detail: "Hash algorithm.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "-ctx",
+                    value: OptionValue::value("CTX_VAR"),
+                    detail: "Context variable for multi-step operations.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "-final",
+                    value: OptionValue::flag(),
+                    detail: "Finalize context-based operation.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+            ]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::Unknown,
             reads: true,

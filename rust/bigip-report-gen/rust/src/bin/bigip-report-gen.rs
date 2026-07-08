@@ -37,13 +37,13 @@ use base64::Engine as _;
 use chrono::Utc;
 
 use bigip_report_gen_rust::{
-    build_report, collect_model_full, decrypt_secrets, RenderOptions, Source,
+    RenderOptions, Source, build_report, collect_model_full, decrypt_secrets,
 };
 use tcl_bigip::model::ModelObject;
 use tcl_bigip::parser::driver::parse_bigip_conf;
 use tcl_bigip_io::{
-    is_pgp_bytes, is_ucs_bytes, list_ucs_members, read_ucs_member, resolve_passphrase,
-    ucs_archive_to_scf, MemberScope, PassphraseOptions,
+    MemberScope, PassphraseOptions, is_pgp_bytes, is_ucs_bytes, list_ucs_members, read_ucs_member,
+    resolve_passphrase, ucs_archive_to_scf,
 };
 
 /// Cap on embedded content per forensic file (256 KiB) — mirrors the wasm
@@ -196,11 +196,7 @@ struct Loaded {
 /// Load one path into SCF plus, for a UCS, its cert filestore and forensic file
 /// inventory (the native CLI's edge over the library path). A bare config
 /// contributes only its text.
-fn load_one(
-    path: &str,
-    passphrase: Option<&str>,
-    include_extras: bool,
-) -> Result<Loaded, String> {
+fn load_one(path: &str, passphrase: Option<&str>, include_extras: bool) -> Result<Loaded, String> {
     let raw = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
     if !looks_like_ucs(path, &raw) {
         let scf = String::from_utf8_lossy(&raw).into_owned();
@@ -218,8 +214,8 @@ fn load_one(
     };
     let provider = || resolve_passphrase(&opts);
 
-    let scf = ucs_archive_to_scf(&raw, &provider, include_extras, path)
-        .map_err(|e| e.to_string())?;
+    let scf =
+        ucs_archive_to_scf(&raw, &provider, include_extras, path).map_err(|e| e.to_string())?;
     let cert_pems = extract_cert_pems(&raw, &scf, path, &provider);
     let files = extract_forensic_files(&raw, path, &provider);
     Ok(Loaded {
@@ -302,10 +298,7 @@ fn read_text_arg(path: &str, flag: &str) -> Result<String, String> {
 fn run() -> Result<(), (u8, String)> {
     let args = parse_args().map_err(|code| {
         // help/version already printed; propagate the exit code with no message.
-        (
-            if code == ExitCode::SUCCESS { 0 } else { 2 },
-            String::new(),
-        )
+        (if code == ExitCode::SUCCESS { 0 } else { 2 }, String::new())
     })?;
 
     let title = args

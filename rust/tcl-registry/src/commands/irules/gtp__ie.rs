@@ -40,32 +40,34 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "GTP::ie 'exists' ('-message' MESSAGE)? (IE_PATH)?",
         }],
-        options: const { &[
-            OptionSpec {
-                name: "-message",
-                value: OptionValue::value("MESSAGE"),
-                detail: "Operate on a specific GTP message object.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "-type",
-                value: OptionValue::value("TYPE"),
-                detail: "Filter by IE type value.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "-instance",
-                value: OptionValue::value("INSTANCE"),
-                detail: "Filter by IE instance.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-        ] },
+        options: const {
+            &[
+                OptionSpec {
+                    name: "-message",
+                    value: OptionValue::value("MESSAGE"),
+                    detail: "Operate on a specific GTP message object.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "-type",
+                    value: OptionValue::value("TYPE"),
+                    detail: "Filter by IE type value.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "-instance",
+                    value: OptionValue::value("INSTANCE"),
+                    detail: "Filter by IE instance.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+            ]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,

@@ -801,7 +801,11 @@ fn html_rows(table: &'static [HtmlRow]) -> Vec<CommandSpec> {
                 arity,
                 traits: if pure { Traits::PURE } else { Traits::empty() },
                 return_type: Some(return_type),
-                hover: Some(HoverSnippet::brief(summary, synopsis, "tcllib html package")),
+                hover: Some(HoverSnippet::brief(
+                    summary,
+                    synopsis,
+                    "tcllib html package",
+                )),
                 tcllib_package: Some("html"),
                 required_package: Some("html"),
                 min_version,

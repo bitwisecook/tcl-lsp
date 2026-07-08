@@ -305,16 +305,29 @@ fn collect_sites(source: &str, base: u32, dialect: &str, out: &mut Vec<Site>, de
                 _ => continue,
             };
             let s = tok.span.start() as usize + co;
-            let e = (tok.span.end() as usize).saturating_sub(close).min(source.len());
-            if e > s && let Some(inner) = source.get(s..e) {
-                collect_sites(inner, base + u32::try_from(s).unwrap_or(0), dialect, out, depth + 1);
+            let e = (tok.span.end() as usize)
+                .saturating_sub(close)
+                .min(source.len());
+            if e > s
+                && let Some(inner) = source.get(s..e)
+            {
+                collect_sites(
+                    inner,
+                    base + u32::try_from(s).unwrap_or(0),
+                    dialect,
+                    out,
+                    depth + 1,
+                );
             }
         }
     }
 }
 
 /// `(form, receiver-text)` for an object-dispatch head, else `None`.
-fn receiver_form(head: &tcl_lexer::Token, seg: &SegmentedCommand) -> Option<(&'static str, String)> {
+fn receiver_form(
+    head: &tcl_lexer::Token,
+    seg: &SegmentedCommand,
+) -> Option<(&'static str, String)> {
     match head.kind {
         TokenType::Var => {
             // Strip the leading `$` (and `${…}`) to the bare variable name.
@@ -369,7 +382,9 @@ fn line_starts(src: &str) -> Vec<usize> {
 
 fn byte_to_line_col(line_starts: &[usize], src: &str, byte: u32) -> (u32, u32) {
     let byte = byte as usize;
-    let line = line_starts.partition_point(|&s| s <= byte).saturating_sub(1);
+    let line = line_starts
+        .partition_point(|&s| s <= byte)
+        .saturating_sub(1);
     let col = src
         .get(line_starts[line]..byte.min(src.len()))
         .map_or(0, |s| s.chars().map(|c| c.len_utf16() as u32).sum());

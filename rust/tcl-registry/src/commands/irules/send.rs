@@ -35,32 +35,34 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "send ?options? ?--? connection data",
         }],
-        options: const { &[
-            OptionSpec {
-                name: "-timeout",
-                value: OptionValue::value("MSEC"),
-                detail: "Time in ms to wait for data to be sent.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "-status",
-                value: OptionValue::value("VARIABLE"),
-                detail: "Save send status into variable.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "--",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-        ] },
+        options: const {
+            &[
+                OptionSpec {
+                    name: "-timeout",
+                    value: OptionValue::value("MSEC"),
+                    detail: "Time in ms to wait for data to be sent.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "-status",
+                    value: OptionValue::value("VARIABLE"),
+                    detail: "Save send status into variable.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "--",
+                    value: OptionValue::flag(),
+                    detail: "",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+            ]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: false,

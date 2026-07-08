@@ -78,33 +78,58 @@ impl MemberSpec {
     /// An ordinary [`MemberKind::Flat`] member.
     #[must_use]
     const fn flat(keyword: &'static str, arg_roles: &'static [(u8, ArgRole)]) -> Self {
-        Self { keyword, arg_roles, all_args_var: false, kind: MemberKind::Flat }
+        Self {
+            keyword,
+            arg_roles,
+            all_args_var: false,
+            kind: MemberKind::Flat,
+        }
     }
 
     /// A `variable a b c`-style member: every argument is a declared name.
     #[must_use]
     const fn all_vars(keyword: &'static str) -> Self {
-        Self { keyword, arg_roles: NO_ROLES, all_args_var: true, kind: MemberKind::Flat }
+        Self {
+            keyword,
+            arg_roles: NO_ROLES,
+            all_args_var: true,
+            kind: MemberKind::Flat,
+        }
     }
 
     /// A name-reference / keyword-only member carrying nothing to recurse or
     /// declare (`superclass A B`, `inherit Base`, `option …`).
     #[must_use]
     const fn keyword_only(keyword: &'static str) -> Self {
-        Self { keyword, arg_roles: NO_ROLES, all_args_var: false, kind: MemberKind::Flat }
+        Self {
+            keyword,
+            arg_roles: NO_ROLES,
+            all_args_var: false,
+            kind: MemberKind::Flat,
+        }
     }
 
     /// A [`MemberKind::Wrapper`] member (`self`, `public`, `protected`,
     /// `private`) — an inner member keyword follows at argument 0.
     #[must_use]
     const fn wrapper(keyword: &'static str) -> Self {
-        Self { keyword, arg_roles: NO_ROLES, all_args_var: false, kind: MemberKind::Wrapper }
+        Self {
+            keyword,
+            arg_roles: NO_ROLES,
+            all_args_var: false,
+            kind: MemberKind::Wrapper,
+        }
     }
 
     /// A [`MemberKind::FlagKeyed`] member (`property`).
     #[must_use]
     const fn flag_keyed(keyword: &'static str) -> Self {
-        Self { keyword, arg_roles: NO_ROLES, all_args_var: false, kind: MemberKind::FlagKeyed }
+        Self {
+            keyword,
+            arg_roles: NO_ROLES,
+            all_args_var: false,
+            kind: MemberKind::FlagKeyed,
+        }
     }
 
     /// The argument indices (0-based after the keyword) carrying `role`.
@@ -173,8 +198,11 @@ impl DefinitionBodyGrammar {
 // ---------------------------------------------------------------------------
 
 /// `method NAME PARAMS BODY` — shared by `TclOO` and snit.
-const METHOD_ROLES: &[(u8, ArgRole)] =
-    &[(0, ArgRole::Name), (1, ArgRole::ParamList), (2, ArgRole::Body)];
+const METHOD_ROLES: &[(u8, ArgRole)] = &[
+    (0, ArgRole::Name),
+    (1, ArgRole::ParamList),
+    (2, ArgRole::Body),
+];
 /// `constructor PARAMS BODY`.
 const CTOR_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::ParamList), (1, ArgRole::Body)];
 /// A single trailing body (`destructor BODY`, `typeconstructor BODY`, …).

@@ -27,14 +27,16 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         mutator: true,
-        options: const { &[OptionSpec {
-            name: "--",
-            value: OptionValue::flag(),
-            detail: "",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "--",
+                value: OptionValue::flag(),
+                detail: "",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -49,14 +51,16 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         mutator: true,
-        options: const { &[OptionSpec {
-            name: "--",
-            value: OptionValue::flag(),
-            detail: "",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "--",
+                value: OptionValue::flag(),
+                detail: "",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -71,14 +75,16 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         mutator: true,
-        options: const { &[OptionSpec {
-            name: "--",
-            value: OptionValue::flag(),
-            detail: "",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "--",
+                value: OptionValue::flag(),
+                detail: "",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -93,14 +99,16 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         mutator: true,
-        options: const { &[OptionSpec {
-            name: "--",
-            value: OptionValue::flag(),
-            detail: "",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "--",
+                value: OptionValue::flag(),
+                detail: "",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -115,14 +123,16 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         mutator: true,
-        options: const { &[OptionSpec {
-            name: "--",
-            value: OptionValue::flag(),
-            detail: "",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "--",
+                value: OptionValue::flag(),
+                detail: "",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -137,14 +147,16 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         mutator: true,
-        options: const { &[OptionSpec {
-            name: "--",
-            value: OptionValue::flag(),
-            detail: "",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "--",
+                value: OptionValue::flag(),
+                detail: "",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -158,14 +170,16 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "",
         synopsis: "",
-        options: const { &[OptionSpec {
-            name: "--",
-            value: OptionValue::flag(),
-            detail: "",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "--",
+                value: OptionValue::flag(),
+                detail: "",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -179,14 +193,16 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "",
         synopsis: "",
-        options: const { &[OptionSpec {
-            name: "--",
-            value: OptionValue::flag(),
-            detail: "",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "--",
+                value: OptionValue::flag(),
+                detail: "",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -200,14 +216,16 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "",
         synopsis: "",
-        options: const { &[OptionSpec {
-            name: "--",
-            value: OptionValue::flag(),
-            detail: "",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "--",
+                value: OptionValue::flag(),
+                detail: "",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -221,14 +239,16 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "",
         synopsis: "",
-        options: const { &[OptionSpec {
-            name: "--",
-            value: OptionValue::flag(),
-            detail: "",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "--",
+                value: OptionValue::flag(),
+                detail: "",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,

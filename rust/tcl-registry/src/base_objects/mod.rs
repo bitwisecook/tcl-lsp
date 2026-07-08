@@ -75,17 +75,16 @@ impl BaseObject {
     /// it. The first matching entry wins (base-config order).
     #[must_use]
     pub fn field(&self, field: &str) -> Option<&'static str> {
-        self.fields.iter().find(|(f, _)| *f == field).map(|(_, v)| *v)
+        self.fields
+            .iter()
+            .find(|(f, _)| *f == field)
+            .map(|(_, v)| *v)
     }
 }
 
 /// Look up a field-bearing base object by its full identity.
 #[must_use]
-pub fn base_object(
-    module: &str,
-    object_type: &str,
-    name: &str,
-) -> Option<&'static BaseObject> {
+pub fn base_object(module: &str, object_type: &str, name: &str) -> Option<&'static BaseObject> {
     BASE_OBJECTS
         .iter()
         .find(|o| o.module == module && o.object_type == object_type && o.name == name)

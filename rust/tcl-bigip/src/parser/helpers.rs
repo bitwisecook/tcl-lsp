@@ -619,6 +619,10 @@ mod tests {
             !props.iter().any(|(k, _)| k == "#"),
             "a `#` comment must not become a property"
         );
-        assert!(props.iter().any(|(k, p)| k == "monitor" && p.value == "/Common/http"));
+        assert!(
+            props
+                .iter()
+                .any(|(k, p)| k == "monitor" && p.value == "/Common/http")
+        );
     }
 }

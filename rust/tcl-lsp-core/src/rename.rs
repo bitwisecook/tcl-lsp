@@ -405,9 +405,9 @@ fn rename_method_in_class(
     }
     let mut edits = Vec::new();
     for member in &family {
-        let Some((decl_span, call_spans)) =
-            crate::references::method_references_for_class(source, dialect, analysis, member, method)
-        else {
+        let Some((decl_span, call_spans)) = crate::references::method_references_for_class(
+            source, dialect, analysis, member, method,
+        ) else {
             continue;
         };
         edits.push(TextEdit {
@@ -459,7 +459,8 @@ pub fn method_rename_target(
         let body = class_def.body_span;
         if body.start() < cursor
             && cursor < body.end()
-            && (class_def.methods.contains_key(&word) || class_def.class_methods.contains_key(&word))
+            && (class_def.methods.contains_key(&word)
+                || class_def.class_methods.contains_key(&word))
         {
             return Some((class_def.qualified_name.clone(), word));
         }
@@ -480,7 +481,8 @@ pub fn method_spans_in_document(
     class_q: &str,
     method: &str,
 ) -> Vec<tcl_lexer::Span> {
-    match crate::references::method_references_for_class(source, dialect, analysis, class_q, method) {
+    match crate::references::method_references_for_class(source, dialect, analysis, class_q, method)
+    {
         Some((decl, calls)) => {
             let mut spans = Vec::with_capacity(1 + calls.len());
             spans.push(decl);
@@ -547,9 +549,8 @@ fn override_family(analysis: &AnalysisResult, seed_class: &str, method: &str) ->
     } else {
         return Vec::new();
     };
-    let connected = |a: &str, b: &str| {
-        a == b || hierarchy.is_subtype(a, b) || hierarchy.is_subtype(b, a)
-    };
+    let connected =
+        |a: &str, b: &str| a == b || hierarchy.is_subtype(a, b) || hierarchy.is_subtype(b, a);
     // Grow the weakly-connected component of definers containing `seed` to a
     // fixed point (siblings attach via a shared base already in the family).
     let mut family = vec![seed];
@@ -1801,7 +1802,10 @@ mod tests {
         // Cursor on `run` in Engine (line 1 col 7).
         let edits = rename(src, "tcl", 1, 7, "start", &analysis, None);
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
-        assert!(lines.contains(&1), "Engine::run should be renamed: {edits:?}");
+        assert!(
+            lines.contains(&1),
+            "Engine::run should be renamed: {edits:?}"
+        );
         assert!(
             !lines.contains(&4),
             "unrelated Task::run must NOT be renamed; got {edits:?}",
@@ -1824,7 +1828,10 @@ mod tests {
         let analysis = analyse(src);
         // Cursor on `speak` in `$d speak` (line 7 col 3).
         let edits = rename(src, "tcl", 7, 3, "vocalise", &analysis, None);
-        assert!(!edits.is_empty(), "inherited-method rename produced nothing");
+        assert!(
+            !edits.is_empty(),
+            "inherited-method rename produced nothing"
+        );
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
         assert!(
             lines.contains(&1),

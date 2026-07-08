@@ -764,11 +764,11 @@ fn w001_accepts_unique_prefix_subcommand_abbreviations() {
     // Tcl ensemble dispatch accepts unique-prefix abbreviations; the analyser
     // must not flag them as unknown subcommands (W001).
     for snippet in [
-        "string le $s",       // length
-        "string leng $s",     // length
-        "info ex v",          // exists
-        "dict k $d",          // keys
-        "string rev $s",      // reverse
+        "string le $s",   // length
+        "string leng $s", // length
+        "info ex v",      // exists
+        "dict k $d",      // keys
+        "string rev $s",  // reverse
     ] {
         assert!(
             !has_code(snippet, "tcl8.6", "W001"),
@@ -895,7 +895,9 @@ fn subcommand_version_gates_fire_w002() {
         );
     }
     // A subcommand that exists in *no* dialect is still a genuine W001.
-    let typo = Analyser::new().analyse("string bogusxyz abc", "tcl8.6").diagnostics;
+    let typo = Analyser::new()
+        .analyse("string bogusxyz abc", "tcl8.6")
+        .diagnostics;
     assert!(
         typo.iter().any(|d| d.code == DiagCode::W001),
         "expected W001 for a genuinely unknown subcommand"

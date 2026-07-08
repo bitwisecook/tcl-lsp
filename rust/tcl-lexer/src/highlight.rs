@@ -82,7 +82,13 @@ pub fn highlight_ranges_with_config(src: &str, config: LexerConfig) -> Vec<HlRan
 /// whole document, so nested braced/bracketed scripts report document-absolute
 /// spans. Kept structurally identical to `highlight_into` so the colouring can
 /// never drift (the `ranges_reproduce_highlight_html` test pins this).
-fn collect_ranges(src: &str, depth: usize, base: usize, config: LexerConfig, out: &mut Vec<HlRange>) {
+fn collect_ranges(
+    src: &str,
+    depth: usize,
+    base: usize,
+    config: LexerConfig,
+    out: &mut Vec<HlRange>,
+) {
     if src.is_empty() {
         return;
     }
@@ -113,7 +119,11 @@ fn collect_ranges(src: &str, depth: usize, base: usize, config: LexerConfig, out
                         out.push(range(
                             base + s,
                             base + e,
-                            if text.contains("::") { "tk-ns" } else { "tk-cmd" },
+                            if text.contains("::") {
+                                "tk-ns"
+                            } else {
+                                "tk-cmd"
+                            },
                         ));
                     } else if let Some(cls) = classify_word(text) {
                         out.push(range(base + s, base + e, cls));
@@ -230,7 +240,14 @@ fn highlight_into(src: &str, depth: usize, config: LexerConfig, out: &mut String
 /// delimiters from the token span (they arrive as the surrounding gap text), so
 /// the token text is normally already the inner script and is recursed
 /// directly; if a lexer path does keep the delimiters, strip them first.
-fn recurse_wrapped(text: &str, open: char, close: char, depth: usize, config: LexerConfig, out: &mut String) {
+fn recurse_wrapped(
+    text: &str,
+    open: char,
+    close: char,
+    depth: usize,
+    config: LexerConfig,
+    out: &mut String,
+) {
     // The token span keeps the opening delimiter but drops the closing one
     // (which arrives as the following gap); strip a leading `{`/`[`, and a
     // trailing `}`/`]` if this path happens to include it, then recurse.
@@ -346,7 +363,9 @@ mod tests {
             "f5-irules preset should treat `pool` after `}}{{` as a command"
         );
         // The HTML variant agrees with the ranges variant.
-        assert!(highlight_tcl_with_config(src, irules).contains("<span class=\"tk-cmd\">pool</span>"));
+        assert!(
+            highlight_tcl_with_config(src, irules).contains("<span class=\"tk-cmd\">pool</span>")
+        );
     }
 
     #[test]
@@ -361,7 +380,9 @@ mod tests {
             prev_end = r.end;
         }
         // the event token is classed as an event, at its real offset
-        let ev = ranges.iter().find(|r| &src[r.start..r.end] == "HTTP_REQUEST");
+        let ev = ranges
+            .iter()
+            .find(|r| &src[r.start..r.end] == "HTTP_REQUEST");
         assert_eq!(ev.map(|r| r.class), Some("tk-event"));
     }
 }

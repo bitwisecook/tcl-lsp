@@ -179,8 +179,14 @@ pub fn build_enrichment(devices: &[J], architecture: &J) -> J {
     let mut addr_map = Map::new();
     for a in addrs {
         let Some(ip) = to_ip(&a) else { continue };
-        let zone = zone_nets.iter().find(|(n, _)| net_contains(n, ip)).map(|(_, l)| l);
-        let cidr_name = cidr_nets.iter().find(|(n, _)| net_contains(n, ip)).map(|(_, l)| l);
+        let zone = zone_nets
+            .iter()
+            .find(|(n, _)| net_contains(n, ip))
+            .map(|(_, l)| l);
+        let cidr_name = cidr_nets
+            .iter()
+            .find(|(n, _)| net_contains(n, ip))
+            .map(|(_, l)| l);
         if zone.is_none() && cidr_name.is_none() {
             continue;
         }

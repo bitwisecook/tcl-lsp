@@ -68,24 +68,26 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver: Some(unset_arg_roles),
         assigns_variable_at: Some(0),
         return_type: Some(TclType::String),
-        options: const { &[
-            OptionSpec {
-                name: "-nocomplain",
-                value: OptionValue::flag(),
-                detail: "Suppress errors for non-existent variables.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-            OptionSpec {
-                name: "--",
-                value: OptionValue::flag(),
-                detail: "End of options.",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            },
-        ] },
+        options: const {
+            &[
+                OptionSpec {
+                    name: "-nocomplain",
+                    value: OptionValue::flag(),
+                    detail: "Suppress errors for non-existent variables.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
+                    name: "--",
+                    value: OptionValue::flag(),
+                    detail: "End of options.",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+            ]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
             reads: false,

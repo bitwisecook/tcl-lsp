@@ -67,14 +67,16 @@ pub const fn spec() -> CommandSpec {
             ],
         )],
         closed_value_args: &[0],
-        options: const { &[OptionSpec {
-            name: "-string",
-            value: OptionValue::value("version"),
-            detail: "Get/set version as raw string.",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "-string",
+                value: OptionValue::value("version"),
+                detail: "Get/set version as raw string.",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::HttpHeader,
             reads: true,

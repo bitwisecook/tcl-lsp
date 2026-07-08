@@ -41,8 +41,8 @@ pub fn render_markdown(md: &str) -> String {
     opts.insert(Options::ENABLE_FOOTNOTES);
     opts.insert(Options::ENABLE_SMART_PUNCTUATION);
 
-    let parser = Parser::new_ext(md, opts)
-        .filter(|ev| !matches!(ev, Event::Html(_) | Event::InlineHtml(_)));
+    let parser =
+        Parser::new_ext(md, opts).filter(|ev| !matches!(ev, Event::Html(_) | Event::InlineHtml(_)));
 
     let mut out = String::new();
     html::push_html(&mut out, parser);
@@ -64,7 +64,10 @@ mod tests {
     #[test]
     fn strips_raw_html() {
         let html = render_markdown("ok <script>alert(1)</script> done");
-        assert!(!html.contains("<script>"), "raw HTML must be stripped: {html}");
+        assert!(
+            !html.contains("<script>"),
+            "raw HTML must be stripped: {html}"
+        );
     }
 
     #[test]

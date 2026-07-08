@@ -133,8 +133,7 @@ impl Analyser {
             }
             // Skip dynamic-value args — a `Var`/`Cmd` token's text is not the
             // literal option name.
-            if i < arg_tokens.len()
-                && matches!(arg_tokens[i].kind, TokenType::Var | TokenType::Cmd)
+            if i < arg_tokens.len() && matches!(arg_tokens[i].kind, TokenType::Var | TokenType::Cmd)
             {
                 i += 1;
                 continue;

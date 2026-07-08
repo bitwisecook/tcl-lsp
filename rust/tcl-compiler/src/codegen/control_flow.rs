@@ -170,8 +170,7 @@ impl CodegenCtx<'_> {
         self.instructions[p.dict_set].operands = vec![Operand::Imm(1), Operand::Imm(res_slot)];
         self.instructions[p.dict_next].operands = vec![Operand::Imm(iter_slot)];
         self.instructions[p.unset_it_err].operands = vec![Operand::Imm(0), Operand::Imm(iter_slot)];
-        self.instructions[p.unset_res_err].operands =
-            vec![Operand::Imm(0), Operand::Imm(res_slot)];
+        self.instructions[p.unset_res_err].operands = vec![Operand::Imm(0), Operand::Imm(res_slot)];
         self.instructions[p.unset_it_exit].operands =
             vec![Operand::Imm(0), Operand::Imm(iter_slot)];
         self.instructions[p.res_load].operands = vec![Operand::Imm(res_slot)];

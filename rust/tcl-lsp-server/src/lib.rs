@@ -2171,8 +2171,14 @@ impl Backend {
             let start = li.position_at_utf16(name_span.start(), &tdoc.text);
             let end = li.position_at_utf16(name_span.end(), &tdoc.text);
             let range = Range {
-                start: Position { line: start.line, character: start.character.get() },
-                end: Position { line: end.line, character: end.character.get() },
+                start: Position {
+                    line: start.line,
+                    character: start.character.get(),
+                },
+                end: Position {
+                    line: end.line,
+                    character: end.character.get(),
+                },
             };
             lifted.push(TypeHierarchyItem {
                 name: qname,
@@ -2659,10 +2665,16 @@ impl Backend {
             let mut m: std::collections::HashMap<String, (Vec<String>, Vec<String>)> =
                 std::collections::HashMap::new();
             for wc in index.method_override_family(seed_class, method) {
-                m.entry(wc.uri.clone()).or_default().0.push(wc.qualified_name.clone());
+                m.entry(wc.uri.clone())
+                    .or_default()
+                    .0
+                    .push(wc.qualified_name.clone());
             }
             for wc in index.method_inheritor_classes(seed_class, method) {
-                m.entry(wc.uri.clone()).or_default().1.push(wc.qualified_name.clone());
+                m.entry(wc.uri.clone())
+                    .or_default()
+                    .1
+                    .push(wc.qualified_name.clone());
             }
             m
         };
@@ -2713,8 +2725,14 @@ impl Backend {
                 let end = line_index.position_at_utf16(span.end(), &target_doc.text);
                 let edit = TextEdit {
                     range: Range {
-                        start: Position { line: start.line, character: start.character.get() },
-                        end: Position { line: end.line, character: end.character.get() },
+                        start: Position {
+                            line: start.line,
+                            character: start.character.get(),
+                        },
+                        end: Position {
+                            line: end.line,
+                            character: end.character.get(),
+                        },
                     },
                     new_text: new_name.to_owned(),
                 };
@@ -6268,8 +6286,9 @@ impl LanguageServer for Backend {
                     &text, &registry, false,
                 ))
             });
-            let analysis = cached_analysis
-                .unwrap_or_else(|| Arc::new(tcl_compiler::analyser::Analyser::new().analyse(&text, &dialect)));
+            let analysis = cached_analysis.unwrap_or_else(|| {
+                Arc::new(tcl_compiler::analyser::Analyser::new().analyse(&text, &dialect))
+            });
             core_semantic_tokens::range_with_cu_and_analysis(
                 &text,
                 &dialect,
@@ -8084,10 +8103,7 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
         );
     }
     // `.tcl-lsp.ini [project] entryPoints` per-folder value.
-    if let Some(points) = obj
-        .get("entryPoints")
-        .and_then(serde_json::Value::as_array)
-    {
+    if let Some(points) = obj.get("entryPoints").and_then(serde_json::Value::as_array) {
         fc.entry_points = Some(
             points
                 .iter()
@@ -9872,10 +9888,7 @@ mod tests {
         let root = PathBuf::from("/proj");
         let main = Uri::from_file_path("/proj/main.tcl").unwrap();
         let other = Uri::from_file_path("/proj/other.tcl").unwrap();
-        let index = ws_index(&[
-            (&main, "package require Tk\n"),
-            (&other, "proc o {} {}\n"),
-        ]);
+        let index = ws_index(&[(&main, "package require Tk\n"), (&other, "proc o {} {}\n")]);
         // Auto mode: other.tcl is not sourced by main, so it inherits nothing.
         assert!(compute_inherited_requires(&index, &other, &[], Some(&root)).is_empty());
         // Explicit entry point: other.tcl inherits main.tcl's Tk.
@@ -13900,7 +13913,12 @@ mod tests {
         let backend = test_backend();
         let animal = Uri::from_str("file:///animal.tcl").unwrap();
         let dog = Uri::from_str("file:///dog.tcl").unwrap();
-        register(&backend, &animal, "oo::class create Animal {\n    method speak {} {}\n}\n").await;
+        register(
+            &backend,
+            &animal,
+            "oo::class create Animal {\n    method speak {} {}\n}\n",
+        )
+        .await;
         register(
             &backend,
             &dog,
@@ -13909,7 +13927,9 @@ mod tests {
         .await;
         let params = RenameParams {
             text_document_position: TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier { uri: animal.clone() },
+                text_document: TextDocumentIdentifier {
+                    uri: animal.clone(),
+                },
                 position: Position::new(1, 11), // on `speak` in Animal's decl
             },
             new_name: "vocalise".to_owned(),
@@ -13917,8 +13937,14 @@ mod tests {
         };
         let edit = backend.rename(params).await.expect("ok").expect("some");
         let changes = edit.changes.expect("changes");
-        assert!(changes.contains_key(&animal), "base doc edits missing: {changes:?}");
-        assert!(changes.contains_key(&dog), "override doc edits missing: {changes:?}");
+        assert!(
+            changes.contains_key(&animal),
+            "base doc edits missing: {changes:?}"
+        );
+        assert!(
+            changes.contains_key(&dog),
+            "override doc edits missing: {changes:?}"
+        );
         // Every edit renames to `vocalise`.
         assert!(changes.values().flatten().all(|e| e.new_text == "vocalise"));
         // dog.tcl: the override declaration (line 2) + the `$d speak` call
@@ -13940,7 +13966,12 @@ mod tests {
         let backend = test_backend();
         let animal = Uri::from_str("file:///animal.tcl").unwrap();
         let dog = Uri::from_str("file:///dog.tcl").unwrap();
-        register(&backend, &animal, "oo::class create Animal {\n    method speak {} {}\n}\n").await;
+        register(
+            &backend,
+            &animal,
+            "oo::class create Animal {\n    method speak {} {}\n}\n",
+        )
+        .await;
         register(
             &backend,
             &dog,
@@ -13949,7 +13980,9 @@ mod tests {
         .await;
         let params = RenameParams {
             text_document_position: TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier { uri: animal.clone() },
+                text_document: TextDocumentIdentifier {
+                    uri: animal.clone(),
+                },
                 position: Position::new(1, 11), // on `speak` in Animal's decl
             },
             new_name: "vocalise".to_owned(),
@@ -13957,7 +13990,10 @@ mod tests {
         };
         let edit = backend.rename(params).await.expect("ok").expect("some");
         let changes = edit.changes.expect("changes");
-        assert!(changes.contains_key(&animal), "base doc edits missing: {changes:?}");
+        assert!(
+            changes.contains_key(&animal),
+            "base doc edits missing: {changes:?}"
+        );
         assert!(
             changes.contains_key(&dog),
             "subclass-only doc edits missing: {changes:?}",

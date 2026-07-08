@@ -108,7 +108,11 @@ impl Builder {
                 vec![(id, String::new())]
             }
             "truncated" => {
-                let id = self.node(&incoming, "action", if label.is_empty() { "…" } else { label });
+                let id = self.node(
+                    &incoming,
+                    "action",
+                    if label.is_empty() { "…" } else { label },
+                );
                 vec![(id, String::new())]
             }
             "loop" => {
@@ -227,7 +231,11 @@ fn is_terminal(command: &str) -> bool {
 fn clean(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.trim().chars() {
-        out.push(if matches!(c, '\n' | '\r' | '\t') { ' ' } else { c });
+        out.push(if matches!(c, '\n' | '\r' | '\t') {
+            ' '
+        } else {
+            c
+        });
     }
     let out = out.replace("&&", " and ").replace("||", " or ");
     let trimmed = out.trim();
@@ -316,7 +324,10 @@ mod tests {
         let out = irule_flowchart_graph(src, registry);
         // Valid JSON graph carrying both branch actions.
         let v: Value = serde_json::from_str(&out).expect("valid JSON graph");
-        assert!(v.get("nodes").and_then(Value::as_array).is_some(), "no nodes:\n{out}");
+        assert!(
+            v.get("nodes").and_then(Value::as_array).is_some(),
+            "no nodes:\n{out}"
+        );
         assert!(out.contains("a_pool"), "missing then-branch pool:\n{out}");
         assert!(out.contains("b_pool"), "missing else-branch pool:\n{out}");
     }

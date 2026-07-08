@@ -51,10 +51,10 @@ pub struct ReferenceEdge {
 }
 
 /// Reference edges declared for `from_kind`, in table order.
-pub fn reference_edges_from(
-    from_kind: &str,
-) -> impl Iterator<Item = &'static ReferenceEdge> + '_ {
-    REFERENCE_EDGES.iter().filter(move |e| e.from_kind == from_kind)
+pub fn reference_edges_from(from_kind: &str) -> impl Iterator<Item = &'static ReferenceEdge> + '_ {
+    REFERENCE_EDGES
+        .iter()
+        .filter(move |e| e.from_kind == from_kind)
 }
 
 /// The candidate target kinds `property` of `from_kind` may name — the first

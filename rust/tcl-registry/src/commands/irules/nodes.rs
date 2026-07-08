@@ -35,14 +35,16 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "nodes (-list)? POOL_OBJ",
         }],
-        options: const { &[OptionSpec {
-            name: "-list",
-            value: OptionValue::flag(),
-            detail: "Option -list.",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "-list",
+                value: OptionValue::flag(),
+                detail: "Option -list.",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::BigipConfig,
             reads: true,

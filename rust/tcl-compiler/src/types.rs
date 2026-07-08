@@ -123,8 +123,8 @@ impl TypeLattice {
     /// only ever pass the two container types).
     #[must_use]
     pub fn collection_of(container: TclType, element_class: impl Into<String>) -> Self {
-        let element_class = matches!(container, TclType::List | TclType::Dict)
-            .then(|| element_class.into());
+        let element_class =
+            matches!(container, TclType::List | TclType::Dict).then(|| element_class.into());
         Self {
             kind: TypeKind::Known,
             tcl_type: Some(container),

@@ -38,14 +38,16 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "LSN::persistence-entry (delete|get) CLIENT_ADDR",
         }],
-        options: const { &[OptionSpec {
-            name: "-override",
-            value: OptionValue::flag(),
-            detail: "Option -override.",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "-override",
+                value: OptionValue::flag(),
+                detail: "Option -override.",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::LsnState,
             reads: true,

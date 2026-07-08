@@ -38,14 +38,16 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        options: const { &[OptionSpec {
-            name: "-nonewline",
-            value: OptionValue::flag(),
-            detail: "Do not output a newline character.",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "-nonewline",
+                value: OptionValue::flag(),
+                detail: "Do not output a newline character.",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         hover: Some(HoverSnippet {
             summary: "Write text to a channel (stdout by default).",
             synopsis: &["puts ?-nonewline? ?channelId? string"],

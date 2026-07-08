@@ -40,7 +40,6 @@
 //!
 //! Nothing here touches shipping diagnostics.
 
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -118,11 +117,16 @@ fn uf_find(parent: &mut [usize], x: usize) -> usize {
 fn resolve_roots() -> Vec<PathBuf> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let roots: Vec<PathBuf> = if args.is_empty() {
-        ["experiments/corpus", "tmp/tcllib-2.0", "tmp/tcl8.6.16/tests", "tmp/tcl9.0.3/tests"]
-            .iter()
-            .map(PathBuf::from)
-            .filter(|p| p.exists())
-            .collect()
+        [
+            "experiments/corpus",
+            "tmp/tcllib-2.0",
+            "tmp/tcl8.6.16/tests",
+            "tmp/tcl9.0.3/tests",
+        ]
+        .iter()
+        .map(PathBuf::from)
+        .filter(|p| p.exists())
+        .collect()
     } else {
         args.iter().map(PathBuf::from).collect()
     };
@@ -174,7 +178,10 @@ fn collect_definers(merged: &HashMap<String, ClassDef>) -> (HashMap<String, Vec<
     let mut total_defs = 0usize;
     for (qname, cd) in merged {
         for method in cd.methods.keys().chain(cd.class_methods.keys()) {
-            definers.entry(method.clone()).or_default().push(qname.clone());
+            definers
+                .entry(method.clone())
+                .or_default()
+                .push(qname.clone());
             total_defs += 1;
         }
     }
@@ -201,8 +208,7 @@ fn report_families(
         }
         // A definition is an override iff some *other* definer is connected.
         for i in 0..classes.len() {
-            if (0..classes.len())
-                .any(|j| j != i && connected(hierarchy, &classes[i], &classes[j]))
+            if (0..classes.len()).any(|j| j != i && connected(hierarchy, &classes[i], &classes[j]))
             {
                 override_defs += 1;
             }
@@ -232,7 +238,13 @@ fn report_families(
         }
     }
 
-    let pct = |n: usize| if total_defs == 0 { 0.0 } else { 100.0 * as_f64(n) / as_f64(total_defs) };
+    let pct = |n: usize| {
+        if total_defs == 0 {
+            0.0
+        } else {
+            100.0 * as_f64(n) / as_f64(total_defs)
+        }
+    };
     println!("\n## results");
     println!("total direct method definitions: {total_defs}");
     println!(
@@ -349,7 +361,10 @@ fn main() {
     println!("# mro_overrides — method-override frequency across a corpus");
     println!(
         "corpus roots: {:?}",
-        roots.iter().map(|p| p.display().to_string()).collect::<Vec<_>>()
+        roots
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect::<Vec<_>>()
     );
 
     let files = discover_files(&roots);

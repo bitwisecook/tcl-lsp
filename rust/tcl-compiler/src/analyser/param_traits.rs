@@ -1199,7 +1199,10 @@ mod tests {
         let traits = infer(&["local"], "upvar 1 caller $local");
         assert_trait(&traits, "local", ProcArgTrait::DynamicNameLocal);
         assert!(
-            !traits.get("local").unwrap().contains(&ProcArgTrait::VarWrite),
+            !traits
+                .get("local")
+                .unwrap()
+                .contains(&ProcArgTrait::VarWrite),
             "myVar-slot param must not be a caller VarWrite; got {:?}",
             traits.get("local"),
         );
@@ -1354,7 +1357,10 @@ mod tests {
         // `$param` there is inferred `Command`.
         let overlay = make_overlay(vec![stub_sig(
             "on_event",
-            &[("event", ArgRole::Value), ("handler", ArgRole::CommandPrefix)],
+            &[
+                ("event", ArgRole::Value),
+                ("handler", ArgRole::CommandPrefix),
+            ],
         )]);
         let registry = CommandRegistry::build_default();
         let traits = infer_param_traits(&["h"], "on_event click $h", &registry, Some(&overlay));

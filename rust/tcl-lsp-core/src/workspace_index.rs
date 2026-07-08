@@ -343,8 +343,11 @@ impl WorkspaceIndex {
         std::collections::HashSet<&str>,
         std::collections::HashMap<String, Vec<String>>,
     ) {
-        let known: std::collections::HashSet<&str> =
-            self.classes.iter().map(|c| c.qualified_name.as_str()).collect();
+        let known: std::collections::HashSet<&str> = self
+            .classes
+            .iter()
+            .map(|c| c.qualified_name.as_str())
+            .collect();
         let tail_index = build_tail_index(self.classes.iter().map(|c| &c.qualified_name));
         (known, tail_index)
     }
@@ -360,9 +363,12 @@ impl WorkspaceIndex {
         let mut out: Vec<&WorkspaceClass> = Vec::new();
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         for name in wc.superclasses.iter().chain(wc.mixins.iter()) {
-            let Some(q) =
-                resolve_class_name(name, &wc.qualified_name, |cand| known.contains(cand), &tail_index)
-            else {
+            let Some(q) = resolve_class_name(
+                name,
+                &wc.qualified_name,
+                |cand| known.contains(cand),
+                &tail_index,
+            ) else {
                 continue;
             };
             if !seen.insert(q.clone()) {
@@ -385,8 +391,13 @@ impl WorkspaceIndex {
             .iter()
             .filter(|c| {
                 c.superclasses.iter().chain(c.mixins.iter()).any(|s| {
-                    resolve_class_name(s, &c.qualified_name, |cand| known.contains(cand), &tail_index)
-                        .as_deref()
+                    resolve_class_name(
+                        s,
+                        &c.qualified_name,
+                        |cand| known.contains(cand),
+                        &tail_index,
+                    )
+                    .as_deref()
                         == Some(class_qname)
                 })
             })
@@ -491,7 +502,9 @@ impl WorkspaceIndex {
                 // Inherits `method` (has a definer ancestor) and cannot resolve
                 // it to a definer outside the family.
                 !defining_ancestors.is_empty()
-                    && defining_ancestors.iter().all(|a| family_set.contains(a.as_str()))
+                    && defining_ancestors
+                        .iter()
+                        .all(|a| family_set.contains(a.as_str()))
             })
             .collect()
     }
@@ -729,7 +742,10 @@ mod tests {
         assert_eq!(names, vec!["Dog"]);
         // Dog's subclasses: Puppy (c.tcl).
         let dog_subs = index.subclasses_of("::Dog");
-        assert_eq!(dog_subs.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["Puppy"]);
+        assert_eq!(
+            dog_subs.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            vec!["Puppy"]
+        );
     }
 
     #[test]
@@ -739,7 +755,9 @@ mod tests {
         // namespace), never ::B::Base — and a subclass in a *third*
         // namespace with no local Base must abstain (ambiguous tail), not
         // guess.
-        let a = analyse("oo::class create ::A::Base {}\noo::class create ::A::Derived {\n    superclass Base\n}\n");
+        let a = analyse(
+            "oo::class create ::A::Base {}\noo::class create ::A::Derived {\n    superclass Base\n}\n",
+        );
         let b = analyse("oo::class create ::B::Base {}\n");
         let c = analyse("oo::class create ::C::Widget {\n    superclass Base\n}\n");
         let index = WorkspaceIndex::from_documents([
@@ -748,9 +766,16 @@ mod tests {
             ("file:///c.tcl", &c),
         ]);
         // ::A::Base's subclasses: only ::A::Derived (owner-aware pick).
-        let a_subs: Vec<&str> =
-            index.subclasses_of("::A::Base").iter().map(|c| c.qualified_name.as_str()).collect();
-        assert_eq!(a_subs, vec!["::A::Derived"], "owner-aware resolution mis-linked");
+        let a_subs: Vec<&str> = index
+            .subclasses_of("::A::Base")
+            .iter()
+            .map(|c| c.qualified_name.as_str())
+            .collect();
+        assert_eq!(
+            a_subs,
+            vec!["::A::Derived"],
+            "owner-aware resolution mis-linked"
+        );
         // ::B::Base gets no subclass from the ambiguous bare `Base` names.
         assert!(
             index.subclasses_of("::B::Base").is_empty(),
@@ -773,8 +798,10 @@ mod tests {
         // Base `speak` in a.tcl; Dog overrides it in b.tcl; Cat overrides it
         // in c.tcl; unrelated Engine::speak in d.tcl must stay out.
         let animal = analyse("oo::class create Animal {\n    method speak {} {}\n}\n");
-        let dog = analyse("oo::class create Dog {\n    superclass Animal\n    method speak {} {}\n}\n");
-        let cat = analyse("oo::class create Cat {\n    superclass Animal\n    method speak {} {}\n}\n");
+        let dog =
+            analyse("oo::class create Dog {\n    superclass Animal\n    method speak {} {}\n}\n");
+        let cat =
+            analyse("oo::class create Cat {\n    superclass Animal\n    method speak {} {}\n}\n");
         let engine = analyse("oo::class create Engine {\n    method speak {} {}\n}\n");
         let index = WorkspaceIndex::from_documents([
             ("file:///a.tcl", &animal),
@@ -790,7 +817,11 @@ mod tests {
             .collect();
         fam.sort_unstable();
         fam.dedup();
-        assert_eq!(fam, vec!["::Animal", "::Cat", "::Dog"], "cross-file family wrong");
+        assert_eq!(
+            fam,
+            vec!["::Animal", "::Cat", "::Dog"],
+            "cross-file family wrong"
+        );
         // Unrelated Engine::speak must not be pulled in.
         assert!(
             !index
@@ -812,7 +843,10 @@ mod tests {
             .iter()
             .map(|wc| wc.qualified_name.as_str())
             .collect();
-        assert!(fam2.contains(&"::Animal") && fam2.contains(&"::Dog"), "{fam2:?}");
+        assert!(
+            fam2.contains(&"::Animal") && fam2.contains(&"::Dog"),
+            "{fam2:?}"
+        );
     }
 
     #[test]
@@ -822,7 +856,9 @@ mod tests {
         // Car in c.tcl/d.tcl.  Seeding from Animal, Dog is an inheritor and
         // Car (disjoint hierarchy) is not.
         let animal = analyse("oo::class create Animal {\n    method speak {} {}\n}\n");
-        let dog = analyse("oo::class create Dog {\n    superclass Animal\n    method describe {} { my speak }\n}\n");
+        let dog = analyse(
+            "oo::class create Dog {\n    superclass Animal\n    method describe {} { my speak }\n}\n",
+        );
         let engine = analyse("oo::class create Engine {\n    method speak {} {}\n}\n");
         let car = analyse("oo::class create Car {\n    superclass Engine\n}\n");
         let index = WorkspaceIndex::from_documents([
@@ -862,9 +898,7 @@ mod tests {
         // Family seeded from A does not include B, so `Both` (which can reach
         // B::run too) is abstained on.
         assert!(
-            index
-                .method_inheritor_classes("::A", "run")
-                .is_empty(),
+            index.method_inheritor_classes("::A", "run").is_empty(),
             "must abstain when an out-of-family definer ancestor exists",
         );
     }

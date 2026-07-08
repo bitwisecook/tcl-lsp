@@ -39,14 +39,16 @@ pub const fn spec() -> CommandSpec {
             .union(Traits::UNNORMALISED_HTTP_GETTER),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(0, 1),
-        options: const { &[OptionSpec {
-            name: "-normalized",
-            value: OptionValue::flag(),
-            detail: "Return the canonicalised URI (URL evasion patterns rejected).",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "-normalized",
+                value: OptionValue::flag(),
+                detail: "Return the canonicalised URI (URL evasion patterns rejected).",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         hover: Some(HoverSnippet {
             summary: "Returns or sets the URI part of the HTTP request.",
             synopsis: &["HTTP::uri (URI)?"],

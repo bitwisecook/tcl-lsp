@@ -43,7 +43,6 @@
 //! `experiments/corpus`, tcllib, and the Tcl 8.6/9.0 `oo` tests) when
 //! present.  Nothing here touches shipping diagnostics.
 
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -75,22 +74,38 @@ fn ablations() -> Vec<Ablation> {
     vec![
         Ablation {
             label: "A0 MRO-only (single-class, no join)",
-            cfg: AblationConfig { join: false, mixins_filters: false, cross_file: false },
+            cfg: AblationConfig {
+                join: false,
+                mixins_filters: false,
+                cross_file: false,
+            },
             cross_file: false,
         },
         Ablation {
             label: "A1 +join (CFG-merge lattice)",
-            cfg: AblationConfig { join: true, mixins_filters: false, cross_file: false },
+            cfg: AblationConfig {
+                join: true,
+                mixins_filters: false,
+                cross_file: false,
+            },
             cross_file: false,
         },
         Ablation {
             label: "A2 +mixins/filters (full MRO)",
-            cfg: AblationConfig { join: true, mixins_filters: true, cross_file: false },
+            cfg: AblationConfig {
+                join: true,
+                mixins_filters: true,
+                cross_file: false,
+            },
             cross_file: false,
         },
         Ablation {
             label: "A3 +cross-file index (FULL)",
-            cfg: AblationConfig { join: true, mixins_filters: true, cross_file: true },
+            cfg: AblationConfig {
+                join: true,
+                mixins_filters: true,
+                cross_file: true,
+            },
             cross_file: true,
         },
     ]
@@ -144,8 +159,8 @@ fn analyse_file(path: &Path, reg: &CommandRegistry) -> Option<Analysed> {
         // class index lives on the returned value, not on `a.result`.  The
         // deferred `var_command_sites` stay on the analyser field.
         let result = a.analyse(&src, "tcl8.6");
-        let cu = CompilationUnit::build_for(&src, reg, false)
-            .with_interprocedural(reg, Some("tcl8.6"));
+        let cu =
+            CompilationUnit::build_for(&src, reg, false).with_interprocedural(reg, Some("tcl8.6"));
         let ns = NsContext::from_result(&result);
         Analysed {
             cu,
@@ -168,10 +183,19 @@ fn print_stats(label: &str, s: &DispatchStats) {
         }
     };
     println!("\n### {label}");
-    println!("  sites={}  resolved={} ({:.1}%)  ⊤={} ({:.1}%)  top-rate={:.3}",
-        s.total_sites, s.resolved, pct(s.resolved), s.abstain, pct(s.abstain), s.top_rate());
-    println!("  of resolved: method-known={}  method-unknown(W308-cand)={}",
-        s.method_known, s.method_unknown);
+    println!(
+        "  sites={}  resolved={} ({:.1}%)  ⊤={} ({:.1}%)  top-rate={:.3}",
+        s.total_sites,
+        s.resolved,
+        pct(s.resolved),
+        s.abstain,
+        pct(s.abstain),
+        s.top_rate()
+    );
+    println!(
+        "  of resolved: method-known={}  method-unknown(W308-cand)={}",
+        s.method_known, s.method_unknown
+    );
     if !s.top_by_reason.is_empty() {
         println!("  ⊤ breakdown:");
         // Stable order following the taxonomy.
@@ -185,7 +209,12 @@ fn print_stats(label: &str, s: &DispatchStats) {
                 } else {
                     String::new()
                 };
-                println!("    {:<18} {:>6}  ({:.1}% of all sites){note}", r.as_str(), n, pct(*n));
+                println!(
+                    "    {:<18} {:>6}  ({:.1}% of all sites){note}",
+                    r.as_str(),
+                    n,
+                    pct(*n)
+                );
             }
         }
     }
@@ -209,11 +238,16 @@ struct PassB {
 fn corpus_roots(args: &[String]) -> Vec<PathBuf> {
     if args.is_empty() {
         // Default corpus set (only those that exist).
-        ["experiments/corpus", "tmp/tcllib-2.0", "tmp/tcl8.6.16/tests", "tmp/tcl9.0.3/tests"]
-            .iter()
-            .map(PathBuf::from)
-            .filter(|p| p.exists())
-            .collect()
+        [
+            "experiments/corpus",
+            "tmp/tcllib-2.0",
+            "tmp/tcl8.6.16/tests",
+            "tmp/tcl9.0.3/tests",
+        ]
+        .iter()
+        .map(PathBuf::from)
+        .filter(|p| p.exists())
+        .collect()
     } else {
         args.iter().map(PathBuf::from).collect()
     }
@@ -248,7 +282,10 @@ fn run_pass_a(files: &[PathBuf], reg: &CommandRegistry) -> PassA {
     }
     println!(
         "analysed {} files, {} total lines ({} with classes, {} with $obj-dispatch sites)",
-        analysed.len(), total_lines, files_with_classes, files_with_sites,
+        analysed.len(),
+        total_lines,
+        files_with_classes,
+        files_with_sites,
     );
     println!("merged class index: {} classes", merged_index.len());
     println!(
@@ -257,7 +294,10 @@ fn run_pass_a(files: &[PathBuf], reg: &CommandRegistry) -> PassA {
         1000.0 * analyse_time.as_secs_f64() / as_f64(analysed.len().max(1)),
         as_f64(total_lines) / 1000.0 / analyse_time.as_secs_f64().max(1e-9),
     );
-    PassA { analysed, merged_index }
+    PassA {
+        analysed,
+        merged_index,
+    }
 }
 
 /// Pass B: run every ablation over the cached products, aggregating stats and
@@ -271,7 +311,11 @@ fn run_pass_b(ablations: &[Ablation], pa: &PassA) -> PassB {
     for (ai, ab) in ablations.iter().enumerate() {
         let mut agg = DispatchStats::default();
         for (_path, a) in &pa.analysed {
-            let index = if ab.cross_file { &pa.merged_index } else { &a.classes };
+            let index = if ab.cross_file {
+                &pa.merged_index
+            } else {
+                &a.classes
+            };
             let t0 = Instant::now();
             let (reports, stats) = analyse_dispatch(&a.cu, index, &a.sites, &a.ns, &ab.cfg);
             resolve_time += t0.elapsed();
@@ -301,7 +345,12 @@ fn run_pass_b(ablations: &[Ablation], pa: &PassA) -> PassB {
         }
         per_ablation.push(agg);
     }
-    PassB { per_ablation, resolve_time, sample_abstain, sample_resolved }
+    PassB {
+        per_ablation,
+        resolve_time,
+        sample_abstain,
+        sample_resolved,
+    }
 }
 
 /// Print the ablation tables, marginal deltas, cost, and qualitative samples.
@@ -326,8 +375,7 @@ fn print_report(ablations: &[Ablation], pa: &PassA, pb: &PassB) {
         pb.resolve_time.as_secs_f64(),
         pa.analysed.len(),
         ablations.len(),
-        1000.0 * pb.resolve_time.as_secs_f64()
-            / as_f64(pa.analysed.len().max(1) * ablations.len()),
+        1000.0 * pb.resolve_time.as_secs_f64() / as_f64(pa.analysed.len().max(1) * ablations.len()),
     );
 
     println!("\n## Sample abstentions (FULL config, ⊤ with reason)");
@@ -350,7 +398,13 @@ fn main() {
     }
 
     println!("# mro_eval — TclOO class-lattice dispatch resolver experiment");
-    println!("corpus roots: {:?}", roots.iter().map(|p| p.display().to_string()).collect::<Vec<_>>());
+    println!(
+        "corpus roots: {:?}",
+        roots
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect::<Vec<_>>()
+    );
 
     let mut files = Vec::new();
     for r in &roots {

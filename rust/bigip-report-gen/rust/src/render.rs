@@ -38,8 +38,7 @@ use crate::model::collect_model_full;
 use crate::query::{ReportError, Source};
 
 // The single shared report template both generators render (`report.html.j2`).
-const REPORT_TEMPLATE: &str =
-    include_str!("../../templates/report.html.j2");
+const REPORT_TEMPLATE: &str = include_str!("../../templates/report.html.j2");
 
 // Front-end shared with the Python `f5report` generator: TypeScript sources live
 // in `rust/bigip-report/shared/src` (`pages/`, `search/`, `styles/`), built to

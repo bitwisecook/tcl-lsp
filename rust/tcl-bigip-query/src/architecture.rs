@@ -946,7 +946,10 @@ nat-map -file nat.csv
         assert_eq!(dns[0]["zone"], "dmz");
 
         let maps = o["maps"].as_object().unwrap();
-        assert_eq!(maps["cidrNames"].as_array().unwrap()[0]["label"], "Datacenter A");
+        assert_eq!(
+            maps["cidrNames"].as_array().unwrap()[0]["label"],
+            "Datacenter A"
+        );
         assert_eq!(maps["serviceMap"], "services.csv");
         assert_eq!(maps["natMap"], "nat.csv");
     }

@@ -35,14 +35,16 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "GTP::tunnel <subcommand> ?-message MESSAGE?",
         }],
-        options: const { &[OptionSpec {
-            name: "-message",
-            value: OptionValue::value("MESSAGE"),
-            detail: "Operate on a specific GTP message object.",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "-message",
+                value: OptionValue::value("MESSAGE"),
+                detail: "Operate on a specific GTP message object.",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,

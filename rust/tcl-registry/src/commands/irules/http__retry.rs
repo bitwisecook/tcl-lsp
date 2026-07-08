@@ -46,14 +46,16 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "HTTP::retry ('-reset')? HTTP_REQUEST",
         }],
-        options: const { &[OptionSpec {
-            name: "-reset",
-            value: OptionValue::flag(),
-            detail: "Reset the server-side connection.",
-            dialects: None,
-            aliases: &[],
-            min_version: None,
-        }] },
+        options: const {
+            &[OptionSpec {
+                name: "-reset",
+                value: OptionValue::flag(),
+                detail: "Reset the server-side connection.",
+                dialects: None,
+                aliases: &[],
+                min_version: None,
+            }]
+        },
         side_effects: &[SideEffect {
             target: SideEffectTarget::HttpHeader,
             reads: false,

@@ -63,7 +63,6 @@
 //! ⊤ taxonomy the scalar type lattice cannot express, the JOIN at merges,
 //! and the resolver verdict per call site.
 
-
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use crate::analyser::class_hierarchy::{ClassHierarchy, build_class_hierarchy};
@@ -409,7 +408,10 @@ impl NsContext {
             .collect();
         imports.sort();
         imports.dedup();
-        Self { namespaces, imports }
+        Self {
+            namespaces,
+            imports,
+        }
     }
 }
 
@@ -667,7 +669,10 @@ fn build_class_values<S: std::hash::BuildHasher + Clone>(
     index: &HashMap<String, ClassDef, S>,
     ns: &NsContext,
     cfg: AblationConfig,
-) -> (HashMap<String, ClassValue>, std::collections::HashSet<String>) {
+) -> (
+    HashMap<String, ClassValue>,
+    std::collections::HashSet<String>,
+) {
     let mut values: HashMap<String, ClassValue> = HashMap::new();
 
     // 1. SSA type-lattice object bindings (the reused dataflow signal).
@@ -685,9 +690,15 @@ fn build_class_values<S: std::hash::BuildHasher + Clone>(
         let has_constructor_in_index = ks
             .iter()
             .any(|k| matches!(k, AssignKind::Constructor { in_index: true, .. }));
-        let has_constructor_miss = ks
-            .iter()
-            .any(|k| matches!(k, AssignKind::Constructor { in_index: false, .. }));
+        let has_constructor_miss = ks.iter().any(|k| {
+            matches!(
+                k,
+                AssignKind::Constructor {
+                    in_index: false,
+                    ..
+                }
+            )
+        });
         let has_literal = ks.iter().any(|k| matches!(k, AssignKind::Literal));
         let has_introspection = ks.iter().any(|k| matches!(k, AssignKind::Introspection));
         let has_per_object = ks.iter().any(|k| matches!(k, AssignKind::PerObject));
@@ -734,10 +745,7 @@ fn build_class_values<S: std::hash::BuildHasher + Clone>(
         // Only overwrite to ⊤ when we did not already have a *clean*
         // object binding, or the per-object / dynamic signal dominates.
         if let Some(reason) = top {
-            let dominate = matches!(
-                reason,
-                TopReason::PerObjectMixin | TopReason::DynamicAssign
-            );
+            let dominate = matches!(reason, TopReason::PerObjectMixin | TopReason::DynamicAssign);
             if dominate || !has_constructor_in_index {
                 values.insert(var.clone(), ClassValue::Top(reason));
             }
@@ -751,10 +759,7 @@ fn build_class_values<S: std::hash::BuildHasher + Clone>(
 /// True when `method` is one of the OO built-in class / object methods
 /// that every class responds to.
 fn is_oo_builtin(method: &str) -> bool {
-    matches!(
-        method,
-        "new" | "create" | "destroy" | "configure" | "cget"
-    )
+    matches!(method, "new" | "create" | "destroy" | "configure" | "cget")
 }
 
 /// Resolve one dispatch: JOIN the lattice value with the MRO table.
@@ -817,7 +822,10 @@ fn resolve<S: std::hash::BuildHasher + Clone>(
 
 /// Build the MRO/provider hierarchy, honouring the mixins/filters
 /// ablation (strip class-level mixins when disabled).
-fn hierarchy_for<S: std::hash::BuildHasher + Clone>(index: &HashMap<String, ClassDef, S>, cfg: AblationConfig) -> ClassHierarchy {
+fn hierarchy_for<S: std::hash::BuildHasher + Clone>(
+    index: &HashMap<String, ClassDef, S>,
+    cfg: AblationConfig,
+) -> ClassHierarchy {
     if cfg.mixins_filters {
         build_class_hierarchy(index.clone())
     } else {
@@ -917,8 +925,14 @@ mod tests {
 
     #[test]
     fn join_bottom_identity() {
-        assert_eq!(ClassValue::Bottom.join(ClassValue::Concrete("A".into())), ClassValue::Concrete("A".into()));
-        assert_eq!(ClassValue::Concrete("A".into()).join(ClassValue::Bottom), ClassValue::Concrete("A".into()));
+        assert_eq!(
+            ClassValue::Bottom.join(ClassValue::Concrete("A".into())),
+            ClassValue::Concrete("A".into())
+        );
+        assert_eq!(
+            ClassValue::Concrete("A".into()).join(ClassValue::Bottom),
+            ClassValue::Concrete("A".into())
+        );
     }
 
     #[test]
@@ -956,19 +970,38 @@ mod tests {
     /// A context that imports `::SpiceGenTcl` file-wide (as the OSS
     /// examples do via `namespace import ::SpiceGenTcl::*`).
     fn ns_importing(prefix: &str) -> NsContext {
-        NsContext { namespaces: Vec::new(), imports: vec![prefix.to_string()] }
+        NsContext {
+            namespaces: Vec::new(),
+            imports: vec![prefix.to_string()],
+        }
     }
     /// A context whose whole file is one `namespace eval <name> { … }`.
     fn ns_enclosing(name: &str) -> NsContext {
-        NsContext { namespaces: vec![(0, u32::MAX, name.to_string())], imports: Vec::new() }
+        NsContext {
+            namespaces: vec![(0, u32::MAX, name.to_string())],
+            imports: Vec::new(),
+        }
     }
 
     #[test]
     fn classify_constructor_in_index() {
         let mut index = HashMap::new();
-        index.insert("::Foo".to_string(), ClassDef { qualified_name: "::Foo".into(), name: "Foo".into(), ..Default::default() });
+        index.insert(
+            "::Foo".to_string(),
+            ClassDef {
+                qualified_name: "::Foo".into(),
+                name: "Foo".into(),
+                ..Default::default()
+            },
+        );
         let k = classify_rhs("[Foo new]", 0, &index, &NsContext::default());
-        assert_eq!(k, AssignKind::Constructor { class: "::Foo".into(), in_index: true });
+        assert_eq!(
+            k,
+            AssignKind::Constructor {
+                class: "::Foo".into(),
+                in_index: true
+            }
+        );
     }
 
     #[test]
@@ -979,11 +1012,21 @@ mod tests {
         let mut index = HashMap::new();
         index.insert(
             "::SpiceGenTcl::Circuit".to_string(),
-            ClassDef { qualified_name: "::SpiceGenTcl::Circuit".into(), name: "Circuit".into(), ..Default::default() },
+            ClassDef {
+                qualified_name: "::SpiceGenTcl::Circuit".into(),
+                name: "Circuit".into(),
+                ..Default::default()
+            },
         );
         let ns = ns_enclosing("::SpiceGenTcl");
         let k = classify_rhs("[Circuit new $name]", 10, &index, &ns);
-        assert_eq!(k, AssignKind::Constructor { class: "::SpiceGenTcl::Circuit".into(), in_index: true });
+        assert_eq!(
+            k,
+            AssignKind::Constructor {
+                class: "::SpiceGenTcl::Circuit".into(),
+                in_index: true
+            }
+        );
     }
 
     #[test]
@@ -993,11 +1036,21 @@ mod tests {
         let mut index = HashMap::new();
         index.insert(
             "::SpiceGenTcl::Circuit".to_string(),
-            ClassDef { qualified_name: "::SpiceGenTcl::Circuit".into(), name: "Circuit".into(), ..Default::default() },
+            ClassDef {
+                qualified_name: "::SpiceGenTcl::Circuit".into(),
+                name: "Circuit".into(),
+                ..Default::default()
+            },
         );
         let ns = ns_importing("::SpiceGenTcl");
         let k = classify_rhs("[Circuit new $name]", 0, &index, &ns);
-        assert_eq!(k, AssignKind::Constructor { class: "::SpiceGenTcl::Circuit".into(), in_index: true });
+        assert_eq!(
+            k,
+            AssignKind::Constructor {
+                class: "::SpiceGenTcl::Circuit".into(),
+                in_index: true
+            }
+        );
     }
 
     #[test]
@@ -1009,43 +1062,84 @@ mod tests {
         let mut index = HashMap::new();
         index.insert(
             "::SpiceGenTcl::Circuit".to_string(),
-            ClassDef { qualified_name: "::SpiceGenTcl::Circuit".into(), name: "Circuit".into(), ..Default::default() },
+            ClassDef {
+                qualified_name: "::SpiceGenTcl::Circuit".into(),
+                name: "Circuit".into(),
+                ..Default::default()
+            },
         );
         let k = classify_rhs("[Circuit new]", 0, &index, &NsContext::default());
-        assert_eq!(k, AssignKind::Constructor { class: "::Circuit".into(), in_index: false });
+        assert_eq!(
+            k,
+            AssignKind::Constructor {
+                class: "::Circuit".into(),
+                in_index: false
+            }
+        );
     }
 
     #[test]
     fn classify_constructor_wrong_namespace_import_stays_unresolved() {
         // Importing an unrelated namespace must not resolve the class.
         let mut index = HashMap::new();
-        index.insert("::A::Circuit".to_string(), ClassDef { qualified_name: "::A::Circuit".into(), name: "Circuit".into(), ..Default::default() });
+        index.insert(
+            "::A::Circuit".to_string(),
+            ClassDef {
+                qualified_name: "::A::Circuit".into(),
+                name: "Circuit".into(),
+                ..Default::default()
+            },
+        );
         let ns = ns_importing("::B");
         let k = classify_rhs("[Circuit new]", 0, &index, &ns);
-        assert_eq!(k, AssignKind::Constructor { class: "::Circuit".into(), in_index: false });
+        assert_eq!(
+            k,
+            AssignKind::Constructor {
+                class: "::Circuit".into(),
+                in_index: false
+            }
+        );
     }
 
     #[test]
     fn classify_constructor_cross_file_miss() {
         let index: HashMap<String, ClassDef> = HashMap::new();
         let k = classify_rhs("[Bar create b]", 0, &index, &NsContext::default());
-        assert_eq!(k, AssignKind::Constructor { class: "::Bar".into(), in_index: false });
+        assert_eq!(
+            k,
+            AssignKind::Constructor {
+                class: "::Bar".into(),
+                in_index: false
+            }
+        );
     }
 
     #[test]
     fn classify_introspection() {
         let index: HashMap<String, ClassDef> = HashMap::new();
         let ns = NsContext::default();
-        assert_eq!(classify_rhs("[info object class $x]", 0, &index, &ns), AssignKind::Introspection);
-        assert_eq!(classify_rhs("[oo::copy $x]", 0, &index, &ns), AssignKind::Introspection);
-        assert_eq!(classify_rhs("[self]", 0, &index, &ns), AssignKind::Introspection);
+        assert_eq!(
+            classify_rhs("[info object class $x]", 0, &index, &ns),
+            AssignKind::Introspection
+        );
+        assert_eq!(
+            classify_rhs("[oo::copy $x]", 0, &index, &ns),
+            AssignKind::Introspection
+        );
+        assert_eq!(
+            classify_rhs("[self]", 0, &index, &ns),
+            AssignKind::Introspection
+        );
     }
 
     #[test]
     fn classify_factory_and_literal() {
         let index: HashMap<String, ClassDef> = HashMap::new();
         let ns = NsContext::default();
-        assert_eq!(classify_rhs("[make_widget red]", 0, &index, &ns), AssignKind::Factory);
+        assert_eq!(
+            classify_rhs("[make_widget red]", 0, &index, &ns),
+            AssignKind::Factory
+        );
         assert_eq!(classify_rhs("hello", 0, &index, &ns), AssignKind::Literal);
         assert_eq!(classify_rhs("$other", 0, &index, &ns), AssignKind::VarCopy);
     }
@@ -1060,15 +1154,18 @@ mod tests {
             ..Default::default()
         };
         for m in methods {
-            cd.methods.insert((*m).to_string(), MethodDef {
-                name: (*m).to_string(),
-                params: Vec::new(),
-                name_span: Span::new(0, 0),
-                body_span: Span::new(0, 0),
-                kind: "method".into(),
-                visibility: "public".into(),
-                doc: String::new(),
-            });
+            cd.methods.insert(
+                (*m).to_string(),
+                MethodDef {
+                    name: (*m).to_string(),
+                    params: Vec::new(),
+                    name_span: Span::new(0, 0),
+                    body_span: Span::new(0, 0),
+                    kind: "method".into(),
+                    visibility: "public".into(),
+                    doc: String::new(),
+                },
+            );
         }
         cd
     }
@@ -1081,7 +1178,11 @@ mod tests {
         let h = build_class_hierarchy(index.clone());
         let v = ClassValue::Concrete("::A".into());
         match resolve(&v, Some("bark"), &h, &index, &NsContext::default()) {
-            DispatchVerdict::Resolved { method_known, providers, .. } => {
+            DispatchVerdict::Resolved {
+                method_known,
+                providers,
+                ..
+            } => {
                 assert!(method_known);
                 assert!(providers.contains("::A"));
             }
@@ -1106,7 +1207,10 @@ mod tests {
         let index: HashMap<String, ClassDef> = HashMap::new();
         let h = build_class_hierarchy(index.clone());
         let v = ClassValue::Top(TopReason::FactoryReturn);
-        assert_eq!(resolve(&v, Some("m"), &h, &index, &NsContext::default()), DispatchVerdict::Abstain(TopReason::FactoryReturn));
+        assert_eq!(
+            resolve(&v, Some("m"), &h, &index, &NsContext::default()),
+            DispatchVerdict::Abstain(TopReason::FactoryReturn)
+        );
     }
 
     #[test]
@@ -1117,7 +1221,11 @@ mod tests {
         let h = build_class_hierarchy(index.clone());
         let v = ClassValue::Set(["::A".to_string(), "::B".to_string()].into_iter().collect());
         match resolve(&v, Some("m"), &h, &index, &NsContext::default()) {
-            DispatchVerdict::Resolved { method_known, classes, .. } => {
+            DispatchVerdict::Resolved {
+                method_known,
+                classes,
+                ..
+            } => {
                 assert_eq!(classes.len(), 2);
                 assert!(!method_known, "B lacks m, so the set is not fully known");
             }
@@ -1134,8 +1242,14 @@ mod tests {
         index.insert("::B".to_string(), cls("::B", &["::A"], &["m"]));
         index.insert("::C".to_string(), cls("::C", &["::B"], &["m"]));
         let h = build_class_hierarchy(index);
-        assert_eq!(next_provider(&h, "::C", "m", "::C", None).as_deref(), Some("::B"));
-        assert_eq!(next_provider(&h, "::C", "m", "::B", None).as_deref(), Some("::A"));
+        assert_eq!(
+            next_provider(&h, "::C", "m", "::C", None).as_deref(),
+            Some("::B")
+        );
+        assert_eq!(
+            next_provider(&h, "::C", "m", "::B", None).as_deref(),
+            Some("::A")
+        );
         assert_eq!(next_provider(&h, "::C", "m", "::A", None), None);
     }
 
@@ -1148,7 +1262,10 @@ mod tests {
         index.insert("::B".to_string(), cls("::B", &["::A"], &["m"]));
         index.insert("::C".to_string(), cls("::C", &["::B"], &["m"]));
         let h = build_class_hierarchy(index);
-        assert_eq!(next_provider(&h, "::C", "m", "::C", Some("::A")).as_deref(), Some("::A"));
+        assert_eq!(
+            next_provider(&h, "::C", "m", "::C", Some("::A")).as_deref(),
+            Some("::A")
+        );
     }
 
     #[test]
@@ -1159,13 +1276,20 @@ mod tests {
         index.insert("::B".to_string(), cls("::B", &["::A"], &[]));
         index.insert("::C".to_string(), cls("::C", &["::B"], &["m"]));
         let h = build_class_hierarchy(index);
-        assert_eq!(next_provider(&h, "::C", "m", "::C", None).as_deref(), Some("::A"));
+        assert_eq!(
+            next_provider(&h, "::C", "m", "::C", None).as_deref(),
+            Some("::A")
+        );
     }
 
     #[test]
     fn stats_top_rate() {
         let mut s = DispatchStats::default();
-        s.record(&DispatchVerdict::Resolved { classes: BTreeSet::new(), providers: BTreeSet::new(), method_known: true });
+        s.record(&DispatchVerdict::Resolved {
+            classes: BTreeSet::new(),
+            providers: BTreeSet::new(),
+            method_known: true,
+        });
         s.record(&DispatchVerdict::Abstain(TopReason::Unknown));
         assert_eq!(s.total_sites, 2);
         assert!((s.top_rate() - 0.5).abs() < 1e-9);

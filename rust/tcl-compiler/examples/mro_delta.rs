@@ -42,7 +42,6 @@
 //! ```
 //! The confusion matrix + delta go to stderr; the CSV worksheet to stdout.
 
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -235,12 +234,22 @@ fn build_worksheet(data: &[FileData], merged: &HashMap<String, ClassDef>) -> Wor
             let Some(method) = &r.method else { continue };
             let ship = shipping_code(&fd.diagnostics, r.offset);
             let (res_kind, classes) = match &r.verdict {
-                DispatchVerdict::Resolved { method_known: true, classes, .. } => {
-                    ("resolved-known", classes.iter().cloned().collect::<Vec<_>>().join("|"))
-                }
-                DispatchVerdict::Resolved { method_known: false, classes, .. } => {
-                    ("resolved-unknown", classes.iter().cloned().collect::<Vec<_>>().join("|"))
-                }
+                DispatchVerdict::Resolved {
+                    method_known: true,
+                    classes,
+                    ..
+                } => (
+                    "resolved-known",
+                    classes.iter().cloned().collect::<Vec<_>>().join("|"),
+                ),
+                DispatchVerdict::Resolved {
+                    method_known: false,
+                    classes,
+                    ..
+                } => (
+                    "resolved-unknown",
+                    classes.iter().cloned().collect::<Vec<_>>().join("|"),
+                ),
                 DispatchVerdict::Abstain(reason) => ("abstain", reason.to_string()),
             };
             *confusion.entry((res_kind, ship)).or_insert(0) += 1;
@@ -283,7 +292,10 @@ fn print_delta(
     let get = |r: &str, c: &str| confusion.get(&(row_key(r), c)).copied().unwrap_or(0);
     eprintln!("# mro_delta — resolver × shipping-diagnostic confusion matrix");
     eprintln!("# files={files} merged_classes={merged_classes}");
-    eprintln!("{:<18} {:>7} {:>7} {:>7}", "resolver \\ shipping", "W307", "W308", "none");
+    eprintln!(
+        "{:<18} {:>7} {:>7} {:>7}",
+        "resolver \\ shipping", "W307", "W308", "none"
+    );
     for r in rows {
         eprintln!(
             "{:<18} {:>7} {:>7} {:>7}",
@@ -320,7 +332,9 @@ fn print_delta(
 /// stdout: labeling worksheet CSV (header + all resolved sites + a strided
 /// abstain sample, targeting >= 120 rows total).
 fn print_worksheet(resolved_rows: &[String], abstain_rows: &[String]) {
-    println!("file,line,var,method,resolver_verdict,resolver_classes,shipping,dispatch_line,nearest_binding,truth_class,method_exists,notes");
+    println!(
+        "file,line,var,method,resolver_verdict,resolver_classes,shipping,dispatch_line,nearest_binding,truth_class,method_exists,notes"
+    );
     let emit = |rows: &[String]| {
         for row in rows {
             println!("{row},,,");
