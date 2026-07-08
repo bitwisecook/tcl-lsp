@@ -1170,15 +1170,25 @@ fn bi_range(args: &[Value]) -> Result<Value, QueryError> {
     }
     let mut out = Vec::new();
     let mut cur = start;
+    // `checked_add` so a range whose stride steps past the i64 boundary ends
+    // cleanly instead of overflow-panicking in debug / wrapping in release
+    // (issue 193) — the next value would be unrepresentable, so the range is
+    // exhausted.
     if step > 0 {
         while cur < end {
             out.push(Value::Int(cur));
-            cur += step;
+            match cur.checked_add(step) {
+                Some(next) => cur = next,
+                None => break,
+            }
         }
     } else {
         while cur > end {
             out.push(Value::Int(cur));
-            cur += step;
+            match cur.checked_add(step) {
+                Some(next) => cur = next,
+                None => break,
+            }
         }
     }
     Ok(Value::Stream(out))

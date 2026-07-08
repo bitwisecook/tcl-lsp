@@ -1343,7 +1343,12 @@ fn eval_unop(
         "not" => Ok(Value::Bool(!value::truthy(&val))),
         "-" => match val {
             Value::Bool(_) => Err(QueryError::eval("cannot negate a boolean")),
-            Value::Int(i) => Ok(Value::Int(-i)),
+            // `checked_neg` so negating `i64::MIN` is a clean error, not an
+            // overflow panic in debug / wraparound in release (issue 193).
+            Value::Int(i) => i
+                .checked_neg()
+                .map(Value::Int)
+                .ok_or_else(|| QueryError::eval("integer negation overflows i64")),
             Value::Float(f) => Ok(Value::Float(-f)),
             other => Err(QueryError::eval(format!(
                 "cannot negate {}",

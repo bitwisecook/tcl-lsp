@@ -28,6 +28,8 @@
 //! message) must match the golden byte-for-byte. Self-contained — no external reference at
 //! test time; the `bigip.conf` fixture is embedded via `include_str!`.
 
+use std::rc::Rc;
+
 use serde_json::Value as J;
 use tcl_bigip::parser::parse_bigip_conf;
 use tcl_bigip_query::eval::{EvalContext, Root, evaluate};
@@ -77,5 +79,32 @@ fn graph() {
         failures.len(),
         cases.len(),
         failures.join("\n")
+    );
+}
+
+/// `references_to` must consult the *merged* graph under `--merge`, so a
+/// cross-file referrer resolves — not the single originating root, which would
+/// miss it (issue 195).
+#[test]
+fn references_to_uses_merged_graph_in_merge_mode() {
+    let conf_a = "ltm virtual /Common/vsA {\n    destination /Common/1.2.3.4:80\n    pool /Common/poolB\n}\n";
+    let conf_b = "ltm pool /Common/poolB {\n    members none\n}\n";
+    let cfg_a = parse_bigip_conf(conf_a, "Common");
+    let cfg_b = parse_bigip_conf(conf_b, "Common");
+    let root_a = Root::bigip("a.conf", conf_a.to_owned(), cfg_a);
+    let root_b = Root::bigip("b.conf", conf_b.to_owned(), cfg_b);
+
+    // ctx.root is file B (the pool). Its single-root graph has no referrer for
+    // poolB; only the merged graph (with file A) does.
+    let mut ctx = EvalContext::new(Rc::clone(&root_b));
+    ctx.merge_mode = true;
+    ctx.merge_roots = vec![root_a, root_b];
+
+    let prog = parse_query("references_to(\"/Common/poolB\")").expect("query parses");
+    let values = evaluate(&prog, &mut ctx).expect("evaluates");
+    let out = render(&values, "json").expect("renders");
+    assert!(
+        out.contains("/Common/vsA"),
+        "merged cross-file referrer must appear: {out}"
     );
 }

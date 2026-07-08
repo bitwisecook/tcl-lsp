@@ -220,3 +220,36 @@ fn shallow_value_serialises_normally() {
     let value = Value::List(vec![Value::Int(1), Value::Int(2)]);
     assert_eq!(jsonfmt::to_compact(&value), "[1,2]");
 }
+
+/// The `add` builtin sums integers with `checked_add`: an overflow is a clean
+/// builtin error, never a debug panic / release wrap (issue 193).
+#[test]
+fn add_builtin_integer_overflow_returns_error() {
+    let err = eval_err("[9223372036854775807, 1] | add").expect("add overflow must error");
+    assert!(matches!(err, QueryError::Builtin(_)), "got {err:?}");
+    assert!(err.to_string().contains("overflow"), "got {err}");
+}
+
+/// `range` whose stride steps past the i64 boundary terminates cleanly rather
+/// than overflow-panicking on `cur += step` (issue 193).
+#[test]
+fn range_stepping_past_i64_max_does_not_panic() {
+    let program =
+        parse_query("range(9223372036854775805, 9223372036854775807, 5)").expect("parses");
+    let root = Root::json("data.json", Value::Int(0));
+    let mut ctx = EvalContext::new(root);
+    // The point is that it returns at all (no overflow panic).
+    let out = evaluate(&program, &mut ctx).expect("range evaluates without panic");
+    assert_eq!(out.len(), 1, "range produces a single stream value");
+}
+
+/// Unary negation of `i64::MIN` is a clean error, not an overflow panic
+/// (issue 193).
+#[test]
+fn unary_negation_of_i64_min_returns_error() {
+    let program = parse_query("- .").expect("parses");
+    let root = Root::json("data.json", Value::Int(i64::MIN));
+    let mut ctx = EvalContext::new(root);
+    let err = evaluate(&program, &mut ctx).expect_err("negating i64::MIN must error");
+    assert!(err.to_string().contains("overflow"), "got {err}");
+}
