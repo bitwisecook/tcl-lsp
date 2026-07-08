@@ -444,14 +444,21 @@ struct DeliveryCtx<'a> {
 }
 
 impl DeliveryCtx<'_> {
-    /// Whether the document is still at this run's `revision` (not superseded by
-    /// a newer edit).
-    async fn is_current(&self) -> bool {
-        self.documents
-            .lock()
-            .await
+    /// Publish `diags` iff the document is still at this run's `revision`,
+    /// holding the `documents` lock across the currency check AND the
+    /// pull-cache/publish delivery so a concurrent `did_close`/`did_change`
+    /// cannot interleave between them — otherwise a `did_close` that lands in
+    /// that window clears the squiggles and drops the pull-cache entry, only
+    /// for this run's late delivery to re-publish and re-cache them for the
+    /// now-closed document (`RUST_ISSUE_098`).
+    async fn deliver_if_current(&self, diags: Vec<tower_lsp_server::ls_types::Diagnostic>) {
+        let docs = self.documents.lock().await;
+        if docs
             .get(self.uri)
             .is_some_and(|doc| doc.revision == self.revision)
+        {
+            self.cache_and_deliver(diags).await;
+        }
     }
 
     /// Update the pull-diagnostic cache for `uri` to `diags` at this run's
@@ -481,9 +488,7 @@ impl DeliveryCtx<'_> {
 /// so any existing squiggles clear, then settle — the analyser, compiler
 /// checks, and F5 validators are all skipped.  Always settled (`true`).
 async fn run_diagnostics_master_off(delivery: &DeliveryCtx<'_>) -> bool {
-    if delivery.is_current().await {
-        delivery.cache_and_deliver(Vec::new()).await;
-    }
+    delivery.deliver_if_current(Vec::new()).await;
     true
 }
 
@@ -512,9 +517,7 @@ async fn run_diagnostics_f5_dialect(
     // guard the analyser path applies before publishing), and keep the
     // pull-diagnostic cache in lock-step so `textDocument/diagnostic`
     // returns the same set.
-    if delivery.is_current().await {
-        delivery.cache_and_deliver(diags).await;
-    }
+    delivery.deliver_if_current(diags).await;
     Some(true)
 }
 
@@ -1015,13 +1018,18 @@ async fn publish_diagnostics_result(
             return true;
         }
     };
+    let diag_count = diags.len();
     {
-        // Hold the `documents` lock across the currency re-check and the
-        // workspace-index update so a concurrent `did_change`/`did_close`
-        // (which also take `documents`) cannot interleave between them
-        // and leave a stale index entry — the role the former global
+        // Hold the `documents` lock across the currency re-check, the
+        // workspace-index update, AND the pull-cache/publish delivery so a
+        // concurrent `did_change`/`did_close` (which also take `documents`)
+        // cannot interleave between them — the role the former global
         // `document_analysis_gate` served, now via the natural
-        // `documents` → `workspace_index` lock order.
+        // `documents` → `workspace_index` and `documents` → `pull_diag_cache`
+        // lock order. Delivering *inside* the lock is what stops a `did_close`
+        // that ran between the currency check and the delivery from having its
+        // clearing empty publish overwritten (and its pull-cache removal
+        // undone) by this run's late squiggles (RUST_ISSUE_098).
         let docs = delivery.documents.lock().await;
         let is_current = docs
             .get(delivery.uri)
@@ -1032,16 +1040,17 @@ async fn publish_diagnostics_result(
             // the newer state.
             return true;
         }
-        let mut index = workspace_index.write().await;
-        index.remove_document(delivery.uri.as_str());
-        index.add_document(delivery.uri.as_str(), analysis);
+        {
+            let mut index = workspace_index.write().await;
+            index.remove_document(delivery.uri.as_str());
+            index.add_document(delivery.uri.as_str(), analysis);
+        }
+        // Keep the pull-diagnostic cache in lock-step with the push: a
+        // `textDocument/diagnostic` request now returns this exact set with
+        // a fresh `result_id`, and an editor that already holds it gets a
+        // cheap `Unchanged` report.
+        delivery.cache_and_deliver(diags).await;
     }
-    let diag_count = diags.len();
-    // Keep the pull-diagnostic cache in lock-step with the push: a
-    // `textDocument/diagnostic` request now returns this exact set with
-    // a fresh `result_id`, and an editor that already holds it gets a
-    // cheap `Unchanged` report.
-    delivery.cache_and_deliver(diags).await;
     let elapsed_ms = timing.started.elapsed().as_secs_f64() * 1000.0;
     // The analyser runs a single, full ("deep") pass per publish — there is
     // no separate fast/deep split.  Emit the
@@ -4575,29 +4584,44 @@ impl Backend {
     }
 
     async fn schedule_diagnostics_impl(&self, uri: Uri, dialect: String, force_refresh: bool) {
-        // Mark dirty first, with no `await` before it, so a storm of rapid edits
-        // coalesces predictably (an `await` here would let a later edit interleave
-        // and drop an intermediate version's publish).  Only (re)resolve the
-        // relatively expensive `diag_inputs` when the worker has none yet or a
-        // config change forces it — an edit reuses the cached inputs.
-        let (start_worker, need_inputs) = {
+        // Only (re)resolve the relatively expensive `diag_inputs` when the
+        // worker has none yet or a config change forces it — an edit reuses the
+        // cached inputs.  Peek that decision under the lock without mutating.
+        let need_inputs = {
             let mut slots = self.diag_slots.lock().await;
             let slot = slots.entry(uri.clone()).or_default();
-            slot.dirty = true;
-            let need_inputs = force_refresh || slot.latest_inputs.is_none();
-            if slot.running {
-                (false, need_inputs)
-            } else {
-                slot.running = true;
-                (true, true)
-            }
+            force_refresh || slot.latest_inputs.is_none()
         };
-        if need_inputs {
-            let inputs = self.diag_inputs(&uri, &dialect).await;
-            if let Some(slot) = self.diag_slots.lock().await.get_mut(&uri) {
+        // Resolve the fresh inputs *before* marking the slot dirty. Marking
+        // dirty first and storing `latest_inputs` only after the `await` let a
+        // running worker drain the dirty flag with the *stale* inputs in that
+        // window, silently dropping a config change (e.g. squiggles the user
+        // just disabled would persist until the next keystroke) —
+        // RUST_ISSUE_102. Resolving first means `dirty` and `latest_inputs` are
+        // published together, atomically, so the worker never observes one
+        // without the other.
+        let fresh_inputs = if need_inputs {
+            Some(self.diag_inputs(&uri, &dialect).await)
+        } else {
+            None
+        };
+        // Commit `latest_inputs` (if freshly resolved) and mark dirty in a
+        // single locked section — no `await` between them — so a storm of rapid
+        // edits still coalesces predictably.
+        let start_worker = {
+            let mut slots = self.diag_slots.lock().await;
+            let slot = slots.entry(uri.clone()).or_default();
+            if let Some(inputs) = fresh_inputs {
                 slot.latest_inputs = Some(inputs);
             }
-        }
+            slot.dirty = true;
+            if slot.running {
+                false
+            } else {
+                slot.running = true;
+                true
+            }
+        };
         if !start_worker {
             return;
         }
@@ -4954,15 +4978,22 @@ impl LanguageServer for Backend {
         if params.content_changes.is_empty() {
             return;
         }
-        let default_dialect = self.default_dialect.lock().await.clone();
         let change_version = params.text_document.version;
         let (dialect, language_id) = {
             let mut docs = self.documents.lock().await;
-            let entry = docs
-                .entry(uri.clone())
-                // didChange before didOpen — start from empty text and the
-                // session default dialect (no languageId is available here).
-                .or_insert_with(|| DocumentState::new(String::new(), default_dialect));
+            // tower-lsp-server 0.23 dispatches notification handlers
+            // concurrently (`buffer_unordered(4)`), so a `didChange` can be
+            // processed before its `didOpen` or after its `didClose`. Only
+            // mutate an already-open document: resurrecting a closed one (or
+            // splicing a ranged edit against a phantom empty buffer that
+            // `didOpen` then silently overwrites at the wrong version) would
+            // corrupt state and keep publishing diagnostics for a closed
+            // document (RUST_ISSUE_099). A dropped change is safe — `didOpen`
+            // carries the authoritative full text, and a post-close change has
+            // nothing to apply to.
+            let Some(entry) = docs.get_mut(&uri) else {
+                return;
+            };
             let mut text = std::mem::take(&mut entry.text);
             // Patch the persisted `LineIndex` alongside each splice instead of
             // rebuilding it per edit / per position lookup.
@@ -5258,12 +5289,36 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        let config = core_formatting::FormatterConfig {
-            max_line_length: self.resolved_line_length(&params.text_document.uri).await as usize,
+        // Honour the user's resolved `tclLsp.formatting` settings, exactly as
+        // `formatting()` does — otherwise format-on-save re-indents with
+        // defaults and fights an explicit Format Document (RUST_ISSUE_101).
+        // `WillSaveTextDocumentParams` carries no `FormattingOptions`, so the
+        // settings object is the sole source; the resolved formatter width is
+        // then applied on top, preserving prior behaviour.
+        let formatting = self.resolved_formatting(&params.text_document.uri).await;
+        let mut config = core_formatting::FormatterConfig {
             lexer_config: tcl_lexer::LexerConfig::for_dialect(&doc.dialect),
             ..core_formatting::FormatterConfig::default()
         };
-        let edits = core_formatting::formatting_with(&doc.text, &config, &registry);
+        if let Some(obj) = formatting.as_object() {
+            apply_formatting_object(obj, &mut config);
+        }
+        config.max_line_length =
+            self.resolved_line_length(&params.text_document.uri).await as usize;
+        config.indent_size = config.indent_size.max(1);
+        // Run on a worker so a formatter panic is contained as a JSON-RPC
+        // error rather than unwinding the event loop, matching every sibling
+        // handler.
+        let text = doc.text.clone();
+        let edits = tokio::task::spawn_blocking(move || {
+            core_formatting::formatting_with(&text, &config, &registry)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("will_save_wait_until worker panicked: {err}").into(),
+            data: None,
+        })?;
         if edits.is_empty() {
             return Ok(None);
         }
@@ -7024,9 +7079,22 @@ impl LanguageServer for Backend {
                         pos.character,
                         Some(&analysis),
                     );
-                    materialise_selection_range(&chain)
+                    // The LSP spec requires `result[i]` to answer
+                    // `positions[i]`, so every position must yield a range.
+                    // When no chain is found (e.g. the cursor sits on empty
+                    // space), fall back to a degenerate range at the cursor
+                    // itself rather than dropping the entry, which would
+                    // misalign the client's cursor-to-range pairing
+                    // (RUST_ISSUE_100).
+                    materialise_selection_range(&chain).unwrap_or(SelectionRange {
+                        range: Range {
+                            start: pos,
+                            end: pos,
+                        },
+                        parent: None,
+                    })
                 })
-                .collect::<Vec<Option<SelectionRange>>>()
+                .collect::<Vec<SelectionRange>>()
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -7034,11 +7102,7 @@ impl LanguageServer for Backend {
             message: format!("selection_range worker panicked: {err}").into(),
             data: None,
         })?;
-        let lifted: Vec<SelectionRange> = result.into_iter().flatten().collect();
-        if lifted.is_empty() {
-            return Ok(None);
-        }
-        Ok(Some(lifted))
+        Ok(Some(result))
     }
 
     async fn prepare_rename(
@@ -12371,6 +12435,74 @@ mod tests {
             !backend.pull_diag_cache.lock().await.contains_key(&uri),
             "did_close should drop the pull-cache entry",
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn did_change_on_unopened_document_is_dropped() {
+        // RUST_ISSUE_099: notification handlers run concurrently, so a
+        // `didChange` can be processed before its `didOpen` or after its
+        // `didClose`. It must NOT resurrect/create a phantom document.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///phantom.tcl").unwrap();
+        backend
+            .did_change(DidChangeTextDocumentParams {
+                text_document: tower_lsp_server::ls_types::VersionedTextDocumentIdentifier {
+                    uri: uri.clone(),
+                    version: 5,
+                },
+                content_changes: vec![tower_lsp_server::ls_types::TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "set y 2\n".to_owned(),
+                }],
+            })
+            .await;
+        assert!(
+            !backend.documents.lock().await.contains_key(&uri),
+            "did_change on an unopened URI must not create a document",
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn selection_range_returns_one_entry_per_position() {
+        // RUST_ISSUE_100: the LSP spec requires `result[i]` to answer
+        // `positions[i]`. Any position that yields no chain must still produce
+        // a range (a degenerate fallback at the cursor) rather than being
+        // dropped, which would misalign every later cursor in a multi-cursor
+        // Expand Selection. Assert the handler always returns exactly one range
+        // per requested position, including out-of-range cursors.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///sel.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+        let positions = vec![
+            Position::new(0, 4),  // on `x`
+            Position::new(99, 0), // far past the buffer
+            Position::new(0, 0),  // line start
+        ];
+        let result = backend
+            .selection_range(SelectionRangeParams {
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+                positions: positions.clone(),
+            })
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(
+            result.len(),
+            positions.len(),
+            "one selection range per requested position",
+        );
+    }
+
+    #[test]
+    fn materialise_selection_range_none_falls_back_to_cursor() {
+        // The fallback the handler applies when a position yields no chain:
+        // `materialise_selection_range` returns `None` for an empty chain, and
+        // the handler substitutes a degenerate range at the cursor so the
+        // position is never dropped (RUST_ISSUE_100).
+        assert!(materialise_selection_range(&[]).is_none());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
