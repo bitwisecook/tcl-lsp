@@ -388,3 +388,181 @@ fn fp_ds_09_interproc_mixed_callers_conservative_silent() {
         codes(src, D)
     );
 }
+
+// ---------------------------------------------------------------------------
+// FP-DS-10 — reads nested inside a `dict for`/`dict map` body keep the store
+//            live (issue #833)
+//
+// `dict for`/`dict map` run their body in the caller's frame, so the analysis
+// CFG now flattens the body into real loop blocks (like `foreach`) instead of
+// re-emitting it as an opaque barrier whose reads were recovered by a shallow
+// word scan.  That shallow scan only saw top-level `$var` / `[...]` tokens, so a
+// read one brace level deep — e.g. `$x` used as the command name of `$x a $key`
+// inside an `if` — was invisible, and the feeding `set x set` looked like a dead
+// store.  The fix makes such reads first-class SSA uses.
+// ---------------------------------------------------------------------------
+
+// The exact issue #833 reproducer: `$x` is read as the command name of the
+// dispatched call, nested inside `if {$value}` inside `dict for`.
+const FP_DS_10_REPRO: &str = "\
+proc demo {} {
+    set x set
+    set d [dict create a true b false c true]
+    dict for {key value} $d {
+        if {$value} {
+            $x a $key
+        }
+    }
+}
+";
+
+#[test]
+fn fp_ds_10_command_name_read_in_dict_for_if_keeps_store_live() {
+    // FP-DS-10: the command-name read of `x`, nested inside `if` inside
+    // `dict for`, must keep `set x set` alive — no W220 and no W211.
+    assert!(
+        !fires(FP_DS_10_REPRO, D, "W220"),
+        "FP-DS-10: nested command-name read must NOT fire W220; emitted: {:?}",
+        codes(FP_DS_10_REPRO, D)
+    );
+    assert!(
+        !fires(FP_DS_10_REPRO, D, "W211"),
+        "FP-DS-10: `x` is read, must NOT fire W211; emitted: {:?}",
+        codes(FP_DS_10_REPRO, D)
+    );
+}
+
+#[test]
+fn fp_ds_10_dict_map_variant_keeps_store_live() {
+    // FP-DS-10: `dict map` shares the same body-recovery path as `dict for`.
+    let src = "\
+proc demo {} {
+    set x set
+    set d [dict create a 1]
+    dict map {key value} $d { if {$value} { $x a $key } }
+}
+";
+    assert!(
+        !fires(src, D, "W220"),
+        "FP-DS-10: dict map nested read must NOT fire W220; emitted: {:?}",
+        codes(src, D)
+    );
+    assert!(!fires(src, D, "W211"), "emitted: {:?}", codes(src, D));
+}
+
+#[test]
+fn fp_ds_10_deeply_nested_read_keeps_store_live() {
+    // FP-DS-10: two brace levels of `if` deep inside `dict for` — the read must
+    // still reach the store through the body's own lowered control flow.
+    let src = "\
+proc demo {} {
+    set x set
+    set d [dict create a 1]
+    dict for {k v} $d {
+        if {$v} {
+            if {$k ne \"\"} {
+                $x a $k
+            }
+        }
+    }
+}
+";
+    assert!(
+        !fires(src, D, "W220"),
+        "FP-DS-10: doubly-nested read must NOT fire W220; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_ds_10_plain_var_read_in_dict_for_if_keeps_store_live() {
+    // FP-DS-10: not just command-name reads — an ordinary `$msg` argument read
+    // nested inside `if` inside `dict for` must keep its store live too.
+    let src = "\
+proc demo {} {
+    set msg hello
+    set d [dict create a 1]
+    dict for {k v} $d {
+        if {$v} {
+            puts $msg
+        }
+    }
+}
+";
+    assert!(
+        !fires(src, D, "W220"),
+        "FP-DS-10: nested `$msg` read must NOT fire W220; emitted: {:?}",
+        codes(src, D)
+    );
+    assert!(!fires(src, D, "W211"), "emitted: {:?}", codes(src, D));
+}
+
+#[test]
+fn fp_ds_10_real_dead_store_before_dict_for_still_fires() {
+    // TP control: `set x set` is overwritten by `set x puts` before any read, so
+    // it is a genuine dead store even though a `dict for` uses the live version.
+    // Flattening the body must not mask a real dead store outside it.
+    let src = "\
+proc demo {d} {
+    set x set
+    set x puts
+    dict for {k v} $d { $x $k }
+}
+";
+    assert!(
+        fires(src, D, "W220"),
+        "FP-DS-10 TP: real dead store must still fire W220; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_ds_10_dead_store_inside_dict_for_body_now_fires() {
+    // TP control (precision gained by the fix): a dead store *inside* the body
+    // was invisible while the body was an opaque barrier; now that the body is
+    // lowered it is a real W220.
+    let src = "\
+proc demo {d} {
+    dict for {k v} $d {
+        set tmp 1
+        set tmp 2
+        puts $tmp
+    }
+}
+";
+    assert!(
+        fires(src, D, "W220"),
+        "FP-DS-10 TP: dead store inside a dict-for body must fire W220; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_ds_10_write_only_local_in_dict_for_body_still_flags() {
+    // FN guard: a local written but never read inside the body must still be
+    // reported — the fix must not manufacture a phantom read that hides it.
+    let src = "\
+proc demo {d} {
+    dict for {k v} $d {
+        set unusedvar 1
+        puts $k
+    }
+}
+";
+    assert!(
+        fires(src, D, "W220") || fires(src, D, "W211"),
+        "FP-DS-10 FN guard: write-only body local must still flag; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_ds_10_clean_dict_for_is_silent() {
+    // TN control: a clean `dict for` that only reads its loop vars is silent.
+    let src = "proc demo {d} { dict for {k v} $d { puts \"$k=$v\" } }";
+    assert!(
+        codes(src, D).iter().all(|c| c != "W220" && c != "W211"),
+        "FP-DS-10 TN: clean dict for must not fire W220/W211; emitted: {:?}",
+        codes(src, D)
+    );
+}

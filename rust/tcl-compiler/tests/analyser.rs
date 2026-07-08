@@ -1068,8 +1068,9 @@ mod unused_proc_parameters {
 
     #[test]
     fn param_used_in_dict_for_and_dict_map_bodies() {
-        // dict for/map lower to opaque ::tcl::dict::for|map barriers; the deep
-        // body scan must still see the param read (#236).
+        // dict for/map bodies are lowered into real CFG blocks in the analysis
+        // build (#833), so a param read nested in the body is a first-class SSA
+        // use — the deep body scan / text fallback (#236) is now belt-and-braces.
         let used = [
             "proc f {but} {\n    dict for {k v} $d {\n        if {$but ne \"\"} { puts $but }\n    }\n}\n",
             "proc f {scale} {\n    dict map {k v} $d { expr {$v * $scale} }\n}\n",

@@ -3473,6 +3473,66 @@ function ::f
 
 ---
 
+### FP-DS-10 — reads nested in a `dict for`/`dict map` body keep the store live (issue #833)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_10_*`
+- **Codes:** W220, W211
+- **Corpus:** any `dict for {k v} $d { … }` whose body reads an outer variable from
+  inside its own control flow — dispatch tables (`$cmd a $key` under an `if`),
+  guarded `puts $msg`, accumulators updated conditionally.
+
+#### Reproducer
+
+```tcl
+proc demo {} {
+    set x set
+    set d [dict create a true b false c true]
+    dict for {key value} $d {
+        if {$value} {
+            $x a $key
+        }
+    }
+}
+```
+
+#### Per-line reasoning
+
+1. `set x set` — assigns version 1 of `x`.
+2. `dict for {key value} $d { … }` — the body runs in the caller's frame.
+3. `if {$value} { $x a $key }` — `$x` is the **command name** of the dispatched
+   call, so it reads `x#1`; this keeps `set x set` alive.
+
+Pre-fix, `dict for`/`dict map` were re-emitted as an opaque `Barrier` in the
+analysis CFG and their body reads were recovered by a shallow word scan that only
+saw top-level `$var` / `[...]` tokens. A read one brace level deep — `$x` inside
+the `if` body — was invisible, so `set x set` looked like a dead store. The fix
+lowers the dict-for body into real CFG blocks in the analysis build (as `foreach`
+and `array for` already are), making body reads first-class SSA uses. Codegen
+keeps the byte-identical `::tcl::dict::for` barrier (built from the separate
+`build_cfg_codegen`), so emitted bytecode is unchanged.
+
+#### tclsh ground truth
+
+```
+% set x set; set d [dict create a true b false]; dict for {k v} $d { if {$v} { $x q $k } }; puts "q=$q"
+q=a
+```
+`$x` resolves to `set` at run time, so `x` is genuinely read.
+
+#### Tests
+
+- `fp_ds_10_command_name_read_in_dict_for_if_keeps_store_live` (FP — the issue repro)
+- `fp_ds_10_dict_map_variant_keeps_store_live` (FP — `dict map`)
+- `fp_ds_10_deeply_nested_read_keeps_store_live` (FP — two `if` levels deep)
+- `fp_ds_10_plain_var_read_in_dict_for_if_keeps_store_live` (FP — ordinary arg read)
+- `fp_ds_10_real_dead_store_before_dict_for_still_fires` (TP — real dead store outside body)
+- `fp_ds_10_dead_store_inside_dict_for_body_now_fires` (TP — precision gained inside the body)
+- `fp_ds_10_write_only_local_in_dict_for_body_still_flags` (FN guard — write-only local)
+- `fp_ds_10_clean_dict_for_is_silent` (TN control)
+
+---
+
 
 ## SH — shimmer (S100/S101/S102)
 
