@@ -854,9 +854,13 @@ async fn run_diagnostics_analyser_path(
 
     // #804: extra requires this document inherits from configured entry points
     // or its `source` ancestors, resolved against the live workspace index.
-    // Only computed when there is a W120 to refine — otherwise the index lock
-    // and `source`-graph walk are wasted work on the hot diagnostics path.
-    let inherited_requires = if analyser_diags.iter().any(|d| d.code == DiagCode::W120) {
+    // Only computed when there is a W120 or W123 to refine (#832 uses inherited
+    // requires for its package-source resolution) — otherwise the index lock and
+    // `source`-graph walk are wasted work on the hot diagnostics path.
+    let inherited_requires = if analyser_diags
+        .iter()
+        .any(|d| d.code == DiagCode::W120 || d.code == DiagCode::W123)
+    {
         let index = inputs.workspace_index.read().await;
         compute_inherited_requires(
             &index,
@@ -926,6 +930,17 @@ async fn refine_and_lift_diagnostics(
         inherited_requires,
         package_resolver,
         registry,
+    )
+    .await;
+    // #832: drop any W123 (unknown command) the package database can resolve —
+    // an auto-loaded library command (`tclIndex`) or a command an available
+    // package's implementation defines. Always on, like the W120 refinement.
+    let analyser_diags = refine_workspace_w123(
+        analyser_diags,
+        analysis.as_ref(),
+        inherited_requires,
+        package_resolver,
+        inputs.dialect,
     )
     .await;
 
@@ -4451,7 +4466,10 @@ impl Backend {
         // `source` ancestors of this document. Only computed when there is a
         // W120 to refine, matching the push path — otherwise the workspace-index
         // lock and `source`-graph walk are avoidable work.
-        let inherited_requires = if analyser_diags.iter().any(|d| d.code == DiagCode::W120) {
+        let inherited_requires = if analyser_diags
+            .iter()
+            .any(|d| d.code == DiagCode::W120 || d.code == DiagCode::W123)
+        {
             self.inherited_package_requires(uri).await
         } else {
             Vec::new()
@@ -4462,6 +4480,17 @@ impl Backend {
             &inherited_requires,
             &self.package_resolver,
             &registry,
+        )
+        .await;
+        // #832: drop any W123 the package database can resolve (auto-loaded
+        // library command, or an available package's defined command), mirroring
+        // the push path so pull and push stay behaviour-identical.
+        let analyser_diags = refine_workspace_w123(
+            analyser_diags,
+            analysis.as_ref(),
+            &inherited_requires,
+            &self.package_resolver,
+            &dialect,
         )
         .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
@@ -8636,6 +8665,122 @@ async fn refine_workspace_w120(
     refine_w120_diagnostics(analyser_diags, &pkg_requires, &resolver, registry)
 }
 
+/// Extract the unknown-command name from a W123 message
+/// (`"Unknown command 'NAME'"`, optionally `+ "; did you mean 'X'?"`) — the
+/// first single-quoted token, the bare name the analyser failed to resolve.
+/// Mirrors `tcl_lsp_db`'s private `w123_command`.
+fn w123_command_name(message: &str) -> Option<&str> {
+    let start = message.find('\'')? + 1;
+    let rest = &message[start..];
+    let end = rest.find('\'')?;
+    Some(&rest[..end])
+}
+
+/// The bare (unqualified) names of every command a source file defines — procs
+/// and classes — discovered through the analyser's registry-driven
+/// symbol-definer walk. The set of *defining* commands (`proc`, `oo::class`,
+/// `interp alias`, an ensemble, …) comes from each command spec's
+/// [`SymbolDef`](tcl_registry::symbol_def::SymbolDef) in the command registry,
+/// never a hand-rolled `proc`-name scan — so a library that defines commands
+/// with any registry-known definer is understood the same way. `structure_only`
+/// skips diagnostic emission (the dominant cost) while building the identical
+/// declaration structure.
+fn defined_command_tails(text: &str, dialect: &str) -> Vec<String> {
+    let mut analyser = Analyser::new().structure_only();
+    let result = analyser.analyse(text, dialect);
+    result
+        .all_procs
+        .values()
+        .map(|p| p.name.clone())
+        .chain(result.all_classes.values().map(|c| c.name.clone()))
+        .filter(|n| !n.is_empty())
+        .collect()
+}
+
+/// Pure core of the workspace W123 refinement: drop every unknown-command
+/// (W123) diagnostic whose command the package database can resolve.
+///
+/// A command is resolvable when either
+/// * the scanned `auto_path` auto-loads it — a `tclIndex` maps its bare name,
+///   the "command defined in library path" case of issue #832 (a BLT/Rbc-style
+///   library whose procs auto-load with no `package require`), or
+/// * one of the packages available to the document (`available`) defines it in
+///   an implementation source file (a `pkgIndex`-only package with no
+///   `tclIndex`).
+///
+/// This is the diagnostic dual of go-to-definition: a command the server can
+/// resolve to a real library definition must not be reported "unknown". The
+/// check is entirely data-driven — the resolver is queried *by the flagged
+/// name*, never matched against a hard-coded command list.
+fn refine_w123_diagnostics(
+    diags: Vec<tcl_compiler::analyser::Diagnostic>,
+    available: &[String],
+    resolver: &PackageResolver,
+    dialect: &str,
+) -> Vec<tcl_compiler::analyser::Diagnostic> {
+    // Command names the document's available packages define via their
+    // `pkgIndex` implementation files. Empty in the common no-`package require`
+    // case (where auto-load alone carries the fix), so no file is read then.
+    let package_commands = if available.is_empty() {
+        HashSet::new()
+    } else {
+        resolver.package_defined_commands(available, &|path| {
+            std::fs::read_to_string(path)
+                .map(|text| defined_command_tails(&text, dialect))
+                .unwrap_or_default()
+        })
+    };
+    diags
+        .into_iter()
+        .filter(|d| {
+            if d.code != DiagCode::W123 {
+                return true;
+            }
+            let Some(name) = w123_command_name(&d.message) else {
+                return true;
+            };
+            // A bare W123 head is a global-namespace call (the analyser skips
+            // `::`-qualified heads), so resolve auto-load against `::`.
+            !(resolver.auto_loads_command(name, "::") || package_commands.contains(name))
+        })
+        .collect()
+}
+
+/// Apply the issue-#832 workspace W123 refinement to `analyser_diags`: resolve
+/// each unknown-command diagnostic against the shared package database and drop
+/// any whose command an installed library / available package provides. Shared
+/// by the push path ([`refine_and_lift_diagnostics`]) and the pull path
+/// ([`Backend::full_diagnostics_for`]) so both stay behaviour-identical, and —
+/// like the W120 refinement — always on, independent of the cross-file
+/// `xcDiagnostics` toggle: a library-provided command is ambient, like a
+/// built-in, so suppressing its false "unknown" is pure precision, not a
+/// cross-file inference the user opts into.
+///
+/// The common case (no W123) skips the resolver lock and all filesystem work.
+async fn refine_workspace_w123(
+    analyser_diags: Vec<tcl_compiler::analyser::Diagnostic>,
+    analysis: &AnalysisResult,
+    inherited_requires: &[String],
+    package_resolver: &Arc<RwLock<PackageResolver>>,
+    dialect: &str,
+) -> Vec<tcl_compiler::analyser::Diagnostic> {
+    if !analyser_diags.iter().any(|d| d.code == DiagCode::W123) {
+        return analyser_diags;
+    }
+    // Packages available to the document: its own `package require`s (empty
+    // whenever a W123 survived — the analyser drops every W123 once a file has
+    // any `package require`) plus those inherited from entry points / `source`
+    // ancestors (#804).
+    let mut available: Vec<String> = analysis
+        .package_requires
+        .iter()
+        .map(|pr| pr.name.clone())
+        .collect();
+    available.extend(inherited_requires.iter().cloned());
+    let resolver = package_resolver.read().await;
+    refine_w123_diagnostics(analyser_diags, &available, &resolver, dialect)
+}
+
 /// The extra `package require` names available to `uri` for the #804 W120
 /// refinement: from the project's configured entry points when set (which
 /// disables auto-detection), else from the workspace `source` graph — every
@@ -11539,6 +11684,142 @@ mod tests {
             !diag_codes(&refined).iter().any(|c| c == "W120"),
             "the pull path must refine away the W120 once the workspace proves \
              http is transitively available, got: {:?}",
+            diag_codes(&refined),
+        );
+    }
+
+    /// Issue #832 (the reported bug): a command defined in a library on the
+    /// `auto_path` — a `tclIndex` auto-loads it by bare name, the BLT/Rbc idiom —
+    /// must NOT be flagged "Unknown command" (W123), *with `xcDiagnostics` left
+    /// off* (its default), because the package database resolves it exactly as
+    /// go-to-definition does.
+    ///
+    /// * TN (must-stay-silent): the caller uses `Rbc_ActiveLegend`, which the
+    ///   scanned `tclIndex` declares → no W123.
+    /// * TP (must-fire control): a typo the index does not declare → W123 stands.
+    /// * FN-guard: an empty database makes the real command genuinely unknowable
+    ///   → W123 fires — proving suppression is data-driven, not a name allowlist.
+    #[tokio::test]
+    async fn autoload_library_command_suppresses_w123_issue_832() {
+        let backend = test_backend();
+        // A library dir on the auto_path: global procs registered by a `tclIndex`,
+        // auto-loadable by bare name with no `package require`.
+        let lib = TmpWs::new("rbc-lib");
+        lib.write(
+            "rbc/graph.tcl",
+            "proc Rbc_ActiveLegend {graph} {}\nproc Rbc_ZoomStack {graph args} {}\n",
+        );
+        lib.write(
+            "rbc/tclIndex",
+            "# Tcl autoload index file, version 2.0\n\
+             set auto_index(Rbc_ActiveLegend) [list source [file join $dir graph.tcl]]\n\
+             set auto_index(Rbc_ZoomStack) [list source [file join $dir graph.tcl]]\n",
+        );
+        {
+            let mut resolver = PackageResolver::new();
+            resolver.scan_tree(&lib.0, 100);
+            *backend.package_resolver.write().await = resolver;
+        }
+        let uri = Uri::from_str("file:///app.tcl").unwrap();
+
+        // TN: the real library commands — no `package require` in the caller —
+        // must not be flagged, with xcDiagnostics at its default (off).
+        let ok_src = "Rbc_ActiveLegend .g\nRbc_ZoomStack .g\n";
+        let diags = backend
+            .full_diagnostics_for(&uri, ok_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !diag_codes(&diags).iter().any(|c| c == "W123"),
+            "a command the auto_path tclIndex provides must not be W123 (#832), got: {:?}",
+            diag_codes(&diags),
+        );
+
+        // TP control: a typo the index does not declare stays flagged.
+        let typo_src = "Rbc_ActveLegend .g\n";
+        let typo = backend
+            .full_diagnostics_for(&uri, typo_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            diag_codes(&typo).iter().any(|c| c == "W123"),
+            "a command no index provides must still be W123, got: {:?}",
+            diag_codes(&typo),
+        );
+
+        // FN-guard: with an EMPTY database the real command is unknowable ⇒ W123
+        // fires — suppression is driven by the database, not a name allowlist.
+        *backend.package_resolver.write().await = PackageResolver::new();
+        let empty = backend
+            .full_diagnostics_for(&uri, ok_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            diag_codes(&empty).iter().any(|c| c == "W123"),
+            "with no package database the command is genuinely unknown ⇒ W123, got: {:?}",
+            diag_codes(&empty),
+        );
+    }
+
+    /// Issue #832 secondary path: a `pkgIndex`-only package (no `tclIndex`) whose
+    /// implementation defines the command, made available to a sourced module by
+    /// an entry file's `package require`, suppresses the module's W123. The
+    /// package's source files are consulted through the analyser's
+    /// registry-driven definer walk (`proc` / `oo::class` / … from the command
+    /// registry's `SymbolDef`s), not a `proc`-name scan.
+    #[tokio::test]
+    async fn pkgindex_package_source_command_suppresses_w123() {
+        let backend = test_backend();
+        // A pkgIndex-only package whose source defines a global proc.
+        let ws = TmpWs::new("pkgsrc-w123");
+        ws.write(
+            "mylib/mylib.tcl",
+            "package provide mylib 1.0\nproc draw_widget {w} {}\n",
+        );
+        ws.write(
+            "mylib/pkgIndex.tcl",
+            "package ifneeded mylib 1.0 [list source [file join $dir mylib.tcl]]\n",
+        );
+        {
+            let mut resolver = PackageResolver::new();
+            resolver.scan_tree(&ws.0, 100);
+            *backend.package_resolver.write().await = resolver;
+        }
+        let util = Uri::from_file_path("/proj/lib/util.tcl").unwrap();
+        // The module calls `draw_widget` with no local `package require`.
+        let util_src = "draw_widget .w\n";
+
+        // Control (FN would be a bug here): without an entry file requiring mylib,
+        // the module inherits nothing, so `draw_widget` is genuinely unknown ⇒ W123.
+        let unrefined = backend
+            .full_diagnostics_for(&util, util_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            diag_codes(&unrefined).iter().any(|c| c == "W123"),
+            "without an inherited require the command is unknown ⇒ W123, got: {:?}",
+            diag_codes(&unrefined),
+        );
+
+        // Index an entry file that requires mylib and sources lib/util.tcl, so the
+        // module inherits the `mylib` require via the workspace `source` graph.
+        {
+            let mut a = tcl_compiler::analyser::Analyser::new();
+            let analysis = a
+                .analyse("package require mylib\nsource lib/util.tcl\n", "tcl8.6")
+                .clone();
+            let app = Uri::from_file_path("/proj/app.tcl").unwrap();
+            backend
+                .workspace_index
+                .write()
+                .await
+                .add_document(app.as_str(), &analysis);
+        }
+
+        // TN: the inherited `mylib` require makes `draw_widget` resolvable via the
+        // package's implementation source ⇒ the W123 is refined away.
+        let refined = backend
+            .full_diagnostics_for(&util, util_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !diag_codes(&refined).iter().any(|c| c == "W123"),
+            "an available package's source-defined command must not be W123, got: {:?}",
             diag_codes(&refined),
         );
     }

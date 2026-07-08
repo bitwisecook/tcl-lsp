@@ -716,6 +716,21 @@ about them.  The *fix* is to ship per-package stub bundles; that's
 catalogued as an open task in `fp-audit-todo.md` (not a precision
 issue).
 
+**Workspace-level refinement (issue #832).**  The *single-file analyser*
+verdict above is unchanged — it cannot see beyond the document.  But the
+LSP server *does* have the project's package database (`pkgIndex.tcl` /
+`tclIndex` across the workspace + the resolved `auto_path`), the same
+knowledge go-to-definition uses.  A W123 whose command that database can
+resolve — a library proc a `tclIndex` auto-loads with no `package
+require` (the BLT/Rbc idiom), or a command an available package's
+implementation defines — is refined away by `refine_workspace_w123`
+(alongside the W120 refinement, and independent of the `xcDiagnostics`
+toggle), so it never reaches the editor.  This is a resolvability lookup
+driven entirely by the resolver, never a command-name allowlist.  Locked
+in by `autoload_library_command_suppresses_w123_issue_832` /
+`pkgindex_package_source_command_suppresses_w123` (server) and the
+`auto_loads_command` / `package_defined_commands` unit tests (resolver).
+
 #### tclsh ground truth
 
 ```
