@@ -55,7 +55,7 @@
 //!   analyser's method-resolution machinery — are not shown.
 
 use rustc_hash::FxHashMap;
-use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
+use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope, ScopeKind};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::types::{TypeKind, TypeLattice};
 use tcl_lexer::LineIndex;
@@ -224,24 +224,36 @@ fn collect_type_hints(
     let config = tcl_lexer::LexerConfig::for_dialect(dialect);
     let cu = CompilationUnit::build_for_with_config(source, registry, false, config);
 
-    // Flatten the per-SSA-definition type lattices into a name → display
-    // map.  This is last-writer-wins across versions and
-    // functions; distinct names (the common case) are order-independent.
-    let mut type_map: FxHashMap<String, String> = FxHashMap::default();
+    // Build a *per-function* name → display map, keyed by the function's
+    // qualified name (leading `::` stripped so it matches the analyser's
+    // scope names). A single flat map was last-writer-wins across functions,
+    // so a var named `x` typed Int in one proc bled its type onto an unrelated
+    // `x` typed String in another (RUST_ISSUE_109). Keeping the maps separate
+    // and selecting by the owning scope keeps each scope's types local.
+    let mut by_function: FxHashMap<String, FxHashMap<String, String>> = FxHashMap::default();
     for fu in cu.functions() {
+        let mut m: FxHashMap<String, String> = FxHashMap::default();
         for ((name, _ver), tl) in &fu.types {
             if let Some(display) = type_display(tl) {
-                type_map.insert(fu.ssa.var_name(*name).to_owned(), display);
+                m.insert(fu.ssa.var_name(*name).to_owned(), display);
             }
         }
+        if !m.is_empty() {
+            by_function.insert(normalise_fn_name(&fu.name), m);
+        }
     }
-    if type_map.is_empty() {
+    if by_function.is_empty() {
         return;
     }
 
+    let empty = FxHashMap::default();
+    let top = by_function
+        .get(&normalise_fn_name(&cu.top_level.name))
+        .unwrap_or(&empty);
     walk_scope_type_hints(
         &analysis.global_scope,
-        &type_map,
+        &by_function,
+        top,
         range,
         source,
         line_index,
@@ -249,11 +261,19 @@ fn collect_type_hints(
     );
 }
 
+/// Normalise a function / scope name to a comparable key: the analyser's proc
+/// scope names are unqualified (`a`) while a `FunctionUnit`'s name is fully
+/// qualified (`::a`), so strip a single leading `::`.
+fn normalise_fn_name(name: &str) -> String {
+    name.strip_prefix("::").unwrap_or(name).to_owned()
+}
+
 /// Recursively emit type hints for every variable definition in `scope`
 /// (and its children) whose name carries a known type and whose
 /// definition falls within `range`.
 fn walk_scope_type_hints(
     scope: &Scope,
+    by_function: &FxHashMap<String, FxHashMap<String, String>>,
     type_map: &FxHashMap<String, String>,
     range: LspRange,
     source: &str,
@@ -279,8 +299,28 @@ fn walk_scope_type_hints(
             padding_left: true,
         });
     }
+    let empty = FxHashMap::default();
     for child in &scope.children {
-        walk_scope_type_hints(child, type_map, range, source, line_index, out);
+        // A proc body has its own function unit, so switch to that function's
+        // type map (never fall back to the enclosing one, which would
+        // re-introduce the cross-scope bleeding). Namespace / uplevel-0 bodies
+        // share the enclosing function's locals, so they keep `type_map`.
+        let child_map = if child.kind == ScopeKind::Proc {
+            by_function
+                .get(&normalise_fn_name(&child.name))
+                .unwrap_or(&empty)
+        } else {
+            type_map
+        };
+        walk_scope_type_hints(
+            child,
+            by_function,
+            child_map,
+            range,
+            source,
+            line_index,
+            out,
+        );
     }
 }
 
@@ -1356,6 +1396,48 @@ mod tests {
     }
 
     // inferred type hints (InlayHintKind::Type)
+
+    #[test]
+    fn same_named_vars_in_different_procs_do_not_bleed_types() {
+        // RUST_ISSUE_109: `x` is Int in `a` and a String in `b`. The type hint
+        // for each `x` must reflect its own proc, not last-writer-wins across a
+        // flat name→type map.
+        let src = "proc a {} { set x 42 }\nproc b {} { set x \"hi\" }\n";
+        let analysis = analyse(src);
+        let reg = registry();
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            Some(&reg),
+            true,
+            false,
+        );
+        let labels_on_line = |line: u32| -> Vec<String> {
+            hints
+                .iter()
+                .filter(|h| h.kind == InlayHintKind::Type && h.position_line == line)
+                .map(|h| h.label.clone())
+                .collect()
+        };
+        // Line 0: proc a's `x` is int. Line 1: proc b's `x` is str.
+        assert!(
+            labels_on_line(0).iter().any(|l| l == ": int"),
+            "proc a's x should be int: {:?}",
+            labels_on_line(0),
+        );
+        assert!(
+            labels_on_line(0).iter().all(|l| l != ": str"),
+            "proc b's str type must not bleed onto proc a: {:?}",
+            labels_on_line(0),
+        );
+        assert!(
+            labels_on_line(1).iter().all(|l| l != ": int"),
+            "proc a's int type must not bleed onto proc b: {:?}",
+            labels_on_line(1),
+        );
+    }
 
     #[test]
     fn type_hint_for_integer_set() {
