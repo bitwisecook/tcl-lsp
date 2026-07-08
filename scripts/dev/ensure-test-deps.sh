@@ -449,8 +449,17 @@ install_node_from_nodesource() {
     local scheme="$1" # deb | rpm
     local setup="https://${scheme}.nodesource.com/setup_${NODE_MIN_MAJOR}.x"
     info "Adding NodeSource repo ($setup)"
+    # Run the setup script as root. When already root `$SUDO` is empty, so drop
+    # the `-E` (which is a sudo flag) rather than passing it as the command —
+    # `$SUDO -E bash -` would expand to `-E bash -` and fail.
+    local runner
+    if [ -n "$SUDO" ]; then
+        runner="$SUDO -E bash -"
+    else
+        runner="bash -"
+    fi
     # shellcheck disable=SC2086
-    if ! curl -fsSL --connect-timeout 15 --max-time 600 "$setup" | $SUDO -E bash -; then
+    if ! curl -fsSL --connect-timeout 15 --max-time 600 "$setup" | $runner; then
         warn "NodeSource setup failed; falling back to the distro nodejs package"
         return 1
     fi

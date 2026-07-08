@@ -680,13 +680,17 @@ fn no_expansion_without_immediately_following_word() {
 #[test]
 fn array_index_groups_into_one_var() {
     // Each is a single VAR token whose text is `arr(<index>)`.
+    // RUST_ISSUE_085: C Tcl does NOT balance nested parens in an array index —
+    // the index ends at the first token-level `)`. A literal `(` is plain text,
+    // so `$arr((nested))` is the variable `arr((nested)` followed by a stray
+    // `)`; `first()` returns just that leading VAR token.
     for (src, want) in [
-        ("$arr((nested))", "arr((nested))"),
+        ("$arr((nested))", "arr((nested)"),
         ("$arr($inner)", "arr($inner)"),
         ("$arr({key})", "arr({key})"),
         ("$arr(\"key\")", "arr(\"key\")"),
         ("$arr(a b)", "arr(a b)"),
-        ("$arr(((deep)))", "arr(((deep)))"),
+        ("$arr(((deep)))", "arr(((deep)"),
         ("$ns::arr(key)", "ns::arr(key)"),
         ("$arr()", "arr()"),
         ("$arr(a;b)", "arr(a;b)"),

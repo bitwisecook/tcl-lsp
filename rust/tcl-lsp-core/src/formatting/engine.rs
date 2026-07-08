@@ -1057,9 +1057,16 @@ fn append_word_arg(
     }
     // `enforceBracedExpr`, bounded form: a single unbraced expression argument
     // (an `if` / `while` / `for` condition, `control::assert`'s first arg) is
-    // wrapped in braces (`if $x …` → `if {$x} …`). A `"…"`-quoted operand is
-    // left alone — bracing it would embed the quotes inside the expression.
-    if config.enforce_braced_expr && !arg.is_braced && !arg.is_quoted && expr_args.contains(&i) {
+    // wrapped in braces (`if $x …` → `if {$x} …`). A `"…"`-quoted operand, or
+    // one carrying a `{*}` expansion (whose expansion braces would demote to
+    // literal text), is left alone.
+    let has_expansion = arg.tokens.iter().any(|t| t.kind == TokenType::Expand);
+    if config.enforce_braced_expr
+        && !arg.is_braced
+        && !arg.is_quoted
+        && !has_expansion
+        && expr_args.contains(&i)
+    {
         maybe_space(parts, false, config.space_between_braces);
         parts.push(format!("{{{raw}}}"));
         return true;
@@ -1209,6 +1216,16 @@ fn concat_expr_parts(
     }
     if args.len() == 2 && args[1].is_braced {
         return None; // already `expr {…}`
+    }
+    // Never brace a tail containing an expansion: `expr {*}$pieces` expands the
+    // list before evaluating, and `expr {{*}$pieces}` would demote `{*}` to
+    // literal text, breaking the expression (Codex review). Leave such a
+    // command untouched.
+    if args[1..]
+        .iter()
+        .any(|a| a.tokens.iter().any(|t| t.kind == TokenType::Expand))
+    {
+        return None;
     }
     let joined = args[1..]
         .iter()
@@ -1548,6 +1565,22 @@ mod tests {
     fn enforce_braced_expr_off_by_default() {
         // FP-guard: with the default config (off) bare exprs are untouched.
         assert_eq!(fmt("expr $a + $b\n"), "expr $a + $b\n");
+    }
+
+    #[test]
+    fn enforce_braced_expr_preserves_expansion_tail() {
+        // Codex review: `expr {*}$pieces` expands the list before evaluating;
+        // bracing it (`expr {{*}$pieces}`) would demote `{*}` to literal text
+        // and break the expression. The rewrite must leave it alone.
+        let config = FormatterConfig {
+            enforce_braced_expr: true,
+            ..FormatterConfig::default()
+        };
+        assert_eq!(
+            fmt_with("expr {*}$pieces\n", &config),
+            "expr {*}$pieces\n",
+            "an expansion tail must not be braced"
+        );
     }
 
     #[test]

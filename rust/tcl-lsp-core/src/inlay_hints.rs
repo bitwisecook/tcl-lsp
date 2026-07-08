@@ -301,11 +301,12 @@ fn walk_scope_type_hints(
     }
     let empty = FxHashMap::default();
     for child in &scope.children {
-        // A proc body has its own function unit, so switch to that function's
-        // type map (never fall back to the enclosing one, which would
-        // re-introduce the cross-scope bleeding). Namespace / uplevel-0 bodies
-        // share the enclosing function's locals, so they keep `type_map`.
-        let child_map = if child.kind == ScopeKind::Proc {
+        // A proc OR TclOO method body has its own function unit, so switch to
+        // that function's type map (never fall back to the enclosing one, which
+        // would re-introduce the cross-scope bleeding — a method's locals must
+        // not inherit an outer `x`). Namespace / uplevel-0 bodies share the
+        // enclosing function's locals, so they keep `type_map`.
+        let child_map = if matches!(child.kind, ScopeKind::Proc | ScopeKind::Method) {
             by_function
                 .get(&normalise_fn_name(&child.name))
                 .unwrap_or(&empty)

@@ -702,13 +702,17 @@ impl<'src> Lexer<'src> {
         }
     }
 
-    /// Skip a `[…]` command substitution inside an array index — bracket-
-    /// balanced and backslash-aware — so a `)` inside it is not the index
-    /// terminator. Stops after the matching `]` (or at EOF).
+    /// Skip a `[…]` command substitution inside an array index so a `)` inside
+    /// it is not the index terminator. Tracks brace nesting (`blevel`) and
+    /// double-quote state (`in_quotes`) — mirroring [`Self::parse_command`] — so
+    /// a `]` inside a braced or quoted word (e.g. `$a([puts {]}])`) does not
+    /// close the substitution early. Stops after the matching `]` (or at EOF).
     fn skip_command_in_index(&mut self) {
         debug_assert_eq!(self.current_byte(), Some(b'['));
         self.pos += 1;
         let mut depth: u32 = 1;
+        let mut blevel: u32 = 0;
+        let mut in_quotes = false;
         while depth > 0 {
             let Some(ch) = self.current_char() else {
                 return;
@@ -720,11 +724,23 @@ impl<'src> Lexer<'src> {
                         self.pos += u32::try_from(next.len_utf8()).expect("char len fits u32");
                     }
                 }
-                '[' => {
+                '"' if blevel == 0 => {
+                    in_quotes = !in_quotes;
+                    self.pos += 1;
+                }
+                '{' if !in_quotes => {
+                    blevel += 1;
+                    self.pos += 1;
+                }
+                '}' if !in_quotes => {
+                    blevel = blevel.saturating_sub(1);
+                    self.pos += 1;
+                }
+                '[' if blevel == 0 && !in_quotes => {
                     depth += 1;
                     self.pos += 1;
                 }
-                ']' => {
+                ']' if blevel == 0 && !in_quotes => {
                     depth -= 1;
                     self.pos += 1;
                 }
@@ -1917,6 +1933,21 @@ mod tests {
         let (rows, _) = var_token_text("$a([foo(x)])");
         assert_eq!(rows[0].0, TokenType::Var);
         assert_eq!(rows[0].1, "a([foo(x)])");
+    }
+
+    #[test]
+    fn var_array_index_command_sub_bracketed_brace_does_not_close_early() {
+        // A `]` inside a braced word within the `[…]` substitution must not
+        // close the substitution early (skip_command_in_index tracks brace
+        // depth). `$a([puts {]}])` — the command is `puts {]}`, so the index is
+        // the whole `[puts {]}]` and the VAR token is `a([puts {]}])`.
+        let (rows, _) = var_token_text("$a([puts {]}])");
+        assert_eq!(rows[0].0, TokenType::Var);
+        assert_eq!(rows[0].1, "a([puts {]}])");
+        // Same for a `]` inside a double-quoted word.
+        let (rows, _) = var_token_text("$a([puts \"]\"])");
+        assert_eq!(rows[0].0, TokenType::Var);
+        assert_eq!(rows[0].1, "a([puts \"]\"])");
     }
 
     #[test]
