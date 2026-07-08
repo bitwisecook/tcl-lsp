@@ -153,8 +153,14 @@ pub fn is_taint_source(
         {
             return true;
         }
+        // Tcl ensemble dispatch accepts a unique prefix (`chan g` ⇒ `gets`,
+        // `encoding convertf` ⇒ `convertfrom`), so a source subcommand must be
+        // resolved prefix-aware or an abbreviation dodges the classification —
+        // a taint-source false negative (RUST_ISSUE_023). Dialect-agnostic:
+        // classifying a source in *every* dialect only ever catches more (the
+        // safe direction for a security source), matching the prior behaviour.
         if let Some(sub_name) = args.first().copied()
-            && let Some(sub) = spec.subcommand(sub_name)
+            && let Some(sub) = spec.resolve_subcommand(sub_name)
             && sub.traits.contains(Traits::TAINT_SOURCE)
         {
             return true;
@@ -242,8 +248,11 @@ pub fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) ->
     let Some(spec) = registry.get(command) else {
         return false;
     };
+    // Prefix-aware (`string le` ⇒ `length`) so a legal abbreviation of a
+    // sanitiser is still recognised — otherwise a spurious T101 fires where the
+    // full spelling is correctly suppressed (RUST_ISSUE_023).
     if let Some(sub_name) = args.first().copied()
-        && let Some(sub) = spec.subcommand(sub_name)
+        && let Some(sub) = spec.resolve_subcommand(sub_name)
         && is_fixed_numeric(sub.return_type)
     {
         return true;
@@ -334,7 +343,7 @@ pub fn taint_transform(
 ) -> Option<TaintColour> {
     let spec = registry.get(command)?;
     if let Some(sub_name) = subcommand
-        && let Some(sub) = spec.subcommand(sub_name)
+        && let Some(sub) = spec.resolve_subcommand(sub_name)
         && sub.taint_transform.is_some()
     {
         return sub.taint_transform;
@@ -354,7 +363,7 @@ pub fn taint_double_encode_colour(
 ) -> Option<TaintColour> {
     let spec = registry.get(command)?;
     if let Some(sub_name) = subcommand
-        && let Some(sub) = spec.subcommand(sub_name)
+        && let Some(sub) = spec.resolve_subcommand(sub_name)
         && sub.taint_double_encode_colour.is_some()
     {
         return sub.taint_double_encode_colour;

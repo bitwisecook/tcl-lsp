@@ -1258,7 +1258,7 @@ fn classify_sink(
     // shared commands (currently none) would prefer the generic
     // classification.
     if is_irules_dialect(dialect)
-        && let Some(hit) = classify_irules_sink(command, args)
+        && let Some(hit) = classify_irules_sink(registry, command, args)
     {
         return Some(hit);
     }
@@ -1281,17 +1281,27 @@ fn classify_sink(
 /// TODO: once the Rust command registry carries `taint_hints` /
 /// `taint_output_sink_subcommands` metadata, replace the hardcoded
 /// command list with registry lookups.
-fn classify_irules_sink(command: &str, args: &[String]) -> Option<(DiagCode, String)> {
+fn classify_irules_sink(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[String],
+) -> Option<(DiagCode, String)> {
+    // IRULE3002 output-sink subcommands come from the registry
+    // (`taint_output_sink_subcommands`), resolved prefix-aware so a legal
+    // abbreviation (`HTTP::cookie ins`) is not a false negative
+    // (RUST_ISSUE_023). This also removes the hardcoded `HTTP::header` /
+    // `HTTP::cookie` command list — any spec that declares output-sink
+    // subcommands participates.
+    if let Some(spec) = registry.get(command)
+        && !spec.taint_output_sink_subcommands.is_empty()
+        && let Some(sub_word) = args.first()
+        && let Some(sub) = spec.resolve_subcommand(sub_word)
+        && spec.taint_output_sink_subcommands.contains(&sub.name)
+    {
+        return Some((DiagCode::Irule3002, format!("{command} {}", sub.name)));
+    }
     match command {
         "HTTP::respond" => Some((DiagCode::Irule3001, command.to_owned())),
-        "HTTP::header" | "HTTP::cookie" => {
-            let sub = args.first().map(String::as_str);
-            if matches!(sub, Some("insert" | "replace")) {
-                Some((DiagCode::Irule3002, format!("{command} {}", sub.unwrap())))
-            } else {
-                None
-            }
-        }
         "HTTP::redirect" => Some((DiagCode::Irule3004, command.to_owned())),
         "log" => Some((DiagCode::Irule3003, command.to_owned())),
         _ => None,
@@ -1319,10 +1329,16 @@ fn classify_network_interp_sinks(
     if spec.taint_network_sink_args.is_some() {
         out.push((DiagCode::T104, command.to_owned()));
     }
-    if let Some(sub) = args.first()
-        && spec.taint_interp_eval_subcommands.contains(&sub.as_str())
-    {
-        out.push((DiagCode::T105, format!("{command} {sub}")));
+    // Resolve the subcommand prefix-aware (`interp ev` ⇒ `eval`) before testing
+    // membership, so a legal abbreviation does not dodge the cross-interpreter
+    // eval classification (RUST_ISSUE_023).
+    if let Some(sub) = args.first() {
+        let canonical = spec
+            .resolve_subcommand(sub)
+            .map_or(sub.as_str(), |s| s.name);
+        if spec.taint_interp_eval_subcommands.contains(&canonical) {
+            out.push((DiagCode::T105, format!("{command} {canonical}")));
+        }
     }
     out
 }
@@ -1763,6 +1779,7 @@ fn irules_sink_suppressed(code: DiagCode, lat: TaintLattice) -> bool {
 /// `replace` subcommand) in `args` and carries the
 /// `HEADER_TOKEN_SAFE` colour — the IRULE3002 extra mitigation.
 fn irule3002_name_position_safe(
+    registry: &CommandRegistry,
     command: &str,
     args: &[String],
     var_name: &str,
@@ -1771,10 +1788,22 @@ fn irule3002_name_position_safe(
     if !lat.colours.contains(TaintColour::HEADER_TOKEN_SAFE) {
         return false;
     }
-    if !matches!(command, "HTTP::header" | "HTTP::cookie") {
+    // Registry-driven + prefix-aware: an output-sink subcommand
+    // (`taint_output_sink_subcommands`, e.g. `insert`/`replace`) resolved from
+    // whatever the caller wrote (`ins` ⇒ `insert`), so the name-position
+    // safety check matches the same set the sink classifier uses
+    // (RUST_ISSUE_023).
+    let Some(spec) = registry.get(command) else {
         return false;
-    }
-    if !matches!(args.first().map(String::as_str), Some("insert" | "replace")) {
+    };
+    let Some(sub_word) = args.first() else {
+        return false;
+    };
+    let is_output_sink_sub = !spec.taint_output_sink_subcommands.is_empty()
+        && spec
+            .resolve_subcommand(sub_word)
+            .is_some_and(|sub| spec.taint_output_sink_subcommands.contains(&sub.name));
+    if !is_output_sink_sub {
         return false;
     }
     let Some(arg) = args.get(1) else { return false };
@@ -2341,7 +2370,7 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
             }
         }
         if code == DiagCode::Irule3002
-            && irule3002_name_position_safe(call.command, call.args, name, t)
+            && irule3002_name_position_safe(call.registry, call.command, call.args, name, t)
         {
             continue;
         }
@@ -3667,7 +3696,12 @@ mod tests {
 
     fn irules_warnings_for(source: &str) -> Vec<TaintWarning> {
         use crate::compilation_unit::CompilationUnit;
-        let registry = CommandRegistry::build_default();
+        // Mirror production (tcl-lsp-db): build_default + load the iRules
+        // dialect, so the iRules command *specs* (with their subcommands and
+        // taint_output_sink_subcommands) are present for the registry-driven,
+        // prefix-aware sink classification.
+        let mut registry = CommandRegistry::build_default();
+        registry.load_dialect(DialectSet::IRULES);
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, Some("f5-irules"));
         let mut out: Vec<TaintWarning> = Vec::new();
@@ -3695,13 +3729,16 @@ mod tests {
 
     #[test]
     fn classify_irules_sink_http_respond() {
-        let hit = classify_irules_sink("HTTP::respond", &[]);
+        let reg = tcl_registry::registry_for_dialect("f5-irules");
+        let hit = classify_irules_sink(reg, "HTTP::respond", &[]);
         assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::Irule3001));
     }
 
     #[test]
     fn classify_irules_sink_http_header_insert() {
+        let reg = tcl_registry::registry_for_dialect("f5-irules");
         let hit = classify_irules_sink(
+            reg,
             "HTTP::header",
             &["insert".to_owned(), "X-Foo".to_owned(), "bar".to_owned()],
         );
@@ -3711,7 +3748,9 @@ mod tests {
 
     #[test]
     fn classify_irules_sink_http_cookie_replace() {
+        let reg = tcl_registry::registry_for_dialect("f5-irules");
         let hit = classify_irules_sink(
+            reg,
             "HTTP::cookie",
             &["replace".to_owned(), "sid".to_owned(), "val".to_owned()],
         );
@@ -3720,21 +3759,42 @@ mod tests {
     }
 
     #[test]
+    fn classify_irules_sink_prefix_abbreviation() {
+        // RUST_ISSUE_023: `HTTP::cookie ins` is a legal abbreviation of `insert`
+        // and must still classify as the IRULE3002 output sink.
+        let reg = tcl_registry::registry_for_dialect("f5-irules");
+        let hit = classify_irules_sink(
+            reg,
+            "HTTP::cookie",
+            &["ins".to_owned(), "sid".to_owned(), "val".to_owned()],
+        );
+        assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::Irule3002));
+        // The label reports the canonical subcommand name.
+        assert_eq!(hit.as_ref().unwrap().1, "HTTP::cookie insert");
+    }
+
+    #[test]
     fn classify_irules_sink_http_header_remove_is_none() {
-        let hit = classify_irules_sink("HTTP::header", &["remove".to_owned(), "X-Foo".to_owned()]);
+        let reg = tcl_registry::registry_for_dialect("f5-irules");
+        let hit = classify_irules_sink(
+            reg,
+            "HTTP::header",
+            &["remove".to_owned(), "X-Foo".to_owned()],
+        );
         assert!(hit.is_none(), "remove subcommand must not emit IRULE3002");
     }
 
     #[test]
     fn classify_irules_sink_log_and_redirect() {
+        let reg = tcl_registry::registry_for_dialect("f5-irules");
         assert_eq!(
-            classify_irules_sink("log", &["local0.info".to_owned(), "x".to_owned()])
+            classify_irules_sink(reg, "log", &["local0.info".to_owned(), "x".to_owned()])
                 .as_ref()
                 .map(|(c, _)| *c),
             Some(DiagCode::Irule3003),
         );
         assert_eq!(
-            classify_irules_sink("HTTP::redirect", &["https://evil".to_owned()])
+            classify_irules_sink(reg, "HTTP::redirect", &["https://evil".to_owned()])
                 .as_ref()
                 .map(|(c, _)| *c),
             Some(DiagCode::Irule3004),
@@ -3960,10 +4020,12 @@ mod tests {
 
     #[test]
     fn irule3002_header_token_safe_name_position_suppresses() {
+        let registry = tcl_registry::registry_for_dialect("f5-irules");
         let args = vec!["insert".to_owned(), "$name".to_owned(), "$value".to_owned()];
         let lat = TaintLattice::tainted().with(TaintColour::HEADER_TOKEN_SAFE);
         // Var `name` occupies arg-index 1 (name position) → suppressed.
         assert!(irule3002_name_position_safe(
+            registry,
             "HTTP::header",
             &args,
             "name",
@@ -3971,6 +4033,7 @@ mod tests {
         ));
         // Var `value` occupies arg-index 2 (value position) → not suppressed.
         assert!(!irule3002_name_position_safe(
+            registry,
             "HTTP::header",
             &args,
             "value",
@@ -3979,6 +4042,7 @@ mod tests {
         // Without HEADER_TOKEN_SAFE colour: never suppressed, even at name position.
         let plain = TaintLattice::tainted();
         assert!(!irule3002_name_position_safe(
+            registry,
             "HTTP::header",
             &args,
             "name",
@@ -3987,6 +4051,7 @@ mod tests {
         // Wrong subcommand: not suppressed.
         let rm_args = vec!["remove".to_owned(), "$name".to_owned()];
         assert!(!irule3002_name_position_safe(
+            registry,
             "HTTP::header",
             &rm_args,
             "name",
