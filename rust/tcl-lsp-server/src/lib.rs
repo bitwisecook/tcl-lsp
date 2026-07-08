@@ -7847,11 +7847,21 @@ fn normalize_config_payload(payload: &serde_json::Value) -> serde_json::Value {
             let segments: Vec<&str> = path.split('.').collect();
             let mut cursor = &mut out;
             for seg in &segments[..segments.len() - 1] {
-                cursor = cursor
+                let slot = cursor
                     .entry((*seg).to_owned())
-                    .or_insert_with(|| Value::Object(Map::new()))
+                    .or_insert_with(|| Value::Object(Map::new()));
+                // A colliding non-object at this segment — a mixed-shape payload
+                // that supplied both a scalar/object prefix and a dotted child
+                // (e.g. `tclLsp.features: false` alongside
+                // `tclLsp.features.semanticTokens: true`) — is replaced by an
+                // object so the deeper key can be inserted (last-writer-wins),
+                // rather than panicking on the descent.
+                if !slot.is_object() {
+                    *slot = Value::Object(Map::new());
+                }
+                cursor = slot
                     .as_object_mut()
-                    .expect("nested config segment is an object");
+                    .expect("slot was just ensured to be an object");
             }
             cursor.insert(segments[segments.len() - 1].to_owned(), value.clone());
         } else if key.starts_with("tclLsp.") {
@@ -9633,6 +9643,35 @@ mod tests {
         assert_eq!(
             normalize_config_payload(&composed),
             serde_json::json!({ "optimiser": { "O109": false, "O110": false } }),
+        );
+    }
+
+    #[test]
+    fn normalize_config_payload_survives_mixed_shape_collision() {
+        // A client that supplies both a scalar prefix and a dotted child at the
+        // same segment (`tclLsp.features` = false *and*
+        // `tclLsp.features.semanticTokens` = true) must not panic; the deeper
+        // key replaces the colliding scalar rather than crashing the server.
+        // (`serde_json`'s default `Map` orders keys, so `tclLsp.features` is
+        // folded before its dotted child regardless of literal order.)
+        let payload = serde_json::json!({
+            "tclLsp.features": false,
+            "tclLsp.features.semanticTokens": true,
+        });
+        assert_eq!(
+            normalize_config_payload(&payload),
+            serde_json::json!({ "features": { "semanticTokens": true } }),
+        );
+        // When the prefix is already an object, the dotted child merges into it
+        // (no collision, both keys kept) — the non-panicking path we must not
+        // regress.
+        let obj_prefix = serde_json::json!({
+            "tclLsp.features": { "hover": true },
+            "tclLsp.features.semanticTokens": true,
+        });
+        assert_eq!(
+            normalize_config_payload(&obj_prefix),
+            serde_json::json!({ "features": { "hover": true, "semanticTokens": true } }),
         );
     }
 

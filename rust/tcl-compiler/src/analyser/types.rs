@@ -501,6 +501,39 @@ impl PartialEq for HierarchyCache {
     }
 }
 
+/// A lexical region whose body runs in a scoped command environment.
+///
+/// Recorded by the analyser when it recurses into the
+/// [`ArgRole::Body`](tcl_registry::ArgRole::Body) argument of a command whose
+/// spec carries a [`body_scope`](tcl_registry::CommandSpec::body_scope) (e.g. a
+/// `report::defstyle` style script).  `span` covers the body's brace-delimited
+/// region; the post-walk W123 pass and the LSP hover / completion providers
+/// resolve a command head against `env` when its position falls inside `span`.
+#[derive(Debug, Clone)]
+pub struct ScopedBodyRegion {
+    /// Byte span of the scoped body (the brace-delimited word).
+    pub span: Span,
+    /// The command environment ambient inside the body.
+    pub env: &'static tcl_registry::scoped::ScopedCommandEnv,
+}
+
+impl PartialEq for ScopedBodyRegion {
+    fn eq(&self, other: &Self) -> bool {
+        // Environments are `&'static` singletons; pointer identity is the
+        // cheapest sound comparison and avoids requiring `PartialEq` on the
+        // registry-side hover/subcommand descriptors.
+        self.span == other.span && std::ptr::eq(self.env, other.env)
+    }
+}
+
+impl ScopedBodyRegion {
+    /// Whether `offset` falls strictly inside this region's body.
+    #[must_use]
+    pub fn contains(&self, offset: u32) -> bool {
+        self.span.start() <= offset && offset < self.span.end()
+    }
+}
+
 /// Complete analysis result for a single document.
 ///
 /// Holds the full field set the analyser can produce. Fields that
@@ -585,6 +618,19 @@ pub struct AnalysisResult {
     /// not also silence the cross-file arity error.  Empty when the W123 emitter's
     /// knowability gates fire (e.g. a dynamic `package require` / `unknown` proc).
     pub unresolved_command_sites: Vec<(Span, String)>,
+    /// Lexical regions whose body runs in a scoped command environment
+    /// (`report::defstyle` style scripts, …).  The W123 unknown-command pass
+    /// treats a bare head inside one of these regions as known when it resolves
+    /// against the region's [`ScopedBodyRegion::env`]; the LSP hover /
+    /// completion providers read them to surface the scoped command set.  Empty
+    /// for documents with no scoped-body commands.
+    pub scoped_command_regions: Vec<ScopedBodyRegion>,
+    /// Names introduced by a scoped-body definer command whose environment sets
+    /// `include_sibling_definitions` — keyed by the environment name.  A
+    /// `report::defstyle simpletable …` records `"simpletable"` under
+    /// `"report style definition"`, so a later style body calling `simpletable`
+    /// resolves instead of drawing a W123.
+    pub scoped_sibling_defs: HashMap<&'static str, std::collections::HashSet<String>>,
     /// Memoised class hierarchy — see [`HierarchyCache`].  Not part of the
     /// analysis output; built on first [`Self::class_hierarchy`] call.  The
     /// inner cache is opaque (its `OnceLock` is private), so this being

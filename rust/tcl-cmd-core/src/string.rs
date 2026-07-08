@@ -297,7 +297,11 @@ pub fn last<O: ValueOps>(
         None => i64::try_from(hay.len()).unwrap_or(i64::MAX) - 1,
         Some(s) => index::resolve(&ops.as_str(s), hay.len())?,
     };
-    if needle.is_empty() || last < 0 {
+    // An empty haystack can hold no non-empty needle — return -1 before the
+    // clamp below, whose `saturating_sub(1)` would otherwise yield index 0 and
+    // panic when the search slices `hay[0..needle.len()]` (e.g.
+    // `string last a {} 0`).
+    if needle.is_empty() || last < 0 || hay.is_empty() {
         return Ok(ops.new_int(-1));
     }
     let last = usize::try_from(last)
@@ -634,5 +638,73 @@ mod tests {
         assert_eq!(word_end(&c, 4), 7); // end of "def"
         assert_eq!(word_end(&c, 3), 4); // a non-word char advances exactly one
         assert_eq!(word_end(&c, 100), 7); // past end → length
+    }
+
+    /// A minimal string-backed [`ValueOps`] for the `string last` unit tests.
+    #[derive(Default)]
+    struct StrOps;
+
+    impl ValueOps for StrOps {
+        type Value = String;
+        fn new_str(&mut self, s: &str) -> String {
+            s.to_owned()
+        }
+        fn new_int(&mut self, n: i64) -> String {
+            n.to_string()
+        }
+        fn new_double(&mut self, f: f64) -> String {
+            tcl_syntax::number::format_double(f)
+        }
+        fn new_bool(&mut self, b: bool) -> String {
+            (if b { "1" } else { "0" }).to_owned()
+        }
+        fn new_list(&mut self, items: Vec<String>) -> String {
+            items.join(" ")
+        }
+        fn as_str(&mut self, v: &String) -> std::rc::Rc<str> {
+            std::rc::Rc::from(v.as_str())
+        }
+        fn as_int(&mut self, v: &String) -> Result<i64, tcl_syntax::value::ValueError> {
+            v.parse()
+                .map_err(|_| tcl_syntax::value::ValueError::NotInteger(v.clone()))
+        }
+        fn as_double(&mut self, _v: &String) -> Result<f64, tcl_syntax::value::ValueError> {
+            Ok(0.0)
+        }
+        fn as_bool(&mut self, _v: &String) -> Result<bool, tcl_syntax::value::ValueError> {
+            Ok(false)
+        }
+        fn list_elements(
+            &mut self,
+            v: &String,
+        ) -> Result<Vec<String>, tcl_syntax::value::ValueError> {
+            Ok(v.split_whitespace().map(str::to_owned).collect())
+        }
+    }
+
+    fn last_of(needle: &str, haystack: &str, index: Option<&str>) -> String {
+        let mut ops = StrOps;
+        let (n, h) = (needle.to_owned(), haystack.to_owned());
+        let idx = index.map(str::to_owned);
+        last(&mut ops, &n, &h, idx.as_ref()).expect("string last succeeds")
+    }
+
+    #[test]
+    fn string_last_empty_haystack_is_minus_one_not_panic() {
+        // Regression: `string last a {} 0` clamped `last` to 0 and then sliced
+        // an empty haystack, panicking. An empty haystack holds no match → -1.
+        assert_eq!(last_of("a", "", Some("0")), "-1");
+        assert_eq!(last_of("a", "", None), "-1");
+        assert_eq!(last_of("abc", "", Some("end")), "-1");
+    }
+
+    #[test]
+    fn string_last_finds_last_occurrence() {
+        assert_eq!(last_of("a", "banana", None), "5");
+        assert_eq!(last_of("an", "banana", None), "3");
+        // Bounded search: last "an" ending at or before index 2.
+        assert_eq!(last_of("an", "banana", Some("2")), "1");
+        // No match → -1.
+        assert_eq!(last_of("z", "banana", None), "-1");
     }
 }

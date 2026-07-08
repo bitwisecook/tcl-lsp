@@ -192,6 +192,18 @@ fn context_aware_completions(
         return Some(items);
     }
 
+    // Inside a scoped command environment (a `report::defstyle` style script):
+    // the ensemble operations of a scoped command (`top ` → `set`/`get`/`enable`
+    // /…) complete at word index 1.  Checked before the registry lookup because
+    // a scoped head (`top`) is not a registered command.
+    if word_idx == 1
+        && let Some(env) = scoped_env_at(analysis, source, line, character)
+        && let Some(scoped) = env.command(&cmd)
+        && !scoped.subcommands.is_empty()
+    {
+        return Some(scoped_op_completions(scoped, partial));
+    }
+
     let spec = registry.get(&cmd)?;
 
     // Switch completion fires when the identifier
@@ -378,6 +390,18 @@ pub fn completions(
         items.extend(builtin_completions(
             registry, dialect, &partial, &usage, tk_loaded, analysis,
         ));
+    }
+    // Inside a scoped command environment (a `report::defstyle` style script),
+    // offer its command heads (`top`, `data`, `columns`, …) alongside the
+    // ordinary command/proc set — a style body uses both scoped and core
+    // commands.  Deduped by label so a scoped name never doubles a core one.
+    if let Some(env) = scoped_env_at(analysis, source, line, character) {
+        let present: FxHashSet<String> = items.iter().map(|i| i.label.clone()).collect();
+        for item in scoped_command_completions(env, &partial) {
+            if !present.contains(&item.label) {
+                items.push(item);
+            }
+        }
     }
     // Workspace-wide proc enumeration: surface procs defined in
     // *other* analysed documents that aren't already in the
@@ -1091,6 +1115,69 @@ fn subcommand_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Ve
             insert_text: name.to_owned(),
             kind: CompletionKind::Function,
             detail: None,
+            sort_text: None,
+            is_snippet: false,
+            filter_text: None,
+            text_edit: None,
+            documentation: None,
+        })
+        .collect()
+}
+
+/// The scoped command environment active at the cursor, if the position falls
+/// inside a recorded scoped body (a `report::defstyle` style script).
+fn scoped_env_at(
+    analysis: &AnalysisResult,
+    source: &str,
+    line: u32,
+    character: u32,
+) -> Option<&'static tcl_registry::scoped::ScopedCommandEnv> {
+    let line_index = tcl_lexer::LineIndex::new(source);
+    let offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    analysis
+        .scoped_command_regions
+        .iter()
+        .find(|r| r.contains(offset))
+        .map(|r| r.env)
+}
+
+/// Completion items for the command heads of a scoped environment matching
+/// `partial` (`top`, `data`, `columns`, … inside a `report::defstyle` body).
+fn scoped_command_completions(
+    env: &'static tcl_registry::scoped::ScopedCommandEnv,
+    partial: &str,
+) -> Vec<CompletionItem> {
+    env.commands
+        .iter()
+        .filter(|c| partial.is_empty() || c.name.starts_with(partial))
+        .map(|c| CompletionItem {
+            label: c.name.to_owned(),
+            insert_text: c.name.to_owned(),
+            kind: CompletionKind::Function,
+            detail: (!c.detail.is_empty()).then(|| c.detail.to_owned()),
+            sort_text: None,
+            is_snippet: false,
+            filter_text: None,
+            text_edit: None,
+            documentation: None,
+        })
+        .collect()
+}
+
+/// Completion items for the ensemble operations of a scoped command
+/// (`set` / `get` / `enable` / … after `top ` in a `report::defstyle` body).
+fn scoped_op_completions(
+    cmd: &'static tcl_registry::scoped::ScopedCommand,
+    partial: &str,
+) -> Vec<CompletionItem> {
+    cmd.subcommands
+        .iter()
+        .filter(|s| partial.is_empty() || s.name.starts_with(partial))
+        .map(|s| CompletionItem {
+            label: s.name.to_owned(),
+            insert_text: s.name.to_owned(),
+            kind: CompletionKind::Function,
+            detail: (!s.detail.is_empty()).then(|| s.detail.to_owned()),
             sort_text: None,
             is_snippet: false,
             filter_text: None,

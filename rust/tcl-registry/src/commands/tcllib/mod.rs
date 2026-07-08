@@ -179,6 +179,11 @@ mod mime__uniqueid;
 mod mime__word_decode;
 mod mime__word_encode;
 mod report__defstyle;
+mod report__report;
+mod report__rmstyle;
+mod report__stylearguments;
+mod report__stylebody;
+mod report__styles;
 mod sha1__sha1;
 mod sha2__sha256;
 mod smtp__sendmessage;
@@ -304,10 +309,10 @@ pub fn tcllib_command_specs() -> Vec<CommandSpec> {
         // release must not offer its commands under that dialect.  Applied
         // after the blanket gate (and to specs with an explicit dialect
         // set) so every command a package provides stays consistent.
-        if let Some(excluded) = spec.owning_package().and_then(tcllib_package_dialect_floor) {
-            if let Some(dialects) = spec.dialects {
-                spec.dialects = Some(dialects.difference(excluded));
-            }
+        if let Some(excluded) = spec.owning_package().and_then(tcllib_package_dialect_floor)
+            && let Some(dialects) = spec.dialects
+        {
+            spec.dialects = Some(dialects.difference(excluded));
         }
     }
     specs
@@ -493,6 +498,11 @@ fn md5_mime_snit_struct_specs() -> Vec<CommandSpec> {
         mime__word_decode::spec(),
         mime__word_encode::spec(),
         report__defstyle::spec(),
+        report__report::spec(),
+        report__rmstyle::spec(),
+        report__stylearguments::spec(),
+        report__stylebody::spec(),
+        report__styles::spec(),
         sha1__sha1::spec(),
         sha2__sha256::spec(),
         smtp__sendmessage::spec(),

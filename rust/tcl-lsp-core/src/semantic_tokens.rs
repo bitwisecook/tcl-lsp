@@ -919,6 +919,7 @@ fn special_arg_kinds(
     registry: &CommandRegistry,
     head: &str,
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
+    scoped_env: Option<&'static tcl_registry::scoped::ScopedCommandEnv>,
     arg_texts: &[&str],
     object_classes: &ObjectClassMap,
     object_collections: &ObjectClassMap,
@@ -967,6 +968,7 @@ fn special_arg_kinds(
     insert_switch_case_list_override(seg, &mut overrides);
     insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, oo_grammar, arg_texts, &mut overrides);
+    insert_scoped_subcommand_overrides(seg, scoped_env, head, &mut overrides);
     insert_multiname_var_overrides(seg, oo_grammar, &mut overrides);
     insert_ref_var_overrides(seg, &mut overrides);
     insert_loop_var_overrides(seg, registry, head, arg_texts, &mut overrides);
@@ -1157,6 +1159,33 @@ fn insert_multiname_var_overrides(
 /// Only fires when `oo_grammar` is `Some` — i.e. this segment is a top-level
 /// word of a definition body — so a same-named user proc is never
 /// misclassified.
+/// Colour the ensemble operation word of a scoped command as a subcommand
+/// keyword — the `set` / `enable` in `top set …` / `top enable` inside a
+/// `report::defstyle` style script.  Fires only when `head` is a command of the
+/// enclosing scoped environment and its op resolves against that command's
+/// operation set; the whole set is registry data (see [`tcl_registry::scoped`]).
+fn insert_scoped_subcommand_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    scoped_env: Option<&'static tcl_registry::scoped::ScopedCommandEnv>,
+    head: &str,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let Some(env) = scoped_env else {
+        return;
+    };
+    let Some(cmd) = env.command(head) else {
+        return;
+    };
+    if let Some(op_text) = seg.texts.get(1)
+        && cmd.subcommand(op_text).is_some()
+        && let Some(tok) = seg.argv.get(1)
+    {
+        overrides
+            .entry(tok.span.start())
+            .or_insert(ArgOverride::SubcommandKeyword);
+    }
+}
+
 fn insert_oo_body_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
@@ -3216,6 +3245,14 @@ struct ScriptCtx<'a> {
     /// highlight — see [`crate::oo_body`].  Outside one, a same-named user proc
     /// is never treated as a member.
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
+    /// The enclosing scoped command environment, or `None` outside any scoped
+    /// body.  When `Some`, this script runs in a context (a `report::defstyle`
+    /// style script) that exposes a curated command set (`top`, `data`,
+    /// `columns`, …) — the heads highlight as library commands and their
+    /// ensemble operations (`top set`) as subcommand keywords, resolved from
+    /// registry data (see [`tcl_registry::scoped`]).  Persists into nested
+    /// bodies and command substitutions inside the scoped body.
+    scoped_env: Option<&'static tcl_registry::scoped::ScopedCommandEnv>,
     /// Def-site literal value words to highlight as regex (regex-source
     /// tracking), keyed by word start.  Empty when disabled.
     regex_sources: &'a FxHashMap<u32, Span>,
@@ -3527,16 +3564,35 @@ fn emit_param_default_pair(
     }
 }
 
+/// The lexical context a command head is classified in: the enclosing
+/// definition-body grammar and scoped command environment (both `None` at top
+/// level).  Bundled so [`emit_command_head`] keeps a small signature.
+#[derive(Clone, Copy)]
+struct HeadContext {
+    oo_grammar: Option<&'static DefinitionBodyGrammar>,
+    scoped_env: Option<&'static tcl_registry::scoped::ScopedCommandEnv>,
+}
+
+/// The command head being classified: its token, the source text, and the
+/// namespace-resolved name (an imported bare name resolves to its qualified
+/// registry spec).  Bundled so [`emit_command_head`] keeps a small signature.
+#[derive(Clone, Copy)]
+struct CommandHead<'a> {
+    tok: Token,
+    text: &'a str,
+    resolved: &'a str,
+}
+
 fn emit_command_head(
     line_index: &LineIndex,
     full_source: &str,
-    head_tok: Token,
-    head_text: &str,
-    resolved_head: &str,
-    oo_grammar: Option<&'static DefinitionBodyGrammar>,
+    head: CommandHead<'_>,
+    head_ctx: HeadContext,
     registry: &CommandRegistry,
     entries: &mut Vec<Entry>,
 ) {
+    let CommandHead { tok: head_tok, text: head_text, resolved: resolved_head } = head;
+    let HeadContext { oo_grammar, scoped_env } = head_ctx;
     // A member sub-keyword of the enclosing definition body (`method`,
     // `typemethod`, `constructor`, …) is a keyword — context-sensitively, so a
     // same-named user proc outside a definition body is unaffected.  This
@@ -3551,6 +3607,21 @@ fn emit_command_head(
             head_tok,
             TokenKind::Keyword,
             0,
+            entries,
+        );
+        return;
+    }
+    // A command of the enclosing scoped environment (`top`, `data`, `columns`
+    // inside a `report::defstyle` style script) highlights as a library
+    // function — context-sensitively, so a same-named command outside the scope
+    // is unaffected.  Registry data drives it (no command name here).
+    if !head_text.contains("::") && scoped_env.is_some_and(|e| e.is_command(head_text)) {
+        push_token(
+            line_index,
+            full_source,
+            head_tok,
+            TokenKind::Function,
+            MOD_DEFAULT_LIBRARY,
             entries,
         );
         return;
@@ -3675,10 +3746,8 @@ fn collect_script(
             emit_command_head(
                 line_index,
                 full_source,
-                head_tok,
-                head_text,
-                resolved_head,
-                ctx.oo_grammar,
+                CommandHead { tok: head_tok, text: head_text, resolved: resolved_head },
+                HeadContext { oo_grammar: ctx.oo_grammar, scoped_env: ctx.scoped_env },
                 registry,
                 entries,
             );
@@ -3696,6 +3765,7 @@ fn collect_script(
             registry,
             resolved_head,
             ctx.oo_grammar,
+            ctx.scoped_env,
             &arg_texts,
             ctx.object_classes,
             ctx.object_collections,
@@ -3746,9 +3816,19 @@ fn collect_script(
         // resolve against that class.
         let next_class =
             definer_class_name(head_text, &seg, full_source, registry).or(ctx.enclosing_class);
+        // The scoped command environment the recursion into THIS command's body
+        // should carry: a command whose spec declares a `body_scope` switches it
+        // on (`report::defstyle`'s style script); otherwise it persists so the
+        // scoped commands stay resolvable inside nested control-flow bodies and
+        // `[…]` substitutions within the style script.
+        let next_scoped = registry
+            .get(resolved_head)
+            .and_then(|s| s.body_scope)
+            .or(ctx.scoped_env);
         let body_ctx = ScriptCtx {
             oo_grammar: next_oo,
             enclosing_class: next_class,
+            scoped_env: next_scoped,
             ..ctx
         };
 
@@ -4485,6 +4565,7 @@ fn collect_entries(
         registry,
         line_index: &line_index,
         oo_grammar: None,
+        scoped_env: None,
         regex_sources: &regex_sources,
         head_aliases: &head_aliases,
         object_classes: &object_classes,

@@ -1108,6 +1108,56 @@ pub(crate) fn format_body(
     lines.join("\n")
 }
 
+/// Byte ranges in `text` covered by a multi-line braced (`{…}`) word.  The
+/// whitespace inside such a word is part of the Tcl string value, so it must
+/// survive trailing-whitespace trimming — trimming a space before a newline
+/// inside `{ … }` changes the runtime string, not just its presentation.
+fn multiline_brace_ranges(text: &str, lexer_config: tcl_lexer::LexerConfig) -> Vec<(usize, usize)> {
+    // A lex error means we can't identify literals; fall back to no protection
+    // (the caller then trims every line, its prior behaviour).
+    let Ok(tokens) = Lexer::with_source_map(SourceMap::new(text), lexer_config).tokenise_all()
+    else {
+        return Vec::new();
+    };
+    let mut ranges = Vec::new();
+    for tok in &tokens {
+        if tok.kind != TokenType::Str {
+            continue;
+        }
+        let start = tok.span.start() as usize;
+        let end = tok.span.end() as usize;
+        if end <= text.len() && text[start..end].contains('\n') {
+            ranges.push((start, end));
+        }
+    }
+    ranges
+}
+
+/// Trailing-whitespace trim that preserves the trailing whitespace of any line
+/// whose newline falls inside a multi-line braced word (`ranges`).  A line's
+/// terminating newline that lies within a braced literal is significant Tcl
+/// string content and is left untouched; every other line is `trim_end`ed.
+fn trim_trailing_preserving_literals(text: &str, ranges: &[(usize, usize)]) -> String {
+    let in_literal = |nl: usize| ranges.iter().any(|&(s, e)| s <= nl && nl < e);
+    let mut out = String::with_capacity(text.len());
+    let mut offset = 0usize;
+    let mut parts = text.split('\n').peekable();
+    while let Some(line) = parts.next() {
+        let has_newline = parts.peek().is_some();
+        let newline_offset = offset + line.len();
+        if has_newline && in_literal(newline_offset) {
+            out.push_str(line);
+        } else {
+            out.push_str(line.trim_end());
+        }
+        if has_newline {
+            out.push('\n');
+            offset = newline_offset + 1;
+        }
+    }
+    out
+}
+
 /// Format a Tcl source string.  Pure function: source in,
 /// formatted source out.
 #[must_use]
@@ -1115,11 +1165,18 @@ pub fn format_tcl(source: &str, config: &FormatterConfig, registry: &CommandRegi
     let mut result = format_body(source, config, registry, 0);
 
     if config.trim_trailing_whitespace {
-        result = result
-            .split('\n')
-            .map(str::trim_end)
-            .collect::<Vec<_>>()
-            .join("\n");
+        // Preserve whitespace inside multi-line braced words (their spaces are
+        // part of the string value); trim every other line.
+        let protected = multiline_brace_ranges(&result, config.lexer_config);
+        result = if protected.is_empty() {
+            result
+                .split('\n')
+                .map(str::trim_end)
+                .collect::<Vec<_>>()
+                .join("\n")
+        } else {
+            trim_trailing_preserving_literals(&result, &protected)
+        };
     }
     if config.ensure_final_newline && !result.ends_with('\n') {
         result.push('\n');
@@ -1137,6 +1194,26 @@ mod tests {
     fn fmt(src: &str) -> String {
         let registry = CommandRegistry::build_default();
         format_tcl(src, &FormatterConfig::default(), &registry)
+    }
+
+    #[test]
+    fn trailing_trim_preserves_spaces_inside_multiline_braces() {
+        // The spaces before the newline live inside the braced word, so they
+        // are part of the Tcl string value — trimming them would change the
+        // runtime string, not just presentation (default trim is enabled).
+        let out = fmt("set x {foo   \n   bar}\n");
+        assert!(
+            out.contains("foo   \n"),
+            "significant whitespace inside braces preserved: {out:?}",
+        );
+    }
+
+    #[test]
+    fn trailing_trim_still_trims_ordinary_code_lines() {
+        // A trailing run of spaces on a real code line (not inside a literal)
+        // is still trimmed.
+        let out = fmt("set a 1   \nset b 2\n");
+        assert_eq!(out, "set a 1\nset b 2\n");
     }
 
     #[test]

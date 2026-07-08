@@ -69,6 +69,7 @@ pub mod patterns;
 pub mod profile_defaults;
 pub mod profiles;
 pub mod registry;
+pub mod scoped;
 pub mod side_effects;
 pub mod snapshot;
 pub mod spec;
@@ -99,6 +100,7 @@ pub mod prelude {
         ArgValue, FormKind, FormSpec, HoverSnippet, OptionArg, OptionArity, OptionSpec, OptionValue,
     };
     pub use crate::patterns::{FormatType, PatternType};
+    pub use crate::scoped::{ScopedCommand, ScopedCommandEnv};
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
     pub use crate::spec::{BytePayloadSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSubCommand};
     pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
