@@ -1196,6 +1196,18 @@ fn walk_switch_arms(
         }
     }
     if let Some(db) = default_body {
+        // Fall-through patterns immediately preceding `default`
+        // (`"/old" - default { … }`) share the default arm's body: lowering
+        // peels `default` into `default_body` while the preceding
+        // fall-through arm stays in `arms` with `body: None`, so `pending`
+        // still holds those patterns here. Tcl runs the default body for each
+        // such pattern too, so emit a criterion-specific route for every
+        // pending pattern before the catch-all route with the key cleared
+        // (`RUST_ISSUE_047`).
+        for pattern in pending.drain(..) {
+            let enc = arm_context(enclosing, spec, pattern);
+            walk_script(db, ctx, registry, depth + 1, &enc);
+        }
         let mut enc = enclosing.clone();
         match spec.target {
             SwitchTarget::Path => enc.path = None,

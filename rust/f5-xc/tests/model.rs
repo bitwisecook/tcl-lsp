@@ -253,6 +253,31 @@ fn switch_fallthrough_arm_routes_all_patterns() {
     assert_eq!(prefixes, vec!["/a".to_owned(), "/b".to_owned()]);
 }
 
+// RUST_ISSUE_047: a fall-through pattern that runs into the final `default`
+// arm (`"/old" - default { … }`) shares the default's body in Tcl, so the
+// translator must emit both a `/old`-specific route and the catch-all route.
+#[test]
+fn switch_fallthrough_into_default_routes_pattern_and_catch_all() {
+    let src = "when HTTP_REQUEST {\n    switch [HTTP::path] {\n        \"/old\" - default { pool legacy }\n    }\n}";
+    let result = translate_irule(src);
+    let legacy: Vec<Option<String>> = result
+        .routes
+        .iter()
+        .filter(|r| r.origin_pool.as_ref().map(|p| p.name.as_str()) == Some("legacy"))
+        .map(|r| r.path_match.as_ref().map(|pm| pm.value.clone()))
+        .collect();
+    // The `/old` pattern must produce its own path-matched route...
+    assert!(
+        legacy.iter().any(|p| p.as_deref() == Some("/old")),
+        "fall-through pattern into default lost its /old route: {legacy:?}"
+    );
+    // ...and the catch-all default route (no path criterion) must remain.
+    assert!(
+        legacy.iter().any(Option::is_none),
+        "catch-all default route missing: {legacy:?}"
+    );
+}
+
 // RUST_ISSUE_045: the Terraform simple-route renderer must emit host and
 // method criteria the translator recorded.
 #[test]
