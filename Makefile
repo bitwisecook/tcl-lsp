@@ -705,9 +705,10 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on Zed extension and top
 			cargo clippy --workspace --all-targets -- -D warnings; \
 	fi; \
 	if [ -f "$(ZED_DIR)/Cargo.toml" ]; then \
-		echo "==> Checking Zed extension (fmt + clippy --target wasm32-wasip2)"; \
+		echo "==> Checking Zed extension (fmt + clippy --target wasm32-wasip2 + host tests)"; \
 		cd $(ZED_DIR) && cargo fmt --all --check && \
-			cargo clippy --target wasm32-wasip2 --all-targets -- -D warnings; \
+			cargo clippy --target wasm32-wasip2 --all-targets -- -D warnings && \
+			cargo test --lib; \
 	fi; \
 	if [ -f "$(EXPLORER_WASM_DIR)/Cargo.toml" ] && \
 			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
@@ -1197,17 +1198,16 @@ publish-sublime: build-editor-sublime ## Publish Sublime Text package (push buil
 ZED_DIR     := $(ROOT)editors/zed
 ZED_ARCHIVE := $(BUILD_DIR)/tcl-lsp-zed-$(VERSION).zip
 ZED_SRCS    := $(shell find $(ZED_DIR)/src -name '*.rs' 2>/dev/null)
-ZED_BUNDLED := $(ZED_DIR)/bundled
 
 build-editor-zed: $(ZED_ARCHIVE) ## Build Zed extension archive (.zip)
 
-$(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) rust-server rust-mcp
-	@echo "==> Bundling the native LSP + MCP server binaries"
-	@mkdir -p $(ZED_BUNDLED)
-	cp $(ROOT)target/$(PROFILE)/tcl-lsp-server $(ZED_BUNDLED)/tcl-lsp-server
-	cp $(ROOT)target/$(PROFILE)/tcl-mcp $(ZED_BUNDLED)/tcl-mcp
-	chmod +x $(ZED_BUNDLED)/tcl-lsp-server $(ZED_BUNDLED)/tcl-mcp
-	@echo "==> Building Zed extension WASM (with bundled servers)"
+$(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS)
+	@# A Zed extension is a single cross-platform WASM module, so it cannot
+	@# embed a per-platform native binary. Instead the extension downloads the
+	@# matching `tcl-lsp-server-<triple>` / `tcl-mcp-<triple>` release asset for
+	@# the user's platform at runtime (issue #826). We only stamp the release
+	@# version here so the extension pins its downloads to the right tag.
+	@echo "==> Building Zed extension WASM (native servers are downloaded at runtime)"
 	@if [ -f "$$HOME/.cargo/env" ]; then . "$$HOME/.cargo/env"; fi; \
 	if ! rustup target list --installed 2>/dev/null | grep -q wasm32-wasip2; then \
 		echo "  -> Installing wasm32-wasip2 target via rustup"; \
@@ -1226,7 +1226,6 @@ $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) rust
 	@echo "==> Packaging Zed extension archive"
 	mkdir -p $(BUILD_DIR)
 	cd $(BUILD_DIR)/zed-stage && zip -qr $(abspath $(ZED_ARCHIVE)) .
-	@rm -rf $(ZED_BUNDLED)
 	@echo ""
 	@echo "Built: $(ZED_ARCHIVE)"
 	@ls -lh $(ZED_ARCHIVE)
