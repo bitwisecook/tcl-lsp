@@ -55,6 +55,7 @@ mod gen_editor_catalogs;
 mod gen_editor_settings;
 mod gen_jetbrains;
 mod gen_vscode_package;
+mod gen_zed_queries;
 mod kcs_index_links;
 mod tzdata_bundle;
 mod util;
@@ -111,6 +112,15 @@ enum Command {
         check: bool,
     },
 
+    /// Generate the Zed tree-sitter highlight query command lists from the
+    /// command registry (`editors/zed/languages/tcl/highlights.scm`).
+    GenZedQueries {
+        /// Verify the committed query is in sync instead of rewriting it;
+        /// exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Generate the VS Code diagnostic catalogue (`diagnosticCatalog.ts`).
     GenEditorSettings {
         /// Verify the committed catalogue is in sync instead of rewriting it;
@@ -154,6 +164,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::AuditOptionDialects => audit_option_dialects::run(),
         Command::DiagTables { check } => diag_tables::run(check),
         Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),
+        Command::GenZedQueries { check } => gen_zed_queries::run(check),
         Command::GenEditorSettings { check } => gen_editor_settings::run(check),
         Command::GenVscodePackage { check } => gen_vscode_package::run(check),
         Command::GenJetbrainsCatalog { check } => gen_jetbrains::run(check),

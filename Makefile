@@ -143,7 +143,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: rust-check check-all test-slow prep-pr
 # Tests
 .PHONY: test test-ext test-ext-rust test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all
-.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-audit-option-dialects
+.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-audit-option-dialects
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust rust-deny
 .PHONY: build-report-assets lint-report-ts typecheck-report-ts check-report-assets
@@ -434,7 +434,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # scripts/check/*.py.  These need the Rust toolchain, so CI runs them in the
 # Rust-capable rust-tests job (rust-gate.yml / ci.yml), never in the Python-only
 # ci-fast job.  `xtask-check` is the CI aggregate.
-xtask-check: xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
+xtask-check: xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
 
 xtask-kcs-index-links: ## Validate docs links + design/KCS index coverage (⇐ scripts/check/kcs_index_links.py)
 	@echo "==> Checking docs links + index coverage (cargo xtask)"
@@ -447,6 +447,10 @@ xtask-diag-tables: ## Verify docs/generated/ code tables are in sync with the Di
 xtask-gen-editor-catalogs: ## Verify the Zed/VS Code editor catalogs are in sync with the registry (drift gate)
 	@echo "==> Checking generated editor catalogs are in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-catalogs --check
+
+xtask-gen-zed-queries: ## Verify the generated Zed tree-sitter highlight queries are in sync with the registry (drift gate)
+	@echo "==> Checking generated Zed highlight queries are in sync (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-zed-queries --check
 
 xtask-gen-editor-settings: ## Verify the VS Code diagnosticCatalog.ts is in sync with the DiagCode catalogue (drift gate)
 	@echo "==> Checking generated diagnosticCatalog.ts is in sync (cargo xtask)"
@@ -984,11 +988,16 @@ editors/zed/src/generated/tcl_commands.json editors/zed/src/generated/irule_even
 	@echo "==> Generating editor catalogs (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-catalogs
 
-generate: editors/zed/src/generated/tcl_commands.json ## Regenerate editor catalog files from the registry
+editors/zed/languages/tcl/highlights.scm: $(_CATALOG_DEPS)
+	@echo "==> Generating Zed tree-sitter highlight queries (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-zed-queries
+
+generate: editors/zed/src/generated/tcl_commands.json editors/zed/languages/tcl/highlights.scm ## Regenerate editor catalog + Zed query files from the registry
 
 check-generated: ## Verify generated catalogs are up to date
 	@echo "==> Checking generated editor catalogs are up to date (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-catalogs --check
+	cd $(ROOT) && cargo xtask gen-zed-queries --check
 
 # Generated editor settings from the Rust code registry
 #
