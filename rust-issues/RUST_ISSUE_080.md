@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Command registry |
 | **Location** | `rust/tcl-registry/src/taint.rs:157` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

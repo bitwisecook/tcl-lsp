@@ -319,7 +319,16 @@ pub fn classify_taint_sinks(
 
     if let Some(code) = spec.taint_output_sink {
         let subs = spec.taint_output_sink_subcommands;
-        if subs.is_empty() || subcommand.is_some_and(|s| subs.contains(&s)) {
+        // Tcl ensemble dispatch accepts a unique prefix (`HTTP::cookie ins` ⇒
+        // `insert`), so the abbreviation is resolved to its canonical
+        // subcommand name before the sink-membership test — an exact `contains`
+        // let a prefix-abbreviated sink dodge classification (RUST_ISSUE_080).
+        // Falls back to the raw word when the subcommand isn't a registered
+        // `SubCommand` (nothing to resolve against).
+        let canonical = subcommand
+            .and_then(|s| spec.resolve_subcommand(s).map(|sub| sub.name))
+            .or(subcommand);
+        if subs.is_empty() || canonical.is_some_and(|s| subs.contains(&s)) {
             info.output_sink = Some(code);
             info.output_sink_is_subcommand_qualified = !subs.is_empty();
         }
@@ -662,6 +671,27 @@ mod tests {
 
         let domain = classify_taint_sinks(&registry, "HTTP::cookie", Some("domain"), dialect);
         assert_eq!(domain.output_sink, None);
+    }
+
+    /// `RUST_ISSUE_080`: a unique-prefix abbreviation of a sink subcommand
+    /// (`HTTP::cookie ins` ⇒ `insert`) must still be classified as the
+    /// IRULE3002 sink — an exact `contains` let it dodge the check.
+    #[test]
+    fn cookie_output_sink_matches_prefix_abbreviation() {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        let dialect = DialectSet::IRULES;
+        for abbr in ["ins", "inse", "insert", "rep", "replace"] {
+            let info = classify_taint_sinks(&registry, "HTTP::cookie", Some(abbr), dialect);
+            assert_eq!(
+                info.output_sink,
+                Some("IRULE3002"),
+                "`HTTP::cookie {abbr}` should resolve to a sink",
+            );
+        }
+        // A non-sink subcommand (and its abbreviation) still isn't a sink.
+        let dom = classify_taint_sinks(&registry, "HTTP::cookie", Some("dom"), dialect);
+        assert_eq!(dom.output_sink, None);
     }
 
     /// The registry-driven setter-constraint table is
