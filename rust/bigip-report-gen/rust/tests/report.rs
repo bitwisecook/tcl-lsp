@@ -246,7 +246,7 @@ fn footer_shows_version_and_git_hash() {
         "git describe version in footer"
     );
     assert!(
-        html.contains(">(rust)<"),
+        html.contains(">rust<"),
         "backend badge in footer"
     );
 
