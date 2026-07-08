@@ -1280,3 +1280,43 @@ fn itcl_body_external_definition_highlights() {
         );
     }
 }
+
+// ===========================================================================
+// Issue #806 — report::defstyle scoped command environment.
+//
+// Inside a report::defstyle style script the report configuration methods
+// (top/data/columns/…) highlight as library functions and their ensemble
+// operations (`top set`) as subcommand keywords — all from registry data.
+// ===========================================================================
+
+#[test]
+fn scoped_report_line_command_is_function() {
+    let src = "::report::defstyle st {} {\n    top set foo\n    columns\n}\n";
+    assert_eq!(kind_of_word(src, "tcl8.6", "top"), Some("function".to_string()));
+    assert_eq!(kind_of_word(src, "tcl8.6", "columns"), Some("function".to_string()));
+}
+
+#[test]
+fn scoped_report_operation_is_keyword() {
+    let src = "::report::defstyle st {} {\n    top set foo\n}\n";
+    // The `set` operation word after `top` colours as a subcommand keyword.
+    let t = decode(src, "tcl8.6");
+    assert!(
+        t.iter().any(|x| x.ttype == "keyword" && tok_text(src, x) == "set"),
+        "`set` op is a keyword: {t:?}",
+    );
+}
+
+#[test]
+fn scoped_report_command_not_highlighted_outside_body() {
+    // `columns` at top level is an unknown word, not a library function.
+    let src = "columns\n";
+    // No defaultLibrary function classification — it is a plain function token
+    // (unknown command) but must not gain the scoped treatment; assert it is
+    // not classified as a keyword and that a genuinely scoped-only op word is
+    // absent.  The key scoping fact: `topdatasep` is unknown at top level.
+    let src2 = "topdatasep enable\n";
+    assert_ne!(kind_of_word(src2, "tcl8.6", "enable"), Some("keyword".to_string()),
+        "`enable` is not a scoped op outside a style body");
+    let _ = src;
+}

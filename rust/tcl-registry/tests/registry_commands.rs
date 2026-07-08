@@ -1385,3 +1385,85 @@ fn cached_dialect_registries_are_populated() {
         "the fallback registry is plain Tcl"
     );
 }
+
+// ===========================================================================
+// Issue #806 — report package command specs + scoped-body / object model.
+// ===========================================================================
+
+/// `report::defstyle` carries the scoped style-definition environment, with the
+/// report configuration methods and their operations as registry data.
+#[test]
+fn report_defstyle_has_scoped_body_environment() {
+    let (reg, ds) = reg_and_set("tcl8.6");
+    let spec = reg
+        .get_for_dialect("report::defstyle", ds)
+        .expect("report::defstyle registered in tcl8.6");
+    let env = spec.body_scope.expect("report::defstyle carries a body scope");
+    assert!(env.include_sibling_definitions, "styles callable in sibling bodies");
+    // A representative slice of the 19 report methods.
+    for cmd in ["top", "topdatasep", "data", "botdata", "columns", "size", "pad", "justify"] {
+        assert!(env.is_command(cmd), "`{cmd}` is a scoped command");
+    }
+    // Separators support enable/disable; data lines do not.
+    let top = env.command("top").unwrap();
+    assert!(top.subcommand("enable").is_some(), "separator enables");
+    let data = env.command("data").unwrap();
+    assert!(data.subcommand("set").is_some(), "data line sets");
+    assert!(data.subcommand("enable").is_none(), "data line does not enable");
+    // Config methods are plain (no ensemble ops).
+    assert!(env.command("columns").unwrap().subcommands.is_empty());
+}
+
+/// `report::report` is a documented object factory with instance methods and
+/// option values.
+#[test]
+fn report_report_object_class_is_modelled() {
+    let (reg, ds) = reg_and_set("tcl8.6");
+    let spec = reg
+        .get_for_dialect("report::report", ds)
+        .expect("report::report registered");
+    assert_eq!(spec.creates_instance_at, Some(0), "names its object at arg 0");
+    assert!(spec.hover.is_some(), "carries hover");
+    assert_eq!(spec.arg_role_at(0), Some(ArgRole::Name));
+    let class = spec.object_class.expect("report::report has an object class");
+    for m in ["destroy", "printmatrix", "columns", "size", "pad", "justify", "top", "data"] {
+        assert!(class.instance_method(m).is_some(), "method `{m}` modelled");
+    }
+    // Option values on the padding / justification methods.
+    let pad = class.instance_method("pad").unwrap();
+    let pad_vals: Vec<&str> = pad.arg_values_at(1).iter().map(|v| v.value).collect();
+    assert!(pad_vals.contains(&"both"), "pad where-values: {pad_vals:?}");
+    let justify = class.instance_method("justify").unwrap();
+    let jvals: Vec<&str> = justify.arg_values_at(1).iter().map(|v| v.value).collect();
+    assert!(jvals.contains(&"center"), "justify values: {jvals:?}");
+}
+
+/// Every `::report::*` command has a dedicated, hover-bearing spec.
+#[test]
+fn report_namespace_commands_have_specs() {
+    let (reg, ds) = reg_and_set("tcl8.6");
+    for cmd in [
+        "report::report",
+        "report::defstyle",
+        "report::rmstyle",
+        "report::stylearguments",
+        "report::stylebody",
+        "report::styles",
+    ] {
+        let spec = reg.get_for_dialect(cmd, ds).unwrap_or_else(|| panic!("{cmd} present"));
+        assert!(spec.hover.is_some(), "{cmd} carries hover");
+        assert_eq!(spec.required_package, Some("report"), "{cmd} gated on report");
+    }
+}
+
+/// The report package requires Tcl 8.5+, so its commands are gated out of the
+/// tcl8.4 dialect (version restriction across the 8.4→9.1 range).
+#[test]
+fn report_commands_gated_out_of_tcl84() {
+    for cmd in ["report::report", "report::defstyle", "report::styles"] {
+        assert!(!present_in("tcl8.4", cmd), "{cmd} unavailable under tcl8.4");
+        for d in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            assert!(present_in(d, cmd), "{cmd} available under {d}");
+        }
+    }
+}

@@ -237,6 +237,14 @@ pub fn hover_with_dialect(
     if let Some(text) = class_member_hover_text(analysis, &word, cursor_offset) {
         return Some(Hover::markdown(text));
     }
+    // Scoped command environments (a `report::defstyle` style script) win over
+    // a same-named global command inside their body — resolved from the
+    // analyser's recorded body regions, not the registry.
+    if let Some(text) =
+        scoped_command_hover_text(source, line, character, analysis, &word, cursor_offset)
+    {
+        return Some(Hover::markdown(text));
+    }
 
     // Registry-driven hovers — built-in command name, plus
     // `cmd subcommand` lookups when the cursor sits on the
@@ -503,6 +511,68 @@ fn subcommand_hover_text(
         }
     } else {
         let _ = write!(out, "\nSubcommand of `{cmd_name}`.\n");
+    }
+    Some(out)
+}
+
+/// Render a hover for a command inside a scoped command environment — a
+/// `report::defstyle` style script exposing the report configuration methods
+/// (`top`, `data`, `columns`, …) and their operations (`top set`, `top
+/// enable`).  Resolves against the analyser-recorded
+/// [`ScopedBodyRegion`](tcl_compiler::analyser::ScopedBodyRegion)s active at the
+/// cursor; the scoped command set is registry data, so no command name is
+/// matched here.
+fn scoped_command_hover_text(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    cursor_word: &str,
+    cursor_offset: u32,
+) -> Option<String> {
+    use std::fmt::Write;
+    let env = analysis
+        .scoped_command_regions
+        .iter()
+        .find(|r| r.contains(cursor_offset))
+        .map(|r| r.env)?;
+    // Head-command hover — the cursor sits on a scoped command head.
+    if let Some(cmd) = env.command(cursor_word) {
+        let mut out = format!("**`{cursor_word}`** — {} command\n", env.name);
+        if let Some(hover) = cmd.hover.as_ref() {
+            if !hover.summary.is_empty() {
+                let _ = write!(out, "\n{}\n", hover.summary);
+            }
+            if !hover.snippet.is_empty() {
+                let _ = write!(out, "\n```tcl\n{}\n```\n", hover.snippet);
+            }
+        } else if !cmd.detail.is_empty() {
+            let _ = write!(out, "\n{}\n", cmd.detail);
+        }
+        if !cmd.subcommands.is_empty() {
+            let names: Vec<&str> = cmd.subcommands.iter().map(|s| s.name).collect();
+            let _ = write!(out, "\nOperations: {}\n", names.join(", "));
+        }
+        return Some(out);
+    }
+    // Ensemble-operation hover — the cursor sits on the operation word
+    // (`set` / `enable`), whose head is the line's first token.
+    let line_text = source.split('\n').nth(line as usize)?;
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
+    let prefix: String = chars[..col].iter().collect();
+    let head = prefix.split_whitespace().next()?;
+    if head == cursor_word {
+        return None;
+    }
+    let cmd = env.command(head)?;
+    let sub = cmd.subcommand(cursor_word)?;
+    let mut out = format!("**`{head} {}`** — {} operation\n", sub.name, env.name);
+    if !sub.detail.is_empty() {
+        let _ = write!(out, "\n{}\n", sub.detail);
+    }
+    if !sub.synopsis.is_empty() {
+        let _ = write!(out, "\n```tcl\n{}\n```\n", sub.synopsis);
     }
     Some(out)
 }

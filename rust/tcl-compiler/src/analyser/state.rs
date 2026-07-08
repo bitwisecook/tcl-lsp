@@ -154,6 +154,15 @@ pub struct Analyser {
     /// Body-nesting depth — incremented on entry to a braced
     /// body. Used for top-level-only command checks.
     pub body_depth: u32,
+    /// Stack of active scoped command environments — pushed while walking a
+    /// command body whose spec carries a
+    /// [`body_scope`](tcl_registry::CommandSpec::body_scope) (e.g. inside a
+    /// `report::defstyle` style script).  The innermost environment (stack top)
+    /// resolves bare command heads to their scoped signatures for the
+    /// arity / subcommand checks; the post-walk W123 pass instead uses the
+    /// recorded [`AnalysisResult::scoped_command_regions`] spans.  Push/pop is
+    /// balanced within [`Self::dispatch_body_arguments`], so it self-clears.
+    pub body_scope_stack: Vec<&'static tcl_registry::scoped::ScopedCommandEnv>,
     /// Command-alias records:
     /// ``alias_name → (target_cmd, prepended_args)``.
     pub command_aliases: HashMap<String, (String, Vec<String>)>,
@@ -405,6 +414,7 @@ impl Analyser {
             builtin_dialect: None,
             conditional_depth: 0,
             body_depth: 0,
+            body_scope_stack: Vec::new(),
             command_aliases: HashMap::new(),
             var_command_sites: Vec::new(),
             cmd_command_sites: Vec::new(),

@@ -142,6 +142,30 @@ impl Analyser {
         }
     }
 
+    /// Resolve a command's signature, honouring the active scoped command
+    /// environment.
+    ///
+    /// Inside a scoped body (a `report::defstyle` style script, …) a scoped
+    /// head (`top`, `columns`) resolves to its scoped signature; every other
+    /// head — including the ordinary core commands used in the body
+    /// (`set`, `split`, `string`) — falls back to the global registry.  This
+    /// is the single scope-aware chokepoint that keeps the arity / subcommand
+    /// emitters generic: they never learn a scoped command name.
+    #[must_use]
+    pub(in crate::analyser) fn resolve_command_signature(
+        &self,
+        cmd_name: &str,
+        dialect: tcl_registry::prelude::DialectSet,
+    ) -> Option<super::dispatch::CommandSignature> {
+        if let Some(env) = self.body_scope_stack.last()
+            && let Some(scoped) = env.command(cmd_name)
+        {
+            return Some(super::dispatch::signature_for_scoped_command(scoped));
+        }
+        let registry = self.registry.as_ref()?;
+        super::dispatch::signature_for_command(registry, cmd_name, dialect)
+    }
+
     pub(in crate::analyser) fn emit_w001_unknown_subcommand(
         &mut self,
         cmd_name: &str,
@@ -169,8 +193,11 @@ impl Analyser {
         // runtime, and W001 fires on `grid bogus` under every dialect.
         let dialect =
             DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL) | DialectSet::TK;
+        // Scope-aware resolution: an ensemble scoped command (`top`, `data`)
+        // inside a `report::defstyle` body is checked against its scoped
+        // subcommand set, so `top bogus` still draws W001.
         let Some(CommandSignature::WithSubcommands(sig)) =
-            signature_for_command(registry, cmd_name, dialect)
+            self.resolve_command_signature(cmd_name, dialect)
         else {
             return;
         };
@@ -313,18 +340,18 @@ impl Analyser {
         cmd_tok: tcl_lexer::Token,
         scope_path: &[usize],
     ) {
-        use super::dispatch::{CommandSignature, signature_for_command};
+        use super::dispatch::CommandSignature;
         use tcl_registry::prelude::DialectSet;
 
         // `arg_expand_in` is parallel to the full argv (command name at
         // index 0); drop that slot so it lines up with `args`.
         let arg_expand: &[bool] = arg_expand_in.get(1..).unwrap_or(&[]);
 
-        let Some(registry) = self.registry.as_ref() else {
-            return;
-        };
         let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
-        match signature_for_command(registry, cmd_name, dialect) {
+        // Scope-aware: a head inside a scoped command environment resolves to
+        // its scoped signature (`top set …`, `columns`), everything else to the
+        // global registry.
+        match self.resolve_command_signature(cmd_name, dialect) {
             Some(CommandSignature::Simple(sig)) => {
                 self.check_simple_arity(
                     cmd_name,

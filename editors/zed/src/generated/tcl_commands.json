@@ -6890,20 +6890,24 @@
       "summary": "Defines the new style styleName."
     },
     {
+      "name": "report::report",
+      "summary": "Creates a new report object with the given number of columns."
+    },
+    {
       "name": "report::rmstyle",
       "summary": "Deletes the style styleName."
     },
     {
       "name": "report::stylearguments",
-      "summary": "This introspection command returns the list of arguments associated with the style styleName."
+      "summary": "Returns the list of arguments associated with the style styleName."
     },
     {
       "name": "report::stylebody",
-      "summary": "This introspection command returns the script associated with the style styleName."
+      "summary": "Returns the script associated with the style styleName."
     },
     {
       "name": "report::styles",
-      "summary": "This introspection command returns a list containing the names of all styles known to the package at the time of "
+      "summary": "Returns a list of the names of all styles known to the package."
     },
     {
       "name": "rest::create_interface",
