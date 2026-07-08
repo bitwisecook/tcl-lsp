@@ -110,15 +110,15 @@ pub struct FormatterConfig {
     pub trim_trailing_whitespace: bool,
     /// Rewrite `$var` as `${var}` for consistency.
     pub enforce_braced_variables: bool,
-    /// Rewrite a bare expression argument as a braced `{ … }` expr.
-    /// Read from the resolved settings and carried in the config; engine
-    /// consumption is pending a registry change to mark an `expr`'s full
-    /// trailing-argument span as one expression (marking only arg 0 would
-    /// corrupt `expr $a + $b`).
+    /// Rewrite a bare expression argument as a braced `{ … }` expr. Registry
+    /// `ArgRole::Expr` marks the expression argument(s); a command flagged
+    /// `EXPR_CONCATENATES_ARGS` (`expr`) has its whole tail braced as one
+    /// group, while a bounded condition (`if`/`while`/`for`) is braced in
+    /// place.
     pub enforce_braced_expr: bool,
-    /// Align trailing inline comments to a consistent column.
-    /// Read from the resolved settings and carried in the config; engine
-    /// consumption (preserving the original column when disabled) is pending.
+    /// Align comments to the surrounding code's indentation. When `true` (the
+    /// default) a standalone comment is re-indented to the code column; when
+    /// `false` the comment keeps its original column.
     pub align_comments_to_code: bool,
     /// Line ending for formatted output.
     pub line_ending: String,

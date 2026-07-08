@@ -238,5 +238,17 @@ bitflags! {
         /// `namespace`, `package`, `proc`).  Consulted by the WASM import
         /// collector.
         const WASM_EMITS_NOTHING        = 1 << 52;
+
+        /// The command concatenates its *entire* argument list into a single
+        /// expression (`expr` — `expr $a + $b` evaluates the one expression
+        /// `$a + $b`). This differs from commands whose expression is a single
+        /// bounded argument (`if` / `while` / `for` conditions,
+        /// `control::assert`'s first arg), which mark only that arg
+        /// [`crate::arg_role::ArgRole::Expr`]. Consulted by the formatter's
+        /// `enforceBracedExpr` pass to decide whether to brace the whole tail
+        /// (`expr {$a + $b}`) or just the marked argument. Kept separate from
+        /// the `Expr` arg-role so widening it does not perturb the analyser
+        /// passes (expr re-lexing, W110) that consume the role.
+        const EXPR_CONCATENATES_ARGS    = 1 << 53;
     }
 }
