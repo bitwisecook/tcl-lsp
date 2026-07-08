@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Analyser & diagnostics |
 | **Location** | `rust/tcl-compiler/src/analyser/diagnostics/version_gate.rs:118-157` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: medium) |
 
 ## Finding

@@ -101,11 +101,38 @@ struct DfsCtx<'a> {
     result: &'a mut Vec<String>,
     visiting: &'a mut HashSet<String>,
     building_mixins: bool,
+    /// Remaining node-visit budget. TclOO's late-placement (remove-and-repush
+    /// on re-visit) is order-significant, so a shared sub-DAG is legitimately
+    /// re-explored once per reaching path — Θ(2^k) on k stacked diamonds. The
+    /// budget bounds that adversarial blow-up without changing the result for
+    /// realistic hierarchies (RUST_ISSUE_076).
+    budget: usize,
+    /// Set when the depth cap or visit budget is exceeded; the linearisation is
+    /// then abandoned as too complex rather than hung or stack-overflowed.
+    aborted: bool,
 }
+
+/// Maximum superclass/mixin recursion depth. A real class hierarchy is never
+/// remotely this deep; the cap keeps a pathological (e.g. ~20k-node) linear
+/// chain from overflowing the stack. Mirrors `param_traits::MAX_DEPTH`.
+const MAX_MRO_DEPTH: usize = 1024;
+
+/// Maximum total node visits during one linearisation. Bounds the Θ(2^k)
+/// re-exploration of stacked diamonds (a legal but adversarial shape) so the
+/// diagnostics pass degrades gracefully instead of hanging.
+const MAX_MRO_VISITS: usize = 200_000;
 
 /// `is_mixin_path` corresponds to Tcl's ``TRAVERSED_MIXIN``:
 /// `true` when the class was reached via a mixin edge.
-fn tcloo_dfs(cls: &str, ctx: &mut DfsCtx<'_>, is_mixin_path: bool) {
+fn tcloo_dfs(cls: &str, ctx: &mut DfsCtx<'_>, is_mixin_path: bool, depth: usize) {
+    // Bound the walk: an over-deep chain would overflow the stack and stacked
+    // diamonds would explode the visit count. Abort gracefully (RUST_ISSUE_076).
+    if depth > MAX_MRO_DEPTH || ctx.budget == 0 {
+        ctx.aborted = true;
+        return;
+    }
+    ctx.budget -= 1;
+
     if ctx.visiting.contains(cls) {
         // Cycles through mixins are valid in TclOO; just skip.
         return;
@@ -115,7 +142,7 @@ fn tcloo_dfs(cls: &str, ctx: &mut DfsCtx<'_>, is_mixin_path: bool) {
     // 1. Process class-level mixins (enter mixin path).
     if let Some(mixins) = ctx.mixins_map.get(cls) {
         for mixin in mixins.clone() {
-            tcloo_dfs(&mixin, ctx, true);
+            tcloo_dfs(&mixin, ctx, true, depth + 1);
         }
     }
 
@@ -132,7 +159,7 @@ fn tcloo_dfs(cls: &str, ctx: &mut DfsCtx<'_>, is_mixin_path: bool) {
     // 3. Process superclasses (inherit mixin-path status).
     if let Some(supers) = ctx.supers_map.get(cls) {
         for parent in supers.clone() {
-            tcloo_dfs(&parent, ctx, is_mixin_path);
+            tcloo_dfs(&parent, ctx, is_mixin_path, depth + 1);
         }
     }
 
@@ -145,27 +172,43 @@ fn tcloo_dfs(cls: &str, ctx: &mut DfsCtx<'_>, is_mixin_path: bool) {
 /// cycles), but pure superclass cycles should be reported as errors
 /// so downstream consumers can surface the problem.
 fn has_super_cycle(start: &str, supers_map: &HashMap<String, Vec<String>>) -> bool {
+    // Two sets, not one: `on_path` is the current DFS stack (a back-edge to it
+    // is a real cycle) and `explored` memoises nodes fully proven acyclic (so a
+    // shared sub-DAG is visited once, not once per reaching path — the previous
+    // single path-scoped set was Θ(2^k) on k stacked diamonds; RUST_ISSUE_076).
+    // A depth over `MAX_MRO_DEPTH` is treated as a cycle rather than overflowing
+    // the stack on a pathological linear chain.
     fn recurse(
         cls: &str,
         supers_map: &HashMap<String, Vec<String>>,
-        visited: &mut HashSet<String>,
+        on_path: &mut HashSet<String>,
+        explored: &mut HashSet<String>,
+        depth: usize,
     ) -> bool {
-        if visited.contains(cls) {
+        if depth > MAX_MRO_DEPTH {
             return true;
         }
-        visited.insert(cls.to_string());
+        if on_path.contains(cls) {
+            return true; // back-edge to an ancestor on the current path
+        }
+        if explored.contains(cls) {
+            return false; // already proven acyclic from here
+        }
+        on_path.insert(cls.to_string());
         if let Some(parents) = supers_map.get(cls) {
             for parent in parents {
-                if recurse(parent, supers_map, visited) {
+                if recurse(parent, supers_map, on_path, explored, depth + 1) {
                     return true;
                 }
             }
         }
-        visited.remove(cls);
+        on_path.remove(cls);
+        explored.insert(cls.to_string());
         false
     }
-    let mut visited = HashSet::new();
-    recurse(start, supers_map, &mut visited)
+    let mut on_path = HashSet::new();
+    let mut explored = HashSet::new();
+    recurse(start, supers_map, &mut on_path, &mut explored, 0)
 }
 
 /// Return the method resolution order for `class_name`.
@@ -196,6 +239,7 @@ pub fn tcloo_linearise(
     }
 
     let mut result: Vec<String> = Vec::new();
+    let mut budget = MAX_MRO_VISITS;
 
     // Pass 1: BUILDING_MIXINS — only collect mixin-path classes.
     let mut visiting = HashSet::new();
@@ -205,8 +249,16 @@ pub fn tcloo_linearise(
         result: &mut result,
         visiting: &mut visiting,
         building_mixins: true,
+        budget,
+        aborted: false,
     };
-    tcloo_dfs(class_name, &mut ctx, false);
+    tcloo_dfs(class_name, &mut ctx, false, 0);
+    if ctx.aborted {
+        return Err(MroError {
+            message: format!("class hierarchy for {class_name} is too complex to linearise"),
+        });
+    }
+    budget = ctx.budget;
 
     // Pass 2: collect non-mixin-path classes (shares result list
     // for late-placement dedup).
@@ -217,8 +269,15 @@ pub fn tcloo_linearise(
         result: &mut result,
         visiting: &mut visiting,
         building_mixins: false,
+        budget,
+        aborted: false,
     };
-    tcloo_dfs(class_name, &mut ctx, false);
+    tcloo_dfs(class_name, &mut ctx, false, 0);
+    if ctx.aborted {
+        return Err(MroError {
+            message: format!("class hierarchy for {class_name} is too complex to linearise"),
+        });
+    }
 
     Ok(result)
 }
@@ -314,6 +373,57 @@ mod tests {
         let s = supers(&[("A", &["A"])]);
         let err = tcloo_linearise("A", &s, &empty_mixins()).unwrap_err();
         assert!(err.message.contains("cycle"));
+    }
+
+    /// `k` stacked diamonds: `L{i} → {A{i}, B{i}}`, both `A{i}` and `B{i}`
+    /// point at `L{i+1}`. The bottom `L{k}` is reachable by 2^k paths — the
+    /// shape that made the old path-scoped DFS explode (RUST_ISSUE_076).
+    fn stacked_diamonds(k: usize) -> HashMap<String, Vec<String>> {
+        let mut m: HashMap<String, Vec<String>> = HashMap::new();
+        for i in 0..k {
+            m.insert(format!("L{i}"), vec![format!("A{i}"), format!("B{i}")]);
+            m.insert(format!("A{i}"), vec![format!("L{}", i + 1)]);
+            m.insert(format!("B{i}"), vec![format!("L{}", i + 1)]);
+        }
+        m.insert(format!("L{k}"), vec![]);
+        m
+    }
+
+    #[test]
+    fn moderate_stacked_diamonds_linearise_ok() {
+        // FP-guard: an acyclic shared DAG (10 diamonds) must NOT be reported as
+        // a cycle, and must linearise successfully within the visit budget.
+        let s = stacked_diamonds(10);
+        let mro = tcloo_linearise("L0", &s, &empty_mixins()).expect("acyclic DAG must linearise");
+        assert_eq!(mro.first().map(String::as_str), Some("L0"));
+        assert_eq!(mro.last().map(String::as_str), Some("L10"));
+    }
+
+    #[test]
+    fn adversarial_stacked_diamonds_do_not_hang() {
+        // RUST_ISSUE_076: ~40 stacked diamonds is 2^40 paths — the old DFS
+        // would hang. The visit budget makes it abort gracefully with a
+        // "too complex" error. The test completing at all is the assertion.
+        let s = stacked_diamonds(40);
+        let err = tcloo_linearise("L0", &s, &empty_mixins()).unwrap_err();
+        assert!(err.message.contains("too complex"), "{}", err.message);
+    }
+
+    #[test]
+    fn deep_linear_chain_does_not_overflow() {
+        // RUST_ISSUE_076: a ~5000-deep superclass chain would overflow the
+        // stack. The depth cap bounds recursion (reported as a cycle rather
+        // than a crash). Completing without a stack overflow is the point.
+        let mut s: HashMap<String, Vec<String>> = HashMap::new();
+        for i in 0..5000 {
+            s.insert(format!("C{i}"), vec![format!("C{}", i + 1)]);
+        }
+        s.insert("C5000".to_string(), vec![]);
+        let result = tcloo_linearise("C0", &s, &empty_mixins());
+        assert!(
+            result.is_err(),
+            "over-deep chain must degrade, not overflow"
+        );
     }
 
     #[test]

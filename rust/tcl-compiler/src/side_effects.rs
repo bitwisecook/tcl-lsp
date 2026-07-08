@@ -763,16 +763,38 @@ pub fn classify_side_effects(
 
     // Destroys a variable (`unset`).
     if spec.traits.contains(Traits::DESTROYS_VARIABLE) {
-        let mut e = SideEffect::new(SideEffectTarget::Variable, false, true);
-        if let Some(first) = args.first() {
-            let (scope, ns) = scope_from_varname(first);
-            e.scope = scope;
-            e.namespace = ns;
-            e.key = Some(first.clone());
-        }
-        e.dialect = dialect.map(str::to_owned);
+        // The destroyed variables are exactly the `VarWrite`-role args, resolved
+        // through the registry's arg-role resolver — which skips the leading
+        // options (`-nocomplain`, `--`) and yields *every* trailing name, not
+        // just the first. So `unset -nocomplain x` keys `x` (not `-nocomplain`),
+        // and `unset a b` keys both `a` and `b` (RUST_ISSUE_078).
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let targets =
+            registry.arg_indices_for_role(command, &arg_refs, tcl_registry::ArgRole::VarWrite);
+        let make_effect = |name: Option<&str>| {
+            let mut e = SideEffect::new(SideEffectTarget::Variable, false, true);
+            if let Some(name) = name {
+                let (scope, ns) = scope_from_varname(name);
+                e.scope = scope;
+                e.namespace = ns;
+                e.key = Some(name.to_owned());
+            }
+            e.dialect = dialect.map(str::to_owned);
+            e
+        };
+        // No named target (`unset`, `unset -nocomplain`, `unset --`) is a
+        // valid no-op destroy; still emit one untargeted Variable effect so the
+        // command stays classified impure rather than pure.
+        let effects: Vec<SideEffect> = if targets.is_empty() {
+            vec![make_effect(None)]
+        } else {
+            targets
+                .iter()
+                .map(|&idx| make_effect(args.get(idx).map(String::as_str)))
+                .collect()
+        };
         return CommandSideEffects {
-            effects: vec![e],
+            effects,
             dialect: dialect.map(str::to_owned),
             ..CommandSideEffects::default()
         };
@@ -1359,6 +1381,59 @@ mod tests {
         let cse = classify_side_effects(&registry, "incr", &["i".into()], None, None);
         // incr always reads AND writes (READS_BEFORE_WRITE trait).
         assert!(cse.reads_any());
+        assert!(cse.writes_any());
+    }
+
+    #[test]
+    fn classify_unset_keys_the_variable_not_the_option() {
+        // RUST_ISSUE_078: `unset x` destroys `x` — it is a WRITE (destroy) of
+        // `x`, never a read, and its key is `x` (not modelled as an assignment).
+        let registry = CommandRegistry::build_default();
+        let cse = classify_side_effects(&registry, "unset", &["x".into()], None, None);
+        assert!(cse.writes_any());
+        assert!(!cse.reads_any(), "unset does not read its target");
+        assert_eq!(cse.effects.len(), 1);
+        assert_eq!(cse.effects[0].target, SideEffectTarget::Variable);
+        assert_eq!(cse.effects[0].key.as_deref(), Some("x"));
+    }
+
+    #[test]
+    fn classify_unset_skips_leading_options() {
+        // RUST_ISSUE_078: `unset -nocomplain x` keys `x`, NOT `-nocomplain`.
+        let registry = CommandRegistry::build_default();
+        let cse = classify_side_effects(
+            &registry,
+            "unset",
+            &["-nocomplain".into(), "x".into()],
+            None,
+            None,
+        );
+        let keys: Vec<&str> = cse
+            .effects
+            .iter()
+            .filter_map(|e| e.key.as_deref())
+            .collect();
+        assert_eq!(keys, vec!["x"], "must key the variable, not the option");
+    }
+
+    #[test]
+    fn classify_unset_keys_every_name() {
+        // RUST_ISSUE_078: `unset a b c` destroys all three — not just the first.
+        let registry = CommandRegistry::build_default();
+        let cse = classify_side_effects(
+            &registry,
+            "unset",
+            &["a".into(), "b".into(), "c".into()],
+            None,
+            None,
+        );
+        let mut keys: Vec<&str> = cse
+            .effects
+            .iter()
+            .filter_map(|e| e.key.as_deref())
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(keys, vec!["a", "b", "c"]);
         assert!(cse.writes_any());
     }
 

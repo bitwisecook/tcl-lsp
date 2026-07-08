@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Analyser & diagnostics |
 | **Location** | `rust/tcl-compiler/src/side_effects.rs:733 (assigns_variable_at) precedes :765 (DESTROYS_VARIABLE), and unset carries both assigns_variable_at: Some(0) and DESTROYS_VARIABLE` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

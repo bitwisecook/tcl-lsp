@@ -138,19 +138,26 @@ impl Analyser {
                 i += 1;
                 continue;
             }
-            if let Some(opt) = options.iter().find(|o| o.matches(arg))
-                && let Some(min) = opt.min_version
-                && i < arg_tokens.len()
-            {
-                self.version_gate_sites.push(VersionGateSite {
-                    span: arg_tokens[i].span,
-                    package: pkg,
-                    min_version: min,
-                    item: VersionGateItem::Option {
-                        command: cmd_name.to_owned(),
-                        option: arg.to_owned(),
-                    },
-                });
+            if let Some(opt) = options.iter().find(|o| o.matches(arg)) {
+                if let Some(min) = opt.min_version
+                    && i < arg_tokens.len()
+                {
+                    self.version_gate_sites.push(VersionGateSite {
+                        span: arg_tokens[i].span,
+                        package: pkg,
+                        min_version: min,
+                        item: VersionGateItem::Option {
+                            command: cmd_name.to_owned(),
+                            option: arg.to_owned(),
+                        },
+                    });
+                }
+                // Skip the value word(s) this option consumes, so a value that
+                // itself looks like a flag (`-textvariable -placeholder`) is not
+                // re-tested as an option — the same `value_word_count` skip the
+                // W004 dialect-option loop uses (RUST_ISSUE_077).
+                i += 1 + opt.value_word_count(args, i);
+                continue;
             }
             i += 1;
         }
@@ -237,6 +244,30 @@ mod tests {
 
     fn fires(source: &str, code: &str) -> bool {
         version_diags(source).iter().any(|(c, _)| c == code)
+    }
+
+    fn count(source: &str, code: &str) -> usize {
+        version_diags(source)
+            .iter()
+            .filter(|(c, _)| c == code)
+            .count()
+    }
+
+    #[test]
+    fn option_value_that_looks_like_a_flag_is_not_retested() {
+        // RUST_ISSUE_077: `-placeholder`'s value is itself `-placeholder`. The
+        // value word must be skipped, so exactly ONE W136 fires (the option),
+        // not two (the option plus its value re-tested as an option).
+        let src = "package require Tk 8.6\nentry .e -placeholder -placeholder\n";
+        assert_eq!(count(src, "W136"), 1, "{:?}", version_diags(src));
+    }
+
+    #[test]
+    fn value_word_of_ungated_option_draws_no_spurious_diagnostic() {
+        // `-textvariable` consumes the next word `-placeholder` as its VALUE, so
+        // `-placeholder` must not be tested as a (gated) option — no W136.
+        let src = "package require Tk 8.6\nentry .e -textvariable -placeholder\n";
+        assert_eq!(count(src, "W136"), 0, "{:?}", version_diags(src));
     }
 
     #[test]
