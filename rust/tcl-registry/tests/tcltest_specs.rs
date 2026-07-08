@@ -133,6 +133,73 @@ fn test_command_declares_a_symbol_definer() {
 }
 
 #[test]
+fn c_harness_commands_are_registered_and_version_gated() {
+    // Every C test-harness command registered by tclTest*.c / tclUnixTest.c
+    // across the bundled Tcl trees 8.4-9.1 has a spec, gated to the versions
+    // that define it.  Verified against the `Tcl_Create*Command` registrations
+    // in the fetched sources.
+    let r = reg();
+
+    // Present in every Tcl version (generic + always-registered Unix commands).
+    for name in [
+        "testalarm",
+        "testchmod",
+        "testfilehandler",
+        "testfilewait",
+        "testfindexecutable",
+        "testgotsig",
+    ] {
+        let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
+        assert!(spec.supports_dialect(DialectSet::TCL84), "{name} in 8.4");
+        assert!(spec.supports_dialect(DialectSet::TCL91), "{name} in 9.1");
+        // Harness commands never leak into the restricted F5 dialects.
+        assert!(
+            !spec.supports_dialect(DialectSet::IRULES),
+            "{name} must not be in f5-irules"
+        );
+    }
+
+    // Added in 9.1 (tclTest.c / tclTestObj.c) — absent from 9.0 and earlier.
+    for name in [
+        "testchancreate",
+        "testisempty",
+        "testlistapi",
+        "testpostinit",
+        "testutftonormalized",
+        "testutftonormalizeddstring",
+    ] {
+        let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
+        assert!(spec.supports_dialect(DialectSet::TCL91), "{name} in 9.1");
+        assert!(
+            !spec.supports_dialect(DialectSet::TCL90),
+            "{name} must be 9.1-only"
+        );
+        assert!(
+            !spec.supports_dialect(DialectSet::TCL84),
+            "{name} absent in 8.4"
+        );
+    }
+
+    // `testfork` was added in 8.5.
+    let fork = r.get("testfork").expect("testfork registered");
+    assert!(fork.supports_dialect(DialectSet::TCL85), "testfork in 8.5");
+    assert!(fork.supports_dialect(DialectSet::TCL91), "testfork in 9.1");
+    assert!(!fork.supports_dialect(DialectSet::TCL84), "testfork not 8.4");
+
+    // The default-encoding-dir + get-open-file commands exist 8.4-8.6 and were
+    // removed in 9.0.
+    for name in ["testgetdefenc", "testgetopenfile", "testsetdefenc"] {
+        let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
+        assert!(spec.supports_dialect(DialectSet::TCL84), "{name} in 8.4");
+        assert!(spec.supports_dialect(DialectSet::TCL86), "{name} in 8.6");
+        assert!(
+            !spec.supports_dialect(DialectSet::TCL90),
+            "{name} removed in 9.0"
+        );
+    }
+}
+
+#[test]
 fn testconstraint_and_custommatch_declare_their_own_symbol_kinds() {
     // Every tcltest command that *binds a name* is a symbol definer with its
     // own outline category — a constraint and a match mode are distinct from a

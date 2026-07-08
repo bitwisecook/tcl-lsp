@@ -145,6 +145,7 @@ mod tcltest__verbose;
 mod tcltest__viewfile;
 mod tcltest__workingdirectory;
 mod testaccessproc;
+mod testalarm;
 mod testapplylambda;
 mod testappverifierpresent;
 mod testasync;
@@ -153,8 +154,10 @@ mod testbignumobj;
 mod testbooleanobj;
 mod testbumpinterpepoch;
 mod testbytestring;
+mod testchancreate;
 mod testchannel;
 mod testchannelevent;
+mod testchmod;
 mod testcmdinfo;
 mod testcmdobj2;
 mod testcmdtoken;
@@ -183,26 +186,35 @@ mod testexprparser;
 mod testexprstring;
 mod testfevent;
 mod testfile;
+mod testfilehandler;
 mod testfilelink;
 mod testfilesystem;
+mod testfilewait;
+mod testfindexecutable;
 mod testfindfirst;
 mod testfindlast;
+mod testfork;
 mod testfstildeexpand;
 mod testgetassocdata;
+mod testgetdefenc;
 mod testgetindexfromobjstruct;
 mod testgetint;
 mod testgetintforindex;
+mod testgetopenfile;
 mod testgetplatform;
 mod testgetunichar;
 mod testgetvarfullname;
+mod testgotsig;
 mod testhandlecount;
 mod testhashsystemhash;
 mod testindexobj;
 mod testinterpdelete;
 mod testinterpresolver;
 mod testintobj;
+mod testisempty;
 mod testlink;
 mod testlinkarray;
+mod testlistapi;
 mod testlistobj;
 mod testlistrep;
 mod testlocale;
@@ -220,6 +232,7 @@ mod testparseargs;
 mod testparser;
 mod testparsevar;
 mod testparsevarname;
+mod testpostinit;
 mod testpreferstable;
 mod testprint;
 mod testpurebytesobj;
@@ -230,6 +243,7 @@ mod testservicemode;
 mod testset2;
 mod testsetassocdata;
 mod testsetbytearraylength;
+mod testsetdefenc;
 mod testseterr;
 mod testseterrorcode;
 mod testsetmainloop;
@@ -249,6 +263,8 @@ mod testuniclass;
 mod testupvar;
 mod testutfnext;
 mod testutfprev;
+mod testutftonormalized;
+mod testutftonormalizeddstring;
 mod testwrongnumargs;
 
 use crate::spec::CommandSpec;
@@ -446,6 +462,7 @@ fn tcltest_specs() -> Vec<CommandSpec> {
 fn test_harness_specs() -> Vec<CommandSpec> {
     vec![
         testaccessproc::spec(),
+        testalarm::spec(),
         testapplylambda::spec(),
         testappverifierpresent::spec(),
         testasync::spec(),
@@ -454,8 +471,10 @@ fn test_harness_specs() -> Vec<CommandSpec> {
         testbooleanobj::spec(),
         testbumpinterpepoch::spec(),
         testbytestring::spec(),
+        testchancreate::spec(),
         testchannel::spec(),
         testchannelevent::spec(),
+        testchmod::spec(),
         testcmdinfo::spec(),
         testcmdobj2::spec(),
         testcmdtoken::spec(),
@@ -484,18 +503,25 @@ fn test_harness_specs() -> Vec<CommandSpec> {
         testexprstring::spec(),
         testfevent::spec(),
         testfile::spec(),
+        testfilehandler::spec(),
         testfilelink::spec(),
         testfilesystem::spec(),
+        testfilewait::spec(),
+        testfindexecutable::spec(),
         testfindfirst::spec(),
         testfindlast::spec(),
+        testfork::spec(),
         testfstildeexpand::spec(),
         testgetassocdata::spec(),
+        testgetdefenc::spec(),
         testgetindexfromobjstruct::spec(),
         testgetint::spec(),
         testgetintforindex::spec(),
+        testgetopenfile::spec(),
         testgetplatform::spec(),
         testgetunichar::spec(),
         testgetvarfullname::spec(),
+        testgotsig::spec(),
     ]
 }
 
@@ -508,8 +534,10 @@ fn test_harness_specs_h_w() -> Vec<CommandSpec> {
         testinterpdelete::spec(),
         testinterpresolver::spec(),
         testintobj::spec(),
+        testisempty::spec(),
         testlink::spec(),
         testlinkarray::spec(),
+        testlistapi::spec(),
         testlistobj::spec(),
         testlistrep::spec(),
         testlocale::spec(),
@@ -527,6 +555,7 @@ fn test_harness_specs_h_w() -> Vec<CommandSpec> {
         testparser::spec(),
         testparsevar::spec(),
         testparsevarname::spec(),
+        testpostinit::spec(),
         testpreferstable::spec(),
         testprint::spec(),
         testpurebytesobj::spec(),
@@ -537,6 +566,7 @@ fn test_harness_specs_h_w() -> Vec<CommandSpec> {
         testset2::spec(),
         testsetassocdata::spec(),
         testsetbytearraylength::spec(),
+        testsetdefenc::spec(),
         testseterr::spec(),
         testseterrorcode::spec(),
         testsetmainloop::spec(),
@@ -556,6 +586,8 @@ fn test_harness_specs_h_w() -> Vec<CommandSpec> {
         testupvar::spec(),
         testutfnext::spec(),
         testutfprev::spec(),
+        testutftonormalized::spec(),
+        testutftonormalizeddstring::spec(),
         testwrongnumargs::spec(),
     ]
 }
