@@ -6477,159 +6477,159 @@ mod tests {
     /// The `TclOO` object-method dispatch fixture rows:
     /// `(name, source, method word, 0-based dispatch line, expectation)`.
     const TCLOO_DISPATCH_CASES: &[(&str, &str, &str, u32, Expect)] = &[
-            // ---- statically determinable → resolve ----
-            (
-                "var_new",
-                "oo::class create C { method mrun {} {} }\nset o [C new]\n$o mrun\n",
-                "mrun",
-                2,
-                Resolve,
-            ),
-            (
-                "direct_new",
-                "oo::class create C { method mrun {} {} }\n[C new] mrun\n",
-                "mrun",
-                1,
-                Resolve,
-            ),
-            (
-                "configurable_property",
-                "oo::configurable create C { property node }\nset o [C new]\n$o configure -node 1\n",
-                "configure",
-                2,
-                Resolve,
-            ),
-            (
-                "inherited_method",
-                "oo::class create B { method base {} {} }\noo::class create D { superclass B }\nset o [D new]\n$o base\n",
-                "base",
-                3,
-                Resolve,
-            ),
-            (
-                "mixin_method",
-                "oo::class create M { method mixm {} {} }\noo::class create C { mixin M }\nset o [C new]\n$o mixm\n",
-                "mixm",
-                3,
-                Resolve,
-            ),
-            (
-                "dict_collection",
-                "oo::class create C { method mrun {} {} }\ndict set d k [C new]\n[dict get $d k] mrun\n",
-                "mrun",
-                2,
-                Resolve,
-            ),
-            (
-                "foreach_loopvar",
-                "oo::class create C { method mrun {} {} }\nlappend objs [C new]\nforeach o $objs { $o mrun }\n",
-                "mrun",
-                2,
-                Resolve,
-            ),
-            (
-                "interproc_param",
-                "oo::class create C { method mrun {} {} }\nproc f {o} { $o mrun }\nset p [C new]\nf $p\n",
-                "mrun",
-                1,
-                Resolve,
-            ),
-            (
-                "proc_return",
-                "oo::class create C { method mrun {} {} }\nproc make {} { return [C new] }\nset o [make]\n$o mrun\n",
-                "mrun",
-                3,
-                Resolve,
-            ),
-            (
-                "my_self_call",
-                "oo::class create C {\n  method helper {} {}\n  method run {} { my helper }\n}\n",
-                "helper",
-                2,
-                Resolve,
-            ),
-            (
-                "snit_self_call",
-                "snit::type C {\n  method helper {} {}\n  method run {} { $self helper }\n}\n",
-                "helper",
-                2,
-                Resolve,
-            ),
-            (
-                "itcl_this_call",
-                "itcl::class C {\n  method helper {} {}\n  method run {} { $this helper }\n}\n",
-                "helper",
-                2,
-                Resolve,
-            ),
-            (
-                "snit_install_component",
-                "snit::widget Ax { method draw {} {} }\nsnit::widget C {\n  constructor {} { install ax using Ax $win.a\n    $ax draw }\n}\n",
-                "draw",
-                3,
-                Resolve,
-            ),
-            (
-                "snit_bare_constructor",
-                "snit::type Eng { method run {} {} }\nsnit::type C {\n  variable e\n  constructor {} { set e [Eng ${selfns}::x] }\n  method go {} { $e run }\n}\n",
-                "run",
-                4,
-                Resolve,
-            ),
-            (
-                "oo_define_added",
-                "oo::class create C {}\noo::define C { method added {} {} }\nset o [C new]\n$o added\n",
-                "added",
-                3,
-                Resolve,
-            ),
-            (
-                "registry_class",
-                "set c [ticklecharts::chart new]\n$c Xaxis -name x\n",
-                "Xaxis",
-                1,
-                Resolve,
-            ),
-            // ---- genuinely dynamic → must abstain (soundness) ----
-            (
-                "introspection_class",
-                "oo::class create C { method mrun {} {} }\nset o [C new]\nset cls [info object class $o]\n[$cls new] mrun\n",
-                "mrun",
-                3,
-                Abstain,
-            ),
-            (
-                "oo_copy",
-                "oo::class create C { method mrun {} {} }\nset a [C new]\nset b [oo::copy $a]\n$b mrun\n",
-                "mrun",
-                3,
-                Abstain,
-            ),
-            (
-                "unknown_param",
-                "proc f {o} { $o mrun }\n",
-                "mrun",
-                0,
-                Abstain,
-            ),
-            // ---- not yet modelled, but abstains safely (flip to Resolve when done) ----
-            (
-                "named_object", // TODO(phase-3): resolve via created_instance_commands
-                "oo::class create C { method mrun {} {} }\nC create obj\nobj mrun\n",
-                "mrun",
-                2,
-                Abstain,
-            ),
-            (
-                // The snit *named-constructor* shape: `$o` bound by `foo create
-                // x` types as `foo` (the signature scan records snit types as
-                // classes), so the dispatch resolves like any handle.
-                "snit_named_object",
-                "snit::type foo { method smeth {} {} }\nset o [foo create x]\n$o smeth\n",
-                "smeth",
-                2,
-                Resolve,
-            ),
+        // ---- statically determinable → resolve ----
+        (
+            "var_new",
+            "oo::class create C { method mrun {} {} }\nset o [C new]\n$o mrun\n",
+            "mrun",
+            2,
+            Resolve,
+        ),
+        (
+            "direct_new",
+            "oo::class create C { method mrun {} {} }\n[C new] mrun\n",
+            "mrun",
+            1,
+            Resolve,
+        ),
+        (
+            "configurable_property",
+            "oo::configurable create C { property node }\nset o [C new]\n$o configure -node 1\n",
+            "configure",
+            2,
+            Resolve,
+        ),
+        (
+            "inherited_method",
+            "oo::class create B { method base {} {} }\noo::class create D { superclass B }\nset o [D new]\n$o base\n",
+            "base",
+            3,
+            Resolve,
+        ),
+        (
+            "mixin_method",
+            "oo::class create M { method mixm {} {} }\noo::class create C { mixin M }\nset o [C new]\n$o mixm\n",
+            "mixm",
+            3,
+            Resolve,
+        ),
+        (
+            "dict_collection",
+            "oo::class create C { method mrun {} {} }\ndict set d k [C new]\n[dict get $d k] mrun\n",
+            "mrun",
+            2,
+            Resolve,
+        ),
+        (
+            "foreach_loopvar",
+            "oo::class create C { method mrun {} {} }\nlappend objs [C new]\nforeach o $objs { $o mrun }\n",
+            "mrun",
+            2,
+            Resolve,
+        ),
+        (
+            "interproc_param",
+            "oo::class create C { method mrun {} {} }\nproc f {o} { $o mrun }\nset p [C new]\nf $p\n",
+            "mrun",
+            1,
+            Resolve,
+        ),
+        (
+            "proc_return",
+            "oo::class create C { method mrun {} {} }\nproc make {} { return [C new] }\nset o [make]\n$o mrun\n",
+            "mrun",
+            3,
+            Resolve,
+        ),
+        (
+            "my_self_call",
+            "oo::class create C {\n  method helper {} {}\n  method run {} { my helper }\n}\n",
+            "helper",
+            2,
+            Resolve,
+        ),
+        (
+            "snit_self_call",
+            "snit::type C {\n  method helper {} {}\n  method run {} { $self helper }\n}\n",
+            "helper",
+            2,
+            Resolve,
+        ),
+        (
+            "itcl_this_call",
+            "itcl::class C {\n  method helper {} {}\n  method run {} { $this helper }\n}\n",
+            "helper",
+            2,
+            Resolve,
+        ),
+        (
+            "snit_install_component",
+            "snit::widget Ax { method draw {} {} }\nsnit::widget C {\n  constructor {} { install ax using Ax $win.a\n    $ax draw }\n}\n",
+            "draw",
+            3,
+            Resolve,
+        ),
+        (
+            "snit_bare_constructor",
+            "snit::type Eng { method run {} {} }\nsnit::type C {\n  variable e\n  constructor {} { set e [Eng ${selfns}::x] }\n  method go {} { $e run }\n}\n",
+            "run",
+            4,
+            Resolve,
+        ),
+        (
+            "oo_define_added",
+            "oo::class create C {}\noo::define C { method added {} {} }\nset o [C new]\n$o added\n",
+            "added",
+            3,
+            Resolve,
+        ),
+        (
+            "registry_class",
+            "set c [ticklecharts::chart new]\n$c Xaxis -name x\n",
+            "Xaxis",
+            1,
+            Resolve,
+        ),
+        // ---- genuinely dynamic → must abstain (soundness) ----
+        (
+            "introspection_class",
+            "oo::class create C { method mrun {} {} }\nset o [C new]\nset cls [info object class $o]\n[$cls new] mrun\n",
+            "mrun",
+            3,
+            Abstain,
+        ),
+        (
+            "oo_copy",
+            "oo::class create C { method mrun {} {} }\nset a [C new]\nset b [oo::copy $a]\n$b mrun\n",
+            "mrun",
+            3,
+            Abstain,
+        ),
+        (
+            "unknown_param",
+            "proc f {o} { $o mrun }\n",
+            "mrun",
+            0,
+            Abstain,
+        ),
+        // ---- not yet modelled, but abstains safely (flip to Resolve when done) ----
+        (
+            "named_object", // TODO(phase-3): resolve via created_instance_commands
+            "oo::class create C { method mrun {} {} }\nC create obj\nobj mrun\n",
+            "mrun",
+            2,
+            Abstain,
+        ),
+        (
+            // The snit *named-constructor* shape: `$o` bound by `foo create
+            // x` types as `foo` (the signature scan records snit types as
+            // classes), so the dispatch resolves like any handle.
+            "snit_named_object",
+            "snit::type foo { method smeth {} {} }\nset o [foo create x]\n$o smeth\n",
+            "smeth",
+            2,
+            Resolve,
+        ),
     ];
 
     /// Golden fixture for `TclOO` object-method dispatch resolution — validated

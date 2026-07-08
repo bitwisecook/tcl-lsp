@@ -130,10 +130,7 @@ fn collect_addrs_ports(devices: &[J]) -> (Vec<String>, Vec<i64>) {
             }
         }
     }
-    (
-        addrs.into_iter().collect(),
-        ports.into_iter().collect(),
-    )
+    (addrs.into_iter().collect(), ports.into_iter().collect())
 }
 
 /// Build the `enrichment` model block from the model devices and the already-
