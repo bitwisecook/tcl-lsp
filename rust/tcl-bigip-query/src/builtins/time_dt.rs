@@ -194,6 +194,7 @@ fn bi_mktime(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_strftime(args: &[Value]) -> Result<Value, QueryError> {
+    use std::fmt::Write as _;
     // strftime over the UTC broken-down time — sub-second part dropped.
     let n = num_f64(&as_number(&args[0], "strftime", 1)?);
     let fmt = as_str(&args[1], "strftime", 2)?;
@@ -203,7 +204,18 @@ fn bi_strftime(args: &[Value]) -> Result<Value, QueryError> {
             crate::jsonfmt::py_float_repr(n)
         )));
     };
-    Ok(Value::Str(dt.naive_utc().format(&fmt).to_string()))
+    // An invalid specifier (`%E`, a bare `%`, …) lexes to `Item::Error`, whose
+    // `Display` returns `fmt::Error`. `.to_string()` turns that into a *panic*
+    // ("a Display implementation returned an error unexpectedly"), aborting the
+    // in-report wasm console; `write!` propagates it so we can return a clean
+    // Tcl error instead (RUST_ISSUE_119).
+    let mut buf = String::new();
+    if write!(buf, "{}", dt.naive_utc().format(&fmt)).is_err() {
+        return Err(QueryError::builtin(format!(
+            "strftime: invalid format string: {fmt:?}"
+        )));
+    }
+    Ok(Value::Str(buf))
 }
 
 fn bi_strptime(args: &[Value]) -> Result<Value, QueryError> {
@@ -430,5 +442,22 @@ mod tests {
             }
             other => panic!("now() must return a float, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn strftime_invalid_format_errors_not_panics() {
+        // RUST_ISSUE_119: an invalid specifier lexes to `Item::Error`, whose
+        // Display returns fmt::Error — `.to_string()` would panic. We must get a
+        // clean QueryError instead.
+        for bad in ["%E", "100%", "%"] {
+            let err = bi_strftime(&[Value::Int(0), Value::Str(bad.to_owned())]).unwrap_err();
+            assert!(
+                err.to_string().contains("invalid format"),
+                "expected a clean error for {bad:?}, got {err}",
+            );
+        }
+        // FP-guard: a valid format still renders.
+        let ok = bi_strftime(&[Value::Int(0), Value::Str("%Y-%m-%d".to_owned())]).unwrap();
+        assert!(matches!(ok, Value::Str(s) if s == "1970-01-01"));
     }
 }

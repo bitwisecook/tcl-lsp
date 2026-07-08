@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | f5-query / report-gen / f5-xc |
 | **Location** | `rust/tcl-bigip-query/src/eval.rs:1274-1287` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: medium) |
 
 ## Finding
