@@ -98,8 +98,10 @@ fn registry_for(dialects: DialectSet) -> CommandRegistry {
 fn targets() -> Vec<Target> {
     vec![
         Target {
+            // Tk is filtered out by `required_package` (it needs `package
+            // require Tk`), so the ambient Tcl core is just ALL_TCL here.
             dir: "tcl",
-            dialects: DialectSet::TK_AND_TCL,
+            dialects: DialectSet::ALL_TCL,
         },
         Target {
             // iRules run a Tcl core plus the F5 command surface.
@@ -133,10 +135,16 @@ impl Buckets {
 
 /// Classify every command available in `dialects` into a highlight bucket.
 ///
-/// Namespaced commands are kept: they are the *point* of the dialect scoping
-/// (the F5 surface — `HTTP::uri`, `LB::server` — is entirely namespaced), and
-/// the tcl grammar parses `ns::cmd` as one `simple_word`, so the predicate
-/// matches. Over-inclusion is harmless first-paint over-approximation.
+/// Only the **ambient** command surface is projected — commands with a
+/// `required_package` (all of Tk, tcllib, stdlib packages, itcl, ticklecharts)
+/// are only available after a `package require`, which is per-file state the
+/// static query cannot know. Those are deliberately left to the LSP semantic-
+/// token layer, which sees the file's requires. iRules/iApps/Expect commands
+/// carry no package (they are ambient in their runtimes), so they stay.
+///
+/// Namespaced ambient commands are kept: they are the *point* of the dialect
+/// scoping (the F5 surface — `HTTP::uri`, `LB::server` — is entirely
+/// namespaced), and the tcl grammar parses `ns::cmd` as one `simple_word`.
 fn classify(reg: &CommandRegistry, dialects: DialectSet) -> Buckets {
     let mut b = Buckets::default();
 
@@ -152,6 +160,11 @@ fn classify(reg: &CommandRegistry, dialects: DialectSet) -> Buckets {
         }
         let Some(spec) = reg.get(name) else { continue };
         if !spec.supports_dialect(dialects) {
+            continue;
+        }
+        // Library commands (Tk / tcllib / stdlib packages) load dynamically via
+        // `package require`; the LSP handles those. Keep only ambient commands.
+        if spec.required_package.is_some() {
             continue;
         }
 
