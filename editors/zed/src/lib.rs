@@ -572,16 +572,14 @@ impl zed::Extension for TclExtension {
         _context_server_id: &zed::ContextServerId,
         _project: &zed::Project,
     ) -> Result<zed::Command> {
-        // Released builds download the platform-matched MCP binary; dev
-        // builds resolve a `tcl-mcp` on PATH (by the OS, since no worktree is
-        // available here to call `which`). The MCP server speaks over stdio
-        // with no args.
-        let mcp_path = if pinned_version().is_some() {
-            ensure_downloaded_binary(None, "tcl-mcp")?
-        } else {
-            let (os, _) = zed::current_platform();
-            format!("tcl-mcp{}", exe_suffix(os))
-        };
+        // Download the platform-matched MCP binary — pinned to the packaged
+        // tag for released builds, else the latest release. Unlike the language
+        // server, there is no `Worktree` here to prefer a PATH build via
+        // `which` (`Project` only exposes worktree ids), so a from-source /
+        // registry build with nothing on PATH would otherwise be unable to
+        // start the context server despite having the download plumbing. The
+        // MCP server speaks over stdio with no args.
+        let mcp_path = ensure_downloaded_binary(None, "tcl-mcp")?;
 
         Ok(zed::Command {
             command: mcp_path,
