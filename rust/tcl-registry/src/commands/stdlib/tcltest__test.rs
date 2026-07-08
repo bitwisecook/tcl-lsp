@@ -33,6 +33,10 @@ use crate::prelude::*;
 ///
 /// Without the positional `Body` role the analyser never descends into a legacy
 /// `test` body, under-reporting every nested diagnostic.
+///
+/// The test *name* (argument 0) is described by [`CommandSpec::defines_symbol`]
+/// rather than an `ArgRole::Name` here, so the outline / symbol consumers read
+/// it from one place; this resolver owns only the body shape.
 fn test_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     const BODY_OPTIONS: [&str; 3] = ["-setup", "-body", "-cleanup"];
     let n = args.len();
@@ -198,6 +202,11 @@ pub fn spec() -> CommandSpec {
         }),
         required_package: Some("tcltest"),
         arg_role_resolver: Some(test_arg_roles),
+        // The test name (arg 0) and its description (arg 1) name a test case the
+        // outline lists.  Every symbol consumer discovers it from this
+        // descriptor — the argument index and category are data here, not a
+        // `cmd == "test"` check in the analyser / signature scanner.
+        defines_symbol: Some(SymbolDef::new(0, DefinedSymbolKind::Test).with_detail(1)),
         body_kind: BodyKind::Structural,
         forms: FORMS,
         options: OPTIONS,

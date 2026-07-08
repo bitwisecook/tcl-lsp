@@ -99,6 +99,40 @@ fn tcltest_and_harness_commands_are_never_in_irules_or_iapps() {
 }
 
 #[test]
+fn test_command_declares_a_symbol_definer() {
+    // Issue #790: `tcltest::test` binds a navigable definition name (arg 0)
+    // with its description at arg 1, filed under the `Test` outline category —
+    // and this must be *registry data* the analyser / symbol providers read,
+    // not a command-name check baked into the compiler.
+    use tcl_registry::symbol_def::DefinedSymbolKind;
+    let r = reg();
+    let sym = r
+        .defines_symbol("tcltest::test", DialectSet::ALL_TCL)
+        .expect("tcltest::test should declare a symbol definer");
+    assert_eq!(sym.name_arg, 0, "test name is the first argument");
+    assert_eq!(sym.detail_arg, Some(1), "test description is the second argument");
+    assert_eq!(sym.kind, DefinedSymbolKind::Test);
+
+    // The `commands_defining_symbols` aggregate lists it.
+    assert!(
+        r.commands_defining_symbols().contains(&"tcltest::test"),
+        "tcltest::test should appear in the symbol-definer set"
+    );
+
+    // A plain command that defines no outline symbol returns `None` — the
+    // mechanism is opt-in, not blanket.
+    assert!(
+        r.defines_symbol("puts", DialectSet::ALL_TCL).is_none(),
+        "puts defines no outline symbol"
+    );
+    assert!(
+        r.defines_symbol("tcltest::cleanupTests", DialectSet::ALL_TCL)
+            .is_none(),
+        "cleanupTests defines no outline symbol"
+    );
+}
+
+#[test]
 fn bytestring_is_tcl8_only() {
     // `tcltest::bytestring` is guarded out under Tcl 9.0+ (tcltest 2.5.10).
     let r = reg();

@@ -105,4 +105,28 @@ suite("Document Symbols", () => {
       }
     }
   });
+
+  // Issue #790: tcltest `test` cases appear in the outline for navigation.
+  test("lists tcltest test cases as symbols", async () => {
+    const tcltestUri = getDocUri("tcltestImport.tcl");
+    await activate(tcltestUri);
+
+    const symbols = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", tcltestUri),
+      (r) => {
+        const syms = r as (vscode.DocumentSymbol[] | vscode.SymbolInformation[]) | undefined;
+        return !!syms && syms.some((s) => s.name === "t-1");
+      },
+      { timeout: 10_000, label: "tcltest test-case symbol" },
+    )) as vscode.DocumentSymbol[] | vscode.SymbolInformation[];
+
+    const testSym = symbols.find((s) => s.name === "t-1");
+    assert.ok(testSym, `Should list the 't-1' test case, got: ${symbols.map((s) => s.name)}`);
+    // No dedicated editor kind for a test case — it surfaces as a function.
+    assert.strictEqual(
+      testSym.kind,
+      vscode.SymbolKind.Function,
+      "test case should have Function kind",
+    );
+  });
 });

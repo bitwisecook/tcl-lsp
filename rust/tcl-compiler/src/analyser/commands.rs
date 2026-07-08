@@ -477,6 +477,11 @@ impl Analyser {
         // trailing variable arguments; bind them so completion/hover/definition
         // see the destructured / captured names.
         self.handle_var_binding_command(cmd_name, args, arg_tokens, scope_path);
+        // Registry symbol-definer commands (`tcltest::test NAME …`) contribute a
+        // lightweight named definition to the outline.  Void handler — it only
+        // records the symbol; the body still recurses via the generic
+        // `ArgRole::Body` walk below.
+        self.handle_defines_symbol(cmd_name, args, arg_tokens, arg_single, scope_path);
 
         // Side-effect-only handlers. Same idempotent pattern.
         self.handle_namespace_ensemble(cmd_name, args, scope_path);

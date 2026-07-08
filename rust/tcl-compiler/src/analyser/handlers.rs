@@ -37,7 +37,7 @@ use crate::alias::{detect_interp_alias, resolve_alias};
 use crate::signature_scan::types::SignatureCommandAlias;
 
 use super::state::Analyser;
-use super::types::ProcDef;
+use super::types::{DefinedSymbol, ProcDef};
 use super::utils::{param_name_spans, parse_param_list};
 
 /// Tcl *library* procedures (defined in init.tcl / auto.tcl / history.tcl /
@@ -75,6 +75,25 @@ pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
         format!("::{name}")
     } else {
         format!("::{ns_prefix}::{name}")
+    }
+}
+
+/// Condense a definition's description argument into a single-line outline
+/// detail: the first non-empty line, trimmed, and length-capped so a verbose
+/// multi-line description doesn't bloat the outline entry.
+fn summarise_detail(description: &str) -> String {
+    const MAX: usize = 80;
+    let line = description
+        .lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .unwrap_or("")
+        .trim();
+    if line.chars().count() > MAX {
+        let truncated: String = line.chars().take(MAX - 1).collect();
+        format!("{truncated}…")
+    } else {
+        line.to_string()
     }
 }
 
@@ -201,6 +220,163 @@ impl Analyser {
                 self.define_var(&args[i], *tok, scope_path, false, None);
             }
             i += if i + 1 < args.len() { 2 } else { 1 };
+        }
+    }
+
+    /// Record a lightweight named definition for a registry *symbol-definer*
+    /// command (`tcltest::test NAME …`, …) so it appears in the document /
+    /// workspace outline alongside procs, classes, and variables (issue #790).
+    ///
+    /// Everything command-specific is registry data: which argument holds the
+    /// name, which holds the description, and the outline category all come from
+    /// the command's [`tcl_registry::SymbolDef`] — there is no `cmd == "test"`
+    /// arm here, so registering the next such command (a benchmark runner, a
+    /// custom test wrapper) is a one-line spec change.
+    ///
+    /// The name is resolved through the analyser's constant-propagation lattice
+    /// (`const_strings` / [`Self::lookup_const_string`]): a bare literal, a
+    /// constant `$var`, or a quoted literal all resolve identically, and a
+    /// genuinely dynamic name (`test $unknown …`) is skipped rather than
+    /// recorded as the literal text `$unknown`.  This is a void handler — it
+    /// records the symbol and returns, leaving the command's body recursion to
+    /// the generic `ArgRole::Body` walk.
+    pub fn handle_defines_symbol(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+    ) {
+        let Some(sym) = self.resolve_symbol_definer(cmd_name, scope_path) else {
+            return;
+        };
+        let name_idx = sym.name_arg as usize;
+        let (Some(name_tok), Some(name_text), Some(name_single)) = (
+            arg_tokens.get(name_idx).copied(),
+            args.get(name_idx),
+            arg_single.get(name_idx).copied(),
+        ) else {
+            return;
+        };
+        // Resolve the name through constant propagation; skip a dynamic name.
+        let Some(name) = self.resolve_const_word(name_text, name_tok, name_single, scope_path)
+        else {
+            return;
+        };
+        if name.is_empty() {
+            return;
+        }
+
+        // The description argument, but only when it too resolves to a constant.
+        let detail = sym.detail_arg.and_then(|d| {
+            let di = d as usize;
+            let tok = arg_tokens.get(di).copied()?;
+            let text = args.get(di)?;
+            let single = arg_single.get(di).copied().unwrap_or(false);
+            self.resolve_const_word(text, tok, single, scope_path)
+                .map(|d| summarise_detail(&d))
+        });
+
+        // Fold range: the name token through the end of the last argument.
+        let end = arg_tokens
+            .last()
+            .map_or(name_tok.span.end(), |t| t.span.end())
+            .max(name_tok.span.end());
+        let full_span = Span::new(name_tok.span.start(), end);
+
+        let ns_prefix = self.namespace_from_scope_path(scope_path);
+        let qualified = qualify(ns_prefix.trim_start_matches(':'), &name);
+
+        let symbol = DefinedSymbol {
+            name,
+            qualified_name: qualified,
+            kind: sym.kind,
+            name_span: name_tok.span,
+            full_span,
+            detail,
+        };
+        self.result.all_defined_symbols.push(symbol.clone());
+        let path = scope_path.to_vec();
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
+            scope.defined_symbols.push(symbol);
+        }
+    }
+
+    /// Resolve `cmd_name` at `scope_path` to its [`tcl_registry::SymbolDef`], if
+    /// the command (or an imported bare form of it) declares one.
+    ///
+    /// Mirrors the imported-command fallback the body-role walk uses so a bare
+    /// `test` reached through `namespace import ::tcltest::*` resolves to the
+    /// qualified `tcltest::test` spec — the import must be in effect at the call
+    /// site (its own namespace, or a global-scope import via Tcl's `::`
+    /// fallback).
+    fn resolve_symbol_definer(
+        &mut self,
+        cmd_name: &str,
+        scope_path: &[usize],
+    ) -> Option<tcl_registry::SymbolDef> {
+        use tcl_registry::prelude::DialectSet;
+        let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
+        // `namespace_from_scope_path` needs `&mut self`; compute it before the
+        // shared `registry` borrow, and only when imports could matter.
+        let cur_ns = if self.result.namespace_imports.is_empty() {
+            String::new()
+        } else {
+            self.namespace_from_scope_path(scope_path)
+        };
+        let registry = self.registry.as_ref()?;
+        if let Some(sym) = registry.defines_symbol(cmd_name, dialect) {
+            return Some(*sym);
+        }
+        if cmd_name.contains("::") {
+            return None;
+        }
+        for imp in &self.result.namespace_imports {
+            if imp.ns != cur_ns && imp.ns != "::" {
+                continue;
+            }
+            let candidate = if let Some(prefix) = imp.pattern.strip_suffix('*') {
+                format!("{prefix}{cmd_name}")
+            } else if imp.pattern.rsplit("::").next() == Some(cmd_name) {
+                imp.pattern.clone()
+            } else {
+                continue;
+            };
+            if let Some(sym) = registry.defines_symbol(&candidate, dialect) {
+                return Some(*sym);
+            }
+        }
+        None
+    }
+
+    /// Resolve a single argument word to a constant string, or `None` when it is
+    /// not statically constant.
+    ///
+    /// The analyser-level counterpart to the optimiser's SCCP: a plain literal
+    /// word (its delimiters already stripped into `text`) is itself constant; a
+    /// bare `$var` resolves through the constant-string lattice
+    /// ([`Self::lookup_const_string`]); anything with embedded substitution or
+    /// concatenation is not statically known.
+    fn resolve_const_word(
+        &self,
+        text: &str,
+        tok: Token,
+        is_single: bool,
+        scope_path: &[usize],
+    ) -> Option<String> {
+        if !is_single {
+            return None;
+        }
+        match tok.kind {
+            TokenType::Str | TokenType::Esc => Some(text.to_string()),
+            TokenType::Var => {
+                let sm = tcl_lexer::SourceMap::new(&self.source);
+                let var_name = sm.token_text(tok);
+                self.lookup_const_string(var_name, scope_path)
+                    .map(str::to_string)
+            }
+            _ => None,
         }
     }
 

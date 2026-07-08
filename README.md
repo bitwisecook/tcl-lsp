@@ -364,8 +364,8 @@ set msg [format "%s has %d items" $name $count]
 
 ### Document symbols
 
-A structured outline of the current file — procs, namespaces, variables — for
-quick navigation (Ctrl+Shift+O / Cmd+Shift+O).
+A structured outline of the current file — procs, namespaces, variables, and
+`tcltest` test cases — for quick navigation (Ctrl+Shift+O / Cmd+Shift+O).
 
 ```tcl
 namespace eval app {
@@ -374,12 +374,17 @@ namespace eval app {
     proc run {} { init }       ;# symbol: app::run (function)
 }
 # Outline: app (namespace) → config, init, run
+
+package require tcltest
+namespace import ::tcltest::*
+test parse-1.1 {parses a row} -body { ... } -result ok
+                               ;# symbol: parse-1.1 (test case)
 ```
 
 ### Workspace symbols
 
-Search for procs and variables across all open files in the workspace
-(Ctrl+T / Cmd+T).
+Search for procs, classes, methods, and `tcltest` test cases across the
+workspace (Ctrl+T / Cmd+T).
 
 ```tcl
 # File: utils.tcl

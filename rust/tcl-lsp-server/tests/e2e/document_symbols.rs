@@ -308,6 +308,62 @@ fn classmethod_detail() {
     );
 }
 
+// -- tcltest test cases (issue #790) -------------------------------------
+
+#[test]
+fn tcltest_imported_test_name_is_a_symbol() {
+    // After `namespace import ::tcltest::*`, a bare `test` names a test case
+    // that appears in the outline with the test's description as detail.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "package require tcltest\n\
+         namespace import ::tcltest::*\n\
+         test widget-behaviour-1.1 {the widget behaves} -body { set x 1 } -result 1\n",
+    );
+    let syms = top(&mut lsp, &uri);
+    let sym = syms
+        .iter()
+        .find(|s| name(s) == "widget-behaviour-1.1")
+        .unwrap_or_else(|| panic!("test name not found in {syms:?}"));
+    assert_eq!(kind(sym), FUNCTION);
+    assert_eq!(detail(sym), "the widget behaves");
+}
+
+#[test]
+fn tcltest_qualified_test_name_is_a_symbol() {
+    // The fully-qualified `tcltest::test` form resolves without an import.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "package require tcltest\n\
+         tcltest::test qualified-2.1 {desc} -body { expr 1 } -result 1\n",
+    );
+    let names = symbol_names(&lsp.document_symbols(&uri));
+    assert!(names.contains("qualified-2.1"), "got {names:?}");
+}
+
+#[test]
+fn tcltest_test_case_is_a_workspace_symbol() {
+    // The same test case is navigable via `workspace/symbol`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "package require tcltest\n\
+         namespace import ::tcltest::*\n\
+         test find-this-case {desc} -body { set x 1 } -result 1\n",
+    );
+    let result = lsp.workspace_symbols("find-this-case");
+    let syms = result.as_array().cloned().unwrap_or_default();
+    assert!(
+        syms.iter().any(|s| name(s) == "find-this-case"),
+        "workspace symbol not found: {syms:?}"
+    );
+}
+
 // -- TestSymbolNamesNonEmpty ---------------------------------------------
 
 #[test]

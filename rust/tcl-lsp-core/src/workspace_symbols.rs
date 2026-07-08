@@ -42,6 +42,18 @@ pub enum WorkspaceSymbolKind {
     /// `TclOO` constructor — a member method whose role is
     /// instance construction.
     Constructor,
+    /// A named definition from a registry symbol-definer command — a
+    /// `tcltest::test` case (issue #790).
+    Test,
+}
+
+impl From<tcl_registry::DefinedSymbolKind> for WorkspaceSymbolKind {
+    /// Map a registry outline category to its workspace-symbol kind.
+    fn from(kind: tcl_registry::DefinedSymbolKind) -> Self {
+        match kind {
+            tcl_registry::DefinedSymbolKind::Test => Self::Test,
+        }
+    }
 }
 
 /// One entry in a workspace-symbols response.
@@ -124,6 +136,20 @@ pub fn workspace_symbols(
                     range: span_to_range(source, &line_index, ctor.name_span),
                 });
             }
+        }
+    }
+    // Registry symbol-definer definitions (tcltest tests, …) — same shape as
+    // procs, keyed on the resolved name and its enclosing namespace container.
+    for sym in &analysis.all_defined_symbols {
+        if matches_query(&sym.name, &lower_query)
+            || matches_query(&sym.qualified_name, &lower_query)
+        {
+            out.push(WorkspaceSymbol {
+                name: sym.name.clone(),
+                container_name: namespace_of(&sym.qualified_name),
+                kind: WorkspaceSymbolKind::from(sym.kind),
+                range: span_to_range(source, &line_index, sym.name_span),
+            });
         }
     }
     out
@@ -247,5 +273,37 @@ mod tests {
         let labels: Vec<&str> = syms.iter().map(|s| s.name.as_str()).collect();
         assert!(labels.contains(&"greetUser"), "{syms:?}");
         assert!(!labels.contains(&"farewell"), "{syms:?}");
+    }
+
+    // issue #790: tcltest `test` cases surface as workspace symbols.
+
+    #[test]
+    fn tcltest_test_surfaces_as_workspace_symbol() {
+        let src = "package require tcltest\n\
+                   namespace import ::tcltest::*\n\
+                   test find-me-1 {desc} -body { set x 1 } -result 1\n";
+        let analysis = analyse(src);
+        let syms = workspace_symbols(src, "find-me", &analysis);
+        let hit = syms
+            .iter()
+            .find(|s| s.name == "find-me-1")
+            .unwrap_or_else(|| panic!("test not found in {syms:?}"));
+        assert_eq!(hit.kind, WorkspaceSymbolKind::Test);
+    }
+
+    #[test]
+    fn test_case_in_namespace_has_container() {
+        let src = "package require tcltest\n\
+                   namespace eval suite {\n\
+                       tcltest::test scoped-1 {desc} -body { set x 1 } -result 1\n\
+                   }\n";
+        let analysis = analyse(src);
+        let syms = workspace_symbols(src, "scoped", &analysis);
+        let hit = syms
+            .iter()
+            .find(|s| s.name == "scoped-1")
+            .unwrap_or_else(|| panic!("scoped test not found in {syms:?}"));
+        assert_eq!(hit.kind, WorkspaceSymbolKind::Test);
+        assert_eq!(hit.container_name.as_deref(), Some("::suite"));
     }
 }

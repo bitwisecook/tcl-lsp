@@ -6338,6 +6338,7 @@ impl LanguageServer for Backend {
                         CoreWorkspaceSymbolKind::Class => SymbolKind::CLASS,
                         CoreWorkspaceSymbolKind::Method => SymbolKind::METHOD,
                         CoreWorkspaceSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
+                        CoreWorkspaceSymbolKind::Test => SymbolKind::FUNCTION,
                     },
                     tags: None,
                     deprecated: None,
@@ -9419,6 +9420,8 @@ fn lift_symbol_kind(k: CoreSymbolKind) -> SymbolKind {
         CoreSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
         CoreSymbolKind::Namespace => SymbolKind::NAMESPACE,
         CoreSymbolKind::Variable => SymbolKind::VARIABLE,
+        // A tcltest case has no dedicated LSP kind; it lists as a function.
+        CoreSymbolKind::Test => SymbolKind::FUNCTION,
         CoreSymbolKind::Module => SymbolKind::MODULE,
     }
 }
@@ -11632,6 +11635,8 @@ mod tests {
             lift_symbol_kind(CoreSymbolKind::Variable),
             SymbolKind::VARIABLE
         );
+        assert_eq!(lift_symbol_kind(CoreSymbolKind::Test), SymbolKind::FUNCTION);
+        assert_eq!(lift_symbol_kind(CoreSymbolKind::Module), SymbolKind::MODULE);
     }
 
     /// `lift_document_symbol` preserves the name / detail / kind /

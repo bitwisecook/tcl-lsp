@@ -189,6 +189,7 @@ class StringCommand(CommandDef):
 | `xc_translatable` | `bool \| None` | `None` | XC translatability.  `None` = follow default rules |
 | `format_string_type` | `FormatType \| None` | `None` | Format string metadata (e.g. `format`, `scan`) |
 | `pattern_type` | `PatternType \| None` | `None` | Pattern metadata (e.g. glob, regex) |
+| `defines_symbol` | `SymbolDef \| None` | `None` | Command binds a navigable definition *name* the outline lists (`tcltest::test`).  `SymbolDef` carries the name argument index, an optional description argument index, and the outline category (`DefinedSymbolKind`).  Every symbol consumer (document + workspace symbols) reads it generically — no command-name check.  Distinct from `traits.DEFINES_PROCEDURE` / `definition_body`, which carry the richer proc / class records |
 
 ### SubCommand field reference
 

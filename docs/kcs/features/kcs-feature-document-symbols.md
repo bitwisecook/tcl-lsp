@@ -5,7 +5,7 @@
 
 ## Summary
 
-Outline of procs, namespaces, event handlers, and variables in the current file.
+Outline of procs, namespaces, event handlers, variables, and `tcltest` test cases in the current file.
 
 ## Applies to
 
@@ -21,6 +21,8 @@ all-editors, MCP, analyser
 
 Produces a hierarchical symbol tree with procs nested inside namespaces, variables inside procs, and event handlers (iRules `when` blocks) at the top level.
 
+Commands that *define a named unit* — currently `tcltest::test NAME …`, whether called qualified or via `namespace import ::tcltest::*` — also contribute an outline entry, listed as a function-like test case with the test's description as detail (a test inside `namespace eval` nests under it). This is registry-driven: a command declares `defines_symbol` in its [`CommandSpec`](../../design/compiler/command-registry.md) and every symbol consumer (document + workspace symbols, MCP) picks it up generically, so adding the next such command is a spec change, not a compiler edit. The test *name* is resolved through the analyser's constant-propagation lattice, so a name written as a literal, a quoted string, or a constant `$var` all resolve; a genuinely dynamic name is skipped rather than shown as raw `$var` text (#790).
+
 A BIG-IP `.conf` file (any canonical basename — `bigip.conf`, `bigip_base.conf`, …) gets a different outline shape: a `module → kind → object` tree built from the config stanza tree rather than the Tcl scope walk. Nameless global singletons (`auth password-policy`, `net self-allow`, …) fall back to their kind label so no outline entry is ever empty. Both the Python and the native Rust servers serve this outline.
 
 ## File-path anchors
@@ -28,6 +30,9 @@ A BIG-IP `.conf` file (any canonical basename — `bigip.conf`, `bigip_base.conf
 - `server/features/document_symbols.py`
 - `server/features/_bigip_symbols.py` — BIG-IP `module → kind → object` outline (Python)
 - `rust/tcl-lsp-core/src/bigip.rs` — BIG-IP outline + basename detection (native server)
+- `rust/tcl-lsp-core/src/document_symbols.rs` — native outline builder (walks the analyser scope tree)
+- `rust/tcl-registry/src/symbol_def.rs` — `SymbolDef` / `DefinedSymbolKind` (registry-driven symbol-definer commands)
+- `rust/tcl-compiler/src/analyser/handlers.rs` — `handle_defines_symbol` (records test cases, constant-propagated name)
 
 ## Failure modes
 
@@ -38,6 +43,10 @@ A BIG-IP `.conf` file (any canonical basename — `bigip.conf`, `bigip_base.conf
 
 - `tests/test_document_symbols.py`
 - `tests/lsp_e2e/test_bigip_e2e.py` — BIG-IP outline + diagnostic suppression, both backends
+- `rust/tcl-lsp-core/src/document_symbols.rs` — TP/FP/TN/FN unit tests for `tcltest` test cases
+- `rust/tcl-lsp-server/tests/e2e/document_symbols.rs` — `tcltest_*` e2e cases (document + workspace symbols)
+- `rust/tcl-registry/tests/tcltest_specs.rs::test_command_declares_a_symbol_definer`
+- `editors/vscode/src/test/documentSymbols.test.ts` — "lists tcltest test cases as symbols"
 
 ## Screenshots
 
