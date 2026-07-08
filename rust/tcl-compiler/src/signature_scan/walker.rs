@@ -42,10 +42,13 @@ use std::collections::HashSet;
 
 use tcl_lexer::{Token, TokenType};
 
+use super::command_prefix::command_prefix_invocations;
 use super::ctx::ScanCtx;
 use super::handlers;
 use super::types::SignatureCommandInvocation;
-use crate::segmenter::{segment_commands_with_offset, segment_commands_with_recovery};
+use crate::segmenter::{
+    SegmentedCommand, segment_commands_with_offset, segment_commands_with_recovery,
+};
 
 /// Walk *source* as a Tcl script, emitting records for every command
 /// the dispatcher recognises.
@@ -106,7 +109,13 @@ pub(super) fn scan(
                 // document is reopened in the foreground.
                 resolved_qualified_name: None,
                 argc: arg_count,
+                callback_arity: None,
             });
+        // Record command-prefix callback heads (`lsort -command cb`, `trace
+        // add … cb`, …) as their own invocations so background-scanned files
+        // feed find-references / call-hierarchy / usage counts / callback
+        // arity through the same substrate as ordinary calls.
+        record_command_prefix_invocations(&cmd, head, ctx);
         let texts = &cmd.texts;
         let argv = &cmd.argv;
         match head {
@@ -162,6 +171,44 @@ pub(super) fn scan(
                 handlers::maybe_record_factory_candidate(head, texts, argv, ns_prefix, ctx);
             }
         }
+    }
+}
+
+/// Record `cmd`'s [`tcl_registry::arg_role::ArgRole::CommandPrefix`] callback
+/// heads (`lsort -command cb`, `trace add … cb`) as command invocations, so a
+/// background-scanned file's callbacks feed find-references / call-hierarchy /
+/// usage counts / callback-arity through the same substrate as ordinary calls.
+///
+/// No-op when the context carries no registry (focused unit tests) or the call
+/// has no arguments.
+fn record_command_prefix_invocations(cmd: &SegmentedCommand, head: &str, ctx: &mut ScanCtx<'_>) {
+    let Some(registry) = ctx.registry else {
+        return;
+    };
+    if cmd.texts.len() < 2 || cmd.argv.len() < 2 || cmd.single_token_word.len() < 2 {
+        return;
+    }
+    let invs = command_prefix_invocations(
+        registry,
+        head,
+        &cmd.texts[1..],
+        &cmd.argv[1..],
+        &cmd.single_token_word[1..],
+    );
+    for inv in invs {
+        ctx.result
+            .command_invocations
+            .push(SignatureCommandInvocation {
+                name: inv.head,
+                range: inv.span,
+                // Signature scan skips scope resolution (walker contract).
+                resolved_qualified_name: None,
+                // Bareword head → 0 baked args; the legacy direct-call arity
+                // path skips (`None`), the callback-arity check reads
+                // `callback_arity`.
+                argc: None,
+                callback_arity: Some(inv.appended),
+            });
     }
 }
 

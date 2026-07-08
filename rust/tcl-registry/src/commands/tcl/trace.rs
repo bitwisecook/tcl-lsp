@@ -57,6 +57,62 @@ fn trace_remove_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     Vec::new()
 }
 
+/// The invoked arity of a `trace add/remove <type> name ops cmdPrefix`
+/// callback (C Tcl 9.0): a `variable` trace fires `cmdPrefix name1 name2 op`
+/// (3), a `command` trace fires `cmdPrefix oldName newName op` (3), an
+/// `execution` trace fires 2–4 args (`enter`/`leave`/`enterstep`/`leavestep`),
+/// so `AtLeast(2)`.  A `remove` only references the handler (it is matched, not
+/// invoked), so it carries `Unknown` — recorded as a reference, not
+/// arity-checked.
+fn trace_type_command_prefix(args: &[&str], installing: bool) -> Vec<(u8, AppendedArity)> {
+    // args after the subcommand word: `type name ops cmdPrefix` (index 3).
+    if args.len() <= 3 {
+        return Vec::new();
+    }
+    let arity = if installing {
+        match args.first().copied() {
+            Some("variable" | "command") => AppendedArity::Exactly(3),
+            Some("execution") => AppendedArity::AtLeast(2),
+            _ => AppendedArity::Unknown,
+        }
+    } else {
+        AppendedArity::Unknown
+    };
+    vec![(3, arity)]
+}
+
+fn trace_add_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+    trace_type_command_prefix(args, true)
+}
+
+fn trace_remove_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+    trace_type_command_prefix(args, false)
+}
+
+/// Deprecated `trace variable name ops command` / `trace vdelete …` — the
+/// command prefix is the 3rd word (index 2).  `variable` installs a
+/// variable trace (`command name1 name2 op` → 3 args); `vdelete` only
+/// references the handler (`Unknown`).
+fn trace_legacy_command_prefix(args: &[&str], installing: bool) -> Vec<(u8, AppendedArity)> {
+    if args.len() <= 2 {
+        return Vec::new();
+    }
+    let arity = if installing {
+        AppendedArity::Exactly(3)
+    } else {
+        AppendedArity::Unknown
+    };
+    vec![(2, arity)]
+}
+
+fn trace_variable_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+    trace_legacy_command_prefix(args, true)
+}
+
+fn trace_vdelete_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+    trace_legacy_command_prefix(args, false)
+}
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "add",
@@ -65,6 +121,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Arrange for a command to be executed on the specified operation.",
         synopsis: "trace add type name ops commandPrefix",
         arg_role_resolver: Some(trace_add_arg_roles),
+        command_prefix_resolver: Some(trace_add_command_prefixes),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -84,6 +141,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Remove a trace.",
         synopsis: "trace remove type name ops commandPrefix",
         arg_role_resolver: Some(trace_remove_arg_roles),
+        command_prefix_resolver: Some(trace_remove_command_prefixes),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -92,6 +150,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Arrange for command to be executed whenever variable name is accessed. Deprecated in favour of trace add variable.",
         synopsis: "trace variable name ops command",
+        command_prefix_resolver: Some(trace_variable_command_prefixes),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only).
         dialects: Some(DialectSet::TCL8X),
         ..SubCommand::DEFAULT
@@ -102,6 +161,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Delete a variable trace. Deprecated in favour of trace remove variable.",
         synopsis: "trace vdelete name ops command",
+        command_prefix_resolver: Some(trace_vdelete_command_prefixes),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only).
         dialects: Some(DialectSet::TCL8X),
         ..SubCommand::DEFAULT

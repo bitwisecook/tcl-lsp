@@ -45,7 +45,8 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-server",
-        value: OptionValue::command_prefix("command"),
+        // Accept callback invoked as `command channel addr port` → 3 args.
+        value: OptionValue::command_prefix_n("command", AppendedArity::Exactly(3)),
         detail: "Server accept callback.",
         dialects: None,
         aliases: &[],

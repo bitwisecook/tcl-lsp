@@ -809,6 +809,63 @@ function ::f
 
 ---
 
+### FP-NAB-13 — command-prefix callbacks are first-class command references (TP)
+
+- **Verdict:** TRUE POSITIVE (precision gain) with literal-only FP guards
+- **Status:** locked in by `tcl-lsp-core/tests/command_prefix_integration.rs` +
+  `tcl-lsp-db/src/lib.rs::callback_arity_*` + `tcl-registry` `command_prefixes_*`
+- **Codes:** W123 (unknown callback), E002/E003 (callback arity)
+- **Corpus:** any `ArgRole::CommandPrefix` callback — `lsort -command`, `trace
+  add … cb`, `socket -server`, `interp alias`, `struct::list map/filter/fold`, …
+
+#### Reproducer
+
+```tcl
+proc myCompare {a b} { expr {$a - $b} }
+lsort -command myCompare $items      ;# reference + arity-checked (2 appended)
+lsort -command typoCmp   $items      ;# W123: unknown command 'typoCmp'
+proc oneArg {a} { return 0 }
+lsort -command oneArg    $items      ;# E003: too many (2 appended, max 1)
+```
+
+#### Per-line reasoning
+
+A command prefix's first word is a command **reference**, not a script or opaque
+value. The registry owns which arguments are prefixes and how many args the
+command appends to them (`CommandRegistry::command_prefixes` → `(index,
+AppendedArity)`, ground-truthed vs C Tcl 9.0). The head is recorded as a
+`command_invocations` entry (feeding find-references, rename, call-hierarchy,
+code-lens, and W123) and as a `ProcSummary.direct_calls` edge (feeding the call
+graph and O124 dead-code), so a callback-only proc is not "unused" and a typo'd
+callback name draws W123. The callback's arity is validated against the
+referenced proc, reusing the cross-file `E002`/`E003` path.
+
+**FP guards (all verified):** only a **literal bareword** head is recorded — a
+dynamic `$cb` / `[gen]` head is skipped (no W123 false-fire, no bogus edge);
+`AppendedArity::Unknown`/`AtLeast` never fire "too few"; an `args`-catch-all or
+all-optional-tail proc draws no arity error; a tail also claimed by a non-proc
+(class/alias/ensemble) is arity-less.
+
+#### tclsh ground truth
+
+```
+% proc cb {a b} {}; lsort -command cb {2 1}     ;# cb called as `cb 2 1` → 2 args
+```
+`lsort -command` appends exactly 2; `trace add variable` 3; `socket -server` 3
+— the arities the registry declares.
+
+#### Tests
+
+- `command_prefix_integration.rs::call_graph_has_callback_edge` (TP — edge)
+- `command_prefix_integration.rs::find_references_includes_callback_site` (TP)
+- `command_prefix_integration.rs::w123_fires_on_unknown_callback_but_not_a_defined_one` (TP + TN)
+- `command_prefix_integration.rs::dynamic_callback_head_is_not_recorded` (FP guard)
+- `tcl-lsp-db::callback_arity_mismatch_draws_e002` / `_too_many_draws_e003` (TP)
+- `tcl-lsp-db::callback_arity_correct_is_silent` / `_args_catchall_is_silent` /
+  `_atleast_does_not_false_fire_too_few` (TN / FP guards)
+
+---
+
 ## RBS — read-before-set (W210/W213/W214)
 
 W210 (read-before-set), W213 (`unset` on possibly-unset var, derives from RBS),

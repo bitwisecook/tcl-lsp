@@ -201,6 +201,14 @@ pub struct SignatureCommandInvocation {
     /// arities is a wrong-argument-count error.  `{*}`-expanded args make the true
     /// count unknown, recorded as `None` so arity checking conservatively skips.
     pub argc: Option<usize>,
+    /// `Some(arity)` when this invocation is a **command-prefix callback head**
+    /// (`lsort -command myCompare` records `myCompare` with the appended
+    /// arity), `None` for an ordinary direct call.  For a callback head `argc`
+    /// is the count of *baked* prefix args (0 for a bare word); the callback
+    /// arity check validates `baked + appended` against the referenced proc,
+    /// and the legacy direct-call arity path skips it (`argc` unset ⇒ no false
+    /// "wrong # args").
+    pub callback_arity: Option<tcl_registry::AppendedArity>,
 }
 
 /// The full result returned by `extract_signatures`.

@@ -26,7 +26,7 @@
 
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
-use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_registry::{AppendedArity, ArgRole, CommandRegistry};
 
 use crate::parsing::syntax::descend::{descend_command, descend_token};
 use crate::parsing::syntax::segment::segments_from_tree;
@@ -34,6 +34,14 @@ use crate::segmenter::SegmentedCommand;
 
 use super::state::Analyser;
 use super::types::{CodeFix, Diagnostic, Severity};
+
+/// A command head collected from a `[...]` substitution / expression scan,
+/// ready to push as a `command_invocations` entry:
+/// `(name, head-span, argc, callback_arity)`.  `argc` is the nested call's
+/// statically-known argument count (`None` when `{*}`-expanded); `callback_arity`
+/// is `Some` only for an `ArgRole::CommandPrefix` callback head (so the callback
+/// arity check runs) and `None` for an ordinary call head.
+type CollectedHead = (String, Span, Option<usize>, Option<AppendedArity>);
 
 /// Maximum nested-body recursion depth for [`Analyser::analyse_body`].
 /// `analyse_body` ↔ `process_command` ↔ `dispatch_body_arguments`
@@ -285,6 +293,7 @@ impl Analyser {
                     range: cmd_tok.span,
                     resolved_qualified_name: Some(resolved),
                     argc: arg_count,
+                    callback_arity: None,
                 },
             );
 
@@ -306,6 +315,7 @@ impl Analyser {
                         // iRules `call PROC ...` indirection — arity not
                         // cross-file-checked here; skip conservatively.
                         argc: None,
+                        callback_arity: None,
                     },
                 );
             }
@@ -314,6 +324,12 @@ impl Analyser {
             // substitutions and record each nested head as its own
             // ``CommandInvocation``.
             self.record_nested_invocations_from_args(cmd_name, args, arg_tokens_in);
+
+            // Record `ArgRole::CommandPrefix` callback heads (`lsort -command
+            // myCompare`, `trace add … cb`) as command invocations too, so
+            // find-references / rename / call-hierarchy / code-lens / W123 /
+            // callback-arity see the callback exactly like a direct call.
+            self.record_command_prefix_invocations(cmd_name, args, arg_tokens, arg_single);
 
             // Run the per-command syntactic checks on commands nested inside
             // ``[…]`` substitutions — the main walk never descends a
@@ -891,6 +907,45 @@ impl Analyser {
         }
     }
 
+    /// Record each [`tcl_registry::arg_role::ArgRole::CommandPrefix`] callback
+    /// head of this call (`lsort -command myCompare`, `trace add … cb`,
+    /// `interp alias {} a {} target`) as a `CommandInvocation`, so the
+    /// callback is a first-class command reference: find-references, rename,
+    /// call-hierarchy, code-lens usage counts, W123 unknown-command, and the
+    /// callback-arity check all see it exactly like a direct call.  Only a
+    /// literal bareword head is recorded (see
+    /// [`crate::signature_scan::command_prefix`]); a dynamic `$cb` / `[..]`
+    /// head stays unrecorded so W123 doesn't false-fire.
+    fn record_command_prefix_invocations(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+    ) {
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+        let invs = crate::signature_scan::command_prefix::command_prefix_invocations(
+            registry, cmd_name, args, arg_tokens, arg_single,
+        );
+        for inv in invs {
+            let resolved = self.resolve_command_qualified_name(&inv.head);
+            self.result.command_invocations.push(
+                crate::signature_scan::types::SignatureCommandInvocation {
+                    name: inv.head,
+                    range: inv.span,
+                    resolved_qualified_name: Some(resolved),
+                    // Bareword head → 0 baked args; the legacy direct-call
+                    // arity path skips (`None`), the callback-arity check reads
+                    // `callback_arity`.
+                    argc: None,
+                    callback_arity: Some(inv.appended),
+                },
+            );
+        }
+    }
+
     /// Walk every argument's source slice for ``[cmd ...]``
     /// substitutions and record each nested head as its own
     /// ``CommandInvocation``.  Extracted from
@@ -973,7 +1028,7 @@ impl Analyser {
         // immutable source borrow has ended.
         let heads = {
             let sm = SourceMap::new(&self.source);
-            let mut heads: Vec<(String, Span, Option<usize>)> = Vec::new();
+            let mut heads: Vec<CollectedHead> = Vec::new();
             // `arg_tok` is the *merged* argv token.  For a compound word
             // whose first fragment is a `[…]` substitution (`[foo]bar`,
             // `[foo]$x`, `[foo]bar[baz]`), `segments_from_tree` widens the
@@ -1253,7 +1308,7 @@ impl Analyser {
         let config = self.lexer_config();
         let heads = {
             let sm = SourceMap::new(&self.source);
-            let mut heads: Vec<(String, Span, Option<usize>)> = Vec::new();
+            let mut heads: Vec<CollectedHead> = Vec::new();
             collect_expr_substitutions(&sm, self.registry.as_ref(), expr_tok, config, &mut heads);
             heads
         };
@@ -1265,8 +1320,8 @@ impl Analyser {
     /// statically-known argument count (`None` when `{*}`-expanded), so a wrong-arg
     /// call to a cross-file proc *inside a substitution* (`set x [helper a b c]`)
     /// still draws the cross-file arity error.
-    fn push_collected_heads(&mut self, heads: Vec<(String, Span, Option<usize>)>) {
-        for (name, range, argc) in heads {
+    fn push_collected_heads(&mut self, heads: Vec<CollectedHead>) {
+        for (name, range, argc, callback_arity) in heads {
             let resolved = self.resolve_command_qualified_name(&name);
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
@@ -1274,6 +1329,7 @@ impl Analyser {
                     range,
                     resolved_qualified_name: Some(resolved),
                     argc,
+                    callback_arity,
                 },
             );
         }
@@ -1317,6 +1373,7 @@ impl Analyser {
                     resolved_qualified_name: Some(resolved),
                     // Nested `[cmd ...]` head, no recorded argument list — arity skip.
                     argc: None,
+                    callback_arity: None,
                 },
             );
         }
@@ -1548,7 +1605,7 @@ fn collect_substitution_heads(
     registry: Option<&CommandRegistry>,
     cmd_tok: Token,
     config: LexerConfig,
-    out: &mut Vec<(String, Span, Option<usize>)>,
+    out: &mut Vec<CollectedHead>,
 ) {
     if cmd_tok.kind != TokenType::Cmd || sm.token_text(cmd_tok).is_empty() {
         return;
@@ -1578,7 +1635,7 @@ fn record_command_invocations(
     registry: Option<&CommandRegistry>,
     seg: &SegmentedCommand,
     config: LexerConfig,
-    out: &mut Vec<(String, Span, Option<usize>)>,
+    out: &mut Vec<CollectedHead>,
 ) {
     // Head — record the `word_piece` form in `texts[0]` for *every*
     // command, whatever the head's kind: a bare word, a `$var`
@@ -1588,7 +1645,25 @@ fn record_command_invocations(
     if let (Some(&head), Some(name)) = (seg.argv.first(), seg.texts.first())
         && !name.is_empty()
     {
-        out.push((name.clone(), head.span, segment_argc(seg)));
+        out.push((name.clone(), head.span, segment_argc(seg), None));
+    }
+    // Command-prefix callback heads of this nested command (`return [lsort
+    // -command myCompare $l]`): recorded with their appended arity so a
+    // callback inside a `[...]` substitution is a first-class reference and is
+    // arity-checked, exactly like a top-level one.
+    if let (Some(registry), Some(name)) = (registry, seg.texts.first()) {
+        let arg_texts: Vec<String> = seg.texts.iter().skip(1).cloned().collect();
+        let arg_tokens: Vec<Token> = seg.argv.iter().skip(1).copied().collect();
+        let arg_single: Vec<bool> = seg.single_token_word.iter().skip(1).copied().collect();
+        for inv in crate::signature_scan::command_prefix::command_prefix_invocations(
+            registry,
+            name,
+            &arg_texts,
+            &arg_tokens,
+            &arg_single,
+        ) {
+            out.push((inv.head, inv.span, None, Some(inv.appended)));
+        }
     }
     // Nested ``[...]`` substitutions in any position (args, or embedded
     // in a quoted word — both are `Cmd` tokens in the command's token
@@ -1661,7 +1736,7 @@ fn collect_expr_substitutions(
     registry: Option<&CommandRegistry>,
     expr_tok: Token,
     config: LexerConfig,
-    out: &mut Vec<(String, Span, Option<usize>)>,
+    out: &mut Vec<CollectedHead>,
 ) {
     if expr_tok.kind != TokenType::Str || sm.token_text(expr_tok).is_empty() {
         return;

@@ -54,6 +54,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Return elements matching a condition.",
         synopsis: "struct::list filter sequence cmdprefix",
+        // cmdprefix invoked as `cmdprefix element` → 1 appended arg.
+        command_prefixes: &[(1, AppendedArity::Exactly(1))],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -76,6 +78,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Left-fold a list with an accumulator.",
         synopsis: "struct::list fold sequence initialValue cmdprefix",
+        // cmdprefix invoked as `cmdprefix accumulator element` → 2 appended args.
+        command_prefixes: &[(2, AppendedArity::Exactly(2))],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -112,6 +116,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Apply a command to each element and collect results.",
         synopsis: "struct::list map sequence cmdprefix",
+        // cmdprefix invoked as `cmdprefix element` → 1 appended arg.
+        command_prefixes: &[(1, AppendedArity::Exactly(1))],
         ..SubCommand::DEFAULT
     },
     SubCommand {

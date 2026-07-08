@@ -28,11 +28,12 @@ use crate::prelude::*;
 /// reference), not a script body.  It is always the last argument; the
 /// leading option/value pairs and `window` precede it.  Args here are
 /// those *after* the `handle` subcommand word.
-fn selection_handle_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+fn selection_handle_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
     match u8::try_from(args.len()) {
         // window + command are both required (arity at_least(2)), so the
-        // command prefix is the final argument.
-        Ok(n) if n >= 2 => vec![(n - 1, ArgRole::CommandPrefix)],
+        // command prefix is the final argument.  Tk invokes it with `offset
+        // maxChars` appended → 2 args (`Exactly(2)`).
+        Ok(n) if n >= 2 => vec![(n - 1, AppendedArity::Exactly(2))],
         _ => Vec::new(),
     }
 }
@@ -58,7 +59,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Register a handler to provide the selection data.",
         synopsis: "selection handle ?-selection sel? ?-type type? ?-format fmt? window command",
-        arg_role_resolver: Some(selection_handle_arg_roles),
+        command_prefix_resolver: Some(selection_handle_command_prefixes),
         ..SubCommand::DEFAULT
     },
     SubCommand {

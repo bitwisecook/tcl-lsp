@@ -54,6 +54,7 @@
 //!
 //! [`ParamDef`]: types::ParamDef
 
+pub(crate) mod command_prefix;
 mod ctx;
 mod factory;
 mod handlers;
@@ -75,7 +76,10 @@ pub use types::SignatureScanResult;
 #[must_use]
 pub fn extract_signatures(source: &str, registry: &CommandRegistry) -> SignatureScanResult {
     let known_commands: std::collections::HashSet<&str> = registry.command_names().collect();
-    let mut ctx = ScanCtx::default();
+    let mut ctx = ScanCtx {
+        registry: Some(registry),
+        ..ScanCtx::default()
+    };
     // Heads that match the factory-wrapper token shape but are not
     // factories: registry commands carrying `NOT_PROC_FACTORY` (using
     // any-spec semantics so a dialect-shadowed core head still counts)

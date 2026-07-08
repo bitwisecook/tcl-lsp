@@ -31,6 +31,31 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "interp subcommand ?arg arg ...?",
 }];
 
+/// `interp alias srcPath srcCmd targetPath targetCmd ?arg ...?` (create form) —
+/// `targetCmd` (index 3, after the `alias` subcommand word) is a command prefix
+/// invoked with the aliased command's runtime args appended to any baked
+/// `?arg...?`, so the count is variadic (`Unknown`, referenced but not
+/// arity-checked). The 2-arg query form (`interp alias srcPath srcCmd`) has no
+/// target.
+fn interp_alias_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+    if args.len() >= 4 {
+        vec![(3, AppendedArity::Unknown)]
+    } else {
+        Vec::new()
+    }
+}
+
+/// `interp bgerror path ?cmdPrefix?` — the optional background-error handler
+/// (index 1, after `bgerror`) is a command prefix invoked with the error
+/// message + return options (variadic ⇒ `Unknown`).
+fn interp_bgerror_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+    if args.len() >= 2 {
+        vec![(1, AppendedArity::Unknown)]
+    } else {
+        Vec::new()
+    }
+}
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "alias",
@@ -38,6 +63,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Manage command aliases.",
         synopsis: "interp alias path cmd",
         return_type: Some(TclType::List),
+        command_prefix_resolver: Some(interp_alias_command_prefixes),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -57,6 +83,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get or set background error handler.",
         synopsis: "interp bgerror path ?cmdPrefix?",
         return_type: Some(TclType::String),
+        command_prefix_resolver: Some(interp_bgerror_command_prefixes),
         ..SubCommand::DEFAULT
     },
     SubCommand {

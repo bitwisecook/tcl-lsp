@@ -18,7 +18,7 @@
 
 //! Documentation and completion metadata for LSP features.
 
-use crate::arg_role::ArgRole;
+use crate::arg_role::{AppendedArity, ArgRole};
 use crate::body_kind::BodyKind;
 use crate::dialects::DialectSet;
 
@@ -107,6 +107,11 @@ pub struct OptionArg {
     /// Hint text for the value (e.g. `"channel"`), migrated from the old
     /// `value_hint` field.
     pub hint: &'static str,
+    /// When `role` is [`ArgRole::CommandPrefix`], how many arguments the
+    /// command appends to the callback when it invokes it — drives the
+    /// callback-arity check.  [`AppendedArity::Unknown`] (the default) for
+    /// every other role and for prefixes whose count is indeterminate.
+    pub appended_arity: AppendedArity,
 }
 
 impl OptionArg {
@@ -119,6 +124,7 @@ impl OptionArg {
         values: &[],
         closed: false,
         hint: "",
+        appended_arity: AppendedArity::Unknown,
     };
 }
 
@@ -205,12 +211,28 @@ impl OptionValue {
 
     /// A command-prefix value (`lsort -command cmdPrefix`): the first word is a
     /// command invoked with runtime args appended, not a script body to
-    /// recurse (see [`ArgRole::CommandPrefix`]).
+    /// recurse (see [`ArgRole::CommandPrefix`]).  The appended count is
+    /// [`AppendedArity::Unknown`] (no arity check); use
+    /// [`command_prefix_n`](Self::command_prefix_n) when it is known.
     #[must_use]
     pub const fn command_prefix(hint: &'static str) -> Self {
         Self::Takes(OptionArg {
             role: ArgRole::CommandPrefix,
             hint,
+            ..OptionArg::DEFAULT
+        })
+    }
+
+    /// A command-prefix value whose invoked-arity is known — `lsort -command`
+    /// appends 2 (`command_prefix_n("cmdPrefix", AppendedArity::Exactly(2))`),
+    /// `-xscrollcommand` appends 2, `socket -server` appends 3.  Drives the
+    /// callback-arity check against the referenced proc.
+    #[must_use]
+    pub const fn command_prefix_n(hint: &'static str, appended: AppendedArity) -> Self {
+        Self::Takes(OptionArg {
+            role: ArgRole::CommandPrefix,
+            hint,
+            appended_arity: appended,
             ..OptionArg::DEFAULT
         })
     }
@@ -313,6 +335,16 @@ impl OptionSpec {
         match self.value {
             OptionValue::Flag => None,
             OptionValue::Takes(arg) => arg.also_role,
+        }
+    }
+
+    /// The appended-arity of a [`ArgRole::CommandPrefix`] value
+    /// ([`AppendedArity::Unknown`] for a flag or any other role).
+    #[must_use]
+    pub const fn value_appended_arity(&self) -> AppendedArity {
+        match self.value {
+            OptionValue::Flag => AppendedArity::Unknown,
+            OptionValue::Takes(arg) => arg.appended_arity,
         }
     }
 

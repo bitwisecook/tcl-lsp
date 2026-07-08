@@ -1075,6 +1075,23 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
         resolve_internal_call(command, caller, known)
     };
 
+    // Command-prefix callbacks (`lsort -command myCompare`, `trace add … cb`,
+    // `interp alias {} a {} target`) are call edges too: the referenced proc is
+    // reachable, so a callback-only proc is not dead (O124) and appears in the
+    // call graph. Registry-driven via `command_prefixes` — no command-name
+    // matching here. Literal single-identifier heads only (`is_plain_proc_name`
+    // rejects dynamic `$cb` / bracketed heads), mirroring the reference
+    // extractor's bareword guard.
+    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    for (idx, _appended) in registry.command_prefixes(command, &arg_strs) {
+        if let Some(word) = args.get(idx).and_then(|a| a.split_whitespace().next())
+            && is_plain_proc_name(word)
+            && let Some(target) = resolve_internal_call(word, caller, known)
+        {
+            facts.direct_calls.insert(target);
+        }
+    }
+
     // A call that resolves to an internal proc contributes ONLY a
     // call-graph edge — its purity / effects flow through the
     // interprocedural fixpoints from the callee's summary, so the

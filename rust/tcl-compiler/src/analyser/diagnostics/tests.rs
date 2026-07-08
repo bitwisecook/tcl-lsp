@@ -4055,6 +4055,7 @@ fn analyse_w123_package_require_gate_suppresses_when_recorded() {
             range: Span::new(25, 35),
             resolved_qualified_name: None,
             argc: Some(0),
+            callback_arity: None,
         });
     let registry = tcl_registry::CommandRegistry::build_default();
     a.emit_unresolved_command_diagnostics(&registry);
