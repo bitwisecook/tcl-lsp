@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | LSP navigation / rename / formatting |
 | **Location** | `rust/tcl-lsp-core/src/minify.rs:786-807` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

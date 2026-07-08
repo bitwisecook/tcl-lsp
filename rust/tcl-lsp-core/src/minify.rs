@@ -771,39 +771,119 @@ fn next_unused_name(
     None
 }
 
-/// Rename parameter names within the proc's parameter-list region.
+/// Rename parameter *names* within the proc's parameter-list region.
+///
+/// Only each parameter's name is renamed — the first word of a
+/// `{name default}` pair, or a bare `name`. A raw word-boundary byte scan over
+/// the whole region also rewrote occurrences inside *other* parameters' default
+/// values (`proc f {{x 1} {y x}}` renamed `y`'s default `x` too), changing the
+/// default the proc receives (`RUST_ISSUE_106`).
 fn rename_params_in_list(
     source: &str,
     proc_def: &ProcDef,
     var_map: &BTreeMap<String, String>,
     edits: &mut Vec<Edit>,
 ) {
-    let search_start = proc_def.name_span.end() as usize;
-    let search_end = proc_def.body_span.start() as usize;
-    if search_start > search_end || search_end > source.len() {
+    let region_start = proc_def.name_span.end() as usize;
+    let region_end = proc_def.body_span.start() as usize;
+    if region_start > region_end || region_end > source.len() {
         return;
     }
-    let region = &source.as_bytes()[search_start..search_end];
-    for param in &proc_def.params {
-        let Some(short) = var_map.get(&param.name) else {
-            continue;
-        };
-        let pat = param.name.as_bytes();
-        if pat.is_empty() {
-            continue;
+    let Some(region) = source.get(region_start..region_end) else {
+        return;
+    };
+    let bytes = region.as_bytes();
+    let is_ws = |b: u8| matches!(b, b' ' | b'\t' | b'\n' | b'\r');
+    let is_sep = |b: u8| is_ws(b) || matches!(b, b'{' | b'}');
+
+    // A bare (unbraced) param list is a single word (`proc f args …`).
+    let Some(open) = bytes.iter().position(|&b| b == b'{') else {
+        let trimmed_start = bytes.iter().position(|&b| !is_ws(b));
+        if let Some(s) = trimmed_start {
+            let mut e = s;
+            while e < bytes.len() && !is_sep(bytes[e]) {
+                e += 1;
+            }
+            maybe_rename(source, region_start, s, e - s, var_map, edits);
         }
-        let mut i = 0;
-        while i + pat.len() <= region.len() {
-            if &region[i..i + pat.len()] == pat
-                && !(i > 0 && is_word_byte(Some(region[i - 1])))
-                && !is_word_byte(region.get(i + pat.len()).copied())
-            {
-                edits.push((search_start + i, pat.len(), short.clone()));
-                i += pat.len();
-            } else {
+        return;
+    };
+
+    // Braced list: walk top-level elements between the outer `{ … }`.
+    let mut i = open + 1;
+    while i < bytes.len() {
+        while i < bytes.len() && is_ws(bytes[i]) {
+            i += 1;
+        }
+        if i >= bytes.len() || bytes[i] == b'}' {
+            break;
+        }
+        if bytes[i] == b'{' {
+            // `{name default…}` — the name is the first inner word.
+            let mut j = i + 1;
+            while j < bytes.len() && is_ws(bytes[j]) {
+                j += 1;
+            }
+            let name_start = j;
+            while j < bytes.len() && !is_sep(bytes[j]) {
+                j += 1;
+            }
+            maybe_rename(
+                source,
+                region_start,
+                name_start,
+                j - name_start,
+                var_map,
+                edits,
+            );
+            // Skip to the end of this balanced braced element.
+            let mut depth = 1u32;
+            let mut k = i + 1;
+            while k < bytes.len() && depth > 0 {
+                match bytes[k] {
+                    b'{' => depth += 1,
+                    b'}' => depth -= 1,
+                    _ => {}
+                }
+                k += 1;
+            }
+            i = k;
+        } else {
+            // Bare-word param (no default).
+            let name_start = i;
+            while i < bytes.len() && !is_sep(bytes[i]) {
                 i += 1;
             }
+            maybe_rename(
+                source,
+                region_start,
+                name_start,
+                i - name_start,
+                var_map,
+                edits,
+            );
         }
+    }
+}
+
+/// Emit a rename edit for the param name at `region_start + rel_off` (length
+/// `len`) when it is in `var_map`.
+fn maybe_rename(
+    source: &str,
+    region_start: usize,
+    rel_off: usize,
+    len: usize,
+    var_map: &BTreeMap<String, String>,
+    edits: &mut Vec<Edit>,
+) {
+    if len == 0 {
+        return;
+    }
+    let abs = region_start + rel_off;
+    if let Some(name) = source.get(abs..abs + len)
+        && let Some(short) = var_map.get(name)
+    {
+        edits.push((abs, len, short.clone()));
     }
 }
 
@@ -3081,6 +3161,24 @@ mod tests {
                 "proc greet {name} {\n    set message \"hi $name\"\n    return $message\n}\n"
             ),
             "proc a {b} {set a \"hi $b\";return $a}",
+        );
+    }
+
+    #[test]
+    fn compact_renames_param_name_not_other_defaults() {
+        // RUST_ISSUE_106: renaming param `x` must touch only its NAME, not a
+        // literal `x` sitting in another param's default value. Here `{y x}`
+        // gives `y` the default string `x`; that `x` must survive the `x`→…
+        // rename, otherwise the proc's default silently changes.
+        let out =
+            min_compact("proc f {{alpha 1} {beta alpha}} {\n    return [list $alpha $beta]\n}\n");
+        // The name `alpha` is renamed; `beta`'s default literal `alpha` is
+        // left intact (it is the string value `alpha`, not the parameter).
+        assert!(out.contains("{a 1}"), "alpha name renamed: {out:?}");
+        assert!(out.contains("{b alpha}"), "beta default intact: {out:?}");
+        assert!(
+            !out.contains("{b a}"),
+            "default must not be renamed: {out:?}"
         );
     }
 

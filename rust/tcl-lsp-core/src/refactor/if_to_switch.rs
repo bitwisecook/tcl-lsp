@@ -210,7 +210,16 @@ pub fn if_to_switch(
         if parsed.negated {
             return None;
         }
-        branches.push((strip_quotes(&parsed.value).to_owned(), body));
+        let value = strip_quotes(&parsed.value);
+        // The emitted `switch -exact -- $x { … }` uses the braced case-list
+        // form, whose patterns are LITERAL. A RHS that carried a substitution
+        // in the original `eq` comparison (`$y`, `[cmd]`, a `\`-escape) cannot
+        // be reproduced as a literal pattern — the arm would never match — so
+        // decline the conversion (RUST_ISSUE_107).
+        if value.bytes().any(|b| matches!(b, b'$' | b'[' | b'\\')) {
+            return None;
+        }
+        branches.push((value.to_owned(), body));
     }
 
     let target_var = target_var?;
@@ -279,6 +288,22 @@ mod tests {
         let source = "if {$cmd eq \"GET\"} {\n    handle_get\n} elseif {$cmd eq \"POST\"} {\n    handle_post\n} else {\n    handle_other\n}";
         let r = run(source, 0).expect("result");
         assert!(r.apply(source).contains("default"));
+    }
+
+    #[test]
+    fn dynamic_rhs_pattern_returns_none() {
+        // RUST_ISSUE_107: `$x eq $y` — the RHS `$y` can't be a literal braced
+        // switch pattern (it would never match), so decline the conversion.
+        let source = "if {$x eq $y} {\n    puts \"a\"\n} elseif {$x eq $z} {\n    puts \"b\"\n}";
+        assert!(run(source, 0).is_none());
+        // A `[cmd]` RHS is equally unusable as a literal pattern.
+        let source2 =
+            "if {$x eq [f]} {\n    puts \"a\"\n} elseif {$x eq \"b\"} {\n    puts \"b\"\n}";
+        assert!(run(source2, 0).is_none());
+        // FP-guard: literal string RHS values still convert.
+        let source3 =
+            "if {$x eq \"a\"} {\n    puts \"a\"\n} elseif {$x eq \"b\"} {\n    puts \"b\"\n}";
+        assert!(run(source3, 0).is_some());
     }
 
     #[test]
