@@ -502,10 +502,18 @@ impl<'s> Inner<'s> {
         let saved = self.i;
         let mut lvl = 1u32;
         while self.i < self.b.len() && lvl > 0 {
-            if self.b[self.i] == b'{' {
-                lvl += 1;
-            } else if self.b[self.i] == b'}' {
-                lvl -= 1;
+            match self.b[self.i] {
+                b'{' => lvl += 1,
+                b'}' => lvl -= 1,
+                // Tcl's brace scan (`TclParseBraces`) consumes `\X` as a pair,
+                // so `\{` / `\}` are literal and do *not* change the nesting
+                // level: `{a\}b}` is the single braced word `a\}b`, not `{a\}`
+                // + stray `b}` (issue 165). Bounds-guarded like `command` /
+                // `quoted` so a trailing `\` can't push `i` past the end.
+                b'\\' if self.i + 1 < self.b.len() => {
+                    self.i += 1;
+                }
+                _ => {}
             }
             self.i += 1;
         }
@@ -765,6 +773,36 @@ mod tests {
             .collect();
         assert_eq!(nw[0].kind, ExprTokenType::String);
         assert_eq!(nw[0].text, "{1 + 2}");
+    }
+
+    #[test]
+    fn braced_escaped_brace_does_not_close() {
+        // `{a\}b} eq $x` — Tcl's brace scan treats `\}` as a literal pair, so
+        // the whole `{a\}b}` is one braced String token, leaving a clean
+        // `eq $x` behind rather than ending at the escaped `}` and degrading
+        // to Raw (issue 165).
+        let t = tokenise_expr(r"{a\}b} eq $x", None);
+        let nw: Vec<_> = t
+            .into_iter()
+            .filter(|t| t.kind != ExprTokenType::Whitespace)
+            .collect();
+        assert_eq!(nw[0].kind, ExprTokenType::String);
+        assert_eq!(nw[0].text, r"{a\}b}");
+        assert_eq!(nw[1].kind, ExprTokenType::Operator);
+        assert_eq!(nw[1].text, "eq");
+        assert_eq!(nw[2].kind, ExprTokenType::Variable);
+    }
+
+    #[test]
+    fn braced_escaped_open_brace_balances() {
+        // `\{` likewise does not open a level: `{a\{b}` is one word.
+        let t = tokenise_expr(r"{a\{b}", None);
+        let nw: Vec<_> = t
+            .into_iter()
+            .filter(|t| t.kind != ExprTokenType::Whitespace)
+            .collect();
+        assert_eq!(nw[0].kind, ExprTokenType::String);
+        assert_eq!(nw[0].text, r"{a\{b}");
     }
 
     #[test]

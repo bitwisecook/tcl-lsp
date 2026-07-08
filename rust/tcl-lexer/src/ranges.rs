@@ -61,8 +61,13 @@ const fn closer_for(opener: u8) -> Option<u8> {
 /// newline the closer sits at column 0 of the next line, so the
 /// line/column advance accordingly — keeping them consistent with
 /// `offset` for line/column-based consumers.
+///
+/// Only `\n` breaks a line, matching [`crate::LineIndex`]'s `\n`-only model
+/// (the #537 invariant).  A bare `\r` last-inner byte is *not* a line break,
+/// so treating it as one would place the closer at a line/column
+/// `position_at` never reports — an inconsistent, nonexistent position.
 fn closer_position(end: SourcePosition, last_inner: Option<u8>) -> SourcePosition {
-    if matches!(last_inner, Some(b'\n' | b'\r')) {
+    if last_inner == Some(b'\n') {
         SourcePosition::new(end.line + 1, ByteCol::new(0), end.offset + 1)
     } else {
         SourcePosition::new(
@@ -337,6 +342,36 @@ mod tests {
         assert_eq!(tok.kind, TokenType::Str);
         let pos = word_end_position(&sm, tok);
         assert_eq!(pos, SourcePosition::new(1, ByteCol::new(0), 3));
+        assert_eq!(src.as_bytes()[pos.offset as usize], b'}');
+    }
+
+    #[test]
+    fn end_position_bare_cr_is_not_a_line_break() {
+        // `{a\r}` — the last inner byte is a bare `\r`. LineIndex counts only
+        // `\n`, so the closer must stay on line 0 (issue 161); treating `\r`
+        // as a break would report a position `position_at` never emits.
+        let src = "{a\r}";
+        let sm = SourceMap::new(src);
+        let tok = first_word(src);
+        assert_eq!(tok.kind, TokenType::Str);
+        let pos = word_end_position(&sm, tok);
+        // The closer `}` is at offset 3, same line, column 3.
+        assert_eq!(pos, SourcePosition::new(0, ByteCol::new(3), 3));
+        assert_eq!(src.as_bytes()[pos.offset as usize], b'}');
+        // Consistent with the line model: position_at agrees.
+        assert_eq!(pos, sm.position_at(3));
+    }
+
+    #[test]
+    fn end_position_crlf_closer_advances_line() {
+        // `{a\r\n}` — the last inner byte is `\n` (a real break), so the
+        // closer moves to column 0 of the next line, as with a bare `\n`.
+        let src = "{a\r\n}";
+        let sm = SourceMap::new(src);
+        let tok = first_word(src);
+        assert_eq!(tok.kind, TokenType::Str);
+        let pos = word_end_position(&sm, tok);
+        assert_eq!(pos, SourcePosition::new(1, ByteCol::new(0), 4));
         assert_eq!(src.as_bytes()[pos.offset as usize], b'}');
     }
 

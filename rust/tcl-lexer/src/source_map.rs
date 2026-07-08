@@ -173,27 +173,14 @@ impl<'src> SourceMap<'src> {
                 // `{}` degenerate: same shape as `[]`.
                 if stripped == "}" { "" } else { stripped }
             }
-            TokenType::Esc => {
-                // Quoted-string empty-clamp cases: when the
-                // scanner stops with zero content consumed it
-                // extends the span by one byte to cover the
-                // terminator (`"`, `$`, or `[`). After stripping
-                // the opening `"` via `content_offset`, a
-                // one-character remainder that is exactly a
-                // terminator character indicates an empty-body
-                // token — return `""`. A legitimate one-character
-                // body like `"a"` has `stripped = "a"` → 'a' is
-                // not a terminator → return `"a"`. And a bare
-                // word containing `"` characters has
-                // `content_offset = 0`, so `stripped == raw`
-                // (including any quote marks) and the check
-                // doesn't fire.
-                if stripped.len() == 1 && matches!(stripped.chars().next(), Some('"' | '$' | '[')) {
-                    ""
-                } else {
-                    stripped
-                }
-            }
+            // `Esc` needs no special-casing: an empty quoted sub-token whose
+            // span was extended to cover its terminator (`"`, `$`, or `[`)
+            // carries a `content_offset` spanning the whole (zero-content)
+            // token — set by `Lexer::parse_quoted` — so `stripped` is already
+            // `""`.  A *literal* `"` / `$` / `[` in a bare word is emitted by
+            // `parse_esc` with `content_offset == 0`, so its span is its
+            // content and `stripped` is the literal character (issue 160).  A
+            // text-based clamp here could not tell those two apart.
             _ => stripped,
         }
     }
@@ -293,6 +280,37 @@ mod tests {
         let (start, end) = map.range_positions(Span::new(3, 5));
         assert_eq!(start, SourcePosition::new(1, ByteCol::new(0), 3));
         assert_eq!(end, SourcePosition::new(1, ByteCol::new(1), 4));
+    }
+
+    #[test]
+    fn token_text_literal_trailing_quote_is_not_empty_clamped() {
+        // `set x $a"` — the trailing `"` lexes as a 1-byte ESC with
+        // content_offset == 0 (no opening quote was stripped), so its text is
+        // the literal `"`, not an empty quoted body (issue 160).
+        let src = "set x $a\"";
+        let toks = crate::Lexer::new(src).tokenise_all().unwrap();
+        let map = SourceMap::new(src);
+        let quote = toks
+            .iter()
+            .find(|t| t.kind == TokenType::Esc && map.text(t.span) == "\"")
+            .expect("trailing literal quote token");
+        assert_eq!(quote.content_offset, 0);
+        assert_eq!(map.token_text(*quote), "\"");
+    }
+
+    #[test]
+    fn token_text_empty_quoted_word_still_clamps() {
+        // A genuine empty quoted word `""` has content_offset == 1 (the
+        // opening quote is stripped); the empty-clamp must still fire.
+        let src = "\"\"";
+        let toks = crate::Lexer::new(src).tokenise_all().unwrap();
+        let map = SourceMap::new(src);
+        let word = toks
+            .iter()
+            .find(|t| t.kind == TokenType::Esc)
+            .expect("quoted word token");
+        assert_ne!(word.content_offset, 0);
+        assert_eq!(map.token_text(*word), "");
     }
 
     #[test]

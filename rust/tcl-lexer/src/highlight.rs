@@ -157,7 +157,9 @@ fn collect_recurse(
         inner = &inner[open.len_utf8()..];
         inner_base += open.len_utf8();
     }
-    if inner.ends_with(close) {
+    // Only the degenerate empty `{}` / `[]` keeps its closer in the span (see
+    // `recurse_wrapped`); a non-empty word's trailing `}`/`]` is inner content.
+    if inner.len() == close.len_utf8() && inner.starts_with(close) {
         inner = &inner[..inner.len() - close.len_utf8()];
     }
     collect_ranges(inner, depth + 1, inner_base, config, out);
@@ -256,10 +258,16 @@ fn recurse_wrapped(
         out.push(open);
         inner = &inner[open.len_utf8()..];
     }
+    // Under the inner-end convention the token span excludes its closing
+    // delimiter, so a *non-empty* word's text never ends with its own closer:
+    // a trailing `}`/`]` there is inner content (`{a{b}}` → span `{a{b}` →
+    // inner `a{b}`, which must recurse whole, not as the unterminated `a{b`).
+    // Only the degenerate empty `{}` / `[]` keeps the closer in the span, and
+    // there the leading-stripped remainder is exactly that one closer char.
     let mut trailer = "";
-    if inner.ends_with(close) {
-        trailer = &inner[inner.len() - close.len_utf8()..];
-        inner = &inner[..inner.len() - close.len_utf8()];
+    if inner.len() == close.len_utf8() && inner.starts_with(close) {
+        trailer = inner;
+        inner = "";
     }
     highlight_into(inner, depth + 1, config, out);
     out.push_str(trailer);
@@ -345,6 +353,26 @@ mod tests {
                 "range render diverged from highlight_tcl for: {src:?}"
             );
         }
+    }
+
+    #[test]
+    fn nested_brace_word_recurses_whole_inner_script() {
+        // `set x {a {$b}}` — the outer word's span is `{a {$b}` (inner-end
+        // convention drops the outer closer). The recursion must keep the
+        // inner `}` (it closes `{$b}`), not strip it as if it were the word's
+        // own closer — otherwise `$b` sits in an unterminated `{$b` fragment
+        // and loses its variable highlight (issue 164).
+        let src = "set x {a {$b}}";
+        let ranges = highlight_ranges(src);
+        // `$b` lives at bytes 10..12; it must be classed as a variable.
+        let var = ranges
+            .iter()
+            .find(|r| &src[r.start..r.end] == "$b")
+            .expect("nested $b should be highlighted");
+        assert_eq!(var.class, "tk-var");
+        assert_eq!((var.start, var.end), (10, 12));
+        // Data and HTML paths still agree.
+        assert_eq!(render_from_ranges(src), highlight_tcl(src));
     }
 
     #[test]
