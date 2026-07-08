@@ -168,8 +168,14 @@ pub fn simulate_irule(
         let node_port = sess.eval("set ::state::lb::node_port").unwrap_or_default();
         out.node = format!("{node_addr}:{node_port}");
     }
+    // The flag lives directly in the `http` state namespace
+    // (`::state::http::response_committed`), set by the `HTTP::respond` /
+    // `HTTP::redirect` mocks. Reading the non-existent
+    // `::state::http::response::response_committed` errored, and `is_ok_and`
+    // swallowed the error so a committed response always read as `false`
+    // (RUST_ISSUE_112).
     out.response_committed = sess
-        .eval("set ::state::http::response::response_committed")
+        .eval("set ::state::http::response_committed")
         .is_ok_and(|v| v == "1" || v == "true");
     out.decisions = parse_decisions(&sess.decisions().unwrap_or_default());
     out.logs = parse_log_entries(&sess.logs().unwrap_or_default());
