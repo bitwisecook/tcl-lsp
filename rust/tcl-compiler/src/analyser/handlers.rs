@@ -333,29 +333,40 @@ impl Analyser {
         } else {
             self.namespace_from_scope_path(scope_path)
         };
-        let registry = self.registry.as_ref()?;
-        if let Some(sym) = registry.defines_symbol(cmd_name, dialect) {
-            return Some(*sym);
-        }
-        if cmd_name.contains("::") {
+        // Does `cmd_name` (or an imported bare form of it) name a registry
+        // definer?  The `registry` borrow is confined to this block so the
+        // shadowing check below can re-borrow `self`.
+        let sym = {
+            let registry = self.registry.as_ref()?;
+            if let Some(sym) = registry.defines_symbol(cmd_name, dialect) {
+                Some(*sym)
+            } else if cmd_name.contains("::") {
+                None
+            } else {
+                self.result
+                    .namespace_imports
+                    .iter()
+                    .filter(|imp| imp.ns == cur_ns || imp.ns == "::")
+                    .find_map(|imp| {
+                        let candidate = if let Some(prefix) = imp.pattern.strip_suffix('*') {
+                            format!("{prefix}{cmd_name}")
+                        } else if imp.pattern.rsplit("::").next() == Some(cmd_name) {
+                            imp.pattern.clone()
+                        } else {
+                            return None;
+                        };
+                        registry.defines_symbol(&candidate, dialect).copied()
+                    })
+            }
+        }?;
+        // A user-defined proc of the same name shadows the imported / built-in
+        // definer under Tcl's command resolution — a local `proc test` beats an
+        // imported `::test` — so a bare call to it invokes that proc, not the
+        // tcltest definer, and must not be recorded as a test symbol.
+        if self.resolve_proc_call(cmd_name, scope_path).is_some() {
             return None;
         }
-        for imp in &self.result.namespace_imports {
-            if imp.ns != cur_ns && imp.ns != "::" {
-                continue;
-            }
-            let candidate = if let Some(prefix) = imp.pattern.strip_suffix('*') {
-                format!("{prefix}{cmd_name}")
-            } else if imp.pattern.rsplit("::").next() == Some(cmd_name) {
-                imp.pattern.clone()
-            } else {
-                continue;
-            };
-            if let Some(sym) = registry.defines_symbol(&candidate, dialect) {
-                return Some(*sym);
-            }
-        }
-        None
+        Some(sym)
     }
 
     /// Resolve a single argument word to a constant string, or `None` when it is

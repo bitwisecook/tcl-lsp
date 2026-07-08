@@ -680,6 +680,49 @@ mod tests {
     }
 
     #[test]
+    fn fp_guard_local_proc_named_test_shadows_imported_definer() {
+        // FP-guard (PR #821 review): a user `proc test` shadows the imported
+        // `::tcltest::test` under Tcl's command resolution, so bare `test`
+        // calls invoke the local proc, not the definer — they must not be
+        // recorded as tcltest test cases.  The proc itself still lists.
+        let source = concat!(
+            "package require tcltest\n",
+            "namespace import ::tcltest::*\n",
+            "proc test {args} {}\n",
+            "test not-a-case\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let kinds = flat(&symbols);
+        assert!(
+            kinds.contains(&("test".to_string(), SymbolKind::Function)),
+            "the local proc test should list as a Function: {kinds:?}"
+        );
+        assert!(
+            !kinds.iter().any(|(n, _)| n == "not-a-case"),
+            "a shadowed local call must not be a test symbol: {kinds:?}"
+        );
+        assert!(
+            !kinds.iter().any(|(_, k)| *k == SymbolKind::Test),
+            "no Test symbol expected when the definer is shadowed: {kinds:?}"
+        );
+    }
+
+    #[test]
+    fn tp_qualified_test_still_records_when_local_proc_shadows_bare_name() {
+        // TP companion: a local `proc test` shadows only the *bare* name; an
+        // explicit `tcltest::test` call is unaffected and still records.
+        let source = concat!(
+            "package require tcltest\n",
+            "namespace import ::tcltest::*\n",
+            "proc test {args} {}\n",
+            "tcltest::test real-1 {desc} -body { set x 1 } -result 1\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let names = names(&symbols);
+        assert!(names.contains(&"real-1"), "qualified test should record: {names:?}");
+    }
+
+    #[test]
     fn tp_test_constraint_setter_is_a_constant_symbol() {
         // TP: `testConstraint NAME value` (setter) defines a constraint symbol,
         // filed under the Constant kind with the condition as detail.

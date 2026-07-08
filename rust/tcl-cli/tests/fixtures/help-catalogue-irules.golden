@@ -15,7 +15,7 @@ Claude Code Skills (13):
 LSP + AI Features (8):
   Diagnostics: Errors, warnings, security, taint tracking, and style checks shown as you type.
   Dialect Selection: Switch between Tcl versions and iRules/iApps/BIG-IP/EDA dialects to get dialect-specific analysis.
-  Document Symbols: Outline of procs, namespaces, event handlers, and variables in the current file.
+  Document Symbols: Outline of procs, namespaces, event handlers, variables, and `tcltest` definitions (test cases, constraints, custom match modes) in the current file.
   Optimiser: Finds optimisation opportunities in Tcl/iRules code and produces rewritten source.
   Refactor: Extract to Data-Group: Extract hardcoded if/elseif chains or switch statements with literal values into F5 BIG-IP data-group lookups, with type-aware inference for IP/CIDR (IPv4 + IPv6), integer, and string values.
   Refactoring Tools: Mechanical code refactorings: extract/inline variables, if-to-switch, switch-to-dict, brace expr, and data-group extraction with type-aware IP/CIDR support.
