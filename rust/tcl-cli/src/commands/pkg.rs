@@ -26,6 +26,7 @@
 // when a given verb cannot fail; the wrap is the interface contract.
 #![allow(clippy::unnecessary_wraps)]
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -37,6 +38,82 @@ use tcl_pkg::manifest::load_manifest;
 use tcl_pkg::registry::RegistryClient;
 use tcl_pkg::resolver::{ExcludeSpec, PackageRef, ReplaceSpec, ResolveInput, resolve};
 use tcl_pkg::ui;
+use tcl_pkg::version::Version;
+
+/// Outcome of resolving + fetching one `(name, version)`, memoised so a package
+/// is fetched from the network at most once and shared between transitive
+/// resolution and materialisation.
+type FetchOutcome = Result<Option<installer::MaterialiseResult>, FetchError>;
+
+/// Why a fetch did not yield an installable package.
+#[derive(Clone)]
+enum FetchError {
+    /// The source URL was refused by registry allow/deny/require-https policy.
+    /// A hard error: the install aborts.
+    PolicyRejected(String),
+    /// The fetch itself failed (network, bad archive, …). A soft error: keep a
+    /// placeholder lock entry recording the attempted source and warn.
+    Fetch { source: SourceSpec, message: String },
+}
+
+/// Materialise a stored package into a throwaway directory and return its own
+/// (non-dev) `require` directives as `(ref, source_url)`, so the resolver can
+/// walk transitive dependencies and later fetch them. Best-effort: a
+/// missing/broken manifest yields no requires (the package is treated as a
+/// leaf).
+fn read_package_requires(
+    cas: &ContentAddressableStore,
+    integrity: &str,
+) -> Vec<(PackageRef, Option<String>)> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let tmp = std::env::temp_dir().join(format!(
+        "tclpkg-resolve-{}-{nanos}-{seq}",
+        std::process::id()
+    ));
+    let reqs = if cas.materialise(integrity, &tmp, false).is_ok() {
+        let manifest_path = tmp.join("tclpkg.tcl");
+        if manifest_path.is_file() {
+            load_manifest(&manifest_path).map_or_else(
+                |_| Vec::new(),
+                |ast| {
+                    ast.requires
+                        .iter()
+                        .map(|r| {
+                            (
+                                PackageRef::new(r.name.clone(), r.minimum.clone()),
+                                r.source_url.clone(),
+                            )
+                        })
+                        .collect()
+                },
+            )
+        } else {
+            Vec::new()
+        }
+    } else {
+        Vec::new()
+    };
+    let _ = std::fs::remove_dir_all(&tmp);
+    reqs
+}
+
+/// Parse a lockfile `requires` entry (`name@version`) back into a [`PackageRef`].
+fn parse_locked_ref(entry: &str) -> Option<PackageRef> {
+    let (name, ver) = entry.rsplit_once('@')?;
+    Version::parse(ver)
+        .ok()
+        .map(|v| PackageRef::new(name.to_string(), v))
+}
+
+/// The package name of a lockfile `requires` entry (`name@version` → `name`).
+fn locked_req_name(entry: &str) -> &str {
+    entry.rsplit_once('@').map_or(entry, |(name, _)| name)
+}
 
 use crate::cli::{PkgCommand, PkgCommon, PolicyAction};
 
@@ -253,12 +330,138 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
         })
         .collect();
 
+    // Source lookup tables, needed both by the resolver's provider (to fetch a
+    // dependency's own manifest and read its transitive `require`s) and by
+    // materialisation. `manifest_sources` starts from the root manifest's
+    // `-source` overrides and is extended, during resolution, with any
+    // `-source` an intermediate package declares for its own dependencies — so
+    // a self-contained graph resolves without a registry.
+    let mut seed_sources: HashMap<String, String> = HashMap::new();
+    for r in manifest.requires.iter().chain(manifest.dev_requires.iter()) {
+        if let Some(url) = &r.source_url {
+            seed_sources.insert(r.name.clone(), url.clone());
+        }
+    }
+    let manifest_sources: RefCell<HashMap<String, String>> = RefCell::new(seed_sources);
+    let mut replace_sources: HashMap<String, String> = HashMap::new();
+    for r in &manifest.replaces {
+        replace_sources.insert(r.name.clone(), r.source_url.clone());
+    }
+    // --frozen never touches the network or the tree.
+    let offline = frozen || common.offline;
+    let cache = tcl_pkg::cache_dir();
+    let cas = ContentAddressableStore::new(&cache);
+    let registry = RefCell::new(RegistryClient::new(&cache, common.offline));
+    let lib_dir = install_lib_dir(&mpath);
+    let lockpath = mpath
+        .parent()
+        .map_or_else(|| PathBuf::from("tclpkg.lock"), |p| p.join("tclpkg.lock"));
+
+    // Fetch cache shared between transitive resolution and materialisation, so a
+    // package is fetched from the network at most once per (name, version). The
+    // registry allow/deny + require-https floor is applied here, before any
+    // fetch — including fetches performed while walking transitive deps — so a
+    // rejected source can never be contacted.
+    let fetched: RefCell<HashMap<(String, String), FetchOutcome>> = RefCell::new(HashMap::new());
+    let fetch_one = |name: &str, version: &str| -> FetchOutcome {
+        let key = (name.to_string(), version.to_string());
+        if let Some(hit) = fetched.borrow().get(&key) {
+            return hit.clone();
+        }
+        let source = {
+            let mut reg = registry.borrow_mut();
+            installer::resolve_source(
+                name,
+                version,
+                &replace_sources,
+                &manifest_sources.borrow(),
+                Some(&mut reg),
+            )
+        };
+        let outcome = match source {
+            None => Ok(None),
+            Some(source) => {
+                if !source.url.is_empty() && !loaded.config.source_allowed(&source.url) {
+                    Err(FetchError::PolicyRejected(source.url.clone()))
+                } else {
+                    match installer::fetch_and_store(&source, name, version, &cas, 60) {
+                        Ok(result) => Ok(Some(result)),
+                        Err(e) => Err(FetchError::Fetch {
+                            source,
+                            message: e.to_string(),
+                        }),
+                    }
+                }
+            }
+        };
+        fetched.borrow_mut().insert(key, outcome.clone());
+        outcome
+    };
+
+    // Online provider: fetch each package and read the transitive `require`s
+    // from its own manifest. A policy-rejected source aborts resolution; a fetch
+    // failure degrades to a leaf (the materialisation loop then warns).
+    let online_provider =
+        |name: &str, version: &Version| -> Result<Vec<PackageRef>, tcl_pkg::TclPkgError> {
+            match fetch_one(name, &version.to_string()) {
+                Ok(Some(result)) => {
+                    let mut refs = Vec::new();
+                    for (child, source_url) in read_package_requires(&cas, &result.integrity) {
+                        // Propagate an intermediate package's `-source` override
+                        // so its dependency can be fetched (no transitive
+                        // `replace`, matching Go — this is only source discovery).
+                        if let Some(url) = source_url {
+                            manifest_sources
+                                .borrow_mut()
+                                .entry(child.name.clone())
+                                .or_insert(url);
+                        }
+                        refs.push(child);
+                    }
+                    Ok(refs)
+                }
+                Ok(None) | Err(FetchError::Fetch { .. }) => Ok(Vec::new()),
+                Err(FetchError::PolicyRejected(url)) => Err(tcl_pkg::TclPkgError::new(format!(
+                    "{name} {version}: source '{url}' rejected by registry policy"
+                ))),
+            }
+        };
+
+    // Offline / frozen provider: reproduce the locked graph from an existing
+    // lockfile (whose entries already record their `require`s) so transitive
+    // packages and direct/indirect classification survive without the network.
+    let existing_lock = if offline {
+        read_lockfile(&lockpath).ok()
+    } else {
+        None
+    };
+    let offline_provider =
+        |name: &str, _version: &Version| -> Result<Vec<PackageRef>, tcl_pkg::TclPkgError> {
+            let reqs = existing_lock
+                .as_ref()
+                .and_then(|lf| lf.lookup(name))
+                .map(|p| {
+                    p.requires
+                        .iter()
+                        .filter_map(|s| parse_locked_ref(s))
+                        .collect()
+                })
+                .unwrap_or_default();
+            Ok(reqs)
+        };
+
+    let provider_ref: &tcl_pkg::resolver::PackageManifestProvider = if offline {
+        &offline_provider
+    } else {
+        &online_provider
+    };
+
     let input = ResolveInput {
         direct,
         dev_direct,
         replaces,
         excludes,
-        provider: None,
+        provider: Some(provider_ref),
         include_dev: !no_dev,
     };
     let resolved = match resolve(&input) {
@@ -268,24 +471,7 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
             return Ok(1);
         }
     };
-
-    // Source lookup tables for materialisation.
-    let mut manifest_sources: HashMap<String, String> = HashMap::new();
-    for r in manifest.requires.iter().chain(manifest.dev_requires.iter()) {
-        if let Some(url) = &r.source_url {
-            manifest_sources.insert(r.name.clone(), url.clone());
-        }
-    }
-    let mut replace_sources: HashMap<String, String> = HashMap::new();
-    for r in &manifest.replaces {
-        replace_sources.insert(r.name.clone(), r.source_url.clone());
-    }
-    // --frozen never touches the network or the tree.
-    let offline = frozen || common.offline;
-    let cache = tcl_pkg::cache_dir();
-    let cas = ContentAddressableStore::new(&cache);
-    let mut registry = RegistryClient::new(&cache, common.offline);
-    let lib_dir = install_lib_dir(&mpath);
+    drop(input);
 
     let mut lf = LockFile::new(manifest.name.clone(), manifest.tcl_constraint.clone());
     lf.stamp();
@@ -304,62 +490,61 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
             dev: rp.dev,
         };
         if !offline {
-            let source = installer::resolve_source(
-                &name,
-                &version,
-                &replace_sources,
-                &manifest_sources,
-                Some(&mut registry),
-            );
-            if let Some(source) = source {
-                // Registry allow/deny + require-https policy gate the source
-                // before any fetch happens.
-                if !source.url.is_empty() && !loaded.config.source_allowed(&source.url) {
+            // Reuses the cached fetch performed during resolution.
+            match fetch_one(&name, &version) {
+                Ok(Some(result)) => {
+                    if let Err(e) = installer::materialise(
+                        &cas,
+                        &result.integrity,
+                        &lib_dir,
+                        &name,
+                        &version,
+                        true,
+                    ) {
+                        println!("{}", ui::warn(&format!("{name} {version}: {e}"), colour));
+                    }
+                    entry.source = result.source;
+                    entry.integrity = result.integrity;
+                    entry.size = result.size;
+                    entry.provides = result.provides;
+                    entry.license = result.license;
+
+                    // Operator post-fetch hook (scanner / provenance / deny):
+                    // a non-zero exit aborts the install.
+                    let fetch_ctx = tcl_pkg::hooks::HookContext::new(&project_dir)
+                        .var("NAME", name.clone())
+                        .var("VERSION", version.clone())
+                        .var("SOURCE_URL", entry.source.url.clone())
+                        .var("INTEGRITY", entry.integrity.clone())
+                        // Packages materialise at `lib/<name>-<version>`
+                        // (see installer::materialise); point scanners there,
+                        // not at the non-existent `lib/<name>`.
+                        .var(
+                            "PKG_DIR",
+                            lib_dir.join(format!("{name}-{version}")).to_string_lossy(),
+                        );
+                    if let Err(e) = tcl_pkg::hooks::run_stage(
+                        tcl_pkg::hooks::Stage::PostFetch,
+                        &loaded.config,
+                        &fetch_ctx,
+                    ) {
+                        eprintln!("error: {e}");
+                        return Ok(1);
+                    }
+                }
+                Ok(None) => {}
+                Err(FetchError::PolicyRejected(url)) => {
                     eprintln!(
-                        "error: {name} {version}: source '{}' rejected by registry policy",
-                        source.url
+                        "error: {name} {version}: source '{url}' rejected by registry policy"
                     );
                     return Ok(1);
                 }
-                match installer::fetch_and_store(&source, &name, &version, &cas, 60) {
-                    Ok(result) => {
-                        if let Err(e) = installer::materialise(
-                            &cas,
-                            &result.integrity,
-                            &lib_dir,
-                            &name,
-                            &version,
-                            true,
-                        ) {
-                            println!("{}", ui::warn(&format!("{name} {version}: {e}"), colour));
-                        }
-                        entry.source = result.source;
-                        entry.integrity = result.integrity;
-                        entry.size = result.size;
-                        entry.provides = result.provides;
-                        entry.license = result.license;
-
-                        // Operator post-fetch hook (scanner / provenance / deny):
-                        // a non-zero exit aborts the install.
-                        let fetch_ctx = tcl_pkg::hooks::HookContext::new(&project_dir)
-                            .var("NAME", name.clone())
-                            .var("VERSION", version.clone())
-                            .var("SOURCE_URL", entry.source.url.clone())
-                            .var("INTEGRITY", entry.integrity.clone())
-                            .var("PKG_DIR", lib_dir.join(&name).to_string_lossy());
-                        if let Err(e) = tcl_pkg::hooks::run_stage(
-                            tcl_pkg::hooks::Stage::PostFetch,
-                            &loaded.config,
-                            &fetch_ctx,
-                        ) {
-                            eprintln!("error: {e}");
-                            return Ok(1);
-                        }
-                    }
-                    Err(e) => {
-                        entry.source = source;
-                        println!("{}", ui::warn(&format!("{name} {version}: {e}"), colour));
-                    }
+                Err(FetchError::Fetch { source, message }) => {
+                    entry.source = source;
+                    println!(
+                        "{}",
+                        ui::warn(&format!("{name} {version}: {message}"), colour)
+                    );
                 }
             }
         }
@@ -390,10 +575,6 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
         eprintln!("error: {e}");
         return Ok(1);
     }
-
-    let lockpath = mpath
-        .parent()
-        .map_or_else(|| PathBuf::from("tclpkg.lock"), |p| p.join("tclpkg.lock"));
 
     if frozen {
         if !lockpath.is_file() {
@@ -499,11 +680,16 @@ fn run_list(common: &PkgCommon) -> anyhow::Result<u8> {
         let mut pkgs: Vec<&LockedPackage> = lf.packages.iter().collect();
         pkgs.sort_by(|a, b| a.name.cmp(&b.name));
         for pkg in pkgs {
-            let kind = if pkg.requires.is_empty() {
-                "direct"
-            } else {
-                "trans"
-            };
+            // A package is transitive when some *other* locked package requires
+            // it; otherwise it was requested directly.
+            let is_transitive = lf.packages.iter().any(|other| {
+                other.name != pkg.name
+                    && other
+                        .requires
+                        .iter()
+                        .any(|r| locked_req_name(r) == pkg.name)
+            });
+            let kind = if is_transitive { "trans" } else { "direct" };
             let dev = if pkg.dev { "dev" } else { "" };
             println!(
                 "{:<20} {:<12} {:<8} {:<8}",

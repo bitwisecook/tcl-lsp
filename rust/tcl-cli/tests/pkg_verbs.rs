@@ -187,6 +187,94 @@ fn pkg_init_install_materialise_roundtrip() {
 }
 
 #[test]
+fn pkg_install_resolves_transitive_dependencies() {
+    // Root -> dep -> sub, all via local path sources (no network, no tclsh).
+    // Before the resolver was wired with a provider, `sub` never appeared and
+    // `dep`'s lockfile `requires` were empty; this pins the fixed behaviour.
+    let base = temp_dir("pkg-transitive");
+    let cache = base.join("cache");
+    let dir = base.join("proj");
+    std::fs::create_dir_all(&dir).unwrap();
+
+    // Leaf transitive package `sub`.
+    let sub = base.join("sub-src");
+    std::fs::create_dir_all(&sub).unwrap();
+    std::fs::write(
+        sub.join("tclpkg.tcl"),
+        "package sub\nversion 1.0.0\nprovides sub::api\nlicense MIT\n",
+    )
+    .unwrap();
+    std::fs::write(sub.join("sub.tcl"), "proc sub::hi {} { return hi }\n").unwrap();
+
+    // Direct dependency `dep`, which itself requires `sub` (with a -source so
+    // the transitive package can be fetched without a registry).
+    let dep = base.join("dep-src");
+    std::fs::create_dir_all(&dep).unwrap();
+    std::fs::write(
+        dep.join("tclpkg.tcl"),
+        format!(
+            "package dep\nversion 1.0.0\nlicense MIT\nrequire sub 1.0.0 -source {}\n",
+            sub.to_str().unwrap()
+        ),
+    )
+    .unwrap();
+    std::fs::write(dep.join("dep.tcl"), "proc dep::hi {} { return hi }\n").unwrap();
+
+    // init + add the direct dependency with an explicit local source.
+    let (_o, _e, code) = run_in_cache(
+        &dir,
+        Some(&cache),
+        &["pkg", "init", "--name", "demo", "--version", "1.0.0"],
+    );
+    assert_eq!(code, 0);
+    let (_o, _e, code) = run_in_cache(
+        &dir,
+        Some(&cache),
+        &[
+            "pkg",
+            "add",
+            "dep",
+            "1.0.0",
+            "--source",
+            dep.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(code, 0);
+
+    let (_o, stderr, code) = run_in_cache(&dir, Some(&cache), &["pkg", "install"]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+
+    let lock = std::fs::read_to_string(dir.join("tclpkg.lock")).unwrap();
+    // The transitive package is now present in the lockfile...
+    assert!(lock.contains("\"name\": \"sub\""), "lockfile: {lock}");
+    // ...and materialised on disk.
+    assert!(
+        dir.join("lib").join("sub-1.0.0").join("sub.tcl").exists(),
+        "expected transitive package materialised"
+    );
+    // ...and `dep` records its requirement on `sub`.
+    assert!(
+        lock.contains("sub@1.0.0"),
+        "expected dep to record requires sub@1.0.0, lockfile: {lock}"
+    );
+
+    // `pkg list` classifies dep as direct and sub as transitive.
+    let (stdout, _e, code) = run_in_cache(&dir, Some(&cache), &["pkg", "list"]);
+    assert_eq!(code, 0);
+    let dep_line = stdout.lines().find(|l| l.starts_with("dep ")).unwrap();
+    let sub_line = stdout.lines().find(|l| l.starts_with("sub ")).unwrap();
+    assert!(dep_line.contains("direct"), "dep line: {dep_line}");
+    assert!(sub_line.contains("trans"), "sub line: {sub_line}");
+
+    // A subsequent --frozen install reproduces the same graph (transitive deps
+    // survive the offline re-resolution driven by the lockfile provider).
+    let (_o, stderr, code) = run_in_cache(&dir, Some(&cache), &["pkg", "install", "--frozen"]);
+    assert_eq!(code, 0, "frozen stderr: {stderr}");
+
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+#[test]
 fn pkg_search_offline_without_cache_errors() {
     let dir = temp_dir("pkg-search");
     let empty_cache = temp_dir("empty-cache");

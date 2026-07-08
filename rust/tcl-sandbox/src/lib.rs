@@ -487,7 +487,25 @@ pub fn run(profile: &Profile, policy: &SandboxPolicy) -> Result<Outcome, Sandbox
     let confinement = detect_confinement();
 
     let want_network = profile.allow_network && !policy.deny_network;
-    let network_enforced = want_network || confinement.enforces_network_deny();
+    // Network denial is only *actually* in force when the child is not to have
+    // the network AND the active confinement tier can provably prevent egress.
+    // The portable baseline cannot, so on a baseline-only host this is always
+    // `false` for a default-deny child — which the guards below act on.
+    let network_enforced = !want_network && confinement.enforces_network_deny();
+
+    // Hard operator denial (`deny_network`) is a floor, not a hint: when the
+    // operator forces the network off, a real restriction MUST result. If the
+    // active confinement cannot prevent egress we refuse rather than run the
+    // child with full network while reporting the network as denied. This holds
+    // regardless of `fail_closed` — `deny_network` is itself the mandate.
+    if policy.deny_network && !network_enforced {
+        return Err(SandboxError::FailClosed(format!(
+            "'{}' requires the network to be denied (policy deny-network), but this host \
+             only provides '{}' isolation, which cannot enforce network denial",
+            profile.label,
+            confinement.level().as_str()
+        )));
+    }
 
     // Fail-closed: if we intend to deny the network but cannot actually enforce
     // it, refuse rather than silently running with weaker isolation.
@@ -678,6 +696,54 @@ mod tests {
         let profile = Profile::new("build", "/bin/true", "/").network(false);
         let err = run(&profile, &policy).unwrap_err();
         assert!(matches!(err, SandboxError::FailClosed(_)));
+    }
+
+    #[test]
+    fn deny_network_fails_closed_when_unenforceable() {
+        // `deny-network = true` is a hard floor. The portable baseline cannot
+        // enforce egress denial, so the run must refuse rather than silently
+        // proceed with full network — even without `fail_closed` set.
+        let policy = SandboxPolicy {
+            deny_network: true,
+            ..SandboxPolicy::default()
+        };
+        // Even a profile that *requests* the network must be refused: the
+        // operator floor forces it off, and off cannot be guaranteed here.
+        let profile = Profile::new("hook", "/bin/true", "/").network(true);
+        let err = run(&profile, &policy).unwrap_err();
+        match err {
+            SandboxError::FailClosed(m) => assert!(
+                m.contains("deny-network"),
+                "expected a deny-network fail-closed message, got: {m}"
+            ),
+            other => panic!("expected FailClosed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn deny_network_refuses_default_deny_profile_too() {
+        // A default-deny profile under `deny-network` is likewise refused on a
+        // host that cannot enforce denial: no silent proceed, no error swallow.
+        let policy = SandboxPolicy {
+            deny_network: true,
+            ..SandboxPolicy::default()
+        };
+        let profile = Profile::new("build", "/bin/true", "/").network(false);
+        assert!(matches!(
+            run(&profile, &policy).unwrap_err(),
+            SandboxError::FailClosed(_)
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn network_enforced_reports_false_on_baseline() {
+        // The Outcome flag must reflect reality: the baseline never enforces
+        // network denial, so a run that is *allowed* the network reports the
+        // denial as not enforced (rather than the old misleading `true`).
+        let profile = Profile::new("t", "/bin/true", "/").network(true);
+        let outcome = run(&profile, &SandboxPolicy::default()).unwrap();
+        assert!(!outcome.network_enforced);
     }
 
     #[cfg(unix)]
