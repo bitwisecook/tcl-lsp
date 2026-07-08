@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | f5-query / report-gen / f5-xc |
 | **Location** | `rust/bigip-report-gen/rust/src/markdown.rs:44-45` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: medium) |
 
 ## Finding
