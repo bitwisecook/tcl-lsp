@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Editor integrations |
 | **Location** | `rust/tcl-lsp-server/src/lib.rs:7610-7695 (apply_formatting_object)` |
-| **Status** | Open |
+| **Status** | Fixed (settings now read; minBodyCommandsForExpansion + replaceSemicolonsWithNewlines engine-consumed; enforceBracedExpr + alignCommentsToCode carried, engine consumption deferred) |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

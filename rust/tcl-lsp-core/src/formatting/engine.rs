@@ -65,6 +65,10 @@ struct ParsedCommand {
     args: Vec<CommandArg>,
     preceding_comments: Vec<String>,
     preceding_blank_lines: usize,
+    /// The separator that terminated this command was a bare `;` on the same
+    /// line (no newline). Lets the emitter keep `a; b` on one line when
+    /// `replace_semicolons_with_newlines` is disabled.
+    terminated_by_semicolon: bool,
 }
 
 // Token → raw source reconstruction
@@ -218,6 +222,7 @@ fn parse_commands(
     let flush = |argv: &mut Vec<CommandArg>,
                  pending_comments: &mut Vec<String>,
                  pending_blank_lines: usize,
+                 terminated_by_semicolon: bool,
                  commands: &mut Vec<ParsedCommand>| {
         if argv.is_empty() {
             return;
@@ -232,6 +237,7 @@ fn parse_commands(
             args: taken_args,
             preceding_comments: std::mem::take(pending_comments),
             preceding_blank_lines: pending_blank_lines,
+            terminated_by_semicolon,
         });
     };
 
@@ -251,10 +257,13 @@ fn parse_commands(
                 if argv.is_empty() {
                     pending_blank_lines += newlines;
                 } else {
+                    // A pure `;` separator (no newline in the Eol run) means
+                    // this command shared a line with the next.
                     flush(
                         &mut argv,
                         &mut pending_comments,
                         pending_blank_lines,
+                        newlines == 0,
                         &mut commands,
                     );
                     pending_blank_lines = newlines;
@@ -291,6 +300,7 @@ fn parse_commands(
         &mut argv,
         &mut pending_comments,
         pending_blank_lines,
+        false,
         &mut commands,
     );
     (commands, pending_comments)
@@ -867,6 +877,48 @@ fn split_commented_code(
 
 // Inline body detection
 
+/// Count the commands in a raw body — statements separated by a newline or a
+/// top-level `;` (both are Tcl command terminators). Brace / bracket nesting is
+/// tracked so separators inside a nested `{…}` or `[…]` do not inflate the
+/// count. Used to gate `expand_single_line_bodies` on
+/// `min_body_commands_for_expansion`.
+fn count_body_commands(body_text: &str) -> usize {
+    let mut count = 0;
+    let mut depth = 0i32;
+    let mut in_statement = false;
+    let mut escaped = false;
+    for c in body_text.chars() {
+        if escaped {
+            escaped = false;
+            in_statement = true;
+            continue;
+        }
+        match c {
+            '\\' => escaped = true,
+            '{' | '[' => {
+                depth += 1;
+                in_statement = true;
+            }
+            '}' | ']' => {
+                depth = depth.saturating_sub(1);
+                in_statement = true;
+            }
+            '\n' | ';' if depth == 0 => {
+                if in_statement {
+                    count += 1;
+                    in_statement = false;
+                }
+            }
+            c if c.is_whitespace() => {}
+            _ => in_statement = true,
+        }
+    }
+    if in_statement {
+        count += 1;
+    }
+    count
+}
+
 /// Whether a body is short enough to keep on one line.
 fn body_can_be_inline(
     body_text: &str,
@@ -874,7 +926,12 @@ fn body_can_be_inline(
     current_line_len: usize,
     never_inline: bool,
 ) -> bool {
-    if config.expand_single_line_bodies {
+    if config.expand_single_line_bodies
+        && count_body_commands(body_text) >= config.min_body_commands_for_expansion
+    {
+        // Only force expansion once the body carries at least
+        // `min_body_commands_for_expansion` commands; a trivial one-command
+        // body stays inline (RUST_ISSUE_133).
         return false;
     }
     let stripped = body_text.trim();
@@ -1155,7 +1212,28 @@ pub(crate) fn format_body(
         }
 
         let line = reconstruct_command(&sm, &commands[i], config, registry, &indent, indent_level);
-        lines.push(line);
+
+        // Keep `a; b` on one line when the user disabled
+        // `replace_semicolons_with_newlines`, but only in the simple case:
+        // the previous command ended with a bare `;`, neither this command
+        // nor the previous rendered line spans multiple lines, and this
+        // command has no leading comment/blank that would force a break
+        // (RUST_ISSUE_133). Any other shape falls back to the default
+        // one-command-per-line layout.
+        let joinable = !config.replace_semicolons_with_newlines
+            && i > 0
+            && commands[i - 1].terminated_by_semicolon
+            && commands[i].preceding_comments.is_empty()
+            && !line.contains('\n')
+            && lines.last().is_some_and(|prev| !prev.contains('\n'));
+        if joinable {
+            let prev = lines.last_mut().expect("previous line exists");
+            let trimmed = line.trim_start();
+            prev.push_str("; ");
+            prev.push_str(trimmed);
+        } else {
+            lines.push(line);
+        }
     }
 
     for comment in &trailing_comments {
@@ -1252,6 +1330,66 @@ mod tests {
     fn fmt(src: &str) -> String {
         let registry = CommandRegistry::build_default();
         format_tcl(src, &FormatterConfig::default(), &registry)
+    }
+
+    fn fmt_with(src: &str, config: &FormatterConfig) -> String {
+        let registry = CommandRegistry::build_default();
+        format_tcl(src, config, &registry)
+    }
+
+    #[test]
+    fn count_body_commands_counts_top_level_statements() {
+        assert_eq!(count_body_commands(""), 0);
+        assert_eq!(count_body_commands("  \n "), 0);
+        assert_eq!(count_body_commands("puts hi"), 1);
+        assert_eq!(count_body_commands("puts a\nputs b"), 2);
+        assert_eq!(count_body_commands("puts a; puts b"), 2);
+        // A `;` inside a nested brace/bracket is not a separator.
+        assert_eq!(count_body_commands("set x {a; b}"), 1);
+        assert_eq!(count_body_commands("set x [expr {1; 2}]"), 1);
+    }
+
+    #[test]
+    fn min_body_commands_keeps_single_command_body_inline() {
+        // RUST_ISSUE_133: with expansion on but the threshold at 2, a
+        // one-command body stays inline while a two-command body expands.
+        // `catch` has an inline-able body (not NEVER_INLINE_BODY), so it
+        // exercises the `expand_single_line_bodies` path.
+        let config = FormatterConfig {
+            expand_single_line_bodies: true,
+            min_body_commands_for_expansion: 2,
+            ..FormatterConfig::default()
+        };
+        let one = fmt_with("catch { puts hi }\n", &config);
+        assert!(
+            one.contains("{ puts hi }") && !one.contains("puts hi\n"),
+            "single-command body should stay inline: {one:?}"
+        );
+        let two = fmt_with("catch { puts a; puts b }\n", &config);
+        assert!(
+            two.contains("puts a\n") && two.contains("puts b\n"),
+            "two-command body should expand: {two:?}"
+        );
+    }
+
+    #[test]
+    fn replace_semicolons_disabled_keeps_commands_inline() {
+        // RUST_ISSUE_133: default splits `a; b` onto two lines; disabling the
+        // setting keeps them on one line joined by `; `.
+        let split = fmt("puts a; puts b\n");
+        assert!(
+            split.contains("puts a\nputs b"),
+            "default should split on `;`: {split:?}"
+        );
+        let config = FormatterConfig {
+            replace_semicolons_with_newlines: false,
+            ..FormatterConfig::default()
+        };
+        let joined = fmt_with("puts a; puts b\n", &config);
+        assert!(
+            joined.contains("puts a; puts b"),
+            "disabled should keep `;`-joined commands inline: {joined:?}"
+        );
     }
 
     #[test]

@@ -7850,6 +7850,33 @@ fn apply_formatting_object(
     {
         cfg.expand_single_line_bodies = b;
     }
+    // These four were shipped by every editor but never mapped here, so
+    // toggling them did nothing (RUST_ISSUE_133). `minBodyCommandsForExpansion`
+    // and `replaceSemicolonsWithNewlines` are engine-consumed;
+    // `enforceBracedExpr` / `alignCommentsToCode` are carried through so the
+    // resolved config round-trips (and so they take effect once the engine
+    // consumes them).
+    if let Some(n) = obj.get("minBodyCommandsForExpansion").and_then(as_usize) {
+        cfg.min_body_commands_for_expansion = n.max(1);
+    }
+    if let Some(b) = obj
+        .get("replaceSemicolonsWithNewlines")
+        .and_then(serde_json::Value::as_bool)
+    {
+        cfg.replace_semicolons_with_newlines = b;
+    }
+    if let Some(b) = obj
+        .get("enforceBracedExpr")
+        .and_then(serde_json::Value::as_bool)
+    {
+        cfg.enforce_braced_expr = b;
+    }
+    if let Some(b) = obj
+        .get("alignCommentsToCode")
+        .and_then(serde_json::Value::as_bool)
+    {
+        cfg.align_comments_to_code = b;
+    }
     if let Some(n) = obj.get("blankLinesBetweenProcs").and_then(as_usize) {
         cfg.blank_lines_between_procs = n;
     }
@@ -11076,6 +11103,28 @@ mod tests {
         // A null formatting object falls back to defaults + LSP options.
         let dflt = formatter_config_from(&serde_json::Value::Null, &opts, "tcl");
         assert_eq!(dflt.max_line_length, 120);
+    }
+
+    #[test]
+    fn formatter_config_consumes_previously_dropped_settings() {
+        // RUST_ISSUE_133: these four `tclLsp.formatting.*` settings were shipped
+        // by every editor but never mapped, so toggling them did nothing. They
+        // must now flow into the FormatterConfig.
+        let opts = tower_lsp_server::ls_types::FormattingOptions::default();
+        let cfg = formatter_config_from(
+            &serde_json::json!({
+                "minBodyCommandsForExpansion": 3,
+                "replaceSemicolonsWithNewlines": false,
+                "enforceBracedExpr": true,
+                "alignCommentsToCode": false,
+            }),
+            &opts,
+            "tcl",
+        );
+        assert_eq!(cfg.min_body_commands_for_expansion, 3);
+        assert!(!cfg.replace_semicolons_with_newlines);
+        assert!(cfg.enforce_braced_expr);
+        assert!(!cfg.align_comments_to_code);
     }
 
     #[test]

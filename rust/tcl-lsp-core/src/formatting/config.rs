@@ -111,11 +111,14 @@ pub struct FormatterConfig {
     /// Rewrite `$var` as `${var}` for consistency.
     pub enforce_braced_variables: bool,
     /// Rewrite a bare expression argument as a braced `{ … }` expr.
-    /// Declared and serialised, but not yet consumed by the engine —
-    /// the behaviour is hardcoded.
+    /// Read from the resolved settings and carried in the config; engine
+    /// consumption is pending a registry change to mark an `expr`'s full
+    /// trailing-argument span as one expression (marking only arg 0 would
+    /// corrupt `expr $a + $b`).
     pub enforce_braced_expr: bool,
     /// Align trailing inline comments to a consistent column.
-    /// Declared and serialised, not yet engine-consumed.
+    /// Read from the resolved settings and carried in the config; engine
+    /// consumption (preserving the original column when disabled) is pending.
     pub align_comments_to_code: bool,
     /// Line ending for formatted output.
     pub line_ending: String,
@@ -124,12 +127,12 @@ pub struct FormatterConfig {
     /// Expand single-line command bodies onto multiple lines.
     pub expand_single_line_bodies: bool,
     /// Minimum number of commands a body must contain before
-    /// `expand_single_line_bodies` forces it onto multiple lines.
-    /// Declared and serialised, not yet engine-consumed.
+    /// `expand_single_line_bodies` forces it onto multiple lines. A body with
+    /// fewer commands stays inline even when expansion is enabled.
     pub min_body_commands_for_expansion: usize,
-    /// Split `;`-separated commands onto their own lines.
-    /// Declared and serialised, but semicolon-splitting is
-    /// hardcoded-on, so the flag is not yet consumed.
+    /// Split `;`-separated commands onto their own lines. When `true` (the
+    /// default) `a; b` becomes two lines; when `false` such commands are kept
+    /// on one line joined by `; `.
     pub replace_semicolons_with_newlines: bool,
     /// Blank lines between proc definitions.
     pub blank_lines_between_procs: usize,
