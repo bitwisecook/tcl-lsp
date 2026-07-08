@@ -30,7 +30,7 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use tcl_registry::prelude::DialectSet;
+use tcl_registry::prelude::{DialectSet, OptionSpec};
 use tcl_registry::{ArgRole, Arity, CommandRegistry};
 
 /// Signature for a simple Tcl command.
@@ -47,6 +47,13 @@ pub struct CommandSig {
     /// Populated from [`tcl_registry::CommandSpec::switch_names`]
     /// (dialect-filtered).
     pub leading_options: BTreeSet<String>,
+    /// The declared option specs valid in the active dialect, carrying
+    /// each option's *value* arity. The arity check consults these (via
+    /// [`OptionSpec::value_word_count`]) so a value-taking option's value
+    /// word (`regsub -start 0 …`) is skipped along with the flag rather
+    /// than miscounted as a positional argument. Dialect-consistent with
+    /// `leading_options`.
+    pub leading_option_specs: Vec<&'static OptionSpec>,
 }
 
 /// Signature for a command that dispatches on a subcommand word.
@@ -148,12 +155,14 @@ pub fn signature_for_command(
                 .into_iter()
                 .map(str::to_string)
                 .collect();
+            let leading_option_specs = sub.option_specs(Some(dialect), spec.dialects);
             subs.insert(
                 sub.name.to_string(),
                 CommandSig {
                     arity: sub.arity,
                     arg_roles,
                     leading_options,
+                    leading_option_specs,
                 },
             );
         }
@@ -173,10 +182,12 @@ pub fn signature_for_command(
         .into_iter()
         .map(str::to_string)
         .collect();
+    let leading_option_specs = spec.option_specs(Some(dialect));
     Some(CommandSignature::Simple(CommandSig {
         arity: spec.arity,
         arg_roles,
         leading_options,
+        leading_option_specs,
     }))
 }
 

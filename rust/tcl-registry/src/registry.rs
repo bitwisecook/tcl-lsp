@@ -302,14 +302,16 @@ impl CommandRegistry {
     /// dialects) keeps the octal rule, where `08`/`09` are *invalid* octal
     /// (treated as a string in `==`/`!=`) and `010` is 8.
     ///
-    /// The per-dialect registry built by `registry_for_dialect` records its
-    /// Tcl version via [`Self::load_dialect`], so the only registry whose
-    /// `loaded_dialects` carries [`DialectSet::TCL90`] is the tcl9.0 one; every
-    /// other dialect (including the F5/EDA registries, which never load a Tcl
-    /// version bit) reads leading zeros as octal.
+    /// TIP 472 lands in tcl9.0 and stays in tcl9.1 (and any later 9.x), so the
+    /// decimal rule applies to *every* Tcl 9 dialect, not tcl9.0 alone. The
+    /// per-dialect registry built by `registry_for_dialect` records its Tcl
+    /// version via [`Self::load_dialect`], so a registry whose `loaded_dialects`
+    /// intersects [`DialectSet::TCL90_PLUS`] (tcl9.0, tcl9.1, …) is decimal;
+    /// every other dialect (8.4/8.5/8.6 and the F5/EDA registries, which never
+    /// load a Tcl-9 version bit) reads leading zeros as octal.
     #[must_use]
     pub fn leading_zero_is_octal(&self) -> bool {
-        !self.loaded_dialects.contains(DialectSet::TCL90)
+        !self.loaded_dialects.intersects(DialectSet::TCL90_PLUS)
     }
 
     /// Insert a command spec into the registry.
@@ -1130,6 +1132,12 @@ mod tests {
         let mut reg90 = CommandRegistry::build_default();
         reg90.load_dialect(DialectSet::TCL90);
         assert!(!reg90.leading_zero_is_octal(), "tcl9.0 should be decimal");
+        // RUST_ISSUE_024: tcl9.1 keeps the TIP 472 decimal rule; a tcl9.1-only
+        // registry (loads TCL91, not TCL90) must still read leading zeros as
+        // decimal.
+        let mut reg91 = CommandRegistry::build_default();
+        reg91.load_dialect(DialectSet::TCL91);
+        assert!(!reg91.leading_zero_is_octal(), "tcl9.1 should be decimal");
     }
 
     #[test]

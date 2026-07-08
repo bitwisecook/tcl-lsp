@@ -432,25 +432,38 @@ impl Analyser {
         } = *words;
         let expanded = |i: usize| arg_expand.get(i).copied().unwrap_or(false);
 
-        // Skip leading declared option flags.  Stop at the first
-        // non-option word, the option terminator `--` (consumed), or
-        // a `{*}`-expanded word (whose value can't be classified).
-        let mut positional_start = 0usize;
-        if !sig.leading_options.is_empty() {
-            for (i, arg) in args.iter().enumerate() {
-                if expanded(i) {
-                    break;
-                }
-                if sig.leading_options.contains(arg) {
-                    positional_start = i + 1;
-                    if arg == "--" {
-                        break;
-                    }
-                } else {
-                    break;
-                }
+        // Skip leading declared option flags *and the value word(s) each
+        // consumes*.  Stop at the first non-option word, the option
+        // terminator `--` (consumed), or a `{*}`-expanded word (whose value
+        // can't be classified).  Skipping the value words is what keeps a
+        // value-taking option (`regsub -start 0 …`, `file link -symbolic
+        // dst src`) from having its value counted as a positional argument
+        // — the same `value_word_count` skip the W004 dialect-option loop
+        // uses.
+        let mut i = 0usize;
+        while i < args.len() {
+            if expanded(i) {
+                break;
+            }
+            let arg = &args[i];
+            if arg == "--" {
+                i += 1;
+                break;
+            }
+            if let Some(opt) = sig.leading_option_specs.iter().find(|o| o.matches(arg)) {
+                // Skip the flag itself plus however many value words it
+                // consumes at this position (0 for a bare flag).
+                i += 1 + opt.value_word_count(args, i);
+            } else if sig.leading_options.contains(arg) {
+                // Recognised as an option name but no spec carries its value
+                // arity (e.g. a form-only or generated option) — skip just
+                // the flag word, matching the prior name-only behaviour.
+                i += 1;
+            } else {
+                break;
             }
         }
+        let positional_start = i.min(args.len());
 
         let positional_any_expand = (positional_start..args.len()).any(expanded);
         // `nargs_min` is the *lower bound* on the positional-argument
