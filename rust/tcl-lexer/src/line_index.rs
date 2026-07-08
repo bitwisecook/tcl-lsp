@@ -90,6 +90,58 @@ impl LineIndex {
         }
     }
 
+    /// Build a `LineIndex` whose line breaks follow the **LSP** end-of-line
+    /// definition: `\n`, `\r\n`, *and a lone `\r`* each start a new line.
+    ///
+    /// This is deliberately distinct from [`Self::new`], whose `\n`-only rule
+    /// is required for lexer/CST token-position equivalence (a bare `\r` is
+    /// Tcl horizontal whitespace, not an EOL). The LSP protocol, however,
+    /// defines a document's `(line, character)` coordinates over all three
+    /// terminators, so a language server's model of an **open document** must
+    /// count them the same way the client does — otherwise incremental
+    /// `didChange` edits on an old-Mac (bare-`\r`) file resolve to the wrong
+    /// byte offset and corrupt the server's shadow buffer, and diagnostic
+    /// ranges land on the wrong line. Use this constructor for document-sync
+    /// and for lifting analyser spans to client ranges; use [`Self::new`] for
+    /// the lexer/CST.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `source.len()` does not fit in a `u32` (the 4 GiB budget).
+    #[must_use]
+    pub fn new_lsp(source: &str) -> Self {
+        assert!(
+            u32::try_from(source.len()).is_ok(),
+            "source longer than 4 GiB cannot be indexed",
+        );
+        let bytes = source.as_bytes();
+        let mut starts = Vec::with_capacity(bytes.len() / 32 + 1);
+        starts.push(0_u32);
+        let mut i = 0;
+        while i < bytes.len() {
+            match bytes[i] {
+                b'\n' => starts.push(u32::try_from(i + 1).expect("offset fits u32")),
+                b'\r' => {
+                    // CRLF is a single break at the LF: skip the LF so the pair
+                    // yields exactly one new line-start (byte after the `\n`),
+                    // agreeing with `new`. A lone `\r` breaks at the byte after
+                    // the `\r`.
+                    if bytes.get(i + 1) == Some(&b'\n') {
+                        starts.push(u32::try_from(i + 2).expect("offset fits u32"));
+                        i += 1;
+                    } else {
+                        starts.push(u32::try_from(i + 1).expect("offset fits u32"));
+                    }
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+        Self {
+            line_starts: starts.into_boxed_slice(),
+        }
+    }
+
     /// Patch the index **in place** for an edit that replaces source bytes
     /// `[start, old_end)` with `new_text`, instead of rebuilding from the whole
     /// edited document (SRV-INCREMENTAL Task 1).  After the call the index equals
@@ -612,6 +664,49 @@ mod tests {
             idx.position_at(7),
             SourcePosition::new(2, ByteCol::new(2), 7)
         );
+    }
+
+    #[test]
+    fn lsp_index_counts_lone_cr_as_line_break() {
+        // RUST_ISSUE_033: for LSP document sync a bare `\r` starts a new line
+        // (the client models it that way), unlike the `\n`-only `new`.
+        let src = "a\rb\nc";
+        let idx = LineIndex::new_lsp(src);
+        assert_eq!(idx.line_count(), 3);
+        assert_eq!(idx.line_start(0), 0); // "a\r"
+        assert_eq!(idx.line_start(1), 2); // "b\n"
+        assert_eq!(idx.line_start(2), 4); // "c"
+        // The `\n`-only index disagrees (2 lines) — the two models are distinct.
+        assert_eq!(LineIndex::new(src).line_count(), 2);
+    }
+
+    #[test]
+    fn lsp_index_crlf_is_single_break() {
+        // A CRLF is one break (at the LF), identical to the `\n`-only model.
+        let src = "a\r\nb\r\nc";
+        let lsp = LineIndex::new_lsp(src);
+        let lf = LineIndex::new(src);
+        assert_eq!(lsp.line_count(), 3);
+        for l in 0..3 {
+            assert_eq!(lsp.line_start(l), lf.line_start(l), "line {l}");
+        }
+    }
+
+    #[test]
+    fn lsp_offset_at_utf16_resolves_bare_cr_lines() {
+        // The sync path resolves a client `(line, character)` to a byte offset.
+        // On a bare-`\r` file the LSP index must map line 1 char 0 to `b`
+        // (offset 2), not to the `\n`-only model's line 1 (`c`, offset 4).
+        let src = "a\rb\nc";
+        let idx = LineIndex::new_lsp(src);
+        assert_eq!(idx.offset_at_utf16(0, Utf16Col::new(0), src), 0); // 'a'
+        assert_eq!(idx.offset_at_utf16(1, Utf16Col::new(0), src), 2); // 'b'
+        assert_eq!(idx.offset_at_utf16(2, Utf16Col::new(0), src), 4); // 'c'
+        // Round-trip position_at_utf16 → offset_at_utf16 at char boundaries.
+        for off in [0u32, 2, 3, 4, 5] {
+            let p = idx.position_at_utf16(off, src);
+            assert_eq!(idx.offset_at_utf16(p.line, p.character, src), off, "off {off}");
+        }
     }
 
     #[test]

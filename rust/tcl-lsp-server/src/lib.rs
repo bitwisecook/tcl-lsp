@@ -132,10 +132,11 @@ use tower_lsp_server::{Client, LanguageServer};
 #[derive(Debug, Clone)]
 struct DocumentState {
     text: String,
-    /// Persisted line-start index for `text`, patched in place on each edit
-    /// (`LineIndex::apply_edit`) rather than rebuilt per position lookup.
-    /// Kept in lock-step with `text`: every mutation
-    /// of `text` updates this alongside it.
+    /// Persisted line-start index for `text`, built with the **LSP** EOL model
+    /// ([`tcl_lexer::LineIndex::new_lsp`]) so the server's `(line, character)`
+    /// coordinates match the client's (`\n`, `\r\n`, and lone `\r` all break a
+    /// line). Kept in lock-step with `text`: every mutation of `text` rebuilds
+    /// this alongside it (see [`apply_content_change_indexed`]).
     line_index: tcl_lexer::LineIndex,
     dialect: String,
     /// The LSP `languageId` the client opened this document with (empty
@@ -157,7 +158,7 @@ struct DocumentState {
 
 impl DocumentState {
     fn new(text: String, dialect: String) -> Self {
-        let line_index = tcl_lexer::LineIndex::new(&text);
+        let line_index = tcl_lexer::LineIndex::new_lsp(&text);
         Self {
             text,
             line_index,
@@ -169,7 +170,7 @@ impl DocumentState {
     }
 
     fn with_version(text: String, dialect: String, version: i32) -> Self {
-        let line_index = tcl_lexer::LineIndex::new(&text);
+        let line_index = tcl_lexer::LineIndex::new_lsp(&text);
         Self {
             text,
             line_index,
@@ -2167,7 +2168,7 @@ impl Backend {
             let Some(tdoc) = self.read_document(&target_uri).await else {
                 continue;
             };
-            let li = tcl_lexer::LineIndex::new(&tdoc.text);
+            let li = tcl_lexer::LineIndex::new_lsp(&tdoc.text);
             let start = li.position_at_utf16(name_span.start(), &tdoc.text);
             let end = li.position_at_utf16(name_span.end(), &tdoc.text);
             let range = Range {
@@ -3076,7 +3077,7 @@ impl Backend {
                 let applied = tcl_compiler::optimiser::apply_optimisations(&text, &opts);
                 (applied, opts)
             };
-            let line_index = tcl_lexer::LineIndex::new(&text);
+            let line_index = tcl_lexer::LineIndex::new_lsp(&text);
             let items: Vec<serde_json::Value> = opts
                 .iter()
                 .map(|o| {
@@ -7379,7 +7380,7 @@ fn materialise_selection_range(
 /// `character` is a UTF-16 code-unit offset. `None` when the line is
 /// out of range.
 fn line_col_to_byte_offset(source: &str, line: u32, col: u32) -> Option<usize> {
-    let index = tcl_lexer::LineIndex::new(source);
+    let index = tcl_lexer::LineIndex::new_lsp(source);
     if line as usize >= index.line_count() {
         return None;
     }
@@ -7863,11 +7864,21 @@ fn normalize_config_payload(payload: &serde_json::Value) -> serde_json::Value {
             let segments: Vec<&str> = path.split('.').collect();
             let mut cursor = &mut out;
             for seg in &segments[..segments.len() - 1] {
-                cursor = cursor
+                let entry = cursor
                     .entry((*seg).to_owned())
-                    .or_insert_with(|| Value::Object(Map::new()))
+                    .or_insert_with(|| Value::Object(Map::new()));
+                // A flat scalar (`tclLsp.optimiser: true`) may collide with a
+                // deeper dotted key (`tclLsp.optimiser.enabled: false`) in the
+                // same payload. This function is explicitly designed to accept
+                // mixed-shape client config, so a collision must not panic the
+                // server: replace the scalar with an object and let the nested
+                // structure win. (`as_object_mut` cannot fail after this.)
+                if !entry.is_object() {
+                    *entry = Value::Object(Map::new());
+                }
+                cursor = entry
                     .as_object_mut()
-                    .expect("nested config segment is an object");
+                    .expect("entry was just ensured to be an object");
             }
             cursor.insert(segments[segments.len() - 1].to_owned(), value.clone());
         } else if key.starts_with("tclLsp.") {
@@ -8132,15 +8143,23 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
 fn apply_content_change(text: &str, range: Option<Range>, new_text: &str) -> String {
     // Throwaway index for the splice-behaviour tests; the live path persists one
     // through [`apply_content_change_indexed`].
-    let mut index = tcl_lexer::LineIndex::new(text);
+    let mut index = tcl_lexer::LineIndex::new_lsp(text);
     apply_content_change_indexed(text, range, new_text, &mut index)
 }
 
 /// [`apply_content_change`] that resolves the edit through a **persisted**
-/// [`tcl_lexer::LineIndex`] and **patches it in place** to match the returned
-/// text — so neither the offset resolution nor the
-/// index maintenance rescans the whole document.  A full-document replacement
-/// (`range == None`) rebuilds the index from the new text.
+/// [`tcl_lexer::LineIndex`] built with the LSP end-of-line model
+/// ([`tcl_lexer::LineIndex::new_lsp`]), then rebuilds it from the spliced
+/// result so it stays consistent with the returned text.
+///
+/// The index **must** use the LSP EOL model (`\n`, `\r\n`, *and lone `\r`*):
+/// the client resolves the incoming `range` against that model, so a `\n`-only
+/// index would resolve a bare-`\r` file's edit to the wrong byte offset and
+/// corrupt the shadow buffer. The `\n`-only [`tcl_lexer::LineIndex::apply_edit`]
+/// cannot maintain an LSP index incrementally across CR/LF boundary ambiguity,
+/// and re-analysis after a change is whole-document regardless, so the index is
+/// rebuilt (not patched) — correctness over a micro-optimisation that never
+/// dominated the change handler's cost.
 fn apply_content_change_indexed(
     text: &str,
     range: Option<Range>,
@@ -8148,7 +8167,7 @@ fn apply_content_change_indexed(
     index: &mut tcl_lexer::LineIndex,
 ) -> String {
     let Some(range) = range else {
-        *index = tcl_lexer::LineIndex::new(new_text);
+        *index = tcl_lexer::LineIndex::new_lsp(new_text);
         return new_text.to_owned();
     };
     let a = index.offset_at_utf16(
@@ -8164,16 +8183,12 @@ fn apply_content_change_indexed(
     let len = text.len();
     let start = a.min(b).min(len);
     let end = a.max(b).min(len);
-    // Patch the index for the same [start, end) → new_text splice applied below.
-    index.apply_edit(
-        u32::try_from(start).expect("offset fits u32"),
-        u32::try_from(end).expect("offset fits u32"),
-        new_text,
-    );
     let mut out = String::with_capacity(len - (end - start) + new_text.len());
     out.push_str(&text[..start]);
     out.push_str(new_text);
     out.push_str(&text[end..]);
+    // Rebuild the LSP-EOL index from the spliced document.
+    *index = tcl_lexer::LineIndex::new_lsp(&out);
     out
 }
 
@@ -8628,7 +8643,7 @@ fn lift_analyser_diagnostics(
     text: &str,
     diagnostics: &[tcl_compiler::analyser::Diagnostic],
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-    let line_index = tcl_lexer::LineIndex::new(text);
+    let line_index = tcl_lexer::LineIndex::new_lsp(text);
     // Default-off codes are suppressed at the analyser via the seeded disabled
     // set (see `default_disabled_set` / `settings_disabled_diagnostics`), so no
     // publish-time filter is needed here — and removing it is what lets
@@ -8790,7 +8805,7 @@ fn lift_compiler_diagnostics(
     use tcl_compiler::compiler_checks::Severity as CheckSeverity;
     use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
 
-    let line_index = tcl_lexer::LineIndex::new(text);
+    let line_index = tcl_lexer::LineIndex::new_lsp(text);
     let mut out: Vec<tower_lsp_server::ls_types::Diagnostic> = Vec::new();
 
     // Compiler checks: GVN / shimmer / thunking / taint / iRules-flow / SCCP,
@@ -9641,6 +9656,30 @@ mod tests {
         assert_eq!(
             normalize_config_payload(&composed),
             serde_json::json!({ "optimiser": { "O109": false, "O110": false } }),
+        );
+    }
+
+    #[test]
+    fn normalize_config_payload_scalar_object_collision_does_not_panic() {
+        // RUST_ISSUE_032: a flat scalar key that collides with a deeper dotted
+        // key in the same payload must not panic the server; the nested
+        // structure wins over the conflicting scalar.
+        let collide = serde_json::json!({
+            "tclLsp.optimiser": true,
+            "tclLsp.optimiser.enabled": false,
+        });
+        assert_eq!(
+            normalize_config_payload(&collide),
+            serde_json::json!({ "optimiser": { "enabled": false } }),
+        );
+        // The reverse spelling (scalar under a nested prefix) also survives.
+        let collide2 = serde_json::json!({
+            "tclLsp": { "style": "x" },
+            "tclLsp.style.nonAscii": "escape",
+        });
+        assert_eq!(
+            normalize_config_payload(&collide2),
+            serde_json::json!({ "style": { "nonAscii": "escape" } }),
         );
     }
 
@@ -10860,7 +10899,7 @@ mod tests {
         assert_eq!(line_col_to_byte_offset(text, 0, 1), Some(2));
         assert_eq!(line_col_to_byte_offset(text, 0, 3), Some(6));
 
-        let line_index = tcl_lexer::LineIndex::new(text);
+        let line_index = tcl_lexer::LineIndex::new_lsp(text);
         let range = lift_span(text, &line_index, tcl_lexer::Span::new(6, 7));
         assert_eq!(range.start, pos(0, 3));
         assert_eq!(range.end, pos(0, 4));
@@ -10905,7 +10944,7 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         let mut text = "abc\ndef\nghi\n".to_string();
-        let mut index = tcl_lexer::LineIndex::new(&text);
+        let mut index = tcl_lexer::LineIndex::new_lsp(&text);
         let edits = [
             (
                 Some(Range {
@@ -10934,9 +10973,36 @@ mod tests {
             text = apply_content_change_indexed(&text, range, new_text, &mut index);
             assert_eq!(
                 line_starts(&index),
-                line_starts(&tcl_lexer::LineIndex::new(&text)),
+                line_starts(&tcl_lexer::LineIndex::new_lsp(&text)),
                 "persisted index diverged from rebuild after edit {new_text:?} -> {text:?}"
             );
+        }
+    }
+
+    /// RUST_ISSUE_033: an incremental edit on an old-Mac (bare-`\r`) buffer must
+    /// resolve against the LSP EOL model so the splice lands at the right byte
+    /// and the shadow buffer stays correct.
+    #[test]
+    fn apply_content_change_indexed_handles_bare_cr_document() {
+        // Client models "a\rb\rc" as 3 lines (0="a", 1="b", 2="c").
+        let mut text = "a\rb\rc".to_string();
+        let mut index = tcl_lexer::LineIndex::new_lsp(&text);
+        // Replace line 1 ("b") with "BB": range (1,0)..(1,1).
+        text = apply_content_change_indexed(
+            &text,
+            Some(Range {
+                start: pos(1, 0),
+                end: pos(1, 1),
+            }),
+            "BB",
+            &mut index,
+        );
+        assert_eq!(text, "a\rBB\rc", "edit spliced at the wrong offset");
+        // The persisted index matches a fresh LSP rebuild.
+        let rebuilt = tcl_lexer::LineIndex::new_lsp(&text);
+        assert_eq!(index.line_count(), rebuilt.line_count());
+        for l in 0..u32::try_from(index.line_count()).unwrap() {
+            assert_eq!(index.line_start(l), rebuilt.line_start(l), "line {l}");
         }
     }
 
