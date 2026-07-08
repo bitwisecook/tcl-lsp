@@ -24,6 +24,7 @@ export const TCL_LANGUAGE_IDS = new Set([
   "tcl",
   "tcl-irule",
   "tcl-iapp",
+  "tcl-apl",
   "tcl-bigip",
   "tcl8.4",
   "tcl8.5",

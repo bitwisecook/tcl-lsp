@@ -120,6 +120,9 @@ export { TCL_LANGUAGE_IDS, isTclLanguage };
 const LANGUAGE_ID_DIALECTS: Record<string, string> = {
   "tcl-irule": "f5-irules",
   "tcl-iapp": "f5-iapps",
+  // `.apl` (iApp APL / presentation language) is an iApp sublanguage; the
+  // server maps `tcl-apl` → `f5-iapps`, so mirror that here.
+  "tcl-apl": "f5-iapps",
   "tcl-bigip": "f5-bigip",
   "tcl8.4": "tcl8.4",
   "tcl8.5": "tcl8.5",

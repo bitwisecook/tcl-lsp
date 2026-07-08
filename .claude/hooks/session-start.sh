@@ -484,50 +484,10 @@ install_remaining_test_deps() {
 }
 
 # ---------------------------------------------------------------------------
-# 7. Python venv — create the single well-known environment (.venv at the
-#    repo root, the path uv and the Makefile already assume) and activate
-#    it for this and every subsequent shell in the session.
-# ---------------------------------------------------------------------------
-setup_python_venv() {
-    # uv was just installed by install_remaining_test_deps (Astral
-    # installer drops it in ~/.local/bin); make sure it's reachable.
-    export PATH="${HOME}/.local/bin:${PATH}"
-    if ! command -v uv >/dev/null 2>&1; then
-        echo "session-start: uv not found after install — skipping venv setup" >&2
-        return 1
-    fi
-
-    echo "session-start: creating Python venv at ${REPO_ROOT}/.venv (uv sync)"
-    ( cd "$REPO_ROOT" && uv sync --extra dev )
-
-    local activate="${REPO_ROOT}/.venv/bin/activate"
-    if [ ! -f "$activate" ]; then
-        echo "session-start: expected venv activate script missing at $activate" >&2
-        return 1
-    fi
-
-    # Activate for the rest of this hook.
-    # shellcheck disable=SC1090
-    . "$activate"
-
-    # Persist activation for every subsequent Bash tool-call shell, which
-    # are spawned fresh from the user's profile.  Idempotent: the guard
-    # comment keeps re-runs on warm containers from stacking duplicates.
-    local marker="# tcl-lsp: auto-activate project venv"
-    if [ -n "${HOME:-}" ] && ! grep -qsF "$marker" "${HOME}/.bashrc" 2>/dev/null; then
-        {
-            printf '\n%s\n' "$marker"
-            printf 'export PATH="%s/.local/bin:$PATH"\n' "$HOME"
-            printf '[ -f "%s/.venv/bin/activate" ] && . "%s/.venv/bin/activate"\n' \
-                "$REPO_ROOT" "$REPO_ROOT"
-        } >> "${HOME}/.bashrc"
-        echo "session-start: venv auto-activation added to ~/.bashrc"
-    fi
-    echo "session-start: venv ready (VIRTUAL_ENV=${VIRTUAL_ENV:-unset})"
-}
-
-# ---------------------------------------------------------------------------
-# 8. TCL_LIBRARY — point it at the fetched Tcl 9 script library.
+# 7. TCL_LIBRARY — point it at the fetched Tcl 9 script library.
+#
+# (The project retired Python: there is no pyproject.toml / uv.lock, so there
+# is no venv to create — the old `uv sync --extra dev` step was removed.)
 #
 # ensure-test-deps builds tclsh9.0 with ``--disable-shared`` and installs
 # only the ``tclsh`` binary (no ``make install``), so the script library
@@ -556,14 +516,49 @@ setup_tcl_library() {
     echo "session-start: TCL_LIBRARY=${TCL_LIBRARY}"
 }
 
-install_wasmtime
-install_binaryen
-install_wasi_sdk
-install_rust
-install_tcl_sources
-install_tcllib
-install_remaining_test_deps
-setup_python_venv
-setup_tcl_library
+# The setup steps are independent: install_wasmtime / install_binaryen /
+# install_wasi_sdk pull separate GitHub downloads, and a transient failure in
+# any one of them must NOT abort the hook before install_rust (which pins the
+# toolchain to the required stable) or setup_tcl_library run. Under
+# `set -euo pipefail` a bare `install_wasmtime; install_rust; ...` chain does
+# exactly that — one flaky download leaves a stale pre-baked toolchain. Isolate
+# each step so a failure is logged and the rest still run, while still
+# surfacing failures (and a genuine everything-failed state) at the end.
+FAILED_STEPS=()
+
+run_step() {
+    local step="$1"
+    if "$step"; then
+        return 0
+    fi
+    echo "session-start: step '$step' failed — continuing with remaining steps" >&2
+    FAILED_STEPS+=("$step")
+    return 0
+}
+
+STEPS=(
+    install_wasmtime
+    install_binaryen
+    install_wasi_sdk
+    install_rust
+    install_tcl_sources
+    install_tcllib
+    install_remaining_test_deps
+    setup_tcl_library
+)
+
+for step in "${STEPS[@]}"; do
+    run_step "$step"
+done
+
+if [ "${#FAILED_STEPS[@]}" -gt 0 ]; then
+    echo "session-start: completed with failed steps: ${FAILED_STEPS[*]}" >&2
+    # A genuine everything-failed state (no step succeeded) points at a broken
+    # environment rather than an isolated network hiccup — surface it loudly.
+    if [ "${#FAILED_STEPS[@]}" -eq "${#STEPS[@]}" ]; then
+        echo "session-start: all setup steps failed — environment is not usable" >&2
+        exit 1
+    fi
+fi
 
 echo "session-start: done"

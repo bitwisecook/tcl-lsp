@@ -89,38 +89,29 @@ fi
 
 # ---------------------------------------------------------------- 1. hashes
 
-hdr "Hashing installed pyz files against $SUMS_URL"
+hdr "Hashing installed binaries against $SUMS_URL"
 if ! sums=$(curl -fsSL "$SUMS_URL" 2>/dev/null); then
     fail "could not fetch SHA256SUMS"
 else
     found=0
-    for f in "$PREFIX"/*.pyz; do
+    # The installer downloads prebuilt native per-triple binaries
+    # (tcl-<triple>, f5-query-<triple>, tcl-mcp-<triple>) and renames them to
+    # bare names (tcl, f5, tcl-mcp); on platforms without a native MCP build it
+    # falls back to the tcl-lsp-mcp-server.pyz zipapp. Rather than reconstruct
+    # the host triple, match each installed file's hash against any entry in
+    # SHA256SUMS.
+    for f in "$PREFIX/tcl" "$PREFIX/f5" "$PREFIX/tcl-mcp" "$PREFIX/tcl-lsp-mcp-server.pyz"; do
         [ -e "$f" ] || continue
         found=$((found + 1))
         base=$(basename "$f")
-        # The installer renames release artefacts to bare names
-        # (tcl-lsp-mcp-server-X.Y.Z.pyz -> tcl-lsp-mcp-server.pyz).
-        # Match against the versioned SHA256SUMS entry that shares
-        # the bare prefix.
-        stem="${base%.pyz}"
-        expected_sum=$(printf '%s\n' "$sums" \
-            | awk -v stem="$stem" -v ver="$expected" \
-                '$2 == stem "-" ver ".pyz" {print $1; found=1}
-                 END { if (!found) exit 1 }') || true
-        if [ -z "$expected_sum" ]; then
-            note "WARN: $base — no SHA256SUMS entry for ${stem}-${expected}.pyz"
-            continue
-        fi
         actual_sum=$(sha256sum "$f" | awk '{print $1}')
-        if [ "$expected_sum" = "$actual_sum" ]; then
-            pass "$base sha256 matches SHA256SUMS"
+        if printf '%s\n' "$sums" | awk -v h="$actual_sum" '$1 == h {ok=1} END{exit !ok}'; then
+            pass "$base sha256 present in SHA256SUMS"
         else
-            fail "$base sha mismatch:
-        expected $expected_sum
-        actual   $actual_sum"
+            fail "$base sha256 $actual_sum not found in SHA256SUMS"
         fi
     done
-    [ "$found" -gt 0 ] || fail "no .pyz files found under $PREFIX"
+    [ "$found" -gt 0 ] || fail "no installed binaries found under $PREFIX"
 fi
 
 # ---------------------------------------------------------------- 2./3. CLIs
@@ -150,10 +141,17 @@ done
 
 # ---------------------------------------------------------------- 4. MCP
 
-hdr "MCP server zipapp"
-mcp="$PREFIX/tcl-lsp-mcp-server.pyz"
-if [ ! -f "$mcp" ]; then
-    fail "MCP pyz missing at $mcp"
+hdr "MCP server"
+# The installer prefers the native tcl-mcp binary and falls back to the
+# tcl-lsp-mcp-server.pyz zipapp on platforms without a native build.
+mcp=""
+if [ -x "$PREFIX/tcl-mcp" ]; then
+    mcp="$PREFIX/tcl-mcp"
+elif [ -f "$PREFIX/tcl-lsp-mcp-server.pyz" ]; then
+    mcp="$PREFIX/tcl-lsp-mcp-server.pyz"
+fi
+if [ -z "$mcp" ]; then
+    fail "MCP server missing (looked for $PREFIX/tcl-mcp and $PREFIX/tcl-lsp-mcp-server.pyz)"
 else
     # The MCP CLI's --version output is empty on purpose; the
     # version banner shows on --help instead.

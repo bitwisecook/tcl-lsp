@@ -1570,7 +1570,7 @@ find_existing_mcp() {
 # binary when a native build is available/selected, else the Python zipapp.
 mcp_target_basename() {
     if [ "${TCL_LSP_MCP_PYZ:-0}" != "1" ] \
-        && { [ -n "${TCL_LSP_MCP_BIN:-}" ] || mcp_host_triple >/dev/null 2>&1; }; then
+        && { [ -n "${TCL_LSP_MCP_BIN:-}" ] || host_triple >/dev/null 2>&1; }; then
         echo "tcl-mcp"
     else
         echo "tcl-lsp-mcp-server.pyz"
@@ -1933,17 +1933,37 @@ write_target() {
 
 install_cli() {
     # Install CLI $1 (tcl or f5) to its prefix_for() dir.
+    #
+    # The release pipeline publishes prebuilt native binaries per target triple
+    # (see the publish-native-binaries CI job), not Python zipapps: the `tcl`
+    # CLI ships as `tcl-<triple>` and the `f5` CLI ships as `f5-query-<triple>`.
+    # Mirrors install_mcp_native's `tcl-mcp-<triple>` scheme.
     name="$1"
     final_name="${name}${INSTALL_SUFFIX}"
     dir="$(prefix_for "$name")"
     ensure_tag
-    asset="${name}-${VER_NO_V}.pyz"
+    # Map the CLI name to its release-asset base name. The f5 CLI is published
+    # as `f5-query` but installs locally as `f5`.
+    case "$name" in
+        tcl) asset_base="tcl" ;;
+        f5)  asset_base="f5-query" ;;
+        *)   die "internal: unknown CLI '$name'" ;;
+    esac
+    triple="$(host_triple)" \
+        || die "no prebuilt $name binary for $(uname -sm 2>/dev/null): unsupported platform"
+    asset="${asset_base}-${triple}"
     url="$(asset_url "$asset")"
     log "resolved $name -> $asset (tag $RESOLVED_TAG)"
 
     tmpfile="$WORKDIR/$asset"
     download "$url" "$tmpfile"
-    verify_artefact "$asset" "$tmpfile"
+    # Verify against SHA256SUMS when the asset is listed (fatal on mismatch);
+    # otherwise install unverified with a warning (mirrors install_mcp_native).
+    if ensure_sums && awk -v a="$asset" '$2==a || $2=="*"a {f=1} END{exit !f}' "$SUMS_PATH" 2>/dev/null; then
+        verify_artefact "$asset" "$tmpfile"
+    else
+        warn "no checksum entry for $asset — installing unverified"
+    fi
     write_target "$tmpfile" "$dir/$final_name"
     log "installed $name -> $dir/$final_name"
 }
@@ -2119,10 +2139,11 @@ MCP_NATIVE=0
 # cleanup_stale_mcp if this run replaces it.
 PRIOR_MCP_PATH=""
 
-# Map the host OS/arch to the Rust target triple used in the `tcl-mcp-<triple>`
-# release asset names (see the publish-mcp-binaries CI job). Prints the triple,
-# or returns 1 for a platform without a published native binary.
-mcp_host_triple() {
+# Map the host OS/arch to the Rust target triple used in the per-triple native
+# release asset names (`tcl-<triple>`, `f5-query-<triple>`, `tcl-mcp-<triple>`;
+# see the publish-native-binaries CI job). Prints the triple, or returns 1 for a
+# platform without a published native binary.
+host_triple() {
     _os="$(uname -s 2>/dev/null || echo unknown)"
     _arch="$(uname -m 2>/dev/null || echo unknown)"
     case "$_os" in
@@ -2148,7 +2169,7 @@ mcp_host_triple() {
 # Python zipapp. Set TCL_LSP_MCP_PYZ=1 to force the zipapp.
 install_mcp_native() {
     [ "${TCL_LSP_MCP_PYZ:-0}" = "1" ] && return 1
-    triple="$(mcp_host_triple)" || {
+    triple="$(host_triple)" || {
         warn "no native tcl-mcp binary for $(uname -sm 2>/dev/null) — using Python zipapp"
         return 1
     }

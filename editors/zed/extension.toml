@@ -32,6 +32,21 @@ rev = "8f11ac7206a54ed11210491cee1e0657e2962c47"
 name = "tcl-lsp"
 languages = ["Tcl", "iRules", "iApps", "APL", "TMSH", "Expect"]
 
+# Bridge Zed's language *names* to the `languageId` strings the server
+# recognises in `dialect_from_language_id` / `dialect_for_open`. Without this
+# Zed derives the id from the lowercased language name (e.g. `iRules` → `irules`),
+# which the server does not recognise, so every non-Tcl buffer silently falls
+# back to the default `tcl8.6` dialect. The right-hand ids match the VS Code
+# extension's contributions (`tcl-irule`, `tcl-iapp`, `tcl-apl`, `tcl-bigip`,
+# `tcl-expect`).
+[language_servers.tcl-lsp.language_ids]
+"Tcl" = "tcl"
+"iRules" = "tcl-irule"
+"iApps" = "tcl-iapp"
+"APL" = "tcl-apl"
+"TMSH" = "tcl-bigip"
+"Expect" = "tcl-expect"
+
 [context_servers.tcl-lsp-mcp]
 
 [slash_commands.tcl-doc]
