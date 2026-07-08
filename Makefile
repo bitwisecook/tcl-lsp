@@ -383,6 +383,8 @@ test-ext: ## Run VS Code extension integration tests; skip with SKIP_TEST_EXT=1
 		echo "==> SKIP_TEST_EXT set — skipping VS Code extension tests"; \
 		exit 0; \
 	fi; \
+	echo "==> Validating generated editor assets (Zed query registry-drift + grammar)"; \
+	"$(MAKE)" xtask-gen-zed-queries zed-query-check; \
 	if [ -z "$${TCL_LSP_SERVER_BIN:-}" ]; then \
 		"$(MAKE)" rust-server; \
 		export TCL_LSP_SERVER_BIN="$(ROOT)target/$(PROFILE)/tcl-lsp-server"; \
