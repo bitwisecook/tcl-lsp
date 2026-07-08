@@ -21,7 +21,18 @@
 //! summary-only differential fixture does not capture).
 
 use f5_xc::model::TranslateStatus;
-use f5_xc::translate_irule;
+use f5_xc::{render_json, render_terraform, translate_irule};
+
+/// Find the route whose origin pool has the given name.
+fn route_for_pool<'a>(
+    result: &'a f5_xc::XCTranslationResult,
+    pool: &str,
+) -> Option<&'a f5_xc::model::XCRoute> {
+    result
+        .routes
+        .iter()
+        .find(|r| r.origin_pool.as_ref().map(|p| p.name.as_str()) == Some(pool))
+}
 
 #[test]
 fn simple_pool_builds_route_and_pool() {
@@ -145,4 +156,171 @@ fn empty_rule_is_full_coverage() {
     let result = translate_irule("when HTTP_REQUEST {\n}");
     assert!(result.items.is_empty());
     assert!((result.coverage_pct - 100.0).abs() < 1e-9);
+}
+
+// RUST_ISSUE_044: an `else` body must keep the enclosing match criteria
+// instead of translating to an unconditional catch-all route.
+#[test]
+fn else_body_keeps_enclosing_criteria() {
+    let src = "when HTTP_REQUEST {\n    if {[HTTP::host] eq \"a.example.com\"} {\n        if {[HTTP::path] starts_with \"/api\"} {\n            pool a-api\n        } else {\n            pool a-web\n        }\n    }\n}";
+    let result = translate_irule(src);
+
+    let web = route_for_pool(&result, "a-web").expect("a-web route");
+    let host = web
+        .host_match
+        .as_ref()
+        .expect("else route must keep the enclosing host criterion");
+    assert_eq!(host.value, "a.example.com");
+    // The else branch is the *complement* of the inner `if`, so it must not
+    // carry the inner path criterion.
+    assert!(web.path_match.is_none());
+
+    // The if-branch keeps both the outer host and its own path.
+    let api = route_for_pool(&result, "a-api").expect("a-api route");
+    assert_eq!(api.host_match.as_ref().unwrap().value, "a.example.com");
+    assert_eq!(api.path_match.as_ref().unwrap().value, "/api");
+}
+
+// RUST_ISSUE_046: `switch -regexp` arms must translate to regex path
+// matches, not prefix matches on the literal pattern.
+#[test]
+fn switch_regexp_path_is_regex_not_prefix() {
+    let src = "when HTTP_REQUEST {\n    switch -regexp [HTTP::path] {\n        {^/api/.*} { pool api_pool }\n    }\n}";
+    let result = translate_irule(src);
+    let route = route_for_pool(&result, "api_pool").expect("api_pool route");
+    let pm = route.path_match.as_ref().expect("path match");
+    assert_eq!(pm.match_type, "regex");
+    assert_eq!(pm.value, "^/api/.*");
+}
+
+// RUST_ISSUE_046: a plain (exact) `switch` arm containing `*` is a literal,
+// not a prefix.
+#[test]
+fn switch_exact_path_with_star_is_literal() {
+    let src = "when HTTP_REQUEST {\n    switch [HTTP::path] {\n        \"/a*\" { pool star_pool }\n    }\n}";
+    let result = translate_irule(src);
+    let route = route_for_pool(&result, "star_pool").expect("star_pool route");
+    let pm = route.path_match.as_ref().expect("path match");
+    assert_eq!(pm.match_type, "exact");
+    assert_eq!(pm.value, "/a*");
+}
+
+// RUST_ISSUE_046: a `switch -glob` host arm must become a regex host match,
+// not an exact match on the glob text (which would never match).
+#[test]
+fn switch_glob_host_is_regex() {
+    let src = "when HTTP_REQUEST {\n    switch -glob [HTTP::host] {\n        \"*.example.com\" { pool wild_pool }\n    }\n}";
+    let result = translate_irule(src);
+    let route = route_for_pool(&result, "wild_pool").expect("wild_pool route");
+    let hm = route.host_match.as_ref().expect("host match");
+    assert_eq!(hm.match_type, "regex");
+    assert_eq!(hm.value, "^.*\\.example\\.com$");
+}
+
+// RUST_ISSUE_046: `-nocase` must be honoured, producing a case-insensitive
+// regex.
+#[test]
+fn switch_nocase_glob_host_is_case_insensitive_regex() {
+    let src = "when HTTP_REQUEST {\n    switch -glob -nocase [HTTP::host] {\n        \"*.Example.com\" { pool ci_pool }\n    }\n}";
+    let result = translate_irule(src);
+    let route = route_for_pool(&result, "ci_pool").expect("ci_pool route");
+    let hm = route.host_match.as_ref().expect("host match");
+    assert_eq!(hm.match_type, "regex");
+    assert!(
+        hm.value.starts_with("(?i)"),
+        "expected case-insensitive regex, got {}",
+        hm.value
+    );
+}
+
+// RUST_ISSUE_047: a fall-through arm (`"/a*" -`) must attach its pattern to
+// the shared body, so no pattern's traffic is silently dropped.
+#[test]
+fn switch_fallthrough_arm_routes_all_patterns() {
+    let src = "when HTTP_REQUEST {\n    switch -glob [HTTP::path] {\n        \"/a*\" - \"/b*\" { pool shared }\n    }\n}";
+    let result = translate_irule(src);
+    let mut prefixes: Vec<String> = result
+        .routes
+        .iter()
+        .filter(|r| r.origin_pool.as_ref().map(|p| p.name.as_str()) == Some("shared"))
+        .filter_map(|r| r.path_match.as_ref())
+        .map(|pm| {
+            assert_eq!(pm.match_type, "prefix");
+            pm.value.clone()
+        })
+        .collect();
+    prefixes.sort();
+    assert_eq!(prefixes, vec!["/a".to_owned(), "/b".to_owned()]);
+}
+
+// RUST_ISSUE_045: the Terraform simple-route renderer must emit host and
+// method criteria the translator recorded.
+#[test]
+fn terraform_simple_route_emits_host_and_method() {
+    let src = "when HTTP_REQUEST {\n    if {[HTTP::host] eq \"h.example.com\" && [HTTP::method] eq \"POST\"} {\n        pool p\n    }\n}";
+    let result = translate_irule(src);
+    let tf = render_terraform(&result, "ns", "lb");
+    assert!(tf.contains("host {"), "TF missing host block:\n{tf}");
+    assert!(tf.contains("h.example.com"), "TF missing host value:\n{tf}");
+    assert!(
+        tf.contains("http_method {"),
+        "TF missing http_method block:\n{tf}"
+    );
+    assert!(tf.contains("\"POST\""), "TF missing method value:\n{tf}");
+}
+
+// RUST_ISSUE_045: the Terraform redirect-route renderer must emit the host
+// criterion, otherwise every request is redirected.
+#[test]
+fn terraform_redirect_route_emits_host() {
+    let src = "when HTTP_REQUEST {\n    if {[HTTP::host] eq \"old.example.com\"} {\n        HTTP::redirect \"https://new.example.com\"\n    }\n}";
+    let result = translate_irule(src);
+    let tf = render_terraform(&result, "ns", "lb");
+    assert!(tf.contains("redirect_route {"), "no redirect route:\n{tf}");
+    assert!(
+        tf.contains("host {"),
+        "redirect route dropped host criterion:\n{tf}"
+    );
+    assert!(
+        tf.contains("old.example.com"),
+        "TF missing host value:\n{tf}"
+    );
+}
+
+// RUST_ISSUE_045: the JSON redirect-route renderer must emit the host
+// criterion.
+#[test]
+fn json_redirect_route_emits_host() {
+    let src = "when HTTP_REQUEST {\n    if {[HTTP::host] eq \"old.example.com\"} {\n        HTTP::redirect \"https://new.example.com\"\n    }\n}";
+    let result = translate_irule(src);
+    let json = render_json(&result, "ns", "lb");
+    let routes = json["http_loadbalancer"]["spec"]["routes"]
+        .as_array()
+        .expect("routes array");
+    let redirect = routes
+        .iter()
+        .find(|r| r["type"] == "redirect_route")
+        .expect("redirect route");
+    assert_eq!(redirect["match"]["host"]["exact"], "old.example.com");
+}
+
+// RUST_ISSUE_045: the JSON simple-route renderer must emit the method
+// criterion.
+#[test]
+fn json_simple_route_emits_method() {
+    let src =
+        "when HTTP_REQUEST {\n    if {[HTTP::method] eq \"POST\"} {\n        pool p\n    }\n}";
+    let result = translate_irule(src);
+    let json = render_json(&result, "ns", "lb");
+    let routes = json["http_loadbalancer"]["spec"]["routes"]
+        .as_array()
+        .expect("routes array");
+    let simple = routes
+        .iter()
+        .find(|r| r["type"] == "simple_route")
+        .expect("simple route");
+    let methods = simple["match"]["http_method"]["methods"]
+        .as_array()
+        .expect("methods array");
+    assert_eq!(methods[0], "POST");
 }
