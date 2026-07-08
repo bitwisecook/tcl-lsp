@@ -91,35 +91,52 @@ pub(crate) fn proc_reference_spans(
     qname: &str,
     proc_def: &tcl_compiler::analyser::ProcDef,
 ) -> Vec<tcl_lexer::Span> {
+    analysis
+        .command_invocations
+        .iter()
+        .filter(|inv| invocation_references_proc(analysis, inv, qname, proc_def))
+        .map(|inv| inv.range)
+        .collect()
+}
+
+/// Whether a single call site `inv` references the proc `proc_def` (whose
+/// lookup key is `qname`).
+///
+/// This is the **single** matching rule shared by Find-All-References
+/// ([`proc_reference_spans`]) and Rename (`rename::rename_proc`), so the two
+/// can never disagree — a rename that rewrote a call the reference finder does
+/// not report would corrupt a *different* same-named proc.
+///
+/// A bare simple-name call (`helper`) counts only when it resolves to this
+/// proc, or — since the analyser resolves a namespace-internal call to the
+/// global guess (`::helper`) — when it sits in this proc's own namespace;
+/// that namespace gate keeps `helper` inside `namespace eval b` from matching
+/// `::a::helper`. Qualified spellings and a resolved-qualified-name hit always
+/// count. Comparisons ignore the leading `::`.
+#[must_use]
+pub(crate) fn invocation_references_proc(
+    analysis: &AnalysisResult,
+    inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+    qname: &str,
+    proc_def: &tcl_compiler::analyser::ProcDef,
+) -> bool {
     let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname);
     let target_q = proc_def.qualified_name.trim_start_matches("::");
     // The proc's own namespace (`a::helper` → `a`; top-level → ``).
     let target_ns = target_q.rsplit_once("::").map_or("", |(ns, _)| ns);
-    let mut spans = Vec::new();
-    for inv in &analysis.command_invocations {
-        let resolved_norm = inv
-            .resolved_qualified_name
-            .as_deref()
-            .map(|r| r.trim_start_matches("::"));
-        // An *unqualified* call counts when it resolves to this proc, or —
-        // since the analyser resolves a namespace-internal call to the
-        // global guess (`::helper`) — when it sits in this proc's own
-        // namespace.  Keeps `helper` inside `namespace eval b` from
-        // referencing `a::helper`.  Comparisons ignore the leading `::`.
-        let call_ns =
-            crate::definition::innermost_namespace_at(&analysis.global_scope, inv.range.start());
-        let simple_ok = inv.name == proc_def.name
-            && resolved_norm.is_none_or(|r| r == target_q || r == proc_def.name)
-            && call_ns == target_ns;
-        if simple_ok
-            || inv.name == proc_def.qualified_name
-            || inv.name == qname_no_prefix
-            || resolved_norm == Some(target_q)
-        {
-            spans.push(inv.range);
-        }
-    }
-    spans
+    let resolved_norm = inv
+        .resolved_qualified_name
+        .as_deref()
+        .map(|r| r.trim_start_matches("::"));
+    let call_ns =
+        crate::definition::innermost_namespace_at(&analysis.global_scope, inv.range.start());
+    let simple_ok = inv.name == proc_def.name
+        && resolved_norm.is_none_or(|r| r == target_q || r == proc_def.name)
+        && call_ns == target_ns;
+    simple_ok
+        || inv.name == proc_def.qualified_name
+        || inv.name == qname_no_prefix
+        || resolved_norm == Some(target_q)
 }
 
 /// Compute the locations of every reference to the symbol at

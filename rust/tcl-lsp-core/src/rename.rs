@@ -606,10 +606,18 @@ fn rename_var(
     let def_text = source
         .get(var_def.definition_span.start() as usize..var_def.definition_span.end() as usize)
         .unwrap_or("");
-    let def_new_text = match def_text.rfind("::") {
-        Some(idx) => format!("{}{new_name}", &def_text[..idx + 2]),
-        None => new_name.to_owned(),
+    // The declaration token can carry an array-element suffix
+    // (`set arr(0) 1` → the span covers `arr(0)`); renaming must rewrite only
+    // the base name and keep both any namespace qualifier and the `(idx)`
+    // suffix, exactly like `build_var_ref_replacement` does for references.
+    // Dropping the suffix here produced `set data 1` and turned every `$arr(0)`
+    // ref into `$data(0)`, so the script then errored "variable isn't array".
+    let (def_name_part, def_suffix) = split_array_suffix(def_text);
+    let def_ns_prefix = match def_name_part.rfind("::") {
+        Some(idx) => &def_name_part[..idx + 2],
+        None => "",
     };
+    let def_new_text = format!("{def_ns_prefix}{new_name}{def_suffix}");
     edits.push(TextEdit {
         range: span_to_range(source, line_index, var_def.definition_span),
         new_text: def_new_text,
@@ -687,16 +695,12 @@ fn rename_proc(
         range: span_to_range(source, line_index, proc_def.name_span),
         new_text: new_decl_text,
     }];
-    let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
     for inv in &analysis.command_invocations {
-        let matches = inv.name == proc_def.name
-            || inv.name == proc_def.qualified_name
-            || inv.name == qname_no_prefix
-            || inv
-                .resolved_qualified_name
-                .as_deref()
-                .is_some_and(|r| r == proc_def.qualified_name);
-        if !matches {
+        // Use the *same* invocation-matching rule as Find-All-References so a
+        // rename never rewrites a call the reference finder wouldn't report —
+        // in particular the namespace gate that keeps a bare `helper` call in
+        // `namespace eval ::b` from matching `::a::helper` (RUST_ISSUE_035).
+        if !crate::references::invocation_references_proc(analysis, inv, &qname, proc_def) {
             continue;
         }
         let replacement =
@@ -734,12 +738,23 @@ fn rename_class(
     let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
     let namespace_prefix = namespace_prefix_of(&class_def.qualified_name);
     let (new_qualified, new_decl_text) = qualified_and_decl_text(namespace_prefix, new_name);
+    // The class's own namespace, for gating bare-simple-name call sites so a
+    // `ClassName new` in a *different* namespace is not rewritten
+    // (RUST_ISSUE_035). Class invocations carry no resolved-qualified-name, so
+    // the enclosing-namespace check is the only available gate.
+    let target_ns = class_def
+        .qualified_name
+        .trim_start_matches("::")
+        .rsplit_once("::")
+        .map_or("", |(ns, _)| ns);
     let mut edits = vec![TextEdit {
         range: span_to_range(source, line_index, class_def.name_span),
         new_text: new_decl_text,
     }];
     for inv in &analysis.command_invocations {
-        let matches = inv.name == class_def.name
+        let call_ns =
+            crate::definition::innermost_namespace_at(&analysis.global_scope, inv.range.start());
+        let matches = (inv.name == class_def.name && call_ns == target_ns)
             || inv.name == class_def.qualified_name
             || inv.name == qname_no_prefix;
         if !matches {
@@ -1033,15 +1048,17 @@ pub fn cross_document_symbol_edits(
             new_text: replacement,
         });
     }
-    // Definition sites (proc + class) in other documents.
-    for p in index.proc_definitions(simple_name, current_uri) {
+    // Definition sites (proc + class) in other documents — matched by
+    // *qualified* name so a same-simple-name proc in a different namespace is
+    // not rewritten (and moved into the target's namespace) (RUST_ISSUE_036).
+    for p in index.proc_definitions_qualified(qualified_name, current_uri) {
         edits.push(WorkspaceTextEdit {
             uri: p.uri.clone(),
             span: p.name_span,
             new_text: new_decl_text.clone(),
         });
     }
-    for c in index.class_definitions(simple_name, current_uri) {
+    for c in index.class_definitions_qualified(qualified_name, current_uri) {
         edits.push(WorkspaceTextEdit {
             uri: c.uri.clone(),
             span: c.name_span,

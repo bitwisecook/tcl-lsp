@@ -655,6 +655,64 @@ impl WorkspaceIndex {
             .collect()
     }
 
+    /// Proc definitions whose **fully-qualified** name equals `qualified_name`
+    /// (leading `::` ignored), excluding `exclude_uri`.
+    ///
+    /// This is the correct matcher for cross-document **rename**: a proc in
+    /// another file is the *same* proc only when its qualified name matches, so
+    /// renaming `::a::helper` must not touch a `proc helper` inside
+    /// `namespace eval ::b` (whose qualified name is `::b::helper`). The looser
+    /// [`Self::proc_definitions`] matches by simple name for go-to-definition
+    /// and must not be reused here (RUST_ISSUE_036).
+    #[must_use]
+    pub fn proc_definitions_qualified<'a>(
+        &'a self,
+        qualified_name: &str,
+        exclude_uri: &str,
+    ) -> Vec<&'a WorkspaceProc> {
+        let target = qualified_name.trim_start_matches("::");
+        self.procs
+            .iter()
+            .filter(|p| p.uri != exclude_uri)
+            .filter(|p| p.qualified_name.trim_start_matches("::") == target)
+            .collect()
+    }
+
+    /// Class definitions whose fully-qualified name equals `qualified_name`
+    /// (leading `::` ignored), excluding `exclude_uri`. The class analogue of
+    /// [`Self::proc_definitions_qualified`] for cross-document rename.
+    #[must_use]
+    pub fn class_definitions_qualified<'a>(
+        &'a self,
+        qualified_name: &str,
+        exclude_uri: &str,
+    ) -> Vec<&'a WorkspaceClass> {
+        let target = qualified_name.trim_start_matches("::");
+        self.classes
+            .iter()
+            .filter(|c| c.uri != exclude_uri)
+            .filter(|c| c.qualified_name.trim_start_matches("::") == target)
+            .collect()
+    }
+
+    /// Whether some proc or class *other than* the target `qualified_name`
+    /// shares the `simple_name` under a different namespace anywhere in the
+    /// workspace. When true, a bare simple-name call site is ambiguous and
+    /// cross-document rename must not rewrite it by simple name alone.
+    #[must_use]
+    fn simple_name_defined_elsewhere(&self, simple_name: &str, qualified_name: &str) -> bool {
+        let target = qualified_name.trim_start_matches("::");
+        let differs =
+            |name: &str, qn: &str| name == simple_name && qn.trim_start_matches("::") != target;
+        self.procs
+            .iter()
+            .any(|p| differs(&p.name, &p.qualified_name))
+            || self
+                .classes
+                .iter()
+                .any(|c| differs(&c.name, &c.qualified_name))
+    }
+
     /// Every indexed invocation site.
     #[must_use]
     pub fn invocations(&self) -> &[WorkspaceInvocation] {
@@ -685,11 +743,17 @@ impl WorkspaceIndex {
     /// `exclude_uri` (the caller's own document, whose call
     /// sites the single-doc provider already surfaces).
     ///
-    /// Matches the call-site head against the proc's simple
-    /// name, its qualified name, the `::`-stripped qualified
-    /// name, or the call site's `resolved_qualified_name` —
-    /// the same matching the in-document references provider
-    /// uses.
+    /// Matches the call-site head against the proc's qualified name, the
+    /// `::`-stripped qualified name, or the call site's
+    /// `resolved_qualified_name`.
+    ///
+    /// A **bare simple-name** call is matched only when the simple name is
+    /// unambiguous across the workspace — i.e. no *other* namespace defines a
+    /// proc/class of the same simple name (RUST_ISSUE_036). When two files
+    /// define `::a::helper` and `::b::helper`, a bare `helper` call could
+    /// resolve to either, so cross-document rename rewrites only the explicitly
+    /// qualified or resolution-confirmed call sites — never an ambiguous bare
+    /// call that might belong to the *other* proc.
     #[must_use]
     pub fn invocations_of<'a>(
         &'a self,
@@ -698,14 +762,18 @@ impl WorkspaceIndex {
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceInvocation> {
         let qname_no_prefix = qualified_name.strip_prefix("::").unwrap_or(qualified_name);
+        let target_norm = qualified_name.trim_start_matches("::");
+        let bare_is_safe = !self.simple_name_defined_elsewhere(simple_name, qualified_name);
         self.invocations
             .iter()
             .filter(|i| i.uri != exclude_uri)
             .filter(|i| {
-                i.name == simple_name
-                    || i.name == qualified_name
+                i.name == qualified_name
                     || i.name == qname_no_prefix
-                    || i.resolved_qualified_name.as_deref() == Some(qualified_name)
+                    || i.resolved_qualified_name
+                        .as_deref()
+                        .is_some_and(|r| r.trim_start_matches("::") == target_norm)
+                    || (bare_is_safe && i.name == simple_name)
             })
             .collect()
     }

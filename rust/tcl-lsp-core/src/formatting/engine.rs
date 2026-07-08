@@ -414,6 +414,10 @@ struct SwitchElem {
     tokens: Vec<Token>,
     text: String,
     is_braced: bool,
+    /// A comment token standing on its own — emitted verbatim on its own line
+    /// rather than paired as a pattern/body, so switch-body comments are not
+    /// silently deleted (RUST_ISSUE_038).
+    is_comment: bool,
 }
 
 /// Format the braced body of a `switch` command (pattern/body
@@ -445,7 +449,23 @@ fn format_switch_body(
                 prev_type = tok.kind;
                 continue;
             }
-            TokenType::Comment => continue,
+            TokenType::Comment => {
+                // Preserve the comment as a standalone element instead of
+                // dropping it (RUST_ISSUE_038): flush any in-progress element,
+                // then push the comment on its own so the emit loop renders it
+                // on its own line.
+                if let Some(e) = cur.take() {
+                    elements.push(e);
+                }
+                elements.push(SwitchElem {
+                    tokens: vec![tok],
+                    text: sm.token_text(tok).to_owned(),
+                    is_braced: false,
+                    is_comment: true,
+                });
+                prev_type = tok.kind;
+                continue;
+            }
             _ => {}
         }
         let text = sm.token_text(tok).to_owned();
@@ -457,6 +477,7 @@ fn format_switch_body(
                 tokens: vec![tok],
                 text,
                 is_braced: tok.kind == TokenType::Str,
+                is_comment: false,
             });
         } else if let Some(e) = cur.as_mut() {
             e.tokens.push(tok);
@@ -466,6 +487,7 @@ fn format_switch_body(
                 tokens: vec![tok],
                 text,
                 is_braced: tok.kind == TokenType::Str,
+                is_comment: false,
             });
         }
         prev_type = tok.kind;
@@ -479,12 +501,27 @@ fn format_switch_body(
     let mut lines: Vec<String> = Vec::new();
     let mut i = 0;
     while i < elements.len() {
+        // A comment element is emitted verbatim on its own line and never
+        // consumed as a pattern (RUST_ISSUE_038).
+        if elements[i].is_comment {
+            let comment_raw: String = elements[i]
+                .tokens
+                .iter()
+                .map(|&t| reconstruct_raw(&sm, t))
+                .collect();
+            lines.push(format!("{indent}{}", comment_raw.trim_end()));
+            i += 1;
+            continue;
+        }
         let pattern_raw: String = elements[i]
             .tokens
             .iter()
             .map(|&t| reconstruct_raw(&sm, t))
             .collect();
-        if i + 1 < elements.len() {
+        // If the *body* slot is a comment, don't pair it as this pattern's
+        // body — emit the pattern alone and let the comment be handled on the
+        // next iteration.
+        if i + 1 < elements.len() && !elements[i + 1].is_comment {
             let body = &elements[i + 1];
             if body.text == "-" {
                 lines.push(format!("{indent}{pattern_raw} -"));
@@ -1108,6 +1145,59 @@ pub(crate) fn format_body(
     lines.join("\n")
 }
 
+/// Trim trailing whitespace from each line **except** lines whose terminating
+/// newline sits inside a multi-line braced (`{…}`) or double-quoted (`"…"`)
+/// word — i.e. inside string data. Trimming such a line changes the value of
+/// the literal (`set x {line1␠␠␠\nline2}` must keep the spaces after `line1`),
+/// which would violate "the formatter never changes semantics" (RUST_ISSUE_037).
+///
+/// A line is safe to trim when, after scanning it, the running brace depth is
+/// zero and no double-quoted word is open — the newline is then a structural
+/// (command) separator, not part of a literal. The scan carries brace / quote /
+/// backslash state across lines and treats a `#`-first line at depth 0 as a
+/// comment (whose braces/quotes don't count), matching `mod::brace_delta`.
+pub(crate) fn trim_trailing_ws_preserving_literals(text: &str) -> String {
+    let mut depth: i32 = 0;
+    let mut in_string = false;
+    let mut escaped = false;
+    let lines: Vec<&str> = text.split('\n').collect();
+    let mut out: Vec<&str> = Vec::with_capacity(lines.len());
+    for line in &lines {
+        let in_comment = line.trim_start().starts_with('#') && depth == 0 && !in_string;
+        for c in line.chars() {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            match c {
+                '\\' => escaped = true,
+                _ if in_comment => {}
+                '"' if depth == 0 => in_string = !in_string,
+                _ if in_string => {}
+                '#' if depth == 0 => {
+                    // A `#` mid-line only starts a comment at a command start;
+                    // the conservative reuse of `brace_delta`'s rule (line
+                    // begins with `#`) is already captured by `in_comment`
+                    // above, so an inline `#` here is literal — no-op.
+                }
+                '{' => depth += 1,
+                '}' => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+        }
+        // `in_comment` and a line-continuation `\` end at the newline for the
+        // trim decision; only an open brace/quote makes the newline part of a
+        // literal.
+        let safe_to_trim = depth == 0 && !in_string;
+        if safe_to_trim {
+            out.push(line.trim_end());
+        } else {
+            out.push(line);
+        }
+    }
+    out.join("\n")
+}
+
 /// Format a Tcl source string.  Pure function: source in,
 /// formatted source out.
 #[must_use]
@@ -1115,11 +1205,7 @@ pub fn format_tcl(source: &str, config: &FormatterConfig, registry: &CommandRegi
     let mut result = format_body(source, config, registry, 0);
 
     if config.trim_trailing_whitespace {
-        result = result
-            .split('\n')
-            .map(str::trim_end)
-            .collect::<Vec<_>>()
-            .join("\n");
+        result = trim_trailing_ws_preserving_literals(&result);
     }
     if config.ensure_final_newline && !result.ends_with('\n') {
         result.push('\n');
@@ -1137,6 +1223,35 @@ mod tests {
     fn fmt(src: &str) -> String {
         let registry = CommandRegistry::build_default();
         format_tcl(src, &FormatterConfig::default(), &registry)
+    }
+
+    #[test]
+    fn trim_preserves_multiline_braced_string_interior() {
+        // RUST_ISSUE_037: trailing spaces *inside* a multi-line braced word are
+        // string data and must survive the trailing-whitespace pass.
+        let input = "set x {line1   \nline2}\n";
+        let out = fmt(input);
+        assert!(
+            out.contains("line1   \n"),
+            "trailing spaces inside the braced string were stripped:\n{out:?}"
+        );
+    }
+
+    #[test]
+    fn trim_preserves_multiline_quoted_string_interior() {
+        let input = "set x \"line1   \nline2\"\n";
+        let out = fmt(input);
+        assert!(
+            out.contains("line1   \n"),
+            "trailing spaces inside the quoted string were stripped:\n{out:?}"
+        );
+    }
+
+    #[test]
+    fn trim_still_strips_structural_trailing_whitespace() {
+        // Ordinary code lines (outside any literal) are still trimmed.
+        let out = trim_trailing_ws_preserving_literals("set a 1   \nset b 2   ");
+        assert_eq!(out, "set a 1\nset b 2");
     }
 
     #[test]
@@ -1218,6 +1333,18 @@ mod tests {
             "switch $x {\na {\nputs 1\n}\nb {\nputs 2\n}\n}\n",
             "switch $x {\n    a {\n        puts 1\n    }\n    b {\n        puts 2\n    }\n}\n",
         );
+    }
+
+    #[test]
+    fn switch_body_preserves_comments() {
+        // RUST_ISSUE_038: a comment line inside a switch body must survive
+        // formatting rather than being silently deleted.
+        let out = fmt("switch $x {\n# note\na { puts 1 }\n}\n");
+        assert!(
+            out.contains("# note"),
+            "switch-body comment was deleted:\n{out}"
+        );
+        assert!(out.contains("puts 1"), "arm body lost:\n{out}");
     }
 
     #[test]

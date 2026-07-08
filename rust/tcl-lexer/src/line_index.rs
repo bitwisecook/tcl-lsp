@@ -705,7 +705,11 @@ mod tests {
         // Round-trip position_at_utf16 → offset_at_utf16 at char boundaries.
         for off in [0u32, 2, 3, 4, 5] {
             let p = idx.position_at_utf16(off, src);
-            assert_eq!(idx.offset_at_utf16(p.line, p.character, src), off, "off {off}");
+            assert_eq!(
+                idx.offset_at_utf16(p.line, p.character, src),
+                off,
+                "off {off}"
+            );
         }
     }
 

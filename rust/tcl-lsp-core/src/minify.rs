@@ -812,6 +812,18 @@ fn is_word_byte(b: Option<u8>) -> bool {
     matches!(b, Some(c) if c.is_ascii_alphanumeric() || c == b'_')
 }
 
+/// Whether a following byte would extend a bare `$name` reference, so a
+/// preceding `${name}` cannot safely drop its braces.
+///
+/// Beyond the `[A-Za-z0-9_]` name characters this includes `(` (an array
+/// index — `${x}(k)` is scalar `$x` + literal `(k)`, but `$x(k)` is an array
+/// element) and `:` (a namespace separator — `$x` + `::y` vs the variable
+/// `x::y`). Keeping the braces when any of these follow is always safe;
+/// dropping them changes the reference (RUST_ISSUE_039).
+fn extends_dollar_ref(b: Option<u8>) -> bool {
+    is_word_byte(b) || matches!(b, Some(b'(' | b':'))
+}
+
 /// Byte-span slice of `source`.
 fn slice(source: &str, span: Span) -> &str {
     let (s, e) = (span.start() as usize, span.end() as usize);
@@ -1554,7 +1566,7 @@ fn alias_string_literals(
         let mut aliased_cost = preamble_cost;
         for &off in &free {
             let end = off + sub.len();
-            if is_word_byte(src_bytes.get(end).copied()) {
+            if extends_dollar_ref(src_bytes.get(end).copied()) {
                 aliased_cost += alias.len() + 3;
             } else {
                 aliased_cost += alias.len() + 1;
@@ -1584,7 +1596,7 @@ fn alias_string_literals(
         let _ = writeln!(preamble, "set {alias} {{{sub_str}}}");
         for &off in offsets {
             let end = off + sub.len();
-            let replacement = if is_word_byte(src_bytes.get(end).copied()) {
+            let replacement = if extends_dollar_ref(src_bytes.get(end).copied()) {
                 format!("${{{alias}}}")
             } else {
                 format!("${alias}")
@@ -2380,11 +2392,14 @@ fn reconstruct_raw(
         TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
         TokenType::Cmd => format!("[{}]", minify_body(sm.token_text(tok), dialect, registry)),
         TokenType::Var => {
-            // Inside a quoted string, keep `${var}` when the next
-            // token would otherwise extend the variable name.
+            // Keep `${var}` when the next token would otherwise extend the
+            // variable name.  Beyond name characters, `(` (array index) and `:`
+            // (namespace separator) also extend a `$` reference, so dropping
+            // the braces before them changes the read (`${x}(k)` scalar-plus-
+            // literal vs `$x(k)` array element) (RUST_ISSUE_039).
             if let Some(next) = next_tok
                 && let Some(c) = first_rendered_char(sm, next)
-                && (c.is_alphanumeric() || c == '_')
+                && (c.is_alphanumeric() || c == '_' || c == '(' || c == ':')
             {
                 return format!("${{{}}}", sm.token_text(tok));
             }
@@ -2458,11 +2473,12 @@ fn utf8_len(b: u8) -> usize {
 fn reconstruct_arg(sm: &SourceMap, arg: &Arg, dialect: &str, registry: &CommandRegistry) -> String {
     let mut raw = String::new();
     for (idx, &tok) in arg.tokens.iter().enumerate() {
-        let next = if arg.is_quoted {
-            arg.tokens.get(idx + 1).copied()
-        } else {
-            None
-        };
+        // The next token within the *same* word can extend a preceding
+        // `${var}` reference whether the word is quoted or bare
+        // (`"${a}jumps"` and bare `${a}jumps` both read `ajumps` if the braces
+        // are dropped), so the name-extension guard must see it in both cases
+        // (RUST_ISSUE_039).
+        let next = arg.tokens.get(idx + 1).copied();
         raw.push_str(&reconstruct_raw(sm, tok, next, dialect, registry));
     }
     if arg.is_quoted && !can_strip_quotes(&raw) {
@@ -2974,6 +2990,51 @@ mod tests {
     #[test]
     fn strips_comments() {
         check("# a comment\nputs hi\n", "puts hi");
+    }
+
+    #[test]
+    fn keeps_braces_when_next_token_extends_bare_word() {
+        // RUST_ISSUE_039: a bare word `${a}jumps` must keep its braces — dropping
+        // them yields `$ajumps`, reading a different variable.
+        let out = min("set a 1\nputs ${a}jumps\n");
+        assert!(
+            out.contains("${a}jumps"),
+            "bare-word ${{a}}jumps was unbraced unsafely:\n{out}"
+        );
+        assert!(
+            !out.contains("$ajumps"),
+            "unsafe unbrace produced $ajumps:\n{out}"
+        );
+    }
+
+    #[test]
+    fn keeps_braces_before_paren_in_quoted_word() {
+        // RUST_ISSUE_039: `"${x}(k)"` must not become `"$x(k)"` (array element).
+        let out = min("set x 1\nputs \"${x}(k)\"\n");
+        assert!(
+            out.contains("${x}(k)"),
+            "`(` after ${{x}} must keep braces (array-element hazard):\n{out}"
+        );
+    }
+
+    #[test]
+    fn keeps_braces_before_namespace_separator() {
+        // `${x}::y` unbraced reads variable `x::y`, not `$x` + literal `::y`.
+        let out = min("set x 1\nputs \"${x}::y\"\n");
+        assert!(
+            out.contains("${x}::y"),
+            "`::` after ${{x}} must keep braces:\n{out}"
+        );
+    }
+
+    #[test]
+    fn still_unbraces_when_safe() {
+        // A following non-extending char (`.`) is safe to unbrace.
+        let out = min("set a 1\nputs ${a}.txt\n");
+        assert!(
+            out.contains("$a.txt"),
+            "safe unbrace did not happen:\n{out}"
+        );
     }
 
     fn min_dialect(src: &str, dialect: &str) -> String {
