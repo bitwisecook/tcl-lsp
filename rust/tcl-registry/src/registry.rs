@@ -2002,6 +2002,64 @@ mod tests {
     }
 
     #[test]
+    fn tk_command_options_classified_prefix_vs_script() {
+        // The Tk `script()→command_prefix` conversion (separate commit, highest
+        // risk).  Locks in the classification: appended-arg callbacks are
+        // prefixes (references / call-graph / W123 / arity); verbatim scripts and
+        // percent-substitution callbacks stay `script()` (Body, not recorded as a
+        // reference).  Ground truth: Tk 8.6/9.0 man pages.
+        let reg = CommandRegistry::build_default();
+
+        // PREFIXES — scroll callbacks append `first last` (2).
+        for widget in ["listbox", "text", "canvas", "entry", "spinbox"] {
+            assert_eq!(
+                reg.command_prefixes(widget, &[".w", "-xscrollcommand", "cb"]),
+                vec![(2, AppendedArity::Exactly(2))],
+                "{widget} -xscrollcommand must be a prefix appending 2",
+            );
+        }
+        // scale / ttk::scale append the new value (1).
+        assert_eq!(
+            reg.command_prefixes("scale", &[".s", "-command", "cb"]),
+            vec![(2, AppendedArity::Exactly(1))],
+        );
+        assert_eq!(
+            reg.command_prefixes("ttk::scale", &[".s", "-command", "cb"]),
+            vec![(2, AppendedArity::Exactly(1))],
+        );
+        // scrollbar -command: `moveto frac` (2) or `scroll n units` (3) ⇒ AtLeast(2).
+        assert_eq!(
+            reg.command_prefixes("scrollbar", &[".sb", "-command", "cb"]),
+            vec![(2, AppendedArity::AtLeast(2))],
+        );
+        // menu -tearoffcommand appends the parent + torn-off menu paths (2).
+        assert_eq!(
+            reg.command_prefixes("menu", &[".m", "-tearoffcommand", "cb"]),
+            vec![(2, AppendedArity::Exactly(2))],
+        );
+
+        // NOT prefixes — verbatim action scripts and percent-substitution
+        // callbacks are `script()`, never recorded as a command reference.
+        for (widget, opt) in [
+            ("button", "-command"),
+            ("checkbutton", "-command"),
+            ("radiobutton", "-command"),
+            ("menu", "-command"),
+            ("menu", "-postcommand"),
+            ("ttk::combobox", "-postcommand"),
+            ("spinbox", "-command"),        // percent-substitution (%W %s %d)
+            ("spinbox", "-validatecommand"), // percent-substitution
+            ("entry", "-validatecommand"),  // percent-substitution
+            ("entry", "-invalidcommand"),   // percent-substitution
+        ] {
+            assert!(
+                reg.command_prefixes(widget, &[".w", opt, "cb"]).is_empty(),
+                "{widget} {opt} must stay a script, not a command prefix",
+            );
+        }
+    }
+
+    #[test]
     fn commands_naming_a_cmdprefix_declare_a_command_prefix() {
         // Drift guard: any command whose synopsis literally names a `cmdprefix`
         // argument must declare a `CommandPrefix` (static table, resolver, or

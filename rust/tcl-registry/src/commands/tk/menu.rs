@@ -397,8 +397,8 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-tearoffcommand",
-        value: OptionValue::script(),
-        detail: "Tcl command to invoke when the menu is torn off.",
+        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
+        detail: "Command prefix invoked when the menu is torn off (the parent menu path and the torn-off menu path are appended).",
         dialects: None,
         aliases: &[],
         min_version: None,

@@ -3891,6 +3891,30 @@ mod tests {
     }
 
     #[test]
+    fn callback_arity_tk_scale_command_arity_checked() {
+        // Post-conversion: `scale -command` appends the new value (Exactly(1)).
+        // A 0-param callback can't accept it → E003; a bareword 1-param callback
+        // is silent (TN).
+        let bad = callback_arity_codes("proc onChange {} { }\nscale .s -command onChange\n");
+        assert!(
+            bad.iter().any(|(c, m)| c == "E003" && m.contains("onChange")),
+            "a 0-param `scale -command` callback (1 appended) must draw E003; got {bad:?}"
+        );
+        let ok = callback_arity_codes("proc onChange {v} { }\nscale .s -command onChange\n");
+        assert!(
+            !ok.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a correct 1-param scale callback must be silent; got {ok:?}"
+        );
+        // A braced widget-path scroll callback is never arity-checked (not a
+        // literal bareword head) — no false arity error.
+        let widget = callback_arity_codes("listbox .lb -yscrollcommand {.sb set}\n");
+        assert!(
+            !widget.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a braced widget-path scroll callback must not draw an arity error; got {widget:?}"
+        );
+    }
+
+    #[test]
     fn callback_arity_tcllib_calculus_func_arity_checked() {
         // `math::calculus::integral begin end nosteps func` calls `func x`
         // (Exactly(1), man-page-pinned).  A 2-param func is under-fed → E002.

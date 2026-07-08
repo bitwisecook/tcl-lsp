@@ -232,3 +232,69 @@ fn tcllib_calculus_func_records_reference_with_fixed_arity() {
         "the calculus func callback carries its man-page-pinned Exactly(1) arity"
     );
 }
+
+/// Tk `script()→command_prefix` conversion (highest-risk change).  A bareword
+/// user-proc scroll/scale callback that was previously *invisible* (script
+/// recursion never recorded a single-word head) is now a first-class reference
+/// + call-graph edge.
+#[test]
+fn tk_scale_command_bareword_head_is_a_callback_edge() {
+    let reg = CommandRegistry::build_default();
+    let src = "proc onScale {v} { puts $v }\nproc build {} {\n    scale .s -command onScale\n}\n";
+    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let edges = g["edges"].as_array().expect("edges array");
+    assert!(
+        edges.iter().any(|e| {
+            e["caller"].as_str().unwrap_or("").contains("build")
+                && e["callee"].as_str().unwrap_or("").contains("onScale")
+        }),
+        "expected a build→onScale edge from `scale -command`; got {g}"
+    );
+}
+
+#[test]
+fn tk_scroll_callback_braced_widget_path_does_not_fire_w123() {
+    // The pre-conversion `script()` recursion flagged `.sb` inside `{.sb set}`
+    // as an unknown command (a widget-path FP).  As a command prefix the braced
+    // head is not a literal bareword, so it is dropped — no W123.  (Regression
+    // guard for the conversion's headline benefit.)
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    let src = "listbox .lb -yscrollcommand {.sb set}\n";
+    let codes: Vec<_> = a
+        .analyse(src, "tcl9.0")
+        .diagnostics
+        .iter()
+        .map(|d| d.code.to_string())
+        .collect();
+    assert!(
+        !codes.iter().any(|c| c == "W123"),
+        "a braced widget-path scroll callback must not draw a widget-path W123; got {codes:?}"
+    );
+}
+
+#[test]
+fn tk_scroll_callback_bareword_undefined_head_fires_w123() {
+    // A bareword scroll callback head that resolves to no proc is a genuine
+    // typo — now caught (it was silently missed under `script()`).
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    let bad = "listbox .lb -yscrollcommand missingScroller\n";
+    let codes: Vec<_> = a
+        .analyse(bad, "tcl9.0")
+        .diagnostics
+        .iter()
+        .map(|d| d.code.to_string())
+        .collect();
+    assert!(
+        codes.iter().any(|c| c == "W123"),
+        "an unknown bareword scroll callback head must fire W123; got {codes:?}"
+    );
+    // A defined head is silent.
+    let ok = "proc myScroller {first last} { }\nlistbox .lb -yscrollcommand myScroller\n";
+    assert!(
+        !a.analyse(ok, "tcl9.0")
+            .diagnostics
+            .iter()
+            .any(|d| d.code.to_string() == "W123"),
+        "a defined scroll callback head must not fire W123"
+    );
+}

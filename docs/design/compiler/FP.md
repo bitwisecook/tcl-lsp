@@ -831,6 +831,19 @@ function ::f
   man-page-pinned — via `math_ext::PREFIX_OVERRIDES`), `log::lvCmd` /
   `lvCmdForall` (2), `uevent::bind` (≥2), `logger::walk` (Unknown),
   `tcltest::customMatch` (2), `tk selection handle` (2).
+- **Tk (`script()`→`command_prefix` conversion — separate commit):**
+  `-xscrollcommand`/`-yscrollcommand` on 8 widgets (2), `scale`/`ttk::scale
+  -command` (1), `scrollbar -command` (≥2), `menu -tearoffcommand` (2).  This is
+  a **net FP reduction**: the old `script()` recursion flagged widget paths
+  inside braced callbacks (`{.sb set}` → spurious `W123 .sb`); as a command
+  prefix the braced (non-bareword) head is dropped, so the widget-path W123
+  disappears, while a bareword user-proc callback — previously *invisible* to
+  script recursion — becomes a real reference / edge / arity-checked head.
+  **Kept as `script()` (NOT prefixes):** button-family / `menu` / `ttk::spinbox`
+  `-command` and `-postcommand` (verbatim scripts); core `spinbox -command`,
+  `-validatecommand`, `-invalidcommand` (percent-substitution, not appended
+  args); the 4 macOS-only file/message-dialog `-command`s stay
+  `command_prefix(Unknown)` (inert cross-platform ⇒ no arity check).
 - **Deferred (documented, not gaps):** option-value callbacks that need a full
   `OptionSpec` array not yet modelled (`mime::getbody -command`,
   `comm send -command`, `smtp -tlspolicy`, `bibtex -*command`,
@@ -896,6 +909,12 @@ all-optional-tail proc draws no arity error; a tail also claimed by a non-proc
 - `tcl-registry::command_prefixes_cover_deferred_core_commands` /
   `_cover_tcllib_callbacks` /
   `commands_naming_a_cmdprefix_declare_a_command_prefix` (registry coverage + drift guard)
+- `tcl-registry::tk_command_options_classified_prefix_vs_script` (Tk prefix-vs-script
+  classification — the conversion locked in)
+- `command_prefix_integration.rs::tk_scale_command_bareword_head_is_a_callback_edge` /
+  `tk_scroll_callback_braced_widget_path_does_not_fire_w123` (FP removed) /
+  `tk_scroll_callback_bareword_undefined_head_fires_w123` (TP now caught)
+- `tcl-lsp-db::callback_arity_tk_scale_command_arity_checked` (Tk callback arity TP/TN)
 
 ---
 
