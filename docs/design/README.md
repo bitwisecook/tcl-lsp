@@ -36,6 +36,9 @@ rules for the KCS/documentation split live in
   `TclOO` object→class dispatch lattice experiment: why intraprocedural class
   resolution collapses to ⊤ on real corpora, and what the shipping
   MRO/CHA + provenance model does instead.
+- [tcloo-object-typing.md](tcloo-object-typing.md) — the shipping `TclOO`
+  object-handle typing model: how `set v [Class new]` provenance is harvested
+  so `$v method …` dispatch resolves to the object's class.
 
 > Past project-tracking documents (perf reports, phase trackers,
 > migration plans) are kept in [`../archive/`](../archive/) and are

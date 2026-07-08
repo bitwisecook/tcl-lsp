@@ -217,6 +217,34 @@ pub struct ProcDef {
     pub param_traits: HashMap<String, std::collections::HashSet<ProcArgTrait>>,
 }
 
+/// A lightweight *named definition* introduced by a registry
+/// symbol-definer command (a `tcltest::test NAME …` case, …).
+///
+/// Unlike [`ProcDef`] / [`ClassDef`] these carry no parameter list or member
+/// table — just enough to list the name in the document / workspace outline and
+/// jump to it.  The analyser records one per call to a command whose registry
+/// spec declares a [`tcl_registry::SymbolDef`]; the argument index and category
+/// come from that descriptor, so no command name is hardcoded here.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DefinedSymbol {
+    /// Definition name as resolved (constant-propagated from the name
+    /// argument).  For a test this is the test-case label (`foo-1.1`).
+    pub name: String,
+    /// Fully-qualified name with leading ``::`` (the enclosing namespace
+    /// applied), for workspace-symbol container grouping.
+    pub qualified_name: String,
+    /// The outline category, straight from the registry descriptor.
+    pub kind: tcl_registry::DefinedSymbolKind,
+    /// Source span of the name argument's token — the outline selection range.
+    pub name_span: Span,
+    /// Source span covering the whole call (name token through the last
+    /// argument), used as the outline entry's fold range.
+    pub full_span: Span,
+    /// Short description harvested from the descriptor's detail argument when
+    /// it resolves to a constant, else `None`.
+    pub detail: Option<String>,
+}
+
 /// Method definition inside a `TclOO` class.
 ///
 /// Populated by the class-body walker; the shape is shared so the
@@ -380,6 +408,9 @@ pub struct Scope {
     pub procs: HashMap<String, ProcDef>,
     /// Classes defined directly in this scope.
     pub classes: HashMap<String, ClassDef>,
+    /// Lightweight named definitions (tcltest tests, …) declared directly in
+    /// this scope by a registry symbol-definer command, in declaration order.
+    pub defined_symbols: Vec<DefinedSymbol>,
     /// Child scopes (in declaration order).
     pub children: Vec<Scope>,
 }
@@ -395,6 +426,7 @@ impl Scope {
             variables: HashMap::new(),
             procs: HashMap::new(),
             classes: HashMap::new(),
+            defined_symbols: Vec::new(),
             children: Vec::new(),
         }
     }
@@ -486,6 +518,10 @@ pub struct AnalysisResult {
     /// Free variables (vars defined outside any proc scope) keyed
     /// by qualified name.
     pub all_variables: HashMap<String, VarDef>,
+    /// Every lightweight named definition (tcltest tests, …) in the document,
+    /// in source order — the flat companion to the per-scope
+    /// [`Scope::defined_symbols`] the workspace-symbol provider walks.
+    pub all_defined_symbols: Vec<DefinedSymbol>,
     /// Diagnostics emitted during analysis, in source order.
     pub diagnostics: Vec<Diagnostic>,
     /// Command invocations (lightweight `name + span` records,

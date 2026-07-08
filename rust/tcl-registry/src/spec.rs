@@ -34,6 +34,7 @@ use crate::hooks::{
 use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
 use crate::patterns::{FormatType, PatternType};
 use crate::side_effects::{SideEffect, StorageType};
+use crate::symbol_def::SymbolDef;
 use crate::taint::{SetterConstraint, TaintColour};
 use crate::traits::Traits;
 use crate::types::TclType;
@@ -423,6 +424,17 @@ pub struct CommandSpec {
     /// megawidget class factory whose `new` / `create` returns an object handle
     /// dispatched as `$obj <method> …`.  See [`ObjectClassSpec`].
     pub object_class: Option<&'static ObjectClassSpec>,
+
+    /// Symbol-definer descriptor — `Some` when one of this command's arguments
+    /// binds a definition *name* the document outline should list (a
+    /// `tcltest::test NAME …` case, …).  The consumer reads which argument
+    /// holds the name and what outline category to file it under from the
+    /// [`SymbolDef`], never from a command-name check — see
+    /// [`crate::symbol_def`].  Distinct from [`Traits::DEFINES_PROCEDURE`] /
+    /// [`Self::definition_body`], which carry the richer proc / class records;
+    /// this is the lightweight "bind a navigable name" case.  `None` = the
+    /// command defines no outline symbol.
+    pub defines_symbol: Option<SymbolDef>,
 }
 
 impl CommandSpec {
@@ -483,6 +495,7 @@ impl CommandSpec {
         byte_array_payload: None,
         definition_body: None,
         object_class: None,
+        defines_symbol: None,
     };
 
     /// Run this command's constant folder for `args` under the optimiser's

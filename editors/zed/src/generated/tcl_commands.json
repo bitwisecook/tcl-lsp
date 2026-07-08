@@ -8352,6 +8352,10 @@
       "summary": "Install or remove a test access(2) hook proc (Tcl 8.4 only)."
     },
     {
+      "name": "testalarm",
+      "summary": "Schedule a SIGALRM to test the async-signal machinery."
+    },
+    {
       "name": "testapplylambda",
       "summary": "Test apply with lambda expressions."
     },
@@ -8384,12 +8388,20 @@
       "summary": "Create a bytestring Tcl_Obj from a string."
     },
     {
+      "name": "testchancreate",
+      "summary": "Create a reflected test channel (Tcl 9.1)."
+    },
+    {
       "name": "testchannel",
       "summary": "Test channel introspection and manipulation."
     },
     {
       "name": "testchannelevent",
       "summary": "Test channel event handling."
+    },
+    {
+      "name": "testchmod",
+      "summary": "chmod(2) one or more files to an octal mode."
     },
     {
       "name": "testcmdinfo",
@@ -8504,12 +8516,24 @@
       "summary": "Test file system operations."
     },
     {
+      "name": "testfilehandler",
+      "summary": "Exercise the Tcl_CreateFileHandler notifier API."
+    },
+    {
       "name": "testfilelink",
       "summary": "Test file link operations."
     },
     {
       "name": "testfilesystem",
       "summary": "Test the virtual file system."
+    },
+    {
+      "name": "testfilewait",
+      "summary": "Wait for a channel to become ready."
+    },
+    {
+      "name": "testfindexecutable",
+      "summary": "Compute the executable path from an argv0."
     },
     {
       "name": "testfindfirst",
@@ -8520,12 +8544,20 @@
       "summary": "Test Tcl_FindLast / hash iteration."
     },
     {
+      "name": "testfork",
+      "summary": "fork(2) the process (Tcl 8.5+)."
+    },
+    {
       "name": "testfstildeexpand",
       "summary": "Test tilde expansion in file paths (9.0+)."
     },
     {
       "name": "testgetassocdata",
       "summary": "Test Tcl_GetAssocData."
+    },
+    {
+      "name": "testgetdefenc",
+      "summary": "Return the default encoding search directory (Tcl 8.4-8.6)."
     },
     {
       "name": "testgetindexfromobjstruct",
@@ -8540,6 +8572,10 @@
       "summary": "Test Tcl_GetIntForIndex (9.0+)."
     },
     {
+      "name": "testgetopenfile",
+      "summary": "Retrieve the FILE* behind a channel (Tcl 8.4-8.6)."
+    },
+    {
       "name": "testgetplatform",
       "summary": "Test Tcl_GetPlatform."
     },
@@ -8550,6 +8586,10 @@
     {
       "name": "testgetvarfullname",
       "summary": "Test Tcl_GetVariableFullName."
+    },
+    {
+      "name": "testgotsig",
+      "summary": "Report and clear the async-signal flag."
     },
     {
       "name": "testhandlecount",
@@ -8576,12 +8616,20 @@
       "summary": "Test integer Tcl_Obj operations."
     },
     {
+      "name": "testisempty",
+      "summary": "Test whether a value is empty (Tcl 9.1)."
+    },
+    {
       "name": "testlink",
       "summary": "Test Tcl_LinkVar."
     },
     {
       "name": "testlinkarray",
       "summary": "Test linked array variables (9.0+)."
+    },
+    {
+      "name": "testlistapi",
+      "summary": "Exercise the internal list C API (Tcl 9.1)."
     },
     {
       "name": "testlistobj",
@@ -8652,6 +8700,10 @@
       "summary": "Test variable name parsing."
     },
     {
+      "name": "testpostinit",
+      "summary": "Run the post-initialisation test hook (Tcl 9.1)."
+    },
+    {
       "name": "testpreferstable",
       "summary": "Test TIP 268 stable-vs-latest preference (9.0+)."
     },
@@ -8690,6 +8742,10 @@
     {
       "name": "testsetbytearraylength",
       "summary": "Test Tcl_SetByteArrayLength."
+    },
+    {
+      "name": "testsetdefenc",
+      "summary": "Set the default encoding search directory (Tcl 8.4-8.6)."
     },
     {
       "name": "testseterr",
@@ -8766,6 +8822,14 @@
     {
       "name": "testutfprev",
       "summary": "Test Tcl_UtfPrev."
+    },
+    {
+      "name": "testutftonormalized",
+      "summary": "Test UTF-8 Unicode normalisation into a buffer (Tcl 9.1)."
+    },
+    {
+      "name": "testutftonormalizeddstring",
+      "summary": "Test UTF-8 Unicode normalisation into a DString (Tcl 9.1)."
     },
     {
       "name": "testwrongnumargs",

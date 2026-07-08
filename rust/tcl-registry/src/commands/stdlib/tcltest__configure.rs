@@ -57,6 +57,56 @@ const VERBOSE_LEVELS: &[ArgValue] = &[
     },
 ];
 
+/// `-debug` levels (`AcceptInteger`, meaningful values 0–3 per the man page).
+/// Not closed — any integer is syntactically accepted.
+const DEBUG_LEVELS: &[ArgValue] = &[
+    ArgValue {
+        value: "0",
+        detail: "no debug output (default)",
+    },
+    ArgValue {
+        value: "1",
+        detail: "report tests skipped by match/skip patterns",
+    },
+    ArgValue {
+        value: "2",
+        detail: "also dump tcltest variables and flags",
+    },
+    ArgValue {
+        value: "3",
+        detail: "also report test-harness operations",
+    },
+];
+
+/// `-preservecore` levels (`AcceptInteger`, 0–2 per the man page).
+const PRESERVECORE_LEVELS: &[ArgValue] = &[
+    ArgValue {
+        value: "0",
+        detail: "do not check for core files (default)",
+    },
+    ArgValue {
+        value: "1",
+        detail: "notify when a core file is created",
+    },
+    ArgValue {
+        value: "2",
+        detail: "also save core files in -tmpdir",
+    },
+];
+
+/// Boolean values (`AcceptBoolean`) — the two canonical spellings; Tcl also
+/// accepts `true`/`false`/`yes`/`no`/`on`/`off`, so the set is not closed.
+const BOOL_VALUES: &[ArgValue] = &[
+    ArgValue {
+        value: "0",
+        detail: "off",
+    },
+    ArgValue {
+        value: "1",
+        detail: "on",
+    },
+];
+
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-verbose",
@@ -108,25 +158,25 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-limitconstraints",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::enumerated(BOOL_VALUES, false, "boolean"),
         detail: "run only tests with the listed constraints",
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-singleproc",
-        value: OptionValue::value("boolean"),
+        value: OptionValue::enumerated(BOOL_VALUES, false, "boolean"),
         detail: "run all tests in one process rather than one per file",
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-debug",
-        value: OptionValue::value("level"),
+        value: OptionValue::enumerated(DEBUG_LEVELS, false, "level"),
         detail: "internal debug level (integer)",
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-preservecore",
-        value: OptionValue::value("level"),
+        value: OptionValue::enumerated(PRESERVECORE_LEVELS, false, "level"),
         detail: "how aggressively to preserve core files (integer)",
         ..OptionSpec::DEFAULT
     },
@@ -166,6 +216,18 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "channel or file for test-run errors",
         ..OptionSpec::DEFAULT
     },
+    OptionSpec {
+        name: "-iterations",
+        value: OptionValue::value("count"),
+        detail: "number of times to run each test (tcltest 2.6+)",
+        // Added in tcltest 2.6, which ships with Tcl 9.1 — gate by both the
+        // package floor (an explicit `package require tcltest 2.6`) and the
+        // core version (2.6 is bundled only from 9.1), matching how `-errorCode`
+        // gates on 2.5 / 8.6.
+        min_version: Some("2.6"),
+        dialects: Some(DialectSet::TCL91),
+        ..OptionSpec::DEFAULT
+    },
 ];
 
 pub fn spec() -> CommandSpec {
@@ -176,7 +238,7 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Get or set tcltest configuration options.",
             synopsis: &["tcltest::configure ?option? ?value option value ...?"],
-            snippet: "Options include ``-verbose``, ``-debug``, ``-outfile``, ``-errfile``, ``-tmpdir``, ``-testdir``, ``-file``, ``-notfile``, ``-relateddir``, ``-asidefromdir``, ``-match``, ``-skip``, ``-constraints``, ``-limitconstraints``, ``-singleproc``, ``-preservecore``, ``-load``, ``-loadfile``.",
+            snippet: "Options include ``-verbose``, ``-debug``, ``-outfile``, ``-errfile``, ``-tmpdir``, ``-testdir``, ``-file``, ``-notfile``, ``-relateddir``, ``-asidefromdir``, ``-match``, ``-skip``, ``-constraints``, ``-limitconstraints``, ``-singleproc``, ``-preservecore``, ``-load``, ``-loadfile``, and ``-iterations`` (tcltest 2.6+).",
             source: "Tcl stdlib tcltest package",
             examples: "",
             return_value: "",

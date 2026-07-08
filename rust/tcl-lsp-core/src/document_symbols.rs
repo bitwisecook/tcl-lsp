@@ -66,6 +66,18 @@ pub enum SymbolKind {
     /// Top-level `set` / `variable` definition at global / namespace
     /// scope.
     Variable,
+    /// A named definition from a registry symbol-definer command — a
+    /// `tcltest::test` case (issue #790).  Surfaced with the LSP
+    /// `Function` wire kind: an editor has no dedicated "test" kind, and a
+    /// named, runnable unit reads naturally as function-like in the outline
+    /// (matching how other language servers list test definitions).
+    Test,
+    /// A named `tcltest::testConstraint` — a boolean test condition.  Surfaced
+    /// as the LSP `Constant` kind (a named, immutable condition).
+    Constant,
+    /// A named `tcltest::customMatch` mode — a custom result-comparison
+    /// strategy.  Surfaced as the LSP `Operator` kind.
+    Operator,
     /// A BIG-IP tmsh module folder (`ltm`, `net`, `sys`, …) — the
     /// top level of the BIG-IP config outline.
     Module,
@@ -76,14 +88,31 @@ impl SymbolKind {
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::Function => "Function",
+            // A test case has no dedicated editor kind; it shares the
+            // `Function` wire form (see the `Test` variant docs).
+            Self::Function | Self::Test => "Function",
             Self::Method => "Method",
             Self::Class => "Class",
             Self::Property => "Property",
             Self::Constructor => "Constructor",
             Self::Namespace => "Namespace",
             Self::Variable => "Variable",
+            Self::Constant => "Constant",
+            Self::Operator => "Operator",
             Self::Module => "Module",
+        }
+    }
+}
+
+impl From<tcl_registry::DefinedSymbolKind> for SymbolKind {
+    /// Map a registry outline category to the LSP symbol kind the provider
+    /// emits.  Centralises the "which editor kind" decision on the provider
+    /// side of the wire contract, keeping the registry LSP-agnostic.
+    fn from(kind: tcl_registry::DefinedSymbolKind) -> Self {
+        match kind {
+            tcl_registry::DefinedSymbolKind::Test => Self::Test,
+            tcl_registry::DefinedSymbolKind::Constraint => Self::Constant,
+            tcl_registry::DefinedSymbolKind::Matcher => Self::Operator,
         }
     }
 }
@@ -368,6 +397,22 @@ fn scope_symbols(source: &str, scope: &Scope, line_index: &LineIndex) -> Vec<Doc
         }
     }
 
+    // Registry symbol-definer definitions (tcltest tests, …).  Kept in
+    // declaration order (already source order) and emitted in every scope kind
+    // — a `test` inside a proc body or `namespace eval` nests under its parent.
+    for sym in &scope.defined_symbols {
+        let name_range = span_to_range(source, line_index, sym.name_span);
+        let full_range = span_to_range(source, line_index, sym.full_span);
+        symbols.push(DocumentSymbol {
+            name: sym.name.clone(),
+            detail: sym.detail.clone().filter(|d| !d.is_empty()),
+            kind: SymbolKind::from(sym.kind),
+            range: full_range,
+            selection_range: name_range,
+            children: Vec::new(),
+        });
+    }
+
     for child in &scope.children {
         if matches!(child.kind, ScopeKind::Namespace)
             && let Some(span) = child.body_span
@@ -469,6 +514,290 @@ mod tests {
         assert_eq!(SymbolKind::Constructor.as_str(), "Constructor");
         assert_eq!(SymbolKind::Namespace.as_str(), "Namespace");
         assert_eq!(SymbolKind::Variable.as_str(), "Variable");
+        // A test case has no dedicated editor kind — it lists as a function.
+        assert_eq!(SymbolKind::Test.as_str(), "Function");
+    }
+
+    /// Flatten a symbol tree (depth-first) into `(name, kind)` pairs.
+    fn flat(symbols: &[DocumentSymbol]) -> Vec<(String, SymbolKind)> {
+        let mut out = Vec::new();
+        for s in symbols {
+            out.push((s.name.clone(), s.kind));
+            out.extend(flat(&s.children));
+        }
+        out
+    }
+
+    fn find<'a>(symbols: &'a [DocumentSymbol], name: &str) -> Option<&'a DocumentSymbol> {
+        for s in symbols {
+            if s.name == name {
+                return Some(s);
+            }
+            if let Some(found) = find(&s.children, name) {
+                return Some(found);
+            }
+        }
+        None
+    }
+
+    // ---- issue #790: tcltest `test` names in the outline ----
+
+    #[test]
+    fn tp_imported_test_name_is_a_symbol() {
+        // TP: after `namespace import ::tcltest::*`, a bare `test` resolves to
+        // the tcltest spec and its name becomes a `Test` outline symbol.
+        let source = concat!(
+            "package require tcltest\n",
+            "namespace import ::tcltest::*\n",
+            "test my-case-1 {verifies the widget} -body { set x 1 } -result 1\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let sym = find(&symbols, "my-case-1").expect("test name should be a symbol");
+        assert_eq!(sym.kind, SymbolKind::Test);
+        assert_eq!(sym.detail.as_deref(), Some("verifies the widget"));
+    }
+
+    #[test]
+    fn tp_qualified_test_name_is_a_symbol() {
+        // TP: the fully-qualified `tcltest::test` call resolves directly, no
+        // import needed.
+        let source = concat!(
+            "package require tcltest\n",
+            "tcltest::test qualified-1 {desc} -body { expr 1 } -result 1\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let names = names(&symbols);
+        assert!(names.contains(&"qualified-1"), "got {names:?}");
+    }
+
+    #[test]
+    fn tp_legacy_positional_test_name_is_a_symbol() {
+        // TP: the legacy positional form `test name desc body result` also
+        // names a test case.
+        let source = concat!(
+            "package require tcltest\n",
+            "tcltest::test legacy-1 {desc} { set x 1 } 1\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let names = names(&symbols);
+        assert!(names.contains(&"legacy-1"), "got {names:?}");
+    }
+
+    #[test]
+    fn tp_constant_var_test_name_resolves_via_propagation() {
+        // TP: a test name given as a *constant* `$var` is resolved through the
+        // constant-propagation lattice, not recorded as the literal `$name`.
+        let source = concat!(
+            "package require tcltest\n",
+            "set name resolved-1.1\n",
+            "tcltest::test $name {desc} -body { set x 1 } -result 1\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let names = names(&symbols);
+        assert!(
+            names.contains(&"resolved-1.1"),
+            "constant-propagated name expected, got {names:?}"
+        );
+        assert!(
+            !names.contains(&"$name"),
+            "the raw substitution text must never be recorded, got {names:?}"
+        );
+    }
+
+    #[test]
+    fn fn_guard_dynamic_test_name_is_not_recorded() {
+        // FN-guard / TN: a genuinely dynamic name (no known constant value)
+        // must be skipped, not recorded as the literal substitution text.
+        let source = concat!(
+            "package require tcltest\n",
+            "tcltest::test $undefined {desc} -body { set x 1 } -result 1\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let names = names(&symbols);
+        assert!(
+            !names.iter().any(|n| n.contains("undefined") || n.contains('$')),
+            "dynamic test name must not appear, got {names:?}"
+        );
+    }
+
+    #[test]
+    fn fp_guard_bare_test_without_tcltest_is_not_a_symbol() {
+        // FP-guard: a bare `test` with no tcltest import is an ordinary unknown
+        // user command, not a tcltest case — it must NOT list as a symbol.
+        let source = "test not-a-tcltest-case {desc} { set x 1 } 1\n";
+        let symbols = document_symbols(source, "tcl8.6");
+        let names = names(&symbols);
+        assert!(
+            !names.contains(&"not-a-tcltest-case"),
+            "un-imported `test` must not produce a symbol, got {names:?}"
+        );
+    }
+
+    #[test]
+    fn tn_variable_named_test_is_not_a_test_symbol() {
+        // TN: `set test 5` defines a *variable* named `test`; it must list as a
+        // Variable, never as a Test case.
+        let source = "set test 5\n";
+        let kinds = flat(&document_symbols(source, "tcl8.6"));
+        assert!(
+            kinds.iter().any(|(n, k)| n == "test" && *k == SymbolKind::Variable),
+            "expected a Variable named test, got {kinds:?}"
+        );
+        assert!(
+            !kinds.iter().any(|(_, k)| *k == SymbolKind::Test),
+            "no Test symbol expected, got {kinds:?}"
+        );
+    }
+
+    #[test]
+    fn tn_plain_proc_file_has_no_test_symbols() {
+        // TN: a file with only a proc yields no Test symbols at all.
+        let kinds = flat(&document_symbols("proc greet {} { return 1 }\n", "tcl8.6"));
+        assert!(
+            !kinds.iter().any(|(_, k)| *k == SymbolKind::Test),
+            "plain proc file must have no Test symbols, got {kinds:?}"
+        );
+    }
+
+    #[test]
+    fn tp_test_inside_namespace_eval_nests_under_it() {
+        // TP: a test defined inside `namespace eval` nests under the namespace
+        // symbol, mirroring how procs nest.
+        let source = concat!(
+            "package require tcltest\n",
+            "namespace eval suite {\n",
+            "    tcltest::test suite-1 {desc} -body { set x 1 } -result 1\n",
+            "}\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let ns = find(&symbols, "suite").expect("namespace symbol");
+        assert_eq!(ns.kind, SymbolKind::Namespace);
+        assert!(
+            ns.children.iter().any(|c| c.name == "suite-1" && c.kind == SymbolKind::Test),
+            "test should nest under the namespace: {:?}",
+            ns.children
+        );
+    }
+
+    #[test]
+    fn fp_guard_local_proc_named_test_shadows_imported_definer() {
+        // FP-guard (PR #821 review): a user `proc test` shadows the imported
+        // `::tcltest::test` under Tcl's command resolution, so bare `test`
+        // calls invoke the local proc, not the definer — they must not be
+        // recorded as tcltest test cases.  The proc itself still lists.
+        let source = concat!(
+            "package require tcltest\n",
+            "namespace import ::tcltest::*\n",
+            "proc test {args} {}\n",
+            "test not-a-case\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let kinds = flat(&symbols);
+        assert!(
+            kinds.contains(&("test".to_string(), SymbolKind::Function)),
+            "the local proc test should list as a Function: {kinds:?}"
+        );
+        assert!(
+            !kinds.iter().any(|(n, _)| n == "not-a-case"),
+            "a shadowed local call must not be a test symbol: {kinds:?}"
+        );
+        assert!(
+            !kinds.iter().any(|(_, k)| *k == SymbolKind::Test),
+            "no Test symbol expected when the definer is shadowed: {kinds:?}"
+        );
+    }
+
+    #[test]
+    fn tp_qualified_test_still_records_when_local_proc_shadows_bare_name() {
+        // TP companion: a local `proc test` shadows only the *bare* name; an
+        // explicit `tcltest::test` call is unaffected and still records.
+        let source = concat!(
+            "package require tcltest\n",
+            "namespace import ::tcltest::*\n",
+            "proc test {args} {}\n",
+            "tcltest::test real-1 {desc} -body { set x 1 } -result 1\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let names = names(&symbols);
+        assert!(names.contains(&"real-1"), "qualified test should record: {names:?}");
+    }
+
+    #[test]
+    fn tp_test_constraint_setter_is_a_constant_symbol() {
+        // TP: `testConstraint NAME value` (setter) defines a constraint symbol,
+        // filed under the Constant kind with the condition as detail.
+        let source = concat!(
+            "package require tcltest\n",
+            "namespace import ::tcltest::*\n",
+            "testConstraint needsRoot 1\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let sym = find(&symbols, "needsRoot").expect("constraint should be a symbol");
+        assert_eq!(sym.kind, SymbolKind::Constant);
+        assert_eq!(sym.detail.as_deref(), Some("1"));
+    }
+
+    #[test]
+    fn fp_guard_test_constraint_getter_is_not_a_symbol() {
+        // FP-guard: the one-arg `testConstraint NAME` getter only *reads* the
+        // constraint, so it must not produce an outline symbol.
+        let source = concat!(
+            "package require tcltest\n",
+            "namespace import ::tcltest::*\n",
+            "testConstraint needsRoot\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let names = names(&symbols);
+        assert!(
+            !names.contains(&"needsRoot"),
+            "constraint getter must not define a symbol, got {names:?}"
+        );
+    }
+
+    #[test]
+    fn tp_custom_match_is_an_operator_symbol() {
+        // TP: `customMatch MODE command` defines a match-mode symbol, filed
+        // under the Operator kind with the backing command as detail.
+        let source = concat!(
+            "package require tcltest\n",
+            "tcltest::customMatch dictMatch ::my::dictComparer\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let sym = find(&symbols, "dictMatch").expect("match mode should be a symbol");
+        assert_eq!(sym.kind, SymbolKind::Operator);
+        assert_eq!(sym.detail.as_deref(), Some("::my::dictComparer"));
+    }
+
+    #[test]
+    fn tp_constraint_matcher_test_distinct_kinds() {
+        // TP: the three tcltest definers each land under a distinct kind in the
+        // same file.
+        let source = concat!(
+            "package require tcltest\n",
+            "namespace import ::tcltest::*\n",
+            "testConstraint slow 1\n",
+            "customMatch approx ::approxEq\n",
+            "test t-1 {desc} -body { set x 1 } -result 1\n",
+        );
+        let kinds = flat(&document_symbols(source, "tcl8.6"));
+        assert!(kinds.contains(&("slow".to_string(), SymbolKind::Constant)), "{kinds:?}");
+        assert!(kinds.contains(&("approx".to_string(), SymbolKind::Operator)), "{kinds:?}");
+        assert!(kinds.contains(&("t-1".to_string(), SymbolKind::Test)), "{kinds:?}");
+    }
+
+    #[test]
+    fn tp_multiple_tests_each_listed() {
+        // TP: every test case in a suite is listed independently.
+        let source = concat!(
+            "package require tcltest\n",
+            "namespace import ::tcltest::*\n",
+            "test alpha-1 {a} -body { set x 1 } -result 1\n",
+            "test beta-2 {b} -body { set y 2 } -result 2\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let names = names(&symbols);
+        assert!(names.contains(&"alpha-1"), "got {names:?}");
+        assert!(names.contains(&"beta-2"), "got {names:?}");
     }
 
     #[test]

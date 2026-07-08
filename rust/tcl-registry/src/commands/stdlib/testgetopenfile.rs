@@ -16,27 +16,21 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `tcltest::customMatch` command.
+//! `testgetopenfile` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
-        name: "tcltest::customMatch",
-        dialects: Some(DialectSet::ALL_TCL),
-        arity: Arity::exact(2),
+        name: "testgetopenfile",
+        dialects: Some(DialectSet::TCL8X),
+        arity: Arity::any(),
         hover: Some(HoverSnippet {
-            summary: "Register a custom matching command for test results.",
-            synopsis: &["tcltest::customMatch mode command"],
-            snippet: "Registers ``mode`` as a value for ``test -match``.  ``command`` is a command prefix invoked as ``command expected actual`` and must return a boolean.",
-            source: "Tcl stdlib tcltest package",
+            summary: "Retrieve the FILE* behind a channel (Tcl 8.4-8.6).",
+            synopsis: &["testgetopenfile channelId forWriting"],
+            snippet: "Fetches the ``FILE *`` for ``channelId`` via ``Tcl_GetOpenFile`` (``forWriting`` selects the write side).  Removed in Tcl 9.0.",
+            source: "Tcl test binary (tclUnixTest.c)",
             examples: "",
             return_value: "",
         }),
-        required_package: Some("tcltest"),
-        // 0 = the new mode name, 1 = a command prefix (`command expected actual`).
-        arg_roles: &[(0, ArgRole::Name), (1, ArgRole::CommandPrefix)],
-        // `customMatch MODE command` always defines a new match mode; the
-        // backing command (arg 1) is shown as the outline detail.
-        defines_symbol: Some(SymbolDef::new(0, DefinedSymbolKind::Matcher).with_detail(1)),
         ..CommandSpec::DEFAULT
     }
 }

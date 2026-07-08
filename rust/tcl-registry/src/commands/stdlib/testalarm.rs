@@ -16,27 +16,21 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `tcltest::customMatch` command.
+//! `testalarm` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
-        name: "tcltest::customMatch",
+        name: "testalarm",
         dialects: Some(DialectSet::ALL_TCL),
-        arity: Arity::exact(2),
+        arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
-            summary: "Register a custom matching command for test results.",
-            synopsis: &["tcltest::customMatch mode command"],
-            snippet: "Registers ``mode`` as a value for ``test -match``.  ``command`` is a command prefix invoked as ``command expected actual`` and must return a boolean.",
-            source: "Tcl stdlib tcltest package",
+            summary: "Schedule a SIGALRM to test the async-signal machinery.",
+            synopsis: &["testalarm ?seconds?"],
+            snippet: "Arranges for a ``SIGALRM`` after ``seconds`` (default 1) so the test suite can exercise Tcl's asynchronous-signal handling.  Paired with ``testgotsig``.",
+            source: "Tcl test binary (tclUnixTest.c)",
             examples: "",
             return_value: "",
         }),
-        required_package: Some("tcltest"),
-        // 0 = the new mode name, 1 = a command prefix (`command expected actual`).
-        arg_roles: &[(0, ArgRole::Name), (1, ArgRole::CommandPrefix)],
-        // `customMatch MODE command` always defines a new match mode; the
-        // backing command (arg 1) is shown as the outline detail.
-        defines_symbol: Some(SymbolDef::new(0, DefinedSymbolKind::Matcher).with_detail(1)),
         ..CommandSpec::DEFAULT
     }
 }
