@@ -1948,6 +1948,9 @@ pub fn collect_model_full(
     model.insert("engine_version".into(), J::String(ENGINE_VERSION.into()));
     model.insert("git_hash".into(), J::String(GIT_HASH.into()));
     model.insert("version".into(), J::String(GIT_DESCRIBE.into()));
+    // Backend badge shown in the footer ("rust" here, "py" from the Python
+    // generator's collect_model). Drives the `{{ backend }}` template variable.
+    model.insert("backend".into(), J::String("rust".into()));
     model.insert("devices".into(), J::Array(devices));
     model.insert("totals".into(), J::Object(totals));
     model.insert("container_order".into(), J::Array(container_order));

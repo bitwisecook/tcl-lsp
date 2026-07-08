@@ -245,7 +245,7 @@ fn footer_shows_version_and_git_hash() {
         html.contains(bigip_report_gen_rust::GIT_DESCRIBE),
         "git describe version in footer"
     );
-    assert!(html.contains(">(rust)<"), "backend badge in footer");
+    assert!(html.contains(">rust<"), "backend badge in footer");
 
     // The print running header (title) + footer (attribution/version/hash) are
     // emitted so the print stylesheet can repeat them on every page.

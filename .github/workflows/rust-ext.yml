@@ -1,0 +1,102 @@
+name: rust-ext
+
+# VS Code extension gate for the `rust` branch.
+#
+# Split out from `rust-gate.yml` (cargo workspace checks) and `rust-lsp-e2e.yml`
+# (native-server lsp_e2e) for the same reason those two are separate: this
+# surface is a distinct, heavier stack — Node.js + xvfb driving the VS Code test
+# host — so it reports as its own independent check rather than being coupled to
+# the cargo surfaces.
+#
+# `make test-ext` builds the native `tcl-lsp-server` (rust-server), compiles the
+# TypeScript extension, and drives the VS Code test host against the native
+# server over stdio — no Python. It mirrors ci.yml's `test-ext` job, minus the
+# main-only release/channel gating (there are no pre-release tags to skip here;
+# the extension tests always run on `rust`).
+#
+# This is a BLOCKING gate: the `test-ext` job is wired as a REQUIRED status
+# check (branch protection on `rust`) — add it to the required set alongside
+# `rust-tests`, `rust-tests-heavy`, `cargo-deny`, and `lsp-e2e`. `main`'s
+# pipeline is ci.yml; this lives on `rust` only.
+
+on:
+  pull_request:
+    branches: [rust]
+  push:
+    branches: [rust]
+
+concurrency:
+  group: rust-ext-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test-ext:
+    # ubuntu-26.04 (public preview since 2026-06). The rest of the pipeline is
+    # still on 24.04; this rust-branch gate rides the newer image first.
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      # `make test-ext` builds the native tcl-lsp-server (rust-server) and drives
+      # the VS Code test host against it — no Python.  Set up the Rust toolchain
+      # (fmt/clippy not needed here) plus the Swatinem cache.
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          toolchain: stable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+
+      # Pin the npm CLI via the `packageManager` field in
+      # editors/vscode/package.json. Corepack downloads and activates the
+      # pinned npm so `npm ci` runs the same version locally and in CI.
+      - name: Enable Corepack (pin npm via packageManager)
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: |
+          # `corepack enable` alone only shims pnpm/yarn; npm must be named
+          # explicitly (`corepack enable npm`) or the shim isn't created and
+          # the npm bundled with setup-node wins. Assert the pin is live so a
+          # silent regression fails loudly instead of using the wrong npm.
+          corepack enable npm
+          cd editors/vscode
+          active="$(npm --version)"
+          echo "Active npm: $active (pinned via packageManager)"
+          case "$active" in
+            12.*) ;;
+            *) echo "::error::expected npm 12 from packageManager pin, got $active"; exit 1 ;;
+          esac
+
+      # `package-lock.json` is committed, so installs are pinned by hash.
+      # Cache the npm metadata directory keyed on the lockfile so the
+      # cache invalidates whenever the resolved dependency tree changes.
+      - name: Cache npm registry
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('editors/vscode/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install npm dependencies
+        run: cd editors/vscode && npm ci
+
+      - name: Lint TypeScript
+        run: cd editors/vscode && npm run lint
+
+      - name: Copy canonical AI data
+        run: make copy-canonical
+
+      - name: Compile TypeScript
+        run: cd editors/vscode && npx tsc -p ./
+
+      - name: Run extension tests
+        run: make test-ext

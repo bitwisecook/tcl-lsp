@@ -738,6 +738,9 @@ def collect_model(
         "git_hash": getattr(_engine, "__git_hash__", "unknown"),
         # Single `git describe --tags` version (v-tag + commits + hash) for the footer.
         "version": getattr(_engine, "__git_describe__", "unknown"),
+        # Backend badge shown in the footer; the Rust generator's model sets "rust".
+        # Drives the `{{ backend }}` template variable.
+        "backend": "py",
         "devices": devices,
         "architecture": architecture,
         "enrichment": enrichment,
