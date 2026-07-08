@@ -16,22 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{env, fs, path::Path};
-
 fn main() {
-    let out_dir = env::var("OUT_DIR").unwrap();
-    let out = Path::new(&out_dir);
-
-    for (name, cfg) in [
-        ("tcl-lsp-server", "bundled_lsp"),
-        ("tcl-mcp", "bundled_mcp"),
-    ] {
-        println!("cargo:rustc-check-cfg=cfg({cfg})");
-        let src = Path::new("bundled").join(name);
-        println!("cargo:rerun-if-changed={}", src.display());
-        if src.exists() {
-            fs::copy(&src, out.join(name)).expect("failed to copy bundled asset");
-            println!("cargo:rustc-cfg={cfg}");
-        }
-    }
+    // The extension pins its runtime binary downloads to the release version
+    // stamped in via `TCL_LSP_BUNDLED_VERSION` (see `src/lib.rs`). Track it so
+    // a version change triggers a rebuild instead of reusing a stale value.
+    println!("cargo:rerun-if-env-changed=TCL_LSP_BUNDLED_VERSION");
 }

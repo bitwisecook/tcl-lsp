@@ -1,0 +1,21 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Standalone crate (its own [workspace]) so the tree-sitter dev dependency
+# never enters the main workspace's graph, cargo-deny, or clippy gates.
+[package]
+name = "zed-query-check"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "CI gate: validate the generated Zed tree-sitter highlight queries against the pinned grammar."
+
+[workspace]
+
+[dependencies]
+tree-sitter = "0.25"
+
+[build-dependencies]
+cc = "1"

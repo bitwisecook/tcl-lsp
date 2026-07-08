@@ -59,11 +59,16 @@ or `#!/usr/bin/expect` are recognised as Tcl/Expect.
 ## Prerequisites
 
 - **Zed** — latest stable release
+- **Network access on first use** — to download the native server binary
 
-The extension bundles the native `tcl-lsp-server` and `tcl-mcp` binaries
-for your platform, materialises them on first use, and runs them
-directly — no Python, interpreter, or runtime dependencies are required.
-Dev extension builds fall back to a `tcl-lsp-server` on your PATH.
+On first use the extension downloads the native `tcl-lsp-server` and
+`tcl-mcp` binaries built for **your** platform from the matching
+[GitHub release](https://github.com/bitwisecook/tcl-lsp/releases),
+caches them, and runs them directly — no Python, interpreter, or runtime
+dependencies are required. (A Zed extension is a single cross-platform
+WebAssembly module, so it cannot embed a per-platform binary — the correct
+one is fetched at runtime instead.) Dev extension builds fall back to a
+`tcl-lsp-server` on your PATH.
 
 See the [Installation Guide](../../INSTALL-editors.md) for full details.
 

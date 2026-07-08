@@ -143,7 +143,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: rust-check check-all test-slow prep-pr
 # Tests
 .PHONY: test test-ext test-ext-rust test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all
-.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-audit-option-dialects
+.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-audit-option-dialects
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust rust-deny
 .PHONY: build-report-assets lint-report-ts typecheck-report-ts check-report-assets
@@ -161,7 +161,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: build-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime build-editor-zed publish-zed publish-all publish-verify publish-flow
 .PHONY: release release-tag release-sums
 # Rust runtime port
-.PHONY: runtime-rust-test runtime-rust-lint vm-test vm-lint
+.PHONY: runtime-rust-test runtime-rust-lint zed-query-check vm-test vm-lint
 # Screenshots
 .PHONY: screenshot screenshots clean-screenshots
 # Cleanup
@@ -298,7 +298,7 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 
 # Test targets
 
-test: test-rust test-ext runtime-rust-test ## Run all tests (Rust workspace + VS Code extension + Rust runtime port)
+test: test-rust test-ext runtime-rust-test zed-query-check ## Run all tests (Rust workspace + VS Code extension + Rust runtime port)
 
 lint: lint-ts ## Run all lint and style checks
 
@@ -383,6 +383,8 @@ test-ext: ## Run VS Code extension integration tests; skip with SKIP_TEST_EXT=1
 		echo "==> SKIP_TEST_EXT set — skipping VS Code extension tests"; \
 		exit 0; \
 	fi; \
+	echo "==> Validating generated editor assets (Zed query registry-drift + grammar)"; \
+	"$(MAKE)" xtask-gen-zed-queries zed-query-check; \
 	if [ -z "$${TCL_LSP_SERVER_BIN:-}" ]; then \
 		"$(MAKE)" rust-server; \
 		export TCL_LSP_SERVER_BIN="$(ROOT)target/$(PROFILE)/tcl-lsp-server"; \
@@ -434,7 +436,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # scripts/check/*.py.  These need the Rust toolchain, so CI runs them in the
 # Rust-capable rust-tests job (rust-gate.yml / ci.yml), never in the Python-only
 # ci-fast job.  `xtask-check` is the CI aggregate.
-xtask-check: xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
+xtask-check: xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
 
 xtask-kcs-index-links: ## Validate docs links + design/KCS index coverage (⇐ scripts/check/kcs_index_links.py)
 	@echo "==> Checking docs links + index coverage (cargo xtask)"
@@ -447,6 +449,10 @@ xtask-diag-tables: ## Verify docs/generated/ code tables are in sync with the Di
 xtask-gen-editor-catalogs: ## Verify the Zed/VS Code editor catalogs are in sync with the registry (drift gate)
 	@echo "==> Checking generated editor catalogs are in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-catalogs --check
+
+xtask-gen-zed-queries: ## Verify the generated Zed tree-sitter highlight queries are in sync with the registry (drift gate)
+	@echo "==> Checking generated Zed highlight queries are in sync (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-zed-queries --check
 
 xtask-gen-editor-settings: ## Verify the VS Code diagnosticCatalog.ts is in sync with the DiagCode catalogue (drift gate)
 	@echo "==> Checking generated diagnosticCatalog.ts is in sync (cargo xtask)"
@@ -701,9 +707,10 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on Zed extension and top
 			cargo clippy --workspace --all-targets -- -D warnings; \
 	fi; \
 	if [ -f "$(ZED_DIR)/Cargo.toml" ]; then \
-		echo "==> Checking Zed extension (fmt + clippy --target wasm32-wasip2)"; \
+		echo "==> Checking Zed extension (fmt + clippy --target wasm32-wasip2 + host tests)"; \
 		cd $(ZED_DIR) && cargo fmt --all --check && \
-			cargo clippy --target wasm32-wasip2 --all-targets -- -D warnings; \
+			cargo clippy --target wasm32-wasip2 --all-targets -- -D warnings && \
+			cargo test --lib; \
 	fi; \
 	if [ -f "$(EXPLORER_WASM_DIR)/Cargo.toml" ] && \
 			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
@@ -762,7 +769,7 @@ test-slow: ## Comprehensive local gate (everything)
 	@NPROC="$(NPROC)" MAKE="$(MAKE)" \
 		bash $(ROOT)scripts/dev/test-slow-runner.sh \
 			--serial "prep-pr" \
-			--parallel "check-rust test-ext _prep-pr-smoke test-emacs test-rust runtime-rust-test"
+			--parallel "check-rust test-ext _prep-pr-smoke test-emacs test-rust runtime-rust-test zed-query-check"
 	@echo "==> test-slow: PASSED"
 
 ensure-test-deps: ## Install optional test-slow host deps for the host platform
@@ -984,11 +991,16 @@ editors/zed/src/generated/tcl_commands.json editors/zed/src/generated/irule_even
 	@echo "==> Generating editor catalogs (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-catalogs
 
-generate: editors/zed/src/generated/tcl_commands.json ## Regenerate editor catalog files from the registry
+editors/zed/languages/tcl/highlights.scm: $(_CATALOG_DEPS)
+	@echo "==> Generating Zed tree-sitter highlight queries (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-zed-queries
+
+generate: editors/zed/src/generated/tcl_commands.json editors/zed/languages/tcl/highlights.scm ## Regenerate editor catalog + Zed query files from the registry
 
 check-generated: ## Verify generated catalogs are up to date
 	@echo "==> Checking generated editor catalogs are up to date (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-catalogs --check
+	cd $(ROOT) && cargo xtask gen-zed-queries --check
 
 # Generated editor settings from the Rust code registry
 #
@@ -1188,24 +1200,23 @@ publish-sublime: build-editor-sublime ## Publish Sublime Text package (push buil
 ZED_DIR     := $(ROOT)editors/zed
 ZED_ARCHIVE := $(BUILD_DIR)/tcl-lsp-zed-$(VERSION).zip
 ZED_SRCS    := $(shell find $(ZED_DIR)/src -name '*.rs' 2>/dev/null)
-ZED_BUNDLED := $(ZED_DIR)/bundled
 
 build-editor-zed: $(ZED_ARCHIVE) ## Build Zed extension archive (.zip)
 
-$(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) rust-server rust-mcp
-	@echo "==> Bundling the native LSP + MCP server binaries"
-	@mkdir -p $(ZED_BUNDLED)
-	cp $(ROOT)target/$(PROFILE)/tcl-lsp-server $(ZED_BUNDLED)/tcl-lsp-server
-	cp $(ROOT)target/$(PROFILE)/tcl-mcp $(ZED_BUNDLED)/tcl-mcp
-	chmod +x $(ZED_BUNDLED)/tcl-lsp-server $(ZED_BUNDLED)/tcl-mcp
-	@echo "==> Building Zed extension WASM (with bundled servers)"
+$(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS)
+	@# A Zed extension is a single cross-platform WASM module, so it cannot
+	@# embed a per-platform native binary. Instead the extension downloads the
+	@# matching `tcl-lsp-server-<triple>` / `tcl-mcp-<triple>` release asset for
+	@# the user's platform at runtime (issue #826). We only stamp the release
+	@# version here so the extension pins its downloads to the right tag.
+	@echo "==> Building Zed extension WASM (native servers are downloaded at runtime)"
 	@if [ -f "$$HOME/.cargo/env" ]; then . "$$HOME/.cargo/env"; fi; \
 	if ! rustup target list --installed 2>/dev/null | grep -q wasm32-wasip2; then \
 		echo "  -> Installing wasm32-wasip2 target via rustup"; \
 		rustup target add wasm32-wasip2; \
 	fi
 	@if [ -f "$$HOME/.cargo/env" ]; then . "$$HOME/.cargo/env"; fi; \
-	cd $(ZED_DIR) && TCL_LSP_BUNDLED_VERSION="$(VERSION)" cargo build --target wasm32-wasip2 --release
+	cd $(ZED_DIR) && TCL_LSP_BUNDLED_VERSION="$(SEMVER_VERSION)" cargo build --target wasm32-wasip2 --release
 	@echo "==> Staging Zed extension archive"
 	@rm -rf $(BUILD_DIR)/zed-stage
 	@mkdir -p $(BUILD_DIR)/zed-stage
@@ -1217,7 +1228,6 @@ $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) rust
 	@echo "==> Packaging Zed extension archive"
 	mkdir -p $(BUILD_DIR)
 	cd $(BUILD_DIR)/zed-stage && zip -qr $(abspath $(ZED_ARCHIVE)) .
-	@rm -rf $(ZED_BUNDLED)
 	@echo ""
 	@echo "Built: $(ZED_ARCHIVE)"
 	@ls -lh $(ZED_ARCHIVE)
@@ -1347,6 +1357,9 @@ runtime-rust-test: ## Run the Rust runtime port's cargo test (leak round-trip + 
 
 runtime-rust-lint: ## Rust runtime port: cargo fmt --check + clippy -D warnings
 	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+
+zed-query-check: ## Validate the generated Zed highlight queries against the pinned tree-sitter grammar
+	cd $(ROOT)rust/zed-query-check && cargo test
 
 vm-test: ## Run the bytecode VM crates' cargo test (tcl-bytecode + tcl-runtime-api + tcl-vm)
 	cargo test -p tcl-bytecode -p tcl-runtime-api -p tcl-vm

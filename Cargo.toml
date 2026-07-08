@@ -115,6 +115,12 @@ exclude = [
     # so the LSP/compiler workstream cannot regress on runtime-port churn.
     # Gated separately via `make runtime-rust-test`.
     "runtime/rust",
+    # CI gate that compiles the vendored tree-sitter-tcl grammar (C) and
+    # validates the generated Zed highlight queries against it. Standalone (its
+    # own [workspace] + tree-sitter dep) so the grammar's C build and
+    # tree-sitter never enter the workspace graph / cargo-deny / clippy.
+    # Gated separately via `make zed-query-check`.
+    "rust/zed-query-check",
 ]
 
 [workspace.package]
