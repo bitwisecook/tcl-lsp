@@ -6393,6 +6393,16 @@ impl LanguageServer for Backend {
         &self,
         params: SemanticTokensRangeParams,
     ) -> jsonrpc::Result<Option<SemanticTokensRangeResult>> {
+        // Gate on the same `semanticTokens` toggle as `full` / `full_delta`, so
+        // disabling semantic tokens also silences viewport (range) requests —
+        // otherwise range-request clients keep rendering highlights the user
+        // turned off (issue 174).
+        if !self
+            .feature_enabled("semanticTokens", &params.text_document.uri)
+            .await
+        {
+            return Ok(None);
+        }
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
             return Ok(None);
         };

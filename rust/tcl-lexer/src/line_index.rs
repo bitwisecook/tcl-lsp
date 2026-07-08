@@ -264,11 +264,13 @@ impl LineIndex {
     /// returned `character` is the line's full UTF-16 length); the
     /// `SourcePosition.offset` field keeps the raw *offset*.
     ///
-    /// # Panics
-    ///
-    /// Panics if an in-range *offset* falls inside a UTF-8 multi-byte
-    /// sequence (the resulting position would be unrepresentable). Callers
-    /// should align *offset* to a `char` boundary before calling.
+    /// An *offset* that falls inside a UTF-8 multi-byte sequence is snapped
+    /// *down* to the enclosing `char` boundary for the column count (the
+    /// `offset` field still keeps the raw value).  This makes the function
+    /// total: a *stale* span — e.g. a workspace-index span applied against a
+    /// document that was edited since (cross-document navigation) — degrades
+    /// to a nearby valid position instead of panicking and unwinding the
+    /// server (issue 175).
     #[must_use]
     pub fn position_at_utf16(&self, offset: u32, source: &str) -> Utf16Position {
         let line_idx = self
@@ -284,7 +286,14 @@ impl LineIndex {
         // worker thread — a panic there silently drops the whole document's
         // diagnostics.'s
         // `min(offset, len(source))` guard.
-        let prefix_end = (offset as usize).min(source.len());
+        let mut prefix_end = (offset as usize).min(source.len());
+        // Snap a mid-multibyte-sequence offset down to the enclosing char
+        // boundary so the slice below never panics on a stale / misaligned
+        // offset (issue 175). `prefix_start` is a line start (always a char
+        // boundary), so the loop terminates.
+        while prefix_end > prefix_start && !source.is_char_boundary(prefix_end) {
+            prefix_end -= 1;
+        }
         // Count UTF-16 code units in the line slice up to *offset*.
         // ``str::encode_utf16`` is the canonical conversion; the
         // alternative (summing ``ch.len_utf16()``) is equivalent
@@ -434,6 +443,26 @@ mod tests {
         assert_eq!(pos.line, 0);
         assert_eq!(pos.character.get(), len); // clamped to the line's full length
         assert_eq!(pos.offset, len + 2); // raw offset preserved
+    }
+
+    #[test]
+    fn position_at_utf16_snaps_mid_multibyte_offset() {
+        // A stale span (e.g. a workspace-index offset applied against text
+        // edited since) can land inside a multi-byte char. The conversion must
+        // snap down to the enclosing char boundary, never panic (issue 175).
+        let src = "x=€y"; // '€' is 3 bytes at offsets 2..5
+        let idx = LineIndex::new_lsp(src);
+        // Offset 3 and 4 are *inside* the euro sign.
+        for off in [3u32, 4] {
+            let pos = idx.position_at_utf16(off, src);
+            assert_eq!(pos.line, 0);
+            // Snapped down to the boundary before '€' → 2 UTF-16 units (`x=`).
+            assert_eq!(pos.character.get(), 2, "offset {off}");
+            assert_eq!(pos.offset, off, "raw offset preserved for {off}");
+        }
+        // The boundary *after* '€' (offset 5) counts the euro's one UTF-16 unit.
+        let after = idx.position_at_utf16(5, src);
+        assert_eq!(after.character.get(), 3);
     }
 
     #[test]
