@@ -139,6 +139,16 @@ fn invariant_corpus() -> Vec<(&'static str, &'static str)> {
             "multibyte_string",
             "set greeting \"héllo wörld café\"\nputs $greeting\n",
         ),
+        // A backslash immediately before a non-ASCII char used to slice a
+        // fixed 2 bytes at the escape, splitting the multibyte char and
+        // panicking the whole semanticTokens/full request. The escape now
+        // spans the backslash plus the full UTF-8 char; drive it through the
+        // server so the bounds/overlap invariants (and non-panic) are checked.
+        ("escape_before_multibyte", "puts \"\\é\"\nset after 1\n"),
+        (
+            "escape_before_multibyte_run",
+            "puts \"x\\é\\你\\€y\"\nset after 1\n",
+        ),
         ("emoji_string", "set e \"😀 tcl 🚀 rocks 🐫\"\nputs $e\n"),
         ("emoji_then_code", "puts \"🚀\"\nset after 1\n"),
         (
@@ -198,6 +208,30 @@ fn test_tokens_strictly_non_overlapping_dense_line() {
     let uri = open_doc(&mut lsp, source);
     let raw = lsp.semantic_tokens(&uri);
     assert!(semantic_token_violations(&raw, source, &types_ref, &mods_ref).is_empty());
+}
+
+#[test]
+fn test_escape_before_multibyte_char_does_not_panic() {
+    // Regression: `\<non-ASCII>` (`\é`, `\你`, `\€`) inside a string used to
+    // slice a fixed 2 bytes at the backslash, landing inside the multibyte
+    // char and panicking the whole `textDocument/semanticTokens/full`
+    // request. Drive the real request through the server and require it to
+    // succeed AND emit an `escape` sub-token for the `\X` run.
+    let mut lsp = Lsp::tcl();
+    let legend_names = legend(&lsp);
+    for source in [
+        "puts \"\\é\"\n",
+        "puts \"a\\你b\"\n",
+        "puts \"\\€\"\n",
+        "puts \"x\\é\\你\"\n",
+    ] {
+        let uri = open_doc(&mut lsp, source);
+        let toks = typed(&mut lsp, &legend_names, &uri);
+        assert!(
+            toks.iter().any(|t| t.ttype == "escape"),
+            "expected an `escape` token for {source:?}, got {toks:?}",
+        );
+    }
 }
 
 // -- TestCoreTokens ------------------------------------------------------
