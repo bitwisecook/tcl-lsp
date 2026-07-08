@@ -152,7 +152,9 @@ mod tests {
             );
         }
         // FP-guard: safe schemes and relative links are untouched.
-        assert!(render_markdown("[x](https://example.com)").contains("href=\"https://example.com\""));
+        assert!(
+            render_markdown("[x](https://example.com)").contains("href=\"https://example.com\"")
+        );
         assert!(render_markdown("[x](/rel/path)").contains("href=\"/rel/path\""));
         assert!(render_markdown("[x](mailto:a@b.com)").contains("href=\"mailto:a@b.com\""));
         assert!(render_markdown("[x](#frag)").contains("href=\"#frag\""));
