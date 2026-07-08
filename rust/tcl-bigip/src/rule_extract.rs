@@ -112,7 +112,12 @@ pub fn find_embedded_rules(source: &str) -> Vec<EmbeddedRule> {
                     // structural.
                     pos += 1;
                     while pos < len && bytes[pos] != b'"' {
-                        if bytes[pos] == b'\\' {
+                        // Bounds-guard the escape skip (as in `helpers.rs`): a
+                        // trailing `\` inside an unterminated quote must not
+                        // advance `pos` past the buffer, which pushed the body
+                        // range out of range and silently emptied the extracted
+                        // rule body (issue 191).
+                        if bytes[pos] == b'\\' && pos + 1 < len {
                             pos += 1; // skip escaped char
                         }
                         pos += 1;
@@ -296,4 +301,25 @@ fn skip_ws(bytes: &[u8], mut pos: usize) -> usize {
 /// `/`, `.`, or `-`.
 fn is_path_char(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'_' | b'/' | b'.' | b'-')
+}
+
+#[cfg(test)]
+mod trailing_backslash_tests {
+    use super::find_embedded_rules;
+
+    #[test]
+    fn unterminated_quote_ending_in_backslash_keeps_body() {
+        // The body ends with a `\` inside an unterminated quote (and an
+        // unterminated block). The scan must bounds-guard the escape skip so it
+        // does not overrun the buffer and silently produce an empty body
+        // (issue 191).
+        let src = "ltm rule /Common/r {\n    set x \"abc\\";
+        let rules = find_embedded_rules(src);
+        assert_eq!(rules.len(), 1, "the rule header is still recognised");
+        assert!(
+            rules[0].body.contains("set x"),
+            "body must retain its content, not be silently emptied: {:?}",
+            rules[0].body
+        );
+    }
 }

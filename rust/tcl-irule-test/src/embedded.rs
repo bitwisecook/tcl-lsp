@@ -109,4 +109,26 @@ mod tests {
         drop(lib);
         assert!(!dir.exists(), "temp dir removed on drop");
     }
+
+    /// Guard the embedded framework `.tcl` files against a syntax regression
+    /// (the issue-192 `_fakecmp_hash` edit adds an IPv6-aware helper): every
+    /// top-level command must be complete — balanced braces / quotes — per the
+    /// project's own segmenter.
+    #[test]
+    fn bundled_tcl_has_balanced_top_level_commands() {
+        for (name, src) in BUNDLE {
+            let cmds = tcl_compiler::segmenter::segment_commands(src);
+            assert!(
+                cmds.iter().all(|c| !c.is_partial),
+                "{name} has an unbalanced / partial top-level command (syntax error)"
+            );
+        }
+        // The fakeCMP helper the fix introduces is present in the orchestrator.
+        let orch = BUNDLE
+            .iter()
+            .find(|(n, _)| *n == "orchestrator.tcl")
+            .map(|(_, s)| *s)
+            .expect("orchestrator bundled");
+        assert!(orch.contains("_fakecmp_addr_parts"));
+    }
 }
