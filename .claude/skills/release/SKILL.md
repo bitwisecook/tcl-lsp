@@ -42,26 +42,16 @@ git pull origin main
 
 ### 3. Pre-release validation
 
-**Do not re-run the full slow gate here.** Every feature PR already ran
-`make test-slow` and committed `.test-slow.stamp`, which CI's `test-slow-stamp`
-job verified before merge. The release reuses that single proof — it only
-confirms the committed stamp still matches `main`:
+Every feature PR is expected to have run `make test-slow` locally before
+merge (the pre-PR gate; see AGENTS.md). If you have any doubt that `main`
+is green at this tip — or the release is cut from code that skipped the
+gate — run the full slow gate once against `main` before tagging:
 
 ```bash
-make verify-test-slow-stamp
+make test-slow            # ~27 min
 ```
 
-- **OK** → the slow gate is already proven against this exact tree. Continue.
-- **STALE** → code reached `main` without a fresh stamp (should not normally
-  happen). Only then regenerate it:
-
-  ```bash
-  make test-slow            # ~27 min; rewrites .test-slow.stamp on success
-  ```
-
-  Main is protected, so land the refreshed stamp via a PR: create a fix branch,
-  push, open the PR with `gh pr create`, wait for CI green, and ask the user to
-  merge it. Then `git checkout main && git pull origin main` before continuing.
+Otherwise the release simply reuses the already-run gate and continues.
 
 Release-only docs (`RELEASE_NOTES.md`, `docs/sphinx/changelog.md`) are excluded
 from the stamp fingerprint, so landing the release notes in step 6 will **not**

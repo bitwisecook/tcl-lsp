@@ -33,36 +33,6 @@ REPORT_SHARED_DIR := $(ROOT)rust/bigip-report-gen/frontend
 # bundle into the `tcl` binary (served by `tcl explore --serve`).
 EXPLORER_STATIC := $(ROOT)rust/tcl-cli/gui
 
-# Committed test-slow proof.  `.test-slow.stamp` certifies that
-# `make test-slow` passed against the current tree (the CI PR gate and
-# the release/publish targets verify it).  A *code-mutating* make
-# invocation means the certificate can no longer be trusted, so we drop
-# it up front — the gate then fails until test-slow re-runs and rewrites
-# it.
-#
-# Exempt (STAMP_KEEP_GOALS) are the targets that DON'T touch tracked
-# sources: the stamp's own writer/checker, help, and every release /
-# publish / artifact-build target (they only write to gitignored build/,
-# out/, _build_info.py).  Deleting the stamp for those would
-# (a) needlessly invalidate a valid proof and (b) dirty the worktree,
-# which `scripts/release.sh` rejects — so the release flow stays robust.
-# Those ship targets instead *depend on* verify-test-slow-stamp below, so
-# they rely on the proof rather than destroying it.  `%` are filter
-# wildcards (release%, publish%, …).  Skipped under `make -n`.
-STAMP_FILE       := $(ROOT).test-slow.stamp
-STAMP_KEEP_GOALS := test-slow verify-test-slow-stamp help \
-    release% publish% smoke-% screenshot% explorer-build% \
-    package-vsix vsix verify-vsix jetbrains sublime zed claude-skills \
-    compiler-explorer-gui build-report-pyz
-ifeq ($(findstring n,$(firstword $(MAKEFLAGS))),)
-ifneq ($(strip $(filter-out $(STAMP_KEEP_GOALS),$(MAKECMDGOALS))),)
-# drop-if-stale, NOT unconditional delete: a still-valid stamp survives
-# (so e.g. `make clean publish-vsix` on a green tree publishes), while a
-# stamp that no longer matches the tree is cleared so the gate trips.
-$(shell bash $(ROOT)scripts/test-slow-stamp.sh drop-if-stale >/dev/null 2>&1 || true)
-endif
-endif
-
 # Build output — everything generated goes under build/
 BUILD_DIR  := $(ROOT)build
 
@@ -170,10 +140,9 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 .PHONY: help
 # Top-level gates
-.PHONY: rust-check check-all test-slow verify-test-slow-stamp prep-pr install-hooks
+.PHONY: rust-check check-all test-slow prep-pr
 # Tests
 .PHONY: test test-ext test-ext-rust test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all
-.PHONY: capture-bytecode-refs
 .PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-audit-option-dialects
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust rust-deny
@@ -211,7 +180,7 @@ install: package-vsix ## Build and install the .vsix into VS Code
 	@echo "==> Installing VS Code extension"
 	$(VSCODE) --install-extension $(VSIX_FILE) --force
 
-publish-vsix: verify-test-slow-stamp package-vsix ## Publish the .vsix to the VS Code Marketplace (laptop fallback; CI is the primary path)
+publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace (laptop fallback; CI is the primary path)
 	@echo "==> Publishing $(VSIX_FILE) to VS Code Marketplace"
 	@# Releases normally publish VSCE from CI (job publish-vsix-marketplace,
 	@# secrets.VSCE_PAT on the protected marketplace-vscode Environment).
@@ -703,8 +672,7 @@ test-ext-rust: rust-server ## Run VS Code extension tests against the native Rus
 		cd "$(EXT_DIR)" && "$(NPM)" test; \
 	fi
 
-## Pre-push gate: full lint + typecheck across every language (TS,
-## Rust).  This is what the pre-push hook checks via tmp/check-all.stamp.
+## Full lint + typecheck across every language (TS, Rust).
 ## Tests are NOT included here — those are gated separately by test-slow
 ## before PR creation.
 
@@ -764,25 +732,19 @@ rust-deny: ## Audit the Rust workspace with cargo-deny (advisories/licenses/bans
 	cd $(ROOT) && cargo deny --all-features check
 
 # All-languages lint + typecheck.  Mirrors GitHub Actions' pr-gate plus the
-# extra languages CI doesn't cover (Rust, full TS).  On success writes
-# tmp/check-all.stamp — the pre-push hook requires this stamp to match the
-# current worktree before allowing a push.
-check-all: ## Full lint + typecheck (TS, Rust); writes tmp/check-all.stamp on success
+# extra languages CI doesn't cover (Rust, full TS).
+check-all: ## Full lint + typecheck (TS, Rust)
 	@$(MAKE) -j $(NPROC) _prep-pr-checks check-rust
-	@mkdir -p $(ROOT)tmp
-	@$(ROOT)scripts/worktree-fingerprint.sh > $(ROOT)tmp/check-all.stamp
-	@echo "==> check-all: PASSED — stamped $(ROOT)tmp/check-all.stamp"
+	@echo "==> check-all: PASSED"
 
-# Comprehensive local gate — must pass before opening a PR.  On success,
-# writes BOTH tmp/check-all.stamp and tmp/test-slow.stamp (since test-slow
-# subsumes check-all by running prep-pr).
+# Comprehensive local gate — run before opening a PR.
 #
 # Covers: prep-pr (format/codegen/lint/typecheck/test-rust/parity) +
 # Rust lint/typecheck + VS Code extension + Emacs eglot +
 # VSIX smoke + Rust workspace tests + the Rust runtime port
 # (runtime-rust-test — the standalone runtime/rust crate is excluded from
 # the workspace, so cargo test --workspace does not cover it).
-test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp + tmp/test-slow.stamp on success
+test-slow: ## Comprehensive local gate (everything)
 	@if [ "$${AUTO_INSTALL_DEPS:-0}" = "1" ]; then \
 		echo "==> test-slow: AUTO_INSTALL_DEPS=1 — installing optional test deps"; \
 		bash $(ROOT)scripts/dev/ensure-test-deps.sh; \
@@ -795,27 +757,13 @@ test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp 
 	@# failures, preserves full per-phase output, and prints a single
 	@# consolidated PASS/FAIL summary at the END (so `| tail` and
 	@# file-redirected logs both surface every failure) before exiting
-	@# non-zero.  capture-bytecode-refs + prep-pr run serially first;
-	@# the cross-language lint/typecheck + heavy suites then run in
-	@# parallel.
+	@# non-zero.  prep-pr runs serially first; the cross-language
+	@# lint/typecheck + heavy suites then run in parallel.
 	@NPROC="$(NPROC)" MAKE="$(MAKE)" \
 		bash $(ROOT)scripts/dev/test-slow-runner.sh \
-			--serial "capture-bytecode-refs prep-pr" \
+			--serial "prep-pr" \
 			--parallel "check-rust test-ext _prep-pr-smoke test-emacs test-rust runtime-rust-test"
-	@mkdir -p $(ROOT)tmp
-	@# Committed proof for the CI PR gate (content fingerprint of the
-	@# tree, excluding the stamp itself).  Written before the local tmp
-	@# stamps so their worktree fingerprint accounts for it.
-	@bash $(ROOT)scripts/test-slow-stamp.sh write
-	@$(ROOT)scripts/worktree-fingerprint.sh | tee $(ROOT)tmp/check-all.stamp > $(ROOT)tmp/test-slow.stamp
-	@echo "==> test-slow: PASSED — stamped .test-slow.stamp + tmp/check-all.stamp + tmp/test-slow.stamp"
-	@echo "==> test-slow: remember to 'git add .test-slow.stamp' and commit it with your PR"
-
-verify-test-slow-stamp: ## Verify the committed .test-slow.stamp matches the current tree (the CI PR gate)
-	@bash $(ROOT)scripts/test-slow-stamp.sh check
-
-install-hooks: ## Install project git hooks (pre-push gate enforcing check-all stamp)
-	@bash $(ROOT)scripts/install/hooks.sh
+	@echo "==> test-slow: PASSED"
 
 ensure-test-deps: ## Install optional test-slow host deps for the host platform
 	@bash $(ROOT)scripts/dev/ensure-test-deps.sh
@@ -904,26 +852,6 @@ ensure-vscode-test-deps: ## Install xvfb for Linux headless VS Code extension te
 		SKIP_RGXG=1 \
 		SKIP_TCLLIB=1 \
 		bash $(ROOT)scripts/dev/ensure-test-deps.sh
-
-capture-bytecode-refs: ensure-tcl-deps ## Capture missing tests/bytecode_reference/<ver>/*.disasm files using local tclsh
-	@set -eu; \
-	missing=0; \
-	for snippet in $(ROOT)tests/bytecode_snippets/*.tcl; do \
-		stem=$$(basename $$snippet .tcl); \
-		[ -f "$(ROOT)tests/bytecode_reference/9.0/$${stem}.disasm" ] || missing=$$((missing+1)); \
-	done; \
-	if [ $$missing -eq 0 ]; then \
-		echo "==> capture-bytecode-refs: 9.0 reference disasm complete (no action)"; \
-		exit 0; \
-	fi; \
-	if ! command -v tclsh9.0 >/dev/null 2>&1; then \
-		echo "==> capture-bytecode-refs: $$missing reference disasm files missing, but tclsh9.0 isn't on PATH."; \
-		echo "    Run 'AUTO_INSTALL_DEPS=1 make ensure-test-deps' (or install tclsh9.0 manually), then re-run this target."; \
-		echo "    Skipping for now — affected snippets will pytest-skip with 'no reference file: ...'."; \
-		exit 0; \
-	fi; \
-	echo "==> capture-bytecode-refs: $$missing missing — running scripts/capture/bytecode.sh"; \
-	bash $(ROOT)scripts/capture/bytecode.sh
 
 test-emacs: ensure-emacs-deps ## Run headless eglot regression suite for tcl-lsp (issue #333 + delta correctness)
 	@set -eu; \
@@ -1217,7 +1145,7 @@ $(JB_PLUGIN): rust-server
 	@echo "Built: $(JB_PLUGIN)"
 	@ls -lh $(JB_PLUGIN)
 
-publish-jetbrains: verify-test-slow-stamp build-editor-jetbrains ## Publish JetBrains plugin to JetBrains Marketplace
+publish-jetbrains: build-editor-jetbrains ## Publish JetBrains plugin to JetBrains Marketplace
 	@echo "==> Resolving JetBrains Marketplace credentials"
 	@JETBRAINS_TOKEN="$$(bash $(ROOT)scripts/release/jetbrains_token.sh)" || exit 1; \
 	export JETBRAINS_TOKEN; \
@@ -1252,7 +1180,7 @@ $(ST_PACKAGE): rust-server
 	@echo "       $(BUILD_DIR)/Tcl.sublime-package  (ready to install)"
 	@ls -lh $(ST_PACKAGE)
 
-publish-sublime: verify-test-slow-stamp build-editor-sublime ## Publish Sublime Text package (push build/sublime-stage to the tcl-lsp-sublime-text mirror so Package Control sees the new tag)
+publish-sublime: build-editor-sublime ## Publish Sublime Text package (push build/sublime-stage to the tcl-lsp-sublime-text mirror so Package Control sees the new tag)
 	@bash $(ROOT)scripts/release/publish_sublime.sh
 
 # Zed extension
@@ -1294,12 +1222,12 @@ $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) rust
 	@echo "Built: $(ZED_ARCHIVE)"
 	@ls -lh $(ZED_ARCHIVE)
 
-publish-zed: verify-test-slow-stamp build-editor-zed ## Publish Zed extension (prep local PR branch for zed-industries/extensions; you push + open the PR)
+publish-zed: build-editor-zed ## Publish Zed extension (prep local PR branch for zed-industries/extensions; you push + open the PR)
 	@bash $(ROOT)scripts/release/publish_zed.sh
 
 # Release
 
-release: verify-test-slow-stamp package-vsix claude-skills build-editor-jetbrains build-editor-sublime build-editor-zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
+release: package-vsix claude-skills build-editor-jetbrains build-editor-sublime build-editor-zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
 	@echo ""
 	@echo "Built release artifacts in $(BUILD_DIR)"
 

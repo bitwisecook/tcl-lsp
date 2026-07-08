@@ -269,8 +269,10 @@ artifact, so there is nothing to port; they die with Python:
 ### B5 — Dev environment / CI shell (backend-agnostic)
 
 - `dev/ensure-test-deps.sh`, `dev/resolve-tcl-library.sh`, `dev/tclsh_check.sh`,
-  `dev/test-slow-runner.sh`, `test-slow-stamp.sh`, `worktree-fingerprint.sh`,
-  `build/render_logo.sh`, `screenshots.sh`. **Keep.**
+  `dev/test-slow-runner.sh`, `build/render_logo.sh`, `screenshots.sh`. **Keep.**
+  (`test-slow-stamp.sh` / `worktree-fingerprint.sh` / the pre-push hook were
+  retired with the test-slow-stamp gate — the local gates are now enforced by
+  agent rule, not a committed fingerprint stamp.)
   (`fetch_tcl_regex.sh` retired with the C Henry-Spencer regex vendoring — the
   ARE engine is now the pure-Rust `tcl-regex` crate.)
 
