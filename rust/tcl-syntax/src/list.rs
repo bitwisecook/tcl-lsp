@@ -251,14 +251,28 @@ pub fn find_element(s: &str, start: usize) -> Result<Option<Element>, ListError>
                     // A backslash outside braces ⇒ the element needs collapsing.
                     literal = false;
                 }
-                // Skip the escaped byte so `\}` / `\"` / `\<space>` do not
-                // terminate. Only the immediately-following byte matters for
-                // boundary detection (longer escapes' trailing digits are plain
-                // text either way); a trailing lone `\` falls through to EOF.
                 if pos + 1 < len {
+                    // `\<newline>` outside braces is the line-continuation
+                    // escape: C `TclParseBackslash` collapses it AND the
+                    // following run of spaces/tabs into a single space, so that
+                    // whitespace belongs to the element and must not terminate
+                    // it — `split_list("a\\\n b")` is one element `a b`, not two
+                    // (RUST_ISSUE_087).
+                    if open_braces == 0 && bytes[pos + 1] == b'\n' {
+                        pos += 2;
+                        while pos < len && matches!(bytes[pos], b' ' | b'\t') {
+                            pos += 1;
+                        }
+                        continue;
+                    }
+                    // Skip the escaped byte so `\}` / `\"` / `\<space>` do not
+                    // terminate. Only the immediately-following byte matters for
+                    // boundary detection (longer escapes' trailing digits are
+                    // plain text either way).
                     pos += 2;
                     continue;
                 }
+                // A trailing lone `\` falls through to EOF.
                 pos += 1;
                 continue;
             }
@@ -625,6 +639,20 @@ mod tests {
         assert_eq!(split_list("\"unmatched"), Err(ListError::UnmatchedQuote));
         assert_eq!(split_list("{a}b"), Err(ListError::BraceFollowedByJunk));
         assert_eq!(split_list("\"a\"b"), Err(ListError::QuoteFollowedByJunk));
+    }
+
+    #[test]
+    fn backslash_newline_continuation_is_one_element() {
+        // RUST_ISSUE_087: `\<newline>` is a line continuation that absorbs the
+        // following run of spaces/tabs, so `a\<newline> b` is ONE element, not
+        // two — the whitespace after the continuation is part of the element.
+        assert_eq!(split_list_raw("a\\\n b").unwrap().len(), 1);
+        assert_eq!(split_list_raw("a\\\n\t  b").unwrap().len(), 1);
+        // Decoded, the continuation + whitespace collapses to a single space.
+        assert_eq!(split_list("a\\\n b").unwrap(), ["a b"]);
+        // FP-guard: a real (unescaped) newline/space still separates elements.
+        assert_eq!(split_list_raw("a\n b").unwrap().len(), 2);
+        assert_eq!(split_list_raw("a b").unwrap().len(), 2);
     }
 
     #[test]

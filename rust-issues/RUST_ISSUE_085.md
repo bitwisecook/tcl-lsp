@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Lexer & syntax tree |
 | **Location** | `rust/tcl-lexer/src/lexer.rs:676-684 (scan_array_index_body, mirrored expr_lexer.rs:335-346)` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

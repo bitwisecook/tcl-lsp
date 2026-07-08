@@ -325,27 +325,99 @@ impl<'s> Inner<'s> {
                 self.i += 1;
             }
         } else {
-            while self.i < self.b.len()
-                && (self.b[self.i].is_ascii_alphanumeric()
-                    || self.b[self.i] == b'_'
-                    || self.b[self.i] == b':')
-            {
-                self.i += 1;
+            // A bare `$name` consumes alphanumerics / `_`, and `:` only as part
+            // of a `::` namespace-separator pair — a *single* colon ends the
+            // name, exactly like the main lexer's `parse_var`. Accepting a lone
+            // `:` made `expr {$x>0?$y:$z}` lex `$y:` as one variable, swallowing
+            // the ternary separator so the whole expr degraded to Raw
+            // (RUST_ISSUE_086).
+            while self.i < self.b.len() {
+                let c = self.b[self.i];
+                if c.is_ascii_alphanumeric() || c == b'_' {
+                    self.i += 1;
+                } else if c == b':' && self.i + 1 < self.b.len() && self.b[self.i + 1] == b':' {
+                    self.i += 2;
+                } else {
+                    break;
+                }
             }
             if self.i < self.b.len() && self.b[self.i] == b'(' {
                 self.i += 1;
-                let mut lvl = 1u32;
-                while self.i < self.b.len() && lvl > 0 {
-                    if self.b[self.i] == b'(' {
-                        lvl += 1;
-                    } else if self.b[self.i] == b')' {
-                        lvl -= 1;
-                    }
-                    self.i += 1;
-                }
+                self.scan_array_index();
             }
         }
         self.tok(ExprTokenType::Variable, start)
+    }
+
+    /// Scan a `$name(…)` array-index body (after the opening `(`) up to and
+    /// including the first top-level `)`.
+    ///
+    /// Mirrors the main lexer's `scan_array_index_body`: C Tcl does NOT nest
+    /// parens, so the index ends at the first `)`; a literal `(` is text. A `)`
+    /// stays in the index only when escaped (`\)`), inside a `[…]` command
+    /// substitution, or inside a nested `${…}` / `$name(…)` reference — whose
+    /// tokens are scanned so their inner `)` are not the terminator. The old
+    /// paren-counting left `$a((b)` unterminated and ended `$a(x\)y)` at the
+    /// escaped `)` (`RUST_ISSUE_085`).
+    fn scan_array_index(&mut self) {
+        while self.i < self.b.len() {
+            match self.b[self.i] {
+                b')' => {
+                    self.i += 1;
+                    return;
+                }
+                b'\\' => self.i = (self.i + 2).min(self.b.len()),
+                b'[' => {
+                    self.i += 1;
+                    let mut depth: u32 = 1;
+                    while self.i < self.b.len() && depth > 0 {
+                        match self.b[self.i] {
+                            b'\\' => self.i = (self.i + 2).min(self.b.len()),
+                            b'[' => {
+                                depth += 1;
+                                self.i += 1;
+                            }
+                            b']' => {
+                                depth -= 1;
+                                self.i += 1;
+                            }
+                            _ => self.i += 1,
+                        }
+                    }
+                }
+                b'$' => {
+                    self.i += 1;
+                    if self.i < self.b.len() && self.b[self.i] == b'{' {
+                        self.i += 1;
+                        while self.i < self.b.len() && self.b[self.i] != b'}' {
+                            self.i += 1;
+                        }
+                        if self.i < self.b.len() {
+                            self.i += 1;
+                        }
+                    } else {
+                        while self.i < self.b.len() {
+                            let c = self.b[self.i];
+                            if c.is_ascii_alphanumeric() || c == b'_' {
+                                self.i += 1;
+                            } else if c == b':'
+                                && self.i + 1 < self.b.len()
+                                && self.b[self.i + 1] == b':'
+                            {
+                                self.i += 2;
+                            } else {
+                                break;
+                            }
+                        }
+                        if self.i < self.b.len() && self.b[self.i] == b'(' {
+                            self.i += 1;
+                            self.scan_array_index(); // nested index
+                        }
+                    }
+                }
+                _ => self.i += 1,
+            }
+        }
     }
 
     fn command(&mut self) -> ExprToken {
@@ -589,6 +661,43 @@ mod tests {
         assert_eq!(texts("$x"), vec!["$x"]);
         assert_eq!(texts("${name}"), vec!["${name}"]);
         assert_eq!(texts("$arr(idx)"), vec!["$arr(idx)"]);
+    }
+
+    #[test]
+    fn array_index_first_paren_terminates() {
+        // RUST_ISSUE_085: no paren nesting — the index ends at the first `)`.
+        assert_eq!(texts("$a((b)").first().map(String::as_str), Some("$a((b)"));
+        // An escaped `)` stays in the index; a `[…]`/`${…}` inner `)` too.
+        assert_eq!(
+            texts("$a(x\\)y)").first().map(String::as_str),
+            Some("$a(x\\)y)")
+        );
+        assert_eq!(
+            texts("$a([f(x)])").first().map(String::as_str),
+            Some("$a([f(x)])")
+        );
+        assert_eq!(
+            texts("$a(${b(c)})").first().map(String::as_str),
+            Some("$a(${b(c)})")
+        );
+    }
+
+    #[test]
+    fn single_colon_ends_variable_name() {
+        // RUST_ISSUE_086: a lone `:` is not a name char — the ternary separator
+        // in `$y:$z` must not be swallowed into the variable, or the spaceless
+        // ternary `$x>0?$y:$z` degrades to Raw.
+        let t = texts("$y:$z");
+        assert_eq!(t.first().map(String::as_str), Some("$y"), "{t:?}");
+        assert!(
+            t.iter().any(|s| s == "$z"),
+            "second var must survive: {t:?}"
+        );
+        // `::` namespace separators are still part of the name.
+        assert_eq!(texts("$::g").first().map(String::as_str), Some("$::g"));
+        assert_eq!(texts("$a::b").first().map(String::as_str), Some("$a::b"));
+        // `$a:b` reports the variable as `a`, not `a:b`.
+        assert_eq!(texts("$a:b").first().map(String::as_str), Some("$a"));
     }
 
     #[test]
