@@ -78,10 +78,11 @@ fn normalise_backslash_newline(text: &str) -> String {
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'\\' && i + 1 < bytes.len() && bytes[i + 1] == b'\n' {
-            // Skip surrounding [ \t] then the backslash-newline.
-            while out.ends_with([' ', '\t']) {
-                out.pop();
-            }
+            // Tcl replaces `\<newline><following-ws>` with a single space, but
+            // keeps any whitespace *before* the backslash — that is string data.
+            // Popping the preceding spaces turned `a \<nl> b` (value `a  b`,
+            // two spaces) into `a b` (`RUST_ISSUE_104`). Only the backslash,
+            // the newline, and the following whitespace run collapse.
             i += 2;
             while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
                 i += 1;
@@ -111,8 +112,15 @@ fn utf8_len(b: u8) -> usize {
 }
 
 /// Rebuild source text from a single token, re-adding delimiters.
-fn reconstruct_raw(sm: &SourceMap, tok: Token) -> String {
+///
+/// `in_quotes` is set when the token is being reconstructed inside a
+/// double-quoted argument (which the caller re-wraps in `"…"`). In that context
+/// a `Str` token is literal string data — a lone `$` the lexer classified as
+/// `Str`, for instance — so it is emitted verbatim rather than brace-wrapped as
+/// `{$}`, which would change the string's value (`RUST_ISSUE_103`).
+fn reconstruct_raw(sm: &SourceMap, tok: Token, in_quotes: bool) -> String {
     match tok.kind {
+        TokenType::Str if in_quotes => sm.text(tok.span).to_owned(),
         TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
         TokenType::Cmd => format!("[{}]", normalise_backslash_newline(sm.token_text(tok))),
         TokenType::Var => {
@@ -137,7 +145,7 @@ fn reconstruct_arg(sm: &SourceMap, arg: &CommandArg, braced_vars: bool) -> Strin
         if braced_vars && tok.kind == TokenType::Var {
             let _ = write!(raw, "${{{}}}", sm.token_text(tok));
         } else {
-            raw.push_str(&reconstruct_raw(sm, tok));
+            raw.push_str(&reconstruct_raw(sm, tok, arg.is_quoted));
         }
     }
     if arg.is_quoted {
@@ -523,7 +531,7 @@ fn emit_switch_lines(
             let comment_raw: String = elements[i]
                 .tokens
                 .iter()
-                .map(|&t| reconstruct_raw(sm, t))
+                .map(|&t| reconstruct_raw(sm, t, false))
                 .collect();
             lines.push(format!("{indent}{}", comment_raw.trim_end()));
             i += 1;
@@ -532,7 +540,7 @@ fn emit_switch_lines(
         let pattern_raw: String = elements[i]
             .tokens
             .iter()
-            .map(|&t| reconstruct_raw(sm, t))
+            .map(|&t| reconstruct_raw(sm, t, false))
             .collect();
         // If the *body* slot is a comment, don't pair it as this pattern's
         // body — emit the pattern alone and let the comment be handled on the
@@ -554,7 +562,7 @@ fn emit_switch_lines(
                 let body_raw: String = body
                     .tokens
                     .iter()
-                    .map(|&t| reconstruct_raw(sm, t))
+                    .map(|&t| reconstruct_raw(sm, t, false))
                     .collect();
                 lines.push(format!("{indent}{pattern_raw} {body_raw}"));
             }
@@ -1244,6 +1252,27 @@ mod tests {
     fn fmt(src: &str) -> String {
         let registry = CommandRegistry::build_default();
         format_tcl(src, &FormatterConfig::default(), &registry)
+    }
+
+    #[test]
+    fn bare_dollar_in_quoted_string_is_not_brace_wrapped() {
+        // RUST_ISSUE_103: a lone `$` inside a double-quoted string is literal
+        // data; formatting must not turn `"cost: $"` into `"cost: {$}"`.
+        let out = fmt("puts \"cost: $\"\n");
+        assert!(out.contains("\"cost: $\""), "{out:?}");
+        assert!(!out.contains("{$}"), "bare $ was brace-wrapped: {out:?}");
+    }
+
+    #[test]
+    fn backslash_newline_keeps_preceding_spaces_in_quoted_string() {
+        // RUST_ISSUE_104: Tcl replaces `\<nl><following-ws>` with a single
+        // space but keeps whitespace *before* the backslash. `"a \<nl> b"` is
+        // the value `a  b` (two spaces) — the pre-backslash space must survive.
+        let out = fmt("puts \"a \\\n b\"\n");
+        assert!(
+            out.contains("\"a  b\""),
+            "expected two spaces preserved: {out:?}"
+        );
     }
 
     #[test]

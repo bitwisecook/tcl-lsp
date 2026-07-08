@@ -2387,8 +2387,13 @@ fn reconstruct_raw(
     next_tok: Option<Token>,
     dialect: &str,
     registry: &CommandRegistry,
+    in_quotes: bool,
 ) -> String {
     match tok.kind {
+        // Inside a double-quoted word the caller re-wraps the arg in `"…"`, so a
+        // `Str` token (e.g. a lone `$` classified as literal) is string data —
+        // emit it verbatim, not brace-wrapped as `{$}` (`RUST_ISSUE_103`).
+        TokenType::Str if in_quotes => sm.text(tok.span).to_owned(),
         TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
         TokenType::Cmd => format!("[{}]", minify_body(sm.token_text(tok), dialect, registry)),
         TokenType::Var => {
@@ -2479,7 +2484,14 @@ fn reconstruct_arg(sm: &SourceMap, arg: &Arg, dialect: &str, registry: &CommandR
         // are dropped), so the name-extension guard must see it in both cases
         // (RUST_ISSUE_039).
         let next = arg.tokens.get(idx + 1).copied();
-        raw.push_str(&reconstruct_raw(sm, tok, next, dialect, registry));
+        raw.push_str(&reconstruct_raw(
+            sm,
+            tok,
+            next,
+            dialect,
+            registry,
+            arg.is_quoted,
+        ));
     }
     if arg.is_quoted && !can_strip_quotes(&raw) {
         format!("\"{raw}\"")
@@ -2549,16 +2561,21 @@ fn minify_switch_case_list(source: &str, dialect: &str, registry: &CommandRegist
             }
             _ => {}
         }
-        let raw = reconstruct_raw(&sm, tok, None, dialect, registry);
-        if matches!(
+        let starting_new_word = matches!(
             prev_type,
             TokenType::Sep | TokenType::Eol | TokenType::Comment
-        ) || words.is_empty()
-        {
-            // A word is quoted when its first token opens on a `"` in the
-            // source (the lexer stores the opener via `content_offset`).
-            let is_quoted = source.as_bytes().get(tok.span.start() as usize) == Some(&b'"');
-            words.push((raw, tok.kind == TokenType::Str, is_quoted, tok));
+        ) || words.is_empty();
+        // A word is quoted when its first token opens on a `"` in the source;
+        // continuation tokens inherit the current word's quotedness. Passing it
+        // to `reconstruct_raw` keeps a quoted lone `$` verbatim (`RUST_ISSUE_103`).
+        let word_quoted = if starting_new_word {
+            source.as_bytes().get(tok.span.start() as usize) == Some(&b'"')
+        } else {
+            words.last().is_some_and(|w| w.2)
+        };
+        let raw = reconstruct_raw(&sm, tok, None, dialect, registry, word_quoted);
+        if starting_new_word {
+            words.push((raw, tok.kind == TokenType::Str, word_quoted, tok));
         } else {
             words.last_mut().expect("non-empty").0.push_str(&raw);
         }
@@ -2977,6 +2994,15 @@ mod tests {
     fn min(src: &str) -> String {
         let registry = CommandRegistry::build_default();
         minify_tcl(src, "tcl8.6", &registry)
+    }
+
+    #[test]
+    fn bare_dollar_in_quoted_string_not_brace_wrapped() {
+        // RUST_ISSUE_103: minifying a lone `$` inside a double-quoted string
+        // must keep it literal, not emit `{$}`.
+        let out = min("puts \"cost: $\"\n");
+        assert!(out.contains("\"cost: $\""), "{out:?}");
+        assert!(!out.contains("{$}"), "bare $ was brace-wrapped: {out:?}");
     }
 
     fn check(input: &str, expected: &str) {
