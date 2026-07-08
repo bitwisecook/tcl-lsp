@@ -227,7 +227,12 @@ pub fn read_venv_config(venv_path: &Path) -> Result<Vec<(String, String)>, TclPk
 }
 
 /// Remove a virtual environment directory.
-pub fn delete_venv(venv_path: &Path) -> Result<(), TclPkgError> {
+///
+/// `force` overrides the active-venv guard (the documented "Force deletion even
+/// if active"). The `tclvenv.cfg` marker check is *not* overridable even under
+/// `force` — refusing to `remove_dir_all` a non-venv directory is a data-loss
+/// safeguard, not an activeness check (`RUST_ISSUE_126`).
+pub fn delete_venv(venv_path: &Path, force: bool) -> Result<(), TclPkgError> {
     if !venv_path.is_dir() {
         return Err(venv_error(
             format!("venv not found: {}", venv_path.display()),
@@ -240,7 +245,7 @@ pub fn delete_venv(venv_path: &Path) -> Result<(), TclPkgError> {
             Some("missing tclvenv.cfg — refusing to delete to avoid data loss"),
         ));
     }
-    if let Some(active) = std::env::var_os("TCL_VENV") {
+    if !force && let Some(active) = std::env::var_os("TCL_VENV") {
         let active = PathBuf::from(active);
         if active.canonicalize().ok() == venv_path.canonicalize().ok() {
             return Err(venv_error(
@@ -373,7 +378,7 @@ mod tests {
         let cfg = read_venv_config(&created).unwrap();
         assert!(cfg.iter().any(|(k, _)| k == "tcl_version"));
 
-        delete_venv(&created).unwrap();
+        delete_venv(&created, false).unwrap();
         assert!(!created.exists());
         let _ = std::fs::remove_dir_all(&base);
     }
@@ -395,8 +400,25 @@ mod tests {
     fn delete_refuses_non_venv() {
         let base = tmp("nonvenv");
         std::fs::create_dir_all(&base).unwrap();
-        let err = delete_venv(&base).unwrap_err();
+        let err = delete_venv(&base, false).unwrap_err();
+        assert!(err.to_string().contains("not a tclpkg venv"));
+        // RUST_ISSUE_126/123: even under --force, a non-venv directory is
+        // refused — force overrides the *active-venv* guard, never the
+        // data-loss (missing-marker) guard.
+        let err = delete_venv(&base, true).unwrap_err();
         assert!(err.to_string().contains("not a tclpkg venv"));
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn delete_force_deletes_a_marker_venv() {
+        // RUST_ISSUE_126: a real venv (with the marker) deletes under --force
+        // when it is not the active one — the `force` flag is now plumbed
+        // through `delete_venv` rather than ignored.
+        let venv = tmp("force-del");
+        std::fs::create_dir_all(&venv).unwrap();
+        std::fs::write(venv.join("tclvenv.cfg"), "venv_tool = tcl-lsp\n").unwrap();
+        delete_venv(&venv, true).expect("force delete of an inactive venv");
+        assert!(!venv.exists());
     }
 }
