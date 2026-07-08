@@ -1490,6 +1490,46 @@ mod tests {
     }
 
     #[test]
+    fn uplevel_body_arg_role_skips_optional_level() {
+        // Issue #837: `uplevel ?level? {body}` — the body word's index depends
+        // on whether a leading `level` word is present. The registry resolver
+        // is the single source of truth every body consumer (semantic tokens,
+        // green-tree descent, SSA) queries.
+        let reg = CommandRegistry::build_default();
+        // Literal relative level → body at 1.
+        assert_eq!(
+            reg.arg_indices_for_role("uplevel", &["1", "{set x 1}"], ArgRole::Body),
+            vec![1]
+        );
+        // Absolute `#0` level → body at 1.
+        assert_eq!(
+            reg.arg_indices_for_role("uplevel", &["#0", "{set x 1}"], ArgRole::Body),
+            vec![1]
+        );
+        // No level → body at 0.
+        assert_eq!(
+            reg.arg_indices_for_role("uplevel", &["{set x 1}"], ArgRole::Body),
+            vec![0]
+        );
+        // Dynamic level followed by a script → body at 1.
+        assert_eq!(
+            reg.arg_indices_for_role("uplevel", &["$lvl", "{set x 1}"], ArgRole::Body),
+            vec![1]
+        );
+        // A lone dynamic word is the body itself (implicit level 1) → body at 0.
+        assert_eq!(
+            reg.arg_indices_for_role("uplevel", &["$body"], ArgRole::Body),
+            vec![0]
+        );
+        // Bodyless `uplevel 1` (a wrong-#args error) exposes no body word — the
+        // literal level must not be mis-tagged as a script.
+        assert!(
+            reg.arg_indices_for_role("uplevel", &["1"], ArgRole::Body)
+                .is_empty()
+        );
+    }
+
+    #[test]
     fn if_marks_structural_keywords() {
         let reg = CommandRegistry::build_default();
         let args = [

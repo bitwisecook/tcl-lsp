@@ -292,6 +292,32 @@ fn w220_dead_store_inside_dict_for_body_fires() {
     assert!(on_line(&diags, "W220").contains(&2));
 }
 
+#[test]
+fn uplevel_issue_837_body_is_silent_through_server() {
+    // Issue #837: the exact reproducer must produce no diagnostics through the
+    // packaged server — the recursed `uplevel` body is clean Tcl.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc forgetXyce {} {\n    uplevel 1 {foreach nameSpc [namespace children ::Foo] {\n        namespace forget ${nameSpc}::*\n    }}\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        diags.is_empty(),
+        "issue #837 repro must be silent: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn uplevel_unbraced_substituted_body_fires_w105_through_server() {
+    // Now that `uplevel`'s body is registry-known, an unbraced substituted body
+    // fires W105 end-to-end, exactly as `eval` does — guiding the user to brace it.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc f {} {\n    uplevel 1 \"puts $x\"\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(has_code(&diags, "W105"), "{:?}", codes(&diags));
+}
+
 // -- Clean code stays clean (cross-family negative control) --------------
 
 #[test]

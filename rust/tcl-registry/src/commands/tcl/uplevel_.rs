@@ -32,6 +32,64 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "uplevel ?level? arg ?arg ...?",
 }];
 
+/// Whether `word` is *literally* an `uplevel` frame level.
+///
+/// Mirrors C Tcl's `TclObjGetFrame` first-character dispatch: an argument
+/// is consumed as a level iff it begins with `#` (absolute frame, `#0`) or
+/// a digit (relative frame, `1`). A literal level is the frame selector
+/// even with no script following it (`uplevel 1` alone is a wrong-#args
+/// error, but `1` is still a level, not a command named `1`).
+fn word_is_literal_level(word: &str) -> bool {
+    matches!(word.as_bytes().first(), Some(&b) if b == b'#' || b.is_ascii_digit())
+}
+
+/// Whether `word` is a *substituted* level selector — `$lvl` or
+/// `[expr {$n-1}]`.
+///
+/// Its runtime value can't be inspected from source, so it only counts as
+/// a level when a script word follows it: `uplevel $lvl {…}` shifts frame,
+/// but a lone `uplevel $body` is an implicit-level-1 script whose body *is*
+/// that argument. The arg-role layer only needs to know a level is
+/// *present* — enough to place the body word one slot later so its braced
+/// script recurses.
+fn word_is_dynamic_level(word: &str) -> bool {
+    word.starts_with('$') || (word.starts_with('[') && word.ends_with(']'))
+}
+
+/// Index of the first *script* word in an `uplevel` argument list — `1`
+/// when a leading `level` word is present, else `0`.
+fn uplevel_script_start(args: &[&str]) -> usize {
+    match args.first() {
+        Some(w) if word_is_literal_level(w) => 1,
+        // A substituted level only separates from the script when a script
+        // word follows (`uplevel $lvl {…}`); a lone `uplevel $body` is a body.
+        Some(w) if args.len() >= 2 && word_is_dynamic_level(w) => 1,
+        _ => 0,
+    }
+}
+
+/// Dynamic arg-role resolver for `uplevel ?level? arg ?arg ...?`.
+///
+/// `uplevel` evaluates a script — the concatenation of its trailing
+/// arguments — in the stack frame named by an optional leading `level`
+/// word, so the script's position is data-dependent and can't be a fixed
+/// [`CommandSpec::arg_roles`] entry (unlike `eval`, whose body is always
+/// arg 0). Marks the first script word [`ArgRole::Body`] so the
+/// semantic-token layer, the green-tree descent, and every other
+/// registry-driven body consumer recurse it as a real script instead of
+/// rendering it as an opaque string (issue #837). Only a braced word
+/// actually recurses — each consumer keeps its own `Str`-token guard — so
+/// a bare `$body` / command-substitution body stays a value here and is
+/// resolved by the compiler's const-lattice lowering instead.
+fn uplevel_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    let start = uplevel_script_start(args);
+    u8::try_from(start)
+        .ok()
+        .filter(|&i| (i as usize) < args.len())
+        .map(|i| vec![(i, ArgRole::Body)])
+        .unwrap_or_default()
+}
+
 /// Command spec for `uplevel`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -46,6 +104,13 @@ pub fn spec() -> CommandSpec {
             | Traits::CREATES_DYNAMIC_BARRIER
             | Traits::DYNAMIC_EVAL_BODY,
         arity: Arity::at_least(1),
+        // The body runs in another stack frame (the `level`), not the
+        // caller's, so its variable references belong to that frame — mark
+        // the body `Structural` so SSA skips it when scanning the enclosing
+        // block's dataflow (it is still recursed for highlighting / its own
+        // scope), exactly as `proc` / `namespace eval` bodies are.
+        body_kind: BodyKind::Structural,
+        arg_role_resolver: Some(uplevel_arg_roles),
         lowering_hook: Some(crate::hooks::LoweringHookId::Uplevel),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {

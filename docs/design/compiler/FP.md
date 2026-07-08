@@ -3533,6 +3533,61 @@ q=a
 
 ---
 
+### FP-DS-11 — an `uplevel` body runs in another stack frame (issue #837)
+
+- **Verdict:** FALSE POSITIVE guard + frame-aware precision (TP)
+- **Status:** locked in by `tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_11_*`
+  (and the W105 consistency arm in `fp/sty.rs::fp_sty_14_uplevel_body_participates_in_w105_like_eval`)
+- **Codes:** W220, W211, W105
+- **Corpus:** any proc that runs caller-context code via `uplevel ?level? {body}` —
+  DSL helpers, `namespace forget`/`namespace import` shims, option-setter idioms.
+
+#### Reproducer
+
+```tcl
+proc forgetXyce {} {
+    # Forgets all '::SpiceGenTcl::Xyce' commands from caller namespace
+    uplevel 1 {foreach nameSpc [namespace children ::SpiceGenTcl::Xyce] {
+        namespace forget ${nameSpc}::*
+    }}
+}
+```
+
+#### Per-line reasoning
+
+`uplevel`'s script word now carries an `ArgRole::Body` (a registry-driven
+`arg_role_resolver` that skips an optional leading `level` word), so the body is
+recursed and highlighted/analysed like every other script body instead of being
+rendered as one opaque string (the original issue #837 symptom — no highlighting
+inside the `uplevel` body). The spec is `BodyKind::Structural`: the body runs in
+the frame named by `level`, so a `$var` read inside a **braced** body resolves
+against *that* frame and does not count as a use of an enclosing-proc local of the
+same name. A value substituted at the enclosing level (`[list …]`, a quoted body,
+or a plain local read) is evaluated in the enclosing frame and keeps the local
+live.
+
+#### tclsh ground truth
+
+```
+% proc f {} { set x 1; uplevel 1 {puts $x} }
+% set x outer; f
+outer
+```
+`uplevel 1 {puts $x}` prints the *caller's* `x` (`outer`), never `f`'s local
+`x`, so `set x 1` inside `f` is genuinely a dead store.
+
+#### Tests
+
+- `fp_ds_11_caller_frame_write_is_not_an_enclosing_dead_store` (FP/TN)
+- `fp_ds_11_list_substituted_read_keeps_enclosing_store_live` (FP — `[list]` body)
+- `fp_ds_11_local_read_keeps_store_live_alongside_uplevel` (FP — local read)
+- `fp_ds_11_braced_body_only_read_is_a_frame_shifted_dead_store` (TP — frame-aware precision)
+- `fp_ds_11_real_dead_store_outside_uplevel_still_fires` (TP — enclosing analysis intact)
+- `fp_ds_11_clean_uplevel_body_is_silent` (TN control)
+- `fp_sty_14_uplevel_body_participates_in_w105_like_eval` (TP/FP — unbraced-body W105 parity with `eval`)
+
+---
+
 
 ## SH — shimmer (S100/S101/S102)
 
