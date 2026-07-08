@@ -318,16 +318,21 @@ fn guard_interval(op: BinOp, k: i64, negate: bool) -> Option<Interval> {
         op
     };
     match op {
+        // Saturate the `±1` at the i64 boundary: a branch literal of `i64::MIN`
+        // (for `<`) or `i64::MAX` (for `>`) would overflow an unchecked `k ± 1`
+        // and panic in debug/test builds. Saturating keeps a *sound* (if by one
+        // value wider) interval — an over-approximation is always safe for the
+        // analysis (issue 147).
         BinOp::Lt => Some(Interval {
             lo: None,
-            hi: Some(k - 1),
+            hi: Some(k.saturating_sub(1)),
         }),
         BinOp::Le => Some(Interval {
             lo: None,
             hi: Some(k),
         }),
         BinOp::Gt => Some(Interval {
-            lo: Some(k + 1),
+            lo: Some(k.saturating_add(1)),
             hi: None,
         }),
         BinOp::Ge => Some(Interval {
@@ -937,6 +942,35 @@ mod tests {
             Some(Interval {
                 lo: None,
                 hi: Some(4)
+            })
+        );
+    }
+
+    #[test]
+    fn guard_interval_saturates_at_i64_boundary() {
+        // `value < i64::MIN` / `value > i64::MAX` would overflow an unchecked
+        // `k ± 1`; saturation keeps a sound (empty-ish, one-value-wide) bound
+        // instead of panicking (issue 147).
+        assert_eq!(
+            guard_interval(BinOp::Lt, i64::MIN, false),
+            Some(Interval {
+                lo: None,
+                hi: Some(i64::MIN)
+            })
+        );
+        assert_eq!(
+            guard_interval(BinOp::Gt, i64::MAX, false),
+            Some(Interval {
+                lo: Some(i64::MAX),
+                hi: None
+            })
+        );
+        // Negated forms route through the same arithmetic (`>=` neg → `<`).
+        assert_eq!(
+            guard_interval(BinOp::Ge, i64::MIN, true),
+            Some(Interval {
+                lo: None,
+                hi: Some(i64::MIN)
             })
         );
     }

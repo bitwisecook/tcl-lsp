@@ -315,7 +315,13 @@ fn trace_to_uri_family(
         let mut origin: Option<String> = None;
         for inc_ver in phi.incoming.values() {
             if *inc_ver == 0 {
-                continue;
+                // A version-0 incoming operand is the entry/live-in value
+                // (a parameter, caller value, or uninitialised def) — NOT a
+                // URI-getter result. Skipping it would attribute a merge like
+                // `φ(x0_livein, x1_from_HTTP::uri)` wholly to `HTTP::uri` and
+                // fire a spurious IRULE3103. The value is therefore not
+                // *provably* a single URI family: bail (issue 150).
+                return None;
             }
             let candidate = trace_to_uri_family(var_name, *inc_ver, ctx, depth + 1)?;
             match &origin {
@@ -1136,6 +1142,26 @@ set m [::string match "/api/*" $uri]"#,
         assert_eq!(ws.len(), 1, "expected one IRULE3103, got {ws:?}");
         assert_eq!(ws[0].code, DiagCode::Irule3103);
         assert!(ws[0].message.contains("HTTP::path"));
+    }
+
+    #[test]
+    fn conditional_uri_merged_with_livein_does_not_fire() {
+        // `uri` is `[HTTP::uri]` only on one branch; on the other it keeps its
+        // parameter (live-in, version-0) value. The phi merge is therefore NOT
+        // provably a single URI getter, so IRULE3103 must NOT fire — dropping
+        // the version-0 operand would mis-attribute it to HTTP::uri (issue 150).
+        let ws = warnings_for(
+            r#"proc handle {uri flag} {
+    if {$flag} {
+        set uri [HTTP::uri]
+    }
+    set parts [split $uri "?"]
+}"#,
+        );
+        assert!(
+            ws.is_empty(),
+            "no IRULE3103 for a live-in-merged value, got {ws:?}"
+        );
     }
 
     #[test]

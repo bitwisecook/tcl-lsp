@@ -166,11 +166,15 @@ fn tcloo_dfs(cls: &str, ctx: &mut DfsCtx<'_>, is_mixin_path: bool, depth: usize)
     ctx.visiting.remove(cls);
 }
 
-/// Detect a pure superclass cycle starting at `start`.
+/// Detect a pure superclass cycle that `start` itself participates in.
 ///
 /// TclOO's DFS silently skips visited nodes (needed for mixin
-/// cycles), but pure superclass cycles should be reported as errors
-/// so downstream consumers can surface the problem.
+/// cycles), but a pure superclass cycle *through `start`* should be reported
+/// as an error so downstream consumers can surface the problem.  A cycle that
+/// is merely *reachable* from `start` — among its ancestors, not including
+/// `start` — is not `start`'s error: reporting it would abandon `start`'s
+/// whole MRO (including acyclic parents) and mis-fire W308 on genuinely
+/// inherited methods (issue 155).
 fn has_super_cycle(start: &str, supers_map: &HashMap<String, Vec<String>>) -> bool {
     // Two sets, not one: `on_path` is the current DFS stack (a back-edge to it
     // is a real cycle) and `explored` memoises nodes fully proven acyclic (so a
@@ -180,6 +184,7 @@ fn has_super_cycle(start: &str, supers_map: &HashMap<String, Vec<String>>) -> bo
     // the stack on a pathological linear chain.
     fn recurse(
         cls: &str,
+        start: &str,
         supers_map: &HashMap<String, Vec<String>>,
         on_path: &mut HashSet<String>,
         explored: &mut HashSet<String>,
@@ -189,15 +194,23 @@ fn has_super_cycle(start: &str, supers_map: &HashMap<String, Vec<String>>) -> bo
             return true;
         }
         if on_path.contains(cls) {
-            return true; // back-edge to an ancestor on the current path
+            // A back-edge marks a cycle, but only a cycle that returns to
+            // `start` means `start` *itself* participates in one.  A cycle
+            // among ancestors that does not include `start` (`C : A`, with
+            // `A ↔ B` mutually super-classed) must not fail `start`'s own
+            // linearisation — the MRO DFS breaks such a cycle via its visited
+            // set, letting `start` still resolve its acyclic parents (issue
+            // 155).  `start` is on the path for the whole walk (it is the
+            // root), so any descendant that can reach it is caught here.
+            return cls == start;
         }
         if explored.contains(cls) {
-            return false; // already proven acyclic from here
+            return false; // already proven to not reach `start` from here
         }
         on_path.insert(cls.to_string());
         if let Some(parents) = supers_map.get(cls) {
             for parent in parents {
-                if recurse(parent, supers_map, on_path, explored, depth + 1) {
+                if recurse(parent, start, supers_map, on_path, explored, depth + 1) {
                     return true;
                 }
             }
@@ -208,7 +221,7 @@ fn has_super_cycle(start: &str, supers_map: &HashMap<String, Vec<String>>) -> bo
     }
     let mut on_path = HashSet::new();
     let mut explored = HashSet::new();
-    recurse(start, supers_map, &mut on_path, &mut explored, 0)
+    recurse(start, start, supers_map, &mut on_path, &mut explored, 0)
 }
 
 /// Return the method resolution order for `class_name`.
@@ -373,6 +386,32 @@ mod tests {
         let s = supers(&[("A", &["A"])]);
         let err = tcloo_linearise("A", &s, &empty_mixins()).unwrap_err();
         assert!(err.message.contains("cycle"));
+    }
+
+    #[test]
+    fn class_above_an_unrelated_cycle_still_linearises() {
+        // `A ↔ B` is a real cycle; `C : {A, Base}` merely *reaches* it but is
+        // not part of it. Linearising C must NOT error — the DFS breaks the
+        // A/B cycle via its visited set, so C still resolves `Base` (and its
+        // methods), rather than dropping C's whole MRO and firing a spurious
+        // W308 (issue 155).
+        let s = supers(&[
+            ("A", &["B"]),
+            ("B", &["A"]),
+            ("C", &["A", "Base"]),
+            ("Base", &[]),
+        ]);
+        // A and B themselves are in the cycle → still an error.
+        assert!(tcloo_linearise("A", &s, &empty_mixins()).is_err());
+        assert!(tcloo_linearise("B", &s, &empty_mixins()).is_err());
+        // C is above the cycle, not in it → linearises, and Base is present.
+        let mro = tcloo_linearise("C", &s, &empty_mixins())
+            .expect("C is not itself part of the A/B cycle");
+        assert!(mro.contains(&"C".to_string()));
+        assert!(
+            mro.contains(&"Base".to_string()),
+            "acyclic parent must resolve: {mro:?}"
+        );
     }
 
     /// `k` stacked diamonds: `L{i} → {A{i}, B{i}}`, both `A{i}` and `B{i}`

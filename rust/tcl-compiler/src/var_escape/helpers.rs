@@ -78,6 +78,15 @@ fn frameless_runtime_set() -> &'static HashSet<String> {
     })
 }
 
+/// Memoised default [`CommandRegistry`] for var-escape's registry-driven
+/// queries (e.g. resolving an `info` subcommand's declared variable-write
+/// argument roles).  Cached because the queried facts are dialect-agnostic
+/// core-Tcl commands present in `build_default`.
+pub(crate) fn default_registry() -> &'static CommandRegistry {
+    static REG: OnceLock<CommandRegistry> = OnceLock::new();
+    REG.get_or_init(CommandRegistry::build_default)
+}
+
 /// True if *arg* is a plain identifier, not a substituted ref.
 /// Applies the same "starts with `$` or `[`" filter used throughout
 /// the memory-SSA alias detectors.

@@ -115,6 +115,11 @@ pub enum EscapeReasonKind {
     /// name.  The interpreter resolves the lookup against the
     /// runtime frame, so the var must live there.
     InfoExists,
+    /// An `info` subcommand *writes* this var by literal name in the
+    /// current frame — `info default procname arg varname` stores the
+    /// argument's default into `varname` (a registry-declared
+    /// [`tcl_registry::ArgRole::VarWrite`]).
+    InfoVarWrite,
     /// This name is the *source* of an `upvar` declaration in
     /// this proc.  Caller-side aliasing requires the name to be
     /// in the runtime frame.
