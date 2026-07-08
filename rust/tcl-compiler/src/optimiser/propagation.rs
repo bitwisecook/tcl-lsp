@@ -896,35 +896,36 @@ fn fold_return_under_lattice(
         };
     }
 
-    // Path 3 — `return [expr {…}]` / interpolation. Build the env from every
-    // lattice constant (so version-0 params, absent from `exit_versions`, are
-    // bound), preferring a non-zero version, then overlay the block-exit
-    // versions for precise local state. Only used for the expr/interpolation
-    // form (the simple-`$var` precision above is handled by path 2).
+    // Path 3 — `return [expr {…}]`. Build the env FLOW-SENSITIVELY, exactly
+    // as path 2 does for the single-`$var` case: bind each variable the expr
+    // references at *this block's exit version* (the precise state reaching
+    // this return), and only when that version is a lattice constant. A
+    // variable absent from `exit_versions` (a never-reassigned parameter)
+    // falls back to version 0, where interproc-seeded param constants live.
+    //
+    // The old flow-INsensitive scan ("every Const lattice entry, preferring
+    // the newest version, then overlay exit versions") miscompiled: for
+    // `set x 0; foreach v {…} { set x $v }; return [expr {$x + 1}]`, `x`'s
+    // exit version is a non-Const loop phi, so the overlay didn't override,
+    // and the stale pre-loop `(x,1)=Const(0)` leaked in — folding to `1`
+    // where tclsh returns `3`. Reading the exit version (Overdefined here)
+    // leaves `x` unbound so `eval_tcl_expr` bails, matching path 2's
+    // `sum_list`/`fibonacci` precision.
+    let expr = expr?;
     let mut env: Env = Env::new();
-    let mut chosen_ver: std::collections::HashMap<crate::ssa::Symbol, crate::ssa::Version> =
-        std::collections::HashMap::new();
-    for ((sym, ver), lv) in &result.values {
-        if let LatticeValue::Const(c) = lv {
-            let take = chosen_ver.get(sym).is_none_or(|prev| *ver > *prev);
-            if take {
-                chosen_ver.insert(*sym, *ver);
-                env.insert(fu.ssa.var_name(*sym).to_owned(), const_to_env_value(c));
-            }
-        }
-    }
     if let Some(ssa_block) = fu.ssa.blocks.get(&bn) {
-        for (&sym, ver) in &ssa_block.exit_versions {
-            if let Some(LatticeValue::Const(c)) = result.values.get(&(sym, *ver)) {
+        for name in crate::var_refs::vars_in_expr(expr) {
+            let Some(sym) = fu.ssa.var_symbol(&name) else {
+                continue;
+            };
+            let ver = ssa_block.exit_versions.get(&sym).copied().unwrap_or(0);
+            if let Some(LatticeValue::Const(c)) = result.values.get(&(sym, ver)) {
                 env.insert(fu.ssa.var_name(sym).to_owned(), const_to_env_value(c));
             }
         }
     }
-    if let Some(expr) = expr {
-        let v = eval_tcl_expr(expr, &env)?;
-        return Some(crate::sccp::tcl_value_to_const(v));
-    }
-    None
+    let v = eval_tcl_expr(expr, &env)?;
+    Some(crate::sccp::tcl_value_to_const(v))
 }
 
 /// Convert a [`ConstValue`] to the expr-folder's [`EnvValue`].
@@ -2281,6 +2282,55 @@ mod tests {
         assert!(
             ctx.optimisations.iter().any(|o| o.code == DiagCode::O103),
             "expected O103 static-proc fold, got {:?}",
+            ctx.optimisations,
+        );
+    }
+
+    #[test]
+    fn return_expr_does_not_fold_stale_pre_loop_constant() {
+        // `x` is overwritten by the loop, so its exit version at the return is
+        // a non-Const phi (Overdefined). `::f` is pure but has no
+        // argument-independent constant return, so `[::f]` reaches the
+        // argument-sensitive fold's `fold_return_under_lattice` Path 3. That
+        // fold must NOT leak the pre-loop `set x 0`: tclsh returns 3 (x ends
+        // at 2), so folding `[::f]` to 1 would be a miscompile.
+        use tcl_registry::CommandRegistry;
+        let registry = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "proc ::f {} { set x 0; foreach v {1 2} { set x $v }; return [expr {$x + 1}] }\nputs [::f]",
+            &registry,
+            false,
+        )
+        .with_interprocedural(&registry, None);
+        let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations.iter().all(|o| o.code != DiagCode::O103),
+            "loop-overwritten var must not fold from a stale pre-loop constant, got {:?}",
+            ctx.optimisations,
+        );
+    }
+
+    #[test]
+    fn return_expr_folds_argument_sensitive_constant() {
+        // Control: the argument-sensitive Path 3 still folds when the return
+        // expr genuinely depends only on the constant call arguments — the
+        // documented `[::add 2 4]` → 6 case (params bound at version 0).
+        use tcl_registry::CommandRegistry;
+        let registry = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "proc ::add {a b} { return [expr {$a + $b}] }\nputs [::add 2 4]",
+            &registry,
+            false,
+        )
+        .with_interprocedural(&registry, None);
+        let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations
+                .iter()
+                .any(|o| o.code == DiagCode::O103 && o.replacement == "6"),
+            "expected O103 folding [::add 2 4] to 6, got {:?}",
             ctx.optimisations,
         );
     }

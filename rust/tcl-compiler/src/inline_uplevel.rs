@@ -106,7 +106,7 @@ fn static_passthrough_body(proc: &Procedure) -> Option<Script> {
         Statement::UpFrame {
             frame_shift, body, ..
         } if *frame_shift == 1 => {
-            if body_has_frame_reach(body) {
+            if body_has_frame_reach(body) || body_has_completion_escape(body) {
                 None
             } else {
                 Some(body.clone())
@@ -224,6 +224,106 @@ fn statement_has_frame_reach(stmt: &Statement) -> bool {
         }
         _ => false,
     }
+}
+
+/// True if *script* can complete with a `return` / `break` / `continue`
+/// that escapes the script's own top level.
+///
+/// The passthrough proc we are about to erase is
+/// `proc P {…} { uplevel 1 $body }`: `uplevel` is transparent to every
+/// completion code, so the body's code flows to *P*'s proc boundary,
+/// which (a) decrements a `return`'s level — absorbing `return 5` so the
+/// caller carries on — and (b) turns a raw `break`/`continue` into an
+/// `invoked "…" outside of a loop` error. Splicing the body directly
+/// into the caller removes that boundary: a spliced `return` now returns
+/// the *caller's* proc, and a spliced `break`/`continue` now drives the
+/// caller's enclosing loop instead of erroring. Both change observable
+/// behaviour, so decline the inline when the body can escape this way.
+///
+/// `in_loop` tracks whether a loop *within the body* would absorb a bare
+/// `break`/`continue`; `catch` absorbs every non-`OK` code, so its body
+/// can never contribute an escape.
+#[must_use]
+pub fn body_has_completion_escape(script: &Script) -> bool {
+    script
+        .statements
+        .iter()
+        .any(|s| statement_has_completion_escape(s, false))
+}
+
+fn statement_has_completion_escape(stmt: &Statement, in_loop: bool) -> bool {
+    match stmt {
+        // `return` propagates to the proc boundary regardless of any
+        // enclosing loop, so it always escapes the body.
+        Statement::Return { .. } => true,
+        // A bare `break`/`continue` escapes unless a loop *inside the
+        // body* absorbs it.
+        Statement::Call { command, .. } | Statement::Barrier { command, .. }
+            if matches!(command.as_str(), "break" | "continue") =>
+        {
+            !in_loop
+        }
+        // Loop bodies absorb `break`/`continue`; their init/next scripts
+        // (for `for`) run in the enclosing context and do not.
+        Statement::For {
+            init, next, body, ..
+        } => statement_scripts_escape(&[init, next], in_loop) || body_iter_escape(body, true),
+        Statement::While { body, .. } | Statement::Foreach { body, .. } => {
+            body_iter_escape(body, true)
+        }
+        Statement::If {
+            clauses, else_body, ..
+        } => {
+            clauses.iter().any(|c| body_iter_escape(&c.body, in_loop))
+                || else_body
+                    .as_ref()
+                    .is_some_and(|b| body_iter_escape(b, in_loop))
+        }
+        Statement::Switch {
+            arms, default_body, ..
+        } => {
+            arms.iter().any(|a| {
+                a.body
+                    .as_ref()
+                    .is_some_and(|b| body_iter_escape(b, in_loop))
+            }) || default_body
+                .as_ref()
+                .is_some_and(|b| body_iter_escape(b, in_loop))
+        }
+        Statement::Block { body, .. } | Statement::UpFrame { body, .. } => {
+            body_iter_escape(body, in_loop)
+        }
+        // `try` may re-raise a `return`/`break`/`continue` from its body,
+        // handlers, or finally clause; conservatively treat any as an escape.
+        Statement::Try {
+            body,
+            handlers,
+            finally_body,
+            ..
+        } => {
+            body_iter_escape(body, in_loop)
+                || handlers.iter().any(|h| body_iter_escape(&h.body, in_loop))
+                || finally_body
+                    .as_ref()
+                    .is_some_and(|b| body_iter_escape(b, in_loop))
+        }
+        // Everything else — including `catch`, which intercepts every non-`OK`
+        // completion code and turns it into a value so nothing inside it can
+        // escape — contributes no escape. `catch` is deliberately NOT recursed
+        // into for that reason.
+        _ => false,
+    }
+}
+
+fn body_iter_escape(script: &Script, in_loop: bool) -> bool {
+    script
+        .statements
+        .iter()
+        .any(|s| statement_has_completion_escape(s, in_loop))
+}
+
+fn statement_scripts_escape(scripts: &[&Script], in_loop: bool) -> bool {
+    scripts.iter().any(|s| body_iter_escape(s, in_loop))
 }
 
 /// Rewrite every passthrough callsite in *module* to splice the
@@ -385,7 +485,7 @@ fn try_inline_callsite(
             }
             let literal = &args[0];
             let inlined = lower_literal_script(literal, namespace, registry);
-            if body_has_frame_reach(&inlined) {
+            if body_has_frame_reach(&inlined) || body_has_completion_escape(&inlined) {
                 return None;
             }
             Some(Statement::Block {
@@ -531,6 +631,80 @@ mod tests {
         // expressed as a same-frame inline.
         let m = lower_to_ir("proc reset {} { uplevel #0 {set counter 0} }", &reg());
         assert!(detect_static_passthrough(&m).is_empty());
+    }
+
+    #[test]
+    fn static_passthrough_with_return_rejected() {
+        // Splicing a `return` into the caller would return the CALLER's
+        // proc; the erased passthrough boundary used to absorb it.
+        let m = lower_to_ir("proc run {} { uplevel 1 {return 5} }", &reg());
+        assert!(detect_static_passthrough(&m).is_empty());
+    }
+
+    #[test]
+    fn static_passthrough_with_bare_break_rejected() {
+        let m = lower_to_ir("proc run {} { uplevel 1 {break} }", &reg());
+        assert!(detect_static_passthrough(&m).is_empty());
+    }
+
+    #[test]
+    fn static_passthrough_with_bare_continue_rejected() {
+        let m = lower_to_ir("proc run {} { uplevel 1 {continue} }", &reg());
+        assert!(detect_static_passthrough(&m).is_empty());
+    }
+
+    #[test]
+    fn static_passthrough_with_loop_absorbed_break_allowed() {
+        // A `break` fully contained in a loop within the body is absorbed by
+        // that loop and never escapes, so the inline stays safe.
+        let m = lower_to_ir(
+            "proc run {} { uplevel 1 {foreach x {1 2} { break }} }",
+            &reg(),
+        );
+        assert_eq!(detect_static_passthrough(&m).len(), 1);
+    }
+
+    #[test]
+    fn static_passthrough_with_catch_absorbed_return_allowed() {
+        // `catch` intercepts every non-OK completion code, so a `return`
+        // inside it cannot escape the body.
+        let m = lower_to_ir("proc run {} { uplevel 1 {catch {return 5}} }", &reg());
+        assert_eq!(detect_static_passthrough(&m).len(), 1);
+    }
+
+    #[test]
+    fn static_passthrough_return_inside_loop_still_rejected() {
+        // A loop absorbs break/continue but NOT return, so a return nested in
+        // a loop still escapes to the proc boundary.
+        let m = lower_to_ir(
+            "proc run {} { uplevel 1 {foreach x {1 2} { return $x }} }",
+            &reg(),
+        );
+        assert!(detect_static_passthrough(&m).is_empty());
+    }
+
+    #[test]
+    fn param_body_passthrough_return_callsite_not_inlined() {
+        // The dispatcher shape is still a candidate, but a callsite whose
+        // literal body escapes with `return` must not be spliced.
+        let mut m = lower_to_ir(
+            "proc dispatcher {body} { uplevel 1 $body }\ndispatcher { return 5 }",
+            &reg(),
+        );
+        inline_uplevel_passthrough(&mut m, &reg());
+        assert_eq!(count_blocks(&m.top_level), 0);
+    }
+
+    #[test]
+    fn param_body_passthrough_plain_callsite_still_inlined() {
+        // Control: a non-escaping literal body is inlined as before, so the
+        // completion-escape gate hasn't disabled the optimisation wholesale.
+        let mut m = lower_to_ir(
+            "proc dispatcher {body} { uplevel 1 $body }\ndispatcher { set counter 0 }",
+            &reg(),
+        );
+        inline_uplevel_passthrough(&mut m, &reg());
+        assert_eq!(count_blocks(&m.top_level), 1);
     }
 
     #[test]

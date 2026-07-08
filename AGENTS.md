@@ -180,7 +180,7 @@ The project uses GNU Make. Key targets:
 |--------------------|------------------------------------------|
 | `make rust-check`  | **Rust PR gate** — `check-rust` (cargo `fmt --check` + `clippy`) + `xtask-check` (generated-file / docs-index drift gates via `cargo xtask …`). Mirrors the GitHub Actions `pr-gate` job. |
 | `make check-all`   | **Pre-push gate** — full lint + typecheck across **every** language: TypeScript via ESLint + Prettier + tsc, Rust via `cargo fmt --check` + `cargo clippy`. On success writes `tmp/check-all.stamp`; the pre-push hook requires this. |
-| `make test-slow`   | **Pre-PR gate** — must pass before opening a PR. Runs everything: optional dep check (or install when `AUTO_INSTALL_DEPS=1`) + `capture-bytecode-refs` + `prep-pr` + `check-rust` + tclpkg (`test-tclpkg-tcl`) + VS Code extension (`test-ext`) + Emacs eglot (`test-emacs`) + VSIX smoke (`_prep-pr-smoke`) + the full Rust workspace test suite (`test-rust`, which includes the native lsp_e2e) + the Rust runtime port (`runtime-rust-test` — the standalone `runtime/rust` crate is excluded from the workspace, so `test-rust` does not cover it). Drives every phase through `scripts/dev/test-slow-runner.sh`, which keeps going past failures and prints one consolidated PASS/FAIL summary at the end. On success writes the committed `.test-slow.stamp` (CI PR gate) plus the local `tmp/check-all.stamp` and `tmp/test-slow.stamp`. **`git add .test-slow.stamp` and commit it with your PR.** Release-only docs (`RELEASE_NOTES.md`, `docs/sphinx/changelog.md`) are excluded from the fingerprint, so a single green run before merge stays valid through the release tag — the release flow **verifies** this stamp rather than re-running the gate. |
+| `make test-slow`   | **Pre-PR gate** — must pass before opening a PR. Runs everything: optional dep check (or install when `AUTO_INSTALL_DEPS=1`) + `capture-bytecode-refs` + `prep-pr` + `check-rust` + VS Code extension (`test-ext`) + Emacs eglot (`test-emacs`) + VSIX smoke (`_prep-pr-smoke`) + the full Rust workspace test suite (`test-rust`, which includes the native lsp_e2e) + the Rust runtime port (`runtime-rust-test` — the standalone `runtime/rust` crate is excluded from the workspace, so `test-rust` does not cover it). Drives every phase through `scripts/dev/test-slow-runner.sh`, which keeps going past failures and prints one consolidated PASS/FAIL summary at the end. On success writes the committed `.test-slow.stamp` (CI PR gate) plus the local `tmp/check-all.stamp` and `tmp/test-slow.stamp`. **`git add .test-slow.stamp` and commit it with your PR.** Release-only docs (`RELEASE_NOTES.md`, `docs/sphinx/changelog.md`) are excluded from the fingerprint, so a single green run before merge stays valid through the release tag — the release flow **verifies** this stamp rather than re-running the gate. |
 | `make verify-test-slow-stamp` | Verify the committed `.test-slow.stamp` matches the current tree — the same content-fingerprint check the GitHub `test-slow-stamp` PR job runs. Fails loudly if the tree changed since the last green `test-slow`. Note: running **any** make target other than this one, `test-slow`, or `help` deletes `.test-slow.stamp`, so re-run `make test-slow` (which rewrites it) as the final step before committing. |
 | `make install-test-deps` | One-shot setup: install **everything** `test-slow` needs (the system toolchain — all of `ensure-test-deps`). The target to run on a fresh checkout before `make test-slow`. Same platform coverage as `ensure-test-deps`. |
 | `make ensure-test-deps` | Install the optional `test-slow` toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`, Rust/rustup, Wasmtime, Binaryen, wasi-sdk, emacs, xvfb, …) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.3/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`, `SKIP_RUST=1`, … Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report of what would be installed. |
@@ -355,13 +355,12 @@ then the rest in parallel):
 2. **prep-pr** — format (Prettier) + codegen (`cargo xtask`) + lint + typecheck
    (tsc) + editor-settings drift check + `test-rust`
 3. **check-rust** — Rust lint/typecheck
-4. **tclpkg** (`test-tclpkg-tcl`) — pure-Tcl package-manager tests
-5. **VS Code extension** (`test-ext`) — xvfb if no DISPLAY
-6. **Emacs eglot** (`test-emacs`)
-7. **VSIX smoke** (`_prep-pr-smoke`)
-8. **Rust workspace** (`test-rust`) — `cargo test --workspace --all-features`,
+4. **VS Code extension** (`test-ext`) — xvfb if no DISPLAY
+5. **Emacs eglot** (`test-emacs`)
+6. **VSIX smoke** (`_prep-pr-smoke`)
+7. **Rust workspace** (`test-rust`) — `cargo test --workspace --all-features`,
    including the native lsp_e2e suite (`rust/tcl-lsp-server/tests/*_e2e.rs`)
-9. **Rust runtime port** (`runtime-rust-test`) — `cargo test` in the standalone
+8. **Rust runtime port** (`runtime-rust-test`) — `cargo test` in the standalone
    `runtime/rust` crate (excluded from the workspace, so `test-rust` misses it):
    the leak round-trip + parse/eval unit suite
 
