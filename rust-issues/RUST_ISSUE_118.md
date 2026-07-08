@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | f5-query / report-gen / f5-xc |
 | **Location** | `rust/f5-xc/src/terraform.rs:93,142-148` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

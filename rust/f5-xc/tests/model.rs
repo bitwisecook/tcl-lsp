@@ -294,6 +294,48 @@ fn terraform_simple_route_emits_host_and_method() {
     assert!(tf.contains("\"POST\""), "TF missing method value:\n{tf}");
 }
 
+// RUST_ISSUE_118: a pool name carrying HCL-invalid characters (`/`, `-`) must
+// be sanitised into a valid resource label, and the route's reference must use
+// the SAME sanitised label — while the real name is preserved in `name = "…"`.
+#[test]
+fn terraform_pool_name_with_slashes_is_sanitised() {
+    let src = "when HTTP_REQUEST {\n    pool /Common/web-pool\n}";
+    let result = translate_irule(src);
+    let tf = render_terraform(&result, "ns", "lb");
+    // The resource label must not contain the raw `/` (invalid HCL identifier).
+    assert!(
+        !tf.contains("volterra_origin_pool\" \"/Common/web-pool\""),
+        "raw slashed name leaked into resource label:\n{tf}"
+    );
+    // The real object name is preserved as the `name` attribute.
+    assert!(
+        tf.contains("name      = \"/Common/web-pool\""),
+        "TF dropped the real pool name:\n{tf}"
+    );
+    // The label and the route reference must agree. Extract the label from the
+    // resource header and confirm the reference uses it verbatim.
+    let header = tf
+        .lines()
+        .find(|l| l.contains("resource \"volterra_origin_pool\""))
+        .expect("origin_pool resource header");
+    let label = header
+        .split('"')
+        .nth(3)
+        .expect("resource label between quotes");
+    assert!(
+        label.chars().enumerate().all(|(i, c)| if i == 0 {
+            c.is_ascii_alphabetic() || c == '_'
+        } else {
+            c.is_ascii_alphanumeric() || c == '_' || c == '-'
+        }),
+        "sanitised label is not a valid HCL identifier: {label:?}"
+    );
+    assert!(
+        tf.contains(&format!("volterra_origin_pool.{label}.name")),
+        "route reference does not use the sanitised label {label:?}:\n{tf}"
+    );
+}
+
 // RUST_ISSUE_045: the Terraform redirect-route renderer must emit the host
 // criterion, otherwise every request is redirected.
 #[test]
