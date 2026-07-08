@@ -290,6 +290,14 @@ file; this call falls through to the 'unknown' handler."
             if var.starts_with("::") {
                 continue;
             }
+            // Interpreter-provided special variables (``auto_path``, ``env``,
+            // ``tcl_precision``, …) are read by the runtime / auto-loader even
+            // when the script never reads them back, so ``set auto_path …`` is
+            // not a dead store.  Dialect-aware: the iRules set differs (issue
+            // #831).
+            if tcl_registry::special_vars::is_externally_read(var, &self.dialect) {
+                continue;
+            }
             // Scope-aliased vars (introduced via ``global`` or
             // ``upvar``) write through to a different scope — the
             // local "no use" verdict is unsafe.
@@ -485,6 +493,13 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             }
             if textually_referenced.contains(var) {
+                continue;
+            }
+            // Interpreter-provided special variables (``auto_path``, ``env``,
+            // …) are consumed by the runtime even when the script never reads
+            // them, so a bare ``set auto_path …`` is not an unused variable.
+            // Dialect-aware via the special-variable registry (issue #831).
+            if tcl_registry::special_vars::is_externally_read(var, &self.dialect) {
                 continue;
             }
             // Only emit when no other SSA version of this var is
@@ -1118,7 +1133,7 @@ file; this call falls through to the 'unknown' handler."
                     .and_then(|s| ssa_block.exit_versions.get(&s))
                     .copied()
                     .unwrap_or(0);
-                if !Self::return_read_fires_w210(fu, &name, ver, bn, &phi_idx, ctx) {
+                if !Self::return_read_fires_w210(fu, &name, ver, bn, &phi_idx, ctx, &self.dialect) {
                     continue;
                 }
                 reported.insert(name.clone());
@@ -1150,6 +1165,7 @@ file; this call falls through to the 'unknown' handler."
         bn: crate::cfg::BlockId,
         phi_idx: &PhiUndefIndex<'_>,
         ctx: &ReturnUndefCtx<'_>,
+        dialect: &str,
     ) -> bool {
         // Version-0 return reads are now recorded in def_use, so the version-0
         // (`DefKind::Parameter`) emitter handles them with the full suppression
@@ -1175,7 +1191,7 @@ file; this call falls through to the 'unknown' handler."
         if ctx.params.contains(name)
             || ctx.scope_aliases.contains(name)
             || ctx.extra_known_defined.contains(name)
-            || is_implicit_var(name)
+            || is_implicit_var(name, dialect)
             || name.contains("::")
             || ctx.supp.suppresses(name)
         {
@@ -2167,30 +2183,12 @@ fn namespace_of(qualified_name: &str) -> String {
 }
 
 /// Implicit / interpreter-provided variables that are always defined and
-/// must never raise a read-before-set.
-fn is_implicit_var(name: &str) -> bool {
-    matches!(
-        name,
-        "argc"
-            | "argv"
-            | "argv0"
-            | "auto_path"
-            | "env"
-            | "errorCode"
-            | "errorInfo"
-            | "errorResult"
-            | "tcl_interactive"
-            | "tcl_library"
-            | "tcl_patchLevel"
-            | "tcl_pkgPath"
-            | "tcl_platform"
-            | "tcl_precision"
-            | "tcl_rcFileName"
-            | "tcl_version"
-            | "tcl_wordchars"
-            | "tcl_nonwordchars"
-            | "static"
-    )
+/// must never raise a read-before-set.  Dialect-aware: the set is sourced from
+/// the [`tcl_registry::special_vars`] registry, which knows that iRules
+/// provides a different set (its `static::` namespace, no `argv`/`env`) than
+/// standard Tcl.
+fn is_implicit_var(name: &str, dialect: &str) -> bool {
+    tcl_registry::special_vars::is_special_var(name, dialect)
 }
 
 /// Tcl ARE metacharacters: a pattern free of these reduces to a literal

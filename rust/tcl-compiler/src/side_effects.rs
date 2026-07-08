@@ -888,8 +888,28 @@ fn classify_variable_assignment(
     effect.dialect = dialect.map(str::to_owned);
     effect.key = Some(varname.clone());
 
+    let mut effects = vec![effect];
+
+    // A write to an interpreter special variable (`auto_path`, `tcl_precision`,
+    // `env`, …) mutates the interpreter/runtime state the special-variable
+    // registry records — not just the variable slot — so surface that extra
+    // effect. It keeps effect analysis and dead-code elimination from treating
+    // `set auto_path …` as a removable plain assignment (issue #831). The
+    // registry lookup is dialect-aware, so it fires only where the variable
+    // actually exists.
+    if is_write {
+        let base = crate::naming::normalise_var_name(varname);
+        if let Some(target) =
+            tcl_registry::special_vars::special_var_write_effect(base, dialect.unwrap_or(""))
+        {
+            let mut extra = SideEffect::new(lift_registry_target(target), false, true);
+            extra.dialect = dialect.map(str::to_owned);
+            effects.push(extra);
+        }
+    }
+
     CommandSideEffects {
-        effects: vec![effect],
+        effects,
         dialect: dialect.map(str::to_owned),
         ..CommandSideEffects::default()
     }

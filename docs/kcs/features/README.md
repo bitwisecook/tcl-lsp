@@ -56,6 +56,7 @@ combine them when more than one form helps:
 - [kcs-feature-byte-array-corruption.md](kcs-feature-byte-array-corruption.md)
 - [kcs-feature-unknown-command-resolution.md](kcs-feature-unknown-command-resolution.md)
 - [kcs-feature-unused-variables.md](kcs-feature-unused-variables.md)
+- [kcs-feature-special-variables.md](kcs-feature-special-variables.md)
 - [kcs-feature-completions.md](kcs-feature-completions.md)
 - [kcs-feature-hover.md](kcs-feature-hover.md)
 - [kcs-feature-definition.md](kcs-feature-definition.md)

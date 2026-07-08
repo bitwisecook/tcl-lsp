@@ -174,6 +174,16 @@ pub fn hover_with_dialect(
                 taint_info.as_deref(),
             )));
         }
+        // No user definition: an interpreter-provided special variable
+        // (`auto_path`, `env`, `tcl_platform`, the iRules `static::` namespace)
+        // still has documentation, sourced from the dialect-aware
+        // special-variable registry.  The `(idx)` array index is already
+        // stripped by `find_var_at_position`, so `$tcl_platform(os)` resolves
+        // to the `tcl_platform` spec.
+        if let Some(spec) = tcl_registry::special_var(&var_name).filter(|s| s.available_in(dialect))
+        {
+            return Some(Hover::markdown(special_var_hover_text(spec, dialect)));
+        }
     }
 
     // Format-string hover: when the cursor
@@ -2339,6 +2349,60 @@ fn var_hover_text(var_def: &VarDef, type_info: Option<&str>, taint_info: Option<
     text
 }
 
+/// Render hover markdown for an interpreter-provided special variable
+/// ([`tcl_registry::SpecialVarSpec`]), showing its shape, summary, provenance,
+/// and — for arrays — the keys available in the active `dialect`.
+fn special_var_hover_text(
+    spec: &tcl_registry::SpecialVarSpec,
+    dialect: tcl_registry::dialects::DialectSet,
+) -> String {
+    use std::fmt::Write as _;
+    use tcl_registry::{SpecialVarKind, VarAccess, VarOrigin};
+
+    let (shape, sigil) = match spec.kind {
+        SpecialVarKind::Scalar => ("special variable", format!("${}", spec.name)),
+        SpecialVarKind::Array => ("special array", format!("${}(…)", spec.name)),
+        SpecialVarKind::Namespace => ("special namespace", format!("{}::…", spec.name)),
+    };
+    let access = match spec.access {
+        VarAccess::ReadOnly => "read-only",
+        VarAccess::ReadWrite => "read/write",
+    };
+    let origin = match spec.origin {
+        VarOrigin::Interpreter => "the Tcl interpreter",
+        VarOrigin::AutoLoader => "the auto-loader (`init.tcl`)",
+        VarOrigin::Platform => "the platform / build",
+        VarOrigin::Environment => "the process environment",
+        VarOrigin::Dialect => "the dialect runtime",
+    };
+
+    let mut text = format!(
+        "**`{sigil}`** — {shape} ({access})\n\nProvided by {origin}.\n\n{}",
+        spec.summary
+    );
+
+    // Array keys available in this dialect (skip open-keyed arrays like `env`).
+    let keys: Vec<&tcl_registry::SpecialVarKey> = spec.keys_in(dialect).collect();
+    if !keys.is_empty() {
+        text.push_str("\n\n**Keys**:\n");
+        for k in keys {
+            let _ = write!(text, "\n- `{}` — {}", k.key, k.summary);
+        }
+    }
+
+    // CMP-safety note only matters under iRules.
+    if spec.cmp_unsafe && dialect.intersects(tcl_registry::dialects::DialectSet::IRULES) {
+        let _ = write!(
+            text,
+            "\n\n⚠️ Accessing `{}` as a plain global demotes the virtual server \
+             from CMP. Use the CMP-safe `static::{}` alias instead.",
+            spec.name, spec.name
+        );
+    }
+
+    text
+}
+
 /// Lower-case label for a Tcl intrep type (e.g. `ByteArray` →
 /// `bytearray`).
 fn tcl_type_label(t: TclType) -> String {
@@ -3046,6 +3110,48 @@ mod tests {
         let text = var_hover_text(&var_def, Some("int"), Some("tainted (from I/O)"));
         assert!(text.contains("**Inferred intrep**: int"), "{text}");
         assert!(text.contains("**Taint**: tainted (from I/O)"), "{text}");
+    }
+
+    #[test]
+    fn special_var_hover_documents_auto_path() {
+        // `$auto_path` has no user definition, but the special-variable
+        // registry provides documentation on hover (issue #831).
+        let src = "puts $auto_path\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let h = hover(src, 0, 8, &analysis, Some(&registry)).expect("hover");
+        assert!(h.value.contains("special variable"), "{}", h.value);
+        assert!(h.value.contains("auto-loader"), "{}", h.value);
+    }
+
+    #[test]
+    fn special_var_hover_is_dialect_aware() {
+        use tcl_registry::dialects::DialectSet;
+        let analysis = analyse("puts $auto_path\n");
+        let mut registry = CommandRegistry::build_default();
+        registry.load_dialect(DialectSet::IRULES);
+        // iRules provides no `auto_path`, so no special-var hover fires there.
+        assert!(
+            hover_with_dialect(
+                "puts $auto_path\n",
+                0,
+                8,
+                &analysis,
+                Some(&registry),
+                DialectSet::IRULES,
+            )
+            .is_none()
+        );
+
+        // `tcl_platform` exists under iRules and is CMP-unsafe as a plain
+        // global — the hover surfaces the `static::` guidance.
+        let src = "set x $tcl_platform(os)\n";
+        let analysis = analyse(src);
+        let h = hover_with_dialect(src, 0, 10, &analysis, Some(&registry), DialectSet::IRULES)
+            .expect("hover");
+        assert!(h.value.contains("special array"), "{}", h.value);
+        assert!(h.value.contains("CMP"), "{}", h.value);
+        assert!(h.value.contains("static::tcl_platform"), "{}", h.value);
     }
 
     // clock format hover

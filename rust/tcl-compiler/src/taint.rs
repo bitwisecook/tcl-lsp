@@ -1056,7 +1056,7 @@ pub(crate) fn propagate_taints(
     };
 
     let mut taints: HashMap<ValueKey, TaintLattice> = HashMap::new();
-    seed_entry_taints(&mut taints, ssa, cfg, interproc, param_taints);
+    seed_entry_taints(&mut taints, ssa, cfg, interproc, param_taints, dialect);
 
     let mut changed = true;
     while changed {
@@ -1084,6 +1084,7 @@ fn seed_entry_taints(
     cfg: &CfgFunction,
     interproc: Option<&InterproceduralAnalysis>,
     param_taints: Option<&HashMap<String, TaintLattice>>,
+    dialect: Option<&str>,
 ) {
     // Seed entry taints for tainted parameters (interprocedural solve).
     // Only tainted params seed a slot; clean params leave the version-0
@@ -1119,6 +1120,23 @@ fn seed_entry_taints(
             if let Some(sym) = ssa.var_symbol(&name) {
                 taints.entry((sym, 0)).or_insert(TaintLattice::tainted());
             }
+        }
+    }
+
+    // Interpreter-provided external-input globals (`env`, `argv`, `argv0`) are
+    // taint sources: their version-0 (external) read is attacker-influenced.
+    // The set is dialect-aware — the restricted iRules interpreter provides
+    // none of them — and sourced from the special-variable registry. A later
+    // local `set env …` writes a higher SSA version, so a read that resolves
+    // to the local (version > 0) is unaffected; shadowing falls out of the SSA
+    // versioning, not a check here.
+    for spec in tcl_registry::special_vars::special_vars_for_dialect(dialect.unwrap_or("")) {
+        if let Some(colour) = spec.read_taint
+            && let Some(sym) = ssa.var_symbol(spec.name)
+        {
+            taints.entry((sym, 0)).or_insert(TaintLattice {
+                colours: reg_colour(colour),
+            });
         }
     }
 }
