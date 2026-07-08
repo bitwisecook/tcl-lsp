@@ -175,7 +175,7 @@ fn word_unwrap(text: &str, word: &[Token]) -> Option<String> {
 /// Accepts the two structural forms real index files use, via the tokeniser
 /// (mirrors `resolver.py::_source_filename`):
 ///
-/// * `[file join $dir X …]` — words after `$dir` joined by a single space.
+/// * `[file join $dir X …]` — path components after `$dir` joined by `/`.
 /// * `$dir/X` — the path tail after a bare `$dir/` prefix.
 fn source_filename(text: &str, arg: &[Token]) -> Option<String> {
     let raw = word_raw(text, arg);
@@ -199,12 +199,21 @@ fn source_filename(text: &str, arg: &[Token]) -> Option<String> {
         if !matches!(word_raw(inner, &words[2]), "$dir" | "${dir}") {
             return None;
         }
+        // `file join $dir a b c` joins path *components* with the directory
+        // separator, not a space: the tail is `a/b/c`, so
+        // `[file join $dir src impl.tcl]` resolves `src/impl.tcl` (issue 177).
+        // Each component's surrounding quotes/braces are stripped individually
+        // so a quoted component with no separator survives intact.
         let tail = words[3..]
             .iter()
-            .map(|w| word_raw(inner, w))
+            .map(|w| {
+                word_raw(inner, w)
+                    .trim()
+                    .trim_matches(|c| c == '"' || c == '{' || c == '}')
+            })
             .collect::<Vec<_>>()
-            .join(" ");
-        return Some(tail.trim().trim_matches('"').to_owned());
+            .join("/");
+        return Some(tail);
     }
 
     // `$dir/X` — bare variable substitution immediately followed by `/tail`.

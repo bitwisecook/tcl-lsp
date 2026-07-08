@@ -183,6 +183,24 @@ fn parse_pkg_index_standard_form() {
 }
 
 #[test]
+fn parse_pkg_index_multi_component_file_join_uses_slash() {
+    // `[file join $dir src impl.tcl]` — the components after `$dir` join with
+    // the directory separator, so the resolved file is `<dir>/src/impl.tcl`,
+    // not `<dir>/"src impl.tcl"` (issue 177).
+    let content = "package ifneeded p 1.0 [list source [file join $dir src impl.tcl]]";
+    let dir = Path::new("/pkg/p1.0");
+    let infos = parse_pkg_index(
+        content,
+        dir,
+        &dir.join("pkgIndex.tcl"),
+        &always_exists,
+        &no_tcl_files,
+    );
+    assert_eq!(infos.len(), 1);
+    assert_eq!(infos[0].source_files, vec![dir.join("src").join("impl.tcl")]);
+}
+
+#[test]
 fn parse_pkg_index_quoted_and_dir_slash_forms() {
     // `"source $dir/x.tcl"` and `$dir/x.tcl` are both reached.
     let content = "package ifneeded a 1 \"source $dir/a.tcl\"\n\

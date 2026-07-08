@@ -796,15 +796,19 @@ fn array_element_completions(
     if arr_def.array_indices.is_empty() || !is_bare_var_name(arr_name) {
         return Vec::new();
     }
-    // Extend the replace range to swallow an existing `)`.
-    let mut arr_end = end;
+    // Extend the replace range to swallow an existing `)` that closes this
+    // array reference — but only if one actually exists on the line. When the
+    // reference is unclosed (`$arr(k more stuff`), the old unbounded walk ran
+    // to end-of-line, so accepting a completion deleted the trailing text;
+    // leave the range at the cursor instead (issue 181).
     let line_chars: Vec<char> = line_text.chars().collect();
-    while arr_end < line_chars.len() && line_chars[arr_end] != ')' {
-        arr_end += 1;
-    }
-    if arr_end < line_chars.len() && line_chars[arr_end] == ')' {
-        arr_end += 1;
-    }
+    let arr_end = match line_chars[end.min(line_chars.len())..]
+        .iter()
+        .position(|&c| c == ')')
+    {
+        Some(rel) => end + rel + 1,
+        None => end,
+    };
     let arr_edit_end = char_col_to_utf16(line_text, arr_end);
     let mut items = Vec::new();
     for elem in &arr_def.array_indices {
@@ -1456,6 +1460,43 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn array_element_completion_does_not_eat_trailing_text_when_unclosed() {
+        // `$arr(k more stuff` with no `)` — accepting `$arr(key)` must replace
+        // only up to the cursor, not to end-of-line, so ` more stuff` survives
+        // (issue 181).
+        let src = "set arr(key) 1\nset v $arr(k more stuff\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        // Line 1, cursor just after `k`: `set v $arr(k` → char col 12.
+        let items = completions(src, 1, 12, &analysis, Some(&registry), None, "tcl8.6");
+        let key = items
+            .iter()
+            .find(|i| i.label == "$arr(key)")
+            .expect("array-element completion offered");
+        let edit = key.text_edit.as_ref().expect("has a replace edit");
+        assert_eq!(
+            edit.end_char, 12,
+            "replace range must stop at the cursor, not run to EOL"
+        );
+    }
+
+    #[test]
+    fn array_element_completion_swallows_existing_close_paren() {
+        // With a closing `)`, the replace range extends through it so the old
+        // index is fully replaced.
+        let src = "set arr(key) 1\nset v $arr(k)\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 1, 12, &analysis, Some(&registry), None, "tcl8.6");
+        let key = items
+            .iter()
+            .find(|i| i.label == "$arr(key)")
+            .expect("array-element completion offered");
+        let edit = key.text_edit.as_ref().expect("has a replace edit");
+        assert_eq!(edit.end_char, 13, "replace range must cover the `)`");
     }
 
     #[test]

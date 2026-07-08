@@ -923,16 +923,17 @@ impl<'src> Lexer<'src> {
             self.warn_or_error("missing \"")?;
         }
 
-        let content_offset: u8 = if content_empty && has_stop {
-            // The span was extended by one byte to cover the terminator
-            // (closing `"`, or the `$` / `[` that stopped the scan) and there
-            // is no content, so the whole (1- or 2-byte) span is delimiter
-            // bytes. Marking them all as `content_offset` makes
-            // `SourceMap::token_text` yield `""` directly — without a
-            // text-based empty-clamp heuristic, which cannot tell this token
-            // apart from a *literal* trailing `"` / `$` / `[` in a bare word
-            // (which `parse_esc` emits with `content_offset == 0`, issue 160).
-            u8::try_from(span_end - start_offset).unwrap_or(u8::MAX)
+        let content_offset: u8 = if !opening && content_empty && closed {
+            // A bare closing-quote sub-token (the trailing `"` of `"$foo"`,
+            // emitted as a 1-byte ESC): the `"` is a leading delimiter of a
+            // zero-content token, so `content_offset == 1` makes
+            // `SourceMap::token_text` yield `""`. This distinguishes it from a
+            // *literal* trailing `"` in a bare word, which `parse_esc` emits
+            // with `content_offset == 0` and `in_quote == false` (issue 160).
+            // The opening / mid-string cases keep `opening.into()` so the
+            // semantic-tokens fragment logic (which trims an extended `$`/`[`
+            // introducer keyed on `content_offset`) is unaffected.
+            1
         } else {
             opening.into()
         };

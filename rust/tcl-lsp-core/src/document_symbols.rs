@@ -284,25 +284,31 @@ fn class_member_symbols(
     let mut children: Vec<DocumentSymbol> = Vec::new();
 
     for ctor in &class_def.constructors {
-        let ctor_range = span_to_range(source, line_index, ctor.body_span);
+        // `selectionRange` is the `constructor` keyword (its `name_span`), not
+        // the whole body — matching `method_symbol` so the outline/breadcrumb
+        // reveals the keyword rather than highlighting the entire body
+        // (issue 184).
+        let name_range = span_to_range(source, line_index, ctor.name_span);
+        let body_range = span_to_range(source, line_index, ctor.body_span);
         children.push(DocumentSymbol {
             name: "constructor".to_string(),
             detail: Some(format_param_list(&ctor.params)),
             kind: SymbolKind::Constructor,
-            range: ctor_range,
-            selection_range: ctor_range,
+            range: merge_ranges(name_range, body_range),
+            selection_range: name_range,
             children: Vec::new(),
         });
     }
 
     if let Some(dtor) = &class_def.destructor {
-        let dtor_range = span_to_range(source, line_index, dtor.body_span);
+        let name_range = span_to_range(source, line_index, dtor.name_span);
+        let body_range = span_to_range(source, line_index, dtor.body_span);
         children.push(DocumentSymbol {
             name: "destructor".to_string(),
             detail: None,
             kind: SymbolKind::Method,
-            range: dtor_range,
-            selection_range: dtor_range,
+            range: merge_ranges(name_range, body_range),
+            selection_range: name_range,
             children: Vec::new(),
         });
     }
@@ -458,13 +464,18 @@ fn proc_symbol(
     scope: &Scope,
     line_index: &LineIndex,
 ) -> DocumentSymbol {
-    // Find the proc's body scope to recurse into for nested
-    // definitions, matching the child whose kind is a proc and whose
-    // name equals `proc_def.name`.
+    // Find the proc's body scope to recurse into for nested definitions by its
+    // body span, which is identical between the `ProcDef` and its `Scope`.
+    // Matching on the name would drop nested symbols for a namespace-qualified
+    // proc, because the proc scope is keyed by the qualified name
+    // (`ns::outer`) while `proc_def.name` is the bare tail (`outer`) — issue
+    // 185.
     let child_symbols: Vec<DocumentSymbol> = scope
         .children
         .iter()
-        .find(|child| matches!(child.kind, ScopeKind::Proc) && child.name == proc_def.name)
+        .find(|child| {
+            matches!(child.kind, ScopeKind::Proc) && child.body_span == Some(proc_def.body_span)
+        })
         .map(|child| scope_symbols(source, child, line_index))
         .unwrap_or_default();
 
@@ -538,6 +549,55 @@ mod tests {
             }
         }
         None
+    }
+
+    #[test]
+    fn constructor_selection_range_is_the_keyword_not_the_body() {
+        // The `constructor`/`destructor` outline symbol's selectionRange must
+        // be the keyword span (like a method's name), not the whole body span
+        // (issue 184).
+        let source = concat!(
+            "oo::class create C {\n",
+            "    constructor {a} { set x $a }\n",
+            "    destructor { cleanup }\n",
+            "}\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let ctor = find(&symbols, "constructor").expect("constructor symbol");
+        // The keyword sits at line 1, columns 4..15.
+        assert_eq!(ctor.selection_range.start_line, 1);
+        assert_eq!(ctor.selection_range.start_character, 4);
+        assert_eq!(ctor.selection_range.end_character, 15);
+        // The full range strictly contains the (smaller) selection range.
+        assert!(range_contains(ctor.range, ctor.selection_range));
+        assert_ne!(ctor.range, ctor.selection_range);
+
+        let dtor = find(&symbols, "destructor").expect("destructor symbol");
+        assert_eq!(dtor.selection_range.start_line, 2);
+        assert_eq!(dtor.selection_range.start_character, 4);
+        assert!(range_contains(dtor.range, dtor.selection_range));
+        assert_ne!(dtor.range, dtor.selection_range);
+    }
+
+    #[test]
+    fn nested_proc_inside_namespace_qualified_proc_is_kept() {
+        // `proc ns::outer {} { proc inner {} {} }` — the inner proc must still
+        // appear nested under the outer one, even though the outer proc's body
+        // scope is keyed by its qualified name while `proc_def.name` is the
+        // bare tail (issue 185).
+        let source = "proc ns::outer {} { proc inner {} {} }\n";
+        let symbols = document_symbols(source, "tcl8.6");
+        let inner = find(&symbols, "inner").expect("nested inner proc must be listed");
+        assert_eq!(inner.kind, SymbolKind::Function);
+        // It is a *child* of the outer proc, not a top-level symbol.
+        let outer = symbols
+            .iter()
+            .find(|s| s.name == "outer" || s.name == "ns::outer")
+            .expect("outer proc symbol");
+        assert!(
+            find(&outer.children, "inner").is_some(),
+            "inner should be nested under outer"
+        );
     }
 
     // ---- issue #790: tcltest `test` names in the outline ----

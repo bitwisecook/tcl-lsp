@@ -173,14 +173,34 @@ impl<'src> SourceMap<'src> {
                 // `{}` degenerate: same shape as `[]`.
                 if stripped == "}" { "" } else { stripped }
             }
-            // `Esc` needs no special-casing: an empty quoted sub-token whose
-            // span was extended to cover its terminator (`"`, `$`, or `[`)
-            // carries a `content_offset` spanning the whole (zero-content)
-            // token — set by `Lexer::parse_quoted` — so `stripped` is already
-            // `""`.  A *literal* `"` / `$` / `[` in a bare word is emitted by
-            // `parse_esc` with `content_offset == 0`, so its span is its
-            // content and `stripped` is the literal character (issue 160).  A
-            // text-based clamp here could not tell those two apart.
+            TokenType::Esc => {
+                // Empty-content clamp for quoted sub-tokens.  When the quoted
+                // scanner stops with zero content, the span is extended by one
+                // byte over the terminator — the opening `"` extended over a
+                // following `$` / `[` substitution introducer, or a mid-string
+                // `$` / `[` fragment.  After stripping the opening delimiter
+                // (via `content_offset`), a one-character remainder that is a
+                // terminator (`"` / `$` / `[`) is that empty-body case and
+                // clamps to `""`.
+                //
+                // The clamp fires only for genuine quoted/wrapper tokens: those
+                // that stripped an opening delimiter (`content_offset != 0`) or
+                // sit inside a quoted run (`in_quote`, e.g. a mid-string
+                // introducer before `$var`, or the bare closing quote which
+                // `parse_quoted` marks with `content_offset == 1`).  A *literal*
+                // `"` / `$` / `[` in a bare word is emitted by `parse_esc` with
+                // `content_offset == 0` and `in_quote == false`, so it is left
+                // as its own text — `set x $a"` resolves the trailing `"`, not
+                // `""` (issue 160).
+                if (tok.content_offset != 0 || tok.in_quote)
+                    && stripped.len() == 1
+                    && matches!(stripped.chars().next(), Some('"' | '$' | '['))
+                {
+                    ""
+                } else {
+                    stripped
+                }
+            }
             _ => stripped,
         }
     }
