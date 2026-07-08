@@ -818,6 +818,28 @@ function ::f
 - **Corpus:** any `ArgRole::CommandPrefix` callback — `lsort -command`, `trace
   add … cb`, `socket -server`, `interp alias`, `struct::list map/filter/fold`, …
 
+#### Registry coverage (ground truth: C Tcl 9.0 / package man pages)
+
+- **Core Tcl:** `lsort -command` (2), `socket -server` (3), `trace add
+  variable` (3) / `command` (3) / `execution` (≥2), `interp alias` (≥0) /
+  `bgerror` (≥1), `namespace unknown` (≥1), `package unknown` (≥1),
+  `regsub -command` (≥1, 9.0+), `coroinject` / `coroprobe` (Unknown),
+  `chan create` / `chan push` reflected-channel handlers (≥2).
+- **tcllib:** `struct::list filter/map/fold/split` (1/1/2/1), `fileutil::find`
+  (1), the `generator` functional ensemble (16 ops — Unknown, multi-value
+  yield), `math::calculus` / `::optimize` / `::probopt` `func` callbacks (fixed,
+  man-page-pinned — via `math_ext::PREFIX_OVERRIDES`), `log::lvCmd` /
+  `lvCmdForall` (2), `uevent::bind` (≥2), `logger::walk` (Unknown),
+  `tcltest::customMatch` (2), `tk selection handle` (2).
+- **Deferred (documented, not gaps):** option-value callbacks that need a full
+  `OptionSpec` array not yet modelled (`mime::getbody -command`,
+  `comm send -command`, `smtp -tlspolicy`, `bibtex -*command`,
+  `tcl::chan::halfpipe`) — allowlisted in
+  `commands_naming_a_cmdprefix_declare_a_command_prefix`; ambiguous
+  script-vs-prefix cases (`processman::onexit`, `hook bind`); and object-instance
+  method callbacks (`struct::graph`/`::tree` `$obj walk -command`) which require an
+  `ObjectClassSpec`, not a `command_prefixes` entry.
+
 #### Reproducer
 
 ```tcl
@@ -863,6 +885,17 @@ all-optional-tail proc draws no arity error; a tail also claimed by a non-proc
 - `tcl-lsp-db::callback_arity_mismatch_draws_e002` / `_too_many_draws_e003` (TP)
 - `tcl-lsp-db::callback_arity_correct_is_silent` / `_args_catchall_is_silent` /
   `_atleast_does_not_false_fire_too_few` (TN / FP guards)
+- `command_prefix_integration.rs::namespace_unknown_handler_is_a_callback_edge` /
+  `regsub_command_prefix_fires_w123_only_when_unknown` /
+  `coroinject_records_reference_but_never_arity_checks` (deferred core commands)
+- `command_prefix_integration.rs::tcllib_struct_list_split_is_a_callback_edge` /
+  `tcllib_calculus_func_records_reference_with_fixed_arity` (tcllib)
+- `tcl-lsp-db::callback_arity_namespace_unknown_zero_param_draws_e003` /
+  `_package_unknown_variadic_handler_is_silent` / `_unknown_appended_never_fires` /
+  `_tcllib_calculus_func_arity_checked` (deferred-command arity TP/TN)
+- `tcl-registry::command_prefixes_cover_deferred_core_commands` /
+  `_cover_tcllib_callbacks` /
+  `commands_naming_a_cmdprefix_declare_a_command_prefix` (registry coverage + drift guard)
 
 ---
 

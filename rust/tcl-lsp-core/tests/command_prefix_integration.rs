@@ -110,3 +110,125 @@ fn dynamic_callback_head_is_not_recorded() {
         "a dynamic `$cb` callback head must not be recorded as a command-prefix invocation"
     );
 }
+
+/// The deferred core-Tcl callback surfaces are wired through the same generic
+/// substrate — no per-command code — so a registry-declared prefix on
+/// `namespace unknown` / `package unknown` / `regsub -command` /
+/// `coroinject` lights up call-graph, references, and W123 automatically.
+#[test]
+fn namespace_unknown_handler_is_a_callback_edge() {
+    let reg = CommandRegistry::build_default();
+    let src = "proc onUnknown {args} { puts $args }\nproc install {} {\n    namespace unknown onUnknown\n}\n";
+    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let edges = g["edges"].as_array().expect("edges array");
+    assert!(
+        edges.iter().any(|e| {
+            e["caller"].as_str().unwrap_or("").contains("install")
+                && e["callee"].as_str().unwrap_or("").contains("onUnknown")
+        }),
+        "expected an install→onUnknown edge from `namespace unknown`; got {g}"
+    );
+}
+
+#[test]
+fn regsub_command_prefix_fires_w123_only_when_unknown() {
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    // `regsub -command` with an unknown head → W123 on the prefix.
+    let bad = "regsub -command {(\\w+)} $s missingCb out\n";
+    let codes: Vec<_> = a
+        .analyse(bad, "tcl9.0")
+        .diagnostics
+        .iter()
+        .map(|d| d.code.to_string())
+        .collect();
+    assert!(
+        codes.iter().any(|c| c == "W123"),
+        "an unknown regsub -command head must fire W123; got {codes:?}"
+    );
+    // A defined head → recorded, no W123. (Without `-command` the same word is a
+    // replacement template and is never treated as a command.)
+    let ok = "proc doSub {whole} { string toupper $whole }\nregsub -command {(\\w+)} $s doSub out\n";
+    let r = a.analyse(ok, "tcl9.0");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code.to_string() == "W123"),
+        "a defined regsub -command head must not fire W123"
+    );
+    assert!(
+        r.command_invocations.iter().any(|i| i.name == "doSub"),
+        "regsub -command must record a reference to its head"
+    );
+    // No `-command`: the third positional is a template, not a command.
+    let template = "regsub {(\\w+)} $s missingCb out\n";
+    assert!(
+        !a.analyse(template, "tcl9.0")
+            .diagnostics
+            .iter()
+            .any(|d| d.code.to_string() == "W123"),
+        "a plain regsub subSpec must never be treated as a command"
+    );
+}
+
+#[test]
+fn coroinject_records_reference_but_never_arity_checks() {
+    // `coroinject`'s appended arity is Unknown (depends on the yield point), so
+    // the injected command is a reference/W123 surface but is never arity-checked.
+    let reg = CommandRegistry::build_default();
+    let src = "proc worker {args} { yield }\nproc kick {c} {\n    coroinject $c worker extra\n}\n";
+    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let edges = g["edges"].as_array().expect("edges array");
+    assert!(
+        edges.iter().any(|e| {
+            e["caller"].as_str().unwrap_or("").contains("kick")
+                && e["callee"].as_str().unwrap_or("").contains("worker")
+        }),
+        "expected a kick→worker edge from `coroinject`; got {g}"
+    );
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    let r = a.analyse(src, "tcl9.0");
+    let inj = r
+        .command_invocations
+        .iter()
+        .find(|i| i.name == "worker")
+        .expect("coroinject records the injected command");
+    assert_eq!(
+        inj.callback_arity,
+        Some(tcl_registry::AppendedArity::Unknown),
+        "coroinject's callback arity is Unknown so it is never flagged too-few/too-many"
+    );
+}
+
+/// tcllib callbacks flow through the same substrate.  This exercises two tcllib
+/// paths at once: a sub-command-offset callback (`struct::list split`, arg after
+/// the sub-command word) and a full-name math callback declared via the
+/// `PREFIX_OVERRIDES` side table.
+#[test]
+fn tcllib_struct_list_split_is_a_callback_edge() {
+    let reg = CommandRegistry::build_default();
+    let src = "proc isEven {n} { expr {$n % 2 == 0} }\nproc part {items} {\n    struct::list split $items isEven evens odds\n}\n";
+    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let edges = g["edges"].as_array().expect("edges array");
+    assert!(
+        edges.iter().any(|e| {
+            e["caller"].as_str().unwrap_or("").contains("part")
+                && e["callee"].as_str().unwrap_or("").contains("isEven")
+        }),
+        "expected a part→isEven edge from `struct::list split`; got {g}"
+    );
+}
+
+#[test]
+fn tcllib_calculus_func_records_reference_with_fixed_arity() {
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    let src = "proc f {x} { expr {$x * $x} }\nmath::calculus::integral 0 1 100 f\n";
+    let r = a.analyse(src, "tcl9.0");
+    let inv = r
+        .command_invocations
+        .iter()
+        .find(|i| i.name == "f")
+        .expect("math::calculus::integral records its func callback");
+    assert_eq!(
+        inv.callback_arity,
+        Some(tcl_registry::AppendedArity::Exactly(1)),
+        "the calculus func callback carries its man-page-pinned Exactly(1) arity"
+    );
+}

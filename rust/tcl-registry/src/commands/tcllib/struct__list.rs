@@ -185,6 +185,10 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(2, 4),
         detail: "Split a list using a command prefix as filter.",
         synopsis: "struct::list split sequence cmdprefix ?passVar? ?failVar?",
+        // The twin of `filter`: cmdprefix invoked as `cmdprefix element` → 1
+        // appended arg.  `passVar`/`failVar` are result out-variables, not
+        // prefixes.
+        command_prefixes: &[(1, AppendedArity::Exactly(1))],
         ..SubCommand::DEFAULT
     },
     SubCommand {

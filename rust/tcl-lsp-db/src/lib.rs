@@ -3867,6 +3867,61 @@ mod tests {
         );
     }
 
+    #[test]
+    fn callback_arity_namespace_unknown_zero_param_draws_e003() {
+        // `namespace unknown h` invokes `h cmd ?args...?` (AtLeast(1)); a 0-param
+        // handler can never accept the appended command name → E003 too-many. A
+        // real bug (ground truth: tclsh 9.0 raises "called with too many args").
+        let d = callback_arity_codes("proc h {} { return 0 }\nnamespace unknown h\n");
+        assert!(
+            d.iter().any(|(c, m)| c == "E003" && m.contains("'h'")),
+            "a 0-param `namespace unknown` handler must draw E003; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_package_unknown_variadic_handler_is_silent() {
+        // FP guard: `package unknown` appends AtLeast(1); an `args` handler
+        // absorbs any count → no arity error (the canonical handler shape).
+        let d = callback_arity_codes("proc h {args} { return 0 }\npackage unknown h\n");
+        assert!(
+            !d.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a variadic `package unknown` handler must draw no arity error; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_tcllib_calculus_func_arity_checked() {
+        // `math::calculus::integral begin end nosteps func` calls `func x`
+        // (Exactly(1), man-page-pinned).  A 2-param func is under-fed → E002.
+        let d = callback_arity_codes(
+            "proc f {x y} { expr {$x + $y} }\nmath::calculus::integral 0 1 100 f\n",
+        );
+        assert!(
+            d.iter().any(|(c, m)| c == "E002" && m.contains("'f'")),
+            "a 2-param func where calculus::integral appends 1 must draw E002; got {d:?}"
+        );
+        // The correct 1-param shape is silent (TN).
+        let ok =
+            callback_arity_codes("proc f {x} { expr {$x * 2} }\nmath::calculus::integral 0 1 100 f\n");
+        assert!(
+            !ok.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a correct 1-param calculus func must be silent; got {ok:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_unknown_appended_never_fires() {
+        // FP guard: `coroinject`/`coroprobe` carry `Unknown` appended arity
+        // (depends on the yield point), so the injected command is a reference
+        // only — never arity-checked, whatever its param count.
+        let d = callback_arity_codes("proc h {} { return 0 }\ncoroinject myCoro h\n");
+        assert!(
+            !d.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "an Unknown-arity callback must never draw an arity error; got {d:?}"
+        );
+    }
+
     /// Regression (whole-file-shift determinism): a pure prepend that shifts every
     /// procedure must leave every `function_lattice` a cache hit — reliably, not by
     /// HashMap-seed luck.  Before `prepare_cfg_context` was made deterministic, the

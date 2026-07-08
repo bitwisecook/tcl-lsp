@@ -181,6 +181,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace unknown ?script?",
         return_type: Some(TclType::String),
         dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        // The optional handler (index 0 after `unknown` → arg 1) is a command
+        // prefix invoked with the unknown command name + its args appended
+        // (variadic ⇒ AtLeast(1)). The zero-arg query form has no prefix.
+        command_prefixes: &[(0, AppendedArity::AtLeast(1))],
         ..SubCommand::DEFAULT
     },
     SubCommand {

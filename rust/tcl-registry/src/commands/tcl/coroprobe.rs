@@ -39,6 +39,10 @@ pub fn spec() -> CommandSpec {
         traits: Traits::EVALUATES_CODE,
         dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::at_least(2),
+        // `coroprobe coroName command ?arg ...?` — `command` (index 1) is a
+        // command prefix run in the coroutine's context with runtime args
+        // appended (variadic ⇒ Unknown: a reference, not arity-checked).
+        command_prefixes: &[(1, AppendedArity::Unknown)],
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
         hover: Some(HoverSnippet {

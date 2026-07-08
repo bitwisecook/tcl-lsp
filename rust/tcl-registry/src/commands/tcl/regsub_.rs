@@ -58,6 +58,45 @@ fn regsub_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
         .collect()
 }
 
+/// `regsub -command ?switches? exp string cmdPrefix ?varName?` (Tcl 9.0+, TIP
+/// 463): with `-command` present, the `subSpec` positional (index `i+2` after
+/// the leading switches) is not a replacement template but a command prefix
+/// called once per match with the whole match + capture-group substrings
+/// appended — a variadic count (`AtLeast(1)`: the whole match is always
+/// passed). Without `-command`, `subSpec` is an ordinary string (no prefix).
+fn regsub_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+    let mut i = 0;
+    let mut has_command = false;
+    while i < args.len() {
+        let a = args[i];
+        if a == "--" {
+            i += 1;
+            break;
+        }
+        if a.starts_with('-') {
+            // `-command` and its unambiguous abbreviations (`-c`..`-comman`);
+            // no other regsub switch begins with `-c`.
+            if a.len() >= 2 && "-command".starts_with(a) {
+                has_command = true;
+            }
+            i += 1;
+            if a == "-start" && i < args.len() {
+                i += 1;
+            }
+            continue;
+        }
+        break;
+    }
+    let sub_idx = i + 2;
+    if has_command && sub_idx < args.len() {
+        u8::try_from(sub_idx)
+            .map(|s| vec![(s, AppendedArity::AtLeast(1))])
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    }
+}
+
 /// Command spec for `regsub`.
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
@@ -160,6 +199,7 @@ pub fn spec() -> CommandSpec {
         // pattern validation.
         pattern_type: Some(PatternType::Regex),
         arg_role_resolver: Some(regsub_arg_roles),
+        command_prefix_resolver: Some(regsub_command_prefixes),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }
