@@ -6339,6 +6339,8 @@ impl LanguageServer for Backend {
                         CoreWorkspaceSymbolKind::Method => SymbolKind::METHOD,
                         CoreWorkspaceSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
                         CoreWorkspaceSymbolKind::Test => SymbolKind::FUNCTION,
+                        CoreWorkspaceSymbolKind::Constant => SymbolKind::CONSTANT,
+                        CoreWorkspaceSymbolKind::Operator => SymbolKind::OPERATOR,
                     },
                     tags: None,
                     deprecated: None,
@@ -9422,6 +9424,9 @@ fn lift_symbol_kind(k: CoreSymbolKind) -> SymbolKind {
         CoreSymbolKind::Variable => SymbolKind::VARIABLE,
         // A tcltest case has no dedicated LSP kind; it lists as a function.
         CoreSymbolKind::Test => SymbolKind::FUNCTION,
+        // tcltest constraints / custom-match modes.
+        CoreSymbolKind::Constant => SymbolKind::CONSTANT,
+        CoreSymbolKind::Operator => SymbolKind::OPERATOR,
         CoreSymbolKind::Module => SymbolKind::MODULE,
     }
 }
@@ -11636,6 +11641,14 @@ mod tests {
             SymbolKind::VARIABLE
         );
         assert_eq!(lift_symbol_kind(CoreSymbolKind::Test), SymbolKind::FUNCTION);
+        assert_eq!(
+            lift_symbol_kind(CoreSymbolKind::Constant),
+            SymbolKind::CONSTANT
+        );
+        assert_eq!(
+            lift_symbol_kind(CoreSymbolKind::Operator),
+            SymbolKind::OPERATOR
+        );
         assert_eq!(lift_symbol_kind(CoreSymbolKind::Module), SymbolKind::MODULE);
     }
 

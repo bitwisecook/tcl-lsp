@@ -54,14 +54,24 @@ pub enum DefinedSymbolKind {
     /// a named, runnable unit, matching how other language servers surface test
     /// definitions.
     Test,
+    /// A named test *constraint* registered by `tcltest::testConstraint NAME
+    /// ?value?` — a boolean condition a test's `-constraints` gate on.  A
+    /// named, immutable condition, so it reads as a constant in the outline.
+    Constraint,
+    /// A custom result-*matcher* registered by `tcltest::customMatch MODE
+    /// command` — a new value accepted by `test -match`, backed by a comparison
+    /// command.  A custom comparison strategy, so it reads as an operator.
+    Matcher,
 }
 
 impl DefinedSymbolKind {
-    /// A short lowercase label for hover / completion detail (`"test"`).
+    /// A short lowercase label for hover / completion detail.
     #[must_use]
     pub fn label(self) -> &'static str {
         match self {
             Self::Test => "test",
+            Self::Constraint => "constraint",
+            Self::Matcher => "match mode",
         }
     }
 }
@@ -85,22 +95,37 @@ pub struct SymbolDef {
     /// `None` when the command has no description argument.  Only used when the
     /// argument resolves to a constant — a substituted description is skipped.
     pub detail_arg: Option<u8>,
+    /// 0-based index of the argument that makes this call a *definition* rather
+    /// than a reference.  `Some(1)` for `testConstraint NAME value` — the
+    /// setter defines the constraint, but the one-argument getter form
+    /// (`testConstraint NAME`) only reads it, so a symbol is recorded only when
+    /// that argument is present.  `None` = every call is a definition
+    /// (`test`, `customMatch`).
+    pub requires_arg: Option<u8>,
     /// The outline category the name is filed under.
     pub kind: DefinedSymbolKind,
 }
 
 impl SymbolDef {
-    /// Construct a [`SymbolDef`] naming the symbol at `name_arg` with `kind`
-    /// and no description argument.
+    /// Construct a [`SymbolDef`] naming the symbol at `name_arg` with `kind`,
+    /// no description argument, and every call treated as a definition.
     #[must_use]
     pub const fn new(name_arg: u8, kind: DefinedSymbolKind) -> Self {
-        Self { name_arg, detail_arg: None, kind }
+        Self { name_arg, detail_arg: None, requires_arg: None, kind }
     }
 
     /// Set the description argument index (see [`Self::detail_arg`]).
     #[must_use]
     pub const fn with_detail(mut self, detail_arg: u8) -> Self {
         self.detail_arg = Some(detail_arg);
+        self
+    }
+
+    /// Record a definition only when the argument at `idx` is present (see
+    /// [`Self::requires_arg`]).
+    #[must_use]
+    pub const fn defined_when_present(mut self, idx: u8) -> Self {
+        self.requires_arg = Some(idx);
         self
     }
 }

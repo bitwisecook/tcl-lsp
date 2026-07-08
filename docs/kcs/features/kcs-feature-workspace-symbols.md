@@ -18,7 +18,7 @@ all-editors, analyser
 
 ## Operational context
 
-Searches the workspace index for procs, namespaces, variables, and `tcltest` test cases matching the query. Relies on the workspace scanner for cross-file indexing. Test cases are recorded from any command whose registry `CommandSpec` declares `defines_symbol`, so the set grows by spec data rather than provider edits (#790).
+Searches the workspace index for procs, namespaces, variables, and `tcltest` definitions (test cases, constraints, custom match modes) matching the query. Relies on the workspace scanner for cross-file indexing. These are recorded from any command whose registry `CommandSpec` declares `defines_symbol`, so the set grows by spec data rather than provider edits (#790).
 
 ## File-path anchors
 

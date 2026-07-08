@@ -72,6 +72,12 @@ pub enum SymbolKind {
     /// named, runnable unit reads naturally as function-like in the outline
     /// (matching how other language servers list test definitions).
     Test,
+    /// A named `tcltest::testConstraint` — a boolean test condition.  Surfaced
+    /// as the LSP `Constant` kind (a named, immutable condition).
+    Constant,
+    /// A named `tcltest::customMatch` mode — a custom result-comparison
+    /// strategy.  Surfaced as the LSP `Operator` kind.
+    Operator,
     /// A BIG-IP tmsh module folder (`ltm`, `net`, `sys`, …) — the
     /// top level of the BIG-IP config outline.
     Module,
@@ -91,6 +97,8 @@ impl SymbolKind {
             Self::Constructor => "Constructor",
             Self::Namespace => "Namespace",
             Self::Variable => "Variable",
+            Self::Constant => "Constant",
+            Self::Operator => "Operator",
             Self::Module => "Module",
         }
     }
@@ -103,6 +111,8 @@ impl From<tcl_registry::DefinedSymbolKind> for SymbolKind {
     fn from(kind: tcl_registry::DefinedSymbolKind) -> Self {
         match kind {
             tcl_registry::DefinedSymbolKind::Test => Self::Test,
+            tcl_registry::DefinedSymbolKind::Constraint => Self::Constant,
+            tcl_registry::DefinedSymbolKind::Matcher => Self::Operator,
         }
     }
 }
@@ -667,6 +677,69 @@ mod tests {
             "test should nest under the namespace: {:?}",
             ns.children
         );
+    }
+
+    #[test]
+    fn tp_test_constraint_setter_is_a_constant_symbol() {
+        // TP: `testConstraint NAME value` (setter) defines a constraint symbol,
+        // filed under the Constant kind with the condition as detail.
+        let source = concat!(
+            "package require tcltest\n",
+            "namespace import ::tcltest::*\n",
+            "testConstraint needsRoot 1\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let sym = find(&symbols, "needsRoot").expect("constraint should be a symbol");
+        assert_eq!(sym.kind, SymbolKind::Constant);
+        assert_eq!(sym.detail.as_deref(), Some("1"));
+    }
+
+    #[test]
+    fn fp_guard_test_constraint_getter_is_not_a_symbol() {
+        // FP-guard: the one-arg `testConstraint NAME` getter only *reads* the
+        // constraint, so it must not produce an outline symbol.
+        let source = concat!(
+            "package require tcltest\n",
+            "namespace import ::tcltest::*\n",
+            "testConstraint needsRoot\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let names = names(&symbols);
+        assert!(
+            !names.contains(&"needsRoot"),
+            "constraint getter must not define a symbol, got {names:?}"
+        );
+    }
+
+    #[test]
+    fn tp_custom_match_is_an_operator_symbol() {
+        // TP: `customMatch MODE command` defines a match-mode symbol, filed
+        // under the Operator kind with the backing command as detail.
+        let source = concat!(
+            "package require tcltest\n",
+            "tcltest::customMatch dictMatch ::my::dictComparer\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let sym = find(&symbols, "dictMatch").expect("match mode should be a symbol");
+        assert_eq!(sym.kind, SymbolKind::Operator);
+        assert_eq!(sym.detail.as_deref(), Some("::my::dictComparer"));
+    }
+
+    #[test]
+    fn tp_constraint_matcher_test_distinct_kinds() {
+        // TP: the three tcltest definers each land under a distinct kind in the
+        // same file.
+        let source = concat!(
+            "package require tcltest\n",
+            "namespace import ::tcltest::*\n",
+            "testConstraint slow 1\n",
+            "customMatch approx ::approxEq\n",
+            "test t-1 {desc} -body { set x 1 } -result 1\n",
+        );
+        let kinds = flat(&document_symbols(source, "tcl8.6"));
+        assert!(kinds.contains(&("slow".to_string(), SymbolKind::Constant)), "{kinds:?}");
+        assert!(kinds.contains(&("approx".to_string(), SymbolKind::Operator)), "{kinds:?}");
+        assert!(kinds.contains(&("t-1".to_string(), SymbolKind::Test)), "{kinds:?}");
     }
 
     #[test]

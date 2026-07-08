@@ -133,6 +133,41 @@ fn test_command_declares_a_symbol_definer() {
 }
 
 #[test]
+fn testconstraint_and_custommatch_declare_their_own_symbol_kinds() {
+    // Every tcltest command that *binds a name* is a symbol definer with its
+    // own outline category — a constraint and a match mode are distinct from a
+    // test case.
+    use tcl_registry::symbol_def::DefinedSymbolKind;
+    let r = reg();
+
+    let constraint = r
+        .defines_symbol("tcltest::testConstraint", DialectSet::ALL_TCL)
+        .expect("testConstraint should declare a symbol definer");
+    assert_eq!(constraint.name_arg, 0);
+    assert_eq!(constraint.kind, DefinedSymbolKind::Constraint);
+    // Only the two-arg setter defines; the one-arg getter merely reads.
+    assert_eq!(constraint.requires_arg, Some(1));
+    assert_eq!(constraint.detail_arg, Some(1));
+
+    let matcher = r
+        .defines_symbol("tcltest::customMatch", DialectSet::ALL_TCL)
+        .expect("customMatch should declare a symbol definer");
+    assert_eq!(matcher.name_arg, 0);
+    assert_eq!(matcher.kind, DefinedSymbolKind::Matcher);
+    assert_eq!(matcher.requires_arg, None);
+
+    // All three name-binding tcltest commands are in the aggregate set.
+    let definers = r.commands_defining_symbols();
+    for name in [
+        "tcltest::test",
+        "tcltest::testConstraint",
+        "tcltest::customMatch",
+    ] {
+        assert!(definers.contains(&name), "{name} should define a symbol");
+    }
+}
+
+#[test]
 fn bytestring_is_tcl8_only() {
     // `tcltest::bytestring` is guarded out under Tcl 9.0+ (tcltest 2.5.10).
     let r = reg();

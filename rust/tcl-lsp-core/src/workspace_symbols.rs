@@ -45,6 +45,10 @@ pub enum WorkspaceSymbolKind {
     /// A named definition from a registry symbol-definer command — a
     /// `tcltest::test` case (issue #790).
     Test,
+    /// A named `tcltest::testConstraint` — a boolean test condition.
+    Constant,
+    /// A named `tcltest::customMatch` mode — a custom result matcher.
+    Operator,
 }
 
 impl From<tcl_registry::DefinedSymbolKind> for WorkspaceSymbolKind {
@@ -52,6 +56,8 @@ impl From<tcl_registry::DefinedSymbolKind> for WorkspaceSymbolKind {
     fn from(kind: tcl_registry::DefinedSymbolKind) -> Self {
         match kind {
             tcl_registry::DefinedSymbolKind::Test => Self::Test,
+            tcl_registry::DefinedSymbolKind::Constraint => Self::Constant,
+            tcl_registry::DefinedSymbolKind::Matcher => Self::Operator,
         }
     }
 }
@@ -289,6 +295,28 @@ mod tests {
             .find(|s| s.name == "find-me-1")
             .unwrap_or_else(|| panic!("test not found in {syms:?}"));
         assert_eq!(hit.kind, WorkspaceSymbolKind::Test);
+    }
+
+    #[test]
+    fn constraint_and_matcher_surface_with_own_kinds() {
+        let src = "package require tcltest\n\
+                   namespace import ::tcltest::*\n\
+                   testConstraint slowNet 1\n\
+                   customMatch approxEq ::approx\n";
+        let analysis = analyse(src);
+        let syms = workspace_symbols(src, "", &analysis);
+        let by_name: std::collections::HashMap<&str, &WorkspaceSymbol> =
+            syms.iter().map(|s| (s.name.as_str(), s)).collect();
+        assert_eq!(
+            by_name.get("slowNet").map(|s| s.kind),
+            Some(WorkspaceSymbolKind::Constant),
+            "{syms:?}"
+        );
+        assert_eq!(
+            by_name.get("approxEq").map(|s| s.kind),
+            Some(WorkspaceSymbolKind::Operator),
+            "{syms:?}"
+        );
     }
 
     #[test]

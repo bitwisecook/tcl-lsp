@@ -35,6 +35,8 @@ const PROPERTY: i64 = 7;
 const CONSTRUCTOR: i64 = 9;
 const FUNCTION: i64 = 12;
 const VARIABLE: i64 = 13;
+const CONSTANT: i64 = 14;
+const OPERATOR: i64 = 25;
 
 /// The top-level document symbols for `uri` as a list (`or []`).
 fn top(lsp: &mut Lsp, uri: &str) -> Vec<Value> {
@@ -362,6 +364,33 @@ fn tcltest_test_case_is_a_workspace_symbol() {
         syms.iter().any(|s| name(s) == "find-this-case"),
         "workspace symbol not found: {syms:?}"
     );
+}
+
+#[test]
+fn tcltest_constraint_and_match_mode_are_symbols() {
+    // `testConstraint` (setter) and `customMatch` each name a definition with
+    // its own outline kind: Constant (14) for a constraint, Operator (25) for a
+    // custom match mode.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "package require tcltest\n\
+         namespace import ::tcltest::*\n\
+         testConstraint needsNet 1\n\
+         customMatch approx ::approxEq\n",
+    );
+    let syms = top(&mut lsp, &uri);
+    let constraint = syms
+        .iter()
+        .find(|s| name(s) == "needsNet")
+        .unwrap_or_else(|| panic!("constraint not found in {syms:?}"));
+    assert_eq!(kind(constraint), CONSTANT);
+    let matcher = syms
+        .iter()
+        .find(|s| name(s) == "approx")
+        .unwrap_or_else(|| panic!("match mode not found in {syms:?}"));
+    assert_eq!(kind(matcher), OPERATOR);
 }
 
 // -- TestSymbolNamesNonEmpty ---------------------------------------------

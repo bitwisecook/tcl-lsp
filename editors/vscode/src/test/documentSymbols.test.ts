@@ -129,4 +129,38 @@ suite("Document Symbols", () => {
       "test case should have Function kind",
     );
   });
+
+  // Issue #790: every tcltest command that binds a name gets its own kind —
+  // test cases (Function), constraints (Constant), custom match modes (Operator).
+  test("lists tcltest constraints and match modes with their own kinds", async () => {
+    const defsUri = getDocUri("tcltestDefinitions.tcl");
+    await activate(defsUri);
+
+    const symbols = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", defsUri),
+      (r) => {
+        const syms = r as (vscode.DocumentSymbol[] | vscode.SymbolInformation[]) | undefined;
+        const names = (syms ?? []).map((s) => s.name);
+        return names.includes("needsNet") && names.includes("approx") && names.includes("case-1");
+      },
+      { timeout: 10_000, label: "tcltest definition symbols" },
+    )) as vscode.DocumentSymbol[] | vscode.SymbolInformation[];
+
+    const byName = new Map(symbols.map((s) => [s.name, s]));
+    assert.strictEqual(
+      byName.get("needsNet")?.kind,
+      vscode.SymbolKind.Constant,
+      "constraint should have Constant kind",
+    );
+    assert.strictEqual(
+      byName.get("approx")?.kind,
+      vscode.SymbolKind.Operator,
+      "custom match mode should have Operator kind",
+    );
+    assert.strictEqual(
+      byName.get("case-1")?.kind,
+      vscode.SymbolKind.Function,
+      "test case should have Function kind",
+    );
+  });
 });

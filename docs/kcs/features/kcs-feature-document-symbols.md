@@ -5,7 +5,7 @@
 
 ## Summary
 
-Outline of procs, namespaces, event handlers, variables, and `tcltest` test cases in the current file.
+Outline of procs, namespaces, event handlers, variables, and `tcltest` definitions (test cases, constraints, custom match modes) in the current file.
 
 ## Applies to
 
@@ -21,7 +21,7 @@ all-editors, MCP, analyser
 
 Produces a hierarchical symbol tree with procs nested inside namespaces, variables inside procs, and event handlers (iRules `when` blocks) at the top level.
 
-Commands that *define a named unit* — currently `tcltest::test NAME …`, whether called qualified or via `namespace import ::tcltest::*` — also contribute an outline entry, listed as a function-like test case with the test's description as detail (a test inside `namespace eval` nests under it). This is registry-driven: a command declares `defines_symbol` in its [`CommandSpec`](../../design/compiler/command-registry.md) and every symbol consumer (document + workspace symbols, MCP) picks it up generically, so adding the next such command is a spec change, not a compiler edit. The test *name* is resolved through the analyser's constant-propagation lattice, so a name written as a literal, a quoted string, or a constant `$var` all resolve; a genuinely dynamic name is skipped rather than shown as raw `$var` text (#790).
+Commands that *define a named unit* also contribute an outline entry, each under its own kind: `tcltest::test NAME …` (a function-like test case, description shown as detail), `tcltest::testConstraint NAME value` (a constant-kind constraint — only the two-argument setter defines; the one-argument getter is a reference), and `tcltest::customMatch MODE command` (an operator-kind match mode). All forms are recognised whether the command is called qualified or via `namespace import ::tcltest::*`, and a definition inside `namespace eval` nests under it. This is registry-driven: a command declares `defines_symbol` in its [`CommandSpec`](../../design/compiler/command-registry.md) and every symbol consumer (document + workspace symbols, MCP) picks it up generically, so adding the next such command is a spec change, not a compiler edit. The *name* is resolved through the analyser's constant-propagation lattice, so a name written as a literal, a quoted string, or a constant `$var` all resolve; a genuinely dynamic name is skipped rather than shown as raw `$var` text (#790).
 
 A BIG-IP `.conf` file (any canonical basename — `bigip.conf`, `bigip_base.conf`, …) gets a different outline shape: a `module → kind → object` tree built from the config stanza tree rather than the Tcl scope walk. Nameless global singletons (`auth password-policy`, `net self-allow`, …) fall back to their kind label so no outline entry is ever empty. Both the Python and the native Rust servers serve this outline.
 

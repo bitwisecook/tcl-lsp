@@ -251,6 +251,14 @@ impl Analyser {
         let Some(sym) = self.resolve_symbol_definer(cmd_name, scope_path) else {
             return;
         };
+        // A command that defines only in one form (the `testConstraint NAME
+        // value` setter, not the `testConstraint NAME` getter) records a symbol
+        // only when its defining argument is present.
+        if let Some(req) = sym.requires_arg
+            && args.get(req as usize).is_none()
+        {
+            return;
+        }
         let name_idx = sym.name_arg as usize;
         let (Some(name_tok), Some(name_text), Some(name_single)) = (
             arg_tokens.get(name_idx).copied(),

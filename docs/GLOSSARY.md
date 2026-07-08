@@ -279,10 +279,13 @@ See also: [Command registry](design/compiler/command-registry.md).
 
 A command whose registry `CommandSpec` carries a `defines_symbol` (`SymbolDef`)
 descriptor, declaring that one of its arguments binds a navigable definition
-*name* the editor outline should list — e.g. `tcltest::test NAME …` names a
-test case.  The descriptor gives the name argument index, an optional
-description argument, and the outline category (`DefinedSymbolKind`).  Every
-symbol consumer (document + workspace symbols) discovers the definition
+*name* the editor outline should list — the tcltest definers `test NAME …`
+(test case), `testConstraint NAME value` (constraint), and `customMatch MODE
+command` (match mode).  The descriptor gives the name argument index, an
+optional description argument, an optional `requires_arg` (record only when that
+argument is present, so a setter defines but a same-named getter does not), and
+the outline category (`DefinedSymbolKind` — `Test` / `Constraint` / `Matcher`).
+Every symbol consumer (document + workspace symbols) discovers the definition
 generically from the registry, so the name is resolved through the analyser's
 constant-propagation lattice and recorded without any command-name check.  See
 `SymbolDef` in `tcl_registry::symbol_def`.

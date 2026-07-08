@@ -34,6 +34,15 @@ pub fn spec() -> CommandSpec {
         required_package: Some("tcltest"),
         // 0 = the constraint name being queried / set.
         arg_roles: &[(0, ArgRole::Name)],
+        // The setter form `testConstraint NAME value` names a constraint the
+        // outline lists; the value (arg 1) is its boolean condition, shown as
+        // detail.  The one-argument getter form only reads the constraint, so
+        // `defined_when_present(1)` records a symbol only for the setter.
+        defines_symbol: Some(
+            SymbolDef::new(0, DefinedSymbolKind::Constraint)
+                .with_detail(1)
+                .defined_when_present(1),
+        ),
         ..CommandSpec::DEFAULT
     }
 }
