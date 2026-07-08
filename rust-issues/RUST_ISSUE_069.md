@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Compiler front-end (segmenter/expr/subst) |
 | **Location** | `rust/tcl-compiler/src/tcl_expr_eval.rs:478` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

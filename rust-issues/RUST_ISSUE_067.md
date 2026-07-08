@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Compiler middle-end (CFG/SSA/SCCP/optimiser) |
 | **Location** | `rust/tcl-compiler/src/gvn.rs:1025-1027 with 193-196` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

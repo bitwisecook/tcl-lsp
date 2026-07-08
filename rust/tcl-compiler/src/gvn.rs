@@ -190,8 +190,20 @@ impl ScopedValueTable {
 
     /// Drop every tracked entry. Used on barrier / impure-call
     /// statements where no previously-tracked value can be trusted.
+    ///
+    /// Clears each scope's entries *in place* while preserving the scope
+    /// stack's depth. Collapsing the stack to a single root (the previous
+    /// behaviour) breaks the push/pop discipline: a subsequent insert would
+    /// land in that lone root scope, which `pop_scope` never removes (its
+    /// `len > 1` guard), so an occurrence recorded on one dominator-tree path
+    /// after a kill would leak into a sibling path and mis-fire O105
+    /// ("computed again with the same arguments" on a path that never computed
+    /// it). Keeping the depth intact means post-kill entries are still dropped
+    /// at their own scope's `pop_scope`.
     pub fn kill_all(&mut self) {
-        self.scopes = vec![FxHashMap::default()];
+        for scope in &mut self.scopes {
+            scope.clear();
+        }
     }
 
     /// Number of scopes currently on the stack. Primarily exposed
@@ -1676,8 +1688,31 @@ mod tests {
         t.push_scope();
         t.insert(entry(&["call", "b"], "b", 1));
         t.kill_all();
-        assert_eq!(t.scope_depth(), 1);
+        // `kill_all` drops every entry but preserves the scope-stack depth, so
+        // the push/pop discipline survives (RUST_ISSUE_067). Collapsing the
+        // stack would strand later inserts in a never-popped root scope.
+        assert_eq!(t.scope_depth(), 2);
         assert_eq!(t.total_entries(), 0);
+    }
+
+    #[test]
+    fn kill_all_mid_branch_does_not_leak_to_sibling() {
+        // RUST_ISSUE_067, replicated at the table level exactly as the
+        // dominator walk drives it: enter block, enter then-arm, a state write
+        // kills, record an occurrence, leave the then-arm, enter the else-arm.
+        // The then-arm's occurrence must not be visible in the sibling.
+        let key: ExprKey = vec!["call".into(), "llength".into(), "$lst".into()];
+        let mut t = ScopedValueTable::new(); // root, depth 1
+        t.push_scope(); // enter condition block, depth 2
+        t.push_scope(); // enter then-arm, depth 3
+        t.kill_all(); // a state write invalidates everything
+        t.insert(entry(&["call", "llength", "$lst"], "then", 0));
+        t.pop_scope(); // leave then-arm → depth 2, entry dropped
+        t.push_scope(); // enter else-arm, depth 3
+        assert!(
+            t.lookup(&key).is_none(),
+            "then-arm occurrence leaked into the else-arm after kill_all",
+        );
     }
 
     #[test]
@@ -2967,6 +3002,36 @@ mod tests {
         // `dict set` mutates — never a redundant-computation candidate.
         assert!(
             redundancies("proc f {d} { dict set d k 1\n dict set d k 1\n return $d }").is_empty()
+        );
+    }
+
+    #[test]
+    fn kill_all_does_not_leak_across_sibling_branches() {
+        // RUST_ISSUE_067: a state-writing statement (a global write here) in
+        // the then-arm calls `kill_all`. That must NOT collapse the scope
+        // stack, or the then-arm's `[llength $lst]` occurrence strands in the
+        // never-popped root scope and the else-arm's identical computation is
+        // falsely reported redundant. The two arms are mutually exclusive
+        // paths — nothing is redundant.
+        assert!(
+            redundancies(
+                "proc f {c lst} { if {$c} { set ::g 1\n set a [llength $lst] } else { set b [llength $lst] }\n return 1 }"
+            )
+            .is_empty(),
+            "llength on mutually-exclusive branches must not be flagged redundant",
+        );
+    }
+
+    #[test]
+    fn kill_all_preserves_within_path_detection() {
+        // FP-guard for RUST_ISSUE_067: the in-place clear must not disturb
+        // ordinary same-path redundancy detection — two identical pure
+        // computations with nothing between them are still redundant.
+        assert_eq!(
+            redundancies(
+                "proc f {lst} { set a [llength $lst]\n set b [llength $lst]\n return [list $a $b] }"
+            ),
+            vec!["llength $lst".to_string()],
         );
     }
 }

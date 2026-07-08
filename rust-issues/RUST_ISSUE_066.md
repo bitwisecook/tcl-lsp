@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Compiler middle-end (CFG/SSA/SCCP/optimiser) |
 | **Location** | `rust/tcl-compiler/src/type_infer.rs:732-734` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

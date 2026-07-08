@@ -50,49 +50,134 @@ use crate::ssa::{Phi, SsaFunction, Symbol, ValueKey, Version};
 /// through loop-header phis.
 type PhiIndex<'a> = HashMap<ValueKey, &'a Phi>;
 
-/// Resolve the list length of `(name, version)`, following phis when the
-/// version itself was not seeded by a literal-list assignment.
+/// `(name, version) → defining statement` index, so length resolution can see
+/// what produced a version it can't read directly from the length map (a
+/// length-preserving `lset` vs a length-changing `lappend`/`concat`/…).
+type DefIndex<'a> = HashMap<ValueKey, &'a crate::ssa::SsaStatement>;
+
+/// A resolved list length in the merge lattice.
 ///
-/// The SSA inserts a loop-header phi for a list `l` that `lset` mutates
-/// (`l_h = phi(l_entry, l_body)`); the body's `lset` then reads `l_h`, which is
-/// not in the length map.  Resolve such a
-/// phi to the length its known incomings agree on, ignoring an unknown back-edge
-/// incoming (the `lset` result — `lset` preserves length under the
-/// assume-no-error model the diagnostic already encodes).  A genuine
-/// disagreement (two known but different lengths) yields `None` (sound).
+/// The join is over phi incomings; an incoming whose length can't be positively
+/// established must *poison* the merge rather than be silently ignored — see
+/// [`resolve_len`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Len {
+    /// A concrete, proven element count.
+    Known(i64),
+    /// Contributes no length constraint: a length-*preserving* back-edge whose
+    /// own length is pinned on the forward path (the loop-header `lset` case).
+    Neutral,
+    /// The length could be anything — a length-changing or opaque def, or a
+    /// caller-supplied live-in. Poisons the whole merge.
+    Unknown,
+}
+
+impl Len {
+    /// Lattice meet of two incoming lengths.
+    fn combine(self, other: Len) -> Len {
+        match (self, other) {
+            (Len::Unknown, _) | (_, Len::Unknown) => Len::Unknown,
+            (Len::Neutral, x) | (x, Len::Neutral) => x,
+            (Len::Known(a), Len::Known(b)) => {
+                if a == b {
+                    Len::Known(a)
+                } else {
+                    Len::Unknown // genuine disagreement
+                }
+            }
+        }
+    }
+}
+
+/// If `stmt` is a length-*preserving* `lset name idx value` on `sym`, the input
+/// version of `sym` it mutates in place (its length is the output's length).
+///
+/// Only the element-indexing form preserves length. `lset name {} value` (empty
+/// index) replaces the whole list, so its length is that of `value` — not
+/// preserving; it returns `None` (→ `Unknown`, sound).
+fn length_preserving_lset_input(stmt: &crate::ssa::SsaStatement, sym: Symbol) -> Option<Version> {
+    let Statement::Call { command, args, .. } = &stmt.statement else {
+        return None;
+    };
+    if command != LSET || args.len() != 3 {
+        return None;
+    }
+    let idx = args[1].trim();
+    if idx.is_empty() || idx == "{}" {
+        return None; // whole-list replacement — length changes
+    }
+    stmt.uses.get(&sym).copied()
+}
+
+/// Resolve the list length of `(name, version)` in the merge lattice.
+///
+/// Reads a literal-assignment length directly, follows loop-header phis, and
+/// sees *through* a length-preserving `lset` to its input list. Critically, an
+/// incoming that is neither a literal, a resolvable phi, nor a length-preserving
+/// `lset` — a `lappend`/`linsert`/`concat`/`split` result, or a caller-supplied
+/// live-in — resolves to [`Len::Unknown`] and poisons the merge. The previous
+/// code ignored such an incoming on the assumption it was always an `lset`
+/// result, so a length-*growing* def in the loop (`lappend l x y; lset l 5 v`)
+/// left the pre-loop length trusted and fired a false W231 (`RUST_ISSUE_068`).
+fn resolve_len(
+    ssa: &SsaFunction,
+    name: &str,
+    version: Version,
+    phi_index: &PhiIndex<'_>,
+    defs: &DefIndex<'_>,
+    lengths: &HashMap<ValueKey, i64>,
+    visited: &mut std::collections::HashSet<ValueKey>,
+) -> Len {
+    let Some(sym) = ssa.var_symbol(name) else {
+        return Len::Unknown;
+    };
+    let key = (sym, version);
+    if let Some(&l) = lengths.get(&key) {
+        return Len::Known(l);
+    }
+    if !visited.insert(key) {
+        // Cycle via a loop back-edge. The edge that closed the loop is resolved
+        // on its forward path; revisiting it adds no new constraint.
+        return Len::Neutral;
+    }
+    if let Some(phi) = phi_index.get(&key) {
+        let mut acc = Len::Neutral;
+        for &inc in phi.incoming.values() {
+            acc = acc.combine(resolve_len(
+                ssa, name, inc, phi_index, defs, lengths, visited,
+            ));
+            if acc == Len::Unknown {
+                return Len::Unknown; // early poison
+            }
+        }
+        return acc;
+    }
+    // Non-phi, non-literal def: only a length-preserving `lset` can be seen
+    // through — resolve to the version it mutated in place. Anything else
+    // (including a version-0 live-in with no def) is an unknown length.
+    if let Some(stmt) = defs.get(&key)
+        && let Some(input) = length_preserving_lset_input(stmt, sym)
+    {
+        return resolve_len(ssa, name, input, phi_index, defs, lengths, visited);
+    }
+    Len::Unknown
+}
+
+/// The proven list length of `(name, version)`, or `None` when it can't be
+/// positively established (unknown / disagreeing).
 fn resolve_list_length(
     ssa: &SsaFunction,
     name: &str,
     version: Version,
     phi_index: &PhiIndex<'_>,
+    defs: &DefIndex<'_>,
     lengths: &HashMap<ValueKey, i64>,
     visited: &mut std::collections::HashSet<ValueKey>,
 ) -> Option<i64> {
-    // A name that was never interned has no tracked length (it can't be a
-    // literal-list assignment target).
-    let sym = ssa.var_symbol(name)?;
-    let key = (sym, version);
-    if let Some(&l) = lengths.get(&key) {
-        return Some(l);
+    match resolve_len(ssa, name, version, phi_index, defs, lengths, visited) {
+        Len::Known(l) => Some(l),
+        Len::Neutral | Len::Unknown => None,
     }
-    if !visited.insert(key) {
-        return None; // cycle (loop back-edge) — give up this path
-    }
-    let phi = phi_index.get(&key)?;
-    let mut found: Option<i64> = None;
-    for &inc in phi.incoming.values() {
-        if inc == 0 {
-            continue;
-        }
-        if let Some(l) = resolve_list_length(ssa, name, inc, phi_index, lengths, visited) {
-            match found {
-                None => found = Some(l),
-                Some(f) if f == l => {}
-                Some(_) => return None, // disagreement → unknown
-            }
-        }
-    }
-    found
 }
 
 const LINDEX: &str = "lindex";
@@ -503,6 +588,12 @@ where
             .flat_map(|sb| sb.phis.iter())
             .map(|p| ((p.name, p.version), p))
             .collect(),
+        defs: ssa
+            .blocks
+            .values()
+            .flat_map(|sb| sb.statements.iter())
+            .flat_map(|s| s.defs.iter().map(move |(&sym, &ver)| ((sym, ver), s)))
+            .collect(),
     };
     let mut findings = Vec::new();
 
@@ -547,6 +638,7 @@ struct BoundsCtx<'a> {
     lengths: HashMap<ValueKey, i64>,
     str_lengths: HashMap<ValueKey, i64>,
     phi_index: PhiIndex<'a>,
+    defs: DefIndex<'a>,
 }
 
 /// The single index-access call site `process` evaluates: the versions
@@ -579,6 +671,7 @@ impl BoundsCtx<'_> {
                 lname,
                 lver,
                 &self.phi_index,
+                &self.defs,
                 &self.lengths,
                 &mut visited,
             );
@@ -594,6 +687,7 @@ impl BoundsCtx<'_> {
             &list_name,
             list_version,
             &self.phi_index,
+            &self.defs,
             &self.lengths,
             &mut visited,
         )
@@ -977,11 +1071,38 @@ mod tests {
         assert!(bounds("proc f {s i} { return [string index $s $i] }").is_empty());
         // The legal append slot (`index == length`) for `lset` is silent.
         assert!(bounds("proc f {v} { set l {a b c}\n set j 3\n lset l $j $v }").is_empty());
-        // A second `lset` reads a non-phi mutated version — length not
-        // recovered, so no false positive.
+    }
+
+    #[test]
+    fn lset_preserves_length_through_linear_chain_fires_w231() {
+        // RUST_ISSUE_068 (precision gain): a length-preserving `lset` is now
+        // seen through to its input, so the length survives a linear `lset`
+        // chain. `lset l 99` on the (still length-3) list is a real Tcl error
+        // ("list index out of range") — W231 correctly fires.
+        let v = bounds("proc f {v w} { set l {a b c}\n lset l 0 $v\n set j 99\n lset l $j $w }");
+        assert_eq!(v.len(), 1, "{v:?}");
+        assert_eq!(v[0].0, "W231");
+    }
+
+    #[test]
+    fn lset_after_length_growing_op_is_silent() {
+        // RUST_ISSUE_068 (false-positive fix): a length-*growing* def
+        // (`lappend`) in the loop body makes the list length unknown at the
+        // `lset`, so no bound can be proven. The pre-loop length of 3 must NOT
+        // be trusted — `lset l 5` is the legal append slot after two lappends.
         assert!(
-            bounds("proc f {v w} { set l {a b c}\n lset l 0 $v\n set j 99\n lset l $j $w }")
-                .is_empty()
+            bounds(
+                "proc f {v} { set l {a b c}\n foreach i {1} { lappend l x y\n lset l 5 $v }\n}",
+            )
+            .is_empty(),
+            "a length-growing op in the loop must poison the length, not trust the pre-loop value",
+        );
+        // `concat`/reassignment in the loop is equally opaque — no false W231.
+        assert!(
+            bounds(
+                "proc f {v} { set l {a b c}\n foreach i {1} { set l [concat $l x y z]\n lset l 5 $v }\n}",
+            )
+            .is_empty(),
         );
     }
 }
