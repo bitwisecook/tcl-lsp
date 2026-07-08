@@ -286,3 +286,38 @@ fn test_error_code_option_needs_tcltest_2_5() {
     assert!(spec.find_option("-body", None, Some("2.2")).is_some());
     assert!(spec.find_option("-match", None, Some("2.3")).is_some());
 }
+
+#[test]
+fn configure_iterations_option_needs_tcltest_2_6() {
+    // `configure -iterations` was added in tcltest 2.6 (bundled with Tcl 9.1);
+    // absent from 2.5.10 (Tcl 9.0) and every earlier version.  Verified against
+    // the bundled tcltest sources 2.2.11 … 2.6.0.
+    let r = reg();
+    let spec = r.get("tcltest::configure").expect("configure registered");
+    assert!(
+        spec.find_option("-iterations", None, Some("2.6")).is_some(),
+        "-iterations present at tcltest 2.6"
+    );
+    assert!(
+        spec.find_option("-iterations", None, Some("2.5")).is_none(),
+        "-iterations absent at tcltest 2.5"
+    );
+    // No package floor: gated by core dialect — offered only under 9.1.
+    assert!(
+        spec.find_option("-iterations", Some(DialectSet::TCL91), None)
+            .is_some(),
+        "-iterations offered under Tcl 9.1"
+    );
+    assert!(
+        spec.find_option("-iterations", Some(DialectSet::TCL90), None)
+            .is_none(),
+        "-iterations hidden under Tcl 9.0 (bundles tcltest 2.5.10)"
+    );
+    // The 18 pre-2.6 options stay available everywhere.
+    for opt in ["-verbose", "-match", "-debug", "-singleproc", "-loadfile"] {
+        assert!(
+            spec.find_option(opt, Some(DialectSet::TCL84), None).is_some(),
+            "{opt} should be available under Tcl 8.4"
+        );
+    }
+}
