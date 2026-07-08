@@ -188,6 +188,35 @@ suite("Diagnostics", () => {
     }
   });
 
+  test("dict-for body nesting keeps reads alive but still catches real dead stores (#833)", async () => {
+    const uri = getDocUri("dict-for-nesting.tcl");
+    await activate(uri);
+    // The body-internal dead store yields exactly one W220, proving analysis ran
+    // AND that the analyser walked into the (now-lowered) dict-for body.
+    const diagnostics = await waitForDiagnostics(uri, { minCount: 1 });
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const codes = diagnostics.map(codeOf);
+
+    const w220 = diagnostics.filter((d) => codeOf(d) === "W220");
+    // The ONLY dead store is `set tmp 1` inside the second proc's body (line 18,
+    // 0-indexed). The `set x set` read via `$x a $key` nested in `if`/`dict for`
+    // must NOT be flagged.
+    assert.strictEqual(w220.length, 1, `expected one W220, got [${codes}]`);
+    assert.strictEqual(
+      w220[0].range.start.line,
+      18,
+      `W220 should anchor to the body-internal dead store, got line ${w220[0].range.start.line}`,
+    );
+    // No unused/dead-store hint on `x` (the command-name read keeps it live).
+    for (const d of diagnostics) {
+      const line = d.range.start.line;
+      assert.ok(
+        !((codeOf(d) === "W220" || codeOf(d) === "W211") && line === 6),
+        `unexpected ${codeOf(d)} on 'set x set' (it is read via $x) at line ${line}`,
+      );
+    }
+  });
+
   test("W100 fires inside a catch body (analyser recurses into catch)", async () => {
     const uri = getDocUri("catchBody.tcl");
     await activate(uri);

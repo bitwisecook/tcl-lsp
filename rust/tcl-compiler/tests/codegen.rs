@@ -1212,17 +1212,44 @@ fn foreach_creates_loop_cfg() {
 }
 
 #[test]
-fn dict_for_becomes_barrier() {
+fn dict_for_lowers_to_loop_cfg_for_analysis_but_barriers_for_codegen() {
+    // `dict for`'s body runs in the caller's frame, so the *analysis* CFG
+    // (`build_cfg`, faithful_exceptions on) flattens it into a foreach-style
+    // header→body→end loop — like `foreach_creates_loop_cfg` above — so the
+    // body's reads/writes and its own control flow are first-class SSA (a read
+    // nested inside an `if` in the body is no longer lost — issue #833). The
+    // *codegen* CFG (`build_cfg_codegen`, faithful off) keeps the opaque
+    // `::tcl::dict::for` barrier the inline `emit_dict_for` compiles, so the
+    // emitted bytecode stays byte-identical to C Tcl. Mirrors `array for`.
     let src = "proc dict_iter {d} { dict for {k v} $d { puts \"$k: $v\" } }";
     let ir = ir_for(src);
-    let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::dict_iter"];
-    let has_barrier = proc_cfg.blocks.values().any(|b| {
+
+    // Analysis CFG: real loop blocks, no dict-for barrier.
+    let analysis = build_cfg(&ir, false);
+    let a_cfg = &analysis.procedures["::dict_iter"];
+    let names = a_cfg.block_names();
+    assert!(
+        names.iter().any(|n| n.contains("foreach_header")),
+        "analysis CFG should flatten dict for into a loop; got {names:?}"
+    );
+    assert!(names.iter().any(|n| n.contains("foreach_body")));
+    assert!(names.iter().any(|n| n.contains("foreach_end")));
+    assert!(
+        !a_cfg.blocks.values().any(|b| b.statements.iter().any(
+            |s| matches!(s, Statement::Barrier { reason, .. } if reason.contains("dict for"))
+        )),
+        "analysis CFG should not keep a dict-for barrier"
+    );
+
+    // Codegen CFG: the opaque `::tcl::dict::for` barrier is preserved.
+    let codegen = build_cfg_codegen(&ir, false);
+    let c_cfg = &codegen.procedures["::dict_iter"];
+    let has_barrier = c_cfg.blocks.values().any(|b| {
         b.statements
             .iter()
             .any(|s| matches!(s, Statement::Barrier { reason, .. } if reason.contains("dict for")))
     });
-    assert!(has_barrier);
+    assert!(has_barrier, "codegen CFG must keep the dict-for barrier");
 }
 
 // ═══════════════════════════════════════════════════════════════════

@@ -853,6 +853,19 @@ impl CfgBuilder {
         }
 
         if *is_dict_iteration && !raw_args.is_empty() {
+            // `dict for`/`dict map {k v} $d body`: the body runs in the caller's
+            // frame, so the analysis CFG inlines it (shared reaching-defs / const
+            // lattice, loop vars bound, and — crucially — the body's *own* control
+            // flow lowered into real blocks, so a read nested inside an `if` /
+            // `while` / `catch` body is a first-class SSA use). Codegen barriers it
+            // to the `::tcl::dict::for`/`::tcl::dict::map` ensemble invoke below,
+            // keeping the emitted bytecode byte-identical to C Tcl. Mirrors the
+            // `array for` split above. Without the inlined body, a command-name or
+            // brace-nested `$var` read the shallow barrier-word scan can't see is
+            // lost, so the loop's outer reads look dead (issue #833).
+            if self.faithful_exceptions {
+                return self.lower_foreach(stmt, current);
+            }
             let sub = &raw_args[0];
             let qual_cmd = format!("::tcl::dict::{sub}");
             // The barrier re-emits `::tcl::dict::for {vars} $dict {body}` — the

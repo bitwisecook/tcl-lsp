@@ -267,6 +267,31 @@ fn w220_silent_when_value_is_read_between() {
     assert!(!has_code(&lsp.open_ready(&uri, src), "W220"));
 }
 
+#[test]
+fn w220_silent_for_command_name_read_nested_in_dict_for_if() {
+    // Issue #833: `$x` is read as the command name of `$x a $key`, nested inside
+    // `if {$value}` inside `dict for`. Before dict-for bodies were lowered into
+    // real CFG blocks, that read was invisible and `set x set` false-fired W220.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc demo {} {\n    set x set\n    set d [dict create a true b false c true]\n    dict for {key value} $d {\n        if {$value} {\n            $x a $key\n        }\n    }\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(!has_code(&diags, "W220"), "{:?}", codes(&diags));
+    assert!(!has_code(&diags, "W211"), "{:?}", codes(&diags));
+}
+
+#[test]
+fn w220_dead_store_inside_dict_for_body_fires() {
+    // Precision gained by #833's fix: a dead store *inside* the (now lowered)
+    // dict-for body is a real W220 — it was invisible while the body was opaque.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc demo {d} {\n    dict for {k v} $d {\n        set tmp 1\n        set tmp 2\n        puts $tmp\n    }\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(has_code(&diags, "W220"), "{:?}", codes(&diags));
+    assert!(on_line(&diags, "W220").contains(&2));
+}
+
 // -- Clean code stays clean (cross-family negative control) --------------
 
 #[test]
