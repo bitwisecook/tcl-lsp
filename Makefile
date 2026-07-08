@@ -1214,7 +1214,7 @@ $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS)
 		rustup target add wasm32-wasip2; \
 	fi
 	@if [ -f "$$HOME/.cargo/env" ]; then . "$$HOME/.cargo/env"; fi; \
-	cd $(ZED_DIR) && TCL_LSP_BUNDLED_VERSION="$(VERSION)" cargo build --target wasm32-wasip2 --release
+	cd $(ZED_DIR) && TCL_LSP_BUNDLED_VERSION="$(SEMVER_VERSION)" cargo build --target wasm32-wasip2 --release
 	@echo "==> Staging Zed extension archive"
 	@rm -rf $(BUILD_DIR)/zed-stage
 	@mkdir -p $(BUILD_DIR)/zed-stage

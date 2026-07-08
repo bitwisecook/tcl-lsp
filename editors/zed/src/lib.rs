@@ -25,10 +25,12 @@ use zed_extension_api::{self as zed, LanguageServerId, Result};
 const REPO: &str = "bitwisecook/tcl-lsp";
 
 /// The release version this extension was packaged for, injected by the
-/// Makefile (`TCL_LSP_BUNDLED_VERSION`) at package time. When absent — a
-/// build straight from source (Zed's registry builder, or a local dev
-/// extension) — we fall back to querying the latest GitHub release instead
-/// of pinning to a specific tag. See [`pinned_version`].
+/// Makefile (`TCL_LSP_BUNDLED_VERSION`) at package time. Only an exact release
+/// tag (`X.Y.Z`) is honoured — see [`pinned_version`]. When it is anything else
+/// (the `0.0.0-dev` sentinel, a `git describe` string like `2.1.4-3-gabc1234`
+/// from a local dev build, a bare commit sha, or absent because Zed's registry
+/// builder compiled straight from source), we fall back to a binary on PATH /
+/// the latest GitHub release instead of pinning to a tag that does not exist.
 const PACKAGED_VERSION: Option<&str> = option_env!("TCL_LSP_BUNDLED_VERSION");
 
 struct TclExtension {
@@ -48,13 +50,26 @@ struct TclExtension {
 // prebuilt binary from the GitHub release, exactly like most native Zed
 // extensions. Dev builds still fall back to a binary on PATH.
 
+/// True only for an exact release-tag version — three dot-separated, non-empty,
+/// all-digit components (`2.1.4`). This deliberately rejects the `0.0.0-dev`
+/// sentinel, `git describe` strings (`2.1.4-3-gabc1234`), and bare commit shas,
+/// none of which correspond to a `v<version>` release that carries assets.
+fn is_release_version(v: &str) -> bool {
+    let mut parts = v.split('.');
+    let (Some(major), Some(minor), Some(patch), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return false;
+    };
+    [major, minor, patch]
+        .iter()
+        .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
+}
+
 /// The concrete release version to resolve assets for, or `None` when this is
-/// a from-source / dev build with no packaged version.
+/// a from-source / dev build that should use the PATH / latest-release fallback.
 fn pinned_version() -> Option<&'static str> {
-    match PACKAGED_VERSION {
-        Some(v) if !v.is_empty() && v != "0.0.0-dev" => Some(v),
-        _ => None,
-    }
+    PACKAGED_VERSION.filter(|v| is_release_version(v))
 }
 
 /// Map a Zed platform to the Rust target triple used in our release asset
@@ -661,13 +676,21 @@ mod tests {
     }
 
     #[test]
-    fn dev_sentinel_is_not_treated_as_a_pinned_version() {
-        // The runtime helper reads a const; assert the sentinel-filtering
-        // logic directly so the intent is covered regardless of build env.
-        let filter = |v: Option<&str>| matches!(v, Some(v) if !v.is_empty() && v != "0.0.0-dev");
-        assert!(!filter(Some("0.0.0-dev")));
-        assert!(!filter(Some("")));
-        assert!(!filter(None));
-        assert!(filter(Some("2.1.5")));
+    fn only_exact_release_tags_pin_downloads() {
+        // Exact release tags pin.
+        assert!(is_release_version("2.1.5"));
+        assert!(is_release_version("0.0.1"));
+        assert!(is_release_version("10.20.30"));
+
+        // Everything a non-release build might inject must fall back instead
+        // of trying to download from a `v<version>` tag that does not exist.
+        assert!(!is_release_version("0.0.0-dev")); // dev sentinel
+        assert!(!is_release_version("2.1.4-3-gabc1234")); // git describe
+        assert!(!is_release_version("abc1234")); // bare commit sha
+        assert!(!is_release_version("2.1")); // too few components
+        assert!(!is_release_version("2.1.5.1")); // too many components
+        assert!(!is_release_version("2.1.x")); // non-numeric
+        assert!(!is_release_version("v2.1.5")); // leading v not stripped
+        assert!(!is_release_version("")); // empty
     }
 }
