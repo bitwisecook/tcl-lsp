@@ -145,14 +145,15 @@ suite("Diagnostics", () => {
     const config = vscode.workspace.getConfiguration("tclLsp.optimiser");
     await config.update("enabled", false, vscode.ConfigurationTarget.Global);
 
-    // Wait on the server's resolved config (message passing) rather than a
-    // fixed sleep, so the optimiser.enabled=false round-trip is observed to
-    // have applied before analysing.
-    await waitForEffectiveConfig(cleanUri, (cfg) => cfg.optimiser_enabled === false, {
-      label: "optimiser.enabled = false",
-    });
-
     try {
+      // Wait on the server's resolved config (message passing) rather than a
+      // fixed sleep, so the optimiser.enabled=false round-trip is observed to
+      // have applied before analysing.  Kept inside the `try` so a wait
+      // timeout still restores the global setting in `finally`.
+      await waitForEffectiveConfig(cleanUri, (cfg) => cfg.optimiser_enabled === false, {
+        label: "optimiser.enabled = false",
+      });
+
       await activate(cleanUri);
 
       // Wait briefly for any diagnostics to appear (proving none arrive)

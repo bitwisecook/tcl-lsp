@@ -122,11 +122,9 @@ suite("Code Lens", () => {
     // first batch of lenses, rather than sleeping on a fixed delay.
     const lenses = await pollUntil(
       () =>
-        vscode.commands.executeCommand(
-          "vscode.executeCodeLensProvider",
-          refsUri,
-          100,
-        ) as Thenable<vscode.CodeLens[] | undefined>,
+        vscode.commands.executeCommand("vscode.executeCodeLensProvider", refsUri, 100) as Thenable<
+          vscode.CodeLens[] | undefined
+        >,
       (ls) => Array.isArray(ls) && ls.length > 0,
       { label: "codeLens published" },
     );
