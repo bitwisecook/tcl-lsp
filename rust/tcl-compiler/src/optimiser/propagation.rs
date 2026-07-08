@@ -66,7 +66,7 @@ use crate::ir::{CommandTokens, Script, Statement};
 use crate::naming::normalise_var_name;
 use tcl_core_types::DiagCode;
 
-use super::helpers::expr_simplify::{NumericCtx, numeric_var_names, try_unwrap_expr_in_expr};
+use super::helpers::expr_simplify::{NumericCtx, operand_types, try_unwrap_expr_in_expr};
 use super::helpers::literals::{is_safe_word, is_static_var_word};
 use super::helpers::spans::{full_quoted_string_span, full_word_span};
 use super::{Optimisation, PassContext};
@@ -669,7 +669,7 @@ fn run_function(
     // map that survives only when every tracked version of the
     // variable collapses to the same single constant value.
     let constants = sccp_constants_for(fu);
-    let numeric = numeric_var_names(fu);
+    let numeric = operand_types(fu);
     walk_script(ctx, cu, script, &constants, Some(&numeric), namespace);
 }
 

@@ -67,8 +67,8 @@ use super::{Optimisation, PassContext};
 /// Run the expression-simplification pass across every function
 /// in `cu`.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
-    use super::helpers::expr_simplify::numeric_var_names;
-    let top_numeric = numeric_var_names(&cu.top_level);
+    use super::helpers::expr_simplify::operand_types;
+    let top_numeric = operand_types(&cu.top_level);
     walk_script(
         ctx,
         &cu.ir_module.top_level,
@@ -76,7 +76,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         Some(&top_numeric),
     );
     for (qname, proc) in &cu.ir_module.procedures {
-        let numeric = cu.procedures.get(qname).map(numeric_var_names);
+        let numeric = cu.procedures.get(qname).map(operand_types);
         walk_script(ctx, &proc.body, ctx.dialect, numeric.as_ref());
     }
 }
