@@ -1014,7 +1014,11 @@ namespace eval ::orch {
         variable _tmm_count
         variable _tmm_current
         variable _tmm_select_mode
-        set _tmm_select_mode "manual"
+        variable _test_tmm_select_mode
+        # Restore the configured default (which defaults to "manual") rather
+        # than force "manual", so a configured `-tmm_select auto` survives the
+        # per-test reset that ::orch::test runs before every body.
+        set _tmm_select_mode $_test_tmm_select_mode
         if {$_tmm_count > 1} {
             set _tmm_current 0
             _tmm_init_slots
@@ -1082,6 +1086,10 @@ namespace eval ::orch {
                 }
                 tmm_select     {
                     variable _tmm_select_mode
+                    variable _test_tmm_select_mode
+                    # Record the configured default so it survives reset, and
+                    # apply it to the live mode immediately.
+                    set _test_tmm_select_mode $val
                     set _tmm_select_mode $val
                 }
                 default {
@@ -1474,6 +1482,11 @@ namespace eval ::orch {
     #   "auto"    - fakeCMP hash selects TMM from connection 4-tuple
 
     variable _tmm_select_mode "manual"
+
+    # The configured default TMM-select mode, set by configure_tests. reset
+    # restores _tmm_select_mode from this (rather than hard-coding "manual")
+    # so a configured `-tmm_select auto` survives the per-test reset.
+    variable _test_tmm_select_mode "manual"
 
     # fakeCMP hash: deterministic TMM from connection 4-tuple.
     # NOT the real BIG-IP CMP algorithm -- a test-only simulation.

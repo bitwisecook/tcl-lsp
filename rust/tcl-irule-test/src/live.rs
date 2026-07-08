@@ -438,6 +438,36 @@ mod tests {
     }
 
     #[test]
+    fn configured_tmm_select_auto_survives_reset() {
+        // RUST_ISSUE_043: `::orch::test` runs `reset` before every body, and
+        // `reset` previously forced `_tmm_select_mode` back to "manual",
+        // clobbering a configured `-tmm_select auto`. Capture the live mode
+        // from inside a test body (i.e. after that reset) and prove it's still
+        // "auto" so `run_http_request` takes the fakeCMP auto path.
+        let mut s = LiveSession::new(&lib_dir()).expect("session");
+        s.eval("::orch::configure_tests -tmm_count 4 -tmm_select auto -profiles {TCP HTTP}")
+            .unwrap();
+        s.eval(
+            "::orch::test \"tmm-auto\" \"auto mode survives reset\" -body { set ::__captured_mode $::orch::_tmm_select_mode }",
+        )
+        .unwrap();
+        assert_eq!(
+            s.eval("set ::__captured_mode").unwrap(),
+            "auto",
+            "configured -tmm_select auto must survive the per-test reset"
+        );
+    }
+
+    #[test]
+    fn tmm_select_defaults_to_manual_after_reset() {
+        // With no configuration, reset must still yield the "manual" default —
+        // the fix restores the configured default, which defaults to manual.
+        let mut s = LiveSession::new(&lib_dir()).expect("session");
+        s.eval("::orch::reset").unwrap();
+        assert_eq!(s.eval("set ::orch::_tmm_select_mode").unwrap(), "manual");
+    }
+
+    #[test]
     fn missing_lib_dir_errors() {
         match LiveSession::new(Path::new("/no/such/dir")) {
             Err(SessionError::MissingLib(_)) => {}
