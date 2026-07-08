@@ -1,4 +1,4 @@
-8 matches for 'taint':
+9 matches for 'taint':
 - AI Help [Claude Code Skills]
   Feature catalogue and full-text search across every tcl-lsp feature, served by the KCS help database.
   file: kcs-feature-ai-help.md
@@ -8,6 +8,9 @@
 - iRule Review [Claude Code Skills]
   Security-focused analysis of iRules: filters the full diagnostic set to show only security warnings, taint findings, and thread-safety concerns.
   file: kcs-feature-irule-review.md
+- Special Variable Recognition [LSP + AI Features]
+  Recognises interpreter-provided special variables (`auto_path`, `env`, `errorInfo`, `tcl_platform`, `argv`, the iRules `static::` namespace) so they are never mis-flagged as unused or read-before-set, documents them on hover, and treats `env`/`argv` reads as tainted external input — all aware of the file's dialect.
+  file: kcs-feature-special-variables.md
 - Unified Tcl Verb CLI [Claude Code Skills]
   The native `tcl` binary provides a single verb-based CLI for optimisation, diagnostics/linting, validation, formatting, symbol/graph extraction, iRules event metadata lookups, legacy-pattern conversion guidance, disassembly, syntax highlighting, WASM compilation, compiler exploration, and KCS help search.
   file: kcs-feature-tcl-verb-cli.md

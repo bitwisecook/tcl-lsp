@@ -12,13 +12,14 @@ Claude Code Skills (13):
   Semantic Graphs: Structured call graph, symbol graph, and data-flow graph extraction from Tcl and iRules source code.
   Test Generation: Analyse an iRule and generate a complete test script using the Event Orchestrator test framework, with event mocks, command stubs, and assertions.
   Unified Tcl Verb CLI: The native `tcl` binary provides a single verb-based CLI for optimisation, diagnostics/linting, validation, formatting, symbol/graph extraction, iRules event metadata lookups, legacy-pattern conversion guidance, disassembly, syntax highlighting, WASM compilation, compiler exploration, and KCS help search.
-LSP + AI Features (8):
+LSP + AI Features (9):
   Diagnostics: Errors, warnings, security, taint tracking, and style checks shown as you type.
   Dialect Selection: Switch between Tcl versions and iRules/iApps/BIG-IP/EDA dialects to get dialect-specific analysis.
   Document Symbols: Outline of procs, namespaces, event handlers, variables, and `tcltest` definitions (test cases, constraints, custom match modes) in the current file.
   Optimiser: Finds optimisation opportunities in Tcl/iRules code and produces rewritten source.
   Refactor: Extract to Data-Group: Extract hardcoded if/elseif chains or switch statements with literal values into F5 BIG-IP data-group lookups, with type-aware inference for IP/CIDR (IPv4 + IPv6), integer, and string values.
   Refactoring Tools: Mechanical code refactorings: extract/inline variables, if-to-switch, switch-to-dict, brace expr, and data-group extraction with type-aware IP/CIDR support.
+  Special Variable Recognition: Recognises interpreter-provided special variables (`auto_path`, `env`, `errorInfo`, `tcl_platform`, `argv`, the iRules `static::` namespace) so they are never mis-flagged as unused or read-before-set, documents them on hover, and treats `env`/`argv` reads as tainted external input — all aware of the file's dialect.
   Unminify Error: Translate Tcl or iRule error messages produced by minified code back to the original variable, proc, and command names using a saved symbol map.  Optionally remaps line-number references from minified single-line output to approximate original source lines.
   Unused Variable Detection: Detects variables that are set but never read, unused procedure parameters, and dead stores where a value is overwritten before use. Offers quick-fix code actions to remove unused assignments.
 LSP Features (all editors) (5):
