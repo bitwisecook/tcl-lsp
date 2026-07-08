@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Compiler lowering / variable scoping |
 | **Location** | `rust/tcl-compiler/src/var_escape/walker.rs:241 and var_escape/cfg_propagation/walker.rs:231` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: medium) |
 
 ## Finding

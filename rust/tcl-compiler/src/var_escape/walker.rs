@@ -238,7 +238,18 @@ fn handle_uplevel(args: &[String], state: &mut EscapeState) {
         ));
         return;
     }
-    if first != "#0" && first != "0" {
+    // `uplevel 0` runs the body in the *current* frame, so a `set x` inside it
+    // name-writes our proc's local `x` exactly like `eval`. Walk it the same
+    // way and escape every name it touches. Treating `0` as global-safe like
+    // `#0` wrongly whitelists our own frame (RUST_ISSUE_073).
+    if first == "0" {
+        handle_eval(&args[1..], state);
+        return;
+    }
+    // Only `uplevel #0` (global scope) is safe: our locals aren't visible
+    // there, so a literal body can't touch them. Any other level runs in a
+    // different caller frame — handled pessimistically.
+    if first != "#0" {
         state.record_barrier(Barrier::with_detail(
             BarrierKind::Upvar,
             format!("uplevel {first}"),
@@ -767,6 +778,36 @@ mod tests {
     fn descends_into_if_body() {
         let s = analyse("if {1} { upvar 1 caller_x x }");
         assert!(s.is_frame("x"));
+    }
+
+    #[test]
+    fn uplevel_zero_walks_body_like_eval() {
+        // RUST_ISSUE_073: `uplevel 0` runs the body in the *current* frame, so
+        // it must escape the same names `eval` does — not be treated as
+        // global-safe like `#0`. The body's `set x` reaches our proc's local.
+        let eval = analyse("eval {set x 2}");
+        let up0 = analyse("uplevel 0 {set x 2}");
+        assert_eq!(
+            up0.is_frame("x"),
+            eval.is_frame("x"),
+            "uplevel 0 must escape the same names as eval",
+        );
+        assert!(
+            up0.is_frame("x"),
+            "uplevel 0 body must escape the current-frame local `x`",
+        );
+    }
+
+    #[test]
+    fn uplevel_global_does_not_escape_current_frame_local() {
+        // TN for RUST_ISSUE_073: `uplevel #0` runs at *global* scope — our
+        // local `x` is not visible there, so a literal body's `set x` must NOT
+        // mark our local frame-escaping.
+        let up_global = analyse("uplevel #0 {set x 2}");
+        assert!(
+            !up_global.is_frame("x"),
+            "uplevel #0 runs globally and must not escape our local `x`",
+        );
     }
 
     // `barriers` and `tag_reasons`
