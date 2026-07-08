@@ -68,8 +68,6 @@
 //!     `CfgFunction` with a `Statement::AssignExpr` carrying an
 //!     `ExprNode::Binary`/`Unary`, run through `codegen_function`.
 
-#![allow(clippy::too_many_lines)]
-
 use std::collections::HashMap;
 
 use tcl_compiler::cfg::{CfgModule, Function as CfgFunction, Terminator};

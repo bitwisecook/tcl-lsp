@@ -74,6 +74,8 @@ pub(crate) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
 
 const ITER_CAP: usize = 100_000;
 
+// `too_many_lines`: one match arm per special form (not/and/or/if/reduce/foreach/…);
+// a flat dispatch mirrors the grammar and reads better than splitting per keyword.
 #[allow(clippy::too_many_lines)]
 pub(crate) fn eval_special_form(
     name: &str,

@@ -65,8 +65,6 @@
 //! exactly the compiler's encoding of "this write is observable elsewhere, so the
 //! name must live in the runtime frame".
 
-#![allow(clippy::too_many_lines)]
-
 use std::collections::HashMap;
 
 use tcl_compiler::cfg_builder::build_cfg_function;

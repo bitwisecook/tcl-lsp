@@ -21,9 +21,6 @@
 //! host's [`Clock`](tcl_platform::Clock) and passes it (plus a local-offset
 //! callback) into the host-free core; the fresh result object is retained by
 //! `set_result`.
-//!
-//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use tcl_cmd_core::clock as core_clock;
 

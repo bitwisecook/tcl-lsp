@@ -449,6 +449,8 @@ fn slice_match<'a>(str_bytes: &'a [u8], byteoff: &[usize], so: usize, eo: usize)
 /// Build the value for match item `k`: an `{start end}` index pair (`-indices`)
 /// or the matched substring (default). A non-participating group yields
 /// `{-1 -1}` / the empty string, per `Tcl_RegexpObjCmd`.
+// char offsets into a real subject are far below `i64::MAX`; the `i64` pair is
+// Tcl's `-indices` result format.
 #[allow(clippy::cast_possible_wrap)]
 fn build_match_item<O: ValueOps>(
     ops: &mut O,

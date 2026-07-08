@@ -42,7 +42,6 @@
 //!
 //! C refs: `tclBasic.c` (`TclNRCoroutineObjCmd`, `TclNRYieldObjCmd`,
 //! `CoroTypeObjCmd`).
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::interp::{obj_bytes, Code, CoroContext, Interp};
 use crate::obj::{self, TclObj};

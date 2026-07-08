@@ -83,7 +83,6 @@ fn path_str(bytes: &[u8]) -> Completion<Value> {
     ok(Value::string(std::str::from_utf8(bytes).unwrap_or("")))
 }
 
-#[allow(clippy::too_many_lines)]
 /// Resolve a `file` subcommand word to its canonical Tcl 9 name with Tcl's
 /// unambiguous-prefix rule (`Tcl_GetIndexFromObj`): exact match wins, else a
 /// unique prefix — so `file ext` resolves to `extension` (cmdAH.test). The

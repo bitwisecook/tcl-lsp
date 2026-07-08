@@ -28,9 +28,6 @@
 //! `fconfigure` accepts and ignores the translation/encoding/buffering options
 //! (UTF-8 internal; no CRLF translation on Unix) so library channel setup
 //! succeeds.
-//!
-//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use std::collections::BTreeMap;
 use std::fs::{File, OpenOptions};

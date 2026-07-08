@@ -27,6 +27,8 @@ use tcl_cli_support::{OutputTarget, write_text_output};
 
 /// Build the reference graph from `inputs` (UCS-aware) and walk it from the
 /// objects matching `pattern`, emitting the text / JSON / tmsh report.
+// Args and bool flags mirror the verb's CLI options one-for-one; a struct would
+// just re-wrap the same one-shot parameters.
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 pub fn run_grep(
     pattern: &str,

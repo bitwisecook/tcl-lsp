@@ -22,6 +22,8 @@
 //! (`rust/bigip-report-gen/python/tests/data/`), so the two generators are validated
 //! against identical inputs and the assertions mirror `test_report.py`.
 
+// Assertions index into fixture-derived counts with `as` casts on values that
+// are always small; truncation cannot occur for these test inputs.
 #![allow(clippy::cast_possible_truncation)]
 
 use bigip_report_gen_rust::{RenderOptions, Source, build_report, collect_model};

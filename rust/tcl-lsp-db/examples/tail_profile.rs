@@ -18,8 +18,6 @@
 
 //! Per-edit tail profiler for the incremental diagnostic path on practcl.tcl.
 
-#![allow(clippy::cast_precision_loss)]
-
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -50,6 +48,7 @@ fn time<T>(label: &str, iters: u32, mut f: impl FnMut() -> T) -> f64 {
     per
 }
 
+// A linear profiling script: setup, then one timed block per measured path.
 #[allow(clippy::too_many_lines)]
 fn main() {
     let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tmp");

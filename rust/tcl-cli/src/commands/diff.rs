@@ -277,6 +277,8 @@ fn value_to_json(value: &serde_json::Value) -> Json {
 }
 
 /// `tcl diff` — AST/IR/CFG structural diff.
+// Each CLI diff option is threaded through individually; a params struct would
+// only re-wrap the same flags this `tcl diff` entry point already receives.
 #[allow(clippy::too_many_arguments)]
 pub fn run_diff(
     left: Option<&Path>,
@@ -333,6 +335,8 @@ pub fn run_diff(
 
 /// Emit the multi-layer diff result as JSON or unified-diff text, returning the
 /// exit code (1 when any layer differs).
+// Takes the already-parsed diff inputs and names individually; bundling them
+// into a struct would add a type without reducing what the emitter needs.
 #[allow(clippy::too_many_arguments)]
 fn write_diff_result(
     target: &OutputTarget,

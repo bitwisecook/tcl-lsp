@@ -499,6 +499,7 @@ fn expected_event_sequence(
 }
 
 /// Resolve an iRule command token like `HTTP::host` against *conn*.
+// One flat arm per iRule command token; splitting the dispatch would obscure it.
 #[allow(clippy::too_many_lines)]
 fn hud_value_for(token: &str, conn: &Connection) -> Option<String> {
     let f = &conn.client;
@@ -695,12 +696,6 @@ fn analyse_reset(session: &Session) -> String {
     parts.join(" ; ")
 }
 
-/// Build the per-session explanation for the capture against parsed configs.
-#[allow(clippy::too_many_lines)]
-#[allow(clippy::too_many_arguments)]
-// `use_tshark` (input intent) vs `used_tshark` (output fact): the one-letter
-// gap is deliberate, not an accident.
-#[allow(clippy::similar_names)]
 /// The orchestrator profile labels (TCP / CLIENTSSL / HTTP / …) for `vs`.
 fn profiles_for_orchestrator(cfg: &BigipConfig, vs: &BigipVirtualServer) -> Vec<String> {
     let types = profile_types_for_virtual(cfg, vs);
@@ -1017,6 +1012,8 @@ fn compute_explain_flow(
 }
 
 /// Render the text report.
+// One straight-line report builder (header + per-session sections); splitting
+// it into helpers would scatter the output layout.
 #[allow(clippy::too_many_lines)]
 fn format_report(report: &ExplainFlowReport) -> String {
     let pcap_path = &report.pcap_path;
@@ -1735,6 +1732,8 @@ pub fn explain_flow_value(pcap: &Path, options: &ExplainFlowOptions<'_>) -> Resu
 }
 
 /// Entry point for `f5 explain-flow` (built-in walker / static path).
+// Arg list and bool flags mirror the verb's CLI options one-for-one; a struct
+// would just re-wrap the same one-shot parameters.
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 pub fn run_explain_flow(
     pcap: &Path,

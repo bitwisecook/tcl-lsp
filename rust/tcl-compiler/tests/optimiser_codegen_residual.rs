@@ -68,8 +68,6 @@
 //! No `#[ignore]`; every test passes. No genuine miscompile was found — every
 //! fold / sink / lowering observed here matches the C-Tcl value it preserves.
 
-#![allow(clippy::too_many_lines)]
-
 use tcl_compiler::codegen::cmd_subst::{
     has_command_separator, is_pure_cmd_subst, parse_cmd_parts, parse_cmd_parts_expand,
     unroll_nested_set,

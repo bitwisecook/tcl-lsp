@@ -1298,6 +1298,8 @@ fn cmd_tailcall(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `N microseconds per iteration` (C Tcl `Tcl_TimeObjCmd`). `N` is an integer for
 /// `count <= 1` and a double otherwise; a body that does not complete `OK`
 /// (error / break / continue / return) propagates.
+// Averaging elapsed µs over the iteration count intentionally goes through f64
+// and narrows back to i64, matching C Tcl's `Tcl_TimeObjCmd` arithmetic.
 #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if args.is_empty() || args.len() > 2 {

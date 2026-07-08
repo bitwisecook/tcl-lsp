@@ -60,8 +60,6 @@
 //! functions; this one covers the *lowering branches* those tests skip, and the
 //! `Backend`-trait entry points they never touch.
 
-#![allow(clippy::too_many_lines)]
-
 use tcl_compiler::cfg::{CfgModule, Function as CfgFunction, Terminator};
 use tcl_compiler::cfg_builder::{build_cfg, build_cfg_codegen};
 use tcl_compiler::codegen::{Backend, BytecodeBackend, CodegenCtx, FunctionAsm, ModuleAsm, Op};

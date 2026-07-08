@@ -211,6 +211,8 @@ fn int_digits(n: i64, spec: &Spec) -> String {
 
 /// Digits for `x`/`X`/`o`/`b`, with the `#` alternate-form prefix.
 fn based_digits(n: i64, spec: &Spec) -> String {
+    // reinterpret the two's-complement bit pattern as u64: `%x`/`%o`/`%b` of a
+    // negative int prints the unsigned representation, matching C's `format`.
     #[allow(clippy::cast_sign_loss)]
     let u = n as u64;
     let (mut body, prefix) = match spec.verb {

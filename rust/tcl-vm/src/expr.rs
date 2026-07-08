@@ -22,6 +22,8 @@
 //! the inline arithmetic opcodes (`ADD`/`LT`/`UMINUS`/…) and `EXPR_STK` (via the
 //! [`ExprEval`] adapter over [`tcl_syntax::expr::ExprOps`]), so the VM shares
 //! the expr tower with the const-folder and the runtime.
+// Integer→double coercion in the shared arithmetic is intentional (Tcl `expr`
+// promotes to double), so the precision loss is the defined behaviour.
 #![allow(clippy::cast_precision_loss)]
 
 use std::cmp::Ordering;

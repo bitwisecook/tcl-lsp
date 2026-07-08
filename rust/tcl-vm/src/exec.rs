@@ -753,7 +753,7 @@ impl Vm {
     }
 
     /// Execute a single instruction of the top activation.
-    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::too_many_lines)] // One match over every opcode; the VM's central dispatch is clearer whole.
     fn tick(&mut self, f: &mut Frame) -> Tick {
         let asm = Rc::clone(&f.asm);
         if f.pc >= asm.instructions.len() {

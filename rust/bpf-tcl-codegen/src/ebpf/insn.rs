@@ -21,6 +21,8 @@
 //!
 //! Layout (little-endian): `op:u8, dst:4|src:4, off:i16, imm:i32`.
 
+// A module of tiny instruction-encoding constructors; per-fn `#[must_use]` on
+// every one is noise, so opt the whole encoder module out at once.
 #![allow(clippy::must_use_candidate)]
 
 /// One eBPF instruction.

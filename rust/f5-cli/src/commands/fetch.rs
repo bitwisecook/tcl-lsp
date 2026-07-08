@@ -37,7 +37,6 @@ use super::remote::rest::RestError;
 use super::remote::{rest, ssh};
 
 /// Parameters for [`run_fetch`].
-#[allow(clippy::struct_excessive_bools)]
 pub struct FetchArgs<'a> {
     pub host: Option<&'a str>,
     pub user: Option<&'a str>,

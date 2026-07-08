@@ -268,6 +268,8 @@ fn is_number_like(v: &Value) -> bool {
 
 /// The numeric value of a `bool`/`int`/`float` (a `bool` counting as the
 /// matching `int`), as `f64` for cross-type comparison.
+// i64→f64 only to order numbers cross-type; a rounding tie past 2^53 can at most
+// make two near-equal numbers compare equal, never reorder distinct buckets.
 #[allow(clippy::cast_precision_loss)]
 fn num_value(v: &Value) -> f64 {
     match v {
@@ -369,6 +371,8 @@ fn sorted_object_pairs(v: &Value) -> Vec<(String, Value)> {
 
 /// Resolve a possibly-negative index against a length; `None` if out of
 /// range. The slice index check is `-len <= i < len`.
+// `len as i64` can't wrap for any real slice; the `as usize` results are guarded
+// non-negative by the `i >= -len_i` / `i >= 0` checks, so no sign is lost.
 #[must_use]
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 pub fn resolve_index_pub(i: i64, len: usize) -> Option<usize> {

@@ -84,7 +84,6 @@ fn ilen(n: usize) -> i64 {
     i64::try_from(n).unwrap_or(i64::MAX)
 }
 
-#[allow(clippy::too_many_lines)]
 /// The canonical `string` subcommands (Tcl 9 order), used for unique-prefix
 /// resolution and the error message.
 const STRING_SUBS: &[&str] = &[

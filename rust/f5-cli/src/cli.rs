@@ -88,9 +88,6 @@ impl PassphraseArgs {
 
 /// F5 unit master-key (`f5mku`) source flags shared by `encrypt-secrets` /
 /// `decrypt-secrets` (the `_add_key_args` group
-// Help strings are clap-visible plain text; the `f5mku -K` / `$F5MKU` tokens
-// carry no Markdown, so silence the lint.
-#[allow(clippy::doc_markdown)]
 #[derive(Debug, Default, Args)]
 pub struct MasterKeyArgs {
     /// base64 unit master key (the value `f5mku -K` prints on the device).
@@ -887,6 +884,8 @@ pub enum IruleCommand {
         severity: Option<String>,
     },
     /// Static event-flow trace from a starting event.
+    // Help strings are clap-visible plain text (event names like HTTP_REQUEST
+    // carry underscores), so keep them backtick-free.
     #[allow(clippy::doc_markdown)]
     Trace {
         /// Starting event name (e.g. HTTP_REQUEST).

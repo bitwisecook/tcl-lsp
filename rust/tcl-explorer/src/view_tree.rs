@@ -284,6 +284,8 @@ fn term_label(t: &Value) -> String {
     }
 }
 
+// One flat walk building the nested CFG view (functions -> blocks -> items);
+// the per-level nesting is clearer inline than threaded through helpers.
 #[allow(clippy::too_many_lines)]
 fn build_cfg(funcs: &[Value], post: bool) -> Vec<ViewNode> {
     let mut out = Vec::new();

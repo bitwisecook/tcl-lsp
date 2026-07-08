@@ -30,6 +30,8 @@ use tcl_bigip::wireshark_profile::build_wireshark_profile;
 use super::enrich_pcapng::load_configs;
 
 /// `f5 enrich-wireshark`.
+// Returns `Result` to match the uniform `run_*` command-dispatch signature;
+// handlers print their own errors and resolve to an exit code.
 #[allow(clippy::unnecessary_wraps)]
 pub fn run_enrich_wireshark(configs: &[PathBuf], output: &Path, force: bool) -> anyhow::Result<u8> {
     let configs_with_sources = match load_configs(configs) {

@@ -43,7 +43,6 @@ fn sz(op: u8) -> &'static str {
     }
 }
 
-#[allow(clippy::too_many_lines)]
 fn one(i: Insn) -> String {
     let class = i.op & 0x07;
     let d = i.dst;

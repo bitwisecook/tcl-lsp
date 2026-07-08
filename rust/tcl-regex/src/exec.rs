@@ -657,7 +657,6 @@ impl Bt<'_> {
     ///   over "" take zero iterations and do not enter — hence do not capture —
     ///   their operand. This is why `((a*)?){2}\2` fails to match "": the inner
     ///   group never participates, so the backreference has nothing to match.
-    #[allow(clippy::too_many_arguments)]
     fn m_repeat(
         &self,
         sub: &Node,
@@ -682,7 +681,6 @@ impl Bt<'_> {
     /// (an empty one would not progress and is never recorded); `k(pos)` is the
     /// zero-or-more-iterations stop. Greedy tries another iteration first, lazy
     /// stops first.
-    #[allow(clippy::too_many_arguments)]
     fn m_star(
         &self,
         sub: &Node,
@@ -710,6 +708,8 @@ impl Bt<'_> {
         }
     }
 
+    // Threads the full backref-repeat state (subno/min/max/pref/count/pos/hi)
+    // plus the continuation; bundling into a struct would obscure the recursion.
     #[allow(clippy::too_many_arguments)]
     fn m_backref(
         &self,

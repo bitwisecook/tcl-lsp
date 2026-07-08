@@ -89,6 +89,8 @@ fn opt_node(node: Option<&Expr>) -> Value {
     }
 }
 
+// `too_many_lines`: one match arm per `Expr` variant — a flat JSON encoder that
+// reads top-to-bottom; splitting it would only add indirection to a test helper.
 #[allow(clippy::too_many_lines)]
 fn node_json(node: &Expr) -> Value {
     match node {

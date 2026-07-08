@@ -28,6 +28,8 @@
 //! merged (later files win), then threaded through the remap engine and the
 //! `--list-schemas` summary.
 
+// The module doc lists plain-text protocol acronyms (PCAPNG, IPv4/IPv6,
+// ICMPv6, TOML); backticking each would clutter the rustdoc prose.
 #![allow(clippy::doc_markdown)]
 
 use std::path::Path;

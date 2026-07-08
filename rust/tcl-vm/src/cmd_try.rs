@@ -153,7 +153,6 @@ fn bind_handler_vars(
 /// Parse a `try`'s handler (`on`/`trap`) and `finally` clauses, validating the
 /// grammar (a bad clause errors before the body runs). Returns the handlers and
 /// the optional `finally` script.
-#[allow(clippy::type_complexity)]
 fn parse_clauses(rest: &[Value]) -> Result<(Vec<Handler>, Option<Value>), Completion<Value>> {
     let mut handlers: Vec<Handler> = Vec::new();
     let mut finally: Option<Value> = None;

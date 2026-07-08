@@ -71,8 +71,6 @@
 //! selects is the carrier of that computed value and is what the structural
 //! assertion pins, with the value itself proven against tclsh.
 
-#![allow(clippy::too_many_lines)]
-
 use std::collections::HashMap;
 
 use tcl_compiler::cfg_builder::build_cfg;

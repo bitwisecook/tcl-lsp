@@ -22,9 +22,6 @@
 //!
 //! Implemented: `set`/`get`/`names`/`exists`/`size`/`unset`. (`statistics`,
 //! `nextelement`/`startsearch` searches, `-exact`/`-regexp` name modes follow.)
-//!
-//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::obj::TclObj;

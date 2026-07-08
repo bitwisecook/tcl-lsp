@@ -81,7 +81,9 @@ fn resolve_map_path(explicit: Option<&Path>, output: Option<&Path>) -> Option<Pa
 }
 
 /// `f5 redact`.
-#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+// Args mirror the verb's CLI options one-for-one; a struct would just re-wrap
+// the same one-shot parameters.
+#[allow(clippy::too_many_arguments)]
 pub fn run_redact(
     path: &str,
     keep_ips: bool,

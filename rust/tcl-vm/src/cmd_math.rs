@@ -18,6 +18,8 @@
 
 //! `expr` math functions, registered as `tcl::mathfunc::*` (the names the
 //! compiler invokes and `ExprEval::call` routes to).
+// The math functions intentionally coerce between i64 and f64 (`int`/`round`/
+// `entier`/… follow Tcl's expr numeric conversions, not lossless casts).
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 
 use tcl_runtime_api::Completion;
