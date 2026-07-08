@@ -727,7 +727,7 @@ pub fn parse_zone(source: &str, _uri: &str) -> Result<Value, QueryError> {
             last_owner.clone()
         } else {
             let o = zone_fqdn(toks.remove(0), &origin);
-            last_owner = o.clone();
+            last_owner.clone_from(&o);
             o
         };
 

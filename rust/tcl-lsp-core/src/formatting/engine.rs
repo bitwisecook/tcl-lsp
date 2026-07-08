@@ -416,7 +416,7 @@ struct SwitchElem {
     is_braced: bool,
     /// A comment token standing on its own — emitted verbatim on its own line
     /// rather than paired as a pattern/body, so switch-body comments are not
-    /// silently deleted (RUST_ISSUE_038).
+    /// silently deleted (`RUST_ISSUE_038`).
     is_comment: bool,
 }
 
@@ -435,7 +435,13 @@ fn format_switch_body(
         return body_text.to_owned();
     };
 
-    // Re-segment into elements (tokens, text, is_braced).
+    let elements = segment_switch_elements(&sm, tokens);
+    let lines = emit_switch_lines(&elements, &sm, config, registry, indent_level);
+    lines.join("\n")
+}
+
+/// Re-segment a switch body's tokens into pattern/body/comment elements.
+fn segment_switch_elements(sm: &SourceMap, tokens: Vec<Token>) -> Vec<SwitchElem> {
     let mut elements: Vec<SwitchElem> = Vec::new();
     let mut cur: Option<SwitchElem> = None;
     let mut prev_type = TokenType::Eol;
@@ -495,7 +501,17 @@ fn format_switch_body(
     if let Some(e) = cur.take() {
         elements.push(e);
     }
+    elements
+}
 
+/// Render segmented switch elements into formatted lines.
+fn emit_switch_lines(
+    elements: &[SwitchElem],
+    sm: &SourceMap,
+    config: &FormatterConfig,
+    registry: &CommandRegistry,
+    indent_level: usize,
+) -> Vec<String> {
     let indent = config.make_indent(indent_level);
     let inner_level = indent_level + 1;
     let mut lines: Vec<String> = Vec::new();
@@ -507,7 +523,7 @@ fn format_switch_body(
             let comment_raw: String = elements[i]
                 .tokens
                 .iter()
-                .map(|&t| reconstruct_raw(&sm, t))
+                .map(|&t| reconstruct_raw(sm, t))
                 .collect();
             lines.push(format!("{indent}{}", comment_raw.trim_end()));
             i += 1;
@@ -516,7 +532,7 @@ fn format_switch_body(
         let pattern_raw: String = elements[i]
             .tokens
             .iter()
-            .map(|&t| reconstruct_raw(&sm, t))
+            .map(|&t| reconstruct_raw(sm, t))
             .collect();
         // If the *body* slot is a comment, don't pair it as this pattern's
         // body — emit the pattern alone and let the comment be handled on the
@@ -538,7 +554,7 @@ fn format_switch_body(
                 let body_raw: String = body
                     .tokens
                     .iter()
-                    .map(|&t| reconstruct_raw(&sm, t))
+                    .map(|&t| reconstruct_raw(sm, t))
                     .collect();
                 lines.push(format!("{indent}{pattern_raw} {body_raw}"));
             }
@@ -548,7 +564,7 @@ fn format_switch_body(
             i += 1;
         }
     }
-    lines.join("\n")
+    lines
 }
 
 // Long-line expression wrapping
@@ -1149,7 +1165,7 @@ pub(crate) fn format_body(
 /// newline sits inside a multi-line braced (`{…}`) or double-quoted (`"…"`)
 /// word — i.e. inside string data. Trimming such a line changes the value of
 /// the literal (`set x {line1␠␠␠\nline2}` must keep the spaces after `line1`),
-/// which would violate "the formatter never changes semantics" (RUST_ISSUE_037).
+/// which would violate "the formatter never changes semantics" (`RUST_ISSUE_037`).
 ///
 /// A line is safe to trim when, after scanning it, the running brace depth is
 /// zero and no double-quoted word is open — the newline is then a structural

@@ -292,10 +292,10 @@ fn emit_term(term: &Term, pend: &mut Vec<Pending>) {
 ///
 /// Tcl integers are signed 64-bit — the CFG lowers comparisons to signed jumps
 /// (`JSLT`, …) and uses sign-extending moves — so `/` and `%` must use the
-/// **signed** eBPF division ops. BPF_SDIV / BPF_SMOD are encoded as `DIV` /
+/// **signed** eBPF division ops. `BPF_SDIV` / `BPF_SMOD` are encoded as `DIV` /
 /// `MOD` with `off == 1`; the plain unsigned `DIV` / `MOD` (off 0) reinterpret a
 /// negative operand as a huge unsigned value, giving a catastrophically wrong
-/// result silently (RUST_ISSUE_031). Every other op keeps `off == 0`.
+/// result silently (`RUST_ISSUE_031`). Every other op keeps `off == 0`.
 fn bin_alu(op: IntBinOp) -> (u8, i16) {
     match op {
         IntBinOp::Add => (ADD, 0),

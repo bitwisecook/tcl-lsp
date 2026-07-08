@@ -642,26 +642,27 @@ fn print_report(
     units: &[FileUnit],
     merged: &HashMap<String, ClassDef>,
     coll_elem: &HashMap<String, HashSet<String>>,
-    tax: Taxonomy,
+    tax: &Taxonomy,
     param_class: &ParamClass,
     ceiling_by_hop: &[usize],
 ) {
-    let Taxonomy {
-        n_unknown,
-        n_param,
-        n_instvar,
-        n_iter,
-        iter_typeable,
-        n_upvar,
-        n_global,
-        instvar_recoverable,
-        param_sites,
-    } = tax;
+    // ---- report ----
+    println!("# mro_interproc — interprocedural object→class ceiling");
+    println!("files={} merged_classes={}", units.len(), merged.len());
+    print_coll_elem_debug(coll_elem);
+    println!();
+    print_receiver_taxonomy(tax);
+    print_parameter_ceiling(tax, param_class, ceiling_by_hop);
+}
 
-    // Single vs multi class among recovered param sites.
+/// Single vs multi class counts among recovered param sites.
+fn count_recovered_param_classes(
+    param_sites: &[(String, String)],
+    param_class: &ParamClass,
+) -> (usize, usize) {
     let mut recovered_single = 0usize;
     let mut recovered_multi = 0usize;
-    for (q, p) in &param_sites {
+    for (q, p) in param_sites {
         if let Some(s) = param_class.get(&(q.clone(), p.clone())) {
             match s.len() {
                 0 => {}
@@ -670,18 +671,33 @@ fn print_report(
             }
         }
     }
-    let param_recovered = recovered_single + recovered_multi;
+    (recovered_single, recovered_multi)
+}
 
-    // ---- report ----
-    println!("# mro_interproc — interprocedural object→class ceiling");
-    println!("files={} merged_classes={}", units.len(), merged.len());
+/// Optional `CEDBG`-gated dump of the collection-element map.
+fn print_coll_elem_debug(coll_elem: &HashMap<String, HashSet<String>>) {
     if std::env::var("CEDBG").is_ok() {
         eprintln!("[CEDBG] coll_elem entries: {}", coll_elem.len());
         for (k, v) in coll_elem.iter().take(15) {
             eprintln!("[CEDBG]   {k} -> {v:?}");
         }
     }
-    println!();
+}
+
+/// Receiver taxonomy plus the container and instance-variable ceilings.
+fn print_receiver_taxonomy(tax: &Taxonomy) {
+    let &Taxonomy {
+        n_unknown,
+        n_param,
+        n_instvar,
+        n_iter,
+        iter_typeable,
+        n_upvar,
+        n_global,
+        instvar_recoverable,
+        ..
+    } = tax;
+
     println!("## Receiver taxonomy of `unknown` ⊤ abstentions");
     let pct = |n: usize| {
         if n_unknown == 0 {
@@ -718,6 +734,24 @@ fn print_report(
     println!("## Instance-variable ceiling (intra-class constructor binding)");
     println!("  recoverable instance-var receivers: {instvar_recoverable} / {n_instvar}");
     println!();
+}
+
+/// Parameter ceiling by hop plus the combined ceiling over the unknown bucket.
+fn print_parameter_ceiling(tax: &Taxonomy, param_class: &ParamClass, ceiling_by_hop: &[usize]) {
+    let Taxonomy {
+        n_unknown,
+        iter_typeable,
+        instvar_recoverable,
+        param_sites,
+        ..
+    } = tax;
+    let (n_unknown, iter_typeable, instvar_recoverable) =
+        (*n_unknown, *iter_typeable, *instvar_recoverable);
+
+    let (recovered_single, recovered_multi) =
+        count_recovered_param_classes(param_sites, param_class);
+    let param_recovered = recovered_single + recovered_multi;
+
     println!("## Parameter ceiling (caller→param class propagation)");
     for (h, c) in ceiling_by_hop.iter().enumerate() {
         let tag = if h == 0 {
@@ -777,7 +811,7 @@ fn main() {
         &units,
         &merged,
         &coll_elem,
-        tax,
+        &tax,
         &param_class,
         &ceiling_by_hop,
     );

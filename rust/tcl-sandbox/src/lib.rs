@@ -716,7 +716,7 @@ mod tests {
                 m.contains("deny-network"),
                 "expected a deny-network fail-closed message, got: {m}"
             ),
-            other => panic!("expected FailClosed, got {other:?}"),
+            other @ SandboxError::Io(_) => panic!("expected FailClosed, got {other:?}"),
         }
     }
 

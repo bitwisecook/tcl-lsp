@@ -700,7 +700,7 @@ fn rename_proc(
         // rename never rewrites a call the reference finder wouldn't report —
         // in particular the namespace gate that keeps a bare `helper` call in
         // `namespace eval ::b` from matching `::a::helper` (RUST_ISSUE_035).
-        if !crate::references::invocation_references_proc(analysis, inv, &qname, proc_def) {
+        if !crate::references::invocation_references_proc(analysis, inv, qname, proc_def) {
             continue;
         }
         let replacement =

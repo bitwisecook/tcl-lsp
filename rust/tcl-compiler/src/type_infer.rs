@@ -1116,7 +1116,7 @@ mod tests {
     }
 
     /// A `dict set VAR k [Class new]` collection retrieved by `dict get` types
-    /// the element as the class (issue #797 SpiceGenTcl `Pins` shape).
+    /// the element as the class (issue #797 `SpiceGenTcl` `Pins` shape).
     #[test]
     fn dict_of_objects_retrieval_types_element() {
         use crate::compilation_unit::CompilationUnit;

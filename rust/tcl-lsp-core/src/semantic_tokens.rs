@@ -3540,16 +3540,30 @@ fn emit_param_default_pair(
     }
 }
 
+/// The resolved command-head data for [`emit_command_head`]: the head token,
+/// its source text, the alias-resolved name, and the enclosing definition-body
+/// grammar (if any).
+#[derive(Clone, Copy)]
+struct CommandHead<'a> {
+    tok: Token,
+    text: &'a str,
+    resolved: &'a str,
+    oo_grammar: Option<&'static DefinitionBodyGrammar>,
+}
+
 fn emit_command_head(
     line_index: &LineIndex,
     full_source: &str,
-    head_tok: Token,
-    head_text: &str,
-    resolved_head: &str,
-    oo_grammar: Option<&'static DefinitionBodyGrammar>,
+    head: &CommandHead<'_>,
     registry: &CommandRegistry,
     entries: &mut Vec<Entry>,
 ) {
+    let CommandHead {
+        tok: head_tok,
+        text: head_text,
+        resolved: resolved_head,
+        oo_grammar,
+    } = *head;
     // A member sub-keyword of the enclosing definition body (`method`,
     // `typemethod`, `constructor`, …) is a keyword — context-sensitively, so a
     // same-named user proc outside a definition body is unaffected.  This
@@ -3688,10 +3702,12 @@ fn collect_script(
             emit_command_head(
                 line_index,
                 full_source,
-                head_tok,
-                head_text,
-                resolved_head,
-                ctx.oo_grammar,
+                &CommandHead {
+                    tok: head_tok,
+                    text: head_text,
+                    resolved: resolved_head,
+                    oo_grammar: ctx.oo_grammar,
+                },
                 registry,
                 entries,
             );
@@ -5344,8 +5360,10 @@ mod tests {
             decode_full(src, "tcl", &reg())
                 .into_iter()
                 .find(|&(_, c, _, _, _)| c == col)
-                .map(|(_, _, _, k, _)| k)
-                .unwrap_or_else(|| panic!("no token at column {col} in {src:?}"))
+                .map_or_else(
+                    || panic!("no token at column {col} in {src:?}"),
+                    |(_, _, _, k, _)| k,
+                )
         };
 
         // `info object class $obj` — column 12 is `class`.
@@ -5410,8 +5428,10 @@ mod tests {
             decode_full(src, dialect, &reg())
                 .into_iter()
                 .find(|&(_, c, _, _, _)| c == col)
-                .map(|(_, _, _, k, _)| k)
-                .unwrap_or_else(|| panic!("no token at col {col} in {src:?}"))
+                .map_or_else(
+                    || panic!("no token at col {col} in {src:?}"),
+                    |(_, _, _, k, _)| k,
+                )
         };
         // `string rev` is `reverse` (added 8.5): a keyword in 8.6, but an
         // unknown word in 8.4 where `reverse` does not exist (verified: tclsh8.4
@@ -6445,30 +6465,18 @@ mod tests {
         );
     }
 
-    /// Golden fixture for `TclOO` object-method dispatch resolution — validated
-    /// against the Tcler's-wiki pattern catalogue and a real corpus (tcllib,
-    /// tklib, SpiceGenTcl).  Two guarantees:
-    ///
-    /// * **`Resolve`** — a statically-determinable dispatch colours its method a
-    ///   callable (regression guard for every form we support).
-    /// * **`Abstain`** — a genuinely-dynamic dispatch (or a form we do not model)
-    ///   leaves its method a plain string, never a *mis-highlighted* callable
-    ///   (soundness guard: no false positives).
-    ///
-    /// Adding a pattern here is how object-dispatch support is expanded and
-    /// measured; flip an `Abstain` to `Resolve` when a form becomes supported.
-    #[test]
-    fn tcloo_dispatch_pattern_fixture() {
-        use tcl_compiler::analyser::Analyser;
-        use tcl_compiler::compilation_unit::CompilationUnit;
-        #[derive(Clone, Copy, PartialEq)]
-        enum Expect {
-            Resolve,
-            Abstain,
-        }
-        use Expect::{Abstain, Resolve};
-        // (name, source, method word, 0-based dispatch line, expectation)
-        let cases: &[(&str, &str, &str, u32, Expect)] = &[
+    /// Expected outcome for a `tcloo_dispatch_cases` fixture row.
+    #[derive(Clone, Copy, PartialEq)]
+    enum Expect {
+        Resolve,
+        Abstain,
+    }
+
+    use Expect::{Abstain, Resolve};
+
+    /// The `TclOO` object-method dispatch fixture rows:
+    /// `(name, source, method word, 0-based dispatch line, expectation)`.
+    const TCLOO_DISPATCH_CASES: &[(&str, &str, &str, u32, Expect)] = &[
             // ---- statically determinable → resolve ----
             (
                 "var_new",
@@ -6622,7 +6630,25 @@ mod tests {
                 2,
                 Resolve,
             ),
-        ];
+    ];
+
+    /// Golden fixture for `TclOO` object-method dispatch resolution — validated
+    /// against the Tcler's-wiki pattern catalogue and a real corpus (tcllib,
+    /// tklib, `SpiceGenTcl`).  Two guarantees:
+    ///
+    /// * **`Resolve`** — a statically-determinable dispatch colours its method a
+    ///   callable (regression guard for every form we support).
+    /// * **`Abstain`** — a genuinely-dynamic dispatch (or a form we do not model)
+    ///   leaves its method a plain string, never a *mis-highlighted* callable
+    ///   (soundness guard: no false positives).
+    ///
+    /// Adding a pattern here is how object-dispatch support is expanded and
+    /// measured; flip an `Abstain` to `Resolve` when a form becomes supported.
+    #[test]
+    fn tcloo_dispatch_pattern_fixture() {
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let cases = TCLOO_DISPATCH_CASES;
         let registry = reg();
         let mut failures = Vec::new();
         for &(name, src, method, line, expect) in cases {
@@ -6644,7 +6670,8 @@ mod tests {
                 let after = src_line.as_bytes().get(i + method.len()).copied();
                 let boundary =
                     |b: Option<u8>| b.is_none_or(|b| !b.is_ascii_alphanumeric() && b != b'_');
-                (boundary(before) && boundary(after)).then_some(i as u32)
+                (boundary(before) && boundary(after))
+                    .then(|| u32::try_from(i).expect("column fits u32"))
             });
             // The method resolves iff *its own* token is a callable `Function`.
             let resolved = mcol.is_some_and(|c| {

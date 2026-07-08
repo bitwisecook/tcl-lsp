@@ -4314,6 +4314,58 @@ impl Backend {
     /// (hover/save), not per-keystroke, so they need no salsa file handle, and
     /// the analyser result still comes through the shared [`Self::analysis_for`]
     /// cache.
+    /// The project's proc arities for cross-file resolution, or `None` when
+    /// `xcDiagnostics` is off.  Computed inside `spawn_blocking`: on a cold
+    /// cache this tracked query can demand `item_sigs` / `item_tree` for every
+    /// project file, so it must not run on the async event-loop thread.
+    async fn project_arities_if(
+        &self,
+        xc_on: bool,
+    ) -> Option<Arc<HashMap<String, Vec<(usize, usize)>>>> {
+        if !xc_on {
+            return None;
+        }
+        let db = self.db.lock().await.clone();
+        let project = *self.db_project.lock().await;
+        match project {
+            Some(p) => {
+                tokio::task::spawn_blocking(move || tcl_lsp_db::project_command_arities(&db, p))
+                    .await
+                    .ok()
+            }
+            None => None,
+        }
+    }
+
+    /// Run the compiler-check diagnostics for `text` off the event-loop thread.
+    async fn compiler_diagnostics_for(
+        &self,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        registry: &Arc<CommandRegistry>,
+    ) -> tcl_lsp_db::CompilerDiagnostics {
+        let (c_text, c_dialect, c_registry) =
+            (text.to_owned(), dialect.to_owned(), Arc::clone(registry));
+        // URI-scoped (folder/project override aware), matching the push
+        // path's `resolved_generic_variable_patterns(uri)` so IRULE4002
+        // honours a folder's `diagnostics.genericVariablePatterns` override.
+        let c_generic = self.resolved_generic_variable_patterns(uri).await;
+        tokio::task::spawn_blocking(move || {
+            tcl_lsp_db::compiler_check_diagnostics_uncached(
+                &c_text,
+                &c_registry,
+                &c_dialect,
+                c_generic.as_deref(),
+            )
+        })
+        .await
+        .unwrap_or_else(|_| tcl_lsp_db::CompilerDiagnostics {
+            checks: Vec::new(),
+            optimisations: Vec::new(),
+        })
+    }
+
     async fn full_diagnostics_for(
         &self,
         uri: &Uri,
@@ -4355,42 +4407,10 @@ impl Backend {
         // for every project file — now the *whole* workspace — so it must not run
         // on the async event-loop thread and stall other LSP traffic.
         let xc_on = self.xc_diagnostics_enabled(uri).await;
-        let project_arities = if xc_on {
-            let db = self.db.lock().await.clone();
-            let project = *self.db_project.lock().await;
-            match project {
-                Some(p) => {
-                    tokio::task::spawn_blocking(move || tcl_lsp_db::project_command_arities(&db, p))
-                        .await
-                        .ok()
-                }
-                None => None,
-            }
-        } else {
-            None
-        };
-
-        let compiler_diags = {
-            let (c_text, c_dialect, c_registry) =
-                (text.clone(), dialect.clone(), Arc::clone(&registry));
-            // URI-scoped (folder/project override aware), matching the push
-            // path's `resolved_generic_variable_patterns(uri)` so IRULE4002
-            // honours a folder's `diagnostics.genericVariablePatterns` override.
-            let c_generic = self.resolved_generic_variable_patterns(uri).await;
-            tokio::task::spawn_blocking(move || {
-                tcl_lsp_db::compiler_check_diagnostics_uncached(
-                    &c_text,
-                    &c_registry,
-                    &c_dialect,
-                    c_generic.as_deref(),
-                )
-            })
-            .await
-            .unwrap_or_else(|_| tcl_lsp_db::CompilerDiagnostics {
-                checks: Vec::new(),
-                optimisations: Vec::new(),
-            })
-        };
+        let project_arities = self.project_arities_if(xc_on).await;
+        let compiler_diags = self
+            .compiler_diagnostics_for(uri, &text, &dialect, &registry)
+            .await;
 
         let xc_for_irules = dialect == "f5-irules" && xc_on;
         // Cross-file resolution — W123 suppression + E002/E003 arity,
@@ -7770,11 +7790,13 @@ fn formatter_config_from(
     dialect: &str,
 ) -> core_formatting::FormatterConfig {
     use core_formatting::IndentStyle;
-    let mut cfg = core_formatting::FormatterConfig::default();
-    // Tokenise with the document's dialect so, e.g., an `.irul` file's
-    // `if {expr}{body}` (`}{` valid in TMM) is parsed and re-emitted as `} {`
-    // rather than left unchanged by the stock-Tcl lexer.
-    cfg.lexer_config = tcl_lexer::LexerConfig::for_dialect(dialect);
+    let mut cfg = core_formatting::FormatterConfig {
+        // Tokenise with the document's dialect so, e.g., an `.irul` file's
+        // `if {expr}{body}` (`}{` valid in TMM) is parsed and re-emitted as
+        // `} {` rather than left unchanged by the stock-Tcl lexer.
+        lexer_config: tcl_lexer::LexerConfig::for_dialect(dialect),
+        ..Default::default()
+    };
     if let Some(obj) = formatting.as_object() {
         apply_formatting_object(obj, &mut cfg);
     }
@@ -10979,7 +11001,7 @@ mod tests {
         }
     }
 
-    /// RUST_ISSUE_033: an incremental edit on an old-Mac (bare-`\r`) buffer must
+    /// `RUST_ISSUE_033`: an incremental edit on an old-Mac (bare-`\r`) buffer must
     /// resolve against the LSP EOL model so the splice lands at the right byte
     /// and the shadow buffer stays correct.
     #[test]

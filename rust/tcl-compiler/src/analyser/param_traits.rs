@@ -1256,8 +1256,8 @@ mod tests {
         // `set {arr($k)} 1` — the braces make `arr($k)` a *literal* variable
         // name, so `$k` is not a substitution and must not mark `k` (issue #814
         // review: the segmenter drops the braces, so the guard is by token kind).
-        assert!(infer(&["k"], "set {arr($k)} 1").get("k").is_none());
-        assert!(infer(&["p"], "set {$p} 1").get("p").is_none());
+        assert!(!infer(&["k"], "set {arr($k)} 1").contains_key("k"));
+        assert!(!infer(&["p"], "set {$p} 1").contains_key("p"));
         // The unbraced form *does* substitute, so it still marks the component.
         assert_trait(
             &infer(&["k"], "set arr($k) 1"),
@@ -1326,13 +1326,9 @@ mod tests {
     fn value_copy_is_invalidated_and_not_over_eager() {
         // Reassigning the local to a non-param drops the copy, so a later `$n`
         // no longer resolves to the original param.
-        assert!(
-            infer(&["v"], "set n $v\nset n other\nset $n 1")
-                .get("v")
-                .is_none()
-        );
+        assert!(!infer(&["v"], "set n $v\nset n other\nset $n 1").contains_key("v"));
         // Merely passing the value through (never used as a name) is not a role.
-        assert!(infer(&["v"], "set n $v\nreturn $n").get("v").is_none());
+        assert!(!infer(&["v"], "set n $v\nreturn $n").contains_key("v"));
     }
 
     #[test]
@@ -1346,9 +1342,9 @@ mod tests {
             ProcArgTrait::Command,
         );
         // A braced `{$cmd}` head is a *literal* command name — no substitution.
-        assert!(infer(&["cmd"], "{$cmd} arg").get("cmd").is_none());
+        assert!(!infer(&["cmd"], "{$cmd} arg").contains_key("cmd"));
         // A param merely read as a value is not a command.
-        assert!(infer(&["x"], "puts $x").get("x").is_none());
+        assert!(!infer(&["x"], "puts $x").contains_key("x"));
     }
 
     #[test]

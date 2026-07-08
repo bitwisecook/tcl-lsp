@@ -819,7 +819,7 @@ fn is_word_byte(b: Option<u8>) -> bool {
 /// index — `${x}(k)` is scalar `$x` + literal `(k)`, but `$x(k)` is an array
 /// element) and `:` (a namespace separator — `$x` + `::y` vs the variable
 /// `x::y`). Keeping the braces when any of these follow is always safe;
-/// dropping them changes the reference (RUST_ISSUE_039).
+/// dropping them changes the reference (`RUST_ISSUE_039`).
 fn extends_dollar_ref(b: Option<u8>) -> bool {
     is_word_byte(b) || matches!(b, Some(b'(' | b':'))
 }

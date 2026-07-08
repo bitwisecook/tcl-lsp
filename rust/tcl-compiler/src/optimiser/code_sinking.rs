@@ -362,10 +362,9 @@ fn sink_rhs_clobbered_by_decision(sink: &Statement, decision: &Statement) -> boo
 /// Whether the assignment `sink` reads at least one variable in its RHS.
 fn assignment_reads_any_var(sink: &Statement) -> bool {
     match sink {
-        // A constant assignment reads nothing.
-        Statement::AssignConst { .. } => false,
         Statement::AssignValue { value, .. } => value.contains('$'),
         Statement::AssignExpr { expr, .. } => !expr.vars().is_empty(),
+        // A constant assignment (and anything else) reads nothing.
         _ => false,
     }
 }

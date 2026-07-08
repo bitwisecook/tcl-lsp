@@ -37,7 +37,7 @@ pub enum Outcome {
     /// engines. Keeping stdout byte-faithful is what lets the differential
     /// harness see trailing-whitespace / trailing-blank-line divergences
     /// (`format "%-5s"` / `string repeat " "` padding) — the exact class of
-    /// output bug it exists to catch (RUST_ISSUE_030).
+    /// output bug it exists to catch (`RUST_ISSUE_030`).
     Ran {
         /// Verbatim stdout (no whitespace normalisation).
         stdout: String,

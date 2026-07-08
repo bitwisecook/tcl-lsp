@@ -87,7 +87,7 @@ fn rename_var_name(name: &str, rename: &HashMap<String, String>) -> String {
 /// Rewrite the `(idx)` array-index tail of an *unbraced* variable reference.
 /// The index is a substituted context (`arr($idx)`), so any `$var` / `${var}`
 /// inside it is α-renamed via the value-string rewriter rather than copied
-/// verbatim (RUST_ISSUE_020). A braced `${arr(idx)}` name is *not* a
+/// verbatim (`RUST_ISSUE_020`). A braced `${arr(idx)}` name is *not* a
 /// substituted context and must not be routed here.
 fn rewrite_array_index_tail(tail: &str, rename: &HashMap<String, String>) -> String {
     if tail.is_empty() {

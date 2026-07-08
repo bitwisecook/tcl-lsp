@@ -30,8 +30,7 @@ fn main() {
         .parent()
         .and_then(Path::parent)
         .and_then(Path::parent)
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| manifest.clone());
+        .map_or_else(|| manifest.clone(), Path::to_path_buf);
 
     // A CI / packaging pipeline that builds outside a git checkout (an unpacked
     // crate/source tarball) sets `GIT_HASH` to inject the commit it built from.

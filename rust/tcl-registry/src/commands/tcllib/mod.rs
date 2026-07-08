@@ -304,10 +304,10 @@ pub fn tcllib_command_specs() -> Vec<CommandSpec> {
         // release must not offer its commands under that dialect.  Applied
         // after the blanket gate (and to specs with an explicit dialect
         // set) so every command a package provides stays consistent.
-        if let Some(excluded) = spec.owning_package().and_then(tcllib_package_dialect_floor) {
-            if let Some(dialects) = spec.dialects {
-                spec.dialects = Some(dialects.difference(excluded));
-            }
+        if let Some(excluded) = spec.owning_package().and_then(tcllib_package_dialect_floor)
+            && let Some(dialects) = spec.dialects
+        {
+            spec.dialects = Some(dialects.difference(excluded));
         }
     }
     specs

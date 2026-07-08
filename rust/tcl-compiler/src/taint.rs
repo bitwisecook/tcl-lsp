@@ -718,7 +718,7 @@ fn var_taint<S: std::hash::BuildHasher>(
 /// Variable references are intentionally *not* re-scanned here — they are
 /// already covered by the `AssignExpr` statement's SSA `uses` join — so this
 /// adds only the command-substitution taint that variable joining misses
-/// (RUST_ISSUE_021).
+/// (`RUST_ISSUE_021`).
 fn expr_command_taint<S: std::hash::BuildHasher>(
     node: &ExprNode,
     uses: &HashMap<Symbol, u32>,
@@ -726,8 +726,12 @@ fn expr_command_taint<S: std::hash::BuildHasher>(
     ctx: TaintCtx<'_>,
 ) -> TaintLattice {
     match node {
-        // A bracketed command substitution — classify it exactly as a word.
-        ExprNode::Command { text, .. } => word_taint(text, uses, taints, ctx),
+        // A bracketed command substitution is classified exactly as a word; an
+        // unparseable `Raw` fallback is treated the same way, scanning its text
+        // for `[cmd]` substitutions.
+        ExprNode::Command { text, .. } | ExprNode::Raw { text } => {
+            word_taint(text, uses, taints, ctx)
+        }
         // A quoted string undergoes substitution, so an embedded `[cmd]`
         // counts; a braced `{…}` string is literal (no substitution) and is
         // skipped to avoid a false positive.
@@ -752,8 +756,6 @@ fn expr_command_taint<S: std::hash::BuildHasher>(
         ExprNode::Call { args, .. } => args.iter().fold(TaintLattice::clean(), |acc, a| {
             acc.join(expr_command_taint(a, uses, taints, ctx))
         }),
-        // Unparseable fallback: scan the raw text for `[cmd]` substitutions.
-        ExprNode::Raw { text } => word_taint(text, uses, taints, ctx),
         // Literals and variable references carry no command substitution
         // (variables are covered by the statement's `uses` join).
         ExprNode::Literal { .. } | ExprNode::Var { .. } => TaintLattice::clean(),

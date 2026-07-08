@@ -1427,7 +1427,7 @@ fn extract_method_def(
 mod tests {
     use super::*;
 
-    /// The TclOO definition-body grammar the `apply_oo_subcommand` /
+    /// The `TclOO` definition-body grammar the `apply_oo_subcommand` /
     /// `extract_method_def` helpers read their member argument layout from —
     /// the same `&'static` the analyser fetches from the registry at runtime.
     fn tcloo() -> &'static DefinitionBodyGrammar {
