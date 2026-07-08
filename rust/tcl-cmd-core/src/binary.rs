@@ -452,6 +452,18 @@ fn next_arg<'a>(args: &[&'a [u8]], ai: &mut usize) -> Result<&'a [u8], CmdError>
     Ok(a)
 }
 
+/// Allocate `n` bytes filled with `fill`, returning a catchable [`CmdError`]
+/// instead of panicking on a capacity overflow. A `binary format` count may be
+/// a saturated out-of-range value (`usize::MAX`); `vec![fill; n]` would abort
+/// the process with "capacity overflow" (`RUST_ISSUE_131`).
+fn alloc_field(n: usize, fill: u8) -> Result<Vec<u8>, CmdError> {
+    let mut v: Vec<u8> = Vec::new();
+    v.try_reserve_exact(n)
+        .map_err(|_| CmdError::new(format!("binary format: field size {n} is too large")))?;
+    v.resize(n, fill);
+    Ok(v)
+}
+
 /// `binary format formatString ?arg ...?` — pack the arguments (each given as
 /// its byte representation) per the format string, returning the packed bytes.
 /// The cursor model (`@`/`x`/`X`) and every type code are handled here; the
@@ -480,7 +492,7 @@ pub fn format(fmt: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, CmdError> {
                     Count::None => 1,
                 };
                 let pad = if ty == b'A' { b' ' } else { 0 };
-                let mut field = vec![pad; n];
+                let mut field = alloc_field(n, pad)?;
                 let take = s.len().min(n);
                 field[..take].copy_from_slice(&s[..take]);
                 put(&mut out, &mut cur, &field);
@@ -539,7 +551,7 @@ pub fn format(fmt: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, CmdError> {
                     Count::Num(n) => n,
                     Count::Star | Count::None => 1,
                 };
-                put(&mut out, &mut cur, &vec![0u8; n]);
+                put(&mut out, &mut cur, &alloc_field(n, 0)?);
             }
             b'X' => {
                 let n = match count {
@@ -711,16 +723,21 @@ pub fn scan(data: &[u8], fmt: &[u8]) -> Result<Vec<Vec<u8>>, CmdError> {
                     Count::Num(n) => n,
                     Count::None => 1,
                 };
-                if cur + n > data.len() {
+                // `n` may be `usize::MAX` (a saturated out-of-range count), so
+                // `cur + n` must be checked — an unchecked add panics in debug
+                // and wraps in release (`1 + usize::MAX → 0`), turning the
+                // bounds check into `0 > len` (false) and slicing `data[1..0]`
+                // (`RUST_ISSUE_131`). Not enough bytes → stop, like any short read.
+                let Some(end) = cur.checked_add(n).filter(|&e| e <= data.len()) else {
                     break;
-                }
-                let mut s = data[cur..cur + n].to_vec();
+                };
+                let mut s = data[cur..end].to_vec();
                 if ty == b'A' {
                     while matches!(s.last(), Some(b' ' | 0)) {
                         s.pop();
                     }
                 }
-                cur += n;
+                cur = end;
                 out.push(s);
             }
             b'b' | b'B' => {
@@ -859,6 +876,31 @@ fn scan_field_result(count: &Count, vals: Vec<Vec<u8>>) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scan_a_field_with_huge_count_does_not_panic() {
+        // RUST_ISSUE_131: an out-of-range count saturates to usize::MAX; the
+        // `a`/`A` bounds check must not overflow `cur + n` (debug panic / release
+        // wrap → OOB slice). `@1` advances cur to 1 first to exercise the add.
+        let r = scan(b"xy", b"@1 a99999999999999999999999").expect("scan returns, no panic");
+        // Not enough bytes for the huge field → the variable is unset (no
+        // element scanned).
+        assert!(r.is_empty(), "huge field should scan nothing: {r:?}");
+        // A normal `a` field still works.
+        assert_eq!(scan(b"xy", b"a2").unwrap(), vec![b"xy".to_vec()]);
+    }
+
+    #[test]
+    fn format_a_field_with_huge_count_errors_not_panics() {
+        // RUST_ISSUE_131: a huge field width must be a catchable CmdError, not a
+        // process-aborting "capacity overflow".
+        let err = format(b"a99999999999999999999999", &[b"x"]).unwrap_err();
+        assert!(err.to_string().contains("too large"), "{err}");
+        // The `x` (null pad) path is guarded too.
+        assert!(format(b"x99999999999999999999999", &[]).is_err());
+        // A normal field still formats.
+        assert_eq!(format(b"a3", &[b"hi"]).unwrap(), b"hi\0");
+    }
 
     #[test]
     fn hex_round_trips() {

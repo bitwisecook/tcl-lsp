@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Compiler lowering / variable scoping |
 | **Location** | `rust/tcl-compiler/src/lowering/structured.rs:797-820 (+ build_switch_arms :681-683)` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

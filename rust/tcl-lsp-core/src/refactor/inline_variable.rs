@@ -103,6 +103,15 @@ pub fn inline_variable(
         value_text.to_owned()
     } else {
         let inner = dequote(value_text);
+        // Splicing a brace-quoted (literal) value into an interpolated context
+        // (a bare concatenation or inside `"…"`) would ACTIVATE any `$`/`[`/`\`
+        // that were literal inside the braces: `set x {a $b}` inlined into
+        // `puts "v: $x"` must not turn `$b` into a live substitution
+        // (RUST_ISSUE_105). Decline the refactor rather than change the value.
+        let was_braced = value_text.trim_start().starts_with('{');
+        if was_braced && inner.bytes().any(|b| matches!(b, b'$' | b'[' | b'\\')) {
+            return None;
+        }
         let in_quoted_string = source.as_bytes().get(ctx.word_start as usize) == Some(&b'"');
         if !in_quoted_string && inner.chars().any(char::is_whitespace) {
             return None;
@@ -208,6 +217,21 @@ mod tests {
     fn inline_braced_reference() {
         let source = "set x 1\nputs ${x}";
         assert_eq!(run(source, 0).as_deref(), Some("puts 1"));
+    }
+
+    #[test]
+    fn does_not_inline_braced_literal_with_subst_into_quotes() {
+        // RUST_ISSUE_105: `set x {a $b}` holds the LITERAL `a $b`. Inlining it
+        // into `"v: $x"` would turn `$b` into a live substitution, so the
+        // refactor must decline rather than corrupt the value.
+        let source = "set x {a $b}\nputs \"v: $x\"";
+        assert_eq!(run(source, 0), None);
+        // A `[cmd]` in a braced literal is equally unsafe.
+        let source2 = "set x {a [cmd]}\nputs \"v: $x\"";
+        assert_eq!(run(source2, 0), None);
+        // FP-guard: a braced literal WITHOUT substitution chars still inlines.
+        let source3 = "set x {a b}\nputs \"v: $x\"";
+        assert_eq!(run(source3, 0).as_deref(), Some("puts \"v: a b\""));
     }
 
     #[test]

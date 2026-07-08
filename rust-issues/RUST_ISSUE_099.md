@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | LSP server & document sync |
 | **Location** | `rust/tcl-lsp-server/src/lib.rs:4867-4871` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: medium) |
 
 ## Finding

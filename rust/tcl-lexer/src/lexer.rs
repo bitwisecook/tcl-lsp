@@ -660,45 +660,126 @@ impl<'src> Lexer<'src> {
         ))
     }
 
-    /// Consume a `(…)` array-index body starting at the `(`,
-    /// including balanced nested `(` / `)` and any embedded
-    /// `${…}`. Advances `self.pos` past the closing `)` (or to
-    /// EOF for unterminated input).
+    /// Consume a `(…)` array-index body starting at the `(`.
+    ///
+    /// C Tcl (`Tcl_ParseVarName` → `Tcl_ParseTokens` with a `)` terminator)
+    /// does **not** count paren nesting: the index ends at the first `)` at
+    /// token level. A literal `(` is plain text; a `)` is only kept in the
+    /// index when it is escaped (`\)`) or sits inside a command substitution
+    /// (`[…]`) or a nested variable reference (`${…}` / `$name(…)`) — whose
+    /// tokens are scanned so their inner `)` are not mistaken for the
+    /// terminator. Paren-counting made `$a((b)` never close (swallowing the
+    /// rest of the source) and made `$a(x\)y)` end at the escaped `)`
+    /// (`RUST_ISSUE_085`). Advances `self.pos` past the closing `)` (or to EOF
+    /// for unterminated input).
     fn scan_array_index_body(&mut self) -> Result<(), LexError> {
         debug_assert_eq!(self.current_byte(), Some(b'('));
         self.pos += 1; // skip '('
-        let mut depth: u32 = 1;
-        while depth > 0 {
+        loop {
             let Some(ch) = self.current_char() else {
                 self.warn_or_error("missing )")?;
                 return Ok(());
             };
             match ch {
-                '(' => {
+                ')' => {
+                    self.pos += 1;
+                    return Ok(());
+                }
+                '\\' => {
+                    // Escape: consume the backslash and the byte it protects, so
+                    // `\)` stays in the index.
+                    self.pos += 1;
+                    if let Some(next) = self.current_char() {
+                        self.pos += u32::try_from(next.len_utf8()).expect("char len fits u32");
+                    }
+                }
+                '[' => self.skip_command_in_index(),
+                '$' => self.skip_var_in_index()?,
+                _ => {
+                    self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+                }
+            }
+        }
+    }
+
+    /// Skip a `[…]` command substitution inside an array index so a `)` inside
+    /// it is not the index terminator. Tracks brace nesting (`blevel`) and
+    /// double-quote state (`in_quotes`) — mirroring [`Self::parse_command`] — so
+    /// a `]` inside a braced or quoted word (e.g. `$a([puts {]}])`) does not
+    /// close the substitution early. Stops after the matching `]` (or at EOF).
+    fn skip_command_in_index(&mut self) {
+        debug_assert_eq!(self.current_byte(), Some(b'['));
+        self.pos += 1;
+        let mut depth: u32 = 1;
+        let mut blevel: u32 = 0;
+        let mut in_quotes = false;
+        while depth > 0 {
+            let Some(ch) = self.current_char() else {
+                return;
+            };
+            match ch {
+                '\\' => {
+                    self.pos += 1;
+                    if let Some(next) = self.current_char() {
+                        self.pos += u32::try_from(next.len_utf8()).expect("char len fits u32");
+                    }
+                }
+                '"' if blevel == 0 => {
+                    in_quotes = !in_quotes;
+                    self.pos += 1;
+                }
+                '{' if !in_quotes => {
+                    blevel += 1;
+                    self.pos += 1;
+                }
+                '}' if !in_quotes => {
+                    blevel = blevel.saturating_sub(1);
+                    self.pos += 1;
+                }
+                '[' if blevel == 0 && !in_quotes => {
                     depth += 1;
                     self.pos += 1;
                 }
-                ')' => {
+                ']' if blevel == 0 && !in_quotes => {
                     depth -= 1;
                     self.pos += 1;
-                }
-                '$' if self.peek_byte(1) == Some(b'{') => {
-                    // `${…}` inside an array index — scan to the
-                    // matching `}` to avoid mis-counting any `(` or
-                    // `)` characters inside the braced name.
-                    self.pos += 2; // skip '${'
-                    while let Some(inner) = self.current_char() {
-                        if inner == '}' {
-                            self.pos += 1;
-                            break;
-                        }
-                        self.pos += u32::try_from(inner.len_utf8()).expect("char len fits u32");
-                    }
                 }
                 _ => {
                     self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
                 }
             }
+        }
+    }
+
+    /// Skip a `$` variable reference inside an array index (`${…}` or `$name`
+    /// with an optional nested `(…)` index) so its inner `)` are not mistaken
+    /// for the outer index terminator.
+    fn skip_var_in_index(&mut self) -> Result<(), LexError> {
+        debug_assert_eq!(self.current_byte(), Some(b'$'));
+        self.pos += 1; // skip '$'
+        if self.current_byte() == Some(b'{') {
+            self.pos += 1;
+            while let Some(ch) = self.current_char() {
+                self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+                if ch == '}' {
+                    break;
+                }
+            }
+            return Ok(());
+        }
+        // Bare name: an alphanumeric / `_` run, with `::` namespace separators.
+        while let Some(ch) = self.current_char() {
+            if ch.is_alphanumeric() || ch == '_' {
+                self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+            } else if ch == ':' && self.peek_byte(1) == Some(b':') {
+                self.pos += 2;
+            } else {
+                break;
+            }
+        }
+        // A nested `$name(index)` — recurse so its `)` closes the inner index.
+        if self.current_byte() == Some(b'(') {
+            self.scan_array_index_body()?;
         }
         Ok(())
     }
@@ -1816,8 +1897,57 @@ mod tests {
 
     #[test]
     fn var_array_index_nested_parens() {
+        // RUST_ISSUE_085: C Tcl does NOT nest parens in an array index — it
+        // terminates at the first `)`. `$arr(one(two)three)` is the variable
+        // `arr(one(two)` followed by the literal text `three)`.
         let (rows, _) = var_token_text("$arr(one(two)three)");
-        assert_eq!(rows[0], (TokenType::Var, "arr(one(two)three)".into()));
+        assert_eq!(rows[0].0, TokenType::Var);
+        assert_eq!(rows[0].1, "arr(one(two)");
+        assert!(
+            rows.iter().any(|(_, t)| t.contains("three")),
+            "trailing `three)` must be a separate token: {rows:?}",
+        );
+    }
+
+    #[test]
+    fn var_array_index_first_paren_terminates() {
+        // `$a((b)` ends the variable at the first `)`; the paren-counting bug
+        // never reached depth 0 and swallowed the rest of the source.
+        let (rows, _) = var_token_text("$a((b) rest");
+        assert_eq!(rows[0].0, TokenType::Var);
+        assert_eq!(rows[0].1, "a((b)");
+    }
+
+    #[test]
+    fn var_array_index_escaped_paren_stays() {
+        // `$a(x\)y)` — the escaped `)` is part of the index; the index ends at
+        // the final, unescaped `)`.
+        let (rows, _) = var_token_text("$a(x\\)y)");
+        assert_eq!(rows[0].0, TokenType::Var);
+        assert_eq!(rows[0].1, "a(x\\)y)");
+    }
+
+    #[test]
+    fn var_array_index_command_sub_parens_do_not_terminate() {
+        // A `)` inside a `[…]` command substitution is not the terminator.
+        let (rows, _) = var_token_text("$a([foo(x)])");
+        assert_eq!(rows[0].0, TokenType::Var);
+        assert_eq!(rows[0].1, "a([foo(x)])");
+    }
+
+    #[test]
+    fn var_array_index_command_sub_bracketed_brace_does_not_close_early() {
+        // A `]` inside a braced word within the `[…]` substitution must not
+        // close the substitution early (skip_command_in_index tracks brace
+        // depth). `$a([puts {]}])` — the command is `puts {]}`, so the index is
+        // the whole `[puts {]}]` and the VAR token is `a([puts {]}])`.
+        let (rows, _) = var_token_text("$a([puts {]}])");
+        assert_eq!(rows[0].0, TokenType::Var);
+        assert_eq!(rows[0].1, "a([puts {]}])");
+        // Same for a `]` inside a double-quoted word.
+        let (rows, _) = var_token_text("$a([puts \"]\"])");
+        assert_eq!(rows[0].0, TokenType::Var);
+        assert_eq!(rows[0].1, "a([puts \"]\"])");
     }
 
     #[test]

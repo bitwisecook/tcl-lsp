@@ -731,13 +731,25 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
                     let mut phi_type = TypeLattice::unknown();
                     for pred in &exec_preds {
                         let ver = phi.incoming.get(pred).copied().unwrap_or(0);
-                        if ver == 0 {
-                            continue;
-                        }
-                        let t = types
-                            .get(&(phi.name, ver))
-                            .cloned()
-                            .unwrap_or_else(TypeLattice::unknown);
+                        // A version-0 incoming is the entry / live-in root (a
+                        // proc parameter, global, or other caller-supplied
+                        // value). Its runtime type is unknown at compile time,
+                        // so it joins in as OVERDEFINED — never skipped.
+                        // Skipping it would let a phi that merges a live-in
+                        // with a defined-arm type collapse to that arm's type,
+                        // so a conditionally-assigned parameter
+                        // (`proc p {c x} { if {$c} { set x 5 } … $x }`) would
+                        // be typed solely from the assigned arm and the S101 /
+                        // W307 / W308 consumers would report facts false for
+                        // the not-taken path. Mirrors `sccp_process_phis`.
+                        let t = if ver == 0 {
+                            TypeLattice::overdefined()
+                        } else {
+                            types
+                                .get(&(phi.name, ver))
+                                .cloned()
+                                .unwrap_or_else(TypeLattice::unknown)
+                        };
                         phi_type = type_join(&phi_type, &t);
                     }
                     let key = (phi.name, phi.version);
@@ -1330,6 +1342,72 @@ mod tests {
         assert!(
             widened,
             "scope-aliased 'counter' should be OVERDEFINED: {:?}",
+            fu.types
+        );
+    }
+
+    #[test]
+    fn conditionally_assigned_param_merges_to_overdefined() {
+        use crate::compilation_unit::CompilationUnit;
+        // RUST_ISSUE_066: a parameter assigned in only one arm must NOT be
+        // typed from that arm alone. The merge phi joins the live-in
+        // (caller-supplied, unknown → OVERDEFINED) with the assigned-arm Int,
+        // so the merged type is OVERDEFINED — never Known Int.
+        let cu = CompilationUnit::build_for(
+            "proc ::p {c x} { if {$c} { set x 5 }\n return $x }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::p").unwrap();
+        // (TP) The merge phi for `x` is OVERDEFINED.
+        let has_overdefined = fu
+            .types
+            .iter()
+            .any(|((n, _), t)| fu.ssa.var_name(*n) == "x" && t.kind == TypeKind::Overdefined);
+        assert!(
+            has_overdefined,
+            "conditionally-assigned param 'x' should merge to OVERDEFINED: {:?}",
+            fu.types
+        );
+        // (FP guard) The assigned arm (`set x 5`) is *still* typed Known Int —
+        // the fix widens only the merge, not the definite assignment. Exactly
+        // one `x` version is Known Int (the assigned arm) and one is
+        // OVERDEFINED (the phi); pre-fix, the phi would also be Known Int.
+        let known_int_count = fu
+            .types
+            .iter()
+            .filter(|((n, _), t)| {
+                fu.ssa.var_name(*n) == "x" && matches!(t.tcl_type, Some(TclType::Int))
+            })
+            .count();
+        assert_eq!(
+            known_int_count, 1,
+            "only the assigned arm of 'x' should be Known Int (not the phi): {:?}",
+            fu.types
+        );
+    }
+
+    #[test]
+    fn unconditionally_assigned_param_still_typed() {
+        use crate::compilation_unit::CompilationUnit;
+        // RUST_ISSUE_066 (FP guard): an *unconditionally* reassigned local is
+        // still typed from its definition — the version-0 join only applies
+        // when a live-in genuinely reaches the merge. Here `y` is set on every
+        // path, so its post-assignment type stays Known Int.
+        let cu = CompilationUnit::build_for(
+            "proc ::q {c} { set y 5\n if {$c} { set y 7 } else { set y 9 }\n return $y }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::q").unwrap();
+        let all_int = fu
+            .types
+            .iter()
+            .filter(|((n, _), _)| fu.ssa.var_name(*n) == "y")
+            .all(|(_, t)| matches!(t.tcl_type, Some(TclType::Int)) || t.kind == TypeKind::Unknown);
+        assert!(
+            all_int,
+            "unconditionally-assigned 'y' should stay Int on every path: {:?}",
             fu.types
         );
     }

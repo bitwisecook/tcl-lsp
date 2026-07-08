@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | LSP navigation / rename / formatting |
 | **Location** | `rust/tcl-lsp-core/src/formatting/engine.rs:80-89 (via append_word_arg 884-889)` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

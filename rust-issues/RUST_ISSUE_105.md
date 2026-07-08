@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | LSP navigation / rename / formatting |
 | **Location** | `rust/tcl-lsp-core/src/refactor/inline_variable.rs:102-111` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

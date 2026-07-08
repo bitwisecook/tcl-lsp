@@ -807,6 +807,20 @@ impl Lowerer<'_> {
                 let pattern_span = arg_tokens.get(i).map_or(seg.span, |t| t.span);
                 let body_text_inner = args[i + 1].clone();
                 let body_tok_idx = i + 1;
+                // Like if/while/for/catch/try, an arm body that carries
+                // substitution (`$handler`, `[cmd]`, a quoted/concatenated
+                // word) is evaluated as a script from its *runtime value*, not
+                // its unsubstituted spelling. Lowering the literal spelling as a
+                // nested script would fabricate a phantom command (e.g. a Call
+                // to `${handler}`) that downstream dead-code/taint/def-use/
+                // call-graph passes reason about. Defer the whole switch to the
+                // runtime command instead. The `-` fallthrough marker is a
+                // literal, not a body, so it is exempt. (`seg.argv` includes the
+                // command word, so the body word `args[i + 1]` is index
+                // `i + 2`.) RUST_ISSUE_071.
+                if body_text_inner != "-" && !super::seg_word_is_static_literal(seg, i + 2) {
+                    return Self::barrier(seg, "switch with non-literal arm body");
+                }
                 let body_span_val = arg_tokens.get(body_tok_idx).map(|t| t.span);
                 pairs.push(SwitchPair {
                     pattern,
@@ -985,6 +999,44 @@ mod tests {
             assert!(
                 !body.statements.is_empty(),
                 "single-braced arm body should lower to non-empty IR, got {body:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn switch_substituted_arm_body_barriers() {
+        // RUST_ISSUE_071: a multi-arg arm body that is a substitution
+        // (`$handler`, `[cmd]`, a quoted word) must NOT be lowered from its
+        // unsubstituted spelling — the switch defers to the runtime command so
+        // no phantom Call to `${handler}` is fabricated.
+        for src in [
+            "switch $x a $handler",
+            "switch $x a [get_handler]",
+            "switch $x a \"puts $x\"",
+            "switch $x a {puts a} b $other",
+        ] {
+            let m = lower_to_ir(src, &reg());
+            assert!(
+                matches!(&m.top_level.statements[0], Statement::Barrier { .. }),
+                "expected Barrier (defer to runtime) for {src:?}, got {:?}",
+                m.top_level.statements[0],
+            );
+        }
+    }
+
+    #[test]
+    fn switch_static_arm_body_still_lowers() {
+        // FP-guard for RUST_ISSUE_071: genuinely literal arm bodies (braced,
+        // and the `-` fallthrough marker) still lower to a structured Switch.
+        for src in [
+            "switch $x a {puts a} b {puts b}",
+            "switch $x a - b {puts b}",
+        ] {
+            let m = lower_to_ir(src, &reg());
+            assert!(
+                matches!(&m.top_level.statements[0], Statement::Switch { .. }),
+                "expected structured Switch for {src:?}, got {:?}",
+                m.top_level.statements[0],
             );
         }
     }

@@ -186,6 +186,97 @@ fn pkg_init_install_materialise_roundtrip() {
     let _ = std::fs::remove_dir_all(&base);
 }
 
+/// Shared setup: init a project with one local `dep` package and install it,
+/// returning `(base, cache, proj_dir)`. The caller cleans up `base`.
+fn install_local_dep(tag: &str) -> (PathBuf, PathBuf, PathBuf) {
+    let base = temp_dir(tag);
+    let cache = base.join("cache");
+    let dir = base.join("proj");
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let dep = base.join("dep-src");
+    std::fs::create_dir_all(&dep).unwrap();
+    std::fs::write(
+        dep.join("tclpkg.tcl"),
+        "package dep\nversion 1.0.0\nprovides dep::api\nlicense MIT\n",
+    )
+    .unwrap();
+    std::fs::write(dep.join("dep.tcl"), "proc dep::hi {} { return hi }\n").unwrap();
+
+    let (_o, _e, code) = run_in_cache(
+        &dir,
+        Some(&cache),
+        &["pkg", "init", "--name", "demo", "--version", "1.0.0"],
+    );
+    assert_eq!(code, 0);
+    let (_o, _e, code) = run_in_cache(
+        &dir,
+        Some(&cache),
+        &[
+            "pkg",
+            "add",
+            "dep",
+            "1.0.0",
+            "--source",
+            dep.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(code, 0);
+    let (_o, _e, code) = run_in_cache(&dir, Some(&cache), &["pkg", "install"]);
+    assert_eq!(code, 0);
+    (base, cache, dir)
+}
+
+// RUST_ISSUE_127: `pkg verify` must recompute and compare the integrity hash,
+// so tampering with a materialised file is detected — not just check that the
+// lockfile's integrity string is non-empty.
+#[test]
+fn pkg_verify_detects_tampered_content() {
+    let (base, cache, dir) = install_local_dep("pkg-verify-tamper");
+
+    // A clean tree verifies.
+    let (_o, _e, code) = run_in_cache(&dir, Some(&cache), &["pkg", "verify"]);
+    assert_eq!(code, 0, "clean tree should verify");
+
+    // Tamper with the materialised package content.
+    let victim = dir.join("lib").join("dep-1.0.0").join("dep.tcl");
+    std::fs::write(&victim, "proc dep::hi {} { return TAMPERED }\n").unwrap();
+
+    // verify must now fail.
+    let (_o, stderr, code) = run_in_cache(&dir, Some(&cache), &["pkg", "verify"]);
+    assert_ne!(code, 0, "tampered tree must fail verification");
+    assert!(
+        stderr.contains("integrity verification") || stderr.contains("mismatch"),
+        "stderr: {stderr}"
+    );
+
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+// RUST_ISSUE_125: `pkg sync` must actually materialise the locked packages into
+// `lib/`, reconstructing them from the CAS — not merely print the lockfile.
+#[test]
+fn pkg_sync_materialises_from_lockfile() {
+    let (base, cache, dir) = install_local_dep("pkg-sync-materialise");
+
+    // Remove the materialised tree; the lockfile + CAS still describe it.
+    let lib = dir.join("lib");
+    std::fs::remove_dir_all(&lib).unwrap();
+    assert!(!lib.exists());
+
+    // sync must recreate it from the lockfile.
+    let (_o, _e, code) = run_in_cache(&dir, Some(&cache), &["pkg", "sync"]);
+    assert_eq!(code, 0, "sync should succeed");
+    let materialised = dir.join("lib").join("dep-1.0.0").join("dep.tcl");
+    assert!(
+        materialised.exists(),
+        "sync did not materialise the package: {}",
+        materialised.display()
+    );
+
+    let _ = std::fs::remove_dir_all(&base);
+}
+
 #[test]
 fn pkg_install_resolves_transitive_dependencies() {
     // Root -> dep -> sub, all via local path sources (no network, no tclsh).

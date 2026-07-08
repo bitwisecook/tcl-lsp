@@ -1599,13 +1599,21 @@ fn bi_last_host(args: &[Value]) -> Result<Value, QueryError> {
     }
 }
 
+/// Represent a u128 address count as a query number: an exact `Int` when it
+/// fits i64, otherwise a `Float` (approximate but correctly signed and scaled).
+/// A raw `as i64` cast truncated 2^96-scale IPv6 counts to negative garbage
+/// (`RUST_ISSUE_120`).
+fn count_value(count: u128) -> Value {
+    i64::try_from(count).map_or_else(|_| Value::Float(count as f64), Value::Int)
+}
+
 fn bi_host_count(args: &[Value]) -> Result<Value, QueryError> {
     match typed_network(&args[0], "host_count", 1)? {
         None => Ok(Value::Null),
         Some(n) => {
             let total = n.num_addresses();
             let count = if total <= 2 { total } else { total - 2 };
-            Ok(Value::Int(count as i64))
+            Ok(count_value(count))
         }
     }
 }
@@ -2275,7 +2283,7 @@ fn bi_ip_range_count(args: &[Value]) -> Result<Value, QueryError> {
         None => Ok(Value::Null),
         Some((first, last)) => {
             let count = ip_to_u128(last) - ip_to_u128(first) + 1;
-            Ok(Value::Int(count as i64))
+            Ok(count_value(count))
         }
     }
 }
@@ -2326,5 +2334,43 @@ mod tests {
     fn in_cidr_matches_v6_ranges() {
         assert!(in_cidr("2001:db8::1", "2001:db8::/32"));
         assert!(!in_cidr("2001:db9::1", "2001:db8::/32"));
+    }
+
+    #[test]
+    fn host_count_large_ipv6_is_not_negative() {
+        // RUST_ISSUE_120: a /32 IPv6 network has 2^96-2 hosts — an `as i64`
+        // truncation returned -2. The value must be a large, positive number
+        // (a Float, since it exceeds i64), never negative garbage.
+        match bi_host_count(&[Value::Str("2001:db8::/32".to_owned())]).unwrap() {
+            Value::Float(f) => {
+                assert!(f > 0.0, "count must be positive, got {f}");
+                assert!(f > 7.9e28 * 0.99, "count ~= 2^96, got {f}");
+            }
+            other => panic!("expected Float for huge count, got {other:?}"),
+        }
+        // FP-guard: an IPv4 /24 still returns an exact Int (254 usable hosts).
+        assert!(matches!(
+            bi_host_count(&[Value::Str("10.0.0.0/24".to_owned())]).unwrap(),
+            Value::Int(254)
+        ));
+    }
+
+    #[test]
+    fn ip_range_count_large_span_is_not_negative() {
+        // RUST_ISSUE_120: a huge IPv6 range must not truncate to a negative i64.
+        match bi_ip_range_count(&[Value::Str(
+            "::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe".to_owned(),
+        )])
+        .unwrap()
+        {
+            Value::Float(f) => assert!(f > 0.0, "count must be positive, got {f}"),
+            Value::Int(i) => assert!(i > 0, "count must be positive, got {i}"),
+            other => panic!("unexpected {other:?}"),
+        }
+        // A small IPv4 range is an exact Int.
+        assert!(matches!(
+            bi_ip_range_count(&[Value::Str("10.0.0.1-10.0.0.10".to_owned())]).unwrap(),
+            Value::Int(10)
+        ));
     }
 }

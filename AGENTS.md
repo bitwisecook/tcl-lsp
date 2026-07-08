@@ -104,8 +104,8 @@ are *not* debt.
 
 ## Prerequisites
 
-- Rust 1.95+ with cargo, via [rustup](https://rustup.rs/) (the Makefile
-  Prerequisites block and the `cargo`-missing errors pin 1.95+; the toolchain
+- Rust 1.96+ with cargo, via [rustup](https://rustup.rs/) (the Makefile
+  Prerequisites block and the `cargo`-missing errors pin 1.96+; the toolchain
   tracks the floating `stable` channel)
 - Node.js 24+ with npm (for the VS Code TypeScript extension; the npm CLI is
   pinned to v12 via the
@@ -161,7 +161,7 @@ The **source of truth** for each minimum version:
 
 | Requirement | Source of truth              | File                  |
 |-------------|------------------------------|-----------------------|
-| Rust        | pinned min (1.95+)           | `rust-toolchain.toml` / `Makefile` Prerequisites |
+| Rust        | pinned min (1.96+)           | `Cargo.toml` workspace `rust-version` (authoritative); `Makefile` Prerequisites echo it |
 | Node.js     | CI matrix                    | `.github/workflows/ci.yml` |
 
 When changing a minimum version, update **all** of these locations:

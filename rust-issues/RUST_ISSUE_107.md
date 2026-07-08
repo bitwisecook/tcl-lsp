@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | LSP navigation / rename / formatting |
 | **Location** | `rust/tcl-lsp-core/src/refactor/if_to_switch.rs:203-213,229-232` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

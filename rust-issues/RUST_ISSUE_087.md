@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Lexer & syntax tree |
 | **Location** | `rust/tcl-syntax/src/list.rs:249-264` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

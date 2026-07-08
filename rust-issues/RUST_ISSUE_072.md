@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Compiler lowering / variable scoping |
 | **Location** | `rust/tcl-compiler/src/lowering_hooks.rs:294` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

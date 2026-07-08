@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | f5-query / report-gen / f5-xc |
 | **Location** | `rust/tcl-bigip-query/src/builtins/time_dt.rs:206` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

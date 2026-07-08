@@ -1788,7 +1788,8 @@
     "dialects": [
       "tcl8.5",
       "tcl8.6",
-      "tcl9.0"
+      "tcl9.0",
+      "tcl9.1"
     ],
     "excludedEvents": [],
     "forms": [
@@ -2871,7 +2872,8 @@
     },
     "dialects": [
       "tcl8.6",
-      "tcl9.0"
+      "tcl9.0",
+      "tcl9.1"
     ],
     "excludedEvents": [],
     "forms": [
@@ -2964,7 +2966,8 @@
     },
     "dialects": [
       "tcl8.6",
-      "tcl9.0"
+      "tcl9.0",
+      "tcl9.1"
     ],
     "excludedEvents": [],
     "forms": [
@@ -3086,7 +3089,7 @@
     "name": "unset",
     "scalars": {
       "allow_unknown_subcommands": false,
-      "assigns_variable_at": 0,
+      "assigns_variable_at": null,
       "body_arg_implicit_args": 0,
       "body_kind": "INLINE",
       "deprecated_replacement": null,

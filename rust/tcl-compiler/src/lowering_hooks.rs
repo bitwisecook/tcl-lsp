@@ -295,13 +295,32 @@ fn lower_append_lappend(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     if cmd.args.is_empty() {
         return None;
     }
-    let name = normalise_var_name(&cmd.args[0]).to_owned();
+    // Record a concrete def of the target only when the variable NAME is a
+    // compile-time literal and no `{*}` expansion shifts the argv — the same
+    // gate `set`/`incr` apply. `append {*}$args` makes `args[0]` the *expanded
+    // list being read*, not a write target; `append $x foo` writes through a
+    // substituted name whose source text is not the variable. Recording
+    // `defs=[normalise(args[0])]` in either case fabricates a def of the wrong
+    // variable (RUST_ISSUE_072). Leaving `defs` empty keeps the write out of
+    // SSA/def-use as a concrete name — the registry's arg-role / side-effect
+    // model still resolves it, and `resolve_place` yields Unknown, matching
+    // `incr $x`.
+    let name_is_literal = !has_expansion(cmd)
+        && matches!(
+            cmd.arg_kinds.first(),
+            Some(ArgTokenKind::Str | ArgTokenKind::Esc)
+        );
+    let defs = if name_is_literal {
+        vec![normalise_var_name(&cmd.args[0]).to_owned()]
+    } else {
+        vec![]
+    };
     Some(Statement::Call {
         span: cmd.span,
         command: cmd.name.into(),
         canonical_command: None,
         args: cmd.args.to_vec(),
-        defs: vec![name],
+        defs,
         reads: vec![],
         reads_own_defs: true,
         safe_on_uninit: false,
@@ -617,6 +636,46 @@ mod tests {
         } else {
             panic!("expected AssignConst");
         }
+    }
+
+    /// The concrete def names of the first lowered statement.
+    fn first_stmt_defs(src: &str) -> Vec<String> {
+        let m = crate::lowering::lower_to_ir(src, &CommandRegistry::build_default());
+        match &m.top_level.statements[0] {
+            Statement::Call { defs, .. } => defs.clone(),
+            other => panic!("expected Call, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn append_literal_name_records_def() {
+        // FP-guard for RUST_ISSUE_072: a literal target still records a def.
+        assert_eq!(first_stmt_defs("append x foo"), vec!["x".to_string()]);
+        assert_eq!(
+            first_stmt_defs("lappend items a b"),
+            vec!["items".to_string()]
+        );
+    }
+
+    #[test]
+    fn append_substituted_or_expanded_name_records_no_def() {
+        // RUST_ISSUE_072: `append $x foo` writes through a substituted name —
+        // recording defs=["x"] fabricates a def of the wrong variable. And
+        // `append {*}$args` makes args[0] the expanded *read* list. Both must
+        // record no concrete def (the registry side-effect model resolves the
+        // real write, resolve_place → Unknown).
+        assert!(
+            first_stmt_defs("append $x foo").is_empty(),
+            "substituted name must not record a concrete def",
+        );
+        assert!(
+            first_stmt_defs("lappend {*}$args").is_empty(),
+            "{{*}} expansion must not record a concrete def",
+        );
+        assert!(
+            first_stmt_defs("append [pick] foo").is_empty(),
+            "command-substituted name must not record a concrete def",
+        );
     }
 
     #[test]

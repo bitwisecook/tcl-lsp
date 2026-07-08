@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | f5-query / report-gen / f5-xc |
 | **Location** | `rust/tcl-bigip-query/src/builtins/net.rs:1608 (and 2278)` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

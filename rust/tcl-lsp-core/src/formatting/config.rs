@@ -110,12 +110,15 @@ pub struct FormatterConfig {
     pub trim_trailing_whitespace: bool,
     /// Rewrite `$var` as `${var}` for consistency.
     pub enforce_braced_variables: bool,
-    /// Rewrite a bare expression argument as a braced `{ … }` expr.
-    /// Declared and serialised, but not yet consumed by the engine —
-    /// the behaviour is hardcoded.
+    /// Rewrite a bare expression argument as a braced `{ … }` expr. Registry
+    /// `ArgRole::Expr` marks the expression argument(s); a command flagged
+    /// `EXPR_CONCATENATES_ARGS` (`expr`) has its whole tail braced as one
+    /// group, while a bounded condition (`if`/`while`/`for`) is braced in
+    /// place.
     pub enforce_braced_expr: bool,
-    /// Align trailing inline comments to a consistent column.
-    /// Declared and serialised, not yet engine-consumed.
+    /// Align comments to the surrounding code's indentation. When `true` (the
+    /// default) a standalone comment is re-indented to the code column; when
+    /// `false` the comment keeps its original column.
     pub align_comments_to_code: bool,
     /// Line ending for formatted output.
     pub line_ending: String,
@@ -124,12 +127,12 @@ pub struct FormatterConfig {
     /// Expand single-line command bodies onto multiple lines.
     pub expand_single_line_bodies: bool,
     /// Minimum number of commands a body must contain before
-    /// `expand_single_line_bodies` forces it onto multiple lines.
-    /// Declared and serialised, not yet engine-consumed.
+    /// `expand_single_line_bodies` forces it onto multiple lines. A body with
+    /// fewer commands stays inline even when expansion is enabled.
     pub min_body_commands_for_expansion: usize,
-    /// Split `;`-separated commands onto their own lines.
-    /// Declared and serialised, but semicolon-splitting is
-    /// hardcoded-on, so the flag is not yet consumed.
+    /// Split `;`-separated commands onto their own lines. When `true` (the
+    /// default) `a; b` becomes two lines; when `false` such commands are kept
+    /// on one line joined by `; `.
     pub replace_semicolons_with_newlines: bool,
     /// Blank lines between proc definitions.
     pub blank_lines_between_procs: usize,

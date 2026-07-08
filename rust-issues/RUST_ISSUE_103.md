@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | LSP navigation / rename / formatting |
 | **Location** | `rust/tcl-lsp-core/src/formatting/engine.rs:114-116 and minify.rs:2380` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

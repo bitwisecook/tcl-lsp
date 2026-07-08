@@ -1337,20 +1337,35 @@ namespace eval ::itest::cmd {
 
         switch -exact -- $subcmd {
             match {
-                # class match <value> <operator> <datagroup> ?options?
-                set value [lindex $rest 0]
-                set operator [lindex $rest 1]
-                set dg_name [lindex $rest 2]
-                set options [lrange $rest 3 end]
-
-                switch -exact -- $operator {
-                    equals - contains - starts_with - ends_with {
-                        return [::state::datagroup::match $dg_name $value {*}$options]
-                    }
-                    default {
-                        return [::state::datagroup::match $dg_name $value {*}$options]
+                # class match ?options? <value> <operator> <datagroup> ?options?
+                #
+                # Leading options (`-nocase`, `-element`, `-all`, …) and an
+                # explicit `--` terminator may precede the positional
+                # <value> <operator> <datagroup> triple. Parse them off the
+                # front rather than assuming the value is at index 0, so
+                # `class match -- [HTTP::host] equals hosts` no longer treats
+                # `equals` as the datagroup name (RUST_ISSUE_114).
+                set flags {}
+                set idx 0
+                set n [llength $rest]
+                while {$idx < $n} {
+                    set tok [lindex $rest $idx]
+                    if {$tok eq "--"} { incr idx; break }
+                    if {[string index $tok 0] eq "-"} {
+                        lappend flags $tok
+                        incr idx
+                    } else {
+                        break
                     }
                 }
+                set value [lindex $rest $idx]
+                set operator [lindex $rest [expr {$idx + 1}]]
+                set dg_name [lindex $rest [expr {$idx + 2}]]
+                set options [concat $flags [lrange $rest [expr {$idx + 3}] end]]
+                # Thread the comparison operator through to the matcher so
+                # starts_with / contains / ends_with are honoured rather than
+                # collapsing to exact equality (RUST_ISSUE_113).
+                return [::state::datagroup::match $dg_name $value $operator {*}$options]
             }
             lookup {
                 set dg_name [lindex $rest 0]

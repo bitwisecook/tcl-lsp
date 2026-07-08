@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Compiler middle-end (CFG/SSA/SCCP/optimiser) |
 | **Location** | `rust/tcl-compiler/src/interval_bounds.rs:83-95` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: medium) |
 
 ## Finding

@@ -28,11 +28,38 @@
 //! keeps an author (or a pasted snippet) from breaking the single-file document
 //! or injecting script into it.
 
-use pulldown_cmark::{Event, Options, Parser, html};
+use pulldown_cmark::{CowStr, Event, Options, Parser, Tag, html};
+
+/// Whether a link/image destination uses a script-bearing URL scheme that must
+/// not survive into the rendered HTML (`javascript:`, `vbscript:`, `data:`).
+///
+/// Browsers strip ASCII whitespace and control characters and match the scheme
+/// case-insensitively, so a payload like `java\tSCRIPT:alert(1)` or
+/// ` javascript:…` would still execute — normalise the same way before the
+/// prefix test (`RUST_ISSUE_121`).
+fn is_dangerous_url(url: &str) -> bool {
+    let normalised: String = url
+        .chars()
+        .filter(|c| !c.is_whitespace() && !c.is_control())
+        .flat_map(char::to_lowercase)
+        .collect();
+    normalised.starts_with("javascript:")
+        || normalised.starts_with("vbscript:")
+        || normalised.starts_with("data:")
+}
+
+/// Blank out a dangerous destination, leaving a safe one untouched.
+fn safe_dest(dest: CowStr<'_>) -> CowStr<'_> {
+    if is_dangerous_url(&dest) {
+        CowStr::Borrowed("")
+    } else {
+        dest
+    }
+}
 
 /// Render `CommonMark` + common GFM extensions (tables, strikethrough, task
 /// lists, footnotes, smart punctuation) to an HTML fragment, dropping any raw
-/// HTML the source contained.
+/// HTML the source contained and neutralising script-bearing link/image URLs.
 #[must_use]
 pub fn render_markdown(md: &str) -> String {
     let mut opts = Options::empty();
@@ -42,8 +69,33 @@ pub fn render_markdown(md: &str) -> String {
     opts.insert(Options::ENABLE_FOOTNOTES);
     opts.insert(Options::ENABLE_SMART_PUNCTUATION);
 
-    let parser =
-        Parser::new_ext(md, opts).filter(|ev| !matches!(ev, Event::Html(_) | Event::InlineHtml(_)));
+    let parser = Parser::new_ext(md, opts)
+        .filter(|ev| !matches!(ev, Event::Html(_) | Event::InlineHtml(_)))
+        .map(|ev| match ev {
+            Event::Start(Tag::Link {
+                link_type,
+                dest_url,
+                title,
+                id,
+            }) => Event::Start(Tag::Link {
+                link_type,
+                dest_url: safe_dest(dest_url),
+                title,
+                id,
+            }),
+            Event::Start(Tag::Image {
+                link_type,
+                dest_url,
+                title,
+                id,
+            }) => Event::Start(Tag::Image {
+                link_type,
+                dest_url: safe_dest(dest_url),
+                title,
+                id,
+            }),
+            other => other,
+        });
 
     let mut out = String::new();
     html::push_html(&mut out, parser);
@@ -75,5 +127,36 @@ mod tests {
     fn renders_tables() {
         let html = render_markdown("| a | b |\n|---|---|\n| 1 | 2 |");
         assert!(html.contains("<table>"));
+    }
+
+    #[test]
+    fn neutralises_script_bearing_link_urls() {
+        // RUST_ISSUE_121: a `javascript:` / `data:` / `vbscript:` link
+        // destination must not survive into the rendered `href`, even with
+        // scheme obfuscation (case, embedded whitespace/control chars).
+        for md in [
+            "[click](javascript:alert(1))",
+            "[click](JavaScript:alert(1))",
+            "[click](  javascript:alert(1))",
+            "[x](java\tscript:alert(1))",
+            "[x](vbscript:msgbox(1))",
+            "[x](data:text/html,<script>alert(1)</script>)",
+            "![img](javascript:alert(1))",
+        ] {
+            let html = render_markdown(md);
+            assert!(
+                !html.contains("javascript:")
+                    && !html.contains("vbscript:")
+                    && !html.contains("data:text/html"),
+                "dangerous scheme survived for {md:?}: {html}",
+            );
+        }
+        // FP-guard: safe schemes and relative links are untouched.
+        assert!(
+            render_markdown("[x](https://example.com)").contains("href=\"https://example.com\"")
+        );
+        assert!(render_markdown("[x](/rel/path)").contains("href=\"/rel/path\""));
+        assert!(render_markdown("[x](mailto:a@b.com)").contains("href=\"mailto:a@b.com\""));
+        assert!(render_markdown("[x](#frag)").contains("href=\"#frag\""));
     }
 }

@@ -59,28 +59,54 @@ struct CommandArg {
     formatted_body: Option<String>,
 }
 
+/// A comment line captured during parsing, with its original source
+/// indentation so the formatter can either re-indent it to the code column
+/// (`align_comments_to_code`, the default) or preserve where the author put it.
+#[derive(Clone)]
+struct CommentLine {
+    /// Leading whitespace on the comment's original line, when the comment
+    /// stood alone at the start of its line. `None` for a relocated inline
+    /// (`;#`) comment, which has no standalone column to preserve.
+    orig_indent: Option<String>,
+    /// The comment text, starting at `#`.
+    text: String,
+}
+
 /// A single Tcl command with its arguments, ready for reformatting.
 struct ParsedCommand {
     name: String,
     args: Vec<CommandArg>,
-    preceding_comments: Vec<String>,
+    preceding_comments: Vec<CommentLine>,
     preceding_blank_lines: usize,
+    /// The separator that terminated this command was a bare `;` on the same
+    /// line (no newline). Lets the emitter keep `a; b` on one line when
+    /// `replace_semicolons_with_newlines` is disabled.
+    terminated_by_semicolon: bool,
 }
 
 // Token → raw source reconstruction
 
-/// Collapse `\<newline>` continuations to a single space.  Inside
-/// `[]` and `"…"` this is semantics-preserving and keeps the
-/// formatter idempotent.
-fn normalise_backslash_newline(text: &str) -> String {
+/// Collapse `\<newline>` continuations to a single space.
+///
+/// `keep_preceding` controls whitespace *before* the backslash. Inside a
+/// double-quoted string that whitespace is literal data, so it must survive
+/// (`"a \<nl> b"` is the value `a  b`, two spaces — `RUST_ISSUE_104`); pass
+/// `true`. Inside a command substitution `[…]` (and bare word contexts) the
+/// whole `<ws>\<nl><ws>` run is inter-word spacing the lexer collapses to a
+/// single space, so the preceding whitespace must be trimmed (`[cat a \<nl> b]`
+/// → `[cat a b]`); pass `false`.
+fn normalise_backslash_newline(text: &str, keep_preceding: bool) -> String {
     let mut out = String::with_capacity(text.len());
     let bytes = text.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'\\' && i + 1 < bytes.len() && bytes[i + 1] == b'\n' {
-            // Skip surrounding [ \t] then the backslash-newline.
-            while out.ends_with([' ', '\t']) {
-                out.pop();
+            if !keep_preceding {
+                // Trim the whitespace already emitted before the backslash so
+                // the continuation collapses to a single inter-word space.
+                while out.ends_with([' ', '\t']) {
+                    out.pop();
+                }
             }
             i += 2;
             while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
@@ -111,10 +137,20 @@ fn utf8_len(b: u8) -> usize {
 }
 
 /// Rebuild source text from a single token, re-adding delimiters.
-fn reconstruct_raw(sm: &SourceMap, tok: Token) -> String {
+///
+/// `in_quotes` is set when the token is being reconstructed inside a
+/// double-quoted argument (which the caller re-wraps in `"…"`). In that context
+/// a `Str` token is literal string data — a lone `$` the lexer classified as
+/// `Str`, for instance — so it is emitted verbatim rather than brace-wrapped as
+/// `{$}`, which would change the string's value (`RUST_ISSUE_103`).
+fn reconstruct_raw(sm: &SourceMap, tok: Token, in_quotes: bool) -> String {
     match tok.kind {
+        TokenType::Str if in_quotes => sm.text(tok.span).to_owned(),
         TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
-        TokenType::Cmd => format!("[{}]", normalise_backslash_newline(sm.token_text(tok))),
+        TokenType::Cmd => format!(
+            "[{}]",
+            normalise_backslash_newline(sm.token_text(tok), false)
+        ),
         TokenType::Var => {
             let raw = sm.text(tok.span);
             if raw.starts_with("${") {
@@ -137,7 +173,7 @@ fn reconstruct_arg(sm: &SourceMap, arg: &CommandArg, braced_vars: bool) -> Strin
         if braced_vars && tok.kind == TokenType::Var {
             let _ = write!(raw, "${{{}}}", sm.token_text(tok));
         } else {
-            raw.push_str(&reconstruct_raw(sm, tok));
+            raw.push_str(&reconstruct_raw(sm, tok, arg.is_quoted));
         }
     }
     if arg.is_quoted {
@@ -193,23 +229,38 @@ fn count_newlines(text: &str) -> usize {
     text.matches('\n').count().saturating_sub(1)
 }
 
+/// The leading whitespace on the source line containing `offset`, but only when
+/// everything before `offset` on that line is whitespace — i.e. the comment
+/// stands alone at line start. Returns `None` for a mid-line (inline `;#`)
+/// comment, which has no standalone column to preserve.
+fn comment_orig_indent(source: &str, offset: usize) -> Option<String> {
+    let line_start = source.get(..offset)?.rfind('\n').map_or(0, |p| p + 1);
+    let prefix = source.get(line_start..offset)?;
+    if prefix.bytes().all(|b| b == b' ' || b == b'\t') {
+        Some(prefix.to_owned())
+    } else {
+        None
+    }
+}
+
 /// Parse Tcl source into structured commands plus any trailing
 /// comments.
 fn parse_commands(
     source: &str,
     sm: &SourceMap,
     tokens: &[Token],
-) -> (Vec<ParsedCommand>, Vec<String>) {
+) -> (Vec<ParsedCommand>, Vec<CommentLine>) {
     let mut commands: Vec<ParsedCommand> = Vec::new();
-    let mut pending_comments: Vec<String> = Vec::new();
+    let mut pending_comments: Vec<CommentLine> = Vec::new();
     let mut pending_blank_lines = 0usize;
 
     let mut argv: Vec<CommandArg> = Vec::new();
     let mut prev_type = TokenType::Eol;
 
     let flush = |argv: &mut Vec<CommandArg>,
-                 pending_comments: &mut Vec<String>,
+                 pending_comments: &mut Vec<CommentLine>,
                  pending_blank_lines: usize,
+                 terminated_by_semicolon: bool,
                  commands: &mut Vec<ParsedCommand>| {
         if argv.is_empty() {
             return;
@@ -224,6 +275,7 @@ fn parse_commands(
             args: taken_args,
             preceding_comments: std::mem::take(pending_comments),
             preceding_blank_lines: pending_blank_lines,
+            terminated_by_semicolon,
         });
     };
 
@@ -231,7 +283,10 @@ fn parse_commands(
         match tok.kind {
             TokenType::Eof => break,
             TokenType::Comment => {
-                pending_comments.push(sm.text(tok.span).to_owned());
+                pending_comments.push(CommentLine {
+                    orig_indent: comment_orig_indent(source, tok.span.start() as usize),
+                    text: sm.text(tok.span).to_owned(),
+                });
                 continue;
             }
             TokenType::Sep => {
@@ -243,10 +298,13 @@ fn parse_commands(
                 if argv.is_empty() {
                     pending_blank_lines += newlines;
                 } else {
+                    // A pure `;` separator (no newline in the Eol run) means
+                    // this command shared a line with the next.
                     flush(
                         &mut argv,
                         &mut pending_comments,
                         pending_blank_lines,
+                        newlines == 0,
                         &mut commands,
                     );
                     pending_blank_lines = newlines;
@@ -283,6 +341,7 @@ fn parse_commands(
         &mut argv,
         &mut pending_comments,
         pending_blank_lines,
+        false,
         &mut commands,
     );
     (commands, pending_comments)
@@ -375,7 +434,11 @@ fn format_comment(comment_text: &str, config: &FormatterConfig) -> String {
     let is_commented_code = !after_hashes.chars().next().is_some_and(char::is_whitespace);
     let hashes = "#".repeat(num_hashes);
     if is_commented_code {
-        format!("{hashes}{}", normalise_backslash_newline(after_hashes))
+        // Commented-out code is not string data; collapse continuations fully.
+        format!(
+            "{hashes}{}",
+            normalise_backslash_newline(after_hashes, false)
+        )
     } else if config.space_after_comment_hash {
         format!("{hashes}{}", after_hashes.trim_end())
     } else {
@@ -523,7 +586,7 @@ fn emit_switch_lines(
             let comment_raw: String = elements[i]
                 .tokens
                 .iter()
-                .map(|&t| reconstruct_raw(sm, t))
+                .map(|&t| reconstruct_raw(sm, t, false))
                 .collect();
             lines.push(format!("{indent}{}", comment_raw.trim_end()));
             i += 1;
@@ -532,7 +595,7 @@ fn emit_switch_lines(
         let pattern_raw: String = elements[i]
             .tokens
             .iter()
-            .map(|&t| reconstruct_raw(sm, t))
+            .map(|&t| reconstruct_raw(sm, t, false))
             .collect();
         // If the *body* slot is a comment, don't pair it as this pattern's
         // body — emit the pattern alone and let the comment be handled on the
@@ -554,7 +617,7 @@ fn emit_switch_lines(
                 let body_raw: String = body
                     .tokens
                     .iter()
-                    .map(|&t| reconstruct_raw(sm, t))
+                    .map(|&t| reconstruct_raw(sm, t, false))
                     .collect();
                 lines.push(format!("{indent}{pattern_raw} {body_raw}"));
             }
@@ -859,6 +922,48 @@ fn split_commented_code(
 
 // Inline body detection
 
+/// Count the commands in a raw body — statements separated by a newline or a
+/// top-level `;` (both are Tcl command terminators). Brace / bracket nesting is
+/// tracked so separators inside a nested `{…}` or `[…]` do not inflate the
+/// count. Used to gate `expand_single_line_bodies` on
+/// `min_body_commands_for_expansion`.
+fn count_body_commands(body_text: &str) -> usize {
+    let mut count = 0;
+    let mut depth = 0i32;
+    let mut in_statement = false;
+    let mut escaped = false;
+    for c in body_text.chars() {
+        if escaped {
+            escaped = false;
+            in_statement = true;
+            continue;
+        }
+        match c {
+            '\\' => escaped = true,
+            '{' | '[' => {
+                depth += 1;
+                in_statement = true;
+            }
+            '}' | ']' => {
+                depth = depth.saturating_sub(1);
+                in_statement = true;
+            }
+            '\n' | ';' if depth == 0 => {
+                if in_statement {
+                    count += 1;
+                    in_statement = false;
+                }
+            }
+            c if c.is_whitespace() => {}
+            _ => in_statement = true,
+        }
+    }
+    if in_statement {
+        count += 1;
+    }
+    count
+}
+
 /// Whether a body is short enough to keep on one line.
 fn body_can_be_inline(
     body_text: &str,
@@ -866,7 +971,12 @@ fn body_can_be_inline(
     current_line_len: usize,
     never_inline: bool,
 ) -> bool {
-    if config.expand_single_line_bodies {
+    if config.expand_single_line_bodies
+        && count_body_commands(body_text) >= config.min_body_commands_for_expansion
+    {
+        // Only force expansion once the body carries at least
+        // `min_body_commands_for_expansion` commands; a trivial one-command
+        // body stays inline (RUST_ISSUE_133).
         return false;
     }
     let stripped = body_text.trim();
@@ -935,11 +1045,31 @@ fn append_word_arg(
     let arg = &args[i];
     let mut raw = reconstruct_arg(sm, arg, config.enforce_braced_variables);
     if raw.contains('\n') {
-        let collapsed = normalise_backslash_newline(&raw).trim().to_owned();
+        // Keep whitespace before the backslash only for a quoted string, where
+        // it is literal data (RUST_ISSUE_104); a bare/continued word collapses.
+        let collapsed = normalise_backslash_newline(&raw, arg.is_quoted)
+            .trim()
+            .to_owned();
         if collapsed.is_empty() {
             return false;
         }
         raw = collapsed;
+    }
+    // `enforceBracedExpr`, bounded form: a single unbraced expression argument
+    // (an `if` / `while` / `for` condition, `control::assert`'s first arg) is
+    // wrapped in braces (`if $x …` → `if {$x} …`). A `"…"`-quoted operand, or
+    // one carrying a `{*}` expansion (whose expansion braces would demote to
+    // literal text), is left alone.
+    let has_expansion = arg.tokens.iter().any(|t| t.kind == TokenType::Expand);
+    if config.enforce_braced_expr
+        && !arg.is_braced
+        && !arg.is_quoted
+        && !has_expansion
+        && expr_args.contains(&i)
+    {
+        maybe_space(parts, false, config.space_between_braces);
+        parts.push(format!("{{{raw}}}"));
+        return true;
     }
     if arg.is_braced && expr_args.contains(&i) {
         let indent_len = config.make_indent(indent_level).len();
@@ -977,12 +1107,23 @@ fn reconstruct_command(
     }
 
     let expr_args = identify_expr_args(cmd, registry);
-    let never_inline = registry
-        .get(&cmd.name)
-        .is_some_and(|s| s.traits.contains(Traits::NEVER_INLINE_BODY));
+    let spec_traits = registry.get(&cmd.name).map(|s| s.traits);
+    let never_inline = spec_traits.is_some_and(|t| t.contains(Traits::NEVER_INLINE_BODY));
 
     let mut parts: Vec<String> = Vec::new();
     let mut in_brace_chain = false;
+
+    // `enforceBracedExpr`, concatenating form: a command whose entire argument
+    // tail is one expression (`expr $a + $b`) — brace the joined tail
+    // (`expr {$a + $b}`) rather than the single marked argument, which would
+    // corrupt it (RUST_ISSUE_133). Bounded-expression commands fall through to
+    // the per-argument bracing in `append_word_arg`.
+    if config.enforce_braced_expr
+        && spec_traits.is_some_and(|t| t.contains(Traits::EXPR_CONCATENATES_ARGS))
+        && let Some(braced) = concat_expr_parts(sm, cmd, config)
+    {
+        return finish_command_line(&braced, config, indent, indent_level);
+    }
 
     for (i, arg) in cmd.args.iter().enumerate() {
         match arg.kind {
@@ -1029,6 +1170,17 @@ fn reconstruct_command(
         }
     }
 
+    finish_command_line(&parts, config, indent, indent_level)
+}
+
+/// Concatenate `parts` under `indent` and apply the long-line split. Shared by
+/// the normal command path and the `enforceBracedExpr` concatenating path.
+fn finish_command_line(
+    parts: &[String],
+    config: &FormatterConfig,
+    indent: &str,
+    indent_level: usize,
+) -> String {
     let line = format!("{indent}{}", parts.concat());
 
     // Split the first line if it exceeds max_line_length.
@@ -1047,6 +1199,44 @@ fn reconstruct_command(
         }
     }
     line
+}
+
+/// Build the `parts` for an `enforceBracedExpr` command whose entire argument
+/// tail is one expression (`EXPR_CONCATENATES_ARGS`). Returns `None` when there
+/// is nothing to brace — no arguments, or the tail is already a single braced
+/// `{ … }` word (which the normal path renders, keeping its long-line wrap).
+fn concat_expr_parts(
+    sm: &SourceMap,
+    cmd: &ParsedCommand,
+    config: &FormatterConfig,
+) -> Option<Vec<String>> {
+    let args = &cmd.args;
+    if args.len() < 2 {
+        return None; // bare `expr` with no operands
+    }
+    if args.len() == 2 && args[1].is_braced {
+        return None; // already `expr {…}`
+    }
+    // Never brace a tail containing an expansion: `expr {*}$pieces` expands the
+    // list before evaluating, and `expr {{*}$pieces}` would demote `{*}` to
+    // literal text, breaking the expression (Codex review). Leave such a
+    // command untouched.
+    if args[1..]
+        .iter()
+        .any(|a| a.tokens.iter().any(|t| t.kind == TokenType::Expand))
+    {
+        return None;
+    }
+    let joined = args[1..]
+        .iter()
+        .map(|a| reconstruct_arg(sm, a, config.enforce_braced_variables))
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some(vec![
+        args[0].text.clone(),
+        " ".to_owned(),
+        format!("{{{joined}}}"),
+    ])
 }
 
 /// Reconstruct a `switch` command, handling the braced body form.
@@ -1121,11 +1311,7 @@ pub(crate) fn format_body(
         // Preceding comments.
         let comments = commands[i].preceding_comments.clone();
         for comment in &comments {
-            let formatted = format_comment(comment, config);
-            match split_commented_code(&formatted, config, &indent, indent_level) {
-                Some(split) => lines.push(split),
-                None => lines.push(format!("{indent}{formatted}")),
-            }
+            emit_comment_lines(comment, config, &indent, indent_level, &mut lines);
         }
 
         identify_body_args(&mut commands[i], registry);
@@ -1147,18 +1333,58 @@ pub(crate) fn format_body(
         }
 
         let line = reconstruct_command(&sm, &commands[i], config, registry, &indent, indent_level);
-        lines.push(line);
-    }
 
-    for comment in &trailing_comments {
-        let formatted = format_comment(comment, config);
-        match split_commented_code(&formatted, config, &indent, indent_level) {
-            Some(split) => lines.push(split),
-            None => lines.push(format!("{indent}{formatted}")),
+        // Keep `a; b` on one line when the user disabled
+        // `replace_semicolons_with_newlines`, but only in the simple case:
+        // the previous command ended with a bare `;`, neither this command
+        // nor the previous rendered line spans multiple lines, and this
+        // command has no leading comment/blank that would force a break
+        // (RUST_ISSUE_133). Any other shape falls back to the default
+        // one-command-per-line layout.
+        let joinable = !config.replace_semicolons_with_newlines
+            && i > 0
+            && commands[i - 1].terminated_by_semicolon
+            && commands[i].preceding_comments.is_empty()
+            && !line.contains('\n')
+            && lines.last().is_some_and(|prev| !prev.contains('\n'));
+        if joinable {
+            let prev = lines.last_mut().expect("previous line exists");
+            let trimmed = line.trim_start();
+            prev.push_str("; ");
+            prev.push_str(trimmed);
+        } else {
+            lines.push(line);
         }
     }
 
+    for comment in &trailing_comments {
+        emit_comment_lines(comment, config, &indent, indent_level, &mut lines);
+    }
+
     lines.join("\n")
+}
+
+/// Emit a comment into `out`, either re-indented to the code column
+/// (`align_comments_to_code`, the default) or at its original source column
+/// (`RUST_ISSUE_133`). The commented-code long-line split only applies when
+/// aligning — preserving the author's column means leaving the line as-is.
+fn emit_comment_lines(
+    comment: &CommentLine,
+    config: &FormatterConfig,
+    indent: &str,
+    indent_level: usize,
+    out: &mut Vec<String>,
+) {
+    let formatted = format_comment(&comment.text, config);
+    if config.align_comments_to_code {
+        match split_commented_code(&formatted, config, indent, indent_level) {
+            Some(split) => out.push(split),
+            None => out.push(format!("{indent}{formatted}")),
+        }
+    } else {
+        let prefix = comment.orig_indent.as_deref().unwrap_or(indent);
+        out.push(format!("{prefix}{formatted}"));
+    }
 }
 
 /// Trim trailing whitespace from each line **except** lines whose terminating
@@ -1244,6 +1470,158 @@ mod tests {
     fn fmt(src: &str) -> String {
         let registry = CommandRegistry::build_default();
         format_tcl(src, &FormatterConfig::default(), &registry)
+    }
+
+    fn fmt_with(src: &str, config: &FormatterConfig) -> String {
+        let registry = CommandRegistry::build_default();
+        format_tcl(src, config, &registry)
+    }
+
+    #[test]
+    fn count_body_commands_counts_top_level_statements() {
+        assert_eq!(count_body_commands(""), 0);
+        assert_eq!(count_body_commands("  \n "), 0);
+        assert_eq!(count_body_commands("puts hi"), 1);
+        assert_eq!(count_body_commands("puts a\nputs b"), 2);
+        assert_eq!(count_body_commands("puts a; puts b"), 2);
+        // A `;` inside a nested brace/bracket is not a separator.
+        assert_eq!(count_body_commands("set x {a; b}"), 1);
+        assert_eq!(count_body_commands("set x [expr {1; 2}]"), 1);
+    }
+
+    #[test]
+    fn min_body_commands_keeps_single_command_body_inline() {
+        // RUST_ISSUE_133: with expansion on but the threshold at 2, a
+        // one-command body stays inline while a two-command body expands.
+        // `catch` has an inline-able body (not NEVER_INLINE_BODY), so it
+        // exercises the `expand_single_line_bodies` path.
+        let config = FormatterConfig {
+            expand_single_line_bodies: true,
+            min_body_commands_for_expansion: 2,
+            ..FormatterConfig::default()
+        };
+        let one = fmt_with("catch { puts hi }\n", &config);
+        assert!(
+            one.contains("{ puts hi }") && !one.contains("puts hi\n"),
+            "single-command body should stay inline: {one:?}"
+        );
+        let two = fmt_with("catch { puts a; puts b }\n", &config);
+        assert!(
+            two.contains("puts a\n") && two.contains("puts b\n"),
+            "two-command body should expand: {two:?}"
+        );
+    }
+
+    #[test]
+    fn enforce_braced_expr_braces_expr_and_conditions() {
+        // RUST_ISSUE_133: `enforceBracedExpr` braces bare expressions.
+        let config = FormatterConfig {
+            enforce_braced_expr: true,
+            ..FormatterConfig::default()
+        };
+        // `expr` concatenates its whole argument tail into one expression, so
+        // the entire tail is braced (not just arg 0, which would corrupt it).
+        assert_eq!(
+            fmt_with("expr $a + $b\n", &config),
+            "expr {$a + $b}\n",
+            "expr tail must be braced as one group"
+        );
+        // A single-argument condition (bounded expr) is braced in place.
+        assert_eq!(
+            fmt_with("while $x {\n    incr y\n}\n", &config),
+            "while {$x} {\n    incr y\n}\n"
+        );
+        // Already-braced expressions are left unchanged (idempotent).
+        assert_eq!(fmt_with("expr {$a + $b}\n", &config), "expr {$a + $b}\n");
+        assert_eq!(
+            fmt_with("if {$x} {\n    puts hi\n}\n", &config),
+            "if {$x} {\n    puts hi\n}\n"
+        );
+    }
+
+    #[test]
+    fn align_comments_to_code_toggles_reindentation() {
+        // Default (true): a mis-indented standalone comment is re-indented to
+        // the code column.
+        let src = "proc f {} {\n        # over-indented\n    set x 1\n}\n";
+        let aligned = fmt(src);
+        assert!(
+            aligned.contains("\n    # over-indented\n"),
+            "default should re-indent comment to code column: {aligned:?}"
+        );
+        // Disabled: the comment keeps its original column.
+        let config = FormatterConfig {
+            align_comments_to_code: false,
+            ..FormatterConfig::default()
+        };
+        let preserved = fmt_with(src, &config);
+        assert!(
+            preserved.contains("\n        # over-indented\n"),
+            "disabled should preserve the original comment column: {preserved:?}"
+        );
+    }
+
+    #[test]
+    fn enforce_braced_expr_off_by_default() {
+        // FP-guard: with the default config (off) bare exprs are untouched.
+        assert_eq!(fmt("expr $a + $b\n"), "expr $a + $b\n");
+    }
+
+    #[test]
+    fn enforce_braced_expr_preserves_expansion_tail() {
+        // Codex review: `expr {*}$pieces` expands the list before evaluating;
+        // bracing it (`expr {{*}$pieces}`) would demote `{*}` to literal text
+        // and break the expression. The rewrite must leave it alone.
+        let config = FormatterConfig {
+            enforce_braced_expr: true,
+            ..FormatterConfig::default()
+        };
+        assert_eq!(
+            fmt_with("expr {*}$pieces\n", &config),
+            "expr {*}$pieces\n",
+            "an expansion tail must not be braced"
+        );
+    }
+
+    #[test]
+    fn replace_semicolons_disabled_keeps_commands_inline() {
+        // RUST_ISSUE_133: default splits `a; b` onto two lines; disabling the
+        // setting keeps them on one line joined by `; `.
+        let split = fmt("puts a; puts b\n");
+        assert!(
+            split.contains("puts a\nputs b"),
+            "default should split on `;`: {split:?}"
+        );
+        let config = FormatterConfig {
+            replace_semicolons_with_newlines: false,
+            ..FormatterConfig::default()
+        };
+        let joined = fmt_with("puts a; puts b\n", &config);
+        assert!(
+            joined.contains("puts a; puts b"),
+            "disabled should keep `;`-joined commands inline: {joined:?}"
+        );
+    }
+
+    #[test]
+    fn bare_dollar_in_quoted_string_is_not_brace_wrapped() {
+        // RUST_ISSUE_103: a lone `$` inside a double-quoted string is literal
+        // data; formatting must not turn `"cost: $"` into `"cost: {$}"`.
+        let out = fmt("puts \"cost: $\"\n");
+        assert!(out.contains("\"cost: $\""), "{out:?}");
+        assert!(!out.contains("{$}"), "bare $ was brace-wrapped: {out:?}");
+    }
+
+    #[test]
+    fn backslash_newline_keeps_preceding_spaces_in_quoted_string() {
+        // RUST_ISSUE_104: Tcl replaces `\<nl><following-ws>` with a single
+        // space but keeps whitespace *before* the backslash. `"a \<nl> b"` is
+        // the value `a  b` (two spaces) — the pre-backslash space must survive.
+        let out = fmt("puts \"a \\\n b\"\n");
+        assert!(
+            out.contains("\"a  b\""),
+            "expected two spaces preserved: {out:?}"
+        );
     }
 
     #[test]

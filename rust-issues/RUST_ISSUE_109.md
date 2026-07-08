@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | LSP display features |
 | **Location** | `rust/tcl-lsp-core/src/inlay_hints.rs:234` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

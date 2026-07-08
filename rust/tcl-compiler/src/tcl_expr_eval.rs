@@ -295,17 +295,28 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         Err(()) // command substitution is opaque at compile time
     }
     fn call(&mut self, function: &str, args: Vec<FoldValue>) -> Result<FoldValue, ()> {
-        use tcl_syntax::expr::mathfunc::{Num, dispatch};
+        use tcl_syntax::expr::mathfunc::{Num, accepts_boolean_operand, dispatch};
         let name = function.to_ascii_lowercase();
         if matches!(name.as_str(), "rand" | "srand") {
             return Err(()); // non-deterministic
         }
         // Math functions are the shared `tcl_syntax::expr::mathfunc` (the same
         // dispatch the runtime evaluates). Map `TclValue` → `Num` → result.
+        // Every function except `bool` reads its operand as a strict number —
+        // `Tcl_GetBoolean` coercion (`true`→1) would let the folder turn an
+        // error (`abs(true)`) into a value, so parse strictly unless the
+        // function itself accepts boolean words (the registry of that fact is
+        // the mathfunc module, not a name check here).
+        let boolean_ok = accepts_boolean_operand(&name);
         let nums: Option<Vec<Num>> = args
             .iter()
             .map(|v| {
-                v.to_number().map(|t| match t {
+                let parsed = if boolean_ok {
+                    v.to_number()
+                } else {
+                    strict_number(v)
+                };
+                parsed.map(|t| match t {
                     TclValue::Int(i) => Num::Int(i),
                     TclValue::Float(f) => Num::Float(f),
                 })
@@ -318,22 +329,30 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
     }
 
     fn arith(&mut self, op: BinOp, left: FoldValue, right: FoldValue) -> Result<FoldValue, ()> {
-        let a = left.to_number().ok_or(())?;
-        let b = right.to_number().ok_or(())?;
+        // Arithmetic operands are strict numbers: Tcl's `+`/`-`/`*`/… read
+        // them with `Tcl_GetNumberFromObj`, which rejects boolean words, so
+        // `expr {true + 0}` is an error, not `1`. `strict_number` omits the
+        // boolean coercion `to_number`/`parse_literal` add.
+        let a = strict_number(&left).ok_or(())?;
+        let b = strict_number(&right).ok_or(())?;
         apply_binary(op, a, b).map(FoldValue::from_tcl).ok_or(())
     }
     fn unary(&mut self, op: UnaryOp, value: FoldValue) -> Result<FoldValue, ()> {
         match op {
+            // Logical negation *does* take a boolean (`expr {!true}` → 0), so
+            // it keeps the boolean-accepting `to_number` coercion.
             UnaryOp::Not | UnaryOp::WordNot => {
                 let truthy = value.to_number().ok_or(())?.is_truthy();
                 Ok(FoldValue::Int(i64::from(!truthy)))
             }
-            UnaryOp::Pos => value.to_number().map(FoldValue::from_tcl).ok_or(()),
-            UnaryOp::Neg => match value.to_number().ok_or(())? {
+            // Arithmetic/bitwise unaries reject boolean words like the binary
+            // arithmetic path (`expr {-true}`, `expr {~yes}` are errors).
+            UnaryOp::Pos => strict_number(&value).map(FoldValue::from_tcl).ok_or(()),
+            UnaryOp::Neg => match strict_number(&value).ok_or(())? {
                 TclValue::Int(i) => i.checked_neg().map(FoldValue::Int).ok_or(()),
                 TclValue::Float(f) => Ok(FoldValue::Float(-f)),
             },
-            UnaryOp::BitNot => match value.to_number().ok_or(())? {
+            UnaryOp::BitNot => match strict_number(&value).ok_or(())? {
                 TclValue::Int(i) => Ok(FoldValue::Int(!i)),
                 TclValue::Float(_) => Err(()),
             },
@@ -475,9 +494,20 @@ fn apply_binary(op: BinOp, a: TclValue, b: TclValue) -> Option<TclValue> {
 
         // Shifts and bitwise — integer only.
         BinOp::LShift => match (a, b) {
-            (TclValue::Int(x), TclValue::Int(y)) if (0..=64).contains(&y) => {
-                x.checked_shl(y as u32).map(TclValue::Int)
+            (TclValue::Int(x), TclValue::Int(y)) if (0..64).contains(&y) => {
+                // Tcl promotes a wide-overflowing left shift to a bignum, which
+                // the const-folder cannot represent. `checked_shl` guards only
+                // the shift *count* (< 64), not value overflow, so `1 << 63`
+                // would fold to the wrapped `i64::MIN`. Compute in i128 and
+                // decline (None) unless the result still fits a wide, matching
+                // the "value past a wide → None" contract Add/Sub/Mul/Pow honour.
+                let shifted = i128::from(x) << (y as u32);
+                i64::try_from(shifted).ok().map(TclValue::Int)
             }
+            // `0 << y` is 0 for any non-negative count (no overflow). A non-zero
+            // shift past a wide is a bignum, and a negative count is a Tcl
+            // error — both decline (fall through to `None`).
+            (TclValue::Int(0), TclValue::Int(y)) if y >= 64 => Some(TclValue::Int(0)),
             _ => None,
         },
         BinOp::RShift => match (a, b) {
@@ -1253,6 +1283,48 @@ mod tests {
     fn math_abs_int_and_float() {
         assert_eq!(eval_str("abs(-5)"), Some(TclValue::Int(5)));
         assert_eq!(eval_str("abs(-1.5)"), Some(TclValue::Float(1.5)));
+    }
+
+    #[test]
+    fn lshift_overflowing_a_wide_declines() {
+        // RUST_ISSUE_069: `1 << 63` overflows a wide (Tcl → bignum
+        // 9223372036854775808), so the folder must decline, not fold the
+        // wrapped `i64::MIN`.
+        assert_eq!(eval_str("1 << 63"), None); // (TP) declines
+        assert_eq!(eval_str("1 << 64"), None); // past a wide → declines
+        assert_eq!(eval_str("2 << 62"), None); // 2^63 → declines
+        // (TN / FP-guard) In-range shifts still fold to the exact value.
+        assert_eq!(eval_str("1 << 62"), Some(TclValue::Int(1i64 << 62)));
+        assert_eq!(eval_str("1 << 0"), Some(TclValue::Int(1)));
+        assert_eq!(eval_str("3 << 4"), Some(TclValue::Int(48)));
+        // `0 << y` never overflows, for any non-negative count.
+        assert_eq!(eval_str("0 << 63"), Some(TclValue::Int(0)));
+        assert_eq!(eval_str("0 << 100"), Some(TclValue::Int(0)));
+        // A negative-magnitude shift that stays in range folds normally.
+        assert_eq!(eval_str("-1 << 4"), Some(TclValue::Int(-16)));
+    }
+
+    #[test]
+    fn arith_rejects_boolean_words() {
+        // RUST_ISSUE_070: arithmetic/unary/mathfunc reject boolean words the
+        // way Tcl's numeric context does — folding them would replace an error
+        // with a value. All of these are Tcl errors, so the folder declines.
+        assert_eq!(eval_str("true + 0"), None); // (TP)
+        assert_eq!(eval_str("yes * 2"), None);
+        assert_eq!(eval_str("off - 1"), None);
+        assert_eq!(eval_str("-true"), None);
+        assert_eq!(eval_str("~yes"), None);
+        assert_eq!(eval_str("abs(true)"), None);
+        assert_eq!(eval_str("int(no)"), None);
+        // (TN / FP-guard) Genuine numbers still fold, and the boolean-accepting
+        // constructs (`!`, `bool()`) keep working.
+        assert_eq!(eval_str("1 + 0"), Some(TclValue::Int(1)));
+        assert_eq!(eval_str("abs(-5)"), Some(TclValue::Int(5)));
+        assert_eq!(eval_str("!true"), Some(TclValue::Int(0))); // logical not takes a bool
+        assert_eq!(eval_str("!0"), Some(TclValue::Int(1)));
+        assert_eq!(eval_str("bool(true)"), Some(TclValue::Int(1))); // bool() accepts words
+        assert_eq!(eval_str("bool(no)"), Some(TclValue::Int(0)));
+        assert_eq!(eval_str("bool(42)"), Some(TclValue::Int(1)));
     }
 
     #[test]

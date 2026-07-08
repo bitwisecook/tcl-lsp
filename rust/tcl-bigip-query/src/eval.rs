@@ -1274,17 +1274,23 @@ fn sub(lhs: Value, rhs: Value) -> Result<Value, QueryError> {
         });
     }
     if let Value::List(a) = &lhs {
+        // Equality coerces both sides' PathRef to its full-path string, exactly
+        // as `contains` / `index` / the scalar `==` operator do — otherwise
+        // removing config references by path string silently removes nothing
+        // (a PathRef never `py_eq`s an equal Str) — RUST_ISSUE_122.
+        let eq = |item: &Value, target: &Value| -> bool {
+            value::py_eq(
+                &value::coerce_scalar(item.clone()),
+                &value::coerce_scalar(target.clone()),
+            )
+        };
         let removed: Vec<Value> = match &rhs {
             Value::List(b) => a
                 .iter()
-                .filter(|item| !b.iter().any(|x| value::py_eq(item, x)))
+                .filter(|item| !b.iter().any(|x| eq(item, x)))
                 .cloned()
                 .collect(),
-            other => a
-                .iter()
-                .filter(|item| !value::py_eq(item, other))
-                .cloned()
-                .collect(),
+            other => a.iter().filter(|item| !eq(item, other)).cloned().collect(),
         };
         return Ok(Value::List(removed));
     }

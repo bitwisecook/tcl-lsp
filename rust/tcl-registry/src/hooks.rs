@@ -204,10 +204,13 @@ pub enum TclVersion {
     V8_6,
     /// Tcl 9.0.
     V9_0,
+    /// Tcl 9.1. Shares 9.0's compile-time fold semantics (a superset release);
+    /// ordered after `V9_0` so `>= V9_0` gates include it.
+    V9_1,
 }
 
 impl TclVersion {
-    /// Map an optimiser dialect string (`"tcl8.4"` … `"tcl9.0"`) to a version,
+    /// Map an optimiser dialect string (`"tcl8.4"` … `"tcl9.1"`) to a version,
     /// or `None` for an unversioned (`"tcl"`), non-Tcl (`"f5-irules"`), or
     /// unknown dialect — in which case a versioned fold must return only the
     /// dialect-invariant subset every release shares.
@@ -218,6 +221,10 @@ impl TclVersion {
             Some("tcl8.5") => Some(Self::V8_5),
             Some("tcl8.6") => Some(Self::V8_6),
             Some("tcl9.0") => Some(Self::V9_0),
+            // 9.1 must not fall through to `None` (which degrades a versioned
+            // fold to the dialect-invariant subset) — it behaves as 9.0+
+            // (RUST_ISSUE_083).
+            Some("tcl9.1") => Some(Self::V9_1),
             _ => None,
         }
     }
@@ -237,4 +244,46 @@ pub struct ArgTypeHint {
     pub expected: Option<crate::types::TclType>,
     /// Whether converting to this type destroys a previous intrep (shimmer).
     pub shimmers: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TclVersion;
+
+    #[test]
+    fn from_dialect_maps_every_versioned_tcl() {
+        // RUST_ISSUE_083: tcl9.1 must resolve to a version, not `None` (which
+        // silently degrades versioned folds to the dialect-invariant subset).
+        assert_eq!(
+            TclVersion::from_dialect(Some("tcl8.4")),
+            Some(TclVersion::V8_4)
+        );
+        assert_eq!(
+            TclVersion::from_dialect(Some("tcl8.5")),
+            Some(TclVersion::V8_5)
+        );
+        assert_eq!(
+            TclVersion::from_dialect(Some("tcl8.6")),
+            Some(TclVersion::V8_6)
+        );
+        assert_eq!(
+            TclVersion::from_dialect(Some("tcl9.0")),
+            Some(TclVersion::V9_0)
+        );
+        assert_eq!(
+            TclVersion::from_dialect(Some("tcl9.1")),
+            Some(TclVersion::V9_1)
+        );
+        // Unversioned / non-Tcl / unknown → None.
+        assert_eq!(TclVersion::from_dialect(Some("tcl")), None);
+        assert_eq!(TclVersion::from_dialect(Some("f5-irules")), None);
+        assert_eq!(TclVersion::from_dialect(None), None);
+    }
+
+    #[test]
+    fn v9_1_orders_at_or_above_v9_0() {
+        // A `>= V9_0` gate must include 9.1.
+        assert!(TclVersion::V9_1 >= TclVersion::V9_0);
+        assert!(TclVersion::V9_1 > TclVersion::V8_6);
+    }
 }

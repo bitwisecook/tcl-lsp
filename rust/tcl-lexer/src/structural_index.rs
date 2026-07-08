@@ -318,8 +318,13 @@ impl Builder<'_> {
                     // is structural).
                     let end = (i + 2).min(n);
                     self.push_inert(i, end, true);
+                    // A backslash-newline (`\<newline>`) is a line continuation
+                    // that acts as a word separator (it collapses to a space),
+                    // so a `{`/`"` on the continued line still opens a word.
+                    // Every other `\X` escape is part of the current word
+                    // (RUST_ISSUE_088).
+                    newword = !in_quote && i + 1 < n && self.bytes[i + 1] == b'\n';
                     i = end;
-                    newword = false;
                 }
                 b' ' | b'\t' | b'\r' | b'\n' | b';' if !in_quote => {
                     i += 1;
@@ -756,9 +761,18 @@ impl BraceBuilder<'_> {
                 b'\\' => {
                     let end = (i + 2).min(n);
                     self.push_inert(i, end, true); // escape pair
+                    if i + 1 < n && self.bytes[i + 1] == b'\n' {
+                        // Line continuation (`\<newline>`) behaves like
+                        // whitespace: a word separator that keeps the command
+                        // open, so a `{`/`"` on the continued line still opens a
+                        // word (RUST_ISSUE_088). `command_start` is preserved,
+                        // as in the whitespace arm.
+                        newword = true;
+                    } else {
+                        newword = false;
+                        command_start = false;
+                    }
                     i = end;
-                    newword = false;
-                    command_start = false;
                 }
                 b'\n' | b';' => {
                     i += 1;
@@ -1487,6 +1501,24 @@ mod tests {
             out.push(s);
         }
         out
+    }
+
+    #[test]
+    fn backslash_newline_continuation_opens_brace_word() {
+        // RUST_ISSUE_088: a `{` on a `\<newline>`-continued line opens a brace
+        // word, so the `[` inside `{[}` is inert — no unterminated verdict, and
+        // the index must agree with the production lexer (the escape arm used to
+        // clear `newword`, so `{[}` was scanned as bare text and the `[`
+        // counted as an unterminated bracket).
+        let src = "\\\n{[}";
+        let idx_unterminated = BracketIndex::build(src).unterminated_count() > 0;
+        assert!(
+            !idx_unterminated,
+            "brace word after a line continuation must not report an unterminated bracket",
+        );
+        assert_eq!(idx_unterminated, lexer_has_unterminated_bracket(src));
+        // FP-guard: a genuine dangling `[` still counts.
+        assert!(BracketIndex::build("a[").unterminated_count() > 0);
     }
 
     #[test]

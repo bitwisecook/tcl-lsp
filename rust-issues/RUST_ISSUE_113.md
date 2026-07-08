@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | BIG-IP model & iRule-test |
 | **Location** | `rust/tcl-irule-test/tcl/command_mocks.tcl:1346` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

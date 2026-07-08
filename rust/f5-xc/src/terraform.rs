@@ -21,6 +21,8 @@
 //! `volterra_service_policy` resources. Hand-rolled string formatting — a
 //! faithful port of `dialects/f5/xc/terraform.py`.
 
+use std::fmt::Write as _;
+
 use crate::model::{
     TranslateStatus, XCCookieMatch, XCHeaderAction, XCHeaderMatch, XCHostMatch, XCMethodMatch,
     XCOriginPool, XCPathMatch, XCQueryMatch, XCRoute, XCServicePolicy, XCTranslationResult,
@@ -31,6 +33,54 @@ use crate::model::{
 fn quote(value: &str) -> String {
     let escaped = value.replace('\\', "\\\\").replace('"', "\\\"");
     format!("\"{escaped}\"")
+}
+
+/// Sanitise an arbitrary name into a valid HCL/Terraform resource identifier.
+///
+/// A Terraform resource label (and any `type.label.attr` reference to it) must
+/// match `[A-Za-z_][A-Za-z0-9_-]*`. iRule pool names routinely carry `/`, `.`
+/// and other metacharacters (`/Common/web-pool`), which — interpolated raw —
+/// produce syntactically invalid Terraform (`RUST_ISSUE_118`). Replace every
+/// disallowed character with `_`, prefix `_` when the first character is not a
+/// valid leader, and — when sanitisation actually changed the name — append a
+/// short deterministic hash of the ORIGINAL so two distinct names that sanitise
+/// alike still map to distinct labels. Names that are already valid identifiers
+/// pass through unchanged, so the common case stays readable. The real object
+/// name is preserved verbatim in the resource's `name = "…"` attribute.
+fn hcl_ident(name: &str) -> String {
+    let is_leader = |c: char| c.is_ascii_alphabetic() || c == '_';
+    let is_body = |c: char| c.is_ascii_alphanumeric() || c == '_' || c == '-';
+    let already_valid = {
+        let mut chars = name.chars();
+        chars.next().is_some_and(is_leader) && chars.all(is_body) && !name.is_empty()
+    };
+    if already_valid {
+        return name.to_owned();
+    }
+    // Map every disallowed character to `_`...
+    let mut out: String = name
+        .chars()
+        .map(|c| if is_body(c) { c } else { '_' })
+        .collect();
+    // ...then guarantee a valid leader (a digit or `-` first char is legal in
+    // the body but not at the front).
+    if !out.chars().next().is_some_and(is_leader) {
+        out.insert(0, '_');
+    }
+    // Disambiguate: distinct originals must not collide onto one label.
+    let _ = write!(out, "_{:08x}", fnv1a_32(name));
+    out
+}
+
+/// FNV-1a 32-bit hash — a small, dependency-free, deterministic hash used only
+/// to disambiguate sanitised Terraform identifiers.
+fn fnv1a_32(s: &str) -> u32 {
+    let mut hash: u32 = 0x811c_9dc5;
+    for b in s.bytes() {
+        hash ^= u32::from(b);
+        hash = hash.wrapping_mul(0x0100_0193);
+    }
+    hash
 }
 
 /// `2 * level` spaces of indentation.
@@ -145,7 +195,10 @@ fn query_match_block(m: &XCQueryMatch, level: usize) -> String {
 
 fn render_origin_pool(pool: &XCOriginPool, namespace: &str) -> String {
     [
-        format!("resource \"volterra_origin_pool\" {} {{", quote(&pool.name)),
+        format!(
+            "resource \"volterra_origin_pool\" \"{}\" {{",
+            hcl_ident(&pool.name)
+        ),
         format!("  name      = {}", quote(&pool.name)),
         format!("  namespace = {}", quote(namespace)),
         String::new(),
@@ -183,13 +236,15 @@ fn render_simple_route(route: &XCRoute, level: usize) -> String {
     if let Some(op) = &route.origin_pool {
         lines.push(format!("{p}  origin_pools {{"));
         lines.push(format!("{p}    pool {{"));
+        // Reference the resource by its sanitised label so the reference is
+        // valid HCL and matches the label emitted in `render_origin_pool`
+        // (RUST_ISSUE_118).
+        let label = hcl_ident(&op.name);
         lines.push(format!(
-            "{p}      name      = volterra_origin_pool.{}.name",
-            op.name
+            "{p}      name      = volterra_origin_pool.{label}.name"
         ));
         lines.push(format!(
-            "{p}      namespace = volterra_origin_pool.{}.namespace",
-            op.name
+            "{p}      namespace = volterra_origin_pool.{label}.namespace"
         ));
         lines.push(format!("{p}    }}"));
         lines.push(format!("{p}  }}"));
@@ -524,4 +579,59 @@ pub fn render_terraform(result: &XCTranslationResult, namespace: &str, lb_name: 
     sections.push(render_load_balancer(result, namespace, lb_name));
 
     format!("{}\n", sections.join("\n\n"))
+}
+
+#[cfg(test)]
+mod ident_tests {
+    use super::hcl_ident;
+
+    #[test]
+    fn valid_identifier_passes_through_unchanged() {
+        assert_eq!(hcl_ident("web_pool"), "web_pool");
+        assert_eq!(hcl_ident("api-pool-2"), "api-pool-2");
+        assert_eq!(hcl_ident("_leading"), "_leading");
+    }
+
+    #[test]
+    fn slashed_name_is_sanitised_to_valid_identifier() {
+        // RUST_ISSUE_118: `/` and other metacharacters become `_`, and a
+        // disambiguating hash is appended.
+        let id = hcl_ident("/Common/web-pool");
+        assert!(!id.contains('/'), "{id}");
+        assert!(
+            id.starts_with("_Common_web-pool_"),
+            "expected sanitised prefix, got {id}"
+        );
+        let mut chars = id.chars();
+        assert!(
+            chars
+                .next()
+                .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        );
+        assert!(
+            chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'),
+            "not a valid HCL identifier: {id}"
+        );
+    }
+
+    #[test]
+    fn leading_digit_is_prefixed() {
+        let id = hcl_ident("3pool");
+        assert!(
+            id.starts_with('_'),
+            "identifier must not start with a digit: {id}"
+        );
+    }
+
+    #[test]
+    fn distinct_names_that_sanitise_alike_stay_distinct() {
+        // `a/b` and `a.b` both map body chars to `_`, but the appended hash of
+        // the original keeps the labels distinct (no duplicate-resource TF).
+        assert_ne!(hcl_ident("a/b"), hcl_ident("a.b"));
+    }
+
+    #[test]
+    fn deterministic() {
+        assert_eq!(hcl_ident("/x/y"), hcl_ident("/x/y"));
+    }
 }

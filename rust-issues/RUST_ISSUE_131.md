@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Support crates & regex |
 | **Location** | `rust/tcl-cmd-core/src/binary.rs:714` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

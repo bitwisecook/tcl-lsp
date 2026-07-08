@@ -257,7 +257,7 @@ fn run_init(
         return Ok(1);
     }
 
-    let colour = ui::use_colour(Some(!json));
+    let colour = ui::use_colour_for_json(json);
     if json {
         println!(
             "{}",
@@ -274,7 +274,7 @@ fn run_init(
 #[allow(clippy::too_many_lines)] // the full install flow in one function
 fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result<u8> {
     let mpath = manifest_path(common);
-    let colour = ui::use_colour(Some(!common.json));
+    let colour = ui::use_colour_for_json(common.json);
 
     let manifest = match load_manifest(&mpath) {
         Ok(m) => m,
@@ -734,8 +734,11 @@ fn run_verify(common: &PkgCommon) -> anyhow::Result<u8> {
         Ok(l) => l,
         Err(code) => return Ok(code),
     };
-    let colour = ui::use_colour(Some(!common.json));
+    let colour = ui::use_colour_for_json(common.json);
+    let lib_dir = install_lib_dir(&manifest_path(common));
+    let cas = ContentAddressableStore::new(&tcl_pkg::cache_dir());
     let mut failures = 0;
+    let mut mismatches = 0;
     for pkg in &lf.packages {
         if pkg.integrity.is_empty() {
             println!(
@@ -746,20 +749,72 @@ fn run_verify(common: &PkgCommon) -> anyhow::Result<u8> {
                 )
             );
             failures += 1;
+            continue;
+        }
+
+        // Actually recompute and compare the hash, rather than merely checking
+        // the recorded string is non-empty (RUST_ISSUE_127). Prefer the
+        // materialised worktree the runtime actually loads
+        // (`lib/<name>-<version>`); fall back to the CAS tree. A missing copy
+        // cannot be verified — flag it rather than passing it.
+        let installed = lib_dir.join(format!("{}-{}", pkg.name, pkg.version));
+        let target = if installed.is_dir() {
+            Some(("lib", installed))
         } else {
+            match cas.tree_path(&pkg.integrity) {
+                Ok(tree) => Some(("cache", tree)),
+                Err(_) => None,
+            }
+        };
+        let Some((source, root)) = target else {
+            println!(
+                "{}",
+                ui::warn(
+                    &format!(
+                        "{:<20} {:<12} not materialised (run 'tcl pkg install')",
+                        pkg.name, pkg.version
+                    ),
+                    colour
+                )
+            );
+            failures += 1;
+            continue;
+        };
+
+        if tcl_pkg::cas::verify_integrity(&root, &pkg.integrity) {
             let trunc: String = pkg.integrity.chars().take(30).collect();
             println!(
                 "{}",
                 ui::ok(
-                    &format!("{:<20} {:<12} {trunc}…", pkg.name, pkg.version),
+                    &format!("{:<20} {:<12} {trunc}… ({source})", pkg.name, pkg.version),
                     colour
                 )
             );
+        } else {
+            println!(
+                "{}",
+                ui::warn(
+                    &format!(
+                        "{:<20} {:<12} INTEGRITY MISMATCH ({source} content tampered)",
+                        pkg.name, pkg.version
+                    ),
+                    colour
+                )
+            );
+            mismatches += 1;
         }
+    }
+    if mismatches > 0 {
+        eprintln!(
+            "\n{mismatches} package(s) failed integrity verification — the materialised \
+             content does not match the lockfile hash."
+        );
+        return Ok(1);
     }
     if failures > 0 {
         eprintln!(
-            "\n{failures} package(s) have no integrity hash — run 'tcl pkg install' to populate."
+            "\n{failures} package(s) could not be verified (no hash or not materialised) — \
+             run 'tcl pkg install' to populate."
         );
         return Ok(1);
     }
@@ -812,7 +867,7 @@ fn run_add(
     common: &PkgCommon,
 ) -> anyhow::Result<u8> {
     let mpath = manifest_path(common);
-    let colour = ui::use_colour(Some(!common.json));
+    let colour = ui::use_colour_for_json(common.json);
     if let Err(e) = load_manifest(&mpath) {
         eprintln!("error: {e}");
         return Ok(1);
@@ -859,7 +914,7 @@ fn run_add(
 
 fn run_remove(package: &str, common: &PkgCommon) -> anyhow::Result<u8> {
     let mpath = manifest_path(common);
-    let colour = ui::use_colour(Some(!common.json));
+    let colour = ui::use_colour_for_json(common.json);
     if !mpath.is_file() {
         eprintln!("error: manifest not found: {}", mpath.display());
         return Ok(1);
@@ -938,7 +993,7 @@ fn is_word_char(c: char) -> bool {
 
 fn run_update(packages: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
     let mpath = manifest_path(common);
-    let colour = ui::use_colour(Some(!common.json));
+    let colour = ui::use_colour_for_json(common.json);
     let manifest = match load_manifest(&mpath) {
         Ok(m) => m,
         Err(e) => {
@@ -985,40 +1040,123 @@ fn run_update(packages: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
     Ok(0)
 }
 
+/// Ensure one locked package's content is in the CAS (fetching from its
+/// recorded source when missing, unless offline) and materialise it into
+/// `lib/<name>-<version>`. Returns `true` on success. Shared by [`run_sync`].
+fn sync_one_package(
+    pkg: &LockedPackage,
+    cas: &ContentAddressableStore,
+    lib_dir: &Path,
+    common: &PkgCommon,
+    colour: bool,
+) -> bool {
+    if pkg.integrity.is_empty() {
+        if !common.json {
+            println!(
+                "{}",
+                ui::warn(
+                    &format!("{:<20} {:<12} no integrity hash", pkg.name, pkg.version),
+                    colour
+                )
+            );
+        }
+        return false;
+    }
+    if !cas.has(&pkg.integrity) {
+        if common.offline {
+            if !common.json {
+                println!(
+                    "{}",
+                    ui::warn(
+                        &format!(
+                            "{:<20} {:<12} not cached and --offline set",
+                            pkg.name, pkg.version
+                        ),
+                        colour
+                    )
+                );
+            }
+            return false;
+        }
+        match installer::fetch_and_store(&pkg.source, &pkg.name, &pkg.version, cas, 60) {
+            Ok(result) if result.integrity == pkg.integrity => {}
+            Ok(result) => {
+                eprintln!(
+                    "error: {} {}: integrity mismatch (lock {}, fetched {})",
+                    pkg.name, pkg.version, pkg.integrity, result.integrity
+                );
+                return false;
+            }
+            Err(e) => {
+                eprintln!("error: {} {}: {e}", pkg.name, pkg.version);
+                return false;
+            }
+        }
+    }
+    match installer::materialise(cas, &pkg.integrity, lib_dir, &pkg.name, &pkg.version, true) {
+        Ok(_) => true,
+        Err(e) => {
+            eprintln!("error: {} {}: {e}", pkg.name, pkg.version);
+            false
+        }
+    }
+}
+
 fn run_sync(common: &PkgCommon) -> anyhow::Result<u8> {
     let lf = match read_lock_or_report(common) {
         Ok(l) => l,
         Err(code) => return Ok(code),
     };
-    let colour = ui::use_colour(Some(!common.json));
+    let colour = ui::use_colour_for_json(common.json);
     let lockpath = lockfile_path(common);
+    let lib_dir = install_lib_dir(&manifest_path(common));
+    let cas = ContentAddressableStore::new(&tcl_pkg::cache_dir());
+
+    // A lock-driven install must actually materialise each locked package into
+    // `lib/<name>-<version>`, not merely print the lockfile (RUST_ISSUE_125).
+    // For each package: ensure its content is in the CAS (fetch from the
+    // recorded source when missing, unless offline), enforce that the fetched
+    // content matches the locked integrity, then materialise it.
+    let mut pkgs: Vec<&LockedPackage> = lf.packages.iter().collect();
+    pkgs.sort_by(|a, b| a.name.cmp(&b.name));
+    let mut synced: Vec<String> = Vec::new();
+    let mut failures = 0;
+    for pkg in &pkgs {
+        if sync_one_package(pkg, &cas, &lib_dir, common, colour) {
+            synced.push(pkg.name.clone());
+        } else {
+            failures += 1;
+        }
+    }
+
     if common.json {
         println!(
             "{}",
-            ui::json_output(
-                &json!({"packages": lf.packages.len(), "lockfile": lockpath.to_string_lossy()})
-            )
+            ui::json_output(&json!({
+                "synced": synced.len(),
+                "failed": failures,
+                "lockfile": lockpath.to_string_lossy(),
+            }))
         );
     } else {
-        let mut pkgs: Vec<&LockedPackage> = lf.packages.iter().collect();
-        pkgs.sort_by(|a, b| a.name.cmp(&b.name));
-        for pkg in &pkgs {
-            println!(
-                "{}",
-                ui::ok(&format!("{:<20} {}", pkg.name, pkg.version), colour)
-            );
+        for name in &synced {
+            println!("{}", ui::ok(name, colour));
         }
         println!(
             "{}",
             ui::ok(
                 &format!(
-                    "synced from {} ({} packages)",
-                    lockpath.display(),
-                    lf.packages.len()
+                    "synced {} package(s) into {}",
+                    synced.len(),
+                    lib_dir.display()
                 ),
                 colour
             )
         );
+    }
+    if failures > 0 {
+        eprintln!("\n{failures} package(s) could not be synced.");
+        return Ok(1);
     }
     Ok(0)
 }
@@ -1093,7 +1231,7 @@ fn run_vendor(dir: &Path, common: &PkgCommon) -> anyhow::Result<u8> {
         Ok(l) => l,
         Err(code) => return Ok(code),
     };
-    let colour = ui::use_colour(Some(!common.json));
+    let colour = ui::use_colour_for_json(common.json);
     let cas = ContentAddressableStore::new(&tcl_pkg::cache_dir());
     if let Err(e) = std::fs::create_dir_all(dir) {
         eprintln!("error: {e}");
@@ -1273,7 +1411,7 @@ fn run_search(query: &str, json: bool, offline: bool) -> anyhow::Result<u8> {
 
 fn run_build(common: &PkgCommon) -> anyhow::Result<u8> {
     let mpath = manifest_path(common);
-    let colour = ui::use_colour(Some(!common.json));
+    let colour = ui::use_colour_for_json(common.json);
     let manifest = match load_manifest(&mpath) {
         Ok(m) => m,
         Err(e) => {

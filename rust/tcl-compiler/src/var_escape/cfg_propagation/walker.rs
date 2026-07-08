@@ -213,9 +213,10 @@ fn handle_catch(args: &[String], state: &mut CfgState, defs: &HashMap<String, Ve
     escape_every_name_touched_tree(&sub_module.top_level.statements, state, defs);
 }
 
-/// Handle ``uplevel``: only ``#0`` / ``0`` with a literal body
-/// is safe; everything else is pessimistic.
-fn handle_uplevel(args: &[String], state: &mut CfgState, _defs: &HashMap<String, Version>) {
+/// Handle ``uplevel``: only ``#0`` (global scope) with a literal body is safe.
+/// ``uplevel 0`` runs in the *current* frame and is walked like ``eval``;
+/// everything else is pessimistic.
+fn handle_uplevel(args: &[String], state: &mut CfgState, defs: &HashMap<String, Version>) {
     if args.is_empty() {
         state.mark_pessimistic();
         return;
@@ -228,7 +229,17 @@ fn handle_uplevel(args: &[String], state: &mut CfgState, _defs: &HashMap<String,
         state.mark_pessimistic();
         return;
     }
-    if first != "#0" && first != "0" {
+    // `uplevel 0` runs the body in the *current* frame — a `set x` there
+    // name-writes our proc's local `x` exactly like `eval`. Walk it the same
+    // way so those escapes are recorded; treating `0` as global-safe like `#0`
+    // wrongly whitelists our own frame (RUST_ISSUE_073).
+    if first == "0" {
+        handle_eval(&args[1..], state, defs);
+        return;
+    }
+    // Only `uplevel #0` (global scope) is safe: our locals aren't visible
+    // there. Any other level runs in a different caller frame — pessimistic.
+    if first != "#0" {
         state.mark_pessimistic();
         return;
     }

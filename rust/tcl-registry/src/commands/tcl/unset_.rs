@@ -66,7 +66,14 @@ pub fn spec() -> CommandSpec {
         // W217, not an arity error.
         arity: Arity::at_least(0),
         arg_role_resolver: Some(unset_arg_roles),
-        assigns_variable_at: Some(0),
+        // NOTE: `unset` does NOT set `assigns_variable_at`. That field means
+        // "arg N is assigned a value" (the `set`/`incr` shape); `unset`
+        // *destroys* variables, which is modelled by the `DESTROYS_VARIABLE`
+        // trait plus the `VarWrite` roles from `arg_role_resolver`. Declaring
+        // `assigns_variable_at: Some(0)` both contradicts the arg-role resolver
+        // (arg 0 may be `-nocomplain`) and pre-empted the destroy branch in the
+        // side-effect classifier, modelling `unset x` as a *write* to `x` and
+        // `unset -nocomplain x` as a write to `-nocomplain` (RUST_ISSUE_081/078).
         return_type: Some(TclType::String),
         options: const {
             &[

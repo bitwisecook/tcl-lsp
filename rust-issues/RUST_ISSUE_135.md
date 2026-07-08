@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Build tooling & CI |
 | **Location** | `.claude/skills/fuzz-findings/fuzz_findings.py` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Verified firsthand by reviewer |
 
 ## Finding

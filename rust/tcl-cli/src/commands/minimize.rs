@@ -260,11 +260,27 @@ fn dedent(source: &str) -> String {
             if ln.trim().is_empty() {
                 (*ln).to_owned()
             } else {
-                ln[common..].to_owned()
+                strip_leading_indent(ln, common).to_owned()
             }
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// Strip up to `common` bytes of leading whitespace from `ln`, advancing only
+/// over whole whitespace characters so a multibyte indent char (e.g. U+00A0) is
+/// never split. A raw `ln[common..]` panicked ("byte index is not a char
+/// boundary") when lines mixed multibyte whitespace with ASCII spaces so that
+/// `common` fell inside a char (`RUST_ISSUE_130`).
+fn strip_leading_indent(ln: &str, common: usize) -> &str {
+    let mut end = 0;
+    for (i, ch) in ln.char_indices() {
+        if i >= common || !ch.is_whitespace() {
+            break;
+        }
+        end = i + ch.len_utf8();
+    }
+    &ln[end..]
 }
 
 /// Reduce `source` to the minimum code still firing diagnostic `code` under
@@ -416,6 +432,21 @@ mod tests {
         assert_eq!(dedent("a\n    b"), "a\n    b");
         // Blank lines are ignored when computing the common indent.
         assert_eq!(dedent("  a\n\n  b"), "a\n\nb");
+    }
+
+    #[test]
+    fn dedent_mixed_multibyte_whitespace_does_not_panic() {
+        // RUST_ISSUE_130: one line indented with U+00A0 (2 bytes, whitespace)
+        // and another with a single space → common == 1 byte, which falls
+        // inside the U+00A0 char. `ln[common..]` panicked; the char-safe strip
+        // must advance over whole whitespace chars instead.
+        let src = " a\n\u{a0}b";
+        let out = dedent(src); // must not panic
+        assert!(out.contains('a') && out.contains('b'), "{out:?}");
+        // The strip helper never splits a multibyte char.
+        assert_eq!(strip_leading_indent("\u{a0}b", 1), "b");
+        assert_eq!(strip_leading_indent("  x", 2), "x");
+        assert_eq!(strip_leading_indent("x", 4), "x");
     }
 
     #[test]

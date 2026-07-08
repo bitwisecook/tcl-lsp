@@ -438,6 +438,129 @@ mod tests {
     }
 
     #[test]
+    fn live_session_class_match_starts_with_honours_operator() {
+        // RUST_ISSUE_113: `starts_with` must test whether the subject BEGINS
+        // WITH a record, not exact equality. Record `/api`, URI `/api/v1/x`
+        // matches under `starts_with` (but would NOT under `equals`).
+        let mut s = LiveSession::new(&lib_dir()).expect("session");
+        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
+        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
+        s.add_datagroup("prefixes", "string", "/api 1").unwrap();
+        s.load_irule(
+            "when HTTP_REQUEST {\n  if { [class match [HTTP::uri] starts_with prefixes] } {\n    pool matched\n  }\n}",
+        )
+        .unwrap();
+        s.run_http_request("-host x.example.com -uri /api/v1/x")
+            .unwrap();
+        assert_eq!(s.pool_selected().unwrap(), "matched");
+    }
+
+    #[test]
+    fn live_session_class_match_equals_is_not_prefix_match() {
+        // FP-guard for RUST_ISSUE_113: the same `/api` record under `equals`
+        // must NOT match the longer `/api/v1/x`, proving the operator actually
+        // changes the comparison rather than always behaving like `contains`.
+        let mut s = LiveSession::new(&lib_dir()).expect("session");
+        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
+        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
+        s.add_datagroup("prefixes", "string", "/api 1").unwrap();
+        s.load_irule(
+            "when HTTP_REQUEST {\n  if { [class match [HTTP::uri] equals prefixes] } {\n    pool matched\n  }\n}",
+        )
+        .unwrap();
+        s.run_http_request("-host x.example.com -uri /api/v1/x")
+            .unwrap();
+        assert_eq!(s.pool_selected().unwrap(), "");
+    }
+
+    #[test]
+    fn live_session_class_match_ends_with_honours_operator() {
+        // RUST_ISSUE_113: `ends_with` tests the tail of the subject.
+        let mut s = LiveSession::new(&lib_dir()).expect("session");
+        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
+        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
+        s.add_datagroup("suffixes", "string", ".png 1").unwrap();
+        s.load_irule(
+            "when HTTP_REQUEST {\n  if { [class match [HTTP::uri] ends_with suffixes] } {\n    pool matched\n  }\n}",
+        )
+        .unwrap();
+        s.run_http_request("-host x.example.com -uri /img/logo.png")
+            .unwrap();
+        assert_eq!(s.pool_selected().unwrap(), "matched");
+    }
+
+    #[test]
+    fn live_session_class_match_accepts_leading_dashdash() {
+        // RUST_ISSUE_114: a leading `--` (or option flags) before the value
+        // must be parsed off, not mistaken for the value/operator/datagroup.
+        // Before the fix, `dg_name` resolved to `equals` and raised
+        // `class "equals" not found`, aborting the handler so `pool` never ran.
+        let mut s = LiveSession::new(&lib_dir()).expect("session");
+        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
+        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
+        s.add_datagroup("hosts", "string", "api.example.com 1")
+            .unwrap();
+        s.load_irule(
+            "when HTTP_REQUEST {\n  if { [class match -- [HTTP::host] equals hosts] } {\n    pool matched\n  }\n}",
+        )
+        .unwrap();
+        s.run_http_request("-host api.example.com -uri /").unwrap();
+        assert_eq!(s.pool_selected().unwrap(), "matched");
+    }
+
+    #[test]
+    fn live_session_http_respond_commits_response() {
+        // RUST_ISSUE_112: `HTTP::respond` sets
+        // `::state::http::response_committed`; the flag must be observable
+        // (the simulator reads this exact variable to populate
+        // `SimOutcome::response_committed`).
+        let mut s = LiveSession::new(&lib_dir()).expect("session");
+        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
+        s.load_irule("when HTTP_REQUEST {\n  HTTP::respond 200 content \"ok\"\n}")
+            .unwrap();
+        s.run_http_request("-host x.example.com -uri /").unwrap();
+        assert_eq!(
+            s.eval("set ::state::http::response_committed").unwrap(),
+            "1"
+        );
+    }
+
+    #[test]
+    fn live_session_fluent_decision_was_called_with_scans_all_calls() {
+        // RUST_ISSUE_117: `was_called_with` must pass if ANY matching decision
+        // carries the expected value, not only the first. An iRule that calls
+        // `pool a` then `pool b` must satisfy `was_called_with "b"`.
+        let mut s = LiveSession::new(&lib_dir()).expect("session");
+        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
+        s.eval("::orch::add_pool a {10.0.0.1:80}").unwrap();
+        s.eval("::orch::add_pool b {10.0.0.2:80}").unwrap();
+        s.load_irule("when HTTP_REQUEST {\n  pool a\n  pool b\n}")
+            .unwrap();
+        s.run_http_request("-host x.example.com -uri /").unwrap();
+        // `assert_that` returns 1 on pass, 0 on fail. The later `pool b` call
+        // must satisfy `was_called_with "b"` even though `pool a` was logged
+        // first (the pre-fix code stopped at the first match and failed).
+        assert_eq!(
+            s.eval("::orch::assert_that decision lb pool_select was_called_with \"b\"")
+                .unwrap(),
+            "1",
+            "was_called_with must scan all matching decisions"
+        );
+        // The first call's value still passes too.
+        assert_eq!(
+            s.eval("::orch::assert_that decision lb pool_select was_called_with \"a\"")
+                .unwrap(),
+            "1",
+        );
+        // FP-guard: a value that was never used fails.
+        assert_eq!(
+            s.eval("::orch::assert_that decision lb pool_select was_called_with \"c\"")
+                .unwrap(),
+            "0",
+        );
+    }
+
+    #[test]
     fn configured_tmm_select_auto_survives_reset() {
         // RUST_ISSUE_043: `::orch::test` runs `reset` before every body, and
         // `reset` previously forced `_tmm_select_mode` back to "manual",

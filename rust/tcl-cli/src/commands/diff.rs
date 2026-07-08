@@ -34,7 +34,7 @@
 //! `difflib.unified_diff`-faithful diff (`tcl_cli_support::difflib`).
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Value, json};
 use tcl_cli_support::{
@@ -292,19 +292,30 @@ pub fn run_diff(
 ) -> anyhow::Result<u8> {
     let layers = parse_layers(show)?;
 
-    let Some(left) = left else {
-        anyhow::bail!("diff requires a left input");
-    };
-    let Some(right) = right else {
-        anyhow::bail!("diff requires a right input");
-    };
-    let left_name = left.to_string_lossy().into_owned();
-    let right_name = right.to_string_lossy().into_owned();
+    // A side may be supplied as a positional path OR as inline source
+    // (`--left-source` / `--right-source`) — the inline flags are usable on
+    // their own, not only appended to a path (RUST_ISSUE_124).
+    if left.is_none() && left_source.is_none() {
+        anyhow::bail!("diff requires a left input (a path or --left-source)");
+    }
+    if right.is_none() && right_source.is_none() {
+        anyhow::bail!("diff requires a right input (a path or --right-source)");
+    }
+    let left_name = left.map_or_else(
+        || "<left-source>".to_owned(),
+        |p| p.to_string_lossy().into_owned(),
+    );
+    let right_name = right.map_or_else(
+        || "<right-source>".to_owned(),
+        |p| p.to_string_lossy().into_owned(),
+    );
 
+    let left_paths: Vec<PathBuf> = left.map(Path::to_path_buf).into_iter().collect();
+    let right_paths: Vec<PathBuf> = right.map(Path::to_path_buf).into_iter().collect();
     let left_inline: Vec<String> = left_source.map(|s| vec![s.to_owned()]).unwrap_or_default();
     let right_inline: Vec<String> = right_source.map(|s| vec![s.to_owned()]).unwrap_or_default();
-    let left_docs = read_input_documents(&[left.to_path_buf()], &left_inline, true)?;
-    let right_docs = read_input_documents(&[right.to_path_buf()], &right_inline, true)?;
+    let left_docs = read_input_documents(&left_paths, &left_inline, true)?;
+    let right_docs = read_input_documents(&right_paths, &right_inline, true)?;
     let left_src = combine_sources(&left_docs);
     let right_src = combine_sources(&right_docs);
 
@@ -403,4 +414,43 @@ fn write_diff_result(
     let text = chunks.concat();
     write_text_output(target, text.trim_end_matches('\n'))?;
     Ok(u8::from(has_differences))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inline_sources_are_usable_without_paths() {
+        // RUST_ISSUE_124: `--left-source` / `--right-source` work on their own,
+        // not only appended to a positional path.
+        let show = vec!["ast".to_owned()];
+        let r = run_diff(
+            None,
+            None,
+            Some("set x 1"),
+            Some("set x 2"),
+            "tcl8.6",
+            &show,
+            true,
+            None,
+        );
+        assert!(r.is_ok(), "inline-only diff must not bail: {r:?}");
+
+        // A side with neither a path nor inline source still errors.
+        let err = run_diff(
+            None,
+            None,
+            None,
+            Some("set x 2"),
+            "tcl8.6",
+            &show,
+            true,
+            None,
+        );
+        assert!(
+            err.is_err(),
+            "a side with neither path nor source must error",
+        );
+    }
 }

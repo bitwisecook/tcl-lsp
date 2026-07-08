@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Build tooling & CI |
 | **Location** | `scripts/dev/ensure-test-deps.sh:100-119,750-754` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

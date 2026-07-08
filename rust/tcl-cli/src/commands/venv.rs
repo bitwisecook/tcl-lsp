@@ -70,9 +70,20 @@ fn run_create(
     force: bool,
     json: bool,
 ) -> anyhow::Result<u8> {
-    let colour = ui::use_colour(Some(!json));
+    let colour = ui::use_colour_for_json(json);
     if force && path.exists() {
-        let _ = std::fs::remove_dir_all(path);
+        // Only clobber an existing *venv* — an existing directory that isn't a
+        // tclpkg venv (a typo'd path to a real project dir) must not be silently
+        // `rm -rf`'d, mirroring `delete_venv`'s data-loss guard (`RUST_ISSUE_123`).
+        if path.join("tclvenv.cfg").is_file() {
+            let _ = std::fs::remove_dir_all(path);
+        } else {
+            eprintln!(
+                "error: refusing to overwrite {}: not a tclpkg venv (missing tclvenv.cfg)",
+                path.display()
+            );
+            return Ok(1);
+        }
     }
     let opts = CreateOptions {
         tcl_version: tcl,
@@ -108,9 +119,9 @@ fn run_create(
     Ok(0)
 }
 
-fn run_delete(path: &Path, _force: bool, json: bool) -> anyhow::Result<u8> {
-    let colour = ui::use_colour(Some(!json));
-    if let Err(e) = delete_venv(path) {
+fn run_delete(path: &Path, force: bool, json: bool) -> anyhow::Result<u8> {
+    let colour = ui::use_colour_for_json(json);
+    if let Err(e) = delete_venv(path, force) {
         eprintln!("error: {e}");
         return Ok(1);
     }
@@ -248,7 +259,7 @@ fn run_list(json: bool) -> anyhow::Result<u8> {
 }
 
 fn run_update(path: &Path, tcl: &str, json: bool) -> anyhow::Result<u8> {
-    let colour = ui::use_colour(Some(!json));
+    let colour = ui::use_colour_for_json(json);
     let venv_path = absolutise(path);
     let tclsh = match update_venv(&venv_path, tcl) {
         Ok(p) => p,

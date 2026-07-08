@@ -58,34 +58,82 @@ use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::{Env, eval_tcl_expr, format_tcl_value};
 use crate::types::{TclType, TypeKind, TypeLattice};
 
-/// A set of variable names proven numeric for the current function, or
-/// `None` when no type context is available. Passed to the `*_typed`
-/// entry points so the operand-dropping identities fire only on provably
-/// numeric operands. `None` keeps the historical aggressive behaviour for callers
-/// (and tests) that have no type lattice.
-pub type NumericCtx<'a> = Option<&'a HashSet<String>>;
+/// Operand type facts for the current function: which variable names are
+/// provably *numeric* (Int / Double / Numeric / Boolean) and which are provably
+/// *integer* (Int). The integer set is a subset of the numeric set.
+///
+/// The two are distinct because they gate different rewrites. An identity that
+/// keeps its operand under an operator that also accepts doubles (`$x + 0`,
+/// `$x * 1`) only needs the operand *numeric*. But an identity that either
+/// folds to an **integer literal** by dropping an operand (`$x * 0 → 0`,
+/// `$x ** 0 → 1`, `$x - $x → 0`) or removes an **integer-only** operator
+/// (`<<`, `>>`, `&`, `|`, `^`, `%`) needs the operand *integer*: for a
+/// double operand Tcl yields a double (`1.5 * 0` → `0.0`, not `0`) or raises
+/// "can't use floating-point value as operand" — either way the integer-result
+/// / operator-drop rewrite would be wrong (`RUST_ISSUE_075`).
+#[derive(Debug, Default, Clone)]
+pub struct OperandTypes {
+    numeric: HashSet<String>,
+    integer: HashSet<String>,
+}
 
-/// Build the set of variable names whose **every** SSA version is a known
-/// numeric type (Int / Double / Numeric / Boolean). A name absent here is
-/// treated as not provably numeric, so a `$x + 0` / `$x * 0` identity is
-/// kept. Numericity is properly a per-use property of the type lattice;
-/// using the function-level join (all versions must agree) is a sound
-/// over-approximation of the per-use check.
+#[cfg(test)]
+impl OperandTypes {
+    /// A context proving `names` numeric but *not* integer (Double-typed).
+    fn numeric_only(names: &[&str]) -> Self {
+        Self {
+            numeric: names.iter().map(|s| (*s).to_owned()).collect(),
+            integer: HashSet::new(),
+        }
+    }
+
+    /// A context proving `names` integer (and hence numeric).
+    fn integer(names: &[&str]) -> Self {
+        let set: HashSet<String> = names.iter().map(|s| (*s).to_owned()).collect();
+        Self {
+            numeric: set.clone(),
+            integer: set,
+        }
+    }
+}
+
+/// A type context for the current function, or `None` when no type lattice is
+/// available. Passed to the `*_typed` entry points so the operand-dropping
+/// identities fire only on provably typed operands. `None` keeps the historical
+/// aggressive behaviour for callers (and tests) that have no type lattice.
+pub type NumericCtx<'a> = Option<&'a OperandTypes>;
+
+/// Build the [`OperandTypes`] for `fu`: a name is numeric (resp. integer) when
+/// **every** SSA version of it is a known numeric (resp. integer) type. A name
+/// absent from a set is treated as not provably that type, so the corresponding
+/// identity is kept. Using the function-level join (all versions must agree) is
+/// a sound over-approximation of the proper per-use check.
 #[must_use]
-pub fn numeric_var_names(fu: &FunctionUnit) -> HashSet<String> {
+pub fn operand_types(fu: &FunctionUnit) -> OperandTypes {
     use std::collections::HashMap;
-    // symbol → (all-versions-numeric-so-far).
-    let mut acc: HashMap<crate::ssa::Symbol, bool> = HashMap::new();
+    // symbol → (all-versions-numeric, all-versions-integer).
+    let mut acc: HashMap<crate::ssa::Symbol, (bool, bool)> = HashMap::new();
     for ((sym, _ver), lattice) in &fu.types {
         let is_num = lattice_is_numeric(lattice);
+        let is_int = lattice_is_integer(lattice);
         acc.entry(*sym)
-            .and_modify(|v| *v = *v && is_num)
-            .or_insert(is_num);
+            .and_modify(|v| {
+                v.0 = v.0 && is_num;
+                v.1 = v.1 && is_int;
+            })
+            .or_insert((is_num, is_int));
     }
-    acc.into_iter()
-        .filter(|(_, ok)| *ok)
-        .map(|(sym, _)| fu.ssa.var_name(sym).to_owned())
-        .collect()
+    let mut out = OperandTypes::default();
+    for (sym, (is_num, is_int)) in acc {
+        let name = fu.ssa.var_name(sym).to_owned();
+        if is_num {
+            out.numeric.insert(name.clone());
+        }
+        if is_int {
+            out.integer.insert(name);
+        }
+    }
+    out
 }
 
 /// Whether a type-lattice element is a known numeric Tcl type.
@@ -97,18 +145,41 @@ fn lattice_is_numeric(t: &TypeLattice) -> bool {
         )
 }
 
+/// Whether a type-lattice element is a known *integer* Tcl type. `Double` and
+/// the catch-all `Numeric` (which may be a double) are excluded; `Boolean` is
+/// excluded too, since a boolean-typed operand may hold the word `true`, which
+/// is not an integer in `expr` (`expr {true << 0}` errors).
+fn lattice_is_integer(t: &TypeLattice) -> bool {
+    t.kind == TypeKind::Known && matches!(t.tcl_type, Some(TclType::Int))
+}
+
 /// Whether `node` is provably numeric for `expr` arithmetic — so dropping it
 /// from an identity rewrite cannot hide Tcl's numeric-coercion error.
 /// With no type context (`None`) every node is assumed numeric, preserving
 /// the legacy behaviour for callers without a lattice.
 fn node_provably_numeric(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
-    let Some(names) = numeric else {
+    let Some(ctx) = numeric else {
         return true;
     };
     match node {
         ExprNode::Literal { .. } => true,
         ExprNode::String { text, .. } => is_numeric_string(text),
-        ExprNode::Var { name, .. } => names.contains(name.as_str()),
+        ExprNode::Var { name, .. } => ctx.numeric.contains(name.as_str()),
+        _ => false,
+    }
+}
+
+/// Whether `node` is provably an *integer* for `expr` arithmetic — so folding
+/// it to an integer literal, or dropping an integer-only operator around it,
+/// matches Tcl's result and error behaviour. With no type context (`None`)
+/// every node is assumed integer, preserving the legacy aggressive behaviour.
+fn node_provably_integer(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
+    let Some(ctx) = numeric else {
+        return true;
+    };
+    match node {
+        ExprNode::Literal { text, .. } | ExprNode::String { text, .. } => is_integer_string(text),
+        ExprNode::Var { name, .. } => ctx.integer.contains(name.as_str()),
         _ => false,
     }
 }
@@ -122,6 +193,23 @@ fn is_numeric_string(text: &str) -> bool {
         .trim_end_matches(['"', '}'])
         .trim();
     !t.is_empty() && (t.parse::<i64>().is_ok() || t.parse::<f64>().is_ok())
+}
+
+/// Whether the (delimiter-stripped) text of an `expr` literal parses as a Tcl
+/// *integer* (decimal / `0x` / `0o` / `0b`, any magnitude — a bignum is still
+/// an integer). A float literal (`1.5`) is not. Uses the shared number grammar
+/// so it agrees with the const-folder.
+fn is_integer_string(text: &str) -> bool {
+    use tcl_syntax::number::Number;
+    let t = text
+        .trim()
+        .trim_start_matches(['"', '{'])
+        .trim_end_matches(['"', '}'])
+        .trim();
+    matches!(
+        tcl_syntax::number::parse_whole(t),
+        Some(Number::Int(_) | Number::Big { .. })
+    )
 }
 
 // Landed: try_fold_expr (O101 — fold constant expression)
@@ -429,9 +517,10 @@ fn simplify_node_once(node: &ExprNode, bool_context: bool, numeric: NumericCtx<'
 /// Fires only when one operand is itself an additive (resp. multiplicative)
 /// chain — a pure operand reorder (`1 + $a` → `$a + 1`) is suppressed as
 /// noise. All non-constant terms are preserved, so numeric-coercion error
-/// semantics are unchanged. The two term-dropping cases that *would* need a
-/// provably-numeric guard (annihilating `* 0`, dropping a lone `* 1`) are
-/// skipped — proving numericity needs the SSA type lattice, which this
+/// semantics are unchanged. The term-dropping cases that *would* need a
+/// provably-numeric guard — annihilating `* 0`, dropping a lone `* 1`, and a
+/// lone additive term whose constant cancels to zero (`$a + 5 - 5`) — are
+/// skipped: proving numericity needs the SSA type lattice, which this
 /// AST-level pass cannot consult, so it conservatively leaves them be.
 fn reassociate_node(node: &ExprNode) -> Option<ExprNode> {
     let ExprNode::Binary { op, left, right } = node else {
@@ -446,6 +535,16 @@ fn reassociate_node(node: &ExprNode) -> Option<ExprNode> {
             let constant = collect_add_terms(node, &mut terms)?;
             if constant == i64::MIN {
                 return None; // `-constant` would overflow in the builder
+            }
+            // Conservative: a lone term whose additive constant cancels to zero
+            // (`$a + 5 - 5`) would emit `$a` BARE — stripping the numeric-
+            // coercion error `$a` must raise when non-numeric (`expr {$a}`
+            // returns the string; `expr {$a + 5 - 5}` errors). Proving `$a`
+            // integer needs the SSA type lattice this AST pass can't consult,
+            // so mirror the multiplicative guard (`$a * 1`) and leave it be.
+            // RUST_ISSUE_074.
+            if constant == 0 && terms.len() == 1 {
+                return None;
             }
             let built = build_add_expr(&terms, constant);
             (render_expr(&built) != render_expr(node)).then_some(built)
@@ -893,11 +992,13 @@ fn reduce_self_comparison(
         // `$x < $x`, `$x eq $x` never raise), so they fold for any defined $x.
         BinOp::Eq | BinOp::Le | BinOp::Ge | BinOp::StrEq => 1,
         BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::StrNe => 0,
-        // Subtraction and bitwise-xor are arithmetic-only: `$x - $x` / `$x ^ $x`
-        // raise a numeric-coercion error when $x is a non-numeric string
-        // (tclsh: `set x hello; expr {$x - $x}` errors). Folding to 0 would
-        // silently swallow that error, so only fold a provably-numeric operand.
-        BinOp::Sub | BinOp::BitXor if node_provably_numeric(left, numeric) => 0,
+        // `$x - $x` / `$x ^ $x` fold to the *integer* literal 0, so `$x` must
+        // be a provable integer, not merely numeric: for a double `$x`,
+        // `expr {1.5 - 1.5}` is `0.0` (not `0`), and `^` is integer-only
+        // (`expr {1.5 ^ 1.5}` errors). Folding to `0` in either case would be
+        // wrong (`RUST_ISSUE_075`). A non-numeric `$x` still errors, which the
+        // integer gate also (conservatively) declines to fold.
+        BinOp::Sub | BinOp::BitXor if node_provably_integer(left, numeric) => 0,
         _ => return None,
     };
     Some(make_int_literal(k))
@@ -906,10 +1007,13 @@ fn reduce_self_comparison(
 /// `+/-/*//` arithmetic identities and annihilators.
 ///
 /// Every rewrite here removes an arithmetic operation, so the surviving
-/// expression must still raise Tcl's numeric-coercion error iff the
-/// original would: each is gated on the *non-literal* operand being
-/// provably numeric. Without a type
-/// context the guard passes (legacy aggressive behaviour).
+/// expression must still raise Tcl's numeric-coercion error iff the original
+/// would. Identities that **keep** the operand under a double-accepting
+/// operator (`x + 0`, `x - 0`, `x * 1`, `x / 1`) are gated on the operand being
+/// provably *numeric*. The `x * 0 → 0` annihilator folds to an **integer**
+/// literal, so it is gated on the operand being provably *integer*: for a
+/// double `$x`, `expr {1.5 * 0}` is `0.0`, not `0` (`RUST_ISSUE_075`). Without a
+/// type context both guards pass (legacy aggressive behaviour).
 fn reduce_arith_identity(
     op: BinOp,
     left: &ExprNode,
@@ -919,6 +1023,7 @@ fn reduce_arith_identity(
     numeric: NumericCtx<'_>,
 ) -> Option<ExprNode> {
     let num = |n: &ExprNode| node_provably_numeric(n, numeric);
+    let int = |n: &ExprNode| node_provably_integer(n, numeric);
     match op {
         // x + 0 → x, 0 + x → x.
         BinOp::Add => {
@@ -940,11 +1045,12 @@ fn reduce_arith_identity(
             if lit_left == Some(1) && num(right) {
                 return Some(right.clone());
             }
-            // Annihilation drops the whole non-literal operand.
-            if lit_right == Some(0) && num(left) {
+            // Annihilation folds to the integer literal 0 — needs integer, not
+            // just numeric (a double operand yields `0.0`).
+            if lit_right == Some(0) && int(left) {
                 return Some(make_int_literal(0));
             }
-            if lit_left == Some(0) && num(right) {
+            if lit_left == Some(0) && int(right) {
                 return Some(make_int_literal(0));
             }
             None
@@ -957,9 +1063,10 @@ fn reduce_arith_identity(
 
 /// `x ** 0 → 1`, `x ** 1 → x`, `x ** 2 → x * x` for integer literal exponents.
 ///
-/// `** 0` / `** 1` drop the `x ** …` operation, so `x` must be provably
-/// numeric. `** 2 → x * x` keeps `x` as an operand on both sides, preserving
-/// error semantics without a guard.
+/// `** 0` folds to the integer literal 1, so `x` must be provably *integer*
+/// (a double base yields `1.0`). `** 1 → x` keeps `x` under an operator that
+/// accepts doubles, so *numeric* suffices. `** 2 → x * x` keeps `x` on both
+/// sides, preserving error semantics without a guard.
 fn reduce_pow(
     op: BinOp,
     left: &ExprNode,
@@ -971,7 +1078,10 @@ fn reduce_pow(
         return None;
     }
     match lit_right? {
-        0 if node_provably_numeric(left, numeric) => Some(make_int_literal(1)),
+        // `x ** 0 → 1` folds to the integer literal 1 — needs integer, not just
+        // numeric (`expr {1.5 ** 0}` is `1.0`). `x ** 1 → x` keeps `x`, and
+        // `**` accepts doubles, so numeric suffices there.
+        0 if node_provably_integer(left, numeric) => Some(make_int_literal(1)),
         1 if node_provably_numeric(left, numeric) => Some(left.clone()),
         2 => Some(ExprNode::Binary {
             op: BinOp::Mul,
@@ -984,8 +1094,11 @@ fn reduce_pow(
 
 /// `x % 1 → 0` (absorbing) and `x % pow2 → x & (pow2 - 1)`.
 ///
-/// `% 1 → 0` drops `x`, so it needs `x` numeric. The pow2 strength-reduction
-/// keeps `x` (the `&` coerces too), so it preserves error semantics.
+/// `%` is integer-only, so `% 1 → 0` drops `x` *and* folds to an integer: `x`
+/// must be provably *integer* (`expr {1.5 % 1}` errors — folding to `0` would
+/// hide it; `RUST_ISSUE_075`). The pow2 strength-reduction keeps `x` under `&`
+/// (also integer-only), so a double `x` errors either way — error semantics
+/// preserved without a guard.
 fn reduce_mod(
     op: BinOp,
     left: &ExprNode,
@@ -996,7 +1109,7 @@ fn reduce_mod(
         return None;
     }
     let n = lit_right?;
-    if n == 1 && node_provably_numeric(left, numeric) {
+    if n == 1 && node_provably_integer(left, numeric) {
         return Some(make_int_literal(0));
     }
     if n > 1 && (n & (n - 1)) == 0 {
@@ -1009,7 +1122,10 @@ fn reduce_mod(
     None
 }
 
-/// `x << 0 → x`, `x >> 0 → x`. Drops the shift, so `x` must be numeric.
+/// `x << 0 → x`, `x >> 0 → x`. The shift is integer-only, so `x` must be
+/// provably *integer*: for a double `x`, `expr {1.5 << 0}` errors, while `$x`
+/// alone returns the double — dropping the shift would hide the error
+/// (`RUST_ISSUE_075`).
 fn reduce_shift(
     op: BinOp,
     left: &ExprNode,
@@ -1019,7 +1135,7 @@ fn reduce_shift(
     if !matches!(op, BinOp::LShift | BinOp::RShift) {
         return None;
     }
-    if lit_right == Some(0) && node_provably_numeric(left, numeric) {
+    if lit_right == Some(0) && node_provably_integer(left, numeric) {
         Some(left.clone())
     } else {
         None
@@ -1027,8 +1143,9 @@ fn reduce_shift(
 }
 
 /// Bitwise identities / annihilators: `x & 0 → 0`, `x | 0 → x`, `x ^ 0 → x`.
-/// Each drops or strips an operand's coercion, so the non-literal operand
-/// must be provably numeric.
+/// `&`/`|`/`^` are integer-only, so each rewrite (folding to `0`, or stripping
+/// the operator around `x`) needs the non-literal operand provably *integer* —
+/// a double operand is a Tcl error the rewrite must not hide (`RUST_ISSUE_075`).
 fn reduce_bitwise(
     op: BinOp,
     left: &ExprNode,
@@ -1037,21 +1154,21 @@ fn reduce_bitwise(
     lit_right: Option<i64>,
     numeric: NumericCtx<'_>,
 ) -> Option<ExprNode> {
-    let num = |n: &ExprNode| node_provably_numeric(n, numeric);
+    let int = |n: &ExprNode| node_provably_integer(n, numeric);
     match op {
         BinOp::BitAnd => {
-            if lit_right == Some(0) && num(left) {
+            if lit_right == Some(0) && int(left) {
                 return Some(make_int_literal(0));
             }
-            if lit_left == Some(0) && num(right) {
+            if lit_left == Some(0) && int(right) {
                 return Some(make_int_literal(0));
             }
             None
         }
         BinOp::BitOr | BinOp::BitXor => {
-            if lit_right == Some(0) && num(left) {
+            if lit_right == Some(0) && int(left) {
                 Some(left.clone())
-            } else if lit_left == Some(0) && num(right) {
+            } else if lit_left == Some(0) && int(right) {
                 Some(right.clone())
             } else {
                 None
@@ -1471,24 +1588,67 @@ mod tests {
         }
         // With a type context that does NOT prove `$x` numeric → keep the
         // operand (dropping it would hide a coercion error).
-        let empty: HashSet<String> = HashSet::new();
+        let empty = OperandTypes::default();
         for e in ["$x * 0", "$x + 0", "$x * 1", "$x % 1", "$x << 0"] {
             let (out, changed) = instcombine_expr_typed(e, false, Some(&empty));
             assert!(!changed, "non-numeric `$x` must keep {e:?}, got {out:?}");
         }
-        // With `$x` proven numeric → the identity fires again.
-        let mut numeric = HashSet::new();
-        numeric.insert("x".to_owned());
-        let (out, changed) = instcombine_expr_typed("$x * 0", false, Some(&numeric));
-        assert!(
-            changed && out.trim() == "0",
-            "numeric `$x * 0` → 0, got {out:?}"
-        );
+        // With `$x` proven numeric (but not integer) → identities that KEEP the
+        // operand fire (`$x + 0` → `$x`), but the integer-result annihilator
+        // (`$x * 0` → `0`) does NOT (a double `$x` yields `0.0`).
+        let numeric = OperandTypes::numeric_only(&["x"]);
         let (out, changed) = instcombine_expr_typed("$x + 0", false, Some(&numeric));
         assert!(
             changed && out.trim() == "$x",
             "numeric `$x + 0` → $x, got {out:?}"
         );
+        let (out, changed) = instcombine_expr_typed("$x * 0", false, Some(&numeric));
+        assert!(
+            !changed,
+            "numeric-but-not-integer `$x * 0` must NOT fold to 0, got {out:?}"
+        );
+        // With `$x` proven integer → the integer-result / integer-only rewrites
+        // fire.
+        let integer = OperandTypes::integer(&["x"]);
+        let (out, changed) = instcombine_expr_typed("$x * 0", false, Some(&integer));
+        assert!(
+            changed && out.trim() == "0",
+            "integer `$x * 0` → 0, got {out:?}"
+        );
+    }
+
+    #[test]
+    fn integer_only_ops_need_integer_not_just_numeric() {
+        // RUST_ISSUE_075: `<<`/`>>`/`&`/`|`/`^`/`%`/`**0`/`*0`/`$x-$x` are wrong
+        // for a Double-typed operand — they either yield a double where an
+        // integer literal is produced, or are integer-only ops Tcl rejects on a
+        // float. A numeric-but-not-integer context must decline them all.
+        let double = OperandTypes::numeric_only(&["x"]);
+        for e in [
+            "$x << 0", "$x >> 0", "$x & 0", "$x | 0", "$x ^ 0", "$x % 1", "$x ** 0", "$x * 0",
+            "$x - $x", "$x ^ $x",
+        ] {
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&double));
+            assert!(
+                !changed,
+                "double `$x`: {e:?} must not be rewritten, got {out:?}"
+            );
+        }
+        // An integer context fires them (spot-check a representative set).
+        let integer = OperandTypes::integer(&["x"]);
+        for (e, want) in [
+            ("$x << 0", "$x"),
+            ("$x & 0", "0"),
+            ("$x % 1", "0"),
+            ("$x ** 0", "1"),
+            ("$x - $x", "0"),
+        ] {
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&integer));
+            assert!(
+                changed && out.trim() == want,
+                "integer `$x`: {e:?} → {want:?}, got {out:?}"
+            );
+        }
     }
 
     #[test]
@@ -1623,12 +1783,28 @@ mod tests {
             ("$a - 1 - 2", "$a - 3"),
             ("5 + $a - 2", "$a + 3"),
             ("$a + $b + 1 + 2", "$a + $b + 3"),
-            ("$a + 1 - 1", "$a"),
+            // `$a + $b + 1 - 1` still folds the constant: two terms survive, so
+            // `$a + $b` keeps a `+` that coerces both operands.
+            ("$a + $b + 1 - 1", "$a + $b"),
         ] {
             let (out, changed) = instcombine_expr(input, false);
             assert!(changed, "expected a rewrite for {input:?}");
             assert_eq!(out.trim(), want, "for {input:?}");
         }
+    }
+
+    #[test]
+    fn o110_additive_lone_term_cancel_to_zero_abstains() {
+        // RUST_ISSUE_074: `$a + 1 - 1` cancels to a lone bare `$a`, dropping the
+        // numeric-coercion error `$a + 1 - 1` raises for a non-numeric `$a`.
+        // Mirror the multiplicative `$a * 1` guard and abstain (the AST pass
+        // has no numeric proof).
+        assert!(
+            reassociate_node(&parse_expr("$a + 1 - 1", None)).is_none(),
+            "lone additive term cancelling to zero must not fold to a bare term",
+        );
+        let (out, changed) = instcombine_expr("$a + 1 - 1", false);
+        assert!(!changed, "`$a + 1 - 1` must be left unchanged, got {out:?}");
     }
 
     #[test]

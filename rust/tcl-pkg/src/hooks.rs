@@ -199,26 +199,29 @@ fn run_one(
 }
 
 /// Expand `${NAME}` references from `vars`; unknown names expand to empty.
+///
+/// Operates on `&str` slices (split at ASCII `${` / `}` boundaries, which are
+/// always char boundaries) rather than re-encoding each byte as a `char`, which
+/// mojibake-corrupted non-ASCII text — a hook `command = ["/opt/prüfer"]`
+/// became `/opt/prÃ¼fer` (`RUST_ISSUE_129`).
 fn expand(input: &str, vars: &HashMap<String, String>) -> String {
     let mut out = String::with_capacity(input.len());
-    let bytes = input.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'$'
-            && i + 1 < bytes.len()
-            && bytes[i + 1] == b'{'
-            && let Some(end) = input[i + 2..].find('}')
-        {
-            let name = &input[i + 2..i + 2 + end];
-            if let Some(v) = vars.get(name) {
+    let mut rest = input;
+    while let Some(dollar) = rest.find("${") {
+        out.push_str(&rest[..dollar]);
+        let after = &rest[dollar + 2..];
+        if let Some(end) = after.find('}') {
+            if let Some(v) = vars.get(&after[..end]) {
                 out.push_str(v);
             }
-            i = i + 2 + end + 1;
-            continue;
+            rest = &after[end + 1..];
+        } else {
+            // No closing `}` — the `${` is literal text.
+            out.push_str("${");
+            rest = after;
         }
-        out.push(bytes[i] as char);
-        i += 1;
     }
+    out.push_str(rest);
     out
 }
 
@@ -265,6 +268,20 @@ mod tests {
         assert_eq!(expand("${TCLPKG_PKG_DIR}/x", &vars), "/cache/foo/x");
         assert_eq!(expand("${MISSING}/y", &vars), "/y");
         assert_eq!(expand("no-vars", &vars), "no-vars");
+    }
+
+    #[test]
+    fn expand_preserves_non_ascii() {
+        // RUST_ISSUE_129: non-ASCII text must survive verbatim, not be
+        // re-encoded byte-by-byte as Latin-1 (`prüfer` → `prÃ¼fer`).
+        let mut vars = HashMap::new();
+        vars.insert("DIR".to_string(), "/opt/prüfer".to_string());
+        assert_eq!(expand("/opt/prüfer/bin", &vars), "/opt/prüfer/bin");
+        assert_eq!(expand("${DIR}/café", &vars), "/opt/prüfer/café");
+        // An unterminated `${` is literal (no closing brace).
+        assert_eq!(expand("a${B c", &vars), "a${B c");
+        // Emoji / multi-byte around a substitution.
+        assert_eq!(expand("→${MISSING}←", &vars), "→←");
     }
 
     #[test]

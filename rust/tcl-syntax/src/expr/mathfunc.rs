@@ -81,6 +81,20 @@ pub fn dispatch(name: &str, args: &[Num]) -> Option<Num> {
     }
 }
 
+/// Whether math function `name`'s operand accepts Tcl boolean words
+/// (`true`/`yes`/`on`/`false`/…) in addition to the numeric grammar.
+///
+/// Only `bool` does — it calls `Tcl_GetBooleanFromObj`. Every other expr
+/// function reads its operand with `Tcl_GetDoubleFromObj` /
+/// `Tcl_GetWideIntFromObj`, which reject boolean words (`expr {abs(true)}`
+/// is an error, not `1`). A const-folder must therefore parse the operands
+/// of every function except `bool` *strictly* — without the boolean coercion
+/// `Tcl_GetBoolean` would apply — so it never folds an error into a value.
+#[must_use]
+pub fn accepts_boolean_operand(name: &str) -> bool {
+    name == "bool"
+}
+
 /// `isunordered(x, y)` — 1 if either operand is NaN (they cannot be ordered),
 /// else 0 (C's `ExprIsUnorderedFunc`). Integers convert to finite doubles.
 fn is_unordered(vals: &[Num]) -> Option<Num> {

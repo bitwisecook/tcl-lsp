@@ -164,6 +164,33 @@ pub fn selection_range(
         });
     }
 
+    // Enforce the LSP parent-contains-child invariant: every range must lie
+    // within its outward neighbour. A full-width *line* range can stick out of
+    // an enclosing body that starts/ends mid-line (e.g. `proc foo {} {\n set x 1
+    // }` — the line's end column exceeds the body's), which VS Code rejects
+    // (RUST_ISSUE_110). Clamp each range to its parent, processing
+    // outermost→innermost so the chain stays strictly nested. Every range
+    // contains the cursor, so the intersection is never empty (no inversion).
+    for i in (0..ranges.len().saturating_sub(1)).rev() {
+        let parent_start = {
+            let p = &ranges[i + 1];
+            (p.start_line, p.start_character)
+        };
+        let parent_end = {
+            let p = &ranges[i + 1];
+            (p.end_line, p.end_character)
+        };
+        let r = &mut ranges[i];
+        if (r.start_line, r.start_character) < parent_start {
+            r.start_line = parent_start.0;
+            r.start_character = parent_start.1;
+        }
+        if (r.end_line, r.end_character) > parent_end {
+            r.end_line = parent_end.0;
+            r.end_character = parent_end.1;
+        }
+    }
+
     // Wire `parent_index` so each link points to its outward
     // neighbour.  The outermost link has `None`.
     let len = ranges.len();
@@ -432,6 +459,37 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = tcl_compiler::analyser::Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn chain_is_strictly_nested_for_mid_line_body() {
+        // RUST_ISSUE_110: a single-line-ish proc whose body ends mid-line
+        // (`set x 1 }` on line 1) must still yield a strictly-nested chain —
+        // every range contained by its outward neighbour.
+        let src = "proc foo {} {\n    set x 1 }\n";
+        let analysis = analyse(src);
+        let ranges = selection_range(src, 1, 5, Some(&analysis));
+        assert!(ranges.len() >= 2, "{ranges:?}");
+        // Each range must be contained by its parent (the next outward link).
+        let key = |l: u32, c: u32| (l, c);
+        for r in &ranges {
+            let Some(pi) = r.parent_index else { continue };
+            let p = &ranges[pi];
+            assert!(
+                key(p.range.start_line, p.range.start_character)
+                    <= key(r.range.start_line, r.range.start_character),
+                "parent must start at/before child: parent={:?} child={:?}",
+                p.range,
+                r.range,
+            );
+            assert!(
+                key(r.range.end_line, r.range.end_character)
+                    <= key(p.range.end_line, p.range.end_character),
+                "parent must end at/after child: parent={:?} child={:?}",
+                p.range,
+                r.range,
+            );
+        }
     }
 
     #[test]

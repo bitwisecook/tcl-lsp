@@ -54,7 +54,7 @@ use crate::sccp::ConstantBranch;
 use tcl_lexer::Span;
 
 use super::helpers::expr_simplify::{
-    instcombine_expr_typed, numeric_var_names, substitute_expr_constants,
+    OperandTypes, instcombine_expr_typed, operand_types, substitute_expr_constants,
     try_eq_ne_string_compare_simplify_expr, try_fold_expr, try_strength_reduce_expr_typed,
     try_strlen_simplify_expr, try_unwrap_expr_in_expr,
 };
@@ -127,7 +127,7 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     let constants = sccp_constants_for(fu);
     // Numeric-type context so identity rewrites (`$x + 0` → `$x`, etc.) on a
     // branch condition fire only when the dropped operand is provably numeric.
-    let numeric = numeric_var_names(fu);
+    let numeric = operand_types(fu);
     let folded: HashSet<String> = fu
         .sccp
         .constant_branches
@@ -240,7 +240,7 @@ fn branch_cascade(
     working: &str,
     sub_changed: bool,
     sub_text: &str,
-    numeric: &HashSet<String>,
+    numeric: &OperandTypes,
 ) -> Option<(DiagCode, &'static str, String)> {
     let (sred, sred_changed) = try_strength_reduce_expr_typed(working, Some(numeric));
     if sred_changed {

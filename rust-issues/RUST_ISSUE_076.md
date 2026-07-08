@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Analyser & diagnostics |
 | **Location** | `rust/tcl-compiler/src/analyser/mro.rs:139 & :164` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: medium) |
 
 ## Finding

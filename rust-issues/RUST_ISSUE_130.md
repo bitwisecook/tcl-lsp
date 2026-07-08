@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | CLIs & tools (tcl/mcp/pkg/sandbox) |
 | **Location** | `rust/tcl-cli/src/commands/minimize.rs:263` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: medium) |
 
 ## Finding

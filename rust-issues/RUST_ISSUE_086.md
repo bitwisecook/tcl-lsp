@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Lexer & syntax tree |
 | **Location** | `rust/tcl-lexer/src/expr_lexer.rs:328-334` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

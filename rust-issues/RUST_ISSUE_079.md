@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Command registry |
 | **Location** | `rust/tcl-registry/src/const_fold.rs:232` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

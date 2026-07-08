@@ -112,6 +112,11 @@ const DIALECT_NAMES: &[(DialectSet, &str)] = &[
     (DialectSet::TCL85, "tcl8.5"),
     (DialectSet::TCL86, "tcl8.6"),
     (DialectSet::TCL90, "tcl9.0"),
+    // `tcl9.1` and `bpf` were missing, so a `TCL90_PLUS` spec dropped its 9.1
+    // membership and a BPF-only spec serialised `"dialects": []`
+    // (indistinguishable from "available nowhere") — RUST_ISSUE_082.
+    (DialectSet::TCL91, "tcl9.1"),
+    (DialectSet::BPF, "bpf"),
     (DialectSet::TK, "tk"),
     (DialectSet::XILINX, "xilinx-eda-tcl"),
 ];
@@ -456,4 +461,39 @@ pub fn command_registry_snapshots(registry: &CommandRegistry, dialects: &[&str])
     m.insert("schema".to_owned(), Json::s("tcl-lsp/registry/commands/v1"));
     m.insert("dialects".to_owned(), Json::Object(by_dialect));
     Json::Object(m)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The rendered dialect-name strings for a set.
+    fn names(set: DialectSet) -> Vec<String> {
+        match dialects_json(Some(set)) {
+            Json::Array(items) => items
+                .into_iter()
+                .filter_map(|j| match j {
+                    Json::Str(s) => Some(s),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    #[test]
+    fn tcl90_plus_includes_tcl91() {
+        // RUST_ISSUE_082: a TCL90_PLUS spec must serialise BOTH tcl9.0 and
+        // tcl9.1 — 9.1 was silently dropped.
+        let n = names(DialectSet::TCL90_PLUS);
+        assert!(n.contains(&"tcl9.0".to_owned()), "{n:?}");
+        assert!(n.contains(&"tcl9.1".to_owned()), "{n:?}");
+    }
+
+    #[test]
+    fn bpf_only_spec_is_not_empty() {
+        // RUST_ISSUE_082: a BPF-only spec serialised `[]` (looks like
+        // "available nowhere"); it must render `["bpf"]`.
+        assert_eq!(names(DialectSet::BPF), vec!["bpf".to_owned()]);
+    }
 }

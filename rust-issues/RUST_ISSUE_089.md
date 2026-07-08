@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Lexer & syntax tree |
 | **Location** | `rust/tcl-syntax/src/expr/ast.rs:498-518` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

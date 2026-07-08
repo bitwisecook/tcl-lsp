@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Command registry |
 | **Location** | `rust/tcl-registry/src/commands/tcl/unset_.rs:69` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

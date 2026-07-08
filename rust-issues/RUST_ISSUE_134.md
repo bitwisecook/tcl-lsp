@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Build tooling & CI |
 | **Location** | `cargo xtask kcs-index-links` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Verified firsthand by reviewer |
 
 ## Finding

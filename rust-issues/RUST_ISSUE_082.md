@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Command registry |
 | **Location** | `rust/tcl-registry/src/command_snapshot.rs:103` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

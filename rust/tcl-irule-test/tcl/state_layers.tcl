@@ -573,7 +573,7 @@ namespace eval ::state {
             set groups($name) [list type $type records $records]
         }
 
-        proc match {name value args} {
+        proc match {name value operator args} {
             variable groups
             if {![info exists groups($name)]} {
                 error "class \"$name\" not found"
@@ -581,6 +581,10 @@ namespace eval ::state {
             set dg $groups($name)
             set type [lindex $dg 1]
             set records [lindex $dg 3]
+
+            # An empty operator (older call form) defaults to exact equality.
+            if {$operator eq ""} { set operator "equals" }
+            set nocase [expr {"-nocase" in $args}]
 
             # -name flag: check if key matches
             set check_name 0
@@ -591,7 +595,7 @@ namespace eval ::state {
 
             switch -exact -- $type {
                 string {
-                    return [_match_string $records $value $check_name $check_value]
+                    return [_match_string $records $value $operator $check_name $check_value $nocase]
                 }
                 ip {
                     return [_match_ip $records $value]
@@ -645,12 +649,43 @@ namespace eval ::state {
             return [expr {[llength $records] / 2}]
         }
 
-        proc _match_string {records value check_name check_value} {
+        proc _match_string {records value operator check_name check_value nocase} {
             foreach {k v} $records {
-                if {$check_name && [string equal $k $value]} { return 1 }
-                if {$check_value && [string equal $v $value]} { return 1 }
+                if {$check_name && [_cmp_string $value $k $operator $nocase]} { return 1 }
+                if {$check_value && [_cmp_string $value $v $operator $nocase]} { return 1 }
             }
             return 0
+        }
+
+        # Compare a subject against one data-group record per the `class match`
+        # operator. On real TMM the record is the pattern and the subject is
+        # tested against it: `contains`/`starts_with`/`ends_with` ask whether the
+        # subject contains / begins with / ends with the record, and `equals`
+        # asks for exact equality (RUST_ISSUE_113). All are literal (no glob),
+        # with an optional case-insensitive fold.
+        proc _cmp_string {subject record operator nocase} {
+            if {$nocase} {
+                set subject [string tolower $subject]
+                set record [string tolower $record]
+            }
+            switch -exact -- $operator {
+                contains {
+                    return [expr {[string first $record $subject] >= 0}]
+                }
+                starts_with {
+                    return [expr {[string first $record $subject] == 0}]
+                }
+                ends_with {
+                    set rlen [string length $record]
+                    set slen [string length $subject]
+                    if {$rlen > $slen} { return 0 }
+                    return [expr {[string range $subject [expr {$slen - $rlen}] end] eq $record}]
+                }
+                equals -
+                default {
+                    return [string equal $subject $record]
+                }
+            }
         }
 
         proc _match_ip {records value} {

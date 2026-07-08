@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Lexer & syntax tree |
 | **Location** | `rust/tcl-lexer/src/structural_index.rs:314-323 (Builder::scan_top) and 756-762 (BraceBuilder::scan_script)` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

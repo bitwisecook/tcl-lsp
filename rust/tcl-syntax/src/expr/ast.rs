@@ -496,6 +496,14 @@ fn needs_parens_for_unary(operand: &ExprNode) -> bool {
 
 /// Return `true` when a binary child needs parentheses to preserve semantics.
 fn needs_parens_for_binary_child(parent_op: BinOp, child: &ExprNode, is_right: bool) -> bool {
+    // A ternary (`?:`) has lower precedence than every binary operator, so as a
+    // child of a binary op it ALWAYS needs parentheses — on either side.
+    // `($a ? 1 : 2) + 3` must not render as `$a ? 1 : 2 + 3` (re-parses as
+    // `$a ? 1 : (2 + 3)`); `1 + ($a ? 2 : 3)` must not render as
+    // `1 + $a ? 2 : 3` (re-parses as `(1 + $a) ? 2 : 3`) — RUST_ISSUE_089.
+    if matches!(child, ExprNode::Ternary { .. }) {
+        return true;
+    }
     let ExprNode::Binary { op: child_op, .. } = child else {
         return false;
     };
@@ -683,6 +691,33 @@ mod tests {
             }),
         };
         assert_eq!(render_expr(&node), "1 + 2");
+    }
+
+    #[test]
+    fn ternary_child_of_binary_is_parenthesised() {
+        use crate::expr::parser::parse_expr;
+        // RUST_ISSUE_089: a ternary child of a binary op must round-trip with
+        // parens so it re-parses identically.
+        for src in [
+            "($a ? 1 : 2) + 3",
+            "3 + ($a ? 1 : 2)",
+            "($a ? 1 : 2) * ($b ? 3 : 4)",
+        ] {
+            let once = render_expr(&parse_expr(src, None));
+            let twice = render_expr(&parse_expr(&once, None));
+            assert_eq!(once, twice, "render must be stable for {src:?}");
+            assert!(
+                once.contains('('),
+                "ternary child must keep parens: {src:?} → {once:?}",
+            );
+        }
+        // Structural check: the rendered form must re-parse to a Binary at the
+        // top (not a Ternary), proving the ternary stayed grouped.
+        let node = parse_expr(&render_expr(&parse_expr("($a ? 1 : 2) + 3", None)), None);
+        assert!(
+            matches!(node, ExprNode::Binary { op: BinOp::Add, .. }),
+            "top node must remain `+`, got {node:?}",
+        );
     }
 
     #[test]

@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Optimiser passes (inlining/taint/expr-simplify) |
 | **Location** | `rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs:936,974` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

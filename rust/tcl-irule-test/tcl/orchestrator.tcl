@@ -803,14 +803,18 @@ namespace eval ::orch {
         set value [lindex $rest 3]
 
         set decisions [::itest::get_decisions $category]
+        # Collect EVERY decision with the matching action, not just the first.
+        # Breaking on the first match made `was_called_with` order-dependent:
+        # `pool a` then `pool b` would fail `was_called_with "b"` because only
+        # the leading `pool a` was inspected (RUST_ISSUE_117). This mirrors the
+        # classic `assert_decision`, which passes if ANY matching call carries
+        # the expected value.
         set found 0
-        set found_value ""
-
+        set found_args {}
         foreach d $decisions {
             if {[lindex $d 1] eq $action} {
                 set found 1
-                set found_value [lindex $d 2]
-                break
+                lappend found_args [lindex $d 2]
             }
         }
 
@@ -831,10 +835,14 @@ namespace eval ::orch {
                 if {!$found} {
                     return [_assert_fail "decision $category $action: was not called (expected with \"$value\")"]
                 }
-                if {[lindex $found_value 0] ne $value} {
-                    return [_assert_fail "decision $category $action: called with \"[lindex $found_value 0]\" not \"$value\""]
+                set actuals {}
+                foreach fa $found_args {
+                    if {[lindex $fa 0] eq $value} {
+                        return [_assert_pass]
+                    }
+                    lappend actuals [lindex $fa 0]
                 }
-                return [_assert_pass]
+                return [_assert_fail "decision $category $action: called with \{$actuals\} not \"$value\""]
             }
             default {
                 error "unknown decision verb \"$verb\" in assert that decision"

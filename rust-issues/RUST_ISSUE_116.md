@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | BIG-IP model & iRule-test |
 | **Location** | `rust/tcl-bigip/src/parser/helpers.rs:229` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: medium) |
 
 ## Finding

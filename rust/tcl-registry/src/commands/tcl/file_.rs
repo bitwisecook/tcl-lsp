@@ -92,8 +92,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        // TIP 323 (Tcl 8.6+) made the zero-argument form a legal no-op, so the
+        // arity floor is 0 for the modern dialects this registry targets. The
+        // tighter `>= 1` bound held only for 8.4/8.5, and the registry has no
+        // dialect-split arity to express that exception (RUST_ISSUE_084).
         name: "delete",
-        arity: Arity::at_least(1),
+        arity: Arity::at_least(0),
         detail: "Removes the file or directory specified by each pathname argument.",
         synopsis: "file delete ?-force? ?--? ?pathname ...?",
         return_type: Some(TclType::String),
@@ -254,8 +258,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        // TIP 323 (Tcl 8.6+): the zero-argument form is a legal no-op; the
+        // `>= 1` bound held only for 8.4/8.5 (RUST_ISSUE_084).
         name: "mkdir",
-        arity: Arity::at_least(1),
+        arity: Arity::at_least(0),
         detail: "Creates each directory specified.",
         synopsis: "file mkdir ?dir ...?",
         return_type: Some(TclType::String),
@@ -548,5 +554,23 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::registry::CommandRegistry;
+
+    #[test]
+    fn file_delete_and_mkdir_allow_zero_args() {
+        // RUST_ISSUE_084: TIP 323 (Tcl 8.6+) made `file delete` / `file mkdir`
+        // with no pathname a legal no-op — the arity floor must be 0, not 1, so
+        // a plain `file delete` draws no false wrong-#-args on 8.6/9.x.
+        let reg = CommandRegistry::build_default();
+        let file = reg.get("file").expect("file command");
+        for sub in ["delete", "mkdir"] {
+            let s = file.subcommand(sub).unwrap_or_else(|| panic!("file {sub}"));
+            assert_eq!(s.arity.min, 0, "`file {sub}` arity floor must be 0");
+        }
     }
 }
