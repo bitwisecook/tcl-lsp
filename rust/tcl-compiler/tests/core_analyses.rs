@@ -942,16 +942,16 @@ mod no_read_before_set {
     }
 
     #[test]
-    fn dict_for_body_local_set_diverges() {
-        // The analyser does not recover a body-local `set fileData $k` inside the
-        // opaque `dict for` barrier, so the following `$fileData` read is flagged
-        // (W210). In Tcl the body's `set` definitely defines fileData before the
-        // read, so the read is actually safe — a sound over-warn, asserted at the
-        // actual verdict.
+    fn dict_for_body_local_set_recovered() {
+        // `dict for`/`dict map` bodies are now lowered into real CFG blocks in
+        // the analysis build (issue #833), so a body-local `set fileData $k`
+        // definitely defines `fileData` before the following `$fileData` read —
+        // no W210. (Previously the opaque barrier hid the body-local set and this
+        // safe read was a false positive.)
         let src = "proc p {} {\n    dict for {k v} {a 1 b 2} {\n        set fileData $k\n        puts $fileData\n    }\n}\n";
         assert!(
-            fires(src, "W210"),
-            "Rust flags the body-local set inside `dict for`"
+            !fires(src, "W210"),
+            "body-local set inside `dict for` must define fileData before the read"
         );
     }
 
@@ -964,14 +964,14 @@ mod no_read_before_set {
     }
 
     #[test]
-    fn dict_map_body_local_set_diverges() {
-        // `dict map` is the lmap analogue — same body-recovery gap as
-        // `dict_for_body_local_set_diverges`. The analyser flags the body-local
-        // `set out $k`'s read (W210) though it is in fact safe. Sound over-warn.
+    fn dict_map_body_local_set_recovered() {
+        // `dict map` is the lmap analogue — same body recovery as
+        // `dict_for_body_local_set_recovered` (issue #833). The body-local
+        // `set out $k` defines `out` before the `list $out` read, so no W210.
         let src = "proc p {} {\n    dict map {k v} {a 1 b 2} {\n        set out $k\n        list $out\n    }\n}\n";
         assert!(
-            fires(src, "W210"),
-            "Rust flags the body-local set inside `dict map`"
+            !fires(src, "W210"),
+            "body-local set inside `dict map` must define out before the read"
         );
     }
 
