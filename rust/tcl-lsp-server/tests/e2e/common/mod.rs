@@ -313,9 +313,15 @@ impl Lsp {
         {
             let shared = Arc::clone(&shared);
             std::thread::spawn(move || {
-                let mut buf = String::new();
-                let _ = BufReader::new(stderr).read_to_string(&mut buf);
-                shared.stderr.lock().unwrap().push_str(&buf);
+                let mut reader = BufReader::new(stderr);
+                let mut line = String::new();
+                loop {
+                    line.clear();
+                    match reader.read_line(&mut line) {
+                        Ok(0) | Err(_) => break,
+                        Ok(_) => shared.stderr.lock().unwrap().push_str(&line),
+                    }
+                }
             });
         }
 
