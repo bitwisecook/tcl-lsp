@@ -174,9 +174,7 @@ fn loop_body_block(fu: &FunctionUnit) -> tcl_compiler::cfg::BlockId {
 
 /// Predecessor count per block — `refine_interval` requires a guarded branch
 /// target have a single entry edge before applying its constraint (issue 148).
-fn pred_counts(
-    fu: &FunctionUnit,
-) -> std::collections::HashMap<tcl_compiler::cfg::BlockId, usize> {
+fn pred_counts(fu: &FunctionUnit) -> std::collections::HashMap<tcl_compiler::cfg::BlockId, usize> {
     fu.cfg
         .predecessors()
         .into_iter()
@@ -867,7 +865,10 @@ mod guard_narrowing {
                     body,
                     "i",
                     ver,
-                    tcl_compiler::intervals::GuardTables { guard_index: &gi, pred_counts: &pc },
+                    tcl_compiler::intervals::GuardTables {
+                        guard_index: &gi,
+                        pred_counts: &pc,
+                    },
                 );
                 !r.is_top() && !r.is_bottom() && r.hi == Some(9)
             })
@@ -915,7 +916,10 @@ mod guard_narrowing {
                 body,
                 "i",
                 ver,
-                tcl_compiler::intervals::GuardTables { guard_index: &gi, pred_counts: &pc },
+                tcl_compiler::intervals::GuardTables {
+                    guard_index: &gi,
+                    pred_counts: &pc,
+                },
             );
             if r.is_bottom() {
                 continue;
@@ -999,4 +1003,3 @@ mod interval_arithmetic_observable {
         assert_eq!((header.lo, header.hi), (Some(0), None));
     }
 }
-

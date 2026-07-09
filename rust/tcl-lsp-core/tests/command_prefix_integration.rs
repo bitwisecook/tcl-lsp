@@ -147,7 +147,8 @@ fn regsub_command_prefix_fires_w123_only_when_unknown() {
     );
     // A defined head → recorded, no W123. (Without `-command` the same word is a
     // replacement template and is never treated as a command.)
-    let ok = "proc doSub {whole} { string toupper $whole }\nregsub -command {(\\w+)} $s doSub out\n";
+    let ok =
+        "proc doSub {whole} { string toupper $whole }\nregsub -command {(\\w+)} $s doSub out\n";
     let r = a.analyse(ok, "tcl9.0");
     assert!(
         !r.diagnostics.iter().any(|d| d.code.to_string() == "W123"),
@@ -460,9 +461,7 @@ fn struct_graph_walk_command_records_callback_with_arity() {
     let r = a.analyse(src, "tcl9.0");
     assert!(
         r.command_invocations.iter().any(|i| {
-            i.name == "onNode"
-                && i.callback_arity
-                    == Some(tcl_registry::AppendedArity::Exactly(3))
+            i.name == "onNode" && i.callback_arity == Some(tcl_registry::AppendedArity::Exactly(3))
         }),
         "`myG walk -command onNode` must record an onNode invocation with Exactly(3) callback arity"
     );
@@ -492,7 +491,8 @@ fn struct_graph_walk_command_var_handle_fires_w123_only_when_unknown() {
             .any(|d| d.code.to_string() == "W123"),
         "an unknown `$g walk -command` head must fire W123"
     );
-    let ok = "proc onNode {action g node} { }\nset g [struct::graph]\n$g walk root -command onNode\n";
+    let ok =
+        "proc onNode {action g node} { }\nset g [struct::graph]\n$g walk root -command onNode\n";
     assert!(
         !a.analyse(ok, "tcl9.0")
             .diagnostics
@@ -511,8 +511,7 @@ fn struct_tree_walkproc_trailing_prefix_is_recorded() {
     let r = a.analyse(src, "tcl9.0");
     assert!(
         r.command_invocations.iter().any(|i| {
-            i.name == "onN"
-                && i.callback_arity == Some(tcl_registry::AppendedArity::Exactly(3))
+            i.name == "onN" && i.callback_arity == Some(tcl_registry::AppendedArity::Exactly(3))
         }),
         "`myT walkproc … onN` must record an onN invocation with Exactly(3) callback arity"
     );

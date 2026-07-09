@@ -388,7 +388,10 @@ pub fn run_minimize(input: &InputArgs, no_rename: bool, json: bool) -> anyhow::R
     // Honour the shared `-o/--output FILE` flag (default stdout), issue 196.
     let target = OutputTarget::from_arg(input.output.as_deref());
     if json {
-        write_text_output(&target, &ensure_ascii(&serde_json::to_string_pretty(&results)?))?;
+        write_text_output(
+            &target,
+            &ensure_ascii(&serde_json::to_string_pretty(&results)?),
+        )?;
         return Ok(0);
     }
 

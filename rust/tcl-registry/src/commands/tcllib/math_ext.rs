@@ -2376,7 +2376,10 @@ const GROUPS: &[(&str, &[Row])] = &[
 /// variadic/ambiguous callbacks elsewhere that stay `Unknown`.
 const PREFIX_OVERRIDES: &[(&str, &[(u8, AppendedArity)])] = &[
     // `integral begin end nosteps func` — func(x).
-    ("math::calculus::integral", &[(3, AppendedArity::Exactly(1))]),
+    (
+        "math::calculus::integral",
+        &[(3, AppendedArity::Exactly(1))],
+    ),
     // `integral2D xinterval yinterval func` — func(x y).
     (
         "math::calculus::integral2D",
@@ -2406,7 +2409,10 @@ const PREFIX_OVERRIDES: &[(&str, &[(u8, AppendedArity)])] = &[
         "math::calculus::eulerStep",
         &[(3, AppendedArity::Exactly(2))],
     ),
-    ("math::calculus::heunStep", &[(3, AppendedArity::Exactly(2))]),
+    (
+        "math::calculus::heunStep",
+        &[(3, AppendedArity::Exactly(2))],
+    ),
     (
         "math::calculus::rungeKuttaStep",
         &[(3, AppendedArity::Exactly(2))],
@@ -2414,12 +2420,18 @@ const PREFIX_OVERRIDES: &[(&str, &[(u8, AppendedArity)])] = &[
     // `boundaryValueSecondOrder coeff_func force_func …` — two prefixes, each f(x).
     (
         "math::calculus::boundaryValueSecondOrder",
-        &[(0, AppendedArity::Exactly(1)), (1, AppendedArity::Exactly(1))],
+        &[
+            (0, AppendedArity::Exactly(1)),
+            (1, AppendedArity::Exactly(1)),
+        ],
     ),
     // `newtonRaphson func deriv initval` — func(x) and deriv(x).
     (
         "math::calculus::newtonRaphson",
-        &[(0, AppendedArity::Exactly(1)), (1, AppendedArity::Exactly(1))],
+        &[
+            (0, AppendedArity::Exactly(1)),
+            (1, AppendedArity::Exactly(1)),
+        ],
     ),
     // Root finders `f xb xe eps` — f(x).
     (
@@ -2451,7 +2463,10 @@ const PREFIX_OVERRIDES: &[(&str, &[(u8, AppendedArity)])] = &[
     ("math::probopt::sce", &[(0, AppendedArity::Exactly(1))]),
     ("math::probopt::diffev", &[(0, AppendedArity::Exactly(1))]),
     ("math::probopt::lipoMax", &[(0, AppendedArity::Exactly(1))]),
-    ("math::probopt::adaLipoMax", &[(0, AppendedArity::Exactly(1))]),
+    (
+        "math::probopt::adaLipoMax",
+        &[(0, AppendedArity::Exactly(1))],
+    ),
 ];
 
 /// All command specs in this group.

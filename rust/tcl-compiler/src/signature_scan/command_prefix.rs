@@ -102,10 +102,15 @@ pub(crate) fn instance_method_command_prefix_invocations(
     let arg_strs: Vec<&str> = method_arg_texts.iter().map(String::as_str).collect();
     let mut out = Vec::new();
     for (idx, appended) in registry.instance_method_command_prefixes(class, method, &arg_strs) {
-        let (Some(&tok), Some(text)) = (method_arg_tokens.get(idx), method_arg_texts.get(idx)) else {
+        let (Some(&tok), Some(text)) = (method_arg_tokens.get(idx), method_arg_texts.get(idx))
+        else {
             continue;
         };
-        if is_literal_bareword_head(tok, text, method_arg_single.get(idx).copied().unwrap_or(false)) {
+        if is_literal_bareword_head(
+            tok,
+            text,
+            method_arg_single.get(idx).copied().unwrap_or(false),
+        ) {
             out.push(CommandPrefixInvocation {
                 head: text.clone(),
                 span: tok.span,

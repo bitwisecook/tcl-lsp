@@ -2791,7 +2791,10 @@ mod tests {
             rx.lines().all(|l| !l.starts_with("| `|`")),
             "raw pipe token would break the row: {rx}"
         );
-        assert!(rx.contains("\\|"), "alternation `|` should be escaped: {rx}");
+        assert!(
+            rx.contains("\\|"),
+            "alternation `|` should be escaped: {rx}"
+        );
         // Glob alternation `{a,b}` has no pipe, but a bracketed pipe would; a
         // char-class-style pattern with `|` escapes too.
         let rxcc = regex_hover_text("[a|b]");

@@ -197,7 +197,10 @@ fn parse_pkg_index_multi_component_file_join_uses_slash() {
         &no_tcl_files,
     );
     assert_eq!(infos.len(), 1);
-    assert_eq!(infos[0].source_files, vec![dir.join("src").join("impl.tcl")]);
+    assert_eq!(
+        infos[0].source_files,
+        vec![dir.join("src").join("impl.tcl")]
+    );
 }
 
 #[test]
