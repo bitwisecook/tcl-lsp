@@ -202,6 +202,13 @@ struct Shared {
     responses: Mutex<HashMap<i64, Value>>,
     /// Buffered notifications, guarded by `notify_cv`.
     notifications: Mutex<Vec<Value>>,
+    /// Server-initiated *requests* (have an `id`, unlike notifications) —
+    /// e.g. `workspace/semanticTokens/refresh`, `workspace/diagnostic/refresh`,
+    /// `codeLens/refresh`. Captured separately from `notifications` (which only
+    /// holds id-less messages) so a test can assert the server actually asked
+    /// for a refresh, in addition to `auto_reply` answering it so the server
+    /// never blocks. Shares `notify_cv` for the same wait/wake contract.
+    server_requests: Mutex<Vec<Value>>,
     notify_cv: Condvar,
     /// The `tclLsp` configuration reply for `workspace/configuration`. Mutable
     /// so `apply_configuration` can change what the server re-pulls.
@@ -291,6 +298,7 @@ impl Lsp {
             stdin: Mutex::new(stdin),
             responses: Mutex::new(HashMap::new()),
             notifications: Mutex::new(Vec::new()),
+            server_requests: Mutex::new(Vec::new()),
             notify_cv: Condvar::new(),
             tcllsp_config: Mutex::new(config),
             stderr: Mutex::new(String::new()),
@@ -637,6 +645,43 @@ impl Lsp {
         }
     }
 
+    /// Block until a server-initiated *request* (has an `id`, unlike a
+    /// notification — e.g. `workspace/semanticTokens/refresh`) with `method`
+    /// arrives (searching entries at index `since` onward); return it. The
+    /// harness auto-replies to it regardless (see `auto_reply`), so this only
+    /// observes that the server asked, without blocking that reply.
+    pub fn await_server_request(&self, method: &str, timeout: Duration, since: usize) -> Value {
+        let deadline = Instant::now() + timeout;
+        let mut reqs = self.shared.server_requests.lock().unwrap();
+        loop {
+            if let Some(req) = reqs
+                .iter()
+                .skip(since)
+                .find(|n| n.get("method").and_then(Value::as_str) == Some(method))
+            {
+                return req.clone();
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            assert!(
+                !remaining.is_zero(),
+                "no server-initiated {method:?} request within {timeout:?}"
+            );
+            let (guard, _) = self.shared.notify_cv.wait_timeout(reqs, remaining).unwrap();
+            reqs = guard;
+        }
+    }
+
+    /// A marker into the server-request log for `await_server_request(...,
+    /// since)`, mirroring [`Lsp::notification_cursor`].
+    pub fn server_request_cursor(&self) -> usize {
+        self.shared.server_requests.lock().unwrap().len()
+    }
+
+    /// A snapshot of all buffered server-initiated requests.
+    pub fn server_requests(&self) -> Vec<Value> {
+        self.shared.server_requests.lock().unwrap().clone()
+    }
+
     /// Drop buffered notifications so a later `await_*` only sees fresh ones.
     pub fn clear_notifications(&self) {
         self.shared.notifications.lock().unwrap().clear();
@@ -919,7 +964,10 @@ fn route(msg: &Value, shared: &Arc<Shared>) {
             shared.responses.lock().unwrap().insert(id, msg.clone());
         }
     } else if has_id && is_request {
-        // Server-initiated request — answer so the server never blocks.
+        // Server-initiated request — record it (so a test can assert the
+        // server actually asked), then answer so the server never blocks.
+        shared.server_requests.lock().unwrap().push(msg.clone());
+        shared.notify_cv.notify_all();
         auto_reply(msg, shared);
     } else {
         // Notification.

@@ -26,6 +26,18 @@ Semantic tokens add highlighting for constructs the TextMate grammar cannot hand
 - **Per-chunk token cache**: Tokens are cached per top-level chunk (command).  After an edit, only dirty chunks are recomputed; unchanged chunks reuse cached absolute-position tokens.
 - **Fast source path**: On `didChange`, `update_source_quick()` updates source text and chunks on the event loop before yielding, so queued semantic-token requests can be served immediately with the new source — even before analysis completes.  A `workspace/semanticTokens/refresh` notification is sent after analysis finishes so editors re-request tokens with analysis enrichment (e.g. regex variable positions).
 - **`DocumentBuffer`**: All position conversions (offset-to-line/col, chunk line ranges) go through the shared `DocumentBuffer`, which caches the line-starts index and provides O(log n) lookups via `bisect`.
+- **Rust server — coarse/enriched tiering**: the native server races the
+  fully analysis-enriched result (retagged regex sources, resolved
+  object-method dispatch) against a 40 ms budget timer. A cold or very
+  large document serves the cheap coarse tier (segmenter + registry only)
+  immediately when the timer wins, then a `workspace/semanticTokens/refresh`
+  request is sent once the enriched result is ready and actually differs
+  from what was served — the same delta-triggering mechanism as the
+  Python fast-source path above, applied to the whole-document response
+  rather than the per-chunk cache. See
+  [`docs/design/rust/lsp-performance.md`](../../design/rust/lsp-performance.md)
+  §7 and [`docs/design/rust/incremental-analysis.md`](../../design/rust/incremental-analysis.md)
+  (Slice 6).
 
 ## File-path anchors
 
@@ -33,6 +45,9 @@ Semantic tokens add highlighting for constructs the TextMate grammar cannot hand
 - `shared/document_buffer.py`
 - `server/workspace/document_state.py` — chunk cache storage and `update_source_quick()`
 - `server/server.py` — `on_semantic_tokens_full`, `on_semantic_tokens_delta`
+- `rust/tcl-lsp-server/src/lib.rs` — `semantic_tokens_core_data` (fast-path
+  race), `SemanticTokensRefreshCtx`, `db_semantic_tokens`
+- `rust/tcl-lsp-db/src/lib.rs` — `semantic_tokens` salsa query
 
 ## Failure modes
 

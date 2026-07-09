@@ -71,6 +71,18 @@ does **not** flag them, for two reasons:
    inheritance is turned off. See
    [what config sections are valid](../kcs-qa-what-config-sections-are-valid.md).
 
+## A W120 that clears itself a moment after a workspace opens
+
+If an editor restores several tabs on startup, a module that inherits its
+`package require` from an entry file (see above) can briefly show a
+false-positive W120 until the server finishes scanning the workspace for
+`source` ancestors and package providers. The server re-checks every open
+document's diagnostics once that scan completes, so the warning should
+disappear on its own within the same startup window — no edit or manual
+restart needed. If a false-positive W120 persists after the workspace has
+clearly finished loading (the status bar shows the server is idle), that is
+a bug — open an issue with the workspace layout.
+
 ## How to suppress
 
 Add `# noqa: W120` at the end of the offending line.

@@ -392,6 +392,48 @@ mod tests {
     }
 
     #[test]
+    fn proc_wrapped_literal_flows_to_regexp() {
+        // Same shape as `single_literal_flows_to_regexp`, but the `set`/
+        // `regexp` pair lives inside a proc body rather than at top level —
+        // the per-function CFG/SSA path must resolve it the same way.
+        let got = spans_text(
+            "proc ::bench::regex_check {} {\n    set my_re \".*abc\"\n    regexp $my_re $s\n}\n",
+        );
+        assert_eq!(got, vec!["\".*abc\"".to_owned()]);
+    }
+
+    /// Regression guard (issue #829 investigation): the retag must still fire
+    /// when the enclosing proc sits alongside hundreds of unrelated ones in
+    /// the same file, matching the `large_file_semantic_tokens_refresh_delivers_enriched_result`
+    /// e2e fixture — proves the per-function CFG/SSA facts this depends on
+    /// don't get lost or truncated at scale.
+    #[test]
+    fn literal_flows_to_regexp_in_a_large_multi_proc_file() {
+        use std::fmt::Write as _;
+        let mut s = String::new();
+        s.push_str("namespace eval ::bench {\n    variable counter 0\n}\n\n");
+        for i in 0..600 {
+            let _ = write!(
+                s,
+                "# proc number {i}\n\
+                 proc ::bench::step{i} {{a b}} {{\n\
+                 \x20   set v{i} [expr {{$a + $b}}]\n\
+                 \x20   set msg \"step {i} = $v{i}\"\n\
+                 \x20   if {{$v{i} > 10}} {{\n\
+                 \x20       set v{i} [expr {{$v{i} + 1}}]\n\
+                 \x20   }}\n\
+                 \x20   return $v{i}\n\
+                 }}\n\n"
+            );
+        }
+        s.push_str(
+            "proc ::bench::regex_check {} {\n    set my_re \".*abc\"\n    regexp $my_re $s\n}\n",
+        );
+        let got = spans_text(&s);
+        assert_eq!(got, vec!["\".*abc\"".to_owned()]);
+    }
+
+    #[test]
     fn braced_literal_flows_to_regexp() {
         let got = spans_text("set re {a+b}\nregexp $re $s\n");
         assert_eq!(got, vec!["{a+b}".to_owned()]);

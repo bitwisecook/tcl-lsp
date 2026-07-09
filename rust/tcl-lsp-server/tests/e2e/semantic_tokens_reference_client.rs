@@ -522,6 +522,118 @@ fn large_file_latency_and_correctness() {
     }
 }
 
+/// Issue #829: the *first* `semanticTokens/full` response for a large,
+/// freshly-opened file — requested with no wait after `didOpen`, so nothing
+/// has warmed the analysis yet — must never be starved behind the whole-file
+/// analysis. This is the reported symptom verbatim: "in large files with many
+/// diagnostic messages, the highlighting sometimes does not arrive at all
+/// until forced again... It seems like there is a timeout after which the
+/// editors give up." `generate_big_tcl(600)` is the same fixture
+/// `large_file_latency_and_correctness` uses, whose measured *release-mode*
+/// cold-enriched latency (~110ms) already comfortably exceeds
+/// `SEMANTIC_TOKENS_FAST_PATH_BUDGET` (40ms) — so this request reliably
+/// exercises the fast-path fallback, not just a coincidentally-fast enriched
+/// computation.
+#[test]
+fn large_file_first_semantic_tokens_response_is_prompt() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let big = generate_big_tcl(600); // ~6000 lines.
+    let line_count = big.lines().count();
+    lsp.open_document_lang(&uri, &big, "tcl", 1);
+
+    let started = Instant::now();
+    let first = lsp.semantic_tokens(&uri);
+    let elapsed = started.elapsed();
+
+    let toks = decode_semantic_tokens(&first);
+    assert!(
+        !toks.is_empty(),
+        "the first response must carry real tokens (at minimum the coarse \
+         tier), not an empty placeholder"
+    );
+    eprintln!(
+        "large_file_first_semantic_tokens_response_is_prompt: {line_count} lines, \
+         {} tokens in {elapsed:?}",
+        toks.len(),
+    );
+    // Generous, environment-tolerant bound (unlike the release-only strict
+    // gate above): the whole point of the fast-path/coarse-fallback design is
+    // that first-response latency stops scaling with file size or system
+    // load, so this holds in debug builds and under CI contention too — not
+    // just release.
+    assert!(
+        elapsed < std::time::Duration::from_secs(10),
+        "first semanticTokens/full on a {line_count}-line cold file took \
+         {elapsed:?} — semantic tokens must never be starved behind the \
+         whole-file analysis (issue #829)",
+    );
+}
+
+/// Issue #829, the other half of the loop the previous test proves the start
+/// of: when the first token request for a large/cold file is served from the
+/// cheap coarse tier (the enriched computation did not land within the
+/// fast-path budget), the server must eventually push
+/// `workspace/semanticTokens/refresh` once the enriched result lands, so the
+/// editor re-requests and converges on the fully enriched tokens — "do the
+/// bulk of the semantic tokens first, then update the ones resolved in
+/// deeper analysis."
+#[test]
+fn large_file_semantic_tokens_refresh_delivers_enriched_result() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    // `generate_big_tcl` alone uses no construct the enriched tier treats
+    // differently from the coarse one (no `regexp`, no object dispatch), so
+    // the coarse and enriched streams would be byte-identical regardless of
+    // which one served the request — useless for detecting which tier
+    // actually won. Append one proc with a provably-constant regex source
+    // (the same shape `semantic_tokens_retags_constant_regex_source_true_positive`
+    // in tcl-lsp-db proves the enriched tier retags) so `same_tokens` below
+    // can actually tell the two tiers apart.
+    let big = format!(
+        "{}\nproc ::bench::regex_check {{}} {{\n    set my_re \".*abc\"\n    regexp $my_re $s\n}}\n",
+        generate_big_tcl(600)
+    );
+    lsp.open_document_lang(&uri, &big, "tcl", 1);
+
+    let since = lsp.server_request_cursor();
+    let first = decode_semantic_tokens(&lsp.semantic_tokens(&uri));
+    let truth = cold_tokens(&mut lsp, &big);
+
+    if same_tokens(&first, &truth) {
+        // The race was won this run (fast machine / the debounced diagnostics
+        // worker happened to prime the analysis first): the first response
+        // was already fully enriched, so there is nothing to refresh.
+        // `large_file_first_semantic_tokens_response_is_prompt`'s measured
+        // headroom (release cold ~110ms vs. a 40ms budget) makes this branch
+        // rare; when it does happen there is nothing left to assert here —
+        // the tiering mechanism itself is covered deterministically by
+        // tcl-lsp-db's `semantic_tokens_retags_constant_regex_source_true_positive`
+        // and `semantic_tokens_shares_incremental_analysis_with_diagnostics`.
+        eprintln!(
+            "large_file_semantic_tokens_refresh_delivers_enriched_result: \
+             fast path won the race, refresh not exercised this run"
+        );
+        return;
+    }
+
+    lsp.await_server_request(
+        "workspace/semanticTokens/refresh",
+        std::time::Duration::from_secs(15),
+        since,
+    );
+
+    // After the refresh, a fresh request must return the fully enriched
+    // stream — the loop actually converges, not just "some refresh fired".
+    let after_refresh = decode_semantic_tokens(&lsp.semantic_tokens(&uri));
+    assert!(
+        same_tokens(&after_refresh, &truth),
+        "after workspace/semanticTokens/refresh, a re-request must return the \
+         fully enriched tokens — {}",
+        first_divergence(&after_refresh, &truth)
+    );
+}
+
 // -- generators / small utils --------------------------------------------
 
 /// Byte offset -> (line, character) for an ASCII string.

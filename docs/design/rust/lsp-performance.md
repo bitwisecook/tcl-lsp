@@ -96,6 +96,46 @@ the passes over the shared unit. **practcl edit→diagnostics: ~1.4 s → ~1.3 s
 `tcl-registry`. (The exact cross-backend count remains a documented gap — the two
 registries' command coverage differs; it is a port-in-progress, not a logic bug.)
 
+### 7. Semantic-token prioritisation (#829)
+
+`semantic_tokens` fed the same coarse, uncancellable `file_analysis` query
+diagnostics had already moved off (§4) — a large edit's diagnostics ran
+detached and cancellable, but a concurrent `semanticTokens/full` request
+queued behind the same uncancellable whole-file walk and could be starved
+for the walk's full duration. It now shares `file_analysis_incremental`
+with diagnostics (`project_class_index` / `project_proc_var_index` also
+switched, matching the template `project_diagnostics` already used), so a
+token request and a diagnostics run reuse the same per-item memoised
+analysis instead of each re-walking the file.
+
+Sharing the cancellable query fixes staleness but not first-response
+latency on a very large file: the enriched analysis can still take longer
+than an editor's request timeout on a cold document. `semantic_tokens_core_data`
+now races the enriched result against a `SEMANTIC_TOKENS_FAST_PATH_BUDGET`
+(40 ms) timer (`tokio::select! { biased; … }`). Whichever finishes first
+wins: on a fast/warm file the enriched result serves directly; on a
+cold/large file the 40 ms timer wins and the request serves the cheap
+coarse tier (`core_semantic_tokens::full` — segmenter + registry only, no
+`CompilationUnit`) while the enriched computation keeps running detached.
+When it finishes, `SemanticTokensRefreshCtx::deliver_if_changed` diffs the
+result against the last tokens served for that URI and sends
+`workspace/semanticTokens/refresh` only if it actually differs, so the
+editor re-requests and gets the enriched tier without the server ever
+blocking the fast path on it. `semantic_tokens_range` mirrors the same
+tiering on cache miss (serves from the coarse tier via
+`range_with_cu_and_analysis(None, None, …)` instead of rebuilding a full
+`CompilationUnit` inline).
+
+A companion fix in the same investigation: workspace-informed diagnostic
+refinement (W120/W123, driven by `workspace_index` / `package_resolver`
+from `scan_workspace_folders`) is unconditional, not gated by the opt-in
+`xcDiagnostics` toggle — so `reschedule_all_open_documents` (previously
+`reschedule_xc_open_documents`, xc-only) now runs for **every** open
+document after `initialized`'s workspace scan, and on workspace-folder /
+watched-file changes. An editor that restores tabs before the scan
+completes (racing `initialized`) no longer keeps a stale false-positive
+W120 until the next edit.
+
 ## Where the remaining cost is
 
 The ~1.3 s diagnostic latency on an 8.5k-line file is dominated by the

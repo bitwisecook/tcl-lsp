@@ -200,6 +200,18 @@ impl DocumentState {
 /// diagnostics still feel immediate after typing stops.
 const DIAGNOSTICS_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(50);
 
+/// Upper bound `semantic_tokens_full`/`_delta` wait for the fully enriched
+/// (SSA/SCCP-informed: regex-source retagging, user-class object-method
+/// resolution) token stream before falling back to the cheap coarse tier
+/// (segmenter + registry only — no `CompilationUnit`/analysis) and letting the
+/// enriched computation finish in the background (issue #829: semantic tokens
+/// must not block indefinitely on a large/cold file's whole-file analysis).
+/// Comparable to [`DIAGNOSTICS_DEBOUNCE`]: in the common case the diagnostics
+/// worker has already primed the shared per-item analysis for this revision,
+/// so the enriched query is a cache hit well inside this budget and callers
+/// never see the fallback.
+const SEMANTIC_TOKENS_FAST_PATH_BUDGET: std::time::Duration = std::time::Duration::from_millis(40);
+
 /// One document edit's complete, self-consistent diagnostics input — captured
 /// together so the analysed text, the published version, and the salsa input
 /// handle all describe the *same* revision (no divergence between a `documents`
@@ -234,6 +246,48 @@ struct PullDiagEntry {
     /// an older edit is recomputed rather than served as current.
     revision: u64,
     diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
+}
+
+/// Owned handles for the detached semantic-tokens background continuation —
+/// the enriched (SSA/SCCP-informed) computation [`Backend::semantic_tokens_core_data`]
+/// keeps running after [`SEMANTIC_TOKENS_FAST_PATH_BUDGET`] elapses, so it can
+/// still tell the client once it lands.  A small owned-handles struct (the
+/// [`DiagInputs`] pattern) rather than borrowing `Backend`, since the
+/// continuation runs on a detached `tokio::spawn` task with no lifetime tied to
+/// the originating request.
+struct SemanticTokensRefreshCtx {
+    client: Client,
+    last_semantic_tokens: SemanticTokensCache,
+}
+
+/// Per-URI cache of the last semantic-token stream served: `(resultId, packed
+/// integer data)`. Shared type alias for [`Backend::last_semantic_tokens`] and
+/// [`SemanticTokensRefreshCtx::last_semantic_tokens`] — the same cache, read
+/// and written from both the request-handling and the detached-continuation
+/// side.
+type SemanticTokensCache = Arc<Mutex<HashMap<Uri, (String, Vec<u32>)>>>;
+
+impl SemanticTokensRefreshCtx {
+    /// Compare the just-landed enriched token stream against whatever `uri`'s
+    /// cache currently holds (the coarse tier served while the enriched
+    /// computation was still running, or an earlier enriched stream); if it
+    /// differs, ask the client to re-request semantic tokens so the
+    /// enrichment (regex-source retagging, user-class object-method
+    /// resolution) reaches the editor without waiting for the next edit.
+    /// Deliberately does **not** write the cache itself — only a served
+    /// `full`/`full/delta` response does that (see [`Backend::last_semantic_tokens`]);
+    /// this only decides whether a refresh is worth asking for. Best-effort:
+    /// a client without `workspace/semanticTokens/refresh` support rejects the
+    /// request, which is harmless.
+    async fn deliver_if_changed(&self, uri: &Uri, data: &[u32]) {
+        let changed = {
+            let cache = self.last_semantic_tokens.lock().await;
+            cache.get(uri).is_none_or(|(_, cached)| cached != data)
+        };
+        if changed {
+            let _ = self.client.semantic_tokens_refresh().await;
+        }
+    }
 }
 
 /// Monotonic `result_id` for the pull-diagnostic cache.  A fresh id each time a
@@ -1263,8 +1317,11 @@ pub struct Backend {
     /// entire document, which keeps the client's token round-trip — and, for
     /// eglot, its stale-repaint window (issue #333) — small on large files.
     /// Keyed by URI; the entry is refreshed on every `full` / `full/delta`
-    /// response and evicted on `did_close`.
-    last_semantic_tokens: Mutex<HashMap<Uri, (String, Vec<u32>)>>,
+    /// response and evicted on `did_close`.  `Arc` so the detached
+    /// semantic-tokens background continuation (see
+    /// [`Backend::semantic_tokens_core_data`]) can compare the enriched result
+    /// it lands against what was last served, without borrowing `Backend`.
+    last_semantic_tokens: SemanticTokensCache,
     /// Serialises the document-sync notification handlers (`did_open` /
     /// `did_change` / `did_close`) so their buffer mutations apply in the exact
     /// order the client sent them.
@@ -1539,7 +1596,7 @@ impl Backend {
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
-            last_semantic_tokens: Mutex::new(HashMap::new()),
+            last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             edit_serialize: Mutex::new(()),
         }
     }
@@ -1758,10 +1815,18 @@ impl Backend {
         }
     }
 
-    /// Run the salsa `file_analysis` query for `uri` on a worker thread,
-    /// reading the current `SourceFile` input.  Returns `None` when the input
-    /// is absent or a concurrent edit cancels the read.  The returned `Arc`
-    /// shares the memoised analysis (no deep clone of `AnalysisResult`).
+    /// Run the salsa `file_analysis_incremental` query for `uri` on a worker
+    /// thread, reading the current `SourceFile` input.  Returns `None` when the
+    /// input is absent or a concurrent edit cancels the read.  The returned
+    /// `Arc` shares the memoised analysis (no deep clone of `AnalysisResult`).
+    ///
+    /// Uses the incremental, per-item-memoised, cancellable query (not the
+    /// coarse `file_analysis`) so every caller of this general-purpose
+    /// accessor — hover, completion, `semantic_tokens_range`'s fallback, and
+    /// anything else routed through [`Backend::cached_analysis`] —
+    /// shares the diagnostics worker's already-computed analysis for this
+    /// revision instead of paying for an independent whole-file walk
+    /// (issue #829).
     async fn db_file_analysis(
         &self,
         uri: &Uri,
@@ -1770,7 +1835,10 @@ impl Backend {
         let config = self.resolved_db_config(uri).await;
         let snapshot = self.db.lock().await.clone();
         tokio::task::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| tcl_lsp_db::file_analysis(&snapshot, file, config)).ok()
+            salsa::Cancelled::catch(|| {
+                tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+            })
+            .ok()
         })
         .await
         .ok()
@@ -1796,12 +1864,20 @@ impl Backend {
         .flatten()
     }
 
-    /// Run the salsa `semantic_tokens` query for `uri` on a worker thread.
-    /// `None` when the input is absent or a concurrent edit cancels the read.
+    /// Kick off the salsa `semantic_tokens` query for `uri` on a worker
+    /// thread, returning its `JoinHandle` immediately rather than awaiting it.
+    /// Lets a caller race the computation against a deadline (see
+    /// [`Backend::semantic_tokens_core_data`]) without losing the ability to
+    /// keep waiting on it — the task keeps running (and its result stays
+    /// salsa-memoised) whether or not the caller ever polls the handle again.
+    /// `None` when there is no salsa input for `uri` (nothing to kick off);
+    /// the handle itself resolves to `None` if a concurrent edit cancels the
+    /// read.
     async fn db_semantic_tokens(
         &self,
         uri: &Uri,
-    ) -> Option<tcl_lsp_core::semantic_tokens::SemanticTokens> {
+    ) -> Option<tokio::task::JoinHandle<Option<tcl_lsp_core::semantic_tokens::SemanticTokens>>>
+    {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = self.resolved_db_config(uri).await;
         // When the workspace has been indexed into a `Project`, resolve object
@@ -1810,7 +1886,7 @@ impl Backend {
         // local (single-file) hierarchy.
         let project = *self.db_project.lock().await;
         let snapshot = self.db.lock().await.clone();
-        tokio::task::spawn_blocking(move || {
+        Some(tokio::task::spawn_blocking(move || {
             salsa::Cancelled::catch(|| match project {
                 Some(project) => {
                     tcl_lsp_db::semantic_tokens_project(&snapshot, file, config, project)
@@ -1818,10 +1894,7 @@ impl Backend {
                 None => tcl_lsp_db::semantic_tokens(&snapshot, file, config),
             })
             .ok()
-        })
-        .await
-        .ok()
-        .flatten()
+        }))
     }
 
     /// Read the memoised `AnalysisResult` for `uri` from the query database, if
@@ -2235,34 +2308,104 @@ impl Backend {
         Ok(Some(lifted))
     }
 
-    /// Compute the packed semantic-token stream for `uri` — from the memoised
-    /// query when warm, else a worker-thread fallback so a parser panic surfaces
-    /// as a JSON-RPC error rather than crashing the server.
+    /// Compute the packed semantic-token stream for `uri`, prioritising a
+    /// prompt response over waiting for the fully enriched result (issue
+    /// #829).
+    ///
+    /// Races the memoised, SSA/SCCP-enriched `semantic_tokens` salsa query
+    /// against [`SEMANTIC_TOKENS_FAST_PATH_BUDGET`]. When it lands in time —
+    /// the common case, since the diagnostics worker has usually already
+    /// primed the shared per-item analysis for this revision — it is returned
+    /// directly, identical to a bare `db_semantic_tokens` call. When it does
+    /// not (a cold or very large file whose whole-file analysis is still
+    /// running, or a concurrent edit that cancelled the read), this returns
+    /// the cheap segmenter+registry-only tier
+    /// (`core_semantic_tokens::full`, no `CompilationUnit`/analysis) — the
+    /// bulk of the highlighting, immediately — while the enriched computation
+    /// keeps running in the background: it is salsa-memoised and shared with
+    /// the diagnostics worker regardless of who consumes it, so nothing is
+    /// wasted, and a `workspace/semanticTokens/refresh` follows once it lands
+    /// and actually differs from what was served, so the enrichment (regex
+    /// -source retagging, user-class object-method resolution) reaches the
+    /// editor without waiting for the next edit.
+    ///
+    /// When a `Project` is indexed, the background computation is
+    /// `semantic_tokens_project`, whose cross-file class/proc-role indices
+    /// (`project_class_index` / `project_proc_var_index`) analyse every
+    /// project file, not just this one — on a large workspace this can take
+    /// far longer than a single file's own analysis. That cost has always
+    /// existed; what this fast path changes is that it can no longer block a
+    /// token response — it only delays how soon the *refresh* follows.
     async fn semantic_tokens_core_data(
         &self,
         uri: &Uri,
         doc: &DocumentState,
     ) -> jsonrpc::Result<Vec<u32>> {
-        if let Some(tokens) = self.db_semantic_tokens(uri).await {
-            return Ok(tokens.data);
+        let Some(mut enriched) = self.db_semantic_tokens(uri).await else {
+            let registry = self.registry_for_dialect(&doc.dialect).await;
+            let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
+            // No salsa input for this document (unindexed buffer): build the
+            // unit and analysis fresh so regex-source highlighting and
+            // user-class object-method resolution still apply, matching the
+            // salsa path below.
+            return tokio::task::spawn_blocking(move || {
+                let cu = tcl_compiler::compilation_unit::CompilationUnit::build_for(
+                    &text, &registry, false,
+                );
+                let analysis = tcl_compiler::analyser::Analyser::new().analyse(&text, &dialect);
+                core_semantic_tokens::full_with_cu_and_analysis(
+                    &text,
+                    &dialect,
+                    &registry,
+                    Some(&cu),
+                    Some(&analysis),
+                )
+                .data
+            })
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("semantic_tokens worker panicked: {err}").into(),
+                data: None,
+            });
+        };
+
+        tokio::select! {
+            biased;
+            result = &mut enriched => {
+                if let Ok(Some(tokens)) = result {
+                    return Ok(tokens.data);
+                }
+                // A genuine salsa cancellation (a concurrent edit landed) or a
+                // worker panic — either way, don't retry inline or surface an
+                // error: fall through to the cheap coarse tier below so the
+                // caller still gets a prompt result. The edit that cancelled
+                // this read has already scheduled its own diagnostics run,
+                // which will prime a fresh enriched result for the next
+                // request.
+            }
+            () = tokio::time::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => {
+                // Too slow for a synchronous first paint. Detach a
+                // continuation that keeps waiting on the still-running
+                // enriched computation and asks the client to re-request once
+                // it lands, instead of blocking this response on it.
+                let refresh_ctx = SemanticTokensRefreshCtx {
+                    client: self.client.clone(),
+                    last_semantic_tokens: Arc::clone(&self.last_semantic_tokens),
+                };
+                let uri = uri.clone();
+                tokio::spawn(async move {
+                    if let Ok(Some(tokens)) = enriched.await {
+                        refresh_ctx.deliver_if_changed(&uri, &tokens.data).await;
+                    }
+                });
+            }
         }
+
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
-        // No salsa input for this document (unindexed buffer): build the unit
-        // and analysis fresh so regex-source highlighting and user-class
-        // object-method resolution still apply, matching the salsa path above.
         tokio::task::spawn_blocking(move || {
-            let cu =
-                tcl_compiler::compilation_unit::CompilationUnit::build_for(&text, &registry, false);
-            let analysis = tcl_compiler::analyser::Analyser::new().analyse(&text, &dialect);
-            core_semantic_tokens::full_with_cu_and_analysis(
-                &text,
-                &dialect,
-                &registry,
-                Some(&cu),
-                Some(&analysis),
-            )
-            .data
+            core_semantic_tokens::full(&text, &dialect, &registry).data
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -2375,32 +2518,14 @@ impl Backend {
         }
     }
 
-    /// Reschedule diagnostics for every open document that has cross-file
-    /// diagnostics enabled.  Called after a change to the workspace's on-disk
-    /// signature domain that did **not** originate from an open document's own
-    /// edit (a watched-file create / change / delete), so push-diagnostic clients
-    /// refresh their cross-file results instead of showing stale W123 / arity until
-    /// the caller is next touched.  Documents without `xcDiagnostics` enabled are
-    /// skipped — their diagnostics don't depend on other files.
-    async fn reschedule_xc_open_documents(&self) {
-        // Snapshot `(uri, dialect)` first so the per-document
-        // `xc_diagnostics_enabled` / `schedule_diagnostics` calls don't run while
-        // the `documents` lock is held.
-        let snapshot: Vec<(Uri, String)> = {
-            let docs = self.documents.lock().await;
-            docs.iter()
-                .map(|(uri, doc)| (uri.clone(), doc.dialect.clone()))
-                .collect()
-        };
-        for (uri, dialect) in snapshot {
-            if self.xc_diagnostics_enabled(&uri).await {
-                self.reschedule_diagnostics(uri, dialect).await;
-            }
-        }
-    }
-
-    /// Re-run diagnostics for every open document — used after a config change
-    /// (any `tclLsp.*` knob may have shifted, not just the cross-file ones).
+    /// Re-run diagnostics for every open document — used after a change to
+    /// shared workspace-wide state (config, folder set, or the on-disk
+    /// `workspace_index` / `package_resolver` domain) that did **not** originate
+    /// from an open document's own edit, so push-diagnostic clients refresh
+    /// results that depend on that state (cross-file `xcDiagnostics`, and the
+    /// always-on W120/W123 workspace refinement) instead of showing stale
+    /// diagnostics until the caller is next touched. Unconditional — the W120/W123
+    /// refinement runs for every document regardless of the `xcDiagnostics` toggle.
     async fn reschedule_all_open_documents(&self) {
         let snapshot: Vec<(Uri, String)> = {
             let docs = self.documents.lock().await;
@@ -4917,6 +5042,22 @@ impl LanguageServer for Backend {
         // Seed the cross-document index with on-disk project files
         // the editor hasn't opened yet.
         self.scan_workspace_folders().await;
+        // `initialized` fires concurrently with any `textDocument/didOpen` the
+        // client already queued for its restored tabs (`buffer_unordered`, see
+        // `edit_serialize`'s doc comment) — a document's first debounced
+        // diagnostics run (50ms) routinely completes before this scan does on
+        // anything but a trivial workspace. The always-on W120/W123 workspace
+        // refinement (`refine_workspace_w120`/`refine_workspace_w123`) reads
+        // `workspace_index` / `package_resolver`, which this scan is what
+        // populates — so a document opened at startup can publish a diagnostic
+        // (e.g. a false W120 for a command whose `package require` lives in an
+        // unopened `source` ancestor) computed against the still-empty stores,
+        // and nothing republishes it once the scan finishes. Reschedule every
+        // open document now so any diagnostics published before the scan
+        // completed are refreshed against the now-populated workspace state —
+        // the same pattern `did_change_watched_files` already uses after its
+        // own `scan_workspace_folders` call on a config change.
+        self.reschedule_all_open_documents().await;
     }
 
     async fn shutdown(&self) -> jsonrpc::Result<()> {
@@ -5203,13 +5344,18 @@ impl LanguageServer for Backend {
         if !params.event.added.is_empty() {
             self.scan_workspace_folders().await;
         }
-        // A folder add/remove shifts the salsa `Project` (and the cross-file
-        // resolution domain) without an open document's own edit, so reschedule
-        // open documents with cross-file diagnostics enabled — otherwise a
-        // push-diagnostic client keeps a stale suppressed-W123 / cross-file arity
-        // from a now-removed (or newly-added) folder.
+        // A folder add/remove shifts the salsa `Project`, `workspace_index` and
+        // `package_resolver` (the cross-file resolution domain *and* the
+        // always-on W120/W123 workspace-refinement inputs) without an open
+        // document's own edit, so reschedule every open document — otherwise a
+        // push-diagnostic client keeps a stale suppressed-W123 / cross-file
+        // arity, or a false W120 the refinement would now resolve, from a
+        // now-removed (or newly-added) folder. Unconditional
+        // `reschedule_all_open_documents` (not the narrower `xcDiagnostics`-only
+        // helper): the W120/W123 refinement runs for every document regardless
+        // of that opt-in toggle.
         if !removed.is_empty() || !params.event.added.is_empty() {
-            self.reschedule_xc_open_documents().await;
+            self.reschedule_all_open_documents().await;
         }
         // Per-folder config may differ between roots; re-pull so the resolved
         // settings reflect the new folder set.
@@ -5252,13 +5398,17 @@ impl LanguageServer for Backend {
             domain_changed = true;
         }
         // A watched (non-open) file's create/change/delete shifts the cross-file
-        // resolution domain, but no open document's own edit triggered it — so a
-        // push-diagnostic client would keep stale cross-file results (a suppressed
-        // W123, or an arity error sourced from the now-changed file) until the caller is
-        // next edited.  Reschedule open documents that have cross-file diagnostics
-        // enabled so their cross-file pass re-runs against the new domain.
+        // resolution domain *and* `workspace_index` (the always-on W120/W123
+        // workspace-refinement input), but no open document's own edit triggered
+        // it — so a push-diagnostic client would keep stale cross-file results (a
+        // suppressed W123, an arity error sourced from the now-changed file, or a
+        // false W120 the refinement would now resolve via a `source` ancestor)
+        // until the caller is next edited. Reschedule every open document — not
+        // just `xcDiagnostics`-enabled ones, since the W120/W123 refinement is
+        // unconditional — so both the cross-file pass and the refinement re-run
+        // against the new domain.
         if domain_changed {
-            self.reschedule_xc_open_documents().await;
+            self.reschedule_all_open_documents().await;
         }
         // Re-read config.ini / .tcl-lsp.ini and re-apply with full precedence,
         // then rebuild the package database (libraryPaths may have changed) and
@@ -6416,30 +6566,26 @@ impl LanguageServer for Backend {
             end_character: params.range.end.character,
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        // Reuse the memoised unit + analysis when the document is indexed; else
-        // build fresh — so regex-source highlighting and user-class
-        // object-method resolution are consistent with the full stream.
+        // Reuse the memoised unit + analysis when the document is indexed and
+        // they land promptly; otherwise fall back to the cheap
+        // segmenter+registry-only tier (`cu`/`analysis` both `None`) rather
+        // than paying for an independent fresh whole-file rebuild here (issue
+        // #829) — a viewport request that misses the cache is filtered from
+        // the same coarse walk `semantic_tokens_full` falls back to, not a
+        // second uncancellable analysis.
         let cached_cu = self.db_compilation_unit(&params.text_document.uri).await;
         let cached_analysis = self.db_file_analysis(&params.text_document.uri).await;
         // Pure-CPU tokenisation on a worker so a parser panic is contained
         // as a JSON-RPC error.
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
         let core_data = tokio::task::spawn_blocking(move || {
-            let cu = cached_cu.unwrap_or_else(|| {
-                Arc::new(tcl_compiler::compilation_unit::CompilationUnit::build_for(
-                    &text, &registry, false,
-                ))
-            });
-            let analysis = cached_analysis.unwrap_or_else(|| {
-                Arc::new(tcl_compiler::analyser::Analyser::new().analyse(&text, &dialect))
-            });
             core_semantic_tokens::range_with_cu_and_analysis(
                 &text,
                 &dialect,
                 core_range,
                 &registry,
-                Some(&cu),
-                Some(&analysis),
+                cached_cu.as_deref(),
+                cached_analysis.as_deref(),
             )
             .data
         })
@@ -12343,7 +12489,7 @@ mod tests {
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
-            last_semantic_tokens: Mutex::new(HashMap::new()),
+            last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             edit_serialize: Mutex::new(()),
         }
     }
@@ -12941,6 +13087,114 @@ mod tests {
         assert!(
             backend.diag_slots.lock().await.contains_key(&caller),
             "an open xcDiagnostics document must be rescheduled after a watched-file delete",
+        );
+    }
+
+    /// Issue #829 regression: the always-on W120/W123 workspace refinement
+    /// (`refine_workspace_w120`/`refine_workspace_w123`) is not gated by
+    /// `xcDiagnostics`, so a watched-file domain change must reschedule
+    /// *every* open document — not just `xcDiagnostics`-enabled ones. Before
+    /// the fix, `did_change_watched_files` rescheduled only the narrower
+    /// `xcDiagnostics` subset, leaving a plain document's stale W120 (e.g.
+    /// from a `source` ancestor that only just appeared on disk) unrefreshed.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn watched_file_delete_reschedules_non_xc_document_too() {
+        let backend = test_backend();
+        // No `xcDiagnostics` toggle — a plain document.
+        let caller = Uri::from_str("file:///plain-caller.tcl").unwrap();
+        backend.documents.lock().await.insert(
+            caller.clone(),
+            DocumentState::new("helper x\n".to_owned(), "tcl8.6".to_owned()),
+        );
+
+        let deleted = Uri::from_str("file:///lib.tcl").unwrap();
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp_server::ls_types::FileEvent {
+                    uri: deleted,
+                    typ: FileChangeType::DELETED,
+                }],
+            })
+            .await;
+
+        assert!(
+            backend.diag_slots.lock().await.contains_key(&caller),
+            "a plain (non-xcDiagnostics) open document must also be rescheduled \
+             after a watched-file delete, since the W120/W123 workspace \
+             refinement is unconditional",
+        );
+    }
+
+    /// Issue #829 regression, folder-add variant of the test above: adding a
+    /// workspace folder scans it into `workspace_index` / `package_resolver`
+    /// (the always-on W120/W123 refinement's inputs), so every open document
+    /// must be rescheduled — not just `xcDiagnostics`-enabled ones.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn workspace_folder_add_reschedules_non_xc_document_too() {
+        let backend = test_backend();
+        let caller = Uri::from_str("file:///plain-caller2.tcl").unwrap();
+        backend.documents.lock().await.insert(
+            caller.clone(),
+            DocumentState::new("helper x\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        let root = unique_scratch_dir("folder-add-reschedule");
+
+        backend
+            .did_change_workspace_folders(DidChangeWorkspaceFoldersParams {
+                event: tower_lsp_server::ls_types::WorkspaceFoldersChangeEvent {
+                    added: vec![tower_lsp_server::ls_types::WorkspaceFolder {
+                        uri: Uri::from_file_path(&root).unwrap(),
+                        name: "folder-add-reschedule".to_owned(),
+                    }],
+                    removed: Vec::new(),
+                },
+            })
+            .await;
+
+        assert!(
+            backend.diag_slots.lock().await.contains_key(&caller),
+            "a plain (non-xcDiagnostics) open document must also be rescheduled \
+             after a workspace-folder add",
+        );
+    }
+
+    /// Issue #829 root-cause regression test: reproduces the exact race from
+    /// the reported bug. `initialized()` kicks off `scan_workspace_folders`
+    /// (which can take a while on a real workspace) but, before the fix,
+    /// never rescheduled already-open documents once it completed — so a
+    /// document opened at the same time as `initialized` fires (a client's
+    /// normal startup sequence: `initialize` -> `initialized` with
+    /// `didOpen` for restored tabs arriving concurrently, see
+    /// `edit_serialize`'s doc comment) could have its first diagnostics
+    /// published against the still-empty `workspace_index` /
+    /// `package_resolver`, and nothing ever corrected it. Asserting the
+    /// document is rescheduled after `initialized()` proves the fix; that the
+    /// refinement itself is correct once rescheduled is proven separately by
+    /// `source_graph_inheritance_suppresses_w120_in_sourced_module`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn initialized_reschedules_open_documents_after_workspace_scan() {
+        let backend = test_backend();
+        // A document referencing a package-gated command with no local
+        // `package require` — the same shape as the reported
+        // `::report::defstyle` false positive.
+        let caller = Uri::from_str("file:///startup-caller.tcl").unwrap();
+        backend.documents.lock().await.insert(
+            caller.clone(),
+            DocumentState::new("helper x\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        assert!(
+            backend.diag_slots.lock().await.is_empty(),
+            "sanity: no diagnostics scheduled before initialized() runs",
+        );
+
+        backend.initialized(InitializedParams {}).await;
+
+        assert!(
+            backend.diag_slots.lock().await.contains_key(&caller),
+            "an open document must be rescheduled once initialized()'s \
+             scan_workspace_folders completes, so a diagnostics run that \
+             raced ahead of the scan gets corrected instead of standing \
+             indefinitely",
         );
     }
 
@@ -14706,6 +14960,115 @@ mod tests {
                 .expect("ok")
                 .is_some(),
             "semanticTokens enabled must yield a token set",
+        );
+    }
+
+    /// Issue #829: for an *indexed* document (a real `didOpen`-style session,
+    /// via `db_set_source`), `semantic_tokens_full` must always serve one of
+    /// the two well-defined tiers `semantic_tokens_core_data` can produce —
+    /// the enriched result (when the race in `SEMANTIC_TOKENS_FAST_PATH_BUDGET`
+    /// is won) or the cheap coarse tier (when it is not) — never anything
+    /// else (garbage, empty, or a third shape). Deliberately does not assert
+    /// *which* tier wins: `spawn_blocking` scheduling latency under a loaded
+    /// test runtime can legitimately push even a trivial document past the
+    /// budget, which is the fast-path/fallback design working as intended,
+    /// not a bug — `semantic_tokens_retags_constant_regex_source_true_positive`
+    /// (tcl-lsp-db) is the deterministic proof that the enriched tier itself
+    /// produces the richer result when computed directly.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn semantic_tokens_full_serves_a_well_defined_tier_when_indexed() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///indexed.tcl").unwrap();
+        let src = "set my_re \".*abc\"\nregexp $my_re $s\n";
+        backend
+            .db_set_source(&uri, src.to_owned(), "tcl9.0".to_owned())
+            .await;
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new(src.to_owned(), "tcl9.0".to_owned()),
+        );
+
+        let served = backend
+            .semantic_tokens_full(SemanticTokensParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+            })
+            .await
+            .expect("ok")
+            .expect("semanticTokens enabled must yield a token set");
+        let SemanticTokensResult::Tokens(served) = served else {
+            panic!("expected a full token stream, not a delta");
+        };
+
+        let enriched = backend
+            .db_semantic_tokens(&uri)
+            .await
+            .expect("indexed document has a JoinHandle")
+            .await
+            .expect("worker did not panic")
+            .expect("not cancelled");
+        let registry = backend.registry_for_dialect("tcl9.0").await;
+        let coarse = core_semantic_tokens::full(src, "tcl9.0", &registry);
+
+        assert!(!served.data.is_empty(), "must never serve an empty stream");
+        assert!(
+            served.data == lift_semantic_token_data(&enriched.data)
+                || served.data == lift_semantic_token_data(&coarse.data),
+            "served tokens must be exactly the enriched tier or exactly the \
+             coarse tier, never a third shape",
+        );
+    }
+
+    /// Direct unit coverage of `SemanticTokensRefreshCtx::deliver_if_changed`
+    /// — the detached continuation's only logic. It must never write the
+    /// shared cache (only a served `full`/`full/delta` response does that),
+    /// regardless of whether the landed result matches what is cached.
+    #[tokio::test]
+    async fn semantic_tokens_refresh_ctx_never_mutates_the_cache() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///refresh-ctx.tcl").unwrap();
+        let ctx = SemanticTokensRefreshCtx {
+            client: backend.client.clone(),
+            last_semantic_tokens: Arc::clone(&backend.last_semantic_tokens),
+        };
+
+        // No cache entry yet: "changed" (there is nothing to match), but still
+        // must not write the cache itself.
+        ctx.deliver_if_changed(&uri, &[1, 2, 3]).await;
+        assert!(
+            backend
+                .last_semantic_tokens
+                .lock()
+                .await
+                .get(&uri)
+                .is_none(),
+            "deliver_if_changed must never write the semantic-tokens cache",
+        );
+
+        // Seed a cache entry as if a coarse response had just been served,
+        // then land an enriched result that matches it exactly.
+        backend
+            .last_semantic_tokens
+            .lock()
+            .await
+            .insert(uri.clone(), ("coarse-result-id".to_owned(), vec![1, 2, 3]));
+        ctx.deliver_if_changed(&uri, &[1, 2, 3]).await;
+        assert_eq!(
+            backend.last_semantic_tokens.lock().await.get(&uri).cloned(),
+            Some(("coarse-result-id".to_owned(), vec![1, 2, 3])),
+            "an unchanged landed result must leave the served cache entry \
+             exactly as it was",
+        );
+
+        // A landed result that differs from what was served: still must not
+        // overwrite the cache — only the next served response does that.
+        ctx.deliver_if_changed(&uri, &[9, 9, 9]).await;
+        assert_eq!(
+            backend.last_semantic_tokens.lock().await.get(&uri).cloned(),
+            Some(("coarse-result-id".to_owned(), vec![1, 2, 3])),
+            "deliver_if_changed must not overwrite the cache even when the \
+             landed result differs from what was served",
         );
     }
 

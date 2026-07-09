@@ -226,6 +226,13 @@ so only dirty regions are recomputed after an edit, and the server supports
 `textDocument/semanticTokens/full/delta` for bandwidth-efficient incremental
 updates.
 
+Token requests are prioritised over deeper analysis: a large or freshly
+opened file serves an immediate baseline response instead of waiting behind
+a full analysis pass, then the server pushes a refresh once the fully
+analysis-enriched tokens (regex-aware retagging, resolved object-method
+dispatch) are ready — so highlighting never stalls waiting on the analyser,
+only briefly starts coarser on a cold file.
+
 ```tcl
 namespace eval app {
     variable count 0            ;# 'count' highlighted as variable
