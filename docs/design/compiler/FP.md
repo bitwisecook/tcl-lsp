@@ -847,9 +847,33 @@ function ::f
   positional).  The receiver's class comes from the analyser's `instance_classes`
   map (`struct::graph name` or `set g [struct::graph]`); the compiler's
   `record_command_prefix_invocations` resolves the method's prefixes via
-  `CommandRegistry::instance_method_command_prefixes`.  Correctness (W123 /
-  arity / references / not-dead) rides on the foreground invocation record.
+  `CommandRegistry::instance_method_command_prefixes`.  This lights up W123 /
+  arity / references / call-graph edge / not-dead across **both** the whole-file
+  and the incremental/project paths (see the two follow-ups below).
   `struct::tree walk`'s loop-variable *script* is not a prefix and is unmodelled.
+- **Instance-method callbacks in the call graph + cross-file (the "long tail of
+  the long tail"):** two passes beyond the foreground analyser were taught the
+  receiver's object type, keyed off `object_types::object_handle_classes` — now
+  extended to harvest registry naming-factories (`struct::graph g` /
+  `set g [struct::graph]`) alongside its `[Class new]` + SSA/VTA signals:
+  (a) the **interprocedural** call-graph pass threads that map into
+  `scan_call_facts`, so an in-proc `$g walk … -command cb` becomes a real
+  `direct_calls` edge (call graph, O124 not-dead, purity/effects) — not just a
+  reference; (b) the **incremental per-item firewall** now binds registry
+  object-factories *eagerly* in an isolated proc body (they resolve from the
+  registry alone, no `all_classes`), where the old defer-to-graft left
+  `instance_classes` empty during the body's own callback recording — so an
+  in-proc instance callback resolves cross-file (arity + references) via
+  `project_diagnostics`, matching the whole-file walk.  (The
+  `signature_scan` walker, despite its name, indexes only class/proc
+  *definitions* — its `command_invocations` are unused for references, which come
+  from the foreground path — so it needs no object typing.)  The `OBJECT(class)`
+  typing is kept out of the SSA lattice's `return_type_for_command` on purpose:
+  W307/W308 aggregate `fu.types` object-insensitively across procs, so a
+  lattice-typed factory would leak a handle's class between same-named vars
+  (FP-OBJ-04).  Consequently object-flow through aliasing/collections is
+  syntactic-only for these factories (direct `struct::graph g` / `set g […]`
+  handles), not full VTA.
 - **Tk (`script()`→`command_prefix` conversion — separate commit):**
   `-xscrollcommand`/`-yscrollcommand` on 8 widgets (2), `scale`/`ttk::scale
   -command` (1), `scrollbar -command` (≥2), `menu -tearoffcommand` (2).  This is
@@ -868,13 +892,9 @@ function ::f
   *script* (`eval $cmd`, 0 appended), modelled `ArgRole::Body` +
   `BodyKind::Structural` — its `{…}` recurses for W123 / references but it is
   deliberately **not** a command prefix.
-- **Remaining (documented, not gaps):** for an object-instance method callback
-  only, the call-graph *visualisation* edge and cross-file (signature-scan)
-  references still need object-type tracking threaded into the interprocedural /
-  walker passes — single-file correctness (W123 / arity / references /
-  not-dead-code) already holds via the foreground invocation record.  The
-  `cmdprefix` drift guard's allowlist (`commands_naming_a_cmdprefix_declare_a_command_prefix`)
-  is now **empty** — every synopsis that names a `cmdprefix` declares a prefix.
+- **Drift guard:** the `cmdprefix` allowlist
+  (`commands_naming_a_cmdprefix_declare_a_command_prefix`) is now **empty** —
+  every synopsis that names a `cmdprefix` declares a prefix.
 
 #### Reproducer
 
@@ -953,8 +973,14 @@ all-optional-tail proc draws no arity error; a tail also claimed by a non-proc
 - `tcl-registry::instance_method_command_prefixes_cover_struct_graph_and_tree` +
   `command_prefix_integration.rs::struct_graph_walk_command_records_callback_with_arity` /
   `struct_graph_walk_command_var_handle_fires_w123_only_when_unknown` /
-  `struct_tree_walkproc_trailing_prefix_is_recorded` (object-instance methods) +
+  `struct_tree_walkproc_trailing_prefix_is_recorded` (object-instance methods —
+  now also asserting the call-graph edge) +
   `tcl-lsp-db::callback_arity_struct_graph_walk_command_checked` / `_tree_walkproc_checked`
+- `tcl-compiler::object_types::registry_naming_factory_handles` (object-handle map
+  covers `struct::graph`/`::tree` naming + return forms) +
+  `interprocedural::instance_method_callback_is_a_direct_call` (IPC call-graph edge) +
+  `tcl-lsp-db::cross_file_in_proc_instance_method_callback_arity` (the per-item
+  firewall fix — an in-proc instance callback resolves cross-file)
 
 ---
 
