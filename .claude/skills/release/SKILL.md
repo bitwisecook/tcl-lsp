@@ -42,20 +42,17 @@ git pull origin main
 
 ### 3. Pre-release validation
 
-Every feature PR is expected to have run `make test-slow` locally before
-merge (the pre-PR gate; see AGENTS.md). If you have any doubt that `main`
-is green at this tip — or the release is cut from code that skipped the
-gate — run the full slow gate once against `main` before tagging:
+Every feature PR is expected to have passed `make check-all` before merge
+(the pre-push gate; see AGENTS.md). If you have any doubt that `main` is
+green at this tip, run the full suite once against `main` before tagging:
 
 ```bash
-make test-slow            # ~27 min
+make check-all             # lint + typecheck, all languages
+make test-ext test-rust runtime-rust-test test-emacs   # the heavier suites
 ```
 
-Otherwise the release simply reuses the already-run gate and continues.
-
-Release-only docs (`RELEASE_NOTES.md`, `docs/sphinx/changelog.md`) are excluded
-from the stamp fingerprint, so landing the release notes in step 6 will **not**
-invalidate this proof — the one pre-merge run carries through to the tag.
+Otherwise the release simply reuses the already-passing CI gate and
+continues.
 
 ### 4. Determine version bump
 

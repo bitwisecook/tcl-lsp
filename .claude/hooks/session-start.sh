@@ -437,10 +437,9 @@ install_rust() {
     done
     "$rustup_bin" default "${RUST_TOOLCHAIN}"
 
-    # The Zed extension's clippy check (`make check-rust`, used by
-    # `make test-slow`) cross-compiles to wasm32-wasip2, so the target
-    # has to be present in the toolchain.  Idempotent — rustup skips
-    # already-installed targets.
+    # The Zed extension's clippy check (`make check-rust`) cross-compiles
+    # to wasm32-wasip2, so the target has to be present in the toolchain.
+    # Idempotent — rustup skips already-installed targets.
     for attempt in 1 2 3 4; do
         if "$rustup_bin" target add wasm32-wasip2 \
                 --toolchain "${RUST_TOOLCHAIN}"; then
@@ -475,7 +474,7 @@ install_rust() {
 }
 
 # ---------------------------------------------------------------------------
-# 6. Remaining test-slow host tools (tclsh, node, kotlinc, emacs, xvfb,
+# 6. Remaining host test tools (tclsh, node, kotlinc, emacs, xvfb,
 #    tshark, openssl, ping, rgxg, uv).  Delegated to the shared
 #    cross-platform installer so there's a single source of truth; the
 #    toolchains this hook installs bespoke above (with pinned versions +
@@ -487,7 +486,7 @@ install_remaining_test_deps() {
         echo "session-start: ensure-test-deps.sh missing at $installer" >&2
         return 1
     fi
-    echo "session-start: installing remaining test-slow host tools"
+    echo "session-start: installing remaining host test tools"
     env \
         SKIP_WASMTIME=1 \
         SKIP_BINARYEN=1 \
