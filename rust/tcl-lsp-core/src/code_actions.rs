@@ -1292,7 +1292,11 @@ fn split_tcl_words(line: &str) -> Vec<&str> {
         while i < n {
             match bytes[i] {
                 b'\\' if i + 1 < n => {
-                    i += 2;
+                    // Skip the backslash and the *whole* escaped character. A
+                    // fixed `i += 2` would land mid-codepoint when the escaped
+                    // char is multi-byte (e.g. `\€`); step its full UTF-8 width
+                    // so `i` always stays on a char boundary.
+                    i += 1 + utf8_char_width(bytes[i + 1]);
                     continue;
                 }
                 b'{' if !in_quote => brace += 1,
@@ -1305,11 +1309,25 @@ fn split_tcl_words(line: &str) -> Vec<&str> {
             }
             i += 1;
         }
-        // `start` and the break position are ASCII boundaries; a `\`-skip may
-        // leave `i` mid-char, so clamp to `n` (also an ASCII boundary).
+        // Every advance lands on a char boundary — whitespace and the grouping
+        // delimiters are ASCII, and the `\`-skip steps whole characters — so
+        // this slice is always valid; `i.min(n)` guards only the numeric bound.
         words.push(&line[start..i.min(n)]);
     }
     words
+}
+
+/// UTF-8 encoded length (1–4 bytes) of the character whose leading byte is `b`.
+/// ASCII, continuation bytes, and invalid leading bytes all count as 1 — so a
+/// scan that starts mid-sequence still makes forward progress rather than
+/// stalling.
+fn utf8_char_width(b: u8) -> usize {
+    match b {
+        0xC0..=0xDF => 2,
+        0xE0..=0xEF => 3,
+        0xF0..=0xF7 => 4,
+        _ => 1,
+    }
 }
 
 /// End index (exclusive) of a bare `$name` variable name in `chars` starting at
@@ -1880,6 +1898,27 @@ mod tests {
     use super::*;
     use tcl_compiler::analyser::{Analyser, AnalysisResult, CodeFix, Diagnostic};
     use tcl_lexer::Span;
+
+    #[test]
+    fn split_tcl_words_survives_non_ascii_backslash_escape() {
+        // A `\`-escape before a multi-byte char must not leave the scanner mid
+        // codepoint and panic the `&line[start..i]` slice (Copilot review of
+        // #839). `\€` (euro = 3 bytes) is the canonical trigger.
+        for line in [
+            "set x \\\u{20ac}",         // escape then a 3-byte char at end of line
+            "puts \\\u{20ac} tail",     // escaped multi-byte followed by another word
+            "a \\\u{1f600} b",          // 4-byte astral escaped char mid-line
+            "\\\u{e9}nd",               // escaped 2-byte char fused into a word
+        ] {
+            let words = split_tcl_words(line);
+            // Round-trip: the joined words (single-space) recover every word slice
+            // without ever slicing mid-char, and no word is empty.
+            assert!(!words.is_empty(), "no words for {line:?}");
+            for w in &words {
+                assert!(line.contains(w), "word {w:?} not a slice of {line:?}");
+            }
+        }
+    }
 
     fn whole_document_range(source: &str) -> LspRange {
         let line_count = source.lines().count().max(1);

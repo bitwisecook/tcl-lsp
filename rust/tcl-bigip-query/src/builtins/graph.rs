@@ -214,10 +214,6 @@ fn bi_references_to(args: &[Value], ctx: &mut EvalContext) -> Result<Value, Quer
     // resolves, matching `refs` / `referenced_by`; a single-root graph would
     // miss (or per-root duplicate) cross-file referrers under `--merge`
     // (issue 195).
-    // Merge mode joins every loaded source's graph so a cross-file referrer
-    // resolves, matching `refs` / `referenced_by`; a single-root graph would
-    // miss (or per-root duplicate) cross-file referrers under `--merge`
-    // (issue 195).
     let graph = if ctx.merge_mode {
         ctx.merged_graph()
     } else {
