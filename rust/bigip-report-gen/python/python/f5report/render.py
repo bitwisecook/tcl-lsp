@@ -46,9 +46,16 @@ from . import _engine
 _TOPO_TYPES = [
     {"k": k, "label": label}
     for k, label in [
-        ("vs", "Virtual"), ("pool", "Pool"), ("node", "Node"), ("mon", "Monitor"),
-        ("rule", "iRule"), ("prof", "Profile"), ("persist", "Persist"),
-        ("policy", "Policy"), ("snat", "SNAT"), ("dg", "DataGroup"),
+        ("vs", "Virtual"),
+        ("pool", "Pool"),
+        ("node", "Node"),
+        ("mon", "Monitor"),
+        ("rule", "iRule"),
+        ("prof", "Profile"),
+        ("persist", "Persist"),
+        ("policy", "Policy"),
+        ("snat", "SNAT"),
+        ("dg", "DataGroup"),
     ]
 ]
 
@@ -161,9 +168,15 @@ def render_report(
     # In-browser query console: the wasm build of the query engine, inlined.
     # Optional — a report still renders (minus the console) if the wasm artifacts
     # were not vendored (e.g. the toolchain was unavailable at build time).
-    if embed_console is not False and _has_vendor("f5query_wasm_bg.wasm") and _has_vendor("f5query_wasm.js"):
+    if (
+        embed_console is not False
+        and _has_vendor("f5query_wasm_bg.wasm")
+        and _has_vendor("f5query_wasm.js")
+    ):
         model["wasm_glue"] = _vendor_text("f5query_wasm.js")
-        model["wasm_b64"] = base64.b64encode(_vendor_bytes("f5query_wasm_bg.wasm")).decode("ascii")
+        model["wasm_b64"] = base64.b64encode(
+            _vendor_bytes("f5query_wasm_bg.wasm")
+        ).decode("ascii")
         model["console_js"] = _asset_text("console.js")
         # The iRule Format button reuses the same wasm engine (format_irule).
         model["irule_format_js"] = _asset_text("irule-format.js")

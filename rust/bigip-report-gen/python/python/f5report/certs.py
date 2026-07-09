@@ -160,7 +160,9 @@ def _build_pool(raw: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return pool
 
 
-def _resolve_chain(leaf: dict[str, Any], pool: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+def _resolve_chain(
+    leaf: dict[str, Any], pool: dict[str, dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Walk issuer → subject from ``leaf`` to a self-signed root (or a gap)."""
     if not leaf or not leaf.get("subject"):
         return []
@@ -194,8 +196,16 @@ def _resolve_chain(leaf: dict[str, Any], pool: dict[str, dict[str, Any]]) -> lis
         )
     # A trailing non-self-signed link means we couldn't reach the root.
     if out and not complete:
-        out.append({"role": "gap", "cn": chain[-1]["issuerCn"] or chain[-1]["issuer"],
-                    "subject": "", "issuerCn": "", "notAfter": "", "selfSigned": False})
+        out.append(
+            {
+                "role": "gap",
+                "cn": chain[-1]["issuerCn"] or chain[-1]["issuer"],
+                "subject": "",
+                "issuerCn": "",
+                "notAfter": "",
+                "selfSigned": False,
+            }
+        )
     return out
 
 
@@ -207,7 +217,10 @@ def collect_certs(sources: Sources, device: dict[str, Any]) -> list[dict[str, An
     device.
     """
     raw = json.loads(_engine.sys_file_ssl_certs_x509(sources))
-    keys = {k.get("full_path", ""): k for k in json.loads(_engine.sys_file_ssl_keys(sources))}
+    keys = {
+        k.get("full_path", ""): k
+        for k in json.loads(_engine.sys_file_ssl_keys(sources))
+    }
     pool = _build_pool(raw)
 
     # profile full-path -> [virtual names] using it, for the reverse map.
@@ -250,11 +263,15 @@ def collect_certs(sources: Sources, device: dict[str, Any]) -> list[dict[str, An
         else:
             san = _unquote(f.get("subject_alternative_name", ""))
         not_after_iso = x.get("not_after", "")
-        exp_string = _unquote(f.get("expiration_string", "")) or _human_date(not_after_iso)
+        exp_string = _unquote(f.get("expiration_string", "")) or _human_date(
+            not_after_iso
+        )
         exp_epoch = f.get("expiration_date", "") or _epoch(not_after_iso)
         serial = x.get("serial") or f.get("serial_number", "")
         key_type = f.get("key_type", "") or _key_type_from_x509(x.get("key_alg", ""))
-        key_size = f.get("key_size", "") or (str(x.get("key_size")) if x.get("key_size") else "")
+        key_size = f.get("key_size", "") or (
+            str(x.get("key_size")) if x.get("key_size") else ""
+        )
         fingerprint = x.get("fingerprint_sha256") or f.get("fingerprint", "")
 
         chain = _resolve_chain(x, pool) if x else []
@@ -276,7 +293,8 @@ def collect_certs(sources: Sources, device: dict[str, Any]) -> list[dict[str, An
                 "sigAlg": x.get("sig_alg", ""),
                 "serialNumber": serial,
                 "subjectAlternativeName": san,
-                "isBundle": f.get("is_bundle", "") or ("true" if f.get("x509_embedded") else ""),
+                "isBundle": f.get("is_bundle", "")
+                or ("true" if f.get("x509_embedded") else ""),
                 "sourcePath": f.get("source_path", ""),
                 "fromCertFile": bool(x),
                 "chain": chain,

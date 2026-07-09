@@ -17,6 +17,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """Tests for the native query-engine binding (`f5report._engine`)."""
+
 from __future__ import annotations
 
 import pathlib
@@ -74,7 +75,7 @@ def test_query_objectref_shape():
 def test_referenced_by_graph():
     sources = f5report.load_paths([UCS1])
     # Every pool -> the objects that reference it (the engine's graph builtin).
-    rows = f5report.query('.ltm.pool[] | {n:.name, by:referenced_by(.)}', sources)
+    rows = f5report.query(".ltm.pool[] | {n:.name, by:referenced_by(.)}", sources)
     by_name = {r["n"]: r["by"] for r in rows}
     # app1_t80_pool is used by the 443 virtual in this config.
     assert any("app1_t443_vs" in v for v in by_name.get("app1_t80_pool", []))
@@ -92,8 +93,14 @@ def test_per_file_grouping():
 def test_merge_mode_crosses_files():
     # Two small, non-colliding configs merged into one namespace: `.ltm.pool[]`
     # then enumerates pools from both sources together.
-    a = ("a.conf", "ltm pool /Common/pool_a {\n    members { /Common/n1:80 { address 10.0.0.1 } }\n}\n")
-    b = ("b.conf", "ltm pool /Common/pool_b {\n    members { /Common/n2:80 { address 10.0.0.2 } }\n}\n")
+    a = (
+        "a.conf",
+        "ltm pool /Common/pool_a {\n    members { /Common/n1:80 { address 10.0.0.1 } }\n}\n",
+    )
+    b = (
+        "b.conf",
+        "ltm pool /Common/pool_b {\n    members { /Common/n2:80 { address 10.0.0.2 } }\n}\n",
+    )
     names = f5report.query(".ltm.pool[] | .name", [a, b], merge=True)
     assert sorted(names) == ["pool_a", "pool_b"]
 

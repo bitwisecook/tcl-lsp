@@ -157,7 +157,9 @@ def _find_bundled_server():
     if os.path.isfile(pkg_zip):
         try:
             with zipfile.ZipFile(pkg_zip, "r") as zf:
-                server_members = [n for n in zf.namelist() if n.startswith(SERVER_DIR + "/")]
+                server_members = [
+                    n for n in zf.namelist() if n.startswith(SERVER_DIR + "/")
+                ]
                 if server_members:
                     dest = _cache_dir()
                     for member in server_members:
@@ -587,7 +589,9 @@ class TclDialectSyncListener(sublime_plugin.EventListener):
         if syntax is None or syntax.name not in _SYNTAX_DIALECT_MAP:
             return
         view.settings().set("_tcl_lsp_syn", True)
-        view.settings().add_on_change("tcl_dialect", functools.partial(_check_view_dialect, view))
+        view.settings().add_on_change(
+            "tcl_dialect", functools.partial(_check_view_dialect, view)
+        )
 
 
 # Helpers

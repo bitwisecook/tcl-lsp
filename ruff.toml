@@ -1,0 +1,31 @@
+# Ruff configuration for the repository's Python surface.
+#
+# Python is ancillary here — the product is Rust (plus the TypeScript editor
+# extensions).  What Python remains is the `f5report` package under
+# rust/bigip-report-gen/python/, the Claude skill drivers in .claude/skills/,
+# the Sublime Text plugin, and a handful of sample/experiment scripts.  None of
+# it had a formatter or linter until now, so this file adopts ruff's defaults
+# rather than inventing a house style: 88-column `ruff format` (black-compatible)
+# and the default lint rule set (pyflakes + a subset of pycodestyle).
+#
+# `rust/bigip-report-gen/python/pyproject.toml` declares no [tool.ruff] section,
+# so ruff's hierarchical config discovery walks up to this file for every
+# tracked .py file in the repo — one style, one config.
+#
+# Local: `make lint-py` (check) / `make format-py` (write).
+# CI: the `ruff` job in .github/workflows/ci.yml runs the same commands.
+
+# Repo-wide floor.  The skill drivers under .claude/skills/ use `match`, which is
+# 3.10+, so 3.10 is the oldest interpreter the tree as a whole actually parses.
+#
+# The `f5report` package is stricter — it declares `requires-python = ">=3.9"` —
+# and carries its own [tool.ruff] in rust/bigip-report-gen/python/pyproject.toml
+# pinning py39, so ruff still rejects 3.10-only syntax inside the shipped package
+# while tolerating it in the ancillary scripts.
+target-version = "py310"
+
+[lint.per-file-ignores]
+# Sample and experiment scripts are illustrative, not shipped: they legitimately
+# use `print` for output and are read top-to-bottom rather than imported.
+"samples/**/*.py" = ["E402"]
+"experiments/**/*.py" = ["E402"]

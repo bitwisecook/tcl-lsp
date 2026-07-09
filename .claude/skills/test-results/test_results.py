@@ -74,9 +74,13 @@ def parse_results_file(path: Path) -> SuiteResult:
     for line in path.read_text().splitlines():
         if section == "header":
             if line.startswith("TCLSH"):
-                sr.tclsh = line.split(None, 1)[1] if len(line.split(None, 1)) > 1 else ""
+                sr.tclsh = (
+                    line.split(None, 1)[1] if len(line.split(None, 1)) > 1 else ""
+                )
             elif line.startswith("VERSION"):
-                sr.version = line.split(None, 1)[1] if len(line.split(None, 1)) > 1 else ""
+                sr.version = (
+                    line.split(None, 1)[1] if len(line.split(None, 1)) > 1 else ""
+                )
             elif line.startswith("FILE"):
                 sr.file = line.split(None, 1)[1] if len(line.split(None, 1)) > 1 else ""
             elif line.startswith("DATE"):
@@ -117,7 +121,9 @@ def available_versions() -> list[str]:
     """Return sorted list of versions that have reference data."""
     if not REF_DIR.is_dir():
         return []
-    return sorted(d.name for d in REF_DIR.iterdir() if d.is_dir() and any(d.glob("*.results")))
+    return sorted(
+        d.name for d in REF_DIR.iterdir() if d.is_dir() and any(d.glob("*.results"))
+    )
 
 
 def available_suites(version: str) -> list[str]:
@@ -233,7 +239,9 @@ def extract_test_source(test_file: Path, test_name: str) -> dict | None:
     start_idx = None
     for i, line in enumerate(lines):
         stripped = line.lstrip()
-        if stripped.startswith(f"test {test_name} ") or stripped.startswith(f"test {test_name}\t"):
+        if stripped.startswith(f"test {test_name} ") or stripped.startswith(
+            f"test {test_name}\t"
+        ):
             start_idx = i
             break
 
@@ -540,7 +548,9 @@ def cmd_summary(version: str) -> None:
 
     print(f"Reference test results — Tcl {version}")
     print()
-    print(f"{'Suite':<30s} {'Total':>7s} {'Pass':>7s} {'Skip':>7s} {'Fail':>7s}  {'Rate':>6s}")
+    print(
+        f"{'Suite':<30s} {'Total':>7s} {'Pass':>7s} {'Skip':>7s} {'Fail':>7s}  {'Rate':>6s}"
+    )
     print(f"{'─' * 30:s} {'─' * 7:s} {'─' * 7:s} {'─' * 7:s} {'─' * 7:s}  {'─' * 6:s}")
 
     grand_total = grand_pass = grand_skip = grand_fail = 0
@@ -582,7 +592,9 @@ def cmd_suite(suite: str, version: str) -> None:
         print(f"  tclsh: {sr.tclsh}")
     if sr.date:
         print(f"  date:  {sr.date}")
-    print(f"  Total: {sr.total}  Passed: {sr.passed}  Skipped: {sr.skipped}  Failed: {sr.failed}")
+    print(
+        f"  Total: {sr.total}  Passed: {sr.passed}  Skipped: {sr.skipped}  Failed: {sr.failed}"
+    )
     print()
 
     # Group by status
@@ -722,12 +734,16 @@ def cmd_compare(suite: str, version: str) -> None:
 
     print(f"Cross-version comparison: {suite}")
     print()
-    print(f"{'Version':<10s} {'Total':>7s} {'Pass':>7s} {'Skip':>7s} {'Fail':>7s}  {'Rate':>6s}")
+    print(
+        f"{'Version':<10s} {'Total':>7s} {'Pass':>7s} {'Skip':>7s} {'Fail':>7s}  {'Rate':>6s}"
+    )
     print(f"{'─' * 10:s} {'─' * 7:s} {'─' * 7:s} {'─' * 7:s} {'─' * 7:s}  {'─' * 6:s}")
 
     for v in versions:
         if v not in results:
-            print(f"{'Tcl ' + v:<10s} {'—':>7s} {'—':>7s} {'—':>7s} {'—':>7s}  {'—':>6s}")
+            print(
+                f"{'Tcl ' + v:<10s} {'—':>7s} {'—':>7s} {'—':>7s} {'—':>7s}  {'—':>6s}"
+            )
             continue
         sr = results[v]
         rate = f"{sr.passed / sr.total * 100:.1f}%" if sr.total else "—"
@@ -884,7 +900,10 @@ def _oneline(text: str) -> str:
         lines = text.splitlines()
         if len(lines) <= 3:
             return " \\n ".join(line.strip() for line in lines)
-        return " \\n ".join(line.strip() for line in lines[:2]) + f" ... ({len(lines)} lines)"
+        return (
+            " \\n ".join(line.strip() for line in lines[:2])
+            + f" ... ({len(lines)} lines)"
+        )
     return text
 
 

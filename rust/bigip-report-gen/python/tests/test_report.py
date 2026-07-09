@@ -17,6 +17,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """Tests for the report model + HTML rendering."""
+
 from __future__ import annotations
 
 import pathlib
@@ -43,7 +44,15 @@ def test_model_shape():
 
 def test_device_has_all_sections():
     d = _model()["devices"][0]
-    for key in ("virtuals", "pools", "nodes", "monitors", "rules", "dataGroups", "profiles"):
+    for key in (
+        "virtuals",
+        "pools",
+        "nodes",
+        "monitors",
+        "rules",
+        "dataGroups",
+        "profiles",
+    ):
         assert key in d and isinstance(d[key], list)
     assert d["counts"]["virtuals"] == len(d["virtuals"])
 
@@ -89,7 +98,9 @@ def test_rule_events_in_firing_order():
         for r in d["rules"]:
             evs = r["events"]
             if "CLIENT_ACCEPTED" in evs and "CLIENTSSL_HANDSHAKE" in evs:
-                assert evs.index("CLIENT_ACCEPTED") < evs.index("CLIENTSSL_HANDSHAKE"), evs
+                assert evs.index("CLIENT_ACCEPTED") < evs.index(
+                    "CLIENTSSL_HANDSHAKE"
+                ), evs
 
 
 def test_relative_custom_profile_names_ordered_by_traffic():
@@ -109,7 +120,9 @@ def test_relative_custom_profile_names_ordered_by_traffic():
 
 def test_totals_sum_devices():
     m = _model()
-    assert m["totals"]["virtuals"] == sum(dv["counts"]["virtuals"] for dv in m["devices"])
+    assert m["totals"]["virtuals"] == sum(
+        dv["counts"]["virtuals"] for dv in m["devices"]
+    )
 
 
 def test_build_report_html_self_contained():
@@ -125,13 +138,15 @@ def test_build_report_html_self_contained():
     # they are user-initiated navigation, not loaded to run the report.
     assert 'src="http' not in html
     assert "<link " not in html
-    assert "cdn." not in html.split("<script id=\"f5-model\"")[0]
+    assert "cdn." not in html.split('<script id="f5-model"')[0]
 
 
 def test_wasm_console_embedded_when_vendored():
     from importlib import resources
 
-    have_wasm = resources.files("f5report.vendor").joinpath("f5query_wasm_bg.wasm").is_file()
+    have_wasm = (
+        resources.files("f5report.vendor").joinpath("f5query_wasm_bg.wasm").is_file()
+    )
     html = build_report(f5report.load_paths([UCS1]), title="Console")
     if have_wasm:
         assert 'id="f5-wasm"' in html  # base64 wasm blob embedded

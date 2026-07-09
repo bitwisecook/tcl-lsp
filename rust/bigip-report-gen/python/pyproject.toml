@@ -39,6 +39,15 @@ dependencies = [
 f5-report = "f5report.__main__:main"
 f5-report-web = "f5report.web:main"
 
+# This package is the one shipped Python artefact and supports 3.9 (see
+# `requires-python` above), which is older than the repo-wide floor in
+# //ruff.toml (py310, forced by `match` in the .claude/skills drivers).  Ruff
+# resolves config per-file by walking up from the file, so this section pins the
+# stricter target for everything under this directory and nothing else: 3.10-only
+# syntax is an error here, tolerated in the ancillary scripts.
+[tool.ruff]
+target-version = "py39"
+
 [tool.maturin]
 # Mixed Rust/Python layout: the native extension (`_engine`) is compiled into
 # the `f5report` package that lives under `python/`.

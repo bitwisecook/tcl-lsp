@@ -45,7 +45,11 @@ def _logo_data_uri(path: str) -> str:
     data = open(path, "rb").read()
     mime, _ = mimetypes.guess_type(path)
     if mime is None:
-        mime = "image/svg+xml" if path.lower().endswith(".svg") else "application/octet-stream"
+        mime = (
+            "image/svg+xml"
+            if path.lower().endswith(".svg")
+            else "application/octet-stream"
+        )
     return f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
 
 
@@ -55,39 +59,87 @@ def main(argv: list[str] | None = None) -> int:
         description="Generate an interactive HTML report from F5 BIG-IP configs "
         "or UCS archives, powered by the f5-query engine (via PyO3).",
     )
-    parser.add_argument("inputs", nargs="+", metavar="PATH",
-                        help="bigip.conf / SCF files or .ucs archives (plain or encrypted)")
-    parser.add_argument("-o", "--output", default="bigip-report.html",
-                        help="output HTML path (default: %(default)s; '-' for stdout)")
-    parser.add_argument("-t", "--title", default="F5 BIG-IP Configuration Report",
-                        help="report title")
-    parser.add_argument("--passphrase", default=None,
-                        help="passphrase for an encrypted UCS (or set $F5_UCS_PASSPHRASE)")
-    parser.add_argument("--f5mku", metavar="KEY", default=None,
-                        help="base64 unit master key (f5mku -K) — decrypts the config's "
-                        "$M$ secrets (SSL key passphrases, monitor/RADIUS/SNMP secrets)")
-    parser.add_argument("--f5mku-file", metavar="FILE", default=None,
-                        help="read the base64 master key from FILE (e.g. f5mku -K > key.txt)")
-    parser.add_argument("--include-extras", action="store_true",
-                        help="fold every config/*.conf UCS member (partitions, GTM) into the report")
-    parser.add_argument("--no-console", action="store_true",
-                        help="omit the in-browser WASM query console (smaller page; "
-                        "suitable for hosting where a strict CSP blocks WebAssembly)")
-    parser.add_argument("--copyright", metavar="TEXT", default=None,
-                        help="copyright / confidentiality notice shown in the report "
-                        "footer (screen, mobile and print); or read from --copyright-file")
-    parser.add_argument("--copyright-file", metavar="FILE", default=None,
-                        help="read the footer copyright notice from FILE")
-    parser.add_argument("--front-matter", metavar="FILE", default=None,
-                        help="Markdown file shown in a 'Front matter' tab at the front of "
-                        "the report (rendered to HTML at generation time)")
-    parser.add_argument("--logo", metavar="FILE", default=None,
-                        help="image file (PNG/JPEG/SVG/GIF/WebP) shown as the report's "
-                        "header logo; inlined as a data: URI so the report stays one file")
-    parser.add_argument("--json", action="store_true",
-                        help="emit the report model as JSON instead of HTML")
-    parser.add_argument("--version", action="version",
-                        version=f"f5-report {__version__} (engine {engine_version()})")
+    parser.add_argument(
+        "inputs",
+        nargs="+",
+        metavar="PATH",
+        help="bigip.conf / SCF files or .ucs archives (plain or encrypted)",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        default="bigip-report.html",
+        help="output HTML path (default: %(default)s; '-' for stdout)",
+    )
+    parser.add_argument(
+        "-t", "--title", default="F5 BIG-IP Configuration Report", help="report title"
+    )
+    parser.add_argument(
+        "--passphrase",
+        default=None,
+        help="passphrase for an encrypted UCS (or set $F5_UCS_PASSPHRASE)",
+    )
+    parser.add_argument(
+        "--f5mku",
+        metavar="KEY",
+        default=None,
+        help="base64 unit master key (f5mku -K) — decrypts the config's "
+        "$M$ secrets (SSL key passphrases, monitor/RADIUS/SNMP secrets)",
+    )
+    parser.add_argument(
+        "--f5mku-file",
+        metavar="FILE",
+        default=None,
+        help="read the base64 master key from FILE (e.g. f5mku -K > key.txt)",
+    )
+    parser.add_argument(
+        "--include-extras",
+        action="store_true",
+        help="fold every config/*.conf UCS member (partitions, GTM) into the report",
+    )
+    parser.add_argument(
+        "--no-console",
+        action="store_true",
+        help="omit the in-browser WASM query console (smaller page; "
+        "suitable for hosting where a strict CSP blocks WebAssembly)",
+    )
+    parser.add_argument(
+        "--copyright",
+        metavar="TEXT",
+        default=None,
+        help="copyright / confidentiality notice shown in the report "
+        "footer (screen, mobile and print); or read from --copyright-file",
+    )
+    parser.add_argument(
+        "--copyright-file",
+        metavar="FILE",
+        default=None,
+        help="read the footer copyright notice from FILE",
+    )
+    parser.add_argument(
+        "--front-matter",
+        metavar="FILE",
+        default=None,
+        help="Markdown file shown in a 'Front matter' tab at the front of "
+        "the report (rendered to HTML at generation time)",
+    )
+    parser.add_argument(
+        "--logo",
+        metavar="FILE",
+        default=None,
+        help="image file (PNG/JPEG/SVG/GIF/WebP) shown as the report's "
+        "header logo; inlined as a data: URI so the report stays one file",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the report model as JSON instead of HTML",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"f5-report {__version__} (engine {engine_version()})",
+    )
     args = parser.parse_args(argv)
 
     master_key = args.f5mku
@@ -101,7 +153,9 @@ def main(argv: list[str] | None = None) -> int:
     copyright_notice = args.copyright or ""
     if args.copyright_file:
         try:
-            copyright_notice = open(args.copyright_file, encoding="utf-8").read().strip()
+            copyright_notice = (
+                open(args.copyright_file, encoding="utf-8").read().strip()
+            )
         except OSError as exc:
             print(f"f5-report: could not read --copyright-file: {exc}", file=sys.stderr)
             return 2
@@ -133,19 +187,28 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.json:
             out = json.dumps(
-                collect_model(sources, title=args.title, master_key=master_key,
-                              copyright=copyright_notice, front_matter=front_matter,
-                              logo=logo),
-                indent=2, default=str,
+                collect_model(
+                    sources,
+                    title=args.title,
+                    master_key=master_key,
+                    copyright=copyright_notice,
+                    front_matter=front_matter,
+                    logo=logo,
+                ),
+                indent=2,
+                default=str,
             )
         else:
-            out = build_report(sources, title=args.title,
-                               embed_console=False if args.no_console else None,
-                               master_key=master_key,
-                               report_id=str(_uuid.uuid4()),
-                               copyright=copyright_notice,
-                               front_matter=front_matter,
-                               logo=logo)
+            out = build_report(
+                sources,
+                title=args.title,
+                embed_console=False if args.no_console else None,
+                master_key=master_key,
+                report_id=str(_uuid.uuid4()),
+                copyright=copyright_notice,
+                front_matter=front_matter,
+                logo=logo,
+            )
     except Exception as exc:  # noqa: BLE001 — surface a clean CLI error (e.g. wrong master key)
         print(f"f5-report: {exc}", file=sys.stderr)
         return 2

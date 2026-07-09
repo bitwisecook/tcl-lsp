@@ -21,8 +21,12 @@
 The lab UCS fixtures terminate no TLS, so an inline config with a
 ``sys file ssl-cert`` stanza exercises the projection + cross-reference.
 """
+
 from __future__ import annotations
 
+import os
+
+from f5report import load_paths
 from f5report.report import build_report, collect_model
 
 SCF = """
@@ -113,29 +117,34 @@ ltm virtual /Common/www_https_vs {
 
 
 def test_key_passphrase_encrypted_without_master_key():
-    c = collect_model([("inline.scf", SCF_ENC)], title="TLS")["devices"][0]["certificates"][0]
+    c = collect_model([("inline.scf", SCF_ENC)], title="TLS")["devices"][0][
+        "certificates"
+    ][0]
     assert c["hasKey"]
     assert c["keyPassphraseEncrypted"]
     assert c["keyPassphrase"].startswith("$M$")
 
 
 def test_master_key_decrypts_passphrase():
-    c = collect_model([("inline.scf", SCF_ENC)], title="TLS", master_key=F5MKU_KEY)["devices"][0]["certificates"][0]
+    c = collect_model([("inline.scf", SCF_ENC)], title="TLS", master_key=F5MKU_KEY)[
+        "devices"
+    ][0]["certificates"][0]
     assert c["keyPassphrase"] == "KEY45678"
     assert not c["keyPassphraseEncrypted"]
 
 
 def test_wrong_master_key_raises():
     import pytest
+
     with pytest.raises(Exception):
-        collect_model([("inline.scf", SCF_ENC)], title="TLS", master_key="AAAAAAAAAAAAAAAAAAAAAA==")
+        collect_model(
+            [("inline.scf", SCF_ENC)],
+            title="TLS",
+            master_key="AAAAAAAAAAAAAAAAAAAAAA==",
+        )
 
 
 # --- real certificate parsed out of the UCS filestore ------------------------
-
-import os
-
-from f5report import load_paths
 
 _FIXTURE = os.path.join(os.path.dirname(__file__), "data", "certs-chain.ucs")
 

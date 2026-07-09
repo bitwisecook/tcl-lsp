@@ -11,6 +11,7 @@ plain-text configs. Run it after editing any `device-NN.*.conf`::
 The source configs are real, published F5 example configurations — see
 PROVENANCE.md for exact origins.
 """
+
 from __future__ import annotations
 
 import gzip
@@ -22,14 +23,20 @@ HERE = pathlib.Path(__file__).parent
 
 # (output .ucs, [(tar member, source file), ...])
 ARCHIVES = [
-    ("lab-device-01.ucs", [
-        ("config/bigip.conf", "device-01.bigip.conf"),
-        ("config/bigip_base.conf", "device-01.bigip_base.conf"),
-    ]),
-    ("lab-device-02.ucs", [
-        ("config/bigip.conf", "device-02.bigip.conf"),
-        ("config/bigip_base.conf", "device-02.bigip_base.conf"),
-    ]),
+    (
+        "lab-device-01.ucs",
+        [
+            ("config/bigip.conf", "device-01.bigip.conf"),
+            ("config/bigip_base.conf", "device-01.bigip_base.conf"),
+        ],
+    ),
+    (
+        "lab-device-02.ucs",
+        [
+            ("config/bigip.conf", "device-02.bigip.conf"),
+            ("config/bigip_base.conf", "device-02.bigip_base.conf"),
+        ],
+    ),
 ]
 
 

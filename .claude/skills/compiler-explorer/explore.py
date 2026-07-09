@@ -141,7 +141,12 @@ def _view_slices(source: str, dialect: str) -> int:
             el, ec = _line_col(e, starts)
             kind = type(stmt).__name__
             rows.append(
-                (f"{kind:<14}", f"off {s}-{e}", f"[{sl}:{sc}-{el}:{ec}]", _slice_repr(source, s, e))
+                (
+                    f"{kind:<14}",
+                    f"off {s}-{e}",
+                    f"[{sl}:{sc}-{el}:{ec}]",
+                    _slice_repr(source, s, e),
+                )
             )
         if not rows:
             print(f"  {label}: (none)")
@@ -206,9 +211,13 @@ def main(argv: list[str] | None = None) -> int:
         "view",
         help="View to render: slices | tokens | lowlevel | any tcl-explorer --show name.",
     )
-    parser.add_argument("path", nargs="?", help="Tcl file to inspect, or '-' for stdin.")
+    parser.add_argument(
+        "path", nargs="?", help="Tcl file to inspect, or '-' for stdin."
+    )
     parser.add_argument("--source", help="Inline Tcl source to inspect.")
-    parser.add_argument("--dialect", default="tcl8.6", help="Dialect profile (default: tcl8.6).")
+    parser.add_argument(
+        "--dialect", default="tcl8.6", help="Dialect profile (default: tcl8.6)."
+    )
     parser.add_argument(
         "--opt",
         choices=("off", "on", "diff"),

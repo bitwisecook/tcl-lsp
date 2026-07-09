@@ -268,7 +268,9 @@ def categorise_differences(result: dict) -> list[str]:
     ours_done_count = result["ours_ops"].count("done")
     ref_done_count = result["ref_ops"].count("done")
     if ours_done_count > ref_done_count:
-        cats.append(f"extra-done: {ours_done_count - ref_done_count} extra done instructions")
+        cats.append(
+            f"extra-done: {ours_done_count - ref_done_count} extra done instructions"
+        )
 
     return cats
 
@@ -304,9 +306,7 @@ def cmd_summary(version: str) -> None:
         if result["match"]:
             matches += 1
         status = fmt_match(result["match"])
-        count_info = (
-            f"ours: {result['ours_count']:2d} instrs  {version}: {result['ref_count']:2d} instrs"
-        )
+        count_info = f"ours: {result['ours_count']:2d} instrs  {version}: {result['ref_count']:2d} instrs"
         diff = result["ours_count"] - result["ref_count"]
         diff_str = f"({'+' if diff > 0 else ''}{diff})" if diff != 0 else ""
         print(f"  {name:<25s} {status}  {count_info}  {diff_str}")
@@ -342,7 +342,9 @@ def cmd_diff(name: str, version: str) -> None:
     result = compare_snippet(name, version)
     print(f"{BOLD}=== {name} (vs tclsh {version}) ==={RESET}")
     print(f"Status: {fmt_match(result['match'])}")
-    print(f"Instruction counts: ours={result['ours_count']}, {version}={result['ref_count']}")
+    print(
+        f"Instruction counts: ours={result['ours_count']}, {version}={result['ref_count']}"
+    )
     print()
     _print_diff(result)
 
@@ -474,9 +476,7 @@ def cmd_versions(name: str) -> None:
 
         result = compare_snippet(name, version)
         status = fmt_match(result["match"])
-        count_info = (
-            f"ours: {result['ours_count']:2d} instrs  {version}: {result['ref_count']:2d} instrs"
-        )
+        count_info = f"ours: {result['ours_count']:2d} instrs  {version}: {result['ref_count']:2d} instrs"
         diff = result["ours_count"] - result["ref_count"]
         diff_str = f"({'+' if diff > 0 else ''}{diff})" if diff != 0 else ""
         print(f"  tclsh {version}:  {status}  {count_info}  {diff_str}")

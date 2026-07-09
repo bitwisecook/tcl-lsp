@@ -17,6 +17,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """Tests for the graph / listener / iRule-dynamic-action analysis layer."""
+
 from __future__ import annotations
 
 import pathlib
@@ -106,6 +107,7 @@ def test_irule_dynamic_actions_extraction():
 
 def test_ipv6_dot_port_destination_split():
     from f5report.report import _split_dest
+
     # IPv6 uses a dot before the port; the colons belong to the address.
     assert _split_dest("/Common/2001:db8::10.443") == ("2001:db8::10", "443")
     assert _split_dest("/Common/2001:db8::10") == ("2001:db8::10", "")
@@ -163,15 +165,25 @@ ltm virtual /Common/vs1 { destination /Common/10.0.0.1:80 pool /Common/used_pool
 def test_attach_reach_patterns():
     from f5report import _engine
     import json
-    reach = json.loads(_engine.irule_attach_patterns(
-        'when HTTP_REQUEST { set p "web_[HTTP::host]"; pool $p }'))
+
+    reach = json.loads(
+        _engine.irule_attach_patterns(
+            'when HTTP_REQUEST { set p "web_[HTTP::host]"; pool $p }'
+        )
+    )
     assert reach["pools"][0]["glob"] == "web_*"
     assert reach["pools"][0]["prefix"] == "web_"
     assert reach["pools"][0]["unconstrained"] is False
 
 
 def test_pattern_matches_helper():
-    web = {"prefix": "web_", "contains": [], "suffix": "", "exact": False, "unconstrained": False}
+    web = {
+        "prefix": "web_",
+        "contains": [],
+        "suffix": "",
+        "exact": False,
+        "unconstrained": False,
+    }
     assert graph._pattern_matches(web, "web_backend")
     assert not graph._pattern_matches(web, "db_backend")
 
@@ -215,11 +227,19 @@ def test_orphan_reachability_is_partition_aware():
 
 
 def test_pattern_reaches_partition_visibility():
-    web = {"prefix": "web_", "contains": [], "suffix": "", "exact": False, "unconstrained": False}
+    web = {
+        "prefix": "web_",
+        "contains": [],
+        "suffix": "",
+        "exact": False,
+        "unconstrained": False,
+    }
     # unqualified: reachable in its own partition or /Common, not a foreign one
     assert graph.pattern_reaches(web, "web_a", "/TenantA/web_a", "TenantA", {"TenantA"})
     assert graph.pattern_reaches(web, "web_c", "/Common/web_c", "Common", {"TenantA"})
-    assert not graph.pattern_reaches(web, "web_b", "/TenantB/web_b", "TenantB", {"TenantA"})
+    assert not graph.pattern_reaches(
+        web, "web_b", "/TenantB/web_b", "TenantB", {"TenantA"}
+    )
 
 
 SCF_PROC_CALL = """

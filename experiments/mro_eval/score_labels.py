@@ -94,7 +94,7 @@ def main(path: str) -> None:
             abstain_recallmiss += 1
 
     def pct(a, b):
-        return f"{100.0*a/b:.1f}%" if b else "n/a"
+        return f"{100.0 * a / b:.1f}%" if b else "n/a"
 
     print(f"labeled rows: {len(labeled)} (of {len(rows)} worksheet rows)")
     print()
@@ -108,7 +108,9 @@ def main(path: str) -> None:
     print()
     print("== method_known flag accuracy (resolved sites) ==")
     print(f"  accuracy = {m_ok}/{m_denom} = {pct(m_ok, m_denom)}")
-    print(f"  wrong flags (mostly false W308s from unlinked inheritance): {len(bad_flag)}")
+    print(
+        f"  wrong flags (mostly false W308s from unlinked inheritance): {len(bad_flag)}"
+    )
     print()
     print("== abstention audit ==")
     print(f"  correct abstentions (truth EXTERN/DYNAMIC): {abstain_correct}")
@@ -117,14 +119,18 @@ def main(path: str) -> None:
     if false_rows:
         print("\n-- FALSE RESOLUTIONS --")
         for r in false_rows:
-            print(f"  {r['file']}:{r['line']} ${r['var']} {r['method']} "
-                  f"→ {r['resolver_classes']} (truth {r['truth_class']})")
+            print(
+                f"  {r['file']}:{r['line']} ${r['var']} {r['method']} "
+                f"→ {r['resolver_classes']} (truth {r['truth_class']})"
+            )
     if bad_flag:
         print("\n-- WRONG method_known FLAGS (candidate false/missed W308) --")
         for r in bad_flag:
-            print(f"  {r['file']}:{r['line']} ${r['var']} {r['method']} "
-                  f"→ {r['resolver_verdict']} but method_exists={r['method_exists']}"
-                  f"  [{r.get('notes','')}]")
+            print(
+                f"  {r['file']}:{r['line']} ${r['var']} {r['method']} "
+                f"→ {r['resolver_verdict']} but method_exists={r['method_exists']}"
+                f"  [{r.get('notes', '')}]"
+            )
 
 
 if __name__ == "__main__":
