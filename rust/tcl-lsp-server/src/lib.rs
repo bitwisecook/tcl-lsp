@@ -6642,17 +6642,26 @@ impl LanguageServer for Backend {
             end_character: params.range.end.character,
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        // Await the memoised unit + analysis (no fast-path budget race here,
-        // unlike `semantic_tokens_full`) and fall back to the cheap
-        // segmenter+registry-only tier when the document isn't indexed yet
-        // (`cu`/`analysis` both `None`), rather than paying for an
-        // independent fresh whole-file rebuild here (issue #829) — a
-        // viewport request that misses the cache is filtered from the same
-        // coarse walk `semantic_tokens_full` falls back to, not a second
-        // uncancellable analysis. A cold document can still block on this
-        // await; it self-heals once diagnostics prime the cache.
-        let cached_cu = self.db_compilation_unit(&params.text_document.uri).await;
-        let cached_analysis = self.db_file_analysis(&params.text_document.uri).await;
+        // Race the memoised unit + analysis against the same fast-path budget
+        // `semantic_tokens_full` uses. On a warm/small document they land well
+        // inside it and the viewport is coloured with the enriched tier; on a
+        // cold/large one the budget wins and the cheap segmenter+registry-only
+        // tier serves immediately (`cu`/`analysis` both `None`) rather than
+        // blocking the viewport on a whole-file analysis (issue #829 —
+        // `db_compilation_unit`/`db_file_analysis` compute their query to
+        // completion, so without this bound a cold indexed file stalled here
+        // exactly as `semantic_tokens_full` used to). The dropped reads' salsa
+        // queries keep running memoised, so a later range/full request — or
+        // the diagnostics worker — still warms the enriched result; this only
+        // bounds *this* request's latency. Unlike `_full`, this does not push
+        // a `workspace/semanticTokens/refresh` once the reads land — a static
+        // cold viewport stays coarse until the next scroll/edit re-requests it.
+        let uri = &params.text_document.uri;
+        let (cached_cu, cached_analysis) = tokio::select! {
+            biased;
+            pair = async { (self.db_compilation_unit(uri).await, self.db_file_analysis(uri).await) } => pair,
+            () = tokio::time::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => (None, None),
+        };
         // Pure-CPU tokenisation on a worker so a parser panic is contained
         // as a JSON-RPC error.
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());

@@ -749,6 +749,23 @@ impl Lsp {
             json!({ "textDocument": { "uri": uri } }),
         )
     }
+    pub fn semantic_tokens_range(
+        &mut self,
+        uri: &str,
+        start: (u32, u32),
+        end: (u32, u32),
+    ) -> Value {
+        self.request(
+            "textDocument/semanticTokens/range",
+            json!({
+                "textDocument": { "uri": uri },
+                "range": {
+                    "start": { "line": start.0, "character": start.1 },
+                    "end": { "line": end.0, "character": end.1 },
+                },
+            }),
+        )
+    }
     pub fn implementation(&mut self, uri: &str, line: u32, ch: u32) -> Value {
         self.request("textDocument/implementation", Self::doc_pos(uri, line, ch))
     }

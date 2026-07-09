@@ -570,6 +570,56 @@ fn large_file_first_semantic_tokens_response_is_prompt() {
     );
 }
 
+#[test]
+fn large_file_range_semantic_tokens_response_is_prompt() {
+    // Mirrors the `full` test above for `semanticTokens/range`: a cold/large
+    // indexed file must not block a viewport request on the whole-file
+    // compilation-unit build + incremental analysis (issue #829's residual
+    // gap for range requests -- `db_compilation_unit`/`db_file_analysis`
+    // compute their query to completion with no fast-path budget, unlike
+    // `semantic_tokens_full`'s race against `SEMANTIC_TOKENS_FAST_PATH_BUDGET`).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let big = generate_big_tcl(600); // ~6000 lines.
+    let line_count = big.lines().count();
+    lsp.open_document_lang(&uri, &big, "tcl", 1);
+
+    // A viewport near the end of the file: if the fallback ever failed to
+    // filter to the requested range (e.g. silently serving the whole
+    // document), this range would still assert non-empty, but decoding
+    // confirms every token's line falls inside it.
+    let start = (u32::try_from(line_count).unwrap() - 20, 0);
+    let end = (u32::try_from(line_count).unwrap(), 0);
+
+    let started = Instant::now();
+    let first = lsp.semantic_tokens_range(&uri, start, end);
+    let elapsed = started.elapsed();
+
+    let toks = decode_semantic_tokens(&first);
+    assert!(
+        !toks.is_empty(),
+        "the first range response must carry real tokens (at minimum the \
+         coarse tier), not an empty placeholder"
+    );
+    assert!(
+        toks.iter()
+            .all(|t| t.line >= i64::from(start.0) && t.line < i64::from(end.0)),
+        "every token in a range response must fall inside the requested \
+         viewport: {toks:?}",
+    );
+    eprintln!(
+        "large_file_range_semantic_tokens_response_is_prompt: {line_count} lines, \
+         {} tokens in {elapsed:?}",
+        toks.len(),
+    );
+    assert!(
+        elapsed < std::time::Duration::from_secs(10),
+        "first semanticTokens/range on a {line_count}-line cold file took \
+         {elapsed:?} — a viewport request must never be starved behind the \
+         whole-file analysis (issue #829)",
+    );
+}
+
 /// Issue #829, the other half of the loop the previous test proves the start
 /// of: when the first token request for a large/cold file is served from the
 /// cheap coarse tier (the enriched computation did not land within the
