@@ -377,7 +377,8 @@ class LspClient:
             msg = self._pending.pop(req_id)
         if "error" in msg and msg["error"] is not None:
             raise LspError(f"{method} -> error {msg['error']}")
-        return msg.get("result")
+        result = msg.get("result")
+        return result if isinstance(result, dict) else {}
 
     def notify(self, method: str, params: dict) -> None:
         # Best-effort: a notification has no response to fail on, so a dead
