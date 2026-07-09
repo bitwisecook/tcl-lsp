@@ -786,19 +786,25 @@ ensure_wasi_sdk() {
 
     # Integrity: verify against the release's published SHA256SUMS.  (A hardcoded
     # per-arch pin, like the other tools carry, is a follow-up once the canonical
-    # version is fixed for this branch.)
-    if fetch_with_retry "${base}/SHA256SUMS" "$tmpdir/SHA256SUMS" 2>/dev/null; then
-        local expected actual
-        expected="$(awk -v f="$tarball" '{ n=$2; sub(/^\*/,"",n); if (n==f) { print $1; exit } }' "$tmpdir/SHA256SUMS")"
-        actual="$(sha256_file "$tmpdir/$tarball")"
-        if [ -n "$expected" ] && [ "$expected" != "$actual" ]; then
-            echo "ERROR: wasi-sdk sha256 mismatch (expected $expected, got $actual)" >&2
-            return 1
-        fi
-        [ -n "$expected" ] && info "wasi-sdk checksum verified against SHA256SUMS"
-    else
-        info "wasi-sdk SHA256SUMS not fetched; skipping checksum verification"
+    # version is fixed for this branch.)  Fail closed: a missing sidecar or a
+    # sidecar with no entry for this tarball means the artifact is unverified,
+    # so refuse it rather than installing on trust.
+    if ! fetch_with_retry "${base}/SHA256SUMS" "$tmpdir/SHA256SUMS" 2>/dev/null; then
+        echo "ERROR: could not fetch wasi-sdk SHA256SUMS; refusing to install unverified" >&2
+        return 1
     fi
+    local expected actual
+    expected="$(awk -v f="$tarball" '{ n=$2; sub(/^\*/,"",n); if (n==f) { print $1; exit } }' "$tmpdir/SHA256SUMS")"
+    actual="$(sha256_file "$tmpdir/$tarball")"
+    if [ -z "$expected" ]; then
+        echo "ERROR: wasi-sdk SHA256SUMS has no entry for ${tarball}; refusing to install unverified" >&2
+        return 1
+    fi
+    if [ "$expected" != "$actual" ]; then
+        echo "ERROR: wasi-sdk sha256 mismatch (expected $expected, got $actual)" >&2
+        return 1
+    fi
+    info "wasi-sdk checksum verified against SHA256SUMS"
 
     local prefix="/opt/wasi-sdk-${WASI_SDK_VERSION}"
     $SUDO rm -rf "$prefix"

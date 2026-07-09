@@ -17,7 +17,7 @@ import { readFileSync } from "node:fs";
 
 const path = process.argv[2];
 if (!path) {
-  console.error("usage: verify-explorer-wasm.mjs <path-to-bg.wasm>");
+  console.error("usage: verify-wasm-externref.mjs <path-to-bg.wasm>");
   process.exit(2);
 }
 
