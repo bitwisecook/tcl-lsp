@@ -433,6 +433,30 @@ pub fn namespace_parts_from_proc(qname: &str) -> Vec<String> {
 
 // Summary building (partial)
 
+/// The object-handle → candidate-class map
+/// ([`crate::object_types::object_handle_classes`]) supplied to the call-graph
+/// pass so a `$g walk … -command cb` instance-method callback resolves to a
+/// `direct_calls` edge.  A borrow-only newtype: it gives the public
+/// [`build_interprocedural_analysis`] a named parameter instead of a bare
+/// `HashMap` (whose default hasher would otherwise trip
+/// `clippy::implicit_hasher`).  Use [`ObjectTypeMap::none()`] when no object
+/// typing is available (an IR-only caller, or a context that needs no callback
+/// edges).
+#[derive(Clone, Copy)]
+pub struct ObjectTypeMap<'a>(pub &'a HashMap<String, HashSet<String>>);
+
+impl ObjectTypeMap<'static> {
+    /// The empty map — no object-handle typing (no instance-method callback
+    /// edges).  Backed by a process-wide empty map so it needs no local.
+    #[must_use]
+    pub fn none() -> Self {
+        ObjectTypeMap(&EMPTY_OBJECT_TYPES)
+    }
+}
+
+static EMPTY_OBJECT_TYPES: std::sync::LazyLock<HashMap<String, HashSet<String>>> =
+    std::sync::LazyLock::new(HashMap::new);
+
 /// Build conservative interprocedural summaries for every
 /// procedure in `ir_module`.
 ///
@@ -455,13 +479,13 @@ pub fn namespace_parts_from_proc(qname: &str) -> Vec<String> {
 /// - `effect_reads` / `effect_writes` — union over the direct
 ///   side-effects and the transitive closure's.
 #[must_use]
-#[allow(clippy::implicit_hasher)] // object_types comes from object_handle_classes (std hasher)
 pub fn build_interprocedural_analysis(
     ir_module: &crate::ir::Module,
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&str>,
-    object_types: &HashMap<String, HashSet<String>>,
+    object_types: ObjectTypeMap<'_>,
 ) -> InterproceduralAnalysis {
+    let object_types = object_types.0;
     let known: HashSet<String> = ir_module.procedures.keys().cloned().collect();
 
     let local = scan_all_procs(ir_module, &known, registry, dialect, object_types);
@@ -479,7 +503,10 @@ pub fn build_interprocedural_analysis(
     );
 
     // Summarise TclOO method bodies into `MethodSummary` entries
-    // (consumed by the O126 `my <method>` purity gate).
+    // (consumed by the O126 `my <method>` purity gate).  Method bodies are not
+    // iterated by the call graph and an unresolved `$obj method` self-dispatch
+    // already forces the method impure, so instance-method callback typing adds
+    // nothing here — method summaries need no object-type map.
     let methods = build_method_summaries(
         ir_module,
         &known,
@@ -488,7 +515,6 @@ pub fn build_interprocedural_analysis(
         &pure,
         &effect_reads,
         &effect_writes,
-        object_types,
     );
 
     InterproceduralAnalysis {
@@ -508,7 +534,6 @@ pub fn build_interprocedural_analysis(
 /// unproven peer method (sound: false negatives only). A redefined
 /// method is forced impure (we can't prove which body a dispatch
 /// runs).
-#[allow(clippy::too_many_arguments)] // interprocedural context threaded through
 fn build_method_summaries(
     ir_module: &crate::ir::Module,
     known: &HashSet<String>,
@@ -517,7 +542,6 @@ fn build_method_summaries(
     pure: &HashMap<String, bool>,
     effect_reads: &HashMap<String, EffectRegion>,
     effect_writes: &HashMap<String, EffectRegion>,
-    object_types: &HashMap<String, HashSet<String>>,
 ) -> HashMap<String, MethodSummary> {
     if ir_module.methods.is_empty() {
         return HashMap::new();
@@ -540,7 +564,8 @@ fn build_method_summaries(
             registry,
             dialect,
             params: &params,
-            object_types,
+            // Method bodies are not call-graph nodes; no object-type map needed.
+            object_types: ObjectTypeMap::none().0,
         };
         scan_script(&method.body, ctx, &mut facts);
         // Fall-through exit is non-constant (O103); see `scan_proc`.
@@ -2207,7 +2232,7 @@ mod tests {
     fn build(source: &str) -> InterproceduralAnalysis {
         let registry = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(source, &registry, false);
-        build_interprocedural_analysis(&cu.ir_module, &registry, None, &HashMap::new())
+        build_interprocedural_analysis(&cu.ir_module, &registry, None, ObjectTypeMap::none())
     }
 
     #[test]
@@ -2689,7 +2714,7 @@ mod effect_propagation_tests {
         ] {
             let module = lower_to_ir(src, &reg);
             let ia =
-                build_interprocedural_analysis(&module, &reg, Some("f5-irules"), &HashMap::new());
+                build_interprocedural_analysis(&module, &reg, Some("f5-irules"), ObjectTypeMap::none());
             let s = ia.procedures.get("::p").expect("proc ::p in IA");
             assert!(
                 s.effect_reads.contains(EffectRegion::HTTP_STATE),
@@ -2701,7 +2726,7 @@ mod effect_propagation_tests {
         // Plain statement: nested arg effects are NOT propagated.
         let module = lower_to_ir("proc q {} { matchclass [HTTP::uri] equals $::l }", &reg);
         let ia =
-            build_interprocedural_analysis(&module, &reg, Some("f5-irules"), &HashMap::new());
+            build_interprocedural_analysis(&module, &reg, Some("f5-irules"), ObjectTypeMap::none());
         let s = ia.procedures.get("::q").expect("proc ::q in IA");
         assert!(
             !s.effect_reads.contains(EffectRegion::HTTP_STATE),

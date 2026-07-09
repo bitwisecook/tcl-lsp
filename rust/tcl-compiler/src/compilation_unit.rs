@@ -885,7 +885,7 @@ impl CompilationUnit {
             &self.ir_module,
             registry,
             dialect,
-            &object_types,
+            crate::interprocedural::ObjectTypeMap(&object_types),
         );
 
         // Re-run taint with the new summary + dialect. We borrow
@@ -946,7 +946,7 @@ impl CompilationUnit {
             &self.ir_module,
             registry,
             dialect,
-            &object_types,
+            crate::interprocedural::ObjectTypeMap(&object_types),
         );
 
         // Top level is built fresh (no offset-0 lattice key), so its taint

@@ -776,7 +776,12 @@ pub fn optimise_raw(
         tcl_lexer::LexerConfig::for_dialect(dialect.unwrap_or_default()),
     );
     let object_types = crate::object_types::object_handle_classes(&cu, registry);
-    let ia = build_interprocedural_analysis(&cu.ir_module, registry, dialect, &object_types);
+    let ia = build_interprocedural_analysis(
+        &cu.ir_module,
+        registry,
+        dialect,
+        crate::interprocedural::ObjectTypeMap(&object_types),
+    );
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);
     // The whole-module builtin-fold trust gate (O129).

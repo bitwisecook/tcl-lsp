@@ -2066,7 +2066,7 @@ mod tests {
             &module,
             &registry(),
             None,
-            &std::collections::HashMap::new(),
+            crate::interprocedural::ObjectTypeMap::none(),
         );
         assert!(
             ia.procedures.contains_key("::ns::inner"),

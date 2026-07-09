@@ -505,6 +505,29 @@ mod tests {
     }
 
     #[test]
+    fn registry_factory_operator_form_binds_nothing() {
+        // `struct::graph = $serial` puts a deserialise *operator* (`=`) in the
+        // `?name?` slot — it names no object command, so neither
+        // `object_handle_classes` nor the analyser's `instance_classes` may bind
+        // it (a bogus `=` handle would suppress real W123/W307 and mis-resolve a
+        // command literally named `=`).
+        let registry = CommandRegistry::build_default();
+        for op in ["=", ":=", "as", "deserialize"] {
+            let src = format!("struct::graph {op} $serial\n");
+            let cu = CompilationUnit::build_for(&src, &registry, false);
+            assert!(
+                !object_handle_classes(&cu, &registry).contains_key(op),
+                "`struct::graph {op}` must not track `{op}` as an object handle"
+            );
+            let r = crate::analyser::Analyser::new().analyse(&src, "tcl9.0");
+            assert!(
+                !r.instance_classes.contains_key(op),
+                "`struct::graph {op}` must not bind `{op}` in instance_classes"
+            );
+        }
+    }
+
+    #[test]
     fn non_constructor_assignment_is_not_a_handle() {
         let registry = CommandRegistry::build_default();
         let src = "set x [expr {1 + 2}]\nset y hello\n";

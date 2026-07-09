@@ -1559,6 +1559,10 @@ impl Analyser {
         if let Some((idx, class_name)) = factory
             && let Some(name) = args.get(idx as usize)
             && is_plain_created_name(name)
+            // A `?name?` slot can instead hold a deserialise *operator*
+            // (`struct::graph = $serial` / `:= ` / `as ` / `deserialize `), which
+            // names no object command — never bind the operator token itself.
+            && !matches!(name.as_str(), "=" | ":=" | "as" | "deserialize")
         {
             let class = class_name.unwrap_or_else(|| cmd_name.to_string());
             self.result.instance_classes.insert(name.clone(), class);

@@ -218,7 +218,7 @@ impl Analyser {
                 &cu.ir_module,
                 registry,
                 Some(self.dialect.as_str()),
-                &std::collections::HashMap::new(),
+                crate::interprocedural::ObjectTypeMap::none(),
             );
             crate::interprocedural::build_proc_index_from_summaries(&ia)
         };
