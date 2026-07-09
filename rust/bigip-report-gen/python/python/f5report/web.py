@@ -37,6 +37,7 @@ import tempfile
 import uuid as _uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
+from typing import Any
 from urllib.parse import urlparse
 
 from . import _engine, engine_version, load_paths
@@ -232,7 +233,9 @@ class _Handler(BaseHTTPRequestHandler):
         )
         self._text(200, out, "application/json")
 
-    def log_message(self, *_args) -> None:  # keep the console quiet
+    def log_message(self, format: str, *args: Any) -> None:  # keep the console quiet
+        # Signature must match BaseHTTPRequestHandler.log_message, which callers
+        # may invoke with `format` as a keyword.
         pass
 
 

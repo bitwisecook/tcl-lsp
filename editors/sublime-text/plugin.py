@@ -212,16 +212,31 @@ def _check_view_dialect(view):
 
 
 # LSP AbstractPlugin — defined at module level so LSP can introspect it.
-# Guarded by try/except so the plugin loads even without the LSP package.
+# The sublimelsp/LSP package is optional: without it the syntax/commands half of
+# this plugin still loads, `TclLsp` stays None, and `_suggest_lsp_install` nudges
+# the user.  The class is bound to `TclLsp` in the `else` branch rather than
+# defined directly in the `try`, so the name has one type rather than two.
+TclLsp = None  # type: ignore[var-annotated]
 
 try:
     from LSP.plugin import (
-        AbstractPlugin,  # type: ignore[import-not-found]
-        register_plugin,  # type: ignore[import-not-found]
-        unregister_plugin,  # type: ignore[import-not-found]
+        AbstractPlugin,
+        register_plugin,
+        unregister_plugin,
     )
+except ImportError:
 
-    class TclLsp(AbstractPlugin):
+    def register_plugin(plugin):
+        # type: (type) -> None
+        raise RuntimeError("sublimelsp/LSP is not installed")
+
+    def unregister_plugin(plugin):
+        # type: (type) -> None
+        raise RuntimeError("sublimelsp/LSP is not installed")
+
+else:
+
+    class _TclLspPlugin(AbstractPlugin):
         """LSP client configuration for the tcl-lsp server."""
 
         @classmethod
@@ -277,8 +292,7 @@ try:
 
             return None
 
-except ImportError:
-    TclLsp = None  # type: ignore[assignment,misc]
+    TclLsp = _TclLspPlugin
 
 
 # Lifecycle
@@ -543,7 +557,11 @@ class TclUnminifyErrorCommand(sublime_plugin.WindowCommand):
         with open(map_path, "r", encoding="utf-8") as f:
             map_text = f.read()
         # Send to LSP
-        self.window.active_view().run_command(
+        view = self.window.active_view()
+        if view is None:
+            sublime.error_message("No active view to unminify into.")
+            return
+        view.run_command(
             "lsp_execute",
             {
                 "command_name": "tcl-lsp.unminifyError",
@@ -598,7 +616,7 @@ class TclDialectSyncListener(sublime_plugin.EventListener):
 
 
 def _is_tcl_view(view):
-    # type: (sublime.View) -> bool
+    # type: (sublime.View | None) -> bool
     """Return True if the view holds one of our package's syntaxes.
 
     Matches by scope rather than syntax-file path so it covers every

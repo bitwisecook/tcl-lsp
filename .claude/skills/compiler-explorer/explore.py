@@ -32,10 +32,10 @@ pipeline:
   source slices, so a mis-placed ``endOffset`` shows up directly.
 * ``cst`` — the parse tree as an indented tree with offsets.
 
-The Rust parser builds a single red-green CST directly, so there is no separate
-lexer token stream and no standalone "green tree" to dump: ``tokens`` reports the
-CST's *leaf* nodes, which are the terminal spans the compiler actually consumes.
-``greentree`` is accepted as a deprecated alias for ``cst``.
+The parser builds a single red-green CST directly, so there is no separate lexer
+token stream and no standalone "green tree" to dump: ``tokens`` reports the CST's
+*leaf* nodes, which are the terminal spans the compiler actually consumes.
+``greentree`` is accepted as an alias for ``cst``.
 
 ``cst``/``tokens`` are rendered here rather than forwarded because ``tcl explore
 --text`` has no renderer for the ``cst`` and ``segments`` views — they exist only
@@ -43,9 +43,8 @@ in the ``--json`` contract.  Every other verb (``ir``, ``cfg``, ``ssa``, ``asm``
 ``opt``, ``taint``, …) is forwarded to ``tcl explore --show <verb>`` with
 ``--text --no-colour`` so output is stable and greppable.
 
-Offsets in the explorer's JSON are **half-open**: ``[startOffset, endOffset)``.
-The retired Python explorer used inclusive end offsets, so slices here are
-``source[start:end]``, not ``source[start:end + 1]``.
+Offsets in the explorer's JSON are **half-open**: ``[startOffset, endOffset)``,
+so a slice is ``source[start:end]``.
 
 By default the wrapper invokes ``cargo run -p tcl-cli --bin tcl`` so what you
 inspect is the live working tree, never a stale build.  Set ``TCL_EXPLORE_BIN``
@@ -93,9 +92,9 @@ _OVERVIEW = "lowlevel"
 def _tcl_command() -> list[str]:
     """The argv prefix that runs the `tcl` CLI from the working tree.
 
-    Defaults to `cargo run` so the explorer always reflects live source — the
-    Rust analogue of the old "never a .pyz" rule.  `TCL_EXPLORE_BIN` overrides it
-    with a prebuilt binary when you know the tree is already built.
+    Defaults to `cargo run` so the explorer always reflects live source.
+    `TCL_EXPLORE_BIN` overrides it with a prebuilt binary when you know the tree
+    is already built.
     """
     override = os.environ.get("TCL_EXPLORE_BIN")
     if override:
@@ -321,9 +320,8 @@ def main(argv: list[str] | None = None) -> int:
     view = args.view
 
     if view == "greentree":
-        # The Rust parser produces one red-green CST; there is no separate green
-        # tree to dump.  Keep the old verb working rather than failing obscurely.
-        print("note: `greentree` is a deprecated alias for `cst`", file=sys.stderr)
+        # One red-green CST; there is no separate green tree to dump.
+        print("note: `greentree` is an alias for `cst`", file=sys.stderr)
         view = "cst"
 
     if view == "slices":

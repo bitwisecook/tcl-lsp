@@ -79,7 +79,7 @@ const REGISTRY: &[RendererSpec] = &[
         summary: "ASCII Gantt-style timeline of (timestamp, label, state) transitions.",
         accepts: "rows of (timestamp, label, state) — TSV string, 3-tuples, or dicts",
         details: concat!(
-            "Supersedes the retired monitor_timeline.py sidecar sample.  ",
+            "Rows may be a TSV string, 3-tuples, or dicts.  ",
             "Renders one row per distinct label, with ``v`` for the DOWN ",
             "transition, ``^`` for UP, and ``#`` for the spans the label was ",
             "marked down.  Use --render-opt unit-minutes=N (a divisor of 60) ",

@@ -103,3 +103,14 @@ editors/vscode/testFixture/.vscode/
 # by the bytecode-compare skill. Regenerated on demand from a local tclsh; the
 # exact bytes depend on the interpreter's patchlevel, so it is not checked in.
 /tests/bytecode_reference/
+
+# Typecheck environment built by `make typecheck-py`: installs f5report (which
+# maturin-compiles the native `_engine`) plus pytest so ty and pyright can
+# resolve every import for real, rather than suppressing them.
+/.venv-typecheck/
+
+# Zed dev-extension build outputs. `zed: install dev extension` compiles the
+# extension in place, writing extension.wasm and the tree-sitter grammar into
+# the source tree.
+/editors/zed/extension.wasm
+/editors/zed/grammars/

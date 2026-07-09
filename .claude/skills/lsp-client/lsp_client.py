@@ -655,25 +655,31 @@ def print_hover(result: dict | None) -> None:
                 print(f"  {item}")
 
 
-def print_completions(items: list[dict] | None) -> None:
-    """Print completion items."""
-    if items is None:
-        items = []
-    # Handle both CompletionList and direct array
-    if isinstance(items, dict):
-        items = items.get("items", [])
+def print_completions(items: list[dict] | dict | None) -> None:
+    """Print completion items.
 
-    print(f"=== Completions ({len(items)} items) ===")
+    `textDocument/completion` may answer with a bare array or a CompletionList
+    object; both shapes reach here.
+    """
+    entries: list[dict]
+    if items is None:
+        entries = []
+    elif isinstance(items, dict):
+        entries = items.get("items", [])
+    else:
+        entries = items
+
+    print(f"=== Completions ({len(entries)} items) ===")
     # Show first 30 items
-    for item in items[:30]:
+    for item in entries[:30]:
         label = item.get("label", "?")
         kind_num = item.get("kind", 0)
         kind = COMPLETION_KIND.get(kind_num, f"({kind_num})")
         detail = item.get("detail", "")
         detail_str = f"  -- {detail}" if detail else ""
         print(f"  {label:<30s}  {kind:<12s}{detail_str}")
-    if len(items) > 30:
-        print(f"  ... and {len(items) - 30} more")
+    if len(entries) > 30:
+        print(f"  ... and {len(entries) - 30} more")
 
 
 def print_locations(locations: list[dict] | None, label: str) -> None:
@@ -1300,7 +1306,7 @@ def cmd_bench(
         # Sequential request chain — each waits for its response.
         step_times: list[tuple[str, float]] = []
 
-        def _step(name: str, method: str, params: dict) -> object:
+        def _step(name: str, method: str, params: dict) -> Any:
             t = time.perf_counter()
             result = client.send_request(method, params, timeout=120.0)
             elapsed = (time.perf_counter() - t) * 1000
