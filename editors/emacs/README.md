@@ -31,7 +31,7 @@ Add to your `init.el`:
 (define-derived-mode f5-iapps-mode  tcl-mode "iApp")
 (define-derived-mode expect-mode    tcl-mode "Expect")
 
-(add-to-list 'auto-mode-alist '("\\.iru?l\\'"  . f5-irules-mode)) ; .irul / .irule
+(add-to-list 'auto-mode-alist '("\\.irule?\\'" . f5-irules-mode)) ; .irul / .irule
 (add-to-list 'auto-mode-alist '("\\.iapp\\'"   . f5-iapps-mode))
 (add-to-list 'auto-mode-alist '("\\.apl\\'"    . f5-iapps-mode))
 (add-to-list 'auto-mode-alist '("\\.exp\\'"    . expect-mode))
