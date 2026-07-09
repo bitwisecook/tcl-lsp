@@ -10,8 +10,8 @@ all-editors
 ## Question
 
 How do I run the two issue #829 robustness stress suites — one that
-drives the real server over the LSP API, one that hammers the salsa
-query database directly — and what do I do when one reports a failure?
+drives the real server over the LSP API, one that hammers the
+[salsa](../GLOSSARY.md#salsa) query database directly?
 
 ## Before you start
 
@@ -20,8 +20,8 @@ query database directly — and what do I do when one reports a failure?
   version.
 - Python 3.9+ on `PATH` for the LSP-API suite — standard library only,
   no `pip install` needed.
-- Nothing else: `run_all.sh` builds the release server binary itself if
-  it is missing.
+- Nothing else: `run_all.sh` builds the server binary itself every
+  time it runs.
 
 ## Answer
 
@@ -31,10 +31,11 @@ query database directly — and what do I do when one reports a failure?
 scripts/stress/run_all.sh
 ```
 
-Builds `target/release/tcl-lsp-server` if it does not already exist,
-then runs the direct-infrastructure example followed by all three
-LSP-API scenarios, with moderate defaults sized for a pre-push sanity
-check rather than a long soak.
+Builds `target/release/tcl-lsp-server` on every run — cargo's cache
+makes an up-to-date rebuild a fast no-op. Then it runs the
+direct-infrastructure example, followed by all three LSP-API
+scenarios. Defaults are moderate, sized for a pre-push sanity check
+rather than a long soak.
 
 ### Run the direct-infrastructure suite alone
 
@@ -69,15 +70,20 @@ python3 scripts/stress/stress_lsp.py --server-bin <bin> --scenario startup --sta
 python3 scripts/stress/stress_lsp.py --server-bin <bin> --scenario chaos --duration 30
 ```
 
-The three scenarios: `tokens` bursts concurrent edit +
-`semanticTokens/full` requests against several large documents and
-asserts every response arrives within a hard latency ceiling; `startup`
-reproduces the exact race from issue #829 (a workspace with a
-`source`-ancestor file and a module that inherits its `package
-require`, opened before the workspace scan finishes) and asserts the
-false-positive `W120` clears once the server settles; `chaos` opens,
-edits, closes, and reopens many documents concurrently for the whole
-run as a crash/hang/deadlock smoke test.
+The three scenarios test different things:
+
+- `tokens` bursts concurrent edits and `semanticTokens/full` requests
+  against several large documents. It asserts every response arrives
+  within a hard latency ceiling.
+- `startup` reproduces the exact race from issue #829: a workspace
+  with a `source`-ancestor file and a module that inherits its
+  `package require`, opened before the workspace scan finishes. It
+  asserts the false-positive
+  [`W120`](codes/kcs-diagnostic-w120-missing-package-require.md)
+  clears once the server settles.
+- `chaos` opens, edits, closes, and reopens many documents
+  concurrently for the whole run, as a crash/hang/deadlock smoke
+  test.
 
 ### Scale up for a longer soak run
 
@@ -90,31 +96,24 @@ slower to execute).
 
 ## How to tell it worked
 
-Both suites print a `PASS`/`FAIL` line per scenario and exit non-zero if
-anything failed. `run_all.sh` ends with `==> stress suite: PASS` when
-both halves succeed.
-
-## What to do when it fails
-
-Grep the combined output for `STRESS_FAILURE:` — each line names a
-self-contained reproduction bundle directory with everything needed to
-reconstruct the failure without re-running the (inherently
-timing-dependent) stress harness: the exact document text as a
-directly-loadable `.tcl` file, a JSON-RPC replay transcript and recent
-server stderr for the LSP suite, and a ready-to-adapt static unit-test
-skeleton for the Rust suite. The Rust suite writes bundles under
-`$TMPDIR/tcl-lsp-stress-failure-*`; the Python suite writes them under
-`$TMPDIR/tcl-lsp-stress-artifacts/` by default (override with
-`--artifacts-dir` or `TCL_LSP_STRESS_ARTIFACTS`). Both suites use the
-identical marker, so one `grep STRESS_FAILURE:` over a `run_all.sh` run
-finds every bundle from either half. Turn the bundle into a permanent
-regression test near the query or handler it exercised, matching the
-suite's own test-fixture conventions.
+The Python suite prints a `PASS`/`FAIL` line per scenario, for example
+`[tokens] PASS` or `[startup] FAIL`. The Rust suite prints
+`stress_concurrent_analysis: PASS` on success; it has no scenarios and
+no equivalent `FAIL` line, so a failure shows up as failure-specific
+detail (`TIMEOUT after N of M writes…`, `FINAL CHECK FAILED — …`)
+followed by a non-zero exit. Either suite exits non-zero if anything
+failed. `run_all.sh` ends with `==> stress suite: PASS` only when both
+halves succeed; a failure stops the script before that line prints. If
+a run fails, see [reconstructing a stress-test
+failure](kcs-issue-reconstruct-a-stress-test-failure.md).
 
 ## Related
 
 - [KCS index](README.md)
 - [Glossary](../GLOSSARY.md)
+- [A stress-test suite run reported a failure](kcs-issue-reconstruct-a-stress-test-failure.md)
+  — read the `STRESS_FAILURE:` reproduction bundle a failed run leaves
+  behind.
 - [`scripts/stress/README.md`](../../scripts/stress/README.md) — full
   reference: every scenario, every tunable, and the reproduction-bundle
   contents in detail.

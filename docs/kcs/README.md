@@ -48,6 +48,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)
   — tcltest's `numTests(Failed)` reads as an empty string in the
   compiled counter-bundle run.
+- [kcs-issue-reconstruct-a-stress-test-failure.md](kcs-issue-reconstruct-a-stress-test-failure.md)
+  — a stress-test suite run failed and you want to reconstruct it from
+  the `STRESS_FAILURE:` reproduction bundle.
 
 ## Q&A
 
