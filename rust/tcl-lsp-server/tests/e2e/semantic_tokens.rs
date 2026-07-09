@@ -249,6 +249,35 @@ fn test_simple_puts() {
 }
 
 #[test]
+fn range_request_honours_semantic_tokens_toggle() {
+    // Disabling `semanticTokens` must silence the viewport (`range`) request
+    // too, not just `full` / `full/delta` (issue 174).
+    let mut lsp = Lsp::with_config(serde_json::json!({
+        "features": { "linkedEditingRange": true, "semanticTokens": false }
+    }));
+    let uri = open_doc(&mut lsp, "set x 1\nputs $x\n");
+    let full = lsp.request(
+        "textDocument/semanticTokens/full",
+        serde_json::json!({ "textDocument": { "uri": uri.clone() } }),
+    );
+    assert!(full.is_null(), "full must be disabled: {full}");
+    let ranged = lsp.request(
+        "textDocument/semanticTokens/range",
+        serde_json::json!({
+            "textDocument": { "uri": uri },
+            "range": {
+                "start": { "line": 0, "character": 0 },
+                "end":   { "line": 1, "character": 8 }
+            }
+        }),
+    );
+    assert!(
+        ranged.is_null(),
+        "range must be disabled by the same toggle: {ranged}"
+    );
+}
+
+#[test]
 fn test_variable() {
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);

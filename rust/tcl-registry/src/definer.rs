@@ -72,6 +72,14 @@ pub struct MemberSpec {
     pub all_args_var: bool,
     /// The structural shape of the member's arguments (see [`MemberKind`]).
     pub kind: MemberKind,
+    /// For a [`MemberKind::Wrapper`], whether the wrapper *also* accepts a bare
+    /// script-block form (`private { … }`, `self { … }`) in addition to the
+    /// prefix form (`private method m {} {…}`).  `TclOO`'s `private` / `self`
+    /// take both; itcl's access modifiers (`public`/`protected`/`private`) only
+    /// wrap an inner member.  When the word after the wrapper is not a
+    /// recognised inner member and this is set, argument 0 is the member's
+    /// [`ArgRole::Body`] script.  Ignored for non-wrapper members.
+    pub wrapper_block_body: bool,
 }
 
 impl MemberSpec {
@@ -83,6 +91,7 @@ impl MemberSpec {
             arg_roles,
             all_args_var: false,
             kind: MemberKind::Flat,
+            wrapper_block_body: false,
         }
     }
 
@@ -94,6 +103,7 @@ impl MemberSpec {
             arg_roles: NO_ROLES,
             all_args_var: true,
             kind: MemberKind::Flat,
+            wrapper_block_body: false,
         }
     }
 
@@ -106,11 +116,13 @@ impl MemberSpec {
             arg_roles: NO_ROLES,
             all_args_var: false,
             kind: MemberKind::Flat,
+            wrapper_block_body: false,
         }
     }
 
-    /// A [`MemberKind::Wrapper`] member (`self`, `public`, `protected`,
-    /// `private`) — an inner member keyword follows at argument 0.
+    /// A [`MemberKind::Wrapper`] member (itcl's `public`/`protected`/`private`)
+    /// — an inner member keyword follows at argument 0, and there is no bare
+    /// script-block form.
     #[must_use]
     const fn wrapper(keyword: &'static str) -> Self {
         Self {
@@ -118,6 +130,24 @@ impl MemberSpec {
             arg_roles: NO_ROLES,
             all_args_var: false,
             kind: MemberKind::Wrapper,
+            wrapper_block_body: false,
+        }
+    }
+
+    /// A [`MemberKind::Wrapper`] member that *also* accepts the bare
+    /// script-block form — `TclOO`'s `self` and `private`, which are both
+    /// `self method …` / `private method …` (prefix) and `self { … }` /
+    /// `private { … }` (a definition script evaluated with altered visibility /
+    /// target).  When the following word is not an inner member, argument 0 is
+    /// the block [`ArgRole::Body`].
+    #[must_use]
+    const fn wrapper_or_body(keyword: &'static str) -> Self {
+        Self {
+            keyword,
+            arg_roles: BODY0_ROLES,
+            all_args_var: false,
+            kind: MemberKind::Wrapper,
+            wrapper_block_body: true,
         }
     }
 
@@ -129,6 +159,7 @@ impl MemberSpec {
             arg_roles: NO_ROLES,
             all_args_var: false,
             kind: MemberKind::FlagKeyed,
+            wrapper_block_body: false,
         }
     }
 
@@ -221,7 +252,9 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
     MemberSpec::flat("destructor", BODY0_ROLES),
     MemberSpec::flat("initialise", BODY0_ROLES),
     MemberSpec::flat("initialize", BODY0_ROLES),
-    MemberSpec::flat("private", BODY0_ROLES),
+    // `private` is a prefix wrapper (`private method m {} {…}`, `private
+    // variable x`) *and* a bare definition-script block (`private { … }`).
+    MemberSpec::wrapper_or_body("private"),
     // `variable a b c` inside a class body declares every name.
     MemberSpec::all_vars("variable"),
     // Name-reference-only members — recognised (so they read as keywords and a
@@ -238,7 +271,7 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
     // Structurally irregular — a nested-member wrapper (`self method …`) and a
     // flag-keyed body form (`property … -get/-set …`); their body indices come
     // from the walker's `MemberKind`-driven handling, not a hardcoded name.
-    MemberSpec::wrapper("self"),
+    MemberSpec::wrapper_or_body("self"),
     MemberSpec::flag_keyed("property"),
 ];
 

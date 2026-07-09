@@ -127,7 +127,6 @@ Add to your Zed `settings.json` to configure the language server:
             "workspaceFileOps": true,
             "pullDiagnostics": false,
             "willSaveWaitUntil": false,
-            "progress": true,
             "implementation": true,
             "typeDefinition": true,
             "declaration": true,

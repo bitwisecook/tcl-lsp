@@ -26,12 +26,9 @@ interface TclLspApi {
 }
 
 suite("Work-Done Progress", () => {
-  test("config toggle exists and defaults to null (inherit)", () => {
-    const config = vscode.workspace.getConfiguration("tclLsp.features");
-    const value = config.get<boolean | null>("progress");
-    assert.strictEqual(value, null, "progress should default to null (inherit)");
-  });
-
+  // Note: there is no `tclLsp.features.progress` setting — the server emits no
+  // `$/progress` and nothing consumed the toggle, so the phantom override was
+  // removed (issue 201).
   test("server stays responsive during/after workspace scan", async () => {
     // The $/progress pipeline runs asynchronously on the event loop.  If
     // it blocked the event loop the test harness would time out activating

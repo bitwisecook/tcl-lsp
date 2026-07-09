@@ -210,8 +210,15 @@ fn bi_references_to(args: &[Value], ctx: &mut EvalContext) -> Result<Value, Quer
     if target.is_empty() {
         return Ok(Value::List(Vec::new()));
     }
-    let root = &ctx.root;
-    let graph = root.graph();
+    // Merge mode joins every loaded source's graph so a cross-file referrer
+    // resolves, matching `refs` / `referenced_by`; a single-root graph would
+    // miss (or per-root duplicate) cross-file referrers under `--merge`
+    // (issue 195).
+    let graph = if ctx.merge_mode {
+        ctx.merged_graph()
+    } else {
+        ctx.root.graph()
+    };
     let related = related_one_hop(&graph, target, Direction::Reverse);
     let mut seen: Vec<String> = Vec::new();
     for node in related {

@@ -119,6 +119,26 @@ fn extra_commands_multiline() {
 }
 
 #[test]
+fn indented_comment_inside_multiline_value_is_not_absorbed() {
+    // An indented `#`/`;` line inside a continuation value is a full-line
+    // comment (configparser semantics), NOT part of the value — otherwise a
+    // commented-out `# recv` entry would become a live extra command
+    // (issue 176).
+    let ini = "[global]\n\
+               extraCommands =\n\
+               \x20   mylib::send\n\
+               \x20   # mylib::recv\n\
+               \x20   ; mylib::log\n\
+               \x20   mylib::flush\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(
+        s["extraCommands"],
+        json!(["mylib::send", "mylib::flush"]),
+        "commented continuation lines must be dropped"
+    );
+}
+
+#[test]
 fn continuation_lines_with_colons_join_correctly() {
     // A regex pattern with a `:` and a `::`-qualified name in continuation lists
     // must join as continuations, not be mis-read as new `key: value` lines.

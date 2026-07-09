@@ -25,7 +25,7 @@
 use std::collections::HashSet;
 
 use serde::Serialize;
-use tcl_cli_support::{read_input_documents, registry_for_dialect};
+use tcl_cli_support::{OutputTarget, read_input_documents, registry_for_dialect, write_text_output};
 use tcl_compiler::analyser::{Analyser, Severity};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::compiler_checks::run_all_checks;
@@ -216,26 +216,26 @@ pub fn run_diag(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
         });
     }
 
-    if diag.json {
-        println!(
-            "{}",
-            tcl_cli_support::ensure_ascii(&serde_json::to_string_pretty(&report)?)
-        );
+    // Honour the shared `-o/--output FILE` flag (default stdout) like every
+    // other verb, rather than always printing to stdout (issue 196).
+    let target = OutputTarget::from_arg(input.output.as_deref());
+    let rendered = if diag.json {
+        tcl_cli_support::ensure_ascii(&serde_json::to_string_pretty(&report)?)
     } else {
+        let mut lines: Vec<String> = Vec::new();
         for item in &report {
             for d in &item.diagnostics {
-                println!(
-                    "{}",
-                    format_line(
-                        &item.file, d.line, d.column, d.severity, &d.code, &d.message
-                    )
-                );
+                lines.push(format_line(
+                    &item.file, d.line, d.column, d.severity, &d.code, &d.message,
+                ));
             }
         }
         if diagnostic_count == 0 {
-            println!("no diagnostics");
+            lines.push("no diagnostics".to_owned());
         }
-    }
+        lines.join("\n")
+    };
+    write_text_output(&target, &rendered)?;
 
     eprintln!(
         "diagnostics={diagnostic_count} across {} input(s)",
@@ -265,6 +265,7 @@ pub fn run_validate(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
         }
     }
 
+    let target = OutputTarget::from_arg(input.output.as_deref());
     if diag.json {
         let payload = ValidatePayload {
             ok: errors.is_empty(),
@@ -272,10 +273,10 @@ pub fn run_validate(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
             error_count: errors.len(),
             errors,
         };
-        println!(
-            "{}",
-            tcl_cli_support::ensure_ascii(&serde_json::to_string_pretty(&payload)?)
-        );
+        write_text_output(
+            &target,
+            &tcl_cli_support::ensure_ascii(&serde_json::to_string_pretty(&payload)?),
+        )?;
         return Ok(u8::from(!payload.ok));
     }
 
@@ -284,12 +285,12 @@ pub fn run_validate(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
         return Ok(0);
     }
 
-    for e in &errors {
-        println!(
-            "{}",
-            format_line(&e.file, e.line, e.column, e.severity, &e.code, &e.message)
-        );
-    }
+    let rendered = errors
+        .iter()
+        .map(|e| format_line(&e.file, e.line, e.column, e.severity, &e.code, &e.message))
+        .collect::<Vec<_>>()
+        .join("\n");
+    write_text_output(&target, &rendered)?;
     eprintln!("validation failed: {} error(s)", errors.len());
     Ok(1)
 }

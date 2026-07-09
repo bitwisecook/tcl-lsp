@@ -79,23 +79,26 @@ fn parse_ini(content: &str) -> Vec<Section> {
         let Some(section) = sections.last_mut() else {
             continue;
         };
-        // Continuation: an indented, non-empty line continues the current key's
-        // value — configparser semantics. Keys are written at the section's base
-        // (unindented) column, so an indented line is always a continuation,
-        // even when it contains `:` / `=` (e.g. a `mylib::send` command name or
-        // a regex pattern with a colon).
+        // Comments and blank lines are recognised *before* continuation, as
+        // configparser does: a full-line comment is any line whose stripped
+        // form starts with `#` / `;`, even when indented.  Handling this after
+        // the continuation check would absorb an indented `# …` comment inside
+        // a multi-line value, turning a commented-out entry into a live one
+        // (issue 176).
+        if stripped.is_empty() || stripped.starts_with('#') || stripped.starts_with(';') {
+            continue;
+        }
+        // Continuation: an indented, non-empty, non-comment line continues the
+        // current key's value — configparser semantics. Keys are written at the
+        // section's base (unindented) column, so an indented line is always a
+        // continuation, even when it contains `:` / `=` (e.g. a `mylib::send`
+        // command name or a regex pattern with a colon).
         let indented = line.starts_with([' ', '\t']);
         // No key to continue (indented line right after a header) falls through
         // and is treated as a normal `key = value` if it parses.
-        if indented
-            && !stripped.is_empty()
-            && let Some(last) = section.entries.last_mut()
-        {
+        if indented && let Some(last) = section.entries.last_mut() {
             last.1.push('\n');
             last.1.push_str(stripped);
-            continue;
-        }
-        if stripped.is_empty() || stripped.starts_with('#') || stripped.starts_with(';') {
             continue;
         }
         // `key = value` or `key: value`.

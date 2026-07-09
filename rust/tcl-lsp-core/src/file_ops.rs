@@ -77,10 +77,10 @@ pub fn compute_rename_edits(
         let Some(dep_path) = uri_to_path(&src.uri) else {
             continue;
         };
-        if !source_resolves_to(&src.raw_path, &dep_path, &root_paths, &old_path) {
+        let Some(base) = matched_base(&src.raw_path, &dep_path, &root_paths, &old_path) else {
             continue;
-        }
-        let new_text = compute_new_literal(&src.raw_path, &dep_path, &new_path);
+        };
+        let new_text = compute_new_literal(&src.raw_path, &base, &new_path);
         // `src.range` is the path word's lexer span, which for a braced
         // (`{…}`) or quoted (`"…"`) literal covers the *opening*
         // delimiter + content but not the closing one (the inner-end
@@ -156,35 +156,42 @@ fn hex_val(b: u8) -> Option<u8> {
     }
 }
 
-/// True when a literal `source` path resolves to `old_path` under any of
-/// the candidate bases tried (for the literal case): the script's own
-/// directory first, then each workspace root; an absolute literal
-/// resolves only to itself.  The pure analog
-/// of the filesystem `isfile` probes — a match against *any* candidate
-/// counts, since the renamed file is known to exist at `old_path`.
-fn source_resolves_to(raw: &str, dep_path: &str, roots: &[String], old_path: &str) -> bool {
+/// The base directory under which a literal `source` path resolves to
+/// `old_path`, or `None` if it does not resolve.  Candidate bases (for the
+/// relative case) are the script's own directory first, then each workspace
+/// root; an absolute literal resolves only to itself (base unused, reported as
+/// `""`).  The pure analog of the filesystem `isfile` probes — a match against
+/// *any* candidate counts, since the renamed file is known to exist at
+/// `old_path`.
+///
+/// The matched base is returned (not just a bool) so the rewrite re-relativises
+/// the literal against the *same* base it matched under: a literal matched via
+/// a workspace root must stay root-relative, not be recomputed against the
+/// script's directory (issue 178).
+fn matched_base(raw: &str, dep_path: &str, roots: &[String], old_path: &str) -> Option<String> {
     if raw.starts_with('/') {
-        return normpath(raw) == old_path;
+        return (normpath(raw) == old_path).then(String::new);
     }
     // Relative to the script's own directory.
     let dir = posix_dirname(dep_path);
     if normpath(&posix_join(dir, raw)) == old_path {
-        return true;
+        return Some(dir.to_string());
     }
     // Relative to each workspace root.
     roots
         .iter()
-        .any(|root| normpath(&posix_join(root, raw)) == old_path)
+        .find(|root| normpath(&posix_join(root, raw)) == old_path)
+        .cloned()
 }
 
 /// The new path literal preserving the existing style: an absolute
 /// literal becomes the new absolute path; a relative one is re-relative
-/// to the dependent's directory.
-fn compute_new_literal(old_literal: &str, dep_path: &str, new_abs_path: &str) -> String {
+/// to `base` — the directory it was found to resolve under.
+fn compute_new_literal(old_literal: &str, base: &str, new_abs_path: &str) -> String {
     if old_literal.starts_with('/') {
         return new_abs_path.to_string();
     }
-    relpath(new_abs_path, posix_dirname(dep_path))
+    relpath(new_abs_path, base)
 }
 
 // posix path helpers (the test environment is Linux)
@@ -347,8 +354,11 @@ mod tests {
     fn resolves_relative_source_via_workspace_root() {
         // `/proj/sub/main.tcl` does `source helper.tcl`, but the file lives
         // at the workspace root `/proj/helper.tcl`, not next to the script.
-        // Without a workspace root it isn't matched; with one it is, and
-        // the rewrite re-relativises to the script's directory.
+        // Without a workspace root it isn't matched; with one it is, and the
+        // rewrite re-relativises against the *same* base it matched under (the
+        // root) — so `helper.tcl` → `helper2.tcl`, staying root-relative, not
+        // `../helper2.tcl` (which would resolve elsewhere at runtime, issue
+        // 178).
         let idx = index_of("file:///proj/sub/main.tcl", "source helper.tcl\n");
         let no_root = compute_rename_edits(
             "file:///proj/helper.tcl",
@@ -365,7 +375,22 @@ mod tests {
             &["file:///proj".to_string()],
         );
         assert_eq!(with_root.len(), 1, "{with_root:?}");
-        assert_eq!(with_root[0].new_text, "../helper2.tcl");
+        assert_eq!(with_root[0].new_text, "helper2.tcl");
+    }
+
+    #[test]
+    fn script_dir_match_still_rewrites_relative_to_script() {
+        // When the literal resolves via the script's *own* directory, the
+        // rewrite stays script-relative (the base that matched).
+        let idx = index_of("file:///proj/sub/main.tcl", "source helper.tcl\n");
+        let edits = compute_rename_edits(
+            "file:///proj/sub/helper.tcl",
+            "file:///proj/sub/renamed.tcl",
+            &idx,
+            &["file:///proj".to_string()],
+        );
+        assert_eq!(edits.len(), 1, "{edits:?}");
+        assert_eq!(edits[0].new_text, "renamed.tcl");
     }
 
     #[test]

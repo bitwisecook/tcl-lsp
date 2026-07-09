@@ -37,9 +37,10 @@
 //! fires CODE.
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 
 use serde::Serialize;
-use tcl_cli_support::{ensure_ascii, read_input_documents};
+use tcl_cli_support::{OutputTarget, ensure_ascii, read_input_documents, write_text_output};
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::segmenter::segment_with_recovery;
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
@@ -384,20 +385,25 @@ pub fn run_minimize(input: &InputArgs, no_rename: bool, json: bool) -> anyhow::R
         return Ok(1);
     }
 
+    // Honour the shared `-o/--output FILE` flag (default stdout), issue 196.
+    let target = OutputTarget::from_arg(input.output.as_deref());
     if json {
-        println!("{}", ensure_ascii(&serde_json::to_string_pretty(&results)?));
+        write_text_output(&target, &ensure_ascii(&serde_json::to_string_pretty(&results)?))?;
         return Ok(0);
     }
 
+    let mut rendered = String::new();
     for res in &results {
         let renamed = if res.renamed { "True" } else { "False" };
-        println!(
+        let _ = writeln!(
+            rendered,
             "# {}: {} ({}\u{2192}{} lines, renamed={})",
             res.file, res.code, res.original_lines, res.reduced_lines, renamed
         );
-        println!("{}", res.source);
-        println!();
+        rendered.push_str(&res.source);
+        rendered.push_str("\n\n");
     }
+    write_text_output(&target, &rendered)?;
     Ok(0)
 }
 

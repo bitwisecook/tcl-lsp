@@ -336,21 +336,27 @@ fn datagroup_records_tcl(records: &[String]) -> String {
 
 /// Infer a TMM profile-type tag from a profile reference name.
 fn infer_profile_type(pref: &str) -> Option<&'static str> {
+    // Match by substring (not exact name) so a custom profile name like
+    // `my_http_profile` / `web-tcp-opt` still maps to its base type — an exact
+    // `name == "http"` test never matched a customised name, so the generated
+    // orchestrator omitted the profile and `when HTTP_REQUEST` handlers never
+    // fired (issue 190). More specific types are checked first (`fasthttp` and
+    // the SSL variants before the plain `http`/`tcp` substrings).
     let name = short_name(pref).to_ascii_lowercase();
     if name.contains("clientssl") || name.contains("client-ssl") {
         Some("CLIENTSSL")
     } else if name.contains("serverssl") || name.contains("server-ssl") {
         Some("SERVERSSL")
-    } else if name == "http" || name == "http2" {
-        Some("HTTP")
-    } else if name == "tcp" {
-        Some("TCP")
-    } else if name == "udp" {
-        Some("UDP")
-    } else if name.contains("dns") {
-        Some("DNS")
     } else if name.contains("fasthttp") {
         Some("FASTHTTP")
+    } else if name.contains("dns") {
+        Some("DNS")
+    } else if name.contains("http") {
+        Some("HTTP")
+    } else if name.contains("tcp") {
+        Some("TCP")
+    } else if name.contains("udp") {
+        Some("UDP")
     } else {
         None
     }
@@ -445,5 +451,21 @@ ltm virtual www_vs {
         assert_eq!(infer_profile_type("http"), Some("HTTP"));
         assert_eq!(infer_profile_type("/Common/my-fasthttp"), Some("FASTHTTP"));
         assert_eq!(infer_profile_type("/Common/weird"), None);
+    }
+
+    #[test]
+    fn infers_profile_types_for_custom_names() {
+        // Custom (non-canonical) profile names must still map to their base
+        // type by substring, so the generated orchestrator wires the profile
+        // and its events fire (issue 190).
+        assert_eq!(infer_profile_type("/Common/my_http_profile"), Some("HTTP"));
+        assert_eq!(infer_profile_type("/Common/web-tcp-opt"), Some("TCP"));
+        assert_eq!(infer_profile_type("/Common/udp_datagram"), Some("UDP"));
+        // Specific types still win over the plainer substrings.
+        assert_eq!(infer_profile_type("/Common/site_fasthttp"), Some("FASTHTTP"));
+        assert_eq!(
+            infer_profile_type("/Common/custom-clientssl-1"),
+            Some("CLIENTSSL")
+        );
     }
 }

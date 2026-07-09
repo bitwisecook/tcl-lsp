@@ -61,9 +61,22 @@ pub struct BigipConfig {
     pub objects: Vec<Placed>,
 }
 
-/// `(module, object_type)` pairs whose identifier is itself a partition
-/// / cluster-wide reference and must not be partition-prefixed.
-const NO_PARTITION_PREFIX: &[(&str, &str)] = &[("auth", "partition")];
+/// `(module, object_type)` pairs whose identifier is inherently
+/// *unpartitioned* — a hardware, system-wide, or cluster-wide name that lives
+/// outside any partition — so a `/Common/` prefix would be bogus and break
+/// name lookups (issue 189).  `net interface 1.1` is the port `1.1`, not
+/// `/Common/1.1`; `sys provision ltm` provisions the module `ltm`, not
+/// `/Common/ltm`; `cm device`/`device-group`/`traffic-group` are cluster
+/// objects keyed by (unpartitioned) device/group names.
+const NO_PARTITION_PREFIX: &[(&str, &str)] = &[
+    ("auth", "partition"),
+    ("net", "interface"),
+    ("net", "trunk"),
+    ("sys", "provision"),
+    ("cm", "device"),
+    ("cm", "device-group"),
+    ("cm", "traffic-group"),
+];
 
 /// Parse a BIG-IP configuration file into a [`BigipConfig`].
 #[must_use]
@@ -692,6 +705,32 @@ mod tests {
             (3, 46, 162)
         );
         assert_eq!((r.end.line, r.end.character, r.end.offset), (10, 1, 287));
+    }
+
+    #[test]
+    fn unpartitioned_kinds_are_not_partition_prefixed() {
+        // Hardware / system / cluster kinds keep their bare identifier — no
+        // bogus `/Common/` prefix that would break lookups (issue 189).
+        let src = "net interface 1.1 { }\n\
+                   sys provision ltm { level nominal }\n\
+                   cm device bigip1.local { }\n\
+                   ltm pool p1 { }\n";
+        let config = parse_bigip_conf(src, "Common");
+        let id_for = |needle: &str| -> String {
+            let (_, obj) = config
+                .generic_objects
+                .iter()
+                .find(|(k, _)| k.contains(needle))
+                .unwrap_or_else(|| {
+                    panic!("no object matching {needle}: {:?}", config.generic_objects)
+                });
+            obj.identifier.clone()
+        };
+        assert_eq!(id_for("net::interface"), "1.1");
+        assert_eq!(id_for("sys::provision"), "ltm");
+        assert_eq!(id_for("cm::device"), "bigip1.local");
+        // A genuinely partitioned kind still gets the prefix.
+        assert_eq!(id_for("ltm::pool"), "/Common/p1");
     }
 
     #[test]

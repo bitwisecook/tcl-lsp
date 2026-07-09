@@ -52,8 +52,15 @@ pub fn brace_expr(source: &str, cursor: u32, registry: &CommandRegistry) -> Opti
         return None;
     }
 
-    // Unwrap a quoted argument (`"$a + $b"`); otherwise brace the span verbatim.
-    let braced = if raw.starts_with('"') && raw.ends_with('"') && raw.len() >= 2 {
+    // Unwrap a quoted expression argument (`expr "$a + $b"` → `expr {$a + $b}`)
+    // only when the whole expression is a *single* quoted word (`argv` is
+    // `expr` + one arg).  A multi-word expression that merely starts and ends
+    // with `"` (`expr "1" + "2"`) must be braced verbatim — stripping the outer
+    // quotes there would leave stray inner quotes (`{1" + "2}`) that fail to
+    // parse (issue 180).
+    let single_quoted_arg =
+        cmd.argv.len() == 2 && raw.starts_with('"') && raw.ends_with('"') && raw.len() >= 2;
+    let braced = if single_quoted_arg {
         format!("{{{}}}", &raw[1..raw.len() - 1])
     } else {
         format!("{{{raw}}}")
@@ -102,6 +109,16 @@ mod tests {
         let src = "expr $a + $b\n";
         let r = brace_expr(src, offset(src, 0, 0), &reg()).expect("expr at cursor");
         assert_eq!(r.apply(src), "expr {$a + $b}\n");
+    }
+
+    #[test]
+    fn multi_arg_expr_bounded_by_quotes_is_braced_verbatim() {
+        // `expr "1" + "2"` starts and ends with `"` but is three words, not one
+        // quoted expression. It must be braced whole, not quote-unwrapped into
+        // the invalid `{1" + "2}` (issue 180).
+        let src = "expr \"1\" + \"2\"\n";
+        let r = brace_expr(src, offset(src, 0, 0), &reg()).expect("expr at cursor");
+        assert_eq!(r.apply(src), "expr {\"1\" + \"2\"}\n");
     }
 
     #[test]

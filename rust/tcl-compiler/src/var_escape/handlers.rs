@@ -22,7 +22,9 @@
 //! mutates the supplied `EscapeState`.
 
 use crate::ir::CommandTokens;
-use crate::var_escape::helpers::{is_dynamic_token, is_dynamic_upvar_level, is_name_first_command};
+use crate::var_escape::helpers::{
+    default_registry, is_dynamic_token, is_dynamic_upvar_level, is_name_first_command,
+};
 use crate::var_escape::info_subcommands::{
     is_frame_inspecting_info_subcommand, is_safe_info_subcommand,
 };
@@ -184,6 +186,35 @@ pub fn handle_info(args: &[String], state: &mut EscapeState) {
         );
         return;
     }
+    // Escape any argument the registry declares as a variable *write* for this
+    // `info` subcommand.  `info default procname arg varname` stores the
+    // argument's default into `varname` in the current frame, so it must escape
+    // even though `default` otherwise only reads interpreter-global state — the
+    // safe-subcommand short-circuit below would drop it (issue 151).  Fully
+    // registry-driven via the subcommand's `arg_roles`: no subcommand name or
+    // argument index is hardcoded here.
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    for idx in default_registry().arg_indices_for_role("info", &arg_refs, tcl_registry::ArgRole::VarWrite)
+    {
+        let Some(target) = args.get(idx) else { continue };
+        if is_dynamic_token(target) {
+            // A dynamic write target can't be pinned to a name — spill.
+            state.record_barrier(Barrier::with_detail(
+                BarrierKind::Info,
+                format!("info {sub} (dynamic var-write target)"),
+            ));
+            state.escape_all_known();
+        } else {
+            state.escape_with_reason(
+                target,
+                EscapeReason::with_detail(
+                    EscapeReasonKind::InfoVarWrite,
+                    format!("info {sub} writes {target}"),
+                ),
+            );
+        }
+    }
+
     if is_safe_info_subcommand(sub) {
         return;
     }
@@ -384,6 +415,28 @@ mod tests {
         handle_info(&args_of(&["patchlevel"]), &mut s);
         assert!(!s.dynamic_barrier());
         assert!(s.tags.is_empty());
+    }
+
+    #[test]
+    fn info_default_escapes_its_varname_target() {
+        // `info default procname arg varname` writes `varname` in the current
+        // frame (registry VarWrite arg role) — it must escape even though
+        // `default` is otherwise an interpreter-global read (issue 151).
+        let mut s = EscapeState::default();
+        handle_info(&args_of(&["default", "myproc", "argA", "outvar"]), &mut s);
+        assert!(s.is_frame_helper("outvar"), "outvar must escape to the frame");
+        // The other operands (procname / arg name) are not var writes.
+        assert!(!s.is_frame_helper("myproc"));
+        assert!(!s.is_frame_helper("argA"));
+        // It is not a full pessimistic spill — only the write target escapes.
+        assert!(!s.dynamic_barrier());
+    }
+
+    #[test]
+    fn info_default_dynamic_varname_is_pessimistic() {
+        let mut s = EscapeState::default();
+        handle_info(&args_of(&["default", "p", "a", "$dyn"]), &mut s);
+        assert!(s.dynamic_barrier());
     }
 
     #[test]

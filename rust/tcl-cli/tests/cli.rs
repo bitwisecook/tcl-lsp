@@ -840,3 +840,29 @@ fn minimize_reduced_output_still_fires() {
         assert!(fires, "reduced source {reduced:?} must still fire W100");
     }
 }
+
+#[test]
+fn minify_symbol_map_written_for_plain_minify() {
+    // `tcl minify --symbol-map FILE` without `--compact`/`--aggressive` must
+    // still create the map file (an empty / identity map), not silently skip
+    // it — otherwise a later `unminify-error` fails on a missing path
+    // (issue 198).
+    let input = fixtures_dir().join("greet.tcl");
+    let tmp = std::env::temp_dir().join(format!(
+        "tcl-cli-symmap-{}-{}.txt",
+        std::process::id(),
+        line!()
+    ));
+    let _ = std::fs::remove_file(&tmp);
+    let _ = run_tcl(&[
+        "minify",
+        "--symbol-map",
+        tmp.to_str().unwrap(),
+        input.to_str().unwrap(),
+    ]);
+    assert!(
+        tmp.exists(),
+        "plain minify must still write the requested --symbol-map file"
+    );
+    let _ = std::fs::remove_file(&tmp);
+}

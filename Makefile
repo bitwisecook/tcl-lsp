@@ -1100,7 +1100,7 @@ report-wasm: ## Build the in-browser BIG-IP report generator (Rust → WASM) int
 compiler-explorer-gui: explorer-build ## Build the GUI bundle and serve it via the native tcl binary
 	@echo "==> Building tcl (embeds the GUI) and serving at http://localhost:8080"
 	cargo run -p tcl-cli --release --bin tcl -- explore --serve --open
-	@ls -lh $(EXPLORER_CDN_DIR)/
+	@ls -lh $(EXPLORER_STATIC)/
 
 # ---------------------------------------------------------------------------
 # Native binaries have superseded the Python zipapps.

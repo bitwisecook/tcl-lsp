@@ -87,12 +87,30 @@ impl Hover {
 /// Word-delimiter set used by `find_word_span_at_position`.
 const WORD_DELIMS: &[char] = &[' ', '\t', '\n', ';', '{', '}', '[', ']', '"', '$'];
 
-/// Variable-name continuation set used by `find_var_at_position`.
+/// Scan a bare `$name` variable name in `chars` starting at `start`, returning
+/// the end index (exclusive).
 ///
-/// Variable names are alphanumerics plus `_` and `:` (for
-/// namespace qualifiers).
-fn is_var_continuation(c: char) -> bool {
-    c.is_alphanumeric() || c == '_' || c == ':'
+/// A name char is an alphanumeric or `_`.  A `:` is part of the name **only**
+/// as a namespace qualifier `::` — matching C Tcl's `Tcl_ParseVarName`, which
+/// consumes the whole colon run once a `::` starts it (`$a:::b` → `a:::b`) but
+/// stops at a *lone* `:`.  So `$host:$port` resolves `host`, not `host:`
+/// (issue 183).
+fn scan_var_name_end(chars: &[char], start: usize) -> usize {
+    let mut end = start;
+    while end < chars.len() {
+        let c = chars[end];
+        if c.is_alphanumeric() || c == '_' {
+            end += 1;
+        } else if c == ':' && chars.get(end + 1) == Some(&':') {
+            end += 2;
+            while chars.get(end) == Some(&':') {
+                end += 1;
+            }
+        } else {
+            break;
+        }
+    }
+    end
 }
 
 /// Compute hover text for a position in `source`.
@@ -1011,7 +1029,10 @@ fn binary_field_bytes(letter: char, count: u32, star: bool) -> Option<u32> {
         return None;
     }
     if let Some(unit) = binary_unit_bytes(letter) {
-        return Some(unit * count);
+        // A large-but-parseable count (`d600000000` ⇒ 8 × 600000000) overflows
+        // u32; report an unknown size rather than panicking in debug or
+        // wrapping to a bogus value in release (issue 182).
+        return unit.checked_mul(count);
     }
     match letter {
         'a' | 'A' | 'x' => Some(count),
@@ -1609,6 +1630,16 @@ fn scan_glob_metachars(text: &str) -> Vec<(String, String)> {
     out
 }
 
+/// Escape a value for a GFM table cell: a literal `|` closes the cell even
+/// inside an inline code span, so it must be backslash-escaped (`\|`, which
+/// GFM renders back as `|`).  Applied to the regex/glob hover token and
+/// meaning cells, whose content is user-pattern-derived and may contain `|`
+/// (e.g. an alternation `foo|bar`) that would otherwise break the row in
+/// strict GFM renderers (issue 187).
+fn gfm_table_cell(s: &str) -> String {
+    s.replace('|', "\\|")
+}
+
 /// Render the glob-pattern hover markdown.
 fn glob_hover_text(text: &str) -> String {
     let mut parts: Vec<String> = vec!["**Glob pattern**\n".to_string()];
@@ -1619,7 +1650,11 @@ fn glob_hover_text(text: &str) -> String {
         parts.push("| Pattern | Meaning |".to_string());
         parts.push("|---------|---------|".to_string());
         for (tok, desc) in metas {
-            parts.push(format!("| `{tok}` | {desc} |"));
+            parts.push(format!(
+                "| `{}` | {} |",
+                gfm_table_cell(&tok),
+                gfm_table_cell(&desc)
+            ));
         }
     }
     parts.join("\n")
@@ -1866,7 +1901,11 @@ fn regex_hover_text(text: &str) -> String {
         parts.push("| Component | Meaning |".to_string());
         parts.push("|-----------|---------|".to_string());
         for (tok, desc) in comps {
-            parts.push(format!("| `{tok}` | {desc} |"));
+            parts.push(format!(
+                "| `{}` | {} |",
+                gfm_table_cell(&tok),
+                gfm_table_cell(&desc)
+            ));
         }
     }
     parts.join("\n")
@@ -2070,10 +2109,7 @@ pub fn find_var_at_position(source: &str, line: u32, character: u32) -> Option<S
 
     if pos < chars.len() && chars[pos] == '$' {
         let start = pos + 1;
-        let mut end = start;
-        while end < chars.len() && is_var_continuation(chars[end]) {
-            end += 1;
-        }
+        let end = scan_var_name_end(&chars, start);
         if end > start {
             let name: String = chars[start..end].iter().collect();
             return Some(name);
@@ -2719,6 +2755,57 @@ mod tests {
         // Three-way concatenation resolves the middle var too.
         let src3 = "set w $a$b$c\n";
         assert_eq!(find_var_at_position(src3, 0, 9), Some("b".to_owned()));
+    }
+
+    #[test]
+    fn find_var_at_position_stops_at_lone_colon() {
+        // `$host:$port` — a lone `:` is not part of the variable name (Tcl
+        // substitutes only `$host`); it must not be pulled in as `host:`
+        // (issue 183).
+        let src = "puts $host:$port\n";
+        // Columns: p0 u1 t2 s3 (4) $5 h6 o7 s8 t9 :10 $11 ...
+        assert_eq!(find_var_at_position(src, 0, 7), Some("host".to_owned()));
+        // The `::` qualifier IS part of the name, and a full colon run stays.
+        let src2 = "puts $a::b:$c\n";
+        assert_eq!(find_var_at_position(src2, 0, 7), Some("a::b".to_owned()));
+        let src3 = "puts $a:::b\n";
+        assert_eq!(find_var_at_position(src3, 0, 7), Some("a:::b".to_owned()));
+    }
+
+    #[test]
+    fn binary_field_bytes_saturates_instead_of_overflowing() {
+        // `d600000000` ⇒ 8 × 600000000 overflows u32; report unknown size,
+        // never panic (debug) or wrap (release) (issue 182).
+        assert_eq!(super::binary_field_bytes('d', 600_000_000, false), None);
+        assert_eq!(super::binary_field_bytes('i', u32::MAX, false), None);
+        // Ordinary sizes still compute.
+        assert_eq!(super::binary_field_bytes('i', 4, false), Some(16));
+    }
+
+    #[test]
+    fn regex_and_glob_hover_escape_table_pipes() {
+        // A `|` inside a code-span table cell must be `\|` or it splits the GFM
+        // row (issue 187).
+        let rx = regex_hover_text("foo|bar");
+        assert!(
+            rx.lines().all(|l| !l.starts_with("| `|`")),
+            "raw pipe token would break the row: {rx}"
+        );
+        assert!(rx.contains("\\|"), "alternation `|` should be escaped: {rx}");
+        // Glob alternation `{a,b}` has no pipe, but a bracketed pipe would; a
+        // char-class-style pattern with `|` escapes too.
+        let rxcc = regex_hover_text("[a|b]");
+        assert!(rxcc.contains("\\|"));
+        // Every non-separator row keeps a balanced cell count (3 pipes → 2
+        // cells) after escaping.
+        for line in rx.lines().filter(|l| l.starts_with("| ")) {
+            let unescaped = line.replace("\\|", "");
+            assert_eq!(
+                unescaped.matches('|').count(),
+                3,
+                "row must have exactly two cells: {line}"
+            );
+        }
     }
 
     #[test]

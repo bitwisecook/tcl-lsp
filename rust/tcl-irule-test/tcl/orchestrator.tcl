@@ -1496,6 +1496,27 @@ namespace eval ::orch {
     # so a configured `-tmm_select auto` survives the per-test reset.
     variable _test_tmm_select_mode "manual"
 
+    # Decompose an address into the list of integers folded into the fakeCMP
+    # hash.  An IPv4 dotted-quad keeps its decimal octets (so the existing
+    # IPv4 hash is unchanged); an IPv6 address is split on ':' with each hextet
+    # read as hex (empty groups from '::' contribute 0).  Splitting only on '.'
+    # left an IPv6 client_addr as a single non-numeric token, which threw an
+    # `expr` error in auto mode instead of selecting a TMM (issue 192).
+    proc _fakecmp_addr_parts {addr} {
+        if {[string first : $addr] >= 0} {
+            set parts {}
+            foreach group [split $addr :] {
+                if {[scan $group %x v] == 1} {
+                    lappend parts [expr {$v & 0x7FFFFFFF}]
+                } else {
+                    lappend parts 0
+                }
+            }
+            return $parts
+        }
+        return [split $addr .]
+    }
+
     # fakeCMP hash: deterministic TMM from connection 4-tuple.
     # NOT the real BIG-IP CMP algorithm -- a test-only simulation.
     proc _fakecmp_hash {src_addr src_port dst_addr dst_port} {
@@ -1504,12 +1525,12 @@ namespace eval ::orch {
         # deterministic integer, then mod by TMM count.  Uses XOR + multiply
         # for good avalanche (small input changes → large hash changes).
         set hash 0x811C9DC5
-        foreach octet [split $src_addr .] {
+        foreach octet [_fakecmp_addr_parts $src_addr] {
             set hash [expr {(($hash ^ $octet) * 0x01000193) & 0x7FFFFFFF}]
         }
         set hash [expr {(($hash ^ ($src_port & 0xFF)) * 0x01000193) & 0x7FFFFFFF}]
         set hash [expr {(($hash ^ (($src_port >> 8) & 0xFF)) * 0x01000193) & 0x7FFFFFFF}]
-        foreach octet [split $dst_addr .] {
+        foreach octet [_fakecmp_addr_parts $dst_addr] {
             set hash [expr {(($hash ^ $octet) * 0x01000193) & 0x7FFFFFFF}]
         }
         set hash [expr {(($hash ^ ($dst_port & 0xFF)) * 0x01000193) & 0x7FFFFFFF}]

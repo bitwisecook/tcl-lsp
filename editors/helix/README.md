@@ -37,10 +37,46 @@ args = []
 # command = "python3"
 # args = ["/path/to/tcl-lsp-server.pyz"]
 
+# Core Tcl / Tk. Sends languageId "tcl" → the server's default dialect.
 [[language]]
 name = "tcl"
 scope = "source.tcl"
-file-types = ["tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "apl", "exp"]
+file-types = ["tcl", "tk", "itcl", "tm"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+# The dialect-specific file types need their OWN language entry so Helix sends a
+# distinct `language-id` — routing every extension through `name = "tcl"` sends
+# languageId "tcl", which the server maps to tcl8.6, so F5 iRules / iApps and
+# Expect analysis never engages. `language-id` sets the LSP id the server keys
+# its dialect on (see `dialect_from_language_id`).
+[[language]]
+name = "f5-irules"
+language-id = "f5-irules"
+scope = "source.tcl"
+file-types = ["irul", "irule"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+[[language]]
+name = "f5-iapps"
+language-id = "f5-iapps"
+scope = "source.tcl"
+file-types = ["iapp", "iappimpl", "impl", "apl"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+[[language]]
+name = "expect"
+language-id = "expect"
+scope = "source.tcl"
+file-types = ["exp"]
 comment-tokens = ["#"]
 indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]

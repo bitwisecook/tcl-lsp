@@ -203,7 +203,8 @@ install_binaryen() {
 
     # Binaryen releases do not publish SHA-256 sidecars; pin alongside
     # the version like wasmtime above.  Re-compute when bumping
-    # BINARYEN_VERSION.
+    # BINARYEN_VERSION.  Fail closed: an arch with no pin is a policy hole,
+    # not a licence to install unverified, so refuse rather than skip.
     local expected_sha=""
     case "$bin_arch" in
         x86_64-linux)
@@ -211,13 +212,16 @@ install_binaryen() {
         aarch64-linux)
             expected_sha="" ;; # fill on first aarch64 cold-start
     esac
-    if [ -n "$expected_sha" ]; then
-        local actual_sha
-        actual_sha="$(sha256sum "${tmpdir}/${tarball}" | awk '{print $1}')"
-        if [ "$actual_sha" != "$expected_sha" ]; then
-            echo "session-start: binaryen sha256 mismatch (expected $expected_sha, got $actual_sha)" >&2
-            return 1
-        fi
+    local actual_sha
+    actual_sha="$(sha256sum "${tmpdir}/${tarball}" | awk '{print $1}')"
+    if [ -z "$expected_sha" ]; then
+        echo "session-start: no pinned binaryen sha256 for ${bin_arch}; refusing to install unverified." >&2
+        echo "session-start: downloaded artifact hashes to ${actual_sha} — pin it in install_binaryen and re-run." >&2
+        return 1
+    fi
+    if [ "$actual_sha" != "$expected_sha" ]; then
+        echo "session-start: binaryen sha256 mismatch (expected $expected_sha, got $actual_sha)" >&2
+        return 1
     fi
 
     rm -rf "$BINARYEN_PREFIX"
@@ -262,14 +266,23 @@ install_wasi_sdk() {
 
     # wasi-sdk publishes a SHA256SUMS asset alongside the tarballs; verify
     # against it. (A hardcoded pin like binaryen/wasmtime above is a follow-up.)
-    if fetch_with_retry "${base}/SHA256SUMS" "${tmpdir}/SHA256SUMS"; then
-        local expected actual
-        expected="$(awk -v f="$tarball" '{ n=$2; sub(/^\*/,"",n); if (n==f) { print $1; exit } }' "${tmpdir}/SHA256SUMS")"
-        actual="$(sha256sum "${tmpdir}/${tarball}" | awk '{print $1}')"
-        if [ -n "$expected" ] && [ "$actual" != "$expected" ]; then
-            echo "session-start: wasi-sdk sha256 mismatch (expected $expected, got $actual)" >&2
-            return 1
-        fi
+    # Fail closed: if the sidecar can't be fetched, or lists no entry for this
+    # tarball, treat the artifact as unverified and refuse it rather than
+    # silently installing.
+    if ! fetch_with_retry "${base}/SHA256SUMS" "${tmpdir}/SHA256SUMS"; then
+        echo "session-start: failed to fetch wasi-sdk SHA256SUMS; refusing to install unverified." >&2
+        return 1
+    fi
+    local expected actual
+    expected="$(awk -v f="$tarball" '{ n=$2; sub(/^\*/,"",n); if (n==f) { print $1; exit } }' "${tmpdir}/SHA256SUMS")"
+    actual="$(sha256sum "${tmpdir}/${tarball}" | awk '{print $1}')"
+    if [ -z "$expected" ]; then
+        echo "session-start: wasi-sdk SHA256SUMS has no entry for ${tarball}; refusing to install unverified." >&2
+        return 1
+    fi
+    if [ "$actual" != "$expected" ]; then
+        echo "session-start: wasi-sdk sha256 mismatch (expected $expected, got $actual)" >&2
+        return 1
     fi
 
     rm -rf "$WASI_SDK_PREFIX"

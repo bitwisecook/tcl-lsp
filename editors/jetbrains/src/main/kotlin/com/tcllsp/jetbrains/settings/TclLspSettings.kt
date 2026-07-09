@@ -69,7 +69,6 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     // most LSP clients into pull mode and disables the push pipeline.
     var featurePullDiagnostics: Boolean = false
     var featureWillSaveWaitUntil: Boolean = false
-    var featureProgress: Boolean = true
     var featureImplementation: Boolean = true
     var featureTypeDefinition: Boolean = true
     var featureDeclaration: Boolean = true
@@ -326,7 +325,6 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "codeLens" to featureCodeLens,
                 "workspaceFileOps" to featureWorkspaceFileOps,
                 "pullDiagnostics" to featurePullDiagnostics,
-                "progress" to featureProgress,
                 "implementation" to featureImplementation,
                 "typeDefinition" to featureTypeDefinition,
                 "declaration" to featureDeclaration,

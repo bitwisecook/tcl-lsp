@@ -32,7 +32,8 @@ use std::collections::HashMap;
 use crate::ssa::Version;
 use crate::var_escape::cfg_propagation::state::CfgState;
 use crate::var_escape::helpers::{
-    is_dynamic_name, is_dynamic_token, is_dynamic_upvar_level, is_name_first_command,
+    default_registry, is_dynamic_name, is_dynamic_token, is_dynamic_upvar_level,
+    is_name_first_command,
 };
 use crate::var_escape::info_subcommands::{
     is_frame_inspecting_info_subcommand, is_safe_info_subcommand,
@@ -188,6 +189,33 @@ pub(crate) fn handle_info(args: &[String], state: &mut CfgState, defs: &HashMap<
         );
         return;
     }
+    // Escape any registry-declared variable-*write* argument of this `info`
+    // subcommand (`info default procname arg varname` writes `varname` in the
+    // current frame) before the safe-subcommand short-circuit drops it — issue
+    // 151. Registry-driven; no subcommand name or index hardcoded here.
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    for idx in
+        default_registry().arg_indices_for_role("info", &arg_refs, tcl_registry::ArgRole::VarWrite)
+    {
+        let Some(target) = args.get(idx) else { continue };
+        if is_dynamic_token(target) {
+            state.record_barrier(Barrier::with_detail(
+                BarrierKind::Info,
+                format!("info {sub} (dynamic var-write target)"),
+            ));
+            state.escape_all_known(defs);
+        } else {
+            state.escape_with_reason(
+                target,
+                defs,
+                EscapeReason::with_detail(
+                    EscapeReasonKind::InfoVarWrite,
+                    format!("info {sub} writes {target}"),
+                ),
+            );
+        }
+    }
+
     if is_safe_info_subcommand(sub) {
         return;
     }

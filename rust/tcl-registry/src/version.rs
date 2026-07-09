@@ -87,6 +87,13 @@ pub fn satisfies_one(version: &str, requirement: &str) -> bool {
         return compare(version, min) != Ordering::Less;
     }
     if let Some((lo, hi)) = req.split_once('-') {
+        // Tcl's `RequirementSatisfied` special-cases an equal min/max: when the
+        // two bounds compare equal the requirement is an *exact pin* rather than
+        // the (empty) half-open range `[min, max)`.  `package vsatisfies 8.4
+        // 8.4-8.4` is therefore true, not false.
+        if compare(lo, hi) == Ordering::Equal {
+            return compare(version, lo) == Ordering::Equal;
+        }
         return compare(version, lo) != Ordering::Less && compare(version, hi) == Ordering::Less;
     }
     // Bare `min` == `[min, first(min)+1)`.
@@ -154,6 +161,19 @@ mod tests {
         assert!(satisfies_one("8.6", "8.6-"));
         assert!(satisfies_one("8.6", "8.4-9.0"));
         assert!(!satisfies_one("9.0", "8.4-9.0")); // max exclusive
+    }
+
+    #[test]
+    fn equal_min_max_is_exact_pin() {
+        // Tcl `RequirementSatisfied`: min == max degenerates to an exact pin,
+        // not the empty half-open range. `package vsatisfies 8.4 8.4-8.4` -> 1.
+        assert!(satisfies_one("8.4", "8.4-8.4"));
+        assert!(satisfies_one("8.4.0", "8.4-8.4")); // zero-padding still equal
+        assert!(!satisfies_one("8.5", "8.4-8.4"));
+        assert!(!satisfies_one("8.3", "8.4-8.4"));
+        // A genuine (non-degenerate) range keeps the exclusive upper bound.
+        assert!(!satisfies_one("8.5", "8.4-8.5"));
+        assert!(satisfies_one("8.4", "8.4-8.5"));
     }
 
     #[test]

@@ -629,7 +629,13 @@ impl<'src> Lexer<'src> {
                 continue;
             }
             if ch == ':' && self.peek_byte(1) == Some(b':') {
+                // C Tcl (`Tcl_ParseVarName`) consumes the *entire* colon run
+                // once a `::` starts it, not two colons per separator:
+                // `$a:::b` names the variable `a:::b`.
                 self.pos += 2;
+                while self.current_byte() == Some(b':') {
+                    self.pos += 1;
+                }
                 continue;
             }
             break;
@@ -917,7 +923,20 @@ impl<'src> Lexer<'src> {
             self.warn_or_error("missing \"")?;
         }
 
-        let content_offset: u8 = opening.into();
+        let content_offset: u8 = if !opening && content_empty && closed {
+            // A bare closing-quote sub-token (the trailing `"` of `"$foo"`,
+            // emitted as a 1-byte ESC): the `"` is a leading delimiter of a
+            // zero-content token, so `content_offset == 1` makes
+            // `SourceMap::token_text` yield `""`. This distinguishes it from a
+            // *literal* trailing `"` in a bare word, which `parse_esc` emits
+            // with `content_offset == 0` and `in_quote == false` (issue 160).
+            // The opening / mid-string cases keep `opening.into()` so the
+            // semantic-tokens fragment logic (which trims an extended `$`/`[`
+            // introducer keyed on `content_offset`) is unaffected.
+            1
+        } else {
+            opening.into()
+        };
         Ok(Token::with_content_offset(
             TokenType::Esc,
             Span::new(start_offset, span_end),
@@ -1123,6 +1142,42 @@ impl<'src> Lexer<'src> {
     ///
     /// Never fails. An unterminated `[` tokenizes best-effort; the
     /// `missing close-bracket` warning is not yet emitted.
+    /// Advance `self.pos` past a `${…}` braced variable name beginning at the
+    /// current `$` (whose next byte is `{`), using the same brace-nesting +
+    /// backslash-pair rules as [`Self::parse_var`]'s braced branch: `\X` is a
+    /// literal pair (so `\}` does not close) and inner `{`/`}` nest. Shared by
+    /// the command-substitution scanner so an inner `}`/`]`/`)` in a braced
+    /// name does not fool its delimiter counter (issue 163).
+    fn skip_braced_var_name(&mut self) {
+        self.pos += 2; // skip '${'
+        let mut brace_depth: u32 = 0;
+        while let Some(inner) = self.current_char() {
+            match inner {
+                '}' if brace_depth == 0 => {
+                    self.pos += 1;
+                    break;
+                }
+                '{' => {
+                    brace_depth += 1;
+                    self.pos += 1;
+                }
+                '}' => {
+                    brace_depth -= 1;
+                    self.pos += 1;
+                }
+                '\\' => {
+                    self.pos += 1;
+                    if let Some(next) = self.current_char() {
+                        self.pos += u32::try_from(next.len_utf8()).expect("char len fits u32");
+                    }
+                }
+                _ => {
+                    self.pos += u32::try_from(inner.len_utf8()).expect("char len fits u32");
+                }
+            }
+        }
+    }
+
     fn parse_command(&mut self) -> Result<Token, LexError> {
         let bracket_pos = self.pos;
         self.pos += 1; // skip '['
@@ -1200,18 +1255,11 @@ impl<'src> Lexer<'src> {
                     }
                 }
                 '$' if !in_quotes && blevel == 0 => {
-                    // `${…}` inside a command body: sub-scan to the
-                    // matching `}` so any `)` or `]` inside a braced
-                    // variable name does not fool the outer counter.
+                    // `${…}` inside a command body: sub-scan to the matching `}`
+                    // so any `)` or `]` inside a braced variable name does not
+                    // fool the outer counter.
                     if self.peek_byte(1) == Some(b'{') {
-                        self.pos += 2; // skip '${'
-                        while let Some(inner) = self.current_char() {
-                            if inner == '}' {
-                                self.pos += 1;
-                                break;
-                            }
-                            self.pos += u32::try_from(inner.len_utf8()).expect("char len fits u32");
-                        }
+                        self.skip_braced_var_name();
                     } else {
                         self.pos += 1;
                     }
@@ -1784,6 +1832,20 @@ mod tests {
     }
 
     #[test]
+    fn var_consumes_entire_colon_run() {
+        // `$a:::b` — C Tcl's `Tcl_ParseVarName` consumes the whole colon run
+        // once a `::` starts it, so the variable is `a:::b`, not `a::` + `:b`
+        // (issue 162).
+        let (rows, _) = var_token_text("$a:::b");
+        assert_eq!(rows[0], (TokenType::Var, "a:::b".into()));
+        // Four colons likewise stay in the name.
+        assert_eq!(
+            var_token_text("$a::::b").0[0],
+            (TokenType::Var, "a::::b".into())
+        );
+    }
+
+    #[test]
     fn var_single_colon_terminates_name() {
         // A single `:` is not part of the identifier; it ends the
         // VAR token and the rest becomes an ESC token.
@@ -2104,6 +2166,21 @@ mod tests {
     fn cmd_nested_brackets() {
         let (rows, _) = cmd_token_rows("[+ 1 [+ 2 3]]");
         assert_eq!(rows[0], (TokenType::Cmd, "+ 1 [+ 2 3]".into()));
+    }
+
+    #[test]
+    fn cmd_braced_var_name_handles_escapes_and_nesting() {
+        // `[set ${a\}] x}]` — the `${…}` braced variable name is `a\}] x`
+        // (the `\}` is a literal pair, the `]` is inside the name). The
+        // command-sub scan must sub-scan `${…}` with the same brace-nesting +
+        // backslash-pair rules as `parse_var`, so the inner `]` does not close
+        // the command early (issue 163). One CMD token spans the whole thing.
+        let (rows, _) = cmd_token_rows(r"[set ${a\}] x}]");
+        assert_eq!(rows[0], (TokenType::Cmd, r"set ${a\}] x}".into()));
+        assert_eq!(rows[1], (TokenType::Eol, String::new()));
+        // Brace nesting inside `${…}` is also honoured.
+        let (rows2, _) = cmd_token_rows(r"[set ${a{b}c} 1]");
+        assert_eq!(rows2[0], (TokenType::Cmd, r"set ${a{b}c} 1".into()));
     }
 
     #[test]

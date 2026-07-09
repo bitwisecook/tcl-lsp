@@ -636,6 +636,14 @@ pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySsaFunction {
                 // aliased vars still emits its defs.
             }
 
+            // The version reaching this statement's *reads*, snapshotted before
+            // the statement's own defs bump the counter.  A self-referential
+            // aliased write (`upvar c x; set x [expr {$x + 1}]`) reads the
+            // *incoming* version of `x`, not the one it is defining — tagging
+            // the use with the post-def `version_counter` recorded the write as
+            // the read's own reaching def (issue 154).
+            let reaching_version = version_counter;
+
             for &sym in stmt_ssa.defs.keys() {
                 let name = ssa.var_name(sym);
                 if aliased_names.contains(name) {
@@ -654,7 +662,7 @@ pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySsaFunction {
                 if aliased_names.contains(name) {
                     memory_ops.push(MemoryOp::new_use(
                         MemoryLocation::new(MemoryLocationKind::Local, name),
-                        version_counter,
+                        reaching_version,
                         bn,
                         idx_i32,
                     ));
@@ -1055,6 +1063,70 @@ mod tests {
             .find(|o| o.kind == MemoryOpKind::Use)
             .expect("use present");
         assert_eq!(load_op.reaching_version, def_op.version);
+    }
+
+    #[test]
+    fn self_referential_aliased_write_reads_incoming_version() {
+        // `global shared`; `set shared 0`; then a self-referential
+        // `set shared [expr {$shared + 1}]` that both reads and writes `shared`
+        // in one statement. The read must carry the version *reaching* the
+        // statement, strictly below the version the statement defines — tagging
+        // it with the post-def counter recorded the write as its own reaching
+        // def (issue 154).
+        let entry = BlockId(0);
+        let mut ssa = SsaFunction::trivial("::test", entry, vec!["entry".into()]);
+        let shared = ssa.intern_var("shared");
+        let mut stmts: Vec<SsaStatement> = Vec::new();
+        stmts.push(SsaStatement {
+            statement: call("global", &["shared"]),
+            uses: HashMap::new(),
+            defs: HashMap::new(),
+        });
+        let mut defs1 = HashMap::new();
+        defs1.insert(shared, 1);
+        stmts.push(SsaStatement {
+            statement: call("set", &["shared", "0"]),
+            uses: HashMap::new(),
+            defs: defs1,
+        });
+        let mut uses = HashMap::new();
+        uses.insert(shared, 1);
+        let mut defs2 = HashMap::new();
+        defs2.insert(shared, 2);
+        stmts.push(SsaStatement {
+            statement: call("set", &["shared", "[expr {$shared + 1}]"]),
+            uses,
+            defs: defs2,
+        });
+        ssa.blocks.insert(
+            entry,
+            SsaBlock {
+                name: "entry".into(),
+                phis: Vec::new(),
+                statements: stmts,
+                entry_versions: HashMap::new(),
+                exit_versions: HashMap::new(),
+            },
+        );
+        ssa.dominator_tree.insert(entry, Vec::new());
+        let m = build_memory_ssa(&ssa);
+        // The def and use from the self-referential statement (index 2).
+        let self_def = m
+            .memory_ops
+            .iter()
+            .find(|o| o.kind == MemoryOpKind::Def && o.statement_index == 2)
+            .expect("self-ref def");
+        let self_use = m
+            .memory_ops
+            .iter()
+            .find(|o| o.kind == MemoryOpKind::Use && o.statement_index == 2)
+            .expect("self-ref use");
+        assert!(
+            self_use.reaching_version < self_def.version,
+            "use must read the pre-write version (use {}, def {})",
+            self_use.reaching_version,
+            self_def.version,
+        );
     }
 
     #[test]

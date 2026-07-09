@@ -39,19 +39,99 @@ host_triple() {
     esac
 }
 
-# 3. Fetch a prebuilt release asset for this platform.
+# Newest release tag, *including pre-releases*.  The odd-minor rust-line
+# channel ships as GitHub pre-releases, which the `/releases/latest` redirect
+# hides — resolving that way would never find the asset and every cold cache
+# would fall through to a full `cargo build`.  The releases API lists all
+# (non-draft) releases newest-first, so `.[0]` is the true latest.
+latest_tag() {
+    if command -v gh >/dev/null 2>&1; then
+        gh api "repos/$repo/releases" --jq 'map(select(.draft|not)) | .[0].tag_name' 2>/dev/null && return 0
+    fi
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL "https://api.github.com/repos/$repo/releases?per_page=1" 2>/dev/null \
+            | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/'
+    fi
+}
+
+# Verify a downloaded asset against the release's SHA256SUMS before we ever
+# exec it.  Mirrors scripts/install/install.sh's trust model: cosign signature
+# over SHA256SUMS when cosign is present (fatal on a bad signature), then a
+# mandatory per-asset hash match.  A failure here returns non-zero so the
+# caller falls through to the from-source build rather than running an
+# unverified binary.
+verify_download() {  # verify_download <bin> <sums> <asset-name> <tag> <base-url>
+    local bin="$1" sums="$2" name="$3" tag="$4" base="$5" expected actual
+    [ -s "$bin" ] && [ -s "$sums" ] || return 1
+    if command -v cosign >/dev/null 2>&1; then
+        local bundle="$cache/SHA256SUMS.cosign.bundle"
+        if { command -v gh >/dev/null 2>&1 \
+                && gh release download "$tag" --repo "$repo" --pattern SHA256SUMS.cosign.bundle --output "$bundle" --clobber >&2 2>&1; } \
+           || { command -v curl >/dev/null 2>&1 \
+                && curl -fsSL "$base/SHA256SUMS.cosign.bundle" -o "$bundle" 2>/dev/null; }; then
+            local ok=0
+            cosign verify-blob --bundle "$bundle" \
+                --certificate-identity-regexp "^https://github.com/$repo/\\.github/workflows/.+@refs/tags/" \
+                --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+                "$sums" >/dev/null 2>&1 && ok=1
+            rm -f "$bundle"
+            if [ "$ok" != 1 ]; then
+                echo "tcl-mcp: cosign verification of SHA256SUMS failed" >&2
+                return 1
+            fi
+        fi
+        # No bundle published → hash-only, matching the installer's default.
+    fi
+    expected="$(awk -v a="$name" '$2 == a || $2 == "*"a {print $1; exit}' "$sums")"
+    if [ -z "$expected" ]; then
+        echo "tcl-mcp: $name not listed in SHA256SUMS; refusing unverified binary" >&2
+        return 1
+    fi
+    if command -v sha256sum >/dev/null 2>&1; then
+        actual="$(sha256sum "$bin" | awk '{print $1}')"
+    elif command -v shasum >/dev/null 2>&1; then
+        actual="$(shasum -a 256 "$bin" | awk '{print $1}')"
+    else
+        echo "tcl-mcp: no sha256sum/shasum available to verify $name" >&2
+        return 1
+    fi
+    if [ "$actual" != "$expected" ]; then
+        echo "tcl-mcp: sha256 mismatch for $name (expected $expected, got $actual)" >&2
+        return 1
+    fi
+    return 0
+}
+
+# 3. Fetch a prebuilt release asset for this platform and verify it.
 if triple="$(host_triple)"; then
     asset="tcl-mcp-${triple}"
     mkdir -p "$cache"
-    if command -v gh >/dev/null 2>&1 \
-        && gh release download --repo "$repo" --pattern "$asset" --output "$cache/tcl-mcp" --clobber >&2 2>&1; then
-        chmod +x "$cache/tcl-mcp" && exec "$cache/tcl-mcp" "$@"
+    tag="$(latest_tag)"
+    if [ -n "${tag:-}" ]; then
+        base="https://github.com/${repo}/releases/download/${tag}"
+        binf="$cache/tcl-mcp.download"
+        sumf="$cache/SHA256SUMS"
+        fetched=0
+        if command -v gh >/dev/null 2>&1 \
+            && gh release download "$tag" --repo "$repo" --pattern "$asset" --output "$binf" --clobber >&2 2>&1 \
+            && gh release download "$tag" --repo "$repo" --pattern SHA256SUMS --output "$sumf" --clobber >&2 2>&1; then
+            fetched=1
+        elif command -v curl >/dev/null 2>&1 \
+            && curl -fsSL "$base/$asset" -o "$binf" 2>/dev/null \
+            && curl -fsSL "$base/SHA256SUMS" -o "$sumf" 2>/dev/null; then
+            fetched=1
+        fi
+        if [ "$fetched" = 1 ] && verify_download "$binf" "$sumf" "$asset" "$tag" "$base"; then
+            mv "$binf" "$cache/tcl-mcp"
+            chmod +x "$cache/tcl-mcp"
+            rm -f "$sumf"
+            exec "$cache/tcl-mcp" "$@"
+        fi
+        rm -f "$binf" "$sumf"
+        echo "tcl-mcp: could not fetch/verify prebuilt $asset for $tag; building from source…" >&2
+    else
+        echo "tcl-mcp: could not resolve a release tag; building from source…" >&2
     fi
-    if command -v curl >/dev/null 2>&1 \
-        && curl -fsSL "https://github.com/${repo}/releases/latest/download/${asset}" -o "$cache/tcl-mcp" 2>/dev/null; then
-        chmod +x "$cache/tcl-mcp" && exec "$cache/tcl-mcp" "$@"
-    fi
-    echo "tcl-mcp: could not fetch prebuilt $asset; building from source…" >&2
 fi
 
 # 4. Last resort: build from source (needs cargo).

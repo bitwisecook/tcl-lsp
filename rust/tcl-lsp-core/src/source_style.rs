@@ -41,11 +41,12 @@
 //! codes reach the editor alongside the analyser / compiler-check /
 //! optimiser sets.
 //!
-//! **Range convention.**  The `end` position points at the *last
-//! affected character* (`character = length - 1`), not
-//! one-past-the-end.  This differs from the exclusive-`end`
-//! convention the structural `tcl-lsp-core` providers use, but it
-//! preserves inclusive diagnostic anchors.
+//! **Range convention.**  Ranges are end-exclusive, matching the LSP `Range`
+//! contract (`end` is one-past the last covered character) and the structural
+//! `tcl-lsp-core` providers — the native server passes these columns straight
+//! into the wire `Range`.  An inclusive `length - 1` end collapsed a
+//! single-column span to an empty range and left the last trailing-whitespace
+//! character outside the W112 remove-fix (issue 186).
 //! Character columns are UTF-16 code units, matching the LSP convention.
 //!
 //! The W112 / W115 quick-fixes are carried on
@@ -143,7 +144,9 @@ pub fn check_line_length(source: &str, max_length: usize) -> Vec<StyleDiagnostic
         let length = line.chars().count();
         if length > max_length {
             let lineno = u32::try_from(lineno).expect("line index fits u32");
-            let end_char = utf16_len(line).saturating_sub(1);
+            // LSP ranges are end-exclusive: the end column is one-past the last
+            // character, i.e. the line's full UTF-16 length (issue 186).
+            let end_char = utf16_len(line);
             out.push(StyleDiagnostic {
                 range: LspRange {
                     start_line: lineno,
@@ -175,11 +178,14 @@ pub fn check_trailing_whitespace(source: &str) -> Vec<StyleDiagnostic> {
             let lineno = u32::try_from(lineno).expect("line index fits u32");
             let ws_start = utf16_len(stripped);
             let ws_end = utf16_len(line_no_cr);
+            // End-exclusive: the range/fix must reach one-past the final
+            // whitespace char (`ws_end`), or the last space is left uncovered
+            // and the remove-whitespace fix leaves it behind (issue 186).
             let range = LspRange {
                 start_line: lineno,
                 start_character: ws_start,
                 end_line: lineno,
-                end_character: ws_end - 1,
+                end_character: ws_end,
             };
             out.push(StyleDiagnostic {
                 range,
@@ -339,10 +345,12 @@ pub fn check_comment_continuation(source: &str) -> Vec<StyleDiagnostic> {
         }
         let new_text = fixed.join("\n");
 
-        // Diagnostic range: from the start of the first line to
-        // the last character of the last line.
-        let end_line_text = lines[block_end];
-        let end_char = utf16_len(end_line_text).saturating_sub(1);
+        // Diagnostic range: from the start of the first line to one-past the
+        // last content character of the last line (end-exclusive per LSP). A
+        // trailing `\r` is excluded so a CRLF file's `\r` is neither counted
+        // nor left dangling by the fix (issue 186).
+        let end_line_text = lines[block_end].trim_end_matches('\r');
+        let end_char = utf16_len(end_line_text);
         let range = LspRange {
             start_line: u32::try_from(block_start).expect("line index fits u32"),
             start_character: 0,
@@ -445,7 +453,7 @@ mod tests {
         assert_eq!(d.message, "Line exceeds 120 characters (125 characters)");
         assert_eq!(d.range.start_line, 0);
         assert_eq!(d.range.start_character, 0);
-        assert_eq!(d.range.end_character, 124);
+        assert_eq!(d.range.end_character, 125); // end-exclusive: one past the 125th char
         assert!(d.fix.is_none());
     }
 
@@ -473,11 +481,11 @@ mod tests {
         assert_eq!(d.severity, StyleSeverity::Hint);
         assert_eq!(d.range.start_line, 0);
         assert_eq!(d.range.start_character, 7);
-        assert_eq!(d.range.end_character, 9);
+        assert_eq!(d.range.end_character, 10); // end-exclusive: covers all 3 spaces
         let fix = d.fix.as_ref().expect("W112 carries a fix");
         assert_eq!(fix.new_text, "");
         assert_eq!(fix.range.start_character, 7);
-        assert_eq!(fix.range.end_character, 9);
+        assert_eq!(fix.range.end_character, 10);
         assert_eq!(fix.description, "Remove trailing whitespace");
     }
 
@@ -487,10 +495,10 @@ mod tests {
         assert_eq!(diags.len(), 1);
         let d = &diags[0];
         assert_eq!(d.range.start_character, 6);
-        assert_eq!(d.range.end_character, 7);
+        assert_eq!(d.range.end_character, 8); // end-exclusive: covers both trailing spaces
         let fix = d.fix.as_ref().expect("W112 carries a fix");
         assert_eq!(fix.range.start_character, 6);
-        assert_eq!(fix.range.end_character, 7);
+        assert_eq!(fix.range.end_character, 8);
     }
 
     #[test]

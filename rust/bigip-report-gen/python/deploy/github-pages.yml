@@ -95,7 +95,7 @@ jobs:
       # No wasm-opt/binaryen: it is intentionally disabled for this module
       # (see rust/tcl-explorer-wasm/Cargo.toml + the explorer-wasm Make target).
       # `make explorer-build` verifies the externref table is growable via
-      # scripts/verify-explorer-wasm.mjs (node is preinstalled on the runner).
+      # scripts/verify-wasm-externref.mjs (node is preinstalled on the runner).
       - name: Build the compiler-explorer GUI bundle (WASM + Mermaid)
         # Emits the wasm/js bundle + vendored Mermaid into rust/tcl-cli/gui/.
         run: make explorer-build

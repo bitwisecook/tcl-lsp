@@ -192,8 +192,10 @@ fn rename_absolute_literal_becomes_new_absolute_path() {
 fn rename_resolves_relative_literal_via_workspace_root() {
     // `/proj/sub/main.tcl` does `source helper.tcl`, but the file lives at
     // the workspace root, not next to the script. Without a root it does
-    // not match; with one the roots branch in `source_resolves_to` hits and
-    // the rewrite re-relativises to the script's dir (`../helper2.tcl`).
+    // not match; with one the roots branch in `matched_base` hits and the
+    // rewrite re-relativises against the *same* base it matched under (the
+    // root) — so it stays root-relative (`helper2.tcl`), not `../helper2.tcl`
+    // (which would resolve elsewhere at runtime, issue 178).
     let idx = index_of("file:///proj/sub/main.tcl", "source helper.tcl\n");
     let no_root = compute_rename_edits(
         "file:///proj/helper.tcl",
@@ -210,7 +212,7 @@ fn rename_resolves_relative_literal_via_workspace_root() {
         &["file:///proj".to_string()],
     );
     assert_eq!(with_root.len(), 1, "{with_root:?}");
-    assert_eq!(with_root[0].new_text, "../helper2.tcl");
+    assert_eq!(with_root[0].new_text, "helper2.tcl");
 }
 
 #[test]

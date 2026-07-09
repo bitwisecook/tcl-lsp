@@ -615,11 +615,36 @@ fn collect_tail_sites(
 
 /// Parse a `return` value's text looking for a `[cmd args…]`
 /// command substitution shape. Returns `(cmd, args_text)` or
-/// `None` if the text is not a single command substitution.
+/// `None` if the text is not a *single* command substitution.
+///
+/// The single-substitution requirement matters: `return [a $x][b $y]` is a
+/// legal *concatenation* of two substitutions whose text starts with `[` and
+/// ends with `]`, but stripping the outer brackets and splitting would build
+/// the syntactically invalid `tailcall a $x][b $y`. Lexing the value and
+/// requiring exactly one top-level `Cmd` word rejects the concat, nested-close
+/// (`[a]] [b`), and trailing-text shapes a naive strip would accept (issue
+/// 152).
 fn parse_return_subst(value: &str) -> Option<(String, String)> {
     let v = value.trim();
-    let inner = v.strip_prefix('[').and_then(|s| s.strip_suffix(']'))?;
-    let inner = inner.trim();
+    let sm = tcl_lexer::SourceMap::new(v);
+    let toks = tcl_lexer::Lexer::new(v).tokenise_all().ok()?;
+    let mut words = toks.iter().filter(|t| {
+        !matches!(
+            t.kind,
+            tcl_lexer::TokenType::Sep | tcl_lexer::TokenType::Eol | tcl_lexer::TokenType::Eof
+        )
+    });
+    let cmd_tok = words.next()?;
+    // Exactly one word, a command substitution starting at the very front.
+    if words.next().is_some()
+        || cmd_tok.kind != tcl_lexer::TokenType::Cmd
+        || cmd_tok.span.start() != 0
+    {
+        return None;
+    }
+    // `token_text` strips the leading `[`; the trailing `]` is outside the span
+    // (inner-end convention) so the inner body is exactly the command text.
+    let inner = sm.token_text(*cmd_tok).trim();
     if inner.is_empty() {
         return None;
     }
@@ -659,6 +684,27 @@ mod tests {
         );
         run(&mut ctx, &cu);
         ctx.optimisations
+    }
+
+    #[test]
+    fn parse_return_subst_accepts_single_and_rejects_concat() {
+        // A single command substitution parses into (head, args).
+        assert_eq!(
+            parse_return_subst("[a $x]"),
+            Some(("a".to_owned(), "$x".to_owned()))
+        );
+        assert_eq!(
+            parse_return_subst("[foo]"),
+            Some(("foo".to_owned(), String::new()))
+        );
+        // A concatenation of two substitutions is NOT a single subst — a naive
+        // strip would yield the invalid `a $x][b $y` (issue 152).
+        assert_eq!(parse_return_subst("[a $x][b $y]"), None);
+        // Trailing text after the substitution is likewise rejected.
+        assert_eq!(parse_return_subst("[a] tail"), None);
+        // Not a substitution at all.
+        assert_eq!(parse_return_subst("plain"), None);
+        assert_eq!(parse_return_subst("[]"), None);
     }
 
     #[test]

@@ -318,16 +318,21 @@ fn guard_interval(op: BinOp, k: i64, negate: bool) -> Option<Interval> {
         op
     };
     match op {
+        // Saturate the `±1` at the i64 boundary: a branch literal of `i64::MIN`
+        // (for `<`) or `i64::MAX` (for `>`) would overflow an unchecked `k ± 1`
+        // and panic in debug/test builds. Saturating keeps a *sound* (if by one
+        // value wider) interval — an over-approximation is always safe for the
+        // analysis (issue 147).
         BinOp::Lt => Some(Interval {
             lo: None,
-            hi: Some(k - 1),
+            hi: Some(k.saturating_sub(1)),
         }),
         BinOp::Le => Some(Interval {
             lo: None,
             hi: Some(k),
         }),
         BinOp::Gt => Some(Interval {
-            lo: Some(k + 1),
+            lo: Some(k.saturating_add(1)),
             hi: None,
         }),
         BinOp::Ge => Some(Interval {
@@ -419,18 +424,34 @@ fn dominates(ssa: &SsaFunction, ancestor: BlockId, node: BlockId) -> bool {
     }
 }
 
+/// The guard-analysis lookup tables [`refine_interval`] consults: the
+/// branch-block index (`build_guard_index`) and the per-block predecessor
+/// count (used for the merge / edge-domination check).  Bundled so the refiner
+/// keeps a small argument list.
+#[derive(Clone, Copy)]
+pub struct GuardTables<'a> {
+    /// Branch blocks that constrain each `(sym, version)`.
+    pub guard_index: &'a HashMap<ValueKey, Vec<BlockId>>,
+    /// Predecessor count per block.
+    pub pred_counts: &'a HashMap<BlockId, usize>,
+}
+
 /// Narrow `base[(name, version)]` by the constant-bound guards that hold on
 /// every path reaching `block`.
 #[must_use]
-pub fn refine_interval<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+pub fn refine_interval<S1: std::hash::BuildHasher>(
     base: &HashMap<ValueKey, Interval, S1>,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     block: BlockId,
     name: &str,
     version: Version,
-    guard_index: &HashMap<ValueKey, Vec<BlockId>, S2>,
+    guards: GuardTables<'_>,
 ) -> Interval {
+    let GuardTables {
+        guard_index,
+        pred_counts,
+    } = guards;
     // A name that was never interned is not a tracked SSA value: no base
     // interval and no guard fact, so its interval is TOP.
     let Some(sym) = ssa.var_symbol(name) else {
@@ -464,14 +485,38 @@ pub fn refine_interval<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         }
         let true_dom = dominates(ssa, *true_target, block);
         let false_dom = dominates(ssa, *false_target, block);
-        let c = if true_dom && !false_dom {
-            guard_constraint(condition, name, false)
+        // `negate == false` for the true edge (the condition held), `true` for
+        // the false edge (the condition failed).
+        let (guard_target, negate) = if true_dom && !false_dom {
+            (*true_target, false)
         } else if false_dom && !true_dom {
-            guard_constraint(condition, name, true)
+            (*false_target, true)
         } else {
             continue;
         };
-        if let Some(c) = c {
+        // The guard holds at `block` only if control *must* have traversed the
+        // guarded edge to reach it.  When the guarded target has more than one
+        // predecessor it is a merge, so another edge could reach it without the
+        // guard.  That is sound *only* when the guard variable is redefined at
+        // the merge (a phi for `sym`): the phi gives the guarded edge its own
+        // incoming version, so the version being refined is the one carried
+        // specifically by that edge (the ordinary rotated-loop-header case,
+        // where the loop variable is `incr`-ed).  Without such a phi the *same*
+        // version flows in from a non-guarded predecessor — e.g. a `break` into
+        // a loop exit that is also the header's false target, with the guard
+        // variable un-redefined — where the guard does not hold, so refining
+        // would be unsound (issue 148).
+        let target_preds = pred_counts.get(&guard_target).copied().unwrap_or(0);
+        if target_preds > 1 {
+            let redefined_at_target = ssa
+                .blocks
+                .get(&guard_target)
+                .is_some_and(|sb| sb.phis.iter().any(|p| p.name == sym));
+            if !redefined_at_target {
+                continue;
+            }
+        }
+        if let Some(c) = guard_constraint(condition, name, negate) {
             iv = intersect(iv, c);
         }
     }
@@ -937,6 +982,35 @@ mod tests {
             Some(Interval {
                 lo: None,
                 hi: Some(4)
+            })
+        );
+    }
+
+    #[test]
+    fn guard_interval_saturates_at_i64_boundary() {
+        // `value < i64::MIN` / `value > i64::MAX` would overflow an unchecked
+        // `k ± 1`; saturation keeps a sound (empty-ish, one-value-wide) bound
+        // instead of panicking (issue 147).
+        assert_eq!(
+            guard_interval(BinOp::Lt, i64::MIN, false),
+            Some(Interval {
+                lo: None,
+                hi: Some(i64::MIN)
+            })
+        );
+        assert_eq!(
+            guard_interval(BinOp::Gt, i64::MAX, false),
+            Some(Interval {
+                lo: Some(i64::MAX),
+                hi: None
+            })
+        );
+        // Negated forms route through the same arithmetic (`>=` neg → `<`).
+        assert_eq!(
+            guard_interval(BinOp::Ge, i64::MIN, true),
+            Some(Interval {
+                lo: None,
+                hi: Some(i64::MIN)
             })
         );
     }

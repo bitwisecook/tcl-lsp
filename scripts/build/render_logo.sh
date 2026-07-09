@@ -124,7 +124,9 @@ done
 #   * the Sphinx docs theme (furo light/dark logo + favicon)
 #   * the compiler-explorer web GUI (browser-tab favicon)
 SPHINX_STATIC="docs/sphinx/_static"
-EXPLORER_STATIC="tooling/explorer/static"
+# The explorer GUI moved out of the retired tooling/explorer/static tree into
+# the tcl-cli crate, where build.rs embeds it into the `tcl` binary.
+EXPLORER_STATIC="rust/tcl-cli/gui"
 
 if [ -d "docs/sphinx" ]; then
     mkdir -p "$SPHINX_STATIC"

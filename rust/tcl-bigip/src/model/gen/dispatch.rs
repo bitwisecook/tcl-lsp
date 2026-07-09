@@ -551,21 +551,24 @@ const FOUR_WORD_TYPES: &[&str] = &[
 /// Port of the strict `_parse_header` -> `(module, object_type, full_path)`.
 #[must_use]
 pub fn parse_header_strict(header: &str) -> Option<(String, String, String)> {
-    let parts: Vec<&str> = header.split_whitespace().collect();
+    // Quote-aware tokenisation (like the generic path): a quoted identifier
+    // with spaces — `security bot-defense signature "/Common/Microsoft Access"`
+    // — is one token, not truncated at the inner space (issue 188).
+    let parts = crate::parser::helpers::tokenise_header(header);
     if parts.len() < 3 {
         return None;
     }
-    let module = parts[0].to_owned();
+    let module = parts[0].clone();
     if parts.len() >= 6 {
         let four = parts[1..5].join(" ");
         if FOUR_WORD_TYPES.contains(&four.as_str()) {
-            return Some((module, four, parts[5].to_owned()));
+            return Some((module, four, parts[5].clone()));
         }
     }
     if parts.len() >= 5 {
         let three = parts[1..4].join(" ");
         if THREE_WORD_TYPES.contains(&three.as_str()) {
-            return Some((module, three, parts[4].to_owned()));
+            return Some((module, three, parts[4].clone()));
         }
     }
     if parts.len() == 4 {
@@ -583,10 +586,10 @@ pub fn parse_header_strict(header: &str) -> Option<(String, String, String)> {
     if parts.len() >= 4 {
         let two = format!("{} {}", parts[1], parts[2]);
         if TWO_WORD_TYPES.contains(&two.as_str()) {
-            return Some((module, two, parts[3].to_owned()));
+            return Some((module, two, parts[3].clone()));
         }
     }
-    Some((module, parts[1].to_owned(), parts[2].to_owned()))
+    Some((module, parts[1].clone(), parts[2].clone()))
 }
 
 /// Build a minimal object with its TMSH kind label.
@@ -1814,4 +1817,32 @@ pub fn dispatch_ltm_tables(
         ),
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod header_quote_tests {
+    use super::parse_header_strict;
+
+    #[test]
+    fn quoted_identifier_with_space_is_not_truncated() {
+        // A quoted full-path containing a space must survive whole on the
+        // typed-object (strict) path, matching the quote-aware generic path —
+        // not truncate at the inner space (issue 188).
+        let (module, otype, full_path) =
+            parse_header_strict("security bot-defense signature \"/Common/Microsoft Access\"")
+                .expect("known typed object");
+        assert_eq!(module, "security");
+        assert_eq!(otype, "bot-defense signature");
+        assert_eq!(full_path, "/Common/Microsoft Access");
+    }
+
+    #[test]
+    fn unquoted_identifier_still_parses() {
+        let (module, otype, full_path) =
+            parse_header_strict("security bot-defense signature /Common/plain")
+                .expect("known typed object");
+        assert_eq!(module, "security");
+        assert_eq!(otype, "bot-defense signature");
+        assert_eq!(full_path, "/Common/plain");
+    }
 }
