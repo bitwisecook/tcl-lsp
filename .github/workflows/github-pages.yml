@@ -74,6 +74,17 @@ jobs:
       # rust-toolchain.toml pins the channel (stable). Cache both crate trees:
       # the workspace member the report links (bigip-report-gen/python) and the
       # standalone WASM crate (tcl-explorer-wasm has its own lockfile).
+      # The runner image ships a pinned stable (currently 1.96.1) and
+      # `rust-toolchain.toml`'s `channel = "stable"` resolves to *that*, not to
+      # the newest release — so cargo refuses the workspace's `rust-version`.
+      # Install the current stable explicitly.  `cache: false` because the
+      # Swatinem cache is configured separately below.
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          toolchain: stable
+          cache: false
+
       - name: Cache cargo + build
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
