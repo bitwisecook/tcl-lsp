@@ -599,8 +599,9 @@ fn style_w111_flags_overlong_line_only_past_the_limit() {
     assert_eq!(diags.len(), 1, "{diags:?}");
     assert_eq!(diags[0].code, "W111");
     assert_eq!(diags[0].severity, StyleSeverity::Warning);
-    // end_character is the last affected column (length - 1), inclusive.
-    assert_eq!(diags[0].range.end_character, 120);
+    // end_character is end-exclusive (one past the last covered column): a
+    // 121-char line covers columns 0..=120, so end is 121 (issue 186).
+    assert_eq!(diags[0].range.end_character, 121);
     assert!(diags[0].fix.is_none(), "W111 has no quick-fix");
 
     let boundary = "z".repeat(DEFAULT_LINE_LENGTH);
@@ -618,9 +619,10 @@ fn style_w112_flags_trailing_whitespace_with_remove_fix() {
     let d = &diags[0];
     assert_eq!(d.code, "W112");
     assert_eq!(d.severity, StyleSeverity::Hint);
-    // The flagged span covers exactly the trailing run (cols 7..=9).
+    // The flagged span covers exactly the trailing run: columns 7, 8, 9
+    // as an end-exclusive range 7..10 (issue 186).
     assert_eq!(d.range.start_character, 7);
-    assert_eq!(d.range.end_character, 9);
+    assert_eq!(d.range.end_character, 10);
     let fix = d
         .fix
         .as_ref()

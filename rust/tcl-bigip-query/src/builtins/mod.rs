@@ -952,6 +952,53 @@ fn bi_values(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::List(entries.into_iter().map(|(_, v)| v).collect()))
 }
 
+/// Sum a numeric sequence (`first` is the leading `Int`/`Float`, used only for
+/// mixed-type error wording).  Integers accumulate with a *checked* add that
+/// stands in for the `+` operator's clean overflow error — never a debug panic
+/// or release wraparound (issue 193).  A float anywhere promotes the whole sum
+/// to a float; from that point the integer accumulator is dead, so its checked
+/// add is skipped rather than allowed to error on an overflow that can no longer
+/// reach the result (matching `+`, which never re-narrows to int after
+/// promoting — so `[i64::MAX, 1.0, 1] | add` yields a float, review follow-up).
+fn bi_add_numeric(items: &[Value], first: &Value) -> Result<Value, QueryError> {
+    let mut is_float = false;
+    let mut isum: i64 = 0;
+    let mut fsum: f64 = 0.0;
+    for item in items {
+        match item {
+            Value::Bool(_) => {
+                return Err(QueryError::builtin(
+                    "add: cannot mix int with bool".to_string(),
+                ));
+            }
+            Value::Int(i) => {
+                if !is_float {
+                    isum = isum.checked_add(*i).ok_or_else(|| {
+                        QueryError::builtin("add: integer sum overflows i64".to_string())
+                    })?;
+                }
+                fsum += *i as f64;
+            }
+            Value::Float(f) => {
+                is_float = true;
+                fsum += f;
+            }
+            other => {
+                return Err(QueryError::builtin(format!(
+                    "add: cannot mix {} with {}",
+                    type_name(first),
+                    type_name(other)
+                )));
+            }
+        }
+    }
+    Ok(if is_float {
+        Value::Float(fsum)
+    } else {
+        Value::Int(isum)
+    })
+}
+
 fn bi_add(args: &[Value]) -> Result<Value, QueryError> {
     let items = as_sequence(&args[0], "add", 1)?;
     let Some(first) = items.first() else {
@@ -962,44 +1009,7 @@ fn bi_add(args: &[Value]) -> Result<Value, QueryError> {
             "add: cannot sum {} values — coerce with ``str`` or ``tonumber`` first",
             type_name(first)
         ))),
-        Value::Int(_) | Value::Float(_) => {
-            let mut is_float = false;
-            let mut isum: i64 = 0;
-            let mut fsum: f64 = 0.0;
-            for item in &items {
-                match item {
-                    Value::Bool(_) => {
-                        return Err(QueryError::builtin(
-                            "add: cannot mix int with bool".to_string(),
-                        ));
-                    }
-                    Value::Int(i) => {
-                        // Checked, like the `+` operator: a clean error, never
-                        // a debug panic / release wraparound (issue 193).
-                        isum = isum.checked_add(*i).ok_or_else(|| {
-                            QueryError::builtin("add: integer sum overflows i64".to_string())
-                        })?;
-                        fsum += *i as f64;
-                    }
-                    Value::Float(f) => {
-                        is_float = true;
-                        fsum += f;
-                    }
-                    other => {
-                        return Err(QueryError::builtin(format!(
-                            "add: cannot mix {} with {}",
-                            type_name(first),
-                            type_name(other)
-                        )));
-                    }
-                }
-            }
-            Ok(if is_float {
-                Value::Float(fsum)
-            } else {
-                Value::Int(isum)
-            })
-        }
+        Value::Int(_) | Value::Float(_) => bi_add_numeric(&items, first),
         Value::Str(_) | Value::PathRef(_) => {
             let mut parts = String::new();
             for item in &items {
@@ -1413,5 +1423,76 @@ mod catalogue_tests {
     fn unknown_builtin_reports_cleanly() {
         let miss = format_catalogue(Some("definitely-not-a-builtin"));
         assert!(miss.contains("no builtin named 'definitely-not-a-builtin'"));
+    }
+}
+
+#[cfg(test)]
+mod add_tests {
+    use super::bi_add;
+    use crate::value::Value;
+
+    fn add(items: Vec<Value>) -> Result<Value, super::QueryError> {
+        bi_add(&[Value::List(items)])
+    }
+
+    fn as_int(v: Result<Value, super::QueryError>) -> i64 {
+        match v.expect("expected Ok") {
+            Value::Int(i) => i,
+            other => panic!("expected an integer, got {other:?}"),
+        }
+    }
+
+    fn as_float(v: Result<Value, super::QueryError>) -> f64 {
+        match v.expect("expected Ok") {
+            Value::Float(f) => f,
+            other => panic!("expected a float, got {other:?}"),
+        }
+    }
+
+    // TN: a clean all-integer sum stays an exact integer.
+    #[test]
+    fn all_int_sum_is_exact_int() {
+        assert_eq!(as_int(add(vec![Value::Int(1), Value::Int(2), Value::Int(3)])), 6);
+    }
+
+    // TP: a genuine all-integer overflow is a clean error, not a panic/wrap —
+    // this stands in for the `+` operator's overflow behaviour.
+    #[test]
+    fn all_int_overflow_errors() {
+        let err = add(vec![Value::Int(i64::MAX), Value::Int(1)]).unwrap_err();
+        assert!(err.to_string().contains("integer sum overflows"), "{err}");
+    }
+
+    // FP guard (the review finding): once a float has been seen the result is a
+    // float, so a later integer that would overflow the *dead* integer
+    // accumulator must NOT error — the `+` fold returns a float here.
+    #[test]
+    fn float_promotion_suppresses_dead_int_overflow() {
+        let got = as_float(add(vec![
+            Value::Int(i64::MAX),
+            Value::Float(1.0),
+            Value::Int(1),
+        ]));
+        assert!((got - (i64::MAX as f64 + 2.0)).abs() < 1.0, "{got}");
+    }
+
+    // TP still fires before promotion: integers that overflow *before* any float
+    // appears error just as the `+` fold would (the overflow is real there).
+    #[test]
+    fn int_overflow_before_float_still_errors() {
+        let err = add(vec![
+            Value::Int(i64::MAX),
+            Value::Int(i64::MAX),
+            Value::Float(1.0),
+        ])
+        .unwrap_err();
+        assert!(err.to_string().contains("integer sum overflows"), "{err}");
+    }
+
+    // FN guard: a float anywhere promotes the whole sum to float (never silently
+    // dropped back to int).
+    #[test]
+    fn any_float_makes_the_sum_float() {
+        assert!((as_float(add(vec![Value::Int(2), Value::Float(0.5)])) - 2.5).abs() < f64::EPSILON);
     }
 }

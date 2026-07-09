@@ -386,6 +386,42 @@ fn oo_class_method_body_is_recursed() {
 }
 
 #[test]
+fn oo_wrapper_block_body_keeps_member_grammar() {
+    // TclOO's bare wrapper-block form `private { … }` / `self { … }` is a
+    // nested *definition* script: the members inside it (`method`, `variable`)
+    // must still be recognised as keywords, and their bodies recursed — not
+    // walked as ordinary Tcl (Codex review of #839: the block dropped out of
+    // definition grammar, so `method` inside `private { … }` went unhighlighted).
+    for wrapper in ["private", "self"] {
+        let src = format!(
+            "oo::class create C {{\n    {wrapper} {{\n        method m {{}} {{ set y 2 }}\n        variable secret 0\n    }}\n}}\n",
+        );
+        // The inner member keywords resolve from the grammar the block kept.
+        for kw in ["method", "variable"] {
+            assert_eq!(
+                kind_of_word(&src, "tcl9.0", kw).as_deref(),
+                Some("keyword"),
+                "`{kw}` inside `{wrapper} {{ … }}` must be a member keyword: {:?}",
+                decode(&src, "tcl9.0"),
+            );
+        }
+        // The inner method's body is recursed (its `set` builtin tokenises).
+        let toks = decode(&src, "tcl9.0");
+        assert!(
+            toks.iter()
+                .any(|t| t.ttype == "function" && tok_text(&src, t) == "set"),
+            "`{wrapper} {{ … }}` inner method body should tokenise `set`: {toks:?}",
+        );
+        // The declared instance variable resolves as a variable.
+        assert_eq!(
+            kind_of_word(&src, "tcl9.0", "secret").as_deref(),
+            Some("variable"),
+            "`variable secret` inside `{wrapper} {{ … }}` should declare a variable",
+        );
+    }
+}
+
+#[test]
 fn oo_abstract_and_singleton_bodies_are_recursed() {
     for metaclass in ["oo::abstract", "oo::singleton"] {
         let src = format!("{metaclass} create C {{\n    method m {{}} {{ set z 3 }}\n}}\n");

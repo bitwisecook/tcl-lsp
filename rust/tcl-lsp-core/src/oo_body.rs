@@ -109,10 +109,43 @@ pub fn next_definition_grammar(
 ) -> Option<&'static DefinitionBodyGrammar> {
     if let Some(g) = outer_definition_grammar(command, args, registry) {
         Some(g)
-    } else if cur.is_some_and(|g| is_member(g, command)) {
-        None
+    } else if let Some(g) = cur.filter(|g| is_member(g, command)) {
+        // A member command inside a definition body normally drops out of
+        // definition context: a `method`/`constructor` body is ordinary Tcl.
+        // Exception — the TclOO wrapper-*block* form `private { … }` /
+        // `self { … }`, whose single argument is itself a nested definition
+        // script; its members (`method`, `variable`, …) must stay resolvable,
+        // so the block keeps `cur`. Detected from the registry (the member's
+        // `wrapper_block_body` flag + the bare-block arg shape), never by name.
+        if is_wrapper_block_form(g, command, args) {
+            cur
+        } else {
+            None
+        }
     } else {
         cur
+    }
+}
+
+/// Whether `command`'s call `args` is the `TclOO` wrapper-*block* form
+/// (`private { … }` / `self { … }`): a member declaring
+/// [`MemberSpec::wrapper_block_body`] whose first argument is a bare
+/// definition script rather than a nested inner member keyword.  In that form
+/// the block is a nested definition body (its members stay in the enclosing
+/// grammar); the `self method …` / `private method …` wrapper forms are *not*
+/// block forms and their inner member's body drops out like any other.  Mirrors
+/// the dispatch in [`wrapper_member_indices`] so the two stay in agreement.
+#[must_use]
+fn is_wrapper_block_form(grammar: &DefinitionBodyGrammar, command: &str, args: &[&str]) -> bool {
+    let Some(member) = grammar.member(command) else {
+        return false;
+    };
+    if !member.wrapper_block_body {
+        return false;
+    }
+    match args.split_first() {
+        Some((inner, _)) => grammar.member(inner).is_none(),
+        None => false,
     }
 }
 
@@ -473,5 +506,39 @@ mod tests {
         assert!(next_definition_grammar("if", &["{c}", "{b}"], None, &reg).is_none());
         // Inner commands at top level (no enclosing grammar) don't fire.
         assert!(next_definition_grammar("method", &["m", "{}", "{b}"], None, &reg).is_none());
+    }
+
+    #[test]
+    fn wrapper_block_body_stays_in_definition_grammar() {
+        let reg = registry();
+        let tcloo = Some(&TCLOO_GRAMMAR);
+        // The bare-block wrapper form `private { … }` / `self { … }` is a nested
+        // definition script — the block keeps the enclosing grammar so its
+        // members (`method`, `variable`, …) are still recognised.
+        assert!(
+            next_definition_grammar("private", &["{ method m {} {} }"], tcloo, &reg).is_some(),
+            "private {{ … }} block keeps the class grammar",
+        );
+        assert!(
+            next_definition_grammar("self", &["{ method m {} {} }"], tcloo, &reg).is_some(),
+            "self {{ … }} block keeps the class grammar",
+        );
+        // But the wrapper form that nests an inner member (`self method …`,
+        // `private method …`) is an ordinary member body and drops out.
+        assert!(
+            next_definition_grammar("self", &["method", "m", "{}", "{b}"], tcloo, &reg).is_none(),
+            "self method … body is ordinary Tcl",
+        );
+        assert!(
+            next_definition_grammar("private", &["method", "m", "{}", "{b}"], tcloo, &reg)
+                .is_none(),
+            "private method … body is ordinary Tcl",
+        );
+        // The block form only preserves grammar for a member that actually
+        // declares a wrapper block body — a plain `method` never does.
+        assert!(
+            !is_wrapper_block_form(&TCLOO_GRAMMAR, "method", &["{b}"]),
+            "method is not a wrapper-block member",
+        );
     }
 }
