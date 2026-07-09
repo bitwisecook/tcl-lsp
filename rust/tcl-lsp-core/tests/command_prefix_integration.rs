@@ -441,3 +441,71 @@ fn processman_onexit_script_body_is_recursed_not_a_prefix() {
         "the processman::onexit script body's inner call must be recorded as an invocation"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Object-instance method callbacks — the prefix is on a method of a created
+// object command (`struct::graph name` / `set g [struct::graph]`), resolved
+// through the class's ObjectClassSpec + the receiver's tracked type.  Foreground
+// analysis (single-file diagnostics, call graph, in-file references).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn struct_graph_walk_command_records_callback_with_arity() {
+    // `struct::graph myG` names the instance; `myG walk … -command cb` resolves
+    // `cb` through the graph class's `walk` method (option-value prefix), so the
+    // bareword head is recorded as an invocation carrying the Exactly(3)
+    // callback arity (feeding references + the callback-arity check).  (The
+    // call-graph *edge* additionally needs interprocedural object-type tracking,
+    // which is a documented follow-up; correctness — W123 / arity / not-dead —
+    // rides on this invocation record.)
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    let src = "proc onNode {action g node} { }\nproc build {} {\n    struct::graph myG\n    myG walk root -command onNode\n}\n";
+    let r = a.analyse(src, "tcl9.0");
+    assert!(
+        r.command_invocations.iter().any(|i| {
+            i.name == "onNode"
+                && i.callback_arity
+                    == Some(tcl_registry::AppendedArity::Exactly(3))
+        }),
+        "`myG walk -command onNode` must record an onNode invocation with Exactly(3) callback arity"
+    );
+}
+
+#[test]
+fn struct_graph_walk_command_var_handle_fires_w123_only_when_unknown() {
+    // The `set g [struct::graph]` handle form types `g`, so `$g walk … -command`
+    // resolves too.  Unknown head → W123; defined 3-param head → silent.
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    let bad = "set g [struct::graph]\n$g walk root -command noSuchNodeProc\n";
+    assert!(
+        a.analyse(bad, "tcl9.0")
+            .diagnostics
+            .iter()
+            .any(|d| d.code.to_string() == "W123"),
+        "an unknown `$g walk -command` head must fire W123"
+    );
+    let ok = "proc onNode {action g node} { }\nset g [struct::graph]\n$g walk root -command onNode\n";
+    assert!(
+        !a.analyse(ok, "tcl9.0")
+            .diagnostics
+            .iter()
+            .any(|d| d.code.to_string() == "W123"),
+        "a defined `$g walk -command` head must not fire W123"
+    );
+}
+
+#[test]
+fn struct_tree_walkproc_trailing_prefix_is_recorded() {
+    // `struct::tree` instance `walkproc node … cmdprefix` — a *trailing
+    // positional* prefix (resolver-driven), unlike graph's option-value one.
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    let src = "proc onN {tree node action} { }\nproc build {} {\n    struct::tree myT\n    myT walkproc root onN\n}\n";
+    let r = a.analyse(src, "tcl9.0");
+    assert!(
+        r.command_invocations.iter().any(|i| {
+            i.name == "onN"
+                && i.callback_arity == Some(tcl_registry::AppendedArity::Exactly(3))
+        }),
+        "`myT walkproc … onN` must record an onN invocation with Exactly(3) callback arity"
+    );
+}

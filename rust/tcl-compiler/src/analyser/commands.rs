@@ -926,9 +926,37 @@ impl Analyser {
         let Some(registry) = self.registry.as_ref() else {
             return;
         };
-        let invs = crate::signature_scan::command_prefix::command_prefix_invocations(
+        let mut invs = crate::signature_scan::command_prefix::command_prefix_invocations(
             registry, cmd_name, args, arg_tokens, arg_single,
         );
+        // Instance-method dispatch: `$obj method …` / `objName method …` where
+        // the receiver's class is a registry-modelled object class and the
+        // method declares a command prefix (`$g walk … -command cb`,
+        // `$t walkproc … cb`).  The receiver's class comes from the progressive
+        // `instance_classes` map (bound by a prior `struct::graph name` /
+        // `set g [Class new]`), keyed by the bare handle (leading `$` stripped).
+        if let Some(method) = args.first() {
+            // The handle is a bare object command (`objName method …`) or a
+            // variable dispatch, whose head reconstructs as `$g` or `${g}` — map
+            // all three to the `instance_classes` key (the bare name).
+            let receiver = cmd_name.strip_prefix('$').map_or(cmd_name, |v| {
+                v.strip_prefix('{')
+                    .and_then(|b| b.strip_suffix('}'))
+                    .unwrap_or(v)
+            });
+            if let Some(class) = self.result.instance_classes.get(receiver) {
+                invs.extend(
+                    crate::signature_scan::command_prefix::instance_method_command_prefix_invocations(
+                        registry,
+                        class,
+                        method,
+                        args.get(1..).unwrap_or(&[]),
+                        arg_tokens.get(1..).unwrap_or(&[]),
+                        arg_single.get(1..).unwrap_or(&[]),
+                    ),
+                );
+            }
+        }
         for inv in invs {
             let resolved = self.resolve_command_qualified_name(&inv.head);
             self.result.command_invocations.push(
@@ -1560,11 +1588,25 @@ impl Analyser {
         let inner = inner.strip_prefix('[')?.strip_suffix(']')?;
         let mut words = inner.split_whitespace();
         let class = words.next()?;
-        let subcmd = words.next()?;
-        if subcmd != "new" && subcmd != "create" {
-            return None;
+        // TclOO constructor: `set g [Class new|create ...]`.
+        if let Some(subcmd) = words.next()
+            && (subcmd == "new" || subcmd == "create")
+            && let Some(uc) = self.resolve_user_class(class)
+        {
+            return Some(uc);
         }
-        self.resolve_user_class(class)
+        // Registry object-factory whose *return value* is an instance of its own
+        // class — `set g [struct::graph]` / `set g [struct::graph name]`.  A
+        // `creates_instance_at` spec marks a naming factory (`struct::graph
+        // ?name?`) whose result is the object command, so the assigned var holds
+        // an instance of `class` regardless of whether a name was passed.
+        if let Some(reg) = self.registry.as_ref()
+            && reg.object_class(class).is_some()
+            && reg.get(class).is_some_and(|s| s.creates_instance_at.is_some())
+        {
+            return Some(class.to_string());
+        }
+        None
     }
 }
 

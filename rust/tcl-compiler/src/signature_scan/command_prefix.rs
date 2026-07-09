@@ -80,6 +80,42 @@ pub(crate) fn command_prefix_invocations(
     out
 }
 
+/// Extract the command-prefix callback heads of an object instance-method
+/// dispatch `$obj method method_args…` (`$g walk … -command cb`,
+/// `$t walkproc … cb`).
+///
+/// `class` is the receiver's resolved class; `method` is the dispatched method
+/// name; the `method_*` slices are the reconstructed text, representative
+/// token, and single-token flag for the words *after* the method name
+/// (parallel, 0-indexed) — the slices [`CommandRegistry::instance_method_command_prefixes`]
+/// indexes into.  Same literal-bareword guard as [`command_prefix_invocations`].
+///
+/// [`CommandRegistry::instance_method_command_prefixes`]: tcl_registry::CommandRegistry::instance_method_command_prefixes
+pub(crate) fn instance_method_command_prefix_invocations(
+    registry: &CommandRegistry,
+    class: &str,
+    method: &str,
+    method_arg_texts: &[String],
+    method_arg_tokens: &[Token],
+    method_arg_single: &[bool],
+) -> Vec<CommandPrefixInvocation> {
+    let arg_strs: Vec<&str> = method_arg_texts.iter().map(String::as_str).collect();
+    let mut out = Vec::new();
+    for (idx, appended) in registry.instance_method_command_prefixes(class, method, &arg_strs) {
+        let (Some(&tok), Some(text)) = (method_arg_tokens.get(idx), method_arg_texts.get(idx)) else {
+            continue;
+        };
+        if is_literal_bareword_head(tok, text, method_arg_single.get(idx).copied().unwrap_or(false)) {
+            out.push(CommandPrefixInvocation {
+                head: text.clone(),
+                span: tok.span,
+                appended,
+            });
+        }
+    }
+    out
+}
+
 /// Whether `tok`/`text` is a literal bareword command head — a single `Esc`
 /// token, unquoted, with no leading `$`/`[` substitution.  Mirrors the
 /// highlight retag guard so recording and highlighting agree exactly.

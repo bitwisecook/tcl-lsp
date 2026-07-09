@@ -3997,6 +3997,41 @@ mod tests {
         );
     }
 
+    #[test]
+    fn callback_arity_struct_graph_walk_command_checked() {
+        // `$g walk … -command cb` (object instance method) appends 3 (action
+        // graphName node).  A 2-param callback is over-fed → E003; a 3-param one
+        // is silent.  Exercises both the named (`struct::graph name`) and handle
+        // (`set g [struct::graph]`) instance forms.
+        let bad = callback_arity_codes(
+            "proc twoP {a b} { }\nstruct::graph myG\nmyG walk root -command twoP\n",
+        );
+        assert!(
+            bad.iter().any(|(c, m)| c == "E003" && m.contains("'twoP'")),
+            "a 2-param graph walk -command callback (3 appended) must draw E003; got {bad:?}"
+        );
+        let ok = callback_arity_codes(
+            "proc threeP {a b c} { }\nset g [struct::graph]\n$g walk root -command threeP\n",
+        );
+        assert!(
+            !ok.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a correct 3-param graph walk callback must be silent; got {ok:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_struct_tree_walkproc_checked() {
+        // `$t walkproc … cmdprefix` (trailing positional prefix) appends 3 (tree
+        // node action).  A 2-param callback → E003.
+        let bad = callback_arity_codes(
+            "proc twoP {a b} { }\nstruct::tree myT\nmyT walkproc root twoP\n",
+        );
+        assert!(
+            bad.iter().any(|(c, m)| c == "E003" && m.contains("'twoP'")),
+            "a 2-param tree walkproc callback (3 appended) must draw E003; got {bad:?}"
+        );
+    }
+
     /// Regression (whole-file-shift determinism): a pure prepend that shifts every
     /// procedure must leave every `function_lattice` a cache hit — reliably, not by
     /// HashMap-seed luck.  Before `prepare_cfg_context` was made deterministic, the

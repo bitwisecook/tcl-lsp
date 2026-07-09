@@ -66,6 +66,104 @@ fn creator(
     }
 }
 
+/// Like [`creator`] but binds the created object command to an
+/// [`ObjectClassSpec`] whose instance methods carry command-prefix callbacks.
+/// `struct::graph name` / `struct::tree name` name the new object command
+/// positionally (index 0 — the `?name?`), so `creates_instance_at` types it and
+/// a later `name walk … -command cb` resolves the callback through the class.
+fn object_creator(
+    name: &'static str,
+    synopsis: &'static [&'static str],
+    summary: &'static str,
+    class: &'static ObjectClassSpec,
+) -> CommandSpec {
+    CommandSpec {
+        creates_instance_at: Some(0),
+        object_class: Some(class),
+        ..creator(name, synopsis, summary)
+    }
+}
+
+/// `struct::graph` instance `walk node … -command cmd` (`graph_tcl.tcl` `_walk`,
+/// 2675).  At each visited node it runs `lappend cmdcpy <enter|leave> $name
+/// $node; uplevel 1 $cmdcpy`, appending three words — the action keyword, the
+/// graph name, and the node — so `-command` is a prefix of `Exactly(3)`.
+const STRUCT_GRAPH_WALK_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-dir",
+        value: OptionValue::value("forward|backward"),
+        detail: "Walk direction: forward (default) or backward.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-order",
+        value: OptionValue::value("pre|post|both"),
+        detail: "Visit order: pre (default), post, or both.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-type",
+        value: OptionValue::value("bfs|dfs"),
+        detail: "Traversal type: dfs (default) or bfs.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-command",
+        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(3)),
+        detail: "Command prefix invoked at each node with (action graphName node) appended.",
+        ..OptionSpec::DEFAULT
+    },
+];
+
+const STRUCT_GRAPH_METHODS: &[SubCommand] = &[SubCommand {
+    name: "walk",
+    arity: Arity::at_least(1),
+    detail: "Walk the graph from node, invoking -command at each visited node.",
+    synopsis: "graphName walk node ?-dir forward|backward? ?-order pre|post|both? ?-type bfs|dfs? -command cmd",
+    options: STRUCT_GRAPH_WALK_OPTIONS,
+    ..SubCommand::DEFAULT
+}];
+
+static STRUCT_GRAPH_CLASS: ObjectClassSpec = ObjectClassSpec {
+    class_name: "struct::graph",
+    instance_methods: STRUCT_GRAPH_METHODS,
+    superclasses: &[],
+    // Only `walk` is modelled for its callback; every other method
+    // (`node insert`, `arc …`, `get`, …) passes through unflagged.
+    allow_unknown_methods: true,
+};
+
+/// `struct::tree` instance `walkproc node … cmdprefix` (`tree_tcl.tcl` `_walkproc`,
+/// 1856).  The trailing `cmdprefix` is a positional command prefix invoked as
+/// `lappend cmd $tree $node $action; uplevel 2 $cmd` — three appended words
+/// (tree, node, action) ⇒ `Exactly(3)`.  (`walk … loopvar script` is a
+/// loop-variable *script*, not a prefix, so it is not modelled here.)
+fn struct_tree_walkproc_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+    // args are the words after `walkproc`: `node ?-order o? ?-type t? ?--?
+    // cmdprefix`.  The prefix is always the final word (node is required, so
+    // len ≥ 2 for a real prefix).
+    match u8::try_from(args.len()) {
+        Ok(n) if n >= 2 => vec![(n - 1, AppendedArity::Exactly(3))],
+        _ => Vec::new(),
+    }
+}
+
+const STRUCT_TREE_METHODS: &[SubCommand] = &[SubCommand {
+    name: "walkproc",
+    arity: Arity::at_least(2),
+    detail: "Walk the tree from node, invoking the trailing command prefix at each node.",
+    synopsis: "treeName walkproc node ?-order pre|post|in|both? ?-type bfs|dfs? cmdprefix",
+    command_prefix_resolver: Some(struct_tree_walkproc_command_prefixes),
+    ..SubCommand::DEFAULT
+}];
+
+static STRUCT_TREE_CLASS: ObjectClassSpec = ObjectClassSpec {
+    class_name: "struct::tree",
+    instance_methods: STRUCT_TREE_METHODS,
+    superclasses: &[],
+    allow_unknown_methods: true,
+};
+
 /// The `tar` package.
 const TAR_CMDS: &[Row] = &[
     (
@@ -210,15 +308,17 @@ pub fn specs() -> Vec<CommandSpec> {
     specs.extend(rows("pki", PKI_CMDS));
     specs.extend(rows("map::slippy", MAP_SLIPPY_CMDS));
     specs.extend([
-        creator(
+        object_creator(
             "struct::graph",
             &["struct::graph ?name? ?=|:=|as|deserialize source?"],
             "Create a directed-graph object command.",
+            &STRUCT_GRAPH_CLASS,
         ),
-        creator(
+        object_creator(
             "struct::tree",
             &["struct::tree ?name? ?=|:=|as|deserialize source?"],
             "Create a tree object command.",
+            &STRUCT_TREE_CLASS,
         ),
         creator(
             "struct::matrix",

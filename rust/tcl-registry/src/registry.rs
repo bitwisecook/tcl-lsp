@@ -444,6 +444,45 @@ impl CommandRegistry {
         None
     }
 
+    /// Resolve the [`ArgRole::CommandPrefix`] positions and appended arities for
+    /// an instance-method dispatch `$obj method method_args…`.
+    ///
+    /// `method_args` are the words *after* the method name.  Mirrors the
+    /// subcommand arm of [`Self::command_prefixes`] (static
+    /// [`SubCommand::command_prefixes`] table ∪ `command_prefix_resolver` ∪
+    /// command-prefix options), but keyed on the object's class + method rather
+    /// than a top-level command — so `$g walk … -command cb` (option value) and
+    /// `$t walkproc … cb` (trailing positional, resolver) light up the same
+    /// references / call-graph / W123 / arity substrate.  Returned indices are
+    /// relative to `method_args` (0 = first word after the method name).
+    ///
+    /// [`SubCommand::command_prefixes`]: crate::spec::SubCommand::command_prefixes
+    #[must_use]
+    pub fn instance_method_command_prefixes(
+        &self,
+        class_name: &str,
+        method: &str,
+        method_args: &[&str],
+    ) -> Vec<(usize, AppendedArity)> {
+        let Some(m) = self.instance_method(class_name, method) else {
+            return Vec::new();
+        };
+        let n = method_args.len();
+        let mut out: Vec<(usize, AppendedArity)> = Vec::new();
+        if let Some(resolver) = m.command_prefix_resolver {
+            out.extend(
+                resolver(method_args)
+                    .into_iter()
+                    .map(|(i, a)| (i as usize, a)),
+            );
+        } else {
+            out.extend(m.command_prefixes.iter().map(|(i, a)| (*i as usize, *a)));
+        }
+        push_command_prefix_options(&mut out, m.options, method_args, 0);
+        out.retain(|&(idx, _)| idx < n);
+        out
+    }
+
     /// Whether `pkg` is a package the registry knows about — i.e. at
     /// least one registered command declares it as its
     /// [`required_package`](crate::CommandSpec::required_package).
@@ -2108,6 +2147,58 @@ mod tests {
             reg.command_prefixes("tcl::chan::halfpipe", &["-read-command", "cb"])
                 .is_empty(),
             "halfpipe has no -read-command",
+        );
+    }
+
+    #[test]
+    fn instance_method_command_prefixes_cover_struct_graph_and_tree() {
+        // Object-instance method callbacks — the prefix is on a method of a
+        // created object command (`$g walk … -command cb`, `$t walkproc … cb`),
+        // resolved through the class's ObjectClassSpec.  Indices are relative to
+        // the words after the method name.
+        let reg = CommandRegistry::build_default();
+
+        // struct::graph `walk node … -command cb` — option-value prefix,
+        // Exactly(3) (action graphName node).
+        assert_eq!(
+            reg.instance_method_command_prefixes(
+                "struct::graph",
+                "walk",
+                &["root", "-order", "pre", "-command", "cb"],
+            ),
+            vec![(4, AppendedArity::Exactly(3))],
+        );
+        assert_eq!(
+            reg.instance_method_command_prefixes("struct::graph", "walk", &["root", "-command", "cb"]),
+            vec![(2, AppendedArity::Exactly(3))],
+        );
+
+        // struct::tree `walkproc node … cmdprefix` — trailing positional prefix
+        // (resolver), Exactly(3) (tree node action).  The prefix is the final
+        // word regardless of intervening `-order`/`-type` options.
+        assert_eq!(
+            reg.instance_method_command_prefixes("struct::tree", "walkproc", &["root", "cb"]),
+            vec![(1, AppendedArity::Exactly(3))],
+        );
+        assert_eq!(
+            reg.instance_method_command_prefixes(
+                "struct::tree",
+                "walkproc",
+                &["root", "-type", "dfs", "cb"],
+            ),
+            vec![(3, AppendedArity::Exactly(3))],
+        );
+        // `walkproc node` with no prefix word yet names none.
+        assert!(
+            reg.instance_method_command_prefixes("struct::tree", "walkproc", &["root"])
+                .is_empty(),
+            "a walkproc with only the node names no prefix",
+        );
+        // An unmodelled method / class resolves to nothing.
+        assert!(
+            reg.instance_method_command_prefixes("struct::graph", "get", &["x"])
+                .is_empty(),
+            "an unmodelled instance method has no command prefix",
         );
     }
 
