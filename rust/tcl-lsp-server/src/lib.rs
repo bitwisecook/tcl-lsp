@@ -15212,6 +15212,68 @@ mod tests {
         );
     }
 
+    /// A continuation whose document closes while it is still running lands
+    /// against an evicted cache entry (`did_close` removes it). This pins the
+    /// current, deliberate behaviour: `deliver_if_changed` treats the missing
+    /// entry as "changed" and schedules a refresh for a now-closed document.
+    /// That refresh is a harmless no-op (there is nothing left to re-request
+    /// for this URI, and the workspace-wide push is dataless), so it is not
+    /// worth distinguishing from the alternative reading of a missing cache
+    /// entry — a genuine (if narrow) race where this continuation's result
+    /// lands *before* `semantic_tokens_full`'s own cache write completes,
+    /// where treating "missing" as "unchanged" would risk suppressing a
+    /// refresh a still-open document genuinely needs.
+    #[tokio::test]
+    async fn semantic_tokens_refresh_ctx_after_did_close_is_harmless() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///close-during-refresh.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+        backend
+            .last_semantic_tokens
+            .lock()
+            .await
+            .insert(uri.clone(), ("coarse-result-id".to_owned(), vec![1, 2, 3]));
+
+        backend
+            .did_close(DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+            })
+            .await;
+        assert!(
+            backend
+                .last_semantic_tokens
+                .lock()
+                .await
+                .get(&uri)
+                .is_none(),
+            "did_close must have evicted the cache entry",
+        );
+
+        let ctx = SemanticTokensRefreshCtx {
+            client: backend.client.clone(),
+            last_semantic_tokens: Arc::clone(&backend.last_semantic_tokens),
+            refresh_pending: Arc::clone(&backend.semantic_tokens_refresh_pending),
+        };
+        ctx.deliver_if_changed(&uri, &[9, 9, 9]).await;
+        assert!(
+            backend
+                .semantic_tokens_refresh_pending
+                .load(std::sync::atomic::Ordering::Relaxed),
+            "a result landing for a closed document schedules a refresh -- \
+             harmless (dataless, workspace-wide), not incorrect",
+        );
+        assert!(
+            backend
+                .last_semantic_tokens
+                .lock()
+                .await
+                .get(&uri)
+                .is_none(),
+            "deliver_if_changed must not resurrect a cache entry for a \
+             closed document",
+        );
+    }
+
     #[tokio::test]
     async fn disabled_code_actions_toggle_yields_none() {
         let (backend, td, _) = backend_with_feature_disabled("codeActions").await;
