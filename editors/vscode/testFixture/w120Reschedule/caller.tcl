@@ -1,0 +1,2 @@
+::report::defstyle mystyle {} {
+}
