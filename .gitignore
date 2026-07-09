@@ -98,3 +98,8 @@ docs/screenshots/compiler-explorer-debug.html
 # Auto-generated VSCode test-fixture workspace config — written by the
 # extension's test runner each time tests execute; not a source artefact.
 editors/vscode/testFixture/.vscode/
+
+# tclsh reference disassembly captured by scripts/capture/bytecode.sh, consumed
+# by the bytecode-compare skill. Regenerated on demand from a local tclsh; the
+# exact bytes depend on the interpreter's patchlevel, so it is not checked in.
+/tests/bytecode_reference/
