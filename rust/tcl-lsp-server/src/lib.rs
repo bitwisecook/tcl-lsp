@@ -212,6 +212,14 @@ const DIAGNOSTICS_DEBOUNCE: std::time::Duration = std::time::Duration::from_mill
 /// never see the fallback.
 const SEMANTIC_TOKENS_FAST_PATH_BUDGET: std::time::Duration = std::time::Duration::from_millis(40);
 
+/// Debounce window for coalescing `workspace/semanticTokens/refresh` pushes
+/// (see [`SemanticTokensRefreshCtx::request_refresh_coalesced`]). Comparable
+/// to [`DIAGNOSTICS_DEBOUNCE`]: many cold large documents finishing their
+/// enriched computation around the same time (e.g. right after `initialized`
+/// restores several tabs) would otherwise each fire their own workspace-wide
+/// refresh; this collapses a burst into one fire per window.
+const SEMANTIC_TOKENS_REFRESH_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(50);
+
 /// One document edit's complete, self-consistent diagnostics input — captured
 /// together so the analysed text, the published version, and the salsa input
 /// handle all describe the *same* revision (no divergence between a `documents`
@@ -258,6 +266,7 @@ struct PullDiagEntry {
 struct SemanticTokensRefreshCtx {
     client: Client,
     last_semantic_tokens: SemanticTokensCache,
+    refresh_pending: Arc<std::sync::atomic::AtomicBool>,
 }
 
 /// Per-URI cache of the last semantic-token stream served: `(resultId, packed
@@ -285,8 +294,42 @@ impl SemanticTokensRefreshCtx {
             cache.get(uri).is_none_or(|(_, cached)| cached != data)
         };
         if changed {
-            let _ = self.client.semantic_tokens_refresh().await;
+            self.request_refresh_coalesced();
         }
+    }
+
+    /// Coalesce concurrent refresh asks into one debounced
+    /// `workspace/semanticTokens/refresh` per [`SEMANTIC_TOKENS_REFRESH_DEBOUNCE`]
+    /// window. The request carries no URI — it asks the client to re-pull
+    /// tokens for every document it has open — so collapsing N pending
+    /// refresh intents into one fire loses nothing; the single re-request
+    /// covers every URI. Guards against many cold large documents finishing
+    /// their enriched computation near-simultaneously (e.g. right after
+    /// `initialized` restores several tabs) each firing their own
+    /// workspace-wide refresh.
+    ///
+    /// The first caller to flip `refresh_pending` false→true owns the fire:
+    /// it spawns a task that sleeps out the debounce window, clears the flag,
+    /// then sends the refresh. Every other caller during that window sees the
+    /// flag already `true` and returns immediately — absorbed into the
+    /// upcoming fire. Clearing the flag *before* the RPC (not after) means a
+    /// result landing while the RPC itself is in flight schedules a fresh
+    /// debounced fire rather than being silently dropped: at worst one extra
+    /// fire, never a missed one.
+    fn request_refresh_coalesced(&self) {
+        if self
+            .refresh_pending
+            .swap(true, std::sync::atomic::Ordering::AcqRel)
+        {
+            return; // a fire is already scheduled — this result rides along.
+        }
+        let client = self.client.clone();
+        let pending = Arc::clone(&self.refresh_pending);
+        tokio::spawn(async move {
+            tokio::time::sleep(SEMANTIC_TOKENS_REFRESH_DEBOUNCE).await;
+            pending.store(false, std::sync::atomic::Ordering::Release);
+            let _ = client.semantic_tokens_refresh().await;
+        });
     }
 }
 
@@ -1322,6 +1365,18 @@ pub struct Backend {
     /// [`Backend::semantic_tokens_core_data`]) can compare the enriched result
     /// it lands against what was last served, without borrowing `Backend`.
     last_semantic_tokens: SemanticTokensCache,
+    /// Set while a debounced `workspace/semanticTokens/refresh` fire is
+    /// scheduled (see [`SemanticTokensRefreshCtx::request_refresh_coalesced`]).
+    /// The refresh carries no data — a client that receives it simply
+    /// re-pulls current tokens for every document it has open — so any
+    /// number of enriched results landing while a fire is already scheduled
+    /// ride along with it; there is nothing to lose by not scheduling a
+    /// second one. Without this, many cold large tabs finishing their
+    /// enriched computation around the same time (e.g. on startup) would
+    /// each fire their own workspace-wide refresh, and a client that does
+    /// not coalesce them itself (VS Code does; eglot may not) would re-pull
+    /// every open document once per refresh.
+    semantic_tokens_refresh_pending: Arc<std::sync::atomic::AtomicBool>,
     /// Serialises the document-sync notification handlers (`did_open` /
     /// `did_change` / `did_close`) so their buffer mutations apply in the exact
     /// order the client sent them.
@@ -1597,6 +1652,7 @@ impl Backend {
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
+            semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             edit_serialize: Mutex::new(()),
         }
     }
@@ -1873,6 +1929,24 @@ impl Backend {
     /// `None` when there is no salsa input for `uri` (nothing to kick off);
     /// the handle itself resolves to `None` if a concurrent edit cancels the
     /// read.
+    ///
+    /// **Invariant this task's liveness depends on:** when
+    /// `semantic_tokens_core_data` loses the fast-path race, this handle is
+    /// awaited from a *detached* `tokio::spawn` task that can run for
+    /// seconds on a large cold file, holding an active salsa read-handle the
+    /// whole time. Salsa 0.27 blocks a concurrent `set_text` until every
+    /// active read-handle is released, and `set_text` runs under the global
+    /// `db` mutex — so a stalled read here would stall the write, and the
+    /// write holds the lock every other read waits on too. This only stays
+    /// live because `semantic_tokens` calls the cancellable, per-item
+    /// [`tcl_lsp_db::file_analysis_incremental`] (checked at each proc/method
+    /// body boundary), not the coarse whole-file
+    /// [`tcl_lsp_db::file_analysis`]: an edit's `set_text` flips the cancel
+    /// flag, this detached read unwinds at its next item boundary, and the
+    /// write proceeds promptly. Routing this query back through the coarse
+    /// `file_analysis` would reintroduce a worse version of #829's symptom —
+    /// a single cold background token computation could serialise every
+    /// subsequent keystroke behind a whole-file walk.
     async fn db_semantic_tokens(
         &self,
         uri: &Uri,
@@ -2392,6 +2466,7 @@ impl Backend {
                 let refresh_ctx = SemanticTokensRefreshCtx {
                     client: self.client.clone(),
                     last_semantic_tokens: Arc::clone(&self.last_semantic_tokens),
+                    refresh_pending: Arc::clone(&self.semantic_tokens_refresh_pending),
                 };
                 let uri = uri.clone();
                 tokio::spawn(async move {
@@ -6566,13 +6641,15 @@ impl LanguageServer for Backend {
             end_character: params.range.end.character,
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        // Reuse the memoised unit + analysis when the document is indexed and
-        // they land promptly; otherwise fall back to the cheap
-        // segmenter+registry-only tier (`cu`/`analysis` both `None`) rather
-        // than paying for an independent fresh whole-file rebuild here (issue
-        // #829) — a viewport request that misses the cache is filtered from
-        // the same coarse walk `semantic_tokens_full` falls back to, not a
-        // second uncancellable analysis.
+        // Await the memoised unit + analysis (no fast-path budget race here,
+        // unlike `semantic_tokens_full`) and fall back to the cheap
+        // segmenter+registry-only tier when the document isn't indexed yet
+        // (`cu`/`analysis` both `None`), rather than paying for an
+        // independent fresh whole-file rebuild here (issue #829) — a
+        // viewport request that misses the cache is filtered from the same
+        // coarse walk `semantic_tokens_full` falls back to, not a second
+        // uncancellable analysis. A cold document can still block on this
+        // await; it self-heals once diagnostics prime the cache.
         let cached_cu = self.db_compilation_unit(&params.text_document.uri).await;
         let cached_analysis = self.db_file_analysis(&params.text_document.uri).await;
         // Pure-CPU tokenisation on a worker so a parser panic is contained
@@ -12490,6 +12567,7 @@ mod tests {
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
+            semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             edit_serialize: Mutex::new(()),
         }
     }
@@ -15031,6 +15109,7 @@ mod tests {
         let ctx = SemanticTokensRefreshCtx {
             client: backend.client.clone(),
             last_semantic_tokens: Arc::clone(&backend.last_semantic_tokens),
+            refresh_pending: Arc::clone(&backend.semantic_tokens_refresh_pending),
         };
 
         // No cache entry yet: "changed" (there is nothing to match), but still
@@ -15069,6 +15148,66 @@ mod tests {
             Some(("coarse-result-id".to_owned(), vec![1, 2, 3])),
             "deliver_if_changed must not overwrite the cache even when the \
              landed result differs from what was served",
+        );
+    }
+
+    /// A fire already scheduled must absorb a second request rather than
+    /// scheduling a duplicate: the `workspace/semanticTokens/refresh`
+    /// notification carries no data, so a client that receives it re-pulls
+    /// current tokens for every open document — any other document's
+    /// enriched result landing during the debounce window rides along with
+    /// the fire already scheduled. Guards against the "many cold large tabs
+    /// finish around the same time" thundering-herd case.
+    #[tokio::test]
+    async fn semantic_tokens_refresh_ctx_dedupes_concurrent_refreshes() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///refresh-dedup.tcl").unwrap();
+        let ctx = SemanticTokensRefreshCtx {
+            client: backend.client.clone(),
+            last_semantic_tokens: Arc::clone(&backend.last_semantic_tokens),
+            refresh_pending: Arc::clone(&backend.semantic_tokens_refresh_pending),
+        };
+
+        // Simulate a fire already scheduled (e.g. by a different document's
+        // enriched result landing moments earlier).
+        backend
+            .semantic_tokens_refresh_pending
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+
+        // A changed result must ride along with the fire already scheduled,
+        // not schedule a second one.
+        ctx.deliver_if_changed(&uri, &[1, 2, 3]).await;
+        assert!(
+            backend
+                .semantic_tokens_refresh_pending
+                .load(std::sync::atomic::Ordering::Relaxed),
+            "a fire already scheduled must be left untouched, not \
+             scheduled a second time",
+        );
+
+        // Reset to simulate that fire having landed, then let a new changed
+        // result schedule its own.
+        backend
+            .semantic_tokens_refresh_pending
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+        ctx.deliver_if_changed(&uri, &[4, 5, 6]).await;
+        assert!(
+            backend
+                .semantic_tokens_refresh_pending
+                .load(std::sync::atomic::Ordering::Relaxed),
+            "scheduling a fire must set the flag immediately, before its \
+             debounce window elapses",
+        );
+
+        // Once the debounce window elapses and the fire completes, the flag
+        // must clear so a later change can schedule the next one.
+        tokio::time::sleep(SEMANTIC_TOKENS_REFRESH_DEBOUNCE * 2).await;
+        assert!(
+            !backend
+                .semantic_tokens_refresh_pending
+                .load(std::sync::atomic::Ordering::Relaxed),
+            "the flag must clear once the debounced fire completes, so a \
+             later change can schedule the next one",
         );
     }
 

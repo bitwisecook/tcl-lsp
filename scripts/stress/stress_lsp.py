@@ -796,9 +796,13 @@ def scenario_chaos(server_bin: str, duration: float, docs: int) -> bool:
         responsive: bool | None = None
         if alive:
             try:
-                client.request(
-                    "textDocument/documentSymbol", {"textDocument": {"uri": uri_for(root)}}, timeout=10.0
-                )
+                # `workspace/symbol` needs no document URI, so it can't
+                # spuriously fail on an unopened/non-document URI the way a
+                # textDocument/* request targeting uri_for(root) (a
+                # directory, never didOpen'd) would -- this call must prove
+                # the server is *responsive*, not exercise any particular
+                # document.
+                client.request("workspace/symbol", {"query": ""}, timeout=10.0)
                 responsive = True
             except LspError:
                 responsive = False

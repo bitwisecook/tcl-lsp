@@ -2438,12 +2438,9 @@ mod tests {
              the diagnostics worker's analysis, not a second walk: {after_tokens:?}"
         );
         assert!(
-            log.lock()
-                .unwrap()
-                .iter()
-                .all(|s| !s.contains("file_analysis(")),
+            after_tokens.iter().all(|s| !s.contains("file_analysis(")),
             "semantic_tokens must never invoke the coarse, uncancellable \
-             file_analysis query"
+             file_analysis query: {after_tokens:?}"
         );
 
         // Token-first order (a cold open before the debounced diagnostics

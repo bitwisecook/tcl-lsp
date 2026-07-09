@@ -22,23 +22,27 @@
 # Two kinds of tests there are resource-hungry in a way that makes them starve
 # their neighbours:
 #
-#   * semantic_tokens_reference_client::large_file_latency_and_correctness — a
-#     ~5200-line semantic-token latency benchmark that pins the CPU for tens of
-#     seconds, and
+#   * semantic_tokens_reference_client::large_file_* — ~5200-line semantic-token
+#     latency/refresh benchmarks that pin the CPU for tens of seconds and wait
+#     on a real diagnostics/token-refresh round trip, and
 #   * edit_tracking_stress::* — latency-sensitive stress tests that drive a burst
 #     of incremental edits and then wait for the server's (guaranteed) final
 #     diagnostics publish.
 #
-# When the benchmark is scheduled alongside a stress test the stress server is
-# starved of CPU and its diagnostics barrier can be delayed past the harness's
-# give-up, producing a spurious timeout even though the server is behaving
-# correctly. Rather than paper over that with a bigger wall-clock timeout, put
-# these few heavy tests in a single-slot group so they never run concurrently
-# with each other; the hundreds of light tests still parallelise fully, so the
-# suite stays fast.
+# When one of these is scheduled alongside another the loser is starved of CPU
+# and its diagnostics/token barrier can be delayed past the harness's give-up,
+# producing a spurious timeout even though the server is behaving correctly.
+# Rather than paper over that with a bigger wall-clock timeout, put these few
+# heavy tests in a single-slot group so they never run concurrently with each
+# other; the hundreds of light tests still parallelise fully, so the suite
+# stays fast. (This still doesn't fully isolate them from the rest of the
+# workspace's tests when run inside `rust-tests` — the dedicated `lsp-e2e`
+# job in rust-lsp-e2e.yml, which runs only this crate, is the reliable signal
+# for this test class; an occasional timeout here alongside a green `lsp-e2e`
+# is the known CPU-starvation flake, not a regression.)
 [test-groups]
 heavy-lsp-e2e = { max-threads = 1 }
 
 [[profile.default.overrides]]
-filter = 'package(tcl-lsp-server) & (test(/edit_tracking_stress::/) | test(/large_file_latency/))'
+filter = 'package(tcl-lsp-server) & (test(/edit_tracking_stress::/) | test(/large_file_/))'
 test-group = 'heavy-lsp-e2e'

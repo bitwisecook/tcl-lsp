@@ -793,7 +793,7 @@ ensure-test-deps: ## Install optional host test deps for the host platform
 install-test-deps: ## Install EVERYTHING the full test suite needs (system toolchain) on Debian/Ubuntu, Fedora/CentOS/RHEL, or macOS Homebrew
 	@echo "==> install-test-deps: installing system toolchain"
 	@bash $(ROOT)scripts/dev/ensure-test-deps.sh
-	@echo "==> install-test-deps: done — run 'make check-all test-ext test-rust' next"
+	@echo "==> install-test-deps: done — run 'make check-all test-ext test-rust runtime-rust-test test-emacs' next"
 
 ensure-tcl-deps: ## Install Tcl shells needed by Tcl/tclpkg tests and bytecode capture
 	@env \
