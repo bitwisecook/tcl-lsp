@@ -825,12 +825,31 @@ function ::f
   `bgerror` (≥1), `namespace unknown` (≥1), `package unknown` (≥1),
   `regsub -command` (≥1, 9.0+), `coroinject` / `coroprobe` (Unknown),
   `chan create` / `chan push` reflected-channel handlers (≥2).
-- **tcllib:** `struct::list filter/map/fold/split` (1/1/2/1), `fileutil::find`
-  (1), the `generator` functional ensemble (16 ops — Unknown, multi-value
-  yield), `math::calculus` / `::optimize` / `::probopt` `func` callbacks (fixed,
-  man-page-pinned — via `math_ext::PREFIX_OVERRIDES`), `log::lvCmd` /
-  `lvCmdForall` (2), `uevent::bind` (≥2), `logger::walk` (Unknown),
-  `tcltest::customMatch` (2), `tk selection handle` (2).
+- **tcllib (positional prefixes):** `struct::list filter/map/fold/split`
+  (1/1/2/1), `fileutil::find` (1), the `generator` functional ensemble (16 ops —
+  Unknown, multi-value yield), `math::calculus` / `::optimize` / `::probopt`
+  `func` callbacks (fixed, man-page-pinned — via `math_ext::PREFIX_OVERRIDES`),
+  `log::lvCmd` / `lvCmdForall` (2), `uevent::bind` (≥2), `logger::walk`
+  (Unknown), `tcltest::customMatch` (2), `tk selection handle` (2),
+  `hook bind` (Unknown — resolver names the binding only in the 4-word set form).
+- **tcllib (option-value prefixes — the value of a named `-flag`, via
+  `OptionSpec`):** `mime::getbody -command` (≥1 — `uplevel` re-splits the reason
+  list), `smtp::sendmessage -tlspolicy` (2), `comm::comm send -command` (14 —
+  seven `-key value` reply pairs), `bibtex::parse -command` /
+  `-preamble/-string/-comment/-progresscommand` (2) / `-recordcommand` (4),
+  `tcl::chan::halfpipe -write-command` (2) / `-empty/-close-command` (1).  All
+  ground-truthed against tcllib source and re-run in tclsh; the option-value
+  path unions through `push_command_prefix_options` → `command_prefixes` with no
+  compiler change.
+- **Object-instance methods (via `ObjectClassSpec`):** `struct::graph`'s
+  `$g walk … -command cb` (3 — action graphName node, option-value) and
+  `struct::tree`'s `$t walkproc … cb` (3 — tree node action, trailing
+  positional).  The receiver's class comes from the analyser's `instance_classes`
+  map (`struct::graph name` or `set g [struct::graph]`); the compiler's
+  `record_command_prefix_invocations` resolves the method's prefixes via
+  `CommandRegistry::instance_method_command_prefixes`.  Correctness (W123 /
+  arity / references / not-dead) rides on the foreground invocation record.
+  `struct::tree walk`'s loop-variable *script* is not a prefix and is unmodelled.
 - **Tk (`script()`→`command_prefix` conversion — separate commit):**
   `-xscrollcommand`/`-yscrollcommand` on 8 widgets (2), `scale`/`ttk::scale
   -command` (1), `scrollbar -command` (≥2), `menu -tearoffcommand` (2).  This is
@@ -844,14 +863,18 @@ function ::f
   `-validatecommand`, `-invalidcommand` (percent-substitution, not appended
   args); the 4 macOS-only file/message-dialog `-command`s stay
   `command_prefix(Unknown)` (inert cross-platform ⇒ no arity check).
-- **Deferred (documented, not gaps):** option-value callbacks that need a full
-  `OptionSpec` array not yet modelled (`mime::getbody -command`,
-  `comm send -command`, `smtp -tlspolicy`, `bibtex -*command`,
-  `tcl::chan::halfpipe`) — allowlisted in
-  `commands_naming_a_cmdprefix_declare_a_command_prefix`; ambiguous
-  script-vs-prefix cases (`processman::onexit`, `hook bind`); and object-instance
-  method callbacks (`struct::graph`/`::tree` `$obj walk -command`) which require an
-  `ObjectClassSpec`, not a `command_prefixes` entry.
+- **Resolved script-vs-prefix:** `hook bind`'s binding is a command prefix (in
+  the tcllib list above); `processman::onexit id cmd` is instead a deferred
+  *script* (`eval $cmd`, 0 appended), modelled `ArgRole::Body` +
+  `BodyKind::Structural` — its `{…}` recurses for W123 / references but it is
+  deliberately **not** a command prefix.
+- **Remaining (documented, not gaps):** for an object-instance method callback
+  only, the call-graph *visualisation* edge and cross-file (signature-scan)
+  references still need object-type tracking threaded into the interprocedural /
+  walker passes — single-file correctness (W123 / arity / references /
+  not-dead-code) already holds via the foreground invocation record.  The
+  `cmdprefix` drift guard's allowlist (`commands_naming_a_cmdprefix_declare_a_command_prefix`)
+  is now **empty** — every synopsis that names a `cmdprefix` declares a prefix.
 
 #### Reproducer
 
@@ -915,6 +938,23 @@ all-optional-tail proc draws no arity error; a tail also claimed by a non-proc
   `tk_scroll_callback_braced_widget_path_does_not_fire_w123` (FP removed) /
   `tk_scroll_callback_bareword_undefined_head_fires_w123` (TP now caught)
 - `tcl-lsp-db::callback_arity_tk_scale_command_arity_checked` (Tk callback arity TP/TN)
+- `tcl-registry::command_prefixes_cover_option_value_callbacks` (mime/smtp/comm/
+  bibtex/halfpipe option-value prefixes — index + arity) + the `?…?`-stripping
+  drift guard that now validates them
+- `command_prefix_integration.rs::mime_getbody_command_option_is_a_callback_edge` /
+  `smtp_tlspolicy_option_fires_w123_only_when_unknown` /
+  `bibtex_recordcommand_option_is_a_callback_edge` /
+  `halfpipe_write_command_option_records_callback` (option-value TP)
+- `tcl-lsp-db::callback_arity_option_value_exactly_checked` /
+  `_mime_getbody_command_atleast_one` (option-value arity TP/TN + FP guards)
+- `command_prefix_integration.rs::hook_bind_binding_is_a_callback_edge` /
+  `hook_bind_query_form_is_not_a_callback` (resolver-driven prefix TP + FP guard) /
+  `processman_onexit_script_body_is_recursed_not_a_prefix` (script, not prefix)
+- `tcl-registry::instance_method_command_prefixes_cover_struct_graph_and_tree` +
+  `command_prefix_integration.rs::struct_graph_walk_command_records_callback_with_arity` /
+  `struct_graph_walk_command_var_handle_fires_w123_only_when_unknown` /
+  `struct_tree_walkproc_trailing_prefix_is_recorded` (object-instance methods) +
+  `tcl-lsp-db::callback_arity_struct_graph_walk_command_checked` / `_tree_walkproc_checked`
 
 ---
 
