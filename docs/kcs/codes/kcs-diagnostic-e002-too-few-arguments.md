@@ -19,9 +19,12 @@ Why do I see a red squiggle saying a command was called with too few arguments?
 
 Calling a command with fewer arguments than it requires will always raise a runtime error. Catching this statically prevents unexpected failures in production.
 
+This check is not limited to builtin commands: it also applies to same-file `proc` calls, `interp alias` targets (shifted by any prepended arguments), `rename`d commands (which keep the original's arity), and TclOO methods and `forward`s (including `forward NAME my TARGET ?ARG…?`, the idiom for forwarding to a sibling or inherited method).
+
 ## Symptoms
 
 - A red squiggle appears under the command, with the message "too few arguments for 'puts'".
+- The same squiggle can appear on a call to a `proc` you defined earlier in the file, an `interp alias`, a `rename`d command, or a `$obj method` call — not just builtin commands.
 
 ## Example that triggers it
 
@@ -30,6 +33,15 @@ puts
 ```
 
 The analyser reports **`E002`** on the bare `puts` token.
+
+```tcl
+proc greet {name} {
+    return "hello $name"
+}
+greet
+```
+
+The analyser reports **`E002`** on the call, since `greet` requires one argument.
 
 ## Command-prefix callback context
 
