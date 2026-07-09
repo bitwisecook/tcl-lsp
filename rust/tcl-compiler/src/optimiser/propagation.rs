@@ -2062,7 +2062,12 @@ mod tests {
             "namespace eval ::ns {\n proc inner {} { return 1 }\n proc outer {} { inner }\n}",
             &registry(),
         );
-        let ia = crate::interprocedural::build_interprocedural_analysis(&module, &registry(), None);
+        let ia = crate::interprocedural::build_interprocedural_analysis(
+            &module,
+            &registry(),
+            None,
+            &std::collections::HashMap::new(),
+        );
         assert!(
             ia.procedures.contains_key("::ns::inner"),
             "expected ::ns::inner in IA, got {:?}",

@@ -454,10 +454,7 @@ fn struct_graph_walk_command_records_callback_with_arity() {
     // `struct::graph myG` names the instance; `myG walk … -command cb` resolves
     // `cb` through the graph class's `walk` method (option-value prefix), so the
     // bareword head is recorded as an invocation carrying the Exactly(3)
-    // callback arity (feeding references + the callback-arity check).  (The
-    // call-graph *edge* additionally needs interprocedural object-type tracking,
-    // which is a documented follow-up; correctness — W123 / arity / not-dead —
-    // rides on this invocation record.)
+    // callback arity (feeding references + the callback-arity check).
     let mut a = tcl_compiler::analyser::Analyser::new();
     let src = "proc onNode {action g node} { }\nproc build {} {\n    struct::graph myG\n    myG walk root -command onNode\n}\n";
     let r = a.analyse(src, "tcl9.0");
@@ -468,6 +465,17 @@ fn struct_graph_walk_command_records_callback_with_arity() {
                     == Some(tcl_registry::AppendedArity::Exactly(3))
         }),
         "`myG walk -command onNode` must record an onNode invocation with Exactly(3) callback arity"
+    );
+    // The interprocedural pass now tracks the receiver's object type, so the
+    // callback is also a real call-graph edge (build → onNode).
+    let reg = CommandRegistry::build_default();
+    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    assert!(
+        g["edges"].as_array().expect("edges").iter().any(|e| {
+            e["caller"].as_str().unwrap_or("").contains("build")
+                && e["callee"].as_str().unwrap_or("").contains("onNode")
+        }),
+        "`myG walk -command onNode` must form a build→onNode call-graph edge; got {g}"
     );
 }
 
@@ -507,5 +515,15 @@ fn struct_tree_walkproc_trailing_prefix_is_recorded() {
                 && i.callback_arity == Some(tcl_registry::AppendedArity::Exactly(3))
         }),
         "`myT walkproc … onN` must record an onN invocation with Exactly(3) callback arity"
+    );
+    // …and a build→onN call-graph edge via the interprocedural object typing.
+    let reg = CommandRegistry::build_default();
+    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    assert!(
+        g["edges"].as_array().expect("edges").iter().any(|e| {
+            e["caller"].as_str().unwrap_or("").contains("build")
+                && e["callee"].as_str().unwrap_or("").contains("onN")
+        }),
+        "`myT walkproc … onN` must form a build→onN call-graph edge; got {g}"
     );
 }

@@ -381,16 +381,37 @@ fn harvest_unit(
     registry: &CommandRegistry,
     out: &mut HashMap<String, HashSet<String>>,
 ) {
-    // Syntactic constructor assignments: `set VAR [Class new|create …]`.
+    // Syntactic constructor assignments (`set VAR [Class new|create …]`) and
+    // naming object-factories (`struct::graph myG` — the created object command
+    // is `myG`, not a `set` target the SSA lattice can carry).
     for block in fu.cfg.blocks.values() {
         for stmt in &block.statements {
-            let Statement::AssignValue { name, value, .. } = stmt else {
-                continue;
-            };
-            if let Some(class) = constructor_class(value, registry) {
-                out.entry(name.clone())
-                    .or_default()
-                    .insert(class.to_string());
+            match stmt {
+                Statement::AssignValue { name, value, .. } => {
+                    if let Some(class) = constructor_class(value, registry) {
+                        out.entry(name.clone())
+                            .or_default()
+                            .insert(class.to_string());
+                    }
+                }
+                // A registry naming factory (`creates_instance_at` + a class)
+                // names the new object command positionally, e.g. `struct::graph
+                // myG` / `struct::tree myT`.  Only a plain bareword name binds
+                // (the `= | := | as | deserialize` operator forms and dynamic
+                // `$name` do not create a statically-known handle).
+                Statement::Call { command, args, .. } => {
+                    if let Some(spec) = registry.get(command)
+                        && let Some(idx) = spec.creates_instance_at
+                        && let Some(oc) = spec.object_class
+                        && let Some(name) = args.get(idx as usize)
+                        && is_plain_object_name(name)
+                    {
+                        out.entry(name.clone())
+                            .or_default()
+                            .insert(oc.class_name.to_string());
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -413,10 +434,28 @@ fn harvest_unit(
 /// [`CommandRegistry::object_class`] strips it as [`CommandRegistry::get`] does.
 fn constructor_class<'r>(value: &str, registry: &'r CommandRegistry) -> Option<&'r str> {
     let (head, args) = parse_command_substitution(value.trim())?;
-    if !args.first().is_some_and(|s| s == "new" || s == "create") {
-        return None;
+    // `[Class new|create …]` — or a registry naming factory returning its own
+    // instance (`[struct::graph]` / `[struct::graph name]`), matching the SSA
+    // lattice's `return_type_for_command` object-factory typing so the syntactic
+    // and lattice signals agree.
+    if args.first().is_some_and(|s| s == "new" || s == "create") {
+        return registry.object_class(&head).map(|c| c.class_name);
     }
-    registry.object_class(&head).map(|c| c.class_name)
+    registry
+        .get(&head)
+        .filter(|s| s.creates_instance_at.is_some())
+        .and_then(|s| s.object_class)
+        .map(|c| c.class_name)
+}
+
+/// Whether `name` is a plain object-command name a naming factory binds — a
+/// bareword, not a `$var` / `[subst]` and not one of the `struct` deserialise
+/// operator words (`= | := | as | deserialize`) that occupy the name slot when
+/// the object is built from a source instead of freshly named.
+fn is_plain_object_name(name: &str) -> bool {
+    !name.is_empty()
+        && !name.starts_with(['$', '[', '{'])
+        && !matches!(name, "=" | ":=" | "as" | "deserialize")
 }
 
 #[cfg(test)]
@@ -436,6 +475,33 @@ mod tests {
             Some(true),
             "chart should be tracked as a ticklecharts::chart handle; got {map:?}"
         );
+    }
+
+    #[test]
+    fn registry_naming_factory_handles() {
+        // A registry object-factory names its instance either positionally
+        // (`struct::graph g`) or as a substitution result (`set g [struct::graph]`)
+        // — both must be tracked as `struct::graph` handles for `$g walk …`
+        // method-callback resolution.
+        let registry = CommandRegistry::build_default();
+        for (src, key) in [
+            ("struct::graph myG\nmyG walk root -command cb\n", "myG"),
+            ("set g [struct::graph]\n$g walk root -command cb\n", "g"),
+            ("struct::tree myT\nmyT walkproc root cb\n", "myT"),
+        ] {
+            let cu = CompilationUnit::build_for(src, &registry, false);
+            let map = object_handle_classes(&cu, &registry);
+            let class = if src.contains("tree") {
+                "struct::tree"
+            } else {
+                "struct::graph"
+            };
+            assert_eq!(
+                map.get(key).map(|s| s.contains(class)),
+                Some(true),
+                "`{src}` should track {key} as a {class} handle; got {map:?}"
+            );
+        }
     }
 
     #[test]
