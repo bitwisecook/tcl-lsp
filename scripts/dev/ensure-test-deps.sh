@@ -17,10 +17,10 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# ensure-test-deps.sh — install (or build) the optional test-slow dependencies.
+# ensure-test-deps.sh — install (or build) the optional full-test-suite dependencies.
 #
-# Covers tools whose absence currently turns into failures or pytest skips
-# during a pre-PR ``make test-slow`` run:
+# Covers tools whose absence currently turns into failures or test skips
+# in the heavier pre-PR suites (test-ext, test-emacs, and friends):
 #   * ``tclsh9.0`` / ``tclsh8.6`` — Tcl interpreters used by
 #     ``scripts/capture/bytecode.sh``, the irule_test framework,
 #     and the cli_venv tests.
@@ -166,7 +166,7 @@ fi
 
 if [ -z "$PKG" ]; then
     echo "ensure-test-deps: unsupported platform ($OS / ${DISTRO:-unknown})." >&2
-    echo "Install the test-slow host tools manually, or set the matching SKIP_* env vars to bypass." >&2
+    echo "Install the host test tools manually, or set the matching SKIP_* env vars to bypass." >&2
     exit 2
 fi
 
@@ -662,7 +662,7 @@ ensure_rust() {
     fi
 
     # The Zed extension's clippy check (make check-rust) cross-compiles
-    # to wasm32-wasip2.  Without this target, `make test-slow` fails on
+    # to wasm32-wasip2.  Without this target, `make check-rust` fails on
     # ``can't find crate for `core` `` during the futures-core build.
     if [ "$need_wasm" -eq 1 ] || ! rustup target list --installed | grep -q '^wasm32-wasip2$'; then
         info "Adding wasm32-wasip2 target"
@@ -930,10 +930,10 @@ ensure_rgxg() {
     esac
 }
 
-# uv — the Python environment manager the whole pytest suite runs under
-# (``make test-py`` / ``test-slow`` shell out to ``uv run``).  No distro
-# packages it reliably, so on Linux we use Astral's official installer
-# (drops the binary in ~/.local/bin); macOS gets the Homebrew formula.
+# uv — the Python environment manager used by the repo's remaining Python
+# dev scripts.  No distro packages it reliably, so on Linux we use Astral's
+# official installer (drops the binary in ~/.local/bin); macOS gets the
+# Homebrew formula.
 ensure_uv() {
     if [ "${SKIP_UV:-}" = "1" ]; then info "SKIP_UV=1 — skipping uv"; return 0; fi
     if command -v uv >/dev/null 2>&1; then

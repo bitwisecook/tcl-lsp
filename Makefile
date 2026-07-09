@@ -4,7 +4,6 @@
 # the source of truth):
 #
 #   make check-all     Pre-push gate — full lint+typecheck across all languages.
-#   make test-slow     Pre-PR gate — comprehensive (everything).
 #   make prep-pr       Fast pre-PR gate — format + codegen + lint + tests.
 #   make build-editor-vsix          Build the VS Code .vsix (runs tests first).
 #   make release       Build every release artefact.
@@ -142,7 +141,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 .PHONY: help
 # Top-level gates
-.PHONY: rust-check check-all test-slow prep-pr
+.PHONY: rust-check check-all prep-pr
 # Tests
 .PHONY: test test-ext test-ext-rust test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all
 .PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-audit-option-dialects
@@ -419,9 +418,9 @@ test-ext: ## Run VS Code extension integration tests; skip with SKIP_TEST_EXT=1
 	@# The extension is native-only (no Python fallback), so the Rust
 	@# tcl-lsp-server binary must exist before the VS Code test host starts.
 	@# Build it here (idempotent) and point the extension at it via
-	@# TCL_LSP_SERVER_BIN, rather than relying on the parallel `test-rust`
-	@# in the test-slow batch winning the race.  A pre-set TCL_LSP_SERVER_BIN
-	@# is honoured so callers can supply their own binary.
+	@# TCL_LSP_SERVER_BIN, rather than relying on a separately-run
+	@# `test-rust` winning the race.  A pre-set TCL_LSP_SERVER_BIN is
+	@# honoured so callers can supply their own binary.
 	@set -eu; \
 	if [ -n "$${SKIP_TEST_EXT:-}" ]; then \
 		echo "==> SKIP_TEST_EXT set — skipping VS Code extension tests"; \
@@ -723,8 +722,8 @@ test-ext-rust: rust-server ## Run VS Code extension tests against the native Rus
 	fi
 
 ## Full lint + typecheck across every language (TS, Rust).
-## Tests are NOT included here — those are gated separately by test-slow
-## before PR creation.
+## Tests are NOT included here — run them separately (test-ext, test-rust,
+## runtime-rust-test, test-emacs) before PR creation.
 
 # Rust: cargo fmt --check + cargo clippy on the Zed extension (always
 # present) and on a top-level Cargo.toml when it exists (Rust branches).
@@ -788,41 +787,13 @@ check-all: ## Full lint + typecheck (TS, Rust, Python)
 	@$(MAKE) -j $(NPROC) _prep-pr-checks check-rust lint-py typecheck-py
 	@echo "==> check-all: PASSED"
 
-# Comprehensive local gate — run before opening a PR.
-#
-# Covers: prep-pr (format/codegen/lint/typecheck/test-rust/parity) +
-# Rust lint/typecheck + VS Code extension + Emacs eglot +
-# VSIX smoke + Rust workspace tests + the Rust runtime port
-# (runtime-rust-test — the standalone runtime/rust crate is excluded from
-# the workspace, so cargo test --workspace does not cover it).
-test-slow: ## Comprehensive local gate (everything)
-	@if [ "$${AUTO_INSTALL_DEPS:-0}" = "1" ]; then \
-		echo "==> test-slow: AUTO_INSTALL_DEPS=1 — installing optional test deps"; \
-		bash $(ROOT)scripts/dev/ensure-test-deps.sh; \
-	else \
-		echo "==> test-slow: dependency check (set AUTO_INSTALL_DEPS=1 to install missing tools)"; \
-		bash $(ROOT)scripts/dev/ensure-test-deps.sh --check || \
-			echo "    -> proceeding; the missing tools above will turn into test skips"; \
-	fi
-	@# Drive every phase through the runner, which keeps going past
-	@# failures, preserves full per-phase output, and prints a single
-	@# consolidated PASS/FAIL summary at the END (so `| tail` and
-	@# file-redirected logs both surface every failure) before exiting
-	@# non-zero.  prep-pr runs serially first; the cross-language
-	@# lint/typecheck + heavy suites then run in parallel.
-	@NPROC="$(NPROC)" MAKE="$(MAKE)" \
-		bash $(ROOT)scripts/dev/test-slow-runner.sh \
-			--serial "prep-pr" \
-			--parallel "check-rust test-ext _prep-pr-smoke test-emacs test-rust runtime-rust-test zed-query-check"
-	@echo "==> test-slow: PASSED"
-
-ensure-test-deps: ## Install optional test-slow host deps for the host platform
+ensure-test-deps: ## Install optional host test deps for the host platform
 	@bash $(ROOT)scripts/dev/ensure-test-deps.sh
 
-install-test-deps: ## Install EVERYTHING test-slow needs (system toolchain) on Debian/Ubuntu, Fedora/CentOS/RHEL, or macOS Homebrew
+install-test-deps: ## Install EVERYTHING the full test suite needs (system toolchain) on Debian/Ubuntu, Fedora/CentOS/RHEL, or macOS Homebrew
 	@echo "==> install-test-deps: installing system toolchain"
 	@bash $(ROOT)scripts/dev/ensure-test-deps.sh
-	@echo "==> install-test-deps: done — run 'make test-slow' next"
+	@echo "==> install-test-deps: done — run 'make check-all test-ext test-rust runtime-rust-test test-emacs' next"
 
 ensure-tcl-deps: ## Install Tcl shells needed by Tcl/tclpkg tests and bytecode capture
 	@env \

@@ -48,6 +48,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)
   — tcltest's `numTests(Failed)` reads as an empty string in the
   compiled counter-bundle run.
+- [kcs-issue-reconstruct-a-stress-test-failure.md](kcs-issue-reconstruct-a-stress-test-failure.md)
+  — a stress-test suite run failed and you want to reconstruct it from
+  the `STRESS_FAILURE:` reproduction bundle.
 
 ## Q&A
 
@@ -100,6 +103,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-how-to-run-tcltest-bundles.md](kcs-how-to-run-tcltest-bundles.md)
   — run the Tcl 9 tcltest test files through the WASM runtime and
   interpret the triage roll-up.
+- [kcs-howto-run-the-stress-test-suites.md](kcs-howto-run-the-stress-test-suites.md)
+  — run the issue #829 robustness stress suites (direct-infrastructure
+  and LSP-API) and reconstruct a failure from its reproduction bundle.
 - [kcs-howto-suppress-diagnostics.md](kcs-howto-suppress-diagnostics.md)
   — turn a diagnostic, warning, optimisation, or shimmer off inline,
   file-wide, per-project, per-editor, or globally.

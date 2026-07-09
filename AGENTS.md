@@ -126,8 +126,8 @@ local machines as a no-op, so laptops are never touched. Everything listed
 here is ready before Claude starts taking instructions — **no manual
 `apt install` or curl step is required**.
 
-After the toolchains land it also installs the remaining `test-slow` host
-tools via [`scripts/dev/ensure-test-deps.sh`](scripts/dev/ensure-test-deps.sh)
+After the toolchains land it also installs the remaining host test tools
+via [`scripts/dev/ensure-test-deps.sh`](scripts/dev/ensure-test-deps.sh)
 (tclsh, node, kotlinc, emacs, xvfb, tshark, …).
 
 | Tool / source    | Version       | Install path                    | On `PATH` as              |
@@ -184,12 +184,11 @@ The project uses GNU Make. Key targets:
 |--------------------|------------------------------------------|
 | `make rust-check`  | **Rust PR gate** — `check-rust` (cargo `fmt --check` + `clippy`) + `xtask-check` (generated-file / docs-index drift gates via `cargo xtask …`). Mirrors the GitHub Actions `pr-gate` job. |
 | `make check-all`   | **Pre-push gate** — full lint + typecheck across **every** language: TypeScript via ESLint + Prettier + tsc, Rust via `cargo fmt --check` + `cargo clippy`, Python via `ruff` + `ty` + `pyright` (`lint-py` + `typecheck-py`). Run before every push. |
-| `make test-slow`   | **Pre-PR gate** — run before opening a PR. Runs everything: optional dep check (or install when `AUTO_INSTALL_DEPS=1`) + `prep-pr` + `check-rust` + VS Code extension (`test-ext`) + Emacs eglot (`test-emacs`) + VSIX smoke (`_prep-pr-smoke`) + the full Rust workspace test suite (`test-rust`, which includes the native lsp_e2e) + the Rust runtime port (`runtime-rust-test` — the standalone `runtime/rust` crate is excluded from the workspace, so `test-rust` does not cover it). Drives every phase through `scripts/dev/test-slow-runner.sh`, which keeps going past failures and prints one consolidated PASS/FAIL summary at the end. |
-| `make install-test-deps` | One-shot setup: install **everything** `test-slow` needs (the system toolchain — all of `ensure-test-deps`). The target to run on a fresh checkout before `make test-slow`. Same platform coverage as `ensure-test-deps`. |
-| `make ensure-test-deps` | Install the optional `test-slow` toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`, Rust/rustup, Wasmtime, Binaryen, wasi-sdk, emacs, xvfb, …) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.4/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`, `SKIP_RUST=1`, … Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report of what would be installed. |
+| `make install-test-deps` | One-shot setup: install **everything** the full test suite needs (the system toolchain — all of `ensure-test-deps`). The target to run on a fresh checkout before running the heavier suites below. Same platform coverage as `ensure-test-deps`. |
+| `make ensure-test-deps` | Install the optional host toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`, Rust/rustup, Wasmtime, Binaryen, wasi-sdk, emacs, xvfb, …) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.4/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`, `SKIP_RUST=1`, … Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report of what would be installed. |
 | `make ensure-rust-deps` | Install Rust/rustup + the `wasm32-wasip2` target needed by `check-rust` / the WASM build. |
 | `make check-rust`  | Rust format check + clippy across the workspace (and the Zed extension). Skip with `SKIP_CHECK_RUST=1`. |
-| `make prep-pr`     | Pre-PR formatting + fast checks (a subset of test-slow; auto-formats code, runs codegen, lint/typecheck, and `test-rust`).  Use `make test-slow` for the full gate. |
+| `make prep-pr`     | Pre-PR formatting + fast checks: auto-formats code, runs codegen, lint/typecheck, and `test-rust`. Run the heavier suites (`test-ext`, `runtime-rust-test`, `test-emacs`) separately before opening a PR — see "Before opening a PR" below. |
 | `make test`        | Run all tests — Rust workspace + VS Code extension + Rust runtime port (`test-rust test-ext runtime-rust-test`) |
 | `make test-rust`   | `cargo test --workspace --all-features` — includes the native lsp_e2e suite (`rust/tcl-lsp-server/tests/*_e2e.rs`); skip with `SKIP_TEST_RUST=1` |
 | `make test-ext`    | VS Code extension integration tests (xvfb on headless Linux) |
@@ -306,13 +305,14 @@ for the contract and full per-cluster file layout.
 
 ## Workflow requirements
 
-There are **three distinct gates**, in increasing strictness:
+There are **two distinct gates**, in increasing strictness, plus a set of
+heavier test suites to run individually before opening a PR:
 
 | Gate | Required before | What runs | Enforcement |
 |---|---|---|---|
 | **`make rust-check`** | Rust-only changes (minimum) | Rust `fmt --check` + `clippy` + `xtask-check` (generated-file / docs-index drift gates).  Mirrors GitHub Actions' `pr-gate` job | fast subset — run before `check-all` |
 | **`make check-all`** | every `git push` (minimum) | multi-language lint + typecheck across TypeScript (ESLint + Prettier + tsc), Rust (`cargo fmt --check` + `cargo clippy`) | agent rule: run before every push |
-| **`make test-slow`** | every PR / merge request | Everything `check-all` runs **plus** the full Rust workspace test suite (native lsp_e2e included), the Rust runtime port (`runtime-rust-test`), VS Code extension, Emacs eglot, and VSIX smoke | agent rule: required before opening a PR |
+| **`make test-rust test-ext runtime-rust-test test-emacs`** | every PR / merge request | the full Rust workspace test suite (native lsp_e2e included), the VS Code extension, the Rust runtime port, and Emacs eglot, run individually | agent rule: required before opening a PR |
 
 GitHub Actions runs only the fast gate on PRs (the `pr-gate` job, mirrored by
 `make rust-check` + the TS lint in `check-all`).  Everything else is the
@@ -321,13 +321,12 @@ either gate.
 
 ### Before any push
 
-**Lint and typecheck must be clean before you push.**  Three gate
+**Lint and typecheck must be clean before you push.**  Two gate
 levels, weakest → strongest:
 
 ```
 make rust-check     # Rust fmt + clippy + drift gates (mirrors the PR gate)
 make check-all      # multi-language lint + typecheck — the push gate
-make test-slow      # full suite — required before opening a PR
 ```
 
 Failures must be fixed, not skipped — tooling-missing skips must be
@@ -342,26 +341,27 @@ drift" failure on this repo's PRs has been a `push` that skipped this step.
 
 ### Before opening a PR
 
-**Rebase off `main`, fix conflicts, then run the full pre-PR gate:**
+**Rebase off `main`, fix conflicts, then run `make prep-pr` followed by the
+heavier suites individually:**
 
 ```
-make test-slow
+make prep-pr                                    # format + codegen + lint/typecheck + test-rust
+make check-rust                                  # Rust lint/typecheck
+make test-ext                                    # VS Code extension — xvfb if no DISPLAY
+make test-emacs                                  # Emacs eglot
+make runtime-rust-test                           # the standalone runtime/rust crate — excluded
+                                                  # from the workspace, so test-rust misses it
 ```
 
-`test-slow` is a strict superset of `check-all`.  It runs (`prep-pr`
-serially first, then the rest in parallel):
-
-1. **prep-pr** — format (Prettier) + codegen (`cargo xtask`) + lint + typecheck
-   (tsc) + editor-settings drift check + `test-rust`
-2. **check-rust** — Rust lint/typecheck
-3. **VS Code extension** (`test-ext`) — xvfb if no DISPLAY
-4. **Emacs eglot** (`test-emacs`)
-5. **VSIX smoke** (`_prep-pr-smoke`)
-6. **Rust workspace** (`test-rust`) — `cargo test --workspace --all-features`,
-   including the native lsp_e2e suite (`rust/tcl-lsp-server/tests/*_e2e.rs`)
-7. **Rust runtime port** (`runtime-rust-test`) — `cargo test` in the standalone
-   `runtime/rust` crate (excluded from the workspace, so `test-rust` misses it):
-   the leak round-trip + parse/eval unit suite
+- **prep-pr** — format (Prettier) + codegen (`cargo xtask`) + lint + typecheck
+  (tsc) + editor-settings drift check + `test-rust` (`cargo test
+  --workspace --all-features`, including the native lsp_e2e suite
+  `rust/tcl-lsp-server/tests/*_e2e.rs`)
+- **check-rust** — Rust lint/typecheck
+- **test-ext** — VS Code extension integration tests
+- **test-emacs** — Emacs eglot integration tests
+- **runtime-rust-test** — the leak round-trip + parse/eval unit suite for
+  the standalone `runtime/rust` crate
 
 Skip variables for missing tooling: `SKIP_TEST_EMACS=1`,
 `SKIP_TEST_RUST=1`.  Use these only when the tool genuinely isn't available
@@ -370,9 +370,9 @@ on your machine — the gate must still cover everything else.
 ### Rule for agents
 
 **Agents MUST NOT open a PR (or instruct the user to open one) until
-`make test-slow` has completed successfully in its entirety against the
-exact worktree being proposed.**  If the worktree has changed since the
-last green run, re-run `make test-slow` before proceeding.  Likewise,
+`prep-pr` and every heavier suite above have completed successfully
+against the exact worktree being proposed.**  If the worktree has changed
+since the last green run, re-run them before proceeding.  Likewise,
 **agents MUST NOT push** without `make check-all` having completed
 cleanly against the current tree.
 
@@ -380,41 +380,41 @@ These rules are non-negotiable: CI covers only the fast Rust fmt/clippy/drift
 gate, so the local gates are the only thing standing between a regression and
 `main`.
 
-Commit any formatting changes that `make test-slow` applies before creating
-the PR (it runs `prep-pr` which auto-formats — re-run test-slow after any
-such commits so the gate covers the final tree).
+Commit any formatting changes `make prep-pr` applies before creating the
+PR (it auto-formats — re-run the affected suites after any such commits so
+the gate covers the final tree).
 
-### When a PR is created, run test-slow locally
+### When a PR is created, run the full suite locally
 
 When a PR is opened on this repository — whether by the agent, by the user,
 or by the Claude Code UI on the agent's behalf — the agent MUST kick off
-`make test-slow` **on its local machine** against the exact tip the PR is
-built from, without being asked.  This applies to PRs the agent didn't
-open: if the agent learns of a new PR (e.g. via `<github-webhook-activity>`
-subscription, a comment, or the user mentioning it), it must immediately
-re-run test-slow locally if the worktree drifted, then act on whatever
-fails.
+`prep-pr` and the heavier suites above **on its local machine** against the
+exact tip the PR is built from, without being asked.  This applies to PRs
+the agent didn't open: if the agent learns of a new PR (e.g. via
+`<github-webhook-activity>` subscription, a comment, or the user
+mentioning it), it must immediately re-run them locally if the worktree
+drifted, then act on whatever fails.
 
-**Do NOT add `test-slow` (or any subset of it beyond the existing fast
-PR gate) to `.github/workflows/`.**  CI on this repo intentionally runs
-only the fast Rust fmt/clippy/drift gate; the rest of the gate is the
-agent's local responsibility.  Don't wire `test-slow` into a GitHub Action, don't trigger
-it via `workflow_dispatch`, and don't ask the user to enable it on the
-runner — run it on the local machine you're already working in.
+**Do NOT add these heavier suites to `.github/workflows/`.**  CI on this
+repo intentionally runs only the fast Rust fmt/clippy/drift gate; the rest
+of the gate is the agent's local responsibility.  Don't wire the heavier
+suites into a GitHub Action, don't trigger them via `workflow_dispatch`,
+and don't ask the user to enable them on the runner — run them on the
+local machine you're already working in.
 
 ### Capturing build / test logs
 
-Long gates (`make test-slow`, `make test-rust`, `make test-ext`, anything
-running for more than a few seconds) MUST have their full output captured
-to a file under `/tmp/` rather than only being read via `tail`.  Tailing
-loses signal: a failure in the middle of a 10-minute run won't appear in
-the last 50 lines if the harness keeps going, and cargo/test summary lines
-can get pushed off the bottom by skip-message spam.  The pattern:
+Long gates (`make test-rust`, `make test-ext`, anything running for more
+than a few seconds) MUST have their full output captured to a file under
+`/tmp/` rather than only being read via `tail`.  Tailing loses signal: a
+failure in the middle of a 10-minute run won't appear in the last 50 lines
+if the harness keeps going, and cargo/test summary lines can get pushed
+off the bottom by skip-message spam.  The pattern:
 
 ```
-make test-slow 2>&1 | tee /tmp/test-slow-<branch>.log
+make test-rust 2>&1 | tee /tmp/test-rust-<branch>.log
 # then, when investigating a failure:
-grep -nE 'FAIL|ERROR|panicked|error\[|^E ' /tmp/test-slow-<branch>.log
+grep -nE 'FAIL|ERROR|panicked|error\[|^E ' /tmp/test-rust-<branch>.log
 ```
 
 For background runs use `tee` to a `/tmp/` path, then `grep` the file when

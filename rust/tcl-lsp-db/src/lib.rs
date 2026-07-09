@@ -163,11 +163,16 @@ pub struct AnalyserConfig {
     pub generic_variable_patterns: Option<Vec<String>>,
 }
 
-/// Whole-file analysis — the `AnalysisResult` every feature provider already
-/// consumes, behind an `Arc` so reads bump a refcount rather than deep-clone.
+/// Whole-file analysis, behind an `Arc` so reads bump a refcount rather than
+/// deep-clone.
 ///
-/// Wraps [`Analyser::analyse`] unchanged.  Per-item firewall granularity is a
-/// later step in this phase; this is the coarse foundation query.
+/// Wraps [`Analyser::analyse`] unchanged, uncancellable and with no per-item
+/// memoisation.  Every production feature provider now reads
+/// [`file_analysis_incremental`] instead (issue #829: this coarse query has no
+/// interior salsa cancellation checkpoint, so a caller holding a read blocks a
+/// concurrent edit's `set_text` until the whole walk finishes). `file_analysis`
+/// itself stays live as the differential-fuzzer / corpus-gate ground truth
+/// [`file_analysis_incremental`] is proven byte-identical against.
 #[salsa::tracked]
 pub fn file_analysis(
     db: &dyn salsa::Database,
@@ -2107,20 +2112,30 @@ pub fn document_compilation_unit(db: &dyn TclDb, file: SourceFile) -> Arc<Compil
 /// This query demands the document's [`CompilationUnit`] so a `regexp` /
 /// `regsub` pattern supplied through a provably-constant string variable
 /// highlights its originating `set` literal as a regex (see
-/// [`tcl_compiler::regex_source`]).  That reworks the earlier "tokens never
-/// touch the analysis pipeline" latency shortcut (issue #333) in favour of
-/// correctness — salsa keeps the unit memoised (shared with diagnostics) and,
-/// keyed on the same `SourceFile`, guarantees the analysis and the tokens are
-/// for the identical revision (no version skew in the emitted stream).
+/// [`tcl_compiler::regex_source`]), and the whole-file analysis so a
+/// `$obj method …` / `[dict get $objs $k] method …` dispatch resolves against
+/// user classes and their `oo::configurable` properties (issue #797), not only
+/// registry ones. That reworked the earlier "tokens never touch the analysis
+/// pipeline" latency shortcut (issue #333) in favour of correctness — but the
+/// analysis half originally reused the coarse, non-incremental
+/// [`file_analysis`] rather than [`file_analysis_incremental`], which
+/// reintroduced a latency/starvation regression (issue #829): every token
+/// request paid for a *third* independent whole-file analyser walk (on top of
+/// the two the diagnostics path already shares via [`compilation_unit`]), and
+/// that walk has no interior salsa cancellation checkpoint, so a concurrent
+/// edit's `set_text` blocks until it finishes.  Using
+/// [`file_analysis_incremental`] here instead keeps the #797 correctness fix
+/// (identical `AnalysisResult` shape, proven byte-identical to `file_analysis`
+/// by the `per_item_corpus` gate) while sharing the diagnostics path's
+/// per-item memoisation and cancellation checkpoints: a token request that
+/// lands after diagnostics have already analysed this revision is a cache
+/// hit, and a cold request is preemptible by the next edit instead of running
+/// an uninterruptible pass to completion.
 #[salsa::tracked]
 pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig) -> SemanticTokens {
     let registry = db.registry(file.dialect(db));
     let cu = document_compilation_unit(db, file);
-    // The whole-file analysis (shared, memoised with diagnostics under the same
-    // `config`) supplies user-defined `ClassDef`s so a `$obj method …` /
-    // `[dict get $objs $k] method …` dispatch resolves against user classes and
-    // their `oo::configurable` properties (issue #797), not only registry ones.
-    let analysis = file_analysis(db, file, config);
+    let analysis = file_analysis_incremental(db, file, config);
     tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
         file.text(db),
         file.dialect(db),
@@ -2134,11 +2149,17 @@ pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig)
 /// unioned into one cross-file MRO index, so a `$obj method` dispatch resolves
 /// against a class defined in *another* file.
 ///
-/// Aggregates `file_analysis(f, config).all_classes` across `project`.  A
-/// body-only edit rebuilds this (cheap re-aggregation) but yields an equal
-/// [`ClassHierarchy`], so salsa backdates and dependent token queries do not
-/// recompute.  On a class-signature change the merged index changes and the
-/// affected tokens recompute — the correct cross-file invalidation.
+/// Aggregates `file_analysis_incremental(f, config).all_classes` across
+/// `project`.  A body-only edit rebuilds this (cheap re-aggregation) but yields
+/// an equal [`ClassHierarchy`], so salsa backdates and dependent token queries
+/// do not recompute.  On a class-signature change the merged index changes and
+/// the affected tokens recompute — the correct cross-file invalidation.
+///
+/// Uses the incremental, per-item-memoised [`file_analysis_incremental`] (not
+/// the coarse [`file_analysis`]) for each project file, the same template
+/// [`project_diagnostics`] establishes: a file whose diagnostics the worker has
+/// already analysed for this revision is a cache hit here too, rather than a
+/// second independent whole-file walk (issue #829).
 #[salsa::tracked]
 pub fn project_class_index(
     db: &dyn TclDb,
@@ -2156,7 +2177,7 @@ pub fn project_class_index(
     let mut merged: HashMap<String, ClassDef> = HashMap::new();
     let mut ambiguous: HashSet<String> = HashSet::new();
     for &file in project.files(db) {
-        let analysis = file_analysis(db, file, config);
+        let analysis = file_analysis_incremental(db, file, config);
         for (name, class) in &analysis.all_classes {
             if ambiguous.contains(name) {
                 continue;
@@ -2186,6 +2207,10 @@ pub fn project_class_index(
 /// ambiguous by [`VarNameArgRoles::from_procs`], so the merged index is
 /// order-independent — matching the abstention posture of
 /// [`project_class_index`].
+///
+/// Uses [`file_analysis_incremental`] per file, matching [`project_class_index`]
+/// and [`project_diagnostics`] — a cache hit against the diagnostics worker's
+/// already-computed per-item analysis rather than a second whole-file walk.
 #[salsa::tracked]
 pub fn project_proc_var_index(
     db: &dyn TclDb,
@@ -2195,7 +2220,7 @@ pub fn project_proc_var_index(
     let analyses: Vec<Arc<AnalysisResult>> = project
         .files(db)
         .iter()
-        .map(|&file| file_analysis(db, file, config))
+        .map(|&file| file_analysis_incremental(db, file, config))
         .collect();
     Arc::new(VarNameArgRoles::from_procs(
         analyses.iter().flat_map(|a| a.all_procs.values()),
@@ -2317,6 +2342,175 @@ mod tests {
         let expected = tcl_lsp_core::semantic_tokens::full(SRC, "tcl", &reg);
         assert_eq!(got, expected);
         assert!(!got.data.is_empty());
+    }
+
+    /// TP: the enriched `semantic_tokens` query (backed by a
+    /// [`CompilationUnit`] and SSA/SCCP-derived constant-string facts) retags
+    /// the `.*abc` literal at its originating `set` as regex source, because
+    /// `regexp $my_re` provably reads that constant — see
+    /// [`tcl_compiler::regex_source`]. The cheap coarse tier
+    /// (`tcl_lsp_core::semantic_tokens::full`, no `CompilationUnit`) has no
+    /// SSA facts to do this with, so the two streams differ — proving the
+    /// enrichment `semantic_tokens` performs over the coarse walk is real,
+    /// not a no-op (issue #829: the fast-path fallback in
+    /// `Backend::semantic_tokens_core_data` trades this enrichment away
+    /// temporarily, so it must exist for the trade to mean anything).
+    #[test]
+    fn semantic_tokens_retags_constant_regex_source_true_positive() {
+        let src = "set my_re \".*abc\"\nregexp $my_re $s\n";
+        let db = TclDatabase::default();
+        let file = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned());
+        let enriched = semantic_tokens(&db, file, cfg(&db));
+        let reg = db.registry("tcl9.0");
+        let coarse = tcl_lsp_core::semantic_tokens::full(src, "tcl9.0", &reg);
+        assert_ne!(
+            enriched, coarse,
+            "the CompilationUnit-informed regex-source retag must change the \
+             token stream relative to the coarse (no-CU) tier"
+        );
+    }
+
+    /// TN: a `regexp` pattern read from a variable that is *not* provably
+    /// constant (reassigned from a proc parameter) gets no retag from either
+    /// tier — the coarse and enriched streams agree, because there is no
+    /// constant fact for the enriched tier to add. Guards against the retag
+    /// firing indiscriminately on every `regexp $var` call.
+    #[test]
+    fn semantic_tokens_skips_retag_for_non_constant_pattern_true_negative() {
+        let src = "proc match {re s} {\n    regexp $re $s\n}\n";
+        let db = TclDatabase::default();
+        let file = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned());
+        let enriched = semantic_tokens(&db, file, cfg(&db));
+        let reg = db.registry("tcl9.0");
+        let coarse = tcl_lsp_core::semantic_tokens::full(src, "tcl9.0", &reg);
+        assert_eq!(
+            enriched, coarse,
+            "a non-constant pattern source must not be retagged by either tier"
+        );
+    }
+
+    /// Issue #829 root-cause regression test: `semantic_tokens` must depend on
+    /// the incremental, per-item-memoised `file_analysis_incremental` — not
+    /// the coarse `file_analysis` — so a token request that lands after the
+    /// diagnostics worker has already analysed this revision is a cache hit
+    /// (no second whole-file walk), and a token request that lands *first*
+    /// still primes the exact query diagnostics will reuse. Also asserts the
+    /// coarse, uncancellable `file_analysis` is never invoked by either order.
+    #[test]
+    fn semantic_tokens_shares_incremental_analysis_with_diagnostics() {
+        use salsa::Setter as _;
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let l = Arc::clone(&log);
+            move |ev: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                    l.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let mut db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+            registries: Arc::default(),
+        };
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
+        let file = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned());
+
+        // Diagnostics-first order: the worker analyses, then a token request
+        // arrives for the same revision.
+        let _ = file_analysis_incremental(&db, file, cfg);
+        let after_diagnostics = std::mem::take(&mut *log.lock().unwrap());
+        assert_eq!(
+            after_diagnostics
+                .iter()
+                .filter(|s| s.contains("item_body_analysis"))
+                .count(),
+            1,
+            "diagnostics analyses the one proc body: {after_diagnostics:?}"
+        );
+
+        let _ = semantic_tokens(&db, file, cfg);
+        let after_tokens = std::mem::take(&mut *log.lock().unwrap());
+        assert!(
+            after_tokens
+                .iter()
+                .all(|s| !s.contains("item_body_analysis")),
+            "a token request for the same revision must be a cache hit against \
+             the diagnostics worker's analysis, not a second walk: {after_tokens:?}"
+        );
+        assert!(
+            after_tokens.iter().all(|s| !s.contains("file_analysis(")),
+            "semantic_tokens must never invoke the coarse, uncancellable \
+             file_analysis query: {after_tokens:?}"
+        );
+
+        // Token-first order (a cold open before the debounced diagnostics
+        // worker has run): editing then re-requesting tokens still only
+        // recomputes the one changed body, proving the per-item firewall
+        // covers the token path too, not just the diagnostics path.
+        file.set_text(&mut db)
+            .to("proc greet {name} {\n    puts \"hi $name!!\"\n}\n# c\nset x 1\n".to_owned());
+        let _ = std::mem::take(&mut *log.lock().unwrap());
+        let _ = semantic_tokens(&db, file, cfg);
+        let after_edit = std::mem::take(&mut *log.lock().unwrap());
+        assert_eq!(
+            after_edit
+                .iter()
+                .filter(|s| s.contains("item_body_analysis"))
+                .count(),
+            1,
+            "a single-body edit must recompute exactly one item via the token \
+             path: {after_edit:?}"
+        );
+    }
+
+    /// [`project_class_index`] and [`project_proc_var_index`] must likewise
+    /// use [`file_analysis_incremental`] per project file (not the coarse
+    /// [`file_analysis`]), matching [`project_diagnostics`]'s established
+    /// template — otherwise `semantic_tokens_project` pays for a fresh
+    /// whole-file walk of every project file on top of what diagnostics
+    /// already computed for them.
+    #[test]
+    fn project_indexes_use_incremental_analysis_not_coarse() {
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let l = Arc::clone(&log);
+            move |ev: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                    l.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+            registries: Arc::default(),
+        };
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
+        let lib = SourceFile::new(
+            &db,
+            "oo::configurable create ::Pin { property node }\n".to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let main = SourceFile::new(
+            &db,
+            "set p [::Pin new]\n$p configure -node n1\n".to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let project = Project::new(&db, vec![lib, main]);
+
+        let _ = project_class_index(&db, project, cfg);
+        let _ = project_proc_var_index(&db, project, cfg);
+        let log_snapshot = log.lock().unwrap().clone();
+        assert!(
+            log_snapshot
+                .iter()
+                .any(|s| s.contains("file_analysis_incremental")),
+            "project indexes must read the incremental analysis: {log_snapshot:?}"
+        );
+        assert!(
+            log_snapshot.iter().all(|s| !s.contains("file_analysis(")),
+            "project indexes must never invoke the coarse file_analysis query: \
+             {log_snapshot:?}"
+        );
     }
 
     #[test]
