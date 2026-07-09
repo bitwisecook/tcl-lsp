@@ -1995,12 +1995,8 @@ const PROCESSMAN_CMDS: &[Row] = &[
         &["processman::killexe name"],
         "Kill a process identified by the executable.",
     ),
-    (
-        "processman::onexit",
-        Arity::exact(2),
-        &["processman::onexit id cmd"],
-        "Arrange to execute the script cmd when this programe detects that process id as terminated.",
-    ),
+    // `processman::onexit` is modelled separately ([`processman_onexit_spec`]):
+    // its `cmd` is a deferred *script*, not a command prefix.
     (
         "processman::priority",
         Arity::exact(2),
@@ -2822,6 +2818,31 @@ const GROUPS: &[(&str, &[Row])] = &[
     ("zipfile::decode", ZIPFILE__DECODE_CMDS),
 ];
 
+/// `processman::onexit id cmd` — arranges to run `cmd` when process `id`
+/// terminates.  Source (processman.tcl 178/256) fires it as a bare
+/// `eval $cmd` with **nothing** appended: `cmd` is a deferred Tcl *script*, not
+/// a command prefix (so it is deliberately NOT a `command_prefixes` entry).
+/// Modelled with `ArgRole::Body` + `BodyKind::Structural` — the same shape as
+/// `tcltest::loadscript` — so a literal `{…}` script records its inner calls
+/// (references / W123 / call-graph) while SSA does not bind its vars to the
+/// caller's frame (the eval happens later, in `::processman::events`).
+fn processman_onexit_spec() -> CommandSpec {
+    CommandSpec {
+        name: "processman::onexit",
+        arity: Arity::exact(2),
+        hover: Some(HoverSnippet::brief(
+            "Arrange to execute the script cmd when this program detects that process id has terminated.",
+            &["processman::onexit id cmd"],
+            "tcllib processman package",
+        )),
+        tcllib_package: Some("processman"),
+        required_package: Some("processman"),
+        arg_roles: &[(1, ArgRole::Body)],
+        body_kind: BodyKind::Structural,
+        ..CommandSpec::DEFAULT
+    }
+}
+
 /// All command specs in this group.
 pub fn specs() -> Vec<CommandSpec> {
     GROUPS
@@ -2831,5 +2852,6 @@ pub fn specs() -> Vec<CommandSpec> {
         // return type, purity, and `min_version`) rather than the shared
         // 4-tuple [`Row`], so it is appended separately (issue #811).
         .chain(html_rows(HTML_CMDS))
+        .chain(std::iter::once(processman_onexit_spec()))
         .collect()
 }

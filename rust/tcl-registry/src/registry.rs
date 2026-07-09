@@ -1999,6 +1999,34 @@ mod tests {
             reg.command_prefixes("uevent::bind", &["tag", "ev", "cb"]),
             vec![(2, AppendedArity::AtLeast(2))],
         );
+
+        // `hook bind subject hook observer binding` — the 4-word set form names
+        // a command prefix (Unknown appended: the count is whatever the matching
+        // `hook call` passes); the shorter query forms name none.
+        assert_eq!(
+            reg.command_prefixes("hook", &["bind", "sub", "hk", "obs", "cb"]),
+            vec![(4, AppendedArity::Unknown)],
+        );
+        assert!(
+            reg.command_prefixes("hook", &["bind", "sub", "hk", "obs"])
+                .is_empty(),
+            "the 3-arg `hook bind` query form has no callback prefix",
+        );
+
+        // `processman::onexit id cmd` — `cmd` is a deferred *script* (`eval $cmd`,
+        // 0 appended), NOT a command prefix: it must declare none.
+        assert!(
+            reg.command_prefixes("processman::onexit", &["$pid", "cb"])
+                .is_empty(),
+            "processman::onexit cmd is a script body, not a command prefix",
+        );
+        assert_eq!(
+            reg.get("processman::onexit")
+                .and_then(|s| s.arg_roles.iter().find(|(i, _)| *i == 1))
+                .map(|(_, r)| *r),
+            Some(ArgRole::Body),
+            "processman::onexit cmd (index 1) must carry the Body script role",
+        );
     }
 
     #[test]

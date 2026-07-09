@@ -373,3 +373,71 @@ fn halfpipe_write_command_option_records_callback() {
         "expected an mk→onWrite edge from `tcl::chan::halfpipe -write-command`; got {g}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Resolver-based prefix (`hook bind`) and script-vs-prefix disambiguation
+// (`processman::onexit`).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn hook_bind_binding_is_a_callback_edge() {
+    // `hook bind subject hook observer binding` — the 4-word set form's final
+    // word is a command prefix (resolver-driven, Unknown arity).
+    let reg = CommandRegistry::build_default();
+    let src = "proc onEvent {args} { }\nproc wire {} {\n    hook bind subj myHook obs onEvent\n}\n";
+    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let edges = g["edges"].as_array().expect("edges array");
+    assert!(
+        edges.iter().any(|e| {
+            e["caller"].as_str().unwrap_or("").contains("wire")
+                && e["callee"].as_str().unwrap_or("").contains("onEvent")
+        }),
+        "expected a wire→onEvent edge from `hook bind`; got {g}"
+    );
+}
+
+#[test]
+fn hook_bind_query_form_is_not_a_callback() {
+    // The 3-word query form (`hook bind subject hook observer`) names no
+    // callback — a bareword there is a plain observer id, so no spurious W123.
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    let src = "hook bind subj myHook someObserver\n";
+    assert!(
+        !a.analyse(src, "tcl9.0")
+            .diagnostics
+            .iter()
+            .any(|d| d.code.to_string() == "W123"),
+        "the 3-arg `hook bind` query form must not fire W123 on the observer word"
+    );
+}
+
+#[test]
+fn processman_onexit_script_body_is_recursed_not_a_prefix() {
+    // `processman::onexit id cmd` — `cmd` is a deferred *script* (Body role, run
+    // later via `eval` in its own dispatch context), not a command prefix.  So
+    // its braced contents are recursed as a script: a typo inside fires W123 and
+    // a defined command is recorded / silent.  (Unlike a prefix, the `cmd` word
+    // itself is not a callback head, and — deferred — it forms no enclosing-proc
+    // call edge.)
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    let bad = "processman::onexit $pid { noSuchCleanupProc }\n";
+    assert!(
+        a.analyse(bad, "tcl9.0")
+            .diagnostics
+            .iter()
+            .any(|d| d.code.to_string() == "W123"),
+        "an unknown command inside the processman::onexit script must fire W123 (body recursed)"
+    );
+    // A defined command inside the script is recorded as an invocation (feeding
+    // references) and draws no W123.
+    let ok = "proc cleanup {} { }\nprocessman::onexit $pid { cleanup }\n";
+    let r = a.analyse(ok, "tcl9.0");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code.to_string() == "W123"),
+        "a defined command inside the processman::onexit script must not fire W123"
+    );
+    assert!(
+        r.command_invocations.iter().any(|i| i.name == "cleanup"),
+        "the processman::onexit script body's inner call must be recorded as an invocation"
+    );
+}

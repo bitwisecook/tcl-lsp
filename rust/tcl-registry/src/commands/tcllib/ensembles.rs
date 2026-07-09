@@ -495,13 +495,28 @@ fn debug_spec() -> CommandSpec {
     }
 }
 
+/// `hook bind subject hook observer binding` (hook.tcl 97-137) sets `binding`
+/// — a command prefix fired via `uplevel #0 [list {*}$binding {*}$args]` when
+/// the hook is called, so the appended count is whatever the matching
+/// `hook call subject hook ?arg…?` passes ⇒ `Unknown`.  The 1/2/3-arg forms
+/// are query variants (and an empty 4th arg is a delete), so only the full
+/// four-word set form names a callback.
+fn hook_bind_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+    if args.len() == 4 {
+        vec![(3, AppendedArity::Unknown)]
+    } else {
+        Vec::new()
+    }
+}
+
 /// The `hook` ensemble's sub-commands.
 const HOOK_SUBS: &[SubCommand] = &[
     SubCommand {
         name: "bind",
         arity: Arity::at_least(0),
         detail: "This subcommand is used to create, update, delete, and query hook bindings.",
-        synopsis: "hook bind",
+        synopsis: "hook bind ?subject? ?hook? ?observer? ?binding?",
+        command_prefix_resolver: Some(hook_bind_command_prefixes),
         ..SubCommand::DEFAULT
     },
     SubCommand {
