@@ -1193,7 +1193,7 @@ mod tests {
             assert_eq!(i.eval_str(b"tcl::build-info version"), Code::Ok);
             assert_eq!(i.result_bytes(), b"9.0");
             assert_eq!(i.eval_str(b"tcl::build-info patchlevel"), Code::Ok);
-            assert_eq!(i.result_bytes(), b"9.0.3");
+            assert_eq!(i.result_bytes(), b"9.0.4");
             for feat in [&b"debug"[..], b"purify", b"memdebug", b"no-deprecate"] {
                 let mut cmd = b"tcl::build-info ".to_vec();
                 cmd.extend_from_slice(feat);

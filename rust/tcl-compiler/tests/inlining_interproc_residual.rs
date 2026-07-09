@@ -1268,19 +1268,22 @@ fn method_return_constant_and_arity_summarised() {
 
 // ---------------------------------------------------------------------------
 // B9. Arity::any vs exact + ProcSummary structural facts already partly covered
-// upstream; pin the variadic-arity exact-count mapping for a proc.
+// upstream; pin the variadic-arity unbounded mapping for a proc.
 // ---------------------------------------------------------------------------
 
 #[test]
-fn proc_arity_is_param_count_even_for_variadic_decl() {
-    // The summary's arity is `exact(param_count)` — it counts declared params
-    // (including a trailing `args` slot) rather than modelling variadics.
+fn proc_arity_is_at_least_required_count_for_variadic_decl() {
+    // The summary's arity correctly models a trailing `args` slot as
+    // unbounded (`at_least(2)`, not `exact(3)`) — matching
+    // `interprocedural::arity_from_names` and the identical bare-name
+    // formula `taint_interproc` already used, rather than naively
+    // counting `args` itself as a required declared parameter.
     let ia = interproc("proc ::f {a b args} { return $a }\n");
     let s = ia.procedures.get("::f").unwrap();
     assert_eq!(
         s.arity,
-        Arity::exact(3),
-        "arity counts declared params a, b, args"
+        Arity::at_least(2),
+        "arity is unbounded past the 2 required params, not exact(3)"
     );
     assert_eq!(
         s.params,

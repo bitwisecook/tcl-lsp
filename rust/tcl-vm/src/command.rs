@@ -249,7 +249,7 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `no-deprecate`, …) is absent and reports 0.
 fn cmd_build_info(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
-        [] => ok(Value::string("9.0.3")),
+        [] => ok(Value::string("9.0.4")),
         [_option] => ok(Value::int(0)),
         _ => err("wrong # args: should be \"tcl::build-info ?option?\""),
     }

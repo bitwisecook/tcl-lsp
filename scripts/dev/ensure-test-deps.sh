@@ -59,7 +59,7 @@
 #
 # Idempotent: each tool is checked first and the installer is only invoked
 # when the binary is missing.  Builds Tcl 9 from the source tree the
-# SessionStart hook has already laid down at ``tmp/tcl9.0.3/`` to avoid
+# SessionStart hook has already laid down at ``tmp/tcl9.0.4/`` to avoid
 # pulling distro packages that may lag the upstream release.
 #
 # Usage:
@@ -303,7 +303,7 @@ ensure_tclsh() {
 
     # Linux distro packages cover tclsh 8.6 well; 9.0 isn't packaged on
     # most distros yet so we build it from the source tree the
-    # SessionStart hook drops at tmp/tcl9.0.3/.  macOS Homebrew has both.
+    # SessionStart hook drops at tmp/tcl9.0.4/.  macOS Homebrew has both.
     if [ "$PKG" = "brew" ]; then
         if ! command -v tclsh9.0 >/dev/null 2>&1; then
             run_install "Tcl 9 (Homebrew)" tcl-tk
@@ -323,7 +323,7 @@ ensure_tclsh() {
     fi
 
     if ! command -v tclsh9.0 >/dev/null 2>&1; then
-        local tcl_src="$REPO_ROOT/tmp/tcl9.0.3"
+        local tcl_src="$REPO_ROOT/tmp/tcl9.0.4"
         if [ "$CHECK_ONLY" -eq 1 ]; then
             if [ -d "$tcl_src/unix" ]; then
                 note_missing "tclsh9.0 (would build from source at $tcl_src)"

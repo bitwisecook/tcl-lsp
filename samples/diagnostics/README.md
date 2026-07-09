@@ -25,6 +25,23 @@ Available dialects: `tcl8.4`, `tcl8.5`, `tcl8.6` (default), `tcl9.0`,
 
 Diagnostics affected by dialect are marked with a `[dialect]` tag below.
 
+## Errors
+
+### E003 — Too many arguments
+
+A call supplies more arguments than the resolved target accepts —
+generalised beyond the builtin command registry to same-file procs,
+`interp alias` (shifted by any prepended arguments), `rename` (inherits
+the original's arity unchanged), and `TclOO` methods / `forward`s
+(including `forward NAME my TARGET ?ARG…?`, the documented idiom for
+forwarding to a sibling or inherited method — a bare method name is never
+a valid forward target). The companion **E002** ("too few arguments") is
+the same check's other half; no separate sample exists for it since every
+case below exercises both directions.
+
+**Validity:** true positive — verified against real tclsh 9.0.4 for
+every case in the sample.
+
 ## Warnings
 
 ### W001 — Unknown subcommand
@@ -244,6 +261,7 @@ operations on the same variable within a loop.
 ```
 diagnostics/
 ├── README.md                          (this file)
+├── E003_proc_call_arity/example.tcl
 ├── O106_loop_invariant/example.tcl
 ├── O110_canonicalise_expr/example.tcl
 ├── O116_fold_constant_list/example.tcl

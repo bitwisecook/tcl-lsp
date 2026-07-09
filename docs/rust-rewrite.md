@@ -147,10 +147,10 @@ Two architectural constraints that every task is measured against.
 They override local simplicity when they conflict; if you find
 yourself working around them, stop and raise the design question.
 
-### 0. C Tcl 9.0.3 is the reference standard
+### 0. C Tcl 9.0.4 is the reference standard
 
 The Rust lexer, compiler, and eventual LSP server must produce
-behaviour identical to **C Tcl 9.0.3** (the current stable release
+behaviour identical to **C Tcl 9.0.4** (the current stable release
 of the upstream Tcl reference implementation). Every escape
 sequence, quoting rule, brace-nesting edge case, and
 backslash-continuation behavior is measured against what
@@ -459,7 +459,7 @@ Bad examples:
 
 Each task that replaces real logic needs a differential test: run the
 implementation against the oracle on every fixture and assert identical
-output. For the remaining runtime work the oracle is **C Tcl 9.0.3**
+output. For the remaining runtime work the oracle is **C Tcl 9.0.4**
 (`tclsh9.0`) directly — see principle §0. In-crate `*_parity.rs`
 harnesses are the standard shape.
 
@@ -564,7 +564,7 @@ Some concrete rules of thumb:
   multiple modules.
 - Every task that replaces real logic ships with a differential test
   harness: feed the same inputs through the implementation and the
-  oracle (**C Tcl 9.0.3** for the remaining runtime work) and assert
+  oracle (**C Tcl 9.0.4** for the remaining runtime work) and assert
   identical outputs. Do not land until the harness is green across the
   whole corpus.
 - Avoid golden-file tests for things that are cheap to compute. Prefer
@@ -678,7 +678,7 @@ has **since been ported**:
   `subst -backslashes/-commands/-variables` options), and the operator/dialect
   gating now live in `tcl-registry` + the lexer/analyser dialect gates (the
   Python `dialects.py`/`timer.py`/`unicode_.py`/`subst_.py` that were the source
-  of this delta are retired). Principle §0 is unaffected: C Tcl 9.0.3 stays the
+  of this delta are retired). Principle §0 is unaffected: C Tcl 9.0.4 stays the
   pinned reference standard; 9.1 is a *dialect-flag* addition, not a
   reference-standard bump — a future task may advance the differential oracle
   once a 9.1 `tclsh` is available.
@@ -789,11 +789,11 @@ Task status is either **open** or **partial** (with a note on what remains).
   against **tclsh 8.4–9.0** (the four source trees live under `tmp/tcl<ver>/`;
   build a missing one with `.claude/skills/fetch-tcl-source` + `configure &&
   make` under `unix/`), and consult the **C Tcl source** for the reference
-  algorithm — `tmp/tcl9.0.3/generic/` carries the `tclParse.c` / `tclUtil.c` /
+  algorithm — `tmp/tcl9.0.4/generic/` carries the `tclParse.c` / `tclUtil.c` /
   `tclExecute.c` files the ports mirror. Gate version-specific behaviour (e.g.
   `0o` / `0b` integer prefixes exist in 8.5+ but not 8.4; `{*}` expansion is
   8.5+) on the registry / `LexerConfig` dialect flags, never hardcode one
-  version. C Tcl 9.0.3 is the reference standard.
+  version. C Tcl 9.0.4 is the reference standard.
 - **A discovery in one track that affects another must update the other
   track's entry here, in the same change.** When working a track surfaces a
   wrong assumption, a shared invariant, or a handoff (e.g. a residual that
@@ -925,7 +925,7 @@ The **runtime & execution** tracks — **RT-WASM** (WASM codegen emitter +
 `tcl-wasm` bundling), **RT-VM** (the `tcl-vm` bytecode VM), and the
 `runtime/rust` tree-walking port — are enumerated in their own index, together
 with the **tiered capability-ladder plan** for bringing the VMs and runtime to
-C-Tcl 9.0.3 parity:
+C-Tcl 9.0.4 parity:
 
 > [`design/runtime/runtime-execution-gaps.md`](design/runtime/runtime-execution-gaps.md)
 

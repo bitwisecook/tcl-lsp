@@ -187,6 +187,118 @@ fn string_match_nocase_has_no_arity_error() {
     assert!(!has_code(&diags, "E003"));
 }
 
+// -- TestSameFileCallArity ------------------------------------------------
+// End-to-end arity checks generalised beyond the builtin registry to
+// same-file proc / `interp alias` / `rename` calls. Previously, calling a
+// same-file proc with the wrong number of arguments produced no diagnostic
+// at all — an out-of-range variable reference inside the proc body would
+// correctly fire W210, but the call site itself was silently accepted.
+
+#[test]
+fn same_file_proc_call_too_many_args_is_e003() {
+    // The reported repro: a 7-parameter proc called with 8 arguments.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "\
+proc demonstrate {arg1 arg2 arg3 arg4 arg5 arg6 arg7} {
+    return \"$arg1 $arg2 $arg3 $arg4 $arg5 $arg6 $arg7\"
+}
+demonstrate one two three four five six seven eight
+";
+    let diags = lsp.open_ready(&uri, src);
+    let e003: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("E003"))
+        .collect();
+    assert!(
+        !e003.is_empty(),
+        "expected E003 for the 8-arg call to a 7-param proc; got {diags:?}"
+    );
+    assert!(message(e003[0]).contains("demonstrate"));
+    assert_eq!(e003[0].get("severity").and_then(Value::as_i64), Some(1)); // Error
+}
+
+#[test]
+fn same_file_proc_call_with_correct_arity_has_no_arity_error() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "\
+proc demonstrate {arg1 arg2 arg3 arg4 arg5 arg6 arg7} {
+    return \"$arg1 $arg2 $arg3 $arg4 $arg5 $arg6 $arg7\"
+}
+demonstrate one two three four five six seven
+";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(!has_code(&diags, "E002"));
+    assert!(!has_code(&diags, "E003"));
+}
+
+#[test]
+fn same_file_renamed_proc_call_inherits_original_arity() {
+    // `rename` is a pure name move — the renamed name must still be
+    // checked against the proc's own (unchanged) arity.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc target {a b c} {}\nrename target target_orig\ntarget_orig 1 2\n",
+    );
+    assert!(has_code(&diags, "E002"));
+}
+
+#[test]
+fn same_file_interp_alias_call_arity_is_shifted_by_prepended_args() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc target {a b c} {}\ninterp alias {} shortcut {} target 100\nshortcut 2\n",
+    );
+    assert!(has_code(&diags, "E002"));
+    let uri2 = unique_uri("tcl");
+    let diags_ok = lsp.open_ready(
+        &uri2,
+        "proc target {a b c} {}\ninterp alias {} shortcut {} target 100\nshortcut 2 3\n",
+    );
+    assert!(!has_code(&diags_ok, "E002"));
+    assert!(!has_code(&diags_ok, "E003"));
+}
+
+#[test]
+fn same_file_tcloo_forward_via_my_arity_is_shifted_by_prepended_args() {
+    // `forward NAME my TARGET ?ARG…?` is the documented TclOO idiom for
+    // forwarding to a sibling method — confirmed against tclsh 9.0.4 that
+    // a bare method name (`forward NAME TARGET`) is never a valid forward
+    // target, but routing through `my` resolves via the receiver's own
+    // method-resolution order, arity-shifted by any arguments after it.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "\
+oo::class create Widget {
+    method base {a b c} { return \"$a$b$c\" }
+    forward fwd my base fixedarg
+}
+set w1 [Widget new]
+$w1 fwd 1 2 3
+";
+    let diags = lsp.open_ready(&uri, src);
+    let e003: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("E003"))
+        .collect();
+    assert!(
+        !e003.is_empty(),
+        "expected E003 for a 3-arg call to a forward shifted down to 2 args; got {diags:?}"
+    );
+    let uri2 = unique_uri("tcl");
+    let diags_ok = lsp.open_ready(
+        &uri2,
+        "oo::class create Widget {\n    method base {a b c} { return \"$a$b$c\" }\n    forward fwd my base fixedarg\n}\nset w1 [Widget new]\n$w1 fwd 1 2\n",
+    );
+    assert!(!has_code(&diags_ok, "E002"));
+    assert!(!has_code(&diags_ok, "E003"));
+}
+
 // -- TestDiagnosticCanaries ----------------------------------------------
 // One canary per analysis family, locked to the server's published output.
 

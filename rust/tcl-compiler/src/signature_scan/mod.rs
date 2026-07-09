@@ -38,6 +38,10 @@
 //!
 //! - [`types`] — public record types ([`SignatureScanResult`] +
 //!   per-collection records) plus [`ParamDef`].
+//! - [`arity`] — [`arity::arity_of`], the canonical parameter-list →
+//!   argument-count-arity computation shared by every consumer of
+//!   [`ParamDef`] (same-file, cross-file, and `TclOO` method arity
+//!   checks).
 //! - [`params`] — `parse_param_list` for the proc parameter-list arg.
 //! - `ctx` (private) — internal scan state ([`ScanCtx`],
 //!   `FactoryCandidate`, `ProcBodyInfo`, `FACTORY_SKIP_NONCOMMAND_HEADS`).
@@ -54,6 +58,7 @@
 //!
 //! [`ParamDef`]: types::ParamDef
 
+pub mod arity;
 pub(crate) mod command_prefix;
 mod ctx;
 mod factory;

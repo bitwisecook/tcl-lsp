@@ -19,7 +19,7 @@
 //! Integration: the real Tcl 9 `tcltest.tcl` library loads end-to-end.
 //!
 //! Sources the genuine
-//! `tmp/tcl9.0.3/library/tcltest/tcltest.tcl`, exercising namespaces, namespace
+//! `tmp/tcl9.0.4/library/tcltest/tcltest.tcl`, exercising namespaces, namespace
 //! variables (scalar + array), `package`, variable traces, `file`/`pwd`/`cd`,
 //! `regexp`, `subst`, dynamic proc bodies, and `upvar` to namespace variables.
 //! The test is skipped when the Tcl source tree isn't present.
@@ -61,7 +61,7 @@ impl Write for Cap {
 fn tcltest_library_loads() {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../tmp/tcl9.0.3/library/tcltest/tcltest.tcl"
+        "/../../tmp/tcl9.0.4/library/tcltest/tcltest.tcl"
     );
     if !std::path::Path::new(path).exists() {
         eprintln!("skipping: {path} not present");
@@ -108,7 +108,7 @@ fn tcltest_library_loads() {
 fn tcltest_runs_test_cases() {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../tmp/tcl9.0.3/library/tcltest/tcltest.tcl"
+        "/../../tmp/tcl9.0.4/library/tcltest/tcltest.tcl"
     );
     if !std::path::Path::new(path).exists() {
         eprintln!("skipping: {path} not present");

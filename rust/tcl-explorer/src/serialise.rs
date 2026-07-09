@@ -360,10 +360,10 @@ pub fn serialise_cfg_pre_ssa(result: &ExplorerResult, li: &LineIndex, source: &s
     Value::Array(funcs)
 }
 
-/// Format a declared arity.'s arity string:
-/// `"{min}+"` when unlimited (`max == u32::MAX`), else `"{min}..{max}"`.
-fn arity_str(arity: tcl_compiler::interprocedural::Arity) -> String {
-    if arity.max == u32::MAX {
+/// Format a declared arity's arity string:
+/// `"{min}+"` when unlimited, else `"{min}..{max}"`.
+fn arity_str(arity: tcl_registry::Arity) -> String {
+    if arity.is_unlimited() {
         format!("{}+", arity.min)
     } else {
         format!("{}..{}", arity.min, arity.max)

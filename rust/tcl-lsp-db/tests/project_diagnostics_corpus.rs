@@ -120,7 +120,7 @@ fn project_diagnostics_incremental_matches_fresh_over_corpus() {
     for v in [
         "tcl8.6.16/library",
         "tcllib-2.0/modules",
-        "tcl9.0.3/library",
+        "tcl9.0.4/library",
     ] {
         gather(&repo_root().join("tmp").join(v), &mut paths, 200);
     }

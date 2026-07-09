@@ -25,34 +25,28 @@
 
 use std::collections::{HashMap, HashSet};
 
+pub use tcl_registry::Arity;
+
 use crate::naming::{normalise_qualified_name, normalise_var_name, split_array_name};
 use crate::side_effects::EffectRegion;
 
 // Summary types
 
-/// A Tcl procedure's arity as declared in `proc name {args} …`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Arity {
-    /// Minimum number of arguments.
-    pub min: u32,
-    /// Maximum number of arguments (`u32::MAX` for variadic).
-    pub max: u32,
-}
-
-impl Arity {
-    /// Arity accepting any number of arguments.
-    #[must_use]
-    pub const fn any() -> Self {
-        Self {
-            min: 0,
-            max: u32::MAX,
-        }
-    }
-
-    /// Exact-arity constraint — proc takes `n` arguments.
-    #[must_use]
-    pub const fn exact(n: u32) -> Self {
-        Self { min: n, max: n }
+/// A proc/method's declared arity from its bare parameter-name list, as
+/// recorded at the IR layer (`Vec<String>`, no default-value info — that
+/// lives only in the analyser's richer `ParamDef`; see
+/// [`crate::signature_scan::arity::arity_of`] for the default-aware
+/// computation used by the arity diagnostics).  Still correctly
+/// unbounded when the last parameter is literally `args`, matching
+/// [`crate::taint_interproc`]'s identical, already-correct formula for
+/// the same bare-name shape.
+#[must_use]
+pub fn arity_from_names(params: &[String]) -> Arity {
+    let n = u16::try_from(params.len()).unwrap_or(u16::MAX);
+    if params.last().is_some_and(|p| p == "args") {
+        Arity::at_least(n.saturating_sub(1))
+    } else {
+        Arity::exact(n)
     }
 }
 
@@ -625,7 +619,7 @@ fn build_method_summaries(
                 base: ProcSummary {
                     qualified_name: mqname.clone(),
                     params: method.params.clone(),
-                    arity: Arity::exact(u32::try_from(method.params.len()).unwrap_or(u32::MAX)),
+                    arity: arity_from_names(&method.params),
                     calls,
                     direct_calls,
                     has_barrier: facts.has_barrier,
@@ -940,7 +934,7 @@ fn materialise_summaries(
             ProcSummary {
                 qualified_name: qname.clone(),
                 params: proc.params.clone(),
-                arity: Arity::exact(u32::try_from(proc.params.len()).unwrap_or(u32::MAX)),
+                arity: arity_from_names(&proc.params),
                 calls: calls_list,
                 direct_calls,
                 has_barrier: facts.has_barrier,
@@ -2125,15 +2119,16 @@ mod tests {
     }
 
     #[test]
-    fn arity_helpers() {
+    fn arity_from_names_handles_trailing_args() {
         assert_eq!(
-            Arity::any(),
-            Arity {
-                min: 0,
-                max: u32::MAX
-            }
+            arity_from_names(&["a".to_owned(), "args".to_owned()]),
+            Arity::at_least(1)
         );
-        assert_eq!(Arity::exact(3), Arity { min: 3, max: 3 });
+        assert_eq!(
+            arity_from_names(&["a".to_owned(), "b".to_owned()]),
+            Arity::exact(2)
+        );
+        assert_eq!(arity_from_names(&[]), Arity::exact(0));
     }
 
     #[test]

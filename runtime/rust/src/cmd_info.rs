@@ -719,9 +719,9 @@ mod tests {
         leak_free(|i| {
             // `info tclversion`/`patchlevel` read the globals (set by a full
             // interp's init; a bare test interp seeds them here).
-            run(i, b"set ::tcl_version 9.0; set ::tcl_patchLevel 9.0.3");
+            run(i, b"set ::tcl_version 9.0; set ::tcl_patchLevel 9.0.4");
             assert_eq!(run(i, b"info tclversion"), b"9.0");
-            assert_eq!(run(i, b"info patchlevel"), b"9.0.3");
+            assert_eq!(run(i, b"info patchlevel"), b"9.0.4");
             run(i, b"proc greet {name {g hi}} {return $g-$name}");
             assert_eq!(run(i, b"info args greet"), b"name g");
             assert_eq!(run(i, b"info body greet"), b"return $g-$name");

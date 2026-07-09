@@ -48,8 +48,8 @@ impl PackageState {
     #[must_use]
     pub fn with_core() -> PackageState {
         let mut p = PackageState::default();
-        p.provided.insert(b"tcl".to_vec(), b"9.0.3".to_vec());
-        p.provided.insert(b"Tcl".to_vec(), b"9.0.3".to_vec());
+        p.provided.insert(b"tcl".to_vec(), b"9.0.4".to_vec());
+        p.provided.insert(b"Tcl".to_vec(), b"9.0.4".to_vec());
         // TclOO is built in (the `oo::*` commands are always present). C also
         // registers `ifneeded` entries for both names at the patchlevel (its
         // `initScript`) so they show up in `package versions` (oo-0.9).
@@ -459,9 +459,9 @@ mod tests {
     #[test]
     fn core_require_and_provide() {
         leak_free(|i| {
-            assert_eq!(run(i, b"package require -exact tcl 9.0.3"), b"9.0.3");
-            assert_eq!(run(i, b"package require Tcl 8.5-"), b"9.0.3");
-            assert_eq!(run(i, b"package provide Tcl"), b"9.0.3");
+            assert_eq!(run(i, b"package require -exact tcl 9.0.4"), b"9.0.4");
+            assert_eq!(run(i, b"package require Tcl 8.5-"), b"9.0.4");
+            assert_eq!(run(i, b"package provide Tcl"), b"9.0.4");
             run(i, b"package provide mypkg 1.2");
             assert_eq!(run(i, b"package require mypkg"), b"1.2");
             assert_eq!(i.eval_str(b"package require nosuch"), Code::Error);
@@ -471,12 +471,12 @@ mod tests {
     #[test]
     fn vsatisfies_and_vcompare() {
         leak_free(|i| {
-            assert_eq!(run(i, b"package vsatisfies 9.0.3 9.0-"), b"1");
-            assert_eq!(run(i, b"package vsatisfies 9.0.3 8.5-9.0"), b"0");
+            assert_eq!(run(i, b"package vsatisfies 9.0.4 9.0-"), b"1");
+            assert_eq!(run(i, b"package vsatisfies 9.0.4 8.5-9.0"), b"0");
             assert_eq!(run(i, b"package vsatisfies 8.6.1 8.5"), b"1");
             assert_eq!(run(i, b"package vsatisfies 9.0 8.5"), b"0");
             assert_eq!(run(i, b"package vcompare 8.5 9.0"), b"-1");
-            assert_eq!(run(i, b"package vcompare 9.0.3 9.0.3"), b"0");
+            assert_eq!(run(i, b"package vcompare 9.0.4 9.0.4"), b"0");
         });
     }
 

@@ -226,8 +226,24 @@ impl Analyser {
         let mut found = false;
         let mut has_local_class = false;
         for cls in class_names {
-            if hierarchy.method_target(cls, method_name).is_some() {
+            if let Some(provider) = hierarchy.method_target(cls, method_name) {
                 found = true;
+                // Arity-check only when the receiver's class is
+                // unambiguous and the call carries no `{*}` expansion —
+                // the same any-uncertainty-abstains convention as the
+                // same-file proc/alias arity check
+                // (`Analyser::resolve_indirect_call_target`). A method
+                // resolved through several *disjoint-arity* candidate
+                // classes, or through a `{*}`-expanded call whose
+                // runtime argument count is unknowable, is left
+                // unchecked rather than risk a false positive.
+                if class_names.len() == 1
+                    && !site.has_expand
+                    && let Some(diag) =
+                        self.method_arity_diagnostic(site, method_name, provider, cls, hierarchy)
+                {
+                    return Some(diag);
+                }
                 break;
             }
             if let Some(cd) = self.result.all_classes.get(cls) {
@@ -305,6 +321,105 @@ impl Analyser {
             });
         }
         None
+    }
+
+    /// Check a resolved `$obj method …` dispatch's argument count
+    /// against the providing class's own method definition — same
+    /// arity algorithm as a proc
+    /// ([`crate::signature_scan::arity::arity_of`]), since `TclOO`
+    /// methods obey identical Tcl argument-binding rules (confirmed
+    /// against tclsh 9.0.4).
+    ///
+    /// A `forward` method (`forward NAME TARGET ?ARG…?`) is `TclOO`'s
+    /// version of `interp alias` partial application — its arity is the
+    /// target's own arity shifted down by the prepended argument count
+    /// (see [`super::validity::shift_arity`]). A bare method name is
+    /// *not* a valid forward target — `forward fwd base` fails at run
+    /// time with `invalid command name "base"`, confirmed against tclsh
+    /// 9.0.4, because `TARGET` is resolved as an ordinary command, and a
+    /// `method`/`forward` never creates one. The documented, working
+    /// idiom for forwarding to a sibling or inherited method is routing
+    /// through the object's own dispatcher, `forward NAME my TARGET
+    /// ?ARG…?` (confirmed against tclsh 9.0.4: `my`'s target resolves
+    /// through the receiver's full MRO, arity-shifted by any args after
+    /// it; `self` is not usable here — it errors at run time with `self
+    /// may only be called from inside a method`, since forwarding
+    /// doesn't run inside a method body). Both forms, and same-file
+    /// proc / registry-builtin targets, are chased through the same
+    /// hop-limited loop (mirroring
+    /// [`Analyser::resolve_indirect_call_target`]'s guard against a
+    /// self-referential cycle, never legitimate Tcl), accumulating the
+    /// shift transitively across a chain of forwards.
+    fn method_arity_diagnostic(
+        &self,
+        site: &crate::analyser::state::VarCommandSite,
+        method_name: &str,
+        providing_class: &str,
+        receiver_class: &str,
+        hierarchy: &super::class_hierarchy::ClassHierarchy,
+    ) -> Option<super::types::Diagnostic> {
+        const MAX_HOPS: u8 = 8;
+        let class_def = self.result.all_classes.get(providing_class)?;
+        // Instance dispatch (`$obj method`) can only ever reach an
+        // *instance* method — a class method (`self method` /
+        // `classmethod`, stored in `class_methods`) is called on the
+        // class object itself, never on an instance (confirmed against
+        // tclsh 9.0.4: `set o [C new]; $o make 1` fails "unknown method"
+        // even though `C make 1 2` succeeds). Falling back to
+        // `class_methods` here would compute arity from a signature the
+        // call could never actually reach.
+        let mut method_def = class_def.methods.get(method_name)?;
+        let mut prepended_total: u16 = 0;
+        let mut arity = None;
+        for _ in 0..MAX_HOPS {
+            if method_def.kind != "forward" {
+                arity = Some(crate::signature_scan::arity::arity_of(&method_def.params));
+                break;
+            }
+            let Some((target, prepended)) = method_def.forward_target.as_ref() else {
+                break;
+            };
+            if target == "my" || target == "::my" {
+                let (next_method, rest) = prepended.split_first()?;
+                let next_provider = hierarchy.method_target(receiver_class, next_method)?;
+                // `my` dispatches on the same instance, so only an
+                // instance method is reachable here too.
+                let next_def = self
+                    .result
+                    .all_classes
+                    .get(next_provider)
+                    .and_then(|cd| cd.methods.get(next_method))?;
+                prepended_total =
+                    prepended_total.saturating_add(u16::try_from(rest.len()).unwrap_or(u16::MAX));
+                method_def = next_def;
+                continue;
+            }
+            prepended_total =
+                prepended_total.saturating_add(u16::try_from(prepended.len()).unwrap_or(u16::MAX));
+            let bare = target.strip_prefix("::").unwrap_or(target);
+            if let Some(def) = self
+                .result
+                .all_procs
+                .get(target)
+                .or_else(|| self.result.all_procs.get(&format!("::{target}")))
+            {
+                arity = Some(crate::signature_scan::arity::arity_of(&def.params));
+                break;
+            }
+            if !bare.contains("::")
+                && let Some(sig) = self.registry.as_ref().and_then(|r| r.get(bare))
+            {
+                arity = Some(sig.arity);
+                break;
+            }
+            return None;
+        }
+        let arity = super::validity::shift_arity(arity?, prepended_total);
+        // `site.argc` counts the method-name word too; the method's own
+        // argument count is one fewer.
+        let nargs = site.argc.saturating_sub(1);
+        let display_name = format!("{} {method_name}", site.var_name);
+        super::validity::arity_verdict(&display_name, arity, nargs, false, site.cmd_span)
     }
 
     /// Build the [`W307KnownNames`] universe: registry command names, user proc

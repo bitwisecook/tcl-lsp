@@ -166,7 +166,7 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 ## Tcl 9 correctness
 
 - [kcs-tcl9-test-corpus.md](kcs-tcl9-test-corpus.md) — inventory of the
-  upstream Tcl 9.0.3 test corpus grouped by subsystem, in-scope vs
+  upstream Tcl 9.0.4 test corpus grouped by subsystem, in-scope vs
   deferred-by-design.
 - [kcs-tcl9-triage.md](kcs-tcl9-triage.md) — per-test-file triage table
   fed by the harness JSON report.

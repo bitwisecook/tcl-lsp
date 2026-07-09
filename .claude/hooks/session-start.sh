@@ -510,7 +510,7 @@ install_remaining_test_deps() {
 # own bootstrap when the pointed-at library version mismatches.
 # ---------------------------------------------------------------------------
 setup_tcl_library() {
-    local tcl_lib="${REPO_ROOT}/tmp/tcl9.0.3/library"
+    local tcl_lib="${REPO_ROOT}/tmp/tcl9.0.4/library"
     if [ ! -f "${tcl_lib}/init.tcl" ]; then
         echo "session-start: Tcl 9 library not found at ${tcl_lib} — skipping TCL_LIBRARY" >&2
         return 0

@@ -924,7 +924,7 @@ fn namespace_code_inscope() {
 
 #[test]
 fn package_stubs() {
-    out_eq("puts [package require Tcl 8.5-]\n", "9.0.3\n");
+    out_eq("puts [package require Tcl 8.5-]\n", "9.0.4\n");
     out_eq("puts [package vsatisfies 9.0 9.0-]\n", "1\n");
     out_eq("puts [package vsatisfies 8.4 8.5-]\n", "0\n");
     out_eq(

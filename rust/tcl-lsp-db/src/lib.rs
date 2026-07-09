@@ -268,19 +268,24 @@ fn w123_command(message: &str) -> Option<&str> {
 }
 
 /// Inclusive `(min, max)` argument-arity of a proc from its parameter list
-/// (`max == usize::MAX` ⇒ a trailing `args` makes it unbounded).  Required params
-/// (no default, excluding a trailing `args`) set the minimum; the rest are
-/// optional.
+/// (`max == usize::MAX` ⇒ a trailing `args` makes it unbounded).
+///
+/// Delegates to [`tcl_compiler::signature_scan::arity::arity_of`], the
+/// single canonical computation shared with the same-file/TclOO-method
+/// arity checks — Tcl's argument binding is strictly positional, so the
+/// minimum is the position of the *last* required (non-default) parameter,
+/// not a count of required parameters (a required parameter after a
+/// defaulted one raises the minimum past the defaulted ones, since a
+/// caller cannot supply a later position without also supplying every
+/// position before it).
 fn proc_arity(params: &[tcl_compiler::signature_scan::types::ParamDef]) -> (usize, usize) {
-    let has_args = params.last().is_some_and(|p| p.name == "args");
-    let counted = if has_args {
-        &params[..params.len() - 1]
+    let arity = tcl_compiler::signature_scan::arity::arity_of(params);
+    let max = if arity.is_unlimited() {
+        usize::MAX
     } else {
-        params
+        usize::from(arity.max)
     };
-    let min = counted.iter().filter(|p| !p.has_default).count();
-    let max = if has_args { usize::MAX } else { counted.len() };
-    (min, max)
+    (usize::from(arity.min), max)
 }
 
 /// The project's cross-file command-resolution domain, keyed by **tail** name,
@@ -3787,6 +3792,50 @@ mod tests {
             arity_code("none 1\n"),
             e003(),
             "1 arg to a 0-param proc → too many"
+        );
+    }
+
+    /// Regression for a real `proc_arity` bug: a required parameter
+    /// positioned *after* a defaulted one does not lower the minimum by
+    /// the defaulted parameters ahead of it — Tcl's argument binding is
+    /// strictly positional, so supplying a value for the later required
+    /// parameter requires also supplying one for every position before
+    /// it, including the "optional" one. Confirmed against real `tclsh`
+    /// 9.0.4: `proc opt {a {b 5} c} {}` accepts exactly 3 arguments,
+    /// never 2 — the old formula (`min` = count of non-default params =
+    /// 2) silently accepted a 2-argument call that real Tcl rejects.
+    #[test]
+    fn cross_file_arity_required_after_default_forces_exact_count() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
+        let b = SourceFile::new(
+            &db,
+            "proc opt {a {b 5} c} {}\n".to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let arity_code = |src: &str| -> Option<String> {
+            let a = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned());
+            let proj = Project::new(&db, vec![a, b]);
+            project_diagnostics(&db, a, cfg, proj)
+                .iter()
+                .find(|d| d.code == DiagCode::E002 || d.code == DiagCode::E003)
+                .map(|d| d.code.to_string())
+        };
+        assert_eq!(
+            arity_code("opt 1\n"),
+            Some("E002".to_owned()),
+            "1 arg → too few (min is 3, not 2)"
+        );
+        assert_eq!(
+            arity_code("opt 1 2\n"),
+            Some("E002".to_owned()),
+            "2 args → still too few — real tclsh rejects this exact call"
+        );
+        assert_eq!(arity_code("opt 1 2 3\n"), None, "3 args → ok");
+        assert_eq!(
+            arity_code("opt 1 2 3 4\n"),
+            Some("E003".to_owned()),
+            "4 args → too many"
         );
     }
 

@@ -140,7 +140,7 @@ tools via [`scripts/dev/ensure-test-deps.sh`](scripts/dev/ensure-test-deps.sh)
 | Tcl 8.4 source   | 8.4.20        | `tmp/tcl8.4.20/`                | —                         |
 | Tcl 8.5 source   | 8.5.19        | `tmp/tcl8.5.19/`                | —                         |
 | Tcl 8.6 source   | 8.6.16        | `tmp/tcl8.6.16/`                | —                         |
-| Tcl 9.0 source   | 9.0.3         | `tmp/tcl9.0.3/`                 | —                         |
+| Tcl 9.0 source   | 9.0.4         | `tmp/tcl9.0.4/`                 | —                         |
 | tcllib           | 2.0           | `tmp/tcllib-2.0/`               | —                         |
 
 Notes on the fetched sources:
@@ -186,7 +186,7 @@ The project uses GNU Make. Key targets:
 | `make check-all`   | **Pre-push gate** — full lint + typecheck across **every** language: TypeScript via ESLint + Prettier + tsc, Rust via `cargo fmt --check` + `cargo clippy`, Python via `ruff` + `ty` + `pyright` (`lint-py` + `typecheck-py`). Run before every push. |
 | `make test-slow`   | **Pre-PR gate** — run before opening a PR. Runs everything: optional dep check (or install when `AUTO_INSTALL_DEPS=1`) + `prep-pr` + `check-rust` + VS Code extension (`test-ext`) + Emacs eglot (`test-emacs`) + VSIX smoke (`_prep-pr-smoke`) + the full Rust workspace test suite (`test-rust`, which includes the native lsp_e2e) + the Rust runtime port (`runtime-rust-test` — the standalone `runtime/rust` crate is excluded from the workspace, so `test-rust` does not cover it). Drives every phase through `scripts/dev/test-slow-runner.sh`, which keeps going past failures and prints one consolidated PASS/FAIL summary at the end. |
 | `make install-test-deps` | One-shot setup: install **everything** `test-slow` needs (the system toolchain — all of `ensure-test-deps`). The target to run on a fresh checkout before `make test-slow`. Same platform coverage as `ensure-test-deps`. |
-| `make ensure-test-deps` | Install the optional `test-slow` toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`, Rust/rustup, Wasmtime, Binaryen, wasi-sdk, emacs, xvfb, …) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.3/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`, `SKIP_RUST=1`, … Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report of what would be installed. |
+| `make ensure-test-deps` | Install the optional `test-slow` toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`, Rust/rustup, Wasmtime, Binaryen, wasi-sdk, emacs, xvfb, …) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.4/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`, `SKIP_RUST=1`, … Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report of what would be installed. |
 | `make ensure-rust-deps` | Install Rust/rustup + the `wasm32-wasip2` target needed by `check-rust` / the WASM build. |
 | `make check-rust`  | Rust format check + clippy across the workspace (and the Zed extension). Skip with `SKIP_CHECK_RUST=1`. |
 | `make prep-pr`     | Pre-PR formatting + fast checks (a subset of test-slow; auto-formats code, runs codegen, lint/typecheck, and `test-rust`).  Use `make test-slow` for the full gate. |

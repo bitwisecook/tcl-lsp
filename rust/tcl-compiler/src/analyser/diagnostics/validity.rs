@@ -31,10 +31,11 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_core_types::DiagCode;
+use tcl_registry::Arity;
 
 use super::helpers::{is_ident_continue, is_integer_word};
 use crate::analyser::state::Analyser;
-use crate::analyser::types::Severity;
+use crate::analyser::types::{PendingUserCallArity, Severity};
 use crate::expr_ast::{BinOp, ExprNode};
 
 /// The argument words of one command invocation, scoped to the prefix the
@@ -48,6 +49,124 @@ struct ArityWords<'a> {
     arg_tokens: &'a [tcl_lexer::Token],
     arg_expand: &'a [bool],
     cmd_tok: tcl_lexer::Token,
+}
+
+/// Positional-argument lower bound + whether any positional word is
+/// `{*}`-expanded, starting at `start` (the caller has already classified
+/// / skipped everything before it — leading declared option flags for a
+/// registry command, nothing for a same-file user call). A `{*}`-expanded
+/// word contributes an unknown number of runtime arguments, so once one
+/// is seen the count becomes a lower bound only — matches
+/// [`Analyser::check_simple_arity`]'s original inline formula exactly;
+/// shared here so [`Analyser::queue_user_call_arity_candidate`] doesn't
+/// reimplement it.
+fn count_positionals(args: &[String], arg_expand: &[bool], start: usize) -> (usize, bool) {
+    let expanded = |i: usize| arg_expand.get(i).copied().unwrap_or(false);
+    let start = start.min(args.len());
+    let any_expand = (start..args.len()).any(expanded);
+    let nargs_min = if any_expand {
+        (start..args.len()).filter(|&i| !expanded(i)).count()
+    } else {
+        args.len() - start
+    };
+    (nargs_min, any_expand)
+}
+
+/// Compare a resolved [`Arity`] against an observed positional-argument
+/// count and build the E002 / E003 diagnostic, or `None` when the count
+/// fits. Shared by the registry-command arity path
+/// ([`Analyser::check_simple_arity`]), the same-file proc / `TclOO`
+/// method / `interp alias` / `rename` arity path
+/// ([`Analyser::flush_arity_diagnostics`]), and the `TclOO` method-call
+/// arity check ([`super::var_command`]), so all three diagnostics carry
+/// identical wording.
+pub(super) fn arity_verdict(
+    display_name: &str,
+    arity: Arity,
+    nargs_min: usize,
+    positional_any_expand: bool,
+    span: tcl_lexer::Span,
+) -> Option<crate::analyser::types::Diagnostic> {
+    let min = usize::from(arity.min);
+    let max = usize::from(arity.max);
+    if !positional_any_expand && nargs_min < min {
+        Some(crate::analyser::types::Diagnostic {
+            code: DiagCode::E002,
+            span,
+            message: format!(
+                "Too few arguments for '{display_name}': expected at least {min}, got {nargs_min}"
+            ),
+            severity: Severity::Error,
+            fixes: Vec::new(),
+        })
+    } else if !arity.is_unlimited() && nargs_min > max {
+        Some(crate::analyser::types::Diagnostic {
+            code: DiagCode::E003,
+            span,
+            message: format!(
+                "Too many arguments for '{display_name}': expected at most {max}, got {nargs_min}"
+            ),
+            severity: Severity::Error,
+            fixes: Vec::new(),
+        })
+    } else {
+        None
+    }
+}
+
+/// Namespace-qualify `cmd_name`'s resolution candidates the Tcl way:
+/// current namespace first, then global. Shared by the
+/// builtin-shadowing suppression check
+/// ([`Analyser::flush_arity_diagnostics`]) and the same-file proc/alias/
+/// rename resolution chase
+/// ([`Analyser::resolve_indirect_call_target`]), so both walk the
+/// identical candidate order.
+///
+/// A name containing `::` but not starting with it (`inner::p`) is
+/// still *relative* — Tcl resolves it against the current namespace
+/// before falling back to global (confirmed against tclsh 9.0.4:
+/// calling `inner::p` from inside `namespace eval ::ns { … }` reaches
+/// `::ns::inner::p`, not `::inner::p`, when both exist). Only a
+/// leading `::` is a genuinely absolute name.
+fn qualify_candidates(ns: &str, cmd_name: &str) -> Vec<String> {
+    if cmd_name.starts_with("::") {
+        return vec![cmd_name.to_owned()];
+    }
+    let global = format!("::{cmd_name}");
+    if ns == "::" {
+        return vec![global];
+    }
+    let relative = format!("{ns}::{cmd_name}");
+    vec![relative, global]
+}
+
+/// Shift a resolved [`Arity`] down by an `interp alias` / `TclOO`
+/// `forward`'s prepended-argument count — real Tcl partial application
+/// (confirmed against tclsh 9.0.4: `interp alias {} short {} target
+/// extra` requires exactly `target`'s arity minus one fewer argument at
+/// the `short` call site).
+///
+/// When the prepended count already exceeds a *bounded* target's own
+/// max, the alias/forward is unconditionally broken — every call fails
+/// at run time regardless of how many further arguments are supplied
+/// (confirmed against tclsh 9.0.4: `proc target {a} {}; interp alias {}
+/// bad {} target fixed extra; bad` fails "wrong # args" for zero, one,
+/// or two further arguments alike). Saturating both bounds to zero would
+/// misrepresent that as "callable with exactly zero arguments" — a
+/// silent false negative. Returning an unsatisfiable range (`min > max`)
+/// instead guarantees `arity_verdict` flags every call, whatever count
+/// it's called with.
+pub(super) fn shift_arity(arity: Arity, prepended: u16) -> Arity {
+    if !arity.is_unlimited() && prepended > arity.max {
+        return Arity::new(1, 0);
+    }
+    let min = arity.min.saturating_sub(prepended);
+    let max = if arity.is_unlimited() {
+        Arity::UNLIMITED
+    } else {
+        arity.max.saturating_sub(prepended)
+    };
+    Arity::new(min, max)
 }
 
 impl Analyser {
@@ -347,6 +466,21 @@ impl Analyser {
         // index 0); drop that slot so it lines up with `args`.
         let arg_expand: &[bool] = arg_expand_in.get(1..).unwrap_or(&[]);
 
+        // Same-file proc / TclOO forward / `interp alias` / static
+        // `rename` arity — queued unconditionally, independent of the
+        // registry resolution below, since a user proc can shadow a
+        // builtin name (`proc ::ns::close {...}` inside `::ns`).
+        self.queue_user_call_arity_candidate(
+            cmd_name,
+            &ArityWords {
+                args,
+                arg_tokens,
+                arg_expand,
+                cmd_tok,
+            },
+            scope_path,
+        );
+
         let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
         // Scope-aware: a head inside a scoped command environment resolves to
         // its scoped signature (`top set …`, `columns`), everything else to the
@@ -491,24 +625,8 @@ impl Analyser {
             }
         }
         let positional_start = i.min(args.len());
-
-        let positional_any_expand = (positional_start..args.len()).any(expanded);
-        // `nargs_min` is the *lower bound* on the positional-argument
-        // count: the non-expanded words, since each `{*}` word
-        // contributes 0..N more at runtime.  E003 ("too many") fires
-        // when even this lower bound exceeds `max`.  E002 ("too few")
-        // needs an *upper bound* on the count, which becomes unbounded
-        // once any `{*}` expansion is present — so E002 only fires when
-        // there is no expansion and the count is therefore exact.
-        let nargs_min = if positional_any_expand {
-            (positional_start..args.len())
-                .filter(|&i| !expanded(i))
-                .count()
-        } else {
-            args.len() - positional_start
-        };
-        let min = usize::from(sig.arity.min);
-        let max = usize::from(sig.arity.max);
+        let (nargs_min, positional_any_expand) =
+            count_positionals(args, arg_expand, positional_start);
 
         let full_span = match arg_tokens.last() {
             Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
@@ -539,37 +657,15 @@ impl Analyser {
         // A class / alias / ensemble / stub match suppresses regardless
         // of definition order; a *proc* match additionally honours
         // `enforce_order` (in-order/reachability gate).
-        if !positional_any_expand && (args.len() - positional_start) < min {
-            let got = args.len() - positional_start;
-            self.pending_arity.push((
-                resolution_name.to_string(),
-                ns,
-                enforce_order,
-                super::types::Diagnostic {
-                    code: DiagCode::E002,
-                    span: full_span,
-                    message: format!(
-                        "Too few arguments for '{display_name}': expected at least {min}, got {got}"
-                    ),
-                    severity: Severity::Error,
-                    fixes: Vec::new(),
-                },
-            ));
-        } else if !sig.arity.is_unlimited() && nargs_min > max {
-            self.pending_arity.push((
-                resolution_name.to_string(),
-                ns,
-                enforce_order,
-                super::types::Diagnostic {
-                    code: DiagCode::E003,
-                    span: full_span,
-                    message: format!(
-                        "Too many arguments for '{display_name}': expected at most {max}, got {nargs_min}"
-                    ),
-                    severity: Severity::Error,
-                    fixes: Vec::new(),
-                },
-            ));
+        if let Some(diag) = arity_verdict(
+            display_name,
+            sig.arity,
+            nargs_min,
+            positional_any_expand,
+            full_span,
+        ) {
+            self.pending_arity
+                .push((resolution_name.to_string(), ns, enforce_order, diag));
         }
     }
 
@@ -623,10 +719,10 @@ impl Analyser {
         }
     }
 
-    /// Idempotent: drains `pending_arity`, so a second call is a
-    /// no-op.
+    /// Idempotent: drains `pending_arity` and `pending_user_call_arity`,
+    /// so a second call is a no-op.
     pub fn flush_arity_diagnostics(&mut self) {
-        if self.pending_arity.is_empty() {
+        if self.pending_arity.is_empty() && self.pending_user_call_arity.is_empty() {
             return;
         }
         // Fully-qualified non-proc user-command names the calls may
@@ -655,33 +751,11 @@ impl Analyser {
         // Inline stubs are document-global and unqualified.
         let stub_names = super::utils::scan_stub_command_names(&self.source);
 
-        // Qualify an unqualified command against a namespace, mirroring
-        // `resolve_command_qualified_name` (`::` root → `::cmd`).
-        let join = |ns: &str, cmd: &str| -> String {
-            if ns == "::" {
-                format!("::{cmd}")
-            } else {
-                format!("{ns}::{cmd}")
-            }
-        };
-
         let pending = std::mem::take(&mut self.pending_arity);
         for (cmd_name, ns, enforce_order, diag) in pending {
             let bare = cmd_name.rsplit("::").next().unwrap_or(&cmd_name);
             // Candidate qualified names this call could resolve to.
-            let candidates: Vec<String> = if cmd_name.contains("::") {
-                // Already qualified — absolutise like
-                // `resolve_command_qualified_name` does.
-                let abs = if cmd_name.starts_with("::") {
-                    cmd_name.clone()
-                } else {
-                    format!("::{cmd_name}")
-                };
-                vec![abs]
-            } else {
-                // Unqualified — current namespace, then global.
-                vec![join(&ns, &cmd_name), format!("::{cmd_name}")]
-            };
+            let candidates = qualify_candidates(&ns, &cmd_name);
             // A proc shadows only when reachable at the call: top-level
             // calls require the definition to lexically precede them
             // (`def_off < call_off`); proc-body calls accept any
@@ -699,6 +773,199 @@ impl Analyser {
             }
             self.result.diagnostics.push(diag);
         }
+
+        // Same-file proc / TclOO forward / `interp alias` / static
+        // `rename` arity — resolved now that `all_procs`,
+        // `command_aliases`, and `renamed_commands` are fully populated
+        // (post cross-item merge, same as the drain above). Unlike the
+        // builtin path, there is nothing to *suppress* here: a candidate
+        // either resolves to a definite arity (and is checked) or it
+        // doesn't (and is silently dropped — a class / ensemble / stub /
+        // genuinely unknown name, or a dynamic rename/alias target,
+        // exactly like the registry path's own abstention rules).
+        let user_pending = std::mem::take(&mut self.pending_user_call_arity);
+        for cand in user_pending {
+            let bare = cand.cmd_name.rsplit("::").next().unwrap_or(&cand.cmd_name);
+            if stub_names.contains(bare) {
+                continue;
+            }
+            let Some(arity) = self.resolve_indirect_call_target(&cand, &proc_offsets) else {
+                continue;
+            };
+            if let Some(diag) = arity_verdict(
+                &cand.cmd_name,
+                arity,
+                cand.nargs_min,
+                cand.positional_any_expand,
+                cand.full_span,
+            ) {
+                self.result.diagnostics.push(diag);
+            }
+        }
+    }
+
+    /// Queue a same-file user-call arity candidate for every command
+    /// invocation, independent of whether it also resolves to a
+    /// registry signature — [`Self::flush_arity_diagnostics`] resolves
+    /// it post-walk against same-file procs / `TclOO` forwards / `interp
+    /// alias` / static `rename` targets it can't see yet mid-walk
+    /// (forward references, cross-item merging). A call that turns out
+    /// to resolve to nothing with a known arity (a builtin, a class, an
+    /// ensemble, a stub, or simply unresolved) is silently dropped at
+    /// flush time — this queue never invents a diagnostic the resolver
+    /// can't back up.
+    ///
+    /// User procs have no declared option flags, so — unlike
+    /// [`Self::check_simple_arity`] — there is no leading-option skip:
+    /// every word is positional from index 0.
+    fn queue_user_call_arity_candidate(
+        &mut self,
+        cmd_name: &str,
+        words: &ArityWords<'_>,
+        scope_path: &[usize],
+    ) {
+        if cmd_name.is_empty() || cmd_name.contains(['$', '[']) {
+            return; // dynamic command name — nothing to resolve statically
+        }
+        let ArityWords {
+            args,
+            arg_tokens,
+            arg_expand,
+            cmd_tok,
+        } = *words;
+        let (nargs_min, positional_any_expand) = count_positionals(args, arg_expand, 0);
+        let full_span = match arg_tokens.last() {
+            Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
+            None => cmd_tok.span,
+        };
+        self.pending_user_call_arity.push(PendingUserCallArity {
+            cmd_name: cmd_name.to_string(),
+            ns: self.command_resolution_namespace(scope_path),
+            enforce_order: !self.scope_path_in_proc_body(scope_path),
+            call_off: cmd_tok.span.start(),
+            full_span,
+            nargs_min,
+            positional_any_expand,
+        });
+    }
+
+    /// Whether a fact (a proc definition, `rename`, or `interp alias`)
+    /// established at `established_off` is observably in effect by the
+    /// time `cand`'s call executes: unconditionally true inside a
+    /// proc/method body (the whole file loads, running every top-level
+    /// statement, before any body runs), and order-gated by textual
+    /// offset at top level (confirmed against tclsh 9.0.4: a top-level
+    /// call textually before the statement that establishes a proc /
+    /// rename / alias executes first at run time, so the fact isn't in
+    /// effect there yet).
+    fn fact_in_effect(cand: &PendingUserCallArity, established_off: u32) -> bool {
+        !cand.enforce_order || established_off < cand.call_off
+    }
+
+    /// Chase `cand.cmd_name` (as it resolves at `cand.ns`) through
+    /// same-file proc / static `rename` / `interp alias` indirection to
+    /// a definite [`Arity`], or `None` when nothing with a known arity
+    /// is reached.
+    ///
+    /// Each hop is namespace-qualified via [`qualify_candidates`] — the
+    /// same resolution order as the builtin-shadowing suppression check
+    /// in [`Self::flush_arity_diagnostics`]. A proc target, a `rename`
+    /// target, and an `interp alias` target are all order-gated via
+    /// [`Self::fact_in_effect`] (`proc_offsets` for procs,
+    /// `rename_offsets` / `alias_offsets` for the other two) — a
+    /// candidate whose defining statement hasn't executed yet at a
+    /// top-level call site is not a match. A name `rename`d away
+    /// (`deleted_commands`) is skipped as a proc match once the rename
+    /// is in effect — it no longer denotes that proc at run time (see
+    /// [`crate::analyser::handlers::Analyser::handle_rename`]).
+    /// `interp alias`'s prepended arguments shift the eventual arity
+    /// down (real partial application, confirmed against tclsh 9.0.4);
+    /// chained aliases/renames accumulate the shift transitively.
+    /// Hop-limited as a defensive guard against a self-referential
+    /// rename/alias cycle (never legitimate Tcl). Reaching a registry
+    /// builtin only counts once at least one hop has happened — a
+    /// *direct* hit on a builtin name is [`Self::check_simple_arity`]'s
+    /// job, not this one's.
+    fn resolve_indirect_call_target(
+        &self,
+        cand: &PendingUserCallArity,
+        proc_offsets: &FxHashMap<&str, u32>,
+    ) -> Option<Arity> {
+        const MAX_HOPS: u8 = 8;
+        let mut cur = cand.cmd_name.clone();
+        let mut prepended_total: u16 = 0;
+        let mut hopped = false;
+        // Whether `cur` was just reached via a *rename* hop (as opposed
+        // to being the original call name or an alias hop's target).
+        // `rename OLD NEW` moves the command's identity to `NEW` once
+        // and for all, so chasing `NEW` back to `OLD` to read its
+        // original `all_procs` entry is always valid regardless of
+        // `OLD`'s own deletion — `OLD` being deleted is precisely what
+        // freed it up to serve as this rename's source. An *alias*
+        // target, by contrast, is re-resolved by name every time it's
+        // invoked (confirmed against tclsh 9.0.4: `interp alias {} bar
+        // {} foo` then `rename foo baz` — or `rename foo {}` — makes
+        // `bar` fail too, "invalid command name foo"), so the deletion
+        // check applies there exactly as it does to the original call
+        // name.
+        let mut via_rename_hop = false;
+        for _ in 0..MAX_HOPS {
+            let candidates = qualify_candidates(&cand.ns, &cur);
+            for c in &candidates {
+                if !via_rename_hop
+                    && self
+                        .deleted_commands
+                        .get(c.as_str())
+                        .is_some_and(|&off| Self::fact_in_effect(cand, off))
+                {
+                    continue;
+                }
+                if let Some(def) = self.result.all_procs.get(c)
+                    && (!cand.enforce_order
+                        || proc_offsets
+                            .get(c.as_str())
+                            .is_some_and(|&off| off < cand.call_off))
+                {
+                    let arity = crate::signature_scan::arity::arity_of(&def.params);
+                    return Some(shift_arity(arity, prepended_total));
+                }
+            }
+            if let Some(old) = candidates.iter().find_map(|c| {
+                let old = self.renamed_commands.get(c)?;
+                let off = *self.rename_offsets.get(c)?;
+                Self::fact_in_effect(cand, off).then_some(old)
+            }) {
+                cur.clone_from(old);
+                hopped = true;
+                via_rename_hop = true;
+                continue;
+            }
+            if let Some((target, prepended)) = candidates.iter().find_map(|c| {
+                let alias = self.command_aliases.get(c)?;
+                let off = *self.alias_offsets.get(c)?;
+                Self::fact_in_effect(cand, off).then_some(alias)
+            }) {
+                prepended_total = prepended_total
+                    .saturating_add(u16::try_from(prepended.len()).unwrap_or(u16::MAX));
+                cur.clone_from(target);
+                hopped = true;
+                via_rename_hop = false;
+                continue;
+            }
+            if hopped {
+                // Mirrors `command_binding.rs::default_binding`: only an
+                // unqualified global name the registry knows is a
+                // builtin.
+                let bare = cur.strip_prefix("::").unwrap_or(&cur);
+                if !bare.contains("::")
+                    && let Some(sig) = self.registry.as_ref().and_then(|r| r.get(bare))
+                {
+                    return Some(shift_arity(sig.arity, prepended_total));
+                }
+            }
+            return None;
+        }
+        None
     }
 
     /// **E004.** Emit "Malformed `if` command" / "Extra words after

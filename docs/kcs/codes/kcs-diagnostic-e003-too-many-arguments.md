@@ -19,9 +19,12 @@ Why do I see a red squiggle saying a command was called with too many arguments?
 
 Passing more arguments than a command accepts will raise a runtime error. The extra words are never silently ignored, so the script will fail.
 
+This check is not limited to builtin commands: it also applies to same-file `proc` calls, `interp alias` targets (shifted by any prepended arguments), `rename`d commands (which keep the original's arity), and TclOO methods and `forward`s (including `forward NAME my TARGET ?ARG…?`, the idiom for forwarding to a sibling or inherited method).
+
 ## Symptoms
 
 - A red squiggle appears under the extra arguments, with the message "too many arguments for 'incr'".
+- The same squiggle can appear on a call to a `proc` you defined earlier in the file, an `interp alias`, a `rename`d command, or a `$obj method` call — not just builtin commands.
 
 ## Example that triggers it
 
@@ -30,6 +33,15 @@ incr x 1 2
 ```
 
 The analyser reports **`E003`** on the surplus argument `2`.
+
+```tcl
+proc greet {name} {
+    return "hello $name"
+}
+greet Alice Bob
+```
+
+The analyser reports **`E003`** on the call, since `greet` only accepts one argument.
 
 ## Command-prefix callback context
 

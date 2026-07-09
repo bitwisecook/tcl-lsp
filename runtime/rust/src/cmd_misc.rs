@@ -40,7 +40,7 @@ pub fn install(interp: &mut Interp) {
 /// The runtime's build-info string (`<patchlevel>+<commit>.<features…>`). None of
 /// the boolean feature words (`debug`/`purify`/`memdebug`/`no-deprecate`) are
 /// present, so those constraints resolve false.
-const BUILD_INFO: &[u8] = b"9.0.3+0000000000000000000000000000000000000000.rust";
+const BUILD_INFO: &[u8] = b"9.0.4+0000000000000000000000000000000000000000.rust";
 
 /// `tcl::build-info ?option?` — mirrors C's `BuildInfoObjCmd` (`tclBasic.c`):
 /// no arg → the full string; `patchlevel` → up to `+`; `version` → `major.minor`;

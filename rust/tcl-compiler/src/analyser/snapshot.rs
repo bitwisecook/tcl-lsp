@@ -52,6 +52,7 @@ use super::types::AnalysisResult;
 ///   ``try`` nesting; used to mark ``package require`` records as
 ///   ``conditional=true``.
 /// - ``command_aliases`` — `interp alias` table.
+/// - ``renamed_commands`` — static `rename` table.
 /// - ``const_strings`` / ``regex_vars`` — per-scope const-string
 ///   tracker and regex-var set.
 /// - ``var_command_sites`` / ``cmd_command_sites`` — deferred
@@ -71,6 +72,8 @@ pub struct AnalyserSnapshot {
     pub conditional_depth: u32,
     /// Command aliases: ``name -> (target, prepended_args)``.
     pub command_aliases: HashMap<String, (String, Vec<String>)>,
+    /// Static renames: ``new_qname -> old_qname``.
+    pub renamed_commands: HashMap<String, String>,
     /// Per-scope const-string tracker.
     pub const_strings: HashMap<Vec<usize>, HashMap<String, (String, Span)>>,
     /// Variables known to contain regex patterns.
@@ -83,6 +86,10 @@ pub struct AnalyserSnapshot {
     /// Snapshotted with `result` so a speculative rollback discards
     /// the candidates of any rolled-back commands.
     pub pending_arity: Vec<(String, String, bool, super::types::Diagnostic)>,
+    /// Pending same-file user-call arity candidates (flushed post-walk
+    /// alongside `pending_arity`). Snapshotted for the same rollback
+    /// reason.
+    pub pending_user_call_arity: Vec<super::types::PendingUserCallArity>,
 }
 
 impl Analyser {
@@ -107,11 +114,13 @@ impl Analyser {
             current_event: self.current_event.clone(),
             conditional_depth: self.conditional_depth,
             command_aliases: self.command_aliases.clone(),
+            renamed_commands: self.renamed_commands.clone(),
             const_strings: self.const_strings.clone(),
             regex_vars: self.regex_vars.clone(),
             var_command_sites: self.var_command_sites.clone(),
             cmd_command_sites: self.cmd_command_sites.clone(),
             pending_arity: self.pending_arity.clone(),
+            pending_user_call_arity: self.pending_user_call_arity.clone(),
         }
     }
 
@@ -136,11 +145,13 @@ impl Analyser {
         self.current_event = snap.current_event;
         self.conditional_depth = snap.conditional_depth;
         self.command_aliases = snap.command_aliases;
+        self.renamed_commands = snap.renamed_commands;
         self.const_strings = snap.const_strings;
         self.regex_vars = snap.regex_vars;
         self.var_command_sites = snap.var_command_sites;
         self.cmd_command_sites = snap.cmd_command_sites;
         self.pending_arity = snap.pending_arity;
+        self.pending_user_call_arity = snap.pending_user_call_arity;
         // Cache invalidation — the namespace cache keys on scope
         // path identity, which the deep-copy disrupts.
         self.ns_cache.clear();
