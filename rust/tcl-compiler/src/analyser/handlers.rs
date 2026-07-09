@@ -1391,13 +1391,16 @@ impl Analyser {
     /// Delegates the actual detection logic to
     /// `crate::alias::detect_interp_alias` (which already handles
     /// the canonical `interp alias {}` shape and the `args[5..]`
-    /// prepended-args slice).
-    pub fn handle_interp_alias(&mut self, cmd_name: &str, args: &[String]) {
+    /// prepended-args slice). `offset` is the command token's start,
+    /// recorded in [`Analyser::alias_offsets`] for the same-file arity
+    /// resolver's top-level order gate.
+    pub fn handle_interp_alias(&mut self, cmd_name: &str, args: &[String], offset: u32) {
         let Some((qualified, target_cmd, prepended)) = detect_interp_alias(cmd_name, args) else {
             return;
         };
         self.command_aliases
             .insert(qualified.clone(), (target_cmd.clone(), prepended.clone()));
+        self.alias_offsets.insert(qualified.clone(), offset);
         self.result.command_aliases.insert(
             qualified.clone(),
             SignatureCommandAlias {
@@ -1411,6 +1414,10 @@ impl Analyser {
     /// Handle `rename OLD NEW` — record a static rename so calls to
     /// `NEW` resolve to whatever `OLD` denoted (the same proc, unchanged
     /// signature — a rename is a pure name move, never an arity change).
+    /// Also records that `OLD` itself is no longer a callable command
+    /// from this point on (confirmed against tclsh 9.0.4: `OLD` fails
+    /// "invalid command name" afterwards, not a "wrong # args" against
+    /// its original signature).
     ///
     /// Returns `true` when the rename is *dynamic* (`rename $x y` /
     /// `rename x [y]`, per [`crate::naming::is_dynamic_word`]) and so
@@ -1418,10 +1425,14 @@ impl Analyser {
     /// `has_dynamic_providers` in that case, the same wildcard-collapse
     /// convention `command_binding.rs`'s flow-sensitive lattice uses for
     /// the identical shape. A malformed `rename` (wrong argument count,
-    /// already flagged by the registry arity check) or a deleting
-    /// `rename OLD {}` record nothing and are not treated as dynamic —
-    /// there is no new binding to widen for.
-    pub fn handle_rename(&mut self, cmd_name: &str, args: &[String]) -> bool {
+    /// already flagged by the registry arity check) is not treated as
+    /// dynamic — there is no new binding to widen for. `offset` is the
+    /// command token's start, recorded in [`Analyser::rename_offsets`] /
+    /// [`Analyser::deleted_commands`] for the same-file arity resolver's
+    /// top-level order gate. A deleting `rename OLD {}` records only
+    /// `OLD`'s deletion (confirmed against tclsh 9.0.4: also "invalid
+    /// command name" afterwards) — there is no `NEW` to map it to.
+    pub fn handle_rename(&mut self, cmd_name: &str, args: &[String], offset: u32) -> bool {
         if cmd_name != "rename" || args.len() != 2 {
             return false;
         }
@@ -1430,10 +1441,16 @@ impl Analyser {
         }
         let old = crate::naming::normalise_qualified_name(&args[0]);
         let new = crate::naming::normalise_qualified_name(&args[1]);
-        if old.is_empty() || new.is_empty() {
+        if old.is_empty() {
+            return false;
+        }
+        if new.is_empty() {
+            self.deleted_commands.insert(old, offset);
             return false;
         }
         self.renamed_commands.insert(new.clone(), old.clone());
+        self.rename_offsets.insert(new.clone(), offset);
+        self.deleted_commands.insert(old.clone(), offset);
         self.result.renamed_commands.insert(new, old);
         false
     }
@@ -3699,12 +3716,14 @@ mod tests {
                 String::new(),
                 "set".to_string(),
             ],
+            42,
         );
         assert!(a.command_aliases.contains_key("::myset"));
         assert!(a.result.command_aliases.contains_key("::myset"));
         let (target, prepended) = &a.command_aliases["::myset"];
         assert_eq!(target, "set");
         assert!(prepended.is_empty());
+        assert_eq!(a.alias_offsets.get("::myset"), Some(&42));
     }
 
     #[test]
@@ -3720,6 +3739,7 @@ mod tests {
                 "puts".to_string(),
                 "stderr".to_string(),
             ],
+            0,
         );
         let (target, prepended) = &a.command_aliases["::logerr"];
         assert_eq!(target, "puts");
@@ -3729,8 +3749,9 @@ mod tests {
     #[test]
     fn handle_interp_alias_wrong_shape_no_op() {
         let mut a = Analyser::new();
-        a.handle_interp_alias("interp", &["alias".to_string()]);
+        a.handle_interp_alias("interp", &["alias".to_string()], 0);
         assert!(a.command_aliases.is_empty());
+        assert!(a.alias_offsets.is_empty());
     }
 
     // handle_rename
@@ -3738,7 +3759,11 @@ mod tests {
     #[test]
     fn handle_rename_records_static_move() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename("rename", &["target".to_string(), "target_orig".to_string()]);
+        let dynamic = a.handle_rename(
+            "rename",
+            &["target".to_string(), "target_orig".to_string()],
+            42,
+        );
         assert!(!dynamic, "a fully static rename is not dynamic");
         assert_eq!(
             a.renamed_commands.get("::target_orig").map(String::as_str),
@@ -3751,48 +3776,60 @@ mod tests {
                 .map(String::as_str),
             Some("::target")
         );
+        assert_eq!(a.rename_offsets.get("::target_orig"), Some(&42));
+        // The old name is recorded as deleted from this offset —
+        // confirmed against tclsh 9.0.4: `target` becomes an unknown
+        // command, not still callable under its original arity.
+        assert_eq!(a.deleted_commands.get("::target"), Some(&42));
     }
 
     #[test]
-    fn handle_rename_deletion_records_nothing() {
-        // `rename OLD {}` deletes OLD — no new binding to record, and it
-        // is not a "dynamic" rename either (nothing to widen for).
+    fn handle_rename_deletion_records_old_name_as_deleted() {
+        // `rename OLD {}` deletes OLD — no new binding to record (it is
+        // not a "dynamic" rename either, nothing to widen for), but OLD
+        // itself must be recorded as gone (confirmed against tclsh
+        // 9.0.4: also "invalid command name" afterwards).
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename("rename", &["target".to_string(), String::new()]);
+        let dynamic = a.handle_rename("rename", &["target".to_string(), String::new()], 7);
         assert!(!dynamic);
         assert!(a.renamed_commands.is_empty());
+        assert_eq!(a.deleted_commands.get("::target"), Some(&7));
     }
 
     #[test]
     fn handle_rename_dynamic_old_name_reports_dynamic() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename("rename", &["$x".to_string(), "y".to_string()]);
+        let dynamic = a.handle_rename("rename", &["$x".to_string(), "y".to_string()], 0);
         assert!(dynamic, "rename $x y cannot be resolved statically");
         assert!(a.renamed_commands.is_empty());
+        assert!(a.deleted_commands.is_empty());
     }
 
     #[test]
     fn handle_rename_dynamic_new_name_reports_dynamic() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename("rename", &["x".to_string(), "y[z]".to_string()]);
+        let dynamic = a.handle_rename("rename", &["x".to_string(), "y[z]".to_string()], 0);
         assert!(dynamic, "rename x y[z] cannot be resolved statically");
         assert!(a.renamed_commands.is_empty());
+        assert!(a.deleted_commands.is_empty());
     }
 
     #[test]
     fn handle_rename_wrong_shape_no_op() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename("rename", &["onlyone".to_string()]);
+        let dynamic = a.handle_rename("rename", &["onlyone".to_string()], 0);
         assert!(!dynamic);
         assert!(a.renamed_commands.is_empty());
+        assert!(a.deleted_commands.is_empty());
     }
 
     #[test]
     fn handle_rename_ignores_non_rename_commands() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename("puts", &["a".to_string(), "b".to_string()]);
+        let dynamic = a.handle_rename("puts", &["a".to_string(), "b".to_string()], 0);
         assert!(!dynamic);
         assert!(a.renamed_commands.is_empty());
+        assert!(a.deleted_commands.is_empty());
     }
 
     // handle_oo_objdefine

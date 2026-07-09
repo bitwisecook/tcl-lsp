@@ -506,7 +506,7 @@ impl Analyser {
 
         // Side-effect-only handlers. Same idempotent pattern.
         self.handle_namespace_ensemble(cmd_name, args, scope_path);
-        self.handle_interp_alias(cmd_name, args);
+        self.handle_interp_alias(cmd_name, args, cmd_tok.span.start());
         self.handle_oo_objdefine(cmd_name, args);
         self.handle_package_command(cmd_name, cmd_tok, args, arg_tokens);
         self.handle_source_command(cmd_name, args, arg_tokens);
@@ -525,7 +525,7 @@ impl Analyser {
         // back to the same conservative flag, matching
         // ``command_binding.rs``'s wildcard-collapse convention for the
         // identical shape.
-        if cmd_name == "load" || self.handle_rename(cmd_name, args) {
+        if cmd_name == "load" || self.handle_rename(cmd_name, args, cmd_tok.span.start()) {
             self.result.has_dynamic_providers = true;
         }
 

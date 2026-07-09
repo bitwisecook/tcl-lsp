@@ -360,10 +360,15 @@ impl Analyser {
     ) -> Option<super::types::Diagnostic> {
         const MAX_HOPS: u8 = 8;
         let class_def = self.result.all_classes.get(providing_class)?;
-        let mut method_def = class_def
-            .methods
-            .get(method_name)
-            .or_else(|| class_def.class_methods.get(method_name))?;
+        // Instance dispatch (`$obj method`) can only ever reach an
+        // *instance* method — a class method (`self method` /
+        // `classmethod`, stored in `class_methods`) is called on the
+        // class object itself, never on an instance (confirmed against
+        // tclsh 9.0.4: `set o [C new]; $o make 1` fails "unknown method"
+        // even though `C make 1 2` succeeds). Falling back to
+        // `class_methods` here would compute arity from a signature the
+        // call could never actually reach.
+        let mut method_def = class_def.methods.get(method_name)?;
         let mut prepended_total: u16 = 0;
         let mut arity = None;
         for _ in 0..MAX_HOPS {
@@ -377,11 +382,13 @@ impl Analyser {
             if target == "my" || target == "::my" {
                 let (next_method, rest) = prepended.split_first()?;
                 let next_provider = hierarchy.method_target(receiver_class, next_method)?;
-                let next_def = self.result.all_classes.get(next_provider).and_then(|cd| {
-                    cd.methods
-                        .get(next_method)
-                        .or_else(|| cd.class_methods.get(next_method))
-                })?;
+                // `my` dispatches on the same instance, so only an
+                // instance method is reachable here too.
+                let next_def = self
+                    .result
+                    .all_classes
+                    .get(next_provider)
+                    .and_then(|cd| cd.methods.get(next_method))?;
                 prepended_total =
                     prepended_total.saturating_add(u16::try_from(rest.len()).unwrap_or(u16::MAX));
                 method_def = next_def;

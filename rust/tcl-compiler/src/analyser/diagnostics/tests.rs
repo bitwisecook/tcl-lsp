@@ -1366,6 +1366,172 @@ fn same_file_dynamic_rename_or_alias_target_does_not_false_positive() {
     );
 }
 
+// The following regression tests were added in response to a code review
+// (all verified against tclsh 9.0.4).
+
+#[test]
+fn same_file_call_to_renamed_away_name_does_not_false_positive() {
+    // `rename target target_orig` removes `target` as a command entirely
+    // (tclsh 9.0.4: calling it afterwards fails "invalid command name",
+    // not a "wrong # args" against its original 2-arg signature) — a
+    // call to the old name must abstain, not be checked against the
+    // proc it used to denote.
+    let src = "proc target {a b} {}\nrename target target_orig\ntarget 1\n";
+    assert_eq!(
+        arity_codes(src, "tcl8.6"),
+        Vec::<String>::new(),
+        "target is gone after the rename; must not fire on its old arity"
+    );
+    // A call to `target` *before* the rename executes is unaffected.
+    let before = "proc target {a b} {}\ntarget 1\nrename target target_orig\n";
+    assert_eq!(
+        arity_codes(before, "tcl8.6"),
+        vec!["E002".to_owned()],
+        "target is still callable before the rename runs"
+    );
+}
+
+#[test]
+fn same_file_call_to_deleted_command_does_not_false_positive() {
+    // `rename target {}` deletes `target` outright (tclsh 9.0.4: also
+    // "invalid command name" afterwards) — same abstention as a rename
+    // to a new name.
+    let src = "proc target {a b} {}\nrename target {}\ntarget 1\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), Vec::<String>::new());
+}
+
+#[test]
+fn same_file_chained_rename_still_resolves_original_arity() {
+    // Chasing `c -> b -> a` through two renames still reaches `a`'s own
+    // 2-arg signature, even though both `a` and `b` are themselves
+    // recorded as "deleted" by the renames that moved them onward —
+    // confirmed against tclsh 9.0.4.
+    let src = "proc a {x y} {}\nrename a b\nrename b c\nc 1\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), vec!["E002".to_owned()]);
+    assert_eq!(
+        arity_codes("proc a {x y} {}\nrename a b\nrename b c\nc 1 2\n", "tcl8.6"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn same_file_top_level_call_before_alias_established_does_not_false_positive() {
+    // `shortcut` doesn't exist yet at the point it's called — the
+    // `interp alias` statement establishing it hasn't executed (tclsh
+    // 9.0.4: fails "invalid command name", not an arity error against
+    // the eventual alias target). Order matters at top level, unlike
+    // inside a proc body.
+    let src = "proc target {a b} {}\nshortcut 1\ninterp alias {} shortcut {} target\n";
+    assert_eq!(
+        arity_codes(src, "tcl8.6"),
+        Vec::<String>::new(),
+        "shortcut doesn't exist yet when called"
+    );
+    // Calling it after the alias is established is checked normally.
+    let after = "proc target {a b} {}\ninterp alias {} shortcut {} target\nshortcut 1\n";
+    assert_eq!(arity_codes(after, "tcl8.6"), vec!["E002".to_owned()]);
+}
+
+#[test]
+fn same_file_proc_body_call_to_later_alias_is_not_order_gated() {
+    // Inside a proc body, the alias is established by the time the body
+    // ever runs (the whole file loads first) regardless of where the
+    // `interp alias` statement sits textually — order-gating would be
+    // unsound here, unlike at top level.
+    let src =
+        "proc target {a b} {}\nproc caller {} { shortcut 1 }\ninterp alias {} shortcut {} target\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), vec!["E002".to_owned()]);
+}
+
+#[test]
+fn same_file_alias_target_renamed_away_does_not_false_positive() {
+    // An `interp alias` target is re-resolved *by name* on every call —
+    // once that name is gone (renamed or deleted), the alias breaks too
+    // (tclsh 9.0.4: `interp alias {} bar {} foo` then `rename foo baz` —
+    // or `rename foo {}` — makes `bar` fail "invalid command name foo").
+    // Unlike a rename-chase hop, an alias hop must still respect the
+    // target's own deletion.
+    let renamed_away = "proc foo {a} {}\ninterp alias {} bar {} foo\nrename foo baz\nbar 1\n";
+    assert_eq!(arity_codes(renamed_away, "tcl8.6"), Vec::<String>::new());
+    let deleted = "proc foo {a} {}\ninterp alias {} bar {} foo\nrename foo {}\nbar 1\n";
+    assert_eq!(arity_codes(deleted, "tcl8.6"), Vec::<String>::new());
+}
+
+#[test]
+fn same_file_alias_to_renamed_target_still_resolves() {
+    // By contrast, a rename that merely *moves* the target (not deletes
+    // it) leaves any alias created against the new name working
+    // normally — confirmed against tclsh 9.0.4.
+    let src = "proc foo {a} {}\nrename foo bar\ninterp alias {} baz {} bar\nbaz 1 2\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), vec!["E003".to_owned()]);
+}
+
+#[test]
+fn same_file_over_applied_alias_always_flags_regardless_of_argcount() {
+    // `target` takes exactly 1 argument, but the alias already bakes in
+    // 2 prepended words — every call fails at run time no matter how
+    // many further arguments are supplied (confirmed against tclsh
+    // 9.0.4: `bad`, `bad x`, and `bad x y` all fail "wrong # args").
+    // Must never silently accept a zero-argument call as valid.
+    let src = |call: &str| {
+        format!("proc target {{a}} {{}}\ninterp alias {{}} bad {{}} target fixed extra\n{call}\n")
+    };
+    for call in ["bad", "bad x", "bad x y"] {
+        let codes = arity_codes(&src(call), "tcl8.6");
+        assert!(
+            !codes.is_empty(),
+            "over-applied alias must always flag '{call}', got {codes:?}"
+        );
+    }
+}
+
+#[test]
+fn same_file_relative_qualified_call_resolves_against_current_namespace() {
+    // `inner::p` is qualified but not absolute — Tcl resolves it against
+    // the *current* namespace first, not global (confirmed against
+    // tclsh 9.0.4: called from inside `namespace eval ::ns { … }`, it
+    // reaches `::ns::inner::p`, not `::inner::p`).
+    let src = "\
+namespace eval ::ns {
+    namespace eval inner {
+        proc p {a b} {}
+    }
+    inner::p 1
+}
+";
+    assert_eq!(arity_codes(src, "tcl8.6"), vec!["E002".to_owned()]);
+    let ok_src = "\
+namespace eval ::ns {
+    namespace eval inner {
+        proc p {a b} {}
+    }
+    inner::p 1 2
+}
+";
+    assert_eq!(arity_codes(ok_src, "tcl8.6"), Vec::<String>::new());
+}
+
+#[test]
+fn same_file_relative_qualified_call_prefers_current_namespace_over_global() {
+    // When both `::inner::p` (global) and `::ns::inner::p` (nested)
+    // exist, a relative `inner::p` call from inside `::ns` resolves to
+    // the nested one — confirmed against tclsh 9.0.4.
+    let src = "\
+proc ::inner::p {} {}
+namespace eval ::ns {
+    namespace eval inner {
+        proc p {a b} {}
+    }
+    inner::p 1 2 3
+}
+";
+    assert_eq!(
+        arity_codes(src, "tcl8.6"),
+        vec!["E003".to_owned()],
+        "must resolve against ::ns::inner::p (2 args), not ::inner::p (0 args)"
+    );
+}
+
 // BODY role on iRules nesting scripts
 
 #[test]
@@ -3450,6 +3616,23 @@ oo::class create A { method same {x} {} }
 oo::class create B { method same {x y} {} }
 if {$cond} { set f1 [A new] } else { set f1 [B new] }
 $f1 same 1
+";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_instance_dispatch_abstains_for_class_side_method() {
+    // A `self method` (stored in `class_methods`) is called on the class
+    // object, never on an instance — confirmed against tclsh 9.0.4:
+    // `set o [C new]; $o make 1` fails "unknown method", while `C make
+    // 1 2` succeeds. Must abstain (no E002/E003), not compute arity from
+    // a signature the instance dispatch could never actually reach.
+    let src = "\
+oo::class create C {
+    self method make {a b} { return \"$a$b\" }
+}
+set o [C new]
+$o make 1
 ";
     assert_eq!(e00x_codes_for(src), Vec::<String>::new());
 }

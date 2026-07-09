@@ -132,9 +132,11 @@ pub struct PendingUserCallArity {
     /// `positional_any_expand` is `false`).
     pub nargs_min: usize,
     /// Whether any positional word is `{*}`-expanded — when true,
-    /// `nargs_min` is a lower bound only, so only E002 ("too few") can
-    /// still fire, never E003 ("too many"); matches the identical
-    /// convention in the registry-command arity check.
+    /// `nargs_min` is a lower bound only, so E002 ("too few") can never
+    /// fire (expansion may still supply the missing arguments at run
+    /// time), but E003 ("too many") can still fire when even that lower
+    /// bound already exceeds the max; matches the identical convention
+    /// in the registry-command arity check.
     pub positional_any_expand: bool,
 }
 

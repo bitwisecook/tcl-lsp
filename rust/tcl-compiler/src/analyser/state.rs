@@ -183,6 +183,32 @@ pub struct Analyser {
     /// [`super::types::AnalysisResult::has_dynamic_providers`] and is not
     /// recorded here.
     pub renamed_commands: HashMap<String, String>,
+    /// Byte offset of the `interp alias` command token that established
+    /// each [`Self::command_aliases`] entry (keyed the same way, by alias
+    /// name) — kept as a parallel map rather than widening
+    /// `command_aliases` itself, since that type (`alias::CommandAliasMap`)
+    /// is shared with the lowering/IR pipeline. Used to order-gate a
+    /// *top-level* call against the alias: a call lexically before the
+    /// `interp alias` statement runs first at run time, so the alias
+    /// doesn't exist yet there (confirmed against tclsh 9.0.4). Proc-body
+    /// calls are not order-gated (the whole file loads, establishing
+    /// every alias, before any proc body runs).
+    pub alias_offsets: HashMap<String, u32>,
+    /// Byte offset of the `rename` command token that established each
+    /// [`Self::renamed_commands`] entry (keyed by `new_qname`) — the
+    /// same order-gating role as [`Self::alias_offsets`], kept parallel
+    /// rather than widening `renamed_commands` for the same reason.
+    pub rename_offsets: HashMap<String, u32>,
+    /// Reverse index: ``old_qname → rename_offset`` for every static
+    /// `rename OLD NEW`. A rename removes `OLD` as a command entirely
+    /// (confirmed against tclsh 9.0.4: calling `OLD` afterwards fails
+    /// "invalid command name", not a "wrong # args" on its original
+    /// signature) — this lets the same-file arity resolver recognise a
+    /// call to `OLD` as no longer reaching the original proc once the
+    /// rename is in effect (order-gated the same way as
+    /// [`Self::rename_offsets`]), instead of still validating it against
+    /// a definition that's no longer callable under that name.
+    pub deleted_commands: HashMap<String, u32>,
     /// Variable-as-command call sites; resolved post-walk by W307.
     pub var_command_sites: Vec<VarCommandSite>,
     /// Command-substitution-as-command call sites; same dispatch
@@ -440,6 +466,9 @@ impl Analyser {
             body_scope_stack: Vec::new(),
             command_aliases: HashMap::new(),
             renamed_commands: HashMap::new(),
+            alias_offsets: HashMap::new(),
+            rename_offsets: HashMap::new(),
+            deleted_commands: HashMap::new(),
             var_command_sites: Vec::new(),
             cmd_command_sites: Vec::new(),
             ns_cache: HashMap::new(),

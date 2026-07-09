@@ -115,40 +115,51 @@ pub(super) fn arity_verdict(
 }
 
 /// Namespace-qualify `cmd_name`'s resolution candidates the Tcl way:
-/// current namespace first, then global — mirroring
-/// `resolve_command_qualified_name`'s `::` root → `::cmd` convention.
-/// Shared by the builtin-shadowing suppression check
+/// current namespace first, then global. Shared by the
+/// builtin-shadowing suppression check
 /// ([`Analyser::flush_arity_diagnostics`]) and the same-file proc/alias/
 /// rename resolution chase
 /// ([`Analyser::resolve_indirect_call_target`]), so both walk the
 /// identical candidate order.
+///
+/// A name containing `::` but not starting with it (`inner::p`) is
+/// still *relative* — Tcl resolves it against the current namespace
+/// before falling back to global (confirmed against tclsh 9.0.4:
+/// calling `inner::p` from inside `namespace eval ::ns { … }` reaches
+/// `::ns::inner::p`, not `::inner::p`, when both exist). Only a
+/// leading `::` is a genuinely absolute name.
 fn qualify_candidates(ns: &str, cmd_name: &str) -> Vec<String> {
-    if cmd_name.contains("::") {
-        let abs = if cmd_name.starts_with("::") {
-            cmd_name.to_owned()
-        } else {
-            format!("::{cmd_name}")
-        };
-        vec![abs]
-    } else {
-        let joined = if ns == "::" {
-            format!("::{cmd_name}")
-        } else {
-            format!("{ns}::{cmd_name}")
-        };
-        vec![joined, format!("::{cmd_name}")]
+    if cmd_name.starts_with("::") {
+        return vec![cmd_name.to_owned()];
     }
+    let global = format!("::{cmd_name}");
+    if ns == "::" {
+        return vec![global];
+    }
+    let relative = format!("{ns}::{cmd_name}");
+    vec![relative, global]
 }
 
 /// Shift a resolved [`Arity`] down by an `interp alias` / `TclOO`
 /// `forward`'s prepended-argument count — real Tcl partial application
 /// (confirmed against tclsh 9.0.4: `interp alias {} short {} target
 /// extra` requires exactly `target`'s arity minus one fewer argument at
-/// the `short` call site). Saturates at zero rather than underflowing
-/// when a target's declared arity is smaller than the accumulated
-/// prepended count (a malformed alias chain — abstaining would be no
-/// safer, since the target is still genuinely reachable).
+/// the `short` call site).
+///
+/// When the prepended count already exceeds a *bounded* target's own
+/// max, the alias/forward is unconditionally broken — every call fails
+/// at run time regardless of how many further arguments are supplied
+/// (confirmed against tclsh 9.0.4: `proc target {a} {}; interp alias {}
+/// bad {} target fixed extra; bad` fails "wrong # args" for zero, one,
+/// or two further arguments alike). Saturating both bounds to zero would
+/// misrepresent that as "callable with exactly zero arguments" — a
+/// silent false negative. Returning an unsatisfiable range (`min > max`)
+/// instead guarantees `arity_verdict` flags every call, whatever count
+/// it's called with.
 pub(super) fn shift_arity(arity: Arity, prepended: u16) -> Arity {
+    if !arity.is_unlimited() && prepended > arity.max {
+        return Arity::new(1, 0);
+    }
     let min = arity.min.saturating_sub(prepended);
     let max = if arity.is_unlimited() {
         Arity::UNLIMITED
@@ -838,6 +849,19 @@ impl Analyser {
         });
     }
 
+    /// Whether a fact (a proc definition, `rename`, or `interp alias`)
+    /// established at `established_off` is observably in effect by the
+    /// time `cand`'s call executes: unconditionally true inside a
+    /// proc/method body (the whole file loads, running every top-level
+    /// statement, before any body runs), and order-gated by textual
+    /// offset at top level (confirmed against tclsh 9.0.4: a top-level
+    /// call textually before the statement that establishes a proc /
+    /// rename / alias executes first at run time, so the fact isn't in
+    /// effect there yet).
+    fn fact_in_effect(cand: &PendingUserCallArity, established_off: u32) -> bool {
+        !cand.enforce_order || established_off < cand.call_off
+    }
+
     /// Chase `cand.cmd_name` (as it resolves at `cand.ns`) through
     /// same-file proc / static `rename` / `interp alias` indirection to
     /// a definite [`Arity`], or `None` when nothing with a known arity
@@ -845,18 +869,23 @@ impl Analyser {
     ///
     /// Each hop is namespace-qualified via [`qualify_candidates`] — the
     /// same resolution order as the builtin-shadowing suppression check
-    /// in [`Self::flush_arity_diagnostics`]. A proc target is
-    /// order-gated at top level exactly like the registry path
-    /// (`proc_offsets` + `cand.enforce_order`); a `rename` / `interp
-    /// alias` target is not (mirroring how a class / alias / ensemble
-    /// "always exists at run time" in the same function). `interp
-    /// alias`'s prepended arguments shift the eventual arity down (real
-    /// partial application, confirmed against tclsh 9.0.4); chained
-    /// aliases/renames accumulate the shift transitively. Hop-limited as
-    /// a defensive guard against a self-referential rename/alias cycle
-    /// (never legitimate Tcl). Reaching a registry builtin only counts
-    /// once at least one hop has happened — a *direct* hit on a builtin
-    /// name is [`Self::check_simple_arity`]'s job, not this one's.
+    /// in [`Self::flush_arity_diagnostics`]. A proc target, a `rename`
+    /// target, and an `interp alias` target are all order-gated via
+    /// [`Self::fact_in_effect`] (`proc_offsets` for procs,
+    /// `rename_offsets` / `alias_offsets` for the other two) — a
+    /// candidate whose defining statement hasn't executed yet at a
+    /// top-level call site is not a match. A name `rename`d away
+    /// (`deleted_commands`) is skipped as a proc match once the rename
+    /// is in effect — it no longer denotes that proc at run time (see
+    /// [`crate::analyser::handlers::Analyser::handle_rename`]).
+    /// `interp alias`'s prepended arguments shift the eventual arity
+    /// down (real partial application, confirmed against tclsh 9.0.4);
+    /// chained aliases/renames accumulate the shift transitively.
+    /// Hop-limited as a defensive guard against a self-referential
+    /// rename/alias cycle (never legitimate Tcl). Reaching a registry
+    /// builtin only counts once at least one hop has happened — a
+    /// *direct* hit on a builtin name is [`Self::check_simple_arity`]'s
+    /// job, not this one's.
     fn resolve_indirect_call_target(
         &self,
         cand: &PendingUserCallArity,
@@ -866,9 +895,31 @@ impl Analyser {
         let mut cur = cand.cmd_name.clone();
         let mut prepended_total: u16 = 0;
         let mut hopped = false;
+        // Whether `cur` was just reached via a *rename* hop (as opposed
+        // to being the original call name or an alias hop's target).
+        // `rename OLD NEW` moves the command's identity to `NEW` once
+        // and for all, so chasing `NEW` back to `OLD` to read its
+        // original `all_procs` entry is always valid regardless of
+        // `OLD`'s own deletion — `OLD` being deleted is precisely what
+        // freed it up to serve as this rename's source. An *alias*
+        // target, by contrast, is re-resolved by name every time it's
+        // invoked (confirmed against tclsh 9.0.4: `interp alias {} bar
+        // {} foo` then `rename foo baz` — or `rename foo {}` — makes
+        // `bar` fail too, "invalid command name foo"), so the deletion
+        // check applies there exactly as it does to the original call
+        // name.
+        let mut via_rename_hop = false;
         for _ in 0..MAX_HOPS {
             let candidates = qualify_candidates(&cand.ns, &cur);
             for c in &candidates {
+                if !via_rename_hop
+                    && self
+                        .deleted_commands
+                        .get(c.as_str())
+                        .is_some_and(|&off| Self::fact_in_effect(cand, off))
+                {
+                    continue;
+                }
                 if let Some(def) = self.result.all_procs.get(c)
                     && (!cand.enforce_order
                         || proc_offsets
@@ -879,18 +930,26 @@ impl Analyser {
                     return Some(shift_arity(arity, prepended_total));
                 }
             }
-            if let Some(old) = candidates.iter().find_map(|c| self.renamed_commands.get(c)) {
+            if let Some(old) = candidates.iter().find_map(|c| {
+                let old = self.renamed_commands.get(c)?;
+                let off = *self.rename_offsets.get(c)?;
+                Self::fact_in_effect(cand, off).then_some(old)
+            }) {
                 cur.clone_from(old);
                 hopped = true;
+                via_rename_hop = true;
                 continue;
             }
-            if let Some((target, prepended)) =
-                candidates.iter().find_map(|c| self.command_aliases.get(c))
-            {
+            if let Some((target, prepended)) = candidates.iter().find_map(|c| {
+                let alias = self.command_aliases.get(c)?;
+                let off = *self.alias_offsets.get(c)?;
+                Self::fact_in_effect(cand, off).then_some(alias)
+            }) {
                 prepended_total = prepended_total
                     .saturating_add(u16::try_from(prepended.len()).unwrap_or(u16::MAX));
                 cur.clone_from(target);
                 hopped = true;
+                via_rename_hop = false;
                 continue;
             }
             if hopped {
