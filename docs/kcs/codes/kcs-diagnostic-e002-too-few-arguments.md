@@ -31,6 +31,25 @@ puts
 
 The analyser reports **`E002`** on the bare `puts` token.
 
+## Command-prefix callback context
+
+`E002` also fires on a **callback proc that requires more arguments than its
+command prefix supplies**. When a command invokes a callback (`lsort -command
+cb`, `trace add … cb`, `$graph walk … -command cb`), it appends a fixed number
+of arguments; if the referenced proc has more *required* parameters than that,
+the runtime call raises "too few arguments". Here the squiggle is under the
+**callback proc name** (the head of the prefix), not under the calling command
+— look at the proc it names.
+
+```tcl
+proc cmp {a b c} { return 0 }
+lsort -command cmp {3 1 2}   ;# lsort appends only 2 → E002 on `cmp`
+```
+
+Fix by giving the extra parameters defaults (`{a b {c 0}}`) or removing them so
+the callback matches the appended-argument count. (A callback whose appended
+count is open-ended — `AtLeast(n)` — never draws `E002`.)
+
 ## Fix
 
 ```tcl

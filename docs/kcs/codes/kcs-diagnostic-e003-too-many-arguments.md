@@ -31,6 +31,24 @@ incr x 1 2
 
 The analyser reports **`E003`** on the surplus argument `2`.
 
+## Command-prefix callback context
+
+`E003` also fires on a **callback proc that is too small for its command
+prefix**. When a command invokes a callback (`lsort -command cb`, `trace add
+… cb`, `$graph walk … -command cb`), it appends a fixed number of arguments; if
+the referenced proc accepts fewer, the runtime call raises "too many
+arguments". Here the squiggle is under the **callback proc name** (the head of
+the prefix), not under a surplus word at the call site — look at the proc it
+names, not the calling command's own argument list.
+
+```tcl
+proc oneArg {a} { return 0 }
+lsort -command oneArg {3 1 2}   ;# lsort appends 2 → E003 on `oneArg`
+```
+
+Fix by widening the callback's parameter list (here to `{a b}`) or giving it a
+variadic tail (`{args}`) so it absorbs every appended argument.
+
 ## Fix
 
 ```tcl
