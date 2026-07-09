@@ -111,12 +111,6 @@ const VIRTCHAN_CMDS: &[Row] = &[
         "This command creates a new connected pair of fifo channels and returns their handles, as a list containing two.",
     ),
     (
-        "tcl::chan::halfpipe",
-        Arity::at_least(0),
-        &["tcl::chan::halfpipe"],
-        "This command creates a halfpipe channel and configures it with the callbacks to run when the channel is closed.",
-    ),
-    (
         "tcl::chan::memchan",
         Arity::exact(0),
         &["tcl::chan::memchan"],
@@ -256,9 +250,57 @@ const VIRTCHAN_CMDS: &[Row] = &[
     ),
 ];
 
+/// Options for `tcl::chan::halfpipe`.  All three fire through the one
+/// `method Call {o args} { uplevel #0 [list {*}$options($o) {*}$args] }`
+/// (halfpipe.tcl 189-192), the clean `[list {*}prefix {*}args]` idiom, so the
+/// appended-word count equals the number of args passed at each call site.
+/// There is no `-read-command`.
+const HALFPIPE_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-write-command",
+        // `my Call -write-command $c $bytes` (115) → channel handle + bytes.
+        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
+        detail: "Invoked on a write with the channel handle and the written bytes.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-empty-command",
+        // `my Call -empty-command $channel` (184) → channel handle only.
+        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(1)),
+        detail: "Invoked when the buffer drains, with the channel handle.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-close-command",
+        // `my Call -close-command $c` (51) → channel handle only.
+        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(1)),
+        detail: "Invoked when the channel is closed, with the channel handle.",
+        ..OptionSpec::DEFAULT
+    },
+];
+
+/// `tcl::chan::halfpipe` — structured so its callback options carry command
+/// prefixes.
+fn halfpipe_spec() -> CommandSpec {
+    CommandSpec {
+        name: "tcl::chan::halfpipe",
+        arity: Arity::at_least(0),
+        hover: Some(HoverSnippet::brief(
+            "This command creates a halfpipe channel and configures it with the callbacks to run when the channel is closed.",
+            &["tcl::chan::halfpipe ?-write-command cmd? ?-empty-command cmd? ?-close-command cmd?"],
+            "tcllib virtchannel package",
+        )),
+        options: HALFPIPE_OPTIONS,
+        tcllib_package: Some("tcl::chan::halfpipe"),
+        required_package: Some("tcl::chan::halfpipe"),
+        ..CommandSpec::DEFAULT
+    }
+}
+
 /// All doctools + virtual-channel command specs.
 pub fn specs() -> Vec<CommandSpec> {
     let mut specs = rows("doctools", DOCTOOLS_CMDS);
     specs.extend(self_pkg_rows(VIRTCHAN_CMDS));
+    specs.push(halfpipe_spec());
     specs
 }

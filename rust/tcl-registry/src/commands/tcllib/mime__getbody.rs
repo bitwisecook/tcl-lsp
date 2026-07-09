@@ -23,6 +23,29 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "mime::getbody token ?options?",
 }];
 
+const OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-decode",
+        value: OptionValue::flag(),
+        detail: "Decode the body according to its content-transfer-encoding.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-command",
+        // Async mode.  mime invokes the prefix via `uplevel #0 $cmd [list …]`
+        // at seven sites (mime.tcl 1671-1754): the terminal `[list end]`
+        // appends 1 word, while `[list data $chunk]` / `[list error $reason]`
+        // append 2 — because `uplevel` re-splits the list word.  So the min is
+        // 1 → AtLeast(1) (never fires "too few" against a 1-arg callback; the
+        // package's own default `getbodyaux {token reason {fragment {}}}` is
+        // exactly this shape).
+        value: OptionValue::command_prefix_n("prefix", AppendedArity::AtLeast(1)),
+        detail: "Process the body asynchronously: the prefix is invoked with a \
+reason keyword (data / end / error) and, for data / error, one payload word.",
+        ..OptionSpec::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "mime::getbody",
@@ -37,6 +60,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The body content.",
         }),
         forms: FORMS,
+        options: OPTIONS,
         tcllib_package: Some("mime"),
         required_package: Some("mime"),
         ..CommandSpec::DEFAULT

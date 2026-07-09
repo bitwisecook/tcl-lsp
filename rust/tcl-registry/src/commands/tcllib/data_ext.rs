@@ -42,6 +42,30 @@ fn rows(pkg: &'static str, table: &'static [Row]) -> Vec<CommandSpec> {
         .collect()
 }
 
+/// Options for `comm::comm send`.
+const COMM_SEND_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-async",
+        value: OptionValue::flag(),
+        detail: "Return immediately; the result is discarded (or delivered via -command).",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-command",
+        // Asynchronous "futures" reply callback.  comm.tcl 1367-1375 builds a
+        // fixed 7-pair option list (`-id -serial -chan -code -errorcode
+        // -errorinfo -result`) and fires `uplevel #0 $callback $args`, which
+        // re-splits it into exactly 14 words.  (Distinct from the channel-level
+        // `configure -command` incoming-message hook, which appends only 1.)
+        // Real callbacks use `proc cb {args} {array set r $args …}`, so the
+        // arity check is silent unless a fixed-arity proc is wired up wrong.
+        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(14)),
+        detail: "Deliver the reply asynchronously to this command prefix (invoked \
+with the 7 -key/value reply pairs appended).",
+        ..OptionSpec::DEFAULT
+    },
+];
+
 /// The `comm::comm` ensemble's sub-commands.
 const COMM_SUBS: &[SubCommand] = &[
     SubCommand {
@@ -49,6 +73,7 @@ const COMM_SUBS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "This invokes the given command in the interpreter named by id.",
         synopsis: "comm::comm send -async -command id cmd",
+        options: COMM_SEND_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {

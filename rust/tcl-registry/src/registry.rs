@@ -2002,6 +2002,88 @@ mod tests {
     }
 
     #[test]
+    fn command_prefixes_cover_option_value_callbacks() {
+        // Option-value callbacks — the prefix is the value of a named `-flag`,
+        // resolved through each command's `OptionSpec` array.  Arities are
+        // ground-truthed against tcllib source (verified by re-running the exact
+        // `uplevel`/`eval`/`{*}` idioms in tclsh — `uplevel`/`eval` re-split a
+        // `[list …]` word, `[list {*}pfx {*}args]` keeps one word per element).
+        let reg = CommandRegistry::build_default();
+
+        // `mime::getbody token -command cb` — async body callback.  uplevel
+        // re-splits `[list end]` → 1 word, `[list data $c]` → 2 ⇒ AtLeast(1).
+        assert_eq!(
+            reg.command_prefixes("mime::getbody", &["tok", "-command", "cb"]),
+            vec![(2, AppendedArity::AtLeast(1))],
+        );
+        // `-decode` before `-command` is a value-less flag: the scan skips it
+        // without swallowing the callback.
+        assert_eq!(
+            reg.command_prefixes("mime::getbody", &["tok", "-decode", "-command", "cb"]),
+            vec![(3, AppendedArity::AtLeast(1))],
+        );
+
+        // `smtp::sendmessage tok -tlspolicy pol` — `eval $pol [list $code]
+        // [list $diag]` ⇒ Exactly(2).  A preceding value-taking option's value
+        // is skipped, not mistaken for the callback.
+        assert_eq!(
+            reg.command_prefixes("smtp::sendmessage", &["tok", "-tlspolicy", "pol"]),
+            vec![(2, AppendedArity::Exactly(2))],
+        );
+        assert_eq!(
+            reg.command_prefixes(
+                "smtp::sendmessage",
+                &["tok", "-servers", "mail.x", "-tlspolicy", "pol"],
+            ),
+            vec![(4, AppendedArity::Exactly(2))],
+        );
+
+        // `comm::comm send -command cb id cmd` — 7 `-key value` reply pairs ⇒
+        // Exactly(14).  Subcommand-relative option scan offsets by 1.
+        assert_eq!(
+            reg.command_prefixes("comm::comm", &["send", "-command", "cb", "id", "cmd"]),
+            vec![(2, AppendedArity::Exactly(14))],
+        );
+
+        // `bibtex::parse` — every callback prepends the parser token, then its
+        // own payload words: `-command`/`-*command` ⇒ Exactly(2), except
+        // `-recordcommand` ⇒ Exactly(4) (token type key recdata).
+        assert_eq!(
+            reg.command_prefixes("bibtex::parse", &["-recordcommand", "cb", "text"]),
+            vec![(1, AppendedArity::Exactly(4))],
+        );
+        assert_eq!(
+            reg.command_prefixes("bibtex::parse", &["-command", "cb"]),
+            vec![(1, AppendedArity::Exactly(2))],
+        );
+        assert_eq!(
+            reg.command_prefixes("bibtex::parse", &["-progresscommand", "cb"]),
+            vec![(1, AppendedArity::Exactly(2))],
+        );
+
+        // `tcl::chan::halfpipe` — clean `[list {*}pfx {*}args]` idiom: write
+        // appends (chan bytes) ⇒ 2, empty/close append (chan) ⇒ 1.  No
+        // `-read-command` exists.
+        assert_eq!(
+            reg.command_prefixes("tcl::chan::halfpipe", &["-write-command", "cb"]),
+            vec![(1, AppendedArity::Exactly(2))],
+        );
+        assert_eq!(
+            reg.command_prefixes("tcl::chan::halfpipe", &["-close-command", "cb"]),
+            vec![(1, AppendedArity::Exactly(1))],
+        );
+        assert_eq!(
+            reg.command_prefixes("tcl::chan::halfpipe", &["-empty-command", "cb"]),
+            vec![(1, AppendedArity::Exactly(1))],
+        );
+        assert!(
+            reg.command_prefixes("tcl::chan::halfpipe", &["-read-command", "cb"])
+                .is_empty(),
+            "halfpipe has no -read-command",
+        );
+    }
+
+    #[test]
     fn tk_command_options_classified_prefix_vs_script() {
         // The Tk `script()→command_prefix` conversion (separate commit, highest
         // risk).  Locks in the classification: appended-arg callbacks are
@@ -2064,9 +2146,10 @@ mod tests {
         // Drift guard: any command whose synopsis literally names a `cmdprefix`
         // argument must declare a `CommandPrefix` (static table, resolver, or
         // command-prefix option) so callbacks light up references / call-graph /
-        // W123 / arity.  The allowlist holds genuinely-deferred option-value
-        // callbacks that need a full `OptionSpec` array not yet modelled.
-        const DEFERRED_OPTION_PREFIX: &[&str] = &["mime::getbody"];
+        // W123 / arity.  The allowlist holds genuinely-deferred callbacks that
+        // still need modelling; it is empty now that the option-value
+        // callbacks (`mime::getbody -command`, …) carry `OptionSpec` arrays.
+        const DEFERRED_OPTION_PREFIX: &[&str] = &[];
         let reg = CommandRegistry::build_default();
         let mut gaps = Vec::new();
         for name in reg.command_names() {
@@ -2085,8 +2168,15 @@ mod tests {
                     continue;
                 }
                 // Probe with the synopsis words after the command name; a
-                // declared prefix yields a non-empty result.
-                let args: Vec<&str> = syn.split_whitespace().skip(1).collect();
+                // declared prefix yields a non-empty result.  Strip the `?…?`
+                // optionality markers so an option-value prefix
+                // (`?-command cmdprefix?`) presents its bare `-command` /
+                // `cmdprefix` words to the option scanner.
+                let args: Vec<&str> = syn
+                    .split_whitespace()
+                    .skip(1)
+                    .map(|w| w.trim_matches('?'))
+                    .collect();
                 if reg.command_prefixes(name, &args).is_empty() {
                     gaps.push(format!("{name}: {syn}"));
                 }

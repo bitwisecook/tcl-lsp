@@ -298,3 +298,78 @@ fn tk_scroll_callback_bareword_undefined_head_fires_w123() {
         "a defined scroll callback head must not fire W123"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Option-value callbacks — the prefix is the value of a named `-flag`, resolved
+// through the command's `OptionSpec` array (no `command_prefixes` table entry).
+// These flow through the identical generic substrate, so a bareword head lights
+// up call-graph / references / W123 / arity with zero per-command code.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn mime_getbody_command_option_is_a_callback_edge() {
+    let reg = CommandRegistry::build_default();
+    let src = "proc onChunk {reason args} { puts $reason }\nproc fetchBody {tok} {\n    mime::getbody $tok -command onChunk\n}\n";
+    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let edges = g["edges"].as_array().expect("edges array");
+    assert!(
+        edges.iter().any(|e| {
+            e["caller"].as_str().unwrap_or("").contains("fetchBody")
+                && e["callee"].as_str().unwrap_or("").contains("onChunk")
+        }),
+        "expected a fetchBody→onChunk edge from `mime::getbody -command`; got {g}"
+    );
+}
+
+#[test]
+fn smtp_tlspolicy_option_fires_w123_only_when_unknown() {
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    // Unknown -tlspolicy head → W123.
+    let bad = "smtp::sendmessage $tok -tlspolicy noSuchPolicy\n";
+    assert!(
+        a.analyse(bad, "tcl9.0")
+            .diagnostics
+            .iter()
+            .any(|d| d.code.to_string() == "W123"),
+        "an unknown -tlspolicy callback head must fire W123"
+    );
+    // Defined head → silent.
+    let ok = "proc tlsDecider {code diag} { return secure }\nsmtp::sendmessage $tok -tlspolicy tlsDecider\n";
+    assert!(
+        !a.analyse(ok, "tcl9.0")
+            .diagnostics
+            .iter()
+            .any(|d| d.code.to_string() == "W123"),
+        "a defined -tlspolicy callback head must not fire W123"
+    );
+}
+
+#[test]
+fn bibtex_recordcommand_option_is_a_callback_edge() {
+    let reg = CommandRegistry::build_default();
+    let src = "proc saveRecord {token type key data} { }\nproc parseBib {text} {\n    bibtex::parse -recordcommand saveRecord $text\n}\n";
+    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let edges = g["edges"].as_array().expect("edges array");
+    assert!(
+        edges.iter().any(|e| {
+            e["caller"].as_str().unwrap_or("").contains("parseBib")
+                && e["callee"].as_str().unwrap_or("").contains("saveRecord")
+        }),
+        "expected a parseBib→saveRecord edge from `bibtex::parse -recordcommand`; got {g}"
+    );
+}
+
+#[test]
+fn halfpipe_write_command_option_records_callback() {
+    let reg = CommandRegistry::build_default();
+    let src = "proc onWrite {chan bytes} { }\nproc mk {} {\n    tcl::chan::halfpipe -write-command onWrite\n}\n";
+    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let edges = g["edges"].as_array().expect("edges array");
+    assert!(
+        edges.iter().any(|e| {
+            e["caller"].as_str().unwrap_or("").contains("mk")
+                && e["callee"].as_str().unwrap_or("").contains("onWrite")
+        }),
+        "expected an mk→onWrite edge from `tcl::chan::halfpipe -write-command`; got {g}"
+    );
+}

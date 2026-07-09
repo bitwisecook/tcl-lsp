@@ -30,6 +30,68 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "smtp::sendmessage token ?options?",
 }];
 
+const OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-servers",
+        value: OptionValue::value("list"),
+        detail: "List of SMTP servers to try, in order.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-ports",
+        value: OptionValue::value("list"),
+        detail: "List of ports matching -servers.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-username",
+        value: OptionValue::value("user"),
+        detail: "Username for SMTP authentication.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-password",
+        value: OptionValue::value("pass"),
+        detail: "Password for SMTP authentication.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-usetls",
+        value: OptionValue::value("bool"),
+        detail: "Whether to attempt STARTTLS negotiation.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-tlspolicy",
+        // smtp.tcl 766-768: `eval $options(-tlspolicy) [list $code]
+        // [list $diagnostic]` — each value is separately list-wrapped, so eval
+        // appends exactly two words: the SMTP response code and the diagnostic
+        // text (kept one word by its own list-wrap).
+        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
+        detail: "Command prefix consulted before STARTTLS; invoked with the SMTP \
+response code and diagnostic text, and must return secure / insecure.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-originator",
+        value: OptionValue::value("addr"),
+        detail: "Originator address override.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-recipients",
+        value: OptionValue::value("list"),
+        detail: "Explicit recipient list override.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-header",
+        value: OptionValue::value("{key value}"),
+        detail: "A single header as a {key value} pair; may be repeated.",
+        ..OptionSpec::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "smtp::sendmessage",
@@ -46,6 +108,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: FORMS,
+        options: OPTIONS,
         side_effects: SIDE_EFFECTS,
         tcllib_package: Some("smtp"),
         required_package: Some("smtp"),

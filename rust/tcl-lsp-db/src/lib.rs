@@ -3946,6 +3946,57 @@ mod tests {
         );
     }
 
+    #[test]
+    fn callback_arity_option_value_exactly_checked() {
+        // `smtp -tlspolicy` and `halfpipe -write-command` both append exactly 2;
+        // a 1-param callback is over-fed → E003, a 2-param callback is silent.
+        let smtp_bad =
+            callback_arity_codes("proc pol {code} { }\nsmtp::sendmessage $t -tlspolicy pol\n");
+        assert!(
+            smtp_bad.iter().any(|(c, m)| c == "E003" && m.contains("'pol'")),
+            "a 1-param -tlspolicy callback (2 appended) must draw E003; got {smtp_bad:?}"
+        );
+        let smtp_ok =
+            callback_arity_codes("proc pol {code diag} { }\nsmtp::sendmessage $t -tlspolicy pol\n");
+        assert!(
+            !smtp_ok.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a correct 2-param -tlspolicy callback must be silent; got {smtp_ok:?}"
+        );
+        let pipe_bad =
+            callback_arity_codes("proc w {chan} { }\ntcl::chan::halfpipe -write-command w\n");
+        assert!(
+            pipe_bad.iter().any(|(c, m)| c == "E003" && m.contains("'w'")),
+            "a 1-param -write-command callback (2 appended) must draw E003; got {pipe_bad:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_mime_getbody_command_atleast_one() {
+        // `mime::getbody -command` appends AtLeast(1) (reason keyword + optional
+        // payload).  A 0-param callback can't accept the reason word → E003; the
+        // canonical `{reason args}` shape is silent (open-ended max ⇒ no
+        // false "too many").
+        let bad = callback_arity_codes("proc cb {} { }\nmime::getbody $t -command cb\n");
+        assert!(
+            bad.iter().any(|(c, m)| c == "E003" && m.contains("'cb'")),
+            "a 0-param mime -command callback must draw E003; got {bad:?}"
+        );
+        let ok = callback_arity_codes("proc cb {reason args} { }\nmime::getbody $t -command cb\n");
+        assert!(
+            !ok.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a `{{reason args}}` mime -command callback must be silent; got {ok:?}"
+        );
+        // FP guard: comm's 14-arg reply callback is virtually always `{args}` —
+        // the catch-all absorbs all 14 → no arity error.
+        let comm = callback_arity_codes(
+            "proc reply {args} { }\ncomm::comm send -command reply $id {list x}\n",
+        );
+        assert!(
+            !comm.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a variadic comm -command reply handler must be silent; got {comm:?}"
+        );
+    }
+
     /// Regression (whole-file-shift determinism): a pure prepend that shifts every
     /// procedure must leave every `function_lattice` a cache hit — reliably, not by
     /// HashMap-seed luck.  Before `prepare_cfg_context` was made deterministic, the
