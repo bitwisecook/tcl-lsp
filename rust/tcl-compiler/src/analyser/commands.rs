@@ -1473,43 +1473,36 @@ impl Analyser {
     /// Best-effort and not flow-sensitive: the last assignment
     /// to a given name wins.
     pub(crate) fn record_instance_creation(&mut self, cmd_name: &str, args: &[String]) {
-        // Per-item isolated proc body: `all_classes` is empty here, so the class
-        // can't be resolved.  Capture the raw `(command, args)` for the two
-        // instance-creation shapes and let the graft replay them against the
-        // shell's full `all_classes` instead (see `pending_instances`).
+        // Registry object-factories (`struct::graph g` naming form, `set g
+        // [struct::graph …]` return form) resolve from the registry alone — no
+        // `all_classes` — so bind them IMMEDIATELY, even inside an isolated proc
+        // body.  Deferring these (as the per-item firewall does for user-class
+        // instances) would leave `instance_classes` empty during that body's own
+        // `$g walk … -command cb` recording, dropping the callback edge /
+        // reference for an in-proc instance-method callback and diverging the
+        // incremental path from the whole-file walk.
+        let bound_registry_factory = self.record_registry_factory_instance(cmd_name, args);
+
+        // Per-item isolated proc body: a *user*-class instance can't be resolved
+        // here (`all_classes` is empty), so capture the raw `(command, args)` for
+        // the two instance-creation shapes and let the graft replay them against
+        // the shell's full `all_classes` instead (see `pending_instances`).
         if let Some(pending) = self.pending_instances.as_mut() {
             let shape_a =
                 cmd_name == "set" && args.len() >= 2 && args[1].trim_start().starts_with('[');
             let shape_b = args.len() >= 2 && args[0] == "create";
-            if shape_a || shape_b {
+            // A registry factory already bound above needs no user-class replay.
+            if (shape_a || shape_b) && !bound_registry_factory {
                 pending.push((cmd_name.to_owned(), args.to_vec()));
             }
             return;
         }
-        // Registry-driven object factory: a command whose spec declares
-        // `creates_instance_at` binds the object command it names positionally
-        // (`report::report reportName columns …`) so a later `reportName
-        // <method>` / `$var method` dispatch resolves through the command's
-        // `object_class`.  The naming shape is registry data — no hardcoded
-        // `create` / `new` idiom.
-        let factory = self
-            .registry
-            .as_ref()
-            .and_then(|r| r.get(cmd_name))
-            .and_then(|s| {
-                s.creates_instance_at
-                    .map(|idx| (idx, s.object_class.map(|oc| oc.class_name.to_string())))
-            });
-        if let Some((idx, class_name)) = factory
-            && let Some(name) = args.get(idx as usize)
-            && is_plain_created_name(name)
-        {
-            let class = class_name.unwrap_or_else(|| cmd_name.to_string());
-            self.result.instance_classes.insert(name.clone(), class);
-            self.result.created_instance_commands.insert(name.clone());
+        if bound_registry_factory {
             return;
         }
-        // Pattern A: `set VAR [CLASS new|create ...]`.
+        // Pattern A: `set VAR [CLASS new|create ...]` — a *user* class (the
+        // registry-factory subset is handled by `record_registry_factory_instance`
+        // above).
         if cmd_name == "set"
             && args.len() >= 2
             && let Some(class_q) = self.class_from_constructor_subst(&args[1])
@@ -1539,6 +1532,65 @@ impl Analyser {
                 self.result.created_instance_commands.insert(name.clone());
             }
         }
+    }
+
+    /// Bind an object handle created by a *registry* object-factory — one
+    /// resolvable from the registry alone (no `all_classes`), so it is recorded
+    /// eagerly even inside an isolated proc body (unlike a user-class instance,
+    /// which must defer to the graft).  Two shapes:
+    ///
+    /// * naming factory  `struct::graph g`         → `g` (via `creates_instance_at`)
+    /// * factory return  `set g [struct::graph …]` → `g`
+    ///
+    /// Returns whether a binding was recorded.
+    fn record_registry_factory_instance(&mut self, cmd_name: &str, args: &[String]) -> bool {
+        // Naming factory: a command whose spec declares `creates_instance_at`
+        // binds the object command it names positionally (`report::report
+        // reportName …`, `struct::graph g`) — the naming shape is registry data,
+        // no hardcoded `create` / `new` idiom.
+        let factory = self
+            .registry
+            .as_ref()
+            .and_then(|r| r.get(cmd_name))
+            .and_then(|s| {
+                s.creates_instance_at
+                    .map(|idx| (idx, s.object_class.map(|oc| oc.class_name.to_string())))
+            });
+        if let Some((idx, class_name)) = factory
+            && let Some(name) = args.get(idx as usize)
+            && is_plain_created_name(name)
+        {
+            let class = class_name.unwrap_or_else(|| cmd_name.to_string());
+            self.result.instance_classes.insert(name.clone(), class);
+            self.result.created_instance_commands.insert(name.clone());
+            return true;
+        }
+        // Factory-return: `set g [struct::graph …]` — the registry-factory subset
+        // of `class_from_constructor_subst`.  A user-class `[Class new]` returns
+        // `None` here and is left to Pattern A / the graft (it needs `all_classes`).
+        if cmd_name == "set"
+            && args.len() >= 2
+            && let Some(class) = self.registry_factory_class_from_subst(&args[1])
+        {
+            self.result.instance_classes.insert(args[0].clone(), class);
+            return true;
+        }
+        false
+    }
+
+    /// The class named by a `[factory …]` command-substitution when `factory` is
+    /// a registry object-factory (`struct::graph` / `struct::tree` — a
+    /// `creates_instance_at` + `object_class` command whose result is an instance
+    /// of its own class).  `None` for a user-class `[Class new]` (which needs
+    /// `all_classes`, resolved by `class_from_constructor_subst`).
+    fn registry_factory_class_from_subst(&self, value: &str) -> Option<String> {
+        let inner = value.trim().strip_prefix('[')?.strip_suffix(']')?;
+        let head = inner.split_whitespace().next()?;
+        let reg = self.registry.as_ref()?;
+        if reg.get(head).is_some_and(|s| s.creates_instance_at.is_some()) {
+            return reg.object_class(head).map(|c| c.class_name.to_string());
+        }
+        None
     }
 
     /// Whether `head` is a plausible external-package class command in a

@@ -3512,6 +3512,53 @@ mod tests {
         );
     }
 
+    /// Object-instance method callbacks resolve cross-file — including when the
+    /// dispatch is **inside a proc body**, which the incremental per-item
+    /// firewall (`file_analysis_incremental`, used by `project_diagnostics`)
+    /// otherwise missed because it defers instance creation to the graft.
+    /// Registry object-factories now bind eagerly in an isolated body, so the
+    /// in-body `$g walk … -command cb` records the callback and its arity is
+    /// resolved against the other file.
+    #[test]
+    fn cross_file_in_proc_instance_method_callback_arity() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
+        // B defines onNode with 2 params; `graph walk -command` appends 3.
+        let b = SourceFile::new(&db, "proc onNode {a b} { }\n".to_owned(), "tcl9.0".to_owned());
+        let has_e003 = |src: &str| {
+            let a = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned());
+            let p = Project::new(&db, vec![a, b]);
+            project_diagnostics(&db, a, cfg, p)
+                .iter()
+                .any(|d| d.code.as_str() == "E003" && d.message.contains("onNode"))
+        };
+        // Named factory + dispatch both inside a proc body.
+        assert!(
+            has_e003("proc build {} {\n struct::graph g\n g walk root -command onNode\n}\n"),
+            "in-proc `struct::graph g; g walk -command onNode` must resolve cross-file arity (E003)"
+        );
+        // Handle form (`set g [struct::graph]`) inside a proc body.
+        assert!(
+            has_e003("proc build {} {\n set g [struct::graph]\n $g walk root -command onNode\n}\n"),
+            "in-proc `set g [struct::graph]; $g walk -command onNode` must resolve cross-file arity"
+        );
+        // Correct arity (3 params) is silent.
+        let b3 = SourceFile::new(&db, "proc onNode {a b c} { }\n".to_owned(), "tcl9.0".to_owned());
+        let a_ok = SourceFile::new(
+            &db,
+            "proc build {} {\n struct::graph g\n g walk root -command onNode\n}\n".to_owned(),
+            "tcl9.0".to_owned(),
+        );
+        let p_ok = Project::new(&db, vec![a_ok, b3]);
+        assert!(
+            !project_diagnostics(&db, a_ok, cfg, p_ok)
+                .iter()
+                .any(|d| (d.code.as_str() == "E003" || d.code.as_str() == "E002")
+                    && d.message.contains("onNode")),
+            "a correct 3-param in-proc instance callback must be silent cross-file"
+        );
+    }
+
     /// Cross-file arity honours `disabled_diagnostics`:
     /// the synthesized arity error is produced *after* the analyser's own code
     /// filter (and the LSP lift doesn't re-filter), so it must replicate it —
