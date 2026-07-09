@@ -404,6 +404,6 @@ mod tests {
         // Contains at least one conditional jump (JNE branch dispatch, 0x55) and
         // a signed compare in a Cmp materialisation (JSLT 0xcd / JEQ 0x1d).
         assert!(obj.insns.iter().any(|i| i.op == (super::JNE | 0x05)));
-        assert!(obj.insns.last().unwrap().op == 0x95);
+        assert_eq!(obj.insns.last().unwrap().op, 0x95);
     }
 }

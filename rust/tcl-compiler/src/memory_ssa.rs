@@ -819,7 +819,7 @@ mod tests {
         assert!(f.may_alias("a", "b"));
         assert!(f.may_alias("b", "a"));
         assert!(!f.may_alias("a", "c"));
-        assert!(f.aliases_for("a").len() == 1);
+        assert_eq!(f.aliases_for("a").len(), 1);
         assert!(f.aliases_for("c").is_empty());
     }
 

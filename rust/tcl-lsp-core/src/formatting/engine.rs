@@ -819,10 +819,9 @@ fn greedy_split(
     }
 
     if segments.is_empty() {
-        if let Some(lg) = last_good {
+        {
+            let lg = last_good?;
             commit_break(&mut segments, &mut seg_start, &mut last_good, lg);
-        } else {
-            return None;
         }
     }
 

@@ -1700,13 +1700,9 @@ fn build_with_defaults(
             bound_is_literal.push(arg_is_braced_literal(tokens, i));
             continue;
         }
-        match &parsed[i].1 {
-            Some(default) => {
-                bound.push(default.clone());
-                bound_is_literal.push(true); // defaults are literal
-            }
-            None => return None,
-        }
+        let default = parsed[i].1.as_ref()?;
+        bound.push(default.clone());
+        bound_is_literal.push(true); // defaults are literal
     }
     if has_variadic {
         bound.push(String::new());

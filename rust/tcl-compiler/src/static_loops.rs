@@ -143,13 +143,12 @@ pub fn simple_var_ref(text: &str) -> Option<String> {
             return None;
         }
         inner
-    } else if let Some(rest) = stripped.strip_prefix('$') {
+    } else {
+        let rest = stripped.strip_prefix('$')?;
         if !valid_ident(rest) {
             return None;
         }
         rest
-    } else {
-        return None;
     };
     Some(normalise_var_name(name).to_owned())
 }

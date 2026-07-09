@@ -939,7 +939,8 @@ fn resolve_simple_var_ref<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
 ) -> Option<LatticeValue> {
     let name = if let Some(name) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
         name
-    } else if let Some(name) = text.strip_prefix('$') {
+    } else {
+        let name = text.strip_prefix('$')?;
         if name
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
@@ -948,8 +949,6 @@ fn resolve_simple_var_ref<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
         } else {
             return None;
         }
-    } else {
-        return None;
     };
     let sym = ssa.var_symbol(name)?;
     let ver = *uses.get(&sym)?;
@@ -1165,7 +1164,8 @@ where
         .and_then(|s| s.strip_suffix('}'))
     {
         name
-    } else if let Some(name) = stripped.strip_prefix('$') {
+    } else {
+        let name = stripped.strip_prefix('$')?;
         if name
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
@@ -1174,8 +1174,6 @@ where
         } else {
             return None;
         }
-    } else {
-        return None;
     };
     let sym = ssa.var_symbol(name)?;
     let ver = uses.get(&sym).copied()?;

@@ -397,10 +397,9 @@ fn resolve_subject(subject_raw: &str, env: &Env) -> Option<String> {
         .and_then(|s| s.strip_suffix('}'))
     {
         inner.to_owned()
-    } else if let Some(rest) = subject_raw.strip_prefix('$') {
-        rest.to_owned()
     } else {
-        return None;
+        let rest = subject_raw.strip_prefix('$')?;
+        rest.to_owned()
     };
     let var_ref = format!("${name}");
     let normalised = normalise_var_name(&var_ref).to_owned();

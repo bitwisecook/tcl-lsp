@@ -758,10 +758,9 @@ impl CfgBuilder {
                 // frame (`("eval" body line N)`); the body itself stays inline.
                 Statement::Block { body, span, .. } => {
                     self.inline_eval_spans.push(*span);
-                    if let Some(next_current) = self.lower_script(body, &current) {
+                    {
+                        let next_current = self.lower_script(body, &current)?;
                         current = next_current;
-                    } else {
-                        return None;
                     }
                 }
 

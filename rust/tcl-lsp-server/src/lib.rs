@@ -14411,7 +14411,7 @@ mod tests {
         // call (consumer:0) = 3 locations across 2 files.
         assert_eq!(result.len(), 3, "{result:?}");
         assert!(result.iter().any(|l| l.uri == consumer));
-        assert!(result.iter().filter(|l| l.uri == lib).count() == 2);
+        assert_eq!(result.iter().filter(|l| l.uri == lib).count(), 2);
     }
 
     #[tokio::test]
