@@ -205,13 +205,17 @@ jobs:
         with:
           fetch-depth: 1
 
-      # rust-toolchain.toml pins the channel (stable); rustup on the runner
-      # resolves it on the first cargo call.  Distinct `shared-key` per cargo
-      # job so the concurrent jobs don't race on cache save.
-      - name: Cache cargo registry + target
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      # Must install `stable` explicitly rather than lean on the runner's
+      # preinstalled rustup: the image ships a pinned stable (e.g. 1.96.1) and
+      # `rust-toolchain.toml`'s `channel = "stable"` resolves to *that*, not to
+      # the newest release.  Cargo then refuses the workspace's `rust-version`.
+      # The action installs the current stable and wires up the Swatinem cache
+      # (keyed per job, so the concurrent cargo jobs don't race on save).
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
         with:
-          shared-key: rust-tests
+          toolchain: stable
+          cache-key: rust-tests
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2.82.7
@@ -237,12 +241,13 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Cache cargo registry + target
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
         with:
+          toolchain: stable
           # This job builds only the heavy crates + their deps, so it gets its
           # own cache rather than racing rust-tests on save.
-          shared-key: rust-tests-heavy
+          cache-key: rust-tests-heavy
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2.82.7
@@ -264,10 +269,11 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Cache cargo registry + target
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
         with:
-          shared-key: lsp-e2e
+          toolchain: stable
+          cache-key: lsp-e2e
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2.82.7
