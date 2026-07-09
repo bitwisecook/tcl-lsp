@@ -2,10 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, rust]
     tags: ["v*"]
   pull_request:
-    branches: [main]
+    branches: [main, rust]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -51,10 +51,12 @@ jobs:
 
   # Fast PR gate.  Runs on every PR and every push.  Covers the Rust fast
   # checks: `cargo fmt --check`, `cargo clippy --workspace`, and the
-  # generated-file drift gates (`make xtask-check`).  Everything else is the
-  # responsibility of `make test-slow` locally (enforced by the pre-push
-  # hook installed via `make install-hooks`).  See AGENTS.md for the rule
-  # that agents must run test-slow before opening a PR.
+  # generated-file drift gates (`make xtask-check`).  The full Rust test
+  # suite (including the native lsp_e2e tests) runs separately in
+  # `rust-tests` on every PR and push; the VS Code extension suite runs in
+  # `test-ext` as a backstop on push to main and on tags.  See AGENTS.md
+  # for the local gates (`make check-all`, plus the heavier suites) agents
+  # must run before pushing / opening a PR.
   pr-gate:
     # Rust-side fast gate (fmt / clippy / generated-file drift).  For
     # pre-release (odd-minor 2.x) tags the gate WORK is skipped at the step
@@ -88,33 +90,10 @@ jobs:
           cargo clippy --workspace --all-targets -- -D warnings
           make xtask-check
 
-  # PR gate: the committed `.test-slow.stamp` must match the code under
-  # test.  `make test-slow` rewrites that stamp on success with a content
-  # fingerprint of every tracked file (the stamp excepted), so a matching
-  # stamp proves the full local gate was run against exactly this tree.
-  # Content-addressed, hence reliable even though `actions/checkout`
-  # resets file mtimes — a timestamp comparison could not work here.
-  # Fails loudly with remediation steps; see AGENTS.md for the rule that
-  # agents must run test-slow before opening a PR.
-  test-slow-stamp:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          # Verify the PR's OWN head, not the default merge commit: the
-          # stamp records the fingerprint the agent ran test-slow against
-          # on their branch, so checking the merge-with-main tree would
-          # fail spuriously whenever main advanced.  Only tracked-file
-          # content is hashed, so a shallow checkout is enough.
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 1
-
-      - name: Verify test-slow stamp matches the code under test
-        run: bash scripts/test-slow-stamp.sh check
-
-  # Backstop: VS Code extension tests — runs only on push to main and on tags.
-  # PRs are gated by pr-gate; locally this is covered by `make test-slow`.
+  # Backstop: VS Code extension tests — runs only on push (to main or rust) and
+  # on tags, never on PRs.  PRs are gated by pr-gate (fast Rust checks) and
+  # rust-tests (full Rust suite, including the native lsp_e2e tests).  Because
+  # this never reports on a PR it must NOT be wired as a required status check.
   test-ext:
     # The VS Code extension suite.  For pre-release (odd-minor 2.x) tags the
     # test STEP is skipped (below) while the job still succeeds, so the release
@@ -190,18 +169,23 @@ jobs:
         if: needs.channel.outputs.prerelease != 'true'
         run: make test-ext
 
-  # Rust product gate for `main`.  rust-gate.yml / rust-lsp-e2e.yml are the
-  # blocking checks on the `rust` branch during the rewrite; once `rust` merges
-  # into `main` those workflows no longer fire, so this job is what keeps the
-  # Rust workspace + native-server lsp_e2e suite green on `main`.  Runs on every
-  # PR and push (unlike the push-only Python/extension backstops) because, with
-  # rust-gate gone, nothing else exercises the Rust product on a PR to `main`.
+  # Rust product gate for `main` and `rust`.  This job supersedes the retired
+  # rust-gate.yml / rust-lsp-e2e.yml / rust-ext.yml workflows, which used to be
+  # the blocking checks on the `rust` branch during the rewrite: ci.yml now
+  # triggers on both branches, so one pipeline covers them.  Runs on every PR
+  # and push (unlike the push-only extension backstop) because nothing else
+  # exercises the Rust product on a PR.
   #
-  # Kept consistent with rust-gate.yml: same `cargo test --workspace
-  # --all-features --no-fail-fast` invocation, same Swatinem cache, toolchain
-  # resolved from rust-toolchain.toml.  The lsp_e2e suite is now native
+  # `cargo test --workspace --all-features --no-fail-fast`, Swatinem cache,
+  # toolchain resolved from rust-toolchain.toml.  The lsp_e2e suite is native
   # (rust/tcl-lsp-server/tests/*_e2e.rs) and runs as part of `cargo test
   # --workspace` — no separate pytest step or Python env.
+  #
+  # NOTE: rust-gate.yml split the CPU-bound VM-sim crates (`tcl-irule-test`,
+  # `f5-cli`) into a parallel `rust-tests-heavy` job so the gate's wall-clock
+  # was max(core, heavy) rather than their sum.  This job runs them inline, so
+  # it is slower than the old split gate.  Re-split if it becomes the critical
+  # path.
   rust-tests:
     runs-on: ubuntu-24.04
     steps:
