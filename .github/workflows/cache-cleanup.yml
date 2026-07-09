@@ -59,16 +59,21 @@ jobs:
             done
           fi
 
-      - name: Weekly sweep of non-default-branch caches
+      - name: Weekly sweep of unprotected-branch caches
         if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
-          echo "Sweeping caches not on refs/heads/main"
+          # Protect the caches of the long-lived branches that have
+          # push-triggered blocking workflows. ci.yml runs on `push:
+          # branches: [main, rust]`, so its rust-cache entries live on both
+          # refs; purging refs/heads/rust every week forces cold rebuilds on
+          # the gate. Keep this in sync with ci.yml's push triggers.
+          echo "Sweeping caches not on a protected ref (main, rust)"
           # Single pass (limit 100); a residual >100 is caught next week.
           ids=$(gh cache list --repo "$REPO" --limit 100 --json id,ref \
-            --jq '.[] | select(.ref != "refs/heads/main") | .id')
+            --jq '.[] | select(.ref != "refs/heads/main" and .ref != "refs/heads/rust") | .id')
           if [ -z "$ids" ]; then
             echo "  nothing to sweep"
           else

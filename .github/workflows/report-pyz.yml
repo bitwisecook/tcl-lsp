@@ -13,13 +13,6 @@
 # even when it is later run outside any git checkout — the whole reason this
 # lives in CI rather than only in `make build-report-pyz`.
 #
-# Like `github-pages.yml`, this file lives here (not under `.github/workflows/`)
-# because installing a workflow requires the `workflow` scope; copy it into
-# place from a clone that has it:
-#
-#     cp rust/bigip-report-gen/python/deploy/report-pyz.yml .github/workflows/
-#     git add .github/workflows/report-pyz.yml && git commit && git push
-#
 # It runs on published releases (attaching the `.pyz` files to the release) and
 # on manual dispatch (artefacts only). The local equivalent is
 # `make build-report-pyz`, which runs the same maturin + shiv steps for the host

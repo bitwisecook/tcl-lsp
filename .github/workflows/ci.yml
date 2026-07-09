@@ -506,11 +506,18 @@ jobs:
           retention-days: 1
 
   # Publish the standalone native binaries as per-triple release assets
-  # (`<name>-<triple>[.exe]` for tcl-mcp, tcl, f5-query), so `install.sh` fetches
-  # a prebuilt binary for the host platform instead of a Python zipapp.
-  # (tcl-lsp-server ships bundled inside the VSIX, so it isn't a standalone
-  # asset.)  publish-checksums then sums + signs whatever is attached, so these
-  # assets are covered automatically.
+  # (`<name>-<triple>[.exe]` for tcl-lsp-server, tcl-mcp, tcl, f5-query), so
+  # `install.sh` fetches a prebuilt binary for the host platform.
+  #
+  # `tcl-lsp-server` MUST be in that list.  A Zed extension is a single
+  # cross-platform WASM module and cannot embed a per-platform binary, so
+  # editors/zed resolves `tcl-lsp-server-<triple>[.exe]` from this release at
+  # runtime, pinned to its own tag.  Drop it and every Zed install has no server
+  # (issue #826).  The VSIX takes its copy from the build-server-matrix
+  # artifacts, not from here.
+  #
+  # publish-checksums then sums + signs whatever is attached, so these assets are
+  # covered automatically.
   publish-native-binaries:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release, build-server-matrix]
@@ -538,7 +545,7 @@ jobs:
           mkdir -p out
           shopt -s nullglob
           # download-artifact restores `<triple>/release/<name>[.exe]`.
-          for name in tcl-mcp tcl f5-query; do
+          for name in tcl-lsp-server tcl-mcp tcl f5-query; do
             for bin in server-bins/*/release/"$name" server-bins/*/release/"$name".exe; do
               triple="$(printf '%s\n' "$bin" | sed -E 's#.*/([^/]+)/release/.*#\1#')"
               case "$bin" in *.exe) ext=".exe" ;; *) ext="" ;; esac

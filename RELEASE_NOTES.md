@@ -29,6 +29,13 @@ GitHub release or the default Marketplace download.
   and the rest), so they hover, complete, and stop being flagged as undefined.
 - **tcltest definitions in outlines.** `test` definitions surface in the
   document and workspace symbol outlines.
+- **The Zed extension works on every supported platform.** A Zed extension is a
+  single cross-platform WebAssembly module and cannot embed a native binary, so
+  the extension now detects the host at runtime and downloads the matching
+  `tcl-lsp-server` for it. Previously a Linux x86-64 binary was baked into the
+  module shipped to everyone, which failed on Windows with
+  `%1 is not a valid Win32 application`, and was equally broken on macOS and on
+  non-x64 Linux.
 
 ## Improvements
 

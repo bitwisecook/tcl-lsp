@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Build tooling & CI |
 | **Location** | `.github/workflows/cache-cleanup.yml:62-79` |
-| **Status** | Open (fix staged; needs workflow-scope push) |
+| **Status** | Resolved — the sweep now protects `refs/heads/rust`. |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding
