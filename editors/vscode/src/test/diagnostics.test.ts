@@ -326,7 +326,11 @@ suite("Diagnostics", () => {
       predicate: (diags) => diags.some((d) => codeOf(d) === "E003"),
     });
     const e003 = diagnostics.filter((d) => codeOf(d) === "E003");
-    assert.strictEqual(e003.length, 2, `expected exactly two E003s, got [${diagnostics.map(codeOf)}]`);
+    assert.strictEqual(
+      e003.length,
+      2,
+      `expected exactly two E003s, got [${diagnostics.map(codeOf)}]`,
+    );
     assert.ok(
       e003.some((d) => d.message.includes("demonstrate")),
       `an E003 message should name the proc, got: ${e003.map((d) => d.message)}`,
