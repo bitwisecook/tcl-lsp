@@ -10,7 +10,9 @@
 #   make release       Build every release artefact.
 #
 # Prerequisites:
-#   - Rust 1.96+ with cargo (via rustup)
+#   - Rust stable with cargo (via rustup).  The workspace tracks the floating
+#     `stable` channel pinned in rust-toolchain.toml; current stable is 1.97.0,
+#     released 2026-07-07.  `Cargo.toml` `rust-version` is authoritative.
 #   - Node.js 24+ with npm
 #
 
@@ -501,7 +503,7 @@ test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip w
 		exit 0; \
 	fi; \
 	if ! command -v cargo >/dev/null 2>&1; then \
-		echo "ERROR: 'cargo' not found on PATH (need Rust 1.96+)."; \
+		echo "ERROR: 'cargo' not found on PATH (need a current Rust stable toolchain)."; \
 		echo "       Set SKIP_TEST_RUST=1 to skip this target."; \
 		exit 1; \
 	fi; \
@@ -516,7 +518,7 @@ test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip w
 rust-server: ## Build the native Rust LSP server (PROFILE=release|debug)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then \
-		echo "ERROR: 'cargo' not found on PATH (need Rust 1.96+)."; exit 1; \
+		echo "ERROR: 'cargo' not found on PATH (need a current Rust stable toolchain)."; exit 1; \
 	fi; \
 	echo "==> Building native tcl-lsp-server ($(PROFILE))"; \
 	cd $(ROOT) && cargo build -p tcl-lsp-server $(if $(filter release,$(PROFILE)),--release,); \
@@ -528,7 +530,7 @@ rust-server: ## Build the native Rust LSP server (PROFILE=release|debug)
 rust-tcl: ## Build the native Rust `tcl` CLI (PROFILE=release|debug)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then \
-		echo "ERROR: 'cargo' not found on PATH (need Rust 1.96+)."; exit 1; \
+		echo "ERROR: 'cargo' not found on PATH (need a current Rust stable toolchain)."; exit 1; \
 	fi; \
 	echo "==> Building native tcl CLI ($(PROFILE))"; \
 	cd $(ROOT) && cargo build -p tcl-cli $(if $(filter release,$(PROFILE)),--release,); \
@@ -539,7 +541,7 @@ rust-tcl: ## Build the native Rust `tcl` CLI (PROFILE=release|debug)
 rust-f5: ## Build the native Rust `f5-query` CLI (PROFILE=release|debug)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then \
-		echo "ERROR: 'cargo' not found on PATH (need Rust 1.96+)."; exit 1; \
+		echo "ERROR: 'cargo' not found on PATH (need a current Rust stable toolchain)."; exit 1; \
 	fi; \
 	echo "==> Building native f5-query CLI ($(PROFILE))"; \
 	cd $(ROOT) && cargo build -p f5-cli $(if $(filter release,$(PROFILE)),--release,); \
@@ -551,7 +553,7 @@ rust-f5: ## Build the native Rust `f5-query` CLI (PROFILE=release|debug)
 rust-mcp: ## Build the native Rust `tcl-mcp` MCP server (PROFILE=release|debug)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then \
-		echo "ERROR: 'cargo' not found on PATH (need Rust 1.96+)."; exit 1; \
+		echo "ERROR: 'cargo' not found on PATH (need a current Rust stable toolchain)."; exit 1; \
 	fi; \
 	echo "==> Building native tcl-mcp server ($(PROFILE))"; \
 	cd $(ROOT) && cargo build -p tcl-mcp $(if $(filter release,$(PROFILE)),--release,); \
@@ -569,7 +571,7 @@ rust-clis: rust-tcl rust-f5 ## Build the native Rust `tcl` + `f5-query` CLIs
 ensure-server-cross-deps: ## Install cross-compile deps (rustup targets + linkers) for this host
 	@set -eu; \
 	if ! command -v rustup >/dev/null 2>&1; then \
-		echo "ERROR: rustup not found — install Rust via rustup (need 1.96+)."; exit 1; \
+		echo "ERROR: rustup not found — install Rust via rustup (need a current stable toolchain)."; exit 1; \
 	fi; \
 	case "$(SERVER_UNAME_S)" in \
 	Linux) \
@@ -697,7 +699,7 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on Zed extension and top
 		. "$$HOME/.cargo/env"; \
 	fi; \
 	if ! command -v cargo >/dev/null 2>&1; then \
-		echo "ERROR: 'cargo' not found on PATH (need Rust 1.96+)."; \
+		echo "ERROR: 'cargo' not found on PATH (need a current Rust stable toolchain)."; \
 		echo "       Set SKIP_CHECK_RUST=1 to skip."; \
 		exit 1; \
 	fi; \
@@ -729,7 +731,7 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on Zed extension and top
 rust-deny: ## Audit the Rust workspace with cargo-deny (advisories/licenses/bans/sources via deny.toml)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then \
-		echo "ERROR: 'cargo' not found on PATH (need Rust 1.96+)."; exit 1; \
+		echo "ERROR: 'cargo' not found on PATH (need a current Rust stable toolchain)."; exit 1; \
 	fi; \
 	if ! cargo deny --version >/dev/null 2>&1; then \
 		echo "==> cargo-deny not found — installing (cargo install cargo-deny)"; \

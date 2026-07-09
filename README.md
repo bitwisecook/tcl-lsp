@@ -2082,7 +2082,9 @@ explicit actions (CLI, chat, MCP) default to `full`.
 
 ## Prerequisites
 
-- A Rust toolchain (stable; MSRV 1.96) via [rustup](https://rustup.rs/)
+- A Rust toolchain (current stable) via [rustup](https://rustup.rs/).  The
+  workspace tracks the floating `stable` channel; current stable is 1.97.0,
+  released 2026-07-07.
 - Node.js 24+ with npm (pinned to v12 via `packageManager`; run `corepack enable npm`)
 - VS Code 1.93+
 

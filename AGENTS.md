@@ -104,9 +104,13 @@ are *not* debt.
 
 ## Prerequisites
 
-- Rust 1.96+ with cargo, via [rustup](https://rustup.rs/) (the Makefile
-  Prerequisites block and the `cargo`-missing errors pin 1.96+; the toolchain
-  tracks the floating `stable` channel)
+- Rust stable with cargo, via [rustup](https://rustup.rs/).  The toolchain
+  tracks the floating `stable` channel pinned in `rust-toolchain.toml`, so
+  `Cargo.toml`'s `rust-version` bumps whenever stable does.  Current stable is
+  1.97.0, released 2026-07-07.  CI resolves `stable` at run time, so a fresh
+  release can fail `pr-gate`'s `cargo clippy -D warnings` on untouched code the
+  day it lands — `rustup update` before debugging a clippy failure you cannot
+  reproduce locally.
 - Node.js 24+ with npm (for the VS Code TypeScript extension; the npm CLI is
   pinned to v12 via the
   `packageManager` field in `editors/vscode/package.json`; run
@@ -161,7 +165,7 @@ The **source of truth** for each minimum version:
 
 | Requirement | Source of truth              | File                  |
 |-------------|------------------------------|-----------------------|
-| Rust        | pinned min (1.96+)           | `Cargo.toml` workspace `rust-version` (authoritative); `Makefile` Prerequisites echo it |
+| Rust        | current stable               | `Cargo.toml` workspace `rust-version` (authoritative, tracks stable); `rust-toolchain.toml` pins the channel; `Makefile` Prerequisites echo it |
 | Node.js     | CI matrix                    | `.github/workflows/ci.yml` |
 
 When changing a minimum version, update **all** of these locations:
