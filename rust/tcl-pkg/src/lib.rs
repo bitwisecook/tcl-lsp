@@ -66,7 +66,7 @@ pub fn cache_dir() -> PathBuf {
     let home = home_dir();
     #[cfg(target_os = "macos")]
     {
-        return home.join("Library").join("Caches").join("tcl-lsp");
+        home.join("Library").join("Caches").join("tcl-lsp")
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -101,10 +101,9 @@ pub fn config_dir() -> PathBuf {
     let home = home_dir();
     #[cfg(target_os = "macos")]
     {
-        return home
-            .join("Library")
+        home.join("Library")
             .join("Application Support")
-            .join("tcl-lsp");
+            .join("tcl-lsp")
     }
     #[cfg(not(target_os = "macos"))]
     {

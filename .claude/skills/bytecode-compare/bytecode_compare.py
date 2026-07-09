@@ -19,6 +19,12 @@
 
 """Compare our compiler bytecode against tclsh reference disassembly.
 
+*Ours* is the `<name>.golden` beside each fixture in the Rust codegen corpus,
+byte-identity gated against live codegen by `codegen_golden.rs`.  *Reference* is
+captured from a real tclsh by `scripts/capture/bytecode.sh` into
+`tests/bytecode_reference/<version>/` — run that first, or every snippet reports
+zero reference instructions.
+
 Usage:
     python3 .claude/skills/bytecode-compare/bytecode_compare.py [-v VERSION] <subcommand> [args...]
 
@@ -28,10 +34,10 @@ Options:
 
 Subcommands:
     all                  Compare all snippets, show detailed diffs
-    diff <snippet>       Instruction diff for one snippet (e.g. 08_while)
+    diff <snippet>       Instruction diff for one snippet (e.g. while-simple)
     summary              One-line per snippet summary
     instructions <snippet>  Side-by-side instruction listing
-    refresh              Regenerate our output and re-compare
+    refresh              Verify the goldens still match live codegen, then re-compare
     categories           Group differences by category
     versions <snippet>   Compare one snippet against all Tcl versions
 """
@@ -39,16 +45,25 @@ Subcommands:
 from __future__ import annotations
 
 import difflib
+import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
-# Ensure repo root is on sys.path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-sys.path.insert(0, str(REPO_ROOT))
 
-SNIPPETS_DIR = REPO_ROOT / "tests" / "bytecode_snippets"
-OURS_DIR = REPO_ROOT / "tests" / "bytecode_reference" / "ours"
+# The snippet corpus and *our* disassembly both live in the Rust codegen
+# fixtures. Each `<name>.tcl` has a sibling `<name>.golden` holding the
+# label-stripped disassembly the emitter produces for it, byte-identity gated by
+# `rust/tcl-compiler/tests/codegen_golden.rs`. So the goldens ARE our current
+# output whenever that test passes.
+SNIPPETS_DIR = (
+    REPO_ROOT / "rust" / "tcl-compiler" / "tests" / "fixtures" / "codegen" / "matching"
+)
+
+# tclsh reference disassembly, captured by `scripts/capture/bytecode.sh` into
+# `<version>/` subdirectories. Generated, not checked in.
 REF_BASE = REPO_ROOT / "tests" / "bytecode_reference"
 
 AVAILABLE_VERSIONS = ["8.4", "8.5", "8.6", "9.0"]
@@ -175,32 +190,31 @@ def load_disasm(path: Path) -> str:
 
 
 def snippet_names() -> list[str]:
-    """Return sorted list of snippet stems (e.g. '01_set_simple')."""
+    """Return sorted list of snippet stems (e.g. 'append-scalar')."""
     return sorted(p.stem for p in SNIPPETS_DIR.glob("*.tcl"))
+
+
+def ours_path(name: str) -> Path:
+    """Our disassembly for `name` — the golden beside the fixture."""
+    return SNIPPETS_DIR / f"{name}.golden"
 
 
 def ref_dir(version: str) -> Path:
     return REF_BASE / version
 
 
-def regenerate_ours() -> None:
-    """Regenerate our bytecode reference files."""
-    from compiler.cfg import build_cfg
-    from compiler.codegen.bytecode import codegen_module, format_module_asm
-    from compiler.lowering import lower_to_ir
+def regenerate_ours(bless: bool = False) -> int:
+    """Re-derive our disassembly from live source via the Rust golden test.
 
-    OURS_DIR.mkdir(parents=True, exist_ok=True)
-    for snippet in sorted(SNIPPETS_DIR.glob("*.tcl")):
-        source = snippet.read_text()
-        try:
-            ir = lower_to_ir(source)
-            cfg = build_cfg(ir, defer_top_level=True)
-            module = codegen_module(cfg, ir)
-            disasm = format_module_asm(module)
-        except Exception as e:
-            disasm = f"ERROR: {e}"
-        outfile = OURS_DIR / f"{snippet.stem}.disasm"
-        outfile.write_text(disasm + "\n")
+    `codegen_golden.rs` compiles every fixture through the Rust pipeline and
+    compares the label-stripped disassembly to its `.golden`. Running it plain
+    *verifies* the goldens still match live codegen; `BLESS_GOLDEN=1` rewrites
+    them after an intentional codegen change.
+    """
+    env = {"BLESS_GOLDEN": "1"} if bless else {}
+    cmd = ["cargo", "test", "-p", "tcl-compiler", "--test", "codegen_golden"]
+    proc = subprocess.run(cmd, cwd=REPO_ROOT, env={**os.environ, **env}, check=False)
+    return proc.returncode
 
 
 # Comparison logic
@@ -208,10 +222,9 @@ def regenerate_ours() -> None:
 
 def compare_snippet(name: str, version: str = DEFAULT_VERSION) -> dict:
     """Compare one snippet against a specific Tcl version."""
-    ours_path = OURS_DIR / f"{name}.disasm"
     ref_path = ref_dir(version) / f"{name}.disasm"
 
-    ours_text = load_disasm(ours_path)
+    ours_text = load_disasm(ours_path(name))
     ref_text = load_disasm(ref_path)
 
     ours_instrs = extract_instructions(ours_text)
@@ -268,7 +281,9 @@ def categorise_differences(result: dict) -> list[str]:
     ours_done_count = result["ours_ops"].count("done")
     ref_done_count = result["ref_ops"].count("done")
     if ours_done_count > ref_done_count:
-        cats.append(f"extra-done: {ours_done_count - ref_done_count} extra done instructions")
+        cats.append(
+            f"extra-done: {ours_done_count - ref_done_count} extra done instructions"
+        )
 
     return cats
 
@@ -304,9 +319,7 @@ def cmd_summary(version: str) -> None:
         if result["match"]:
             matches += 1
         status = fmt_match(result["match"])
-        count_info = (
-            f"ours: {result['ours_count']:2d} instrs  {version}: {result['ref_count']:2d} instrs"
-        )
+        count_info = f"ours: {result['ours_count']:2d} instrs  {version}: {result['ref_count']:2d} instrs"
         diff = result["ours_count"] - result["ref_count"]
         diff_str = f"({'+' if diff > 0 else ''}{diff})" if diff != 0 else ""
         print(f"  {name:<25s} {status}  {count_info}  {diff_str}")
@@ -342,7 +355,9 @@ def cmd_diff(name: str, version: str) -> None:
     result = compare_snippet(name, version)
     print(f"{BOLD}=== {name} (vs tclsh {version}) ==={RESET}")
     print(f"Status: {fmt_match(result['match'])}")
-    print(f"Instruction counts: ours={result['ours_count']}, {version}={result['ref_count']}")
+    print(
+        f"Instruction counts: ours={result['ours_count']}, {version}={result['ref_count']}"
+    )
     print()
     _print_diff(result)
 
@@ -426,9 +441,17 @@ def cmd_instructions(name: str, version: str) -> None:
 
 
 def cmd_refresh(version: str) -> None:
-    """Regenerate our output and show comparison."""
-    print("Regenerating our bytecode reference...")
-    regenerate_ours()
+    """Verify our goldens still match live codegen, then show the comparison."""
+    print("Verifying our disassembly against live codegen (codegen_golden)...")
+    rc = regenerate_ours()
+    if rc != 0:
+        print(
+            "\ncodegen_golden failed: the goldens no longer match what the compiler\n"
+            "emits. If the codegen change was intentional, re-bless them with:\n"
+            "    BLESS_GOLDEN=1 cargo test -p tcl-compiler --test codegen_golden\n",
+            file=sys.stderr,
+        )
+        raise SystemExit(rc)
     print("Done.\n")
     cmd_summary(version)
 
@@ -474,9 +497,7 @@ def cmd_versions(name: str) -> None:
 
         result = compare_snippet(name, version)
         status = fmt_match(result["match"])
-        count_info = (
-            f"ours: {result['ours_count']:2d} instrs  {version}: {result['ref_count']:2d} instrs"
-        )
+        count_info = f"ours: {result['ours_count']:2d} instrs  {version}: {result['ref_count']:2d} instrs"
         diff = result["ours_count"] - result["ref_count"]
         diff_str = f"({'+' if diff > 0 else ''}{diff})" if diff != 0 else ""
         print(f"  tclsh {version}:  {status}  {count_info}  {diff_str}")

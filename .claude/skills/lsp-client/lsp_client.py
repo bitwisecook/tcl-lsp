@@ -311,7 +311,9 @@ class LspClient:
                 # Give a tiny bit more time for additional notifications
                 time.sleep(0.1)
                 with self._lock:
-                    matches = [n for n in self._notifications if n.get("method") == method]
+                    matches = [
+                        n for n in self._notifications if n.get("method") == method
+                    ]
                 return matches
             time.sleep(0.05)
         # Timeout — return whatever we have
@@ -560,7 +562,9 @@ def print_semantic_tokens(tokens: list[dict]) -> None:
     print(f"=== Semantic Tokens ({len(tokens)} tokens) ===")
     for tok in tokens:
         mods = " [" + ",".join(tok["modifiers"]) + "]" if tok["modifiers"] else ""
-        print(f'  {tok["line"]:3d}:{tok["col"]:<3d}  {tok["type"]:<12s}  "{tok["text"]}"{mods}')
+        print(
+            f'  {tok["line"]:3d}:{tok["col"]:<3d}  {tok["type"]:<12s}  "{tok["text"]}"{mods}'
+        )
 
 
 def print_diagnostics(diag_params: list[dict]) -> None:
@@ -651,25 +655,31 @@ def print_hover(result: dict | None) -> None:
                 print(f"  {item}")
 
 
-def print_completions(items: list[dict] | None) -> None:
-    """Print completion items."""
-    if items is None:
-        items = []
-    # Handle both CompletionList and direct array
-    if isinstance(items, dict):
-        items = items.get("items", [])
+def print_completions(items: list[dict] | dict | None) -> None:
+    """Print completion items.
 
-    print(f"=== Completions ({len(items)} items) ===")
+    `textDocument/completion` may answer with a bare array or a CompletionList
+    object; both shapes reach here.
+    """
+    entries: list[dict]
+    if items is None:
+        entries = []
+    elif isinstance(items, dict):
+        entries = items.get("items", [])
+    else:
+        entries = items
+
+    print(f"=== Completions ({len(entries)} items) ===")
     # Show first 30 items
-    for item in items[:30]:
+    for item in entries[:30]:
         label = item.get("label", "?")
         kind_num = item.get("kind", 0)
         kind = COMPLETION_KIND.get(kind_num, f"({kind_num})")
         detail = item.get("detail", "")
         detail_str = f"  -- {detail}" if detail else ""
         print(f"  {label:<30s}  {kind:<12s}{detail_str}")
-    if len(items) > 30:
-        print(f"  ... and {len(items) - 30} more")
+    if len(entries) > 30:
+        print(f"  ... and {len(entries) - 30} more")
 
 
 def print_locations(locations: list[dict] | None, label: str) -> None:
@@ -910,7 +920,9 @@ def _detect_events(source: str) -> list[str]:
     """Detect iRule event names from source (when EVENT { ... })."""
     events: list[str] = []
     seen: set[str] = set()
-    for match in re.finditer(r"^\s*when\s+([A-Z][A-Z0-9_]{2,})\b", source, re.MULTILINE):
+    for match in re.finditer(
+        r"^\s*when\s+([A-Z][A-Z0-9_]{2,})\b", source, re.MULTILINE
+    ):
         name = match.group(1)
         if name not in seen:
             seen.add(name)
@@ -1170,7 +1182,9 @@ def cmd_context(client: LspClient, uri: str, content: str) -> None:
             for sym in flat[:15]:
                 indent = "  " * sym["depth"]
                 detail = f" {sym['detail']}" if sym["detail"] else ""
-                print(f"  {indent}{sym['kind']} {sym['name']}{detail} (line {sym['line']})")
+                print(
+                    f"  {indent}{sym['kind']} {sym['name']}{detail} (line {sym['line']})"
+                )
             if len(flat) > 15:
                 print(f"  ... and {len(flat) - 15} more")
         else:
@@ -1229,7 +1243,9 @@ def cmd_all(client: LspClient, uri: str, content: str) -> None:
 _TIMING_RE = re.compile(r"\[timing\]\s+(\S+)\s+([\d.]+)ms")
 
 
-def cmd_bench(client: LspClient, uri: str, content: str, *, iterations: int = 1) -> None:
+def cmd_bench(
+    client: LspClient, uri: str, content: str, *, iterations: int = 1
+) -> None:
     """Benchmark time-to-semantic-tokens replicating VS Code's request pattern.
 
     VS Code sends requests sequentially after didOpen:
@@ -1290,7 +1306,7 @@ def cmd_bench(client: LspClient, uri: str, content: str, *, iterations: int = 1)
         # Sequential request chain — each waits for its response.
         step_times: list[tuple[str, float]] = []
 
-        def _step(name: str, method: str, params: dict) -> object:
+        def _step(name: str, method: str, params: dict) -> Any:
             t = time.perf_counter()
             result = client.send_request(method, params, timeout=120.0)
             elapsed = (time.perf_counter() - t) * 1000
@@ -1435,7 +1451,9 @@ examples:
   %(prog)s all samples/for_screenshots/03-completions.tcl
 """,
     )
-    parser.add_argument("--server-dir", help="Path to tcl-lsp directory (auto-detected by default)")
+    parser.add_argument(
+        "--server-dir", help="Path to tcl-lsp directory (auto-detected by default)"
+    )
     parser.add_argument(
         "--server",
         choices=["python", "rust"],
@@ -1494,7 +1512,9 @@ examples:
     p.add_argument("end_col", type=int, help="End column (0-based)")
 
     # optimize
-    p = sub.add_parser("optimize", help="Show optimization suggestions and rewritten source")
+    p = sub.add_parser(
+        "optimize", help="Show optimization suggestions and rewritten source"
+    )
     p.add_argument("file", help="Tcl file to optimize")
 
     # symbols
@@ -1502,7 +1522,9 @@ examples:
     p.add_argument("file", help="Tcl file to analyze")
 
     # diagram
-    p = sub.add_parser("diagram", help="Extract control flow diagram data from compiler IR")
+    p = sub.add_parser(
+        "diagram", help="Extract control flow diagram data from compiler IR"
+    )
     p.add_argument("file", help="Tcl/iRule file to analyze")
 
     # event-info (no file needed)
@@ -1514,7 +1536,9 @@ examples:
     p.add_argument("name", help="iRules command name (e.g. HTTP::uri)")
 
     # context
-    p = sub.add_parser("context", help="Build context pack: diagnostics + symbols + event metadata")
+    p = sub.add_parser(
+        "context", help="Build context pack: diagnostics + symbols + event metadata"
+    )
     p.add_argument("file", help="Tcl file to analyze")
 
     # all
@@ -1529,13 +1553,20 @@ examples:
     )
     p.add_argument("file", help="Tcl file to benchmark")
     p.add_argument(
-        "--iterations", type=int, default=1, help="Number of benchmark iterations (default: 1)"
+        "--iterations",
+        type=int,
+        default=1,
+        help="Number of benchmark iterations (default: 1)",
     )
 
     # logs
-    p = sub.add_parser("logs", help="Collect and display server logs and timing information")
+    p = sub.add_parser(
+        "logs", help="Collect and display server logs and timing information"
+    )
     p.add_argument("file", help="Tcl file to open (triggers server processing)")
-    p.add_argument("--timing-only", action="store_true", help="Show only [timing] entries")
+    p.add_argument(
+        "--timing-only", action="store_true", help="Show only [timing] entries"
+    )
 
     args = parser.parse_args()
 
@@ -1612,7 +1643,9 @@ examples:
                 case "references":
                     cmd_references(client, uri, args.line, args.col)
                 case "code-actions":
-                    cmd_code_actions(client, uri, args.line, args.col, args.end_line, args.end_col)
+                    cmd_code_actions(
+                        client, uri, args.line, args.col, args.end_line, args.end_col
+                    )
                 case "optimize":
                     cmd_optimize(client, uri, content)
                 case "symbols":

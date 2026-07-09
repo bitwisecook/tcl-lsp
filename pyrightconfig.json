@@ -1,0 +1,16 @@
+{
+  "include": [
+    ".claude/skills",
+    "editors/sublime-text",
+    "experiments",
+    "rust/bigip-report-gen/python",
+    "samples"
+  ],
+  "exclude": ["**/__pycache__", "**/node_modules", "**/.venv*", "**/target"],
+  "stubPath": "typings",
+  "venvPath": ".",
+  "venv": ".venv-typecheck",
+  "pythonVersion": "3.10",
+  "typeCheckingMode": "standard",
+  "reportMissingModuleSource": "none"
+}

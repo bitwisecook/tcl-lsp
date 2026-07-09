@@ -1,120 +1,112 @@
 ---
 name: compiler-explorer
 description: >
-  Debug the Tcl compiler pipeline (lexer → green tree → segmenter → IR → CFG →
-  SSA → codegen) running from source — never a built pyz/zipapp. Wraps the
-  tcl-explorer CLI and adds source-slice and raw-token views that make
-  off-by-one range bugs obvious. Use when investigating a wrong diagnostic
-  position, a stray-brace / unmatched-delimiter false positive, a mis-tokenised
-  word, an IR statement whose range looks wrong, or any time you need to see
-  what the compiler produces for a snippet of Tcl.
+  Debug the Tcl compiler pipeline (parser → CST → segmenter → IR → CFG → SSA →
+  codegen) running from source — never a stale build. Wraps the `tcl explore`
+  CLI and adds source-slice and CST-leaf views that make off-by-one range bugs
+  obvious. Use when investigating a wrong diagnostic position, a stray-brace /
+  unmatched-delimiter false positive, a mis-parsed word, an IR statement whose
+  range looks wrong, or any time you need to see what the compiler produces for
+  a snippet of Tcl.
 allowed-tools: Bash, Read
 ---
 
 # Compiler Explorer Skill
 
 Inspect every stage of the Tcl compiler for a snippet of source, **running from
-the working tree** (`python -m tooling.explorer`) so what you see is the live
-code, not a stale `.pyz`. Built on the `tcl-explorer` CLI (24 views) plus two
-local views — `slices` and `tokens` — that the raw CLI does not provide and that
-catch range / offset bugs at a glance.
+the working tree** so what you see is the live code. Built on `tcl explore` (the
+Rust compiler-explorer surface in `rust/tcl-cli`) plus three local views —
+`slices`, `tokens`, and `cst` — that catch range / offset bugs at a glance.
+
+By default the wrapper shells out to `cargo run -q -p tcl-cli --bin tcl`, so the
+explorer always reflects the current source. Export `TCL_EXPLORE_BIN=/path/to/tcl`
+to use a prebuilt binary and skip the rebuild.
 
 ## Usage
 
 Run from the repo root:
 
 ```bash
-python .claude/skills/compiler-explorer/explore.py <view> [--source S | FILE | -] [--dialect D] [--opt off|on|diff]
+python .claude/skills/compiler-explorer/explore.py <view> [--source S | FILE | -] [--dialect D]
 ```
 
 Input is taken from `--source "..."`, a file path, or stdin (`-`), exactly like
 the explorer CLI.
 
+## Offsets are half-open
+
+The explorer's JSON contract reports `[startOffset, endOffset)`. A statement
+covering `set x 1` in a 7-byte document reports `off 0-7`. Slices are therefore
+`source[start:end]`.
+
 ## Views
 
-### Local views (added by this skill)
+### Local views (rendered by this skill)
 
 | View | What it shows | Why it helps |
 |---|---|---|
 | `slices` | Every IR statement's range as offsets **and `[line:col]`**, plus the literal `repr(source[start:end])` the range covers | A one-byte range overshoot reads as an extra delimiter in the slice (`'return {}}'` vs `'return {}'`). This is how issue #527 was found. |
-| `tokens` | The raw lexer token stream: `TokenType`, text, absolute offsets, and the source slice each token covers | A mis-placed `Token.end.offset` (e.g. the empty-`{}` convention) shows up directly. |
-| `lowlevel` | `tokens` + `greentree` + `slices` back to back | One-shot low-level overview for a quick triage. |
+| `tokens` | The CST's **leaf** nodes: kind, absolute offsets, and the source slice each covers | A mis-placed `endOffset` shows up directly. |
+| `cst` | The parse tree as an indented tree with offsets and tags | Brace-matching and delimiter questions. |
+| `lowlevel` | `tokens` + `cst` + `slices` back to back | One-shot low-level overview for a quick triage. |
 
-### Forwarded `tcl-explorer` views
+The Rust parser builds a single red-green CST directly, so there is **no separate
+lexer token stream** and no standalone green tree. `tokens` reports CST leaves —
+the terminal spans the compiler actually consumes. `greentree` is accepted as a
+deprecated alias for `cst`.
 
-Any other `<view>` is forwarded to `python -m tooling.explorer --show <view>`
-with `--text --no-colour`. The full catalogue (see `tooling/explorer/pipeline.py`
-`ALL_VIEWS`):
+`cst` is rendered locally rather than forwarded because `tcl explore --text` has
+no renderer for it; it exists only in the `--json` contract.
 
-`greentree`, `ir`, `cfg`, `ssa`, `loops`, `intervals`, `bounds`, `interproc`,
-`types`, `rendered`, `dataflow`, `opt`, `gvn`, `shimmer`, `taint`, `irules`,
-`event-order`, `callouts`, `asm`, `wasm`, `asm-opt`, `wasm-opt`, plus the groups
-`all`, `compiler`, `optimiser`.
+### Forwarded `tcl explore` views
 
-The `--opt off|on|diff` lens applies to the `ir`/`cfg`/`ssa`/`asm`/`wasm` views
-(original path, optimised path, or a diff of the two).
+Any other `<view>` is forwarded to `tcl explore --show <view> --text --no-colour`.
+The full catalogue (`VIEW_META` in `rust/tcl-explorer/src/views.rs`):
+
+`cst`, `segments`, `structuralIndex`, `sourceMap`, `ir`, `cfg`, `ssa`, `loops`,
+`types`, `intervals`, `bounds`, `dataflow`, `interproc`, `rendered`, `opt`,
+`optimiserPasses`, `gvn`, `shimmer`, `taint`, `irules`, `eventOrder`, `callouts`,
+`asm`, `asmOpt`, `wasm`, `wasmOpt`.
+
+Four of those have **no text renderer** and are reachable only via `--json`:
+`cst` (rendered locally instead), `segments`, `asmOpt`, `wasmOpt`. Asking for one
+prints `compiler explorer: no matching views`.
+
+> [!WARNING]
+> `--show` matches view names by **substring**, not exact name. `--show all` does
+> not mean "every view" — it renders only `callouts`, the one name containing the
+> substring `all`. Likewise `--show ss` matches both `ssa` and `optimiserPasses`.
+> Pass exact names.
+
+There is no `--opt` lens. The optimised paths are their own views (`opt`,
+`optimiserPasses`, `asmOpt`, `wasmOpt`).
 
 ## Examples
 
 ```bash
 # Issue #527 reproducer — the slice exposes the overshoot instantly
 python .claude/skills/compiler-explorer/explore.py slices --source 'if {1} {return {}}'
-#   IRReturn   off 8-16  [1:9-1:17]  slice='return {}'      <- correct
+#   IRIf       off 0-18  [1:1-1:19]  slice='if {1} {return {}}'
+#   IRReturn   off 8-17  [1:9-1:18]  slice='return {}'      <- correct
 #   (a bug would read slice='return {}}' with a trailing brace)
 
-# Raw tokens with offsets + slices
+# CST leaf spans with offsets + slices
 python .claude/skills/compiler-explorer/explore.py tokens --source 'set x {}'
 
-# Green (red-green) tree for a brace-matching question
-python .claude/skills/compiler-explorer/explore.py greentree --source 'if {1} {return {}}'
+# Parse tree for a brace-matching question
+python .claude/skills/compiler-explorer/explore.py cst --source 'if {1} {return {}}'
 
 # Lowered IR / control-flow graph / bytecode
 python .claude/skills/compiler-explorer/explore.py ir  --source 'set x 1; puts $x'
 python .claude/skills/compiler-explorer/explore.py cfg --source 'if {$x > 0} {set a 1}'
 python .claude/skills/compiler-explorer/explore.py asm --source 'return 42'
 
-# Optimiser diff
-python .claude/skills/compiler-explorer/explore.py ir --opt diff --source 'expr {$x + $x + $x}'
+# Optimiser views
+python .claude/skills/compiler-explorer/explore.py opt --source 'expr {$x + $x + $x}'
 
 # A specific dialect (F5 iRules)
 python .claude/skills/compiler-explorer/explore.py ir --dialect f5-irules --source 'when CLIENT_ACCEPTED {set x 1}'
 
-# File or stdin input
-python .claude/skills/compiler-explorer/explore.py lowlevel samples/foo.tcl
-echo 'set x 1' | python .claude/skills/compiler-explorer/explore.py ir -
+# Skip the cargo rebuild when the tree is already built
+TCL_EXPLORE_BIN=target/release/tcl python .claude/skills/compiler-explorer/explore.py slices --source 'set x 1'
 ```
-
-## Debugging a range / position bug (the #527 workflow)
-
-When a diagnostic fires on the wrong characters, or a stray-brace / unmatched
-delimiter is reported on valid code:
-
-1. **`slices`** — find the IR statement whose `slice=` reads wider or narrower
-   than the actual command. An extra trailing `}` / `]` means the statement
-   range overshoots its last argument.
-2. **`tokens`** — confirm where the over/undershoot starts. Empty braced/bracket
-   words `{}` / `[]` are the usual suspect: the lexer reports `end.offset` *on*
-   the closer, so any `end.offset + 1` arithmetic overshoots by one (see
-   `shared/ranges.range_from_word_token`).
-3. **`greentree`** — confirm the green tree itself is correct; a correct tree
-   with a wrong IR range points at the segmenter / range helpers, not the lexer.
-
-## Running the explorer directly
-
-The skill is a convenience wrapper; the underlying tool is always available
-from source for anything the wrapper does not cover (TUI, JSON, multi-view):
-
-```bash
-python -m tooling.explorer --source 'set x 1' --show ir,types,opt --text --no-colour
-python -m tooling.explorer --source 'set x 1' --show all --json     # machine-readable
-python -m tooling.explorer samples/foo.tcl --tui                    # interactive
-```
-
-## When to use
-
-- A diagnostic highlights the wrong span, or fires on valid code.
-- Investigating lexer / green-tree / segmenter / IR-range correctness.
-- Checking what IR, CFG, SSA, or bytecode the compiler emits for a snippet.
-- Comparing original vs optimised IR/bytecode (`--opt diff`).
-
-$ARGUMENTS

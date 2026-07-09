@@ -2,10 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, rust]
     tags: ["v*"]
   pull_request:
-    branches: [main]
+    branches: [main, rust]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -24,11 +24,11 @@ jobs:
   # "rust") line?  Reuses scripts/release/prerelease.sh — the single source of
   # truth for the odd/even-minor convention — so the test gate, the GitHub
   # Release, and the Marketplace publish all agree on the channel from the tag
-  # alone.  A pre-release tag (v2.1.x) is cut from `rust` and gated by the Rust
-  # suite (`rust-tests`); the fast gate (`pr-gate`) and the extension backstop
-  # (`test-ext`) run as step-skipped no-ops on those tags so the release graph
-  # stays unbroken.  For branches, PRs, and stable tags this is `false`, so the
-  # gates run in full.
+  # alone.  A pre-release tag (v2.1.x) is cut from `rust` and gated by the cargo
+  # suites (`rust-tests`, `rust-tests-heavy`, `lsp-e2e`, `cargo-deny`); the fast
+  # gate (`pr-gate`) and the extension suite (`test-ext`) run as step-skipped
+  # no-ops on those tags so the release graph stays unbroken.  For branches,
+  # PRs, and stable tags this is `false`, so the gates run in full.
   channel:
     runs-on: ubuntu-24.04
     outputs:
@@ -51,10 +51,11 @@ jobs:
 
   # Fast PR gate.  Runs on every PR and every push.  Covers the Rust fast
   # checks: `cargo fmt --check`, `cargo clippy --workspace`, and the
-  # generated-file drift gates (`make xtask-check`).  Everything else is the
-  # responsibility of `make test-slow` locally (enforced by the pre-push
-  # hook installed via `make install-hooks`).  See AGENTS.md for the rule
-  # that agents must run test-slow before opening a PR.
+  # generated-file drift gates (`make xtask-check`).  The test surface runs
+  # concurrently in `rust-tests`, `rust-tests-heavy`, `lsp-e2e`, `cargo-deny`,
+  # `test-ext` and `python` — all on every PR and push.  See AGENTS.md for the
+  # local gates (`make check-all`, plus the heavier suites) agents must run
+  # before pushing / opening a PR.
   pr-gate:
     # Rust-side fast gate (fmt / clippy / generated-file drift).  For
     # pre-release (odd-minor 2.x) tags the gate WORK is skipped at the step
@@ -62,9 +63,10 @@ jobs:
     # deliberate: skipping the whole job would transitively skip create-release
     # and every build/publish job (GitHub's success() propagates a skipped
     # ancestor through the needs graph).  Those tags are cut from `rust` and
-    # gated by rust-tests instead.  Runs in full for PRs, main pushes, stable.
+    # gated by the cargo jobs instead.  Runs in full for PRs, main pushes,
+    # stable tags.
     needs: [channel]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -88,40 +90,16 @@ jobs:
           cargo clippy --workspace --all-targets -- -D warnings
           make xtask-check
 
-  # PR gate: the committed `.test-slow.stamp` must match the code under
-  # test.  `make test-slow` rewrites that stamp on success with a content
-  # fingerprint of every tracked file (the stamp excepted), so a matching
-  # stamp proves the full local gate was run against exactly this tree.
-  # Content-addressed, hence reliable even though `actions/checkout`
-  # resets file mtimes — a timestamp comparison could not work here.
-  # Fails loudly with remediation steps; see AGENTS.md for the rule that
-  # agents must run test-slow before opening a PR.
-  test-slow-stamp:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          # Verify the PR's OWN head, not the default merge commit: the
-          # stamp records the fingerprint the agent ran test-slow against
-          # on their branch, so checking the merge-with-main tree would
-          # fail spuriously whenever main advanced.  Only tracked-file
-          # content is hashed, so a shallow checkout is enough.
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 1
-
-      - name: Verify test-slow stamp matches the code under test
-        run: bash scripts/test-slow-stamp.sh check
-
-  # Backstop: VS Code extension tests — runs only on push to main and on tags.
-  # PRs are gated by pr-gate; locally this is covered by `make test-slow`.
+  # VS Code extension tests: Node.js + xvfb driving the VS Code test host
+  # against the native server.  A distinct, heavier stack than the cargo
+  # surfaces, so it reports as its own status check and runs concurrently with
+  # them.  Runs on every PR and push, so it can serve as a required check.
   test-ext:
-    # The VS Code extension suite.  For pre-release (odd-minor 2.x) tags the
-    # test STEP is skipped (below) while the job still succeeds, so the release
-    # graph is not transitively skipped; gated by rust-tests.
+    # For pre-release (odd-minor 2.x) tags the test STEP is skipped (below)
+    # while the job still succeeds, so the release graph is not transitively
+    # skipped; those tags are gated by the cargo jobs.
     needs: [channel]
-    if: github.event_name == 'push'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -190,56 +168,204 @@ jobs:
         if: needs.channel.outputs.prerelease != 'true'
         run: make test-ext
 
-  # Rust product gate for `main`.  rust-gate.yml / rust-lsp-e2e.yml are the
-  # blocking checks on the `rust` branch during the rewrite; once `rust` merges
-  # into `main` those workflows no longer fire, so this job is what keeps the
-  # Rust workspace + native-server lsp_e2e suite green on `main`.  Runs on every
-  # PR and push (unlike the push-only Python/extension backstops) because, with
-  # rust-gate gone, nothing else exercises the Rust product on a PR to `main`.
+  # Rust product gate.  ci.yml triggers on both `main` and `rust`, so one
+  # pipeline covers them.  Runs on every PR and push, because nothing else
+  # exercises the Rust product on a PR.
   #
-  # Kept consistent with rust-gate.yml: same `cargo test --workspace
-  # --all-features --no-fail-fast` invocation, same Swatinem cache, toolchain
-  # resolved from rust-toolchain.toml.  The lsp_e2e suite is now native
-  # (rust/tcl-lsp-server/tests/*_e2e.rs) and runs as part of `cargo test
-  # --workspace` — no separate pytest step or Python env.
+  # `cargo test --workspace --all-features --no-fail-fast`, Swatinem cache,
+  # toolchain resolved from rust-toolchain.toml.
+  #
+  # The cargo surface is split across FOUR concurrent jobs so the CPU-bound
+  # suites don't serialise behind each other.  Wall-clock is the max of the
+  # four, not their sum.  All four are required status checks on `rust`:
+  #
+  #   rust-tests        workspace minus the VM-sim heavies and tcl-lsp-server,
+  #                     plus ALL workspace doctests (cheap; nextest can't run
+  #                     doctests, so they live here once rather than in each job)
+  #   rust-tests-heavy  the VM-sim heavies (`tcl-irule-test`, `f5-cli`), which
+  #                     alone were ~2/3 of the run — each sources ~500 KB of
+  #                     orchestrator Tcl on a fresh `tcl-vm` per test
+  #   lsp-e2e           the native lsp_e2e suite: spawns the real tcl-lsp-server
+  #                     via CARGO_BIN_EXE_tcl-lsp-server and drives LSP JSON-RPC
+  #                     over stdio (rust/tcl-lsp-server/tests/*_e2e.rs)
+  #   cargo-deny        supply-chain audit, isolated so a denial is attributable
+  #                     independently of the test surface
+  #
+  # nextest runs every test binary's tests in ONE global parallel pool, so the
+  # VM-sim suites overlap instead of running one binary at a time — a large
+  # wall-clock win over `cargo test`, which runs test binaries serially.
+  #
+  # `tcl-lsp-server` is excluded from rust-tests because lsp-e2e runs that crate
+  # in full.  The crate declares no [features], so dropping it from the
+  # `--all-features` workspace run costs no coverage.
   rust-tests:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 1
 
-      # rust-toolchain.toml pins the channel (stable); the action installs it
-      # and wires up the Swatinem cache (registry + target dir).
+      # Must install `stable` explicitly rather than lean on the runner's
+      # preinstalled rustup: the image ships a pinned stable (e.g. 1.96.1) and
+      # `rust-toolchain.toml`'s `channel = "stable"` resolves to *that*, not to
+      # the newest release.  Cargo then refuses the workspace's `rust-version`.
+      # The action installs the current stable and wires up the Swatinem cache
+      # (keyed per job, so the concurrent cargo jobs don't race on save).
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
         with:
           toolchain: stable
+          cache-key: rust-tests
 
-      # --no-fail-fast: run every test binary even after one fails, so a single
-      # run lists all failing crates rather than aborting at the first.  Matches
-      # rust-gate.yml exactly.  Includes the native lsp_e2e suite.
-      - name: cargo test --workspace --all-features
-        run: cargo test --workspace --all-features --no-fail-fast
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2.82.7
+        with:
+          tool: nextest
 
-      # Supply-chain audit (advisories / licenses / bans / sources) via the
-      # committed deny.toml.  Action defaults already match the `make rust-deny`
-      # invocation: `command: check`, `arguments: --all-features`,
-      # `manifest-path: ./Cargo.toml` — deny.toml and the workspace manifest
-      # both live at the repo root.
+      # --no-fail-fast: report every failure, not just the first.
+      - name: cargo nextest run (workspace minus VM-sim heavies and lsp-e2e)
+        run: cargo nextest run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --all-features --no-fail-fast
+
+      # nextest does not run doctests; run them for the WHOLE workspace (incl.
+      # the crates excluded above — doctests are cheap) so the other jobs need
+      # not duplicate them.  Deps are already built, so this is compile + run.
+      - name: cargo test --doc
+        run: cargo test --workspace --all-features --doc --no-fail-fast
+
+  # The heavy VM-simulation suites, split out to run concurrently with
+  # `rust-tests` (see that job's header).  Doctests are covered there.
+  rust-tests-heavy:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          toolchain: stable
+          # This job builds only the heavy crates + their deps, so it gets its
+          # own cache rather than racing rust-tests on save.
+          cache-key: rust-tests-heavy
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2.82.7
+        with:
+          tool: nextest
+
+      - name: cargo nextest run (VM-sim heavies)
+        run: cargo nextest run -p tcl-irule-test -p f5-cli --all-features --no-fail-fast
+
+  # Native-server lsp_e2e suite.  Its own job (hence its own status check)
+  # because it is a distinct, heavier surface: it builds the `tcl-lsp-server`
+  # binary and drives the end-to-end LSP suite against it over stdio JSON-RPC.
+  # Fully native — the Rust port of the former Python `tests/lsp_e2e/` pytest
+  # suite, so no Python and no uv.  Also covers the crate's `*_smoke.rs` tests.
+  lsp-e2e:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          toolchain: stable
+          cache-key: lsp-e2e
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2.82.7
+        with:
+          tool: nextest
+
+      # The integration tests spawn the real `tcl-lsp-server` binary via
+      # `CARGO_BIN_EXE_tcl-lsp-server` (cargo builds it as a test dependency)
+      # and talk LSP JSON-RPC to it over stdio.  nextest runs them in one
+      # parallel pool (no serial-per-binary penalty).
+      - name: lsp_e2e against the native Rust server
+        run: cargo nextest run -p tcl-lsp-server --no-fail-fast
+
+  # Supply-chain audit (advisories / licenses / bans / sources) via the
+  # committed deny.toml.  Its own job so a denial is attributable independently
+  # of the cargo test surface, and so it runs concurrently with it.  Action
+  # defaults already match the `make rust-deny` invocation: `command: check`,
+  # `arguments: --all-features`, `manifest-path: ./Cargo.toml` — deny.toml and
+  # the workspace manifest both live at the repo root.
+  cargo-deny:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
       - name: cargo deny check
         uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe # v2.0.20
+
+  # Python gate: ruff (format + lint) and two type checkers (ty, pyright) over
+  # every tracked .py file.  Runs concurrently with the cargo jobs.
+  #
+  # `make typecheck-py` builds a venv that installs the f5report package, which
+  # maturin-compiles the native `_engine` extension — so the checkers resolve
+  # every import for real rather than suppressing `unresolved-import`.  That is
+  # why this job needs a Rust toolchain.  The Sublime host APIs (`sublime`,
+  # `sublime_plugin`, `LSP.plugin`) exist only inside the editor process and are
+  # declared by hand-written stubs under typings/.
+  #
+  # Tool versions are pinned in the Makefile so a new ruff/ty/pyright release
+  # cannot change a gate's verdict between a local run and CI.
+  python:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      # `make lint-py` / `typecheck-py` derive their file list from
+      # `git ls-files '*.py'`, so the checkout must be a real git repo (it is).
+
+      # Needed by maturin to build the native `_engine` extension module.
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          toolchain: stable
+          cache-key: python-engine
+
+      # Pinned installer rather than a floating action, so the uv that resolves
+      # the pinned tool versions is itself pinned.
+      - name: Install uv
+        env:
+          UV_VERSION: "0.11.28"
+        run: |
+          curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Verify uv version
+        run: |
+          actual="$(uv --version | awk '{print $2}')"
+          echo "uv $actual"
+          [ "$actual" = "0.11.28" ] || { echo "::error::expected uv 0.11.28, got $actual"; exit 1; }
+
+      - name: ruff (format --check + check)
+        run: make lint-py
+
+      - name: ty + pyright
+        run: make typecheck-py
 
   # Release: create (or verify) the GitHub Release so each build job
   # can upload its artifact independently — no single slow or failing
   # build blocks the others.
   create-release:
     if: startsWith(github.ref, 'refs/tags/v')
-    # Gated on the fast gate (pr-gate) AND rust-tests.  For a pre-release tag
-    # pr-gate runs as a no-op that still reports success (the heavy step is
-    # step-skipped), so this job runs and is effectively gated on rust-tests;
-    # for a stable tag it runs for real and a failure blocks here.
-    needs: [channel, pr-gate, rust-tests]
+    # Gated on the fast gate (pr-gate) AND the whole cargo test surface.  For a
+    # pre-release tag pr-gate runs as a no-op that still reports success (the
+    # heavy step is step-skipped), so this job runs and is effectively gated on
+    # the cargo jobs; for a stable tag pr-gate runs for real and a failure
+    # blocks here.  The cargo jobs have no step-level skip, so they gate every
+    # tag unconditionally.
+    needs:
+      [channel, pr-gate, rust-tests, rust-tests-heavy, lsp-e2e, cargo-deny, python]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload

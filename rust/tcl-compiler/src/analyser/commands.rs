@@ -1591,7 +1591,10 @@ impl Analyser {
         let inner = value.trim().strip_prefix('[')?.strip_suffix(']')?;
         let head = inner.split_whitespace().next()?;
         let reg = self.registry.as_ref()?;
-        if reg.get(head).is_some_and(|s| s.creates_instance_at.is_some()) {
+        if reg
+            .get(head)
+            .is_some_and(|s| s.creates_instance_at.is_some())
+        {
             return reg.object_class(head).map(|c| c.class_name.to_string());
         }
         None
@@ -1658,7 +1661,9 @@ impl Analyser {
         // an instance of `class` regardless of whether a name was passed.
         if let Some(reg) = self.registry.as_ref()
             && reg.object_class(class).is_some()
-            && reg.get(class).is_some_and(|s| s.creates_instance_at.is_some())
+            && reg
+                .get(class)
+                .is_some_and(|s| s.creates_instance_at.is_some())
         {
             return Some(class.to_string());
         }

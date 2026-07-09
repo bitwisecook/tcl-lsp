@@ -1329,7 +1329,9 @@ mod tests {
             });
         }
 
-        let resolved = reg.instance_method("Diamond", "m").expect("method resolves");
+        let resolved = reg
+            .instance_method("Diamond", "m")
+            .expect("method resolves");
         assert_eq!(
             resolved.detail, "left",
             "breadth-first, declaration-ordered walk visits Left before Right"
@@ -1987,7 +1989,8 @@ mod tests {
             vec![(1, AppendedArity::Exactly(1))],
         );
         assert!(
-            reg.command_prefixes("fileutil::find", &["/base"]).is_empty(),
+            reg.command_prefixes("fileutil::find", &["/base"])
+                .is_empty(),
             "the basedir-only fileutil::find form has no filter prefix",
         );
 
@@ -2169,7 +2172,11 @@ mod tests {
             vec![(4, AppendedArity::Exactly(3))],
         );
         assert_eq!(
-            reg.instance_method_command_prefixes("struct::graph", "walk", &["root", "-command", "cb"]),
+            reg.instance_method_command_prefixes(
+                "struct::graph",
+                "walk",
+                &["root", "-command", "cb"]
+            ),
             vec![(2, AppendedArity::Exactly(3))],
         );
 
@@ -2248,10 +2255,10 @@ mod tests {
             ("menu", "-command"),
             ("menu", "-postcommand"),
             ("ttk::combobox", "-postcommand"),
-            ("spinbox", "-command"),        // percent-substitution (%W %s %d)
+            ("spinbox", "-command"), // percent-substitution (%W %s %d)
             ("spinbox", "-validatecommand"), // percent-substitution
-            ("entry", "-validatecommand"),  // percent-substitution
-            ("entry", "-invalidcommand"),   // percent-substitution
+            ("entry", "-validatecommand"), // percent-substitution
+            ("entry", "-invalidcommand"), // percent-substitution
         ] {
             assert!(
                 reg.command_prefixes(widget, &[".w", opt, "cb"]).is_empty(),

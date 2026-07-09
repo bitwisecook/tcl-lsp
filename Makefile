@@ -10,7 +10,9 @@
 #   make release       Build every release artefact.
 #
 # Prerequisites:
-#   - Rust 1.96+ with cargo (via rustup)
+#   - Rust stable with cargo (via rustup).  The workspace tracks the floating
+#     `stable` channel pinned in rust-toolchain.toml; current stable is 1.97.0,
+#     released 2026-07-07.  `Cargo.toml` `rust-version` is authoritative.
 #   - Node.js 24+ with npm
 #
 
@@ -300,15 +302,57 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 
 test: test-rust test-ext runtime-rust-test zed-query-check ## Run all tests (Rust workspace + VS Code extension + Rust runtime port)
 
-lint: lint-ts ## Run all lint and style checks
+lint: lint-ts lint-py ## Run all lint and style checks
 
-format: format-ts ## Format TypeScript code
+format: format-ts format-py ## Format TypeScript and Python code
 
-# The lsp_e2e suite is now native: rust/tcl-lsp-server/tests/*_e2e.rs, run by
-# `cargo test` (see test-rust). The old Python pytest drivers were retired.
-# The pure-Tcl tclpkg suite (formerly `test-tclpkg-tcl`, driven out of the
-# retired `tooling/tclpkg/tcl` tree) is likewise gone: tclpkg is now the
-# `tcl-pkg` Rust crate, exercised by `test-rust`.
+# Python tooling. Versions are pinned so a new ruff/ty/pyright release cannot
+# change the verdict of a gate between a local run and CI — the failure mode the
+# floating Rust `stable` channel already gives us (see rust-toolchain.toml).
+RUFF_VERSION    := 0.15.20
+TY_VERSION      := 0.0.57
+PYRIGHT_VERSION := 1.1.411
+
+# The typecheck venv installs f5report — which maturin-compiles the native
+# `_engine` extension — plus pytest, so ty and pyright resolve every import for
+# real instead of suppressing `unresolved-import`. The Sublime host APIs
+# (`sublime`, `sublime_plugin`, `LSP.plugin`) only exist inside the editor, so
+# they are declared by hand-written stubs under typings/.
+PY_VENV := $(ROOT).venv-typecheck
+
+# `git ls-files` rather than a directory walk: it is the same file set every
+# gate uses, and it skips build outputs, the venv, and untracked scratch files.
+PY_FILES = $(shell git -C $(ROOT) ls-files '*.py')
+
+.PHONY: lint-py format-py typecheck-py py-venv
+
+lint-py: ## Lint + format-check every tracked Python file (ruff)
+	@echo "==> Linting Python (ruff format --check + ruff check)"
+	@cd $(ROOT) && uvx ruff@$(RUFF_VERSION) format --check $(PY_FILES)
+	@cd $(ROOT) && uvx ruff@$(RUFF_VERSION) check $(PY_FILES)
+
+format-py: ## Format every tracked Python file (ruff)
+	@echo "==> Formatting Python with ruff"
+	@cd $(ROOT) && uvx ruff@$(RUFF_VERSION) format $(PY_FILES)
+
+py-venv: ## Build the typecheck venv (f5report + native _engine + pytest)
+	@echo "==> Building Python typecheck venv ($(PY_VENV))"
+	@cd $(ROOT) && uv venv --quiet --allow-existing $(PY_VENV)
+	@# --reinstall-package: the wheel is cached by content, but the source tree
+	@# changes under it, so a plain install can leave a stale f5report behind.
+	@cd $(ROOT) && uv pip install --python $(PY_VENV) --quiet \
+	    --reinstall-package f5report ./rust/bigip-report-gen/python pytest
+
+typecheck-py: py-venv ## Type-check every tracked Python file (ty + pyright)
+	@echo "==> Type-checking Python (ty)"
+	@cd $(ROOT) && uvx ty@$(TY_VERSION) check \
+	    --python $(PY_VENV) --extra-search-path typings $(PY_FILES)
+	@echo "==> Type-checking Python (pyright)"
+	@cd $(ROOT) && uvx pyright@$(PYRIGHT_VERSION)
+
+# The lsp_e2e suite is native: rust/tcl-lsp-server/tests/*_e2e.rs, run by
+# `cargo test` (see test-rust). tclpkg is the `tcl-pkg` Rust crate, exercised by
+# `test-rust`.
 
 lint-ts: $(NPM_STAMP) ## Lint/format-check TypeScript extension code
 	@echo "==> Linting TypeScript code (ESLint + Prettier check)"
@@ -501,7 +545,7 @@ test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip w
 		exit 0; \
 	fi; \
 	if ! command -v cargo >/dev/null 2>&1; then \
-		echo "ERROR: 'cargo' not found on PATH (need Rust 1.96+)."; \
+		echo "ERROR: 'cargo' not found on PATH (need a current Rust stable toolchain)."; \
 		echo "       Set SKIP_TEST_RUST=1 to skip this target."; \
 		exit 1; \
 	fi; \
@@ -516,7 +560,7 @@ test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip w
 rust-server: ## Build the native Rust LSP server (PROFILE=release|debug)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then \
-		echo "ERROR: 'cargo' not found on PATH (need Rust 1.96+)."; exit 1; \
+		echo "ERROR: 'cargo' not found on PATH (need a current Rust stable toolchain)."; exit 1; \
 	fi; \
 	echo "==> Building native tcl-lsp-server ($(PROFILE))"; \
 	cd $(ROOT) && cargo build -p tcl-lsp-server $(if $(filter release,$(PROFILE)),--release,); \
@@ -528,7 +572,7 @@ rust-server: ## Build the native Rust LSP server (PROFILE=release|debug)
 rust-tcl: ## Build the native Rust `tcl` CLI (PROFILE=release|debug)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then \
-		echo "ERROR: 'cargo' not found on PATH (need Rust 1.96+)."; exit 1; \
+		echo "ERROR: 'cargo' not found on PATH (need a current Rust stable toolchain)."; exit 1; \
 	fi; \
 	echo "==> Building native tcl CLI ($(PROFILE))"; \
 	cd $(ROOT) && cargo build -p tcl-cli $(if $(filter release,$(PROFILE)),--release,); \
@@ -539,7 +583,7 @@ rust-tcl: ## Build the native Rust `tcl` CLI (PROFILE=release|debug)
 rust-f5: ## Build the native Rust `f5-query` CLI (PROFILE=release|debug)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then \
-		echo "ERROR: 'cargo' not found on PATH (need Rust 1.96+)."; exit 1; \
+		echo "ERROR: 'cargo' not found on PATH (need a current Rust stable toolchain)."; exit 1; \
 	fi; \
 	echo "==> Building native f5-query CLI ($(PROFILE))"; \
 	cd $(ROOT) && cargo build -p f5-cli $(if $(filter release,$(PROFILE)),--release,); \
@@ -551,7 +595,7 @@ rust-f5: ## Build the native Rust `f5-query` CLI (PROFILE=release|debug)
 rust-mcp: ## Build the native Rust `tcl-mcp` MCP server (PROFILE=release|debug)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then \
-		echo "ERROR: 'cargo' not found on PATH (need Rust 1.96+)."; exit 1; \
+		echo "ERROR: 'cargo' not found on PATH (need a current Rust stable toolchain)."; exit 1; \
 	fi; \
 	echo "==> Building native tcl-mcp server ($(PROFILE))"; \
 	cd $(ROOT) && cargo build -p tcl-mcp $(if $(filter release,$(PROFILE)),--release,); \
@@ -569,7 +613,7 @@ rust-clis: rust-tcl rust-f5 ## Build the native Rust `tcl` + `f5-query` CLIs
 ensure-server-cross-deps: ## Install cross-compile deps (rustup targets + linkers) for this host
 	@set -eu; \
 	if ! command -v rustup >/dev/null 2>&1; then \
-		echo "ERROR: rustup not found — install Rust via rustup (need 1.96+)."; exit 1; \
+		echo "ERROR: rustup not found — install Rust via rustup (need a current stable toolchain)."; exit 1; \
 	fi; \
 	case "$(SERVER_UNAME_S)" in \
 	Linux) \
@@ -697,7 +741,7 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on Zed extension and top
 		. "$$HOME/.cargo/env"; \
 	fi; \
 	if ! command -v cargo >/dev/null 2>&1; then \
-		echo "ERROR: 'cargo' not found on PATH (need Rust 1.96+)."; \
+		echo "ERROR: 'cargo' not found on PATH (need a current Rust stable toolchain)."; \
 		echo "       Set SKIP_CHECK_RUST=1 to skip."; \
 		exit 1; \
 	fi; \
@@ -729,7 +773,7 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on Zed extension and top
 rust-deny: ## Audit the Rust workspace with cargo-deny (advisories/licenses/bans/sources via deny.toml)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then \
-		echo "ERROR: 'cargo' not found on PATH (need Rust 1.96+)."; exit 1; \
+		echo "ERROR: 'cargo' not found on PATH (need a current Rust stable toolchain)."; exit 1; \
 	fi; \
 	if ! cargo deny --version >/dev/null 2>&1; then \
 		echo "==> cargo-deny not found — installing (cargo install cargo-deny)"; \
@@ -740,8 +784,8 @@ rust-deny: ## Audit the Rust workspace with cargo-deny (advisories/licenses/bans
 
 # All-languages lint + typecheck.  Mirrors GitHub Actions' pr-gate plus the
 # extra languages CI doesn't cover (Rust, full TS).
-check-all: ## Full lint + typecheck (TS, Rust)
-	@$(MAKE) -j $(NPROC) _prep-pr-checks check-rust
+check-all: ## Full lint + typecheck (TS, Rust, Python)
+	@$(MAKE) -j $(NPROC) _prep-pr-checks check-rust lint-py typecheck-py
 	@echo "==> check-all: PASSED"
 
 # Comprehensive local gate — run before opening a PR.

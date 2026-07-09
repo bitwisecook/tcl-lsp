@@ -1905,10 +1905,10 @@ mod tests {
         // codepoint and panic the `&line[start..i]` slice (Copilot review of
         // #839). `\€` (euro = 3 bytes) is the canonical trigger.
         for line in [
-            "set x \\\u{20ac}",         // escape then a 3-byte char at end of line
-            "puts \\\u{20ac} tail",     // escaped multi-byte followed by another word
-            "a \\\u{1f600} b",          // 4-byte astral escaped char mid-line
-            "\\\u{e9}nd",               // escaped 2-byte char fused into a word
+            "set x \\\u{20ac}",     // escape then a 3-byte char at end of line
+            "puts \\\u{20ac} tail", // escaped multi-byte followed by another word
+            "a \\\u{1f600} b",      // 4-byte astral escaped char mid-line
+            "\\\u{e9}nd",           // escaped 2-byte char fused into a word
         ] {
             let words = split_tcl_words(line);
             // Round-trip: the joined words (single-space) recover every word slice

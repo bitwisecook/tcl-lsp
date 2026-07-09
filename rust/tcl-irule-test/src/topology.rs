@@ -462,7 +462,10 @@ ltm virtual www_vs {
         assert_eq!(infer_profile_type("/Common/web-tcp-opt"), Some("TCP"));
         assert_eq!(infer_profile_type("/Common/udp_datagram"), Some("UDP"));
         // Specific types still win over the plainer substrings.
-        assert_eq!(infer_profile_type("/Common/site_fasthttp"), Some("FASTHTTP"));
+        assert_eq!(
+            infer_profile_type("/Common/site_fasthttp"),
+            Some("FASTHTTP")
+        );
         assert_eq!(
             infer_profile_type("/Common/custom-clientssl-1"),
             Some("CLIENTSSL")

@@ -156,7 +156,11 @@ mod tests {
             grouped(DiagCode::O101, 10, 15, 7),
         ];
         let out = select_non_overlapping(&opts);
-        assert_eq!(out.len(), 1, "surviving group member must be dropped: {out:?}");
+        assert_eq!(
+            out.len(),
+            1,
+            "surviving group member must be dropped: {out:?}"
+        );
         assert_eq!(out[0].code, DiagCode::O112);
         assert!(
             !out.iter().any(|o| o.span == Span::new(0, 5)),

@@ -37,17 +37,20 @@ import tempfile
 import uuid as _uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
-from urllib.parse import parse_qs, urlparse
+from typing import Any
+from urllib.parse import urlparse
 
 from . import _engine, engine_version, load_paths
-from .report import build_report, collect_model
+from .report import build_report
 
 # ---- shared builder page (inlined, self-contained) -------------------------
 
 
 def _input_page() -> str:
     """Render the shared builder page with the ServerBackend (no wasm payload)."""
-    tmpl = resources.files("f5report.templates").joinpath("input.html").read_text("utf-8")
+    tmpl = (
+        resources.files("f5report.templates").joinpath("input.html").read_text("utf-8")
+    )
     css = resources.files("f5report.templates").joinpath("input.css").read_text("utf-8")
     js = resources.files("f5report.templates").joinpath("input.js").read_text("utf-8")
     tmpl = tmpl.replace("__STYLES__", f"<style>{css}</style>")
@@ -109,7 +112,9 @@ def _parse_multipart(body: bytes, content_type: str) -> list[Part]:
 class _Handler(BaseHTTPRequestHandler):
     server_version = "f5report-web"
 
-    def _send(self, code: int, body: bytes, ctype: str, extra: dict | None = None) -> None:
+    def _send(
+        self, code: int, body: bytes, ctype: str, extra: dict | None = None
+    ) -> None:
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
@@ -118,7 +123,9 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _text(self, code: int, text: str, ctype: str = "text/plain; charset=utf-8", extra=None):
+    def _text(
+        self, code: int, text: str, ctype: str = "text/plain; charset=utf-8", extra=None
+    ):
         self._send(code, text.encode("utf-8"), ctype, extra)
 
     def _read_body(self) -> bytes:
@@ -141,7 +148,9 @@ class _Handler(BaseHTTPRequestHandler):
 
     @staticmethod
     def _fields(parts: list[Part]) -> dict[str, str]:
-        return {p.name: p.data.decode("utf-8", "replace") for p in parts if not p.filename}
+        return {
+            p.name: p.data.decode("utf-8", "replace") for p in parts if not p.filename
+        }
 
     def do_GET(self) -> None:  # noqa: N802
         route = urlparse(self.path)
@@ -177,7 +186,9 @@ class _Handler(BaseHTTPRequestHandler):
     def _probe(self, parts, fields) -> None:
         sources, tmp = self._sources_from_parts(parts, fields.get("passphrase", ""))
         try:
-            count = sum(len(json.loads(_engine.list_secrets(text))) for _uri, text in sources)
+            count = sum(
+                len(json.loads(_engine.list_secrets(text))) for _uri, text in sources
+            )
         finally:
             _rmtree(tmp)
         self._text(200, json.dumps({"secretCount": count}), "application/json")
@@ -189,7 +200,9 @@ class _Handler(BaseHTTPRequestHandler):
                 self._text(400, "no config files uploaded")
                 return
             embed = fields.get("embedConsole", "true").lower() != "false"
-            secret_total = sum(len(json.loads(_engine.list_secrets(t))) for _u, t in sources)
+            secret_total = sum(
+                len(json.loads(_engine.list_secrets(t))) for _u, t in sources
+            )
             html = build_report(
                 sources,
                 title=fields.get("title") or "F5 BIG-IP Configuration Report",
@@ -202,19 +215,27 @@ class _Handler(BaseHTTPRequestHandler):
             _rmtree(tmp)
         locked = "1" if (secret_total > 0 and not fields.get("masterKey")) else "0"
         self._text(
-            200, html, "text/html; charset=utf-8",
+            200,
+            html,
+            "text/html; charset=utf-8",
             {"X-Device-Count": len(sources), "X-Secrets-Locked": locked},
         )
 
     def _architecture(self, fields) -> None:
-        out = _engine.build_architecture(fields.get("devices", "[]"), fields.get("manifest", "") or None)
+        out = _engine.build_architecture(
+            fields.get("devices", "[]"), fields.get("manifest", "") or None
+        )
         self._text(200, out, "application/json")
 
     def _enrich(self, fields) -> None:
-        out = _engine.build_enrichment(fields.get("devices", "[]"), fields.get("architecture", "{}"))
+        out = _engine.build_enrichment(
+            fields.get("devices", "[]"), fields.get("architecture", "{}")
+        )
         self._text(200, out, "application/json")
 
-    def log_message(self, *_args) -> None:  # keep the console quiet
+    def log_message(self, format: str, *args: Any) -> None:  # keep the console quiet
+        # Signature must match BaseHTTPRequestHandler.log_message, which callers
+        # may invoke with `format` as a keyword.
         pass
 
 
@@ -237,7 +258,9 @@ def serve(host: str = "127.0.0.1", port: int = 8080) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="f5-report-web", description="Serve the BIG-IP report builder.")
+    ap = argparse.ArgumentParser(
+        prog="f5-report-web", description="Serve the BIG-IP report builder."
+    )
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8080)
     args = ap.parse_args(argv)

@@ -25,7 +25,9 @@
 use std::collections::HashSet;
 
 use serde::Serialize;
-use tcl_cli_support::{OutputTarget, read_input_documents, registry_for_dialect, write_text_output};
+use tcl_cli_support::{
+    OutputTarget, read_input_documents, registry_for_dialect, write_text_output,
+};
 use tcl_compiler::analyser::{Analyser, Severity};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::compiler_checks::run_all_checks;

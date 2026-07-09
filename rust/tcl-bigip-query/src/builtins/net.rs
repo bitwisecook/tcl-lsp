@@ -1024,9 +1024,10 @@ impl Destination {
                     // so the last `.` is not a port separator. Fall back to
                     // parsing the whole part as the address with no port when
                     // the split doesn't yield a valid IP + port (issue 194).
-                    if let (Some(ip), Some(port)) =
-                        (TypedIp::try_parse(addr_text), TypedPort::try_parse(port_text))
-                    {
+                    if let (Some(ip), Some(port)) = (
+                        TypedIp::try_parse(addr_text),
+                        TypedPort::try_parse(port_text),
+                    ) {
                         Some(Destination {
                             address: TypedAddress::Ip(ip),
                             port,
@@ -2372,11 +2373,8 @@ mod tests {
     #[test]
     fn with_port_on_portless_ipv4_mapped_ipv6_succeeds() {
         // The `with_port` builtin routes through the same parser (issue 194).
-        let out = bi_with_port(&[
-            Value::Str("::ffff:10.1.1.1".to_owned()),
-            Value::Int(443),
-        ])
-        .expect("with_port must parse the IPv4-mapped address");
+        let out = bi_with_port(&[Value::Str("::ffff:10.1.1.1".to_owned()), Value::Int(443)])
+            .expect("with_port must parse the IPv4-mapped address");
         match out {
             Value::Str(s) => assert!(s.contains("443"), "port applied: {s}"),
             other => panic!("with_port returned {other:?}"),

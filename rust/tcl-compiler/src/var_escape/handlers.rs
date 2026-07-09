@@ -194,9 +194,12 @@ pub fn handle_info(args: &[String], state: &mut EscapeState) {
     // registry-driven via the subcommand's `arg_roles`: no subcommand name or
     // argument index is hardcoded here.
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    for idx in default_registry().arg_indices_for_role("info", &arg_refs, tcl_registry::ArgRole::VarWrite)
+    for idx in
+        default_registry().arg_indices_for_role("info", &arg_refs, tcl_registry::ArgRole::VarWrite)
     {
-        let Some(target) = args.get(idx) else { continue };
+        let Some(target) = args.get(idx) else {
+            continue;
+        };
         if is_dynamic_token(target) {
             // A dynamic write target can't be pinned to a name — spill.
             state.record_barrier(Barrier::with_detail(
@@ -424,7 +427,10 @@ mod tests {
         // `default` is otherwise an interpreter-global read (issue 151).
         let mut s = EscapeState::default();
         handle_info(&args_of(&["default", "myproc", "argA", "outvar"]), &mut s);
-        assert!(s.is_frame_helper("outvar"), "outvar must escape to the frame");
+        assert!(
+            s.is_frame_helper("outvar"),
+            "outvar must escape to the frame"
+        );
         // The other operands (procname / arg name) are not var writes.
         assert!(!s.is_frame_helper("myproc"));
         assert!(!s.is_frame_helper("argA"));

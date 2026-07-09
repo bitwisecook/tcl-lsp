@@ -66,17 +66,36 @@ _CONTAINERS = {
 # Leaf object types that are *referenced* by something else; an empty referrer
 # set means the object is orphaned. Virtuals and virtual-addresses are entry
 # points, so they are never treated as orphans.
-_REFERABLE = ["pools", "nodes", "monitors", "rules", "profiles", "dataGroups", "snatpools"]
+_REFERABLE = [
+    "pools",
+    "nodes",
+    "monitors",
+    "rules",
+    "profiles",
+    "dataGroups",
+    "snatpools",
+]
 
 # Object-list keys that carry a displayed, partition-scoped object.
 _DISPLAY_KEYS = (
-    "virtuals", "pools", "nodes", "monitors", "rules", "dataGroups",
-    "profiles", "policies", "snatpools", "persistence", "certificates",
+    "virtuals",
+    "pools",
+    "nodes",
+    "monitors",
+    "rules",
+    "dataGroups",
+    "profiles",
+    "policies",
+    "snatpools",
+    "persistence",
+    "certificates",
 )
 
 # Config members that hold TMOS's built-in defaults (default profiles / monitors
 # / `_sys_*` objects). Objects declared here are shown only where directly linked.
-_DEFAULT_MEMBERS = frozenset({"config/profile_base.conf", "config/low_profile_base.conf"})
+_DEFAULT_MEMBERS = frozenset(
+    {"config/profile_base.conf", "config/low_profile_base.conf"}
+)
 
 
 def _default_object_paths(config_text: str) -> set[str]:
@@ -248,11 +267,17 @@ def _shape_rule(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str, A
     body = f.get("body", "") or ""
     # Canonical firing order (via the shared registry), not alphabetical — so
     # CLIENT_ACCEPTED precedes CLIENTSSL_HANDSHAKE, etc. Matches the Rust report.
-    events = _engine.order_events(list(set(re.findall(r"\bwhen\s+([A-Z][A-Z0-9_]+)", body))))
+    events = _engine.order_events(
+        list(set(re.findall(r"\bwhen\s+([A-Z][A-Z0-9_]+)", body)))
+    )
     fp = f.get("full-path", "")
     # `.refs` is the engine's synthesised iRule reference sub-object: pools /
     # persistences / data-groups the rule body actually uses.
-    refs = (f.get("refs") or {}).get("fields", {}) if isinstance(f.get("refs"), dict) else {}
+    refs = (
+        (f.get("refs") or {}).get("fields", {})
+        if isinstance(f.get("refs"), dict)
+        else {}
+    )
     return {
         "name": f.get("name", ""),
         "fullPath": fp,
@@ -272,7 +297,9 @@ def _shape_rule(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str, A
     }
 
 
-def _shape_data_group(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str, Any]:
+def _shape_data_group(
+    f: dict[str, Any], used_by: dict[str, list[str]]
+) -> dict[str, Any]:
     records = f.get("records", []) or []
     fp = f.get("full-path", "")
     return {
@@ -303,6 +330,7 @@ def _shape_profile(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str
 
 def _shape_policy(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str, Any]:
     """Shape an LTM policy into rules → conditions / actions the simulator runs."""
+
     def _sub(x: Any) -> dict[str, Any]:
         return x.get("fields", x) if isinstance(x, dict) else {}
 
@@ -312,33 +340,39 @@ def _shape_policy(f: dict[str, Any], used_by: dict[str, list[str]]) -> dict[str,
         conds = []
         for c in rf.get("conditions", []) or []:
             cf = _sub(c)
-            conds.append({
-                "operand": cf.get("operand", ""),
-                "selector": cf.get("selector", ""),
-                "operator": cf.get("operator", ""),
-                "values": cf.get("values", []) or [],
-                "negate": bool(cf.get("negate")),
-                "caseInsensitive": bool(cf.get("case-insensitive")),
-            })
+            conds.append(
+                {
+                    "operand": cf.get("operand", ""),
+                    "selector": cf.get("selector", ""),
+                    "operator": cf.get("operator", ""),
+                    "values": cf.get("values", []) or [],
+                    "negate": bool(cf.get("negate")),
+                    "caseInsensitive": bool(cf.get("case-insensitive")),
+                }
+            )
         acts = []
         for a in rf.get("actions", []) or []:
             af = _sub(a)
-            acts.append({
-                "target": af.get("target", ""),
-                "verb": af.get("verb", ""),
-                "pool": _clean_path(af.get("pool", "")),
-                "location": af.get("location", ""),
-                "host": af.get("host", ""),
-                "path": af.get("path", ""),
-                "value": af.get("value", ""),
-                "name": af.get("name", ""),
-            })
-        rules.append({
-            "name": rf.get("name", ""),
-            "ordinal": rf.get("ordinal", 0),
-            "conditions": conds,
-            "actions": acts,
-        })
+            acts.append(
+                {
+                    "target": af.get("target", ""),
+                    "verb": af.get("verb", ""),
+                    "pool": _clean_path(af.get("pool", "")),
+                    "location": af.get("location", ""),
+                    "host": af.get("host", ""),
+                    "path": af.get("path", ""),
+                    "value": af.get("value", ""),
+                    "name": af.get("name", ""),
+                }
+            )
+        rules.append(
+            {
+                "name": rf.get("name", ""),
+                "ordinal": rf.get("ordinal", 0),
+                "conditions": conds,
+                "actions": acts,
+            }
+        )
     fp = f.get("full-path", "")
     return {
         "name": f.get("name", ""),
@@ -377,8 +411,11 @@ def _insights(device: dict[str, Any]) -> list[dict[str, str]]:
         n = len(orph.get(kind, []))
         if n:
             out.append(
-                {"level": "warn", "text": f"{n} orphaned {kind} (defined, referenced by nothing "
-                 "— no iRule can attach them either)"}
+                {
+                    "level": "warn",
+                    "text": f"{n} orphaned {kind} (defined, referenced by nothing "
+                    "— no iRule can attach them either)",
+                }
             )
     # Possible orphans: no static reference, but an iRule selects that type
     # dynamically, so they cannot be *proven* unused.
@@ -387,27 +424,44 @@ def _insights(device: dict[str, Any]) -> list[dict[str, str]]:
         n = len(poss.get(kind, []))
         if n:
             out.append(
-                {"level": "info", "text": f"{n} {kind} have no static reference but an iRule could "
-                 "build a matching name dynamically — can't be proven unused"}
+                {
+                    "level": "info",
+                    "text": f"{n} {kind} have no static reference but an iRule could "
+                    "build a matching name dynamically — can't be proven unused",
+                }
             )
     empty_pools = [p["name"] for p in device["pools"] if p["memberCount"] == 0]
     if empty_pools:
         preview = ", ".join(empty_pools[:6]) + ("…" if len(empty_pools) > 6 else "")
-        out.append({"level": "warn", "text": f"{len(empty_pools)} pool(s) with no members: {preview}"})
-    no_pool_vs = [v["name"] for v in device["virtuals"] if not v["pool"] and not v["policies"]]
+        out.append(
+            {
+                "level": "warn",
+                "text": f"{len(empty_pools)} pool(s) with no members: {preview}",
+            }
+        )
+    no_pool_vs = [
+        v["name"] for v in device["virtuals"] if not v["pool"] and not v["policies"]
+    ]
     if no_pool_vs:
         out.append(
-            {"level": "info", "text": f"{len(no_pool_vs)} virtual server(s) with no default pool "
-             "(forwarding / policy-driven)"}
+            {
+                "level": "info",
+                "text": f"{len(no_pool_vs)} virtual server(s) with no default pool "
+                "(forwarding / policy-driven)",
+            }
         )
     disabled_vs = [v["name"] for v in device["virtuals"] if v["disabled"]]
     if disabled_vs:
-        out.append({"level": "info", "text": f"{len(disabled_vs)} disabled virtual server(s)"})
+        out.append(
+            {"level": "info", "text": f"{len(disabled_vs)} disabled virtual server(s)"}
+        )
     ssl = [p for p in device["profiles"] if "SSL" in p["type"]]
     if ssl:
         out.append({"level": "info", "text": f"{len(ssl)} SSL profile(s) in use"})
     if not out:
-        out.append({"level": "ok", "text": "No orphaned objects or empty pools detected"})
+        out.append(
+            {"level": "ok", "text": "No orphaned objects or empty pools detected"}
+        )
     return out
 
 
@@ -471,7 +525,12 @@ def _build_apps(device: dict[str, Any]) -> list[dict[str, Any]]:
             part, seg = app_folder
             bucket = acc.setdefault((part, seg), {"members": [], "entryPoints": []})
             bucket["members"].append(
-                {"kind": kind, "name": o.get("name", ""), "fullPath": fp, "partition": part}
+                {
+                    "kind": kind,
+                    "name": o.get("name", ""),
+                    "fullPath": fp,
+                    "partition": part,
+                }
             )
             if key == "virtuals":
                 bucket["entryPoints"].append(fp)
@@ -549,7 +608,9 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
         for o in device.get(key, []):
             if isinstance(o, dict):
                 fp = o.get("fullPath", "")
-                o["isDefault"] = fp in defaults or fp.rsplit("/", 1)[-1].startswith("_sys_")
+                o["isDefault"] = fp in defaults or fp.rsplit("/", 1)[-1].startswith(
+                    "_sys_"
+                )
 
     # Link cross-iRule `call <rule>::<proc>` references before orphan analysis so
     # a proc-library iRule is counted as used by its callers.
@@ -614,11 +675,17 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
     # attach it, so a VS shows profiles/pools it changes at runtime, not just
     # its statically-attached ones.
     rule_actions = {r["fullPath"]: r["dynamicActions"] for r in device["rules"]}
-    rule_by_name = {r["fullPath"].split("/")[-1]: r["fullPath"] for r in device["rules"]}
+    rule_by_name = {
+        r["fullPath"].split("/")[-1]: r["fullPath"] for r in device["rules"]
+    }
     for v in device["virtuals"]:
         acts: list[dict[str, str]] = []
         for rule_ref in v["rules"]:
-            fp = rule_ref if rule_ref in rule_actions else rule_by_name.get(rule_ref.split("/")[-1], "")
+            fp = (
+                rule_ref
+                if rule_ref in rule_actions
+                else rule_by_name.get(rule_ref.split("/")[-1], "")
+            )
             for a in rule_actions.get(fp, []):
                 acts.append({**a, "rule": rule_ref.split("/")[-1]})
         v["dynamicProfiles"] = acts
@@ -659,7 +726,11 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
     # Counts exclude built-in/system defaults — the chips count the estate's own
     # objects, not the ~260 TMOS defaults.
     device["counts"] = {
-        key: sum(1 for o in device.get(key, []) if not (isinstance(o, dict) and o.get("isDefault")))
+        key: sum(
+            1
+            for o in device.get(key, [])
+            if not (isinstance(o, dict) and o.get("isDefault"))
+        )
         for key in _CONTAINERS
     }
     device["counts"]["poolMembers"] = sum(p["memberCount"] for p in device["pools"])
@@ -701,7 +772,9 @@ def collect_model(
     engine's auto-detection, matching the WASM backend.
     """
     if master_key:
-        sources = [(uri, _engine.decrypt_secrets(src, master_key)) for uri, src in sources]
+        sources = [
+            (uri, _engine.decrypt_secrets(src, master_key)) for uri, src in sources
+        ]
     devices = [_collect_device(uri, src) for uri, src in sources]
 
     totals: dict[str, int] = {}
@@ -769,8 +842,15 @@ def build_report(
     is the optional builder DSL that overrides architecture auto-detection.
     """
     return render_report(
-        collect_model(sources, title=title, master_key=master_key, manifest=manifest,
-                      copyright=copyright, front_matter=front_matter, logo=logo),
+        collect_model(
+            sources,
+            title=title,
+            master_key=master_key,
+            manifest=manifest,
+            copyright=copyright,
+            front_matter=front_matter,
+            logo=logo,
+        ),
         embed_console=embed_console,
         report_id=report_id,
     )

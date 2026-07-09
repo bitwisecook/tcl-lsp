@@ -40,7 +40,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SNIPPETS_DIR="$REPO_ROOT/tests/bytecode_snippets"
+SNIPPETS_DIR="$REPO_ROOT/rust/tcl-compiler/tests/fixtures/codegen/matching"
 
 # Save original DYLD_LIBRARY_PATH so we can restore on exit
 _ORIG_DYLD_LIBRARY_PATH="${DYLD_LIBRARY_PATH:-}"

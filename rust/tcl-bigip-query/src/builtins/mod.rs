@@ -1452,7 +1452,10 @@ mod add_tests {
     // TN: a clean all-integer sum stays an exact integer.
     #[test]
     fn all_int_sum_is_exact_int() {
-        assert_eq!(as_int(add(vec![Value::Int(1), Value::Int(2), Value::Int(3)])), 6);
+        assert_eq!(
+            as_int(add(vec![Value::Int(1), Value::Int(2), Value::Int(3)])),
+            6
+        );
     }
 
     // TP: a genuine all-integer overflow is a clean error, not a panic/wrap —

@@ -1,0 +1,69 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+"""Type stubs for `f5report._engine`, the native PyO3 extension.
+
+The module is compiled by maturin from `rust/bigip-report-gen/python`, so it does
+not exist in the source tree — only in an installed wheel. Type checkers read the
+source tree, hence this stub.
+
+Every `-> str` below returns a JSON document that the caller feeds to
+`json.loads`, except `manual`, `highlight_tcl`, `render_markdown`,
+`irule_flowchart`, `decrypt_secrets` and `ucs_to_scf`, which return text.
+"""
+
+from typing import Any, Mapping, Sequence
+
+__version__: str
+
+class QueryError(Exception):
+    """A BIG-IP query failed to parse or evaluate, or a config failed to load."""
+
+# Configs are passed either as ordered `(uri, text)` pairs or as a `{uri: text}`
+# mapping; the engine accepts both.
+_Sources = Sequence[tuple[str, str]] | Mapping[str, str]
+
+def query(
+    expr: str,
+    sources: _Sources,
+    *,
+    merge: bool = ...,
+    partitions: Sequence[str] | None = ...,
+    enable_probes: bool = ...,
+    per_file: bool = ...,
+    side_inputs: dict[str, Any] | None = ...,
+) -> list[Any]: ...
+def load_paths(
+    paths: Sequence[str],
+    *,
+    passphrase: str | None = ...,
+    include_extras: bool = ...,
+) -> list[tuple[str, str]]: ...
+def ucs_to_scf(
+    data: bytes,
+    *,
+    passphrase: str | None = ...,
+    include_extras: bool = ...,
+    label: str = ...,
+) -> str: ...
+def manual() -> str: ...
+def highlight_tcl(body: str) -> str: ...
+def render_markdown(md: str) -> str: ...
+def irule_flowchart(body: str) -> str: ...
+def irule_attach_patterns(body: str) -> str: ...
+def irule_proc_call_refs(body: str) -> str: ...
+def order_events(events: Sequence[str]) -> list[str]: ...
+def order_profiles(
+    profiles: Sequence[str], types: Any = ...
+) -> list[str]: ...
+def list_secrets(text: str) -> str: ...
+def decrypt_secrets(text: str, master_key: str) -> str: ...
+def sys_file_ssl_certs(sources: _Sources) -> str: ...
+def sys_file_ssl_certs_x509(
+    sources: _Sources, *, passphrase: str | None = ...
+) -> str: ...
+def sys_file_ssl_keys(sources: _Sources) -> str: ...
+def build_architecture(devices_json: str, manifest: str | None = ...) -> str: ...
+def build_enrichment(devices_json: str, architecture_json: str) -> str: ...

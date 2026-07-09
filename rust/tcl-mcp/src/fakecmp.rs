@@ -260,7 +260,10 @@ mod suggest_sources_tests {
         let out = suggest_sources(&json!({ "tmm_count": 1_000_000_000_000i64, "count": 1 }));
         let s = out.to_string();
         assert!(s.contains("tmm_count"), "expected a tmm_count error: {s}");
-        assert!(s.contains("between 2 and"), "expected the range message: {s}");
+        assert!(
+            s.contains("between 2 and"),
+            "expected the range message: {s}"
+        );
         // It must NOT have built a plan.
         assert!(!s.contains("\"plan\""), "no plan should be produced: {s}");
     }
@@ -268,6 +271,9 @@ mod suggest_sources_tests {
     #[test]
     fn ordinary_tmm_count_produces_a_plan() {
         let out = suggest_sources(&json!({ "tmm_count": 4, "count": 1 }));
-        assert!(out.get("plan").is_some(), "a valid request yields a plan: {out}");
+        assert!(
+            out.get("plan").is_some(),
+            "a valid request yields a plan: {out}"
+        );
     }
 }

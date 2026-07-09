@@ -753,7 +753,8 @@ impl<'r> Lowerer<'r> {
                 return None;
             }
             inner
-        } else if let Some(rest) = word.strip_prefix('$') {
+        } else {
+            let rest = word.strip_prefix('$')?;
             if rest.is_empty()
                 || rest.contains('(')
                 || rest.contains('$')
@@ -764,8 +765,6 @@ impl<'r> Lowerer<'r> {
                 return None;
             }
             rest
-        } else {
-            return None;
         };
         scope.get(inner).cloned()
     }

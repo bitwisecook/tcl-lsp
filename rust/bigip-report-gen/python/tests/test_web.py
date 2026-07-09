@@ -41,9 +41,13 @@ def test_generate_plaintext_config(server):
     boundary = "BND"
     scf = b"ltm virtual /Common/vs { destination 10.0.0.1:443 }\n"
     body = (
-        f'--{boundary}\r\nContent-Disposition: form-data; name="files"; '
-        f'filename="bigip.conf"\r\n\r\n'
-    ).encode() + scf + b"\r\n"
+        (
+            f'--{boundary}\r\nContent-Disposition: form-data; name="files"; '
+            f'filename="bigip.conf"\r\n\r\n'
+        ).encode()
+        + scf
+        + b"\r\n"
+    )
     for name, val in (("title", "My Report"), ("reportId", "abc-123")):
         body += (
             f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{val}\r\n'

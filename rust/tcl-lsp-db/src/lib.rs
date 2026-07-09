@@ -3524,7 +3524,11 @@ mod tests {
         let db = TclDatabase::default();
         let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
         // B defines onNode with 2 params; `graph walk -command` appends 3.
-        let b = SourceFile::new(&db, "proc onNode {a b} { }\n".to_owned(), "tcl9.0".to_owned());
+        let b = SourceFile::new(
+            &db,
+            "proc onNode {a b} { }\n".to_owned(),
+            "tcl9.0".to_owned(),
+        );
         let has_e003 = |src: &str| {
             let a = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned());
             let p = Project::new(&db, vec![a, b]);
@@ -3543,7 +3547,11 @@ mod tests {
             "in-proc `set g [struct::graph]; $g walk -command onNode` must resolve cross-file arity"
         );
         // Correct arity (3 params) is silent.
-        let b3 = SourceFile::new(&db, "proc onNode {a b c} { }\n".to_owned(), "tcl9.0".to_owned());
+        let b3 = SourceFile::new(
+            &db,
+            "proc onNode {a b c} { }\n".to_owned(),
+            "tcl9.0".to_owned(),
+        );
         let a_ok = SourceFile::new(
             &db,
             "proc build {} {\n struct::graph g\n g walk root -command onNode\n}\n".to_owned(),
@@ -3944,7 +3952,8 @@ mod tests {
         // is silent (TN).
         let bad = callback_arity_codes("proc onChange {} { }\nscale .s -command onChange\n");
         assert!(
-            bad.iter().any(|(c, m)| c == "E003" && m.contains("onChange")),
+            bad.iter()
+                .any(|(c, m)| c == "E003" && m.contains("onChange")),
             "a 0-param `scale -command` callback (1 appended) must draw E003; got {bad:?}"
         );
         let ok = callback_arity_codes("proc onChange {v} { }\nscale .s -command onChange\n");
@@ -3973,8 +3982,9 @@ mod tests {
             "a 2-param func where calculus::integral appends 1 must draw E002; got {d:?}"
         );
         // The correct 1-param shape is silent (TN).
-        let ok =
-            callback_arity_codes("proc f {x} { expr {$x * 2} }\nmath::calculus::integral 0 1 100 f\n");
+        let ok = callback_arity_codes(
+            "proc f {x} { expr {$x * 2} }\nmath::calculus::integral 0 1 100 f\n",
+        );
         assert!(
             !ok.iter().any(|(c, _)| c == "E002" || c == "E003"),
             "a correct 1-param calculus func must be silent; got {ok:?}"
@@ -4000,7 +4010,9 @@ mod tests {
         let smtp_bad =
             callback_arity_codes("proc pol {code} { }\nsmtp::sendmessage $t -tlspolicy pol\n");
         assert!(
-            smtp_bad.iter().any(|(c, m)| c == "E003" && m.contains("'pol'")),
+            smtp_bad
+                .iter()
+                .any(|(c, m)| c == "E003" && m.contains("'pol'")),
             "a 1-param -tlspolicy callback (2 appended) must draw E003; got {smtp_bad:?}"
         );
         let smtp_ok =
@@ -4012,7 +4024,9 @@ mod tests {
         let pipe_bad =
             callback_arity_codes("proc w {chan} { }\ntcl::chan::halfpipe -write-command w\n");
         assert!(
-            pipe_bad.iter().any(|(c, m)| c == "E003" && m.contains("'w'")),
+            pipe_bad
+                .iter()
+                .any(|(c, m)| c == "E003" && m.contains("'w'")),
             "a 1-param -write-command callback (2 appended) must draw E003; got {pipe_bad:?}"
         );
     }
@@ -4070,9 +4084,8 @@ mod tests {
     fn callback_arity_struct_tree_walkproc_checked() {
         // `$t walkproc … cmdprefix` (trailing positional prefix) appends 3 (tree
         // node action).  A 2-param callback → E003.
-        let bad = callback_arity_codes(
-            "proc twoP {a b} { }\nstruct::tree myT\nmyT walkproc root twoP\n",
-        );
+        let bad =
+            callback_arity_codes("proc twoP {a b} { }\nstruct::tree myT\nmyT walkproc root twoP\n");
         assert!(
             bad.iter().any(|(c, m)| c == "E003" && m.contains("'twoP'")),
             "a 2-param tree walkproc callback (3 appended) must draw E003; got {bad:?}"

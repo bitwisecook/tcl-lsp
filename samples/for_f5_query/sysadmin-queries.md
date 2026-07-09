@@ -1147,20 +1147,19 @@ character to ten minutes.  Run `f5 query --help-renderers` for the
 full renderer catalogue — `mermaid` for configuration diagrams,
 `ascii-blocks` for nested tree views.)
 
-The original sidecar script
-[`sysadmin/monitor_timeline.py`](sysadmin/monitor_timeline.py) is
-still shipped as a thin wrapper around the same renderer — useful in
-environments where the `--render` flag isn't available yet:
+The chart above comes straight from the `gantt` renderer plugin; the
+timeline is built from a plain TSV projection of `(timestamp, member,
+state)`, so any query that produces those three columns can be rendered
+this way:
 
 ```
-$ f5 query --raw '
+$ f5 query --render gantt --render-opt unit-minutes=5 '
     f5log_load("multitier/logs/t1-a.log")[]
     | select(.module == "01340011" or .module == "01340012")
     | tsv(.timestamp,
           (sub(.message, "^.*member ", "") | sub(., " monitor.*$", "")),
           (if .module == "01340011" then "DOWN" else "UP" end))
-  ' multitier/tier1-ltm-ha.conf | grep -v '^#' \
-  | python3 sysadmin/monitor_timeline.py
+  ' multitier/tier1-ltm-ha.conf
 ```
 
 ```

@@ -55,9 +55,16 @@ NODE_TYPES = {
     "dataGroups": "dg",
 }
 TYPE_LABEL = {
-    "vs": "Virtual", "pool": "Pool", "node": "Node", "mon": "Monitor",
-    "rule": "iRule", "prof": "Profile", "persist": "Persistence",
-    "policy": "Policy", "snat": "SNAT Pool", "dg": "Data Group",
+    "vs": "Virtual",
+    "pool": "Pool",
+    "node": "Node",
+    "mon": "Monitor",
+    "rule": "iRule",
+    "prof": "Profile",
+    "persist": "Persistence",
+    "policy": "Policy",
+    "snat": "SNAT Pool",
+    "dg": "Data Group",
 }
 
 
@@ -144,6 +151,7 @@ def _port_num(p: str) -> int:
         return int(p)
     # named service ports the projection may leave as text
     import socket
+
     try:
         return socket.getservbyname(p)
     except OSError:
@@ -161,8 +169,16 @@ def _normalise_cidr(s: str) -> str:
 # Commands that change traffic processing / profiles at runtime. Each entry:
 # (regex, category, human effect). Matched case-insensitively on the rule body.
 _DYNAMIC_CMDS: list[tuple[re.Pattern[str], str, str]] = [
-    (re.compile(r"\bSSL::disable(?:\s+(clientside|serverside))?", re.I), "SSL", "SSL::disable"),
-    (re.compile(r"\bSSL::enable(?:\s+(clientside|serverside))?", re.I), "SSL", "SSL::enable"),
+    (
+        re.compile(r"\bSSL::disable(?:\s+(clientside|serverside))?", re.I),
+        "SSL",
+        "SSL::disable",
+    ),
+    (
+        re.compile(r"\bSSL::enable(?:\s+(clientside|serverside))?", re.I),
+        "SSL",
+        "SSL::enable",
+    ),
     (re.compile(r"\bHTTP::disable\b", re.I), "HTTP", "HTTP::disable"),
     (re.compile(r"\bHTTP::enable\b", re.I), "HTTP", "HTTP::enable"),
     (re.compile(r"\bCOMPRESS::disable\b", re.I), "Compression", "COMPRESS::disable"),
@@ -171,7 +187,14 @@ _DYNAMIC_CMDS: list[tuple[re.Pattern[str], str, str]] = [
     (re.compile(r"\bCACHE::enable\b", re.I), "Cache", "CACHE::enable"),
     (re.compile(r"\bWAM::(?:enable|disable)\b", re.I), "WebAccel", "WAM"),
     (re.compile(r"\bLB::detach\b", re.I), "Pool", "LB::detach"),
-    (re.compile(r"\bpersist\s+(none|uie|cookie|source_addr|dest_addr|hash|ssl|sip|carp|universal)", re.I), "Persistence", "persist"),
+    (
+        re.compile(
+            r"\bpersist\s+(none|uie|cookie|source_addr|dest_addr|hash|ssl|sip|carp|universal)",
+            re.I,
+        ),
+        "Persistence",
+        "persist",
+    ),
     (re.compile(r"\bsnatpool\s+(\S+)", re.I), "SNAT", "snatpool"),
     (re.compile(r"\bsnat\s+(automap|none|\S+)", re.I), "SNAT", "snat"),
     (re.compile(r"\bnode\s+(\d[\d.:a-fA-F]+)", re.I), "Node", "node override"),
@@ -197,7 +220,7 @@ def _pattern_matches(pat: dict[str, Any], name: str) -> bool:
     if prefix:
         if not hay.startswith(prefix):
             return False
-        hay = hay[len(prefix):]
+        hay = hay[len(prefix) :]
     suffix = pat.get("suffix", "")
     if suffix:
         if not hay.endswith(suffix):
@@ -207,7 +230,7 @@ def _pattern_matches(pat: dict[str, Any], name: str) -> bool:
         i = hay.find(frag)
         if i < 0:
             return False
-        hay = hay[i + len(frag):]
+        hay = hay[i + len(frag) :]
     return True
 
 
@@ -327,8 +350,11 @@ def attach_matches(
 
 _ATTACH_SINGULAR = {"pools": "pool", "nodes": "node", "snatpools": "snatpool"}
 _OID_PREFIX = {
-    "pool": "pool", "node": "node", "snatpool": "snat",
-    "data-group": "dg", "irule": "rule",
+    "pool": "pool",
+    "node": "node",
+    "snatpool": "snat",
+    "data-group": "dg",
+    "irule": "rule",
 }
 
 
@@ -429,7 +455,9 @@ def annotate_rule_reachability(
         own_part = _partition_of(fp)
 
         static_refs = [_obj_ref("pool", p) for p in (r.get("refPools") or [])]
-        static_refs += [_obj_ref("data-group", d) for d in (r.get("refDataGroups") or [])]
+        static_refs += [
+            _obj_ref("data-group", d) for d in (r.get("refDataGroups") or [])
+        ]
         static_refs += [_obj_ref("irule", rr) for rr in (r.get("refRules") or [])]
 
         reach = json.loads(_engine.irule_attach_patterns(body)) if body else {}
@@ -509,12 +537,19 @@ def build_graph(device: dict[str, Any]) -> dict[str, Any]:
     node_by_path: dict[str, dict[str, Any]] = {}
     node_by_addr: dict[str, dict[str, Any]] = {}
 
-    def add_node(kind: str, full_path: str, name: str, extra: dict[str, Any] | None = None) -> str:
+    def add_node(
+        kind: str, full_path: str, name: str, extra: dict[str, Any] | None = None
+    ) -> str:
         oid = _oid(kind, full_path)
         if oid not in nodes:
             nodes[oid] = {
-                "oid": oid, "type": kind, "name": name or full_path.split("/")[-1],
-                "fullPath": full_path, "partition": full_path.split("/")[1] if full_path.startswith("/") else "",
+                "oid": oid,
+                "type": kind,
+                "name": name or full_path.split("/")[-1],
+                "fullPath": full_path,
+                "partition": full_path.split("/")[1]
+                if full_path.startswith("/")
+                else "",
                 **(extra or {}),
             }
         return oid

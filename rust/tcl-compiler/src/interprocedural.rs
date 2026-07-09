@@ -2713,8 +2713,12 @@ mod effect_propagation_tests {
             "proc p {} { if {[matchclass [HTTP::uri] equals $::l]} {} }",
         ] {
             let module = lower_to_ir(src, &reg);
-            let ia =
-                build_interprocedural_analysis(&module, &reg, Some("f5-irules"), ObjectTypeMap::none());
+            let ia = build_interprocedural_analysis(
+                &module,
+                &reg,
+                Some("f5-irules"),
+                ObjectTypeMap::none(),
+            );
             let s = ia.procedures.get("::p").expect("proc ::p in IA");
             assert!(
                 s.effect_reads.contains(EffectRegion::HTTP_STATE),

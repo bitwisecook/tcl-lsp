@@ -197,7 +197,9 @@ pub(crate) fn handle_info(args: &[String], state: &mut CfgState, defs: &HashMap<
     for idx in
         default_registry().arg_indices_for_role("info", &arg_refs, tcl_registry::ArgRole::VarWrite)
     {
-        let Some(target) = args.get(idx) else { continue };
+        let Some(target) = args.get(idx) else {
+            continue;
+        };
         if is_dynamic_token(target) {
             state.record_barrier(Barrier::with_detail(
                 BarrierKind::Info,

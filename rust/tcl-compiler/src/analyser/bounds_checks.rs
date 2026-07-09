@@ -1076,10 +1076,9 @@ fn end_offset(s: &str) -> Option<(i64, i64)> {
     let rest = s.strip_prefix("end")?.trim_start();
     let (sign, digits) = if let Some(d) = rest.strip_prefix('-') {
         (-1, d)
-    } else if let Some(d) = rest.strip_prefix('+') {
-        (1, d)
     } else {
-        return None;
+        let d = rest.strip_prefix('+')?;
+        (1, d)
     };
     let digits = digits.trim_start();
     if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
