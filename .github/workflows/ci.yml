@@ -52,10 +52,10 @@ jobs:
   # Fast PR gate.  Runs on every PR and every push.  Covers the Rust fast
   # checks: `cargo fmt --check`, `cargo clippy --workspace`, and the
   # generated-file drift gates (`make xtask-check`).  The test surface runs
-  # concurrently in `rust-tests`, `rust-tests-heavy`, `lsp-e2e`, `cargo-deny`
-  # and `test-ext` — all on every PR and push.  See AGENTS.md for the local
-  # gates (`make check-all`, plus the heavier suites) agents must run before
-  # pushing / opening a PR.
+  # concurrently in `rust-tests`, `rust-tests-heavy`, `lsp-e2e`, `cargo-deny`,
+  # `test-ext` and `python` — all on every PR and push.  See AGENTS.md for the
+  # local gates (`make check-all`, plus the heavier suites) agents must run
+  # before pushing / opening a PR.
   pr-gate:
     # Rust-side fast gate (fmt / clippy / generated-file drift).  For
     # pre-release (odd-minor 2.x) tags the gate WORK is skipped at the step
@@ -93,8 +93,7 @@ jobs:
   # VS Code extension tests: Node.js + xvfb driving the VS Code test host
   # against the native server.  A distinct, heavier stack than the cargo
   # surfaces, so it reports as its own status check and runs concurrently with
-  # them.  Runs on every PR and push (it used to be push-only, which meant it
-  # never reported on a PR and so could not be a required check).
+  # them.  Runs on every PR and push, so it can serve as a required check.
   test-ext:
     # For pre-release (odd-minor 2.x) tags the test STEP is skipped (below)
     # while the job still succeeds, so the release graph is not transitively
@@ -169,11 +168,8 @@ jobs:
         if: needs.channel.outputs.prerelease != 'true'
         run: make test-ext
 
-  # Rust product gate for `main` and `rust`.  This job supersedes the retired
-  # rust-gate.yml / rust-lsp-e2e.yml / rust-ext.yml workflows, which used to be
-  # the blocking checks on the `rust` branch during the rewrite: ci.yml now
-  # triggers on both branches, so one pipeline covers them.  Runs on every PR
-  # and push (unlike the push-only extension backstop) because nothing else
+  # Rust product gate.  ci.yml triggers on both `main` and `rust`, so one
+  # pipeline covers them.  Runs on every PR and push, because nothing else
   # exercises the Rust product on a PR.
   #
   # `cargo test --workspace --all-features --no-fail-fast`, Swatinem cache,
@@ -301,6 +297,56 @@ jobs:
       - name: cargo deny check
         uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe # v2.0.20
 
+  # Python gate: ruff (format + lint) and two type checkers (ty, pyright) over
+  # every tracked .py file.  Runs concurrently with the cargo jobs.
+  #
+  # `make typecheck-py` builds a venv that installs the f5report package, which
+  # maturin-compiles the native `_engine` extension — so the checkers resolve
+  # every import for real rather than suppressing `unresolved-import`.  That is
+  # why this job needs a Rust toolchain.  The Sublime host APIs (`sublime`,
+  # `sublime_plugin`, `LSP.plugin`) exist only inside the editor process and are
+  # declared by hand-written stubs under typings/.
+  #
+  # Tool versions are pinned in the Makefile so a new ruff/ty/pyright release
+  # cannot change a gate's verdict between a local run and CI.
+  python:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      # `make lint-py` / `typecheck-py` derive their file list from
+      # `git ls-files '*.py'`, so the checkout must be a real git repo (it is).
+
+      # Needed by maturin to build the native `_engine` extension module.
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          toolchain: stable
+          cache-key: python-engine
+
+      # Pinned installer rather than a floating action, so the uv that resolves
+      # the pinned tool versions is itself pinned.
+      - name: Install uv
+        env:
+          UV_VERSION: "0.11.28"
+        run: |
+          curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Verify uv version
+        run: |
+          actual="$(uv --version | awk '{print $2}')"
+          echo "uv $actual"
+          [ "$actual" = "0.11.28" ] || { echo "::error::expected uv 0.11.28, got $actual"; exit 1; }
+
+      - name: ruff (format --check + check)
+        run: make lint-py
+
+      - name: ty + pyright
+        run: make typecheck-py
+
   # Release: create (or verify) the GitHub Release so each build job
   # can upload its artifact independently — no single slow or failing
   # build blocks the others.
@@ -312,7 +358,8 @@ jobs:
     # the cargo jobs; for a stable tag pr-gate runs for real and a failure
     # blocks here.  The cargo jobs have no step-level skip, so they gate every
     # tag unconditionally.
-    needs: [channel, pr-gate, rust-tests, rust-tests-heavy, lsp-e2e, cargo-deny]
+    needs:
+      [channel, pr-gate, rust-tests, rust-tests-heavy, lsp-e2e, cargo-deny, python]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload

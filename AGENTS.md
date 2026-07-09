@@ -183,7 +183,7 @@ The project uses GNU Make. Key targets:
 | Target             | Purpose                                  |
 |--------------------|------------------------------------------|
 | `make rust-check`  | **Rust PR gate** — `check-rust` (cargo `fmt --check` + `clippy`) + `xtask-check` (generated-file / docs-index drift gates via `cargo xtask …`). Mirrors the GitHub Actions `pr-gate` job. |
-| `make check-all`   | **Pre-push gate** — full lint + typecheck across **every** language: TypeScript via ESLint + Prettier + tsc, Rust via `cargo fmt --check` + `cargo clippy`. Run before every push. |
+| `make check-all`   | **Pre-push gate** — full lint + typecheck across **every** language: TypeScript via ESLint + Prettier + tsc, Rust via `cargo fmt --check` + `cargo clippy`, Python via `ruff` + `ty` + `pyright` (`lint-py` + `typecheck-py`). Run before every push. |
 | `make test-slow`   | **Pre-PR gate** — run before opening a PR. Runs everything: optional dep check (or install when `AUTO_INSTALL_DEPS=1`) + `prep-pr` + `check-rust` + VS Code extension (`test-ext`) + Emacs eglot (`test-emacs`) + VSIX smoke (`_prep-pr-smoke`) + the full Rust workspace test suite (`test-rust`, which includes the native lsp_e2e) + the Rust runtime port (`runtime-rust-test` — the standalone `runtime/rust` crate is excluded from the workspace, so `test-rust` does not cover it). Drives every phase through `scripts/dev/test-slow-runner.sh`, which keeps going past failures and prints one consolidated PASS/FAIL summary at the end. |
 | `make install-test-deps` | One-shot setup: install **everything** `test-slow` needs (the system toolchain — all of `ensure-test-deps`). The target to run on a fresh checkout before `make test-slow`. Same platform coverage as `ensure-test-deps`. |
 | `make ensure-test-deps` | Install the optional `test-slow` toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`, Rust/rustup, Wasmtime, Binaryen, wasi-sdk, emacs, xvfb, …) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.3/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`, `SKIP_RUST=1`, … Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report of what would be installed. |
@@ -193,6 +193,9 @@ The project uses GNU Make. Key targets:
 | `make test`        | Run all tests — Rust workspace + VS Code extension + Rust runtime port (`test-rust test-ext runtime-rust-test`) |
 | `make test-rust`   | `cargo test --workspace --all-features` — includes the native lsp_e2e suite (`rust/tcl-lsp-server/tests/*_e2e.rs`); skip with `SKIP_TEST_RUST=1` |
 | `make test-ext`    | VS Code extension integration tests (xvfb on headless Linux) |
+| `make lint-py`     | `ruff format --check` + `ruff check` over every tracked `.py` (versions pinned in the Makefile) |
+| `make format-py`   | `ruff format` over every tracked `.py` |
+| `make typecheck-py`| `ty` + `pyright` over every tracked `.py`.  Builds `.venv-typecheck`, which installs `f5report` (maturin-compiling the native `_engine`) plus pytest, so both checkers resolve every import for real.  Sublime host APIs are declared by stubs under `typings/`. |
 | `make test-ext-rust` | Build `rust-server`, then run the VS Code extension tests against the native Rust server (`TCL_LSP_SERVER_KIND=rust`, `TCL_LSP_SERVER_BIN` set) |
 | `make lint`        | Lint / style checks — TypeScript only (`lint-ts`: ESLint + Prettier) |
 | `make format`      | Format TypeScript (`format-ts`, Prettier) |

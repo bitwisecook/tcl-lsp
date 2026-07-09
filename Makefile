@@ -302,15 +302,57 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 
 test: test-rust test-ext runtime-rust-test zed-query-check ## Run all tests (Rust workspace + VS Code extension + Rust runtime port)
 
-lint: lint-ts ## Run all lint and style checks
+lint: lint-ts lint-py ## Run all lint and style checks
 
-format: format-ts ## Format TypeScript code
+format: format-ts format-py ## Format TypeScript and Python code
 
-# The lsp_e2e suite is now native: rust/tcl-lsp-server/tests/*_e2e.rs, run by
-# `cargo test` (see test-rust). The old Python pytest drivers were retired.
-# The pure-Tcl tclpkg suite (formerly `test-tclpkg-tcl`, driven out of the
-# retired `tooling/tclpkg/tcl` tree) is likewise gone: tclpkg is now the
-# `tcl-pkg` Rust crate, exercised by `test-rust`.
+# Python tooling. Versions are pinned so a new ruff/ty/pyright release cannot
+# change the verdict of a gate between a local run and CI — the failure mode the
+# floating Rust `stable` channel already gives us (see rust-toolchain.toml).
+RUFF_VERSION    := 0.15.20
+TY_VERSION      := 0.0.57
+PYRIGHT_VERSION := 1.1.411
+
+# The typecheck venv installs f5report — which maturin-compiles the native
+# `_engine` extension — plus pytest, so ty and pyright resolve every import for
+# real instead of suppressing `unresolved-import`. The Sublime host APIs
+# (`sublime`, `sublime_plugin`, `LSP.plugin`) only exist inside the editor, so
+# they are declared by hand-written stubs under typings/.
+PY_VENV := $(ROOT).venv-typecheck
+
+# `git ls-files` rather than a directory walk: it is the same file set every
+# gate uses, and it skips build outputs, the venv, and untracked scratch files.
+PY_FILES = $(shell git -C $(ROOT) ls-files '*.py')
+
+.PHONY: lint-py format-py typecheck-py py-venv
+
+lint-py: ## Lint + format-check every tracked Python file (ruff)
+	@echo "==> Linting Python (ruff format --check + ruff check)"
+	@cd $(ROOT) && uvx ruff@$(RUFF_VERSION) format --check $(PY_FILES)
+	@cd $(ROOT) && uvx ruff@$(RUFF_VERSION) check $(PY_FILES)
+
+format-py: ## Format every tracked Python file (ruff)
+	@echo "==> Formatting Python with ruff"
+	@cd $(ROOT) && uvx ruff@$(RUFF_VERSION) format $(PY_FILES)
+
+py-venv: ## Build the typecheck venv (f5report + native _engine + pytest)
+	@echo "==> Building Python typecheck venv ($(PY_VENV))"
+	@cd $(ROOT) && uv venv --quiet --allow-existing $(PY_VENV)
+	@# --reinstall-package: the wheel is cached by content, but the source tree
+	@# changes under it, so a plain install can leave a stale f5report behind.
+	@cd $(ROOT) && uv pip install --python $(PY_VENV) --quiet \
+	    --reinstall-package f5report ./rust/bigip-report-gen/python pytest
+
+typecheck-py: py-venv ## Type-check every tracked Python file (ty + pyright)
+	@echo "==> Type-checking Python (ty)"
+	@cd $(ROOT) && uvx ty@$(TY_VERSION) check \
+	    --python $(PY_VENV) --extra-search-path typings $(PY_FILES)
+	@echo "==> Type-checking Python (pyright)"
+	@cd $(ROOT) && uvx pyright@$(PYRIGHT_VERSION)
+
+# The lsp_e2e suite is native: rust/tcl-lsp-server/tests/*_e2e.rs, run by
+# `cargo test` (see test-rust). tclpkg is the `tcl-pkg` Rust crate, exercised by
+# `test-rust`.
 
 lint-ts: $(NPM_STAMP) ## Lint/format-check TypeScript extension code
 	@echo "==> Linting TypeScript code (ESLint + Prettier check)"
@@ -742,8 +784,8 @@ rust-deny: ## Audit the Rust workspace with cargo-deny (advisories/licenses/bans
 
 # All-languages lint + typecheck.  Mirrors GitHub Actions' pr-gate plus the
 # extra languages CI doesn't cover (Rust, full TS).
-check-all: ## Full lint + typecheck (TS, Rust)
-	@$(MAKE) -j $(NPROC) _prep-pr-checks check-rust
+check-all: ## Full lint + typecheck (TS, Rust, Python)
+	@$(MAKE) -j $(NPROC) _prep-pr-checks check-rust lint-py typecheck-py
 	@echo "==> check-all: PASSED"
 
 # Comprehensive local gate — run before opening a PR.
