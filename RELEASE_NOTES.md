@@ -1,4 +1,4 @@
-# v2.1.4
+# v2.1.5
 
 **2.x alpha — pre-release channel.**
 
@@ -12,71 +12,66 @@ GitHub release or the default Marketplace download.
 
 ## New Features
 
-- **Command-option highlighting.** Command options — including TclOO
-  object-method options — are now recognised and highlighted from the registry,
-  and option/subcommand names may be given by unambiguous prefix abbreviation
-  the way Tcl itself accepts them.
-- **By-reference and array-element variable highlighting.** Variables and
-  commands passed by reference are inferred from their general argument roles
-  and highlighted accordingly, and literal array-element write targets —
-  `set arr(key) 1`, `incr count(hits)`, `unset arr(key)` — now highlight as
-  whole-word variables to match their reads (a computed subscript like
-  `arr($i)` still keeps its inner `$i` as a distinct token).
-- **Native BIG-IP report generator.** The report generator is now backed by a
-  native Rust CLI alongside the Python backend, both sharing one templating
-  layer and emitting the same single-file report, and it ships as a release
-  artefact. The interactive report also gains a clearer theme toggle (distinct
-  auto/light/dark glyphs) and object-popover titles that deep-link to the
-  object's own listing row.
-- **Reports carry provenance.** Generated reports are stamped with the git
-  commit hash and gain print headers/footers for cleaner hard copies.
+- **Arity checking for every kind of call target.** Call-arity diagnostics no
+  longer apply only to plain `proc` definitions. They now understand
+  `interp alias`, commands renamed with `rename`, and TclOO methods, so a
+  wrong-argument-count call is reported wherever the target was actually
+  defined.
+- **Command-prefix callbacks are first-class.** Callbacks passed as a command
+  prefix — `trace add variable`, `after`, `fileevent`, and friends — now
+  participate in go-to-definition, find-references, arity checking, and the call
+  graph, including across files.
+- **Commands from `auto_path` library files are recognised.** A command defined
+  in a library file on the `auto_path` no longer draws the unresolved-command
+  hint `W123`.
+- **Dialect-aware interpreter globals.** A special-variable registry now models
+  the globals each dialect actually provides (`::errorInfo`, `::tcl_platform`,
+  and the rest), so they hover, complete, and stop being flagged as undefined.
+- **tcltest definitions in outlines.** `test` definitions surface in the
+  document and workspace symbol outlines.
 
 ## Improvements
 
-- **Much broader registry coverage.** Comprehensive tcllib and Tk command
-  coverage (including ttk and ticklecharts), plus BIG-IP config defaults,
-  object specs, cross-references, and event facts — sharpening completion,
-  hover, and diagnostics across Tcl, Tk, and iRule/BIG-IP code. The `::html::`
-  package table was rebuilt against html 1.6 with correct arities, return
-  types, purity flags, and version gating, and a dedicated `report::defstyle`
-  spec was added.
-- **Cross-file `package require` awareness (fewer false W120).** A module
-  sourced by an entry file that runs the requires is no longer flagged for
-  W120: the workspace now inherits `package require`s along the reverse
-  `source` graph. Optionally, `[project] entryPoints` in `.tcl-lsp.ini`
-  declares the entry files explicitly and applies their requires project-wide.
-- **Diagram rendering switched to elkjs.** Control-flow and data-flow diagrams
-  now lay out with elkjs instead of Mermaid, for more stable, readable graphs.
-- **Better tcltest support.** Registry tests migrated and the `tcltest`
-  package surface improved.
-- **Boolean handling in the syntax layer** for more accurate analysis of
-  boolean literals.
+- **Snappier semantic highlighting.** Semantic-token requests are now
+  prioritised ahead of the coarse whole-workspace analysis, so colouring appears
+  promptly on a large file instead of waiting behind a full scan.
+- **`dict for` and `dict map` bodies are analysed.** Their bodies are lowered
+  into the analysis control-flow graph, so diagnostics, data flow, and the call
+  graph see inside them.
+- **Sharper variable-name scanning.** A long tail of edge cases in how variable
+  names are recognised — braced names, namespace-qualified names, array element
+  targets, and similar — now resolve correctly.
+- **Zed editor assets are generated from the registry.** The Zed extension's
+  tree-sitter highlight queries are produced from the command registry and
+  guarded by a drift gate, so Zed highlighting tracks the registry the same way
+  the VS Code and JetBrains assets already did.
 
 ## Bug Fixes
 
-- **Object dispatch.** Correctly resolve non-static command and TclOO object
-  dispatch so methods on objects are analysed instead of flagged as unknown.
-- **Variable highlighting.** `unset` and `global` now highlight every variable
-  name in the command, not just the first.
-- **Config-file dialect now honoured for `.tcl` files.** The `dialect =` key in
-  `.tcl-lsp.ini` / `config.ini` is applied to normally-opened `.tcl` buffers;
-  the bare `tcl` language id every editor sends now defers to the per-folder
-  override and session default instead of forcing `tcl8.6`. Explicit versioned
-  ids and in-source `# tcl-dialect:` directives remain authoritative.
+- Twenty-seven tracked issues across the compiler, the language server, and the
+  supporting tooling.
+- Compiler correctness: miscompiles in sparse conditional constant propagation,
+  inlining, and constant folding; `switch` fall-through into a `default` arm;
+  code sinking past a redefinition of the right-hand side's read set.
+- Panics fixed: out-of-bounds reads on a trailing backslash and on a ghost `]`
+  in the lexer; multibyte slicing in `subst -nocommands`, in certificate common
+  names, and in `string last` on an empty haystack; a config-fold panic and a
+  semantic-tokens panic in the server.
+- Language-server correctness across navigation, rename, formatting, and minify.
+- Taint tracking now propagates sources through `expr` command substitutions and
+  matches subcommands by prefix abbreviation the way Tcl does.
+- The eBPF backend uses signed division and modulo for Tcl integers, and rejects
+  stray top-level statements when a `when` block is present.
+- F5 Distributed Cloud translation preserves match criteria through `if`/`else`,
+  `switch` mode, and fall-through.
+- The runtime parses list and string indices and counts with the correct radix.
 
-## Release-pipeline changes
+## Breaking Changes
 
-- VS Code pre-releases publish through a PAT-backed, approval-gated CI job
-  (the keyless Azure/OIDC path was rolled back after proving unreliable).
-- JetBrains pre-releases now publish to the Marketplace **eap** channel from an
-  approval-gated CI job, matching the VS Code pre-release track.
-- BIG-IP report and GitHub Pages builds were reworked around the shared
-  `bigip-report-gen` layout, including a fix to the single-file WASM report
-  build inputs.
-- Removed the retired Zig WASM runtime and the vendored TCL regex build
-  infrastructure.
-
-## Using this alpha
-
-Behaviour should match the 1.x stable line. Where it does not, that is a bug —
-please file it and note that you are on the 2.x pre-release.
+- **`samples/for_f5_query/sysadmin/monitor_timeline.py` is removed.** It wrapped
+  a renderer that no longer exists. Use `f5 query --render gantt`, which
+  reproduces its output; tune the resolution with
+  `--render-opt unit-minutes=N`.
+- **Building from source now requires Rust 1.97.** The workspace tracks the
+  current stable toolchain. This does not affect users of the published
+  binaries, extensions, or plugins.
