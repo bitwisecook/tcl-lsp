@@ -100,6 +100,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-how-to-run-tcltest-bundles.md](kcs-how-to-run-tcltest-bundles.md)
   — run the Tcl 9 tcltest test files through the WASM runtime and
   interpret the triage roll-up.
+- [kcs-howto-run-the-stress-test-suites.md](kcs-howto-run-the-stress-test-suites.md)
+  — run the issue #829 robustness stress suites (direct-infrastructure
+  and LSP-API) and reconstruct a failure from its reproduction bundle.
 - [kcs-howto-suppress-diagnostics.md](kcs-howto-suppress-diagnostics.md)
   — turn a diagnostic, warning, optimisation, or shimmer off inline,
   file-wide, per-project, per-editor, or globally.
