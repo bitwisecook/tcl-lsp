@@ -1408,6 +1408,36 @@ impl Analyser {
         );
     }
 
+    /// Handle `rename OLD NEW` — record a static rename so calls to
+    /// `NEW` resolve to whatever `OLD` denoted (the same proc, unchanged
+    /// signature — a rename is a pure name move, never an arity change).
+    ///
+    /// Returns `true` when the rename is *dynamic* (`rename $x y` /
+    /// `rename x [y]`, per [`crate::naming::is_dynamic_word`]) and so
+    /// could not be resolved statically — the caller widens
+    /// `has_dynamic_providers` in that case, the same wildcard-collapse
+    /// convention `command_binding.rs`'s flow-sensitive lattice uses for
+    /// the identical shape. A malformed `rename` (wrong argument count,
+    /// already flagged by the registry arity check) or a deleting
+    /// `rename OLD {}` record nothing and are not treated as dynamic —
+    /// there is no new binding to widen for.
+    pub fn handle_rename(&mut self, cmd_name: &str, args: &[String]) -> bool {
+        if cmd_name != "rename" || args.len() != 2 {
+            return false;
+        }
+        if crate::naming::is_dynamic_word(&args[0]) || crate::naming::is_dynamic_word(&args[1]) {
+            return true;
+        }
+        let old = crate::naming::normalise_qualified_name(&args[0]);
+        let new = crate::naming::normalise_qualified_name(&args[1]);
+        if old.is_empty() || new.is_empty() {
+            return false;
+        }
+        self.renamed_commands.insert(new.clone(), old.clone());
+        self.result.renamed_commands.insert(new, old);
+        false
+    }
+
     /// Handle `oo::objdefine $obj …` — record the object variable
     /// so later W308 (unknown method on object) checks can suppress
     /// false positives from per-instance method extensions.
@@ -3701,6 +3731,68 @@ mod tests {
         let mut a = Analyser::new();
         a.handle_interp_alias("interp", &["alias".to_string()]);
         assert!(a.command_aliases.is_empty());
+    }
+
+    // handle_rename
+
+    #[test]
+    fn handle_rename_records_static_move() {
+        let mut a = Analyser::new();
+        let dynamic = a.handle_rename("rename", &["target".to_string(), "target_orig".to_string()]);
+        assert!(!dynamic, "a fully static rename is not dynamic");
+        assert_eq!(
+            a.renamed_commands.get("::target_orig").map(String::as_str),
+            Some("::target")
+        );
+        assert_eq!(
+            a.result
+                .renamed_commands
+                .get("::target_orig")
+                .map(String::as_str),
+            Some("::target")
+        );
+    }
+
+    #[test]
+    fn handle_rename_deletion_records_nothing() {
+        // `rename OLD {}` deletes OLD — no new binding to record, and it
+        // is not a "dynamic" rename either (nothing to widen for).
+        let mut a = Analyser::new();
+        let dynamic = a.handle_rename("rename", &["target".to_string(), String::new()]);
+        assert!(!dynamic);
+        assert!(a.renamed_commands.is_empty());
+    }
+
+    #[test]
+    fn handle_rename_dynamic_old_name_reports_dynamic() {
+        let mut a = Analyser::new();
+        let dynamic = a.handle_rename("rename", &["$x".to_string(), "y".to_string()]);
+        assert!(dynamic, "rename $x y cannot be resolved statically");
+        assert!(a.renamed_commands.is_empty());
+    }
+
+    #[test]
+    fn handle_rename_dynamic_new_name_reports_dynamic() {
+        let mut a = Analyser::new();
+        let dynamic = a.handle_rename("rename", &["x".to_string(), "y[z]".to_string()]);
+        assert!(dynamic, "rename x y[z] cannot be resolved statically");
+        assert!(a.renamed_commands.is_empty());
+    }
+
+    #[test]
+    fn handle_rename_wrong_shape_no_op() {
+        let mut a = Analyser::new();
+        let dynamic = a.handle_rename("rename", &["onlyone".to_string()]);
+        assert!(!dynamic);
+        assert!(a.renamed_commands.is_empty());
+    }
+
+    #[test]
+    fn handle_rename_ignores_non_rename_commands() {
+        let mut a = Analyser::new();
+        let dynamic = a.handle_rename("puts", &["a".to_string(), "b".to_string()]);
+        assert!(!dynamic);
+        assert!(a.renamed_commands.is_empty());
     }
 
     // handle_oo_objdefine

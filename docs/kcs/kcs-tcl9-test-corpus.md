@@ -5,8 +5,8 @@
 
 ## Summary
 
-The upstream Tcl 9.0.3 C test suite, fetched on demand to
-`tmp/tcl9.0.3/tests/`, is our source of truth for runtime and compiler
+The upstream Tcl 9.0.4 C test suite, fetched on demand to
+`tmp/tcl9.0.4/tests/`, is our source of truth for runtime and compiler
 correctness. This note catalogues the 168 test files and groups them by
 core subsystem so contributors can find the right test when fixing a bug
 and judge what is in or out of scope for the correctness effort.
@@ -31,7 +31,7 @@ through the `fetch-tcl-source` skill:
 bash .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0
 ```
 
-This produces `tmp/tcl9.0.3/tests/` with 168 `*.test` files plus a few
+This produces `tmp/tcl9.0.4/tests/` with 168 `*.test` files plus a few
 support scripts (`all.tcl`, `internals.tcl`, `tcltests.tcl`). `tmp/` is
 gitignored; do not commit the source tree.
 
@@ -204,7 +204,7 @@ effort.
 The expected layout after a fetch:
 
 ```
-tmp/tcl9.0.3/
+tmp/tcl9.0.4/
 ├── library/tcltest/tcltest.tcl      # bundled into every test run
 └── tests/
     ├── list.test                    # in-scope, subsystem: list

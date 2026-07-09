@@ -64,7 +64,7 @@ fn per_item_matches_analyse_over_corpus() {
         "tcl8.4.20/library",
         "tcl8.5.19/library",
         "tcl8.6.16/library",
-        "tcl9.0.3/library",
+        "tcl9.0.4/library",
         "tcllib-2.0/modules",
     ] {
         gather(&repo_root().join("tmp").join(v), &mut files, 1500);
@@ -224,7 +224,7 @@ fn per_item_matches_analyse_under_edits() {
         "tcl8.4.20/library",
         "tcl8.5.19/library",
         "tcl8.6.16/library",
-        "tcl9.0.3/library",
+        "tcl9.0.4/library",
         "tcllib-2.0/modules",
     ] {
         gather(&repo_root().join("tmp").join(v), &mut files, 1500);

@@ -20,7 +20,7 @@
 //! ensembles. Each script is compiled as real Tcl via `tcl-compiler` and run
 //! through `tcl-vm`; every expectation is pinned against real `tclsh`
 //! (8.6 + 9.0) — cited in `// tclsh:` comments. The VM reports
-//! `info tclversion` == 9.0 / `info patchlevel` == 9.0.3, so tclsh9.0 is the
+//! `info tclversion` == 9.0 / `info patchlevel` == 9.0.4, so tclsh9.0 is the
 //! primary oracle; where the two C versions agree the comment says "both".
 //!
 //! Former divergences from C Tcl on valid input (`*_bug` tests) now assert the
@@ -444,8 +444,8 @@ fn info_args_body_default() {
 fn info_version_patchlevel() {
     // tclsh9.0: 9.0  (tclsh8.6: 8.6) — VM targets 9.
     assert_eq!(run("info tclversion").1, "9.0");
-    // tclsh9.0: 9.0.3  (tclsh8.6: 8.6.14) — VM targets 9.
-    assert_eq!(run("info patchlevel").1, "9.0.3");
+    // tclsh9.0: 9.0.4  (tclsh8.6: 8.6.14) — VM targets 9.
+    assert_eq!(run("info patchlevel").1, "9.0.4");
     // arg-count guards.
     let (ok, _, _) = run("info tclversion x");
     assert!(!ok);

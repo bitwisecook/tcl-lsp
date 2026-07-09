@@ -1164,6 +1164,7 @@ mod tests {
                     kind: "method".into(),
                     visibility: "public".into(),
                     doc: String::new(),
+                    forward_target: None,
                 },
             );
         }

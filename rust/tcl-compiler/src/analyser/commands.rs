@@ -351,7 +351,12 @@ impl Analyser {
             // Record variable-as-command and
             // command-substitution-as-command call sites so the
             // post-walk W307 / W308 emitters can resolve them.
-            self.record_var_or_cmd_command_site(cmd_tok, args, scope_path);
+            self.record_var_or_cmd_command_site(
+                cmd_tok,
+                args,
+                arg_expand_in.get(1..).unwrap_or(&[]),
+                scope_path,
+            );
 
             // W125 (orphaned control-flow keyword) and IRULE5005 (direct
             // iRules-proc call without `call`) — both key off whether the
@@ -510,13 +515,17 @@ impl Analyser {
         self.handle_auto_path_command(cmd_name, args, arg_tokens);
         self.handle_regex_pattern_capture(cmd_name, args, arg_tokens, scope_path);
 
-        // ``load`` / ``rename`` flip ``has_dynamic_providers``.
-        // ``load`` brings a shared library's commands into the
-        // interpreter at runtime; ``rename`` can introduce new
-        // command names dynamically.  Both make static W123
-        // unknown-command analysis unreliable, so the flag
-        // suppresses those diagnostics on the document.
-        if matches!(cmd_name, "load" | "rename") {
+        // ``load`` unconditionally flips ``has_dynamic_providers``: it
+        // brings a shared library's commands into the interpreter at
+        // runtime, which static W123 unknown-command analysis can never
+        // predict.  A *static* ``rename OLD NEW`` is instead recorded
+        // precisely by ``handle_rename`` (``NEW`` resolves to whatever
+        // ``OLD`` denoted, including its arity) — only a genuinely
+        // *dynamic* rename (``rename $x y`` / ``rename x [y]``) falls
+        // back to the same conservative flag, matching
+        // ``command_binding.rs``'s wildcard-collapse convention for the
+        // identical shape.
+        if cmd_name == "load" || self.handle_rename(cmd_name, args) {
             self.result.has_dynamic_providers = true;
         }
 
@@ -1267,7 +1276,12 @@ impl Analyser {
         // walk treats `[…]` as a value, so without this the W307 multi-dispatch
         // suppression under-counts `$obj` dispatches that live inside command
         // substitutions and the W307/W308 emitters never see them.
-        self.record_var_or_cmd_command_site(cmd_tok, args, scope_path);
+        self.record_var_or_cmd_command_site(
+            cmd_tok,
+            args,
+            arg_expand.get(1..).unwrap_or(&[]),
+            scope_path,
+        );
         // W125 (orphaned keyword) and IRULE5005 (direct iRules-proc call
         // without `call`) key off whether the head resolves to a user proc, so
         // they must reach substitution commands too: `when HTTP_REQUEST { set x
@@ -1415,6 +1429,7 @@ impl Analyser {
         &mut self,
         cmd_tok: Token,
         args: &[String],
+        arg_expand: &[bool],
         scope_path: &[usize],
     ) {
         let in_method = self.scope_path_in_method_body(scope_path);
@@ -1441,6 +1456,7 @@ impl Analyser {
                     cmd_span: cmd_tok.span,
                     in_method,
                     argc: args.len(),
+                    has_expand: arg_expand.iter().any(|&e| e),
                 });
             }
             TokenType::Cmd => {

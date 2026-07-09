@@ -102,6 +102,42 @@ pub struct Diagnostic {
     pub fixes: Vec<CodeFix>,
 }
 
+/// One same-file user-call arity candidate, buffered during the command
+/// walk for post-walk resolution against same-file procs / `TclOO`
+/// forwards / `interp alias` / static `rename` targets — the set the
+/// registry-only [`super::diagnostics::validity`] arity check can't see
+/// (see `Analyser::resolve_indirect_call_target`).  Distinct from
+/// [`super::state::Analyser::pending_arity`] (the registry-command
+/// candidate queue): this one is queued for *every* call, independent of
+/// whether `cmd_name` also resolves to a registry signature, since a
+/// user proc/alias/rename can shadow a builtin name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingUserCallArity {
+    /// Command name as written at the call site — also the diagnostic's
+    /// display name (a same-file call has no subcommand-style split).
+    pub cmd_name: String,
+    /// Call-site resolution namespace
+    /// (`Analyser::command_resolution_namespace`).
+    pub ns: String,
+    /// `false` inside a proc/method body (definitions there are visible
+    /// regardless of textual order, since bodies only run after the
+    /// whole file has loaded); `true` at top level (order-gated —
+    /// mirrors `pending_arity`'s identical field).
+    pub enforce_order: bool,
+    /// Offset of the command-name token, for the top-level order gate.
+    pub call_off: u32,
+    /// Full diagnostic span (command head through the last argument).
+    pub full_span: Span,
+    /// Lower-bound positional argument count (exact when
+    /// `positional_any_expand` is `false`).
+    pub nargs_min: usize,
+    /// Whether any positional word is `{*}`-expanded — when true,
+    /// `nargs_min` is a lower bound only, so only E002 ("too few") can
+    /// still fire, never E003 ("too many"); matches the identical
+    /// convention in the registry-command arity check.
+    pub positional_any_expand: bool,
+}
+
 /// Variable definition record.
 ///
 /// Populated by [`Analyser`](super::Analyser) every time it
@@ -268,6 +304,14 @@ pub struct MethodDef {
     pub visibility: String,
     /// Doc-comment text harvested from preceding lines.
     pub doc: String,
+    /// For a ``"forward"`` method (``forward NAME TARGET ?ARG…?``), the
+    /// forwarded ``(target command, prepended args)`` — `TclOO`'s
+    /// version of `interp alias` partial application (confirmed against
+    /// tclsh 9.0.4: a forwarded method call binds the prepended args
+    /// first, then the caller's own arguments, against `TARGET`'s own
+    /// arity). `None` for every other kind, and for a `forward` whose
+    /// target couldn't be parsed.
+    pub forward_target: Option<(String, Vec<String>)>,
 }
 
 /// `TclOO` property definition.
@@ -575,6 +619,11 @@ pub struct AnalysisResult {
     pub source_targets: Vec<SignatureSource>,
     /// Command-alias records keyed by qualified alias name.
     pub command_aliases: HashMap<String, SignatureCommandAlias>,
+    /// Static `rename OLD NEW` records: `new_qname → old_qname`. `NEW`
+    /// resolves to whatever `OLD` denoted (unchanged) — see
+    /// [`super::state::Analyser::renamed_commands`] for why a dynamic
+    /// rename is deliberately absent here.
+    pub renamed_commands: HashMap<String, String>,
     /// Namespace import records.
     pub namespace_imports: Vec<SignatureNamespaceImport>,
     /// `auto_path` mutations (``lappend auto_path …`` / ``set auto_path …``).

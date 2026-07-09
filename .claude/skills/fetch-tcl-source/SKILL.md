@@ -28,7 +28,7 @@ bash .claude/skills/fetch-tcl-source/fetch_tcl_source.sh <version|all|status>
 | `84` or `8.4` | Fetch Tcl 8.4.20 source |
 | `85` or `8.5` | Fetch Tcl 8.5.19 source |
 | `86` or `8.6` | Fetch Tcl 8.6.16 source |
-| `90` or `9.0` | Fetch Tcl 9.0.3 source |
+| `90` or `9.0` | Fetch Tcl 9.0.4 source |
 | `91` or `9.1` | Fetch Tcl 9.1b0 source |
 | `all` | Fetch all five versions |
 | `status` | Show which versions are present in `tmp/` |
@@ -42,7 +42,7 @@ After fetching, the following directories are available:
 | `tmp/tcl8.4.20/tests/` | Tcl 8.4 test suite (for reference capture) |
 | `tmp/tcl8.5.19/tests/` | Tcl 8.5 test suite |
 | `tmp/tcl8.6.16/tests/` | Tcl 8.6 test suite |
-| `tmp/tcl9.0.3/tests/` | Tcl 9.0 test suite (primary reference) |
+| `tmp/tcl9.0.4/tests/` | Tcl 9.0 test suite (primary reference) |
 | `tmp/tcl9.1b0/tests/` | Tcl 9.1 test suite (beta — newest features) |
 
 Each source tree also contains `generic/`, `library/`, `doc/`, and build files.

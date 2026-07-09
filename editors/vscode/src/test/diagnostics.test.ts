@@ -312,6 +312,39 @@ suite("Diagnostics", () => {
     );
   });
 
+  // Same-file proc-call arity: calling a same-file proc with the wrong
+  // number of arguments previously produced no diagnostic at all — the
+  // E002/E003 arity check was wired only to the builtin command registry.
+  // The fixture also covers `forward NAME my TARGET ?ARG…?`, the TclOO
+  // idiom for forwarding to a sibling method (a bare method name is never
+  // a valid forward target — confirmed against tclsh 9.0.4).
+  test("E003 fires for a same-file proc call with too many arguments", async () => {
+    const uri = getDocUri("diagnostics-arity.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.some((d) => codeOf(d) === "E003"),
+    });
+    const e003 = diagnostics.filter((d) => codeOf(d) === "E003");
+    assert.strictEqual(e003.length, 2, `expected exactly two E003s, got [${diagnostics.map(codeOf)}]`);
+    assert.ok(
+      e003.some((d) => d.message.includes("demonstrate")),
+      `an E003 message should name the proc, got: ${e003.map((d) => d.message)}`,
+    );
+    assert.ok(
+      e003.some((d) => d.message.includes("fwd")),
+      `an E003 message should name the forward, got: ${e003.map((d) => d.message)}`,
+    );
+    for (const d of e003) {
+      assert.strictEqual(d.severity, vscode.DiagnosticSeverity.Error, "E003 should be an error");
+    }
+    // The correctly-arg-counted `need3 1 2 3` call must not also fire.
+    assert.ok(
+      !diagnostics.some((d) => codeOf(d) === "E002"),
+      `unexpected E002 in [${diagnostics.map(codeOf)}]`,
+    );
+  });
+
   // Issue #832: `autoloadLibrary.tcl` calls two commands the workspace's
   // `rbclib/tclIndex` auto-loads (`Rbc_ActiveLegend` / `Rbc_ZoomStack`, the
   // BLT/Rbc idiom) with no `package require`, plus one genuinely-unknown

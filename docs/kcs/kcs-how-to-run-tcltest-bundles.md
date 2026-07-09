@@ -9,12 +9,12 @@ tcl-lsp CLI
 
 ## Question
 
-How do I run the bundled Tcl 9.0.3 test files (`tmp/tcl9.0.3/tests/*.test`)
+How do I run the bundled Tcl 9.0.4 test files (`tmp/tcl9.0.4/tests/*.test`)
 through our compile-to-WASM path and interpret the outcome?
 
 ## Before you start
 
-- The Tcl 9.0.3 source tree must be present at `tmp/tcl9.0.3/`. On the
+- The Tcl 9.0.4 source tree must be present at `tmp/tcl9.0.4/`. On the
   web harness this is fetched automatically by the SessionStart hook;
   locally run `bash .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0`.
 - The Rust runtime must be built (`cd runtime/rust && cargo build
@@ -61,11 +61,11 @@ for the outcome classification and per-record schema.
 `tests/external/run_tcl9_tests.py::_bundle` concatenates three
 sources in order:
 
-1. `tmp/tcl9.0.3/library/tcltest/tcltest.tcl` — the real Tcl 9
+1. `tmp/tcl9.0.4/library/tcltest/tcltest.tcl` — the real Tcl 9
    tcltest preamble (procs, namespace exports, configure defaults).
 2. A short preamble (`_PREAMBLE`) that imports every tcltest command
    into the global namespace and silences per-test verbose output.
-3. The test file itself (e.g. `tmp/tcl9.0.3/tests/llength.test`).
+3. The test file itself (e.g. `tmp/tcl9.0.4/tests/llength.test`).
 
 The whole concatenation is handed to `lower_to_ir` → `build_cfg` →
 `wasm_codegen_module` as a single translation unit, compiled with

@@ -523,7 +523,7 @@ impl Vm {
         self.write_scalar_raw("argv0", Value::string("tcltest"));
         self.write_scalar_raw("argc", Value::int(0));
         self.write_scalar_raw("tcl_version", Value::string("9.0"));
-        self.write_scalar_raw("tcl_patchLevel", Value::string("9.0.3"));
+        self.write_scalar_raw("tcl_patchLevel", Value::string("9.0.4"));
         self.write_scalar_raw("tcl_interactive", Value::int(0));
         // `tcl_library` is the directory holding the script library; C Tcl's
         // init derives it from `$env(TCL_LIBRARY)` (set when the caller points

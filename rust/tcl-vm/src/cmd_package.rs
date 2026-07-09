@@ -30,12 +30,12 @@ use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
 pub(crate) fn register(vm: &mut Vm) {
-    // We emulate Tcl 9.0.3; the core pre-provides both `Tcl` and the lowercase
+    // We emulate Tcl 9.0.4; the core pre-provides both `Tcl` and the lowercase
     // `tcl` alias at the full patchlevel (matching `tclsh9.0`), so
     // `package require Tcl` resolves and library code that reads
     // `[package provide tcl]` (e.g. `tm.tcl`'s version split) sees a version.
-    vm.provide_package("Tcl", "9.0.3");
-    vm.provide_package("tcl", "9.0.3");
+    vm.provide_package("Tcl", "9.0.4");
+    vm.provide_package("tcl", "9.0.4");
     vm.register("package", cmd_package);
 }
 

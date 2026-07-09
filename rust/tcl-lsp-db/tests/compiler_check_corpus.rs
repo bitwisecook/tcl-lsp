@@ -144,7 +144,7 @@ fn compiler_check_memo_matches_uncached_over_corpus() {
         "tcl8.4.20/library",
         "tcl8.5.19/library",
         "tcl8.6.16/library",
-        "tcl9.0.3/library",
+        "tcl9.0.4/library",
         "tcllib-2.0/modules",
     ] {
         gather(&repo_root().join("tmp").join(v), &mut files, 1500);
@@ -219,7 +219,7 @@ fn compiler_check_memo_matches_uncached_under_corpus_edits() {
     for v in [
         "tcl8.6.16/library",
         "tcllib-2.0/modules",
-        "tcl9.0.3/library",
+        "tcl9.0.4/library",
     ] {
         gather(&repo_root().join("tmp").join(v), &mut files, 120);
     }

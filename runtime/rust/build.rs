@@ -32,7 +32,7 @@
 //! tower-less wasm build (with a `cargo:warning`) rather than failing.
 //!
 //! Source location: `$TCL_TOMMATH_DIR`, else the fetched tree at
-//! `<repo>/tmp/tcl9.0.3/libtommath`. (Vendoring the source for a
+//! `<repo>/tmp/tcl9.0.4/libtommath`. (Vendoring the source for a
 //! fresh-checkout-reproducible build is a tracked follow-up.)
 
 use std::path::{Path, PathBuf};
@@ -230,10 +230,10 @@ fn locate_libtommath() -> Option<PathBuf> {
             return Some(p);
         }
     }
-    // <crate>/../../tmp/tcl9.0.3/libtommath (the session-fetched tree).
+    // <crate>/../../tmp/tcl9.0.4/libtommath (the session-fetched tree).
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").ok()?);
     let candidate = manifest
-        .join("../../tmp/tcl9.0.3/libtommath")
+        .join("../../tmp/tcl9.0.4/libtommath")
         .canonicalize()
         .ok()?;
     candidate.join("tommath.h").is_file().then_some(candidate)

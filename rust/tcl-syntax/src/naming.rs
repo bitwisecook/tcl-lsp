@@ -343,6 +343,21 @@ pub fn split_array_name(name: &str) -> (&str, Option<&str>) {
     (base, None)
 }
 
+/// True when `word` carries a variable / command substitution anywhere —
+/// e.g. `rename ::$c mystr` or `rename foo bar[x]` — so it cannot be
+/// resolved to a static command name at compile time.
+///
+/// ```
+/// use tcl_syntax::naming::is_dynamic_word;
+/// assert!(!is_dynamic_word("foo"));
+/// assert!(is_dynamic_word("::$c"));
+/// assert!(is_dynamic_word("bar[x]"));
+/// ```
+#[must_use]
+pub fn is_dynamic_word(word: &str) -> bool {
+    word.contains('$') || word.contains('[')
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

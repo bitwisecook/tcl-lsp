@@ -43,6 +43,7 @@ use crate::alias::detect_interp_alias;
 use crate::cfg::BlockId;
 use crate::cfg::Function as CfgFunction;
 use crate::ir::Statement;
+use crate::naming::is_dynamic_word;
 use crate::naming::normalise_qualified_name as nqn;
 use tcl_registry::CommandRegistry;
 
@@ -144,13 +145,6 @@ fn join_binding(a: &Binding, b: &Binding) -> Binding {
         return a.clone();
     }
     Binding::of(BindingKind::Unknown)
-}
-
-/// True when `word` carries a variable / command substitution anywhere —
-/// e.g. `rename ::$c mystr` or `rename foo bar[x]`.  Such a name is not
-/// static and must collapse the state to the wildcard ⊤.
-fn is_dynamic_word(word: &str) -> bool {
-    word.contains('$') || word.contains('[')
 }
 
 /// Canonical qname defined by a `proc NAME params body` call, or `None`

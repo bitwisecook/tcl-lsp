@@ -462,6 +462,7 @@ mod tests {
                     kind: "method".to_string(),
                     visibility: "public".to_string(),
                     doc: String::new(),
+                    forward_target: None,
                 },
             );
         }

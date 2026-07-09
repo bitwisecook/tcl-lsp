@@ -67,7 +67,7 @@ add_candidate "${TCL_LIBRARY:-}"
 
 # Same source-tree location exported by .claude/hooks/session-start.sh after
 # the SessionStart hook fetches the Tcl sources.
-add_candidate "$REPO_ROOT/tmp/tcl9.0.3/library"
+add_candidate "$REPO_ROOT/tmp/tcl9.0.4/library"
 
 case "$OS" in
     Darwin)

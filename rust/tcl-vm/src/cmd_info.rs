@@ -189,7 +189,7 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             _ => err("wrong # args: should be \"info tclversion\""),
         },
         "patchlevel" => match rest {
-            [] => ok(Value::string("9.0.3")),
+            [] => ok(Value::string("9.0.4")),
             _ => err("wrong # args: should be \"info patchlevel\""),
         },
         // `info functions ?pattern?` — the registered `tcl::mathfunc::*` names.

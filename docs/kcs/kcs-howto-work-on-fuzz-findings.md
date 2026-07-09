@@ -77,7 +77,7 @@ python3 .claude/skills/test-results/test_results.py source expr-23.24 9.0
 Search Tcl test sources for exact error messages:
 
 ```bash
-grep -rn "negative shift" tmp/tcl9.0.3/tests/
+grep -rn "negative shift" tmp/tcl9.0.4/tests/
 ```
 
 ### 4. Fix — prefer early pipeline stages and LSP diagnostics

@@ -156,7 +156,7 @@ impl ProcTaintSummary {
         Self {
             qualified_name: qname.to_owned(),
             params: params.to_vec(),
-            arity: arity_from_params(params),
+            arity: crate::interprocedural::arity_from_names(params),
             return_base: clean,
             return_by_param_basis: params
                 .iter()
@@ -173,17 +173,6 @@ impl ProcTaintSummary {
             }
         }
         TaintLattice::clean()
-    }
-}
-
-/// Declared arity from a parameter list: a trailing `args` parameter makes
-/// the procedure variadic.
-fn arity_from_params(params: &[String]) -> Arity {
-    let n = u16::try_from(params.len()).unwrap_or(u16::MAX);
-    if params.last().is_some_and(|p| p == "args") {
-        Arity::at_least(n.saturating_sub(1))
-    } else {
-        Arity::exact(n)
     }
 }
 
@@ -402,7 +391,7 @@ pub fn infer_proc_summary(
     ProcTaintSummary {
         qualified_name: qname.to_owned(),
         params: params.to_vec(),
-        arity: arity_from_params(params),
+        arity: crate::interprocedural::arity_from_names(params),
         return_base,
         return_by_param_basis: by_param_basis,
     }

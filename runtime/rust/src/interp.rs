@@ -1364,7 +1364,7 @@ impl Interp {
         };
         set(self, b"::tcl_library", lib.as_bytes());
         set(self, b"::tcl_version", b"9.0");
-        set(self, b"::tcl_patchLevel", b"9.0.3");
+        set(self, b"::tcl_patchLevel", b"9.0.4");
         set(self, b"::tcl_interactive", b"0");
         set(self, b"::argv", b"");
         set(self, b"::argv0", b"");

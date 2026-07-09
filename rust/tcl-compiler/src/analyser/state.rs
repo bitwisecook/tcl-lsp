@@ -45,9 +45,16 @@ pub struct VarCommandSite {
     /// True when the call site is inside a class method body.
     pub in_method: bool,
     /// Number of positional arguments passed at the dispatch site
-    /// (`$cmd a b c` → 3).  Used by the dispatch-protocol W214
+    /// (`$cmd a b c` → 3, i.e. including the method-name word for a
+    /// `$obj method a b` shape).  Used by the dispatch-protocol W214
     /// suppression to require an arity-compatible dispatcher.
     pub argc: usize,
+    /// True when any word at the dispatch site (method name or
+    /// arguments) is `{*}`-expanded, making the runtime argument count
+    /// unknowable statically.  The W308 method-arity check abstains
+    /// entirely when this is set, matching every other arity check's
+    /// `{*}`-expansion convention.
+    pub has_expand: bool,
 }
 
 /// One entry in [`Analyser::cmd_command_sites`] —
@@ -166,6 +173,16 @@ pub struct Analyser {
     /// Command-alias records:
     /// ``alias_name → (target_cmd, prepended_args)``.
     pub command_aliases: HashMap<String, (String, Vec<String>)>,
+    /// Static `rename OLD NEW` records: ``new_qname → old_qname``.
+    /// `NEW` inherits whatever `OLD` denoted (a proc's own signature,
+    /// unchanged) — mirrors [`Self::command_aliases`]'s shape, but with
+    /// no prepended-argument shift, since a rename is a pure name move.
+    /// Only populated for a *static* rename (see
+    /// [`tcl_syntax::naming::is_dynamic_word`]); a dynamic
+    /// `rename $x y` / `rename x [y]` instead sets
+    /// [`super::types::AnalysisResult::has_dynamic_providers`] and is not
+    /// recorded here.
+    pub renamed_commands: HashMap<String, String>,
     /// Variable-as-command call sites; resolved post-walk by W307.
     pub var_command_sites: Vec<VarCommandSite>,
     /// Command-substitution-as-command call sites; same dispatch
@@ -236,6 +253,12 @@ pub struct Analyser {
     /// The arity check runs over the fully-resolved IR rather than
     /// inline during the walk.
     pub pending_arity: Vec<(String, String, bool, super::types::Diagnostic)>,
+    /// Same-file user-call arity candidates — see
+    /// [`super::types::PendingUserCallArity`]. Queued for *every* call
+    /// (not just ones with a registry signature) and resolved in the
+    /// same post-walk pass as [`Self::pending_arity`]
+    /// ([`Self::flush_arity_diagnostics`]).
+    pub pending_user_call_arity: Vec<super::types::PendingUserCallArity>,
     /// W108 non-ASCII detection mode (`tclLsp.style.nonAscii`).
     /// [`NonAsciiMode::Default`] resolves per dialect at emit time
     /// (strict for F5 iRules/iApps, confusables otherwise).
@@ -416,6 +439,7 @@ impl Analyser {
             body_depth: 0,
             body_scope_stack: Vec::new(),
             command_aliases: HashMap::new(),
+            renamed_commands: HashMap::new(),
             var_command_sites: Vec::new(),
             cmd_command_sites: Vec::new(),
             ns_cache: HashMap::new(),
@@ -427,6 +451,7 @@ impl Analyser {
             stub_overlay: None,
             line_offsets: None,
             pending_arity: Vec::new(),
+            pending_user_call_arity: Vec::new(),
             non_ascii_mode: NonAsciiMode::Default,
             structure_only: false,
             defer_proc_bodies: false,

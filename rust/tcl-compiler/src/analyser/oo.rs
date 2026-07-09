@@ -644,6 +644,7 @@ impl Analyser {
             kind: kind.to_string(),
             visibility: visibility.to_string(),
             doc: String::new(),
+            forward_target: None,
         };
         match kind {
             "constructor" => ctx.class_def.constructors.push(method_def),
@@ -1144,12 +1145,19 @@ fn apply_oo_private(
 }
 
 /// `oo::define Cls forward name target ...` — records a forward
-/// alias as a method.
+/// alias as a method, keeping the target command and any prepended
+/// arguments (`forward`'s own version of `interp alias` partial
+/// application) so a call through the forward can be arity-checked
+/// against `target`'s own signature, shifted by the prepended count —
+/// see `Analyser::resolve_indirect_call_target`.
 fn apply_oo_forward(sub_args: &[String], sub_tokens: &[Token], class_def: &mut ClassDef) {
     if let Some(name) = sub_args.first() {
         let span = sub_tokens
             .first()
             .map_or_else(|| tcl_lexer::Span::new(0, 0), |t| t.span);
+        let forward_target = sub_args
+            .get(1)
+            .map(|target| (target.clone(), sub_args.get(2..).unwrap_or(&[]).to_vec()));
         let md = MethodDef {
             name: name.clone(),
             params: Vec::new(),
@@ -1158,6 +1166,7 @@ fn apply_oo_forward(sub_args: &[String], sub_tokens: &[Token], class_def: &mut C
             kind: "forward".to_string(),
             visibility: "public".to_string(),
             doc: String::new(),
+            forward_target,
         };
         class_def.methods.insert(md.name.clone(), md);
     }
@@ -1420,6 +1429,7 @@ fn extract_method_def(
         kind: kind.to_string(),
         visibility: visibility.to_string(),
         doc: String::new(),
+        forward_target: None,
     })
 }
 
