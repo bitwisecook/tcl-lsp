@@ -103,7 +103,8 @@ from dataclasses import dataclass
 # inherently timing-dependent stress harness to reproduce what it saw.
 
 ARTIFACTS_ROOT = os.environ.get(
-    "TCL_LSP_STRESS_ARTIFACTS", os.path.join(tempfile.gettempdir(), "tcl-lsp-stress-artifacts")
+    "TCL_LSP_STRESS_ARTIFACTS",
+    os.path.join(tempfile.gettempdir(), "tcl-lsp-stress-artifacts"),
 )
 
 
@@ -133,7 +134,11 @@ def dump_repro_bundle(
     with open(os.path.join(bundle, "FAILURE.md"), "w") as f:
         f.write(f"# {scenario} / {tag}\n\n## What happened\n\n{failure}\n")
         if context:
-            f.write("\n## Context\n\n```json\n" + json.dumps(context, indent=2, default=str) + "\n```\n")
+            f.write(
+                "\n## Context\n\n```json\n"
+                + json.dumps(context, indent=2, default=str)
+                + "\n```\n"
+            )
         if files:
             f.write("\n## Files in this bundle\n\n")
             for name in sorted(files):
@@ -192,7 +197,9 @@ def _truncate_large_text_fields(payload: dict) -> dict:
         changes = out_params.get("contentChanges")
         if isinstance(changes, list):
             out_params["contentChanges"] = [
-                {**c, "text": shrink(c["text"])} if isinstance(c, dict) and isinstance(c.get("text"), str) else c
+                {**c, "text": shrink(c["text"])}
+                if isinstance(c, dict) and isinstance(c.get("text"), str)
+                else c
                 for c in changes
             ]
         out["params"] = out_params
@@ -279,7 +286,11 @@ class LspClient:
     def _record(self, direction: str, payload: dict) -> None:
         with self._transcript_lock:
             self._transcript.append(
-                {"t": round(time.monotonic() - self._start_time, 4), "dir": direction, "msg": payload}
+                {
+                    "t": round(time.monotonic() - self._start_time, 4),
+                    "dir": direction,
+                    "msg": payload,
+                }
             )
 
     def transcript_jsonl(self) -> str:
@@ -320,7 +331,9 @@ class LspClient:
         stderr = self.process.stderr
         assert stderr is not None
         for raw in stderr:
-            self._stderr_lines.append(raw.decode("utf-8", errors="replace").rstrip("\n"))
+            self._stderr_lines.append(
+                raw.decode("utf-8", errors="replace").rstrip("\n")
+            )
 
     def _send(self, payload: dict) -> None:
         self._record("send", _truncate_large_text_fields(payload))
@@ -495,7 +508,14 @@ def scenario_tokens(server_bin: str, duration: float, docs: int, procs: int) -> 
             doc_texts[doc_id] = text
             client.notify(
                 "textDocument/didOpen",
-                {"textDocument": {"uri": uri, "languageId": "tcl", "version": 1, "text": text}},
+                {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "tcl",
+                        "version": 1,
+                        "text": text,
+                    }
+                },
             )
             version = 1
             round_num = 0
@@ -522,12 +542,20 @@ def scenario_tokens(server_bin: str, duration: float, docs: int, procs: int) -> 
                     ok = bool(result and result.get("data"))
                     with samples_lock:
                         samples.append(
-                            LatencySample(ok, elapsed, doc_id, round_num, "" if ok else "empty tokens")
+                            LatencySample(
+                                ok,
+                                elapsed,
+                                doc_id,
+                                round_num,
+                                "" if ok else "empty tokens",
+                            )
                         )
                 except LspError as exc:
                     elapsed = time.monotonic() - started
                     with samples_lock:
-                        samples.append(LatencySample(False, elapsed, doc_id, round_num, str(exc)))
+                        samples.append(
+                            LatencySample(False, elapsed, doc_id, round_num, str(exc))
+                        )
             client.notify("textDocument/didClose", {"textDocument": {"uri": uri}})
 
         threads = [threading.Thread(target=worker, args=(i,)) for i in range(docs)]
@@ -570,7 +598,11 @@ def scenario_tokens(server_bin: str, duration: float, docs: int, procs: int) -> 
                     "server_stderr.txt": client.stderr_tail(500),
                 },
                 context={
-                    "scenario_args": {"duration": duration, "docs": docs, "procs": procs},
+                    "scenario_args": {
+                        "duration": duration,
+                        "docs": docs,
+                        "procs": procs,
+                    },
                     "doc_id": f.doc_id,
                     "round": f.round_num,
                     "elapsed_seconds": f.elapsed,
@@ -589,7 +621,9 @@ def scenario_tokens(server_bin: str, duration: float, docs: int, procs: int) -> 
         print("[tokens] FAIL — server process died during the run")
         return False
     if failures:
-        print(f"[tokens] FAIL — {len(failures)} of {len(samples)} requests failed or timed out")
+        print(
+            f"[tokens] FAIL — {len(failures)} of {len(samples)} requests failed or timed out"
+        )
         return False
     print("[tokens] PASS")
     return True
@@ -608,7 +642,9 @@ def scenario_startup(server_bin: str, iterations: int) -> bool:
             with open(os.path.join(http_dir, "http.tcl"), "w") as f:
                 f.write("package provide http 2.9\nproc http::register {a b c} {}\n")
             with open(os.path.join(http_dir, "pkgIndex.tcl"), "w") as f:
-                f.write('package ifneeded http 2.9 [list source [file join $dir http.tcl]]\n')
+                f.write(
+                    "package ifneeded http 2.9 [list source [file join $dir http.tcl]]\n"
+                )
             lib_dir = os.path.join(root, "lib")
             os.makedirs(lib_dir, exist_ok=True)
             with open(os.path.join(lib_dir, "util.tcl"), "w") as f:
@@ -633,7 +669,14 @@ def scenario_startup(server_bin: str, iterations: int) -> bool:
                 text = f.read()
             client.notify(
                 "textDocument/didOpen",
-                {"textDocument": {"uri": uri, "languageId": "tcl", "version": 1, "text": text}},
+                {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "tcl",
+                        "version": 1,
+                        "text": text,
+                    }
+                },
             )
 
             # Settle: a synchronous pull request blocks until the server has
@@ -646,7 +689,9 @@ def scenario_startup(server_bin: str, iterations: int) -> bool:
             while time.monotonic() < deadline:
                 try:
                     report = client.request(
-                        "textDocument/diagnostic", {"textDocument": {"uri": uri}}, timeout=10.0
+                        "textDocument/diagnostic",
+                        {"textDocument": {"uri": uri}},
+                        timeout=10.0,
                     )
                     diagnostics = (report or {}).get("items") or []
                 except LspError:
@@ -658,7 +703,9 @@ def scenario_startup(server_bin: str, iterations: int) -> bool:
             alive = client.is_alive()
             has_w120 = any(d.get("code") == "W120" for d in diagnostics)
             if has_w120 or not alive:
-                print(f"[startup] iteration {i}: FAIL — w120_present={has_w120} server_alive={alive}")
+                print(
+                    f"[startup] iteration {i}: FAIL — w120_present={has_w120} server_alive={alive}"
+                )
                 # Copy the whole workspace out *before* the `with` block
                 # below deletes it with `root` — the ancestor/pkgIndex/filler
                 # layout is exactly what would otherwise be lost, and is
@@ -683,7 +730,12 @@ def scenario_startup(server_bin: str, iterations: int) -> bool:
                         "server_stderr.txt": client.stderr_tail(500),
                     },
                     copy_dirs={"workspace": root},
-                    context={"iteration": i, "has_w120": has_w120, "server_alive": alive, "opened_uri": uri},
+                    context={
+                        "iteration": i,
+                        "has_w120": has_w120,
+                        "server_alive": alive,
+                        "opened_uri": uri,
+                    },
                 )
             else:
                 ok_count += 1
@@ -714,7 +766,9 @@ def scenario_chaos(server_bin: str, duration: float, docs: int) -> bool:
 
     def log_action(worker_id: int, action: str, uri: str, outcome: str = "") -> None:
         with action_log_lock:
-            action_log.append(f"t={time.monotonic():.3f} worker={worker_id} {action} {uri} {outcome}")
+            action_log.append(
+                f"t={time.monotonic():.3f} worker={worker_id} {action} {uri} {outcome}"
+            )
 
     with tempfile.TemporaryDirectory(prefix="tcl-lsp-stress-chaos-") as root:
         client = LspClient(server_bin, root)
@@ -759,7 +813,9 @@ def scenario_chaos(server_bin: str, duration: float, docs: int) -> bool:
                             },
                         )
                     elif action == "close" and uri in local_open:
-                        client.notify("textDocument/didClose", {"textDocument": {"uri": uri}})
+                        client.notify(
+                            "textDocument/didClose", {"textDocument": {"uri": uri}}
+                        )
                         local_open.discard(uri)
                     elif action == "tokens" and uri in local_open:
                         client.request(
@@ -816,7 +872,11 @@ def scenario_chaos(server_bin: str, duration: float, docs: int) -> bool:
                 (
                     f"After {duration:.0f}s of concurrent open/edit/close/tokens/hover churn "
                     f"across {docs} logical documents (4 worker threads, RNG seed {hex(seed)}), "
-                    + ("the server stopped responding to a final round trip." if alive else "the server process had exited.")
+                    + (
+                        "the server stopped responding to a final round trip."
+                        if alive
+                        else "the server process had exited."
+                    )
                 ),
                 files={
                     "action_log.txt": action_log_text,
@@ -834,7 +894,9 @@ def scenario_chaos(server_bin: str, duration: float, docs: int) -> bool:
 
         client.shutdown()
 
-    print(f"[chaos] {len(errors)} request errors, server_alive={alive}, responsive={responsive}")
+    print(
+        f"[chaos] {len(errors)} request errors, server_alive={alive}, responsive={responsive}"
+    )
     for e in errors[:5]:
         print(f"[chaos]   {e}")
     if not alive or not responsive:
@@ -849,8 +911,12 @@ def scenario_chaos(server_bin: str, duration: float, docs: int) -> bool:
 
 def main() -> int:
     global ARTIFACTS_ROOT
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--server-bin", required=True, help="Path to the tcl-lsp-server binary")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--server-bin", required=True, help="Path to the tcl-lsp-server binary"
+    )
     parser.add_argument(
         "--scenario",
         choices=["tokens", "startup", "chaos"],
@@ -858,11 +924,30 @@ def main() -> int:
         dest="scenarios",
         help="Run only this scenario (repeatable). Default: all.",
     )
-    parser.add_argument("--all", action="store_true", help="Run all scenarios (default if none named)")
-    parser.add_argument("--duration", type=float, default=20.0, help="Seconds per timed scenario (tokens, chaos)")
-    parser.add_argument("--docs", type=int, default=6, help="Concurrent documents for tokens/chaos")
-    parser.add_argument("--procs", type=int, default=300, help="Procs per document for the tokens scenario")
-    parser.add_argument("--startup-iterations", type=int, default=5, help="Iterations for the startup scenario")
+    parser.add_argument(
+        "--all", action="store_true", help="Run all scenarios (default if none named)"
+    )
+    parser.add_argument(
+        "--duration",
+        type=float,
+        default=20.0,
+        help="Seconds per timed scenario (tokens, chaos)",
+    )
+    parser.add_argument(
+        "--docs", type=int, default=6, help="Concurrent documents for tokens/chaos"
+    )
+    parser.add_argument(
+        "--procs",
+        type=int,
+        default=300,
+        help="Procs per document for the tokens scenario",
+    )
+    parser.add_argument(
+        "--startup-iterations",
+        type=int,
+        default=5,
+        help="Iterations for the startup scenario",
+    )
     parser.add_argument(
         "--artifacts-dir",
         default=None,
@@ -894,9 +979,13 @@ def main() -> int:
     results: dict[str, bool] = {}
     for name in scenarios:
         if name == "tokens":
-            results["tokens"] = scenario_tokens(args.server_bin, args.duration, args.docs, args.procs)
+            results["tokens"] = scenario_tokens(
+                args.server_bin, args.duration, args.docs, args.procs
+            )
         elif name == "startup":
-            results["startup"] = scenario_startup(args.server_bin, args.startup_iterations)
+            results["startup"] = scenario_startup(
+                args.server_bin, args.startup_iterations
+            )
         elif name == "chaos":
             results["chaos"] = scenario_chaos(args.server_bin, args.duration, args.docs)
 
