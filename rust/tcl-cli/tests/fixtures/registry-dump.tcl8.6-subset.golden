@@ -3184,7 +3184,7 @@
       "allow_unknown_subcommands": false,
       "assigns_variable_at": null,
       "body_arg_implicit_args": 0,
-      "body_kind": "INLINE",
+      "body_kind": "STRUCTURAL",
       "deprecated_replacement": null,
       "format_string_type": null,
       "inferred_storage_type": null,
