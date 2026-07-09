@@ -193,6 +193,57 @@ suite("Semantic Tokens", () => {
     );
   });
 
+  // Issue #837: the braced body of `uplevel ?level? {…}` runs in another stack
+  // frame but is still a Tcl script — it must recurse (its inner commands and
+  // variables highlight) instead of being emitted as one opaque string.
+  test("uplevel bodies recurse and highlight their inner commands (#837)", async () => {
+    const uri = getDocUri("uplevelBody.tcl");
+    const doc = await activate(uri);
+
+    const tokens = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokens",
+      uri,
+    )) as vscode.SemanticTokens;
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+
+    const decoded = decodeTokens(tokens, legend);
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+
+    // `foreach` and `namespace` inside the `uplevel 1 {…}` body are keywords.
+    const keywordWords = new Set(decoded.filter((t) => t.type === "keyword").map(textOf));
+    for (const word of ["foreach", "namespace", "uplevel"]) {
+      assert.ok(
+        keywordWords.has(word),
+        `expected '${word}' as a keyword token (recursed uplevel body), got ${JSON.stringify([
+          ...keywordWords,
+        ])}`,
+      );
+    }
+
+    // `set`/`puts` inside the no-level and `#0` bodies are function tokens —
+    // proof the bodies with and without a level word both recurse.
+    const functionWords = new Set(decoded.filter((t) => t.type === "function").map(textOf));
+    for (const word of ["set", "puts"]) {
+      assert.ok(
+        functionWords.has(word),
+        `expected '${word}' as a function token (recursed uplevel body), got ${JSON.stringify([
+          ...functionWords,
+        ])}`,
+      );
+    }
+
+    // The `${nameSpc}` reference deep inside the body surfaces a variable token.
+    assert.ok(
+      decoded.some((t) => t.type === "variable"),
+      "expected the recursed uplevel body to surface variable tokens",
+    );
+  });
+
   // Issue #757: a braced string literal spanning multiple lines lost its
   // highlighting (the enclosing multi-line `string` token was dropped).  It
   // must now carry a `string` token on every covered line, just like the

@@ -76,8 +76,8 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::script(),
-        detail: "Script to evaluate when the scale value changes.",
+        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(1)),
+        detail: "Command prefix invoked when the scale value changes (the new value is appended).",
         dialects: None,
         aliases: &[],
         min_version: None,

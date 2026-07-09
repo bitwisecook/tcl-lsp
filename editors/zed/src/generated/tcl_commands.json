@@ -6718,7 +6718,7 @@
     },
     {
       "name": "processman::onexit",
-      "summary": "Arrange to execute the script cmd when this programe detects that process id as terminated."
+      "summary": "Arrange to execute the script cmd when this program detects that process id has terminated."
     },
     {
       "name": "processman::priority",

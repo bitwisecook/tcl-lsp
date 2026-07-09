@@ -52,6 +52,78 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Longer default for `initialize` / `request` without an explicit deadline.
 const REQUEST_TIMEOUT: Duration = Duration::from_mins(1);
 
+/// A greppable marker every latency-barrier timeout carries, so a CI-log scan
+/// (human or tooling) can classify the failure without reading the prose.
+const BARRIER_TIMEOUT_MARKER: &str = "LATENCY-BARRIER-TIMEOUT";
+
+/// Diagnostic footer appended to every latency-barrier timeout panic in this
+/// harness (`request_timeout`, `await_diagnostics_version`, `await_log`,
+/// `await_notification`, and the config-settle barrier).
+///
+/// A barrier timeout means the server did not *respond* within the deadline — a
+/// latency failure, categorically distinct from an oracle/content divergence
+/// (those panic with "diverged" / "alignment broke" instead). On CI the
+/// dominant cause is the test process being denied CPU on an oversubscribed
+/// runner, not a server defect: the latency-sensitive e2e stress tests
+/// (`edit_tracking_stress::*` and the semantic-token latency benchmark) can
+/// starve each other, which is exactly why `.config/nextest.toml` isolates them
+/// into a single-slot `heavy-lsp-e2e` group and the dedicated `lsp-e2e` CI job
+/// runs them that way and stays green.
+///
+/// Rather than leave every investigator to re-derive that from a bare "timed
+/// out" message, we *probe scheduling health at the moment of giving up*: a
+/// short sleep the OS honours many-fold late is direct, in-log evidence that
+/// the runner is starving this process, so the timeout is a scheduling artefact
+/// rather than a hang. If the probe finds the scheduler healthy it says so,
+/// redirecting the investigation toward a real server-latency regression.
+fn latency_barrier_timeout_note() -> String {
+    // Sample how late the scheduler wakes us from a short, known sleep. On an
+    // unloaded machine `actual ≈ target` (a few percent over, from timer
+    // granularity); under heavy oversubscription the wake is delayed many-fold.
+    // Median of a handful of samples so one unlucky context switch can't skew
+    // the verdict. This runs only on the already-failing path, so its ~100 ms
+    // cost is irrelevant.
+    const TARGET: Duration = Duration::from_millis(20);
+    const SAMPLES: usize = 5;
+    let mut ratios = [0f64; SAMPLES];
+    for r in &mut ratios {
+        let t = Instant::now();
+        std::thread::sleep(TARGET);
+        *r = t.elapsed().as_secs_f64() / TARGET.as_secs_f64();
+    }
+    ratios.sort_by(|a, b| a.partial_cmp(b).expect("sleep ratios are finite"));
+    let median = ratios[SAMPLES / 2];
+
+    // >=2.5x late is far outside timer-granularity noise and only happens when
+    // the OS cannot schedule this thread promptly — i.e. the runner is starved.
+    let verdict = if median >= 2.5 {
+        format!(
+            "PROBE: CPU STARVATION CONFIRMED — a {TARGET:?} sleep is waking {median:.1}x late \
+             right now, so the OS is denying this test process CPU. The barrier above expired on \
+             scheduling delay, NOT a server hang or a buffer-tracking bug. This is the known \
+             flake: re-run the job."
+        )
+    } else {
+        format!(
+            "PROBE: could not confirm starvation — a {TARGET:?} sleep woke {median:.1}x late, \
+             within normal timer noise. The runner looks healthy *now*; if this repeats with a \
+             healthy probe, suspect a real server-latency regression (a hang/deadlock or a \
+             genuinely slow analysis), not CPU starvation."
+        )
+    };
+
+    format!(
+        "\n\n{BARRIER_TIMEOUT_MARKER} — this is a TIMEOUT (the server did not respond in time), \
+         NOT an oracle/content divergence (those fail with \"diverged\" / \"alignment broke\").\n\
+         {verdict}\n\
+         CONTEXT: the latency-sensitive e2e stress tests are isolated into the single-slot \
+         `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other; \
+         the dedicated `lsp-e2e` CI job runs them isolated and stays green. A timeout seen only in \
+         the *unisolated* `rust-tests` job (which runs them amid the full parallel suite) is the \
+         known CPU-starvation flake."
+    )
+}
+
 /// Process-wide counter so `unique_uri` never collides across tests in one
 /// integration-test binary (each binary is its own process).
 static URI_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -308,8 +380,9 @@ impl Lsp {
             }
             assert!(
                 Instant::now() < deadline,
-                "timed out after {timeout:?} waiting for response to {method:?}; stderr:\n{}",
-                self.stderr_text()
+                "timed out after {timeout:?} waiting for response to {method:?}; stderr:\n{}{}",
+                self.stderr_text(),
+                latency_barrier_timeout_note(),
             );
             std::thread::sleep(Duration::from_millis(2));
         }
@@ -478,10 +551,15 @@ impl Lsp {
                 return diags;
             }
             let remaining = deadline.saturating_duration_since(Instant::now());
-            assert!(
-                !remaining.is_zero(),
-                "no publishDiagnostics for {uri:?} version {version:?} within {timeout:?}"
-            );
+            if remaining.is_zero() {
+                // Release the notifications lock before the (sleeping) probe so
+                // the reader thread isn't blocked while we diagnose the timeout.
+                drop(notes);
+                panic!(
+                    "no publishDiagnostics for {uri:?} version {version:?} within {timeout:?}{}",
+                    latency_barrier_timeout_note()
+                );
+            }
             let (guard, _) = self
                 .shared
                 .notify_cv
@@ -511,10 +589,15 @@ impl Lsp {
                 }
             }
             let remaining = deadline.saturating_duration_since(Instant::now());
-            assert!(
-                !remaining.is_zero(),
-                "no window/logMessage containing all of {needles:?} within {timeout:?}"
-            );
+            if remaining.is_zero() {
+                // Release the notifications lock before the (sleeping) probe so
+                // the reader thread isn't blocked while we diagnose the timeout.
+                drop(notes);
+                panic!(
+                    "no window/logMessage containing all of {needles:?} within {timeout:?}{}",
+                    latency_barrier_timeout_note()
+                );
+            }
             let (guard, _) = self
                 .shared
                 .notify_cv
@@ -536,10 +619,15 @@ impl Lsp {
                 return note.clone();
             }
             let remaining = deadline.saturating_duration_since(Instant::now());
-            assert!(
-                !remaining.is_zero(),
-                "no {method:?} notification within {timeout:?}"
-            );
+            if remaining.is_zero() {
+                // Release the notifications lock before the (sleeping) probe so
+                // the reader thread isn't blocked while we diagnose the timeout.
+                drop(notes);
+                panic!(
+                    "no {method:?} notification within {timeout:?}{}",
+                    latency_barrier_timeout_note()
+                );
+            }
             let (guard, _) = self
                 .shared
                 .notify_cv
@@ -761,7 +849,10 @@ impl Lsp {
             }
             std::thread::sleep(Duration::from_millis(50));
         }
-        panic!("config did not settle within {DEFAULT_TIMEOUT:?}; last: {last}");
+        panic!(
+            "config did not settle within {DEFAULT_TIMEOUT:?}; last: {last}{}",
+            latency_barrier_timeout_note()
+        );
     }
 }
 
@@ -867,4 +958,35 @@ fn auto_reply(msg: &Value, shared: &Arc<Shared>) {
     let _ = write!(stdin, "Content-Length: {}\r\n\r\n", body.len());
     let _ = stdin.write_all(&body);
     let _ = stdin.flush();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{BARRIER_TIMEOUT_MARKER, latency_barrier_timeout_note};
+
+    /// The footer every barrier timeout carries must keep classifying the
+    /// failure as a *timeout* (not an oracle divergence), render the live
+    /// scheduling probe, and point at the `heavy-lsp-e2e` isolation — so a
+    /// future edit that guts the message is caught here rather than in a
+    /// midnight CI triage. (Regression guard for the self-diagnosing barrier.)
+    #[test]
+    fn barrier_timeout_note_is_self_classifying() {
+        let note = latency_barrier_timeout_note();
+        assert!(
+            note.contains(BARRIER_TIMEOUT_MARKER),
+            "note must carry the greppable marker; got:\n{note}"
+        );
+        assert!(
+            note.contains("TIMEOUT") && note.contains("NOT an oracle/content divergence"),
+            "note must distinguish a timeout from a content divergence; got:\n{note}"
+        );
+        assert!(
+            note.contains("PROBE:"),
+            "note must render the live scheduling-health probe verdict; got:\n{note}"
+        );
+        assert!(
+            note.contains("heavy-lsp-e2e") && note.contains("rust-tests"),
+            "note must point at the nextest isolation and the unisolated job; got:\n{note}"
+        );
+    }
 }

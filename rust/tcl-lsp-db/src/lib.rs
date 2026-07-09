@@ -393,21 +393,31 @@ pub fn command_arity<'db>(
 fn cross_file_arity_diagnostic(
     name: &str,
     span: tcl_lexer::Span,
-    argc: usize,
+    argc: (usize, Option<usize>),
     candidates: &[(usize, usize)],
 ) -> Option<tcl_compiler::analyser::types::Diagnostic> {
     use tcl_compiler::analyser::types::{Diagnostic, Severity};
+    // `argc` is the caller's supplied arg-count RANGE `(lo, hi)`: an ordinary
+    // call is exact (`(k, Some(k))`); a command-prefix callback with an
+    // `AtLeast(n)` arity is open-ended (`(baked+n, None)`).  Flag too-few only
+    // when even the MOST args the caller can supply (`hi`) is below the proc's
+    // `min`, and too-many only when even the FEWEST args (`lo`) exceeds `max` —
+    // so an open-ended callback never false-fires "too few".
+    let (lo, hi) = argc;
     let min = candidates.iter().map(|&(lo, _)| lo).min()?;
     let max = candidates.iter().map(|&(_, hi)| hi).max()?;
-    let (code, message) = if argc < min {
+    let (code, message) = if hi.is_some_and(|h| h < min) {
         (
             DiagCode::E002,
-            format!("Too few arguments for '{name}': expected at least {min}, got {argc}"),
+            format!(
+                "Too few arguments for '{name}': expected at least {min}, got {}",
+                hi.unwrap_or(lo)
+            ),
         )
-    } else if max != usize::MAX && argc > max {
+    } else if max != usize::MAX && lo > max {
         (
             DiagCode::E003,
-            format!("Too many arguments for '{name}': expected at most {max}, got {argc}"),
+            format!("Too many arguments for '{name}': expected at most {max}, got {lo}"),
         )
     } else {
         return None;
@@ -472,13 +482,61 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
         if let Some(candidates) = arities.get(name)
             && !candidates.is_empty()
             && let Some(Some(argc)) = argc_by_span.get(&(span.start(), span.end()))
-            && let Some(diag) = cross_file_arity_diagnostic(name, *span, *argc, candidates)
+            && let Some(diag) =
+                cross_file_arity_diagnostic(name, *span, (*argc, Some(*argc)), candidates)
             && !is_disabled(diag.code.as_str())
         {
             out.push(diag);
         }
     }
+    apply_callback_arity(&mut out, invocations, arities, &is_disabled);
     out
+}
+
+/// Validate command-prefix **callback** arity: for each recorded callback head
+/// (`lsort -command myCompare` → `myCompare` with `callback_arity =
+/// Exactly(2)`), check that the referenced project proc accepts the arguments
+/// the calling command appends.
+///
+/// The effective arg count is a RANGE — `baked` args already in the prefix
+/// (`{myCmp extra}` bakes one; a bare word bakes zero) plus the command's
+/// appended arity (`Exactly(n)` ⇒ `(n, Some(n))`, `AtLeast(n)` ⇒ `(n, None)`).
+/// Skipped for `Unknown`/absent arities and for tails the project resolves
+/// with a non-proc (empty candidate list), reusing the same E002/E003 codes,
+/// disable filter, and message shape as the direct-call cross-file check.
+/// Same-file callbacks are covered too: `project_command_arities` aggregates
+/// every file, so a same-file proc's arity is in `arities`.
+fn apply_callback_arity<S: std::hash::BuildHasher>(
+    out: &mut Vec<tcl_compiler::analyser::types::Diagnostic>,
+    invocations: &[tcl_compiler::signature_scan::types::SignatureCommandInvocation],
+    arities: &HashMap<String, Vec<(usize, usize)>, S>,
+    is_disabled: impl Fn(&str) -> bool,
+) {
+    for inv in invocations {
+        let Some(appended) = inv.callback_arity else {
+            continue;
+        };
+        if !appended.is_checkable() {
+            continue;
+        }
+        // Tail-resolve the callback head against the project arity table.
+        let tail = inv.name.rsplit("::").next().unwrap_or(&inv.name);
+        let Some(candidates) = arities.get(tail) else {
+            continue;
+        };
+        if candidates.is_empty() {
+            continue;
+        }
+        // Baked args already present in the prefix (0 for a bareword head).
+        let baked = inv.argc.unwrap_or(0);
+        let lo = baked + appended.min() as usize;
+        let hi = appended.max().map(|m| baked + m as usize);
+        if let Some(diag) = cross_file_arity_diagnostic(&inv.name, inv.range, (lo, hi), candidates)
+            && !is_disabled(diag.code.as_str())
+        {
+            out.push(diag);
+        }
+    }
 }
 
 /// Analyser diagnostics for `file` resolved against the project:
@@ -530,6 +588,14 @@ pub fn project_diagnostics(
     }
     for (_, name) in &analysis.unresolved_command_sites {
         tails.insert(name.as_str());
+    }
+    // Command-prefix callback heads (`lsort -command myCompare`) resolve (they
+    // are not W123/unresolved), so their target proc's arity would not be
+    // loaded — pull each callback tail in so `apply_callback_arity` can check it.
+    for inv in &analysis.command_invocations {
+        if inv.callback_arity.is_some() {
+            tails.insert(inv.name.rsplit("::").next().unwrap_or(&inv.name));
+        }
     }
     let mut arities: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
     for tail in tails {
@@ -3446,6 +3512,53 @@ mod tests {
         );
     }
 
+    /// Object-instance method callbacks resolve cross-file — including when the
+    /// dispatch is **inside a proc body**, which the incremental per-item
+    /// firewall (`file_analysis_incremental`, used by `project_diagnostics`)
+    /// otherwise missed because it defers instance creation to the graft.
+    /// Registry object-factories now bind eagerly in an isolated body, so the
+    /// in-body `$g walk … -command cb` records the callback and its arity is
+    /// resolved against the other file.
+    #[test]
+    fn cross_file_in_proc_instance_method_callback_arity() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
+        // B defines onNode with 2 params; `graph walk -command` appends 3.
+        let b = SourceFile::new(&db, "proc onNode {a b} { }\n".to_owned(), "tcl9.0".to_owned());
+        let has_e003 = |src: &str| {
+            let a = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned());
+            let p = Project::new(&db, vec![a, b]);
+            project_diagnostics(&db, a, cfg, p)
+                .iter()
+                .any(|d| d.code.as_str() == "E003" && d.message.contains("onNode"))
+        };
+        // Named factory + dispatch both inside a proc body.
+        assert!(
+            has_e003("proc build {} {\n struct::graph g\n g walk root -command onNode\n}\n"),
+            "in-proc `struct::graph g; g walk -command onNode` must resolve cross-file arity (E003)"
+        );
+        // Handle form (`set g [struct::graph]`) inside a proc body.
+        assert!(
+            has_e003("proc build {} {\n set g [struct::graph]\n $g walk root -command onNode\n}\n"),
+            "in-proc `set g [struct::graph]; $g walk -command onNode` must resolve cross-file arity"
+        );
+        // Correct arity (3 params) is silent.
+        let b3 = SourceFile::new(&db, "proc onNode {a b c} { }\n".to_owned(), "tcl9.0".to_owned());
+        let a_ok = SourceFile::new(
+            &db,
+            "proc build {} {\n struct::graph g\n g walk root -command onNode\n}\n".to_owned(),
+            "tcl9.0".to_owned(),
+        );
+        let p_ok = Project::new(&db, vec![a_ok, b3]);
+        assert!(
+            !project_diagnostics(&db, a_ok, cfg, p_ok)
+                .iter()
+                .any(|d| (d.code.as_str() == "E003" || d.code.as_str() == "E002")
+                    && d.message.contains("onNode")),
+            "a correct 3-param in-proc instance callback must be silent cross-file"
+        );
+    }
+
     /// Cross-file arity honours `disabled_diagnostics`:
     /// the synthesized arity error is produced *after* the analyser's own code
     /// filter (and the LSP lift doesn't re-filter), so it must replicate it —
@@ -3729,6 +3842,240 @@ mod tests {
             !d.iter()
                 .any(|x| x.code == DiagCode::W123 && x.message.contains("helper")),
             "the nested call still resolves cross-file (no W123)"
+        );
+    }
+
+    /// Analyse a single-file project and return its diagnostic codes+messages.
+    fn callback_arity_codes(src: &str) -> Vec<(String, String)> {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
+        let f = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned());
+        let proj = Project::new(&db, vec![f]);
+        project_diagnostics(&db, f, cfg, proj)
+            .iter()
+            .map(|d| (d.code.as_str().to_owned(), d.message.clone()))
+            .collect()
+    }
+
+    #[test]
+    fn callback_arity_mismatch_draws_e002() {
+        // `lsort -command` appends 2 (Exactly(2)); `badCb` needs 3 → E002 too few.
+        let d =
+            callback_arity_codes("proc badCb {a b c} { return 0 }\nlsort -command badCb {3 1 2}\n");
+        assert!(
+            d.iter().any(|(c, m)| c == "E002" && m.contains("badCb")),
+            "a callback proc needing 3 args used where 2 are appended must draw E002; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_correct_is_silent() {
+        // A 2-arg callback matches lsort's Exactly(2) → no arity error (TN).
+        let d =
+            callback_arity_codes("proc goodCb {a b} { return 0 }\nlsort -command goodCb {3 1 2}\n");
+        assert!(
+            !d.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a correctly-sized callback must draw no arity error; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_too_many_draws_e003() {
+        // A 1-param callback where lsort appends 2 → E003 too many.
+        let d =
+            callback_arity_codes("proc oneArg {a} { return 0 }\nlsort -command oneArg {3 1 2}\n");
+        assert!(
+            d.iter().any(|(c, m)| c == "E003" && m.contains("oneArg")),
+            "a 1-param callback fed 2 args must draw E003; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_args_catchall_is_silent() {
+        // FP guard: an `args` catch-all accepts any count → no arity error.
+        let d =
+            callback_arity_codes("proc anyN {args} { return 0 }\nlsort -command anyN {3 1 2}\n");
+        assert!(
+            !d.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "an `args`-catchall callback must draw no arity error; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_atleast_does_not_false_fire_too_few() {
+        // FP guard: `trace add variable` appends 3 (AtLeast? no — Exactly(3)); use
+        // `trace add execution` (AtLeast(2)) against a 4-param handler.  The
+        // open-ended max means "too few" must not fire even though `min`=2 < 4.
+        let src = "proc h {a b c d} { return 0 }\ntrace add execution somecmd enter h\n";
+        let d = callback_arity_codes(src);
+        assert!(
+            !d.iter().any(|(c, _)| c == "E002"),
+            "an AtLeast(2) callback must not false-fire E002 against a 4-param handler; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_namespace_unknown_zero_param_draws_e003() {
+        // `namespace unknown h` invokes `h cmd ?args...?` (AtLeast(1)); a 0-param
+        // handler can never accept the appended command name → E003 too-many. A
+        // real bug (ground truth: tclsh 9.0 raises "called with too many args").
+        let d = callback_arity_codes("proc h {} { return 0 }\nnamespace unknown h\n");
+        assert!(
+            d.iter().any(|(c, m)| c == "E003" && m.contains("'h'")),
+            "a 0-param `namespace unknown` handler must draw E003; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_package_unknown_variadic_handler_is_silent() {
+        // FP guard: `package unknown` appends AtLeast(1); an `args` handler
+        // absorbs any count → no arity error (the canonical handler shape).
+        let d = callback_arity_codes("proc h {args} { return 0 }\npackage unknown h\n");
+        assert!(
+            !d.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a variadic `package unknown` handler must draw no arity error; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_tk_scale_command_arity_checked() {
+        // Post-conversion: `scale -command` appends the new value (Exactly(1)).
+        // A 0-param callback can't accept it → E003; a bareword 1-param callback
+        // is silent (TN).
+        let bad = callback_arity_codes("proc onChange {} { }\nscale .s -command onChange\n");
+        assert!(
+            bad.iter().any(|(c, m)| c == "E003" && m.contains("onChange")),
+            "a 0-param `scale -command` callback (1 appended) must draw E003; got {bad:?}"
+        );
+        let ok = callback_arity_codes("proc onChange {v} { }\nscale .s -command onChange\n");
+        assert!(
+            !ok.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a correct 1-param scale callback must be silent; got {ok:?}"
+        );
+        // A braced widget-path scroll callback is never arity-checked (not a
+        // literal bareword head) — no false arity error.
+        let widget = callback_arity_codes("listbox .lb -yscrollcommand {.sb set}\n");
+        assert!(
+            !widget.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a braced widget-path scroll callback must not draw an arity error; got {widget:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_tcllib_calculus_func_arity_checked() {
+        // `math::calculus::integral begin end nosteps func` calls `func x`
+        // (Exactly(1), man-page-pinned).  A 2-param func is under-fed → E002.
+        let d = callback_arity_codes(
+            "proc f {x y} { expr {$x + $y} }\nmath::calculus::integral 0 1 100 f\n",
+        );
+        assert!(
+            d.iter().any(|(c, m)| c == "E002" && m.contains("'f'")),
+            "a 2-param func where calculus::integral appends 1 must draw E002; got {d:?}"
+        );
+        // The correct 1-param shape is silent (TN).
+        let ok =
+            callback_arity_codes("proc f {x} { expr {$x * 2} }\nmath::calculus::integral 0 1 100 f\n");
+        assert!(
+            !ok.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a correct 1-param calculus func must be silent; got {ok:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_unknown_appended_never_fires() {
+        // FP guard: `coroinject`/`coroprobe` carry `Unknown` appended arity
+        // (depends on the yield point), so the injected command is a reference
+        // only — never arity-checked, whatever its param count.
+        let d = callback_arity_codes("proc h {} { return 0 }\ncoroinject myCoro h\n");
+        assert!(
+            !d.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "an Unknown-arity callback must never draw an arity error; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_option_value_exactly_checked() {
+        // `smtp -tlspolicy` and `halfpipe -write-command` both append exactly 2;
+        // a 1-param callback is over-fed → E003, a 2-param callback is silent.
+        let smtp_bad =
+            callback_arity_codes("proc pol {code} { }\nsmtp::sendmessage $t -tlspolicy pol\n");
+        assert!(
+            smtp_bad.iter().any(|(c, m)| c == "E003" && m.contains("'pol'")),
+            "a 1-param -tlspolicy callback (2 appended) must draw E003; got {smtp_bad:?}"
+        );
+        let smtp_ok =
+            callback_arity_codes("proc pol {code diag} { }\nsmtp::sendmessage $t -tlspolicy pol\n");
+        assert!(
+            !smtp_ok.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a correct 2-param -tlspolicy callback must be silent; got {smtp_ok:?}"
+        );
+        let pipe_bad =
+            callback_arity_codes("proc w {chan} { }\ntcl::chan::halfpipe -write-command w\n");
+        assert!(
+            pipe_bad.iter().any(|(c, m)| c == "E003" && m.contains("'w'")),
+            "a 1-param -write-command callback (2 appended) must draw E003; got {pipe_bad:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_mime_getbody_command_atleast_one() {
+        // `mime::getbody -command` appends AtLeast(1) (reason keyword + optional
+        // payload).  A 0-param callback can't accept the reason word → E003; the
+        // canonical `{reason args}` shape is silent (open-ended max ⇒ no
+        // false "too many").
+        let bad = callback_arity_codes("proc cb {} { }\nmime::getbody $t -command cb\n");
+        assert!(
+            bad.iter().any(|(c, m)| c == "E003" && m.contains("'cb'")),
+            "a 0-param mime -command callback must draw E003; got {bad:?}"
+        );
+        let ok = callback_arity_codes("proc cb {reason args} { }\nmime::getbody $t -command cb\n");
+        assert!(
+            !ok.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a `{{reason args}}` mime -command callback must be silent; got {ok:?}"
+        );
+        // FP guard: comm's 14-arg reply callback is virtually always `{args}` —
+        // the catch-all absorbs all 14 → no arity error.
+        let comm = callback_arity_codes(
+            "proc reply {args} { }\ncomm::comm send -command reply $id {list x}\n",
+        );
+        assert!(
+            !comm.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a variadic comm -command reply handler must be silent; got {comm:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_struct_graph_walk_command_checked() {
+        // `$g walk … -command cb` (object instance method) appends 3 (action
+        // graphName node).  A 2-param callback is over-fed → E003; a 3-param one
+        // is silent.  Exercises both the named (`struct::graph name`) and handle
+        // (`set g [struct::graph]`) instance forms.
+        let bad = callback_arity_codes(
+            "proc twoP {a b} { }\nstruct::graph myG\nmyG walk root -command twoP\n",
+        );
+        assert!(
+            bad.iter().any(|(c, m)| c == "E003" && m.contains("'twoP'")),
+            "a 2-param graph walk -command callback (3 appended) must draw E003; got {bad:?}"
+        );
+        let ok = callback_arity_codes(
+            "proc threeP {a b c} { }\nset g [struct::graph]\n$g walk root -command threeP\n",
+        );
+        assert!(
+            !ok.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a correct 3-param graph walk callback must be silent; got {ok:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_struct_tree_walkproc_checked() {
+        // `$t walkproc … cmdprefix` (trailing positional prefix) appends 3 (tree
+        // node action).  A 2-param callback → E003.
+        let bad = callback_arity_codes(
+            "proc twoP {a b} { }\nstruct::tree myT\nmyT walkproc root twoP\n",
+        );
+        assert!(
+            bad.iter().any(|(c, m)| c == "E003" && m.contains("'twoP'")),
+            "a 2-param tree walkproc callback (3 appended) must draw E003; got {bad:?}"
         );
     }
 

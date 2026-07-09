@@ -878,10 +878,14 @@ impl CompilationUnit {
         registry: &CommandRegistry,
         dialect: Option<&str>,
     ) -> Self {
+        // Object-handle → class map (SSA/VTA-derived) so a `$g walk … -command
+        // cb` instance-method callback becomes a call-graph / reachability edge.
+        let object_types = crate::object_types::object_handle_classes(&self, registry);
         let interproc = crate::interprocedural::build_interprocedural_analysis(
             &self.ir_module,
             registry,
             dialect,
+            crate::interprocedural::ObjectTypeMap(&object_types),
         );
 
         // Re-run taint with the new summary + dialect. We borrow
@@ -937,10 +941,12 @@ impl CompilationUnit {
         dialect: Option<&str>,
         taint_cb: &mut TaintCascadeCallback<'_>,
     ) -> Self {
+        let object_types = crate::object_types::object_handle_classes(&self, registry);
         let interproc = crate::interprocedural::build_interprocedural_analysis(
             &self.ir_module,
             registry,
             dialect,
+            crate::interprocedural::ObjectTypeMap(&object_types),
         );
 
         // Top level is built fresh (no offset-0 lattice key), so its taint

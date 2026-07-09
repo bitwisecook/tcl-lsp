@@ -782,6 +782,32 @@ fn fp_sty_14_composite_body_still_fires() {
     );
 }
 
+#[test]
+fn fp_sty_14_uplevel_body_participates_in_w105_like_eval() {
+    // Issue #837: now that `uplevel`'s script word carries `ArgRole::Body`, the
+    // W105 unbraced-body check applies to it exactly as it does to `eval`.
+    // TP: a quoted interpolated body past the level word is an inline script
+    // woven from substitutions — brace it.
+    assert!(
+        fires("uplevel 1 \"do $script\"", D, "W105"),
+        "FP-STY-14: an unbraced substituted uplevel body must fire W105; emitted: {:?}",
+        codes("uplevel 1 \"do $script\"", D)
+    );
+    // FP: a braced body is already correct — no W105.
+    assert!(
+        !fires("uplevel 1 {do $script}", D, "W105"),
+        "FP-STY-14: a braced uplevel body must NOT fire W105; emitted: {:?}",
+        codes("uplevel 1 {do $script}", D)
+    );
+    // FP: a single bare-variable body (`uplevel $script`, implicit level 1) is
+    // a script reference, not an inline block — the brace-fix would be wrong.
+    assert!(
+        !fires("uplevel $script", D, "W105"),
+        "FP-STY-14: a single bare-variable uplevel body must NOT fire W105; emitted: {:?}",
+        codes("uplevel $script", D)
+    );
+}
+
 // ---------------------------------------------------------------------------
 // FP-STY-15 — lexer: $ before a closing " merged the quoted word with the next
 // (E002 / E205 / W306)

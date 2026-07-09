@@ -40,6 +40,10 @@ pub fn spec() -> CommandSpec {
         traits: Traits::EVALUATES_CODE,
         dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::at_least(2),
+        // `coroinject coroName command ?arg ...?` — `command` (index 1) is a
+        // command prefix injected into the coroutine and invoked with the
+        // yield's args appended (variadic ⇒ Unknown).
+        command_prefixes: &[(1, AppendedArity::Unknown)],
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
         hover: Some(HoverSnippet {

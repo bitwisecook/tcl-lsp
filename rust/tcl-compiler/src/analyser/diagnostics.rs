@@ -211,10 +211,14 @@ impl Analyser {
         // store.  `collect_call_by_name_reads` then yields the suppressed
         // names per function, merged into the dead-store `cross_event_vars`.
         let cbn_proc_index = {
+            // The call-by-name proc index (W220) needs only direct proc→proc
+            // reachability, not object-instance callback edges, so no
+            // object-type map is threaded here.
             let ia = crate::interprocedural::build_interprocedural_analysis(
                 &cu.ir_module,
                 registry,
                 Some(self.dialect.as_str()),
+                crate::interprocedural::ObjectTypeMap::none(),
             );
             crate::interprocedural::build_proc_index_from_summaries(&ia)
         };

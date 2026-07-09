@@ -111,6 +111,10 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Apply a function to every element of a generator, returning a new generator of the results.",
         synopsis: "generator map function generator",
+        // `function` (index 0) is applied per element.  The generator may yield
+        // multiple values per step, so the appended count is not statically
+        // fixed ⇒ Unknown (a reference, not arity-checked).
+        command_prefixes: &[(0, AppendedArity::Unknown)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -118,6 +122,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Another classic functional programming gem.",
         synopsis: "generator filter predicate generator",
+        command_prefixes: &[(0, AppendedArity::Unknown)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -125,6 +130,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "This is the classic left-fold operation.",
         synopsis: "generator reduce function zero generator",
+        command_prefixes: &[(0, AppendedArity::Unknown)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -132,6 +138,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "This is an alias for the reduce command.",
         synopsis: "generator foldl function zero generator",
+        command_prefixes: &[(0, AppendedArity::Unknown)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -139,6 +146,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "This is the right-associative version of reduce.",
         synopsis: "generator foldr function zero generator",
+        command_prefixes: &[(0, AppendedArity::Unknown)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -146,6 +154,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Returns true if all elements of the generator satisfy the given predicate.",
         synopsis: "generator all predicate generator",
+        command_prefixes: &[(0, AppendedArity::Unknown)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -174,6 +183,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Given a function which maps a value to a series of values, and a generator of values of that type, returns a genera",
         synopsis: "generator concatMap function generator",
+        command_prefixes: &[(0, AppendedArity::Unknown)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -188,6 +198,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Removes all elements from the front of the generator that satisfy the predicate.",
         synopsis: "generator dropWhile predicate generator",
+        command_prefixes: &[(0, AppendedArity::Unknown)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -202,6 +213,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "A version of foldl that takes the zero argument from the first element of the generator.",
         synopsis: "generator foldl1 function generator",
+        command_prefixes: &[(0, AppendedArity::Unknown)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -209,6 +221,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "A version of foldl that supplies the integer index of each element as the first argument to the function.",
         synopsis: "generator foldli function zero generator",
+        command_prefixes: &[(0, AppendedArity::Unknown)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -216,6 +229,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Right-associative version of foldli.",
         synopsis: "generator foldri function zero generator",
+        command_prefixes: &[(0, AppendedArity::Unknown)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -258,6 +272,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Returns an infinite generator formed by repeatedly applying the function to the initial argument.",
         synopsis: "generator iterate function init",
+        command_prefixes: &[(0, AppendedArity::Unknown)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -279,6 +294,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Returns 1 if any of the elements of the generator satisfy the predicate.",
         synopsis: "generator or predicate generator",
+        command_prefixes: &[(0, AppendedArity::Unknown)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -308,6 +324,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Returns a generator of the first elements in the argument generator that satisfy the predicate.",
         synopsis: "generator takeWhile predicate generator",
+        command_prefixes: &[(0, AppendedArity::Unknown)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -315,6 +332,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Splits the generator into lists of elements using the predicate to identify delimiters.",
         synopsis: "generator splitWhen predicate generator",
+        command_prefixes: &[(0, AppendedArity::Unknown)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -322,6 +340,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Similar to foldl, but returns a generator of all of the intermediate values for the accumulator argument.",
         synopsis: "generator scanl function zero generator",
+        command_prefixes: &[(0, AppendedArity::Unknown)],
         ..SubCommand::DEFAULT
     },
 ];
@@ -476,13 +495,28 @@ fn debug_spec() -> CommandSpec {
     }
 }
 
+/// `hook bind subject hook observer binding` (hook.tcl 97-137) sets `binding`
+/// — a command prefix fired via `uplevel #0 [list {*}$binding {*}$args]` when
+/// the hook is called, so the appended count is whatever the matching
+/// `hook call subject hook ?arg…?` passes ⇒ `Unknown`.  The 1/2/3-arg forms
+/// are query variants (and an empty 4th arg is a delete), so only the full
+/// four-word set form names a callback.
+fn hook_bind_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+    if args.len() == 4 {
+        vec![(3, AppendedArity::Unknown)]
+    } else {
+        Vec::new()
+    }
+}
+
 /// The `hook` ensemble's sub-commands.
 const HOOK_SUBS: &[SubCommand] = &[
     SubCommand {
         name: "bind",
         arity: Arity::at_least(0),
         detail: "This subcommand is used to create, update, delete, and query hook bindings.",
-        synopsis: "hook bind",
+        synopsis: "hook bind ?subject? ?hook? ?observer? ?binding?",
+        command_prefix_resolver: Some(hook_bind_command_prefixes),
         ..SubCommand::DEFAULT
     },
     SubCommand {

@@ -268,7 +268,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-xscrollcommand",
-        value: OptionValue::script(),
+        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
         detail: "Command prefix for communicating with horizontal scrollbars.",
         dialects: None,
         aliases: &[],

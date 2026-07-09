@@ -809,6 +809,181 @@ function ::f
 
 ---
 
+### FP-NAB-13 — command-prefix callbacks are first-class command references (TP)
+
+- **Verdict:** TRUE POSITIVE (precision gain) with literal-only FP guards
+- **Status:** locked in by `tcl-lsp-core/tests/command_prefix_integration.rs` +
+  `tcl-lsp-db/src/lib.rs::callback_arity_*` + `tcl-registry` `command_prefixes_*`
+- **Codes:** W123 (unknown callback), E002/E003 (callback arity)
+- **Corpus:** any `ArgRole::CommandPrefix` callback — `lsort -command`, `trace
+  add … cb`, `socket -server`, `interp alias`, `struct::list map/filter/fold`, …
+
+#### Registry coverage (ground truth: C Tcl 9.0 / package man pages)
+
+- **Core Tcl:** `lsort -command` (2), `socket -server` (3), `trace add
+  variable` (3) / `command` (3) / `execution` (≥2), `interp alias` (≥0) /
+  `bgerror` (≥1), `namespace unknown` (≥1), `package unknown` (≥1),
+  `regsub -command` (≥1, 9.0+), `coroinject` / `coroprobe` (Unknown),
+  `chan create` / `chan push` reflected-channel handlers (≥2).
+- **tcllib (positional prefixes):** `struct::list filter/map/fold/split`
+  (1/1/2/1), `fileutil::find` (1), the `generator` functional ensemble (16 ops —
+  Unknown, multi-value yield), `math::calculus` / `::optimize` / `::probopt`
+  `func` callbacks (fixed, man-page-pinned — via `math_ext::PREFIX_OVERRIDES`),
+  `log::lvCmd` / `lvCmdForall` (2), `uevent::bind` (≥2), `logger::walk`
+  (Unknown), `tcltest::customMatch` (2), `tk selection handle` (2),
+  `hook bind` (Unknown — resolver names the binding only in the 4-word set form).
+- **tcllib (option-value prefixes — the value of a named `-flag`, via
+  `OptionSpec`):** `mime::getbody -command` (≥1 — `uplevel` re-splits the reason
+  list), `smtp::sendmessage -tlspolicy` (2), `comm::comm send -command` (14 —
+  seven `-key value` reply pairs), `bibtex::parse -command` /
+  `-preamble/-string/-comment/-progresscommand` (2) / `-recordcommand` (4),
+  `tcl::chan::halfpipe -write-command` (2) / `-empty/-close-command` (1).  All
+  ground-truthed against tcllib source and re-run in tclsh; the option-value
+  path unions through `push_command_prefix_options` → `command_prefixes` with no
+  compiler change.
+- **Object-instance methods (via `ObjectClassSpec`):** `struct::graph`'s
+  `$g walk … -command cb` (3 — action graphName node, option-value) and
+  `struct::tree`'s `$t walkproc … cb` (3 — tree node action, trailing
+  positional).  The receiver's class comes from the analyser's `instance_classes`
+  map (`struct::graph name` or `set g [struct::graph]`); the compiler's
+  `record_command_prefix_invocations` resolves the method's prefixes via
+  `CommandRegistry::instance_method_command_prefixes`.  This lights up W123 /
+  arity / references / call-graph edge / not-dead across **both** the whole-file
+  and the incremental/project paths (see the two follow-ups below).
+  `struct::tree walk`'s loop-variable *script* is not a prefix and is unmodelled.
+- **Instance-method callbacks in the call graph + cross-file (the "long tail of
+  the long tail"):** two passes beyond the foreground analyser were taught the
+  receiver's object type, keyed off `object_types::object_handle_classes` — now
+  extended to harvest registry naming-factories (`struct::graph g` /
+  `set g [struct::graph]`) alongside its `[Class new]` + SSA/VTA signals:
+  (a) the **interprocedural** call-graph pass threads that map into
+  `scan_call_facts`, so an in-proc `$g walk … -command cb` becomes a real
+  `direct_calls` edge (call graph, O124 not-dead, purity/effects) — not just a
+  reference; (b) the **incremental per-item firewall** now binds registry
+  object-factories *eagerly* in an isolated proc body (they resolve from the
+  registry alone, no `all_classes`), where the old defer-to-graft left
+  `instance_classes` empty during the body's own callback recording — so an
+  in-proc instance callback resolves cross-file (arity + references) via
+  `project_diagnostics`, matching the whole-file walk.  (The
+  `signature_scan` walker, despite its name, indexes only class/proc
+  *definitions* — its `command_invocations` are unused for references, which come
+  from the foreground path — so it needs no object typing.)  The `OBJECT(class)`
+  typing is kept out of the SSA lattice's `return_type_for_command` on purpose:
+  W307/W308 aggregate `fu.types` object-insensitively across procs, so a
+  lattice-typed factory would leak a handle's class between same-named vars
+  (FP-OBJ-04).  Consequently object-flow through aliasing/collections is
+  syntactic-only for these factories (direct `struct::graph g` / `set g […]`
+  handles), not full VTA.
+- **Tk (`script()`→`command_prefix` conversion — separate commit):**
+  `-xscrollcommand`/`-yscrollcommand` on 8 widgets (2), `scale`/`ttk::scale
+  -command` (1), `scrollbar -command` (≥2), `menu -tearoffcommand` (2).  This is
+  a **net FP reduction**: the old `script()` recursion flagged widget paths
+  inside braced callbacks (`{.sb set}` → spurious `W123 .sb`); as a command
+  prefix the braced (non-bareword) head is dropped, so the widget-path W123
+  disappears, while a bareword user-proc callback — previously *invisible* to
+  script recursion — becomes a real reference / edge / arity-checked head.
+  **Kept as `script()` (NOT prefixes):** button-family / `menu` / `ttk::spinbox`
+  `-command` and `-postcommand` (verbatim scripts); core `spinbox -command`,
+  `-validatecommand`, `-invalidcommand` (percent-substitution, not appended
+  args); the 4 macOS-only file/message-dialog `-command`s stay
+  `command_prefix(Unknown)` (inert cross-platform ⇒ no arity check).
+- **Resolved script-vs-prefix:** `hook bind`'s binding is a command prefix (in
+  the tcllib list above); `processman::onexit id cmd` is instead a deferred
+  *script* (`eval $cmd`, 0 appended), modelled `ArgRole::Body` +
+  `BodyKind::Structural` — its `{…}` recurses for W123 / references but it is
+  deliberately **not** a command prefix.
+- **Drift guard:** the `cmdprefix` allowlist
+  (`commands_naming_a_cmdprefix_declare_a_command_prefix`) is now **empty** —
+  every synopsis that names a `cmdprefix` declares a prefix.
+
+#### Reproducer
+
+```tcl
+proc myCompare {a b} { expr {$a - $b} }
+lsort -command myCompare $items      ;# reference + arity-checked (2 appended)
+lsort -command typoCmp   $items      ;# W123: unknown command 'typoCmp'
+proc oneArg {a} { return 0 }
+lsort -command oneArg    $items      ;# E003: too many (2 appended, max 1)
+```
+
+#### Per-line reasoning
+
+A command prefix's first word is a command **reference**, not a script or opaque
+value. The registry owns which arguments are prefixes and how many args the
+command appends to them (`CommandRegistry::command_prefixes` → `(index,
+AppendedArity)`, ground-truthed vs C Tcl 9.0). The head is recorded as a
+`command_invocations` entry (feeding find-references, rename, call-hierarchy,
+code-lens, and W123) and as a `ProcSummary.direct_calls` edge (feeding the call
+graph and O124 dead-code), so a callback-only proc is not "unused" and a typo'd
+callback name draws W123. The callback's arity is validated against the
+referenced proc, reusing the cross-file `E002`/`E003` path.
+
+**FP guards (all verified):** only a **literal bareword** head is recorded — a
+dynamic `$cb` / `[gen]` head is skipped (no W123 false-fire, no bogus edge);
+`AppendedArity::Unknown`/`AtLeast` never fire "too few"; an `args`-catch-all or
+all-optional-tail proc draws no arity error; a tail also claimed by a non-proc
+(class/alias/ensemble) is arity-less.
+
+#### tclsh ground truth
+
+```
+% proc cb {a b} {}; lsort -command cb {2 1}     ;# cb called as `cb 2 1` → 2 args
+```
+`lsort -command` appends exactly 2; `trace add variable` 3; `socket -server` 3
+— the arities the registry declares.
+
+#### Tests
+
+- `command_prefix_integration.rs::call_graph_has_callback_edge` (TP — edge)
+- `command_prefix_integration.rs::find_references_includes_callback_site` (TP)
+- `command_prefix_integration.rs::w123_fires_on_unknown_callback_but_not_a_defined_one` (TP + TN)
+- `command_prefix_integration.rs::dynamic_callback_head_is_not_recorded` (FP guard)
+- `tcl-lsp-db::callback_arity_mismatch_draws_e002` / `_too_many_draws_e003` (TP)
+- `tcl-lsp-db::callback_arity_correct_is_silent` / `_args_catchall_is_silent` /
+  `_atleast_does_not_false_fire_too_few` (TN / FP guards)
+- `command_prefix_integration.rs::namespace_unknown_handler_is_a_callback_edge` /
+  `regsub_command_prefix_fires_w123_only_when_unknown` /
+  `coroinject_records_reference_but_never_arity_checks` (deferred core commands)
+- `command_prefix_integration.rs::tcllib_struct_list_split_is_a_callback_edge` /
+  `tcllib_calculus_func_records_reference_with_fixed_arity` (tcllib)
+- `tcl-lsp-db::callback_arity_namespace_unknown_zero_param_draws_e003` /
+  `_package_unknown_variadic_handler_is_silent` / `_unknown_appended_never_fires` /
+  `_tcllib_calculus_func_arity_checked` (deferred-command arity TP/TN)
+- `tcl-registry::command_prefixes_cover_deferred_core_commands` /
+  `_cover_tcllib_callbacks` /
+  `commands_naming_a_cmdprefix_declare_a_command_prefix` (registry coverage + drift guard)
+- `tcl-registry::tk_command_options_classified_prefix_vs_script` (Tk prefix-vs-script
+  classification — the conversion locked in)
+- `command_prefix_integration.rs::tk_scale_command_bareword_head_is_a_callback_edge` /
+  `tk_scroll_callback_braced_widget_path_does_not_fire_w123` (FP removed) /
+  `tk_scroll_callback_bareword_undefined_head_fires_w123` (TP now caught)
+- `tcl-lsp-db::callback_arity_tk_scale_command_arity_checked` (Tk callback arity TP/TN)
+- `tcl-registry::command_prefixes_cover_option_value_callbacks` (mime/smtp/comm/
+  bibtex/halfpipe option-value prefixes — index + arity) + the `?…?`-stripping
+  drift guard that now validates them
+- `command_prefix_integration.rs::mime_getbody_command_option_is_a_callback_edge` /
+  `smtp_tlspolicy_option_fires_w123_only_when_unknown` /
+  `bibtex_recordcommand_option_is_a_callback_edge` /
+  `halfpipe_write_command_option_records_callback` (option-value TP)
+- `tcl-lsp-db::callback_arity_option_value_exactly_checked` /
+  `_mime_getbody_command_atleast_one` (option-value arity TP/TN + FP guards)
+- `command_prefix_integration.rs::hook_bind_binding_is_a_callback_edge` /
+  `hook_bind_query_form_is_not_a_callback` (resolver-driven prefix TP + FP guard) /
+  `processman_onexit_script_body_is_recursed_not_a_prefix` (script, not prefix)
+- `tcl-registry::instance_method_command_prefixes_cover_struct_graph_and_tree` +
+  `command_prefix_integration.rs::struct_graph_walk_command_records_callback_with_arity` /
+  `struct_graph_walk_command_var_handle_fires_w123_only_when_unknown` /
+  `struct_tree_walkproc_trailing_prefix_is_recorded` (object-instance methods —
+  now also asserting the call-graph edge) +
+  `tcl-lsp-db::callback_arity_struct_graph_walk_command_checked` / `_tree_walkproc_checked`
+- `tcl-compiler::object_types::registry_naming_factory_handles` (object-handle map
+  covers `struct::graph`/`::tree` naming + return forms) +
+  `interprocedural::instance_method_callback_is_a_direct_call` (IPC call-graph edge) +
+  `tcl-lsp-db::cross_file_in_proc_instance_method_callback_arity` (the per-item
+  firewall fix — an in-proc instance callback resolves cross-file)
+
+---
+
 ## RBS — read-before-set (W210/W213/W214)
 
 W210 (read-before-set), W213 (`unset` on possibly-unset var, derives from RBS),
@@ -3530,6 +3705,61 @@ q=a
 - `fp_ds_10_dead_store_inside_dict_for_body_now_fires` (TP — precision gained inside the body)
 - `fp_ds_10_write_only_local_in_dict_for_body_still_flags` (FN guard — write-only local)
 - `fp_ds_10_clean_dict_for_is_silent` (TN control)
+
+---
+
+### FP-DS-11 — an `uplevel` body runs in another stack frame (issue #837)
+
+- **Verdict:** FALSE POSITIVE guard + frame-aware precision (TP)
+- **Status:** locked in by `tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_11_*`
+  (and the W105 consistency arm in `fp/sty.rs::fp_sty_14_uplevel_body_participates_in_w105_like_eval`)
+- **Codes:** W220, W211, W105
+- **Corpus:** any proc that runs caller-context code via `uplevel ?level? {body}` —
+  DSL helpers, `namespace forget`/`namespace import` shims, option-setter idioms.
+
+#### Reproducer
+
+```tcl
+proc forgetXyce {} {
+    # Forgets all '::SpiceGenTcl::Xyce' commands from caller namespace
+    uplevel 1 {foreach nameSpc [namespace children ::SpiceGenTcl::Xyce] {
+        namespace forget ${nameSpc}::*
+    }}
+}
+```
+
+#### Per-line reasoning
+
+`uplevel`'s script word now carries an `ArgRole::Body` (a registry-driven
+`arg_role_resolver` that skips an optional leading `level` word), so the body is
+recursed and highlighted/analysed like every other script body instead of being
+rendered as one opaque string (the original issue #837 symptom — no highlighting
+inside the `uplevel` body). The spec is `BodyKind::Structural`: the body runs in
+the frame named by `level`, so a `$var` read inside a **braced** body resolves
+against *that* frame and does not count as a use of an enclosing-proc local of the
+same name. A value substituted at the enclosing level (`[list …]`, a quoted body,
+or a plain local read) is evaluated in the enclosing frame and keeps the local
+live.
+
+#### tclsh ground truth
+
+```
+% proc f {} { set x 1; uplevel 1 {puts $x} }
+% set x outer; f
+outer
+```
+`uplevel 1 {puts $x}` prints the *caller's* `x` (`outer`), never `f`'s local
+`x`, so `set x 1` inside `f` is genuinely a dead store.
+
+#### Tests
+
+- `fp_ds_11_caller_frame_write_is_not_an_enclosing_dead_store` (FP/TN)
+- `fp_ds_11_list_substituted_read_keeps_enclosing_store_live` (FP — `[list]` body)
+- `fp_ds_11_local_read_keeps_store_live_alongside_uplevel` (FP — local read)
+- `fp_ds_11_braced_body_only_read_is_a_frame_shifted_dead_store` (TP — frame-aware precision)
+- `fp_ds_11_real_dead_store_outside_uplevel_still_fires` (TP — enclosing analysis intact)
+- `fp_ds_11_clean_uplevel_body_is_silent` (TN control)
+- `fp_sty_14_uplevel_body_participates_in_w105_like_eval` (TP/FP — unbraced-body W105 parity with `eval`)
 
 ---
 

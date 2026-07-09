@@ -36,8 +36,8 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::script(),
-        detail: "Command prefix to invoke when the scrollbar is moved.",
+        value: OptionValue::command_prefix_n("prefix", AppendedArity::AtLeast(2)),
+        detail: "Command prefix to invoke when the scrollbar is moved (`moveto frac` appends 2, `scroll n units|pages` appends 3).",
         dialects: None,
         aliases: &[],
         min_version: None,

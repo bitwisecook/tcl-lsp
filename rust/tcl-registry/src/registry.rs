@@ -27,7 +27,7 @@ use std::sync::OnceLock;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::arg_role::ArgRole;
+use crate::arg_role::{AppendedArity, ArgRole};
 use crate::arity::Arity;
 use crate::dialects::DialectSet;
 use crate::forms::CommandForm;
@@ -192,6 +192,33 @@ fn push_option_value_roles(
             let vals = opt.value_indices(args, i);
             if opt.value_role() == Some(role) || opt.value_also_role() == Some(role) {
                 out.extend(vals.iter().copied());
+            }
+            i += 1 + vals.len();
+        } else {
+            i += 1;
+        }
+    }
+}
+
+/// Collect option values whose role is [`ArgRole::CommandPrefix`], paired with
+/// the option's [`AppendedArity`] — the option-side companion to
+/// [`push_option_value_roles`], used by [`CommandRegistry::command_prefixes`].
+fn push_command_prefix_options(
+    out: &mut Vec<(usize, AppendedArity)>,
+    options: &[crate::hover::OptionSpec],
+    args: &[&str],
+    scan_start: usize,
+) {
+    let mut i = scan_start;
+    while i < args.len() {
+        if args[i] == "--" {
+            break;
+        }
+        if let Some(opt) = options.iter().find(|o| o.matches(args[i])) {
+            let vals = opt.value_indices(args, i);
+            if opt.value_role() == Some(ArgRole::CommandPrefix) {
+                let arity = opt.value_appended_arity();
+                out.extend(vals.iter().map(|&v| (v, arity)));
             }
             i += 1 + vals.len();
         } else {
@@ -415,6 +442,45 @@ impl CommandRegistry {
             }
         }
         None
+    }
+
+    /// Resolve the [`ArgRole::CommandPrefix`] positions and appended arities for
+    /// an instance-method dispatch `$obj method method_args…`.
+    ///
+    /// `method_args` are the words *after* the method name.  Mirrors the
+    /// subcommand arm of [`Self::command_prefixes`] (static
+    /// [`SubCommand::command_prefixes`] table ∪ `command_prefix_resolver` ∪
+    /// command-prefix options), but keyed on the object's class + method rather
+    /// than a top-level command — so `$g walk … -command cb` (option value) and
+    /// `$t walkproc … cb` (trailing positional, resolver) light up the same
+    /// references / call-graph / W123 / arity substrate.  Returned indices are
+    /// relative to `method_args` (0 = first word after the method name).
+    ///
+    /// [`SubCommand::command_prefixes`]: crate::spec::SubCommand::command_prefixes
+    #[must_use]
+    pub fn instance_method_command_prefixes(
+        &self,
+        class_name: &str,
+        method: &str,
+        method_args: &[&str],
+    ) -> Vec<(usize, AppendedArity)> {
+        let Some(m) = self.instance_method(class_name, method) else {
+            return Vec::new();
+        };
+        let n = method_args.len();
+        let mut out: Vec<(usize, AppendedArity)> = Vec::new();
+        if let Some(resolver) = m.command_prefix_resolver {
+            out.extend(
+                resolver(method_args)
+                    .into_iter()
+                    .map(|(i, a)| (i as usize, a)),
+            );
+        } else {
+            out.extend(m.command_prefixes.iter().map(|(i, a)| (*i as usize, *a)));
+        }
+        push_command_prefix_options(&mut out, m.options, method_args, 0);
+        out.retain(|&(idx, _)| idx < n);
+        out
     }
 
     /// Whether `pkg` is a package the registry knows about — i.e. at
@@ -782,6 +848,16 @@ impl CommandRegistry {
     /// equivalent of `arg_indices_for_role()`.
     #[must_use]
     pub fn arg_indices_for_role(&self, name: &str, args: &[&str], role: ArgRole) -> Vec<usize> {
+        // `CommandPrefix` positions (with their appended arities) are owned by
+        // [`Self::command_prefixes`]; delegate so highlighting, param-trait
+        // inference, and the call-reference extractor all read one source.
+        if role == ArgRole::CommandPrefix {
+            return self
+                .command_prefixes(name, args)
+                .into_iter()
+                .map(|(i, _)| i)
+                .collect();
+        }
         let Some(spec) = self.get(name) else {
             return Vec::new();
         };
@@ -834,6 +910,58 @@ impl CommandRegistry {
         // Value-taking options carry roles at their (dynamic) value positions.
         push_option_value_roles(&mut out, spec.options, args, 0, role);
         out.retain(|&idx| idx < n);
+        out
+    }
+
+    /// Resolve [`ArgRole::CommandPrefix`] argument positions and their
+    /// [`AppendedArity`] for a concrete call.
+    ///
+    /// The single source of truth for command-prefix callbacks — unions the
+    /// three declaration mechanisms (static [`CommandSpec::command_prefixes`]
+    /// table, [`CommandSpec::command_prefix_resolver`], and `command_prefix`
+    /// option values), for the top-level command or its resolved subcommand.
+    /// Mirrors [`Self::arg_indices_for_role`]'s subcommand offset / `--`
+    /// handling. Consumers: highlighting, find-references / call-hierarchy /
+    /// call-graph recording, and the callback-arity check.
+    ///
+    /// For subcommand-based commands pass the subcommand as `args[0]`.
+    #[must_use]
+    pub fn command_prefixes(&self, name: &str, args: &[&str]) -> Vec<(usize, AppendedArity)> {
+        let Some(spec) = self.get(name) else {
+            return Vec::new();
+        };
+        let n = args.len();
+        let mut out: Vec<(usize, AppendedArity)> = Vec::new();
+
+        if !spec.subcommands.is_empty()
+            && !args.is_empty()
+            && let Some(sub) = spec.resolve_subcommand(args[0])
+        {
+            if let Some(resolver) = sub.command_prefix_resolver {
+                out.extend(
+                    resolver(&args[1..])
+                        .into_iter()
+                        .map(|(i, a)| (i as usize + 1, a)),
+                );
+            } else {
+                out.extend(
+                    sub.command_prefixes
+                        .iter()
+                        .map(|(i, a)| (*i as usize + 1, *a)),
+                );
+            }
+            push_command_prefix_options(&mut out, sub.options, args, 1);
+            out.retain(|&(idx, _)| idx < n);
+            return out;
+        }
+
+        if let Some(resolver) = spec.command_prefix_resolver {
+            out.extend(resolver(args).into_iter().map(|(i, a)| (i as usize, a)));
+        } else {
+            out.extend(spec.command_prefixes.iter().map(|(i, a)| (*i as usize, *a)));
+        }
+        push_command_prefix_options(&mut out, spec.options, args, 0);
+        out.retain(|&(idx, _)| idx < n);
         out
     }
 
@@ -1490,6 +1618,46 @@ mod tests {
     }
 
     #[test]
+    fn uplevel_body_arg_role_skips_optional_level() {
+        // Issue #837: `uplevel ?level? {body}` — the body word's index depends
+        // on whether a leading `level` word is present. The registry resolver
+        // is the single source of truth every body consumer (semantic tokens,
+        // green-tree descent, SSA) queries.
+        let reg = CommandRegistry::build_default();
+        // Literal relative level → body at 1.
+        assert_eq!(
+            reg.arg_indices_for_role("uplevel", &["1", "{set x 1}"], ArgRole::Body),
+            vec![1]
+        );
+        // Absolute `#0` level → body at 1.
+        assert_eq!(
+            reg.arg_indices_for_role("uplevel", &["#0", "{set x 1}"], ArgRole::Body),
+            vec![1]
+        );
+        // No level → body at 0.
+        assert_eq!(
+            reg.arg_indices_for_role("uplevel", &["{set x 1}"], ArgRole::Body),
+            vec![0]
+        );
+        // Dynamic level followed by a script → body at 1.
+        assert_eq!(
+            reg.arg_indices_for_role("uplevel", &["$lvl", "{set x 1}"], ArgRole::Body),
+            vec![1]
+        );
+        // A lone dynamic word is the body itself (implicit level 1) → body at 0.
+        assert_eq!(
+            reg.arg_indices_for_role("uplevel", &["$body"], ArgRole::Body),
+            vec![0]
+        );
+        // Bodyless `uplevel 1` (a wrong-#args error) exposes no body word — the
+        // literal level must not be mis-tagged as a script.
+        assert!(
+            reg.arg_indices_for_role("uplevel", &["1"], ArgRole::Body)
+                .is_empty()
+        );
+    }
+
+    #[test]
     fn if_marks_structural_keywords() {
         let reg = CommandRegistry::build_default();
         let args = [
@@ -1637,6 +1805,534 @@ mod tests {
             vec![1],
             "the -command value should carry the CommandPrefix role",
         );
+    }
+
+    #[test]
+    fn command_prefixes_carry_verified_arities() {
+        // Ground-truthed vs real tclsh (stable 8.6→9.0). `command_prefixes`
+        // is the single source of truth for both the position and the
+        // appended arity.
+        let reg = CommandRegistry::build_default();
+        // `lsort -command cmp {a b}` → cmp invoked as `cmp x y` (2 appended).
+        assert_eq!(
+            reg.command_prefixes("lsort", &["-command", "cmp", "{a b}"]),
+            vec![(1, AppendedArity::Exactly(2))],
+        );
+        // `socket -server accept 9000` → accept invoked as `accept ch a p` (3).
+        assert_eq!(
+            reg.command_prefixes("socket", &["-server", "accept", "9000"]),
+            vec![(1, AppendedArity::Exactly(3))],
+        );
+        // Positional (migrated from arg_roles): `tcltest::customMatch mode cmd`
+        // → `cmd expected actual` (2).
+        assert_eq!(
+            reg.command_prefixes("tcltest::customMatch", &["exact", "cmp"]),
+            vec![(1, AppendedArity::Exactly(2))],
+        );
+        // Dynamic resolver (migrated): `selection handle window cmd` → the
+        // last arg, invoked as `cmd offset maxChars` (2).
+        assert_eq!(
+            reg.command_prefixes("selection", &["handle", ".w", "getData"]),
+            vec![(2, AppendedArity::Exactly(2))],
+        );
+    }
+
+    #[test]
+    fn command_prefixes_cover_core_callback_commands() {
+        // Ground-truthed vs real tclsh 8.6/9.0 (stable). Locks in the Phase-2
+        // coverage of trace / interp / tcllib callbacks.
+        let reg = CommandRegistry::build_default();
+        // `trace add variable v w cb` → cb(name1 name2 op) = 3.
+        assert_eq!(
+            reg.command_prefixes("trace", &["add", "variable", "v", "write", "cb"]),
+            vec![(4, AppendedArity::Exactly(3))],
+        );
+        // `trace add command c ops cb` → cb(old new op) = 3.
+        assert_eq!(
+            reg.command_prefixes("trace", &["add", "command", "c", "rename", "cb"]),
+            vec![(4, AppendedArity::Exactly(3))],
+        );
+        // `trace add execution c ops cb` → 2..4 args ⇒ AtLeast(2).
+        assert_eq!(
+            reg.command_prefixes("trace", &["add", "execution", "c", "enter", "cb"]),
+            vec![(4, AppendedArity::AtLeast(2))],
+        );
+        // Deprecated `trace variable v ops cb` → cb at index 3, 3 appended args.
+        assert_eq!(
+            reg.command_prefixes("trace", &["variable", "v", "write", "cb"]),
+            vec![(3, AppendedArity::Exactly(3))],
+        );
+        // `interp alias {} a {} target x` (create form) → target at index 3,
+        // variadic. The 2-arg query form has no target.
+        assert_eq!(
+            reg.command_prefixes("interp", &["alias", "{}", "a", "{}", "target"]),
+            vec![(4, AppendedArity::Unknown)],
+        );
+        assert!(
+            reg.command_prefixes("interp", &["alias", "{}", "a"])
+                .is_empty(),
+            "the interp-alias query form has no command prefix",
+        );
+        // tcllib: `struct::list filter seq cb` (1), `map seq cb` (1),
+        // `fold seq init cb` (2).
+        assert_eq!(
+            reg.command_prefixes("struct::list", &["filter", "$s", "cb"]),
+            vec![(2, AppendedArity::Exactly(1))],
+        );
+        assert_eq!(
+            reg.command_prefixes("struct::list", &["fold", "$s", "0", "cb"]),
+            vec![(3, AppendedArity::Exactly(2))],
+        );
+    }
+
+    #[test]
+    fn command_prefixes_cover_deferred_core_commands() {
+        // Version-gated / resolver-driven callback tails wired in the deferred
+        // pass. Ground-truthed vs tclsh 9.0 (all are 8.7/9.0-era surfaces).
+        let reg = CommandRegistry::build_default();
+
+        // `regsub -command re str cmdPrefix ?var?` (TIP 463, 9.0): with
+        // `-command` the subSpec slot is a prefix called per match with the
+        // whole match + capture groups appended (variadic ⇒ AtLeast(1)). The
+        // slot index tracks the leading-switch shift.
+        assert_eq!(
+            reg.command_prefixes("regsub", &["-command", "re", "s", "cb"]),
+            vec![(3, AppendedArity::AtLeast(1))],
+        );
+        assert_eq!(
+            reg.command_prefixes("regsub", &["-all", "-command", "re", "s", "cb"]),
+            vec![(4, AppendedArity::AtLeast(1))],
+        );
+        // `-c` is an unambiguous abbreviation of `-command`.
+        assert_eq!(
+            reg.command_prefixes("regsub", &["-c", "re", "s", "cb"]),
+            vec![(3, AppendedArity::AtLeast(1))],
+        );
+        // Without `-command`, subSpec is a replacement template, not a prefix.
+        assert!(
+            reg.command_prefixes("regsub", &["re", "s", "template"])
+                .is_empty(),
+            "plain regsub subSpec is not a command prefix",
+        );
+        // `--` terminates switches, so a following `-command`-looking word is a
+        // pattern, not the flag.
+        assert!(
+            reg.command_prefixes("regsub", &["--", "-command", "s", "template"])
+                .is_empty(),
+            "`--` disables -command detection",
+        );
+
+        // `namespace unknown handler` → handler(cmd ?arg...?) = AtLeast(1). The
+        // zero-arg query form carries no prefix.
+        assert_eq!(
+            reg.command_prefixes("namespace", &["unknown", "handler"]),
+            vec![(1, AppendedArity::AtLeast(1))],
+        );
+        assert!(
+            reg.command_prefixes("namespace", &["unknown"]).is_empty(),
+            "the namespace-unknown query form has no command prefix",
+        );
+
+        // `package unknown handler` → handler(name ?requirement...?) = AtLeast(1).
+        assert_eq!(
+            reg.command_prefixes("package", &["unknown", "handler"]),
+            vec![(1, AppendedArity::AtLeast(1))],
+        );
+        assert!(
+            reg.command_prefixes("package", &["unknown"]).is_empty(),
+            "the package-unknown query form has no command prefix",
+        );
+
+        // `coroinject`/`coroprobe coroName command ?arg...?` — the injected
+        // command's appended arity depends on the coroutine's yield point, so
+        // it is a reference-only prefix (Unknown ⇒ never arity-checked).
+        assert_eq!(
+            reg.command_prefixes("coroinject", &["myCoro", "cb", "x"]),
+            vec![(1, AppendedArity::Unknown)],
+        );
+        assert_eq!(
+            reg.command_prefixes("coroprobe", &["myCoro", "cb"]),
+            vec![(1, AppendedArity::Unknown)],
+        );
+
+        // `chan create mode cmdPrefix` / `chan push channelId cmdPrefix` — the
+        // reflected-channel/transform handler is invoked as `cmdPrefix
+        // subcommand handle ?args...?` ⇒ AtLeast(2).
+        assert_eq!(
+            reg.command_prefixes("chan", &["create", "rw", "handler"]),
+            vec![(2, AppendedArity::AtLeast(2))],
+        );
+        assert_eq!(
+            reg.command_prefixes("chan", &["push", "$ch", "xform"]),
+            vec![(2, AppendedArity::AtLeast(2))],
+        );
+    }
+
+    #[test]
+    fn command_prefixes_cover_tcllib_callbacks() {
+        // tcllib callback tails wired in the deferred pass.  Fixed arities are
+        // ground-truthed against the package man pages; ambiguous/variadic tails
+        // are Unknown (reference-only).
+        let reg = CommandRegistry::build_default();
+
+        // `struct::list split seq cmdprefix` — the twin of filter: cmdprefix(el).
+        assert_eq!(
+            reg.command_prefixes("struct::list", &["split", "$s", "cb"]),
+            vec![(2, AppendedArity::Exactly(1))],
+        );
+        // `fileutil::find basedir filtercmd` — filtercmd(name).  Shorter forms
+        // carry no prefix (idx≥argc dropped).
+        assert_eq!(
+            reg.command_prefixes("fileutil::find", &["/base", "flt"]),
+            vec![(1, AppendedArity::Exactly(1))],
+        );
+        assert!(
+            reg.command_prefixes("fileutil::find", &["/base"]).is_empty(),
+            "the basedir-only fileutil::find form has no filter prefix",
+        );
+
+        // generator functional ops: reference-only (multi-value yield ⇒ Unknown).
+        assert_eq!(
+            reg.command_prefixes("generator", &["map", "fn", "$g"]),
+            vec![(1, AppendedArity::Unknown)],
+        );
+        assert_eq!(
+            reg.command_prefixes("generator", &["filter", "pred", "$g"]),
+            vec![(1, AppendedArity::Unknown)],
+        );
+
+        // math::calculus func callbacks (man-page-pinned fixed arities).
+        assert_eq!(
+            reg.command_prefixes("math::calculus::integral", &["0", "1", "100", "f"]),
+            vec![(3, AppendedArity::Exactly(1))],
+        );
+        assert_eq!(
+            reg.command_prefixes("math::calculus::integral3D", &["xi", "yi", "zi", "f"]),
+            vec![(3, AppendedArity::Exactly(3))],
+        );
+        // `newtonRaphson func deriv initval` — two prefixes, each f(x).
+        assert_eq!(
+            reg.command_prefixes("math::calculus::newtonRaphson", &["f", "d", "0.5"]),
+            vec![
+                (0, AppendedArity::Exactly(1)),
+                (1, AppendedArity::Exactly(1)),
+            ],
+        );
+        // `math::probopt::pso function bounds ?args?` — objective(coordVec).
+        assert_eq!(
+            reg.command_prefixes("math::probopt::pso", &["obj", "bnds", "-iter", "50"]),
+            vec![(0, AppendedArity::Exactly(1))],
+        );
+
+        // log message-writer callbacks — `cmd level text` (Exactly(2)).
+        assert_eq!(
+            reg.command_prefixes("log::lvCmd", &["debug", "writer"]),
+            vec![(1, AppendedArity::Exactly(2))],
+        );
+        assert_eq!(
+            reg.command_prefixes("log::lvCmdForall", &["writer"]),
+            vec![(0, AppendedArity::Exactly(2))],
+        );
+        // `uevent::bind tag event command` — command(tag event ?details?).
+        assert_eq!(
+            reg.command_prefixes("uevent::bind", &["tag", "ev", "cb"]),
+            vec![(2, AppendedArity::AtLeast(2))],
+        );
+
+        // `hook bind subject hook observer binding` — the 4-word set form names
+        // a command prefix (Unknown appended: the count is whatever the matching
+        // `hook call` passes); the shorter query forms name none.
+        assert_eq!(
+            reg.command_prefixes("hook", &["bind", "sub", "hk", "obs", "cb"]),
+            vec![(4, AppendedArity::Unknown)],
+        );
+        assert!(
+            reg.command_prefixes("hook", &["bind", "sub", "hk", "obs"])
+                .is_empty(),
+            "the 3-arg `hook bind` query form has no callback prefix",
+        );
+
+        // `processman::onexit id cmd` — `cmd` is a deferred *script* (`eval $cmd`,
+        // 0 appended), NOT a command prefix: it must declare none.
+        assert!(
+            reg.command_prefixes("processman::onexit", &["$pid", "cb"])
+                .is_empty(),
+            "processman::onexit cmd is a script body, not a command prefix",
+        );
+        assert_eq!(
+            reg.get("processman::onexit")
+                .and_then(|s| s.arg_roles.iter().find(|(i, _)| *i == 1))
+                .map(|(_, r)| *r),
+            Some(ArgRole::Body),
+            "processman::onexit cmd (index 1) must carry the Body script role",
+        );
+    }
+
+    #[test]
+    fn command_prefixes_cover_option_value_callbacks() {
+        // Option-value callbacks — the prefix is the value of a named `-flag`,
+        // resolved through each command's `OptionSpec` array.  Arities are
+        // ground-truthed against tcllib source (verified by re-running the exact
+        // `uplevel`/`eval`/`{*}` idioms in tclsh — `uplevel`/`eval` re-split a
+        // `[list …]` word, `[list {*}pfx {*}args]` keeps one word per element).
+        let reg = CommandRegistry::build_default();
+
+        // `mime::getbody token -command cb` — async body callback.  uplevel
+        // re-splits `[list end]` → 1 word, `[list data $c]` → 2 ⇒ AtLeast(1).
+        assert_eq!(
+            reg.command_prefixes("mime::getbody", &["tok", "-command", "cb"]),
+            vec![(2, AppendedArity::AtLeast(1))],
+        );
+        // `-decode` before `-command` is a value-less flag: the scan skips it
+        // without swallowing the callback.
+        assert_eq!(
+            reg.command_prefixes("mime::getbody", &["tok", "-decode", "-command", "cb"]),
+            vec![(3, AppendedArity::AtLeast(1))],
+        );
+
+        // `smtp::sendmessage tok -tlspolicy pol` — `eval $pol [list $code]
+        // [list $diag]` ⇒ Exactly(2).  A preceding value-taking option's value
+        // is skipped, not mistaken for the callback.
+        assert_eq!(
+            reg.command_prefixes("smtp::sendmessage", &["tok", "-tlspolicy", "pol"]),
+            vec![(2, AppendedArity::Exactly(2))],
+        );
+        assert_eq!(
+            reg.command_prefixes(
+                "smtp::sendmessage",
+                &["tok", "-servers", "mail.x", "-tlspolicy", "pol"],
+            ),
+            vec![(4, AppendedArity::Exactly(2))],
+        );
+
+        // `comm::comm send -command cb id cmd` — 7 `-key value` reply pairs ⇒
+        // Exactly(14).  Subcommand-relative option scan offsets by 1.
+        assert_eq!(
+            reg.command_prefixes("comm::comm", &["send", "-command", "cb", "id", "cmd"]),
+            vec![(2, AppendedArity::Exactly(14))],
+        );
+
+        // `bibtex::parse` — every callback prepends the parser token, then its
+        // own payload words: `-command`/`-*command` ⇒ Exactly(2), except
+        // `-recordcommand` ⇒ Exactly(4) (token type key recdata).
+        assert_eq!(
+            reg.command_prefixes("bibtex::parse", &["-recordcommand", "cb", "text"]),
+            vec![(1, AppendedArity::Exactly(4))],
+        );
+        assert_eq!(
+            reg.command_prefixes("bibtex::parse", &["-command", "cb"]),
+            vec![(1, AppendedArity::Exactly(2))],
+        );
+        assert_eq!(
+            reg.command_prefixes("bibtex::parse", &["-progresscommand", "cb"]),
+            vec![(1, AppendedArity::Exactly(2))],
+        );
+
+        // `tcl::chan::halfpipe` — clean `[list {*}pfx {*}args]` idiom: write
+        // appends (chan bytes) ⇒ 2, empty/close append (chan) ⇒ 1.  No
+        // `-read-command` exists.
+        assert_eq!(
+            reg.command_prefixes("tcl::chan::halfpipe", &["-write-command", "cb"]),
+            vec![(1, AppendedArity::Exactly(2))],
+        );
+        assert_eq!(
+            reg.command_prefixes("tcl::chan::halfpipe", &["-close-command", "cb"]),
+            vec![(1, AppendedArity::Exactly(1))],
+        );
+        assert_eq!(
+            reg.command_prefixes("tcl::chan::halfpipe", &["-empty-command", "cb"]),
+            vec![(1, AppendedArity::Exactly(1))],
+        );
+        assert!(
+            reg.command_prefixes("tcl::chan::halfpipe", &["-read-command", "cb"])
+                .is_empty(),
+            "halfpipe has no -read-command",
+        );
+    }
+
+    #[test]
+    fn instance_method_command_prefixes_cover_struct_graph_and_tree() {
+        // Object-instance method callbacks — the prefix is on a method of a
+        // created object command (`$g walk … -command cb`, `$t walkproc … cb`),
+        // resolved through the class's ObjectClassSpec.  Indices are relative to
+        // the words after the method name.
+        let reg = CommandRegistry::build_default();
+
+        // struct::graph `walk node … -command cb` — option-value prefix,
+        // Exactly(3) (action graphName node).
+        assert_eq!(
+            reg.instance_method_command_prefixes(
+                "struct::graph",
+                "walk",
+                &["root", "-order", "pre", "-command", "cb"],
+            ),
+            vec![(4, AppendedArity::Exactly(3))],
+        );
+        assert_eq!(
+            reg.instance_method_command_prefixes("struct::graph", "walk", &["root", "-command", "cb"]),
+            vec![(2, AppendedArity::Exactly(3))],
+        );
+
+        // struct::tree `walkproc node … cmdprefix` — trailing positional prefix
+        // (resolver), Exactly(3) (tree node action).  The prefix is the final
+        // word regardless of intervening `-order`/`-type` options.
+        assert_eq!(
+            reg.instance_method_command_prefixes("struct::tree", "walkproc", &["root", "cb"]),
+            vec![(1, AppendedArity::Exactly(3))],
+        );
+        assert_eq!(
+            reg.instance_method_command_prefixes(
+                "struct::tree",
+                "walkproc",
+                &["root", "-type", "dfs", "cb"],
+            ),
+            vec![(3, AppendedArity::Exactly(3))],
+        );
+        // `walkproc node` with no prefix word yet names none.
+        assert!(
+            reg.instance_method_command_prefixes("struct::tree", "walkproc", &["root"])
+                .is_empty(),
+            "a walkproc with only the node names no prefix",
+        );
+        // An unmodelled method / class resolves to nothing.
+        assert!(
+            reg.instance_method_command_prefixes("struct::graph", "get", &["x"])
+                .is_empty(),
+            "an unmodelled instance method has no command prefix",
+        );
+    }
+
+    #[test]
+    fn tk_command_options_classified_prefix_vs_script() {
+        // The Tk `script()→command_prefix` conversion (separate commit, highest
+        // risk).  Locks in the classification: appended-arg callbacks are
+        // prefixes (references / call-graph / W123 / arity); verbatim scripts and
+        // percent-substitution callbacks stay `script()` (Body, not recorded as a
+        // reference).  Ground truth: Tk 8.6/9.0 man pages.
+        let reg = CommandRegistry::build_default();
+
+        // PREFIXES — scroll callbacks append `first last` (2).
+        for widget in ["listbox", "text", "canvas", "entry", "spinbox"] {
+            assert_eq!(
+                reg.command_prefixes(widget, &[".w", "-xscrollcommand", "cb"]),
+                vec![(2, AppendedArity::Exactly(2))],
+                "{widget} -xscrollcommand must be a prefix appending 2",
+            );
+        }
+        // scale / ttk::scale append the new value (1).
+        assert_eq!(
+            reg.command_prefixes("scale", &[".s", "-command", "cb"]),
+            vec![(2, AppendedArity::Exactly(1))],
+        );
+        assert_eq!(
+            reg.command_prefixes("ttk::scale", &[".s", "-command", "cb"]),
+            vec![(2, AppendedArity::Exactly(1))],
+        );
+        // scrollbar -command: `moveto frac` (2) or `scroll n units` (3) ⇒ AtLeast(2).
+        assert_eq!(
+            reg.command_prefixes("scrollbar", &[".sb", "-command", "cb"]),
+            vec![(2, AppendedArity::AtLeast(2))],
+        );
+        // menu -tearoffcommand appends the parent + torn-off menu paths (2).
+        assert_eq!(
+            reg.command_prefixes("menu", &[".m", "-tearoffcommand", "cb"]),
+            vec![(2, AppendedArity::Exactly(2))],
+        );
+
+        // NOT prefixes — verbatim action scripts and percent-substitution
+        // callbacks are `script()`, never recorded as a command reference.
+        for (widget, opt) in [
+            ("button", "-command"),
+            ("checkbutton", "-command"),
+            ("radiobutton", "-command"),
+            ("menu", "-command"),
+            ("menu", "-postcommand"),
+            ("ttk::combobox", "-postcommand"),
+            ("spinbox", "-command"),        // percent-substitution (%W %s %d)
+            ("spinbox", "-validatecommand"), // percent-substitution
+            ("entry", "-validatecommand"),  // percent-substitution
+            ("entry", "-invalidcommand"),   // percent-substitution
+        ] {
+            assert!(
+                reg.command_prefixes(widget, &[".w", opt, "cb"]).is_empty(),
+                "{widget} {opt} must stay a script, not a command prefix",
+            );
+        }
+    }
+
+    #[test]
+    fn commands_naming_a_cmdprefix_declare_a_command_prefix() {
+        // Drift guard: any command whose synopsis literally names a `cmdprefix`
+        // argument must declare a `CommandPrefix` (static table, resolver, or
+        // command-prefix option) so callbacks light up references / call-graph /
+        // W123 / arity.  The allowlist holds genuinely-deferred callbacks that
+        // still need modelling; it is empty now that the option-value
+        // callbacks (`mime::getbody -command`, …) carry `OptionSpec` arrays.
+        const DEFERRED_OPTION_PREFIX: &[&str] = &[];
+        let reg = CommandRegistry::build_default();
+        let mut gaps = Vec::new();
+        for name in reg.command_names() {
+            if DEFERRED_OPTION_PREFIX.contains(&name) {
+                continue;
+            }
+            let spec = reg.get(name).expect("registered");
+            let mut synopses: Vec<&str> = Vec::new();
+            if let Some(h) = &spec.hover {
+                synopses.extend(h.synopsis.iter().copied());
+            }
+            synopses.extend(spec.forms.iter().map(|f| f.synopsis));
+            synopses.extend(spec.subcommands.iter().map(|s| s.synopsis));
+            for syn in synopses {
+                if !syn.to_ascii_lowercase().contains("cmdprefix") {
+                    continue;
+                }
+                // Probe with the synopsis words after the command name; a
+                // declared prefix yields a non-empty result.  Strip the `?…?`
+                // optionality markers so an option-value prefix
+                // (`?-command cmdprefix?`) presents its bare `-command` /
+                // `cmdprefix` words to the option scanner.
+                let args: Vec<&str> = syn
+                    .split_whitespace()
+                    .skip(1)
+                    .map(|w| w.trim_matches('?'))
+                    .collect();
+                if reg.command_prefixes(name, &args).is_empty() {
+                    gaps.push(format!("{name}: {syn}"));
+                }
+            }
+        }
+        gaps.sort();
+        assert!(
+            gaps.is_empty(),
+            "commands whose synopsis names a cmdprefix but declare no CommandPrefix:\n{}",
+            gaps.join("\n"),
+        );
+    }
+
+    #[test]
+    fn arg_indices_for_role_command_prefix_matches_command_prefixes() {
+        // The delegation invariant: `arg_indices_for_role(CommandPrefix)` is
+        // exactly the positions `command_prefixes` reports — so highlighting,
+        // param-traits, and the call-reference extractor never drift.
+        let reg = CommandRegistry::build_default();
+        for (name, args) in [
+            ("lsort", &["-command", "cmp", "{a b}"][..]),
+            ("socket", &["-server", "accept", "9000"][..]),
+            ("tcltest::customMatch", &["exact", "cmp"][..]),
+            ("selection", &["handle", ".w", "getData"][..]),
+            ("regsub", &["-command", "re", "s", "cb"][..]),
+            ("namespace", &["unknown", "handler"][..]),
+            ("package", &["unknown", "handler"][..]),
+            ("coroinject", &["myCoro", "cb", "x"][..]),
+        ] {
+            let via_role = reg.arg_indices_for_role(name, args, ArgRole::CommandPrefix);
+            let via_prefixes: Vec<usize> = reg
+                .command_prefixes(name, args)
+                .into_iter()
+                .map(|(i, _)| i)
+                .collect();
+            assert_eq!(via_role, via_prefixes, "delegation mismatch for {name}");
+        }
     }
 
     #[test]

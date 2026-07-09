@@ -32,8 +32,10 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         required_package: Some("tcltest"),
-        // 0 = the new mode name, 1 = a command prefix (`command expected actual`).
-        arg_roles: &[(0, ArgRole::Name), (1, ArgRole::CommandPrefix)],
+        // 0 = the new mode name; 1 = a command prefix invoked as
+        // `command expected actual` → 2 appended args (`Exactly(2)`).
+        arg_roles: &[(0, ArgRole::Name)],
+        command_prefixes: &[(1, AppendedArity::Exactly(2))],
         // `customMatch MODE command` always defines a new match mode; the
         // backing command (arg 1) is shown as the outline detail.
         defines_symbol: Some(SymbolDef::new(0, DefinedSymbolKind::Matcher).with_detail(1)),

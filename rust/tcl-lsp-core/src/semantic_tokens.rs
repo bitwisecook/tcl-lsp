@@ -6022,6 +6022,44 @@ mod tests {
     }
 
     #[test]
+    fn command_prefix_callback_head_highlights_as_function() {
+        // A registry `CommandPrefix` callback head retags as a Function — driven
+        // by the declarative role (no analysis needed).  Covers a core
+        // `-command` and a Tk `scale -command` (the script→prefix conversion):
+        // under the old `script()` a bareword single-word callback head was not
+        // recursed, so it did not highlight; as a prefix it now does.
+        let registry = reg();
+        let slice = |src: &str, line: u32, col: u32, len: u32| -> String {
+            src.lines()
+                .nth(line as usize)
+                .and_then(|l| l.get(col as usize..(col + len) as usize))
+                .unwrap_or_default()
+                .to_owned()
+        };
+        let highlights_fn = |src: &str, name: &str| {
+            decode_full(src, "tcl9.0", &registry)
+                .iter()
+                .any(|&(line, col, len, k, _)| {
+                    k == TokenKind::Function as u32 && slice(src, line, col, len) == name
+                })
+        };
+        assert!(
+            highlights_fn(
+                "proc myCompare {a b} { expr {$a - $b} }\nlsort -command myCompare {3 1 2}\n",
+                "myCompare",
+            ),
+            "the lsort -command callback head must highlight as a Function"
+        );
+        assert!(
+            highlights_fn(
+                "proc onScale {v} { }\nscale .s -command onScale\n",
+                "onScale",
+            ),
+            "the Tk scale -command callback head must highlight as a Function (script→prefix conversion)"
+        );
+    }
+
+    #[test]
     fn method_body_recurses_in_class_definition_script() {
         // `oo::class create C { method m {} { set z 3 } }` — the method body
         // must be tokenised (C Tcl evaluates it as a script), so `set` reads
@@ -7088,6 +7126,115 @@ mod tests {
         assert!(
             ks.contains(&(TokenKind::Variable as u32)),
             "expected the $lambda variable token; got {ks:?}"
+        );
+    }
+
+    /// True if any token in `src` covers exactly `text` with kind `kind`.
+    fn has_token_kind(
+        src: &str,
+        dialect: &str,
+        registry: &CommandRegistry,
+        text: &str,
+        kind: TokenKind,
+    ) -> bool {
+        decode_full(src, dialect, registry)
+            .iter()
+            .any(|&(l, c, len, k, _)| {
+                k == kind as u32
+                    && src
+                        .lines()
+                        .nth(l as usize)
+                        .and_then(|line| {
+                            let s = line.char_indices().nth(c as usize).map(|(i, _)| i)?;
+                            let e = line
+                                .char_indices()
+                                .nth((c + len) as usize)
+                                .map_or(line.len(), |(i, _)| i);
+                            line.get(s..e)
+                        })
+                        .is_some_and(|got| got == text)
+            })
+    }
+
+    #[test]
+    fn uplevel_body_recurses_as_script() {
+        // Issue #837: the braced body of `uplevel ?level? {body}` runs in
+        // another stack frame but is still a Tcl script — it must be
+        // recursed and highlighted, not rendered as one opaque string.
+        let registry = reg();
+
+        // `uplevel 1 {body}` — literal relative level, body at arg 1.
+        let src = "uplevel 1 {foreach x $l { puts $x }}\n";
+        assert!(
+            has_token_kind(src, "tcl9.0", &registry, "foreach", TokenKind::Keyword),
+            "uplevel 1 body: `foreach` must tokenise as a keyword; got {:?}",
+            decode_full(src, "tcl9.0", &registry)
+        );
+        assert!(
+            has_token_kind(src, "tcl9.0", &registry, "puts", TokenKind::Function),
+            "uplevel 1 body: `puts` must tokenise as a function"
+        );
+
+        // `uplevel {body}` — no level, body at arg 0.
+        let src = "uplevel {foreach x $l { puts $x }}\n";
+        assert!(
+            has_token_kind(src, "tcl9.0", &registry, "foreach", TokenKind::Keyword),
+            "uplevel (no level) body: `foreach` must tokenise as a keyword"
+        );
+
+        // `uplevel #0 {body}` — absolute global level.
+        let src = "uplevel #0 {foreach x $l { puts $x }}\n";
+        assert!(
+            has_token_kind(src, "tcl9.0", &registry, "foreach", TokenKind::Keyword),
+            "uplevel #0 body: `foreach` must tokenise as a keyword"
+        );
+
+        // `uplevel $lvl {body}` — dynamic level word, body still recurses.
+        let src = "uplevel $lvl {foreach x $l { puts $x }}\n";
+        assert!(
+            has_token_kind(src, "tcl9.0", &registry, "foreach", TokenKind::Keyword),
+            "uplevel $lvl body: `foreach` must tokenise as a keyword"
+        );
+    }
+
+    #[test]
+    fn uplevel_dynamic_body_not_recursed() {
+        // `uplevel 1 $body` — the body is a bare variable, not a braced
+        // literal, so it stays a `$body` variable token (the const-lattice
+        // lowering resolves it on the compiler side, not the token layer).
+        let registry = reg();
+        let src = "uplevel 1 $body\n";
+        assert!(
+            has_token_kind(src, "tcl9.0", &registry, "$body", TokenKind::Variable),
+            "uplevel 1 $body: the body variable must stay a variable token; got {:?}",
+            decode_full(src, "tcl9.0", &registry)
+        );
+    }
+
+    #[test]
+    fn uplevel_issue_837_repro_recurses() {
+        // The exact reproducer from issue #837 — a `foreach` /
+        // `namespace children` / `namespace forget` body inside
+        // `uplevel 1 {…}` must highlight, not sit inside one string.
+        let registry = reg();
+        let src = "proc forgetXyce {} {\n    uplevel 1 {foreach nameSpc [namespace children ::SpiceGenTcl::Xyce] {\n        namespace forget ${nameSpc}::*\n    }}\n}\n";
+        assert!(
+            has_token_kind(src, "tcl9.0", &registry, "foreach", TokenKind::Keyword),
+            "issue #837: `foreach` inside the uplevel body must be a keyword; got {:?}",
+            decode_full(src, "tcl9.0", &registry)
+        );
+        assert!(
+            has_token_kind(src, "tcl9.0", &registry, "namespace", TokenKind::Keyword)
+                || has_token_kind(src, "tcl9.0", &registry, "namespace", TokenKind::Function),
+            "issue #837: `namespace` inside the uplevel body must be highlighted"
+        );
+        // The `${nameSpc}` reference deep inside the body highlights as a
+        // variable — proof the whole body was re-lexed, not stringified.
+        assert!(
+            decode_full(src, "tcl9.0", &registry)
+                .iter()
+                .any(|&(_, _, _, k, _)| k == TokenKind::Variable as u32),
+            "issue #837: a variable token is expected from the recursed body"
         );
     }
 

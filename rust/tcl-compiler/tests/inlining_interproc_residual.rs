@@ -85,7 +85,7 @@ use std::collections::HashSet;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::inlining::{count_statements, inline_module};
 use tcl_compiler::interprocedural::{
-    Arity, ConstantReturn, InterproceduralAnalysis, ProcArgTrait, ProcIndex,
+    Arity, ConstantReturn, InterproceduralAnalysis, ObjectTypeMap, ProcArgTrait, ProcIndex,
     build_interprocedural_analysis, build_proc_index_from_summaries, collect_call_by_name_reads,
 };
 use tcl_compiler::ir::{Module, Statement};
@@ -114,7 +114,7 @@ fn inlined(source: &str) -> Module {
 fn interproc(source: &str) -> InterproceduralAnalysis {
     let r = reg();
     let cu = CompilationUnit::build_for(source, &r, false);
-    build_interprocedural_analysis(&cu.ir_module, &r, None)
+    build_interprocedural_analysis(&cu.ir_module, &r, None, ObjectTypeMap::none())
 }
 
 /// Count statement-position calls to `command` in a flat statement list.
@@ -777,7 +777,7 @@ fn inline_module_with_no_procs_at_all_is_unchanged() {
 fn call_by_name_reads(source: &str, caller_qname: &str) -> HashSet<String> {
     let r = reg();
     let cu = CompilationUnit::build_for(source, &r, false);
-    let ia = build_interprocedural_analysis(&cu.ir_module, &r, None);
+    let ia = build_interprocedural_analysis(&cu.ir_module, &r, None, ObjectTypeMap::none());
     let index = build_proc_index_from_summaries(&ia);
     let fu = cu.function(caller_qname).expect("caller proc");
     collect_call_by_name_reads(&fu.cfg, &index)

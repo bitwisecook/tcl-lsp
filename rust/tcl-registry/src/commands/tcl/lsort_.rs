@@ -98,7 +98,8 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::command_prefix("cmdPrefix"),
+        // Invoked as `cmdPrefix elem1 elem2` → 2 appended args.
+        value: OptionValue::command_prefix_n("cmdPrefix", AppendedArity::Exactly(2)),
         detail: "Use a custom comparison command prefix.",
         dialects: None,
         aliases: &[],

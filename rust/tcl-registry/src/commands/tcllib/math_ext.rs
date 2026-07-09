@@ -2365,10 +2365,106 @@ const GROUPS: &[(&str, &[Row])] = &[
     ("math::trig", MATH__TRIG_CMDS),
 ];
 
+/// Command-prefix callback positions for the numerical packages.  The flat
+/// [`Row`] tables above cannot carry a `command_prefixes` field, so these are
+/// applied by name in [`specs`].  Index is relative to the args after the
+/// command name (these are full command names, not sub-commands).
+///
+/// Ground truth: the `math::calculus`, `math::optimize`, and `math::probopt`
+/// man pages, each of which pins the `func` argument's signature (a procedure
+/// taking a fixed number of arguments) — so these are `Exactly(n)`, unlike the
+/// variadic/ambiguous callbacks elsewhere that stay `Unknown`.
+const PREFIX_OVERRIDES: &[(&str, &[(u8, AppendedArity)])] = &[
+    // `integral begin end nosteps func` — func(x).
+    ("math::calculus::integral", &[(3, AppendedArity::Exactly(1))]),
+    // `integral2D xinterval yinterval func` — func(x y).
+    (
+        "math::calculus::integral2D",
+        &[(2, AppendedArity::Exactly(2))],
+    ),
+    (
+        "math::calculus::integral2D_accurate",
+        &[(2, AppendedArity::Exactly(2))],
+    ),
+    // `integral3D xinterval yinterval zinterval func` — func(x y z).
+    (
+        "math::calculus::integral3D",
+        &[(3, AppendedArity::Exactly(3))],
+    ),
+    (
+        "math::calculus::integral3D_accurate",
+        &[(3, AppendedArity::Exactly(3))],
+    ),
+    // `qk15 xstart xend func nosteps` — func(x).
+    ("math::calculus::qk15", &[(2, AppendedArity::Exactly(1))]),
+    (
+        "math::calculus::qk15_detailed",
+        &[(2, AppendedArity::Exactly(1))],
+    ),
+    // ODE steppers `… t tstep xvec func` — func(t xvec) (xvec is one list).
+    (
+        "math::calculus::eulerStep",
+        &[(3, AppendedArity::Exactly(2))],
+    ),
+    ("math::calculus::heunStep", &[(3, AppendedArity::Exactly(2))]),
+    (
+        "math::calculus::rungeKuttaStep",
+        &[(3, AppendedArity::Exactly(2))],
+    ),
+    // `boundaryValueSecondOrder coeff_func force_func …` — two prefixes, each f(x).
+    (
+        "math::calculus::boundaryValueSecondOrder",
+        &[(0, AppendedArity::Exactly(1)), (1, AppendedArity::Exactly(1))],
+    ),
+    // `newtonRaphson func deriv initval` — func(x) and deriv(x).
+    (
+        "math::calculus::newtonRaphson",
+        &[(0, AppendedArity::Exactly(1)), (1, AppendedArity::Exactly(1))],
+    ),
+    // Root finders `f xb xe eps` — f(x).
+    (
+        "math::calculus::regula_falsi",
+        &[(0, AppendedArity::Exactly(1))],
+    ),
+    (
+        "math::calculus::root_bisection",
+        &[(0, AppendedArity::Exactly(1))],
+    ),
+    (
+        "math::calculus::root_secant",
+        &[(0, AppendedArity::Exactly(1))],
+    ),
+    (
+        "math::calculus::root_brent",
+        &[(0, AppendedArity::Exactly(1))],
+    ),
+    (
+        "math::calculus::root_chandrupatla",
+        &[(0, AppendedArity::Exactly(1))],
+    ),
+    // `math::optimize::{minimum,maximum} begin end func maxerr` — func(x).
+    ("math::optimize::minimum", &[(2, AppendedArity::Exactly(1))]),
+    ("math::optimize::maximum", &[(2, AppendedArity::Exactly(1))]),
+    // Probabilistic optimisers `function bounds args` — objective(coordVec) as
+    // one list argument.
+    ("math::probopt::pso", &[(0, AppendedArity::Exactly(1))]),
+    ("math::probopt::sce", &[(0, AppendedArity::Exactly(1))]),
+    ("math::probopt::diffev", &[(0, AppendedArity::Exactly(1))]),
+    ("math::probopt::lipoMax", &[(0, AppendedArity::Exactly(1))]),
+    ("math::probopt::adaLipoMax", &[(0, AppendedArity::Exactly(1))]),
+];
+
 /// All command specs in this group.
 pub fn specs() -> Vec<CommandSpec> {
-    GROUPS
+    let mut out: Vec<CommandSpec> = GROUPS
         .iter()
         .flat_map(|&(pkg, table)| rows(pkg, table))
-        .collect()
+        .collect();
+    // Patch in the callback positions the flat `Row` tables can't express.
+    for spec in &mut out {
+        if let Some(&(_, prefixes)) = PREFIX_OVERRIDES.iter().find(|&&(n, _)| n == spec.name) {
+            spec.command_prefixes = prefixes;
+        }
+    }
+    out
 }

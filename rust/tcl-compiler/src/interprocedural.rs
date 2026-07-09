@@ -433,6 +433,30 @@ pub fn namespace_parts_from_proc(qname: &str) -> Vec<String> {
 
 // Summary building (partial)
 
+/// The object-handle → candidate-class map
+/// ([`crate::object_types::object_handle_classes`]) supplied to the call-graph
+/// pass so a `$g walk … -command cb` instance-method callback resolves to a
+/// `direct_calls` edge.  A borrow-only newtype: it gives the public
+/// [`build_interprocedural_analysis`] a named parameter instead of a bare
+/// `HashMap` (whose default hasher would otherwise trip
+/// `clippy::implicit_hasher`).  Use [`ObjectTypeMap::none()`] when no object
+/// typing is available (an IR-only caller, or a context that needs no callback
+/// edges).
+#[derive(Clone, Copy)]
+pub struct ObjectTypeMap<'a>(pub &'a HashMap<String, HashSet<String>>);
+
+impl ObjectTypeMap<'static> {
+    /// The empty map — no object-handle typing (no instance-method callback
+    /// edges).  Backed by a process-wide empty map so it needs no local.
+    #[must_use]
+    pub fn none() -> Self {
+        ObjectTypeMap(&EMPTY_OBJECT_TYPES)
+    }
+}
+
+static EMPTY_OBJECT_TYPES: std::sync::LazyLock<HashMap<String, HashSet<String>>> =
+    std::sync::LazyLock::new(HashMap::new);
+
 /// Build conservative interprocedural summaries for every
 /// procedure in `ir_module`.
 ///
@@ -459,10 +483,12 @@ pub fn build_interprocedural_analysis(
     ir_module: &crate::ir::Module,
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&str>,
+    object_types: ObjectTypeMap<'_>,
 ) -> InterproceduralAnalysis {
+    let object_types = object_types.0;
     let known: HashSet<String> = ir_module.procedures.keys().cloned().collect();
 
-    let local = scan_all_procs(ir_module, &known, registry, dialect);
+    let local = scan_all_procs(ir_module, &known, registry, dialect, object_types);
     let transitive_calls = compute_all_transitive_calls(&known, &local);
     let pure = fixpoint_pure(&local);
     let (effect_reads, effect_writes) = fixpoint_effects(&local);
@@ -477,7 +503,10 @@ pub fn build_interprocedural_analysis(
     );
 
     // Summarise TclOO method bodies into `MethodSummary` entries
-    // (consumed by the O126 `my <method>` purity gate).
+    // (consumed by the O126 `my <method>` purity gate).  Method bodies are not
+    // iterated by the call graph and an unresolved `$obj method` self-dispatch
+    // already forces the method impure, so instance-method callback typing adds
+    // nothing here — method summaries need no object-type map.
     let methods = build_method_summaries(
         ir_module,
         &known,
@@ -535,6 +564,8 @@ fn build_method_summaries(
             registry,
             dialect,
             params: &params,
+            // Method bodies are not call-graph nodes; no object-type map needed.
+            object_types: ObjectTypeMap::none().0,
         };
         scan_script(&method.body, ctx, &mut facts);
         // Fall-through exit is non-constant (O103); see `scan_proc`.
@@ -769,12 +800,13 @@ fn scan_all_procs(
     known: &HashSet<String>,
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&str>,
+    object_types: &HashMap<String, HashSet<String>>,
 ) -> HashMap<String, LocalFacts> {
     let mut local: HashMap<String, LocalFacts> = HashMap::with_capacity(known.len());
     for (qname, proc) in &ir_module.procedures {
         local.insert(
             qname.clone(),
-            scan_proc(qname, proc, known, registry, dialect),
+            scan_proc(qname, proc, known, registry, dialect, object_types),
         );
     }
     local
@@ -1009,6 +1041,7 @@ fn scan_proc(
     known: &HashSet<String>,
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&str>,
+    object_types: &HashMap<String, HashSet<String>>,
 ) -> LocalFacts {
     let mut facts = LocalFacts {
         local_pure: true,
@@ -1021,6 +1054,7 @@ fn scan_proc(
         registry,
         dialect,
         params: &params,
+        object_types,
     };
     scan_script(&proc.body, ctx, &mut facts);
     // If the body can fall off the end, its implicit exit returns the
@@ -1045,6 +1079,11 @@ struct ScanCtx<'a> {
     registry: &'a tcl_registry::CommandRegistry,
     dialect: Option<&'a str>,
     params: &'a HashSet<String>,
+    /// Object-handle → candidate class names for this module
+    /// ([`crate::object_types::object_handle_classes`]), so a `$g walk …
+    /// -command cb` instance-method dispatch resolves its callback to a
+    /// call-graph edge.  Empty when built without a `CompilationUnit`.
+    object_types: &'a HashMap<String, HashSet<String>>,
 }
 
 fn scan_script(script: &crate::ir::Script, ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
@@ -1074,6 +1113,52 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
     } else {
         resolve_internal_call(command, caller, known)
     };
+
+    // Command-prefix callbacks (`lsort -command myCompare`, `trace add … cb`,
+    // `interp alias {} a {} target`) are call edges too: the referenced proc is
+    // reachable, so a callback-only proc is not dead (O124) and appears in the
+    // call graph. Registry-driven via `command_prefixes` — no command-name
+    // matching here. Literal single-identifier heads only (`is_plain_proc_name`
+    // rejects dynamic `$cb` / bracketed heads), mirroring the reference
+    // extractor's bareword guard.
+    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    for (idx, _appended) in registry.command_prefixes(command, &arg_strs) {
+        if let Some(word) = args.get(idx).and_then(|a| a.split_whitespace().next())
+            && is_plain_proc_name(word)
+            && let Some(target) = resolve_internal_call(word, caller, known)
+        {
+            facts.direct_calls.insert(target);
+        }
+    }
+
+    // Object-instance method-callback dispatch — `$g walk … -command cb` /
+    // `objName walkproc … cb`.  The receiver's class(es) come from the
+    // module's object-handle map (SSA/VTA-derived); resolve the *method's*
+    // command prefixes (`instance_method_command_prefixes`) so a bareword
+    // callback that names an in-module proc becomes a call-graph edge, exactly
+    // like a top-level prefix.  Over-approximate across candidate classes — an
+    // extra reachability edge is sound (never a missed edge / false dead-code).
+    if let Some(method) = args.first()
+        && !ctx.object_types.is_empty()
+    {
+        let receiver = extract_var_name(command).unwrap_or(command);
+        if let Some(classes) = ctx.object_types.get(receiver) {
+            for class in classes {
+                for (idx, _appended) in
+                    registry.instance_method_command_prefixes(class, method, &arg_strs[1..])
+                {
+                    // `idx` is relative to the words after the method name, so
+                    // the callback word is `args[idx + 1]`.
+                    if let Some(word) = args.get(idx + 1).and_then(|a| a.split_whitespace().next())
+                        && is_plain_proc_name(word)
+                        && let Some(target) = resolve_internal_call(word, caller, known)
+                    {
+                        facts.direct_calls.insert(target);
+                    }
+                }
+            }
+        }
+    }
 
     // A call that resolves to an internal proc contributes ONLY a
     // call-graph edge — its purity / effects flow through the
@@ -2147,13 +2232,34 @@ mod tests {
     fn build(source: &str) -> InterproceduralAnalysis {
         let registry = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(source, &registry, false);
-        build_interprocedural_analysis(&cu.ir_module, &registry, None)
+        build_interprocedural_analysis(&cu.ir_module, &registry, None, ObjectTypeMap::none())
     }
 
     #[test]
     fn empty_module_has_no_summaries() {
         let ia = build("");
         assert!(ia.procedures.is_empty());
+    }
+
+    #[test]
+    fn instance_method_callback_is_a_direct_call() {
+        // `with_interprocedural` computes the object-handle map, so a
+        // `$g walk … -command cb` instance-method callback inside a proc body
+        // resolves through the receiver's class and becomes a `direct_calls`
+        // edge (feeding the call graph + O124 not-dead).
+        let registry = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "proc onNode {a g n} {}\nproc build {} { struct::graph g\n g walk root -command onNode }\n",
+            &registry,
+            false,
+        )
+        .with_interprocedural(&registry, Some("tcl9.0"));
+        let summary = &cu.interproc.as_ref().expect("interproc").procedures["::build"];
+        assert!(
+            summary.direct_calls.iter().any(|c| c == "::onNode"),
+            "build's summary must carry a direct_call to onNode via the instance-method callback; got {:?}",
+            summary.direct_calls,
+        );
     }
 
     #[test]
@@ -2607,7 +2713,8 @@ mod effect_propagation_tests {
             "proc p {} { if {[matchclass [HTTP::uri] equals $::l]} {} }",
         ] {
             let module = lower_to_ir(src, &reg);
-            let ia = build_interprocedural_analysis(&module, &reg, Some("f5-irules"));
+            let ia =
+                build_interprocedural_analysis(&module, &reg, Some("f5-irules"), ObjectTypeMap::none());
             let s = ia.procedures.get("::p").expect("proc ::p in IA");
             assert!(
                 s.effect_reads.contains(EffectRegion::HTTP_STATE),
@@ -2618,7 +2725,8 @@ mod effect_propagation_tests {
 
         // Plain statement: nested arg effects are NOT propagated.
         let module = lower_to_ir("proc q {} { matchclass [HTTP::uri] equals $::l }", &reg);
-        let ia = build_interprocedural_analysis(&module, &reg, Some("f5-irules"));
+        let ia =
+            build_interprocedural_analysis(&module, &reg, Some("f5-irules"), ObjectTypeMap::none());
         let s = ia.procedures.get("::q").expect("proc ::q in IA");
         assert!(
             !s.effect_reads.contains(EffectRegion::HTTP_STATE),

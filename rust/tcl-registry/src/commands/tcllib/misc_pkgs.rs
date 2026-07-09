@@ -359,14 +359,10 @@ const NMEA_CMDS: &[Row] = &[
     ),
 ];
 
-/// The `bibtex` package.
+/// The `bibtex` package.  `bibtex::parse` is modelled separately
+/// ([`bibtex_parse_spec`]) because its callback options carry command
+/// prefixes.
 const BIBTEX_CMDS: &[Row] = &[
-    (
-        "bibtex::parse",
-        Arity::at_least(0),
-        &["bibtex::parse"],
-        "This is the general form of the command for parsing a bibliography.",
-    ),
     (
         "bibtex::wait",
         Arity::exact(1),
@@ -433,6 +429,84 @@ const RCS_CMDS: &[Row] = &[
     ),
 ];
 
+/// Options for `bibtex::parse`.  Every callback is dispatched through the one
+/// `::bibtex::Callback token type args` proc (bibtex.tcl 265-272), which fires
+/// `eval $cmd [linsert $args 0 $token]` — so each prefix is invoked with the
+/// parser `token` first, then that callback's own payload words (verified vs
+/// the default-callback signatures `AddRecord {token type key recdata}` /
+/// `addStrings {token strings}` and re-run in tclsh).
+const BIBTEX_PARSE_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-command",
+        // `Callback $token {} $result` (bibtex.tcl 294) — batch mode: token +
+        // the whole accumulated records list.
+        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
+        detail: "Batch callback invoked once at EOF with the token and the full record list.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-recordcommand",
+        // `Callback $token record [Tidy $type] [string trim $key] [ParseBlock
+        // $rest]` (395-396) — token, type, key, recdata.
+        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(4)),
+        detail: "Per-record callback invoked with token, entry type, key, and record data.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-preamblecommand",
+        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
+        detail: "Per-preamble callback invoked with token and the preamble text.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-stringcommand",
+        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
+        detail: "Per-@string callback invoked with token and the string macro(s).",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-commentcommand",
+        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
+        detail: "Per-comment callback invoked with token and the comment text.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-progresscommand",
+        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
+        detail: "Progress callback invoked with token and a percentage.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-channel",
+        value: OptionValue::channel("chan"),
+        detail: "Parse incrementally from this channel instead of a text string.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-casesensitivestrings",
+        value: OptionValue::value("bool"),
+        detail: "Treat @string macro names case-sensitively.",
+        ..OptionSpec::DEFAULT
+    },
+];
+
+/// `bibtex::parse` — structured so its callback options carry command prefixes.
+fn bibtex_parse_spec() -> CommandSpec {
+    CommandSpec {
+        name: "bibtex::parse",
+        arity: Arity::at_least(0),
+        hover: Some(HoverSnippet::brief(
+            "This is the general form of the command for parsing a bibliography.",
+            &["bibtex::parse ?options? ?text?"],
+            "tcllib bibtex package",
+        )),
+        options: BIBTEX_PARSE_OPTIONS,
+        tcllib_package: Some("bibtex"),
+        required_package: Some("bibtex"),
+        ..CommandSpec::DEFAULT
+    }
+}
+
 /// All additional-package command specs.
 pub fn specs() -> Vec<CommandSpec> {
     let mut specs = Vec::new();
@@ -442,6 +516,7 @@ pub fn specs() -> Vec<CommandSpec> {
     specs.extend(rows("javascript", JAVASCRIPT_CMDS));
     specs.extend(rows("nmea", NMEA_CMDS));
     specs.extend(rows("bibtex", BIBTEX_CMDS));
+    specs.push(bibtex_parse_spec());
     specs.extend(rows("rcs", RCS_CMDS));
     specs
 }

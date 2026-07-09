@@ -217,6 +217,35 @@ suite("Diagnostics", () => {
     }
   });
 
+  test("uplevel body is analysed: braced body clean, unbraced body flags W105 (#837)", async () => {
+    const uri = getDocUri("uplevel-frame.tcl");
+    await activate(uri);
+    // The unbraced substituted body (`uplevel 1 "puts $x"`) yields a W105,
+    // proving the analyser now walks the uplevel body arg.
+    const diagnostics = await waitForDiagnostics(uri, { minCount: 1 });
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const codes = diagnostics.map(codeOf);
+
+    const w105 = diagnostics.filter((d) => codeOf(d) === "W105");
+    assert.strictEqual(w105.length, 1, `expected one W105 (unbraced body), got [${codes}]`);
+    // W105 anchors to the unbraced `uplevel 1 "puts $x"` body (line 8, 0-indexed).
+    assert.strictEqual(
+      w105[0].range.start.line,
+      8,
+      `W105 should anchor to the unbraced uplevel body, got line ${w105[0].range.start.line}`,
+    );
+    // The clean braced body (forgetXyce, lines 0-4) must not carry any
+    // dead-store / read-before-set hint — it is correct caller-frame code.
+    for (const d of diagnostics) {
+      const line = d.range.start.line;
+      const code = codeOf(d);
+      assert.ok(
+        !(["W210", "W211", "W220"].includes(String(code)) && line <= 4),
+        `unexpected ${code} on the clean braced uplevel body at line ${line}`,
+      );
+    }
+  });
+
   test("W100 fires inside a catch body (analyser recurses into catch)", async () => {
     const uri = getDocUri("catchBody.tcl");
     await activate(uri);

@@ -216,6 +216,15 @@ pub(crate) fn return_type_for_command<S: std::hash::BuildHasher>(
         Some(t) => TypeLattice::of(t),
         None => TypeLattice::overdefined(),
     }
+    // NB: a registry naming-factory (`struct::graph ?name?`) is deliberately
+    // *not* typed `OBJECT(class)` in the SSA lattice here.  The W307/W308
+    // object-dispatch checks aggregate `fu.types` object-insensitively across
+    // procs (`var_command::aggregate_object_types`), so lattice-typing a
+    // factory result would leak a handle's class from one proc to a same-named
+    // untyped var in another (regressing FP-OBJ-04).  The factory-return
+    // provenance lives instead in `object_types::object_handle_classes` (a
+    // highlight/callback-only, imprecision-tolerant map), which harvests these
+    // factories syntactically without feeding the diagnostic aggregate.
 }
 
 /// Infer the type produced by an expression AST node.

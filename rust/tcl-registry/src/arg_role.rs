@@ -68,8 +68,68 @@ pub enum ArgRole {
     /// name, invoked at runtime with further arguments appended (`lsort
     /// -command cmdPrefix`, trace callbacks).  Distinct from `Body` (a
     /// complete script to recurse) and from a generic `Value`: the first word
-    /// is a callable reference, not a script.  Declarative for now — captured
-    /// so callback-aware tooling can resolve the prefix later; marking such a
-    /// value `Body` would wrongly recurse a bareword proc name as a script.
+    /// is a callable reference, not a script — marking such a value `Body`
+    /// would wrongly recurse a bareword proc name as a script.
+    ///
+    /// A first-class command **reference**: the compiler records the prefix
+    /// head as a call site (highlighting, find-references, call graph,
+    /// call-hierarchy, dead-code, W123) and — via the paired
+    /// [`AppendedArity`] — checks the callback's arity.  The number of args
+    /// the calling command appends lives in the registry beside the role
+    /// (`CommandSpec::command_prefixes` / `command_prefix_resolver`, or an
+    /// option's [`crate::hover::OptionArg::appended_arity`]), never in the
+    /// compiler.
     CommandPrefix,
+}
+
+/// How many arguments a command appends to a [`ArgRole::CommandPrefix`]
+/// callback when it invokes it.
+///
+/// Sourced from C Tcl 9.0 behaviour (`lsort -command` appends 2, `trace add
+/// variable` appends 3, `socket -server` appends 3, …).  Paired with a
+/// `CommandPrefix` declaration so the arity checker can validate that the
+/// referenced proc accepts `baked_args + appended` arguments, where
+/// `baked_args` are any words already present in the prefix itself
+/// (`{myCmp extra}` bakes one).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum AppendedArity {
+    /// Exactly `n` args are appended (`lsort -command` → `Exactly(2)`).
+    Exactly(u8),
+    /// At least `n` args are appended; the maximum is unbounded or
+    /// form-dependent (`trace add execution` → `AtLeast(2)`, `regsub
+    /// -command` → `AtLeast(1)`, variadic `interp alias` → `AtLeast(0)`).
+    AtLeast(u8),
+    /// The appended count can't be determined statically — no arity check.
+    /// The default, so a bare `CommandPrefix` declaration is arity-inert.
+    #[default]
+    Unknown,
+}
+
+impl AppendedArity {
+    /// The minimum number of appended args (0 when [`Unknown`](Self::Unknown)).
+    #[must_use]
+    pub const fn min(self) -> u8 {
+        match self {
+            Self::Exactly(n) | Self::AtLeast(n) => n,
+            Self::Unknown => 0,
+        }
+    }
+
+    /// The maximum number of appended args, or `None` when unbounded /
+    /// unknown.
+    #[must_use]
+    pub const fn max(self) -> Option<u8> {
+        match self {
+            Self::Exactly(n) => Some(n),
+            Self::AtLeast(_) | Self::Unknown => None,
+        }
+    }
+
+    /// Whether an arity check should run at all — `false` for
+    /// [`Unknown`](Self::Unknown), whose count is indeterminate.
+    #[must_use]
+    pub const fn is_checkable(self) -> bool {
+        !matches!(self, Self::Unknown)
+    }
 }

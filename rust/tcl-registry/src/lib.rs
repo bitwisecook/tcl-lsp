@@ -88,7 +88,7 @@ pub mod version;
 /// `use crate::prelude::*;` in each command file brings in all the
 /// types needed to construct a `CommandSpec`.
 pub mod prelude {
-    pub use crate::arg_role::ArgRole;
+    pub use crate::arg_role::{AppendedArity, ArgRole};
     pub use crate::arity::Arity;
     pub use crate::body_kind::BodyKind;
     pub use crate::definer::{DefinerFamily, DefinitionBodyGrammar, MemberKind, MemberSpec};
@@ -115,7 +115,7 @@ pub mod prelude {
 }
 
 // Re-export key types at crate root.
-pub use arg_role::ArgRole;
+pub use arg_role::{AppendedArity, ArgRole};
 pub use arity::Arity;
 pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::BodyKind;

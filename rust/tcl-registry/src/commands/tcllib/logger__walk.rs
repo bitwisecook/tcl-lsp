@@ -43,6 +43,10 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        // `command` (index 1) is applied to each walked service.  The man page
+        // does not pin the appended-arg count, so treat it as a reference-only
+        // prefix (Unknown ⇒ never arity-checked).
+        command_prefixes: &[(1, AppendedArity::Unknown)],
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         tcllib_package: Some("logger"),

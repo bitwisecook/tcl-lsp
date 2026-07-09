@@ -47,6 +47,13 @@ use crate::types::TclType;
 /// `(arg_index, role)` pairs.
 pub type ArgRoleResolver = fn(args: &[&str]) -> Vec<(u8, ArgRole)>;
 
+/// Resolver for variable-layout [`ArgRole::CommandPrefix`] positions and their
+/// appended arities (`trace add …`, `interp alias`, `selection handle`) where
+/// the prefix index depends on the actual arguments. Returns
+/// `(arg_index, appended_arity)` pairs.  Paired with the static
+/// [`CommandSpec::command_prefixes`] table — either may be set.
+pub type CommandPrefixResolver = fn(args: &[&str]) -> Vec<(u8, crate::arg_role::AppendedArity)>;
+
 /// Layout of a `<proto>::payload` byte-array command for the S110
 /// byte-array-corruption check.
 ///
@@ -170,6 +177,18 @@ pub struct CommandSpec {
 
     /// Dynamic argument role resolver (for variable-layout commands).
     pub arg_role_resolver: Option<ArgRoleResolver>,
+
+    /// Static [`ArgRole::CommandPrefix`] positions and their appended arities
+    /// (`lsort` positional forms, `socket -server` handled via options).  Each
+    /// tuple is `(arg_index, appended_arity)`; the index carries
+    /// `ArgRole::CommandPrefix` *and* the arity for the callback check.
+    /// `arg_indices_for_role(CommandPrefix)` reports exactly these indices
+    /// (unioned with option/resolver prefixes) so highlighting stays in sync.
+    pub command_prefixes: &'static [(u8, crate::arg_role::AppendedArity)],
+
+    /// Dynamic command-prefix resolver for variable-layout callbacks
+    /// (`trace add …`, `interp alias`, `selection handle`).
+    pub command_prefix_resolver: Option<CommandPrefixResolver>,
 
     /// Return type of the command.
     pub return_type: Option<TclType>,
@@ -471,6 +490,8 @@ impl CommandSpec {
         arity: Arity::any(),
         arg_roles: &[],
         arg_role_resolver: None,
+        command_prefixes: &[],
+        command_prefix_resolver: None,
         return_type: None,
         arg_types: &[],
         subcommands: &[],
@@ -831,6 +852,13 @@ pub struct SubCommand {
     /// Dynamic argument role resolver.
     pub arg_role_resolver: Option<ArgRoleResolver>,
 
+    /// Static command-prefix positions + appended arities (after the
+    /// subcommand word), e.g. `trace add variable`'s callback.
+    pub command_prefixes: &'static [(u8, crate::arg_role::AppendedArity)],
+
+    /// Dynamic command-prefix resolver (after the subcommand word).
+    pub command_prefix_resolver: Option<CommandPrefixResolver>,
+
     /// Return type.
     pub return_type: Option<TclType>,
 
@@ -1002,6 +1030,8 @@ impl SubCommand {
         hover: None,
         arg_roles: &[],
         arg_role_resolver: None,
+        command_prefixes: &[],
+        command_prefix_resolver: None,
         return_type: None,
         arg_types: &[],
         pure: false,

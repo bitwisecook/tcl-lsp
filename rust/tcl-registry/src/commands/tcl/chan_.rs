@@ -176,6 +176,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Create a channel from a Tcl command.",
         synopsis: "chan create mode cmdPrefix",
         return_type: Some(TclType::Channel),
+        // `cmdPrefix` (index 1) is the reflected-channel handler, invoked as
+        // `cmdPrefix subcommand channelId ?args...?` — every method appends at
+        // least the subcommand and channel id ⇒ AtLeast(2).
+        command_prefixes: &[(1, AppendedArity::AtLeast(2))],
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: false,
@@ -323,6 +327,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "chan push channelId cmdPrefix",
         mutator: true,
         return_type: Some(TclType::String),
+        // `cmdPrefix` (index 1) is the transform handler, invoked as
+        // `cmdPrefix subcommand handle ?args...?` (a reflected-transform
+        // dispatch) — minimum appended is subcommand + handle ⇒ AtLeast(2).
+        command_prefixes: &[(1, AppendedArity::AtLeast(2))],
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: false,

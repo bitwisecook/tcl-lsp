@@ -43,6 +43,11 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        // `filtercmd` (index 1) is invoked as `filtercmd name` for each
+        // candidate file/dir → 1 appended arg.  The registry drops the entry
+        // for the shorter `?basedir?`-only and zero-arg query forms (idx≥argc),
+        // so a static table is safe here.
+        command_prefixes: &[(1, AppendedArity::Exactly(1))],
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         tcllib_package: Some("fileutil"),

@@ -122,6 +122,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Supplies a command to invoke during package require if no suitable version can be found.",
         synopsis: "package unknown ?command?",
         return_type: Some(TclType::String),
+        // The optional handler (index 0 after `unknown` → arg 1) is a command
+        // prefix invoked as `command name ?requirement ...?` when a package is
+        // missing (AtLeast(1): the package name is always passed).
+        command_prefixes: &[(0, AppendedArity::AtLeast(1))],
         ..SubCommand::DEFAULT
     },
     SubCommand {

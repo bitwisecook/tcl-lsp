@@ -608,6 +608,63 @@ fn test_struct_list_foreachperm_body_recursion() {
 }
 
 #[test]
+fn test_uplevel_body_recursion() {
+    // Issue #837: the braced body of `uplevel ?level? {…}` is a script and
+    // must recurse end-to-end through the packaged server — `foreach` inside
+    // it is a keyword and `puts` a function, not one opaque string.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    for src in [
+        "uplevel 1 {foreach x $l { puts $x }}\n",
+        "uplevel {foreach x $l { puts $x }}\n",
+        "uplevel #0 {foreach x $l { puts $x }}\n",
+    ] {
+        let uri = open_doc(&mut lsp, src);
+        let tokens = typed(&mut lsp, &lg, &uri);
+        let has_foreach = tokens
+            .iter()
+            .any(|t| t.ttype == "keyword" && covered(src, t) == "foreach");
+        assert!(
+            has_foreach,
+            "uplevel body not recursed for {src:?}: {tokens:?}"
+        );
+        let has_puts = tokens
+            .iter()
+            .any(|t| t.ttype == "function" && covered(src, t) == "puts");
+        assert!(
+            has_puts,
+            "uplevel body `puts` not recursed for {src:?}: {tokens:?}"
+        );
+    }
+}
+
+#[test]
+fn test_uplevel_issue_837_repro_recursion() {
+    // The exact reproducer from issue #837 — the `namespace children` /
+    // `namespace forget` body inside `uplevel 1 {…}` highlights end-to-end.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "proc forgetXyce {} {\n    uplevel 1 {foreach nameSpc [namespace children ::SpiceGenTcl::Xyce] {\n        namespace forget ${nameSpc}::*\n    }}\n}\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let has_foreach = tokens
+        .iter()
+        .any(|t| t.ttype == "keyword" && covered(src, t) == "foreach");
+    assert!(
+        has_foreach,
+        "issue #837 body `foreach` not recursed: {tokens:?}"
+    );
+    // `namespace` appears twice inside the body; at least one must highlight.
+    let has_namespace = tokens
+        .iter()
+        .any(|t| covered(src, t) == "namespace" && (t.ttype == "keyword" || t.ttype == "function"));
+    assert!(
+        has_namespace,
+        "issue #837 body `namespace` not recursed: {tokens:?}"
+    );
+}
+
+#[test]
 fn test_bind_script_body_recursion() {
     // `bind tag sequence script` — the trailing event-handler script recurses
     // rather than being emitted as one opaque string (issue #785), so `set`

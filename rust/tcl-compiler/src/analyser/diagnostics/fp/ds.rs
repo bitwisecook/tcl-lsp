@@ -566,3 +566,95 @@ fn fp_ds_10_clean_dict_for_is_silent() {
         codes(src, D)
     );
 }
+
+// ---------------------------------------------------------------------------
+// FP-DS-11 — an `uplevel` body runs in another stack frame; its variable
+//            references belong to that frame, not the enclosing proc
+//            (issue #837)
+//
+// `uplevel ?level? {body}` now carries an `ArgRole::Body` on its script word
+// (a registry-driven `arg_role_resolver`), so the body is recursed and
+// analysed like every other script body instead of being an opaque string.
+// The spec is also `BodyKind::Structural`: the body evaluates in the frame
+// named by `level`, so a `$var` read inside a *braced* body resolves against
+// that frame — it does NOT count as a use of an enclosing-proc local of the
+// same name.  A value substituted at the enclosing level (`[list …]`, a
+// quoted body, or a plain local read) is evaluated in the enclosing frame and
+// keeps the local live, exactly as before.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn fp_ds_11_caller_frame_write_is_not_an_enclosing_dead_store() {
+    // FP/TN: `set counter 0` writes the *caller's* `counter`; the enclosing
+    // proc has no `counter` local, so nothing is a dead store here.
+    let src = "proc f {} { uplevel 1 {set counter 0} }";
+    assert!(
+        !fires(src, D, "W220") && !fires(src, D, "W211"),
+        "FP-DS-11: a caller-frame write must not flag an enclosing dead store; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_ds_11_list_substituted_read_keeps_enclosing_store_live() {
+    // FP: `[list puts $x]` is built in the enclosing frame — `$x` reads the
+    // enclosing `x`, so `set x 1` is live.  Structural must NOT skip a
+    // command-substitution body (only a braced one shifts frame).
+    let src = "proc f {} { set x 1\n uplevel 1 [list puts $x] }";
+    assert!(
+        !fires(src, D, "W220"),
+        "FP-DS-11: a `[list]`-substituted read keeps the enclosing store live; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_ds_11_local_read_keeps_store_live_alongside_uplevel() {
+    // FP: `x` is read locally before the uplevel, so it is unambiguously
+    // live regardless of the frame-shifted body's own `$x`.
+    let src = "proc f {} { set x 1\n puts $x\n uplevel 1 {puts $x} }";
+    assert!(
+        !fires(src, D, "W220"),
+        "FP-DS-11: a local read keeps the store live; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_ds_11_braced_body_only_read_is_a_frame_shifted_dead_store() {
+    // TP (frame-aware precision): `$x` appears *only* inside the braced
+    // `uplevel 1 {…}` body, which reads the caller's frame — so the enclosing
+    // `set x 1` is genuinely never read in `f` and is a real dead store.
+    let src = "proc f {} { set x 1\n uplevel 1 {puts $x} }";
+    assert!(
+        fires(src, D, "W220"),
+        "FP-DS-11 TP: an enclosing store read only in a braced uplevel body is dead; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_ds_11_real_dead_store_outside_uplevel_still_fires() {
+    // TP: an ordinary dead store in the enclosing proc, next to an uplevel,
+    // still fires — recursing the body has not masked enclosing analysis.
+    let src = "proc f {} { set dead 1\n uplevel 1 {set counter 0} }";
+    assert!(
+        fires(src, D, "W220"),
+        "FP-DS-11 TP: a real dead store beside an uplevel still fires; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_ds_11_clean_uplevel_body_is_silent() {
+    // TN control: a clean braced body that only uses its own loop var is
+    // silent — the body is analysed, not flagged.
+    let src = "proc f {} { uplevel 1 {foreach x $l { puts $x }} }";
+    assert!(
+        codes(src, D)
+            .iter()
+            .all(|c| c != "W220" && c != "W211" && c != "W210"),
+        "FP-DS-11 TN: a clean uplevel body must be silent; emitted: {:?}",
+        codes(src, D)
+    );
+}

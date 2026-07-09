@@ -573,6 +573,19 @@ const UEVENT_CMDS: &[Row] = &[
     ),
 ];
 
+/// Command-prefix callback positions for commands in the flat [`Row`] tables
+/// above (which cannot carry a `command_prefixes` field), applied by name in
+/// [`specs`].  Index is relative to the args after the command name.
+///
+/// Ground truth: the `log` man page pins the message-writer command to
+/// `cmd level text` (Exactly(2)); `uevent::bind`'s handler is triggered as
+/// `command tag event ?details?` — details is optional, so AtLeast(2).
+const PREFIX_OVERRIDES: &[(&str, &[(u8, AppendedArity)])] = &[
+    ("log::lvCmd", &[(1, AppendedArity::Exactly(2))]),
+    ("log::lvCmdForall", &[(0, AppendedArity::Exactly(2))]),
+    ("uevent::bind", &[(2, AppendedArity::AtLeast(2))]),
+];
+
 /// All client / logging package command specs.
 pub fn specs() -> Vec<CommandSpec> {
     let mut specs = Vec::new();
@@ -582,5 +595,11 @@ pub fn specs() -> Vec<CommandSpec> {
     specs.extend(rows("pop3", POP3_CMDS));
     specs.extend(rows("irc", IRC_CMDS));
     specs.extend(rows("uevent", UEVENT_CMDS));
+    // Patch in the callback positions the flat `Row` tables can't express.
+    for spec in &mut specs {
+        if let Some(&(_, prefixes)) = PREFIX_OVERRIDES.iter().find(|&&(n, _)| n == spec.name) {
+            spec.command_prefixes = prefixes;
+        }
+    }
     specs
 }

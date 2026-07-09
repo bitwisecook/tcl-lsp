@@ -92,7 +92,7 @@ pub(super) struct ProcBodyInfo {
 
 /// Mutable scan context threaded through the walker.
 #[derive(Debug, Default)]
-pub(super) struct ScanCtx {
+pub(super) struct ScanCtx<'r> {
     /// Public result accumulator.
     pub(super) result: SignatureScanResult,
     /// Factory-call candidates collected during pass 1.
@@ -106,6 +106,11 @@ pub(super) struct ScanCtx {
     /// built once by `extract_signatures`.  Empty in `Default`
     /// (used only by focused unit tests).
     pub(super) skip_heads: std::collections::HashSet<String>,
+    /// The command registry, used to resolve `ArgRole::CommandPrefix`
+    /// callback positions + arities so background-scanned files record
+    /// callback heads (`lsort -command cb`) as command invocations.  `None`
+    /// in `Default` (focused unit tests that don't exercise prefixes).
+    pub(super) registry: Option<&'r tcl_registry::CommandRegistry>,
 }
 
 /// Factory-skip heads that are **not** registered commands and so
