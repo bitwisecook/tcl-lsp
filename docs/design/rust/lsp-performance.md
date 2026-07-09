@@ -126,6 +126,33 @@ tiering on cache miss (serves from the coarse tier via
 `range_with_cu_and_analysis(None, None, …)` instead of rebuilding a full
 `CompilationUnit` inline).
 
+**Liveness invariant, not just latency.** The detached continuation that
+waits for the enriched result past the budget holds an active salsa
+read-handle for however long that computation takes — potentially seconds
+on a large cold file. Salsa blocks a concurrent `set_text` until every
+active read-handle releases, and `set_text` runs under the server's global
+`db` mutex, so a stalled read here would stall every other read too. This
+stays live only because the query is the cancellable, per-item
+`file_analysis_incremental` (a cancellation checkpoint at each proc/method
+body): an edit's `set_text` flips the cancel flag, the detached read
+unwinds at its next item boundary, and the write proceeds promptly. Routing
+`db_semantic_tokens` back through the coarse `file_analysis` would let one
+cold background token computation serialise every subsequent edit behind a
+whole-file walk — worse than the starvation this fix closes.
+
+**Refresh-fan-out coalescing.** `workspace/semanticTokens/refresh` carries
+no URI — it asks the client to re-pull tokens for every open document — so
+many large cold documents finishing their enriched computation near
+simultaneously (e.g. right after `initialized` restores several tabs) each
+firing their own refresh is pure waste, not a correctness issue (VS Code
+already coalesces them; other clients may not). `SemanticTokensRefreshCtx`
+collapses this with a `SEMANTIC_TOKENS_REFRESH_DEBOUNCE` (50 ms, matching
+`DIAGNOSTICS_DEBOUNCE`): the first continuation to flip a shared
+`refresh_pending` flag owns one debounced fire; any continuation arriving
+within the window sees the flag already set and rides along. Lossless
+because the fire is workspace-scoped regardless of which document
+triggered it.
+
 A companion fix in the same investigation: workspace-informed diagnostic
 refinement (W120/W123, driven by `workspace_index` / `package_resolver`
 from `scan_workspace_folders`) is unconditional, not gated by the opt-in

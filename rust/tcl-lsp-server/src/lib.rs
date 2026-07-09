@@ -1946,7 +1946,8 @@ impl Backend {
     /// write proceeds promptly. Routing this query back through the coarse
     /// `file_analysis` would reintroduce a worse version of #829's symptom —
     /// a single cold background token computation could serialise every
-    /// subsequent keystroke behind a whole-file walk.
+    /// subsequent keystroke behind a whole-file walk. See
+    /// `docs/design/rust/lsp-performance.md` §7.
     async fn db_semantic_tokens(
         &self,
         uri: &Uri,
