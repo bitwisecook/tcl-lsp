@@ -646,7 +646,11 @@ mod dangerous_sinks {
         // than silently losing it now that sink classification is
         // registry-driven instead of hardcoded per-trait checks in the
         // compiler.
-        let ws = of_code("set cmd [read $fd]\ncoroprobe myCoro $cmd", "tcl9.0", "T100");
+        let ws = of_code(
+            "set cmd [read $fd]\ncoroprobe myCoro $cmd",
+            "tcl9.0",
+            "T100",
+        );
         assert!(!ws.is_empty(), "expected T100 for coroprobe, got none");
     }
 

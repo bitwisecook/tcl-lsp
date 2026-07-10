@@ -606,9 +606,15 @@ fn no_fix_for_unknown_code() {
         .unwrap_or(&Vec::new())
         .iter()
         .filter(|a| {
-            ["HTML::encode", "URI::encode", "regex::quote", "--", "strip CR/LF"]
-                .iter()
-                .any(|k| action_title(a).contains(k))
+            [
+                "HTML::encode",
+                "URI::encode",
+                "regex::quote",
+                "--",
+                "strip CR/LF",
+            ]
+            .iter()
+            .any(|k| action_title(a).contains(k))
         })
         .cloned()
         .collect();

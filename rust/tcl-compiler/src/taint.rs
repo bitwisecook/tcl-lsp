@@ -1289,7 +1289,11 @@ fn classify_sink(
         }
         let label = if info.output_sink_is_subcommand_qualified {
             let canonical = subcommand
-                .and_then(|s| registry.get(command).and_then(|spec| spec.resolve_subcommand(s)))
+                .and_then(|s| {
+                    registry
+                        .get(command)
+                        .and_then(|spec| spec.resolve_subcommand(s))
+                })
                 .map_or_else(|| subcommand.unwrap_or_default(), |sub| sub.name);
             format!("{command} {canonical}")
         } else {
@@ -1936,9 +1940,11 @@ fn emit_statement_warnings<S: std::hash::BuildHasher>(
         // registry sink data instead of silently missing it because
         // `"myputs"` isn't a registered command. Falls back to the source
         // name unchanged when no alias was resolved (the common case).
-        Statement::Call { args, tokens, .. } | Statement::Barrier { args, tokens, .. } => {
-            (stmt.canonical_command_or_source(), args.as_slice(), tokens.as_ref())
-        }
+        Statement::Call { args, tokens, .. } | Statement::Barrier { args, tokens, .. } => (
+            stmt.canonical_command_or_source(),
+            args.as_slice(),
+            tokens.as_ref(),
+        ),
         Statement::AssignValue { .. } => match assign_parsed.as_ref() {
             Some((cmd, sub_args)) => (cmd.as_str(), sub_args.as_slice(), None),
             None => return,

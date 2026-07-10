@@ -1190,7 +1190,8 @@ impl CompilationUnit {
     /// trivial lattices would contribute noise, not findings) — see
     /// `compiler_checks::push_taint_and_module_checks`.
     pub fn analysable_body_function_units(&self) -> impl Iterator<Item = &FunctionUnit> {
-        self.all_body_function_units().filter(|fu| !fu.complexity_guarded)
+        self.all_body_function_units()
+            .filter(|fu| !fu.complexity_guarded)
     }
 
     /// The synthetic body units (`apply` / `namespace eval`) alone, name-sorted.
