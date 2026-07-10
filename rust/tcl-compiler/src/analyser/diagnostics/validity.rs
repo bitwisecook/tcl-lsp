@@ -1033,6 +1033,28 @@ impl Analyser {
                 if !is_tcloo_metaclass(self.registry.as_ref(), &cd.metaclass) {
                     continue; // snit / itcl — `new`/`create` mean something else
                 }
+                // Unlike `new`/`create` (exported by default — only an explicit
+                // `unexport` blocks an external call), `createWithNamespace` is
+                // *unexported by default*: an external `ClassName
+                // createWithNamespace …` (every call this candidate queue can
+                // even see — a literal `my createWithNamespace` never resolves
+                // `my` as a class name, so it never reaches here) raises
+                // "unknown method" and never touches the constructor unless the
+                // class explicitly `export`s it (confirmed against this
+                // project's own `runtime/rust/src/cmd_oo.rs`'s
+                // `oo_class_factory`: `cwn_ok = !block_unexported ||
+                // cwn_exp`). Order-insensitively checking the whole file's
+                // `exports` set (rather than only exports in effect by
+                // `cand.call_off`) trades a vanishingly rare false negative — an
+                // export that lexically follows a top-level call — for
+                // eliminating a real false positive on every default-unexported
+                // class, consistent with this pass's abstain-when-unsure
+                // convention.
+                if matches!(cand.form, super::types::CtorForm::CreateWithNamespace)
+                    && !cd.exports.contains("createWithNamespace")
+                {
+                    continue;
+                }
                 let Some(provider) = hierarchy.constructor_provider(class_qn, &self.source) else {
                     continue; // no explicit constructor anywhere in the MRO —
                     // TclOO's inherited default accepts any argument count
