@@ -7,7 +7,7 @@
 | **Severity** | low |
 | **Subsystem** | Backend parity (WASM/VM/eBPF/registry) |
 | **Location** | `doc/tracker drift: backend.rs:28-30 claims the runtime wasm export surface "is still a stub (capi.rs)"` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

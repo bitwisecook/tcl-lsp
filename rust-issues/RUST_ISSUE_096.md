@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Bytecode VM |
 | **Location** | `rust/tcl-vm/src/cmd_math.rs:230` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

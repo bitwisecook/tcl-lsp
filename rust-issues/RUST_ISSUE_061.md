@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Backend parity (WASM/VM/eBPF/registry) |
 | **Location** | `VM` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: medium) |
 
 ## Finding

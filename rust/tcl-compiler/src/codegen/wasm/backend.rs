@@ -25,9 +25,11 @@
 //! with `br`/`br_if` for loops + `break`/`continue`/`return`). This produces a
 //! *structurally valid* module (validated with `wasmtime compile`) against the
 //! `"tcl"` import ABI the WASM runtime provides (values are i32 `*mut TclObj`
-//! pointers into shared linear memory). It does not yet *run* — the Rust
-//! runtime's wasm32 export surface is still a stub
-//! (`runtime/rust/capi.rs`).
+//! pointers into shared linear memory). The runtime side of that ABI is the
+//! leak-tested eval surface in `runtime/rust/src/codegen_abi.rs` (`tcl_eval`,
+//! `tcl_expr_bool`, the obj/new/release helpers); an emitted module runs against
+//! it through the shared-memory dynamic link (`__memory_base` relocation), which
+//! the standalone `wasm_execute` test exercises with a stub provider.
 
 use super::encoding::{leb128_signed, leb128_unsigned};
 use super::ir::{ValType, WasmData, WasmFunction, WasmInstruction, WasmModule, WasmOp};

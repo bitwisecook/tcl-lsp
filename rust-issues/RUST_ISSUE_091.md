@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | WASM codegen & Rust runtime |
 | **Location** | `runtime/rust/src/cmd_format.rs:204,275` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: medium) |
 
 ## Finding

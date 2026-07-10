@@ -7,7 +7,7 @@
 | **Severity** | low |
 | **Subsystem** | WASM codegen & Rust runtime |
 | **Location** | `runtime/rust/src/cmd_string.rs:1075` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

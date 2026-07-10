@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | WASM codegen & Rust runtime |
 | **Location** | `runtime/rust/src/cmd_dict.rs:336,322` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding
