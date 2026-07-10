@@ -247,6 +247,67 @@ fn independent_coroutines_interleave() {
 }
 
 // ===========================================================================
+// Introspection: coroprobe / coroinject / corotype, and multi-arg yieldto
+// ===========================================================================
+
+#[test]
+fn coroprobe_reads_suspended_context() {
+    // tclsh 9.0.4: `coroprobe` evaluates a command in the *suspended* coroutine's
+    // own frame without resuming it — here reading its `foreach` loop variable.
+    assert_eq!(
+        result(
+            "coroutine c apply {{} { foreach i {1 2} yield }}; \
+             list [coroprobe c set i] [c] [coroprobe c set i]"
+        ),
+        "1 {} 2"
+    );
+}
+
+#[test]
+fn coroinject_runs_at_next_resume() {
+    // tclsh 9.0.4: an injected command runs in the coroutine's context at its next
+    // resume, receiving the suspend kind and resume value.
+    assert_eq!(
+        result(
+            "set ::log {}; coroutine c apply {{} { foreach i {1 2} { yield $i } }}; \
+             coroinject c apply {{o v} {lappend ::log $o $v; return $v}}; \
+             c X; c Y; set ::log"
+        ),
+        "yield X"
+    );
+}
+
+#[test]
+fn corotype_reports_suspend_kind() {
+    // tclsh 9.0.4: `::tcl::unsupported::corotype` reports how a coroutine is
+    // parked; a bare `yield` reads "yield".
+    assert_eq!(
+        result(
+            "coroutine c apply {{} { yield; yield 1 }}; c; \
+             ::tcl::unsupported::corotype c"
+        ),
+        "yield"
+    );
+    let (ok, msg, _) = run("catch {::tcl::unsupported::corotype nope} e; set e");
+    assert!(ok);
+    assert_eq!(msg, "can only get coroutine type of a coroutine");
+}
+
+#[test]
+fn yieldto_delivers_all_resume_args_as_a_list() {
+    // tclsh 9.0.4: a `yieldto`-suspended coroutine accepts any number of resume
+    // arguments, delivered to the `yieldto` as a list (a `yield` takes at most
+    // one).
+    assert_eq!(
+        result(
+            "proc g {} { set a 1; while 1 { set a [yieldto return -level 0 $a] } }; \
+             coroutine c g; c; c a b c"
+        ),
+        "a b c"
+    );
+}
+
+// ===========================================================================
 // info coroutine
 // ===========================================================================
 

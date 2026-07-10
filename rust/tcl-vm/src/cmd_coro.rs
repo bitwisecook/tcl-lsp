@@ -66,6 +66,13 @@ struct CoroState {
     /// The saved per-flow execution context (call/ns tails, error/script state).
     parked: ParkedFlow,
     status: CoroStatus,
+    /// How the coroutine last suspended — `yield` vs `yieldto`. Reported by
+    /// `::tcl::unsupported::corotype` when the coroutine is [`CoroStatus::Suspended`].
+    last_suspend: SuspendKind,
+    /// Pending one-shot `coroinject` commands. At the next resume each runs in the
+    /// coroutine's context as `cmd… <kind> <resumeValue>`, and its result becomes
+    /// the value the parked `yield` returns (FIFO).
+    injections: Vec<Vec<Value>>,
     /// For a `coroutine … apply {lambda} …`, the internal proc the lambda was
     /// bound to (so its body runs on this coroutine's explicit stack). Deleted
     /// with the coroutine — its lifetime is the coroutine's, not one call's.
@@ -83,6 +90,14 @@ enum CoroStatus {
     Running,
 }
 
+/// Which suspend primitive last parked a coroutine (for `corotype`).
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+enum SuspendKind {
+    #[default]
+    Yield,
+    YieldTo,
+}
+
 /// A driver frame for an in-flight `resume`: which coroutine, and the
 /// `activation_depth` its `drive` started at (for the yield-boundary check).
 struct CoroHandle {
@@ -94,6 +109,9 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("coroutine", cmd_coroutine);
     vm.register("yield", cmd_yield);
     vm.register("yieldto", cmd_yieldto);
+    vm.register("coroprobe", cmd_coroprobe);
+    vm.register("coroinject", cmd_coroinject);
+    vm.register("::tcl::unsupported::corotype", cmd_corotype);
 }
 
 /// `[info coroutine]` — the fully-qualified name of the innermost running
@@ -140,10 +158,13 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
     let name = args[0].to_str();
     let fqn = vm.qualify_name(&name);
-    if vm.lookup_command(&fqn).is_some() {
-        return err(format!(
-            "can't create procedure \"{name}\": command already exists"
-        ));
+    // C's `coroutine` (re)creates the command, *replacing* whatever already
+    // exists under that name (a proc, or a leftover coroutine) — it does not
+    // error. A live coroutine at that name has its captured state torn down
+    // first so it does not leak; the command entry itself is overwritten by
+    // `register_command` below.
+    if is_coroutine(vm, &fqn) {
+        on_command_deleted(vm, &fqn);
     }
     // `coroutine NAME apply {lambda} arg…` — bind the lambda to an internal proc
     // and run *that* (`lambdaProc arg…`), so the lambda body executes on this
@@ -151,8 +172,11 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // The generic `apply` builtin would run the body through a host-stack
     // re-entry, where a `yield` cannot cross. The proc is torn down with the
     // coroutine (`temp_proc`). Everything else runs `command arg…` verbatim.
+    // Both spellings of the command word are accepted — bare `apply` and the
+    // fully-qualified `::apply` (the form the C `coroutine.test` idiom uses).
+    let is_apply = matches!(&*args[1].to_str(), "apply" | "::apply");
     let mut temp_proc = None;
-    let words: Vec<Value> = if args.len() >= 3 && &*args[1].to_str() == "apply" {
+    let words: Vec<Value> = if args.len() >= 3 && is_apply {
         match crate::command::build_lambda_proc(vm, &args[2]) {
             Ok(lambda_name) => {
                 let mut w = Vec::with_capacity(args.len() - 2);
@@ -182,15 +206,18 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             acts: vec![Frame::new(body, false)],
             parked: ParkedFlow::default(),
             status: CoroStatus::Fresh,
+            last_suspend: SuspendKind::Yield,
+            injections: Vec::new(),
             temp_proc,
         },
     );
     vm.register_command(&fqn, Command::Builtin(coro_resume));
-    resume(vm, &fqn, None)
+    resume(vm, &fqn, &[], &name)
 }
 
-/// The builtin the coroutine command name resolves to: `$coro ?value?` resumes
-/// it, delivering `value` as the result of the parked `yield`.
+/// The builtin the coroutine command name resolves to: `$coro ?value ...?`
+/// resumes it, delivering the value(s) as the result of the parked
+/// `yield`/`yieldto`.
 fn coro_resume(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // Read the invocation name before `resume` swaps context (which overwrites
     // `invoked_name` with the coroutine's saved value).
@@ -198,32 +225,45 @@ fn coro_resume(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("invalid command name");
     };
     let fqn = vm.qualify_name(&invoked);
-    if args.len() > 1 {
-        return err(format!("wrong # args: should be \"{invoked} ?arg?\""));
-    }
-    resume(vm, &fqn, args.first().cloned())
+    resume(vm, &fqn, args, &invoked)
 }
 
-/// Resume the coroutine `fqn`, delivering `value` (the parked `yield`'s result;
-/// `None` on the first run). Returns the yielded value, or — on completion — the
-/// body's result with its code.
-fn resume(vm: &mut Vm, fqn: &str, value: Option<Value>) -> Completion<Value> {
+/// Resume the coroutine `fqn`, delivering `args` as the result of the parked
+/// suspend point. A `yield`-suspended coroutine takes at most one value; a
+/// `yieldto`-suspended one accepts any number, delivered as a list. `args` is
+/// empty on the first run; `display_name` names the resume command for the
+/// arity error. Returns the yielded value, or — on completion — the body's
+/// result with its code.
+fn resume(vm: &mut Vm, fqn: &str, args: &[Value], display_name: &str) -> Completion<Value> {
+    // Validate the resume arity against how the coroutine last suspended, before
+    // the borrow choreography, so an error leaves the coroutine untouched.
+    match vm.coro.live.get(fqn) {
+        None => return err(format!("invalid command name \"{fqn}\"")),
+        Some(s) if s.status == CoroStatus::Running => {
+            return err(format!("coroutine \"{fqn}\" is already running"));
+        }
+        Some(s)
+            if s.status == CoroStatus::Suspended
+                && s.last_suspend == SuspendKind::Yield
+                && args.len() > 1 =>
+        {
+            return err(format!("wrong # args: should be \"{display_name} ?arg?\""));
+        }
+        Some(_) => {}
+    }
     // Borrow choreography: mark the entry Running and move its `acts`/`parked`
     // out (a `Running` sentinel stays in the map) so no `coro.live` borrow is
     // held across the `&mut self` drive.
-    let (mut acts, mut parked, was_fresh) = {
-        let Some(state) = vm.coro.live.get_mut(fqn) else {
-            return err(format!("invalid command name \"{fqn}\""));
-        };
-        if state.status == CoroStatus::Running {
-            return err(format!("coroutine \"{fqn}\" is already running"));
-        }
+    let (mut acts, mut parked, was_fresh, injections, kind) = {
+        let state = vm.coro.live.get_mut(fqn).expect("presence checked above");
         let was_fresh = state.status == CoroStatus::Fresh;
         state.status = CoroStatus::Running;
         (
             std::mem::take(&mut state.acts),
             std::mem::take(&mut state.parked),
             was_fresh,
+            std::mem::take(&mut state.injections),
+            state.last_suspend,
         )
     };
 
@@ -234,9 +274,32 @@ fn resume(vm: &mut Vm, fqn: &str, value: Option<Value>) -> Completion<Value> {
         base_depth: vm.activation_depth + 1,
     });
     // Deliver the resume value where the parked `yield`'s result belongs. A Fresh
-    // coroutine starts at pc 0, so it takes no delivered value.
-    if !was_fresh && let Some(top) = acts.last_mut() {
-        top.push_operand(value.unwrap_or_else(Value::empty));
+    // coroutine starts at pc 0, so it takes no delivered value. Any `coroinject`
+    // commands run first, in the coroutine's context, each transforming the
+    // delivered value (called with the suspend kind + current value appended).
+    if !was_fresh {
+        // A `yield` returns the single resume value (or `""`); a `yieldto`
+        // returns the whole resume-argument list.
+        let initial = match kind {
+            SuspendKind::Yield => args.first().cloned().unwrap_or_else(Value::empty),
+            SuspendKind::YieldTo => Value::list(args.to_vec()),
+        };
+        match run_injections(vm, injections, kind, initial) {
+            Ok(delivered) => {
+                if let Some(top) = acts.last_mut() {
+                    top.push_operand(delivered);
+                }
+            }
+            Err(r) => {
+                // An injected command failed: the coroutine is torn down (C
+                // unwinds it, so its command becomes invalid), the caller's flow
+                // is restored, and the error propagates.
+                vm.coro.stack.pop();
+                vm.swap_flow(&mut parked);
+                teardown_coro(vm, fqn);
+                return r;
+            }
+        }
     }
 
     let exit = vm.drive_coro(&mut acts);
@@ -247,11 +310,16 @@ fn resume(vm: &mut Vm, fqn: &str, value: Option<Value>) -> Completion<Value> {
 
     match exit {
         RunExit::Yielded(req) => {
+            let kind = match &req {
+                YieldReq::Yield(_) => SuspendKind::Yield,
+                YieldReq::YieldTo(_) => SuspendKind::YieldTo,
+            };
             // Park the coroutine (its frozen stack + flow) for the next resume.
             if let Some(state) = vm.coro.live.get_mut(fqn) {
                 state.acts = acts;
                 state.parked = parked;
                 state.status = CoroStatus::Suspended;
+                state.last_suspend = kind;
             }
             match req {
                 YieldReq::Yield(v) => ok(v),
@@ -266,17 +334,56 @@ fn resume(vm: &mut Vm, fqn: &str, value: Option<Value>) -> Completion<Value> {
         RunExit::Done(c) => {
             // The body finished: remove the command + state (unless `exit` is
             // propagating, in which case leave teardown to the unwinding caller).
-            if !vm.exit_pending() {
-                vm.take_command(fqn);
-            }
-            // Drop the state and, for an `apply` coroutine, its bound lambda proc.
-            if let Some(state) = vm.coro.live.remove(fqn)
-                && let Some(p) = state.temp_proc
-            {
-                vm.take_command(&p);
-            }
+            teardown_coro(vm, fqn);
             c
         }
+    }
+}
+
+/// Run the pending [`coroinject`](cmd_coroinject) commands in the (already
+/// swapped-in) coroutine context, FIFO. Each command prefix is invoked as
+/// `cmd args… <kind> <delivered>` — the suspend kind (`yield`/`yieldto`) and the
+/// value the parked `yield` is about to return — and its result becomes the new
+/// delivered value threaded into the next injection. A non-`ok` completion
+/// aborts the chain; [`resume`] then unwinds the coroutine.
+fn run_injections(
+    vm: &mut Vm,
+    injections: Vec<Vec<Value>>,
+    kind: SuspendKind,
+    mut delivered: Value,
+) -> Result<Value, Completion<Value>> {
+    let kind_str = match kind {
+        SuspendKind::Yield => "yield",
+        SuspendKind::YieldTo => "yieldto",
+    };
+    for prefix in injections {
+        // `prefix` is `cmd arg…` (never empty — `coroinject` requires a command);
+        // append the suspend kind and the current delivered value.
+        let mut call = prefix[1..].to_vec();
+        call.push(Value::string(kind_str));
+        call.push(delivered.clone());
+        let name = prefix[0].to_str().to_string();
+        let c = vm.invoke_command(&name, &call);
+        if c.code.is_ok() {
+            delivered = c.result;
+        } else {
+            return Err(c);
+        }
+    }
+    Ok(delivered)
+}
+
+/// Drop a finished or unwound coroutine: remove its command and, for an `apply`
+/// coroutine, its bound lambda proc — unless `exit` is propagating, when the
+/// unwinding caller tears everything down instead.
+fn teardown_coro(vm: &mut Vm, fqn: &str) {
+    if !vm.exit_pending() {
+        vm.take_command(fqn);
+    }
+    if let Some(state) = vm.coro.live.remove(fqn)
+        && let Some(p) = state.temp_proc
+    {
+        vm.take_command(&p);
     }
 }
 
@@ -314,5 +421,78 @@ fn check_yieldable(vm: &Vm, verb: &str) -> Result<(), Completion<Value>> {
         None => Err(err(format!("{verb} can only be called in a coroutine"))),
         Some(h) if vm.activation_depth != h.base_depth => Err(err("cannot yield: C stack busy")),
         Some(_) => Ok(()),
+    }
+}
+
+/// `coroprobe coroName cmd ?arg ...?` — evaluate `cmd args` in the **suspended**
+/// coroutine's own context (its call frame + namespace) *without* resuming it,
+/// and return the result. C Tcl's synchronous coroutine-introspection primitive.
+fn cmd_coroprobe(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let [name, cmd, rest @ ..] = args else {
+        return err("wrong # args: should be \"coroprobe coroName cmd ?arg1 arg2 ...?\"");
+    };
+    let fqn = vm.qualify_name(&name.to_str());
+    // Take the coroutine's parked flow out; it must be suspended.
+    let mut parked = {
+        let Some(state) = vm.coro.live.get_mut(&fqn) else {
+            return err("can only inject a probe command into a coroutine");
+        };
+        if state.status != CoroStatus::Suspended {
+            return err("can only inject a probe command into a coroutine");
+        }
+        state.status = CoroStatus::Running;
+        std::mem::take(&mut state.parked)
+    };
+    // Install the coroutine's flow, run the probe in it (so `[info coroutine]`
+    // and its locals resolve), then restore the caller's flow.
+    vm.swap_flow(&mut parked);
+    vm.coro.stack.push(CoroHandle {
+        name: fqn.clone(),
+        base_depth: vm.activation_depth + 1,
+    });
+    let result = vm.invoke_command(&cmd.to_str(), rest);
+    vm.coro.stack.pop();
+    vm.swap_flow(&mut parked);
+    if let Some(state) = vm.coro.live.get_mut(&fqn) {
+        state.parked = parked;
+        state.status = CoroStatus::Suspended;
+    }
+    result
+}
+
+/// `coroinject coroName cmd ?arg ...?` — schedule `cmd args` to run in the
+/// coroutine's context at its next resume, *before* the parked `yield` returns.
+/// The injected command is called with two extra trailing arguments — the
+/// suspend kind (`yield`/`yieldto`) and the resume value — and its result
+/// becomes what that `yield` returns. One-shot, FIFO (see [`resume`]).
+fn cmd_coroinject(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let [name, _cmd, _rest @ ..] = args else {
+        return err("wrong # args: should be \"coroinject coroName cmd ?arg1 arg2 ...?\"");
+    };
+    let fqn = vm.qualify_name(&name.to_str());
+    match vm.coro.live.get_mut(&fqn) {
+        Some(state) if state.status == CoroStatus::Suspended => {
+            state.injections.push(args[1..].to_vec());
+            ok(Value::empty())
+        }
+        _ => err("can only inject a command into a coroutine"),
+    }
+}
+
+/// `::tcl::unsupported::corotype coroName` — the coroutine's current type:
+/// `active` while it is running, otherwise how it last suspended (`yield` /
+/// `yieldto`).
+fn cmd_corotype(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let [name] = args else {
+        return err("wrong # args: should be \"::tcl::unsupported::corotype coroName\"");
+    };
+    let fqn = vm.qualify_name(&name.to_str());
+    match vm.coro.live.get(&fqn) {
+        None => err("can only get coroutine type of a coroutine"),
+        Some(s) if s.status == CoroStatus::Running => ok(Value::string("active")),
+        Some(s) => ok(Value::string(match s.last_suspend {
+            SuspendKind::Yield => "yield",
+            SuspendKind::YieldTo => "yieldto",
+        })),
     }
 }
