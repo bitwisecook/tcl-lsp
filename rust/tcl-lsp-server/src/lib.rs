@@ -280,8 +280,11 @@ const SEMANTIC_TOKENS_REFRESH_DEBOUNCE: std::time::Duration = std::time::Duratio
 enum DiagCurrency {
     /// Open buffer at this revision.
     Open(u64),
-    /// A closed workspace file analysed from its on-disk contents (#865).
-    ClosedFromDisk,
+    /// A closed workspace file analysed from its on-disk contents at this
+    /// per-URI generation (#865). The generation lets the publish-time guard
+    /// drop a closed run that a newer close / watched-change refresh has
+    /// superseded, so an older run cannot overwrite the current set.
+    ClosedFromDisk(u64),
 }
 
 /// One document edit's complete, self-consistent diagnostics input — captured
@@ -515,6 +518,15 @@ struct DiagInputs {
     /// `textDocument/diagnostic` / `workspace/diagnostic` paths return the
     /// last-published set.
     pull_diag_cache: Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
+    /// Per-URI generation counter for **closed**-file diagnostics runs (#865).
+    /// Each `publish_closed_file_diagnostics` bumps it and captures the new
+    /// value into its `DiagCurrency::ClosedFromDisk`; the publish-time currency
+    /// guard drops any closed run whose captured generation is no longer the
+    /// latest, so an older run finishing after a newer one (rapid re-saves /
+    /// overlapping close + watched-change) can never overwrite the current set
+    /// with stale diagnostics — the closed-file equivalent of the open path's
+    /// `revision` guard.
+    closed_diag_gen: Arc<Mutex<HashMap<Uri, u64>>>,
     /// Per-run analyser feature toggles (diagnostics master switch, optimiser,
     /// `xcDiagnostics`), grouped to keep this owned struct's flat `bool` count
     /// low.
@@ -565,54 +577,17 @@ impl DiagInputs {
         })
     }
 
-    /// Capture a diagnostics job for a **closed** workspace file from its on-disk
-    /// contents (#865), so a file that was opened and then had its editor tab
-    /// closed keeps its Problems / File-Explorer badge instead of being cleared.
-    ///
-    /// The on-disk text is read from the salsa `SourceFile` input that
-    /// [`Backend::reindex_index_from_disk`] refreshes on `did_close` /
-    /// `did_change_watched_files`, so it always describes the current on-disk
-    /// state (not a possibly-discarded unsaved buffer).  Returns `None` when the
-    /// document is open again (the open path is then authoritative) or has no
-    /// readable on-disk `SourceFile` (an untitled buffer or a deleted file — the
-    /// caller then clears any stale squiggles instead).
-    ///
-    /// `file` is carried so the base analysis still runs through the cancellable,
-    /// memoised salsa query; `text` is the same on-disk source the handle holds,
-    /// used by the source-style / recovery lifts.  `version` is `None` (a closed
-    /// file has no editor document version).
-    async fn capture_closed_job(&self, uri: &Uri, dialect: &str) -> Option<DiagJob> {
-        // An open buffer is owned by the open path; never shadow it from disk.
-        if self.documents.lock().await.contains_key(uri) {
-            return None;
+    /// The folder-scoped salsa [`tcl_lsp_db::AnalyserConfig`] handle for `uri`
+    /// (longest matching folder override, else the process-global config) — the
+    /// same resolution [`Self::capture_job`] applies, reused for the closed-file
+    /// job capture (#865) so a closed file honours the same per-folder
+    /// disabled-code / non-ASCII settings it did while open.
+    async fn closed_file_config(&self, uri: &Uri) -> tcl_lsp_db::AnalyserConfig {
+        let folder = self.folder_db_configs.lock().await;
+        match longest_folder_match(&folder, uri) {
+            Some(cfg) => *cfg,
+            None => *self.db_config.lock().await,
         }
-        let file = *self.db_files.lock().await.get(uri)?;
-        // Read the handle's text under the `db` lock alone (the `db_files` lock
-        // is already released), so this never holds `db_files` across `db` and
-        // the global `db` → `db_files` order is preserved.
-        let text = {
-            let db = self.db.lock().await;
-            file.text(&*db).clone()
-        };
-        let config = {
-            let folder = self.folder_db_configs.lock().await;
-            match longest_folder_match(&folder, uri) {
-                Some(cfg) => *cfg,
-                None => *self.db_config.lock().await,
-            }
-        };
-        Some(DiagJob {
-            text,
-            dialect: dialect.to_owned(),
-            // A closed file carries no editor `language_id`; F5 model dialects are
-            // still routed by their resolved `dialect` + basename, so plain-Tcl /
-            // iRules source (the #865 case) is unaffected.
-            language_id: String::new(),
-            currency: DiagCurrency::ClosedFromDisk,
-            version: None,
-            file: Some(file),
-            config,
-        })
     }
 }
 
@@ -672,6 +647,9 @@ struct DeliveryCtx<'a> {
     client: &'a Client,
     documents: &'a Arc<Mutex<HashMap<Uri, DocumentState>>>,
     pull_diag_cache: &'a Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
+    /// The closed-file generation map, consulted by the currency guard for a
+    /// [`DiagCurrency::ClosedFromDisk`] run (#865).
+    closed_diag_gen: &'a Arc<Mutex<HashMap<Uri, u64>>>,
     uri: &'a Uri,
     currency: DiagCurrency,
     version: Option<i32>,
@@ -682,13 +660,23 @@ impl DeliveryCtx<'_> {
     /// Whether this run is still the current state for `uri`, evaluated against a
     /// held `documents` snapshot.  An open run is current while the buffer is
     /// open at the captured revision; a closed-file run (#865) is current while
-    /// the buffer stays closed (a reopen hands authority back to the open path).
-    fn is_current(&self, docs: &HashMap<Uri, DocumentState>) -> bool {
+    /// the buffer stays closed *and* no newer closed run has bumped the per-URI
+    /// generation past the one this run captured — a reopen hands authority back
+    /// to the open path, and a superseding close / watched-change refresh drops
+    /// this older run so it cannot publish stale diagnostics.
+    ///
+    /// The `closed_diag_gen` lock is taken *inside* the held `documents` lock
+    /// (the `documents` → `closed_diag_gen` order; the generation is only ever
+    /// bumped without `documents` held), so the nesting is cycle-free.
+    async fn is_current(&self, docs: &HashMap<Uri, DocumentState>) -> bool {
         match self.currency {
             DiagCurrency::Open(revision) => docs
                 .get(self.uri)
                 .is_some_and(|doc| doc.revision == revision),
-            DiagCurrency::ClosedFromDisk => !docs.contains_key(self.uri),
+            DiagCurrency::ClosedFromDisk(generation) => {
+                !docs.contains_key(self.uri)
+                    && self.closed_diag_gen.lock().await.get(self.uri) == Some(&generation)
+            }
         }
     }
 
@@ -700,7 +688,7 @@ impl DeliveryCtx<'_> {
     fn revision_for_cache(&self) -> u64 {
         match self.currency {
             DiagCurrency::Open(revision) => revision,
-            DiagCurrency::ClosedFromDisk => u64::MAX,
+            DiagCurrency::ClosedFromDisk(_) => u64::MAX,
         }
     }
 
@@ -713,7 +701,7 @@ impl DeliveryCtx<'_> {
     /// (`RUST_ISSUE_098`).
     async fn deliver_if_current(&self, diags: Vec<tower_lsp_server::ls_types::Diagnostic>) {
         let docs = self.documents.lock().await;
-        if self.is_current(&docs) {
+        if self.is_current(&docs).await {
             self.cache_and_deliver(diags).await;
         }
     }
@@ -760,7 +748,7 @@ impl DeliveryCtx<'_> {
             return;
         }
         let docs = self.documents.lock().await;
-        if self.is_current(&docs) {
+        if self.is_current(&docs).await {
             // Best-effort/droppable (see above): cap the lock hold so a slow client
             // can't hold `documents` hostage for every other document's edits.
             // Dropping the parked `channel(1)` send on timeout is atomic — the push
@@ -1182,6 +1170,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         db,
         db_project,
         pull_diag_cache,
+        closed_diag_gen,
         toggles,
         client_supports_pull,
         // The worker captures the job from these before calling us; unused here.
@@ -1208,6 +1197,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         client: &client,
         documents: &documents,
         pull_diag_cache: &pull_diag_cache,
+        closed_diag_gen: &closed_diag_gen,
         uri,
         currency,
         version,
@@ -1671,10 +1661,11 @@ async fn publish_diagnostics_result(
         // clearing empty publish overwritten (and its pull-cache removal
         // undone) by this run's late squiggles (RUST_ISSUE_098).
         let docs = delivery.documents.lock().await;
-        if !delivery.is_current(&docs) {
-            // Superseded by a newer edit (open run) or a reopen (closed run),
-            // which has taken authority for this URI — settled for this version;
-            // the authoritative path publishes the newer state.
+        if !delivery.is_current(&docs).await {
+            // Superseded by a newer edit (open run), a reopen, or a newer closed
+            // run (generation bumped), which has taken authority for this URI —
+            // settled for this version; the authoritative path publishes the
+            // newer state.
             return true;
         }
         {
@@ -1879,6 +1870,10 @@ pub struct Backend {
     /// `textDocument/diagnostic` / `workspace/diagnostic` handlers; evicted on
     /// `did_close`.
     pull_diag_cache: Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
+    /// Monotonic per-URI generation for **closed**-file diagnostics runs (#865),
+    /// so overlapping close / watched-change refreshes cannot let an older run
+    /// publish stale diagnostics over a newer one — see [`DiagInputs::closed_diag_gen`].
+    closed_diag_gen: Arc<Mutex<HashMap<Uri, u64>>>,
     /// Whether the client advertised pull-diagnostic support
     /// (`textDocument.diagnostic` client capability) at `initialize`.
     ///
@@ -2197,6 +2192,7 @@ impl Backend {
             db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
+            closed_diag_gen: Arc::new(Mutex::new(HashMap::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
@@ -3125,18 +3121,32 @@ impl Backend {
         // suppresses W123 / drives the arity error in its siblings.
         let scanned: Option<(String, String, AnalysisResult)> =
             if let Some(path) = uri.to_file_path().map(std::borrow::Cow::into_owned) {
-                let dialect = match self.resolve_folder_dialect(uri).await {
-                    Some(d) => d,
-                    None => self.default_dialect.lock().await.clone(),
-                };
-                tokio::task::spawn_blocking(move || {
-                    let text = std::fs::read_to_string(path).ok()?;
-                    let analysis = Analyser::new().analyse(&text, &dialect).clone();
-                    Some((text, dialect, analysis))
-                })
-                .await
-                .ok()
-                .flatten()
+                // Read the on-disk text off-lock first, then resolve the dialect
+                // from its content the way `did_open` would (#865): a BIG-IP
+                // config, an iRule, or a `# tcl-dialect:`-pinned file keeps its
+                // real dialect rather than defaulting to generic Tcl.  The salsa
+                // `file_analysis_incremental` base pass reads the dialect from the
+                // stored `SourceFile`, so it must be right here — not just on the
+                // `publish_closed_file_diagnostics` lift path.
+                match tokio::task::spawn_blocking(move || std::fs::read_to_string(path).ok())
+                    .await
+                    .ok()
+                    .flatten()
+                {
+                    Some(text) => {
+                        let dialect = self.dialect_for_closed(uri, &text).await;
+                        let (a_text, a_dialect) = (text.clone(), dialect.clone());
+                        match tokio::task::spawn_blocking(move || {
+                            Analyser::new().analyse(&a_text, &a_dialect).clone()
+                        })
+                        .await
+                        {
+                            Ok(analysis) => Some((text, dialect, analysis)),
+                            Err(_) => None,
+                        }
+                    }
+                    None => None,
+                }
             } else {
                 None
             };
@@ -3176,22 +3186,75 @@ impl Backend {
     /// Callers must have refreshed the on-disk salsa source first (via
     /// [`Self::reindex_index_from_disk`]).  When the URI has no readable on-disk
     /// `SourceFile` (an untitled buffer, or a file deleted between the reindex and
-    /// here), the closed-job capture yields `None` and the stale squiggles are
-    /// cleared instead — matching the pre-#865 close behaviour for such files.
+    /// here), there is nothing to analyse and the stale squiggles are cleared
+    /// instead — matching the pre-#865 close behaviour for such files.  The
+    /// dialect is resolved from the on-disk content (matching the `SourceFile`
+    /// dialect the reindex stored), and the run captures a fresh per-URI
+    /// generation so a newer refresh supersedes it.
     async fn publish_closed_file_diagnostics(&self, uri: &Uri) {
-        // Resolve the dialect the way `reindex_index_from_disk` did, so the
-        // registry the analyser consults matches the on-disk source.
-        let dialect = match self.resolve_folder_dialect(uri).await {
-            Some(d) => d,
-            None => self.default_dialect.lock().await.clone(),
-        };
-        let inputs = self.diag_inputs(uri, &dialect).await;
-        match inputs.capture_closed_job(uri, &dialect).await {
-            Some(job) => {
-                run_diagnostics_core(inputs, uri, job).await;
-            }
-            None => self.clear_closed_diagnostics(uri).await,
+        // An open buffer is owned by the open path; never shadow it from disk.
+        if self.documents.lock().await.contains_key(uri) {
+            return;
         }
+        // The on-disk-backed salsa source `reindex_index_from_disk` primed; its
+        // absence means the URI is untitled / deleted, so clear instead.
+        let Some(file) = self.db_files.lock().await.get(uri).copied() else {
+            self.clear_closed_diagnostics(uri).await;
+            return;
+        };
+        // Read the handle's text under the `db` lock alone (the `db_files` lock
+        // is released), preserving the global `db` → `db_files` order.
+        let text = {
+            let db = self.db.lock().await;
+            file.text(&*db).clone()
+        };
+        // Resolve the dialect from the on-disk source the same way `did_open`
+        // does (basename / BIG-IP, in-source `# tcl-dialect:` directive, folder
+        // override, session default) rather than folder-or-default alone, so a
+        // closed BIG-IP config or a version-pinned Tcl file keeps the dialect it
+        // had while open instead of being re-analysed as generic Tcl.
+        let dialect = self.dialect_for_closed(uri, &text).await;
+        // Bump this URI's closed-run generation and capture it, so a newer close
+        // / watched-change refresh supersedes this run at publish time.
+        let generation = self.next_closed_diag_generation(uri).await;
+        let inputs = self.diag_inputs(uri, &dialect).await;
+        let config = inputs.closed_file_config(uri).await;
+        let job = DiagJob {
+            text,
+            dialect,
+            // A closed file carries no editor `language_id`; F5 model dialects are
+            // routed by the resolved `dialect` + basename resolved above.
+            language_id: String::new(),
+            currency: DiagCurrency::ClosedFromDisk(generation),
+            version: None,
+            file: Some(file),
+            config,
+        };
+        run_diagnostics_core(inputs, uri, job).await;
+    }
+
+    /// Resolve the dialect for a **closed** on-disk file the way
+    /// [`Self::dialect_for_open`] resolves a freshly opened one, but without an
+    /// editor `language_id`: synthesise one from the file extension
+    /// ([`tcl_registry::dialect_from_extension`], falling back to the bare
+    /// `"tcl"` id that triggers in-source directive detection) so the basename
+    /// (BIG-IP), `# tcl-dialect:` / shebang / `package require Tcl` hint,
+    /// per-folder override, and session default all still apply (#865).
+    async fn dialect_for_closed(&self, uri: &Uri, text: &str) -> String {
+        let language_id = tcl_registry::dialect_from_extension(uri.as_str()).unwrap_or("tcl");
+        self.dialect_for_open(uri, language_id, text).await
+    }
+
+    /// Bump and return `uri`'s closed-file diagnostics generation (#865). Each
+    /// closed run captures the value this returns; the publish-time currency
+    /// guard ([`DeliveryCtx::is_current`]) drops any run whose captured
+    /// generation is no longer the latest, so an older run finishing after a
+    /// newer one cannot republish stale diagnostics.
+    async fn next_closed_diag_generation(&self, uri: &Uri) -> u64 {
+        let mut gens = self.closed_diag_gen.lock().await;
+        let slot = gens.entry(uri.clone()).or_insert(0);
+        *slot = slot.wrapping_add(1);
+        *slot
     }
 
     /// Clear any previously-published diagnostics for a closed URI that no longer
@@ -3210,6 +3273,9 @@ impl Backend {
             .publish_diagnostics(uri.clone(), Vec::new(), None)
             .await;
         self.pull_diag_cache.lock().await.remove(uri);
+        // Drop the closed-run generation too, so the map does not accumulate an
+        // entry for a URI that no longer carries a badge.
+        self.closed_diag_gen.lock().await.remove(uri);
     }
 
     /// Refresh the diagnostics of every **closed** file that currently carries a
@@ -5141,6 +5207,7 @@ impl Backend {
             db_config: Arc::clone(&self.db_config),
             folder_db_configs: Arc::clone(&self.folder_db_configs),
             pull_diag_cache: Arc::clone(&self.pull_diag_cache),
+            closed_diag_gen: Arc::clone(&self.closed_diag_gen),
             toggles: DiagToggles {
                 diagnostics_enabled,
                 optimiser_enabled,
@@ -13643,6 +13710,7 @@ mod tests {
             db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
+            closed_diag_gen: Arc::new(Mutex::new(HashMap::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
@@ -13970,11 +14038,12 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
     }
 
-    /// FN-guard: the closed-file capture never shadows a document that is open
+    /// FN-guard: the closed-file publish never shadows a document that is open
     /// again — a `did_open` racing in front of the closed run keeps authority, so
-    /// a late closed publish cannot blank a freshly reopened buffer.
+    /// a closed publish is a no-op for an open buffer and cannot blank or
+    /// overwrite it.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn capture_closed_job_is_none_for_open_document() {
+    async fn publish_closed_is_noop_for_open_document() {
         let root = unique_scratch_dir("close-reopen");
         let on_disk = root.join("buf.tcl");
         std::fs::write(&on_disk, "proc foo {} { set y 1 }\n").unwrap();
@@ -13988,13 +14057,140 @@ mod tests {
                 "tcl8.6".to_owned(),
             )
             .await;
-
-        let inputs = backend.diag_inputs(&uri, "tcl8.6").await;
-        assert!(
-            inputs.capture_closed_job(&uri, "tcl8.6").await.is_none(),
-            "an open document must not be captured as a closed-file job",
+        // A sentinel cache entry standing in for the open buffer's own published
+        // set. The closed publish must leave it untouched (the doc is open).
+        let sentinel = next_pull_diag_result_id();
+        backend.pull_diag_cache.lock().await.insert(
+            uri.clone(),
+            PullDiagEntry {
+                result_id: sentinel.clone(),
+                revision: 7,
+                diagnostics: Vec::new(),
+            },
         );
+
+        backend.publish_closed_file_diagnostics(&uri).await;
+
+        let cache = backend.pull_diag_cache.lock().await;
+        let entry = cache
+            .get(&uri)
+            .expect("open doc's cache entry must survive");
+        assert_eq!(
+            entry.result_id, sentinel,
+            "a closed publish must not overwrite an open document's diagnostics",
+        );
+        drop(cache);
         std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// Codex #3: a closed file's dialect is resolved from its on-disk source the
+    /// way `did_open` would — an in-source directive, a BIG-IP basename, and a
+    /// dialect-specific extension all survive the close instead of defaulting to
+    /// generic Tcl.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn dialect_for_closed_honours_directive_basename_and_extension() {
+        let backend = test_backend();
+        // In-source `# tcl-dialect:` directive pins the version.
+        let versioned = Uri::from_str("file:///v.tcl").unwrap();
+        assert_eq!(
+            backend
+                .dialect_for_closed(&versioned, "# tcl-dialect: tcl8.4\nset x 1\n")
+                .await,
+            "tcl8.4",
+        );
+        // A canonical BIG-IP basename routes to the config dialect.
+        let bigip = Uri::from_str("file:///bigip.conf").unwrap();
+        assert_eq!(
+            backend
+                .dialect_for_closed(&bigip, "ltm virtual v { }\n")
+                .await,
+            "f5-bigip",
+        );
+        // A dialect-specific extension routes without any editor language id.
+        let irule = Uri::from_str("file:///r.irule").unwrap();
+        assert_eq!(
+            backend
+                .dialect_for_closed(&irule, "when HTTP_REQUEST { }\n")
+                .await,
+            "f5-irules",
+        );
+        // A plain `.tcl` with no hint falls back to the session default.
+        let plain = Uri::from_str("file:///p.tcl").unwrap();
+        assert_eq!(
+            backend.dialect_for_closed(&plain, "set x 1\n").await,
+            "tcl8.6",
+        );
+    }
+
+    /// Codex #3 end-to-end: `reindex_index_from_disk` (run on close) must store
+    /// the source-directed dialect on the salsa `SourceFile`, since the cached
+    /// base analysis reads its dialect from there — not the folder/default alone.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn reindex_stores_source_directed_dialect() {
+        let root = unique_scratch_dir("reindex-dialect");
+        let on_disk = root.join("app.tcl");
+        // Pinned to f5-irules by directive; the folder/default would give tcl8.6.
+        std::fs::write(
+            &on_disk,
+            "# tcl-dialect: f5-irules\nwhen HTTP_REQUEST { }\n",
+        )
+        .unwrap();
+        let backend = test_backend();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+
+        backend.reindex_index_from_disk(&uri).await;
+
+        let file = backend
+            .db_files
+            .lock()
+            .await
+            .get(&uri)
+            .copied()
+            .expect("reindex must index the on-disk file");
+        let db = backend.db.lock().await;
+        assert_eq!(
+            file.dialect(&*db).as_str(),
+            "f5-irules",
+            "reindex must store the directive-derived dialect the base analysis reads",
+        );
+        drop(db);
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// Codex #2: a closed run whose generation has been superseded by a newer
+    /// close / watched-change refresh must not publish — so an older run
+    /// finishing late cannot overwrite the current set with stale diagnostics.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn superseded_closed_run_does_not_publish() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///gen.tcl").unwrap();
+        // The URI is closed (absent from `documents`); the latest generation is 5.
+        backend.closed_diag_gen.lock().await.insert(uri.clone(), 5);
+
+        let diag = vec![tower_lsp_server::ls_types::Diagnostic::default()];
+        let ctx = |generation: u64| DeliveryCtx {
+            client: &backend.client,
+            documents: &backend.documents,
+            pull_diag_cache: &backend.pull_diag_cache,
+            closed_diag_gen: &backend.closed_diag_gen,
+            uri: &uri,
+            currency: DiagCurrency::ClosedFromDisk(generation),
+            version: None,
+            client_supports_pull: false,
+        };
+
+        // A stale run (generation 3 < 5) is dropped.
+        ctx(3).deliver_if_current(diag.clone()).await;
+        assert!(
+            backend.pull_diag_cache.lock().await.get(&uri).is_none(),
+            "a superseded closed run must not publish",
+        );
+        // The current run (generation 5) publishes.
+        ctx(5).deliver_if_current(diag).await;
+        assert!(
+            backend.pull_diag_cache.lock().await.get(&uri).is_some(),
+            "the latest closed run publishes",
+        );
     }
 
     /// Master switch off must clear a closed file's retained badge too — the
