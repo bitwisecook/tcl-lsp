@@ -1303,6 +1303,28 @@ fn after_idle_braced_callback_is_arity_checked() {
 }
 
 #[test]
+fn after_multi_word_script_concatenation_abstains() {
+    // Codex review finding (PR #852): `after ms script script script ...?`
+    // concatenates every trailing word into ONE script before evaluating
+    // it — confirmed against tclsh 9.0.4 (`after info` shows the
+    // registered script as `cb 1 2`, space-joined). Marking only the first
+    // word (`{cb}`) as Body would recurse into a truncated fragment and
+    // wrongly flag a 2-arg `cb` as under-supplied; must abstain instead.
+    let src = "proc cb {a b} { return [expr {$a+$b}] }\nafter 1000 {cb} 1 2\n";
+    assert_eq!(
+        arity_codes(src, "tcl8.6"),
+        Vec::<String>::new(),
+        "a multi-word after script must abstain, not mis-recurse the first word alone"
+    );
+    let src_idle = "proc cb {a b} { return [expr {$a+$b}] }\nafter idle {cb} 1 2\n";
+    assert_eq!(
+        arity_codes(src_idle, "tcl8.6"),
+        Vec::<String>::new(),
+        "after idle has the identical concatenation shape"
+    );
+}
+
+#[test]
 fn after_default_form_bareword_callback_is_not_yet_checked() {
     // A *bareword* callback (no braces) is valid Tcl and equally broken at
     // runtime, but stays unchecked today — the same pre-existing, documented
@@ -3853,6 +3875,102 @@ oo::define Widget {
 }
 Widget new 1
 ";
+    assert_eq!(e00x_codes_for(src), vec!["E002".to_owned()]);
+}
+
+#[test]
+fn tcloo_constructor_arity_empty_body_is_not_a_real_constructor() {
+    // `constructor {a b} {}` (a literally empty body) is TclOO's own way
+    // of writing "no constructor" — confirmed against tclsh 9.0.4:
+    // `info class constructor` returns empty and `new` with any argument
+    // count succeeds. Codex review finding (PR #852): the arity check must
+    // not treat this as a real, arity-enforcing constructor.
+    let src = "oo::class create Widget { constructor {a b} {} }\nWidget new 1 2 3\n";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_constructor_arity_whitespace_or_comment_body_is_still_real() {
+    // By contrast, ANY body content — even a single space or a
+    // comment-only body — keeps the constructor's arity fully enforced
+    // (confirmed against tclsh 9.0.4). Must not over-correct the empty-body
+    // exclusion into treating every trivial-looking body as absent.
+    let src = "oo::class create Widget { constructor {a b} { } }\nWidget new 1\n";
+    assert_eq!(e00x_codes_for(src), vec!["E002".to_owned()]);
+    let src_comment = "oo::class create Widget {\n    constructor {a b} {\n        # just a comment\n    }\n}\nWidget new 1\n";
+    assert_eq!(e00x_codes_for(src_comment), vec!["E002".to_owned()]);
+}
+
+#[test]
+fn tcloo_constructor_arity_honours_definition_order_for_top_level_call() {
+    // Codex review finding (PR #852): a top-level call made *before* a
+    // later `oo::define` adds the constructor sees the class as it stood
+    // at that point — no constructor yet, so TclOO's permissive default
+    // applies (confirmed against tclsh 9.0.4).
+    let src = "\
+oo::class create Widget {}
+Widget new 1
+oo::define Widget {
+    constructor {a b} { }
+}
+";
+    assert_eq!(
+        e00x_codes_for(src),
+        Vec::<String>::new(),
+        "the call precedes the constructor's own definition, not just the class's"
+    );
+}
+
+#[test]
+fn tcloo_constructor_arity_redefinition_uses_the_one_in_effect_at_the_call() {
+    // A call between two constructor redefinitions sees the one that was
+    // in effect at that point, not the file's final constructor —
+    // mirrors `resolve_indirect_call_target`'s identical convention for a
+    // same-file proc redefinition.
+    let src = "\
+oo::class create Widget {
+    constructor {a} { }
+}
+Widget new 1
+oo::define Widget {
+    constructor {a b} { }
+}
+Widget new 1 2
+";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_constructor_arity_proc_body_call_not_order_gated_against_later_define() {
+    // Inside a proc body, order doesn't matter (the whole file loads
+    // before any proc body runs) — same convention as every other
+    // arity path here.
+    let src = "\
+oo::class create Widget {}
+proc make {} { Widget new 1 }
+oo::define Widget {
+    constructor {a b} { }
+}
+";
+    assert_eq!(e00x_codes_for(src), vec!["E002".to_owned()]);
+}
+
+#[test]
+fn apply_lambda_arity_suppressed_when_apply_itself_is_shadowed() {
+    // Codex review finding (PR #852): `apply` is an ordinary command name
+    // and can be shadowed by a user proc — confirmed against tclsh 9.0.4,
+    // a user-defined `apply` resolves ahead of the language builtin. The
+    // lambda-literal-shaped argument must not be arity-checked against a
+    // builtin `apply` that this call never actually reaches.
+    let src = "proc apply {lambda x} { return $x }\napply {{a b} {}} 1\n";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn apply_lambda_arity_still_checked_when_apply_is_not_shadowed() {
+    // Regression guard: the shadowing fix above must not silence the
+    // ordinary, non-shadowed case.
+    let src = "apply {{a b} {return [expr {$a+$b}]}} 1\n";
     assert_eq!(e00x_codes_for(src), vec!["E002".to_owned()]);
 }
 

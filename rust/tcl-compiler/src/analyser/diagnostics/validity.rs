@@ -533,7 +533,7 @@ impl Analyser {
         // is fully knowable at the call site (no forward reference, no
         // cross-item merge to wait for), so this checks synchronously
         // rather than through the pending/flush queue.
-        self.emit_apply_lambda_arity(cmd_name, args, arg_tokens, arg_expand, cmd_tok);
+        self.emit_apply_lambda_arity(cmd_name, args, arg_tokens, arg_expand, cmd_tok, scope_path);
 
         let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
         // Scope-aware: a head inside a scoped command environment resolves to
@@ -734,6 +734,15 @@ impl Analyser {
     /// (matching [`Analyser::parse_apply_lambda_elements`]'s guard — a
     /// dynamic `apply $lambda …` is opaque and left unchecked, the same
     /// any-uncertainty-abstains convention as every other arity path here).
+    ///
+    /// Queued through [`Self::pending_arity`] rather than pushed
+    /// immediately: `apply` is an ordinary command name and can be shadowed
+    /// by a user `proc apply {lambda x} {…}` exactly like any other
+    /// builtin (confirmed against tclsh 9.0.4 — a user-defined `apply`
+    /// resolves ahead of the language builtin), so this candidate must go
+    /// through the same post-walk builtin-shadowing suppression
+    /// (`Self::flush_arity_diagnostics`) as every other simple-command
+    /// arity check, rather than bypassing it.
     fn emit_apply_lambda_arity(
         &mut self,
         cmd_name: &str,
@@ -741,6 +750,7 @@ impl Analyser {
         arg_tokens: &[tcl_lexer::Token],
         arg_expand: &[bool],
         cmd_tok: tcl_lexer::Token,
+        scope_path: &[usize],
     ) {
         let Some(elements) = self.parse_apply_lambda_elements(cmd_name, args, arg_tokens) else {
             return;
@@ -759,7 +769,10 @@ impl Analyser {
         if let Some(diag) =
             arity_verdict("apply", arity, nargs_min, positional_any_expand, full_span)
         {
-            self.result.diagnostics.push(diag);
+            let ns = self.command_resolution_namespace(scope_path);
+            let enforce_order = !self.scope_path_in_proc_body(scope_path);
+            self.pending_arity
+                .push((cmd_name.to_string(), ns, enforce_order, diag));
         }
     }
 
@@ -943,16 +956,34 @@ impl Analyser {
                 if !is_tcloo_metaclass(&cd.metaclass) {
                     continue; // snit / itcl — `new`/`create` mean something else
                 }
-                let Some(provider) = hierarchy.constructor_provider(class_qn) else {
+                let Some(provider) = hierarchy.constructor_provider(class_qn, &self.source) else {
                     continue; // no explicit constructor anywhere in the MRO —
                     // TclOO's inherited default accepts any argument count
                 };
-                let Some(ctor) = self
-                    .result
-                    .all_classes
-                    .get(provider)
-                    .and_then(|cd| cd.constructors.last())
-                else {
+                // `constructor_provider` picked `provider` from its *final*
+                // (last-declared) constructor only — re-select within it,
+                // honouring both the empty-body exclusion and (for a
+                // top-level call) definition order: a class created via
+                // `oo::class create Foo {}` and only later given a
+                // `constructor` through a separate `oo::define Foo { … }`
+                // has no constructor in effect for any call between the
+                // two (confirmed against tclsh 9.0.4). A redefinition
+                // mid-file is honoured the same way — the constructor
+                // *in effect at the call site*, not simply the last one
+                // written anywhere in the file, the same convention
+                // `resolve_indirect_call_target` uses for a same-file proc.
+                // When the immediate provider has no qualifying entry, this
+                // abstains rather than walking further up the MRO for an
+                // ancestor's constructor that might have been in effect —
+                // a conservative, sound-by-abstention simplification for
+                // this rare a combination (order-sensitive call *and*
+                // multiple inheritance/redefinition), not a soundness gap.
+                let Some(ctor) = self.result.all_classes.get(provider).and_then(|cd| {
+                    cd.constructors.iter().rev().find(|c| {
+                        !super::class_hierarchy::is_empty_method_body(&self.source, c.body_span)
+                            && (!cand.enforce_order || c.name_span.start() < cand.call_off)
+                    })
+                }) else {
                     continue;
                 };
                 let arity = crate::signature_scan::arity::arity_of(&ctor.params);
