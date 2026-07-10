@@ -274,3 +274,228 @@ fn tsv_get_missing_key_errors_but_with_var_reports_presence() {
         "0 1 1"
     );
 }
+
+// ===========================================================================
+// thread::mutex / cond / rwmutex — synchronisation primitives
+// ===========================================================================
+//
+// Worker bodies are passed as *braced* scripts (no send-time interpolation) and
+// read handles back from `tsv`, so the whole body runs in the worker. Each test
+// joins every worker (`thread::send`'s sync barrier + `thread::release`) before
+// reading a shared total, so the results are deterministic.
+
+#[test]
+fn mutex_create_lock_unlock_roundtrip() {
+    // Handles are minted; lock/unlock/destroy succeed and return empty.
+    assert_eq!(
+        result(
+            "set m [thread::mutex create]; \
+             thread::mutex lock $m; thread::mutex unlock $m; \
+             thread::mutex destroy $m; set m"
+        ),
+        "mutex0"
+    );
+}
+
+#[test]
+fn recursive_mutex_relocks_on_same_thread() {
+    // A -recursive mutex can be re-locked by its owner without deadlocking.
+    assert_eq!(
+        result(
+            "set m [thread::mutex create -recursive]; \
+             thread::mutex lock $m; thread::mutex lock $m; \
+             thread::mutex unlock $m; thread::mutex unlock $m; \
+             thread::mutex destroy $m; set ok done"
+        ),
+        "done"
+    );
+}
+
+#[test]
+fn mutex_serialises_a_non_atomic_read_modify_write() {
+    // Four workers each do 250 *non-atomic* tsv increments under one mutex; the
+    // total is exact only because the mutex provides real mutual exclusion.
+    let src = "
+        tsv::set c n 0
+        tsv::set c m [thread::mutex create]
+        set ws {}
+        for {set i 0} {$i < 4} {incr i} {
+            set w [thread::create]
+            lappend ws $w
+            thread::send -async $w {
+                set m [tsv::get c m]
+                for {set j 0} {$j < 250} {incr j} {
+                    thread::mutex lock $m
+                    tsv::set c n [expr {[tsv::get c n] + 1}]
+                    thread::mutex unlock $m
+                }
+            }
+        }
+        foreach w $ws { thread::send $w {expr 1}; thread::release $w }
+        thread::mutex destroy [tsv::get c m]
+        tsv::get c n
+    ";
+    assert_eq!(result(src), "1000");
+}
+
+#[test]
+fn cond_wait_wakes_on_notify_with_a_predicate_loop() {
+    // The canonical wait-in-a-predicate-loop idiom: a worker waits on the cond
+    // (releasing the mutex) until a shared flag is set; the short timeout makes
+    // it robust against a notify that races the wait.
+    let src = "
+        tsv::set f m [thread::mutex create]
+        tsv::set f c [thread::cond create]
+        tsv::set f go 0
+        tsv::set f done 0
+        set w [thread::create]
+        thread::send -async $w {
+            set m [tsv::get f m]
+            set c [tsv::get f c]
+            thread::mutex lock $m
+            while {[tsv::get f go] == 0} { thread::cond wait $c $m 100 }
+            thread::mutex unlock $m
+            tsv::set f done 1
+        }
+        tsv::set f go 1
+        thread::cond notify [tsv::get f c]
+        thread::send $w {expr 1}
+        thread::release $w
+        thread::mutex destroy [tsv::get f m]
+        thread::cond destroy [tsv::get f c]
+        tsv::get f done
+    ";
+    assert_eq!(result(src), "1");
+}
+
+#[test]
+fn cond_wait_times_out_without_a_notify() {
+    // A bounded wait with no notify returns (does not hang), leaving the mutex
+    // relocked so the following unlock succeeds.
+    assert_eq!(
+        result(
+            "set m [thread::mutex create]; set c [thread::cond create]; \
+             thread::mutex lock $m; thread::cond wait $c $m 20; thread::mutex unlock $m; \
+             set ok woke"
+        ),
+        "woke"
+    );
+}
+
+#[test]
+fn rwmutex_write_lock_guards_a_non_atomic_increment() {
+    // A write lock is exclusive: the same non-atomic-increment total holds.
+    let src = "
+        tsv::set c n 0
+        tsv::set c rw [thread::rwmutex create]
+        set ws {}
+        for {set i 0} {$i < 4} {incr i} {
+            set w [thread::create]
+            lappend ws $w
+            thread::send -async $w {
+                set rw [tsv::get c rw]
+                for {set j 0} {$j < 200} {incr j} {
+                    thread::rwmutex wlock $rw
+                    tsv::set c n [expr {[tsv::get c n] + 1}]
+                    thread::rwmutex unlock $rw
+                }
+            }
+        }
+        foreach w $ws { thread::send $w {expr 1}; thread::release $w }
+        thread::rwmutex destroy [tsv::get c rw]
+        tsv::get c n
+    ";
+    assert_eq!(result(src), "800");
+}
+
+#[test]
+fn mutex_missing_handle_errors() {
+    assert_eq!(
+        result("catch {thread::mutex lock nope} e; set e"),
+        "mutex \"nope\" does not exist"
+    );
+}
+
+// ===========================================================================
+// tpool::* — worker pools
+// ===========================================================================
+
+#[test]
+fn tpool_posts_and_collects_results() {
+    // Two jobs on a pool; `tpool::get` blocks until each is done.
+    assert_eq!(
+        result(
+            "set p [tpool::create -maxworkers 2]; \
+             set j1 [tpool::post $p {expr {2 * 21}}]; \
+             set j2 [tpool::post $p {string length hello}]; \
+             set r1 [tpool::get $p $j1]; set r2 [tpool::get $p $j2]; \
+             tpool::release $p; list $r1 $r2"
+        ),
+        "42 5"
+    );
+}
+
+#[test]
+fn tpool_worker_state_survives_across_jobs_via_initcmd() {
+    // `-initcmd` runs once per worker; with a single worker, a variable it sets
+    // is visible to every job that worker runs.
+    assert_eq!(
+        result(
+            "set p [tpool::create -maxworkers 1 -initcmd {set base 100}]; \
+             set j [tpool::post $p {incr base 7}]; \
+             set r [tpool::get $p $j]; tpool::release $p; set r"
+        ),
+        "107"
+    );
+}
+
+#[test]
+fn tpool_wait_reports_done_and_pending() {
+    // `tpool::wait` blocks until the job finishes, returns it as done, and stores
+    // the (now empty) pending list in the var.
+    assert_eq!(
+        result(
+            "set p [tpool::create -maxworkers 2]; \
+             set j [tpool::post $p {expr {3 + 4}}]; \
+             set done [tpool::wait $p [list $j] pending]; \
+             set r [tpool::get $p $j]; tpool::release $p; \
+             list [expr {[lindex $done 0] == $j}] $pending $r"
+        ),
+        "1 {} 7"
+    );
+}
+
+#[test]
+fn tpool_job_error_propagates_through_get() {
+    assert_eq!(
+        result(
+            "set p [tpool::create -maxworkers 1]; \
+             set j [tpool::post $p {error boom}]; \
+             catch {tpool::get $p $j} e; tpool::release $p; set e"
+        ),
+        "boom"
+    );
+}
+
+#[test]
+fn tpool_detached_job_runs_without_a_result_id() {
+    // A detached post returns empty and still runs (observable via tsv).
+    assert_eq!(
+        result(
+            "set p [tpool::create -maxworkers 1]; \
+             tsv::set r done 0; \
+             set id [tpool::post -detached $p {tsv::set r done 1}]; \
+             while {[tsv::get r done] == 0} {}; \
+             tpool::release $p; list [string length $id] [tsv::get r done]"
+        ),
+        "0 1"
+    );
+}
+
+#[test]
+fn tpool_names_lists_live_pools() {
+    assert_eq!(
+        result("set p [tpool::create]; set n [tpool::names]; tpool::release $p; set n"),
+        "tpool0"
+    );
+}
