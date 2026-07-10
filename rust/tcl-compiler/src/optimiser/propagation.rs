@@ -3309,12 +3309,13 @@ mod tests {
     }
 
     #[test]
-    fn o103_does_not_fold_variadic_args_proc() {
-        // `proc ::foo {a args} {...}` — the argument-sensitive fold must not
-        // bind a single call argument straight onto the `args` formal (see
-        // `evaluate_proc_with_constants`'s explicit guard). `return $args`
-        // has no argument-*independent* constant return either (its value
-        // depends on the call), so no O103 should fire at all here.
+    fn o103_folds_variadic_args_proc_returning_args_directly() {
+        // TP: `args` is seeded as a canonical Tcl list (see
+        // `seed_params_from_args`), not skipped outright — `proc ::foo {a
+        // args} { return $args }` called as `[::foo 1 2]` binds `a=1`,
+        // `args={2}` (a one-element list, which renders bare as `2` with
+        // no braces needed), so `return $args` folds to `2`. Confirmed
+        // against tclsh 8.6: `puts [::foo 1 2]` prints `2`.
         use tcl_registry::CommandRegistry;
         let registry = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(
@@ -3327,8 +3328,10 @@ mod tests {
         ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         assert!(
-            ctx.optimisations.iter().all(|o| o.code != DiagCode::O103),
-            "a variadic-args proc must not be argument-sensitively folded, got {:?}",
+            ctx.optimisations
+                .iter()
+                .any(|o| o.code == DiagCode::O103 && o.replacement == "2" && !o.hint_only),
+            "expected applicable O103 folding [::foo 1 2] to 2 (args seeded as a list), got {:?}",
             ctx.optimisations,
         );
     }
@@ -3371,6 +3374,7 @@ mod tests {
         let cu =
             CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations
@@ -3393,6 +3397,7 @@ mod tests {
         let cu =
             CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations
@@ -3475,6 +3480,7 @@ mod tests {
         let cu =
             CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations
@@ -3497,6 +3503,7 @@ mod tests {
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         ctx.command_mutations =
             crate::command_binding::scan_module_command_mutations(&cu.ir_module, &registry);
         run(&mut ctx, &cu);

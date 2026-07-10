@@ -450,18 +450,20 @@ fn untouched_proc_in_same_file_still_folds() {
     assert!(source.contains("puts 42"), "{source:?}");
 }
 
-// Regression: a proc with a trailing variadic `args` parameter must not be
-// argument-sensitively folded — `args` collects a *list* of the remaining
-// call arguments, not a single scalar value.
+// TP: a proc with a trailing variadic `args` parameter is seeded as a
+// canonical Tcl list (not skipped) — `args={2}` for `[::foo 1 2]` is a
+// one-element list, which renders bare as `2`, so `return $args` folds
+// end to end through the full LSP pipeline. Confirmed against tclsh 8.6:
+// `puts [::foo 1 2]` prints `2`.
 #[test]
-fn variadic_args_proc_is_not_argument_sensitively_folded() {
+fn variadic_args_proc_returning_args_directly_folds() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc ::foo {a args} { return $args }\nputs [::foo 1 2]\n";
     lsp.open_ready(&uri, src);
     let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
     let source = result.get("source").and_then(Value::as_str).unwrap_or("");
-    assert!(source.contains("puts [::foo 1 2]"), "{source:?}");
+    assert!(source.contains("puts 2"), "{source:?}");
 }
 
 // Regression: a literal-body `uplevel #0 {...}` reassigns a variable in the
