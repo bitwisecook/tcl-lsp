@@ -226,6 +226,49 @@ pub struct PendingCtorArity {
     pub positional_any_expand: bool,
 }
 
+/// A queued `TclOO` `next` / `nextto` call-site arity candidate.
+///
+/// Unlike [`PendingUserCallArity`] / [`PendingCtorArity`] (queued
+/// unconditionally and resolved by *name*), this is queued only when the
+/// call site is lexically inside a method body — the callee is never
+/// named at the call site at all; it is derived entirely from *where*
+/// the call sits (`Analyser::current_method_context`). Resolved post-walk
+/// ([`super::state::Analyser::flush_next_arity_diagnostics`]) once
+/// `all_classes` is fully populated, via
+/// [`super::class_hierarchy::ClassHierarchy::next_provider`]. A candidate
+/// whose enclosing method has no further provider along the MRO (`next`
+/// past the end of the chain, or a `nextto` target that isn't a locally
+/// known class) is silently dropped — see the same abstention convention
+/// documented on [`PendingCtorArity`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingNextArity {
+    /// Qualified name of the class whose method body the call sits in —
+    /// always the class that *textually declares* this method, since a
+    /// method's `Method` scope is only ever created while walking that
+    /// class's own body.
+    pub class_qualified: String,
+    /// Simple name of the enclosing method (`next`/`nextto` always
+    /// re-invoke the *same* method name, never a different one).
+    pub method_name: String,
+    /// `nextto`'s explicit target class as written at the call site
+    /// (`None` for bare `next`, which starts the MRO search one past
+    /// `class_qualified`).
+    pub target_class: Option<String>,
+    /// Call-site resolution namespace, for resolving `target_class`.
+    pub ns: String,
+    /// Command name as written (`"next"` / `"nextto"`) — the
+    /// diagnostic's display name.
+    pub display_name: String,
+    /// Full diagnostic span (command head through the last argument).
+    pub full_span: Span,
+    /// Lower-bound positional argument count, *excluding* `nextto`'s own
+    /// target-class word.
+    pub nargs_min: usize,
+    /// Whether any positional word is `{*}`-expanded — same convention as
+    /// [`PendingUserCallArity::positional_any_expand`].
+    pub positional_any_expand: bool,
+}
+
 /// Variable definition record.
 ///
 /// Populated by [`Analyser`](super::Analyser) every time it

@@ -269,7 +269,21 @@ bitflags! {
         /// an assignment to it as dead. Single source of truth for the
         /// module-wide traced-variable fact consumed by the propagation
         /// optimiser (`O102` load-forwarding) and dead-store elimination.
-        const ESTABLISHES_VARIABLE_TRACE = 1 << 54;
+        const ESTABLISHES_VARIABLE_TRACE = 1 << 56;
+
+        /// `TclOO` `next` / `nextto` — invokes the next implementation of the
+        /// *currently executing* method along the receiver's MRO. Its
+        /// callee's arity is resolvable only from the enclosing method's
+        /// call-site context (which class/method body the call textually
+        /// sits in), never from a fixed registry range, so both commands
+        /// keep [`crate::Arity::any`] / [`crate::Arity::at_least`] and the
+        /// analyser queues a context-aware candidate for any command
+        /// carrying this trait instead
+        /// (`Analyser::queue_next_arity_candidate`). Set on `next` and
+        /// `nextto`; `nextto`'s explicit target-class first word is
+        /// distinguished structurally via an [`crate::arg_role::ArgRole::Name`]
+        /// at argument index 0, not by command name.
+        const TCLOO_NEXT_CHAIN           = 1 << 55;
     }
 }
 

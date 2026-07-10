@@ -447,6 +447,19 @@ struct DiagSlot {
     latest_inputs: Option<DiagInputs>,
 }
 
+/// The two independent, both-default-off cross-file-adjacent toggles,
+/// grouped out of [`DiagToggles`] to stay under its flat-bool-count lint:
+/// `xcDiagnostics` (the opt-in XC100-301 translatability diagnostics —
+/// only takes effect on `f5-irules` documents) and `crossFileResolution`
+/// (opt-in cross-file W120/W123 suppression + cross-file E002/E003
+/// arity — every dialect). Deliberately independent of each other; see
+/// `Backend::xc_diagnostics_enabled` / `Backend::cross_file_resolution_enabled`.
+#[derive(Clone, Copy)]
+struct XcToggles {
+    xc_diagnostics: bool,
+    cross_file_resolution: bool,
+}
+
 /// The per-run analyser feature toggles for a diagnostics run, grouped so the
 /// owned [`DiagInputs`] doesn't accumulate a flat row of `bool` fields.  Each is
 /// resolved per folder in [`Backend::diag_inputs`].  (The client-capability
@@ -460,9 +473,8 @@ struct DiagToggles {
     diagnostics_enabled: bool,
     /// `tclLsp.optimiser.enabled`: gates the optimiser/perf-hint diagnostics.
     optimiser_enabled: bool,
-    /// Whether the opt-in XC100-301 translatability diagnostics are enabled for
-    /// this document.  Only takes effect on `f5-irules` documents.
-    xc_diagnostics: bool,
+    /// The `xcDiagnostics` / `crossFileResolution` pair — see [`XcToggles`].
+    xc: XcToggles,
 }
 
 /// Owned inputs for a detached diagnostics run — the document-independent
@@ -506,7 +518,7 @@ struct DiagInputs {
     db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
     db_files: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
     /// The salsa `Project` input handle (workspace file set), read by the worker
-    /// for cross-file `project_diagnostics` when `xc_diagnostics` is enabled.
+    /// for cross-file `project_diagnostics` when `crossFileResolution` is enabled.
     db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
     db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
     /// Per-folder salsa `AnalyserConfig` handles (see
@@ -528,8 +540,8 @@ struct DiagInputs {
     /// `revision` guard.
     closed_diag_gen: Arc<Mutex<HashMap<Uri, u64>>>,
     /// Per-run analyser feature toggles (diagnostics master switch, optimiser,
-    /// `xcDiagnostics`), grouped to keep this owned struct's flat `bool` count
-    /// low.
+    /// `xcDiagnostics`, `crossFileResolution`), grouped to keep this owned
+    /// struct's flat `bool` count low.
     toggles: DiagToggles,
     /// Snapshot of [`Backend::client_supports_pull_diagnostics`].  When `true`
     /// the worker keeps the pull cache current and asks the client to re-pull
@@ -610,8 +622,8 @@ impl DiagInputs {
 ///   client to re-pull via `workspace/diagnostic/refresh`; it then issues a
 ///   `textDocument/diagnostic` and reads the cache we just primed. Pushing
 ///   *and* pulling the same set makes such clients show every diagnostic
-///   twice (#721); a refresh also covers cross-file (`xcDiagnostics`) updates
-///   the client would otherwise not know to re-pull.
+///   twice (#721); a refresh also covers cross-file (`crossFileResolution`)
+///   updates the client would otherwise not know to re-pull.
 /// - **Push-only client**: publish as before, the only channel it has.
 ///
 /// The `publish_diagnostics(..).await` here must stay an **inline await**, never
@@ -1031,9 +1043,9 @@ async fn widen_recovery_extra_commands(
 /// — the per-file set with a workspace-proc-resolvable W123 suppressed and a
 /// cross-file `E002`/`E003` arity error synthesised for a bad-arity call to a
 /// workspace proc — when a `Project` is indexed and this document has a salsa
-/// input.  `Continue(None)` means "no cross-file pass" (`xcDiagnostics` off, or
-/// no salsa input): the caller falls back to the per-file `analysis.diagnostics`,
-/// matching the pre-split behaviour.
+/// input.  `Continue(None)` means "no cross-file pass" (`crossFileResolution`
+/// off, or no salsa input): the caller falls back to the per-file
+/// `analysis.diagnostics`, matching the pre-split behaviour.
 ///
 /// Split out of [`compute_base_analysis`] so it can run concurrently with the
 /// base walk and the compiler checks (#844 Gap 2) and so the workspace
@@ -1181,7 +1193,10 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     let DiagToggles {
         diagnostics_enabled,
         optimiser_enabled,
-        xc_diagnostics,
+        xc: XcToggles {
+            xc_diagnostics,
+            cross_file_resolution,
+        },
     } = toggles;
     let DiagJob {
         text,
@@ -1245,7 +1260,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
             package_resolver: &package_resolver,
             entry_points: &entry_points,
             folder_root: folder_root.as_deref(),
-            xc_diagnostics,
+            cross_file_resolution,
         },
     )
     .await
@@ -1263,7 +1278,11 @@ struct AnalyserPathInputs<'a> {
     /// #804 W120 inheritance for this document's folder (see [`DiagInputs`]).
     entry_points: &'a [String],
     folder_root: Option<&'a Path>,
-    xc_diagnostics: bool,
+    /// Whether opt-in cross-file resolution is enabled — see
+    /// `Backend::cross_file_resolution_enabled`. Independent of
+    /// `LiftInputs::xc_diagnostics` (the unrelated f5-irules-specific
+    /// XC100-301 translatability lints).
+    cross_file_resolution: bool,
 }
 
 /// The Tcl analyser path, made **progressive** (#844): the deep pass — base
@@ -1293,7 +1312,7 @@ async fn run_diagnostics_analyser_path(
 
     // The `Project` handle for the cross-file pass (stable across re-sets); `None`
     // ⇒ no cross-file pass (status-quo per-file diagnostics).
-    let project = if inputs.xc_diagnostics {
+    let project = if inputs.cross_file_resolution {
         *inputs.db_project.lock().await
     } else {
         None
@@ -1430,8 +1449,8 @@ async fn run_deep_diagnostics(
             optimisations: Vec::new(),
         }),
     };
-    // `Some` is the cross-file-resolved set (`xcDiagnostics` on, salsa input
-    // present); `None` falls back to the per-file set, matching the pre-split
+    // `Some` is the cross-file-resolved set (`crossFileResolution` on, salsa
+    // input present); `None` falls back to the per-file set, matching the pre-split
     // behaviour — as does a deterministic worker panic (`Break(true)`), which
     // degrades to the per-file set and still publishes rather than stranding the
     // fast tier (see the compiler arm above). `Break(false)` is cancellation.
@@ -1585,8 +1604,8 @@ async fn refine_and_lift_diagnostics(
     let xc_for_irules = inputs.xc_diagnostics && inputs.dialect == "f5-irules";
     let compiler_diags = Arc::clone(compiler_diags);
     tokio::task::spawn_blocking(move || {
-        // `analyser_diags` is the cross-file-filtered set when `xcDiagnostics` is
-        // on (else identical to `analysis_lifts.diagnostics`).
+        // `analyser_diags` is the cross-file-filtered set when `crossFileResolution`
+        // is on (else identical to `analysis_lifts.diagnostics`).
         let mut diagnostics = lift_analyser_diagnostics(&lift_text, &analyser_diags);
         append_brace_expr_perf_hints(&mut diagnostics, optimiser_enabled, &opt_disabled);
         diagnostics.extend(lift_compiler_diagnostics(
@@ -1982,6 +2001,15 @@ impl FeatureToggles {
         // Opt-in XC100-301 translatability diagnostics for
         // `f5-irules` documents (default **off**).
         "xcDiagnostics",
+        // Opt-in cross-file resolution: cross-file W120/W123 suppression
+        // and cross-file E002/E003 arity, for *every* dialect (default
+        // **off** — see `Backend::cross_file_resolution_enabled`).
+        // Deliberately separate from `xcDiagnostics`, which gates only the
+        // f5-irules-specific XC100-301 translatability lints — the two
+        // toggles used to be one, which meant a plain Tcl project had no
+        // way to opt into cross-file analysis without also opting into an
+        // unrelated F5 migration feature.
+        "crossFileResolution",
     ];
 
     /// camelCase feature keys that default **off** (opt-in) rather than
@@ -1990,8 +2018,12 @@ impl FeatureToggles {
     /// reported state matches the inlay handler's default-off gate
     /// (otherwise an exported `config.ini` would claim the hints are on
     /// and re-importing it would enable them).
-    const DEFAULT_OFF: &'static [&'static str] =
-        &["inlayTypeHints", "inlayParameterHints", "xcDiagnostics"];
+    const DEFAULT_OFF: &'static [&'static str] = &[
+        "inlayTypeHints",
+        "inlayParameterHints",
+        "xcDiagnostics",
+        "crossFileResolution",
+    ];
 
     /// The default fallback for `feature` when no editor has set it:
     /// `false` for the opt-in [`Self::DEFAULT_OFF`] keys, `true`
@@ -3306,10 +3338,11 @@ impl Backend {
     /// shared workspace-wide state (config, folder set, or the on-disk
     /// `workspace_index` / `package_resolver` domain) that did **not** originate
     /// from an open document's own edit, so push-diagnostic clients refresh
-    /// results that depend on that state (cross-file `xcDiagnostics`, and the
-    /// always-on W120/W123 workspace refinement) instead of showing stale
+    /// results that depend on that state (cross-file `crossFileResolution`, and
+    /// the always-on W120/W123 workspace refinement) instead of showing stale
     /// diagnostics until the caller is next touched. Unconditional — the W120/W123
-    /// refinement runs for every document regardless of the `xcDiagnostics` toggle.
+    /// refinement runs for every document regardless of the `crossFileResolution`
+    /// toggle.
     async fn reschedule_all_open_documents(&self) {
         let snapshot: Vec<(Uri, String)> = {
             let docs = self.documents.lock().await;
@@ -4821,9 +4854,22 @@ impl Backend {
     /// (`xcDiagnostics`) are enabled for `uri`.  Default **off**, resolved
     /// per folder like [`Self::inlay_family_enabled`].  Surfaced only on
     /// `f5-irules` documents (the only dialect the `f5-xc` translator runs
-    /// on).
+    /// on) — see [`Self::cross_file_resolution_enabled`] for the separate,
+    /// dialect-general cross-file toggle.
     async fn xc_diagnostics_enabled(&self, uri: &Uri) -> bool {
         self.inlay_family_enabled(uri, "xcDiagnostics").await
+    }
+
+    /// Whether opt-in cross-file resolution (cross-file W120/W123
+    /// suppression + cross-file E002/E003 arity) is enabled for `uri`.
+    /// Default **off** (the underlying salsa `project` query walks every
+    /// file in the workspace, so it's opt-in for perf), resolved per
+    /// folder like [`Self::inlay_family_enabled`]. Applies to *every*
+    /// dialect — deliberately independent of [`Self::xc_diagnostics_enabled`],
+    /// which gates only the unrelated, f5-irules-specific XC100-301
+    /// translatability lints.
+    async fn cross_file_resolution_enabled(&self, uri: &Uri) -> bool {
+        self.inlay_family_enabled(uri, "crossFileResolution").await
     }
 
     /// Handle `tcl-lsp.listSubcommands`: subcommand metadata for `command`
@@ -5178,6 +5224,7 @@ impl Backend {
             self.resolved_analysis_settings(uri).await;
         let registry = self.registry_for_dialect(dialect).await;
         let xc_diagnostics = self.xc_diagnostics_enabled(uri).await;
+        let cross_file_resolution = self.cross_file_resolution_enabled(uri).await;
         let extra_commands = self
             .resolved_extra_commands(uri)
             .await
@@ -5211,7 +5258,10 @@ impl Backend {
             toggles: DiagToggles {
                 diagnostics_enabled,
                 optimiser_enabled,
-                xc_diagnostics,
+                xc: XcToggles {
+                    xc_diagnostics,
+                    cross_file_resolution,
+                },
             },
             client_supports_pull: self
                 .client_supports_pull_diagnostics
@@ -5265,14 +5315,14 @@ impl Backend {
     /// the analyser result still comes through the shared [`Self::analysis_for`]
     /// cache.
     /// The project's proc arities for cross-file resolution, or `None` when
-    /// `xcDiagnostics` is off.  Computed inside `spawn_blocking`: on a cold
-    /// cache this tracked query can demand `item_sigs` / `item_tree` for every
-    /// project file, so it must not run on the async event-loop thread.
+    /// `crossFileResolution` is off.  Computed inside `spawn_blocking`: on a
+    /// cold cache this tracked query can demand `item_sigs` / `item_tree` for
+    /// every project file, so it must not run on the async event-loop thread.
     async fn project_arities_if(
         &self,
-        xc_on: bool,
+        cross_file_on: bool,
     ) -> Option<Arc<HashMap<String, Vec<(usize, usize)>>>> {
-        if !xc_on {
+        if !cross_file_on {
             return None;
         }
         let db = self.db.lock().await.clone();
@@ -5351,17 +5401,19 @@ impl Backend {
 
         // Cross-file: the project's proc arities, so the
         // pull path resolves cross-file W123 / emits the cross-file arity error
-        // exactly as the push path does.  Only gathered when `xcDiagnostics` is
-        // enabled.  Computed inside `spawn_blocking`: on a cold cache (or after a
+        // exactly as the push path does.  Only gathered when `crossFileResolution`
+        // is enabled.  Computed inside `spawn_blocking`: on a cold cache (or after a
         // signature change) this tracked query can demand `item_sigs` / `item_tree`
         // for every project file — now the *whole* workspace — so it must not run
         // on the async event-loop thread and stall other LSP traffic.
-        let xc_on = self.xc_diagnostics_enabled(uri).await;
-        let project_arities = self.project_arities_if(xc_on).await;
+        let cross_file_on = self.cross_file_resolution_enabled(uri).await;
+        let project_arities = self.project_arities_if(cross_file_on).await;
         let compiler_diags = self
             .compiler_diagnostics_for(uri, &text, &dialect, &registry)
             .await;
 
+        // XC100-301 translatability lints — independent toggle, f5-irules only.
+        let xc_on = self.xc_diagnostics_enabled(uri).await;
         let xc_for_irules = dialect == "f5-irules" && xc_on;
         // Cross-file resolution — W123 suppression + E002/E003 arity,
         // matching the push path.  Arity keys off `unresolved_command_sites`, which
@@ -6316,7 +6368,7 @@ impl LanguageServer for Backend {
         // push-diagnostic client keeps a stale suppressed-W123 / cross-file
         // arity, or a false W120 the refinement would now resolve, from a
         // now-removed (or newly-added) folder. Unconditional
-        // `reschedule_all_open_documents` (not the narrower `xcDiagnostics`-only
+        // `reschedule_all_open_documents` (not a narrower `crossFileResolution`-only
         // helper): the W120/W123 refinement runs for every document regardless
         // of that opt-in toggle.
         if !removed.is_empty() || !params.event.added.is_empty() {
@@ -6394,8 +6446,8 @@ impl LanguageServer for Backend {
         // suppressed W123, an arity error sourced from the now-changed file, or a
         // false W120 the refinement would now resolve via a `source` ancestor)
         // until the caller is next edited. Reschedule every open document — not
-        // just `xcDiagnostics`-enabled ones, since the W120/W123 refinement is
-        // unconditional — so both the cross-file pass and the refinement re-run
+        // just `crossFileResolution`-enabled ones, since the W120/W123 refinement
+        // is unconditional — so both the cross-file pass and the refinement re-run
         // against the new domain.
         if domain_changed {
             self.reschedule_all_open_documents().await;
@@ -10077,9 +10129,9 @@ fn refine_w123_diagnostics(
 /// any whose command an installed library / available package provides. Shared
 /// by the push path ([`refine_and_lift_diagnostics`]) and the pull path
 /// ([`Backend::full_diagnostics_for`]) so both stay behaviour-identical, and —
-/// like the W120 refinement — always on, independent of the cross-file
-/// `xcDiagnostics` toggle: a library-provided command is ambient, like a
-/// built-in, so suppressing its false "unknown" is pure precision, not a
+/// like the W120 refinement — always on, independent of the
+/// `crossFileResolution` toggle: a library-provided command is ambient, like
+/// a built-in, so suppressing its false "unknown" is pure precision, not a
 /// cross-file inference the user opts into.
 ///
 /// The common case (no W123) skips the resolver lock and all filesystem work.
@@ -12980,9 +13032,11 @@ mod tests {
 
     /// Server wiring: a command unresolved in file A but
     /// defined as a `proc` in file B (tracked in the salsa `Project`) must have
-    /// its W123 suppressed once `xcDiagnostics` is enabled — and remain present
-    /// when it is off.  Exercises the live `db_set_source` → `Project`-sync →
-    /// `project_proc_tails` path end to end.
+    /// its W123 suppressed once `crossFileResolution` is enabled — and remain
+    /// present when it is off.  Exercises the live `db_set_source` →
+    /// `Project`-sync → `project_proc_tails` path end to end.  Deliberately a
+    /// plain `tcl8.6` document, not `f5-irules` — this is the general-purpose
+    /// pass, independent of the f5-irules-only `xcDiagnostics` toggle.
     #[tokio::test]
     async fn cross_file_w123_suppressed_when_workspace_defines_proc() {
         let backend = test_backend();
@@ -13003,19 +13057,19 @@ mod tests {
         );
         let a_src = "helper foo bar\n";
 
-        // xcDiagnostics OFF: `helper` is unresolved in A → W123 present.
+        // crossFileResolution OFF: `helper` is unresolved in A → W123 present.
         let off = backend
             .full_diagnostics_for(&a, a_src.to_owned(), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
             diag_codes(&off).iter().any(|c| c == "W123"),
-            "W123 must be present when xcDiagnostics is off, got: {:?}",
+            "W123 must be present when crossFileResolution is off, got: {:?}",
             diag_codes(&off),
         );
 
-        // xcDiagnostics ON: `helper` resolves cross-file (B defines it) → no W123.
+        // crossFileResolution ON: `helper` resolves cross-file (B defines it) → no W123.
         backend.feature_toggles.lock().await.apply(
-            serde_json::json!({ "xcDiagnostics": true })
+            serde_json::json!({ "crossFileResolution": true })
                 .as_object()
                 .unwrap(),
         );
@@ -13181,9 +13235,9 @@ mod tests {
 
     /// Issue #832 (the reported bug): a command defined in a library on the
     /// `auto_path` — a `tclIndex` auto-loads it by bare name, the BLT/Rbc idiom —
-    /// must NOT be flagged "Unknown command" (W123), *with `xcDiagnostics` left
-    /// off* (its default), because the package database resolves it exactly as
-    /// go-to-definition does.
+    /// must NOT be flagged "Unknown command" (W123), *with `xcDiagnostics` and
+    /// `crossFileResolution` both left off* (their default), because the
+    /// package database resolves it exactly as go-to-definition does.
     ///
     /// * TN (must-stay-silent): the caller uses `Rbc_ActiveLegend`, which the
     ///   scanned `tclIndex` declares → no W123.
@@ -13214,7 +13268,8 @@ mod tests {
         let uri = Uri::from_str("file:///app.tcl").unwrap();
 
         // TN: the real library commands — no `package require` in the caller —
-        // must not be flagged, with xcDiagnostics at its default (off).
+        // must not be flagged, with xcDiagnostics/crossFileResolution at their
+        // default (off).
         let ok_src = "Rbc_ActiveLegend .g\nRbc_ZoomStack .g\n";
         let diags = backend
             .full_diagnostics_for(&uri, ok_src.to_owned(), "tcl8.6".to_owned(), "tcl")
@@ -14749,11 +14804,11 @@ mod tests {
     async fn watched_file_delete_reschedules_open_xc_documents() {
         let backend = test_backend();
         backend.feature_toggles.lock().await.apply(
-            serde_json::json!({ "xcDiagnostics": true })
+            serde_json::json!({ "crossFileResolution": true })
                 .as_object()
                 .unwrap(),
         );
-        // An open caller with xcDiagnostics enabled.
+        // An open caller with crossFileResolution enabled.
         let caller = Uri::from_str("file:///caller.tcl").unwrap();
         backend.documents.lock().await.insert(
             caller.clone(),
@@ -14774,21 +14829,22 @@ mod tests {
         // The open caller was rescheduled — a diagnostics slot now exists for it.
         assert!(
             backend.diag_slots.lock().await.contains_key(&caller),
-            "an open xcDiagnostics document must be rescheduled after a watched-file delete",
+            "an open crossFileResolution document must be rescheduled after a watched-file delete",
         );
     }
 
     /// Issue #829 regression: the always-on W120/W123 workspace refinement
     /// (`refine_workspace_w120`/`refine_workspace_w123`) is not gated by
-    /// `xcDiagnostics`, so a watched-file domain change must reschedule
-    /// *every* open document — not just `xcDiagnostics`-enabled ones. Before
-    /// the fix, `did_change_watched_files` rescheduled only the narrower
-    /// `xcDiagnostics` subset, leaving a plain document's stale W120 (e.g.
-    /// from a `source` ancestor that only just appeared on disk) unrefreshed.
+    /// `crossFileResolution`, so a watched-file domain change must reschedule
+    /// *every* open document — not just `crossFileResolution`-enabled ones.
+    /// Before the fix, `did_change_watched_files` rescheduled only the
+    /// narrower cross-file subset, leaving a plain document's stale W120
+    /// (e.g. from a `source` ancestor that only just appeared on disk)
+    /// unrefreshed.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn watched_file_delete_reschedules_non_xc_document_too() {
         let backend = test_backend();
-        // No `xcDiagnostics` toggle — a plain document.
+        // No `crossFileResolution` toggle — a plain document.
         let caller = Uri::from_str("file:///plain-caller.tcl").unwrap();
         backend.documents.lock().await.insert(
             caller.clone(),
@@ -14807,7 +14863,7 @@ mod tests {
 
         assert!(
             backend.diag_slots.lock().await.contains_key(&caller),
-            "a plain (non-xcDiagnostics) open document must also be rescheduled \
+            "a plain (non-crossFileResolution) open document must also be rescheduled \
              after a watched-file delete, since the W120/W123 workspace \
              refinement is unconditional",
         );
@@ -14816,7 +14872,7 @@ mod tests {
     /// Issue #829 regression, folder-add variant of the test above: adding a
     /// workspace folder scans it into `workspace_index` / `package_resolver`
     /// (the always-on W120/W123 refinement's inputs), so every open document
-    /// must be rescheduled — not just `xcDiagnostics`-enabled ones.
+    /// must be rescheduled — not just `crossFileResolution`-enabled ones.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn workspace_folder_add_reschedules_non_xc_document_too() {
         let backend = test_backend();
@@ -14841,7 +14897,7 @@ mod tests {
 
         assert!(
             backend.diag_slots.lock().await.contains_key(&caller),
-            "a plain (non-xcDiagnostics) open document must also be rescheduled \
+            "a plain (non-crossFileResolution) open document must also be rescheduled \
              after a workspace-folder add",
         );
     }
@@ -14945,7 +15001,7 @@ mod tests {
     async fn folder_removal_reschedules_open_xc_documents() {
         let backend = test_backend();
         backend.feature_toggles.lock().await.apply(
-            serde_json::json!({ "xcDiagnostics": true })
+            serde_json::json!({ "crossFileResolution": true })
                 .as_object()
                 .unwrap(),
         );
@@ -14970,7 +15026,7 @@ mod tests {
 
         assert!(
             backend.diag_slots.lock().await.contains_key(&caller),
-            "an open xcDiagnostics document must be rescheduled after a folder removal",
+            "an open crossFileResolution document must be rescheduled after a folder removal",
         );
     }
 
@@ -15641,7 +15697,7 @@ mod tests {
             "a disk-backed file must seed the salsa Project"
         );
         backend.feature_toggles.lock().await.apply(
-            serde_json::json!({ "xcDiagnostics": true })
+            serde_json::json!({ "crossFileResolution": true })
                 .as_object()
                 .unwrap(),
         );
@@ -15690,7 +15746,7 @@ mod tests {
         let b = Uri::from_file_path(&on_disk).unwrap();
         let a = Uri::from_str("file:///caller.tcl").unwrap();
         backend.feature_toggles.lock().await.apply(
-            serde_json::json!({ "xcDiagnostics": true })
+            serde_json::json!({ "crossFileResolution": true })
                 .as_object()
                 .unwrap(),
         );
@@ -15741,7 +15797,7 @@ mod tests {
         let backend = test_backend();
         *backend.disabled_diagnostics.lock().await = ["W123".to_owned()].into_iter().collect();
         backend.feature_toggles.lock().await.apply(
-            serde_json::json!({ "xcDiagnostics": true })
+            serde_json::json!({ "crossFileResolution": true })
                 .as_object()
                 .unwrap(),
         );

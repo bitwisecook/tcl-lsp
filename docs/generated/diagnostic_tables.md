@@ -6,6 +6,7 @@
 | E002 | error | Too few arguments for command. | ✓ |
 | E003 | error | Too many arguments for command. | ✓ |
 | E004 | error | Malformed `if` command — missing clauses or extra words after `else`. | ✓ |
+| E005 | error | Wrong argument-count shape for command — an in-range count that doesn't fit the command's key/value-pair or paired-argument pattern (e.g. an odd `dict create` tail, an unpaired `foreach` list, or a `switch` count matching neither its shorthand nor its pattern/body-pair form). | ✓ |
 | E100 | error | Unmatched `]` — missing opening `[`? | ✓ |
 | E101 | error | Missing `{` after `switch` — case bodies follow without braces. | ✓ |
 | E102 | error | Unmatched `}` — missing opening `{`? | ✓ |

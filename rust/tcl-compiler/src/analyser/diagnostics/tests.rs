@@ -1266,6 +1266,181 @@ fn e003_top_level_call_before_rename_onto_builtin_still_fires() {
     assert_eq!(e003[0].span.start(), 0, "wrong call flagged");
 }
 
+// E005 — argument-count *shape* (parity/predicate) mismatches on the
+// registry's key/value-pair and paired-argument commands (`dict create`,
+// `dict replace`, `dict update`, `foreach`, `switch`). All confirmed
+// against tclsh 8.6.14's "wrong # args" behaviour.
+
+fn arity_shape_codes(src: &str) -> Vec<String> {
+    let mut a = Analyser::new();
+    a.analyse(src, "tcl8.6")
+        .diagnostics
+        .iter()
+        .filter(|d| matches!(d.code, DiagCode::E002 | DiagCode::E003 | DiagCode::E005))
+        .map(|d| d.code.to_string())
+        .collect()
+}
+
+#[test]
+fn dict_create_odd_key_value_tail_fires_e005() {
+    // `dict create ?key value ...?` — an odd tail has an unpaired key with
+    // no value (tclsh 8.6.14: `dict create a` fails "wrong # args").
+    assert_eq!(
+        arity_shape_codes("dict create a\n"),
+        vec!["E005".to_owned()]
+    );
+    assert_eq!(
+        arity_shape_codes("dict create a b c\n"),
+        vec!["E005".to_owned()]
+    );
+}
+
+#[test]
+fn dict_create_even_key_value_tail_is_silent() {
+    // TN: a paired (or empty) tail is the documented shape.
+    assert_eq!(arity_shape_codes("dict create\n"), Vec::<String>::new());
+    assert_eq!(arity_shape_codes("dict create a b\n"), Vec::<String>::new());
+    assert_eq!(
+        arity_shape_codes("dict create a b c d\n"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn dict_replace_even_tail_fires_e005() {
+    // `dict replace dictionaryValue ?key value ...?` — the dict value
+    // itself makes the *total* count odd; an even count leaves a
+    // trailing key with no value (tclsh 8.6.14: `dict replace $d a` fails
+    // "wrong # args").
+    assert_eq!(
+        arity_shape_codes("dict replace $d a\n"),
+        vec!["E005".to_owned()]
+    );
+}
+
+#[test]
+fn dict_replace_odd_tail_is_silent() {
+    assert_eq!(arity_shape_codes("dict replace $d\n"), Vec::<String>::new());
+    assert_eq!(
+        arity_shape_codes("dict replace $d a b\n"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn dict_update_odd_total_fires_e005() {
+    // `dict update dictVar key varName ?key varName ...? body` — total
+    // count is always even (dict var + N pairs + body); an odd total
+    // means an unpaired key or a missing body (tclsh 8.6.14: `dict update
+    // d k v extra body` — 5 words — fails "wrong # args").
+    assert_eq!(
+        arity_shape_codes("dict update d k v extra body\n"),
+        vec!["E005".to_owned()]
+    );
+}
+
+#[test]
+fn dict_update_even_total_is_silent() {
+    assert_eq!(
+        arity_shape_codes("dict update d k v body\n"),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        arity_shape_codes("dict update d k1 v1 k2 v2 body\n"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn foreach_unpaired_varlist_fires_e005() {
+    // `foreach varList list ?varList list ...? body` — total count is
+    // always odd (N varList/list pairs + body); an even total leaves an
+    // unpaired trailing var-list with no source list (tclsh 8.6.14:
+    // `foreach x $l y {puts $x}` — 4 words — fails "wrong # args").
+    assert_eq!(
+        arity_shape_codes("foreach x $l y {puts $x}\n"),
+        vec!["E005".to_owned()]
+    );
+}
+
+#[test]
+fn foreach_paired_varlists_are_silent() {
+    assert_eq!(
+        arity_shape_codes("foreach x $l {puts $x}\n"),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        arity_shape_codes("foreach x $l1 y $l2 {puts \"$x $y\"}\n"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn foreach_expanded_tail_never_false_fires_e005() {
+    // FP guard: `{*}`-expanded args make the true final count unknowable
+    // — the parity check must abstain exactly like E002 does.
+    assert_eq!(
+        arity_shape_codes("foreach x $l {*}$rest\n"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn switch_unpaired_pattern_fires_e005() {
+    // `switch ?options? string pattern body ?pattern body ...?` — a flat
+    // (non-braced) form's total count (subject + patterns/bodies) is
+    // always odd; an even count (here 4: subject + 3 more words) leaves
+    // an unpaired trailing pattern with no body (tclsh 8.6.14: `switch $s
+    // a b c` fails "wrong # args").
+    assert_eq!(
+        arity_shape_codes("switch $s a b c\n"),
+        vec!["E005".to_owned()]
+    );
+}
+
+#[test]
+fn switch_flat_pairs_are_silent() {
+    assert_eq!(
+        arity_shape_codes("switch $s a b c d\n"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn switch_single_braced_body_shorthand_is_silent() {
+    // The `also_exact` union member: a single braced blob after the
+    // subject (exactly 2 total args) is the documented shorthand for any
+    // number of pattern/body pairs — never flagged, however many pairs
+    // the braced blob's *content* logically holds.
+    assert_eq!(
+        arity_shape_codes("switch $s {a b c d e f}\n"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn switch_option_skip_does_not_shift_the_parity_check() {
+    // Leading declared options (skipped before the parity check applies)
+    // must not throw off the count `nargs_min` measures against.
+    assert_eq!(
+        arity_shape_codes("switch -exact -- $s a b c\n"),
+        vec!["E005".to_owned()]
+    );
+    assert_eq!(
+        arity_shape_codes("switch -exact -- $s a b c d\n"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn e005_does_not_double_fire_with_e002_or_e003() {
+    // A genuinely too-few / too-many count is E002/E003's job, not
+    // E005's — the shape check only applies once the count is already
+    // within `[min, max]`.
+    assert_eq!(arity_shape_codes("switch $s\n"), vec!["E002".to_owned()]);
+    assert_eq!(arity_shape_codes("foreach x\n"), vec!["E002".to_owned()]);
+}
+
 // Same-file proc / TclOO forward / `interp alias` / `rename` arity
 // (generalises E002/E003 beyond the builtin registry).
 
@@ -1519,6 +1694,89 @@ fn same_file_static_rename_inherits_original_arity() {
         ),
         Vec::<String>::new()
     );
+}
+
+#[test]
+fn same_file_rename_reestablished_after_deletion_checks_new_arity() {
+    // `rename target {}` deletes `target` outright, but a fresh `proc
+    // target` afterwards re-establishes the name with its own (here,
+    // different) arity — confirmed against tclsh 9.0.4: `proc target {a
+    // b} {}; rename target {}; proc target {a b c d} {}; target 1 2 3 4`
+    // succeeds, and `target 1 2` fails "wrong # args" against the *new*
+    // 4-arg signature, not the deleted 2-arg one. Before the timestamp
+    // compare (`fact_superseded_by_deletion`), the single stored
+    // `deleted_commands["::target"]` offset made every later call look
+    // permanently dead, silently dropping this diagnostic (FN).
+    let src = "proc target {a b} {}\nrename target {}\nproc target {a b c d} {}\ntarget 1 2\n";
+    assert_eq!(
+        arity_codes(src, "tcl8.6"),
+        vec!["E002".to_owned()],
+        "target was re-established with 4 params after its deletion"
+    );
+    assert_eq!(
+        arity_codes(
+            "proc target {a b} {}\nrename target {}\nproc target {a b c d} {}\ntarget 1 2 3 4\n",
+            "tcl8.6"
+        ),
+        Vec::<String>::new(),
+        "4 args satisfy the re-established signature"
+    );
+    // Still correctly dead when there is no re-establishment at all.
+    assert_eq!(
+        arity_codes(
+            "proc target {a b} {}\nrename target {}\ntarget 1 2\n",
+            "tcl8.6"
+        ),
+        Vec::<String>::new(),
+        "no re-establishment — target stays permanently deleted (TN)"
+    );
+}
+
+#[test]
+fn same_file_rename_target_reestablished_after_further_rename_checks_new_arity() {
+    // `rename target target_orig` moves `target`'s identity onward (like
+    // `same_file_static_rename_inherits_original_arity`), but a *fresh*
+    // `proc target` written afterwards re-establishes `target` itself as
+    // a brand-new, independent command — it must be checked against its
+    // own arity, not treated as still shadowed by the earlier rename.
+    let src = "proc target {a b} {}\nrename target target_orig\nproc target {x} {}\ntarget 1 2\n";
+    assert_eq!(
+        arity_codes(src, "tcl8.6"),
+        vec!["E003".to_owned()],
+        "the re-established target only takes 1 argument"
+    );
+    assert_eq!(
+        arity_codes(
+            "proc target {a b} {}\nrename target target_orig\nproc target {x} {}\ntarget 1\n",
+            "tcl8.6"
+        ),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn same_file_alias_reestablished_after_deletion_checks_new_target_arity() {
+    // `interp alias {} short {} target` then `interp alias {} short {}
+    // {}` deletes the alias outright (tclsh 9.0.4: `short` then fails
+    // "invalid command name"); a fresh `interp alias {} short {}
+    // target2` afterwards re-establishes `short` against a
+    // differently-aritied target — must be checked against `target2`,
+    // not silently dropped as still-deleted.
+    let src = "\
+proc target {a b} {}
+proc target2 {a b c} {}
+interp alias {} short {} target
+interp alias {} short {} {}
+interp alias {} short {} target2
+short 1 2
+";
+    assert_eq!(
+        arity_codes(src, "tcl8.6"),
+        vec!["E002".to_owned()],
+        "short now aliases target2, which needs 3 arguments"
+    );
+    let ok = src.replace("short 1 2\n", "short 1 2 3\n");
+    assert_eq!(arity_codes(&ok, "tcl8.6"), Vec::<String>::new());
 }
 
 #[test]
@@ -4761,6 +5019,130 @@ oo::class create Widget { constructor {a b} { } }
     assert_eq!(e00x_codes_for(src), Vec::<String>::new());
 }
 
+// -- TclOO `next` / `nextto` call-site arity
+
+#[test]
+fn tcloo_next_arity_checked_against_superclass_override() {
+    // `next` inside `Derived::speak` invokes `Base::speak` — a 2-param
+    // method, so `next` itself needs exactly 2 arguments — confirmed
+    // against tclsh 9.0.4.
+    let src = |call: &str| {
+        format!(
+            "oo::class create Base {{ method speak {{a b}} {{ return \"$a$b\" }} }}\n\
+             oo::class create Derived {{\n\
+               superclass Base\n\
+               method speak {{a b}} {{ {call} }}\n\
+             }}\n\
+             [Derived new] speak x y\n"
+        )
+    };
+    assert_eq!(e00x_codes_for(&src("next 1")), vec!["E002".to_owned()]);
+    assert_eq!(e00x_codes_for(&src("next 1 2")), Vec::<String>::new());
+    assert_eq!(e00x_codes_for(&src("next 1 2 3")), vec!["E003".to_owned()]);
+}
+
+#[test]
+fn tcloo_nextto_arity_checked_against_named_target() {
+    // `nextto Root` jumps straight to `Root::speak` (1 param) rather than
+    // walking the MRO from `Derived`, skipping `Mid` — confirmed against
+    // tclsh 9.0.4.
+    let src = |call: &str| {
+        format!(
+            "oo::class create Root {{ method speak {{a}} {{ return $a }} }}\n\
+             oo::class create Mid {{ superclass Root\n method speak {{a b}} {{ return \"$a$b\" }} }}\n\
+             oo::class create Derived {{\n\
+               superclass Mid\n\
+               method speak {{a b}} {{ {call} }}\n\
+             }}\n\
+             [Derived new] speak x y\n"
+        )
+    };
+    assert_eq!(
+        e00x_codes_for(&src("nextto Root 1 2")),
+        vec!["E003".to_owned()]
+    );
+    assert_eq!(e00x_codes_for(&src("nextto Root 1")), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_next_arity_silent_when_no_further_provider() {
+    // `Base` declares no superclass override of `speak` — `next` here
+    // has no provider to resolve arity against (a real `next` in this
+    // position is itself a runtime error, "no next" — not an arity
+    // mismatch this check models). Must not invent E002/E003 either way.
+    let src =
+        "oo::class create Base { method speak {a b} { next 1 2 3 4 5 } }\n[Base new] speak x y\n";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_next_arity_silent_outside_method_body() {
+    // A bareword `next` at top level (or inside an ordinary proc) is not
+    // inside any method's calling frame — confirmed against tclsh 9.0.4:
+    // it fails "next may only be called from inside a method", not an
+    // arity mismatch. `current_method_context` returns `None`, so the
+    // candidate is dropped, not checked against some unrelated method.
+    let src = "\
+oo::class create Base { method speak {a b} { return \"$a$b\" } }
+proc helper {} { next 1 2 3 4 5 }
+helper
+";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_nextto_arity_silent_for_unresolvable_target_class() {
+    // `nextto` naming a class the analyser doesn't locally know (an
+    // external / cross-file / dynamically-loaded class) must abstain
+    // rather than guess.
+    let src = "\
+oo::class create Base { method speak {a b} { next 1 2 } }
+oo::class create Derived {
+    superclass Base
+    method speak {a b} { nextto SomeExternalClass 1 2 3 }
+}
+[Derived new] speak x y
+";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_next_arity_expansion_never_false_fires_too_few() {
+    // `{*}`-expanded args make the true count a lower bound only — must
+    // never false-fire E002, matching every other arity check's
+    // `{*}`-expansion convention.
+    let src = "\
+oo::class create Base { method speak {a b} { return \"$a$b\" } }
+oo::class create Derived {
+    superclass Base
+    method speak {a b} { set rest {1}; next {*}$rest }
+}
+[Derived new] speak x y
+";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_next_arity_trait_bit_does_not_collide_with_structurally_checked_arity() {
+    // Regression: `Traits::TCLOO_NEXT_CHAIN` once reused the same bit as
+    // `Traits::STRUCTURALLY_CHECKED_ARITY`, so every command carrying the
+    // latter (e.g. `if`) was also seen as carrying the former. An ordinary
+    // `if` inside a TclOO method body would then get queued as a bogus
+    // next/nextto arity candidate and checked against the superclass
+    // override's arity — here `Base::speak` takes 5 params, so a
+    // 2-argument `if $a {puts hi}` would misfire E002 ("too few
+    // arguments") if the collision were still present.
+    let src = "\
+oo::class create Base { method speak {a b c d e} { return $a } }
+oo::class create Derived {
+    superclass Base
+    method speak {a b c d e} { if {$a} { puts hi } }
+}
+[Derived new] speak 1 2 3 4 5
+";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
 // -- `apply {{params} body}` direct-call arity
 
 #[test]
@@ -5919,6 +6301,7 @@ fn analyse_w123_package_require_gate_suppresses_when_recorded() {
             resolved_qualified_name: None,
             argc: Some(0),
             callback_arity: None,
+            callback_baked_args: 0,
         });
     let registry = tcl_registry::CommandRegistry::build_default();
     a.emit_unresolved_command_diagnostics(&registry);

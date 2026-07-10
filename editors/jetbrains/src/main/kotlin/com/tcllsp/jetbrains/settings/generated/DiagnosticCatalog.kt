@@ -38,6 +38,7 @@ object DiagnosticCatalog {
         DiagnosticDef("E001", "error", "E001: Missing dispatch word", true),
         DiagnosticDef("E002", "error", "E002: Too few arguments for command", true),
         DiagnosticDef("E003", "error", "E003: Too many arguments for command", true),
+        DiagnosticDef("E005", "error", "E005: Wrong argument-count shape for command", true),
         DiagnosticDef("E200", "error", "E200: Unterminated command", true),
         DiagnosticDef("W001", "warning", "W001: Unknown subcommand", true),
         DiagnosticDef("W002", "warning", "W002: Command is disabled in active dialect profile", true),

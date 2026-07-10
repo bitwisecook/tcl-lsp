@@ -102,6 +102,7 @@ class TclLspSettingsPanel {
     private val diagE001 = JBCheckBox("E001: Missing dispatch word")
     private val diagE002 = JBCheckBox("E002: Too few arguments for command")
     private val diagE003 = JBCheckBox("E003: Too many arguments for command")
+    private val diagE005 = JBCheckBox("E005: Wrong argument-count shape for command")
     private val diagE200 = JBCheckBox("E200: Unterminated command")
 
     // Diagnostics — Style & Best Practice
@@ -359,7 +360,7 @@ class TclLspSettingsPanel {
         builder.addComponent(TitledSeparator("Diagnostics — Errors"))
         val diagErrorPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
-            diagE001, diagE002, diagE003, diagE200,
+            diagE001, diagE002, diagE003, diagE005, diagE200,
         ).forEach { diagErrorPanel.add(it) }
         builder.addComponent(diagErrorPanel)
 
@@ -552,6 +553,7 @@ class TclLspSettingsPanel {
             diagE001.isSelected != s.diagnosticE001 ||
             diagE002.isSelected != s.diagnosticE002 ||
             diagE003.isSelected != s.diagnosticE003 ||
+            diagE005.isSelected != s.diagnosticE005 ||
             diagE200.isSelected != s.diagnosticE200 ||
             diagW001.isSelected != s.diagnosticW001 ||
             diagW002.isSelected != s.diagnosticW002 ||
@@ -783,6 +785,7 @@ class TclLspSettingsPanel {
         s.diagnosticE001 = diagE001.isSelected
         s.diagnosticE002 = diagE002.isSelected
         s.diagnosticE003 = diagE003.isSelected
+        s.diagnosticE005 = diagE005.isSelected
         s.diagnosticE200 = diagE200.isSelected
         s.diagnosticW001 = diagW001.isSelected
         s.diagnosticW002 = diagW002.isSelected
@@ -1031,6 +1034,7 @@ class TclLspSettingsPanel {
         diagE001.isSelected = s.diagnosticE001
         diagE002.isSelected = s.diagnosticE002
         diagE003.isSelected = s.diagnosticE003
+        diagE005.isSelected = s.diagnosticE005
         diagE200.isSelected = s.diagnosticE200
         diagW001.isSelected = s.diagnosticW001
         diagW002.isSelected = s.diagnosticW002

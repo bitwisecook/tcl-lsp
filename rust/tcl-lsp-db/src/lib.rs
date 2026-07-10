@@ -540,8 +540,9 @@ fn apply_callback_arity<S: std::hash::BuildHasher>(
         if candidates.is_empty() {
             continue;
         }
-        // Baked args already present in the prefix (0 for a bareword head).
-        let baked = inv.argc.unwrap_or(0);
+        // Baked args already present in the prefix (0 for a bareword head,
+        // N for a braced multi-word prefix like `-command {cb a b}`).
+        let baked = inv.callback_baked_args;
         let lo = baked + appended.min() as usize;
         let hi = appended.max().map(|m| baked + m as usize);
         if let Some(diag) = cross_file_arity_diagnostic(&inv.name, inv.range, (lo, hi), candidates)
@@ -4304,6 +4305,59 @@ mod tests {
         assert!(
             !d.iter().any(|(c, _)| c == "E002" || c == "E003"),
             "an `args`-catchall callback must draw no arity error; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_braced_prefix_bakes_extra_args_too_few() {
+        // `-command {cb 99}` bakes 1 extra arg ahead of `lsort`'s own
+        // appended 2, for 3 total; `cb` needs 4 → E002.  Before this fix,
+        // a braced multi-word prefix was silently dropped entirely (never
+        // even recorded as an invocation), so this drew nothing at all.
+        let d = callback_arity_codes(
+            "proc cb {a b c d} { return 0 }\nlsort -command {cb 99} {3 1 2}\n",
+        );
+        assert!(
+            d.iter().any(|(c, m)| c == "E002" && m.contains("cb")),
+            "a braced prefix's baked arg must count toward the total; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_braced_prefix_bakes_extra_args_exact_match_is_silent() {
+        // Same shape, but `cb` needs exactly 3 (1 baked + 2 appended) — TN.
+        let d =
+            callback_arity_codes("proc cb {a b c} { return 0 }\nlsort -command {cb 99} {3 1 2}\n");
+        assert!(
+            !d.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "1 baked + 2 appended matching cb's 3 params must be silent; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_braced_prefix_bakes_extra_args_too_many() {
+        // `-command {cb 99 88}` bakes 2 + appended 2 = 4, but `cb` takes
+        // only 3 → E003.
+        let d = callback_arity_codes(
+            "proc cb {a b c} { return 0 }\nlsort -command {cb 99 88} {3 1 2}\n",
+        );
+        assert!(
+            d.iter().any(|(c, m)| c == "E003" && m.contains("cb")),
+            "2 baked + 2 appended against a 3-param cb must draw E003; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_braced_prefix_dynamic_head_is_never_checked() {
+        // FP guard: `{$cb 99}` — a dynamic head inside the braces — can't be
+        // resolved to a proc; must never be flagged (and must not panic on
+        // the list-parse).
+        let d = callback_arity_codes(
+            "proc cb {a b c d} { return 0 }\nset cb cb\nlsort -command {$cb 99} {3 1 2}\n",
+        );
+        assert!(
+            !d.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a dynamic braced-prefix head must never be arity-checked; got {d:?}"
         );
     }
 

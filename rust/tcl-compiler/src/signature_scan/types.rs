@@ -215,15 +215,22 @@ pub struct SignatureCommandInvocation {
     /// to a workspace-defined proc whose `argc` fits none of that proc's
     /// arities is a wrong-argument-count error.  `{*}`-expanded args make the true
     /// count unknown, recorded as `None` so arity checking conservatively skips.
+    /// Always `None` for a **command-prefix callback head** ([`Self::callback_arity`]
+    /// `.is_some()`) — a callback isn't literally invoked with N arguments *at
+    /// this span*, so it must stay invisible to this legacy direct-call check;
+    /// [`Self::callback_baked_args`] is the field the callback-arity check reads.
     pub argc: Option<usize>,
     /// `Some(arity)` when this invocation is a **command-prefix callback head**
     /// (`lsort -command myCompare` records `myCompare` with the appended
-    /// arity), `None` for an ordinary direct call.  For a callback head `argc`
-    /// is the count of *baked* prefix args (0 for a bare word); the callback
-    /// arity check validates `baked + appended` against the referenced proc,
-    /// and the legacy direct-call arity path skips it (`argc` unset ⇒ no false
-    /// "wrong # args").
+    /// arity), `None` for an ordinary direct call.
     pub callback_arity: Option<tcl_registry::AppendedArity>,
+    /// For a callback head ([`Self::callback_arity`] `.is_some()`), the count
+    /// of *baked* prefix args already present in the prefix literal — `0` for
+    /// a bare word (`-command cb`), `N` for a braced multi-word prefix
+    /// (`-command {cb a b}` bakes 2). Meaningless (and unread) when
+    /// `callback_arity` is `None`. The callback arity check validates
+    /// `baked + appended` against the referenced proc.
+    pub callback_baked_args: usize,
 }
 
 /// The full result returned by `extract_signatures`.

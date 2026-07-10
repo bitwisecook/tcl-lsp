@@ -295,6 +295,7 @@ impl Analyser {
                     resolved_qualified_name: Some(resolved),
                     argc: arg_count,
                     callback_arity: None,
+                    callback_baked_args: 0,
                 },
             );
 
@@ -317,6 +318,7 @@ impl Analyser {
                         // cross-file-checked here; skip conservatively.
                         argc: None,
                         callback_arity: None,
+                        callback_baked_args: 0,
                     },
                 );
             }
@@ -1026,11 +1028,13 @@ impl Analyser {
                     name: inv.head,
                     range: inv.span,
                     resolved_qualified_name: Some(resolved),
-                    // Bareword head → 0 baked args; the legacy direct-call
-                    // arity path skips (`None`), the callback-arity check reads
-                    // `callback_arity`.
+                    // The legacy direct-call arity path always skips a
+                    // callback head (`None`); the callback-arity check reads
+                    // `callback_baked_args` (0 for a bareword head, N for a
+                    // braced multi-word prefix) + `callback_arity`.
                     argc: None,
                     callback_arity: Some(inv.appended),
+                    callback_baked_args: inv.baked,
                 },
             );
         }
@@ -1425,6 +1429,7 @@ impl Analyser {
                     resolved_qualified_name: Some(resolved),
                     argc,
                     callback_arity,
+                    callback_baked_args: 0,
                 },
             );
         }
@@ -1469,6 +1474,7 @@ impl Analyser {
                     // Nested `[cmd ...]` head, no recorded argument list — arity skip.
                     argc: None,
                     callback_arity: None,
+                    callback_baked_args: 0,
                 },
             );
         }

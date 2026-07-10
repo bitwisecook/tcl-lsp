@@ -32,6 +32,7 @@ for historical reference.
 - [E002 — too few arguments](kcs-diagnostic-e002-too-few-arguments.md)
 - [E003 — too many arguments](kcs-diagnostic-e003-too-many-arguments.md)
 - [E004 — invalid argument count](kcs-diagnostic-e004-invalid-argument-count.md)
+- [E005 — wrong argument-count shape](kcs-diagnostic-e005-wrong-argument-count-shape.md)
 - [E100 — unmatched close bracket](kcs-diagnostic-e100-unmatched-close-bracket.md)
 - [E101 — missing open brace](kcs-diagnostic-e101-missing-open-brace.md)
 - [E102 — unmatched close brace](kcs-diagnostic-e102-unmatched-close-brace.md)

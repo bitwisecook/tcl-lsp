@@ -55,7 +55,11 @@ pub fn spec() -> CommandSpec {
             | Traits::NEVER_INLINE_BODY
             | Traits::LOOP_LIST_HEADER
             | Traits::WASM_EMITS_NOTHING,
-        arity: Arity::at_least(3),
+        // `varList list ?varList list ...? body` — an odd count from 3
+        // (n varList/list pairs, n >= 1, + 1 body — confirmed against
+        // tclsh 8.6.14: `foreach a $l1 b $l2 body extra` (6 args) fails
+        // "wrong # args").
+        arity: Arity::stepped(3, Arity::UNLIMITED, 2),
         arg_role_resolver: Some(foreach_arg_roles),
         // Index 0 here is a fixed key, not a real source-position argument
         // index: the CFG builder lowers a `foreach` header to a synthetic
