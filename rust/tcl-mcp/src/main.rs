@@ -100,8 +100,50 @@ impl ServerHandler for TclMcp {
     }
 }
 
+/// `--help` / `--version`, handled before the stdio transport takes over.
+///
+/// Without this the binary reads `initialize` from stdin the moment it starts,
+/// so `tcl-mcp --help` answered `ConnectionClosed("initialize request")` on a
+/// closed pipe. An MCP server is spawned by its client and speaks JSON-RPC on
+/// stdio, so it has no CLI to speak of — but a released binary should still be
+/// able to say what it is and which version it is.
+///
+/// Returns `true` when a flag was handled and the caller should exit.
+fn handle_cli_flags() -> bool {
+    for arg in std::env::args().skip(1) {
+        match arg.as_str() {
+            "-h" | "--help" => {
+                println!(
+                    "tcl-lsp MCP server {version}\n\
+                     \n\
+                     Tcl/iRules static analysis served over the Model Context Protocol:\n\
+                     graphs, dataflow/SSA, refactors, optimiser, WASM, dialect detection.\n\
+                     \n\
+                     Speaks JSON-RPC on stdio and is normally spawned by an MCP client\n\
+                     (Claude Code, Zed, the VS Code extension) rather than run by hand.\n\
+                     \n\
+                     Options:\n\
+                     \x20 -h, --help       Print this help and exit\n\
+                     \x20 -V, --version    Print the version and exit",
+                    version = tcl_version::VERSION,
+                );
+                return true;
+            }
+            "-V" | "--version" => {
+                println!("tcl-mcp {}", tcl_version::VERSION);
+                return true;
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if handle_cli_flags() {
+        return Ok(());
+    }
     let service = TclMcp.serve(stdio()).await?;
     service.waiting().await?;
     Ok(())

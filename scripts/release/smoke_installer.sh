@@ -28,10 +28,15 @@
 #   TCL_LSP_OS          forced detection (e.g. debian) — set if the
 #                       installer can't read /etc/os-release in your
 #                       environment
-#   KEEP_PREFIX=1       skip the final rm of $TCL_LSP_PREFIX (useful
-#                       when poking at a failure)
+#   KEEP_PREFIX=1       skip the final rm of $TCL_LSP_PREFIX and the
+#                       sandboxed HOME (useful when poking at a failure)
 #   MIN_SKILLS          floor on count of Claude skills the installer
 #                       should leave behind (default: 22)
+#
+# The installer runs with TCL_LSP_VERSION pinned to <tag> (its default is
+# `latest`, and a pre-release is never `latest`) and with HOME pointed at a
+# throwaway directory, so a verification run cannot modify the invoking user's
+# real ~/.claude/skills or shell rc files.
 #
 # Exit non-zero on any failed check. Pairs with the post-tag block in
 # .claude/skills/release/SKILL.md.
@@ -59,12 +64,36 @@ pass()  { printf '  [ok]   %s\n' "$*"; }
 fail()  { printf '  [fail] %s\n' "$*"; FAILED=1; }
 hdr()   { printf '\n== %s ==\n' "$*"; }
 
+# The installer drops the Claude skills under $HOME/.claude/skills and may touch
+# shell rc files. Give it a throwaway HOME so a verification run cannot modify
+# the invoking user's real skills or dotfiles; the skill-count check below then
+# inspects the sandbox.
+SMOKE_HOME="$(mktemp -d "${TMPDIR:-/tmp}/smoke-home.XXXXXX")"
+
 cleanup() {
     if [ "${KEEP_PREFIX:-}" != 1 ]; then
-        rm -rf "$PREFIX"
+        rm -rf "$PREFIX" "$SMOKE_HOME"
+    else
+        note "kept $PREFIX and $SMOKE_HOME"
     fi
 }
 trap cleanup EXIT
+
+# Run a released binary defensively. Two hazards, both seen in practice:
+#   * stdin — `tcl-mcp` speaks JSON-RPC on stdio. A build without `--help`
+#     ignores the flag and blocks reading stdin forever, wedging the run.
+#   * wall clock — a hung or crash-looping binary must not hang verification.
+# `timeout` is coreutils; macOS ships it as `gtimeout` when coreutils is
+# installed, and neither is guaranteed, so fall back to a plain call.
+run_bin() {
+    if command -v timeout >/dev/null 2>&1; then
+        timeout 20 "$@" </dev/null 2>&1
+    elif command -v gtimeout >/dev/null 2>&1; then
+        gtimeout 20 "$@" </dev/null 2>&1
+    else
+        "$@" </dev/null 2>&1
+    fi
+}
 
 # ---------------------------------------------------------------- run installer
 
@@ -75,8 +104,12 @@ if [ -n "${TCL_LSP_OS:-}" ]; then
     installer_env="TCL_LSP_OS=$TCL_LSP_OS "
 fi
 # shellcheck disable=SC2086
+# TCL_LSP_VERSION="$tag" is required, not cosmetic: install.sh defaults to
+# `latest`, which resolves through /releases/latest — and a pre-release is never
+# `latest`. Without the pin, verifying v2.1.5 would install the current stable.
 if curl -fsSL "$INSTALLER_URL" \
-        | env $installer_env TCL_LSP_PREFIX="$PREFIX" TCL_LSP_ASSUME_NO=1 sh \
+        | env $installer_env HOME="$SMOKE_HOME" TCL_LSP_VERSION="$tag" \
+              TCL_LSP_PREFIX="$PREFIX" TCL_LSP_ASSUME_NO=1 sh \
         > /tmp/smoke-installer.log 2>&1; then
     pass "installer ran cleanly"
 else
@@ -132,7 +165,7 @@ for bin in tcl f5; do
         fail "$bin --version exited non-zero
     out: $ver"
     fi
-    if helpout=$("$PREFIX/$bin" --help 2>&1) && [ -n "$helpout" ]; then
+    if helpout=$(run_bin "$PREFIX/$bin" --help) && [ -n "$helpout" ]; then
         pass "$bin --help prints usage"
     else
         fail "$bin --help failed (exit=$?, stdout-empty=$([ -z "$helpout" ] && echo yes || echo no))"
@@ -153,23 +186,23 @@ fi
 if [ -z "$mcp" ]; then
     fail "MCP server missing (looked for $PREFIX/tcl-mcp and $PREFIX/tcl-lsp-mcp-server.pyz)"
 else
-    # The MCP CLI's --version output is empty on purpose; the
-    # version banner shows on --help instead.
-    if helpout=$("$mcp" --help 2>&1) && [ -n "$helpout" ]; then
+    # `tcl-mcp --help` prints a banner carrying the version; `--version` prints
+    # it too. Both exit 0 without reading stdin.
+    if helpout=$(run_bin "$mcp" --help) && [ -n "$helpout" ]; then
         case "$helpout" in
             *"$expected"*) pass "MCP --help banner mentions $expected" ;;
             *)             fail "MCP --help did not include $expected
         got: $(printf '%s' "$helpout" | head -1)" ;;
         esac
     else
-        fail "MCP --help failed"
+        fail "MCP --help failed (no output, non-zero exit, or timed out)"
     fi
 fi
 
 # ---------------------------------------------------------------- 5. Skills
 
 hdr "Claude skills"
-skills_dir="$HOME/.claude/skills"
+skills_dir="$SMOKE_HOME/.claude/skills"
 if [ -d "$skills_dir" ]; then
     n=$(find "$skills_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
     if [ "$n" -ge "$MIN_SKILLS" ]; then
