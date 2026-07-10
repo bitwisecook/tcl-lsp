@@ -33,7 +33,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_core_types::DiagCode;
 use tcl_registry::Arity;
 
-use super::helpers::{is_ident_continue, is_integer_word};
+use super::helpers::{has_substitution, is_ident_continue, is_integer_word};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::{PendingUserCallArity, Severity};
 use crate::expr_ast::{BinOp, ExprNode};
@@ -184,18 +184,28 @@ fn bump_arity(arity: Arity, extra: u16) -> Arity {
     Arity::new(min, max)
 }
 
-/// Whether `metaclass` denotes a genuine `TclOO` class — one of the four
-/// metaclasses `oo.rs`'s body walker ever records for a real `oo::class
-/// create` / `oo::define` definition. Snit (`snit::type` / `snit::widget` /
-/// `::snit::widgetadaptor`) and [incr Tcl] (`itcl::class`) instantiate via
-/// `TypeName instanceName ?args?`, never `new`/`create` — a class recorded
-/// under one of those metaclasses must not be constructor-arity-checked
-/// here.
-fn is_tcloo_metaclass(metaclass: &str) -> bool {
-    matches!(
-        metaclass,
-        "oo::class" | "oo::configurable" | "oo::abstract" | "oo::singleton"
-    )
+/// Whether `metaclass` denotes a genuine `TclOO` class. Snit (`snit::type` /
+/// `snit::widget` / `::snit::widgetadaptor`) and [incr Tcl] (`itcl::class`)
+/// instantiate via `TypeName instanceName ?args?`, never `new`/`create` — a
+/// class recorded under one of those metaclasses must not be
+/// constructor-arity-checked here.
+///
+/// Registry-driven, not a hardcoded metaclass-name list: `metaclass` is
+/// itself a definer *command* name (`oo::class`, `snit::type`, `itcl::class`,
+/// …), each registered with a [`DefinitionBodyGrammar`](tcl_registry::definer::DefinitionBodyGrammar)
+/// tagged by [`DefinerFamily`](tcl_registry::definer::DefinerFamily), so any
+/// future `TclOo`-family metaclass the registry gains is recognised
+/// automatically. Shared with `var_command.rs`'s `e001_for_bare_object_dispatch`
+/// (the E001 "`$obj` with no method word" check), so the two paths that both
+/// need to tell `TclOO` apart from snit/itcl never disagree on the same input.
+pub(super) fn is_tcloo_metaclass(
+    registry: Option<&tcl_registry::CommandRegistry>,
+    metaclass: &str,
+) -> bool {
+    registry.and_then(|r| r.get(metaclass)).is_some_and(|s| {
+        s.definition_body
+            .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::TclOo)
+    })
 }
 
 impl Analyser {
@@ -332,7 +342,10 @@ impl Analyser {
             return;
         };
         // Dynamic-value subcommand position — can't resolve statically.
-        if first_arg.contains('$') || first_arg.contains('[') {
+        if arg_tokens
+            .first()
+            .is_some_and(|tok| has_substitution(first_arg, tok))
+        {
             return;
         }
         // Tk geometry/widget ensemble commands (`grid` / `pack` / `wm` / …)
@@ -561,10 +574,17 @@ impl Analyser {
                 let Some(sub_name) = args.first() else {
                     // **E001.** A subcommand-dispatch command invoked with no
                     // subcommand at all (`string` / `dict` / `info` on its
-                    // own).  Queued as a
-                    // `pending_arity` candidate so an earlier shadowing user
-                    // proc / class / alias / ensemble / stub suppresses it,
-                    // exactly like the E002 / E003 paths.
+                    // own). Skipped when the registry's `subcommand_required`
+                    // is `false` — a bare call has a well-defined default
+                    // (e.g. `history` == `history info`), so it is not an
+                    // arity error at all, not merely a suppressed one.
+                    // Otherwise queued as a `pending_arity` candidate so an
+                    // earlier shadowing user proc / class / alias / ensemble
+                    // / stub suppresses it, exactly like the E002 / E003
+                    // paths.
+                    if !sig.subcommand_required {
+                        return;
+                    }
                     let ns = self.command_resolution_namespace(scope_path);
                     let enforce_order = !self.scope_path_in_proc_body(scope_path);
                     self.pending_arity.push((
@@ -587,7 +607,10 @@ impl Analyser {
                     return;
                 }
                 // Dynamic subcommand value — can't resolve statically.
-                if sub_name.contains('$') || sub_name.contains('[') {
+                if arg_tokens
+                    .first()
+                    .is_some_and(|tok| has_substitution(sub_name, tok))
+                {
                     return;
                 }
                 // Resolve exact-or-unique-prefix so an abbreviated subcommand
@@ -953,7 +976,7 @@ impl Analyser {
                 }) else {
                     continue; // not a (yet-defined) class call — nothing to check
                 };
-                if !is_tcloo_metaclass(&cd.metaclass) {
+                if !is_tcloo_metaclass(self.registry.as_ref(), &cd.metaclass) {
                     continue; // snit / itcl — `new`/`create` mean something else
                 }
                 let Some(provider) = hierarchy.constructor_provider(class_qn, &self.source) else {

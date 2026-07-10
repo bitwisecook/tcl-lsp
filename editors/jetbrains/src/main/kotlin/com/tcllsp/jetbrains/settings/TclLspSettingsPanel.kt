@@ -99,7 +99,7 @@ class TclLspSettingsPanel {
 
     // @generated:diag-checkboxes:begin
     // Diagnostics — Errors
-    private val diagE001 = JBCheckBox("E001: Missing subcommand")
+    private val diagE001 = JBCheckBox("E001: Missing dispatch word")
     private val diagE002 = JBCheckBox("E002: Too few arguments for command")
     private val diagE003 = JBCheckBox("E003: Too many arguments for command")
     private val diagE200 = JBCheckBox("E200: Shimmer parse error")

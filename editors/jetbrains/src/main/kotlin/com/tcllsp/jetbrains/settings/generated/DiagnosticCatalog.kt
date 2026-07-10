@@ -35,7 +35,7 @@ data class OptimisationDef(
 
 object DiagnosticCatalog {
     val diagnostics: List<DiagnosticDef> = listOf(
-        DiagnosticDef("E001", "error", "E001: Missing subcommand", true),
+        DiagnosticDef("E001", "error", "E001: Missing dispatch word", true),
         DiagnosticDef("E002", "error", "E002: Too few arguments for command", true),
         DiagnosticDef("E003", "error", "E003: Too many arguments for command", true),
         DiagnosticDef("E200", "error", "E200: Shimmer parse error", true),

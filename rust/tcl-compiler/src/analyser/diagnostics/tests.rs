@@ -1068,6 +1068,57 @@ fn e001_suppressed_by_shadowing_user_proc() {
 }
 
 #[test]
+fn e001_fn_true_negative_bare_history_has_a_default_subcommand() {
+    // FP regression: `history` is a `WithSubcommands` registry command
+    // (`add`/`change`/`clear`/`event`/`info`/`keep`/`nextid`/`redo`) but,
+    // unlike `string`/`dict`/`info`, a bare call is well-defined Tcl —
+    // history(n): "If no option is specified, the default is info."
+    // Confirmed stable since Tcl 7.x; still true under Tcl 9. The registry
+    // spec records this as `arity: Arity::at_least(0)` and the analyser
+    // must honour it instead of assuming every ensemble-shaped command
+    // requires its dispatch word.
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+        assert!(
+            !has_code("history", dialect, "E001"),
+            "bare `history` defaults to `history info` — not E001 in {dialect}"
+        );
+    }
+}
+
+#[test]
+fn e001_tp_bare_history_subcommand_sibling_still_required() {
+    // Every *other* WithSubcommands command in the same family keeps
+    // requiring its dispatch word — the `history` carve-out must not leak
+    // into commands whose registry `arity.min` is genuinely 1.
+    for snippet in [
+        "array",
+        "chan",
+        "clock",
+        "encoding",
+        "file",
+        "namespace",
+        "package",
+        "trace",
+    ] {
+        assert!(
+            has_code(snippet, "tcl8.6", "E001"),
+            "bare `{snippet}` should still require a subcommand"
+        );
+    }
+}
+
+#[test]
+fn e001_tn_history_with_subcommand_is_unaffected() {
+    // Sanity: a `history` call that *does* supply a subcommand is untouched
+    // by the bare-call carve-out — still no E001, and a genuine unknown
+    // subcommand is still W001.
+    assert!(!has_code("history info", "tcl8.6", "E001"));
+    assert!(!has_code("history clear", "tcl8.6", "E001"));
+    assert!(has_code("history bogus", "tcl8.6", "W001"));
+    assert!(!has_code("history bogus", "tcl8.6", "E001"));
+}
+
+#[test]
 fn e002_fires_on_too_few_args() {
     // `regsub` requires at least 3 args (exp string subSpec).
     let mut a = Analyser::new();
@@ -4028,6 +4079,119 @@ fn apply_dynamic_lambda_abstains() {
 fn apply_expand_args_abstains_too_few() {
     let src = "set rest {1}\napply {{a b} {return $a}} {*}$rest\n";
     assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+// ---------------------------------------------------------------------
+// E001 (`TclOO` form): `$obj` invoked with no method word at all.
+// ---------------------------------------------------------------------
+
+#[test]
+fn tp_e001_bare_tcloo_object_dispatch_requires_method() {
+    // `set o [Dog new]; $o` — tclsh 9.0.4: `wrong # args: should be "o
+    // method ?arg ...?"`. The dispatcher checks argument count before any
+    // method lookup, so this is unconditional — unlike an unknown *named*
+    // method (W308), there is no `unknown`-handler fallback that could
+    // save it.
+    let src = "oo::class create Dog { method bark {} { return woof } }\n\
+               set o [Dog new]\n$o\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    let e001: Vec<_> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::E001)
+        .collect();
+    assert_eq!(
+        e001.len(),
+        1,
+        "expected one E001 for bare `$o`: {:?}",
+        r.diagnostics
+    );
+    assert_eq!(e001[0].message, "'o' requires a method");
+    assert_eq!(e001[0].severity, Severity::Error);
+}
+
+#[test]
+fn tp_e001_bare_tcloo_object_dispatch_named_constructor() {
+    // `Dog create rex` names the instance directly; `$rex` bare still
+    // requires a method.
+    let src = "oo::class create Dog { method bark {} { return woof } }\n\
+               set rex [Dog create rex]\n$rex\n";
+    assert!(
+        has_code(src, "tcl", "E001"),
+        "bare dispatch on a named-constructor instance should require a method"
+    );
+}
+
+#[test]
+fn tp_e001_bare_dispatch_fires_even_when_class_is_ambiguous() {
+    // Unlike per-method arity (which abstains under ambiguity — see
+    // `tcloo_method_arity_abstains_for_ambiguous_receiver_class`), a
+    // bare dispatch's "missing method" failure is universal across every
+    // `TclOO` instance regardless of which candidate class it resolves
+    // to, so ambiguity between two known `TclOO` classes does not
+    // suppress it.
+    let src = "\
+oo::class create A { method same {x} {} }
+oo::class create B { method same {x y} {} }
+if {$cond} { set f1 [A new] } else { set f1 [B new] }
+$f1
+";
+    assert!(
+        has_code(src, "tcl", "E001"),
+        "bare dispatch should still fire regardless of which known TclOO class it is: {:?}",
+        {
+            let mut a = Analyser::new();
+            a.analyse(src, "tcl").diagnostics
+        }
+    );
+}
+
+#[test]
+fn fp_e001_bare_snit_instance_dispatch_not_flagged() {
+    // snit's generated dispatcher proc is a different mechanism this
+    // analyser does not model precisely enough to make the same
+    // guarantee — must not assume it shares `TclOO`'s unconditional
+    // "wrong # args" behaviour on a bare call.
+    let src = "snit::type Dog { method bark {} { return woof } }\nDog t\n$t\n";
+    assert!(
+        !has_code(src, "tcl", "E001"),
+        "bare snit instance dispatch must not fire E001 (unmodelled dispatcher)"
+    );
+}
+
+#[test]
+fn tn_e001_bare_dispatch_silent_when_method_present() {
+    // Sanity: adding the bare-dispatch check must not leak into the
+    // ordinary `$obj method` shape — that path stays W308's job.
+    let src = "oo::class create Dog { method bark {} { return woof } }\n\
+               set o [Dog new]\n$o bark\n";
+    assert!(!has_code(src, "tcl", "E001"));
+}
+
+#[test]
+fn tn_e001_bare_dispatch_silent_for_unclassified_variable() {
+    // A bare `$x` where `x` is never proven to hold a `TclOO` object
+    // takes the ordinary W307 (non-literal command) path, not this
+    // `TclOO`-specific E001 — the two must not overlap.
+    let src = "proc walk {x} { $x }\n";
+    assert!(!has_code(src, "tcl", "E001"));
+}
+
+#[test]
+fn fn_e001_bare_command_substitution_head_not_covered() {
+    // Accepted gap: `[Dog new]` used directly as a command (no
+    // intervening variable) goes through the `[cmd] method` dispatch
+    // site, not the `$var` one — that path has no arity-checking
+    // machinery at all today (`emit_cmd_command_diagnostics` only
+    // validates a *named* method via W308), so extending it to the
+    // bare-call case would be new machinery rather than mirroring an
+    // existing check. Documented false negative, not a silent one.
+    let src = "oo::class create Dog { method bark {} { return woof } }\n[Dog new]\n";
+    assert!(
+        !has_code(src, "tcl", "E001"),
+        "the `[cmd]`-head bare-dispatch case is a known, documented gap"
+    );
 }
 
 #[test]

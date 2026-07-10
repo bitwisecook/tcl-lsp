@@ -392,6 +392,50 @@ suite("Diagnostics", () => {
     }
   });
 
+  // E001 ("missing dispatch word"): a subcommand-dispatch registry command
+  // (`string`) or a TclOO object (`$o`) invoked with no dispatch word at all
+  // is a genuine arity error, tightly highlighted at just the command head.
+  // `history` (bare call defaults to `history info` per history(n)) and
+  // snit (unmodelled generated dispatcher) are the false-positive carve-outs
+  // a correct implementation must not flag.
+  test("E001 fires for bare `string` and bare TclOO object dispatch only", async () => {
+    const uri = getDocUri("diagnostics-e001.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.filter((d) => codeOf(d) === "E001").length >= 2,
+    });
+    const e001 = diagnostics.filter((d) => codeOf(d) === "E001");
+    assert.strictEqual(
+      e001.length,
+      2,
+      `expected exactly two E001s (bare 'string' + bare '$o'), got [${diagnostics.map(codeOf)}]` +
+        ` — history/snit false positives would inflate this count`,
+    );
+    for (const d of e001) {
+      assert.strictEqual(d.severity, vscode.DiagnosticSeverity.Error, "E001 should be an error");
+    }
+
+    const bareString = e001.find((d) => d.message.includes("string"));
+    assert.ok(
+      bareString,
+      `an E001 message should name 'string', got: ${e001.map((d) => d.message)}`,
+    );
+    // Tight highlighting: the span must cover only the command word, line 6
+    // (0-indexed) columns 0-6 — no subcommand exists to extend it over.
+    assert.strictEqual(bareString.range.start.line, 6);
+    assert.strictEqual(bareString.range.start.character, 0);
+    assert.strictEqual(bareString.range.end.line, 6);
+    assert.strictEqual(bareString.range.end.character, 6);
+
+    const bareObject = e001.find((d) => d.message.includes("requires a method"));
+    assert.ok(
+      bareObject,
+      `an E001 message should report the missing TclOO method, got: ${e001.map((d) => d.message)}`,
+    );
+    assert.strictEqual(bareObject.range.start.line, 22);
+  });
+
   // Issue #832: `autoloadLibrary.tcl` calls two commands the workspace's
   // `rbclib/tclIndex` auto-loads (`Rbc_ActiveLegend` / `Rbc_ZoomStack`, the
   // BLT/Rbc idiom) with no `package require`, plus one genuinely-unknown

@@ -283,7 +283,7 @@ macro_rules! diagnostic_codes {
 }
 
 diagnostic_codes! {
-    E001 => "E001", diag(Error, true, "Missing subcommand — e.g. bare `string` without a subcommand.");
+    E001 => "E001", diag(Error, true, "Missing dispatch word — e.g. bare `string` without a subcommand, or `$obj` with no TclOO method.");
     E002 => "E002", diag(Error, true, "Too few arguments for command.");
     E003 => "E003", diag(Error, true, "Too many arguments for command.");
     E004 => "E004", diag_internal(Error, true, "Malformed `if` command — missing clauses or extra words after `else`.");
@@ -496,6 +496,34 @@ impl DiagCode {
         matches!(self.family(), DiagFamily::Error)
     }
 
+    /// Whether the analyser emits this code **speculatively from a single file**
+    /// and a later workspace / cross-file resolution pass may *refine it away*.
+    /// Such a code is not stable until the deep diagnostics pass has consulted
+    /// the workspace package database and the cross-file source graph, so it is
+    /// the only kind held back from the progressive **fast tier** (#844):
+    /// publishing it un-refined would resurface a false positive the deep pass
+    /// then retracts (the startup false-positive W120 that #841 eliminated).
+    ///
+    /// The set is intentionally tiny and intrinsic to what these codes *mean*:
+    ///
+    /// - **W120** — "command used without a corresponding `package require`":
+    ///   suppressed once the workspace package database shows the command's
+    ///   package is (transitively) available (`refine_workspace_w120`, #723/#804).
+    /// - **W123** — "unresolved command": suppressed once the package database
+    ///   resolves it (`refine_workspace_w123`, #832) or a workspace proc defines
+    ///   it (the cross-file `project_diagnostics` pass).
+    ///
+    /// Codes that the deep pass only ever *adds* (compiler / optimiser findings,
+    /// synthesised cross-file arity) are **not** listed here: they are simply
+    /// absent from the fast tier and appear when the deep tier lands, which is
+    /// additive, never a retraction.  This is the single source of truth for the
+    /// classification — consumers (the LSP fast-tier partition) fetch it rather
+    /// than re-encoding the code set.
+    #[must_use]
+    pub const fn refined_by_workspace(self) -> bool {
+        matches!(self, Self::W120 | Self::W123)
+    }
+
     /// The one-line description rendered in the published code tables.
     #[must_use]
     pub const fn description(self) -> &'static str {
@@ -568,6 +596,28 @@ mod tests {
                 code.as_str()
             );
         }
+    }
+
+    #[test]
+    fn refined_by_workspace_is_exactly_w120_and_w123() {
+        // #844: the progressive fast tier holds back exactly the codes a
+        // workspace / cross-file pass can retract.  Pin the whole set so it
+        // cannot silently grow (which would delay a stable diagnostic) or shrink
+        // (which would resurface the #841 startup false positive).
+        for &code in DiagCode::ALL {
+            let expected = matches!(code, DiagCode::W120 | DiagCode::W123);
+            assert_eq!(
+                code.refined_by_workspace(),
+                expected,
+                "{code} misclassified: refined_by_workspace must be true iff the \
+                 code is W120 or W123",
+            );
+        }
+        assert!(DiagCode::W120.refined_by_workspace());
+        assert!(DiagCode::W123.refined_by_workspace());
+        assert!(!DiagCode::W121.refined_by_workspace());
+        assert!(!DiagCode::E002.refined_by_workspace());
+        assert!(!DiagCode::O111.refined_by_workspace());
     }
 
     #[test]

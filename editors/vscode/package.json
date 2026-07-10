@@ -3751,7 +3751,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**E001:** Missing subcommand — e.g. bare `string` without a subcommand.",
+            "markdownDescription": "**E001:** Missing dispatch word — e.g. bare `string` without a subcommand, or `$obj` with no TclOO method.",
             "order": 0
           },
           "tclLsp.diagnostics.E002": {

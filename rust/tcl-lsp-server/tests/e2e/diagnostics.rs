@@ -187,6 +187,108 @@ fn string_match_nocase_has_no_arity_error() {
     assert!(!has_code(&diags, "E003"));
 }
 
+// -- TestE001MissingDispatchWord ------------------------------------------
+// End-to-end coverage for E001 ("missing subcommand" / TclOO "missing
+// method"): tight command-head-only highlighting, the `history`
+// bare-call carve-out (issue: bare `history` defaults to `history info`
+// per history(n), so it must not be flagged), and the TclOO object-
+// dispatch generalisation (`$obj` with no method word at all).
+
+#[test]
+fn bare_string_is_e001_with_tight_command_head_span() {
+    // The diagnostic must highlight only the command word itself — there is
+    // no subcommand to include, so the span should not creep onto the
+    // trailing newline or beyond the four characters of `string`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "string\n");
+    let e001: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("E001"))
+        .collect();
+    assert_eq!(e001.len(), 1, "expected exactly one E001: {diags:?}");
+    let range = &e001[0]["range"];
+    assert_eq!(range["start"]["line"], 0);
+    assert_eq!(range["start"]["character"], 0);
+    assert_eq!(range["end"]["line"], 0);
+    assert_eq!(
+        range["end"]["character"], 6,
+        "span must cover only 'string'"
+    );
+    assert_eq!(
+        e001[0].get("severity").and_then(Value::as_i64),
+        Some(1) // Error
+    );
+}
+
+#[test]
+fn bare_history_has_no_e001() {
+    // FP regression (history(n)): `history` alone is a well-defined call
+    // (equivalent to `history info`), not a missing-subcommand error, even
+    // though `history` is a `WithSubcommands` registry command like `string`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "history\n");
+    assert!(
+        !has_code(&diags, "E001"),
+        "bare `history` must not be E001: {diags:?}"
+    );
+}
+
+#[test]
+fn history_with_subcommand_is_still_clean() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "history clear\n");
+    assert!(!has_code(&diags, "E001"));
+    assert!(!has_code(&diags, "W001"));
+}
+
+#[test]
+fn history_unknown_subcommand_is_still_w001_not_e001() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "history bogus\n");
+    assert!(has_code(&diags, "W001"));
+    assert!(!has_code(&diags, "E001"));
+}
+
+#[test]
+fn bare_tcloo_object_dispatch_is_e001() {
+    // `set o [Dog new]; $o` — TclOO's per-object dispatcher requires a
+    // method word before it attempts any method lookup.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create Dog { method bark {} { return woof } }\nset o [Dog new]\n$o\n";
+    let diags = lsp.open_ready(&uri, src);
+    let e001: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("E001"))
+        .collect();
+    assert_eq!(e001.len(), 1, "expected exactly one E001: {diags:?}");
+    assert_eq!(message(e001[0]), "'o' requires a method");
+    assert_eq!(on_line(&diags, "E001"), BTreeSet::from([2]));
+}
+
+#[test]
+fn tcloo_object_dispatch_with_method_is_not_e001() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create Dog { method bark {} { return woof } }\nset o [Dog new]\n$o bark\n";
+    assert!(!has_code(&lsp.open_ready(&uri, src), "E001"));
+}
+
+#[test]
+fn bare_snit_instance_dispatch_is_not_e001() {
+    // snit's generated dispatcher proc is a different mechanism the
+    // analyser does not model precisely enough to assume it shares
+    // TclOO's unconditional "wrong # args" behaviour on a bare call.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "snit::type Dog { method bark {} { return woof } }\nDog t\n$t\n";
+    assert!(!has_code(&lsp.open_ready(&uri, src), "E001"));
+}
+
 // -- TestSameFileCallArity ------------------------------------------------
 // End-to-end arity checks generalised beyond the builtin registry to
 // same-file proc / `interp alias` / `rename` calls. Previously, calling a
@@ -1204,4 +1306,130 @@ fn autoload_library_command_not_unknown_issue_832() {
     );
 
     let _ = std::fs::remove_dir_all(&libdir);
+}
+
+// -- #844 progressive (two-tier) diagnostics -----------------------------
+
+/// Build a large Tcl document (~`n` procs, ~10×`n` lines) whose deep
+/// diagnostics pass reliably overruns `DIAGNOSTICS_FAST_TIER_BUDGET`, plus one
+/// proc whose unbraced `expr` yields a fast-tier **W100** (an analyser code) and
+/// a deep-tier-only **O111** (the optimiser hint paired with W100) — so the two
+/// progressive publishes are distinguishable regardless of package-database
+/// state.
+fn big_tcl_with_split_markers(n: usize) -> String {
+    use std::fmt::Write as _;
+    let mut s = String::with_capacity(n * 200);
+    s.push_str("namespace eval ::bench {\n    variable counter 0\n}\n\n");
+    for i in 0..n {
+        let _ = write!(
+            s,
+            "proc ::bench::step{i} {{a b}} {{\n\
+             \x20   set v{i} [expr {{$a + $b}}]\n\
+             \x20   if {{$v{i} > 10}} {{\n\
+             \x20       set v{i} [expr {{$v{i} + 1}}]\n\
+             \x20   }}\n\
+             \x20   return $v{i}\n\
+             }}\n\n"
+        );
+    }
+    // The distinguishing pair: an unbraced `expr` → analyser W100 (fast tier),
+    // whose paired optimiser hint O111 is produced only by the deep pass.
+    s.push_str("proc ::bench::w100_probe {x} {\n    return [expr $x + 1]\n}\n");
+    s
+}
+
+/// #844 acceptance criterion (b): on a large / cold file the client sees the
+/// workspace-independent **fast tier** first (analyser syntax / structural /
+/// style diagnostics) and then the **deep tier** (adding compiler / optimiser
+/// diagnostics), which is a strict superset and replaces it for the same
+/// version.  The unbraced `expr` gives a fast-tier `W100`; its paired optimiser
+/// hint `O111` is produced only by the deep pass, so the two publishes are
+/// distinguishable regardless of package-database state.
+///
+/// A small / warm file settles inside `DIAGNOSTICS_FAST_TIER_BUDGET` and skips
+/// the fast tier entirely (a single publish — the debounce-skip guarded by the
+/// existing `diagnostics_delivery_smoke` single-publish tests); this test
+/// deliberately uses a large file so the deep pass overruns the budget and the
+/// fast tier fires.
+#[test]
+fn large_file_publishes_fast_tier_before_deep_tier() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let big = big_tcl_with_split_markers(600);
+
+    let since = lsp.notification_cursor();
+    lsp.open_document_lang(&uri, &big, "tcl", 1);
+    // The `[timing] deep diagnostics` log fires only from the deep publish, so it
+    // is the reliable "deep pass finished" barrier; both publishes are buffered
+    // by the time it arrives.
+    lsp.await_log(
+        &["deep diagnostics", uri.as_str()],
+        Duration::from_secs(45),
+        since,
+    );
+
+    let pubs: Vec<Vec<Value>> = lsp
+        .notifications()
+        .into_iter()
+        .skip(since)
+        .filter(|n| {
+            n.get("method").and_then(Value::as_str) == Some("textDocument/publishDiagnostics")
+                && n.get("params")
+                    .and_then(|p| p.get("uri"))
+                    .and_then(Value::as_str)
+                    == Some(uri.as_str())
+        })
+        .map(|n| {
+            n.get("params")
+                .and_then(|p| p.get("diagnostics"))
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default()
+        })
+        .collect();
+
+    let all_codes: Vec<BTreeSet<String>> = pubs.iter().map(|p| codes(p)).collect();
+    let Some(deep_idx) = pubs.iter().position(|p| codes(p).contains("O111")) else {
+        panic!(
+            "no deep-tier publish (carrying the optimiser O111) arrived; publishes: {all_codes:?}"
+        );
+    };
+    if deep_idx == 0 {
+        // Coalesced into a single publish on an unexpectedly fast host (the deep
+        // pass landed inside the 40 ms budget). The two sibling
+        // progressive/convergence tests carry the same escape hatch; the fast→deep
+        // split is not observable this run, but completeness still is.
+        let only = codes(&pubs[0]);
+        assert!(
+            only.contains("W100") && only.contains("O111"),
+            "a coalesced single publish must still carry the complete set: {only:?}",
+        );
+        return;
+    }
+    assert!(
+        deep_idx >= 1,
+        "the fast tier must be published before the deep tier on a large file, \
+         but the first publish already carried the deep-only O111: {all_codes:?}",
+    );
+
+    let fast = codes(&pubs[deep_idx - 1]);
+    let deep = codes(&pubs[deep_idx]);
+    assert!(
+        fast.contains("W100"),
+        "the fast tier must carry the workspace-independent analyser W100: {fast:?}",
+    );
+    assert!(
+        !fast.contains("O111") && !fast.contains("W120") && !fast.contains("W123"),
+        "the fast tier must exclude deep-only optimiser and workspace-refined \
+         codes: {fast:?}",
+    );
+    assert!(
+        deep.contains("W100") && deep.contains("O111"),
+        "the deep tier must carry both the analyser W100 and the optimiser O111: {deep:?}",
+    );
+    assert!(
+        fast.is_subset(&deep),
+        "the deep tier must be a strict superset of the fast tier (no fast-tier \
+         diagnostic is ever removed by the deep pass): fast={fast:?} deep={deep:?}",
+    );
 }

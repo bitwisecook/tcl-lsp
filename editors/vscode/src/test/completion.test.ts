@@ -100,4 +100,41 @@ suite("Completion", () => {
       `Expected Tcl commands in completions: ${labels.slice(0, 20).join(", ")}`,
     );
   });
+
+  test("provides history subcommand completions for a bare call", async () => {
+    // `history` is a `WithSubcommands` registry command like `string`, but a
+    // bare call is itself valid Tcl (defaults to `history info`, so it does
+    // not fire E001 — see diagnostics.test.ts); completion at the bare
+    // position must still offer its subcommand list.
+    const historyUri = getDocUri("completion-history.tcl");
+    await activate(historyUri);
+
+    const position = new vscode.Position(0, 8);
+
+    const result = (await pollUntil(
+      () =>
+        vscode.commands.executeCommand(
+          "vscode.executeCompletionItemProvider",
+          historyUri,
+          position,
+        ),
+      (r) => {
+        const list = r as vscode.CompletionList | undefined;
+        if (!list) return false;
+        const labels = list.items.map((item) =>
+          typeof item.label === "string" ? item.label : item.label.label,
+        );
+        return labels.includes("info");
+      },
+      { timeout: 10_000, label: "history subcommand completions" },
+    )) as vscode.CompletionList;
+
+    assert.ok(result, "Completion result should not be null");
+    const labels = result.items.map((item) =>
+      typeof item.label === "string" ? item.label : item.label.label,
+    );
+    for (const expected of ["add", "clear", "info", "keep"]) {
+      assert.ok(labels.includes(expected), `missing ${expected} in [${labels.join(", ")}]`);
+    }
+  });
 });

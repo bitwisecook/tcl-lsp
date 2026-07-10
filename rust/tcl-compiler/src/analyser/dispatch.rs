@@ -67,6 +67,19 @@ pub struct SubcommandSig {
     /// When `true`, unknown subcommands are not flagged as
     /// diagnostics — used for generated dialect packs.
     pub allow_unknown: bool,
+    /// Whether invoking the command with no subcommand word at all is
+    /// itself an arity error (E001). Mirrors the parent
+    /// [`tcl_registry::CommandSpec::arity`]'s minimum: `true` when it is
+    /// at least 1 (the overwhelming majority of ensemble-shaped
+    /// commands — `string`, `dict`, `info`, `array`, … — all error
+    /// "wrong # args" when called bare), `false` for the rare command
+    /// whose spec declares a zero minimum because a bare call has a
+    /// well-defined default — e.g. `history` with no arguments is
+    /// `history info` per history(n), confirmed against tclsh 9.0.4.
+    /// This is registry data, not a hardcoded command name: any future
+    /// spec that sets `arity.min == 0` on a `WithSubcommands` command
+    /// gets the same treatment automatically.
+    pub subcommand_required: bool,
 }
 
 impl SubcommandSig {
@@ -170,6 +183,7 @@ pub fn signature_for_command(
         return Some(CommandSignature::WithSubcommands(SubcommandSig {
             subcommands: subs,
             allow_unknown: spec.allow_unknown_subcommands,
+            subcommand_required: spec.arity.min > 0,
         }));
     }
 
@@ -224,6 +238,7 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
         return CommandSignature::WithSubcommands(SubcommandSig {
             subcommands: subs,
             allow_unknown: scoped.allow_unknown_subcommands,
+            subcommand_required: scoped.arity.min > 0,
         });
     }
     CommandSignature::Simple(CommandSig {
