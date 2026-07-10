@@ -211,7 +211,7 @@ const NOT_REQUIRED: &[(&str, &str)] = &[
 /// `RUST_ISSUE_007`. Allow-listed so the gate stays green while they are
 /// implemented one by one; removing a name here (as it gains a handler) is the
 /// visible progress marker. Names are canonical (no leading `::`). Kept sorted.
-const KNOWN_UNBACKED: &[(&str, &str)] = &[("zlib", "core compression / checksums")];
+const KNOWN_UNBACKED: &[(&str, &str)] = &[];
 
 /// Strip a single leading `::` so a registry name (`tcl::build-info`,
 /// `tcl::process`) and the scanned handler / classification names

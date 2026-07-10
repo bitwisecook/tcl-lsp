@@ -101,6 +101,7 @@ pub mod cmd_string;
 pub mod cmd_switch;
 pub mod cmd_trace;
 pub mod cmd_var;
+pub mod cmd_zlib;
 // The codegen-import ABI: the lowercase `tcl_*` host functions the WASM emitter
 // imports (`rust/tcl-compiler` codegen), distinct from `capi`'s `Tcl_*` surface.
 pub mod codegen_abi;

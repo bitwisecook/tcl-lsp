@@ -12,11 +12,11 @@ or an explicit *not required* classification.
 
 | status | count |
 | --- | --- |
-| handler | 103 |
+| handler | 104 |
 | handler (native) | 6 |
 | stdlib | 11 |
 | not-required | 111 |
-| known-gap (`RUST_ISSUE_007`) | 1 |
+| known-gap (`RUST_ISSUE_007`) | 0 |
 | **UNCLASSIFIED** | 0 |
 | **total** | 232 |
 
@@ -250,7 +250,7 @@ or an explicit *not required* classification.
 | `writeFile` | not-required | non-core EDA/dialect file helper, absent from bare tclsh 9 |
 | `yield` | handler |  |
 | `yieldto` | handler |  |
-| `zlib` | known-gap | core compression / checksums |
+| `zlib` | handler |  |
 | `|` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `||` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `~` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |

@@ -73,6 +73,7 @@ pub fn install(interp: &mut Interp) {
     crate::cmd_fs::install(interp);
     crate::cmd_misc::install(interp);
     crate::cmd_chan::install(interp);
+    crate::cmd_zlib::install(interp);
     crate::cmd_trace::install(interp);
     // The event loop (`after`/`vwait`/`update`) — registers `update`, replacing
     // the bgerror-only stub in `cmd_alias`.
