@@ -25,12 +25,29 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "puts ?-nonewline? ?channelId? string",
 }];
 
+/// Dynamic arg-role resolver: `puts` takes one positional arg (`string`,
+/// writing to stdout) or two (`channelId string`); the optional leading
+/// `-nonewline` flag shifts which raw-arg index is the channel. Declaring
+/// the channel position lets the taint sink's position-aware filter
+/// (`sink_var_position_safe` in `tcl_compiler::taint`) recognise a tainted
+/// channel handle as a non-dangerous argument generically, with no
+/// `puts`-by-name check in the compiler.
+fn puts_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    let skip: u8 = u8::from(args.first() == Some(&"-nonewline"));
+    if args.len() - usize::from(skip) >= 2 {
+        vec![(skip, ArgRole::Channel)]
+    } else {
+        Vec::new()
+    }
+}
+
 /// Command spec for `puts`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "puts",
         traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED | Traits::TAINT_SINK,
         arity: Arity::new(1, 2),
+        arg_role_resolver: Some(puts_arg_roles),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,

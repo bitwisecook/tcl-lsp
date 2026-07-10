@@ -1624,6 +1624,12 @@ const HTML_ENCODE_PROC: &str =
     "proc html_encode {str} { string map {& &amp; < &lt; > &gt; \\\" &quot; ' &#39;} $str }";
 const REGEX_QUOTE_PROC: &str =
     "proc regex::quote {str} { regsub -all {[][{}()*+?.\\\\^$|]} $str {\\\\&} }";
+/// `string map` mapping that strips CR/LF — the fix the T101 / IRULE3003 KCS
+/// docs recommend for an output/log sink (`puts $x` / `log ... $x`): a
+/// `string map` element beginning with `"` is itself list-parsed with
+/// backslash escapes honoured, so `"\n"` / `"\r"` really do map the newline /
+/// carriage-return characters to empty, not the two-character sequences.
+const CRLF_STRIP_MAP: &str = "string map {\"\\n\" \"\" \"\\r\" \"\"}";
 
 /// Quick-fixes for context-supplied diagnostics (iRules taint encode-wrap +
 /// double-encode removal).
@@ -1801,6 +1807,71 @@ fn find_var_ref(line: &str, var: &str) -> Option<(usize, usize, String)> {
     None
 }
 
+/// T106: remove a redundant `[ENCODER $var]` wrapper → `$var`.
+fn t106_remove_redundant_encoder(line: &str, d: &ContextDiagnostic, var: &str) -> Vec<CodeAction> {
+    let Some((vstart, vend, matched)) = find_var_ref(line, var) else {
+        return Vec::new();
+    };
+    let chars: Vec<char> = line.chars().collect();
+    // Scan left for the enclosing `[`, right for `]`.
+    let mut lb = vstart;
+    while lb > 0 && chars[lb - 1] != '[' {
+        lb -= 1;
+    }
+    let mut rb = vend;
+    while rb < chars.len() && chars[rb] != ']' {
+        rb += 1;
+    }
+    if lb == 0 || rb >= chars.len() {
+        return Vec::new();
+    }
+    let start = char_col_to_utf16_local(line, lb - 1);
+    let end = char_col_to_utf16_local(line, rb + 1);
+    vec![CodeAction {
+        title: "Remove redundant encoder".to_string(),
+        edits: vec![crate::rename::TextEdit {
+            range: LspRange {
+                start_line: d.range.start_line,
+                start_character: start,
+                end_line: d.range.start_line,
+                end_character: end,
+            },
+            new_text: matched,
+        }],
+        kind: ActionKind::QuickFix,
+        command: None,
+        data_group_definition: None,
+    }]
+}
+
+/// T101 (`puts`) / IRULE3003 (`log`): wrap with a CR/LF-stripping `string
+/// map` — the fix the KCS docs for both codes recommend, since neither sink
+/// is HTML/URI-context-specific (unlike IRULE3001's response body or
+/// IRULE3002's header value) so an HTML/URL encoder would be the wrong
+/// mitigation to suggest here.
+fn strip_crlf_before_output(line: &str, d: &ContextDiagnostic, var: &str) -> Vec<CodeAction> {
+    let Some((vstart, vend, matched)) = find_var_ref(line, var) else {
+        return Vec::new();
+    };
+    let start = char_col_to_utf16_local(line, vstart);
+    let end = char_col_to_utf16_local(line, vend);
+    vec![CodeAction {
+        title: format!("Sanitise ${var} (strip CR/LF) before output"),
+        edits: vec![crate::rename::TextEdit {
+            range: LspRange {
+                start_line: d.range.start_line,
+                start_character: start,
+                end_line: d.range.start_line,
+                end_character: end,
+            },
+            new_text: format!("[{CRLF_STRIP_MAP} {matched}]"),
+        }],
+        kind: ActionKind::QuickFix,
+        command: None,
+        data_group_definition: None,
+    }]
+}
+
 fn taint_quickfix(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
     let line_no = d.range.start_line as usize;
     let Some(line) = source.split('\n').nth(line_no) else {
@@ -1810,41 +1881,11 @@ fn taint_quickfix(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
         return Vec::new();
     };
 
-    // T106: remove a redundant `[ENCODER $var]` wrapper → `$var`.
     if d.code == "T106" {
-        let Some((vstart, vend, matched)) = find_var_ref(line, &var) else {
-            return Vec::new();
-        };
-        let chars: Vec<char> = line.chars().collect();
-        // Scan left for the enclosing `[`, right for `]`.
-        let mut lb = vstart;
-        while lb > 0 && chars[lb - 1] != '[' {
-            lb -= 1;
-        }
-        let mut rb = vend;
-        while rb < chars.len() && chars[rb] != ']' {
-            rb += 1;
-        }
-        if lb == 0 || rb >= chars.len() {
-            return Vec::new();
-        }
-        let start = char_col_to_utf16_local(line, lb - 1);
-        let end = char_col_to_utf16_local(line, rb + 1);
-        return vec![CodeAction {
-            title: "Remove redundant encoder".to_string(),
-            edits: vec![crate::rename::TextEdit {
-                range: LspRange {
-                    start_line: d.range.start_line,
-                    start_character: start,
-                    end_line: d.range.start_line,
-                    end_character: end,
-                },
-                new_text: matched,
-            }],
-            kind: ActionKind::QuickFix,
-            command: None,
-            data_group_definition: None,
-        }];
+        return t106_remove_redundant_encoder(line, d, &var);
+    }
+    if d.code == "T101" || d.code == "IRULE3003" {
+        return strip_crlf_before_output(line, d, &var);
     }
 
     let (encoder, proc_template): (&str, Option<&str>) = match d.code.as_str() {
