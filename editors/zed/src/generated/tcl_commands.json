@@ -5915,7 +5915,10 @@
     },
     {
       "name": "my",
-      "summary": "invoke a method on the current object"
+      "summary": "invoke a method on the current object",
+      "subcommands": [
+        "variable"
+      ]
     },
     {
       "name": "nameserv::bind",

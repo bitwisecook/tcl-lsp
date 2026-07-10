@@ -73,6 +73,15 @@ pub struct ShimmerWarning {
     pub message: String,
     /// Related spans + labels for diagnostic context.
     pub related: Vec<(Span, String)>,
+    /// Suggested fixes, when a mechanical, semantics-preserving rewrite is
+    /// available (e.g. `expr`'s numeric-var-in-string-comparison shimmer:
+    /// `eq`/`ne`/`lt`/`le`/`gt`/`ge` rewritten to `==`/`!=`/`</<=/>/>=` when
+    /// both operands are provably numeric — see
+    /// [`expr::find_operator_fix`](crate::shimmer::expr::find_operator_fix)).
+    /// Empty when no such fix exists; [`crate::compiler_checks`]'s
+    /// `from_shimmer` copies this into the `Diagnostic`-level `fixes` field
+    /// consumers already read.
+    pub fixes: Vec<crate::irules_checks::CodeFix>,
 }
 
 /// A variable that oscillates between two types across loop iterations.
@@ -116,6 +125,9 @@ pub fn type_name(t: TclType) -> String {
 ///    versions of a variable (S101).
 /// 3. **Expression** ([`expr`]): arithmetic/comparison operators used with
 ///    the wrong operand type (S100).
+///
+/// `source` is the whole compilation unit's source text, forwarded to
+/// [`expr::find_expr_shimmers`] to build its eq/ne/lt/le/gt/ge quick fix.
 #[must_use]
 pub(crate) fn find_shimmer_warnings(
     cfg: &CfgFunction,
@@ -124,6 +136,7 @@ pub(crate) fn find_shimmer_warnings(
     executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
     values: &HashMap<ValueKey, crate::analyses::LatticeValue>,
+    source: &str,
 ) -> Vec<ShimmerWarning> {
     let mut out = Vec::new();
     out.extend(use_site::find_use_site_shimmers(
@@ -135,7 +148,13 @@ pub(crate) fn find_shimmer_warnings(
         values,
     ));
     out.extend(phi::find_phi_shimmers(cfg, ssa, types, executable_blocks));
-    out.extend(expr::find_expr_shimmers(cfg, ssa, types, executable_blocks));
+    out.extend(expr::find_expr_shimmers(
+        cfg,
+        ssa,
+        types,
+        executable_blocks,
+        source,
+    ));
     out
 }
 
@@ -160,6 +179,7 @@ pub fn find_shimmer_warnings_for_cu(
             &fu.sccp.executable_blocks,
             registry,
             &fu.sccp.values,
+            &cu.source,
         ));
     }
     out
@@ -279,7 +299,8 @@ mod tests {
                 &types,
                 &sccp.executable_blocks,
                 &registry(),
-                &sccp.values
+                &sccp.values,
+                "",
             )
             .is_empty()
         );

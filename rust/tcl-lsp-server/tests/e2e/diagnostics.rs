@@ -2079,6 +2079,28 @@ fn shimmer_fires_inside_namespace_eval_body() {
 }
 
 #[test]
+fn no_shimmer_for_tcloo_instance_variable_linked_via_my_variable() {
+    // (FP guard) `my variable count` links an object-instance variable whose
+    // true intrep depends on another method's last write, not the nominal
+    // return type of `my`. Before the registry fix (`oo_my.rs`'s `variable`
+    // subcommand), this spuriously claimed a String->Int shimmer.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create Counter {\n    method bump {} {\n        my variable count\n        incr count\n    }\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !diags.iter().any(|d| {
+            matches!(code_str(d).as_deref(), Some("S100" | "S101"))
+                && d.get("message")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .contains("'count'")
+        }),
+        "'my variable'-linked instance var must not spuriously shimmer: {diags:?}"
+    );
+}
+
+#[test]
 fn shimmer_fires_through_interp_alias() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");

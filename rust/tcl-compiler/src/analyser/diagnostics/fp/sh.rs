@@ -666,9 +666,11 @@ oo::class create C {
 }
 
 /// FP-SH-15: `my variable x` (the `TclOO` idiom for binding an instance
-/// variable inside a method) is not recognised as a scope-alias declaration
-/// at all — `$x` reads the never-versioned live-in symbol, same as an
-/// unbound name.  No S102 (and no crash).
+/// variable inside a method) is recognised as a scope-alias declaration —
+/// `oo_my.rs`'s `variable` subcommand carries `creates_scope_alias: true`,
+/// the same signal `global`/top-level `variable`/`upvar` use — so `$x`'s
+/// entry type widens to `Overdefined`, not a confident type from either
+/// arm. No S102 (and no crash).
 #[test]
 fn fp_sh_15_my_variable_idiom_no_s102() {
     let src = "\

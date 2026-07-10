@@ -117,7 +117,7 @@ impl Diagnostic {
             },
             message: w.message.clone(),
             replacement: None,
-            fixes: Vec::new(),
+            fixes: w.fixes.clone(),
         }
     }
 
@@ -278,7 +278,7 @@ pub fn run_all_checks_with_solved_and_patterns(
     // (SRV-INCREMENTAL 2a): an unedited procedure's checks are a cache hit
     // instead of recomputed over the whole unit every edit.
     for fu in cu.analysable_body_function_units() {
-        for d in function_nontaint_checks(fu, registry, dialect) {
+        for d in function_nontaint_checks(fu, registry, dialect, &cu.source) {
             out.push(shift(fu, d));
         }
     }
@@ -304,11 +304,26 @@ pub fn run_all_checks_with_solved_and_patterns(
 /// keyed on the offset-0 `FnLatticeKey` (SRV-INCREMENTAL 2a) — an unedited
 /// procedure's checks are a cache hit.  The S110 `*::payload` byte-command set is
 /// dialect-gated (empty outside iRules).
+///
+/// `source` feeds the expr pass's eq/ne/lt/le/gt/ge quick fix (see
+/// `shimmer::expr::find_operator_fix`), which needs to locate exact text
+/// within the statement's own source span. `source` must therefore be
+/// **absolute against `fu`'s own spans** — correct when called on a
+/// freshly-built (non-memoised) `FunctionUnit` (`base_offset == 0`; every
+/// `run_all_checks*` caller here passes `&cu.source` for exactly this
+/// reason), but the LSP db's offset-0 memoised
+/// `function_lattice`/`function_checks` salsa query passes `""` instead
+/// (its `fu` spans are relative to the procedure's own offset-0 body, not
+/// `source` — using a real string there would silently slice the wrong
+/// text). An empty string safely yields no fix (bounds-checked, falls back
+/// to no fix rather than a wrong one) — only the fix is unavailable, the
+/// diagnostic message itself is unaffected either way.
 #[must_use]
 pub fn function_nontaint_checks(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
     dialect: Option<&str>,
+    source: &str,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
     for cb in &fu.sccp.constant_branches {
@@ -323,7 +338,7 @@ pub fn function_nontaint_checks(
     for r in find_loop_invariants(registry, &fu.cfg, &fu.ssa, dialect) {
         out.push(Diagnostic::from_redundant(&r));
     }
-    out.extend(shimmer_family_checks(fu, registry, dialect));
+    out.extend(shimmer_family_checks(fu, registry, dialect, source));
     out
 }
 
@@ -338,12 +353,14 @@ pub fn function_nontaint_checks(
 /// only walks the top level and procedures), so without this split every
 /// shimmer diagnostic was silently unreachable inside a method or a
 /// `namespace eval` body. The S110 `*::payload` byte-command set is
-/// dialect-gated (empty outside iRules).
+/// dialect-gated (empty outside iRules). `source` — see
+/// [`function_nontaint_checks`]'s doc comment.
 #[must_use]
 pub fn shimmer_family_checks(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
     dialect: Option<&str>,
+    source: &str,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
     for w in find_shimmer_warnings(
@@ -353,6 +370,7 @@ pub fn shimmer_family_checks(
         &fu.sccp.executable_blocks,
         registry,
         &fu.sccp.values,
+        source,
     ) {
         out.push(Diagnostic::from_shimmer(&w));
     }
@@ -562,6 +580,43 @@ mod tests {
     fn run_all_checks_on_empty_source_is_empty() {
         let cu = CompilationUnit::build_for("", &registry(), false);
         assert!(run_all_checks(&cu, &registry(), None).is_empty());
+    }
+
+    /// (FP guard) `my variable count` links an object-instance variable whose
+    /// true intrep depends on another method's last write, not the nominal
+    /// return type of `my`. Before the registry fix (`oo_my.rs`'s `variable`
+    /// subcommand), this spuriously claimed a String->Int shimmer on `incr`.
+    #[test]
+    fn no_shimmer_for_tcloo_instance_variable_linked_via_my_variable() {
+        let src = "oo::class create Counter {\n    method bump {} {\n        my variable count\n        incr count\n    }\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let diags = run_all_checks(&cu, &registry(), None);
+        let shimmer: Vec<_> = diags
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "S100" | "S101"))
+            .collect();
+        assert!(
+            shimmer.is_empty(),
+            "'my variable'-linked instance var must not spuriously shimmer: {shimmer:?}"
+        );
+    }
+
+    /// (TN control) The same method body, minus `my variable`, still fires
+    /// S100/S101 — proves the guard above is keyed on the scope-alias link,
+    /// not a blanket regression of `incr`-on-String detection inside methods.
+    #[test]
+    fn shimmer_still_fires_in_tcloo_method_without_my_variable() {
+        let src = "oo::class create Counter {\n    method bump {} {\n        set count hello\n        incr count\n    }\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let diags = run_all_checks(&cu, &registry(), None);
+        let shimmer: Vec<_> = diags
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "S100" | "S101"))
+            .collect();
+        assert!(
+            !shimmer.is_empty(),
+            "expected a shimmer for the untraced-and-unlinked case: {diags:?}"
+        );
     }
 
     #[test]
