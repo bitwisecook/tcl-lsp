@@ -301,6 +301,48 @@ pub fn normalise_qualified_name(name: &str) -> String {
     format!("::{}", parts.join("::"))
 }
 
+/// Candidate qualified names for Tcl's real bareword command/procedure
+/// resolution, in priority order: the current namespace first, then global.
+///
+/// * An absolute name (`::foo`, `::ns::foo`) is taken as-is — one candidate.
+/// * A relative name containing `::` (`inner::p`) is still resolved against
+///   the current namespace first, **not** rooted straight at global: calling
+///   `inner::p` from inside `namespace eval ::ns { … }` reaches
+///   `::ns::inner::p` before `::inner::p`, when both exist (confirmed
+///   against tclsh 9.0.4). Only a *leading* `::` is genuinely absolute.
+/// * A bare name (`foo`) tries `{namespace}::foo` then `::foo` — exactly two
+///   levels, never every enclosing ancestor namespace (Tcl's own command
+///   lookup does not walk intermediate namespaces absent an explicit
+///   `namespace path`, which this does not model).
+///
+/// Shared by every same-file "resolve this call the way Tcl would" consumer
+/// — the analyser's same-file shadow/arity-suppression checks and the
+/// optimiser's interprocedural proc-identity resolution — so a fix to the
+/// resolution rule (or a bug in it) can't drift between them.
+///
+/// ```
+/// use tcl_syntax::naming::bareword_resolution_candidates;
+/// assert_eq!(bareword_resolution_candidates("::ns", "::foo"), vec!["::foo"]);
+/// assert_eq!(
+///     bareword_resolution_candidates("::ns", "inner::p"),
+///     vec!["::ns::inner::p", "::inner::p"],
+/// );
+/// assert_eq!(bareword_resolution_candidates("::ns", "foo"), vec!["::ns::foo", "::foo"]);
+/// assert_eq!(bareword_resolution_candidates("::", "foo"), vec!["::foo"]);
+/// ```
+#[must_use]
+pub fn bareword_resolution_candidates(namespace: &str, cmd_name: &str) -> Vec<String> {
+    if cmd_name.starts_with("::") {
+        return vec![cmd_name.to_owned()];
+    }
+    let global = format!("::{cmd_name}");
+    if namespace == "::" {
+        return vec![global];
+    }
+    let relative = format!("{namespace}::{cmd_name}");
+    vec![relative, global]
+}
+
 /// Split a Tcl variable reference into `(base, element)`.
 ///
 /// Strips `$` / `${…}` substitution sigils first, then separates the

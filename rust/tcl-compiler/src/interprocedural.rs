@@ -349,13 +349,18 @@ pub fn collect_call_by_name_reads(
 
 // Call-target resolution
 
-/// Resolve a command name to a qualified procedure name if it
-/// refers to one defined in `known`.
+/// Resolve a command name to a qualified procedure name if it refers to one
+/// defined in `known`, via [`crate::naming::bareword_resolution_candidates`]
+/// — Tcl's real bareword resolution: an absolute name (`::foo`) is looked up
+/// directly; a relative *dotted* name (`inner::p`) resolves against the
+/// caller's own namespace first, then global; a bare name tries the
+/// caller's namespace then global — exactly two levels, never every
+/// enclosing ancestor namespace (Tcl's own command lookup does not walk
+/// intermediate namespaces absent an explicit `namespace path`).
 ///
-/// Rules mirror Tcl's name resolution: absolute names (starting
-/// with `::`) are looked up directly; names containing `::` but
-/// not starting with it are treated as global-relative; bare
-/// names are resolved by walking up the caller's namespace path.
+/// Shared with the analyser's identical same-file resolution
+/// (`Analyser::resolve_proc_call`) and the optimiser's
+/// (`resolve_proc_qname`) so the three can't diverge on the same rule.
 #[must_use]
 pub fn resolve_internal_call<S: std::hash::BuildHasher>(
     command: &str,
@@ -365,36 +370,15 @@ pub fn resolve_internal_call<S: std::hash::BuildHasher>(
     if command.is_empty() {
         return None;
     }
-
-    if command.starts_with("::") {
-        let qname = normalise_qualified_name(command);
-        return known.contains(qname.as_str()).then_some(qname);
-    }
-
-    if command.contains("::") {
-        let qname = normalise_qualified_name(&format!("::{command}"));
-        return known.contains(qname.as_str()).then_some(qname);
-    }
-
     let ns_parts = namespace_parts_from_proc(caller_qname);
-    for depth in (0..=ns_parts.len()).rev() {
-        let mut candidate = String::from("::");
-        for (i, part) in ns_parts[..depth].iter().enumerate() {
-            if i > 0 {
-                candidate.push_str("::");
-            }
-            candidate.push_str(part);
-        }
-        if depth > 0 {
-            candidate.push_str("::");
-        }
-        candidate.push_str(command);
-        let qname = normalise_qualified_name(&candidate);
-        if known.contains(qname.as_str()) {
-            return Some(qname);
-        }
-    }
-    None
+    let ns = if ns_parts.is_empty() {
+        "::".to_owned()
+    } else {
+        format!("::{}", ns_parts.join("::"))
+    };
+    crate::naming::bareword_resolution_candidates(&ns, command)
+        .into_iter()
+        .find(|qname| known.contains(qname.as_str()))
 }
 
 /// Top-level call-target resolver. Convenience wrapper that
@@ -2157,7 +2141,8 @@ mod tests {
 
     #[test]
     fn resolve_relative_with_segments() {
-        // `foo::bar` from any caller → `::foo::bar`.
+        // `foo::bar` from a global-level caller → `::foo::bar` (the only
+        // candidate, since the caller's own namespace is already `::`).
         let known = known_set(&["::foo::bar"]);
         assert_eq!(
             resolve_internal_call("foo::bar", "::top", &known),
@@ -2166,13 +2151,40 @@ mod tests {
     }
 
     #[test]
-    fn resolve_bare_walks_caller_namespace() {
-        // caller `::ns::a::caller` + bare `helper` → try
-        // `::ns::a::helper`, `::ns::helper`, `::helper` in order.
+    fn resolve_relative_dotted_name_prefers_caller_namespace() {
+        // A relative dotted word (`ns2::inner`) resolves against the
+        // caller's own namespace first, not straight at global (confirmed
+        // against tclsh 9.0.4 — see `bareword_resolution_candidates`).
+        let known = known_set(&["::ns::ns2::inner", "::ns2::inner"]);
+        assert_eq!(
+            resolve_internal_call("ns2::inner", "::ns::caller", &known),
+            Some("::ns::ns2::inner".into()),
+            "must prefer the caller-namespace proc over the root one",
+        );
+        // No caller-namespace candidate → falls back to the root proc.
+        assert_eq!(
+            resolve_internal_call("ns2::inner", "::top", &known),
+            Some("::ns2::inner".into()),
+        );
+    }
+
+    #[test]
+    fn resolve_bare_does_not_walk_ancestor_namespaces() {
+        // Real Tcl bareword resolution is exactly two levels — the
+        // caller's own namespace, then global — absent an explicit
+        // `namespace path`. A proc defined in a *grandparent* namespace
+        // must not resolve for a bare call from `::ns::a::caller`.
         let known = known_set(&["::ns::helper"]);
         assert_eq!(
             resolve_internal_call("helper", "::ns::a::caller", &known),
-            Some("::ns::helper".into())
+            None,
+            "a grandparent-namespace proc must not resolve for a bare call",
+        );
+        // Control: the *direct* enclosing namespace still resolves.
+        let known2 = known_set(&["::ns::a::helper"]);
+        assert_eq!(
+            resolve_internal_call("helper", "::ns::a::caller", &known2),
+            Some("::ns::a::helper".into()),
         );
     }
 

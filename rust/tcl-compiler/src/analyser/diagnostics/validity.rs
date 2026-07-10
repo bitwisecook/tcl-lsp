@@ -167,30 +167,16 @@ fn dialect_availability_suffix(dialects: Option<tcl_registry::prelude::DialectSe
     format!(" (available in: {})", names.join(", "))
 }
 
-/// Namespace-qualify `cmd_name`'s resolution candidates the Tcl way:
-/// current namespace first, then global. Shared by the
-/// builtin-shadowing suppression check
-/// ([`Analyser::flush_arity_diagnostics`]) and the same-file proc/alias/
-/// rename resolution chase
-/// ([`Analyser::resolve_indirect_call_target`]), so both walk the
-/// identical candidate order.
-///
-/// A name containing `::` but not starting with it (`inner::p`) is
-/// still *relative* — Tcl resolves it against the current namespace
-/// before falling back to global (confirmed against tclsh 9.0.4:
-/// calling `inner::p` from inside `namespace eval ::ns { … }` reaches
-/// `::ns::inner::p`, not `::inner::p`, when both exist). Only a
-/// leading `::` is a genuinely absolute name.
+/// Namespace-qualify `cmd_name`'s resolution candidates the Tcl way: current
+/// namespace first, then global. Shared by the builtin-shadowing suppression
+/// check ([`Analyser::flush_arity_diagnostics`]) and the same-file
+/// proc/alias/rename resolution chase
+/// ([`Analyser::resolve_indirect_call_target`]), so both walk the identical
+/// candidate order — and, via [`crate::naming::bareword_resolution_candidates`],
+/// the identical order the optimiser's interprocedural proc resolution uses,
+/// so a fix to the rule can't drift between the two.
 fn qualify_candidates(ns: &str, cmd_name: &str) -> Vec<String> {
-    if cmd_name.starts_with("::") {
-        return vec![cmd_name.to_owned()];
-    }
-    let global = format!("::{cmd_name}");
-    if ns == "::" {
-        return vec![global];
-    }
-    let relative = format!("{ns}::{cmd_name}");
-    vec![relative, global]
+    crate::naming::bareword_resolution_candidates(ns, cmd_name)
 }
 
 /// Whole-file facts needed to decide whether a same-file call resolves to a

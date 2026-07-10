@@ -1271,16 +1271,20 @@ fn parse_static_call_args(
 
 /// Resolve a call's head word to a procedure qname that has an
 /// interprocedural summary, following Tcl's real bareword command
-/// resolution:
+/// resolution via [`crate::naming::bareword_resolution_candidates`] —
+/// current namespace first, then global, exactly two levels, never every
+/// enclosing ancestor namespace (Tcl's own command lookup does not walk
+/// intermediate namespaces absent an explicit `namespace path`, which this
+/// analysis does not model — a body using it is more conservatively left
+/// unresolved here rather than risk folding to the wrong proc).
 ///
-/// * a `::`-qualified word is taken as-is;
-/// * a word containing `::` (relative-qualified) is rooted at `::`;
-/// * a bare word resolves against the *current* namespace, then falls back
-///   to the global namespace — exactly two levels, **not** every enclosing
-///   ancestor namespace. Tcl's own command lookup does not walk
-///   intermediate namespaces absent an explicit `namespace path` (which
-///   this analysis does not model — a body using it is more conservatively
-///   left unresolved here rather than risk folding to the wrong proc).
+/// Shared with the analyser's identical same-file resolution chase
+/// (`Analyser::resolve_indirect_call_target`) so the two can't diverge on
+/// the same rule — a relative dotted word (`inner::p`) previously resolved
+/// straight to `::inner::p` here, rooted at global, when real Tcl (and the
+/// analyser side) tries the *current* namespace first
+/// (`{namespace}::inner::p`); two procs of that shape in different
+/// namespaces could fold a call to the wrong one's constant return.
 ///
 /// Returns the first candidate that has a summary, else `None`.
 fn resolve_proc_qname(
@@ -1291,35 +1295,9 @@ fn resolve_proc_qname(
     if command.is_empty() {
         return None;
     }
-    if command.starts_with("::") || command.contains("::") {
-        let qname = if command.starts_with("::") {
-            command.to_owned()
-        } else {
-            format!("::{command}")
-        };
-        return ia.procedures.contains_key(&qname).then_some(qname);
-    }
-    let current = qualify_in_namespace(namespace, command);
-    if ia.procedures.contains_key(&current) {
-        return Some(current);
-    }
-    if namespace != "::" {
-        let global = format!("::{command}");
-        if ia.procedures.contains_key(&global) {
-            return Some(global);
-        }
-    }
-    None
-}
-
-/// Qualify a bare `command` name against `namespace` (`"::"` for the root),
-/// without the doubled `::::` a naive `format!` would produce at the root.
-fn qualify_in_namespace(namespace: &str, command: &str) -> String {
-    if namespace == "::" {
-        format!("::{command}")
-    } else {
-        format!("{namespace}::{command}")
-    }
+    crate::naming::bareword_resolution_candidates(namespace, command)
+        .into_iter()
+        .find(|qname| ia.procedures.contains_key(qname))
 }
 
 /// O103: if `command` resolves to a proc with `can_fold_static_calls`
@@ -2517,6 +2495,42 @@ mod tests {
         assert_eq!(
             resolve_proc_qname("foo", "::a::b::c", &ia2).as_deref(),
             Some("::a::b::c::foo"),
+        );
+    }
+
+    #[test]
+    fn resolve_proc_qname_relative_dotted_word_prefers_current_namespace() {
+        // A relative *dotted* word (`ns2::inner`, containing `::` but not
+        // starting with it) must resolve against the current namespace
+        // first, not be rooted straight at global — the same rule
+        // `bareword_resolution_candidates` documents (confirmed against
+        // tclsh 9.0.4). Two procs of this shape exist here, one nested
+        // under `::ns` and one at the root; a bare `ns2::inner` call from
+        // inside `::ns` must reach the nearer one.
+        let module = crate::lowering::lower_to_ir(
+            "proc ns2::inner {} { return 1 }\n\
+             namespace eval ::ns {\n proc ns2::inner {} { return 2 }\n proc caller {} { ns2::inner }\n}",
+            &registry(),
+        );
+        let ia = crate::interprocedural::build_interprocedural_analysis(
+            &module,
+            &registry(),
+            None,
+            crate::interprocedural::ObjectTypeMap::none(),
+        );
+        assert!(ia.procedures.contains_key("::ns2::inner"));
+        assert!(ia.procedures.contains_key("::ns::ns2::inner"));
+        assert_eq!(
+            resolve_proc_qname("ns2::inner", "::ns", &ia).as_deref(),
+            Some("::ns::ns2::inner"),
+            "a relative dotted call must prefer the current-namespace proc \
+             over the root one",
+        );
+        // Falls back to the root proc when there is no current-namespace
+        // candidate.
+        assert_eq!(
+            resolve_proc_qname("ns2::inner", "::other", &ia).as_deref(),
+            Some("::ns2::inner"),
         );
     }
 
