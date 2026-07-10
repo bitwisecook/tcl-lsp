@@ -223,9 +223,8 @@ fn run_load_forwarding(
     // `upvar`/`trace`-aliased name's "sole reaching def" is not actually
     // sole: some other call frame can reassign it between the def and a
     // later use.
-    let mut escaping =
-        crate::var_observability::analyse_var_observability(&fu.cfg, trace.registry)
-            .escaping_var_names();
+    let mut escaping = crate::var_observability::analyse_var_observability(&fu.cfg, trace.registry)
+        .escaping_var_names();
     escaping.extend(extra_escaping.iter().cloned());
     escaping.extend(trace.traced_variables.iter().cloned());
 
@@ -234,11 +233,8 @@ fn run_load_forwarding(
             continue;
         }
         let var_name = chain.key.0.as_str();
-        if crate::sccp::is_externally_mutable(
-            var_name,
-            &escaping,
-            trace.has_dynamic_variable_trace,
-        ) {
+        if crate::sccp::is_externally_mutable(var_name, &escaping, trace.has_dynamic_variable_trace)
+        {
             continue;
         }
         // Find the defining statement — must be an AssignConst
