@@ -266,6 +266,41 @@ suite("Code Actions", () => {
     );
   });
 
+  test("provides quick fix for W004 (dialect-invalid option)", async () => {
+    const w004Uri = getDocUri("diagnostics-w004.tcl");
+    await activate(w004Uri);
+    const diagnostics = await waitForDiagnostics(w004Uri, {
+      predicate: (diags) =>
+        diags.some((d) => {
+          const code = typeof d.code === "object" ? d.code.value : d.code;
+          return code === "W004" && d.message.includes("-stride");
+        }),
+    });
+
+    const w004 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "W004" && d.message.includes("-stride");
+    });
+    assert.ok(w004, "W004 diagnostic for -stride should be present");
+
+    const actions = (await pollUntil(
+      () =>
+        vscode.commands.executeCommand("vscode.executeCodeActionProvider", w004Uri, w004.range),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title.includes("-stride"),
+        ),
+      { timeout: 10_000, label: "W004 remove-option quick fix" },
+    )) as vscode.CodeAction[];
+
+    const removeFix = actions.find(
+      (a) => typeof a.title === "string" && a.title.includes("-stride"),
+    );
+    assert.ok(removeFix, "Should provide a 'Remove -stride' quick fix");
+    assert.ok(removeFix.edit, "the quick fix should carry a workspace edit");
+  });
+
   test("provides guided collect bootstrap fix for IRULE1005", async () => {
     await activate(irulesDocUri);
     // IRULE1005 is a deep diagnostic — it fires after the initial basic

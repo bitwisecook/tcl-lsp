@@ -303,6 +303,67 @@ fn string_match_nocase_has_no_arity_error() {
     assert!(!has_code(&diags, "E003"));
 }
 
+// -- TestW004DialectInvalidOption -----------------------------------------
+// End-to-end coverage for W004 (option not available in the active
+// dialect): the abbreviated-subcommand fix, and the shadow-suppression
+// fix for a same-file proc that redefines a builtin.
+
+#[test]
+fn lsearch_stride_on_tcl86_is_w004() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl8.6\nlsearch -stride 2 {a b} x\n");
+    assert!(has_code(&diags, "W004"));
+}
+
+#[test]
+fn chan_configure_inputmode_on_tcl86_is_w004() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl8.6\nchan configure $chan -inputmode raw\n",
+    );
+    assert!(has_code(&diags, "W004"));
+}
+
+#[test]
+fn abbreviated_chan_conf_inputmode_on_tcl86_is_still_w004() {
+    // `conf` uniquely abbreviates `configure` — real Tcl ensemble dispatch
+    // accepts it, so the option check must resolve it too rather than
+    // silently skipping the whole option scan.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl8.6\nchan conf $chan -inputmode raw\n",
+    );
+    assert!(has_code(&diags, "W004"));
+}
+
+#[test]
+fn lsearch_stride_on_tcl90_has_no_w004() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl9.0\nlsearch -stride 2 {a b} x\n");
+    assert!(!has_code(&diags, "W004"));
+}
+
+#[test]
+fn user_proc_shadowing_lsearch_suppresses_w004() {
+    // `lsearch` really dispatches to the user's own proc here, so the
+    // builtin's dialect-restricted `-stride` no longer applies.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src =
+        "# tcl-dialect: tcl8.6\nproc lsearch {l args} { return $l }\nlsearch -stride 2 {a b}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "W004"),
+        "a user proc shadowing lsearch should suppress W004: {diags:?}"
+    );
+}
+
 // -- TestE001MissingDispatchWord ------------------------------------------
 // End-to-end coverage for E001 ("missing subcommand" / TclOO "missing
 // method"): tight command-head-only highlighting, the `history`

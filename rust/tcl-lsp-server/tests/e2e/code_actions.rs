@@ -269,6 +269,33 @@ fn test_e004_missing_first_clause_offers_no_fix() {
     assert!(new_texts(&actions).is_empty(), "got {actions:?}");
 }
 
+#[test]
+fn test_w004_offers_remove_option_fix() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "# tcl-dialect: tcl8.6\nlsearch -stride 2 {a b c d} b\n";
+    let diags = lsp.open_ready(&uri, src);
+    let w004 = with_code(&diags, "W004");
+    assert!(!w004.is_empty(), "expected a W004 diagnostic: {diags:?}");
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((1, 0), (1, 30)),
+        json!(w004),
+        &["quickfix"],
+    );
+    assert!(
+        titles(&actions).iter().any(|t| t.contains("-stride")),
+        "expected a 'Remove ...-stride...' quick fix: {:?}",
+        titles(&actions)
+    );
+    assert!(
+        new_texts(&actions).iter().any(String::is_empty),
+        "the remove-option fix deletes text (empty newText): {:?}",
+        new_texts(&actions)
+    );
+}
+
 // -- TestRefactorActions -------------------------------------------------
 
 #[test]

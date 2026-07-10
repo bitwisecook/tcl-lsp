@@ -903,6 +903,11 @@ impl Analyser {
 
     /// Idempotent: drains `pending_arity` and `pending_user_call_arity`,
     /// so a second call is a no-op.
+    ///
+    /// `pending_arity` carries both E002/E003 arity candidates and W004
+    /// (dialect-invalid-option) candidates (see its field doc); the
+    /// resolution loop below never inspects `diag.code`, so both share the
+    /// identical shadowing suppression with no special-casing.
     pub fn flush_arity_diagnostics(&mut self) {
         if self.pending_arity.is_empty() && self.pending_user_call_arity.is_empty() {
             return;
@@ -2086,14 +2091,32 @@ before this value so it is treated as data, not an option."
     /// the dispatching is only on the *flag name*; we don't have to
     /// inspect the value.  `--` terminates the scan.
     ///
-    /// Subcommand-scoped options consult the subcommand's
-    /// `OptionSpec` table when the first arg matches a known
-    /// subcommand.
+    /// Subcommand-scoped options resolve the first arg against the
+    /// registry's own [`tcl_registry::CommandSpec::resolve_subcommand_for_dialect`]
+    /// — the same unique-prefix-abbreviation resolver `string le` (⇒
+    /// `length`) relies on elsewhere — rather than an exact-name match, so
+    /// an abbreviated subcommand (`chan conf -inputmode` ⇒ `configure`) is
+    /// still checked. An ensemble-shaped command (non-empty `subcommands`)
+    /// always dispatches on its first word, so when that word can't be
+    /// statically resolved (dynamic, `{*}`-expanded, unknown, or an
+    /// ambiguous prefix) this abstains entirely rather than falling back to
+    /// the parent `CommandSpec`'s own `options` — that table describes a
+    /// different argument position and is never reachable at index 0 of a
+    /// real ensemble call.
+    ///
+    /// Candidates are queued onto [`Analyser::pending_arity`] rather than
+    /// pushed directly, so a call whose `cmd_name` resolves to a same-file
+    /// user proc / class / alias / ensemble / stub — which really does
+    /// dispatch to that definition, not the registry builtin the option
+    /// table describes — is suppressed post-walk by
+    /// [`Self::flush_arity_diagnostics`] exactly like an arity candidate.
     pub(in crate::analyser) fn emit_w004_dialect_invalid_option(
         &mut self,
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
+        arg_expand: &[bool],
+        scope_path: &[usize],
     ) {
         use tcl_registry::dialects::DialectSet;
 
@@ -2110,15 +2133,30 @@ before this value so it is treated as data, not an option."
             return;
         };
 
-        // Resolve subcommand-level options when the first arg names
-        // one.
-        let sub_match = (!spec.subcommands.is_empty())
-            .then(|| spec.subcommands.iter().find(|s| s.name == args[0].as_str()))
-            .flatten();
-        let (options, parent_dialects, start_idx) = if let Some(sub) = sub_match {
-            (sub.options, sub.dialects.or(spec.dialects), 1usize)
+        let (options, parent_dialects, start_idx, sub_name) = if spec.subcommands.is_empty() {
+            (spec.options, spec.dialects, 0usize, None)
         } else {
-            (spec.options, spec.dialects, 0usize)
+            // Ensemble-shaped: index 0 is always the subcommand word.  A
+            // `{*}`-expanded or substituted word resolves to an unknown name
+            // at runtime; abstain rather than guess.
+            if arg_expand.first().copied().unwrap_or(false) {
+                return;
+            }
+            if arg_tokens
+                .first()
+                .is_some_and(|tok| has_substitution(&args[0], tok))
+            {
+                return;
+            }
+            let Some(sub) = spec.resolve_subcommand_for_dialect(&args[0], active) else {
+                return;
+            };
+            (
+                sub.options,
+                sub.dialects.or(spec.dialects),
+                1usize,
+                Some(sub.name),
+            )
         };
 
         if options.is_empty() {
@@ -2164,8 +2202,10 @@ before this value so it is treated as data, not an option."
                     let span = arg_tokens[i].span;
                     // Message exactly: `Option 'X' on 'cmd'[ sub] is not
                     // available in the active dialect (D).`
-                    let sub_suffix = sub_match.map_or(String::new(), |s| format!(" {}", s.name));
-                    self.result.diagnostics.push(super::types::Diagnostic {
+                    let sub_suffix = sub_name.map_or(String::new(), |n| format!(" {n}"));
+                    let consumed = 1 + opt.value_word_count(args, i);
+                    let fixes = self.w004_remove_option_fix(arg, arg_tokens, i, consumed);
+                    let diag = super::types::Diagnostic {
                         code: DiagCode::W004,
                         span,
                         message: format!(
@@ -2174,14 +2214,54 @@ in the active dialect ({}).",
                             self.dialect
                         ),
                         severity: Severity::Warning,
-                        fixes: Vec::new(),
-                    });
+                        fixes,
+                    };
+                    let ns = self.command_resolution_namespace(scope_path);
+                    let enforce_order = !self.scope_path_in_proc_body(scope_path);
+                    self.pending_arity
+                        .push((cmd_name.to_string(), ns, enforce_order, diag));
                 }
                 i += 1 + opt.value_word_count(args, i);
                 continue;
             }
             i += 1;
         }
+    }
+
+    /// Build the "remove option" fix for a W004 candidate: deletes the flag
+    /// token at `flag_idx` through the last of its `consumed` words (the
+    /// flag plus any value word(s)).  Extends through the start of the
+    /// following argument token when one exists, so the result reads
+    /// cleanly with no doubled separator; otherwise ends at the last
+    /// consumed token's true closing delimiter via
+    /// [`tcl_lexer::word_closer_offset`] so a braced/quoted flag or value
+    /// (`{-stride}`, `"-stride"`) doesn't leave a stray `}` / `"` behind —
+    /// see `kcs-issue-highlight-drops-closing-delimiter.md`.
+    fn w004_remove_option_fix(
+        &self,
+        arg: &str,
+        arg_tokens: &[tcl_lexer::Token],
+        flag_idx: usize,
+        consumed: usize,
+    ) -> Vec<super::types::CodeFix> {
+        let Some(&flag_tok) = arg_tokens.get(flag_idx) else {
+            return Vec::new();
+        };
+        let last_idx = flag_idx + consumed - 1;
+        let Some(&last_tok) = arg_tokens.get(last_idx) else {
+            return Vec::new();
+        };
+        let end = if let Some(next_tok) = arg_tokens.get(flag_idx + consumed) {
+            next_tok.span.start()
+        } else {
+            let sm = tcl_lexer::SourceMap::new(&self.source);
+            tcl_lexer::word_closer_offset(&sm, last_tok).map_or(last_tok.span.end(), |c| c + 1)
+        };
+        vec![super::types::CodeFix {
+            span: tcl_lexer::Span::new(flag_tok.span.start(), end),
+            new_text: String::new(),
+            description: format!("Remove '{arg}'"),
+        }]
     }
 
     /// **W003.** Emit "Expression operator not available in active

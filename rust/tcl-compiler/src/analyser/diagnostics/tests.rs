@@ -1869,6 +1869,220 @@ fn w004_silent_on_regsub_command_in_tcl9() {
     );
 }
 
+// --- Shadow suppression: a same-file proc / alias really is what gets
+// called, so the registry builtin's dialect-restricted option no longer
+// applies. Mirrors the E002/E003 arity suppression exactly (same queue,
+// same resolution order).
+
+#[test]
+fn w004_suppressed_when_shadowed_by_user_proc_before_call() {
+    let mut a = Analyser::new();
+    let src = "proc lsearch {l args} { return $l }\nlsearch -stride 2 {a b c d}\n";
+    let result = a.analyse(src, "tcl8.6");
+    assert!(
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "a user proc shadowing lsearch should suppress the builtin's W004, got {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn w004_still_fires_when_shadowing_proc_defined_after_top_level_call() {
+    // Top-level calls run in source order during load; a proc defined
+    // *after* this call hasn't shadowed it yet, so the builtin (and its
+    // W004) is still in effect — same order-gating as arity.
+    let mut a = Analyser::new();
+    let src = "lsearch -stride 2 {a b c d}\nproc lsearch {l args} { return $l }\n";
+    let result = a.analyse(src, "tcl8.6");
+    assert!(
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "expected W004: the builtin is still in effect before the shadowing proc is defined, got {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn w004_suppressed_when_shadowing_proc_defined_after_call_inside_proc_body() {
+    // Inside a proc body, the whole file has already loaded by the time the
+    // body runs, so a later top-level proc definition still shadows.
+    let mut a = Analyser::new();
+    let src =
+        "proc caller {} { lsearch -stride 2 {a b c d} }\nproc lsearch {l args} { return $l }\n";
+    let result = a.analyse(src, "tcl8.6");
+    assert!(
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "a proc-body call resolves after full-file load, so the later proc \
+definition should still suppress W004, got {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn w004_suppressed_when_shadowed_by_namespaced_proc_called_unqualified() {
+    // The shadowing proc is `::myns::lsearch`; the call inside the same
+    // namespace resolves current-namespace-first, exactly like arity's
+    // namespace resolution — not just a global `::lsearch` check.
+    let mut a = Analyser::new();
+    let src = "namespace eval myns {\n    proc lsearch {l args} { return $l }\n    lsearch -stride 2 {a b c d}\n}\n";
+    let result = a.analyse(src, "tcl8.6");
+    assert!(
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "a namespaced proc shadowing lsearch, called unqualified inside its \
+own namespace, should suppress W004, got {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn w004_suppressed_when_command_aliased_to_user_proc() {
+    let mut a = Analyser::new();
+    let src = "proc mylsearch {l args} { return $l }\ninterp alias {} lsearch {} mylsearch\nlsearch -stride 2 {a b c d}\n";
+    let result = a.analyse(src, "tcl8.6");
+    assert!(
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "lsearch aliased to a user proc should suppress the builtin's W004, got {:?}",
+        result.diagnostics
+    );
+}
+
+// --- Abbreviated-subcommand resolution: W004 now shares the registry's
+// unique-prefix subcommand resolver instead of a hand-rolled exact-name
+// match, so a legal Tcl ensemble abbreviation is still checked.
+
+#[test]
+fn w004_fires_on_abbreviated_chan_configure_inputmode() {
+    // `configure` is `chan`'s only subcommand starting with `conf`, so real
+    // Tcl ensemble dispatch accepts the abbreviation.
+    let mut a = Analyser::new();
+    let result = a.analyse("chan conf $chan -inputmode raw", "tcl8.6");
+    assert!(
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "expected W004 on the abbreviated 'chan conf -inputmode', got {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn w004_abstains_on_dynamic_subcommand() {
+    for snippet in [
+        "chan $sub -inputmode raw $chan",
+        "chan [x] -inputmode raw $chan",
+    ] {
+        let mut a = Analyser::new();
+        let result = a.analyse(snippet, "tcl8.6");
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+            "unexpected W004 for dynamic subcommand {snippet:?}: {:?}",
+            result.diagnostics
+        );
+    }
+}
+
+#[test]
+fn w004_abstains_on_expanded_subcommand_word() {
+    let mut a = Analyser::new();
+    let result = a.analyse("chan {*}$sub -inputmode raw $chan", "tcl8.6");
+    assert!(
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "unexpected W004 for a `{{*}}`-expanded subcommand word: {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn w004_abstains_on_ambiguous_subcommand_prefix() {
+    // `p` is ambiguous between `pending` / `pipe` / `pop` / `push` / `puts`
+    // on `chan` — resolution must abstain rather than guess (and rather
+    // than falling back to `chan`'s own unrelated top-level option table).
+    let mut a = Analyser::new();
+    let result = a.analyse("chan p $chan -inputmode raw", "tcl8.6");
+    assert!(
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "unexpected W004 for an ambiguous subcommand prefix: {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn w004_abstains_on_unknown_subcommand_instead_of_scanning_parent_options() {
+    let mut a = Analyser::new();
+    let result = a.analyse("chan bogus $chan -inputmode raw", "tcl8.6");
+    assert!(
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "unexpected W004 for an unknown chan subcommand: {:?}",
+        result.diagnostics
+    );
+}
+
+// --- Quick fix: "Remove '-option'" deletes the flag and its value word(s).
+
+#[test]
+fn w004_fix_removes_option_and_its_value() {
+    let mut a = Analyser::new();
+    let src = "lsearch -stride 2 {a b c d} b";
+    let result = a.analyse(src, "tcl8.6");
+    let w004: Vec<&Diagnostic> = result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W004)
+        .collect();
+    assert_eq!(w004.len(), 1, "{:?}", result.diagnostics);
+    let fix = w004[0]
+        .fixes
+        .first()
+        .expect("W004 should carry a remove-option fix");
+    assert_eq!(fix.new_text, "");
+    assert!(fix.description.contains("-stride"), "{:?}", fix.description);
+    let mut applied = src.to_string();
+    applied.replace_range(fix.span.start() as usize..fix.span.end() as usize, "");
+    assert_eq!(applied, "lsearch {a b c d} b");
+}
+
+#[test]
+fn w004_fix_removes_option_and_value_at_end_of_command() {
+    let mut a = Analyser::new();
+    let src = "lsearch -stride 2";
+    let result = a.analyse(src, "tcl8.6");
+    let w004: Vec<&Diagnostic> = result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W004)
+        .collect();
+    assert_eq!(w004.len(), 1, "{:?}", result.diagnostics);
+    let fix = w004[0].fixes.first().expect("fix");
+    let mut applied = src.to_string();
+    applied.replace_range(fix.span.start() as usize..fix.span.end() as usize, "");
+    // No following argument to extend through, so one separator remains
+    // before the deleted range — cosmetic only (Tcl treats runs of
+    // whitespace between words identically).
+    assert_eq!(applied.trim_end(), "lsearch");
+}
+
+#[test]
+fn w004_fix_handles_braced_option_token_without_stray_closer() {
+    // A braced flag/value (`{-stride}`) is a legal, if unusual, way to write
+    // the same word; the fix must delete the whole wrapped token — never
+    // leaving a stray `}` behind (kcs-issue-highlight-drops-closing-delimiter).
+    let mut a = Analyser::new();
+    let src = "lsearch {-stride} 2 {a b} x";
+    let result = a.analyse(src, "tcl8.6");
+    let w004: Vec<&Diagnostic> = result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W004)
+        .collect();
+    assert_eq!(w004.len(), 1, "{:?}", result.diagnostics);
+    let fix = w004[0].fixes.first().expect("fix");
+    let mut applied = src.to_string();
+    applied.replace_range(fix.span.start() as usize..fix.span.end() as usize, "");
+    assert_eq!(applied, "lsearch {a b} x");
+    assert_eq!(
+        applied.matches('{').count(),
+        applied.matches('}').count(),
+        "braces must stay balanced: {applied:?}"
+    );
+}
+
 #[test]
 fn w003_fires_on_string_compare_in_tcl84() {
     // `lt` / `le` / `gt` / `ge` are Tcl 9.0+ (TIP 461); on

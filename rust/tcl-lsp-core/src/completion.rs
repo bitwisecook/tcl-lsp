@@ -166,6 +166,77 @@ fn char_col_to_utf16(line_text: &str, char_col: usize) -> u32 {
         .sum()
 }
 
+/// Cursor context threaded into [`switch_completion_items`] — bundled so
+/// the helper stays under the argument-count budget.
+#[derive(Clone, Copy)]
+struct SwitchCompletionCtx<'a> {
+    spec: &'a tcl_registry::CommandSpec,
+    source: &'a str,
+    line: u32,
+    character: u32,
+    word_idx: usize,
+    analysis: &'a AnalysisResult,
+    dialect: Option<tcl_registry::dialects::DialectSet>,
+}
+
+/// Option-flag completion for a `-<cursor>` position: resolves the
+/// subcommand-scoped option table (`chan configure -<cursor>`) before
+/// falling back to the command's own top-level table — an ensemble's real
+/// options live on the subcommand (`SubCommand::options`), and only that
+/// table is dialect-correct for a subcommand-specific option (e.g. `chan
+/// configure -inputmode`, 9.0+, absent from `chan`'s own top-level table).
+/// Mirrors the sub-arg-value resolution in [`context_aware_completions`].
+/// Returns `None` when the resolved table has no options at all (so the
+/// caller falls through to the next completion context).
+fn switch_completion_items(
+    ctx: &SwitchCompletionCtx<'_>,
+    switch_partial: &str,
+) -> Option<Vec<CompletionItem>> {
+    let SwitchCompletionCtx {
+        spec,
+        source,
+        line,
+        character,
+        word_idx,
+        analysis,
+        dialect,
+    } = *ctx;
+    let sub = (word_idx >= 2)
+        .then(|| nth_word_on_line(source, line, 1))
+        .flatten()
+        .and_then(|sub_name| {
+            spec.resolve_subcommand_for_dialect(
+                &sub_name,
+                dialect.unwrap_or(tcl_registry::dialects::DialectSet::all()),
+            )
+        });
+    let (options, parent_dialects) = match sub {
+        Some(sub) => (sub.options, sub.dialects.or(spec.dialects)),
+        None => (spec.options, spec.dialects),
+    };
+    if options.is_empty() {
+        return None;
+    }
+    // Replacement range spans the `-partial` already typed (dash column →
+    // cursor) so the dash isn't duplicated.
+    let line_text = source.split('\n').nth(line as usize).unwrap_or("");
+    let cursor_col = utf16_col_to_char_col(line_text, character).min(line_text.chars().count());
+    let dash_col = cursor_col.saturating_sub(switch_partial.chars().count());
+    let edit = (
+        char_col_to_utf16(line_text, dash_col),
+        char_col_to_utf16(line_text, cursor_col),
+    );
+    let floor = package_version_floor(analysis, spec);
+    Some(switch_completions(
+        options,
+        dialect,
+        parent_dialects,
+        switch_partial,
+        edit,
+        floor,
+    ))
+}
+
 /// Registry-driven, context-aware completion: switch / event-name /
 /// user-proc / subcommand / arg-value suggestions resolved from the
 /// surrounding command's [`CommandRegistry`] spec.  Returns `None` when the
@@ -178,6 +249,7 @@ fn context_aware_completions(
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
     partial: &str,
+    dialect: Option<tcl_registry::dialects::DialectSet>,
 ) -> Option<Vec<CompletionItem>> {
     let (cmd, word_idx) = command_context_on_line(source, line, character)?;
 
@@ -212,19 +284,20 @@ fn context_aware_completions(
     // dash (it's not an identifier char), so detect
     // the dash here and rebuild the switch partial.
     if let Some(switch_partial) = switch_partial_at_position(source, line, character, partial)
-        && !spec.options.is_empty()
+        && let Some(items) = switch_completion_items(
+            &SwitchCompletionCtx {
+                spec,
+                source,
+                line,
+                character,
+                word_idx,
+                analysis,
+                dialect,
+            },
+            &switch_partial,
+        )
     {
-        // Replacement range spans the `-partial` already typed
-        // (dash column → cursor) so the dash isn't duplicated.
-        let line_text = source.split('\n').nth(line as usize).unwrap_or("");
-        let cursor_col = utf16_col_to_char_col(line_text, character).min(line_text.chars().count());
-        let dash_col = cursor_col.saturating_sub(switch_partial.chars().count());
-        let edit = (
-            char_col_to_utf16(line_text, dash_col),
-            char_col_to_utf16(line_text, cursor_col),
-        );
-        let floor = package_version_floor(analysis, spec);
-        return Some(switch_completions(spec, &switch_partial, edit, floor));
+        return Some(items);
     }
     // iRules `when EVENT { body }`: when the cursor is
     // typing the first argument of an event-handler
@@ -372,8 +445,15 @@ pub fn completions(
     // can't tell which switches / subcommands / events are valid,
     // so fall through to plain command + proc completion.
     if let Some(registry) = registry
-        && let Some(items) =
-            context_aware_completions(source, line, character, analysis, registry, &partial)
+        && let Some(items) = context_aware_completions(
+            source,
+            line,
+            character,
+            analysis,
+            registry,
+            &partial,
+            tcl_registry::dialects::DialectSet::parse(dialect),
+        )
     {
         return items;
     }
@@ -1018,17 +1098,19 @@ fn switch_partial_at_position(
 }
 
 fn switch_completions(
-    spec: &tcl_registry::CommandSpec,
+    options: &[tcl_registry::hover::OptionSpec],
+    dialect: Option<tcl_registry::dialects::DialectSet>,
+    parent_dialects: Option<tcl_registry::dialects::DialectSet>,
     partial: &str,
     edit: (u32, u32),
     package_version: Option<&str>,
 ) -> Vec<CompletionItem> {
-    let mut opts: Vec<_> = spec
-        .options
+    let mut opts: Vec<_> = options
         .iter()
         .filter(|opt| {
             (partial.is_empty() || opt.name.starts_with(partial))
                 && opt.available_for_version(package_version)
+                && opt.supports_dialect(dialect, parent_dialects)
         })
         .collect();
     opts.sort_unstable_by_key(|opt| opt.name);
@@ -2041,6 +2123,60 @@ mod tests {
         assert!(
             l2.iter().any(|l| l == "-placeholder"),
             "Tk 8.7 must offer -placeholder: {l2:?}",
+        );
+    }
+
+    #[test]
+    fn switch_completion_gates_options_by_dialect() {
+        // `lsearch -stride` is Tcl 9.0+ (see the W004 diagnostic for the same
+        // gate).  Completion must not suggest it under an older dialect, and
+        // must once the document's dialect supports it.
+        let registry = CommandRegistry::build_default();
+        let src = "lsearch -s {a b} x\n";
+        let a = analyse(src);
+        let old: Vec<String> = completions(src, 0, 10, &a, Some(&registry), None, "tcl8.6")
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(
+            !old.iter().any(|l| l == "-stride"),
+            "tcl8.6 must not offer -stride: {old:?}",
+        );
+        let new: Vec<String> = completions(src, 0, 10, &a, Some(&registry), None, "tcl9.0")
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(
+            new.iter().any(|l| l == "-stride"),
+            "tcl9.0 must offer -stride: {new:?}",
+        );
+    }
+
+    #[test]
+    fn switch_completion_resolves_subcommand_scoped_options() {
+        // `chan configure -inputmode` is a subcommand-scoped, Tcl 9.0+
+        // option that lives only on the `configure` SubCommand's own table —
+        // absent from `chan`'s top-level option table entirely.  Completion
+        // must resolve the typed subcommand to find it, and still gate it by
+        // dialect exactly like W004 does.
+        let registry = CommandRegistry::build_default();
+        let src = "chan configure $chan -i\n";
+        let a = analyse(src);
+        let old: Vec<String> = completions(src, 0, 23, &a, Some(&registry), None, "tcl8.6")
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(
+            !old.iter().any(|l| l == "-inputmode"),
+            "tcl8.6 must not offer -inputmode: {old:?}",
+        );
+        let new: Vec<String> = completions(src, 0, 23, &a, Some(&registry), None, "tcl9.0")
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(
+            new.iter().any(|l| l == "-inputmode"),
+            "tcl9.0 must offer -inputmode: {new:?}",
         );
     }
 
