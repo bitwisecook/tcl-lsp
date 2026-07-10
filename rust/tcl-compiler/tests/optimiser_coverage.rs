@@ -684,8 +684,7 @@ fn o107_dead_code_elimination_of_unreachable_branch_respects_variable_trace() {
     //
     // Fixed for free at the root, not by a fourth per-pass patch: SCCP
     // itself (`sccp.rs`) now consults a whole-module variable-trace fact
-    // (`var_observability::ModuleVariableTraces`, threaded in via
-    // `compilation_unit.rs`) and forces `x` to `Overdefined`, so
+    // and forces `x` to `Overdefined`, so
     // `executable_blocks`/`constant_branches` — and every one of their
     // consumers, including this one — see the `else` arm as reachable.
     // No optimisation fires at all; the source survives byte-for-byte.
