@@ -2514,6 +2514,62 @@ mod tests {
     }
 
     #[test]
+    fn pre_warming_makes_project_index_loop_all_cache_hits() {
+        // #844 Gap 3: the server-layer parallel warm pre-populates
+        // `file_analysis_incremental` for every project file so the enriched
+        // `project_class_index` / `project_proc_var_index` loops are pure cache
+        // hits — no per-file re-analysis. That is exactly what lets the warm
+        // collapse a cold workspace's serial walk into a parallel one: the
+        // tracked query does only the cheap cross-file aggregation, not N whole
+        // -file analyses. This pins the salsa property the warm relies on.
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let l = Arc::clone(&log);
+            move |ev: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                    l.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+            registries: Arc::default(),
+        };
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
+        let lib = SourceFile::new(
+            &db,
+            "oo::configurable create ::Pin { property node }\n".to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let main = SourceFile::new(
+            &db,
+            "proc ::helper {a b} { return [expr {$a + $b}] }\n".to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let project = Project::new(&db, vec![lib, main]);
+
+        // The warm: analyse every project file once, exactly what
+        // `spawn_workspace_warm` fans across the blocking pool.  Uses the *same*
+        // `(file, config)` keys the project indexes will read.
+        for &file in project.files(&db) {
+            let _ = file_analysis_incremental(&db, file, cfg);
+        }
+        // From here the project-index loops must not re-execute the per-file
+        // query — every read is served from the warmed cache.
+        log.lock().unwrap().clear();
+        let _ = project_class_index(&db, project, cfg);
+        let _ = project_proc_var_index(&db, project, cfg);
+        let after = log.lock().unwrap().clone();
+        assert!(
+            after
+                .iter()
+                .all(|s| !s.contains("file_analysis_incremental")),
+            "after the warm, the project indexes must hit cache, not re-run \
+             file_analysis_incremental: {after:?}"
+        );
+    }
+
+    #[test]
     fn cross_file_object_dispatch_resolves_via_project_index() {
         // A class defined in one file, dispatched on via a direct constructor in
         // another: `semantic_tokens_project` resolves the method through the

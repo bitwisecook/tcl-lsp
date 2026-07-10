@@ -79,7 +79,7 @@ use tcl_lsp_core::workspace_symbols::{
 use tcl_lsp_db::TclDb as _;
 use tcl_registry::CommandRegistry;
 use tcl_registry::dialects::DialectSet;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{Mutex, RwLock, Semaphore};
 use tower_lsp_server::jsonrpc;
 use tower_lsp_server::ls_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
@@ -211,6 +211,49 @@ const DIAGNOSTICS_DEBOUNCE: std::time::Duration = std::time::Duration::from_mill
 /// so the enriched query is a cache hit well inside this budget and callers
 /// never see the fallback.
 const SEMANTIC_TOKENS_FAST_PATH_BUDGET: std::time::Duration = std::time::Duration::from_millis(40);
+
+/// Upper bound the diagnostics pipeline waits for the full deep pass — the
+/// compiler / optimiser checks, the cross-file resolution, the W120 / W123
+/// workspace refinement, and the lift — before publishing the cheap,
+/// flicker-safe **fast tier** (#844): the workspace-independent syntax /
+/// structural / style diagnostics, computed from the per-file analyser walk
+/// alone.  A document whose whole pipeline settles inside this budget — a small
+/// or warm file — never reaches the fast tier, so it costs no redundant publish
+/// round-trip; only a large / cold document, whose deep pass overruns the
+/// budget, gets the early tier while the deep pass keeps running and later
+/// replaces it for the same version.  Sized like
+/// [`SEMANTIC_TOKENS_FAST_PATH_BUDGET`] (the two paths share the memoised
+/// per-item analysis) and comfortably under [`DIAGNOSTICS_DEBOUNCE`].
+///
+/// The budget is a wall-clock race and so is only the *warm-file* half of the
+/// debounce-skip; [`DIAGNOSTICS_FAST_TIER_MIN_LINES`] is the timing-independent
+/// half that keeps trivial files a single publish regardless of cold-start.
+const DIAGNOSTICS_FAST_TIER_BUDGET: std::time::Duration = std::time::Duration::from_millis(40);
+
+/// Documents below this line count never get a fast tier — they go straight to
+/// the single deep publish.  This is the **timing-independent** floor of the
+/// debounce-skip: a trivial document's deep-pass wall-clock is dominated by
+/// one-time warm-up (registry construction, the first salsa query) rather than
+/// per-file work, so even its first analysis can overrun
+/// [`DIAGNOSTICS_FAST_TIER_BUDGET`] on a cold server — yet a fast tier there is
+/// a pure redundant round-trip, since the deep result is milliseconds behind.
+/// Gating on size as well as the elapsed budget keeps small files a single
+/// publish regardless of machine speed or cold-start jitter (the property the
+/// `diagnostics_delivery_smoke` tests pin), while the budget race still
+/// suppresses the fast tier for *large but warm* files whose memoised deep pass
+/// lands inside the budget.  Set well above any trivial file yet far below the
+/// multi-thousand-line documents #844 targets.
+const DIAGNOSTICS_FAST_TIER_MIN_LINES: usize = 500;
+
+/// Ceiling on how many project files the background workspace warm (#844 Gap 3)
+/// analyses concurrently.  The warm pre-populates the memoised per-file analysis
+/// across the blocking pool so a cold workspace's first enriched
+/// `semantic_tokens_project` finds cache hits instead of serially walking every
+/// file; the cap keeps it from monopolising the blocking pool (or holding too
+/// many salsa snapshots at once, which would stall a concurrent edit's
+/// `set_text`) on a huge workspace, and it is clamped to the machine's parallelism
+/// so small hosts stay responsive.
+const WORKSPACE_WARM_MAX_CONCURRENCY: usize = 16;
 
 /// Debounce window for coalescing `workspace/semanticTokens/refresh` pushes
 /// (see [`SemanticTokensRefreshCtx::request_refresh_coalesced`]). Comparable
@@ -558,6 +601,39 @@ impl DeliveryCtx<'_> {
         }
     }
 
+    /// Deliver the #844 progressive **fast tier** — push-only, and only to a
+    /// push client — iff the document is still at this run's `revision`.
+    ///
+    /// Deliberately *not* [`deliver_if_current`]: the fast tier must **never**
+    /// prime the pull-diagnostic cache (trap #3).  The pull path
+    /// (`textDocument/diagnostic`) always serves or computes the *complete* deep
+    /// set; a cache primed with the incomplete fast tier would let a pull in the
+    /// window return a partial report.  A pull-capable client is skipped outright
+    /// — its "early" signal would be a `workspace/diagnostic/refresh`, but a
+    /// re-pull recomputes the full deep set synchronously, which defeats the fast
+    /// tier's whole purpose, so such a client just gets the deep tier's refresh
+    /// as before.  Currency-guarded under the `documents` lock exactly like the
+    /// deep publish (held across the push), so a superseding edit or a
+    /// `did_close` in the window can never let a stale fast tier land
+    /// (`RUST_ISSUE_098`).
+    async fn deliver_fast_tier_if_current(
+        &self,
+        diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
+    ) {
+        if self.client_supports_pull {
+            return;
+        }
+        let docs = self.documents.lock().await;
+        if docs
+            .get(self.uri)
+            .is_some_and(|doc| doc.revision == self.revision)
+        {
+            self.client
+                .publish_diagnostics(self.uri.clone(), diags, self.version)
+                .await;
+        }
+    }
+
     /// Update the pull-diagnostic cache for `uri` to `diags` at this run's
     /// `revision`, with a fresh `result_id`, then notify the client (push or
     /// refresh) — the publish half shared by every settled path.
@@ -631,21 +707,24 @@ struct SalsaAnalysisCtx<'a> {
 }
 
 /// Base analysis: the cancellable salsa `file_analysis_incremental` query
-/// (slice 5), off the LSP event loop, plus the cross-file `project_diagnostics`
-/// pass when `project` is `Some`.  `ctx.file` is `None` only if the salsa input
-/// is somehow absent; then fall back to a direct (uncached) analyse.
+/// (slice 5), off the LSP event loop — the whole-file per-item walk that
+/// dominates the deep pass and feeds *both* the workspace-independent fast tier
+/// (#844) and the deep tier.  `ctx.file` is `None` only if the salsa input is
+/// somehow absent; then fall back to a direct (uncached) analyse.  The cross-file
+/// `project_diagnostics` pass is now a separate query ([`compute_project_diags`])
+/// so it can run concurrently with this one and so the fast tier can publish
+/// before it.
 ///
-/// `Continue((analysis, analyser_diags))` carries the result; `Break(settled)`
-/// is the early return for `run_diagnostics_core` — `Break(false)` on a genuine
-/// salsa cancellation (retry the latest state), `Break(true)` on a deterministic
-/// worker panic (settle rather than livelock the debounce loop).
+/// `Continue(analysis)` carries the result; `Break(settled)` is the early return
+/// for the deep pass — `Break(false)` on a genuine salsa cancellation (retry the
+/// latest state), `Break(true)` on a deterministic worker panic (settle rather
+/// than livelock the debounce loop).
 async fn compute_base_analysis(
     ctx: &SalsaAnalysisCtx<'_>,
-    project: Option<tcl_lsp_db::Project>,
     disabled: &HashSet<String>,
     extra_commands: &HashSet<String>,
     non_ascii_mode: NonAsciiMode,
-) -> ControlFlow<bool, (Arc<AnalysisResult>, Vec<tcl_compiler::analyser::Diagnostic>)> {
+) -> ControlFlow<bool, Arc<AnalysisResult>> {
     let &SalsaAnalysisCtx {
         db,
         uri,
@@ -661,20 +740,13 @@ async fn compute_base_analysis(
         let snapshot = db.lock().await.clone();
         match tokio::task::spawn_blocking(move || {
             salsa::Cancelled::catch(|| {
-                let analysis = tcl_lsp_db::file_analysis_incremental(&snapshot, file, config);
-                let diags = match project {
-                    Some(project) => {
-                        (*tcl_lsp_db::project_diagnostics(&snapshot, file, config, project)).clone()
-                    }
-                    None => analysis.diagnostics.clone(),
-                };
-                (analysis, diags)
+                tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
             })
             .ok()
         })
         .await
         {
-            Ok(Some(pair)) => ControlFlow::Continue(pair),
+            Ok(Some(analysis)) => ControlFlow::Continue(analysis),
             // A genuine salsa cancellation (a concurrent `set_text` on the
             // shared db) — don't publish; signal a retry of the document's
             // latest state.
@@ -708,8 +780,59 @@ async fn compute_base_analysis(
         })
         .await
         .unwrap_or_default();
-        let diags = analysis.diagnostics.clone();
-        ControlFlow::Continue((analysis, diags))
+        ControlFlow::Continue(analysis)
+    }
+}
+
+/// The cross-file analyser diagnostics for the deep tier: `project_diagnostics`
+/// — the per-file set with a workspace-proc-resolvable W123 suppressed and a
+/// cross-file `E002`/`E003` arity error synthesised for a bad-arity call to a
+/// workspace proc — when a `Project` is indexed and this document has a salsa
+/// input.  `Continue(None)` means "no cross-file pass" (`xcDiagnostics` off, or
+/// no salsa input): the caller falls back to the per-file `analysis.diagnostics`,
+/// matching the pre-split behaviour.
+///
+/// Split out of [`compute_base_analysis`] so it can run concurrently with the
+/// base walk and the compiler checks (#844 Gap 2) and so the workspace
+/// -independent fast tier can publish before this workspace resolution lands.
+/// It reuses the memoised per-item analysis rather than re-walking the file, so
+/// the split adds no second whole-file analysis.  `Break(settled)` mirrors
+/// [`compute_base_analysis`] — `Break(false)` on cancellation (retry),
+/// `Break(true)` on a deterministic worker panic (settle).
+async fn compute_project_diags(
+    ctx: &SalsaAnalysisCtx<'_>,
+    project: Option<tcl_lsp_db::Project>,
+) -> ControlFlow<bool, Option<Vec<tcl_compiler::analyser::Diagnostic>>> {
+    let &SalsaAnalysisCtx {
+        db,
+        uri,
+        file,
+        config,
+        ..
+    } = ctx;
+    let (Some(project), Some(file)) = (project, file) else {
+        return ControlFlow::Continue(None);
+    };
+    let snapshot = db.lock().await.clone();
+    match tokio::task::spawn_blocking(move || {
+        salsa::Cancelled::catch(|| {
+            (*tcl_lsp_db::project_diagnostics(&snapshot, file, config, project)).clone()
+        })
+        .ok()
+    })
+    .await
+    {
+        Ok(Some(d)) => ControlFlow::Continue(Some(d)),
+        Ok(None) => ControlFlow::Break(false),
+        Err(e) => {
+            eprintln!(
+                "tcl-lsp: cross-file diagnostics worker panicked for {} (is_panic={}); \
+                 skipping this document's diagnostics to avoid a retry livelock",
+                uri.as_str(),
+                e.is_panic(),
+            );
+            ControlFlow::Break(true)
+        }
     }
 }
 
@@ -898,10 +1021,21 @@ struct AnalyserPathInputs<'a> {
     xc_diagnostics: bool,
 }
 
-/// The Tcl analyser path: base analysis + compiler checks (both cancellable,
-/// off the event loop), the W120 workspace refinement, the diagnostic lifts,
-/// and the final currency-guarded publish.  Returns `false` only on a genuine
-/// salsa cancellation (the caller retries the document's latest state).
+/// The Tcl analyser path, made **progressive** (#844): the deep pass — base
+/// analysis, compiler checks, and cross-file resolution (all cancellable, off
+/// the event loop), the W120/W123 workspace refinement, the diagnostic lifts,
+/// and the final currency-guarded publish — runs as one future, raced against
+/// [`DIAGNOSTICS_FAST_TIER_BUDGET`].  If it settles inside the budget (a small
+/// or warm file) the client sees a single publish, exactly as before.  If it
+/// overruns (a large or cold file), the workspace-independent **fast tier**
+/// (syntax / structural / style diagnostics, everything but W120/W123) is
+/// published first so the user gets the bulk of the diagnostics without waiting
+/// on the compiler/optimiser + cross-file + refinement passes; the deep pass
+/// then finishes and replaces it for the same version.
+///
+/// Returns `false` only on a genuine salsa cancellation (the caller retries the
+/// document's latest state); the fast tier never changes that verdict — the deep
+/// pass is always the authority on whether the version settled.
 async fn run_diagnostics_analyser_path(
     delivery: &DeliveryCtx<'_>,
     salsa_ctx: &SalsaAnalysisCtx<'_>,
@@ -912,45 +1046,108 @@ async fn run_diagnostics_analyser_path(
     let uri_str = delivery.uri.to_string();
     let line_count = salsa_ctx.text.lines().count();
 
-    // Base analysis: the cancellable salsa `file_analysis_incremental` query
-    // (slice 5), off the LSP event loop.  This retires the old direct-`analyse`
-    // detour: the per-item walk is memoised (a body edit recomputes one body +
-    // the cheap shell + tail, not the whole file), and a concurrent edit's
-    // `set_text` cancels this read at a per-item query boundary instead of
-    // stalling behind an uncancellable analyse.  On cancellation we drop the
-    // run — the superseding edit schedules a fresh one.
-    // Cross-file: when `xcDiagnostics` is enabled, the
-    // worker also computes `project_diagnostics` — `file_analysis`'s diagnostics
-    // with W123 (unknown command) suppressed for commands defined as procs
-    // elsewhere in the workspace.  Read the current `Project` handle now (it is
-    // stable across re-sets); `None` ⇒ no cross-file pass (status-quo per-file
-    // diagnostics).  Both halves come from the *same* snapshot so the cross-file
-    // pass reuses the analyser read (a cache hit, not a second analysis).
+    // The `Project` handle for the cross-file pass (stable across re-sets); `None`
+    // ⇒ no cross-file pass (status-quo per-file diagnostics).
     let project = if inputs.xc_diagnostics {
         *inputs.db_project.lock().await
     } else {
         None
     };
-    let (analysis, analyser_diags): (Arc<AnalysisResult>, Vec<_>) = match compute_base_analysis(
+    let timing = PublishTiming {
+        started,
+        uri_str: &uri_str,
+        line_count,
+    };
+
+    // Trivial documents skip the progressive machinery entirely and take the
+    // single-publish path, so cold-start warm-up can never turn a one-line file
+    // into two publishes (see [`DIAGNOSTICS_FAST_TIER_MIN_LINES`]).
+    if line_count < DIAGNOSTICS_FAST_TIER_MIN_LINES {
+        return run_deep_diagnostics(delivery, salsa_ctx, lift_inputs, inputs, project, timing)
+            .await;
+    }
+
+    // The authoritative deep pass performs the full publish and reports whether
+    // the version settled.  Race it against the fast-tier budget.
+    let fast_tier_deadline = tokio::time::Instant::now() + DIAGNOSTICS_FAST_TIER_BUDGET;
+    let deep = run_deep_diagnostics(delivery, salsa_ctx, lift_inputs, inputs, project, timing);
+    tokio::pin!(deep);
+
+    tokio::select! {
+        biased;
+        // The whole pipeline finished inside the budget: the deep publish is the
+        // one and only publish, so the fast tier is never sent (no redundant
+        // round-trip on small / warm files — the debounce-skip trap #844 calls
+        // out).  `biased` prefers this arm so a deep pass that lands right on the
+        // deadline still skips the fast tier.
+        settled = &mut deep => return settled,
+        () = tokio::time::sleep_until(fast_tier_deadline) => {}
+    }
+
+    // Budget elapsed with the deep pass still running: publish the flicker-safe
+    // fast tier now.  Re-reading the per-file analysis is a salsa cache hit once
+    // the deep pass's own base read has landed (and the very computation the fast
+    // tier needs if it has not) — never a second whole-file walk.  A cancellation
+    // here is harmless: the deep pass observes the same edit and settles it.
+    if let ControlFlow::Continue(analysis) = compute_base_analysis(
         salsa_ctx,
-        project,
         lift_inputs.disabled,
         inputs.extra_commands,
         inputs.non_ascii_mode,
     )
     .await
     {
-        ControlFlow::Continue(pair) => pair,
+        publish_fast_tier(delivery, &analysis, lift_inputs).await;
+    }
+    deep.await
+}
+
+/// The deep diagnostics pass: the three independent whole-file analyses run
+/// concurrently (#844 Gap 2) — the per-file analyser walk, the compiler /
+/// optimiser checks, and the cross-file resolution — then the W120/W123
+/// workspace refinement, the diagnostic lifts, and the single authoritative
+/// currency-guarded publish.  Only the downstream refine + lift consume all
+/// three passes, so overlapping them collapses the deep pass towards its longest
+/// single pass.  The one thing given up is fail-fast on a base-analysis
+/// cancellation — the compiler / cross-file passes may do a little wasted work
+/// before observing the same cancellation, the trade #844 explicitly accepts.
+///
+/// Returns whether the version **settled** (published or superseded), matching
+/// the old serial path — `false` only on a genuine salsa cancellation.
+async fn run_deep_diagnostics(
+    delivery: &DeliveryCtx<'_>,
+    salsa_ctx: &SalsaAnalysisCtx<'_>,
+    lift_inputs: &LiftInputs<'_>,
+    inputs: &AnalyserPathInputs<'_>,
+    project: Option<tcl_lsp_db::Project>,
+    timing: PublishTiming<'_>,
+) -> bool {
+    let (base_result, compiler_result, project_result) = tokio::join!(
+        compute_base_analysis(
+            salsa_ctx,
+            lift_inputs.disabled,
+            inputs.extra_commands,
+            inputs.non_ascii_mode,
+        ),
+        compute_compiler_diags(salsa_ctx, inputs.registry, inputs.generic_variable_patterns),
+        compute_project_diags(salsa_ctx, project),
+    );
+    let analysis: Arc<AnalysisResult> = match base_result {
+        ControlFlow::Continue(a) => a,
         ControlFlow::Break(settled) => return settled,
     };
-
-    let compiler_diags: Arc<tcl_lsp_db::CompilerDiagnostics> =
-        match compute_compiler_diags(salsa_ctx, inputs.registry, inputs.generic_variable_patterns)
-            .await
-        {
-            ControlFlow::Continue(d) => d,
-            ControlFlow::Break(settled) => return settled,
-        };
+    let compiler_diags: Arc<tcl_lsp_db::CompilerDiagnostics> = match compiler_result {
+        ControlFlow::Continue(d) => d,
+        ControlFlow::Break(settled) => return settled,
+    };
+    // `Some` is the cross-file-resolved set (`xcDiagnostics` on, salsa input
+    // present); `None` falls back to the per-file set, matching the pre-split
+    // behaviour.
+    let analyser_diags: Vec<_> = match project_result {
+        ControlFlow::Continue(Some(d)) => d,
+        ControlFlow::Continue(None) => analysis.diagnostics.clone(),
+        ControlFlow::Break(settled) => return settled,
+    };
 
     // #804: extra requires this document inherits from configured entry points
     // or its `source` ancestors, resolved against the live workspace index.
@@ -982,18 +1179,61 @@ async fn run_diagnostics_analyser_path(
     )
     .await;
 
-    publish_diagnostics_result(
-        delivery,
-        inputs.workspace_index,
-        &analysis,
-        result,
-        PublishTiming {
-            started,
-            uri_str: &uri_str,
-            line_count,
-        },
-    )
-    .await
+    publish_diagnostics_result(delivery, inputs.workspace_index, &analysis, result, timing).await
+}
+
+/// Whether a diagnostic code belongs to the workspace-independent **fast tier**
+/// (#844) that [`publish_fast_tier`] delivers ahead of the deep pass.
+///
+/// The classification lives on [`DiagCode::refined_by_workspace`] (the single
+/// source of truth for which codes a workspace / cross-file pass can retract) —
+/// this consumer only *asks* it, never re-encodes the set.  A code is fast
+/// unless the deep pass might refine it away; the deep pass only ever *removes*
+/// those (currently W120/W123) and *adds* new diagnostics (compiler/optimiser,
+/// synthesised cross-file arity), so the fast tier is a strict subset of the
+/// deep tier — no fast-tier diagnostic is ever contradicted (no false-positive
+/// flicker).
+const fn is_fast_tier(code: DiagCode) -> bool {
+    !code.refined_by_workspace()
+}
+
+/// Publish the flicker-safe **fast tier** (#844): the workspace-independent
+/// analyser diagnostics ([`is_fast_tier`]) plus the pure source-style lints,
+/// lifted off the event loop.  Delivered push-only through
+/// [`DeliveryCtx::deliver_fast_tier_if_current`] (never priming the pull cache,
+/// see that method), currency-guarded so a superseding edit can never let this
+/// land after the deep tier for the same version.  A lift-worker panic just
+/// means the deep tier is the first thing the client sees — no worse than before
+/// the fast tier existed.
+async fn publish_fast_tier(
+    delivery: &DeliveryCtx<'_>,
+    analysis: &Arc<AnalysisResult>,
+    lift_inputs: &LiftInputs<'_>,
+) {
+    let fast: Vec<tcl_compiler::analyser::Diagnostic> = analysis
+        .diagnostics
+        .iter()
+        .filter(|d| is_fast_tier(d.code))
+        .cloned()
+        .collect();
+    let analysis_lifts = Arc::clone(analysis);
+    let text = lift_inputs.text.to_owned();
+    let disabled = lift_inputs.disabled.clone();
+    let style_line_length = lift_inputs.style_line_length;
+    let lifted = tokio::task::spawn_blocking(move || {
+        let mut diagnostics = lift_analyser_diagnostics(&text, &fast);
+        diagnostics.extend(lift_source_style_diagnostics(
+            &text,
+            &analysis_lifts.suppressed_lines,
+            &disabled,
+            style_line_length as usize,
+        ));
+        diagnostics
+    })
+    .await;
+    if let Ok(diagnostics) = lifted {
+        delivery.deliver_fast_tier_if_current(diagnostics).await;
+    }
 }
 
 /// The document-style toggles + buffer the diagnostic lifts read; borrows for
@@ -1887,37 +2127,52 @@ impl Backend {
         &self,
         uri: &Uri,
     ) -> Option<Arc<tcl_compiler::analyser::AnalysisResult>> {
+        // Await the `JoinHandle` variant so the spawn-and-catch lives in one
+        // place; callers that need to race it against a budget take the handle
+        // directly (see [`db_file_analysis_handle`]).
+        self.db_file_analysis_handle(uri)
+            .await?
+            .await
+            .ok()
+            .flatten()
+    }
+
+    /// [`db_file_analysis`], but returns the worker `JoinHandle` immediately
+    /// instead of awaiting it — so `semantic_tokens_range` can race the read
+    /// against the fast-path budget and, on timeout, keep awaiting it from a
+    /// detached convergence continuation (#844 Gap 4) rather than dropping it and
+    /// losing the enriched result.  Same cancellable per-item query and the same
+    /// liveness invariant as [`db_semantic_tokens`] (the read is unwound at a
+    /// per-item boundary by a concurrent `set_text`).  `None` when there is no
+    /// salsa input for `uri`.
+    async fn db_file_analysis_handle(
+        &self,
+        uri: &Uri,
+    ) -> Option<tokio::task::JoinHandle<Option<Arc<tcl_compiler::analyser::AnalysisResult>>>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = self.resolved_db_config(uri).await;
         let snapshot = self.db.lock().await.clone();
-        tokio::task::spawn_blocking(move || {
+        Some(tokio::task::spawn_blocking(move || {
             salsa::Cancelled::catch(|| {
                 tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
             })
             .ok()
-        })
-        .await
-        .ok()
-        .flatten()
+        }))
     }
 
-    /// Read the memoised [`tcl_compiler::compilation_unit::CompilationUnit`]
-    /// (SSA + SCCP) for `uri` from the query database, if the document has a
-    /// `SourceFile` input.  Shares the per-document build with the diagnostics
-    /// path.  `None` when there is no input (caller builds fresh) or a
-    /// concurrent edit cancelled the read.
-    async fn db_compilation_unit(
+    /// [`db_compilation_unit`], but returns the worker `JoinHandle` immediately
+    /// (see [`db_file_analysis_handle`] for why #844 Gap 4 needs it).  `None`
+    /// when there is no salsa input for `uri`.
+    async fn db_compilation_unit_handle(
         &self,
         uri: &Uri,
-    ) -> Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>> {
+    ) -> Option<tokio::task::JoinHandle<Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>>>
+    {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let snapshot = self.db.lock().await.clone();
-        tokio::task::spawn_blocking(move || {
+        Some(tokio::task::spawn_blocking(move || {
             salsa::Cancelled::catch(|| tcl_lsp_db::document_compilation_unit(&snapshot, file)).ok()
-        })
-        .await
-        .ok()
-        .flatten()
+        }))
     }
 
     /// Kick off the salsa `semantic_tokens` query for `uri` on a worker
@@ -5012,6 +5267,10 @@ impl Backend {
         // worker, then merge the per-file analysis into the index + salsa db.
         *self.package_resolver.write().await = resolver;
         self.merge_workspace_scan_results(&analysed).await;
+        // Now that the `Project` covers the whole workspace, warm the salsa
+        // per-file analysis in parallel (#844 Gap 3) so the first cross-file /
+        // enriched-token query finds cache hits instead of a serial cold walk.
+        self.spawn_workspace_warm();
     }
 
     /// Merge disk-backed workspace scan results into the shared index **and** the
@@ -5049,6 +5308,78 @@ impl Backend {
             index.remove_document(uri.as_str());
             index.add_document(uri.as_str(), analysis);
         }
+    }
+
+    /// Kick off a detached, concurrency-bounded parallel **warm** of the salsa
+    /// per-file analysis for every project file (#844 Gap 3).
+    ///
+    /// On a cold workspace the first enriched `semantic_tokens_project` otherwise
+    /// serially analyses every file inside `project_class_index` /
+    /// `project_proc_var_index`.  Pre-populating the memoised
+    /// `file_analysis_incremental` across the blocking pool collapses that serial
+    /// cold walk to a parallel one, so the tracked query's loop is all cache hits
+    /// by the time the enriched token / cross-file diagnostics query runs — the
+    /// enrichment side's analogue of the diagnostics deep pass's `join!`.
+    ///
+    /// Purely an optimisation, and safe by construction:
+    /// - **Correctness**: it only primes the salsa cache; a concurrent real read
+    ///   of the same `(file, config)` dedups against it (salsa blocks the second
+    ///   requester and shares the memoised result — never a double analysis or a
+    ///   divergent one), so results are identical to the serial walk.
+    /// - **Never blocks a request**: fire-and-forget on a detached task.
+    /// - **Never stalls an edit**: at most `WORKSPACE_WARM_MAX_CONCURRENCY`
+    ///   snapshots are live at once (each warm clones its snapshot only after
+    ///   acquiring a permit and drops it as soon as its analysis returns), so a
+    ///   concurrent `set_text` waits on at most that many in-flight reads — and
+    ///   each is the cancellable per-item query, so `set_text` cancels them at a
+    ///   per-item boundary rather than waiting them out.
+    ///
+    /// Uses the process-global `db_config`: correct for every file in a
+    /// single-folder workspace (the common case), and harmless where a folder
+    /// overrides it — that file's warm lands under a different cache key and the
+    /// query simply recomputes it, exactly as before this warm existed.
+    fn spawn_workspace_warm(&self) {
+        let db = Arc::clone(&self.db);
+        let db_project = Arc::clone(&self.db_project);
+        let db_config = Arc::clone(&self.db_config);
+        tokio::spawn(async move {
+            let Some(project) = *db_project.lock().await else {
+                return;
+            };
+            let config = *db_config.lock().await;
+            let files: Vec<tcl_lsp_db::SourceFile> = {
+                let snapshot = db.lock().await.clone();
+                project.files(&snapshot).clone()
+            };
+            if files.is_empty() {
+                return;
+            }
+            let concurrency = std::thread::available_parallelism()
+                .map_or(4, std::num::NonZeroUsize::get)
+                .min(WORKSPACE_WARM_MAX_CONCURRENCY);
+            let permits = Arc::new(Semaphore::new(concurrency));
+            let mut warms = tokio::task::JoinSet::new();
+            for file in files {
+                let db = Arc::clone(&db);
+                let permits = Arc::clone(&permits);
+                warms.spawn(async move {
+                    // Bound live snapshots to the permit count: clone the snapshot
+                    // only *after* acquiring a permit, so `set_text` never waits on
+                    // more than `concurrency` in-flight reads.
+                    let Ok(_permit) = permits.acquire().await else {
+                        return;
+                    };
+                    let snapshot = db.lock().await.clone();
+                    let _ = tokio::task::spawn_blocking(move || {
+                        let _ = salsa::Cancelled::catch(|| {
+                            tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+                        });
+                    })
+                    .await;
+                });
+            }
+            while warms.join_next().await.is_some() {}
+        });
     }
 }
 
@@ -6647,30 +6978,52 @@ impl LanguageServer for Backend {
         // inside it and the viewport is coloured with the enriched tier; on a
         // cold/large one the budget wins and the cheap segmenter+registry-only
         // tier serves immediately (`cu`/`analysis` both `None`) rather than
-        // blocking the viewport on a whole-file analysis (issue #829 —
-        // `db_compilation_unit`/`db_file_analysis` compute their query to
-        // completion, so without this bound a cold indexed file stalled here
-        // exactly as `semantic_tokens_full` used to). The dropped reads' salsa
-        // queries keep running memoised, so a later range/full request — or
-        // the diagnostics worker — still warms the enriched result; this only
-        // bounds *this* request's latency. Unlike `_full`, this does not push
-        // a `workspace/semanticTokens/refresh` once the reads land — a static
-        // cold viewport stays coarse until the next scroll/edit re-requests it.
+        // blocking the viewport on a whole-file analysis (issue #829). The reads
+        // are taken as `JoinHandle`s so that, unlike before, the ones the budget
+        // drops are **not** lost: on timeout they are handed to a detached
+        // convergence continuation (#844 Gap 4) that keeps awaiting the enriched
+        // unit/analysis and pushes a coalesced `workspace/semanticTokens/refresh`
+        // once the enriched viewport genuinely differs from the coarse tier we
+        // served — the range analogue of `semantic_tokens_full`'s converge-later
+        // behaviour, so a static cold viewport no longer stays coarse until the
+        // next scroll/edit.
         let uri = &params.text_document.uri;
-        let (cached_cu, cached_analysis) = tokio::select! {
-            biased;
-            pair = async { (self.db_compilation_unit(uri).await, self.db_file_analysis(uri).await) } => pair,
-            () = tokio::time::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => (None, None),
+        // Both handles gate on the same salsa input, so they are `Some` together
+        // (indexed document) or `None` together (unindexed buffer → coarse only,
+        // nothing to converge to).
+        let handles = match (
+            self.db_compilation_unit_handle(uri).await,
+            self.db_file_analysis_handle(uri).await,
+        ) {
+            (Some(cu), Some(analysis)) => Some((cu, analysis)),
+            _ => None,
+        };
+        let (cached_cu, cached_analysis, pending) = match handles {
+            Some((mut cu_handle, mut analysis_handle)) => tokio::select! {
+                biased;
+                pair = async {
+                    let cu = (&mut cu_handle).await.ok().flatten();
+                    let analysis = (&mut analysis_handle).await.ok().flatten();
+                    (cu, analysis)
+                } => (pair.0, pair.1, None),
+                () = tokio::time::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => {
+                    // Budget won: serve coarse now, hand the still-running reads to
+                    // the convergence continuation below.
+                    (None, None, Some((cu_handle, analysis_handle)))
+                }
+            },
+            None => (None, None, None),
         };
         // Pure-CPU tokenisation on a worker so a parser panic is contained
         // as a JSON-RPC error.
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
+        let serve_registry = Arc::clone(&registry);
         let core_data = tokio::task::spawn_blocking(move || {
             core_semantic_tokens::range_with_cu_and_analysis(
                 &text,
                 &dialect,
                 core_range,
-                &registry,
+                &serve_registry,
                 cached_cu.as_deref(),
                 cached_analysis.as_deref(),
             )
@@ -6682,6 +7035,51 @@ impl LanguageServer for Backend {
             message: format!("semantic_tokens_range worker panicked: {err}").into(),
             data: None,
         })?;
+
+        // Convergence (#844 Gap 4): we served the coarse tier because the enriched
+        // reads overran the budget. Detach a continuation that awaits them and,
+        // once the enriched viewport genuinely differs from what we served, fires
+        // a coalesced refresh so the editor re-requests and converges. Fired
+        // unconditionally on difference: the range stream is never written to
+        // `last_semantic_tokens`, so there is no cache entry to diff against —
+        // we diff against the exact coarse `core_data` we returned instead.
+        if let Some((cu_handle, analysis_handle)) = pending {
+            let served = core_data.clone();
+            let converge_registry = Arc::clone(&registry);
+            let (converge_text, converge_dialect) = (doc.text.clone(), doc.dialect.clone());
+            let refresh_ctx = SemanticTokensRefreshCtx {
+                client: self.client.clone(),
+                last_semantic_tokens: Arc::clone(&self.last_semantic_tokens),
+                refresh_pending: Arc::clone(&self.semantic_tokens_refresh_pending),
+            };
+            tokio::spawn(async move {
+                let cu = cu_handle.await.ok().flatten();
+                let analysis = analysis_handle.await.ok().flatten();
+                // Both `None` ⇒ the reads were cancelled by a concurrent edit,
+                // which schedules its own token refresh — nothing to converge.
+                if cu.is_none() && analysis.is_none() {
+                    return;
+                }
+                let enriched = tokio::task::spawn_blocking(move || {
+                    core_semantic_tokens::range_with_cu_and_analysis(
+                        &converge_text,
+                        &converge_dialect,
+                        core_range,
+                        &converge_registry,
+                        cu.as_deref(),
+                        analysis.as_deref(),
+                    )
+                    .data
+                })
+                .await;
+                if let Ok(enriched) = enriched
+                    && enriched != served
+                {
+                    refresh_ctx.request_refresh_coalesced();
+                }
+            });
+        }
+
         Ok(Some(SemanticTokensRangeResult::Tokens(LspSemanticTokens {
             result_id: None,
             data: lift_semantic_token_data(&core_data),
@@ -10077,6 +10475,51 @@ mod tests {
 
     fn has_w120(diags: &[tcl_compiler::analyser::Diagnostic]) -> bool {
         diags.iter().any(|d| d.code == DiagCode::W120)
+    }
+
+    /// #844 acceptance criterion (a): the progressive fast tier must exclude
+    /// exactly the two workspace-refined analyser codes — W120 (missing
+    /// `package require`) and W123 (unresolved command) — and nothing else.
+    /// Publishing either un-refined would resurface the startup false-positive
+    /// W120 that #841's `reschedule_all_open_documents` fix eliminated.
+    #[test]
+    fn fast_tier_excludes_only_workspace_refined_codes() {
+        // The two deferred codes are the whole exclusion set.
+        assert!(!is_fast_tier(DiagCode::W120));
+        assert!(!is_fast_tier(DiagCode::W123));
+
+        // A representative sweep of the codes the analyser walk produces —
+        // syntax errors, structural errors, local arity, style, and variable
+        // lints — must all be fast: they are workspace-independent and the deep
+        // pass never removes them.  Local arity (E002/E003) is fast; the deep
+        // pass only ever *synthesises* additional cross-file arity, never a
+        // per-file one the fast tier already showed.
+        for code in [
+            DiagCode::E002,
+            DiagCode::E003,
+            DiagCode::W100,
+            DiagCode::W111,
+            DiagCode::W112,
+            DiagCode::W210,
+            DiagCode::W211,
+            DiagCode::W121,
+            DiagCode::W124,
+        ] {
+            assert!(is_fast_tier(code), "{code} should be in the fast tier");
+        }
+
+        // Belt and braces: iterate the entire code catalogue and assert the
+        // exclusion set never silently grows to something the deep pass does not
+        // actually refine (which would delay a stable diagnostic for no reason).
+        for code in DiagCode::ALL {
+            let excluded = !is_fast_tier(*code);
+            let is_workspace_refined = matches!(code, DiagCode::W120 | DiagCode::W123);
+            assert_eq!(
+                excluded, is_workspace_refined,
+                "{code}: fast-tier exclusion must match exactly the W120/W123 \
+                 workspace-refined set",
+            );
+        }
     }
 
     #[test]

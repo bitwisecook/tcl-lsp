@@ -1126,3 +1126,117 @@ fn autoload_library_command_not_unknown_issue_832() {
 
     let _ = std::fs::remove_dir_all(&libdir);
 }
+
+// -- #844 progressive (two-tier) diagnostics -----------------------------
+
+/// Build a large Tcl document (~`n` procs, ~10×`n` lines) whose deep
+/// diagnostics pass reliably overruns `DIAGNOSTICS_FAST_TIER_BUDGET`, plus one
+/// proc whose unbraced `expr` yields a fast-tier **W100** (an analyser code) and
+/// a deep-tier-only **O111** (the optimiser hint paired with W100) — so the two
+/// progressive publishes are distinguishable regardless of package-database
+/// state.
+fn big_tcl_with_split_markers(n: usize) -> String {
+    use std::fmt::Write as _;
+    let mut s = String::with_capacity(n * 200);
+    s.push_str("namespace eval ::bench {\n    variable counter 0\n}\n\n");
+    for i in 0..n {
+        let _ = write!(
+            s,
+            "proc ::bench::step{i} {{a b}} {{\n\
+             \x20   set v{i} [expr {{$a + $b}}]\n\
+             \x20   if {{$v{i} > 10}} {{\n\
+             \x20       set v{i} [expr {{$v{i} + 1}}]\n\
+             \x20   }}\n\
+             \x20   return $v{i}\n\
+             }}\n\n"
+        );
+    }
+    // The distinguishing pair: an unbraced `expr` → analyser W100 (fast tier),
+    // whose paired optimiser hint O111 is produced only by the deep pass.
+    s.push_str("proc ::bench::w100_probe {x} {\n    return [expr $x + 1]\n}\n");
+    s
+}
+
+/// #844 acceptance criterion (b): on a large / cold file the client sees the
+/// workspace-independent **fast tier** first (analyser syntax / structural /
+/// style diagnostics) and then the **deep tier** (adding compiler / optimiser
+/// diagnostics), which is a strict superset and replaces it for the same
+/// version.  The unbraced `expr` gives a fast-tier `W100`; its paired optimiser
+/// hint `O111` is produced only by the deep pass, so the two publishes are
+/// distinguishable regardless of package-database state.
+///
+/// A small / warm file settles inside `DIAGNOSTICS_FAST_TIER_BUDGET` and skips
+/// the fast tier entirely (a single publish — the debounce-skip guarded by the
+/// existing `diagnostics_delivery_smoke` single-publish tests); this test
+/// deliberately uses a large file so the deep pass overruns the budget and the
+/// fast tier fires.
+#[test]
+fn large_file_publishes_fast_tier_before_deep_tier() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let big = big_tcl_with_split_markers(600);
+
+    let since = lsp.notification_cursor();
+    lsp.open_document_lang(&uri, &big, "tcl", 1);
+    // The `[timing] deep diagnostics` log fires only from the deep publish, so it
+    // is the reliable "deep pass finished" barrier; both publishes are buffered
+    // by the time it arrives.
+    lsp.await_log(
+        &["deep diagnostics", uri.as_str()],
+        Duration::from_secs(45),
+        since,
+    );
+
+    let pubs: Vec<Vec<Value>> = lsp
+        .notifications()
+        .into_iter()
+        .skip(since)
+        .filter(|n| {
+            n.get("method").and_then(Value::as_str) == Some("textDocument/publishDiagnostics")
+                && n.get("params")
+                    .and_then(|p| p.get("uri"))
+                    .and_then(Value::as_str)
+                    == Some(uri.as_str())
+        })
+        .map(|n| {
+            n.get("params")
+                .and_then(|p| p.get("diagnostics"))
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default()
+        })
+        .collect();
+
+    let all_codes: Vec<BTreeSet<String>> = pubs.iter().map(|p| codes(p)).collect();
+    let Some(deep_idx) = pubs.iter().position(|p| codes(p).contains("O111")) else {
+        panic!(
+            "no deep-tier publish (carrying the optimiser O111) arrived; publishes: {all_codes:?}"
+        );
+    };
+    assert!(
+        deep_idx >= 1,
+        "the fast tier must be published before the deep tier on a large file, \
+         but the first publish already carried the deep-only O111: {all_codes:?}",
+    );
+
+    let fast = codes(&pubs[deep_idx - 1]);
+    let deep = codes(&pubs[deep_idx]);
+    assert!(
+        fast.contains("W100"),
+        "the fast tier must carry the workspace-independent analyser W100: {fast:?}",
+    );
+    assert!(
+        !fast.contains("O111") && !fast.contains("W120") && !fast.contains("W123"),
+        "the fast tier must exclude deep-only optimiser and workspace-refined \
+         codes: {fast:?}",
+    );
+    assert!(
+        deep.contains("W100") && deep.contains("O111"),
+        "the deep tier must carry both the analyser W100 and the optimiser O111: {deep:?}",
+    );
+    assert!(
+        fast.is_subset(&deep),
+        "the deep tier must be a strict superset of the fast tier (no fast-tier \
+         diagnostic is ever removed by the deep pass): fast={fast:?} deep={deep:?}",
+    );
+}

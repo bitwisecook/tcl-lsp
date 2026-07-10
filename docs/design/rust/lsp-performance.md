@@ -124,7 +124,16 @@ editor re-requests and gets the enriched tier without the server ever
 blocking the fast path on it. `semantic_tokens_range` mirrors the same
 tiering on cache miss (serves from the coarse tier via
 `range_with_cu_and_analysis(None, None, …)` instead of rebuilding a full
-`CompilationUnit` inline).
+`CompilationUnit` inline) **and now converges the same way** (#844 Gap 4):
+it takes the CU / analysis reads as `JoinHandle`s
+(`db_compilation_unit_handle` / `db_file_analysis_handle`) so the ones the
+budget drops are handed to a detached continuation that recomputes the
+viewport-filtered range against the enriched unit/analysis and fires the
+same coalesced refresh once it genuinely differs from the coarse range that
+was served. Because a range response is never written to
+`last_semantic_tokens`, the continuation diffs against the exact coarse
+`Vec<u32>` it returned rather than the cache. A static cold viewport no
+longer stays coarse until the next scroll/edit.
 
 **Liveness invariant, not just latency.** The detached continuation that
 waits for the enriched result past the budget holds an active salsa
@@ -162,6 +171,77 @@ document after `initialized`'s workspace scan, and on workspace-folder /
 watched-file changes. An editor that restores tabs before the scan
 completes (racing `initialized`) no longer keeps a stale false-positive
 W120 until the next edit.
+
+### 8. Progressive, parallelised diagnostics pipeline (#844)
+
+§7 made *semantic tokens* progressive (coarse now, enriched-via-refresh when
+ready); #844 generalises that shape to the rest of the pipeline. The
+principle: parallelise as much as possible, deliver good value early and full
+value when it is ready.
+
+**Parallel deep pass (Gap 2).** `run_diagnostics_analyser_path` ran three
+independent whole-file passes back to back — the per-file analyser walk
+(`file_analysis_incremental`, ~82% of the deep-pass wall-clock), the
+compiler/optimiser checks (`compiler_check_diagnostics`), and the cross-file
+resolution (`project_diagnostics`) — even though only the downstream
+refine + lift consume all three. `run_deep_diagnostics` now runs them under one
+`tokio::join!`, collapsing the deep pass towards its longest single pass. The
+only thing given up is fail-fast on a base-analysis cancellation (the other
+passes may do a little wasted work before observing the same cancellation) — a
+trade the principle explicitly accepts.
+
+**Progressive diagnostics (Gap 1).** Diagnostics were single-publish: the
+client saw nothing until the deepest pass finished (~1.3 s on an 8.5k-line
+file). The deep pass is now raced against a `DIAGNOSTICS_FAST_TIER_BUDGET`
+(40 ms). If it overruns, a workspace-independent **fast tier** — the per-file
+analyser diagnostics plus the pure source-style lints — is published first, so
+the user gets the bulk of the diagnostics without waiting on the
+compiler/optimiser + cross-file + refinement passes; the deep pass then lands
+and replaces it for the same version. Correctness rests on three properties:
+
+- *Flicker-safe partition.* The fast tier excludes exactly the codes a
+  workspace / cross-file pass can *retract* — W120 and W123, classified once on
+  `DiagCode::refined_by_workspace` (the single source of truth; the LSP
+  `is_fast_tier` only asks it). The deep pass otherwise only *adds* diagnostics
+  (compiler/optimiser, synthesised cross-file arity), so the fast tier is a
+  strict subset of the deep tier and no fast-tier diagnostic is ever
+  contradicted. Publishing an un-refined W120 would resurface exactly the
+  startup false positive §7's `reschedule_all_open_documents` eliminated.
+- *Currency + ordering.* The fast tier is published strictly before the deep
+  tier within one run (the deep future cannot publish until `deep.await` polls
+  it, which only runs after the fast publish), and both are currency-guarded on
+  the run's revision under the `documents` lock, so a superseding edit can never
+  invert them. The per-document coalescing scheduler runs one worker at a time,
+  so no cross-run interleaving is possible either.
+- *Push-only, deep-only pull.* The fast tier is `deliver_fast_tier_if_current`
+  — push-only, and never primes the pull cache. The pull path
+  (`textDocument/diagnostic`) always serves or computes the *complete* deep set;
+  a pull-capable client skips the fast tier entirely (its "early" signal would
+  be a refresh, but a re-pull recomputes the full deep set synchronously,
+  defeating the purpose).
+
+The debounce-skip has two halves. `DIAGNOSTICS_FAST_TIER_MIN_LINES` (500) is
+the timing-independent floor: a trivial document's deep-pass wall-clock is
+dominated by one-time warm-up (registry construction, the first salsa query),
+which can overrun a 40 ms budget on a cold server even for a one-line file — so
+size, not just the elapsed budget, gates the fast tier, keeping small files a
+single publish regardless of machine speed. The budget race is the second half:
+it suppresses the fast tier for *large but warm* files whose memoised deep pass
+lands inside the budget.
+
+**Parallel workspace warm (Gap 3).** `project_class_index` /
+`project_proc_var_index` walk `project.files(db)` serially, so a cold
+workspace's first enriched `semantic_tokens_project` serially analyses every
+file. `spawn_workspace_warm` (kicked off detached after a workspace scan sets
+the `Project`) fans `file_analysis_incremental` for every project file across
+the blocking pool (semaphore-bounded to at most
+`WORKSPACE_WARM_MAX_CONCURRENCY`), so the tracked query's loop is all cache
+hits — the enrichment side's analogue of the deep pass's `join!`. It is a pure
+salsa-cache optimisation (a concurrent real read dedups against it), never
+blocks a request, and never stalls an edit: at most the permit count of
+snapshots is live at once (each warm clones its snapshot only after acquiring a
+permit), and each read is the cancellable per-item query, so a concurrent
+`set_text` unwinds them at a per-item boundary rather than waiting them out.
 
 ## Where the remaining cost is
 

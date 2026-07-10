@@ -233,6 +233,23 @@ fn cold_tokens(lsp: &mut Lsp, text: &str) -> Vec<SemToken> {
     decode_semantic_tokens(&raw)
 }
 
+/// The enriched **range** tokens for `text`'s viewport `[start, end)`: a fresh
+/// document is fully settled (so the compilation unit + analysis are memoised),
+/// then a range request is made, which therefore returns the enriched tier. The
+/// truth a coarse-then-converge range response (#844 Gap 4) must land on.
+fn cold_range_tokens(
+    lsp: &mut Lsp,
+    text: &str,
+    start: (u32, u32),
+    end: (u32, u32),
+) -> Vec<SemToken> {
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, text);
+    let raw = lsp.semantic_tokens_range(&uri, start, end);
+    lsp.close_document(&uri);
+    decode_semantic_tokens(&raw)
+}
+
 /// Request `full/delta` against `uri` with `prev` as `previousResultId`.
 fn request_delta(lsp: &mut Lsp, uri: &str, prev: Option<&str>) -> Value {
     let mut params = json!({ "textDocument": { "uri": uri } });
@@ -681,6 +698,74 @@ fn large_file_semantic_tokens_refresh_delivers_enriched_result() {
         "after workspace/semanticTokens/refresh, a re-request must return the \
          fully enriched tokens — {}",
         first_divergence(&after_refresh, &truth)
+    );
+}
+
+/// #844 Gap 4: the range analogue of the `_full` convergence test above. A
+/// cold/large viewport is served the coarse tier immediately (the enriched
+/// CU/analysis overrun the 40ms budget); the server must then push a
+/// `workspace/semanticTokens/refresh` once they land and the viewport genuinely
+/// differs, so a static cold viewport converges on the enriched tier instead of
+/// staying coarse until the next scroll or edit (the gap `semantic_tokens_range`
+/// had that `_full` did not).
+#[test]
+fn large_file_range_semantic_tokens_converges_via_refresh() {
+    let mut lsp = Lsp::tcl();
+    // The same provably-constant regex source the `_full` test uses, so the
+    // enriched tier (which retags it) differs from the coarse tier — otherwise
+    // the two are byte-identical and no refresh is warranted.
+    let big = format!(
+        "{}\nproc ::bench::regex_check {{}} {{\n    set my_re \".*abc\"\n    regexp $my_re $s\n}}\n",
+        generate_big_tcl(600)
+    );
+    let line_count = u32::try_from(big.lines().count()).unwrap();
+
+    // A viewport over the appended regexp proc (the last few lines), where the
+    // coarse and enriched tiers provably differ.
+    let start = (line_count.saturating_sub(6), 0);
+    let end = (line_count, 0);
+
+    // Compute the enriched truth from a settled separate document *before* the
+    // main document exists: opening (or closing) any document mutates the salsa
+    // `Project` (`set_files`), which cancels an in-flight convergence
+    // continuation — so doing it mid-test would suppress the very refresh under
+    // test.  Done up front, it cannot interfere.
+    let truth = cold_range_tokens(&mut lsp, &big, start, end);
+
+    let uri = unique_uri("tcl");
+    lsp.open_document_lang(&uri, &big, "tcl", 1);
+    let since = lsp.server_request_cursor();
+    let first = decode_semantic_tokens(&lsp.semantic_tokens_range(&uri, start, end));
+    assert!(
+        !first.is_empty(),
+        "the cold range must still serve the coarse tier immediately"
+    );
+
+    if same_tokens(&first, &truth) {
+        // The race was won this run — the cold viewport was already enriched, so
+        // there is nothing to converge. Rare on a ~6000-line file (cold enriched
+        // ≫ the 40ms budget); the tiering itself is covered deterministically in
+        // tcl-lsp-db.
+        eprintln!(
+            "large_file_range_semantic_tokens_converges_via_refresh: \
+             fast path won the race, refresh not exercised this run"
+        );
+        return;
+    }
+
+    lsp.await_server_request(
+        "workspace/semanticTokens/refresh",
+        std::time::Duration::from_secs(20),
+        since,
+    );
+    // After the refresh, a re-request converges on the enriched viewport — the
+    // range loop actually converges, not just "some refresh fired".
+    let after = decode_semantic_tokens(&lsp.semantic_tokens_range(&uri, start, end));
+    assert!(
+        same_tokens(&after, &truth),
+        "after workspace/semanticTokens/refresh, the re-requested range must be \
+         the enriched tier — {}",
+        first_divergence(&after, &truth)
     );
 }
 

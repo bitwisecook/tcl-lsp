@@ -76,6 +76,10 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-qa-tcltest-package-support.md](kcs-qa-tcltest-package-support.md) —
   how the server models the `tcltest` package, its `test` / `configure`
   options, and their per-version availability across Tcl 8.4-9.0.
+- [kcs-qa-why-diagnostics-appear-progressively.md](kcs-qa-why-diagnostics-appear-progressively.md)
+  — why a large file's diagnostics arrive in two waves (a fast tier of
+  single-file checks, then the complete deep tier), and why W120/W123 are
+  held back from the first wave.
 
 ## How-Tos
 
