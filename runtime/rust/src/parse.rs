@@ -434,12 +434,21 @@ fn flush_word<'s>(
 }
 
 fn build_word<'s>(sm: &SourceMap<'s>, src: &'s [u8], toks: &[Token], expand: bool) -> Word<'s> {
-    // A single braced token is a literal word (no substitution).
+    // A single braced token is a literal word (no substitution) — except a
+    // backslash-newline line continuation, the one backslash sequence a braced
+    // word collapses (to a single space, swallowing following spaces/tabs), as
+    // C does in its pre-parse pass. A word with no continuation borrows the
+    // source unchanged; one with a continuation owns the collapsed bytes.
     if toks.len() == 1 && toks[0].kind == TokenType::Str {
+        let content = token_content(sm, src, toks[0]);
+        let body = match tcl_syntax::backslash::collapse_brace_continuations(content) {
+            Cow::Borrowed(b) => WordBody::Literal(b),
+            Cow::Owned(o) => WordBody::Parts(vec![WordPart::Text(Cow::Owned(o))]),
+        };
         return Word {
             kind: WordKind::Braced,
             expand,
-            body: WordBody::Literal(token_content(sm, src, toks[0])),
+            body,
             start: toks[0].span.start() as usize,
         };
     }
@@ -464,8 +473,13 @@ fn build_word<'s>(sm: &SourceMap<'s>, src: &'s [u8], toks: &[Token], expand: boo
             }
             // An empty (quote-marker) `Esc` contributes nothing.
             TokenType::Esc => {}
-            // A braced fragment mid-word (rare) is verbatim — no substitution.
-            TokenType::Str => parts.push(WordPart::Text(Cow::Borrowed(bytes))),
+            // A braced fragment mid-word (rare) is verbatim apart from the
+            // backslash-newline line continuation, which collapses to a space.
+            TokenType::Str => {
+                parts.push(WordPart::Text(
+                    tcl_syntax::backslash::collapse_brace_continuations(bytes),
+                ));
+            }
             TokenType::Var => parts.push(WordPart::Variable(parse_var_ref(
                 bytes,
                 t.content_offset == 2,

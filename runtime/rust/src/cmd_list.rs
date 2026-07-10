@@ -78,15 +78,6 @@ fn set_list(interp: &mut Interp, elems: &[*mut TclObj]) {
     interp.set_result(list::new_list_obj(elems));
 }
 
-/// Parse a Tcl integer (for `lrepeat` / `string repeat` counts): decimal or a
-/// `0x`/`0o`/`0b` radix, with an optional sign — the full Tcl integer grammar,
-/// not decimal-only, so `string repeat x 0x3` yields `xxx` as real Tcl does
-/// (RUST_ISSUE_028). Delegates to the shared radix-aware core.
-fn parse_isize(b: &[u8]) -> Option<isize> {
-    let v = tcl_cmd_core::sort::parse_wide(b)?;
-    isize::try_from(v).ok()
-}
-
 /// Resolve a Tcl list index spec against a container of `len` elements via the
 /// shared, radix-aware [`tcl_cmd_core::index`] core — the same parser `lindex`
 /// / `lrange` / `lreplace` / `linsert` use — so a hex index like `0x1` or
@@ -321,23 +312,18 @@ fn bad_list(interp: &mut Interp, e: crate::parse::ListError) -> Code {
 // -- lrepeat / linsert / lreplace / lsearch / lsort ------------------------
 
 /// `lrepeat count ?value ...?` — `count` copies of the value sequence.
+///
+/// Delegates to the shared, radix-aware [`list_core::lrepeat`] so the count
+/// accepts the full Tcl integer grammar (`0x3` → `a a a`), the negative-count
+/// error reports the *actual* count (`lrepeat -3 a` → `bad count "-3"…`, not a
+/// hard-coded `"-1"`), and the result-capacity multiply is `saturating_mul`
+/// rather than an overflowing `count * values.len()` (RUST_ISSUE_094 / 169).
 fn lrepeat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"lrepeat count ?value ...?");
     }
-    let Some(count) = parse_isize(&obj_bytes(argv[1])) else {
-        return not_integer(interp, &obj_bytes(argv[1]));
-    };
-    if count < 0 {
-        return interp.set_error(b"bad count \"-1\": must be integer >= 0");
-    }
-    let values = &argv[2..];
-    let mut out: Vec<*mut TclObj> = Vec::with_capacity(count as usize * values.len());
-    for _ in 0..count {
-        out.extend_from_slice(values);
-    }
-    set_list(interp, &out);
-    Code::Ok
+    let r = list_core::lrepeat(interp, &argv[1], &argv[2..]);
+    adapt(interp, r)
 }
 
 /// `linsert list index ?element ...?` — insert before `index` (`end` appends).
@@ -514,7 +500,9 @@ fn ledit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return bad_index(interp, &obj_bytes(argv[3]));
     };
     let lo = first.max(0).min(len as isize) as usize;
-    let hi = ((last + 1).max(0) as usize).clamp(lo, len);
+    // `last.saturating_add(1)` — an `end`-relative or explicit index at
+    // `isize::MAX` must not overflow the `+ 1` before the clamp (RUST_ISSUE_169).
+    let hi = (last.saturating_add(1).max(0) as usize).clamp(lo, len);
     let mut out: Vec<*mut TclObj> = Vec::with_capacity(len + argv.len());
     out.extend_from_slice(&elems[..lo]);
     out.extend_from_slice(&argv[4..]);
@@ -628,13 +616,6 @@ fn lsort_cmd_compare(
             Err(interp.set_error(&m))
         }
     }
-}
-
-fn not_integer(interp: &mut Interp, bytes: &[u8]) -> Code {
-    let mut m = b"expected integer but got \"".to_vec();
-    m.extend_from_slice(bytes);
-    m.push(b'"');
-    interp.set_error(&m)
 }
 
 fn bad_index(interp: &mut Interp, spec: &[u8]) -> Code {

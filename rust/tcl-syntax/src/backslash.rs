@@ -45,9 +45,66 @@ pub fn decode_bytes(raw: &[u8]) -> Cow<'_, [u8]> {
     }
 }
 
+/// Collapse Tcl brace-word line continuations: a backslash immediately followed
+/// by a newline — together with any spaces and tabs after that newline —
+/// becomes a single space. This is the **only** backslash processing a
+/// `{braced}` word undergoes (every other backslash byte stays literal), and it
+/// matches C's pre-pass rule for the backslash-newline sequence, which the `Tcl`
+/// language summary notes applies *even inside braces*. An escaped backslash
+/// (`\\`) before a newline is a literal `\\` and does not start a continuation.
+/// Borrows unchanged when the input contains no continuation (the common case).
+#[must_use]
+pub fn collapse_brace_continuations(raw: &[u8]) -> Cow<'_, [u8]> {
+    if !raw.windows(2).any(|w| w == b"\\\n") {
+        return Cow::Borrowed(raw);
+    }
+    let mut out = Vec::with_capacity(raw.len());
+    let mut i = 0;
+    while i < raw.len() {
+        if raw[i] == b'\\' {
+            if raw.get(i + 1) == Some(&b'\n') {
+                out.push(b' ');
+                i += 2;
+                while matches!(raw.get(i), Some(b' ' | b'\t')) {
+                    i += 1;
+                }
+                continue;
+            }
+            // A non-continuation backslash escapes the next byte for scanning
+            // purposes, so `\\<newline>` stays a literal `\\` + newline rather
+            // than the second backslash starting a continuation.
+            out.push(b'\\');
+            i += 1;
+            if let Some(&b) = raw.get(i) {
+                out.push(b);
+                i += 1;
+            }
+            continue;
+        }
+        out.push(raw[i]);
+        i += 1;
+    }
+    Cow::Owned(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn brace_continuations_collapse_like_tcl9() {
+        // `\<newline>` plus following spaces/tabs ⇒ one space.
+        assert_eq!(&*collapse_brace_continuations(b"a\\\nb"), b"a b");
+        assert_eq!(&*collapse_brace_continuations(b"a\\\n   b"), b"a b");
+        assert_eq!(&*collapse_brace_continuations(b"a\\\n\t b"), b"a b");
+        // No continuation ⇒ borrowed, byte-identical (including a literal `\n`).
+        assert!(matches!(
+            collapse_brace_continuations(b"p\\nq"),
+            Cow::Borrowed(_)
+        ));
+        // An escaped backslash before a newline is not a continuation.
+        assert_eq!(&*collapse_brace_continuations(b"x\\\\\ny"), b"x\\\\\ny");
+    }
 
     #[test]
     fn bytes_decode_matches_tcl9() {
