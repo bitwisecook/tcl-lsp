@@ -690,6 +690,19 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
                 .resolve_call(command, &arg_refs, DialectSet::empty())
                 .map_or(VarWriteTyping::ReturnValue, |r| r.var_write_typing());
             match typing {
+                // The default typing stores the command's *return value* in the
+                // target — meaningful only for a single-target writer (`append`,
+                // `lappend`). A call that writes *several* variables under the
+                // default (no override) is not a single-value writer: the
+                // synthetic `catch {body} resultVar optionsVar` / `try …` calls
+                // carry the body's writes plus the result / options vars as defs
+                // while `catch` / `try` return an Int status code, none of which
+                // is that status. Broadcasting the return type onto all of them
+                // would mistype every such variable, so stay conservative — the
+                // old `defs.len() > 1` fallback, now scoped to the default arm
+                // rather than a blanket heuristic (a registry `Destructured` /
+                // `Fixed` override still applies at any def count).
+                VarWriteTyping::ReturnValue if defs.len() > 1 => TypeLattice::overdefined(),
                 VarWriteTyping::ReturnValue => {
                     return_type_for_command(registry, command, &arg_refs, known_classes, namespace)
                 }
@@ -1218,6 +1231,45 @@ mod tests {
             &ssa,
         );
         assert_eq!(t, TypeLattice::of(TclType::String));
+    }
+
+    #[test]
+    fn unannotated_multi_def_call_stays_overdefined_not_return_type() {
+        // Regression (PR #885 review): a call that writes SEVERAL variables
+        // under the default `ReturnValue` typing must not broadcast its
+        // return type onto all of them. The synthetic `catch {body} resultVar
+        // optionsVar` call `emit_opaque_catch` builds carries the body's
+        // writes plus the result/options vars as defs, while `catch` returns
+        // an Int status code and declares no `VarWriteTyping` override — typing
+        // `msg`/`result`/`opts` as that Int would wrongly fire S100/W126. The
+        // default arm's multi-def guard keeps them OVERDEFINED.
+        let stmt = Statement::Call {
+            span: Span::new(0, 0),
+            command: "catch".to_owned(),
+            canonical_command: None,
+            args: vec![
+                "{set msg hello}".to_owned(),
+                "result".to_owned(),
+                "opts".to_owned(),
+            ],
+            defs: vec!["msg".to_owned(), "result".to_owned(), "opts".to_owned()],
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        };
+        let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
+        let t = evaluate_type_def(
+            &stmt,
+            &HashMap::new(),
+            &HashMap::new(),
+            &registry(),
+            &HashSet::new(),
+            "::",
+            &ssa,
+        );
+        assert_eq!(t, TypeLattice::overdefined());
     }
 
     /// End-to-end lattice checks for the registry-driven `VarWriteTyping`:

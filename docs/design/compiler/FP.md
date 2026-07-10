@@ -5009,12 +5009,15 @@ set offset [expr {$x + $y + $z}]
 
 `CommandSpec`/`SubCommand` gained a `var_write_typing: VarWriteTyping` field
 (`ReturnValue` default, `Fixed(TclType)`, `Destructured`).  `lassign` / `scan`
-/ `regexp` / `regsub` / `binary scan` declare `Destructured` (targets widen to
-`Overdefined`); `gets` declares `Fixed(String)` (the line) and `lpop`
-`Fixed(List)` (the shortened list).  `evaluate_type_def` reads
-`ResolvedCall::var_write_typing()` and drops the `defs.len() > 1` heuristic, so
-the typing is registry data keyed per command / subcommand — never a
-def-count guess or a command-name branch.  See
+/ `regexp` / `binary scan` declare `Destructured` (targets widen to
+`Overdefined`); `gets` and `regsub` declare `Fixed(String)` (the read line /
+the substituted result), and `lpop` `Fixed(List)` (the shortened list).
+`evaluate_type_def` reads `ResolvedCall::var_write_typing()` and drops the
+blanket `defs.len() > 1` heuristic — the default `ReturnValue` arm keeps a
+multi-def guard (a single return value can't type several distinct written
+variables, so `catch`/`try`'s synthetic result/options + body writes stay
+`Overdefined`), but the typing is otherwise registry data keyed per command /
+subcommand, never a command-name branch.  See
 [`command-registry.md`](command-registry.md#var_write_typing--return-type-vs-written-variable-type).
 
 

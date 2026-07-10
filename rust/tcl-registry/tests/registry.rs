@@ -217,12 +217,13 @@ fn var_write_typing_declares_destructuring_writers() {
             .var_write_typing()
     };
 
-    // Destructuring writers widen their targets to "unknown intrep".
+    // Destructuring writers widen their targets to "unknown intrep": a list
+    // element (`lassign`) or a format-dependent conversion (`scan`), and
+    // `regexp` capture fragments.
     for (name, args) in [
         ("lassign", &["$l", "a"][..]),
         ("scan", &["$s", "%d", "a"][..]),
         ("regexp", &["re", "$s", "m"][..]),
-        ("regsub", &["re", "$s", "sub", "out"][..]),
     ] {
         assert_eq!(
             resolve(name, args),
@@ -230,6 +231,15 @@ fn var_write_typing_declares_destructuring_writers() {
             "{name} must declare Destructured var-write typing"
         );
     }
+
+    // `regsub`'s `varName` form writes one whole substituted *string* (not a
+    // format-/element-dependent piece), so it is `Fixed(String)` — keeping real
+    // string-in-arithmetic shimmer diagnostics rather than widening away.
+    assert_eq!(
+        resolve("regsub", &["re", "$s", "sub", "out"]),
+        VarWriteTyping::Fixed(TclType::String),
+        "regsub writes a substituted String"
+    );
 
     // `binary scan` carries the typing at the *subcommand* level; the bare
     // `binary` command (and `binary format`) does not destructure.

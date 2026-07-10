@@ -181,9 +181,11 @@ pub fn spec() -> CommandSpec {
         arity: Arity::new(3, 4),
         return_type: Some(TclType::Int),
         // The `varName` form writes the substituted *string* to its target
-        // while returning the replacement *count*.  The written string is not
-        // the count, so the target must not be typed `Int` (issue #867).
-        var_write_typing: VarWriteTyping::Destructured,
+        // while returning the replacement *count*.  The result is always a
+        // string (not a format-/element-dependent piece like `scan`/`lassign`),
+        // so type it `String` — that keeps real string-in-arithmetic shimmer
+        // diagnostics while avoiding the old bogus `Int` (issue #867).
+        var_write_typing: VarWriteTyping::Fixed(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
             reads: false,

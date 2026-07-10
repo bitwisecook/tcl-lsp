@@ -972,6 +972,38 @@ fn fp_sh_17_regsub_output_string_compare_no_shimmer() {
     );
 }
 
+/// FP-SH-17 TP control: `regsub`'s output is a genuine `String` (`Fixed(String)`,
+/// not `Destructured`), so using it in arithmetic is a real string→int shimmer
+/// and must still fire S100 — the fix drops the bogus `Int` typing without
+/// widening the value away (PR #885 review).
+#[test]
+fn fp_sh_17_regsub_output_in_arithmetic_still_fires() {
+    let src = "set s \"aaa\"\n\
+               regsub \"a\" $s \"b\" out\n\
+               set n [expr {$out + 1}]";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-17 TP: regsub output is a String; arithmetic on it must fire S100; got {:?}",
+        codes(src, D)
+    );
+}
+
+/// FP-SH-17: a call that writes several variables under the default typing
+/// (`catch {body} resultVar optionsVar`) must not broadcast its `Int` status
+/// return onto them — `result`/`opts` (and the body's `msg`) stay overdefined,
+/// so comparing `opts` as a string draws no numeric-in-string-compare S100
+/// (PR #885 review).
+#[test]
+fn fp_sh_17_catch_result_and_options_vars_no_shimmer() {
+    let src = "catch {set msg hello} result opts\n\
+               if {$opts eq \"\"} { puts $result }";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-17: catch result/options vars are not the Int status; got {got:?}"
+    );
+}
+
 /// FP-SH-17 TP control: the fix widens *destructured* targets, not every value
 /// — a genuine `set s hello; expr {$s + 1}` STRING-in-arithmetic shimmer must
 /// still fire, proving the change is not blanket-silencing.

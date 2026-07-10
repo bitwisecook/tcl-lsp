@@ -155,9 +155,9 @@ mistyped every single-target destructure):
 
 | Variant | Written variable receives | Commands |
 |---------|---------------------------|----------|
-| `ReturnValue` (default) | the command's `return_type` | `append`, `lappend`, `ledit`, `lset`, `dict set` |
-| `Fixed(TclType)` | a fixed intrep, independent of the return value | `gets` → `String` (the line), `lpop` → `List` (the shortened list) |
-| `Destructured` | element-/parse-dependent pieces, typed *overdefined* (unknown) | `lassign`, `scan`, `regexp`, `regsub`, `binary scan` |
+| `ReturnValue` (default) | the command's `return_type` — but only for a **single** written target; a call that writes several variables under this default (`catch`/`try`'s synthetic result/options + body writes) stays *overdefined*, since one return value cannot be the value of several distinct variables | `append`, `lappend`, `ledit`, `lset`, `dict set` |
+| `Fixed(TclType)` | a fixed intrep, independent of the return value | `gets` → `String` (the line), `regsub` → `String` (the substituted result), `lpop` → `List` (the shortened list) |
+| `Destructured` | element-/parse-dependent pieces, typed *overdefined* (unknown) | `lassign`, `scan`, `regexp`, `binary scan` |
 
 The consumer is `tcl_compiler::type_infer::evaluate_type_def`, which resolves
 the call (`ResolvedCall::var_write_typing`, so a subcommand like `binary scan`
