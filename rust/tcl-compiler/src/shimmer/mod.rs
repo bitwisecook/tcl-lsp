@@ -265,9 +265,11 @@ mod tests {
             &ssa,
             None,
             None,
-            &registry(),
-            &std::collections::BTreeSet::new(),
-            false,
+            crate::sccp::TraceInputs {
+                registry: &registry(),
+                traced_variables: &std::collections::BTreeSet::new(),
+                has_dynamic_variable_trace: false,
+            },
         );
         let types: HashMap<ValueKey, TypeLattice> = HashMap::new();
         assert!(

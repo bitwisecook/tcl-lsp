@@ -64,8 +64,9 @@ use super::{Optimisation, PassContext};
 /// No trace/alias filtering is applied to the projected `Env`: `sccp()`
 /// itself already forces a traced or frame-aliased variable's lattice
 /// entry to `Overdefined`, so `sccp_env_for`'s projection is trace/alias
-/// safe by construction — see `propagation::UnsafeNames`'s docs for the
-/// one pass (O102 `run_load_forwarding`) that still needs its own check.
+/// safe by construction — O102 `run_load_forwarding` is the one pass that
+/// still needs its own check, since it runs an independent def-use-chain
+/// scan that never consults `fu.sccp` at all.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // Top-level script.
     let top_env = sccp_env_for(&cu.top_level);

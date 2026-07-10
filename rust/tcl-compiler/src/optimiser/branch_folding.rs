@@ -125,9 +125,10 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // non-empty constant map. Substitution is simply a no-op in that case.
     // No trace/alias filtering needed: `constants` is a pure projection of
     // `fu.sccp.values`, and `sccp()` itself already forces a traced or
-    // frame-aliased variable's own lattice entry to `Overdefined` — see
-    // `propagation::UnsafeNames`'s docs for why this differs from O102's
-    // `run_load_forwarding`, which still needs its own check.
+    // frame-aliased variable's own lattice entry to `Overdefined` —
+    // `run_load_forwarding` (O102) is the one pass that still needs its own
+    // check, since it runs an independent def-use-chain scan that never
+    // consults `fu.sccp` at all.
     let constants = sccp_constants_for(fu);
     // Numeric-type context so identity rewrites (`$x + 0` → `$x`, etc.) on a
     // branch condition fire only when the dropped operand is provably numeric.
@@ -299,9 +300,9 @@ fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // itself already forces a traced or frame-aliased variable's lattice
     // entry to `Overdefined` — a branch reading one never resolves to a
     // constant decision in the first place, so it never lands in
-    // `constant_branches` to begin with. See `propagation::UnsafeNames`'s
-    // docs for the one pass (O102 `run_load_forwarding`) that still needs
-    // its own check.
+    // `constant_branches` to begin with. O102 `run_load_forwarding` is the
+    // one pass that still needs its own check, since it runs an independent
+    // def-use-chain scan that never consults `fu.sccp` at all.
     for cb in &fu.sccp.constant_branches {
         let Some(block) = fu.cfg.block_by_name(&cb.block) else {
             continue;
