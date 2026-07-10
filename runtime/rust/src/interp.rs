@@ -2008,6 +2008,26 @@ impl Interp {
         Some(self.set_error(&m))
     }
 
+    /// Read a variable's current value for `lappend`, firing its read trace but
+    /// **swallowing** any error the trace raises (yielding `None`, as if the
+    /// variable were absent). This is C's `Tcl_ObjGetVar2` *without*
+    /// `TCL_LEAVE_ERR_MSG`: `lappend` fires the read trace (its side effects run
+    /// — append-7.2/7.3) yet a trace that errors on a missing element must not
+    /// fail the append, which instead creates the element (bug 3057639,
+    /// append-9.0). `set`/`append`-read, by contrast, propagate the error via
+    /// [`fire_read_trace`](Self::fire_read_trace).
+    pub(crate) fn lappend_read(&mut self, base: &[u8], elem: Option<&[u8]>) -> Option<*mut TclObj> {
+        if !self.traces.borrow().traces.is_empty() && self.fire_var_trace(base, elem, b"read") {
+            // The read trace errored: discard it and treat the value as absent.
+            self.traces.borrow_mut().pending_err.take();
+            return None;
+        }
+        match elem {
+            Some(k) => self.var_get_elem(base, k),
+            None => self.var_get(base),
+        }
+    }
+
     /// `unset name` — returns whether it existed.
     pub(crate) fn var_unset(&mut self, name: &[u8]) -> bool {
         let existed = crate::vars::unset(

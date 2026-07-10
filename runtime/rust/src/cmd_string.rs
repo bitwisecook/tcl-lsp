@@ -68,7 +68,11 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
 
     if values.is_empty() {
-        // `append x` with no values just reads the variable.
+        // `append x` with no values is a pure read and fires a read trace (the
+        // *with-values* form does not, unlike `lappend` — append-7.2/7.3).
+        if let Some(c) = interp.fire_read_trace(&base, elem.as_deref()) {
+            return c;
+        }
         return match read_cur(interp) {
             Some(o) => {
                 interp.set_result(o);

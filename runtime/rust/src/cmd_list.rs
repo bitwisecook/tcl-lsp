@@ -140,10 +140,10 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // store, no trace, no re-rendering. An unset variable is created as an empty
     // list.
     if values.is_empty() {
-        let cur = match &elem {
-            Some(k) => interp.var_get_elem(&base, k),
-            None => interp.var_get(&base),
-        };
+        // `lappend` fires a read trace on the variable it reads (restored in Tcl
+        // 8.4 after 8.0 dropped it), but swallows a trace error, unlike `append`
+        // (append-7.2/7.3/7.4, bug 3057639).
+        let cur = interp.lappend_read(&base, elem.as_deref());
         return match cur {
             Some(o) => match list::list_elements(o) {
                 Ok(_) => {
@@ -162,6 +162,11 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         };
     }
 
+    // `lappend` reads the current value (to append to it), firing the read trace
+    // first — before the write, matching C's get-then-set order — and swallowing
+    // a trace error (a missing element is then created; bug 3057639, append-9.0).
+    let cur = interp.lappend_read(&base, elem.as_deref());
+
     // A `lappend` with values writes; reject a constant before the update.
     if let Some(c) = interp.const_write_check(&name) {
         return c;
@@ -171,10 +176,6 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // place when the current value is an unshared list (returning that same
     // object), else builds a fresh list. Byte-exact (elements are never
     // stringified).
-    let cur = match &elem {
-        Some(k) => interp.var_get_elem(&base, k),
-        None => interp.var_get(&base),
-    };
     let result = match tcl_cmd_core::var::lappend_value(interp, cur, values) {
         Ok(v) => v,
         Err(e) => return interp.set_error(e.message().as_bytes()),
@@ -1217,6 +1218,34 @@ mod tests {
             ok(b"proc foo args {global y; set y ZZZ}\ntrace add variable y write foo\nlappend y 1"),
             b"ZZZ"
         );
+    }
+
+    /// `lappend` fires a read trace (its side effects run) but swallows a trace
+    /// error, creating a missing element instead of failing (append-7.2/9.0,
+    /// bug 3057639) — where `set`/`append`-read would propagate the error.
+    #[test]
+    fn lappend_read_trace_fires_but_swallows_error() {
+        // Side effects run: the read trace observes `name {} read`.
+        assert_eq!(
+            ok(b"set ::r {}\nproc foo args {append ::r $args}\ntrace add variable v read foo\nlappend v a\nset ::r"),
+            b"v {} read"
+        );
+        // A read trace that errors does not fail lappend; it appends to empty.
+        assert_eq!(
+            ok(b"set v 1\ntrace add variable v read {error boom}\nlappend v a"),
+            b"a"
+        );
+        // A succeeding read trace lets lappend see the real current value.
+        assert_eq!(
+            ok(b"set v 1\nproc foo args {}\ntrace add variable v read foo\nlappend v a"),
+            b"1 a"
+        );
+        // bug 3057639: a read trace erroring on a missing element still creates it.
+        let (c, m) = run(
+            b"array set a {}\nproc nn {var key val} {upvar 1 $var l\n if {![info exists l($key)]} {return -code error x}}\ntrace add variable a read nn\nlappend a(key) hi",
+        );
+        assert_eq!(c, Code::Ok);
+        assert_eq!(&m, b"hi");
     }
 
     #[test]
