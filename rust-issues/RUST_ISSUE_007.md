@@ -7,7 +7,7 @@
 | **Severity** | high |
 | **Subsystem** | Backend parity (WASM/VM/eBPF/registry) |
 | **Location** | `registry↔runtime` |
-| **Status** | Open |
+| **Status** | Resolved |
 | **Verification** | Verified firsthand by reviewer |
 
 ## Finding
@@ -27,9 +27,24 @@ residue in `docs/generated/wasm-command-backing.md`. Of the original list:
   are loop-registered as "not supported under the WASM runtime" errors (external
   process / socket / native load / event loop — the portability excuse), so they no
   longer route to `unknown`.
-- **Still unimplemented** (`known-gap`, allow-listed so the `RUST_ISSUE_006` gate
-  stays green while they land one by one): `exit`, `time`, `timerate`, `tailcall`,
-  `zlib`, plus `chan`, `coroinject`, `coroprobe`, `::tcl::unsupported::corotype`,
-  `classvariable`. These remain the real, portable work for this issue — removing a
-  name from the gate's `KNOWN_UNBACKED` list as it gains a handler is the visible
-  progress marker.
+- **Now backed** (`handler`): every remaining name has gained a real
+  `register_builtin` handler, so the gate's `KNOWN_UNBACKED` allow-list is **empty**
+  and `cargo xtask command-backing` reports `UNCLASSIFIED=0` with no known gaps:
+  - `exit` records the code and unwinds uncatchably (it must **not** kill the
+    embedding process); `catch` re-propagates while it is set.
+  - `time` / `timerate` measure over the host clock; `timerate` reproduces C's
+    8-word `µs/# … net-ms` report, `-overhead`/`-calibrate`, and break/continue
+    semantics.
+  - `tailcall` dispatches the call and carries its result out of the proc.
+  - `chan` forwards the supported subcommands to the existing channel handlers and
+    reports the event-driven / reflected / stacked-channel ones as unsupported.
+  - `::tcl::unsupported::corotype` classifies a coroutine as `active`/`yield`.
+  - `classvariable` links a method-local to its declaring class's namespace.
+  - `coroprobe` / `coroinject` extend the coroutine worker's rendezvous protocol
+    to run a command in — or queue one for — a suspended coroutine's context.
+  - `zlib` implements the checksums natively and drives DEFLATE/zlib/gzip through
+    `flate2`'s pure-Rust `miniz_oxide` backend (wasm-clean, no C `libz`).
+
+**Resolved:** every core registry command now has a runtime handler or an explicit
+not-required / stdlib classification; the `RUST_ISSUE_006` gate enforces this with
+an empty `KNOWN_UNBACKED`.
