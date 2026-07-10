@@ -60,7 +60,10 @@ fn resolve_trace_type(word: &str) -> Option<&'static str> {
 /// `trace add execution` and `trace add command` (which take a
 /// command name, not a variable) don't appear as SSA defs.
 fn trace_add_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.first().is_some_and(|w| resolve_trace_type(w) == Some("variable")) && args.len() >= 2
+    if args
+        .first()
+        .is_some_and(|w| resolve_trace_type(w) == Some("variable"))
+        && args.len() >= 2
     {
         return vec![(1, ArgRole::VarWrite)];
     }
@@ -71,7 +74,10 @@ fn trace_add_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// registry consistency with `trace add variable` so consumers can
 /// query both spellings via the same `ArgRole::VarWrite` lookup.
 fn trace_remove_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.first().is_some_and(|w| resolve_trace_type(w) == Some("variable")) && args.len() >= 2
+    if args
+        .first()
+        .is_some_and(|w| resolve_trace_type(w) == Some("variable"))
+        && args.len() >= 2
     {
         return vec![(1, ArgRole::VarWrite)];
     }

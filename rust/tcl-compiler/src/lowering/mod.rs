@@ -3866,10 +3866,7 @@ mod tests {
 
     #[test]
     fn trace_add_variable_inside_apply_body_recorded() {
-        let m = lower_to_ir(
-            "apply {{} { trace add variable ::x write h }}",
-            &reg(),
-        );
+        let m = lower_to_ir("apply {{} { trace add variable ::x write h }}", &reg());
         assert!(m.traced_variables.contains("x"), "{:?}", m.traced_variables);
     }
 
