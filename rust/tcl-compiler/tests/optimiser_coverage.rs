@@ -446,6 +446,236 @@ fn o102_expr_command_substitution() {
 }
 
 // ===========================================================================
+// O102 — variable-trace / aliasing / frame-crossing safety
+//
+// Regression coverage for a confirmed silent miscompile: `run_load_forwarding`
+// (O102) and its SCCP-sourced sibling paths (O100/O101/O103, sharing the same
+// `constants` map — see `propagation::run_function`) forwarded a variable's
+// literal or SCCP-derived value into a later read with no notion that a
+// `trace add variable` handler can run arbitrary code on read/write, that a
+// write handler can rewrite the stored value, or that the value is aliased
+// into another frame (upvar/global/variable) a called proc could write
+// through. Each `tclsh:` value was checked against `tclsh` 8.6.14 — trace,
+// `interp eval`, `uplevel`, and `unset` semantics are unchanged across
+// 8.4-9.0, so the same value holds under every dialect this suite targets.
+// ===========================================================================
+
+#[test]
+fn o102_read_trace_via_helper_proc_blocks_forward() {
+    // FN-would-be-TP-if-safe / actual TP for the fix: a read trace
+    // installed by a *called* proc — not lexically between the def and
+    // the use — must still block forwarding. Before the fix this
+    // rewrote to `puts 5`, silently dropping the trace's `puts "read
+    // trace fired"` side effect. tclsh: prints "read trace fired" then
+    // "5" — `puts $x` must survive verbatim so the trace still fires at
+    // runtime.
+    let src = "proc onread {name1 name2 op} {\n    puts \"read trace fired\"\n}\nproc setup {} {\n    trace add variable ::x read onread\n}\nsetup\nset x 5\nputs $x\n";
+    assert!(opt_absent(src, TCL, "O102"));
+    assert!(optimised(src, TCL).contains("puts $x"));
+}
+
+#[test]
+fn o102_read_trace_installed_before_def_blocks_forward() {
+    // The trace-install call can precede the `set` textually too — no
+    // statement sits *between* the def and the use, so a same-block
+    // intervening scan alone would miss this; the module-wide
+    // `traced_variables` fact (position-independent, mirroring
+    // `traced_commands`) is what catches it.
+    let src = "proc onread {name1 name2 op} {\n    puts \"read trace fired\"\n}\nproc setup {} {\n    trace add variable ::x read onread\n}\nsetup\nset x 5\nputs $x\n";
+    assert!(opt_absent(src, TCL, "O102"));
+}
+
+#[test]
+fn o102_write_trace_mutating_value_blocks_forward() {
+    // TP for the fix: a write-trace handler can rewrite the value being
+    // stored, so the literal text at the `set` is not the runtime value.
+    // tclsh: the handler increments on every write, so `x` ends up `6`,
+    // not the literal `5` written in source.
+    let src = "proc onwrite {name1 name2 op} {\n    upvar 1 $name1 v\n    set v [expr {$v + 1}]\n}\ntrace add variable x write onwrite\nset x 5\nputs $x\n";
+    assert!(opt_absent(src, TCL, "O102"));
+    assert!(optimised(src, TCL).contains("puts $x"));
+}
+
+#[test]
+fn o102_legacy_trace_variable_form_blocks_forward() {
+    // The deprecated `trace variable name ops command` spelling (8.4-8.6
+    // only) must gate the forward exactly like the modern `trace add
+    // variable` form — no per-form gap in the registry-driven fact.
+    let src = "proc onread {name1 name2 op} {\n    puts \"read trace fired\"\n}\ntrace variable x r onread\nset x 5\nputs $x\n";
+    assert!(opt_absent(src, TCL, "O102"));
+}
+
+#[test]
+fn o102_transitive_trace_taint_through_expr_blocks_forward() {
+    // TP for the deeper, transitive fix: `a` carries a read trace, and
+    // `v`'s SCCP-constant value is *computed from* `a` inside
+    // `[expr {...}]}`. Filtering only the directly-traced name (`a`)
+    // is not enough — `v` must inherit the taint through the SSA def/use
+    // graph, or `set v [expr {$a * 2}]` still folds to `set v 10` and
+    // `puts $v` still forwards, dropping the read trace exactly as
+    // before. tclsh: prints "read trace fired" then "10".
+    let src = "proc onread {name1 name2 op} {\n    puts \"read trace fired\"\n}\nproc setup {} {\n    trace add variable ::a read onread\n}\nset a 5\nsetup\nset v [expr {$a * 2}]\nputs $v\n";
+    assert!(opt_absent(src, TCL, "O100"));
+    assert!(opt_absent(src, TCL, "O101"));
+    assert!(opt_absent(src, TCL, "O102"));
+    let out = optimised(src, TCL);
+    assert!(out.contains("set v [expr {$a * 2}]"));
+    assert!(out.contains("puts $v"));
+}
+
+#[test]
+fn o102_interp_eval_self_target_barrier_blocks_forward() {
+    // TP: `interp eval {}` targets *this* interpreter (the empty path is
+    // the self-reference), so its body runs in the caller's own global
+    // scope — unlike a named sub-interpreter, it really can rewrite `x`.
+    // tclsh: prints `99`, not the literal `5` written earlier.
+    let src = "set x 5\ninterp eval {} {\n    set x 99\n}\nputs $x\n";
+    assert!(opt_absent(src, TCL, "O102"));
+    assert!(optimised(src, TCL).contains("puts $x"));
+}
+
+#[test]
+fn o102_sub_interpreter_isolation_is_a_known_conservative_gap() {
+    // A *named* sub-interpreter's variables are isolated from the
+    // caller's — `interp eval slave {set x 99}` does not touch the
+    // master's `x`, so forwarding the master's final `puts $x` to the
+    // literal `5` would in fact be sound (tclsh: prints `99` inside the
+    // slave block, then `5` for the master, unaffected). But `interp
+    // create` / `interp eval` both lower as `Statement::Barrier` — an
+    // always-unsafe kill in `statement_may_have_untracked_effects` — so
+    // the same-block scan conservatively gives up this specific,
+    // provably-safe forward rather than special-casing "this barrier
+    // targets an isolated sub-interpreter". Documented trade-off: no
+    // forward at all, rather than a wrong one.
+    let src = "set x 5\ninterp create slave\ninterp eval slave {\n    set x 99\n    puts $x\n}\nputs $x\n";
+    assert!(opt_absent(src, TCL, "O102"));
+    assert!(optimised(src, TCL).contains("puts $x"));
+}
+
+#[test]
+fn o102_upvar_aliased_variable_blocks_forward() {
+    // TP: `x` is written through an `upvar` alias from a called proc — a
+    // memory-SSA-aliased name, so a call between a literal def and a
+    // later use can rewrite it without a new SSA version appearing in
+    // *this* function. (Here the literal `set x 5` is genuinely dead —
+    // O109 removes it — but O102 must not offer to forward its value.)
+    let src = "proc mutate {} {\n    upvar 1 x v\n    set v 99\n}\nset x 5\nmutate\nputs $x\n";
+    assert!(opt_absent(src, TCL, "O102"));
+}
+
+#[test]
+fn o102_pure_intervening_call_is_still_forwarded() {
+    // TN / precision guard: the fix must not be so conservative that a
+    // provably pure intervening call (no side effects, registry `pure:
+    // true`) blocks the forward. `string length` is pure — it cannot
+    // write `x` — so it must not gate the same-block scan.
+    let src = "set x 5\nstring length hi\nputs $x\n";
+    assert!(opt_fires(src, TCL, "O102"));
+    assert!(optimised(src, TCL).contains("puts 5"));
+}
+
+#[test]
+fn o102_side_effecting_intervening_call_widens_to_o100_only() {
+    // Precision note, not a correctness bug: `puts` genuinely carries a
+    // side effect (`SideEffectTarget::FileIo`), so it is *not* pure per
+    // the registry, and the O102 same-block scan conservatively declines
+    // to forward across it (unlike `string length` above). The
+    // observable output is still correct — `puts` cannot write `x` — but
+    // the rewrite comes from the position-blind O100 SCCP-constant
+    // substitution instead of O102's positional, intervening-scanned
+    // forward. Documents the boundary rather than asserting a code that
+    // no longer fires here.
+    let src = "set x 5\nputs \"start\"\nputs $x\n";
+    assert!(opt_absent(src, TCL, "O102"));
+    assert!(opt_fires(src, TCL, "O100"));
+    assert!(optimised(src, TCL).contains("puts 5"));
+}
+
+#[test]
+fn o102_unregistered_proc_call_between_def_and_use_blocks_forward() {
+    // TP: a call to a proc the registry knows nothing about is treated
+    // conservatively (`fallback_unknown_write` — an unknown command
+    // defaults to an unproven write, never pure), so it must gate the
+    // same-block intervening scan even with no trace/barrier at all.
+    let src = "proc helper {} {\n    # opaque to the registry\n}\nset x 5\nhelper\nputs $x\n";
+    assert!(opt_absent(src, TCL, "O102"));
+}
+
+#[test]
+fn o102_uplevel_hash_zero_in_called_proc_is_a_known_gap() {
+    // Documented, deliberate scope limitation (see `run_load_forwarding`'s
+    // doc comment): `uplevel #0` inside a *called* proc can rewrite a
+    // caller-visible variable with no trace and no memory-SSA alias
+    // recorded against the *caller's* function unit, so this specific
+    // shape is not yet caught. tclsh: prints `99`; the optimiser still
+    // (incorrectly) forwards `5`. Asserting the current, known-wrong
+    // behaviour here — rather than silently leaving it uncovered — so a
+    // future fix flips this assertion instead of a fix regressing
+    // silently past an absent test.
+    let src = "proc setter {} {\n    uplevel #0 {\n        set x 99\n    }\n}\nset x 5\nsetter\nputs $x\n";
+    assert!(optimised(src, TCL).contains("puts 5"));
+}
+
+#[test]
+fn o100_branch_condition_propagation_blocks_on_variable_trace() {
+    // The same silent-miscompile class as O102, but through
+    // `branch_folding::propagate_into_branches`'s *own* SCCP-constants
+    // projection (a duplicate of `propagation::sccp_constants_for` this fix
+    // also deduplicated) rather than `propagation::run_function`'s. A read
+    // trace installed by a called proc must still block substituting `x`'s
+    // literal into the `if` condition text. tclsh: prints "trace fired"
+    // then "yes" — `$x` must survive as a real runtime read.
+    let src = "proc onread {name1 name2 op} {\n    puts \"trace fired\"\n}\nproc setup {} {\n    trace add variable ::x read onread\n}\nset x 1\nsetup\nif {$x > 0} {\n    puts yes\n} else {\n    puts no\n}\n";
+    assert!(opt_absent(src, TCL, "O100"));
+    assert!(optimised(src, TCL).contains("if {$x > 0}"));
+}
+
+#[test]
+fn o112_constant_branch_elimination_blocks_on_variable_trace() {
+    // `structure_elimination`'s O112 (`if {K}` → replace with the
+    // constant-true clause, dropping the `if`/condition entirely) reads
+    // its own SCCP-lattice projection (`sccp_env_for`) — a second,
+    // independent consumer of the same unsafe SCCP data `O100`'s branch
+    // path above reads. Collapsing `if {$x} {...} else {...}` to just the
+    // `puts yes` branch would delete the runtime read of `$x` outright,
+    // permanently silencing the trace. tclsh: prints "trace fired" then
+    // "yes" on every run — the `if` must stay a real runtime check so the
+    // trace keeps firing.
+    // Note: the `else` body's *contents* (`puts no`) are lost regardless —
+    // see `o107_dead_code_elimination_of_unreachable_branch_is_a_known_gap`
+    // below for that separate, still-open gap. This test only asserts
+    // O112 itself does not collapse the `if` structure.
+    let src = "proc onread {name1 name2 op} {\n    puts \"trace fired\"\n}\nproc setup {} {\n    trace add variable ::x read onread\n}\nset x 1\nsetup\nif {$x} {\n    puts yes\n} else {\n    puts no\n}\n";
+    assert!(opt_absent(src, TCL, "O112"));
+    assert!(optimised(src, TCL).contains("if {$x}"));
+}
+
+#[test]
+fn o107_dead_code_elimination_of_unreachable_branch_is_a_known_gap() {
+    // Documented, deliberate scope limitation: `elimination.rs`'s O107
+    // "unreachable code" deletion is a *third* independent consumer of
+    // SCCP's trace-blind `executable_blocks`/`constant_branches` facts —
+    // discovered while fixing O100/O112's own consumption of the same
+    // upstream data (`structure_elimination`'s O112 fix above correctly
+    // keeps the `if` statement's *structure*, but O107 still deletes the
+    // now-"provably unreachable" `else` body's *contents* on a later
+    // pass, silently losing the same trace-firing behaviour through a
+    // different code path). Root cause: SCCP's own dataflow
+    // (`rust/tcl-compiler/src/sccp.rs`) has no notion of variable traces
+    // or frame-aliasing at all — every consumer of its lattice /
+    // reachability facts (this file's `propagation`/`branch_folding`/
+    // `structure_elimination`, now fixed, plus `elimination`, not yet)
+    // inherits the gap independently. The robust fix is at the SCCP
+    // level itself (treat a read of a traced/aliased variable as
+    // `Overdefined`), not another per-consumer patch — asserting the
+    // current, known-wrong behaviour here so a future fix flips this
+    // assertion instead of regressing silently past an absent test.
+    let src = "proc onread {name1 name2 op} {\n    puts \"trace fired\"\n}\nproc setup {} {\n    trace add variable ::x read onread\n}\nset x 1\nsetup\nif {$x} {\n    puts yes\n} else {\n    puts no\n}\n";
+    assert!(opt_fires(src, TCL, "O107"));
+    assert!(!optimised(src, TCL).contains("puts no"));
+}
+
+// ===========================================================================
 // O103 — interprocedural folding
 // ===========================================================================
 

@@ -137,6 +137,12 @@ pub fn optimise_unit_raw(
     let ia = cu.interproc.clone().unwrap_or_default();
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);
+    // Whole-module trace facts (`traced_commands` / `has_dynamic_trace` /
+    // `traced_variables` / `has_dynamic_variable_trace`) — without this the
+    // O127 store-to-load-forwarding trace-purity gate and the O102
+    // load-forwarding variable-trace gate silently see an empty/false
+    // default and never actually block on a real trace.
+    ctx.ir_module = Some(&cu.ir_module);
     // The whole-module builtin-fold trust gate (O129/O116/O118).
     // Without this the production path leaves `command_mutations` at its default,
     // whose `trusts()` returns `true` for everything, so renamed/redefined
@@ -724,6 +730,12 @@ pub fn find_dead_stores(
     let ia = cu.interproc.clone().unwrap_or_default();
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);
+    // Whole-module trace facts (`traced_commands` / `has_dynamic_trace` /
+    // `traced_variables` / `has_dynamic_variable_trace`) — without this the
+    // O127 store-to-load-forwarding trace-purity gate and the O102
+    // load-forwarding variable-trace gate silently see an empty/false
+    // default and never actually block on a real trace.
+    ctx.ir_module = Some(&cu.ir_module);
     ctx.command_mutations =
         crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
     run_passes(&mut ctx, cu, &PassId::all());
@@ -746,6 +758,12 @@ pub fn optimise_by_pass(
     let ia = cu.interproc.clone().unwrap_or_default();
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);
+    // Whole-module trace facts (`traced_commands` / `has_dynamic_trace` /
+    // `traced_variables` / `has_dynamic_variable_trace`) — without this the
+    // O127 store-to-load-forwarding trace-purity gate and the O102
+    // load-forwarding variable-trace gate silently see an empty/false
+    // default and never actually block on a real trace.
+    ctx.ir_module = Some(&cu.ir_module);
     ctx.command_mutations =
         crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
     let mut by_pass = Vec::new();
@@ -790,6 +808,12 @@ pub fn optimise_raw(
     cu.interproc = Some(ia.clone());
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);
+    // Whole-module trace facts (`traced_commands` / `has_dynamic_trace` /
+    // `traced_variables` / `has_dynamic_variable_trace`) — without this the
+    // O127 store-to-load-forwarding trace-purity gate and the O102
+    // load-forwarding variable-trace gate silently see an empty/false
+    // default and never actually block on a real trace.
+    ctx.ir_module = Some(&cu.ir_module);
     // The whole-module builtin-fold trust gate (O129).
     ctx.command_mutations =
         crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);

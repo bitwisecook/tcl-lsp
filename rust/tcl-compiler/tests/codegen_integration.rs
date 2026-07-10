@@ -811,6 +811,8 @@ fn codegen_module_with_no_procs() {
         namespace_exports: Vec::new(),
         traced_commands: std::collections::BTreeSet::new(),
         has_dynamic_trace: false,
+        traced_variables: std::collections::BTreeSet::new(),
+        has_dynamic_variable_trace: false,
     };
     let registry = CommandRegistry::build_default();
     let asm = codegen_module(&cfg_mod, &ir_mod, &registry);

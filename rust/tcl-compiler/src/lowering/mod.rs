@@ -2528,81 +2528,89 @@ fn lower_with(mut lowerer: Lowerer<'_>, source: &str) -> Module {
     // Extract TclOO method bodies from the fully-assembled
     // module (cache-independent — see `extract_oo_methods_pass`).
     lowerer.extract_oo_methods_pass();
+    let registry = lowerer.registry;
     let mut module = lowerer.module;
     module.source = source.to_string();
-    populate_trace_facts(&mut module);
+    populate_trace_facts(&mut module, registry);
     module
 }
 
-/// Post-lower scan for `trace add execution NAME enter|leave …`
-/// that populates `Module::traced_commands` / `has_dynamic_trace`.
+/// Post-lower scan for `trace add ...` calls that populates
+/// `Module::traced_commands` / `has_dynamic_trace` (execution traces)
+/// and `Module::traced_variables` / `has_dynamic_variable_trace`
+/// (variable traces).
 ///
 /// Runs over the top-level script + every procedure body.  Literal
 /// command names land in `traced_commands` (`::`-stripped to match
 /// the canonical key); non-literal targets (`$cmd`, `[expr ...]`,
 /// command substitutions) flip `has_dynamic_trace` so GVN treats
-/// every call as potentially traced.
-fn populate_trace_facts(module: &mut Module) {
+/// every call as potentially traced. Literal variable names targeted
+/// by any `Traits::ESTABLISHES_VARIABLE_TRACE` subcommand — the
+/// registry's `ArgRole::VarWrite` resolution for `trace
+/// add|remove|variable|vdelete`, covering both the modern and
+/// deprecated legacy spellings — land in `traced_variables`;
+/// non-literal targets flip `has_dynamic_variable_trace`.
+fn populate_trace_facts(module: &mut Module, registry: &CommandRegistry) {
     let top_level = module.top_level.clone();
-    walk_for_trace(&top_level, module);
+    walk_for_trace(&top_level, module, registry);
     let proc_bodies: Vec<Script> = module.procedures.values().map(|p| p.body.clone()).collect();
     for body in &proc_bodies {
-        walk_for_trace(body, module);
+        walk_for_trace(body, module, registry);
     }
 }
 
-fn walk_for_trace(script: &Script, module: &mut Module) {
+fn walk_for_trace(script: &Script, module: &mut Module, registry: &CommandRegistry) {
     use crate::ir::Statement;
     for stmt in &script.statements {
         match stmt {
             Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. }
-                if command == "trace"
-                    && args.len() >= 4
-                    && args[0] == "add"
-                    && args[1] == "execution" =>
+                if command.trim_start_matches("::") == "trace" =>
             {
-                let target = &args[2];
-                if is_literal_trace_target(target) {
-                    let canonical = target.trim_start_matches("::").to_string();
-                    if !canonical.is_empty() {
-                        module.traced_commands.insert(canonical);
+                if args.len() >= 4 && args[0] == "add" && args[1] == "execution" {
+                    let target = &args[2];
+                    if is_literal_trace_target(target) {
+                        let canonical = target.trim_start_matches("::").to_string();
+                        if !canonical.is_empty() {
+                            module.traced_commands.insert(canonical);
+                        }
+                    } else {
+                        module.has_dynamic_trace = true;
                     }
-                } else {
-                    module.has_dynamic_trace = true;
                 }
+                populate_variable_trace_facts(command, args, module, registry);
             }
             Statement::If {
                 clauses, else_body, ..
             } => {
                 for c in clauses {
-                    walk_for_trace(&c.body, module);
+                    walk_for_trace(&c.body, module, registry);
                 }
                 if let Some(e) = else_body {
-                    walk_for_trace(e, module);
+                    walk_for_trace(e, module, registry);
                 }
             }
             Statement::For {
                 init, next, body, ..
             } => {
-                walk_for_trace(init, module);
-                walk_for_trace(next, module);
-                walk_for_trace(body, module);
+                walk_for_trace(init, module, registry);
+                walk_for_trace(next, module, registry);
+                walk_for_trace(body, module, registry);
             }
             Statement::While { body, .. }
             | Statement::Foreach { body, .. }
             | Statement::Catch { body, .. }
             | Statement::Block { body, .. }
-            | Statement::UpFrame { body, .. } => walk_for_trace(body, module),
+            | Statement::UpFrame { body, .. } => walk_for_trace(body, module, registry),
             Statement::Switch {
                 arms, default_body, ..
             } => {
                 for arm in arms {
                     if let Some(b) = &arm.body {
-                        walk_for_trace(b, module);
+                        walk_for_trace(b, module, registry);
                     }
                 }
                 if let Some(b) = default_body {
-                    walk_for_trace(b, module);
+                    walk_for_trace(b, module, registry);
                 }
             }
             Statement::Try {
@@ -2611,15 +2619,64 @@ fn walk_for_trace(script: &Script, module: &mut Module) {
                 finally_body,
                 ..
             } => {
-                walk_for_trace(body, module);
+                walk_for_trace(body, module, registry);
                 for h in handlers {
-                    walk_for_trace(&h.body, module);
+                    walk_for_trace(&h.body, module, registry);
                 }
                 if let Some(f) = finally_body {
-                    walk_for_trace(f, module);
+                    walk_for_trace(f, module, registry);
                 }
             }
             _ => {}
+        }
+    }
+}
+
+/// Registry-driven half of [`walk_for_trace`]: record every literal
+/// variable name a `trace` call targets via a
+/// `Traits::ESTABLISHES_VARIABLE_TRACE` subcommand (`add`/`remove`/
+/// `variable`/`vdelete` — not the read-only `info`/`vinfo` forms).
+/// Dispatch is entirely data-driven off the registry's
+/// `ArgRole::VarWrite` resolution — this function has no hardcoded
+/// knowledge of `trace`'s subcommand grammar (`add` vs the legacy
+/// `variable` spelling, which argument position holds the name, …).
+fn populate_variable_trace_facts(
+    command: &str,
+    args: &[String],
+    module: &mut Module,
+    registry: &CommandRegistry,
+) {
+    let Some(spec) = registry.get(command) else {
+        return;
+    };
+    let Some(sub) = args.first().and_then(|s| spec.resolve_subcommand(s)) else {
+        return;
+    };
+    if !sub
+        .traits
+        .contains(tcl_registry::prelude::Traits::ESTABLISHES_VARIABLE_TRACE)
+    {
+        return;
+    }
+    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    for idx in registry.arg_indices_for_role(command, &arg_strs, ArgRole::VarWrite) {
+        let Some(target) = args.get(idx) else {
+            continue;
+        };
+        if is_literal_trace_target(target) {
+            // `::`-stripped to match the canonical key — mirrors
+            // `traced_commands`'s treatment of an execution-trace
+            // target, so a top-level `set x 5` (chain key `x`) matches
+            // a `trace add variable ::x ...` target the same way an
+            // unqualified `trace add variable x ...` would.
+            let canonical = crate::naming::normalise_var_name(&format!("${target}"))
+                .trim_start_matches("::")
+                .to_string();
+            if !canonical.is_empty() {
+                module.traced_variables.insert(canonical);
+            }
+        } else {
+            module.has_dynamic_variable_trace = true;
         }
     }
 }
@@ -3641,6 +3698,80 @@ mod tests {
         let m = lower_to_ir("trace add variable x write h", &reg());
         assert!(m.traced_commands.is_empty());
         assert!(!m.has_dynamic_trace);
+    }
+
+    // trace add/remove/variable/vdelete module-fact population
+
+    #[test]
+    fn trace_add_variable_literal_recorded() {
+        let m = lower_to_ir("trace add variable x write h", &reg());
+        assert!(m.traced_variables.contains("x"), "{:?}", m.traced_variables);
+        assert!(!m.has_dynamic_variable_trace);
+    }
+
+    #[test]
+    fn trace_remove_variable_literal_recorded() {
+        // A `remove` only proves a trace *might* have existed — still
+        // conservative to record, mirroring `trace add`.
+        let m = lower_to_ir("trace remove variable x write h", &reg());
+        assert!(m.traced_variables.contains("x"), "{:?}", m.traced_variables);
+    }
+
+    #[test]
+    fn trace_add_variable_qualified_canonicalised() {
+        let m = lower_to_ir("trace add variable ::x write h", &reg());
+        // `::`-stripped so a top-level `set x 5` (chain key `x`) matches.
+        assert!(m.traced_variables.contains("x"), "{:?}", m.traced_variables);
+    }
+
+    #[test]
+    fn trace_add_variable_dynamic_widens() {
+        let m = lower_to_ir("trace add variable $name write h", &reg());
+        assert!(m.has_dynamic_variable_trace);
+        assert!(m.traced_variables.is_empty());
+    }
+
+    #[test]
+    fn trace_add_variable_inside_proc_recorded() {
+        let m = lower_to_ir(
+            "proc setup {} { trace add variable ::x read onread }",
+            &reg(),
+        );
+        assert!(m.traced_variables.contains("x"), "{:?}", m.traced_variables);
+    }
+
+    #[test]
+    fn trace_legacy_variable_form_recorded() {
+        // The deprecated `trace variable name ops command` spelling must
+        // populate the same fact as `trace add variable` — no
+        // hardcoded-per-form gap.
+        let m = lower_to_ir("trace variable x r onread", &reg());
+        assert!(m.traced_variables.contains("x"), "{:?}", m.traced_variables);
+    }
+
+    #[test]
+    fn trace_legacy_vdelete_form_recorded() {
+        let m = lower_to_ir("trace vdelete x r onread", &reg());
+        assert!(m.traced_variables.contains("x"), "{:?}", m.traced_variables);
+    }
+
+    #[test]
+    fn trace_info_variable_does_not_record() {
+        // `trace info`/`vinfo` only query trace state — no
+        // `ESTABLISHES_VARIABLE_TRACE` trait, so they must not widen the
+        // module fact.
+        let m = lower_to_ir("trace info variable x", &reg());
+        assert!(m.traced_variables.is_empty());
+        assert!(!m.has_dynamic_variable_trace);
+    }
+
+    #[test]
+    fn trace_add_execution_does_not_record_variable_trace() {
+        // The command-execution channel is separate — should not
+        // populate `traced_variables`.
+        let m = lower_to_ir("trace add execution foo enter h", &reg());
+        assert!(m.traced_variables.is_empty());
+        assert!(!m.has_dynamic_variable_trace);
     }
 
     #[test]

@@ -113,10 +113,24 @@ fn trace_vdelete_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
     trace_legacy_command_prefix(args, false)
 }
 
+/// Arg-role resolver for the deprecated `trace variable name ops
+/// command` / `trace vdelete name ops command` legacy forms — the
+/// variable name is the word immediately after the subcommand
+/// (relative index 0), mirroring [`trace_add_arg_roles`] for the
+/// modern `trace add variable` spelling so SSA sees the same
+/// definition-site behaviour regardless of which form the source
+/// uses.
+fn trace_legacy_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    if args.is_empty() {
+        return Vec::new();
+    }
+    vec![(0, ArgRole::VarWrite)]
+}
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "add",
-        traits: Traits::TARGETS_VARIABLE_BY_NAME,
+        traits: Traits::TARGETS_VARIABLE_BY_NAME.union(Traits::ESTABLISHES_VARIABLE_TRACE),
         arity: Arity::exact(4),
         detail: "Arrange for a command to be executed on the specified operation.",
         synopsis: "trace add type name ops commandPrefix",
@@ -136,7 +150,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "remove",
-        traits: Traits::TARGETS_VARIABLE_BY_NAME,
+        traits: Traits::TARGETS_VARIABLE_BY_NAME.union(Traits::ESTABLISHES_VARIABLE_TRACE),
         arity: Arity::exact(4),
         detail: "Remove a trace.",
         synopsis: "trace remove type name ops commandPrefix",
@@ -146,10 +160,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "variable",
-        traits: Traits::TARGETS_VARIABLE_BY_NAME,
+        traits: Traits::TARGETS_VARIABLE_BY_NAME.union(Traits::ESTABLISHES_VARIABLE_TRACE),
         arity: Arity::exact(3),
         detail: "Arrange for command to be executed whenever variable name is accessed. Deprecated in favour of trace add variable.",
         synopsis: "trace variable name ops command",
+        arg_role_resolver: Some(trace_legacy_arg_roles),
         command_prefix_resolver: Some(trace_variable_command_prefixes),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only).
         dialects: Some(DialectSet::TCL8X),
@@ -157,10 +172,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "vdelete",
-        traits: Traits::TARGETS_VARIABLE_BY_NAME,
+        traits: Traits::TARGETS_VARIABLE_BY_NAME.union(Traits::ESTABLISHES_VARIABLE_TRACE),
         arity: Arity::exact(3),
         detail: "Delete a variable trace. Deprecated in favour of trace remove variable.",
         synopsis: "trace vdelete name ops command",
+        arg_role_resolver: Some(trace_legacy_arg_roles),
         command_prefix_resolver: Some(trace_vdelete_command_prefixes),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only).
         dialects: Some(DialectSet::TCL8X),

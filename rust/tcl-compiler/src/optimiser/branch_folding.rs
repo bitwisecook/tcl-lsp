@@ -43,10 +43,9 @@
 //! them would produce misleading rewrites of user-visible source
 //! text.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use tcl_core_types::DiagCode;
 
-use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::Terminator;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::expr_ast::{BinOp, ExprNode};
@@ -58,7 +57,7 @@ use super::helpers::expr_simplify::{
     try_eq_ne_string_compare_simplify_expr, try_fold_expr, try_strength_reduce_expr_typed,
     try_strlen_simplify_expr, try_unwrap_expr_in_expr,
 };
-use super::helpers::literals::format_constant;
+use super::propagation::{sccp_constants_for, trace_and_alias_unsafe_names};
 use super::{Optimisation, PassContext};
 
 /// Run the branch-folding pass — both
@@ -124,7 +123,13 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // instcombine) and the O115 redundant-`expr` unwrap still apply to a
     // branch condition with no propagable constants; this does not gate on a
     // non-empty constant map. Substitution is simply a no-op in that case.
-    let constants = sccp_constants_for(fu);
+    let mut constants = sccp_constants_for(fu);
+    // Same trace/alias safety gate as `propagation::run_function`'s
+    // `constants` map — a traced or frame-aliased variable's SCCP-constant
+    // value must never be substituted into a branch condition either.
+    if !constants.is_empty() {
+        trace_and_alias_unsafe_names(ctx, fu).retain_safe(&mut constants);
+    }
     // Numeric-type context so identity rewrites (`$x + 0` → `$x`, etc.) on a
     // branch condition fire only when the dropped operand is provably numeric.
     let numeric = operand_types(fu);
@@ -289,34 +294,13 @@ fn is_switch_dispatch_cond(cond: &ExprNode) -> bool {
     )
 }
 
-fn sccp_constants_for(fu: &FunctionUnit) -> HashMap<String, String> {
-    let mut per_var: HashMap<crate::ssa::Symbol, Vec<&ConstValue>> = HashMap::new();
-    let mut dirty: HashSet<crate::ssa::Symbol> = HashSet::new();
-    for ((sym, _ver), lv) in &fu.sccp.values {
-        if dirty.contains(sym) {
-            continue;
-        }
-        if let LatticeValue::Const(cv) = lv {
-            per_var.entry(*sym).or_default().push(cv);
-        } else {
-            dirty.insert(*sym);
-            per_var.remove(sym);
-        }
-    }
-    let mut out = HashMap::new();
-    for (sym, cvs) in per_var {
-        let first = cvs[0];
-        if !cvs.iter().all(|cv| *cv == first) {
-            continue;
-        }
-        if let Some(text) = format_constant(first) {
-            out.insert(fu.ssa.var_name(sym).to_owned(), text);
-        }
-    }
-    out
-}
-
 fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
+    // See `propagation::trace_and_alias_unsafe_names` — SCCP itself has no
+    // notion of variable traces or frame-aliasing, so `fu.sccp.constant_branches`
+    // can carry a branch condition SCCP proved constant purely from a traced
+    // or aliased variable's stale/assumed value. Skip any such branch here
+    // rather than trusting SCCP's verdict blindly.
+    let unsafe_names = trace_and_alias_unsafe_names(ctx, fu);
     for cb in &fu.sccp.constant_branches {
         let Some(block) = fu.cfg.block_by_name(&cb.block) else {
             continue;
@@ -331,6 +315,9 @@ fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         };
 
         if is_switch_dispatch(condition, cb) {
+            continue;
+        }
+        if unsafe_names.any_unsafe(&condition.vars()) {
             continue;
         }
 
@@ -510,6 +497,8 @@ mod tests {
                 namespace_exports: Vec::new(),
                 traced_commands: std::collections::BTreeSet::new(),
                 has_dynamic_trace: false,
+                traced_variables: std::collections::BTreeSet::new(),
+                has_dynamic_variable_trace: false,
             },
             cfg_module: crate::cfg::CfgModule {
                 top_level: fu.cfg.clone(),

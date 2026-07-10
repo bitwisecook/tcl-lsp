@@ -337,7 +337,7 @@ diagnostic_codes! {
     Irule6001 => "IRULE6001", diag_internal(Irules, true, "`global`/`::`-qualified variable forces CMP compatibility mode, pinning the virtual server to one TMM — use `static::`.");
     O100 => "O100", opt(ConstantFolding, "Propagate constant variables into expressions and command arguments.");
     O101 => "O101", opt(ConstantFolding, "Fold constant integer expressions.");
-    O102 => "O102", opt(ConstantFolding, "Fold constant `[expr {...}]` command substitutions.");
+    O102 => "O102", opt(ConstantFolding, "Forward a variable's single reaching literal load to its use sites.");
     O103 => "O103", opt(ConstantFolding, "Fold static procedure calls using interprocedural summaries.");
     O104 => "O104", opt(Pattern, "Fold static string build chains into a single assignment.");
     O105 => "O105", opt(ConstantFolding, "Propagate constants into variable references and detect redundant computations (GVN/CSE).");

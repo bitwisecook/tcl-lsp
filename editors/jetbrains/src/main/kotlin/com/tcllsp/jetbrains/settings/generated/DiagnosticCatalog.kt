@@ -153,7 +153,7 @@ object DiagnosticCatalog {
     val optimisations: List<OptimisationDef> = listOf(
         OptimisationDef("O100", "O100: Propagate constant variables into expressions and co...", true),
         OptimisationDef("O101", "O101: Fold constant integer expressions", true),
-        OptimisationDef("O102", "O102: Fold constant [expr {...}] command substitutions", true),
+        OptimisationDef("O102", "O102: Forward a variable's single reaching literal load to...", true),
         OptimisationDef("O103", "O103: Fold static procedure calls using interprocedural su...", true),
         OptimisationDef("O104", "O104: Fold static string build chains into a single assign...", true),
         OptimisationDef("O105", "O105: Propagate constants into variable references and det...", true),

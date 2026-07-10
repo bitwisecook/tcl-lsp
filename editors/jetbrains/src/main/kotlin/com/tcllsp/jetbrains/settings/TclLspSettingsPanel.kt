@@ -240,7 +240,7 @@ class TclLspSettingsPanel {
     private val optEnabled = JBCheckBox("Enable optimiser suggestions")
     private val optO100 = JBCheckBox("O100: Propagate constant variables into expressions and co...")
     private val optO101 = JBCheckBox("O101: Fold constant integer expressions")
-    private val optO102 = JBCheckBox("O102: Fold constant [expr {...}] command substitutions")
+    private val optO102 = JBCheckBox("O102: Forward a variable's single reaching literal load to...")
     private val optO103 = JBCheckBox("O103: Fold static procedure calls using interprocedural su...")
     private val optO104 = JBCheckBox("O104: Fold static string build chains into a single assign...")
     private val optO105 = JBCheckBox("O105: Propagate constants into variable references and det...")

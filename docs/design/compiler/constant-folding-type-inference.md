@@ -12,9 +12,13 @@ Constant folding is performed by SCCP during core analysis.  When all
 operands of an expression are `CONST`, SCCP evaluates the result at compile
 time.  Type inference runs alongside, tracking `TypeLattice` values per SSA
 key.  Together they enable optimisations O101 (fold constant expression),
-O102 (fold expr command substitution), and O112 (constant condition).
+O102 (forward a variable's single reaching literal load to its use
+sites — see [O102's KCS
+note](../../kcs/codes/kcs-optimisation-o102-load-forwarding.md) for the
+current, corrected description; it is not itself an `[expr {...}]}`-result
+fold, though it frequently feeds one), and O112 (constant condition).
 
-Source: `compiler/core_analyses.py`,
+Source (Python-era; superseded by `rust/tcl-compiler/src/`): `compiler/core_analyses.py`,
 `compiler/types.py`
 
 ## Content
@@ -35,6 +39,16 @@ Source: `compiler/core_analyses.py`,
 
 Note: tclsh emits `loadStk + add` (variables could be modified by traces),
 so the O101 suggestion is a diagnostic hint, not a bytecode transformation.
+The Rust `tcl-compiler` codegen (bytecode VM and WASM emitters) upholds
+this separation structurally — it never reads `fu.sccp`/`LatticeValue`
+directly; it only ever sees whatever source text it is handed, literal or
+not. A traced variable is therefore not independently at risk from
+codegen: the risk is confined to the optimiser's own *suggested source
+rewrite* being wrong (which O100/O101/O102/O103/O109/O112 now gate on
+`Module::traced_variables` / `has_dynamic_variable_trace` /
+memory-SSA-aliasing before ever proposing a forward — see
+`propagation::trace_and_alias_unsafe_names`), not from a separate
+bytecode-level shortcut.
 
 ### When folding fails
 

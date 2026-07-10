@@ -826,6 +826,26 @@ pub struct Module {
     /// Forces GVN / partial-redundancy / loop-invariant passes to
     /// treat *every* call as potentially traced.
     pub has_dynamic_trace: bool,
+    /// Literal variable names targeted by an active *variable* trace
+    /// (`trace add variable NAME ops HANDLER`, or the deprecated
+    /// `trace variable`/`vdelete` spellings) anywhere in the module —
+    /// top level or any procedure body, regardless of whether the
+    /// installing call is reachable before or after a given use.  A
+    /// read of a traced variable can run arbitrary handler code, and a
+    /// write handler can rewrite the value being stored, so the
+    /// propagation optimiser (`O102` load-forwarding) and dead-store
+    /// elimination must never treat a use of one of these names as
+    /// equivalent to its last literal assignment. Whole-module and
+    /// position-independent by design — mirrors [`Self::traced_commands`]
+    /// but for `ArgRole::VarWrite`-role variable-trace targets
+    /// (`Traits::ESTABLISHES_VARIABLE_TRACE`) rather than execution-trace
+    /// command names.
+    pub traced_variables: std::collections::BTreeSet<String>,
+    /// `true` when a variable-trace install/remove call was seen with a
+    /// non-literal variable-name target (`trace add variable $name ...`).
+    /// Forces the propagation optimiser to treat *every* variable as
+    /// potentially traced.
+    pub has_dynamic_variable_trace: bool,
 }
 
 /// Extract the event name from a `::when::` qualified name.
