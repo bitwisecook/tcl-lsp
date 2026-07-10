@@ -156,7 +156,11 @@ suite("LSP Command Execution", () => {
   test("tcl-lsp.optimiseDocument folds a plain constant expr but not a shadowed-mathfunc one", async () => {
     const o101Uri = getDocUri("optimisation-o101.tcl");
     await activate(o101Uri);
-    const result = (await execLspCommand("tcl-lsp.optimiseDocument", o101Uri.toString(), "full")) as {
+    const result = (await execLspCommand(
+      "tcl-lsp.optimiseDocument",
+      o101Uri.toString(),
+      "full",
+    )) as {
       optimisations: unknown[];
       source: string;
     } | null;
