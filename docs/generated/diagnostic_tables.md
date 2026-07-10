@@ -10,7 +10,7 @@
 | E101 | error | Missing `{` after `switch` — case bodies follow without braces. | ✓ |
 | E102 | error | Unmatched `}` — missing opening `{`? | ✓ |
 | E103 | error | Missing `}` — a nested body consumed this closing brace. | ✓ |
-| E200 | error | Shimmer parse error — internal representation cannot be determined. | ✓ |
+| E200 | error | Unterminated command — the parser could not tell where it ends (missing `]` / `"` / `}`). | ✓ |
 | E201 | error | Unterminated command substitution — missing close bracket `]`. | ✓ |
 | E202 | error | Unterminated double-quoted string — missing closing `"`. | ✓ |
 | E203 | error | Unterminated braced word — missing closing `}`. | ✓ |

@@ -291,7 +291,7 @@ diagnostic_codes! {
     E101 => "E101", diag_internal(Error, true, "Missing `{` after `switch` — case bodies follow without braces.");
     E102 => "E102", diag_internal(Error, true, "Unmatched `}` — missing opening `{`?");
     E103 => "E103", diag_internal(Error, true, "Missing `}` — a nested body consumed this closing brace.");
-    E200 => "E200", diag(Error, true, "Shimmer parse error — internal representation cannot be determined.");
+    E200 => "E200", diag(Error, true, "Unterminated command — the parser could not tell where it ends (missing `]` / `\"` / `}`).");
     E201 => "E201", diag_internal(Error, true, "Unterminated command substitution — missing close bracket `]`.");
     E202 => "E202", diag_internal(Error, true, "Unterminated double-quoted string — missing closing `\"`.");
     E203 => "E203", diag_internal(Error, true, "Unterminated braced word — missing closing `}`.");

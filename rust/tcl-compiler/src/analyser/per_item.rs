@@ -214,11 +214,18 @@ impl Analyser {
         }
         self.registry = Some(registry);
         self.line_offsets = Some(super::state::compute_line_offsets(source));
+        // Same recovery known-command universe as `Analyser::analyse` — see
+        // `recovery_known_commands` — so per-item analysis matches the
+        // full-file walk byte-for-byte (the corpus `per_item == analyse`
+        // test gates this).
+        self.recovery_known_commands = super::utils::recovery_known_commands(
+            source,
+            self.registry.as_ref().expect("registry just stashed"),
+        );
         let known: HashSet<&str> = self
-            .registry
-            .as_ref()
-            .expect("registry just stashed")
-            .command_names()
+            .recovery_known_commands
+            .iter()
+            .map(String::as_str)
             .collect();
         crate::segmenter::segment_commands_with_recovery_and_config(
             source,

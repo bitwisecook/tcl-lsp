@@ -184,6 +184,68 @@ pub fn scan_stub_command_names(source: &str) -> HashSet<String> {
     names
 }
 
+/// Build the "known command" name universe consulted by unclosed-delimiter
+/// recovery: the segmenter's scan-to-next heuristic
+/// ([`crate::segmenter::segment_commands_with_recovery_and_config`]) and the
+/// E100/E201/E202/E203 recovery diagnostics (`syntax_checks`) both use "does
+/// the next line start with a known command?" as their strongest signal that
+/// a missing delimiter belongs right before it.
+///
+/// Restricting "known" to the active dialect's [`CommandRegistry`]
+/// under-recognises real code: almost every non-trivial Tcl file calls its
+/// own `proc`s, so a break just before a call to one of them falls back to
+/// the imprecise generic diagnostic (or, worse, the recovery point is never
+/// found at all and the rest of the document goes unanalysed). This unions
+/// the registry names with every proc / class / command-alias name the
+/// document itself defines — qualified and unqualified tail — using the same
+/// fast, non-lowering scan [`crate::signature_scan::extract_signatures`]
+/// already uses for background-indexed files, so recovery recognises a
+/// document's own procs as readily as a builtin.
+///
+/// Gated on [`tcl_lexer::script_is_complete`]: recovery only ever runs on a
+/// document with an unclosed delimiter, so a complete script skips the extra
+/// scan entirely — zero added cost on the overwhelmingly common well-formed
+/// edit.
+#[must_use]
+pub fn recovery_known_commands(source: &str, registry: &CommandRegistry) -> HashSet<String> {
+    let mut names: HashSet<String> = registry.command_names().map(str::to_owned).collect();
+    if tcl_lexer::script_is_complete(source) {
+        return names;
+    }
+    let sig = crate::signature_scan::extract_signatures(source, registry);
+    for qname in sig
+        .procs
+        .keys()
+        .chain(sig.classes.keys())
+        .chain(sig.command_aliases.keys())
+    {
+        insert_qualified_and_tail(&mut names, qname);
+    }
+    names
+}
+
+/// Insert `qname` (e.g. `::ns::foo`) — as-is, with the leading `::`
+/// stripped, and as its unqualified tail (`foo`) — into `names`. Mirrors the
+/// tail-matching the W123 unresolved-command pass already uses for the same
+/// proc/class/alias collections (`build_w123_known_names`), plus the
+/// original fully-qualified form: `signature_scan::qualify` always prepends
+/// `::`, and a recovery-point call can be written either way
+/// (`::ns::foo` or `ns::foo`), so both must be recognised.
+fn insert_qualified_and_tail(names: &mut HashSet<String>, qname: &str) {
+    if !qname.is_empty() {
+        names.insert(qname.to_string());
+    }
+    let absolute = qname.trim_start_matches("::");
+    if !absolute.is_empty() {
+        names.insert(absolute.to_string());
+    }
+    if let Some((_, tail)) = qname.rsplit_once("::")
+        && !tail.is_empty()
+    {
+        names.insert(tail.to_string());
+    }
+}
+
 /// Match a ``# tcl-lsp: <marker>`` line, where `marker` is
 /// e.g. ``"stubs-begin"`` / ``"stubs-end"``.  Case-insensitive
 /// on the keyword run; whitespace flexible.
@@ -1259,5 +1321,72 @@ proc foo {} {}
         let (cmds, _) = scan_source_for_stubs(src);
         assert_eq!(cmds.len(), 1);
         assert_eq!(cmds[0].name, "good");
+    }
+
+    fn registry() -> CommandRegistry {
+        CommandRegistry::build_default()
+    }
+
+    #[test]
+    fn recovery_known_commands_includes_registry_names() {
+        let known = recovery_known_commands("set x [foo\n", &registry());
+        assert!(known.contains("set"));
+        assert!(known.contains("puts"));
+    }
+
+    #[test]
+    fn recovery_known_commands_skips_the_scan_for_a_complete_script() {
+        // The extra signature scan only runs on an incomplete script — a
+        // well-formed document (however many procs it defines) never pays
+        // for it, and its user-defined names are simply absent (recovery
+        // never runs on complete input anyway).
+        let known = recovery_known_commands("proc my_helper {} {}\nmy_helper\n", &registry());
+        assert!(!known.contains("my_helper"));
+        assert!(known.contains("proc")); // registry names are always present
+    }
+
+    #[test]
+    fn recovery_known_commands_adds_user_proc_qualified_and_tail() {
+        let src = "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\nunclosed\n";
+        let known = recovery_known_commands(src, &registry());
+        assert!(
+            known.contains("myns::helper"),
+            "expected the qualified name: {known:?}"
+        );
+        assert!(
+            known.contains("helper"),
+            "expected the unqualified tail: {known:?}"
+        );
+    }
+
+    #[test]
+    fn recovery_known_commands_adds_the_leading_colon_colon_form_too() {
+        // `signature_scan::qualify` always records `::myns::helper`; a
+        // recovery-point call can equally be written that way (absolute
+        // Tcl syntax), so the leading-`::` form must be recognised
+        // alongside the stripped/tail forms asserted above.
+        let src = "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\nunclosed\n";
+        let known = recovery_known_commands(src, &registry());
+        assert!(
+            known.contains("::myns::helper"),
+            "expected the fully-qualified leading-:: form: {known:?}"
+        );
+    }
+
+    #[test]
+    fn recovery_known_commands_adds_user_class_and_alias() {
+        let src =
+            "oo::class create Widget {}\ninterp alias {} greet {} puts hi\n\nset q {\nunclosed\n";
+        let known = recovery_known_commands(src, &registry());
+        assert!(known.contains("Widget"), "{known:?}");
+        assert!(known.contains("greet"), "{known:?}");
+    }
+
+    #[test]
+    fn recovery_known_commands_does_not_invent_undefined_names() {
+        let src = "set q {\nunclosed\n";
+        let known = recovery_known_commands(src, &registry());
+        assert!(!known.contains("not_a_real_proc"));
+        assert!(!known.contains("unclosed")); // plain data, not a definition
     }
 }
