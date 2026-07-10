@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `tcl::process` — subprocess management ensemble (Tcl 9.0+, TIP 463).
+//! `tcl::process` — subprocess management ensemble (Tcl 9.0+, TIP 462).
 //!
 //! Pure-host capability — never reachable in WASM/WASI builds (no
 //! process model), so the registration exists for LSP recognition

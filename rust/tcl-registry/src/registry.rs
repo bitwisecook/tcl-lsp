@@ -323,13 +323,13 @@ impl CommandRegistry {
     /// Whether this registry's dialect reads a bare leading-zero integer
     /// (`08`, `010`) as **octal**.
     ///
-    /// Tcl 9.0 dropped the leading-zero octal rule (TIP 472): `08` parses as
+    /// Tcl 9.0 dropped the leading-zero octal rule (TIP 114): `08` parses as
     /// decimal 8 and `010` as decimal 10. Every earlier Tcl (8.4/8.5/8.6) and
     /// every 8.x-derived dialect (f5-irules ≈ 8.4, f5-iapps ≈ 8.5/8.6, the EDA
     /// dialects) keeps the octal rule, where `08`/`09` are *invalid* octal
     /// (treated as a string in `==`/`!=`) and `010` is 8.
     ///
-    /// TIP 472 lands in tcl9.0 and stays in tcl9.1 (and any later 9.x), so the
+    /// TIP 114 lands in tcl9.0 and stays in tcl9.1 (and any later 9.x), so the
     /// decimal rule applies to *every* Tcl 9 dialect, not tcl9.0 alone. The
     /// per-dialect registry built by `registry_for_dialect` records its Tcl
     /// version via [`Self::load_dialect`], so a registry whose `loaded_dialects`
@@ -1352,7 +1352,7 @@ mod tests {
         use crate::dialects::DialectSet;
         // Plain default registry (no Tcl version bit) defaults to octal.
         assert!(CommandRegistry::build_default().leading_zero_is_octal());
-        // tcl9.0 (TIP 472) reads leading zeros as decimal; everything else
+        // tcl9.0 (TIP 114) reads leading zeros as decimal; everything else
         // (8.4/8.5/8.6 and the 8.x-derived F5 dialects) stays octal.
         let octal_cases = [
             DialectSet::TCL84,
@@ -1369,7 +1369,7 @@ mod tests {
         let mut reg90 = CommandRegistry::build_default();
         reg90.load_dialect(DialectSet::TCL90);
         assert!(!reg90.leading_zero_is_octal(), "tcl9.0 should be decimal");
-        // RUST_ISSUE_024: tcl9.1 keeps the TIP 472 decimal rule; a tcl9.1-only
+        // RUST_ISSUE_024: tcl9.1 keeps the TIP 114 decimal rule; a tcl9.1-only
         // registry (loads TCL91, not TCL90) must still read leading zeros as
         // decimal.
         let mut reg91 = CommandRegistry::build_default();
