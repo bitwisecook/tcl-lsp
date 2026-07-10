@@ -1664,6 +1664,22 @@ mod tests {
     }
 
     #[test]
+    fn rename_method_rewrites_bare_created_instance_command_site() {
+        // `Dog create rex` binds `rex` as an object command, so renaming
+        // `bark` must also rewrite the bare `rex bark` dispatch — the same
+        // shared resolver drives the peek, the lens, and the rename.
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nDog create rex\nrex bark\n";
+        let analysis = analyse(src);
+        let edits = rename(src, "tcl", 1, 11, "yip", &analysis, None);
+        for e in &edits {
+            assert_eq!(e.new_text, "yip");
+        }
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(lines.contains(&1), "decl not renamed: {edits:?}");
+        assert!(lines.contains(&4), "bare `rex bark` site not renamed: {edits:?}");
+    }
+
+    #[test]
     fn rename_method_from_external_call_site() {
         // Triggering rename from the external `$d bark` site
         // rewrites the declaration + all sites.

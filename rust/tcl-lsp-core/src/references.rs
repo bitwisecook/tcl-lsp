@@ -708,12 +708,22 @@ pub(crate) fn find_obj_method_call_sites(
     if var_set.is_empty() {
         return Vec::new();
     }
+    // Receivers that are also *object commands* — bound by `CLASS create NAME`
+    // (so `NAME` is a command, dispatched bare as `NAME method`, not `$NAME
+    // method`).  A `set v [CLASS new]` receiver is a *variable* only and never
+    // enters this set, so a bare `v method` is (correctly) not matched.
+    let cmd_set: FxHashSet<&str> = var_set
+        .iter()
+        .copied()
+        .filter(|name| analysis.created_instance_commands.contains(*name))
+        .collect();
     let mut out: Vec<tcl_lexer::Span> = Vec::new();
     let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
     let ctx = ObjMethodScan {
         source,
         dialect,
         var_set: &var_set,
+        cmd_set: &cmd_set,
         method,
     };
 
@@ -752,14 +762,17 @@ pub(crate) fn find_obj_method_call_sites(
     out
 }
 
-/// Read-only context for the `$v method` call-site scan: the document
-/// `source`, its `dialect`, the set of in-scope instance variable names
-/// (`var_set`), and the `method` being looked up.
+/// Read-only context for the object-method call-site scan: the document
+/// `source`, its `dialect`, the `method` being looked up, and two receiver
+/// sets — `var_set` matches `$v method` dispatch (variables holding an
+/// object, keyed by bare name) and `cmd_set` matches `NAME method` dispatch
+/// (object *commands* bound by `CLASS create NAME`).
 #[derive(Clone, Copy)]
 struct ObjMethodScan<'a> {
     source: &'a str,
     dialect: &'a str,
     var_set: &'a FxHashSet<&'a str>,
+    cmd_set: &'a FxHashSet<&'a str>,
     method: &'a str,
 }
 
@@ -818,17 +831,25 @@ fn scan_obj_method_region(
         tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
     );
     for cmd in &commands {
-        // Head `$v` + method at argv[1].
-        if let (Some(head), Some(method_tok)) = (cmd.argv.first(), cmd.argv.get(1))
-            && head.kind == TokenType::Var
-        {
+        // Head + method at argv[1].  Two dispatch shapes resolve to the same
+        // receiver class: `$v method` (head is a `$`-var whose bare name is in
+        // `var_set`) and `NAME method` (head is a bare word naming an object
+        // command in `cmd_set`).
+        if let (Some(head), Some(method_tok)) = (cmd.argv.first(), cmd.argv.get(1)) {
             let h_start = head.span.start() as usize;
             let h_end = head.span.end() as usize;
             if h_start < source.len() && h_end <= source.len() {
                 let raw = &source[h_start..h_end];
-                if let Some(name) = strip_var_decoration(raw)
-                    && ctx.var_set.contains(name)
-                {
+                let receiver_matches = if head.kind == TokenType::Var {
+                    strip_var_decoration(raw).is_some_and(|name| ctx.var_set.contains(name))
+                } else {
+                    // A bare-word object command (`rex bark`).  `cmd_set` holds
+                    // only plain names, and a braced / bracketed / substituted
+                    // head's source slice keeps its delimiters (`{rex}`, `[x]`),
+                    // so an exact match admits only a genuine bare word.
+                    ctx.cmd_set.contains(raw)
+                };
+                if receiver_matches {
                     let m_start = method_tok.span.start() as usize;
                     let m_end = method_tok.span.end() as usize;
                     if m_start < source.len()
@@ -1382,5 +1403,42 @@ mod tests {
         let analysis = analyse(src);
         let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark");
         assert_eq!(sites.len(), 1, "{sites:?}");
+    }
+
+    #[test]
+    fn find_obj_method_call_sites_matches_bare_created_instance_command() {
+        // `Dog create rex` binds `rex` as an object *command*; `rex bark` is a
+        // bare-word method dispatch (not `$rex bark`).  The scan resolves it
+        // through `created_instance_commands`.
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nDog create rex\nrex bark\n";
+        let analysis = analyse(src);
+        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark");
+        assert_eq!(sites.len(), 1, "{sites:?}");
+        // The matched span is the `bark` method-name token of `rex bark`.
+        let s = sites[0];
+        assert_eq!(&src[s.start() as usize..s.end() as usize], "bark", "{sites:?}");
+    }
+
+    #[test]
+    fn references_include_bare_created_instance_command_site() {
+        // Full peek: cursor on the `method bark` decl surfaces the bare
+        // `rex bark` dispatch as a reference.
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nDog create rex\nrex bark\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 1, 11, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(lines.contains(&4), "bare `rex bark` site missing: {refs:?}");
+    }
+
+    #[test]
+    fn bare_set_var_receiver_is_not_matched_without_dollar() {
+        // FP guard: `set d [Dog new]` binds `d` as a *variable*, not a
+        // command.  A bare `d bark` (no `$`) is NOT a valid dispatch in Tcl,
+        // so it must not be matched — only `$d bark` counts.
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nd bark\n";
+        let analysis = analyse(src);
+        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark");
+        assert!(sites.is_empty(), "bare var receiver wrongly matched: {sites:?}");
     }
 }
