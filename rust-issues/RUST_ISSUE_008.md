@@ -69,6 +69,31 @@ configured — leaving `::auto_path` unset (so the `unknown`/auto-load path fail
 with `can't read "::auto_path"`) and polluting `::errorInfo`. The init now sets
 `::auto_path` to `{}` and appends `[info library]` under a `catch`.
 
+## Progress — thread package (Phase 3)
+
+The VM has a **real, shared-nothing `thread` package** (`rust/tcl-vm/src/
+cmd_thread.rs`) — true OS-thread parallelism *without* making `Value`/`Vm`
+`Send`. Each worker builds its **own** `Vm` inside the spawn closure (the `Vm`
+never crosses a thread boundary, so `!Send`/`Rc` is fine); the only `Send + Sync`
+surface is a small `Arc<Shared>` block: the worker registry (id → job channel),
+the `tsv` store, a **`Send` compile-service factory** each worker calls to build
+its compiler, and a `Send` output sink. `forbid(unsafe)` is kept — no `unsafe
+impl Send` (the tree-walker's shortcut); the type system carries the safety.
+
+Commands: `thread::create`/`send` (`-async`)/`wait`/`release`/`id`/`exists`/
+`names`/`errorproc`, and `tsv::{set,get,exists,unset,incr,append,lappend,keys,
+names}`. `thread::send` serializes a script to the target's channel and (unless
+`-async`) blocks for its result; `thread::wait` is the worker message loop.
+`tcl_platform(threaded)` is now honest — `0` on a bare VM, `1` once the embedder
+(`tcl-vm-cli`) calls `Vm::enable_threads`.
+
+No oracle: the reference tclsh 9.0.4 is a **non-threaded** build (no `Thread`
+package, `tcl_platform(threaded)` unset), so this subsystem is validated by
+deterministic concurrency tests (`rust/tcl-vm/tests/cmd_thread_e2e.rs`, 12 tests:
+sync/async send, per-worker isolation, worker-error propagation, exists/names/
+release, an atomic 4-thread `tsv::incr` counter totalling 1000, and the `tsv::*`
+element operations), with semantics per the Tcl `Thread` package docs.
+
 **Remaining (still Open):**
 - A `yield` reached across a host re-entry the VM runs on the **native Rust
   stack** — `catch`/`uplevel`/`eval`, and `apply` in an *arbitrary* position
@@ -77,5 +102,9 @@ with `can't read "::auto_path"`) and polluting `::errorInfo`. The init now sets
   them re-enter the explicit trampoline is the remaining yieldable-surface work.
 - `yieldto` beyond the outside-a-coroutine error; the creating-namespace/`info
   level` refinements.
-- The **wasm32** runtime coroutines (asyncify or VM-on-wasm) and the `thread`
-  package (Phase 3) — untouched.
+- Thread-package extras not yet modelled: `thread::mutex`/`cond`/`rwmutex` and
+  `tpool::*` (the sync-send + `tsv` model already gives safe coordination), and
+  the `tcl-registry` `Thread`-package `CommandSpec`s (LSP metadata; the runtime
+  and the `RUST_ISSUE_006` core-backing gate do not require them).
+- The **wasm32** runtime coroutines (asyncify or VM-on-wasm) — Phase 4,
+  untouched.

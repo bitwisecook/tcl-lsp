@@ -59,6 +59,7 @@ mod cmd_regexp;
 mod cmd_string;
 mod cmd_string_is;
 mod cmd_switch;
+mod cmd_thread;
 mod cmd_trace;
 mod cmd_try;
 mod command;
@@ -68,6 +69,7 @@ mod frame;
 mod interp;
 mod subst;
 
+pub use cmd_thread::{CompileFactory, ThreadedOutput};
 pub use debug::{DebugAction, DebugFrame, DebugHook, DebugSnapshot, DebugVar};
 pub use error::TclError;
 pub use interp::Vm;

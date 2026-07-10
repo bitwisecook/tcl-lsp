@@ -344,6 +344,9 @@ pub struct Vm {
     /// The event loop's pending timer/idle events (`after`/`vwait`/`update`).
     /// The scheduler half of the coroutine subsystem. See [`crate::cmd_event`].
     pub(crate) events: crate::cmd_event::EventQueue,
+    /// The `thread` package's per-interpreter state — disabled until the
+    /// embedder calls [`Vm::enable_threads`]. See [`crate::cmd_thread`].
+    pub(crate) thread: crate::cmd_thread::ThreadSystem,
 }
 
 /// A suspended coroutine's saved per-flow execution context: the call/namespace
@@ -474,6 +477,7 @@ impl Vm {
             coro: crate::cmd_coro::CoroSystem::default(),
             activation_depth: 0,
             events: crate::cmd_event::EventQueue::default(),
+            thread: crate::cmd_thread::ThreadSystem::default(),
         };
         register_builtins(&mut vm);
         vm.bootstrap_globals();
@@ -521,7 +525,9 @@ impl Vm {
             ("pointerSize", "8"),
             ("pathSeparator", ":"),
             ("engine", "Tcl"),
-            ("threaded", "1"),
+            // Honest default: a bare VM has no thread package. `enable_threads`
+            // (the embedder opting in, e.g. `tcl-vm-cli`) flips this to `1`.
+            ("threaded", "0"),
             ("user", ""),
         ];
         for (k, v) in plat {
@@ -2696,7 +2702,7 @@ impl Vm {
     }
 
     /// Write an array element with no trace firing.
-    fn write_array_raw(
+    pub(crate) fn write_array_raw(
         &mut self,
         name: &str,
         key: &str,

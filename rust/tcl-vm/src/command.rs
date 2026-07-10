@@ -164,6 +164,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_oo::register(vm);
     crate::cmd_coro::register(vm);
     crate::cmd_event::register(vm);
+    crate::cmd_thread::register(vm);
 }
 
 /// `exit ?returnCode?` — request process termination with `returnCode`
