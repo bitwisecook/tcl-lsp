@@ -422,7 +422,14 @@ fn strip_tcl_lsp_prefix(body: &str) -> &str {
     let s = body.trim_start();
     let lower_prefix = "tcl-lsp";
     let kw_end = lower_prefix.len();
-    if s.len() < kw_end || !s[..kw_end].eq_ignore_ascii_case(lower_prefix) {
+    // `s.get(..kw_end)` (unlike `s[..kw_end]`) returns `None` rather than
+    // panicking when `kw_end` falls inside a multi-byte char instead of on a
+    // boundary — a real case: a non-ASCII byte in the comment before that
+    // offset used to crash the server while scanning a stubs block.
+    let Some(prefix) = s.get(..kw_end) else {
+        return s;
+    };
+    if !prefix.eq_ignore_ascii_case(lower_prefix) {
         return s;
     }
     let rest = s[kw_end..].trim_start();
@@ -443,7 +450,10 @@ const VALID_STUB_ROLES: &[&str] = &[
 fn parse_command_stub(line: &str, range: tcl_lexer::Span) -> Option<super::types::StubCommandDef> {
     let s = line.trim_start();
     let stub_kw = "stub";
-    if s.len() < stub_kw.len() || !s[..stub_kw.len()].eq_ignore_ascii_case(stub_kw) {
+    if !s
+        .get(..stub_kw.len())
+        .is_some_and(|p| p.eq_ignore_ascii_case(stub_kw))
+    {
         return None;
     }
     let after = s[stub_kw.len()..].trim_start();
@@ -545,21 +555,26 @@ fn parse_stub_flags(flags_str: &str) -> super::types::StubFlags {
 fn parse_expr_stub(line: &str) -> Option<(&'static str, &str, u32)> {
     let s = line.trim_start();
     let stub_kw = "stub";
-    if s.len() < stub_kw.len() || !s[..stub_kw.len()].eq_ignore_ascii_case(stub_kw) {
+    if !s
+        .get(..stub_kw.len())
+        .is_some_and(|p| p.eq_ignore_ascii_case(stub_kw))
+    {
         return None;
     }
     let after = s[stub_kw.len()..].trim_start();
     let kind: &'static str;
     let default_arity: u32;
     let rest;
-    if after.len() >= "expr-func".len()
-        && after[.."expr-func".len()].eq_ignore_ascii_case("expr-func")
+    if after
+        .get(.."expr-func".len())
+        .is_some_and(|p| p.eq_ignore_ascii_case("expr-func"))
     {
         kind = "function";
         default_arity = 1;
         rest = after["expr-func".len()..].trim_start();
-    } else if after.len() >= "expr-op".len()
-        && after[.."expr-op".len()].eq_ignore_ascii_case("expr-op")
+    } else if after
+        .get(.."expr-op".len())
+        .is_some_and(|p| p.eq_ignore_ascii_case("expr-op"))
     {
         kind = "operator";
         default_arity = 2;
@@ -1230,6 +1245,19 @@ proc foo {} {}
     #[test]
     fn parse_command_stub_not_a_stub_returns_none() {
         assert!(cmd_stub("# just a regular comment").is_none());
+    }
+
+    #[test]
+    fn multibyte_comment_before_keyword_length_does_not_panic() {
+        // A non-ASCII byte (an em dash here) landing inside the
+        // `tcl-lsp` / `stub` / `expr-func` / `expr-op` keyword's byte
+        // length used to panic on a raw `s[..len]` slice instead of
+        // just not matching. Each string below is crafted so the em
+        // dash straddles the exact byte offset the check compares.
+        assert!(cmd_stub("# st—b my_cmd {arg}").is_none());
+        assert!(cmd_stub("# abcde—z not a stub").is_none());
+        assert!(expr_stub("# st—b my_cmd {arg}").is_none());
+        assert!(expr_stub("# tcl-lsp: stub expr-fun—c sizeof 1").is_none());
     }
 
     #[test]
