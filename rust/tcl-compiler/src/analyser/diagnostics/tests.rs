@@ -1640,6 +1640,41 @@ proc use {} { bar 1 }
 }
 
 #[test]
+fn same_file_deleted_alias_call_is_unknown_command() {
+    // Regression: the arity resolver already abstains for a call through a
+    // deleted alias (`same_file_deleted_alias_call_does_not_false_positive`
+    // above), but `command_aliases` itself was never pruned on deletion, so
+    // W123 ("unknown command") still treated the deleted name as known —
+    // the call went through completely unchecked, neither an arity
+    // diagnostic nor an unknown-command one. Confirmed against tclsh 9.0.4:
+    // a call through a deleted alias fails "invalid command name".
+    let mut a = Analyser::new();
+    let src = "interp alias {} bar {} puts\ninterp alias {} bar {}\nbar 1\n";
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "a call through a deleted alias must be flagged unknown; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn same_file_redeclared_alias_after_deletion_is_still_known() {
+    // The inverse of the regression above: a name deleted and then
+    // re-declared later in the file must stay known — the re-declaration
+    // wins, exactly as `command_aliases`'s last-write-wins map already
+    // implies for arity resolution.
+    let mut a = Analyser::new();
+    let src = "interp alias {} bar {} puts\ninterp alias {} bar {}\ninterp alias {} bar {} format\nbar 1\n";
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "a re-declared alias must not be flagged unknown; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
 fn same_file_alias_query_form_is_not_a_deletion() {
     // `interp alias srcPath srcCmd` (no target path at all — 2 args
     // after `alias`) is a *query*, not a deletion; the alias must keep
@@ -3928,6 +3963,37 @@ fn tcloo_no_explicit_constructor_anywhere_is_never_arity_checked() {
     // `oo::class create Foo {}` then `Foo new 1 2 3` succeeds.
     let src = "oo::class create Widget { method bar {} { } }\nWidget new 1 2 3 4 5\n";
     assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_create_mandatory_name_is_checked_even_without_a_constructor() {
+    // Regression: a class with no explicit constructor anywhere in its MRO
+    // used to abstain from arity-checking `create` entirely, not just the
+    // constructor's own (unconstrained) parameters. `create`'s mandatory
+    // leading object-name word is enforced by the dispatcher itself,
+    // independent of the constructor -- confirmed against tclsh 9.0.4:
+    // `oo::class create Foo {}` then `Foo create` (no name) still raises
+    // "wrong # args", even though any number of trailing args succeeds.
+    let src = |call: &str| format!("oo::class create Widget {{ method bar {{}} {{ }} }}\n{call}\n");
+    assert_eq!(
+        e00x_codes_for(&src("Widget create")),
+        vec!["E002".to_owned()],
+        "the mandatory object-name word must still be enforced"
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget create fido")),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget create fido 1 2 3 4 5")),
+        Vec::<String>::new(),
+        "the unconstrained default constructor still accepts any trailing args"
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget new")),
+        Vec::<String>::new(),
+        "`new` has no mandatory name word, so it stays unchecked as before"
+    );
 }
 
 #[test]

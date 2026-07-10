@@ -718,3 +718,126 @@ fn test_no_profiles_action_for_tcl_dialect() {
     let sa = kinds(&actions, "source");
     assert!(sa.iter().all(|a| !action_title(a).contains("Profiles")));
 }
+
+// -- TestE100E102QuickFixes -----------------------------------------------
+
+#[test]
+fn test_e100_offers_insert_bracket_before_known_command() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "puts string]\n");
+    let e100 = with_code(&diags, "E100");
+    assert!(!e100.is_empty(), "expected an E100 diagnostic");
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((0, 0), (0, 12)),
+        json!(e100),
+        &["quickfix"],
+    );
+    assert!(
+        titles(&actions)
+            .iter()
+            .any(|t| t.to_lowercase().contains("insert") && t.contains('[')),
+        "{:?}",
+        titles(&actions)
+    );
+    assert!(new_texts(&actions).iter().any(|s| s == "["));
+}
+
+#[test]
+fn test_e100_offers_insert_bracket_before_user_proc() {
+    // The bracket-insertion heuristic must recognise a call to an
+    // already-declared user proc, not just a registry builtin.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc myHelper {a b} {return $a}\nset y myHelper arg1 arg2]\n";
+    let diags = lsp.open_ready(&uri, src);
+    let e100 = with_code(&diags, "E100");
+    assert!(!e100.is_empty(), "expected an E100 diagnostic");
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((1, 0), (1, 26)),
+        json!(e100),
+        &["quickfix"],
+    );
+    assert!(new_texts(&actions).iter().any(|s| s == "["));
+}
+
+#[test]
+fn test_e100_no_fix_offered_without_known_command_or_overflow() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x blah]\n");
+    let e100 = with_code(&diags, "E100");
+    assert!(!e100.is_empty(), "expected an E100 diagnostic");
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((0, 0), (0, 11)),
+        json!(e100),
+        &["quickfix"],
+    );
+    // No recognisable command / arity overflow, so the E100-specific
+    // bracket-insertion fix must not be offered (other, unrelated
+    // quickfixes for the range — e.g. a W123 "did you mean" suggestion
+    // on the unresolved `blah` command — may still appear).
+    assert!(
+        !titles(&actions)
+            .iter()
+            .any(|t| t.to_lowercase().contains("insert") && t.contains('[')),
+        "{:?}",
+        titles(&actions)
+    );
+}
+
+#[test]
+fn test_e102_offers_remove_extra_brace_for_isolated_line() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x 1\n}\n");
+    let e102 = with_code(&diags, "E102");
+    assert!(!e102.is_empty(), "expected an E102 diagnostic");
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((1, 0), (1, 1)),
+        json!(e102),
+        &["quickfix"],
+    );
+    assert!(
+        titles(&actions)
+            .iter()
+            .any(|t| t.to_lowercase().contains("remove")),
+        "{:?}",
+        titles(&actions)
+    );
+    assert!(new_texts(&actions).iter().any(String::is_empty));
+}
+
+#[test]
+fn test_e102_no_fix_offered_for_embedded_brace() {
+    // `foo}bar` is flagged but not auto-fixed — deleting one character
+    // out of a bareword isn't a safe guess the way an isolated stray-brace
+    // line is.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x foo}bar\n");
+    let e102 = with_code(&diags, "E102");
+    assert!(!e102.is_empty(), "expected an E102 diagnostic");
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((0, 0), (0, 13)),
+        json!(e102),
+        &["quickfix"],
+    );
+    assert!(
+        !titles(&actions)
+            .iter()
+            .any(|t| t.to_lowercase().contains("remove") && t.contains('}')),
+        "{:?}",
+        titles(&actions)
+    );
+}

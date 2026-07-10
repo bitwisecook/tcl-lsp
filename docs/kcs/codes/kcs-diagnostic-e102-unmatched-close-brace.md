@@ -32,9 +32,21 @@ puts "hello"
 
 The analyser reports **`E102`** on the unmatched `}` on the second line.
 
+A `}` does not need a line to itself to be flagged — it is just as stray when
+it appears in the middle of a word:
+
+```tcl
+set x foo}bar
+```
+
+The analyser reports **`E102`** on the `}` inside `foo}bar`.
+
 ## Fix
 
-Remove the stray `}` so that every opening brace has exactly one matching close.
+Remove the stray `}` so that every opening brace has exactly one matching
+close. When the `}` sits alone on its own line, the quick fix removes the
+whole line; a `}` embedded in a larger word has no automatic fix — remove or
+correct it by hand.
 
 ## How to suppress
 

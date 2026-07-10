@@ -37,6 +37,38 @@ suite("Diagnostics", () => {
     assert.ok(codes.includes("W100"), `Expected W100 (unbraced expr) in [${codes}]`);
     assert.ok(codes.includes("W101"), `Expected W101 (eval injection) in [${codes}]`);
     assert.ok(codes.includes("W302"), `Expected W302 (catch without result) in [${codes}]`);
+    assert.ok(codes.includes("E100"), `Expected E100 (stray close bracket) in [${codes}]`);
+    assert.ok(codes.includes("E102"), `Expected E102 (stray close brace) in [${codes}]`);
+  });
+
+  test("E100 range covers the stray ']' character itself", async () => {
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+
+    const e100 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "E100";
+    });
+    assert.ok(e100, "E100 diagnostic should be present");
+
+    // `set y string]` — the range must end one column past the `]`
+    // (LSP ranges are end-exclusive), not stop short of it.
+    const line = vscode.window.activeTextEditor!.document.lineAt(e100!.range.end.line).text;
+    assert.strictEqual(line[e100!.range.end.character - 1], "]");
+  });
+
+  test("E102 range covers the stray '}' character itself", async () => {
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+
+    const e102 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "E102";
+    });
+    assert.ok(e102, "E102 diagnostic should be present");
+
+    const line = vscode.window.activeTextEditor!.document.lineAt(e102!.range.end.line).text;
+    assert.strictEqual(line[e102!.range.end.character - 1], "}");
   });
 
   test("W100 diagnostic has error severity when expr contains substitutions", async () => {
@@ -548,5 +580,46 @@ suite("Diagnostics", () => {
       w123On(diagnostics, 2),
       "the genuinely-unknown command must still be W123 (check stays live)",
     );
+  });
+
+  // Regression: the missing-open-brace recovery only excluded registry
+  // builtins from looking like an orphaned switch case, so a genuine call to
+  // an already-declared user proc with a single braced argument right after
+  // the case list — `renderReport { prose text }` — was swallowed as an
+  // extra case, corrupting the switch's argv and running the braced prose
+  // through command analysis as if it were Tcl (a phantom "Unknown command").
+  test("E101 recovery does not swallow a call to a known proc", async () => {
+    const uri = getDocUri("diagnostics-e101-known-proc.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.some((d) => codeOf(d) === "E101"),
+    });
+    const codes = diagnostics.map(codeOf);
+    assert.ok(codes.includes("E101"), `expected E101, got [${codes}]`);
+    assert.ok(
+      !codes.includes("W123"),
+      `the renderReport call must not be parsed as switch-case body text: [${codes}]`,
+    );
+  });
+
+  // Regression: the "stolen close brace" heuristic used to fire on whichever
+  // `}` was LAST in the swallowed text, even when that text spanned more
+  // than one top-level statement (here a sibling `proc` swallowed along with
+  // the `if` that actually stole the brace). Applying that fix parsed clean
+  // but silently nested the sibling proc inside the unclosed one instead of
+  // closing it where the missing brace belongs. Pure brace-counting can't
+  // safely pick a location once more than one statement is swallowed, so
+  // this must fall back to the generic (fix-less) E200 instead of guessing.
+  test("E103 abstains when the missing brace swallows more than one statement", async () => {
+    const uri = getDocUri("diagnostics-e103-multi-statement.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.some((d) => codeOf(d) === "E200" || codeOf(d) === "E103"),
+    });
+    const codes = diagnostics.map(codeOf);
+    assert.ok(!codes.includes("E103"), `expected no E103, got [${codes}]`);
+    assert.ok(codes.includes("E200"), `expected the generic E200, got [${codes}]`);
   });
 });

@@ -1377,6 +1377,116 @@ mod unmatched_close_bracket {
         assert!(!ds.is_empty());
         assert_eq!(ds[0].2, vec!["[".to_string()]);
     }
+
+    // TP: a call to an already-declared *user* proc missing its `[` is
+    // just as recoverable as a call to a registry builtin — the E100
+    // quick-fix heuristic must consult the analyser's own proc/class/
+    // alias/ensemble tracking, not just `CommandRegistry`.
+    #[test]
+    fn known_user_proc_inserts_bracket() {
+        let src = "proc myHelper {a b} {return $a}\nset y myHelper arg1 arg2]\n";
+        let ds = of_code(src, D, "E100");
+        assert_eq!(ds.len(), 1, "{ds:?}");
+        assert_eq!(ds[0].2, vec!["[".to_string()]);
+        // The repair must not corrupt the recorded command name into a
+        // spurious "unknown command" elsewhere in the pipeline.
+        assert!(!fires(src, D, "W123"), "{:?}", codes(src, D));
+    }
+
+    // TP: same for a tclOO class created earlier in the file.
+    #[test]
+    fn known_tcloo_class_inserts_bracket() {
+        let src = "oo::class create Widget {}\nset y Widget create]\n";
+        let ds = of_code(src, D, "E100");
+        assert_eq!(ds.len(), 1, "{ds:?}");
+        assert_eq!(ds[0].2, vec!["[".to_string()]);
+    }
+
+    // FN (was silently missed): `\\]` is a literal backslash (even run)
+    // followed by a *bare* `]` — Tcl's `\\` fully consumes as a pair, so
+    // the bracket is not escaped and the stray-bracket heuristic must
+    // still fire.
+    #[test]
+    fn double_backslash_bracket_still_fires() {
+        assert!(fires(r"puts foo\\]", D, "E100"));
+    }
+
+    // TN: a single backslash *does* escape the bracket (odd run) — a
+    // deliberate literal `]`, not a typo.
+    #[test]
+    fn single_backslash_bracket_is_clean() {
+        assert!(!fires(r"puts foo\]", D, "E100"));
+    }
+
+    // TN (was a real bug): a genuinely escaped trailing `]` combined
+    // with an enclosing arity overflow must not be "repaired" by the
+    // arity-fallback heuristic — the old, independent recovery detector
+    // ignored escaping entirely and could merge tokens the diagnostic
+    // itself correctly treated as inert, corrupting downstream analysis
+    // with no governing E100 to explain it.
+    #[test]
+    fn escaped_bracket_under_arity_overflow_is_clean() {
+        let src = r"set y bar baz\]";
+        assert!(!fires(src, D, "E100"), "{:?}", codes(src, D));
+        assert!(!fires(src, D, "W123"), "{:?}", codes(src, D));
+    }
+}
+
+// ===========================================================================
+// E102 — unmatched close brace.
+//
+// A bare `}` has no special meaning to Tcl outside a `{…}` word, so — like
+// E100 — this is a "probably a typo" heuristic, not a hard parse error. It
+// must fire wherever the `}` is stray, whether it is the whole token
+// (`puts foo\n}`) or embedded in a larger word (`set x foo}bar`); a matched
+// `{…}` or a `}` inside a quoted/braced word is fine.
+// ===========================================================================
+mod unmatched_close_brace {
+    use super::*;
+
+    #[test]
+    fn bare_close_brace_detected() {
+        let ds = of_code("set x 1\n}\n", D, "E102");
+        assert_eq!(ds.len(), 1);
+        assert!(ds[0].0.contains('}'));
+    }
+
+    #[test]
+    fn matched_brace_and_quoted_clean() {
+        assert!(!fires("if {1} {puts hi}\n", D, "E102"));
+        assert!(!fires("puts \"a }\"\n", D, "E102"));
+    }
+
+    // TP (was a confirmed false negative): a `}` embedded in a larger
+    // bareword is just as stray as a lone `}` — the old detector only
+    // matched a token whose *entire* text was `}`, so `foo}bar` produced
+    // no diagnostic at all, asymmetric with E100's compound-token scan
+    // of `foo]bar`.
+    #[test]
+    fn embedded_close_brace_detected() {
+        assert!(fires("set x foo}bar\n", D, "E102"));
+    }
+
+    #[test]
+    fn embedded_close_brace_escaped_is_clean() {
+        assert!(!fires("set x foo\\}bar\n", D, "E102"));
+    }
+
+    #[test]
+    fn embedded_close_brace_has_no_fix() {
+        // The whole-line-deletion fix only applies when `}` is the
+        // entire line; an embedded brace gets a diagnostic but no fix.
+        let ds = of_code("set x foo}bar\n", D, "E102");
+        assert_eq!(ds.len(), 1);
+        assert_eq!(ds[0].2.len(), 0);
+    }
+
+    #[test]
+    fn isolated_close_brace_offers_line_deletion_fix() {
+        let ds = of_code("set x 1\n}\n", D, "E102");
+        assert_eq!(ds.len(), 1);
+        assert_eq!(ds[0].2, vec![String::new()]);
+    }
 }
 
 // ===========================================================================

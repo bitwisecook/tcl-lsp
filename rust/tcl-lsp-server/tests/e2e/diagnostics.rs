@@ -1549,3 +1549,146 @@ fn large_file_publishes_fast_tier_before_deep_tier() {
          diagnostic is ever removed by the deep pass): fast={fast:?} deep={deep:?}",
     );
 }
+
+// -- E100 / E102 stray-closer diagnostics --------------------------------
+//
+// A bare `]` / `}` has no special meaning to Tcl outside `[...]` / `{...}`,
+// so these are "probably a typo" heuristics, not hard parse errors. The
+// range must be tight around the offending character — end-to-end coverage
+// for issue-class bugs found in review: the highlighted range excluding the
+// stray character itself, a fix-less diagnostic spanning the whole command
+// instead of just the character, and a bad repair corrupting an unrelated
+// "Unknown command" diagnostic elsewhere in the file.
+
+fn range_of(diags: &[Value], code: &str) -> (i64, i64, i64, i64) {
+    let d = diags
+        .iter()
+        .find(|d| code_str(d).as_deref() == Some(code))
+        .unwrap_or_else(|| panic!("no {code} in {diags:?}"));
+    let r = &d["range"];
+    (
+        r["start"]["line"].as_i64().unwrap(),
+        r["start"]["character"].as_i64().unwrap(),
+        r["end"]["line"].as_i64().unwrap(),
+        r["end"]["character"].as_i64().unwrap(),
+    )
+}
+
+#[test]
+fn e100_range_is_tight_around_bracket_without_a_fix() {
+    // `set x blah]` — no known command / arity overflow, so no fix is
+    // available; the highlighted range must be just the `]` (char 10..11),
+    // not the whole command from `set`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x blah]\n");
+    assert_eq!(range_of(&diags, "E100"), (0, 10, 0, 11));
+}
+
+#[test]
+fn e100_range_includes_the_bracket_with_a_fix() {
+    // `puts string]` — `string` is a known command right before the `]`;
+    // the range must still run through (and include) the `]` itself.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "puts string]\n");
+    let (l0, c0, l1, c1) = range_of(&diags, "E100");
+    assert_eq!((l0, l1), (0, 0));
+    assert_eq!(c1, 12, "range end must include the ']' at char 11");
+    assert!(c0 < c1);
+}
+
+#[test]
+fn e102_range_is_tight_around_embedded_brace() {
+    // A `}` embedded in a bareword (not the whole token) must still be
+    // flagged, with a range covering only the `}` character.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x foo}bar\n");
+    assert_eq!(range_of(&diags, "E102"), (0, 9, 0, 10));
+}
+
+#[test]
+fn e100_repair_does_not_corrupt_unrelated_command_name() {
+    // Regression: a stray `]` after a call to an already-declared user
+    // proc used to get "repaired" into a virtual command-substitution
+    // token with a byte-offset bug, corrupting the recorded invocation
+    // and firing a phantom "Unknown command" (W123) on a garbled
+    // substring of the proc name — with no E100 fix to explain it either.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc myHelper {a b} {return $a}\nset y myHelper arg1 arg2]\n",
+    );
+    assert!(has_code(&diags, "E100"));
+    assert!(
+        !has_code(&diags, "W123"),
+        "no phantom unknown-command diagnostic expected: {:?}",
+        diags
+            .iter()
+            .map(|d| (code_str(d), message(d).to_string()))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn e100_escaped_bracket_under_arity_overflow_is_silent() {
+    // A genuinely escaped trailing `]` (`\]`) combined with an arity
+    // overflow on the enclosing command must not fire E100 at all, and
+    // must not trigger a repair that corrupts anything downstream.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set y bar baz\\]\n");
+    assert!(!has_code(&diags, "E100"), "{:?}", codes(&diags));
+    assert!(!has_code(&diags, "W123"), "{:?}", codes(&diags));
+}
+
+#[test]
+fn e101_recovery_does_not_swallow_a_call_to_a_known_proc() {
+    // Regression: only registry builtins were excluded from looking
+    // like an orphaned switch case, so a genuine call to an
+    // already-declared user proc with a single braced argument right
+    // after the case list — `renderReport { prose text }` — was
+    // swallowed as an extra case, corrupting the switch's argv and
+    // running the braced prose through command analysis as if it were
+    // Tcl (a phantom "Unknown command" on ordinary text).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc renderReport {body} {\n    puts $body\n}\n\nproc foo {x} {\n    switch $x\n    a {\n        return 1\n    }\n    renderReport {\n        Some unrelated braced-argument call, not a switch case.\n    }\n}\n",
+    );
+    assert!(has_code(&diags, "E101"), "{:?}", codes(&diags));
+    assert!(
+        !has_code(&diags, "W123"),
+        "the renderReport call must not be parsed as switch-case body text: {:?}",
+        diags
+            .iter()
+            .map(|d| (code_str(d), message(d).to_string()))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn e103_abstains_when_missing_brace_swallows_more_than_one_statement() {
+    // Regression: the "stolen close brace" heuristic used to fire on
+    // whichever `}` was LAST in the swallowed text, even when that
+    // text spanned more than one top-level statement (here a sibling
+    // `proc` swallowed along with the `if` that actually stole the
+    // brace). Applying that fix parsed clean but silently nested the
+    // sibling proc inside the unclosed one instead of closing it
+    // where the missing brace belongs — a structural corruption, not
+    // just an imprecise diagnostic. Pure brace-counting can't safely
+    // pick a location once more than one statement is swallowed, so
+    // this must fall back to the generic (fix-less) E200 instead of
+    // guessing wrong.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc foo {} {\n    if {1} {\n        puts hi\n    }\nproc bar {} {\n    return 1\n}\n",
+    );
+    assert!(!has_code(&diags, "E103"), "{:?}", codes(&diags));
+    assert!(has_code(&diags, "E200"), "{:?}", codes(&diags));
+}

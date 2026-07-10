@@ -116,6 +116,68 @@ suite("Code Actions", () => {
     assert.ok(resultOptsFix, "Should provide a result+options capture quick fix");
   });
 
+  test("provides quick fix for E100 (stray close bracket)", async () => {
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+
+    const e100 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "E100";
+    });
+    assert.ok(e100, "E100 diagnostic should be present");
+
+    const actions = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, e100.range),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) =>
+            typeof a.title === "string" && a.title.toLowerCase().includes("insert missing '['"),
+        ),
+      { timeout: 10_000, label: "E100 insert bracket quick fix" },
+    )) as vscode.CodeAction[];
+
+    const quickFix = actions.find(
+      (a) => typeof a.title === "string" && a.title.toLowerCase().includes("insert missing '['"),
+    );
+    assert.ok(quickFix, "Should provide an insert-missing-bracket quick fix");
+
+    // The fixture's `set y string]` recognises `string` as a known
+    // command — the fix must insert `[` right before it, not just
+    // anywhere in the command.
+    const edit = quickFix!.edit;
+    assert.ok(edit, "quick fix should carry a workspace edit");
+    const changes = edit!.get(docUri);
+    assert.strictEqual(changes.length, 1);
+    assert.strictEqual(changes[0].newText, "[");
+  });
+
+  test("provides quick fix for E102 (stray close brace)", async () => {
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+
+    const e102 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "E102";
+    });
+    assert.ok(e102, "E102 diagnostic should be present");
+
+    const actions = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, e102.range),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title.toLowerCase().includes("remove extra '}'"),
+        ),
+      { timeout: 10_000, label: "E102 remove brace quick fix" },
+    )) as vscode.CodeAction[];
+
+    const quickFix = actions.find(
+      (a) => typeof a.title === "string" && a.title.toLowerCase().includes("remove extra '}'"),
+    );
+    assert.ok(quickFix, "Should provide a remove-extra-brace quick fix");
+  });
+
   test("provides merge-into-body quick fix for E004 extra words", async () => {
     const e004Uri = getDocUri("diagnostics-e004.tcl");
     await activate(e004Uri);

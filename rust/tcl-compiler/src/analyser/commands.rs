@@ -159,6 +159,7 @@ impl Analyser {
                 cmd_ref,
                 &self.source,
                 self.registry.as_ref(),
+                || self.user_command_tail_names(),
             );
             self.result.diagnostics.extend(stray);
             // E201 (unterminated `[`) inside a body — `proc p {} { set y
