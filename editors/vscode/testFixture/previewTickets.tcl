@@ -27,5 +27,12 @@ if {[myCmd [expr {1 + 1}]]} {
     # nothing
 }
 
+# `lassign` destructures a list into per-element locals (#867). Each target
+# holds a list *element*, not the `List` value the command returns, so the
+# arithmetic below must NOT draw S100 "list intrep used in arithmetic".
+set point [list 1 2 3]
+lassign $point px py pz
+puts [expr {$px + $py + $pz}]
+
 # A genuine error that must appear exactly ONCE (#721): too many arguments.
 set var 10 10

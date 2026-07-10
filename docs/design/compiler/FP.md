@@ -4970,6 +4970,57 @@ alone, regardless of how many local versions it has.
 ---
 
 
+### FP-SH-17 — destructuring writers broadcast their return type onto written variables (issue #867)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_17_*`, `rust/tcl-compiler/src/type_infer.rs` (`lassign_single_destructure_def_is_overdefined_not_list`, `var_write_typing_shapes_destructure_target_types`), `rust/tcl-registry/tests/registry.rs::var_write_typing_declares_destructuring_writers`, and the `preview_tickets_e2e.rs` / `previewTickets.test.ts` regression pair
+- **Codes:** S100 (use-site / expr shimmer), also latent W126
+- **Corpus:** synthetic — verified vs tclsh 9.0.4
+
+#### Reproducer
+
+```tcl
+set point [list 1 2 3]
+
+lassign $point x y z
+# pre-fix: S100 on each of x/y/z "has list intrep used in arithmetic expression"
+set offset [expr {$x + $y + $z}]
+```
+
+#### Per-line reasoning
+
+1. `lassign $point x y z` writes list *elements* to `x`/`y`/`z`.  Each element is whatever intrep sat in that list slot — statically unknown.
+2. `lassign`'s `return_type` is `List` (the *leftover* elements the command returns), which describes neither `x`, `y`, nor `z`.
+3. Pre-fix the type-inference pass broadcast the command's return type onto every written variable, guarded only by a `defs.len() > 1` heuristic in `evaluate_type_def`.  Multi-target calls widened to `Overdefined` by accident, but a *single*-target `lassign $l x` fell through and typed `x` as `List` — and the reported three-target case regressed the moment any consumer looked at one def in isolation.
+4. `expr {$x + $y + $z}` then saw a `List`-typed operand in arithmetic and fired S100.  The same shape mistyped `regexp`/`scan`/`regsub`/`binary scan` targets as the returned `Int` count (a latent numeric-in-string-compare S100), and `gets`/`lpop` targets from their non-matching return types.
+
+#### tclsh ground truth (9.0.4 — confirmed by execution)
+
+```
+% set point [list 1 2 3]
+1 2 3
+% lassign $point x y z
+                        ;# returns the empty leftover list
+% expr {$x + $y + $z}
+6                       ;# x/y/z are the elements "1"/"2"/"3"; no shimmer smell
+```
+
+#### Fix
+
+`CommandSpec`/`SubCommand` gained a `var_write_typing: VarWriteTyping` field
+(`ReturnValue` default, `Fixed(TclType)`, `Destructured`).  `lassign` / `scan`
+/ `regexp` / `binary scan` declare `Destructured` (targets widen to
+`Overdefined`); `gets` and `regsub` declare `Fixed(String)` (the read line /
+the substituted result), and `lpop` `Fixed(List)` (the shortened list).
+`evaluate_type_def` reads `ResolvedCall::var_write_typing()` and drops the
+blanket `defs.len() > 1` heuristic — the default `ReturnValue` arm keeps a
+multi-def guard (a single return value can't type several distinct written
+variables, so `catch`/`try`'s synthetic result/options + body writes stay
+`Overdefined`), but the typing is otherwise registry data keyed per command /
+subcommand, never a command-name branch.  See
+[`command-registry.md`](command-registry.md#var_write_typing--return-type-vs-written-variable-type).
+
+
 ## OBJ — object dispatch (W307/W308) + snit modelling
 
 W307 catches stray non-literal command words (`$x foo`); W308 validates

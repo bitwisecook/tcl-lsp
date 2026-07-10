@@ -221,6 +221,11 @@ pub fn spec() -> CommandSpec {
         // actually yields the *list* of converted values — a per-form
         // refinement deferred to per-form return typing.
         return_type: Some(TclType::Int),
+        // `scan` writes format-dependent conversions (`%d` → int, `%s` →
+        // string, `%f` → double) to its targets while returning the *count*.
+        // Without parsing the format the target intreps are unknown, so they
+        // must not be typed `Int` (issue #867).
+        var_write_typing: VarWriteTyping::Destructured,
         const_fold: Some(fold_scan),
         hover: Some(HoverSnippet {
             summary: "Parse string using conversion specifiers in the style of sscanf",

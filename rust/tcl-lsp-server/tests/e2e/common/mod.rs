@@ -668,6 +668,21 @@ impl Lsp {
     /// harness auto-replies to it regardless (see `auto_reply`), so this only
     /// observes that the server asked, without blocking that reply.
     pub fn await_server_request(&self, method: &str, timeout: Duration, since: usize) -> Value {
+        self.try_await_server_request(method, timeout, since)
+            .unwrap_or_else(|| panic!("no server-initiated {method:?} request within {timeout:?}"))
+    }
+
+    /// Like [`Lsp::await_server_request`] but returns `None` on timeout instead
+    /// of panicking, for callers that treat "no such request arrived" as a
+    /// normal, expected outcome rather than a failure — e.g. converging
+    /// semantic tokens, where the *absence* of a `workspace/semanticTokens/refresh`
+    /// means the first response was already the settled enriched stream.
+    pub fn try_await_server_request(
+        &self,
+        method: &str,
+        timeout: Duration,
+        since: usize,
+    ) -> Option<Value> {
         let deadline = Instant::now() + timeout;
         let mut reqs = self.shared.server_requests.lock().unwrap();
         loop {
@@ -676,13 +691,12 @@ impl Lsp {
                 .skip(since)
                 .find(|n| n.get("method").and_then(Value::as_str) == Some(method))
             {
-                return req.clone();
+                return Some(req.clone());
             }
             let remaining = deadline.saturating_duration_since(Instant::now());
-            assert!(
-                !remaining.is_zero(),
-                "no server-initiated {method:?} request within {timeout:?}"
-            );
+            if remaining.is_zero() {
+                return None;
+            }
             let (guard, _) = self
                 .shared
                 .requests_cv

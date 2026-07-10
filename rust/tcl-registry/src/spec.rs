@@ -38,7 +38,7 @@ use crate::side_effects::{SideEffect, StorageType};
 use crate::symbol_def::SymbolDef;
 use crate::taint::{SetterConstraint, TaintColour};
 use crate::traits::Traits;
-use crate::types::TclType;
+use crate::types::{TclType, VarWriteTyping};
 
 /// Dynamic argument role resolver.
 ///
@@ -201,6 +201,15 @@ pub struct CommandSpec {
 
     /// Return type of the command.
     pub return_type: Option<TclType>,
+
+    /// How the command types the variable(s) it writes as a side effect —
+    /// distinct from [`Self::return_type`], which types the value `[cmd …]`
+    /// yields.  A destructuring writer (`lassign`, `scan`, `regexp`, `gets`)
+    /// returns one thing and writes another, so the compiler's type inference
+    /// reads this instead of broadcasting the return type onto the written
+    /// variables.  See [`VarWriteTyping`].  Default
+    /// [`VarWriteTyping::ReturnValue`].
+    pub var_write_typing: VarWriteTyping,
 
     /// Per-argument type hints. Each tuple is `(arg_index, hint)`.
     pub arg_types: &'static [(u8, ArgTypeHint)],
@@ -534,6 +543,7 @@ impl CommandSpec {
         command_prefixes: &[],
         command_prefix_resolver: None,
         return_type: None,
+        var_write_typing: VarWriteTyping::ReturnValue,
         arg_types: &[],
         subcommands: &[],
         allow_unknown_subcommands: false,
@@ -905,6 +915,12 @@ pub struct SubCommand {
     /// Return type.
     pub return_type: Option<TclType>,
 
+    /// How this subcommand types the variable(s) it writes as a side effect,
+    /// overriding the parent command's [`CommandSpec::var_write_typing`] when
+    /// a subcommand matches (`binary scan` destructures; `binary format` does
+    /// not).  See [`VarWriteTyping`].  Default [`VarWriteTyping::ReturnValue`].
+    pub var_write_typing: VarWriteTyping,
+
     /// Per-argument type hints.
     pub arg_types: &'static [(u8, ArgTypeHint)],
 
@@ -1076,6 +1092,7 @@ impl SubCommand {
         command_prefixes: &[],
         command_prefix_resolver: None,
         return_type: None,
+        var_write_typing: VarWriteTyping::ReturnValue,
         arg_types: &[],
         pure: false,
         mutator: false,

@@ -43,7 +43,8 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use tcl_registry::{CommandRegistry, TclType, Traits};
+use tcl_registry::dialects::DialectSet;
+use tcl_registry::{CommandRegistry, TclType, Traits, VarWriteTyping};
 
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
@@ -673,19 +674,41 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
                     namespace,
                 );
             }
-            // A command that writes more than one variable (`lassign list a
-            // b`, `scan $s $fmt a b`, `regexp ... a b`) destructures its
-            // argument into element-wise values — the command's own single
-            // `return_type` fact (`lassign` → `List`, the *leftover*
-            // elements; `regexp` → `Boolean`, the match count) describes
-            // neither def and must not be broadcast onto both. Conservative
-            // Overdefined until a per-command element-type model exists (as
-            // `collection_element_class` already provides for `dict`
-            // `lappend`, whose single-target shape never reaches this arm).
-            if defs.len() > 1 {
-                return TypeLattice::overdefined();
+            // How a command types the variable(s) it *writes* is a distinct
+            // fact from the value it *returns*.  A destructuring writer
+            // (`lassign`, `scan`, `regexp`, `binary scan`) returns a leftover
+            // list or a match/convert count while writing element-wise pieces;
+            // `gets` returns the character count while writing a text line;
+            // `lpop` returns the popped element while leaving a shortened list.
+            // The registry declares this per command / subcommand
+            // (`VarWriteTyping`), so the compiler never keys on the command
+            // name.  The former `defs.len() > 1` heuristic guessed it from the
+            // write count and mistyped every single-target destructure — a
+            // `lassign $l x` target wrongly typed `List`, a `regexp … capture`
+            // wrongly typed `Int` (issue #867).
+            let typing = registry
+                .resolve_call(command, &arg_refs, DialectSet::empty())
+                .map_or(VarWriteTyping::ReturnValue, |r| r.var_write_typing());
+            match typing {
+                // The default typing stores the command's *return value* in the
+                // target — meaningful only for a single-target writer (`append`,
+                // `lappend`). A call that writes *several* variables under the
+                // default (no override) is not a single-value writer: the
+                // synthetic `catch {body} resultVar optionsVar` / `try …` calls
+                // carry the body's writes plus the result / options vars as defs
+                // while `catch` / `try` return an Int status code, none of which
+                // is that status. Broadcasting the return type onto all of them
+                // would mistype every such variable, so stay conservative — the
+                // old `defs.len() > 1` fallback, now scoped to the default arm
+                // rather than a blanket heuristic (a registry `Destructured` /
+                // `Fixed` override still applies at any def count).
+                VarWriteTyping::ReturnValue if defs.len() > 1 => TypeLattice::overdefined(),
+                VarWriteTyping::ReturnValue => {
+                    return_type_for_command(registry, command, &arg_refs, known_classes, namespace)
+                }
+                VarWriteTyping::Fixed(t) => TypeLattice::of(t),
+                VarWriteTyping::Destructured => TypeLattice::overdefined(),
             }
-            return_type_for_command(registry, command, &arg_refs, known_classes, namespace)
         }
 
         // `ExprEval`, `Barrier`, and structured statements that survive as
@@ -1115,12 +1138,13 @@ mod tests {
 
     #[test]
     fn lassign_destructure_defs_are_overdefined_not_command_return_type() {
-        // TP: `lassign $pipe a b` writes TWO variables; `lassign`'s own
-        // `return_type` (List — the *leftover* elements) must not be
-        // broadcast onto both destructured targets. Pre-fix, both `a` and
-        // `b` were typed LIST, so a later channel-position use (`puts $a
-        // ...`) would falsely fire W126 ("has type LIST, not CHANNEL") —
-        // see FP-STY-04.
+        // TP: `lassign $pipe a b` writes destructured list *elements*;
+        // `lassign`'s own `return_type` (List — the *leftover* elements) must
+        // not be broadcast onto the targets. Pre-fix, both `a` and `b` were
+        // typed LIST, so a later channel-position use (`puts $a ...`) would
+        // falsely fire W126 ("has type LIST, not CHANNEL") — see FP-STY-04.
+        // The typing now comes from the registry's `VarWriteTyping` for
+        // `lassign` (`Destructured`), not a def-count heuristic.
         let stmt = Statement::Call {
             span: Span::new(0, 0),
             command: "lassign".to_owned(),
@@ -1147,10 +1171,43 @@ mod tests {
     }
 
     #[test]
+    fn lassign_single_destructure_def_is_overdefined_not_list() {
+        // Issue #867 core regression: a *single*-target `lassign $l x` was the
+        // case the old `defs.len() > 1` heuristic missed — one write fell
+        // through to `lassign`'s `List` return type, so `x` was typed LIST and
+        // `expr {$x + 1}` fired a bogus S100. The registry's `Destructured`
+        // typing widens it to OVERDEFINED regardless of target count.
+        let stmt = Statement::Call {
+            span: Span::new(0, 0),
+            command: "lassign".to_owned(),
+            canonical_command: None,
+            args: vec!["$point".to_owned(), "x".to_owned()],
+            defs: vec!["x".to_owned()],
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        };
+        let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
+        let t = evaluate_type_def(
+            &stmt,
+            &HashMap::new(),
+            &HashMap::new(),
+            &registry(),
+            &HashSet::new(),
+            "::",
+            &ssa,
+        );
+        assert_eq!(t, TypeLattice::overdefined());
+    }
+
+    #[test]
     fn single_def_command_still_uses_its_declared_return_type() {
         // TN control: a command that writes exactly one variable (`append`)
-        // legitimately shares its return value with that variable — the
-        // `defs.len() > 1` guard must not blunt this already-precise case.
+        // legitimately shares its return value with that variable — its
+        // `VarWriteTyping` is the default `ReturnValue`, so it must keep taking
+        // the declared return type (`String`), not widen to OVERDEFINED.
         let stmt = Statement::Call {
             span: Span::new(0, 0),
             command: "append".to_owned(),
@@ -1174,6 +1231,116 @@ mod tests {
             &ssa,
         );
         assert_eq!(t, TypeLattice::of(TclType::String));
+    }
+
+    #[test]
+    fn unannotated_multi_def_call_stays_overdefined_not_return_type() {
+        // Regression (PR #885 review): a call that writes SEVERAL variables
+        // under the default `ReturnValue` typing must not broadcast its
+        // return type onto all of them. The synthetic `catch {body} resultVar
+        // optionsVar` call `emit_opaque_catch` builds carries the body's
+        // writes plus the result/options vars as defs, while `catch` returns
+        // an Int status code and declares no `VarWriteTyping` override — typing
+        // `msg`/`result`/`opts` as that Int would wrongly fire S100/W126. The
+        // default arm's multi-def guard keeps them OVERDEFINED.
+        let stmt = Statement::Call {
+            span: Span::new(0, 0),
+            command: "catch".to_owned(),
+            canonical_command: None,
+            args: vec![
+                "{set msg hello}".to_owned(),
+                "result".to_owned(),
+                "opts".to_owned(),
+            ],
+            defs: vec!["msg".to_owned(), "result".to_owned(), "opts".to_owned()],
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        };
+        let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
+        let t = evaluate_type_def(
+            &stmt,
+            &HashMap::new(),
+            &HashMap::new(),
+            &registry(),
+            &HashSet::new(),
+            "::",
+            &ssa,
+        );
+        assert_eq!(t, TypeLattice::overdefined());
+    }
+
+    /// End-to-end lattice checks for the registry-driven `VarWriteTyping`:
+    /// each destructuring writer types its side-effect target correctly,
+    /// distinct from its return type (issue #867).
+    #[test]
+    fn var_write_typing_shapes_destructure_target_types() {
+        use crate::compilation_unit::CompilationUnit;
+
+        // Helper: does any version of `name` carry a KNOWN type `t`?
+        fn any_known(fu: &crate::compilation_unit::FunctionUnit, name: &str, t: TclType) -> bool {
+            fu.types.iter().any(|((sym, _), lat)| {
+                fu.ssa.var_name(*sym) == name
+                    && lat.kind == TypeKind::Known
+                    && lat.tcl_type == Some(t)
+            })
+        }
+        // Helper: is every version of `name` non-Known (OVERDEFINED/UNKNOWN)?
+        fn none_known(fu: &crate::compilation_unit::FunctionUnit, name: &str) -> bool {
+            fu.types
+                .iter()
+                .filter(|((sym, _), _)| fu.ssa.var_name(*sym) == name)
+                .all(|(_, lat)| lat.kind != TypeKind::Known)
+        }
+
+        // `lassign` element target — OVERDEFINED, never List.
+        let cu = CompilationUnit::build_for("set p [list 1 2 3]\nlassign $p x", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        assert!(
+            none_known(fu, "x"),
+            "lassign target must not carry a Known type: {:?}",
+            fu.types
+        );
+
+        // `regexp` capture — OVERDEFINED, never Int (the match count).
+        let cu = CompilationUnit::build_for("regexp {(.)} abc c", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        assert!(none_known(fu, "c"), "regexp capture must not be Known Int");
+
+        // `scan` target — OVERDEFINED (format-dependent), never Int.
+        let cu = CompilationUnit::build_for("scan hello %s word", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        assert!(none_known(fu, "word"), "scan target must not be Known Int");
+
+        // `binary scan` target (subcommand-level typing) — OVERDEFINED.
+        let cu = CompilationUnit::build_for("binary scan $d a3 chars", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        assert!(
+            none_known(fu, "chars"),
+            "binary scan target must not be Known Int"
+        );
+
+        // `gets chan line` — Fixed(String): the target is the read line, a
+        // String, not the character count the two-arg form returns.
+        let cu = CompilationUnit::build_for("gets $ch line", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        assert!(
+            any_known(fu, "line", TclType::String),
+            "gets target must be Known String: {:?}",
+            fu.types
+        );
+
+        // `lpop listVar` — Fixed(List): the variable is left holding the
+        // shortened list, not the popped element (String) it returns.
+        let cu = CompilationUnit::build_for("set l [list 1 2 3]\nlpop l", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        assert!(
+            any_known(fu, "l", TclType::List),
+            "lpop target must be Known List, not the element return type: {:?}",
+            fu.types
+        );
     }
 
     #[test]

@@ -881,3 +881,155 @@ proc use_it {} {
         "FP-SH-09: a trace installed by a different proc must still widen the def; got {got:?}"
     );
 }
+
+// FP-SH-17 — destructuring writers do not broadcast their return type onto
+// the variables they write (issue #867).  `lassign`/`scan`/`regexp`/`binary
+// scan` write element-wise pieces, not the leftover-list / match-count they
+// return, so a target must not inherit `List`/`Int`.  Driven by each command's
+// registry `VarWriteTyping`, never a compiler-side def-count heuristic.
+
+/// FP-SH-17: the reported case — `lassign $point x y z` then arithmetic on the
+/// targets.  Pre-fix the targets were typed `List` (the command's return type),
+/// so `expr {$x + $y + $z}` wrongly fired S100 "list intrep used in arithmetic".
+#[test]
+fn fp_sh_17_lassign_targets_arithmetic_no_shimmer() {
+    let src = "set point [list 1 2 3]\n\
+               lassign $point x y z\n\
+               set offset [expr {$x + $y + $z}]";
+    let got = codes(src, D);
+    assert!(
+        !got.iter()
+            .any(|c| c == "S100" || c == "S101" || c == "S102"),
+        "FP-SH-17: lassign targets are list elements (unknown intrep), not lists; \
+         arithmetic on them must not fire shimmer; got {got:?}"
+    );
+}
+
+/// FP-SH-17: the single-target `lassign $l x` case the old `defs.len() > 1`
+/// heuristic never covered — one write still fell through to the `List` return
+/// type.  Both arithmetic and string-comparison uses must stay silent.
+#[test]
+fn fp_sh_17_lassign_single_target_no_shimmer() {
+    let arith = "set p [list 5]\nlassign $p x\nset o [expr {$x + 1}]";
+    assert!(
+        !codes(arith, D).iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-17: single-target lassign in arithmetic must not fire; got {:?}",
+        codes(arith, D)
+    );
+    let strcmp = "set p [list a b]\nlassign $p x\nif {$x eq \"a\"} { puts yes }";
+    assert!(
+        !codes(strcmp, D).iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-17: single-target lassign in string compare must not fire; got {:?}",
+        codes(strcmp, D)
+    );
+}
+
+/// FP-SH-17: `regexp` capture variables hold matched *substrings*, not the
+/// `Int` match count the command returns.  Pre-fix a single capture was typed
+/// `Int`, so comparing it with `eq` wrongly fired S100 "numeric variable used
+/// in string comparison".
+#[test]
+fn fp_sh_17_regexp_capture_string_compare_no_shimmer() {
+    let src = "set s \"abc\"\n\
+               regexp {(.)} $s letter\n\
+               if {$letter eq \"a\"} { puts yes }";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-17: regexp capture is a string, not the Int count; \
+         string compare must not fire; got {got:?}"
+    );
+}
+
+/// FP-SH-17: `scan`'s targets are format-dependent conversions, unknown
+/// without parsing the format — not the `Int` count.  A `%s` target compared
+/// as a string must not fire.
+#[test]
+fn fp_sh_17_scan_target_string_compare_no_shimmer() {
+    let src = "set s \"hello\"\n\
+               scan $s \"%s\" word\n\
+               if {$word eq \"hello\"} { puts yes }";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-17: scan target intrep is unknown, not Int; string compare must \
+         not fire; got {got:?}"
+    );
+}
+
+/// FP-SH-17: `regsub`'s `varName` form writes the substituted *string* while
+/// returning the replacement count.  Comparing the output as a string must not
+/// fire the numeric-in-string-compare shimmer.
+#[test]
+fn fp_sh_17_regsub_output_string_compare_no_shimmer() {
+    let src = "set s \"aaa\"\n\
+               regsub \"a\" $s \"b\" out\n\
+               if {$out eq \"baa\"} { puts yes }";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-17: regsub output is a string, not the Int count; got {got:?}"
+    );
+}
+
+/// FP-SH-17 TP control: `regsub`'s output is a genuine `String` (`Fixed(String)`,
+/// not `Destructured`), so using it in arithmetic is a real string→int shimmer
+/// and must still fire S100 — the fix drops the bogus `Int` typing without
+/// widening the value away (PR #885 review).
+#[test]
+fn fp_sh_17_regsub_output_in_arithmetic_still_fires() {
+    let src = "set s \"aaa\"\n\
+               regsub \"a\" $s \"b\" out\n\
+               set n [expr {$out + 1}]";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-17 TP: regsub output is a String; arithmetic on it must fire S100; got {:?}",
+        codes(src, D)
+    );
+}
+
+/// FP-SH-17: a call that writes several variables under the default typing
+/// (`catch {body} resultVar optionsVar`) must not broadcast its `Int` status
+/// return onto them — `result`/`opts` (and the body's `msg`) stay overdefined,
+/// so comparing `opts` as a string draws no numeric-in-string-compare S100
+/// (PR #885 review).
+#[test]
+fn fp_sh_17_catch_result_and_options_vars_no_shimmer() {
+    let src = "catch {set msg hello} result opts\n\
+               if {$opts eq \"\"} { puts $result }";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-17: catch result/options vars are not the Int status; got {got:?}"
+    );
+}
+
+/// FP-SH-17 TP control: the fix widens *destructured* targets, not every value
+/// — a genuine `set s hello; expr {$s + 1}` STRING-in-arithmetic shimmer must
+/// still fire, proving the change is not blanket-silencing.
+#[test]
+fn fp_sh_17_genuine_string_arithmetic_still_fires() {
+    let src = "set s hello\nset y [expr {$s + 1}]";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-17 TP: genuine STRING-in-arithmetic must still fire S100; got {:?}",
+        codes(src, D)
+    );
+}
+
+/// FP-SH-17 TP control: a `lassign` *leftover* captured with `set left
+/// [lassign …]` still types `left` as the returned `List` — the return value
+/// genuinely is a list, so using it where a scalar is expected is a real
+/// signal.  Here the leftover flows to `llength` (a list use) — no shimmer,
+/// confirming the return-value path is unchanged.
+#[test]
+fn fp_sh_17_lassign_leftover_capture_is_list() {
+    let src = "set p [list 1 2 3]\n\
+               set left [lassign $p a]\n\
+               set n [llength $left]";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-17: lassign leftover is a List used as a list — no shimmer; got {got:?}"
+    );
+}

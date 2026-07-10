@@ -105,6 +105,10 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::at_least(1),
         return_type: Some(TclType::Int),
+        // `regexp` writes matched substrings to its capture variables while
+        // returning the match *count* (or 0/1).  The captures are strings, not
+        // the count, so they must not be typed `Int` (issue #867).
+        var_write_typing: VarWriteTyping::Destructured,
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
             reads: false,

@@ -34,6 +34,7 @@ use crate::forms::CommandForm;
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
 use crate::traits::Traits;
+use crate::types::VarWriteTyping;
 
 /// Resolved metadata for an iRules event — the result of
 /// [`CommandRegistry::event_info`].
@@ -1229,6 +1230,19 @@ impl ResolvedCall<'_> {
             return s.arity;
         }
         self.spec.arity
+    }
+
+    /// Effective [`VarWriteTyping`] for this resolved call: the matched
+    /// subcommand's when one matched (`binary scan` destructures where the
+    /// bare `binary` does not), otherwise the top-level [`CommandSpec`]'s.
+    ///
+    /// The compiler's type-inference pass consults this to type the
+    /// variables a command writes as a side effect, rather than assuming
+    /// they receive the command's return value (issue #867).
+    #[must_use]
+    pub fn var_write_typing(&self) -> VarWriteTyping {
+        self.sub
+            .map_or(self.spec.var_write_typing, |s| s.var_write_typing)
     }
 }
 

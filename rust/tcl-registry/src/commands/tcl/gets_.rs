@@ -35,6 +35,11 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::VarWrite)],
         assigns_variable_at: Some(1),
         return_type: Some(TclType::String),
+        // The two-arg `gets chan varName` form writes the read *line* (a
+        // String) to its target while returning the character *count* (an
+        // Int).  Type the target as the line it always receives, not the
+        // count (issue #867).
+        var_write_typing: VarWriteTyping::Fixed(TclType::String),
         side_effects: &[
             SideEffect {
                 target: SideEffectTarget::FileIo,
