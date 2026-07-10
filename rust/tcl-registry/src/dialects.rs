@@ -832,6 +832,63 @@ impl DialectSet {
             _ => return None,
         })
     }
+
+    /// The canonical dialect name for a single-bit set — the inverse of
+    /// [`Self::parse`]. `None` for an empty set, a combinator flag with no
+    /// single dialect name (`ALL_TCL`, `TCL85_PLUS`, …), or a multi-bit set.
+    #[must_use]
+    pub fn canonical_name(self) -> Option<&'static str> {
+        Some(match self {
+            Self::BPF => "bpf",
+            Self::TCL84 => "tcl8.4",
+            Self::TCL85 => "tcl8.5",
+            Self::TCL86 => "tcl8.6",
+            Self::TCL90 => "tcl9.0",
+            Self::TCL91 => "tcl9.1",
+            Self::IRULES => "f5-irules",
+            Self::IAPPS => "f5-iapps",
+            Self::TK => "tk",
+            Self::EXPECT => "expect",
+            Self::SYNOPSYS => "synopsys-eda-tcl",
+            Self::CADENCE => "cadence-eda-tcl",
+            Self::XILINX => "xilinx-eda-tcl",
+            Self::QUARTUS => "intel-quartus-eda-tcl",
+            Self::MENTOR => "mentor-eda-tcl",
+            _ => return None,
+        })
+    }
+
+    /// The canonical dialect names of every single bit set in `self`, in
+    /// declaration order (`TCL84` before `TCL85` before … before `MENTOR`) —
+    /// so a Tcl-version run always lists lowest-to-highest.  Combinator bits
+    /// with no single name (see [`Self::canonical_name`]) contribute nothing;
+    /// every *primitive* dialect this set contains is still listed via its
+    /// own bit.
+    #[must_use]
+    pub fn member_names(self) -> Vec<&'static str> {
+        const PRIMITIVES: &[DialectSet] = &[
+            DialectSet::TCL84,
+            DialectSet::TCL85,
+            DialectSet::TCL86,
+            DialectSet::TCL90,
+            DialectSet::TCL91,
+            DialectSet::IRULES,
+            DialectSet::IAPPS,
+            DialectSet::TK,
+            DialectSet::EXPECT,
+            DialectSet::SYNOPSYS,
+            DialectSet::CADENCE,
+            DialectSet::XILINX,
+            DialectSet::QUARTUS,
+            DialectSet::MENTOR,
+            DialectSet::BPF,
+        ];
+        PRIMITIVES
+            .iter()
+            .filter(|&&bit| self.contains(bit))
+            .filter_map(|&bit| bit.canonical_name())
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -858,6 +915,57 @@ mod tests {
         assert_eq!(DialectSet::parse("tcl8.6"), Some(DialectSet::TCL86));
         assert_eq!(DialectSet::parse("f5-irules"), Some(DialectSet::IRULES));
         assert_eq!(DialectSet::parse("unknown"), None);
+    }
+
+    #[test]
+    fn canonical_name_is_the_exact_inverse_of_parse() {
+        // Every name `parse` accepts round-trips through `canonical_name`
+        // back to the identical string, for every primitive dialect.
+        for name in [
+            "bpf",
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "f5-irules",
+            "f5-iapps",
+            "tk",
+            "expect",
+            "synopsys-eda-tcl",
+            "cadence-eda-tcl",
+            "xilinx-eda-tcl",
+            "intel-quartus-eda-tcl",
+            "mentor-eda-tcl",
+        ] {
+            let bit = DialectSet::parse(name).unwrap_or_else(|| panic!("{name} must parse"));
+            assert_eq!(bit.canonical_name(), Some(name));
+        }
+    }
+
+    #[test]
+    fn canonical_name_is_none_for_combinators_and_empty() {
+        assert_eq!(DialectSet::empty().canonical_name(), None);
+        assert_eq!(DialectSet::ALL_TCL.canonical_name(), None);
+        assert_eq!(DialectSet::TCL85_PLUS.canonical_name(), None);
+        assert_eq!(
+            (DialectSet::TCL84 | DialectSet::TCL85).canonical_name(),
+            None
+        );
+    }
+
+    #[test]
+    fn member_names_lists_lowest_tcl_version_first() {
+        assert_eq!(
+            DialectSet::ALL_TCL.member_names(),
+            vec!["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"]
+        );
+        assert_eq!(
+            DialectSet::TCL85_PLUS.member_names(),
+            vec!["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"]
+        );
+        assert_eq!(DialectSet::TCL84.member_names(), vec!["tcl8.4"]);
+        assert!(DialectSet::empty().member_names().is_empty());
     }
 
     #[test]
