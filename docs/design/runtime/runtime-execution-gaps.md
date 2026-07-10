@@ -57,7 +57,9 @@ no in the bytecode VM + WASM path*.
 
 Owns `tcl-compiler::codegen::wasm`, `runtime/rust`, and a new `tcl-wasm` bin.
 The eval-fallback emitter and `tcl compwasm` wiring have landed (binary/WAT
-output, `wasmtime`-validated). **Scale of the gap:** the Rust emitter is ~1.5 K
+output, `wasmtime`-validated); leaf commands now propagate their **completion
+code** (`tcl_eval_code` + the emitter's completion dispatch, `RUST_ISSUE_010`),
+so `error`/`return` unwind and a `break`/`continue` re-enters the compiled loop. **Scale of the gap:** the Rust emitter is ~1.5 K
 LOC across 4 files (`codegen/wasm/{backend,encoding,ir,mod}.rs`); the Python
 package it must reach parity with is **~20.6 K LOC across 49 modules**
 (`compiler/codegen/wasm/`), including a per-command emitter for each of

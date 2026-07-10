@@ -106,9 +106,11 @@ fn walk_stmt<E: Emit>(emit: &mut E, stmt: &Statement, source: &str, loop_depth: 
         }
 
         Statement::Return { span, .. } => {
-            // Eval the `return` command so the runtime sets the result/code,
-            // then leave the function. (The eval-fallback discards the
-            // returned code.)
+            // Eval the `return` command so the runtime sets the result/return
+            // options; its completion code (`return`, or an immediate `-level 0
+            // -code`) already unwinds the function via `emit_command`'s dispatch.
+            // The explicit `emit_return` makes the exit unconditional (a `return`
+            // statement always leaves) and terminates this straight-line script.
             emit.emit_command(slice(source, *span));
             emit.emit_return();
             Flow::Diverged

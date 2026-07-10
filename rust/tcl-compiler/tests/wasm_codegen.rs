@@ -130,14 +130,15 @@ fn linear_top_level_eval_fallback() {
     let wat = m.to_wat();
     // The eval-fallback import boundary is declared.
     assert!(wat.contains(r#""tcl_obj_new_string""#), "{wat}");
-    assert!(wat.contains(r#""tcl_eval""#), "{wat}");
+    assert!(wat.contains(r#""tcl_eval_code""#), "{wat}");
     assert!(wat.contains(r#""memory""#), "{wat}");
     // Both commands' source text is interned in the data section.
     assert!(wat.contains(r#""set x 5""#), "{wat}");
     assert!(wat.contains(r#""puts $x""#), "{wat}");
     // Exported top-level entry.
     assert!(wat.contains(r#"(export "::top")"#), "{wat}");
-    // Two eval-fallback sequences (box → eval → release) ⇒ two `call 1` (eval).
+    // Two eval-fallback sequences (box → eval_code → dispatch) ⇒ two `call 1`
+    // (`tcl_eval_code`, import index 1).
     assert_eq!(m.to_wat().matches("\n        call 1").count(), 2, "{wat}");
     // Valid module header.
     let bytes = m.to_bytes();

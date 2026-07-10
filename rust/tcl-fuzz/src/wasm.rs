@@ -22,8 +22,9 @@
 //!
 //! This is the **tractable slice** of the WASM third differential arm. The
 //! eval-fallback emitter boxes every leaf command as a `call` to an imported
-//! `tcl_eval`; without an interpreter-backed host the module cannot *evaluate*
-//! Tcl, so a *value* differential against `tclsh` is not possible here. What
+//! `tcl_eval_code`; without an interpreter-backed host the module cannot
+//! *evaluate* Tcl, so a *value* differential against `tclsh` is not possible
+//! here. What
 //! **is** possible — and valuable — is exercising the WASM **codegen** over the
 //! fuzzer's randomised programs: a generated program that makes
 //! `wasm_codegen_module` panic, emits a module that `wasmtime` rejects, or traps
@@ -86,10 +87,12 @@ fn compile_to_wasm(src: &str) -> Result<Vec<u8>, String> {
     })
 }
 
-/// Build the host stub: a module defining + exporting `memory` and the four
+/// Build the host stub: a module defining + exporting `memory` and the three
 /// `tcl_*` functions the emitted module imports, with trivial bodies. Mirrors
-/// `tcl-compiler/tests/wasm_execute.rs::host_stub`. `tcl_expr_bool` returns `0`
-/// so every condition is false and all control flow terminates.
+/// `tcl-compiler/tests/wasm_execute.rs::host_stub`. `tcl_eval_code` returns `0`
+/// (`ok`, so the emitted completion-code dispatch falls through) and
+/// `tcl_expr_bool` returns `0` (false), so every condition is false and all
+/// control flow terminates.
 fn host_stub_bytes() -> Vec<u8> {
     let i32_const_0 = || WasmInstruction::with_operands(WasmOp::I32Const, vec![0x00]);
     let func =
@@ -117,16 +120,10 @@ fn host_stub_bytes() -> Vec<u8> {
             vec![i32_const_0()],
         ),
         func(
-            "tcl_eval",
+            "tcl_eval_code",
             vec![ValType::I32],
             vec![ValType::I32],
             vec![i32_const_0()],
-        ),
-        func(
-            "tcl_obj_release",
-            vec![ValType::I32],
-            Vec::new(),
-            Vec::new(),
         ),
         func(
             "tcl_expr_bool",
