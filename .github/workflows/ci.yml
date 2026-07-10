@@ -6,6 +6,17 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [main, rust]
+  # Manual escape hatch: if a PR's initial `pull_request: opened` webhook
+  # is ever dropped by GitHub (rare, but has happened — no runs show up
+  # for the branch at all, not even a queued/pending one), this lets a
+  # maintainer kick off the same CI graph from the Actions tab instead of
+  # having to push a throwaway commit just to re-send the event.
+  #
+  # NOTE: workflow_dispatch lets you pick any ref, tags included, and every
+  # release/publish job is gated on `startsWith(github.ref, 'refs/tags/v')`.
+  # Dispatching against a `v*` tag therefore re-runs create-release and the
+  # marketplace publishes. Dispatch against a branch unless you mean that.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
