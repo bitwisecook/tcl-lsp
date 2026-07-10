@@ -496,13 +496,14 @@ fn lens_carries_qualified_name_in_data() {
 
 #[test]
 fn lens_counts_method_calls_inside_class_body() {
-    // tclsh: inside `oo::class create C`, method `greet` is called twice from
-    // method `twice`'s body. The class members are real (info class methods C
-    // -> greet twice), and the lens on `greet` counts the two in-body calls.
+    // tclsh: inside `oo::class create C`, method `greet` is dispatched twice
+    // from method `twice`'s body.  TclOO self-dispatch is `my greet` — a bare
+    // `greet` resolves as a normal command, never the object's method — and
+    // the lens on `greet` counts the two `my greet` calls.
     let src = concat!(
         "oo::class create C {\n",
         "    method greet {} {}\n",
-        "    method twice {} { greet ; greet }\n",
+        "    method twice {} { my greet ; my greet }\n",
         "}\n",
     );
     let analysis = analyse(src);

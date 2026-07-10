@@ -31,11 +31,14 @@
 //!   <inst>`, and inheritance references in
 //!   `analysis.command_invocations`.
 //!
-//! Per-method / classmethod reference-count lenses:
-//! each member declaration's name span gets a `N references`
-//! lens counting call sites discovered by re-segmenting every
-//! sibling method body in the class (the analyser doesn't
-//! walk into method bodies for `command_invocations`).
+//! Per-method / classmethod reference-count lenses: each member
+//! declaration's name span gets a `N references` lens whose count comes
+//! from [`crate::references::method_references_for_class`] — the same
+//! resolver Find All References and rename use — so the lens and the peek
+//! always agree.  That resolver counts intra-class `my method` dispatch,
+//! external `$obj method` call sites (matched through the analyser's
+//! `instance_classes` variable-type tracking), and the sites of any
+//! subclass that inherits the definition (issue #864).
 //!
 //! Cross-document reference counts: when the
 //! caller threads a [`crate::workspace_index::WorkspaceIndex`]
@@ -44,10 +47,12 @@
 //!
 //! Limitations:
 //!
-//! * `[$obj methodName]` call sites *outside* the class body
-//!   are not counted — that needs analyser-side variable-type
-//!   tracking so the provider knows which object's class to
-//!   match against.
+//! * Method lens counts are current-document only (matching the method
+//!   peek, which is also single-document): an `$obj method` site in a
+//!   *sibling* document is not counted, because resolving a cross-file
+//!   object's class needs whole-workspace instance-type flow the index
+//!   does not yet carry.  Proc / class lenses do fold in cross-document
+//!   command-head call sites via the workspace index.
 //! * The lens carries a static label rather than an inline
 //!   "show references" jump-out; the editor's built-in
 //!   references command can be invoked from the lens itself.
@@ -154,41 +159,49 @@ pub fn code_lenses(
             command: String::new(),
             qname: class_def.qualified_name.clone(),
         });
-        // Per-method / classmethod / property lenses inside
-        // the class body.  Counts call sites discovered by re-
-        // segmenting every sibling method body (the analyser
-        // doesn't walk into method bodies for
-        // `command_invocations`).
-        emit_class_member_lenses(source, dialect, class_def, &line_index, &mut lenses);
+        // Per-method / classmethod lenses inside the class body.  The count
+        // is derived from the *same* resolver the peek (Find All References)
+        // uses — `references::method_references_for_class` — so the lens
+        // title and the peek can never drift (issue #864).  That resolver
+        // counts both intra-class `my method` dispatch and external
+        // `$obj method` call sites (via `instance_classes` type tracking),
+        // plus the call sites of any subclass that inherits this definition.
+        emit_class_member_lenses(
+            source,
+            dialect,
+            qname,
+            class_def,
+            analysis,
+            &line_index,
+            &mut lenses,
+        );
     }
 
     lenses
 }
 
-/// Emit per-member reference-count lenses for every method,
-/// classmethod, and property in `class_def`.  Call sites are
-/// discovered by re-segmenting each method body.
+/// Emit per-member reference-count lenses for every method and classmethod
+/// in `class_def`.  The count for each member is the number of call sites
+/// [`references::method_references_for_class`] resolves — the single source
+/// of truth also used by Find All References and rename — so the lens title
+/// and the peek can never drift.  That resolver covers intra-class
+/// `my method` dispatch, external `$obj method` sites (resolved through the
+/// analyser's `instance_classes` variable-type tracking), and the call sites
+/// of any subclass that inherits (does not override) this definition.
 fn emit_class_member_lenses(
     source: &str,
     dialect: &str,
+    class_q: &str,
     class_def: &tcl_compiler::analyser::ClassDef,
+    analysis: &AnalysisResult,
     line_index: &LineIndex,
     lenses: &mut Vec<CodeLens>,
 ) {
-    let body_spans: Vec<tcl_lexer::Span> = class_def
-        .methods
-        .values()
-        .map(|m| m.body_span)
-        .chain(class_def.class_methods.values().map(|m| m.body_span))
-        .chain(class_def.constructors.iter().map(|c| c.body_span))
-        .chain(class_def.destructor.iter().map(|d| d.body_span))
-        .collect();
-    let calls_for = |word: &str, decl_span: tcl_lexer::Span| -> usize {
-        let mut count = 0;
-        for span in &body_spans {
-            count += count_method_calls_in_body(source, dialect, *span, word, decl_span);
-        }
-        count
+    // Reference count for one member, matching the peek exactly: the number
+    // of call sites (declaration excluded) the shared resolver returns.
+    let member_ref_count = |name: &str| -> usize {
+        crate::references::method_references_for_class(source, dialect, analysis, class_q, name)
+            .map_or(0, |(_decl, calls)| calls.len())
     };
     let push_lens = |name_span: tcl_lexer::Span, title: String, lenses: &mut Vec<CodeLens>| {
         let start = line_index.position_at_utf16(name_span.start(), source);
@@ -207,77 +220,20 @@ fn emit_class_member_lenses(
             qname: String::new(),
         });
     };
-    for m in class_def.methods.values() {
+    for m in class_def
+        .methods
+        .values()
+        .chain(class_def.class_methods.values())
+    {
         if m.name_span.is_empty() {
             continue;
         }
         push_lens(
             m.name_span,
-            reference_count_title(calls_for(&m.name, m.name_span)),
+            reference_count_title(member_ref_count(&m.name)),
             lenses,
         );
     }
-    for m in class_def.class_methods.values() {
-        if m.name_span.is_empty() {
-            continue;
-        }
-        push_lens(
-            m.name_span,
-            reference_count_title(calls_for(&m.name, m.name_span)),
-            lenses,
-        );
-    }
-}
-
-/// Count call sites in `body_span` whose head token equals
-/// `word`, skipping the declaration site at `decl_span`.
-fn count_method_calls_in_body(
-    source: &str,
-    dialect: &str,
-    body_span: tcl_lexer::Span,
-    word: &str,
-    decl_span: tcl_lexer::Span,
-) -> usize {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-    if body_span.is_empty() {
-        return 0;
-    }
-    let mut start = body_span.start() as usize;
-    let mut end = body_span.end() as usize;
-    if start >= source.len() || end > source.len() || start > end {
-        return 0;
-    }
-    if source.as_bytes().get(start) == Some(&b'{') {
-        start += 1;
-    }
-    if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
-        end -= 1;
-    }
-    let body_text = &source[start..end];
-    let commands = segment_commands_with_offset_and_config(
-        body_text,
-        u32::try_from(start).unwrap_or(body_span.start()),
-        tcl_lexer::LexerConfig::for_dialect(dialect),
-    );
-    let mut count = 0;
-    for cmd in &commands {
-        let Some(head) = cmd.argv.first() else {
-            continue;
-        };
-        let h_start = head.span.start() as usize;
-        let h_end = head.span.end() as usize;
-        if h_start >= source.len() || h_end > source.len() {
-            continue;
-        }
-        if &source[h_start..h_end] != word {
-            continue;
-        }
-        if head.span.start() == decl_span.start() && head.span.end() == decl_span.end() {
-            continue;
-        }
-        count += 1;
-    }
-    count
 }
 
 fn reference_count_title(count: usize) -> String {
@@ -431,8 +387,10 @@ mod tests {
 
     #[test]
     fn lens_counts_method_calls_within_class_body() {
-        // `greet` is called twice from `twice`'s body.
-        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        // Intra-class self-dispatch in TclOO is `my greet`, not a bare
+        // `greet` (a bare word resolves as a normal command, never the
+        // object's method).  `greet` is dispatched twice from `twice`.
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
         let analysis = analyse(src);
         if analysis.all_classes.is_empty() {
             return;
@@ -445,6 +403,25 @@ mod tests {
             .find(|l| l.range.start_line == 1)
             .expect("greet lens");
         assert_eq!(greet_lens.command_title, "2 references", "{lenses:?}");
+    }
+
+    #[test]
+    fn lens_bare_word_in_method_body_is_not_a_self_dispatch() {
+        // FP guard: a bare `greet` inside a sibling method body is a normal
+        // command call, NOT TclOO self-dispatch (that is `my greet`), so it
+        // must not be counted as a reference to the method.  The old
+        // head-token heuristic wrongly counted these.
+        let src = "oo::class create C {\n    method greet {} {}\n    method other {} { greet ; greet }\n}\n";
+        let analysis = analyse(src);
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let greet_lens = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("greet lens");
+        assert_eq!(greet_lens.command_title, "0 references", "{lenses:?}");
     }
 
     #[test]
@@ -624,5 +601,277 @@ mod tests {
             "0 references",
             "{lenses:?}"
         );
+    }
+
+    // -- issue #864: method lens must count external `$obj method` sites --
+    //
+    // TP  — a real reference (`$obj method`, `my method`) is counted.
+    // FP  — a non-reference (`dict get`, a bare word) is *not* counted.
+    // TN  — a method with genuinely no references reads `0 references`.
+    // FN  — the regression: the external `$obj method` call the old
+    //       body-head heuristic missed is now counted.
+
+    /// The exact source from issue #864.
+    const ISSUE_864_SRC: &str = concat!(
+        "oo::class create Bar {\n",
+        "   variable _options\n",
+        "    constructor {args} {\n",
+        "         set _options $args\n",
+        "    }\n",
+        "\n",
+        "    method get {key} {\n",
+        "        return [dict get $_options $key]\n",
+        "    }\n",
+        "\n",
+        "}\n",
+        "set b [Bar new]\n",
+        "puts [$b get foo]\n",
+    );
+
+    #[test]
+    fn lens_counts_external_obj_method_call_issue_864() {
+        // FN-regression + TP: `puts [$b get foo]` references `Bar`'s `get`
+        // via an instance whose class is known (`set b [Bar new]`).  The
+        // lens on `method get` (line 6) must read `1 reference`, not the
+        // `0 references` the head-scan heuristic produced.
+        let analysis = analyse(ISSUE_864_SRC);
+        assert!(!analysis.all_classes.is_empty(), "class not analysed");
+        let lenses = code_lenses(ISSUE_864_SRC, "tcl", Some(&analysis), None, "");
+        let get_lens = lenses
+            .iter()
+            .find(|l| l.range.start_line == 6)
+            .expect("method get lens on line 6");
+        assert_eq!(get_lens.command_title, "1 reference", "{lenses:?}");
+    }
+
+    #[test]
+    fn lens_matches_peek_for_issue_864_method() {
+        // The lens count and Find All References must agree exactly.
+        assert_lens_matches_references(ISSUE_864_SRC, 6);
+    }
+
+    #[test]
+    fn lens_does_not_count_dict_get_as_method_ref() {
+        // FP guard: the method is named `get` and its own body contains
+        // `dict get $_options $key`.  The `get` word there is the `dict`
+        // ensemble subcommand, not a dispatch of the method, so it must not
+        // inflate the count.  With only the external `$b get foo`, the count
+        // is exactly 1.
+        let analysis = analyse(ISSUE_864_SRC);
+        let lenses = code_lenses(ISSUE_864_SRC, "tcl", Some(&analysis), None, "");
+        let get_lens = lenses
+            .iter()
+            .find(|l| l.range.start_line == 6)
+            .expect("method get lens");
+        assert_eq!(get_lens.command_title, "1 reference", "{lenses:?}");
+    }
+
+    #[test]
+    fn lens_counts_multiple_external_obj_method_calls() {
+        // TP: two distinct instances each dispatch `bark` once.
+        let src = concat!(
+            "oo::class create Dog {\n",
+            "    method bark {} {}\n",
+            "}\n",
+            "set a [Dog new]\n",
+            "set b [Dog new]\n",
+            "$a bark\n",
+            "puts [$b bark]\n",
+        );
+        let analysis = analyse(src);
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let bark = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("bark lens");
+        assert_eq!(bark.command_title, "2 references", "{lenses:?}");
+    }
+
+    #[test]
+    fn lens_counts_obj_method_from_create_instance() {
+        // TP: `Dog create rex` binds `rex` as a Dog instance command, so
+        // `rex bark` is a method dispatch.
+        let src = concat!(
+            "oo::class create Dog {\n",
+            "    method bark {} {}\n",
+            "}\n",
+            "Dog create rex\n",
+            "rex bark\n",
+        );
+        let analysis = analyse(src);
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let bark = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("bark lens");
+        assert_eq!(bark.command_title, "1 reference", "{lenses:?}");
+    }
+
+    #[test]
+    fn lens_counts_inherited_method_on_subclass_instance() {
+        // TP + inheritance: `Base`'s `speak` is inherited by `Derived`; a
+        // `Derived` instance dispatching `speak` resolves to `Base`'s copy,
+        // so it counts toward `Base::speak`'s lens.
+        let src = concat!(
+            "oo::class create Base {\n",
+            "    method speak {} {}\n",
+            "}\n",
+            "oo::class create Derived {\n",
+            "    superclass Base\n",
+            "}\n",
+            "set d [Derived new]\n",
+            "$d speak\n",
+        );
+        let analysis = analyse(src);
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let speak = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("speak lens");
+        assert_eq!(speak.command_title, "1 reference", "{lenses:?}");
+    }
+
+    #[test]
+    fn lens_matches_peek_for_inherited_method_with_subclass_my_dispatch() {
+        // Codex #881: the lens uses `method_references_for_class`, which counts
+        // a `my speak` call in an *inheriting* subclass body; the peek from the
+        // declaration must count it too (it now shares that resolver), so lens
+        // and peek can't drift.  Here `Base::speak` is referenced by `Derived`'s
+        // `my speak` and by `$d speak` — two sites.
+        let src = concat!(
+            "oo::class create Base {\n",
+            "    method speak {} {}\n",
+            "}\n",
+            "oo::class create Derived {\n",
+            "    superclass Base\n",
+            "    method twice {} { my speak }\n",
+            "}\n",
+            "set d [Derived new]\n",
+            "$d speak\n",
+        );
+        let analysis = analyse(src);
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let speak = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("speak lens");
+        assert_eq!(speak.command_title, "2 references", "{lenses:?}");
+        // Lens and peek (from the `Base::speak` declaration) must agree.
+        assert_lens_matches_references(src, 1);
+    }
+
+    #[test]
+    fn lens_counts_namespaced_class_method() {
+        // TP: a class defined inside a namespace, instance created and its
+        // method dispatched — the qualified-name resolution must hold up.
+        let src = concat!(
+            "namespace eval app {\n",
+            "    oo::class create Widget {\n",
+            "        method render {} {}\n",
+            "    }\n",
+            "}\n",
+            "set w [app::Widget new]\n",
+            "$w render\n",
+        );
+        let analysis = analyse(src);
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        // `method render` sits on line 2.
+        let render = lenses
+            .iter()
+            .find(|l| l.range.start_line == 2)
+            .expect("render lens");
+        assert_eq!(render.command_title, "1 reference", "{lenses:?}");
+        assert_lens_matches_references(src, 2);
+    }
+
+    #[test]
+    fn lens_counts_obj_method_call_inside_proc_body() {
+        // TP: the dispatch lives inside a proc body, which the top-level
+        // segment scan skips — the resolver descends proc bodies explicitly.
+        let src = concat!(
+            "oo::class create Dog {\n",
+            "    method bark {} {}\n",
+            "}\n",
+            "set d [Dog new]\n",
+            "proc run {} {\n",
+            "    global d\n",
+            "    $d bark\n",
+            "}\n",
+        );
+        let analysis = analyse(src);
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let bark = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("bark lens");
+        assert_eq!(bark.command_title, "1 reference", "{lenses:?}");
+    }
+
+    #[test]
+    fn lens_unknown_instance_method_is_not_counted() {
+        // TN/FP guard: `$x bark` where `x` has no recorded class is not a
+        // resolvable dispatch, so it must not count toward `Dog::bark`.
+        let src = concat!(
+            "oo::class create Dog {\n",
+            "    method bark {} {}\n",
+            "}\n",
+            "$x bark\n",
+        );
+        let analysis = analyse(src);
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let bark = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("bark lens");
+        assert_eq!(bark.command_title, "0 references", "{lenses:?}");
+    }
+
+    #[test]
+    fn lens_classmethod_count_matches_peek() {
+        // A class-side method (`classmethod`) gets a lens, and its count must
+        // equal the peek exactly.  External class-side dispatch (`Factory
+        // build`) is not an instance-receiver form, so the count is 0 here —
+        // and the peek agrees, which is the invariant under test.
+        let src = concat!(
+            "oo::class create Factory {\n",
+            "    classmethod build {} {}\n",
+            "}\n",
+            "Factory build\n",
+        );
+        let analysis = analyse(src);
+        // Locate the classmethod lens by name span; skip if the analyser
+        // build for this dialect didn't record the class-side method.
+        let build_span = match analysis
+            .all_classes
+            .values()
+            .find_map(|c| c.class_methods.get("build"))
+        {
+            Some(m) if !m.name_span.is_empty() => m.name_span,
+            _ => return,
+        };
+        let li = LineIndex::new(src);
+        let name_line = li.position_at_utf16(build_span.start(), src).line;
+        assert_lens_matches_references(src, name_line);
     }
 }
