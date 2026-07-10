@@ -293,3 +293,52 @@ suite("Expanded subcommand position (FP-STY-18)", () => {
     }
   });
 });
+
+// FP-SH-13 / FP-SH-15 / FP-SH-18 — command/variable indirection and the
+// array-element / numeric-shimmer precision fixes, end-to-end through the
+// real server (fixture `shimmerIndirection.tcl`).
+//
+//   • `aliased` (lines 4–10): an `interp alias {} myset {} set` store still
+//     resolves to the real `set`, so its int/string oscillation fires S102.
+//   • `arrayelems` (lines 14–18): `arr(n)` (int) and `arr(label)` (string)
+//     collapse onto one symbol but are independent slots — no S100/S101.
+//   • `numeric` (lines 23–34): a Numeric/String oscillation seeded by an Int
+//     entry, previously masked to OVERDEFINED by `type_join` — now fires S102.
+suite("Command/variable indirection + numeric shimmer (FP-SH-13/15/18)", () => {
+  const docUri = getDocUri("shimmerIndirection.tcl");
+
+  test("aliased set and int-seeded numeric loops fire S102 (true case)", async () => {
+    await activate(docUri);
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "S102"),
+    });
+    const s102Lines = linesWithCode(diags, "S102");
+    assert.ok(s102Lines.length >= 1, "expected at least one S102 (analysis ran)");
+    // The aliased-store oscillation fires inside `aliased`'s loop body (7–8).
+    assert.ok(
+      s102Lines.some((ln) => ln >= 5 && ln <= 9),
+      `expected S102 in the aliased loop (lines 5-9); got [${s102Lines}]`,
+    );
+    // The numeric/string oscillation fires inside `numeric`'s loop (>= 24).
+    assert.ok(
+      s102Lines.some((ln) => ln >= 24),
+      `expected S102 in the numeric loop (line >= 24); got [${s102Lines}]`,
+    );
+  });
+
+  test("array-element conflation stays silent for S100/S101 (false case)", async () => {
+    await activate(docUri);
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "S102"),
+    });
+    // No S100/S101 on the array-element proc lines (15–18).
+    for (const code of ["S100", "S101"]) {
+      for (const ln of linesWithCode(diags, code)) {
+        assert.ok(
+          !(ln >= 14 && ln <= 18),
+          `unexpected ${code} on array-element line ${ln} (independent slots)`,
+        );
+      }
+    }
+  });
+});

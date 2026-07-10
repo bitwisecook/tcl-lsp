@@ -108,35 +108,36 @@ pub fn detect_interp_alias_delete(cmd_name: &str, args: &[String]) -> Option<Str
     Some(normalise_qualified_name(alias_name))
 }
 
-/// Detect a static `rename oldName newName` — both names literal text,
-/// `newName` non-empty (an empty `newName` *deletes* `oldName` rather
-/// than renaming it, per Tcl semantics, and creates no new alias).
+/// Detect a static `rename oldName newName` **move** — both names literal
+/// text, `newName` non-empty (an empty `newName` *deletes* `oldName` rather
+/// than renaming it, per Tcl semantics, and creates no new alias), and neither
+/// dynamically substituted.
 ///
-/// Returns `(qualified_new_name, old_name)` — the same `(alias name,
-/// target)` shape [`detect_interp_alias`] returns, so both feed the same
-/// [`CommandAliasMap`]: for every purpose this map serves (arg-role /
-/// body-form resolution, taint sink dispatch), a `rename` is
-/// indistinguishable from an `interp alias {} newName {} oldName` —
-/// calling through the new name really does invoke the old command.
+/// Returns `(old_name, new_name)` — **both raw**, unlike [`detect_interp_alias`]
+/// which pre-qualifies its alias name at the global root. `rename` binds
+/// `newName` in the *current* namespace (`rename set myset` inside
+/// `namespace eval ::ns` creates `::ns::myset`, not global `::myset`), so the
+/// caller qualifies `new` against the namespace the `rename` runs in;
+/// qualifying here would wrongly root every renamed name globally. For every
+/// purpose the alias map serves (arg-role / body-form resolution, taint sink
+/// dispatch, canonical-command typing), a `rename` is then indistinguishable
+/// from an `interp alias {} newName {} oldName` — calling through the new name
+/// really does invoke the old command.
 #[must_use]
 pub fn detect_rename(cmd_name: &str, args: &[String]) -> Option<(String, String)> {
     if cmd_name != "rename" || args.len() != 2 {
         return None;
     }
-    let old = &args[0];
-    let new = &args[1];
-    if old.is_empty() || new.is_empty() {
+    let (old, new) = (&args[0], &args[1]);
+    // `rename $old newName` / `rename oldName [x]` — a dynamic component means
+    // the true target isn't known statically; recording it verbatim would map
+    // `newName` to a literal, never-registered string like `"$old"`, silently
+    // dropping arg-role/body/sink treatment for `newName` calls instead of just
+    // leaving them unaliased. An empty `new` is a deletion, not a rename.
+    if old.is_empty() || new.is_empty() || is_dynamic_word(old) || is_dynamic_word(new) {
         return None;
     }
-    // `rename $old newName` / `rename oldName [x]` — a dynamic component
-    // means the true target isn't known statically; recording it verbatim
-    // would map `newName` to a literal, never-registered string like
-    // `"$old"`, silently dropping arg-role/body/sink treatment for
-    // `newName` calls instead of just leaving them unaliased.
-    if is_dynamic_word(old) || is_dynamic_word(new) {
-        return None;
-    }
-    Some((normalise_qualified_name(new), old.clone()))
+    Some((old.clone(), new.clone()))
 }
 
 /// Look up a command alias, namespace-aware.
@@ -245,9 +246,10 @@ mod tests {
 
     #[test]
     fn detect_rename_basic() {
+        // Returns `(old, new)` raw — the caller namespace-qualifies `new`.
         let args: Vec<String> = vec!["eval".into(), "myEval".into()];
         let result = detect_rename("rename", &args);
-        assert_eq!(result, Some(("::myEval".to_string(), "eval".to_string())));
+        assert_eq!(result, Some(("eval".to_string(), "myEval".to_string())));
     }
 
     #[test]
@@ -288,11 +290,13 @@ mod tests {
 
     #[test]
     fn detect_rename_qualified_new_name() {
+        // A `::`-qualified NEW is returned verbatim; the caller
+        // (`join_namespace`) leaves it rooted globally.
         let args: Vec<String> = vec!["eval".into(), "::ns::myEval".into()];
         let result = detect_rename("rename", &args);
         assert_eq!(
             result,
-            Some(("::ns::myEval".to_string(), "eval".to_string()))
+            Some(("eval".to_string(), "::ns::myEval".to_string()))
         );
     }
 

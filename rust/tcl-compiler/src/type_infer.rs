@@ -561,6 +561,60 @@ fn container_retrieval_object_type(
     Some(TypeLattice::object_of(class))
 }
 
+/// Infer the intrep a `set`-style value *word* stores.
+///
+/// The shared body of the [`Statement::AssignValue`] typing and the
+/// value-passthrough typing of a canonically-`set` [`Statement::Call`] (an
+/// aliased or renamed `set`).  A pure `$var` reference inherits the source
+/// version's type, a `[cmd …]` command substitution takes the command's
+/// declared return type (or an object-collection retrieval), an
+/// interpolated / otherwise-complex word is `String`, and a bare literal is
+/// classified by its Tcl intrep.
+fn value_word_type<S: std::hash::BuildHasher>(
+    value: &str,
+    uses: &HashMap<Symbol, u32>,
+    types: &HashMap<ValueKey, TypeLattice>,
+    registry: &CommandRegistry,
+    known_classes: &HashSet<String, S>,
+    namespace: &str,
+    ssa: &SsaFunction,
+) -> TypeLattice {
+    let stripped = value.trim();
+    // Pure variable reference: inherit source type.
+    if is_pure_var_ref(stripped) {
+        let name = normalise_var_name(stripped);
+        if let Some(&ver) = ssa.var_symbol(name).and_then(|s| uses.get(&s))
+            && ver > 0
+        {
+            return ssa
+                .var_symbol(name)
+                .and_then(|s| types.get(&(s, ver)))
+                .cloned()
+                .unwrap_or_else(TypeLattice::unknown);
+        }
+        return TypeLattice::unknown();
+    }
+    // Command substitution: [cmd ...].
+    if stripped.starts_with('[')
+        && stripped.ends_with(']')
+        && let Some((cmd, args)) = parse_command_substitution(stripped)
+    {
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        // A `dict get $coll k` / `lindex $coll i` on an object-homogeneous
+        // collection yields an `OBJECT(element_class)` — resolved before
+        // the command's declared (`String`/`Overdefined`) return type.
+        if let Some(t) = container_retrieval_object_type(&cmd, &arg_refs, uses, types, ssa) {
+            return t;
+        }
+        return return_type_for_command(registry, &cmd, &arg_refs, known_classes, namespace);
+    }
+    // String interpolation or complex value.
+    if value.contains('$') || value.contains('[') {
+        return TypeLattice::of(TclType::String);
+    }
+    literal_type(value)
+}
+
 /// Infer the type produced by `stmt` under the current `types` map.
 #[must_use]
 fn evaluate_type_def<S: std::hash::BuildHasher>(
@@ -591,64 +645,57 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
         }
 
         Statement::AssignValue { value, .. } => {
-            let stripped = value.trim();
-            // Pure variable reference: inherit source type.
-            if is_pure_var_ref(stripped) {
-                let name = normalise_var_name(stripped);
-                if let Some(&ver) = ssa.var_symbol(name).and_then(|s| uses.get(&s))
-                    && ver > 0
-                {
-                    return ssa
-                        .var_symbol(name)
-                        .and_then(|s| types.get(&(s, ver)))
-                        .cloned()
-                        .unwrap_or_else(TypeLattice::unknown);
-                }
-                return TypeLattice::unknown();
-            }
-            // Command substitution: [cmd ...].
-            if stripped.starts_with('[')
-                && stripped.ends_with(']')
-                && let Some((cmd, args)) = parse_command_substitution(stripped)
-            {
-                let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-                // A `dict get $coll k` / `lindex $coll i` on an object-homogeneous
-                // collection yields an `OBJECT(element_class)` — resolved before
-                // the command's declared (`String`/`Overdefined`) return type.
-                if let Some(t) = container_retrieval_object_type(&cmd, &arg_refs, uses, types, ssa)
-                {
-                    return t;
-                }
-                return return_type_for_command(
-                    registry,
-                    &cmd,
-                    &arg_refs,
-                    known_classes,
-                    namespace,
-                );
-            }
-            // String interpolation or complex value.
-            if value.contains('$') || value.contains('[') {
-                return TypeLattice::of(TclType::String);
-            }
-            literal_type(value)
+            value_word_type(value, uses, types, registry, known_classes, namespace, ssa)
         }
 
         Statement::Incr { .. } => TypeLattice::of(TclType::Int),
 
         Statement::Call {
             command,
+            canonical_command,
             args,
             defs,
             ..
         } if !defs.is_empty() => {
+            // Resolve the source spelling through the lowerer's
+            // `canonical_command` snapshot (an `interp alias` / `rename`
+            // target) so a renamed or aliased builtin — `rename set myset` /
+            // `interp alias {} myset {} set` — is typed by the *real* command's
+            // registry spec, not left as an unknown `Call` (OVERDEFINED).
+            let canon = canonical_command.as_deref().unwrap_or(command);
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+            // A canonically-`set` store keeps its runtime `Call` shape for
+            // codegen — an aliased / renamed command is not inline-foldable,
+            // its binding may change by call time — but for the type lattice
+            // its single def takes the *value word's* intrep verbatim, exactly
+            // as the un-aliased [`Statement::AssignValue`] path does. Keyed off
+            // the canonical command's `Set` lowering hook (the registry's own
+            // "this is a value-passthrough store" fact), never the source
+            // spelling. The two-arg / single-def guard restricts this to the
+            // `set VAR VALUE` setter shape (no `interp alias` prepended args
+            // shifting the value word out of `args[1]`, and not the one-arg
+            // getter, which has no def).
+            if defs.len() == 1
+                && arg_refs.len() == 2
+                && registry.get(canon).and_then(|s| s.lowering_hook)
+                    == Some(tcl_registry::hooks::LoweringHookId::Set)
+            {
+                return value_word_type(
+                    arg_refs[1],
+                    uses,
+                    types,
+                    registry,
+                    known_classes,
+                    namespace,
+                    ssa,
+                );
+            }
             // A `dict set/append/lappend VAR …` or `lappend VAR …` that stores
             // object handles types VAR as a collection *of* that class, so a
             // later `[dict get $VAR k] method …` retrieval resolves the element.
             // `dict set VAR ?key…? value` takes a single trailing value; the
             // `*append`/`lappend` forms take every word after the key/var.
-            if let Some((container, target, value_args)) = match (command.as_str(), &arg_refs[..]) {
+            if let Some((container, target, value_args)) = match (canon, &arg_refs[..]) {
                 ("dict", ["set", target, rest @ ..]) if !rest.is_empty() => {
                     Some((TclType::Dict, *target, &rest[rest.len() - 1..]))
                 }
@@ -685,9 +732,14 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
             // name.  The former `defs.len() > 1` heuristic guessed it from the
             // write count and mistyped every single-target destructure — a
             // `lassign $l x` target wrongly typed `List`, a `regexp … capture`
-            // wrongly typed `Int` (issue #867).
+            // wrongly typed `Int` (issue #867).  Resolved through `canon`, not
+            // the source spelling, so an aliased / renamed destructuring writer
+            // (`rename lassign mylassign`) still resolves to the real command's
+            // `VarWriteTyping` — the same canonical-command indirection the
+            // value-passthrough store above and the collection-element typing
+            // use (FP-SH-15).
             let typing = registry
-                .resolve_call(command, &arg_refs, DialectSet::empty())
+                .resolve_call(canon, &arg_refs, DialectSet::empty())
                 .map_or(VarWriteTyping::ReturnValue, |r| r.var_write_typing());
             match typing {
                 // The default typing stores the command's *return value* in the
@@ -704,7 +756,7 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
                 // `Fixed` override still applies at any def count).
                 VarWriteTyping::ReturnValue if defs.len() > 1 => TypeLattice::overdefined(),
                 VarWriteTyping::ReturnValue => {
-                    return_type_for_command(registry, command, &arg_refs, known_classes, namespace)
+                    return_type_for_command(registry, canon, &arg_refs, known_classes, namespace)
                 }
                 VarWriteTyping::Fixed(t) => TypeLattice::of(t),
                 VarWriteTyping::Destructured => TypeLattice::overdefined(),
@@ -893,10 +945,17 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
             Statement::Barrier { .. } => TypeLattice::overdefined(),
             Statement::Call {
                 command,
+                canonical_command,
                 args,
                 defs,
                 ..
-            } if !defs.is_empty() && is_scope_alias_call(ctx.registry, command, args) => {
+            } if !defs.is_empty()
+                && is_scope_alias_call(
+                    ctx.registry,
+                    canonical_command.as_deref().unwrap_or(command),
+                    args,
+                ) =>
+            {
                 TypeLattice::overdefined()
             }
             _ => evaluate_type_def(
@@ -1454,6 +1513,33 @@ mod tests {
         });
         assert!(x_is_int, "expected x to be Int");
         assert!(y_is_int, "expected y to inherit Int type from x");
+    }
+
+    /// An aliased `set` (`interp alias {} myset {} set`) keeps its runtime
+    /// `Call` shape, but its single def takes the *value word's* intrep — the
+    /// canonical-command value-passthrough. `myset x 5` types x as Int, exactly
+    /// as `set x 5` would, so the renamed/aliased store is no longer an opaque
+    /// OVERDEFINED `Call`.
+    #[test]
+    fn aliased_set_call_types_def_from_value() {
+        use crate::compilation_unit::CompilationUnit;
+        let cu = CompilationUnit::build_for(
+            "interp alias {} myset {} set\nproc ::g {} { myset x 5\n return $x }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::g").unwrap();
+        let x_is_int = fu.types.iter().any(|((name, _), t)| {
+            fu.ssa.var_name(*name) == "x" && t.tcl_type == Some(TclType::Int)
+        });
+        assert!(
+            x_is_int,
+            "aliased `myset x 5` should type x as Int (value passthrough): {:?}",
+            fu.types
+                .iter()
+                .map(|((n, v), t)| (fu.ssa.var_name(*n), *v, t.to_string()))
+                .collect::<Vec<_>>()
+        );
     }
 
     /// `AssignValue` with a command substitution uses the command's return type.

@@ -215,7 +215,12 @@ pub(super) fn per_loop_body_types(
 /// unrelated elements; reuses the same array-reference recognition
 /// [`crate::codegen::values::split_array_ref`] already provides for
 /// codegen, rather than re-deriving the `(...)` pattern here.
-fn array_element_symbols(cfg: &CfgFunction, ssa: &SsaFunction) -> HashSet<Symbol> {
+///
+/// `pub(super)` so the sibling use-site (S100/S101) and phi-merge (S101) passes
+/// share the *same* exclusion: every element of an array collapses onto one
+/// symbol for all three passes, so any one of them can conflate two
+/// stable-but-different elements into a spurious shimmer (FP-SH-13).
+pub(super) fn array_element_symbols(cfg: &CfgFunction, ssa: &SsaFunction) -> HashSet<Symbol> {
     let mut out = HashSet::new();
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
@@ -756,6 +761,28 @@ mod tests {
         let fu = cu.function("::f").unwrap();
         let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
         assert!(w.is_empty(), "traced variable must not thunk: {w:?}");
+    }
+
+    /// A self-referential loop whose body-exit is `SHIMMERED(Numeric, String)`
+    /// merging with an `Int` loop entry: pre-fix `type_join` degraded
+    /// `Known(Int) ⊔ SHIMMERED(Numeric, String)` to OVERDEFINED (exact-equality
+    /// match), silently masking the genuine thunk. The numeric-refinement join
+    /// keeps the header phi SHIMMERED, so S102 now fires.
+    #[test]
+    fn thunking_detected_for_numeric_shimmer_masked_by_int_entry() {
+        let cu = CompilationUnit::build_for(
+            "proc f {n} { set x 0\n \
+             while {$n > 0} { if {$n % 2} { set x [expr {$x + $n}] } else { set x \"s$x\" }\n \
+             incr n -1 }\n return $x }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        assert!(
+            w.iter().any(|tw| tw.variable == "x"),
+            "numeric/string oscillation seeded by an Int entry must fire S102: {w:?}"
+        );
     }
 
     /// TP control for the above: the identical loop shape, untraced, must

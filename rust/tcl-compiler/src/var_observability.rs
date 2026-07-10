@@ -53,7 +53,8 @@ use crate::ir::Statement;
 use crate::lowering::variable_trace_write_indices;
 use crate::naming::normalise_var_name;
 use crate::var_scoping::{
-    global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
+    global_declaration_indices, my_variable_declaration_indices, upvar_local_declaration_indices,
+    variable_declaration_indices,
 };
 
 bitflags! {
@@ -133,6 +134,21 @@ pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRe
         }
         "variable" => {
             for i in variable_declaration_indices(args) {
+                mark(state, args, i, EscapeFlag::NAMESPACE);
+            }
+        }
+        // `my variable NAME …` (TclOO) binds each instance variable into the
+        // method's local scope — a namespace-style scope alias, exactly like a
+        // bare `variable`, but reached through the `my` dispatch so the base
+        // command word is `my` and the declared names follow a `variable`
+        // subcommand word. An instance variable's intrep is externally
+        // determined (the constructor / other methods can set it to anything),
+        // so a use-site / merge / loop-oscillation check must treat it as
+        // escaping — the same protection FP-SH-02 / FP-SH-16 give a bare
+        // `variable`. (Traces are handled below by the registry-driven
+        // `variable_trace_write_indices`, not a hardcoded `"trace"` arm.)
+        "my" => {
+            for i in my_variable_declaration_indices(args) {
                 mark(state, args, i, EscapeFlag::NAMESPACE);
             }
         }
@@ -456,6 +472,22 @@ mod tests {
                 .contains(EscapeFlag::NAMESPACE)
         );
         assert!(obs.flag_at(fu.cfg.entry, 2, "v").writes_outer_scope());
+    }
+
+    #[test]
+    fn my_variable_marks_namespace_alias() {
+        // `my variable x` (TclOO) binds an instance variable into the method
+        // scope — a namespace-style escape, exactly like a bare `variable`.
+        let c = cu("proc ::p {} { my variable x\nset x 1 }");
+        let fu = c.function("::p").unwrap();
+        let reg = registry();
+        let obs = analyse_var_observability(&fu.cfg, &reg);
+        assert!(
+            obs.flag_at(fu.cfg.entry, 2, "x")
+                .contains(EscapeFlag::NAMESPACE),
+            "my variable x should mark x as a namespace alias"
+        );
+        assert!(obs.escaping_var_names().contains("x"));
     }
 
     #[test]

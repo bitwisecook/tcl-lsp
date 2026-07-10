@@ -949,34 +949,8 @@ pub fn uses_of(
             uses_in_assignment(stmt, scanner, registry, &mut vars_found, &mut reads_own_def);
         }
 
-        Statement::Call {
-            command,
-            args,
-            defs,
-            reads,
-            reads_own_defs,
-            tokens,
-            ..
-        } => {
-            scan_command_words(
-                command,
-                args,
-                tokens.as_ref(),
-                scanner,
-                registry,
-                &mut vars_found,
-            );
-            for name in reads {
-                if !name.is_empty() {
-                    vars_found.insert(name.clone());
-                }
-            }
-            if *reads_own_defs {
-                for name in defs {
-                    vars_found.insert(name.clone());
-                    reads_own_def.insert(name.clone());
-                }
-            }
+        Statement::Call { .. } => {
+            uses_in_call(stmt, scanner, registry, &mut vars_found, &mut reads_own_def);
         }
 
         Statement::Return { value, expr, .. } => {
@@ -1073,6 +1047,116 @@ pub fn uses_of(
 /// name-bearing variable(s) (the genuine read the dead-store / unused checks
 /// need — `defs_of` withholds the static def); a static target that the RHS
 /// also reads is recorded as read-before-write. Extracted from [`uses_of`].
+/// The value word an aliased / renamed `set` (`interp alias {} myset {} set` /
+/// `rename set myset`) stores, or `None` when the `Call` is not a
+/// value-passthrough store in the `set VAR VALUE` shape.
+///
+/// Keyed off the *canonical* command's `Set` lowering hook — the registry's
+/// own "this is a value-passthrough store" fact — so the read scan matches the
+/// un-aliased `set`, never the source spelling. The two-arg / single-def guard
+/// restricts it to the setter shape (no `interp alias` prepended args shifting
+/// the value word out of `args[1]`, and not the one-arg getter, which has no
+/// def).
+fn canonical_set_value<'a>(
+    command: &str,
+    canonical_command: Option<&str>,
+    args: &'a [String],
+    defs: &[String],
+    registry: &CommandRegistry,
+) -> Option<&'a str> {
+    if defs.len() != 1 || args.len() != 2 {
+        return None;
+    }
+    let canon = canonical_command.unwrap_or(command);
+    let is_set = registry.get(canon).and_then(|s| s.lowering_hook)
+        == Some(tcl_registry::hooks::LoweringHookId::Set);
+    is_set.then(|| args[1].as_str())
+}
+
+/// Reads of a `set`-style value word, matching what the un-aliased `set`
+/// lowering captures: an `[expr {…}]` value is parsed as an expression (so a
+/// braced `$x`, which plain word scanning would miss, is seen); any other value
+/// word is scanned for `$`-substitutions, recursing into `[...]` command
+/// substitutions.
+fn set_value_reads(
+    value: &str,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+) -> BTreeSet<String> {
+    let trimmed = value.trim();
+    if let Some(inner) = trimmed.strip_prefix('[').and_then(|s| s.strip_suffix(']'))
+        && let Some(expr_arg) =
+            crate::lowering_hooks::extract_single_expr_arg(inner, &HashSet::new())
+    {
+        return vars_in_expr(&crate::parse_expr(&expr_arg, None));
+    }
+    scanner.scan_word(value, registry)
+}
+
+/// Variable reads of a [`Statement::Call`]: its head + non-body argument
+/// words, the explicit `VarRead`-role names (`reads`), a read-modify-write
+/// target (`reads_own_defs`), and — for an aliased / renamed `set` — its value
+/// word. Mirrors [`uses_in_assignment`]'s shape; extracted from [`uses_of`].
+///
+/// An aliased / renamed `set` (`interp alias {} myset {} set` / `rename set
+/// myset`) stays a runtime `Call` (codegen must not inline it — the binding may
+/// change by call time), but for def/use it reads its value word exactly as the
+/// un-aliased `set VAR VALUE` would: an `[expr {…}]` value is parsed as an
+/// expression so a braced `$x` is seen, and the target is a read-before-write
+/// whenever the value references it. Without this a loop-carried self-store
+/// (`myset x [expr {$x+1}]`) would look write-only, so no header phi would form
+/// and S102 could never fire on the aliased store.
+fn uses_in_call(
+    stmt: &Statement,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+    vars_found: &mut BTreeSet<String>,
+    reads_own_def: &mut BTreeSet<String>,
+) {
+    let Statement::Call {
+        command,
+        canonical_command,
+        args,
+        defs,
+        reads,
+        reads_own_defs,
+        tokens,
+        ..
+    } = stmt
+    else {
+        return;
+    };
+    scan_command_words(
+        command,
+        args,
+        tokens.as_ref(),
+        scanner,
+        registry,
+        vars_found,
+    );
+    if let Some(value) =
+        canonical_set_value(command, canonical_command.as_deref(), args, defs, registry)
+    {
+        for v in set_value_reads(value, scanner, registry) {
+            if defs.iter().any(|d| d.as_str() == v) {
+                reads_own_def.insert(v.clone());
+            }
+            vars_found.insert(v);
+        }
+    }
+    for name in reads {
+        if !name.is_empty() {
+            vars_found.insert(name.clone());
+        }
+    }
+    if *reads_own_defs {
+        for name in defs {
+            vars_found.insert(name.clone());
+            reads_own_def.insert(name.clone());
+        }
+    }
+}
+
 fn uses_in_assignment(
     stmt: &Statement,
     scanner: &mut VarReferenceScanner,
@@ -2682,6 +2766,51 @@ mod tests {
             header_blk.phis.iter().any(|p| p.name == si),
             "header should have a phi for i"
         );
+    }
+
+    #[test]
+    fn canonical_set_value_recognises_aliased_setter_only() {
+        let reg = default_registry();
+        let s = |xs: &[&str]| xs.iter().map(|x| (*x).to_owned()).collect::<Vec<_>>();
+        // Aliased `set` (2-arg setter) → the value word.
+        assert_eq!(
+            canonical_set_value("myset", Some("set"), &s(&["x", "0"]), &s(&["x"]), &reg),
+            Some("0")
+        );
+        // One-arg getter (no def) → None.
+        assert_eq!(
+            canonical_set_value("myset", Some("set"), &s(&["x"]), &[], &reg),
+            None
+        );
+        // A non-set canonical (an aliased `puts`) → None.
+        assert_eq!(
+            canonical_set_value("myputs", Some("puts"), &s(&["x", "0"]), &s(&["x"]), &reg),
+            None
+        );
+        // No canonical + a bare non-set command → None.
+        assert_eq!(
+            canonical_set_value("frobnicate", None, &s(&["x", "0"]), &s(&["x"]), &reg),
+            None
+        );
+    }
+
+    #[test]
+    fn set_value_reads_parses_braced_expr() {
+        let reg = default_registry();
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        // A braced `[expr {…}]` value: plain word scanning misses `$x` inside
+        // the braces, so it must be parsed as an expression.
+        assert!(
+            set_value_reads("[expr {$x + 1}]", &mut scanner, &reg).contains("x"),
+            "braced expr value must expose $x as a read"
+        );
+        // A command-substitution value with a bare `$x` is caught by ordinary
+        // recursion.
+        assert!(set_value_reads("[string range $x 0 end]", &mut scanner, &reg).contains("x"));
+        // A pure var-ref value.
+        assert!(set_value_reads("$y", &mut scanner, &reg).contains("y"));
+        // A bare literal reads nothing.
+        assert!(set_value_reads("0", &mut scanner, &reg).is_empty());
     }
 
     #[test]

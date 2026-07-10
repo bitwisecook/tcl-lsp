@@ -498,6 +498,85 @@ proc f {} {
     );
 }
 
+/// FP-SH-13 (extended to S100): the S102 array-element guard now also covers
+/// the use-site pass. `set arr(n) 5; set arr(label) "text"; incr arr(n)` reads
+/// the conflated `arr` symbol as STRING (the last element written), but
+/// `arr(n)` is always INT — an independent slot, not a shimmer. No S100.
+#[test]
+fn fp_sh_13_array_element_use_site_no_s100() {
+    let src = "\
+proc f {} {
+    set arr(n) 5
+    set arr(label) \"text\"
+    incr arr(n)
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-13: array-element use-site must not fire S100/S101; got {got:?}"
+    );
+}
+
+/// FP-SH-13 (extended to S101): the same conflation inside a loop must not
+/// fire the per-iteration S101 either.
+#[test]
+fn fp_sh_13_array_element_loop_use_site_no_s101() {
+    let src = "\
+proc f {items} {
+    set arr(n) 5
+    foreach i $items {
+        set arr(label) \"text\"
+        incr arr(n)
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-13: array-element loop use-site must not fire S101; got {got:?}"
+    );
+}
+
+/// FP-SH-13 (extended to the phi pass): a branch merge of two different array
+/// elements must not phi-shimmer the conflated base symbol.
+#[test]
+fn fp_sh_13_array_element_phi_merge_no_s100() {
+    let src = "\
+proc f {c} {
+    if {$c} {
+        set arr(n) 5
+    } else {
+        set arr(s) \"hi\"
+    }
+    return [string length $arr(n)]
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-13: array-element phi merge must not fire S100/S101; got {got:?}"
+    );
+}
+
+/// FP-SH-13 TP control for the use-site guard: a plain scalar with the same
+/// int→string→incr shape still fires — the array guard is keyed on array-base
+/// symbols only, not a blanket use-site suppression.
+#[test]
+fn fp_sh_13_scalar_use_site_still_fires() {
+    let src = "\
+proc f {} {
+    set n hello
+    incr n
+}
+";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-13 TP: plain scalar use-site shimmer must still fire S100; got {:?}",
+        codes(src, D)
+    );
+}
+
 // ---------------------------------------------------------------------------
 // FP-SH-14 — a self-referential variable that oscillates through an
 // intermediate branch merge (not a direct loop-header incoming edge) is
@@ -571,12 +650,17 @@ proc f {n} {
 // oscillation seed
 // ---------------------------------------------------------------------------
 
-/// FP-SH-15: a command renamed onto `set` (`rename set myset`) is not
-/// resolved back to the registry's `set` spec for type inference, so the
-/// literal-driven oscillation through the alias is invisible — conservative
-/// (no S102), not a crash or a false positive through the indirection.
+/// FP-SH-15 (detection gap now closed): a command renamed onto `set`
+/// (`rename set myset`) resolves back to the registry's `set` spec. The
+/// lowerer records the rename in the same binding snapshot it uses for
+/// `interp alias` (so the store carries `canonical_command = set`), and
+/// `type_infer` types the def from its value word while `ssa::uses_of` scans
+/// that value like the un-aliased `set` — so the loop-carried int/string
+/// oscillation forms a header phi and fires S102. Genuine thunk, not a false
+/// positive: `myset` *is* `set`, so the per-iteration re-conversion is real
+/// (verified against tclsh — the renamed store behaves identically to `set`).
 #[test]
-fn fp_sh_15_rename_indirection_no_s102() {
+fn fp_sh_15_rename_indirection_fires_s102() {
     let src = "\
 proc f {} {
     rename set myset
@@ -587,18 +671,47 @@ proc f {} {
     }
 }
 ";
-    let got = codes(src, D);
     assert!(
-        !got.iter().any(|c| c == "S102"),
-        "FP-SH-15: rename indirection must not fire a spurious S102; got {got:?}"
+        fires(src, D, "S102"),
+        "FP-SH-15: rename-onto-set oscillation must resolve to `set` and fire S102; got {:?}",
+        codes(src, D)
     );
 }
 
-/// FP-SH-15: `interp alias {} myset {} set` is the same indirection through
-/// the interpreter's alias table rather than `rename` — same conservative,
-/// no-S102 outcome.
+/// FP-SH-15: a `rename` inside `namespace eval ::ns` binds NEW in *that*
+/// namespace (`::ns::myset`), not globally — so the namespace-qualified call
+/// resolves to `set` and fires S102. Regression for the Codex review point
+/// that qualifying NEW with `normalise_qualified_name` alone recorded a global
+/// `::myset` (missing the real `::ns::myset` calls, and mis-analysing a global
+/// `myset` that Tcl considers invalid).
 #[test]
-fn fp_sh_15_interp_alias_indirection_no_s102() {
+fn fp_sh_15_namespaced_rename_indirection_fires_s102() {
+    let src = "\
+namespace eval ::ns {
+    rename set myset
+    proc f {} {
+        myset x 0
+        while {1} {
+            myset x [expr {$x + 1}]
+            myset x [string range $x 0 end]
+        }
+    }
+}
+";
+    assert!(
+        fires(src, D, "S102"),
+        "FP-SH-15: a namespace-relative rename must bind ::ns::myset and fire S102; got {:?}",
+        codes(src, D)
+    );
+}
+
+/// FP-SH-15 (detection gap now closed): `interp alias {} myset {} set` is the
+/// same indirection through the interpreter's alias table rather than
+/// `rename` — the lowerer already records it, so threading
+/// `canonical_command` through `type_infer` / `ssa` closes it identically to
+/// the rename case. S102 fires on the genuine oscillation.
+#[test]
+fn fp_sh_15_interp_alias_indirection_fires_s102() {
     let src = "\
 interp alias {} myset {} set
 proc f {} {
@@ -609,10 +722,35 @@ proc f {} {
     }
 }
 ";
+    assert!(
+        fires(src, D, "S102"),
+        "FP-SH-15: interp-alias-onto-set oscillation must resolve to `set` and fire S102; got {:?}",
+        codes(src, D)
+    );
+}
+
+/// FP-SH-15 TN control: an `interp alias` / `rename` onto a command that is
+/// *not* a value-passthrough store must not gain a spurious oscillation. Here
+/// `myputs` aliases `puts` (no def, no value passthrough), so the loop body
+/// defines nothing and S102 cannot fire — proves the canonical-command
+/// resolution is keyed on the real command's spec, not a blanket
+/// "aliased command oscillates".
+#[test]
+fn fp_sh_15_alias_onto_non_store_no_s102() {
+    let src = "\
+interp alias {} myputs {} puts
+proc f {} {
+    set x 0
+    while {1} {
+        myputs [expr {$x + 1}]
+        myputs [string range $x 0 end]
+    }
+}
+";
     let got = codes(src, D);
     assert!(
         !got.iter().any(|c| c == "S102"),
-        "FP-SH-15: interp alias indirection must not fire a spurious S102; got {got:?}"
+        "FP-SH-15: alias onto a non-store command must not fabricate S102; got {got:?}"
     );
 }
 
@@ -689,6 +827,58 @@ oo::class create C {
     assert!(
         !got.iter().any(|c| c == "S102"),
         "FP-SH-15: 'my variable' idiom must not fire S102; got {got:?}"
+    );
+}
+
+/// FP-SH-15 (blind-spot fix, the case that was a genuine false positive):
+/// `my variable x` *followed by a local `set x 0`* used to give the loop a
+/// versioned `Known(Int)` entry and fire a spurious S102 — the instance
+/// variable's intrep is externally determined (the constructor / other
+/// methods can set it), so this must stay silent, the same protection a bare
+/// `variable x; set x 0` already had (FP-SH-16).
+#[test]
+fn fp_sh_15_my_variable_locally_initialised_no_s102() {
+    let src = "\
+oo::class create C {
+    method run {} {
+        my variable x
+        set x 0
+        while {1} {
+            set x [expr {$x + 1}]
+            set x [string range $x 0 end]
+        }
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-15: locally-initialised 'my variable' instance var must not fire S102; got {got:?}"
+    );
+}
+
+/// FP-SH-15 TP control: an *unaliased* plain local in the same method, with
+/// the identical oscillation, must still fire — proves the `my variable`
+/// recognition is keyed on the declared instance-variable name, not a blanket
+/// suppression of S102 inside method bodies.
+#[test]
+fn fp_sh_15_my_variable_unaliased_sibling_local_still_fires() {
+    let src = "\
+oo::class create C {
+    method run {} {
+        my variable x
+        set local 0
+        while {1} {
+            set local [expr {$local + 1}]
+            set local [string range $local 0 end]
+        }
+    }
+}
+";
+    assert!(
+        fires(src, D, "S102"),
+        "FP-SH-15 TP: an unaliased sibling local in the method must still fire S102; got {:?}",
+        codes(src, D)
     );
 }
 
@@ -863,8 +1053,8 @@ fn fp_sh_09_untraced_variable_still_fires() {
 }
 
 /// FP-SH-09: the trace can be installed by a *different* proc — the
-/// module-wide `ModuleVariableTraces` fact must still widen the def, not
-/// just a same-function `analyse_var_observability` scan.
+/// module-wide variable-trace fact must still widen the def, not just a
+/// same-function `analyse_var_observability` scan.
 #[test]
 fn fp_sh_09_module_wide_trace_from_another_proc_suppresses_shimmer() {
     let src = "\
@@ -990,6 +1180,45 @@ fn fp_sh_17_regsub_output_in_arithmetic_still_fires() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// FP-SH-18 — a numeric loop-body oscillation seeded by an Int entry was
+// masked: `type_join`'s exact-equality Known-vs-Shimmered rule degraded
+// `Known(Int) ⊔ SHIMMERED(Numeric, String)` to OVERDEFINED, so the genuine
+// thunk went undetected. The numeric-refinement join keeps it SHIMMERED.
+// ---------------------------------------------------------------------------
+
+/// FP-SH-18 (detection gap now closed): a self-referential loop whose body
+/// oscillates between `Numeric` (from `expr {$x + …}` on the loop-carried
+/// `$x`) and `String`, seeded by an `Int` entry (`set x 0`). Pre-fix the
+/// loop-header phi joined `Known(Int)` with the body's `SHIMMERED(Numeric,
+/// String)` and — because `Int != Numeric` under exact equality — degraded to
+/// OVERDEFINED, silently masking the thunk. `Int` is subsumed by the `Numeric`
+/// side, so the join now stays SHIMMERED and S102 fires. Genuine thunk
+/// (verified against tclsh: the loop pays a per-iteration numeric↔string
+/// re-conversion).
+#[test]
+fn fp_sh_18_numeric_shimmer_masked_by_int_entry_fires_s102() {
+    let src = "\
+proc f {n} {
+    set x 0
+    while {$n > 0} {
+        if {$n % 2} {
+            set x [expr {$x + $n}]
+        } else {
+            set x \"s$x\"
+        }
+        incr n -1
+    }
+    return $x
+}
+";
+    assert!(
+        fires(src, D, "S102"),
+        "FP-SH-18: numeric/string oscillation seeded by an Int entry must fire S102; got {:?}",
+        codes(src, D)
+    );
+}
+
 /// FP-SH-17: a call that writes several variables under the default typing
 /// (`catch {body} resultVar optionsVar`) must not broadcast its `Int` status
 /// return onto them — `result`/`opts` (and the body's `msg`) stay overdefined,
@@ -1033,5 +1262,27 @@ fn fp_sh_17_lassign_leftover_capture_is_list() {
     assert!(
         !got.iter().any(|c| c == "S100" || c == "S101"),
         "FP-SH-17: lassign leftover is a List used as a list — no shimmer; got {got:?}"
+    );
+}
+
+/// FP-SH-18 TN control: a loop whose body is uniformly numeric (`Int` entry,
+/// `expr`-only body) must NOT fire — the numeric refinement must not turn a
+/// clean numeric loop into a spurious shimmer.
+#[test]
+fn fp_sh_18_uniform_numeric_loop_no_s102() {
+    let src = "\
+proc f {n} {
+    set x 0
+    while {$n > 0} {
+        set x [expr {$x + $n}]
+        incr n -1
+    }
+    return $x
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-18: a uniformly-numeric loop must not fire S102; got {got:?}"
     );
 }
