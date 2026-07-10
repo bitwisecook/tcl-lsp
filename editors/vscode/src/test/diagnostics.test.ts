@@ -151,6 +151,44 @@ suite("Diagnostics", () => {
     );
   });
 
+  test("T100 fires for a tainted if-condition operand but not for a pure string compare", async () => {
+    const taintUri = getDocUri("diagnostics-taint-t100.tcl");
+    await activate(taintUri);
+    const diagnostics = await waitForDiagnostics(taintUri, { minCount: 2 });
+
+    const t100 = diagnostics.filter((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "T100";
+    });
+
+    // Two T100 hits: the direct `eval $cmd` sink, and `$n` as a numeric
+    // operand of `+` inside the `if` condition — conditions aren't a bare
+    // `expr` statement, but are evaluated exactly like one.
+    assert.ok(t100.length >= 2, `Expected at least 2 T100 diagnostics, got ${t100.length}`);
+    assert.ok(
+      t100.every((d) => d.severity === vscode.DiagnosticSeverity.Warning),
+      "T100 should be a warning",
+    );
+    assert.ok(
+      t100.some((d) => d.message.includes("eval")),
+      `Expected a T100 for the eval sink, got: ${t100.map((d) => d.message).join("; ")}`,
+    );
+    assert.ok(
+      t100.some((d) => d.message.includes("numeric coercion")),
+      `Expected a T100 for the if-condition numeric operand, got: ${t100.map((d) => d.message).join("; ")}`,
+    );
+
+    // The `if {$who eq "admin"}` branch (pure string compare) and the
+    // `subst -nocommands $template` call (command substitution disabled)
+    // must not raise T100 at all.
+    assert.ok(
+      t100.every((d) => !d.message.includes("who") && !d.message.includes("template")),
+      `Neither $who (eq compare) nor $template (subst -nocommands) should raise T100, got: ${t100
+        .map((d) => d.message)
+        .join("; ")}`,
+    );
+  });
+
   test("W125 does not fire for correctly placed else", async () => {
     const orphanedUri = getDocUri("diagnostics-orphaned.tcl");
     await activate(orphanedUri);

@@ -570,6 +570,7 @@ mod tests {
         assert!(c.taint_transform.is_none());
         assert!(c.taint_double_encode_colour.is_none());
         assert!(c.taint_sink_safe_colour.is_none());
+        assert!(c.taint_sink_gate.is_none());
         assert!(c.credential_options.is_empty());
         assert!(c.sensitive_headers.is_empty());
         assert!(c.setter_constraints.is_empty());

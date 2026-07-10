@@ -29,7 +29,7 @@ use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::prelude::DialectSet;
 use tcl_registry::{ArgRole, CommandRegistry};
 
-use crate::alias::{CommandAliasMap, detect_interp_alias, resolve_alias};
+use crate::alias::{CommandAliasMap, detect_interp_alias, detect_rename, resolve_alias};
 use crate::ir::{
     CommandTokens, ForeachIterator, MethodDef, MethodKind, Module, Procedure, Script, Statement,
 };
@@ -1068,10 +1068,17 @@ impl<'r> Lowerer<'r> {
         let cmd_name = seg.name();
         let args = seg.args();
 
-        // Detect `interp alias {} name {} target ?args?`.
+        // Detect `interp alias {} name {} target ?args?` and static
+        // `rename oldName newName` — both feed the same alias table, since
+        // calling through a renamed name and calling through an `interp
+        // alias` are indistinguishable for arg-role / body-form resolution
+        // and taint sink dispatch (`interp alias {} myEval {} eval` and
+        // `rename eval myEval` both make `myEval $x` reach the `eval` sink).
         let args_owned: Vec<String> = args.to_vec();
         if let Some((qualified, target, prepended)) = detect_interp_alias(cmd_name, &args_owned) {
             self.aliases.insert(qualified, (target, prepended));
+        } else if let Some((qualified, target)) = detect_rename(cmd_name, &args_owned) {
+            self.aliases.insert(qualified, (target, Vec::new()));
         }
 
         self.record_namespace_directives(cmd_name, args, seg, namespace);

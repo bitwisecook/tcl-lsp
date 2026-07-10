@@ -98,6 +98,29 @@ pub fn detect_interp_alias_delete(cmd_name: &str, args: &[String]) -> Option<Str
     Some(normalise_qualified_name(alias_name))
 }
 
+/// Detect a static `rename oldName newName` — both names literal text,
+/// `newName` non-empty (an empty `newName` *deletes* `oldName` rather
+/// than renaming it, per Tcl semantics, and creates no new alias).
+///
+/// Returns `(qualified_new_name, old_name)` — the same `(alias name,
+/// target)` shape [`detect_interp_alias`] returns, so both feed the same
+/// [`CommandAliasMap`]: for every purpose this map serves (arg-role /
+/// body-form resolution, taint sink dispatch), a `rename` is
+/// indistinguishable from an `interp alias {} newName {} oldName` —
+/// calling through the new name really does invoke the old command.
+#[must_use]
+pub fn detect_rename(cmd_name: &str, args: &[String]) -> Option<(String, String)> {
+    if cmd_name != "rename" || args.len() != 2 {
+        return None;
+    }
+    let old = &args[0];
+    let new = &args[1];
+    if old.is_empty() || new.is_empty() {
+        return None;
+    }
+    Some((normalise_qualified_name(new), old.clone()))
+}
+
 /// Look up a command alias, namespace-aware.
 ///
 /// Returns `(target_cmd, prepended_args)` or `None`.
@@ -172,6 +195,42 @@ mod tests {
     fn detect_non_alias() {
         let args: Vec<String> = vec!["eval".into(), "{}".into(), "puts hello".into()];
         assert!(detect_interp_alias("interp", &args).is_none());
+    }
+
+    #[test]
+    fn detect_rename_basic() {
+        let args: Vec<String> = vec!["eval".into(), "myEval".into()];
+        let result = detect_rename("rename", &args);
+        assert_eq!(result, Some(("::myEval".to_string(), "eval".to_string())));
+    }
+
+    #[test]
+    fn detect_rename_wrong_command() {
+        let args: Vec<String> = vec!["eval".into(), "myEval".into()];
+        assert!(detect_rename("puts", &args).is_none());
+    }
+
+    #[test]
+    fn detect_rename_deletion_form_is_not_an_alias() {
+        // `rename oldName {}` *deletes* oldName — not a rename.
+        let args: Vec<String> = vec!["eval".into(), String::new()];
+        assert!(detect_rename("rename", &args).is_none());
+    }
+
+    #[test]
+    fn detect_rename_wrong_arity() {
+        assert!(detect_rename("rename", &["eval".to_string()]).is_none());
+        assert!(detect_rename("rename", &[]).is_none());
+    }
+
+    #[test]
+    fn detect_rename_qualified_new_name() {
+        let args: Vec<String> = vec!["eval".into(), "::ns::myEval".into()];
+        let result = detect_rename("rename", &args);
+        assert_eq!(
+            result,
+            Some(("::ns::myEval".to_string(), "eval".to_string()))
+        );
     }
 
     #[test]

@@ -1266,12 +1266,30 @@ fn propagate_statement_taints(
 /// gate [`find_setter_constraint_warnings`] uses for IRULE3101, rather than
 /// relying on whether the shared registry happens to have those specs
 /// loaded.
+///
+/// Before any of that, a command declaring
+/// [`tcl_registry::CommandSpec::taint_sink_gate`] gets one more check: when
+/// this call's own option flags disable its hazard (`subst -nocommands`),
+/// the call is not a sink at all, regardless of which code it would
+/// otherwise have classified as.
 fn classify_sink(
     registry: &CommandRegistry,
     command: &str,
     args: &[String],
     dialect: Option<&str>,
 ) -> Option<(DiagCode, String)> {
+    // A call whose own option flags disable this command's hazard for
+    // *this* invocation (e.g. `subst -nocommands $tainted`) is not a sink
+    // at all — checked before any classification below.
+    if let Some(spec) = registry.get(command)
+        && let Some(gate) = spec.taint_sink_gate
+    {
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        if !gate(&arg_refs) {
+            return None;
+        }
+    }
+
     let subcommand = args.first().map(String::as_str);
     let info = tcl_registry::taint::classify_taint_sinks(
         registry,
@@ -1889,6 +1907,14 @@ pub fn find_taint_warnings<S: std::hash::BuildHasher, E: std::hash::BuildHasher>
         for ssa_stmt in &ssa_block.statements {
             emit_statement_warnings(ssa_stmt, taints, registry, dialect, &mut warnings, ssa);
         }
+        let branch_ctx = BranchTaintCtx {
+            ssa_block,
+            ssa,
+            taints,
+            registry,
+            dialect,
+        };
+        emit_branch_condition_warnings(cfg, bn, &branch_ctx, &mut warnings);
     }
 
     warnings
@@ -1912,13 +1938,21 @@ fn emit_statement_warnings<S: std::hash::BuildHasher>(
     let stmt = &ssa_stmt.statement;
     let span = stmt.span();
 
-    // AssignExpr / ExprEval: any tainted variable in the expression
-    // is a T100 violation (direct expr injection).
-    if matches!(
-        stmt,
-        Statement::AssignExpr { .. } | Statement::ExprEval { .. }
-    ) {
-        emit_expr_warnings(&ssa_stmt.uses, taints, span, warnings, ssa);
+    // AssignExpr / ExprEval: a tainted variable in a numeric-coercion
+    // position of the expression is a T100 violation (direct expr
+    // injection) — see `collect_coercion_operands` for which operator
+    // positions coerce and which (string/list comparisons) don't.
+    let expr = match stmt {
+        Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => Some(expr),
+        _ => None,
+    };
+    if let Some(expr) = expr {
+        let resolve = |name: &str| {
+            let sym = ssa.var_symbol(name)?;
+            let ver = *ssa_stmt.uses.get(&sym)?;
+            Some((sym, ver))
+        };
+        emit_expr_coercion_warnings(expr, None, span, resolve, taints, warnings);
         return;
     }
 
@@ -1932,14 +1966,20 @@ fn emit_statement_warnings<S: std::hash::BuildHasher>(
         Statement::AssignValue { value, .. } => parse_command_substitution(value.trim()),
         _ => None,
     };
+    // Prefer the canonical target the lowerer already resolved
+    // (`stmt.canonical_command_or_source()`, populated for a resolved
+    // `interp alias` or static `rename`) over the source spelling, so
+    // `interp alias {} myEval {} eval; myEval $tainted` (or `rename eval
+    // myEval; myEval $tainted`) is classified against `eval`'s registry
+    // sink data instead of silently missing it because `"myEval"` isn't a
+    // registered command. Falls back to the source name unchanged when no
+    // alias/rename was resolved (the common case). `tokens` carries the
+    // per-argument-word spans used to narrow a sink warning's highlight to
+    // the one tainted argument (`tight_arg_span`) — only available for a
+    // real `Call`/`Barrier` statement; the `AssignValue` fallback
+    // re-parses a nested `[cmd …]` out of the `set` RHS text and has no
+    // per-word spans for it, so it falls back to the whole-statement span.
     let (command, call_args, tokens): (&str, &[String], Option<&CommandTokens>) = match stmt {
-        // Prefer the canonical target the lowerer already resolved
-        // (`stmt.canonical_command_or_source()`, populated for a resolved
-        // `interp alias`) over the source spelling, so `interp alias {}
-        // myputs {} puts; myputs $tainted` is classified against `puts`'s
-        // registry sink data instead of silently missing it because
-        // `"myputs"` isn't a registered command. Falls back to the source
-        // name unchanged when no alias was resolved (the common case).
         Statement::Call { args, tokens, .. } | Statement::Barrier { args, tokens, .. } => (
             stmt.canonical_command_or_source(),
             args.as_slice(),
@@ -2093,37 +2133,296 @@ fn emit_regexp_pattern_warnings<S: std::hash::BuildHasher>(
     }
 }
 
-/// Emit T100 warnings for every tainted use in an expression context.
-fn emit_expr_warnings<S: std::hash::BuildHasher>(
-    uses: &HashMap<Symbol, u32>,
+/// One `ExprNode::Var` occurrence sitting in a numeric-coercion-relevant
+/// operator position — the KCS T100 "expr operand: numeric coercion"
+/// hazard (see [`collect_coercion_operands`]).
+struct CoercionOperand {
+    name: String,
+    /// Offset of this occurrence relative to the expr's own source text,
+    /// when known. `None` for a var recovered from an unparsed
+    /// [`ExprNode::Raw`] fallback, which carries no per-occurrence
+    /// position.
+    rel_span: Option<(u32, u32)>,
+}
+
+/// `true` when a binary operator attempts numeric (or, for `And`/`Or`,
+/// boolean) coercion of its operands — Tcl's arithmetic, bitwise, shift,
+/// numeric-comparison, and logical operators all do. The pure string/list
+/// operators (`eq`/`ne`/`lt`/`le`/`gt`/`ge`, `in`/`ni`, and the iRules
+/// word-comparison forms `contains`/`starts_with`/`ends_with`/`equals`/
+/// `matches_glob`/`matches_regex`) never coerce — `expr {$tainted eq
+/// "danger"}` carries no numeric-coercion hazard at all, so flagging it
+/// with that message would be a false positive.
+const fn binop_coerces(op: crate::expr_ast::BinOp) -> bool {
+    use crate::expr_ast::BinOp;
+    !matches!(
+        op,
+        BinOp::StrEq
+            | BinOp::StrNe
+            | BinOp::StrLt
+            | BinOp::StrLe
+            | BinOp::StrGt
+            | BinOp::StrGe
+            | BinOp::In
+            | BinOp::Ni
+            | BinOp::Contains
+            | BinOp::StartsWith
+            | BinOp::EndsWith
+            | BinOp::StrEquals
+            | BinOp::MatchesGlob
+            | BinOp::MatchesRegex
+    )
+}
+
+/// Collect every `Var` occurrence of `expr` that sits in a position where
+/// Tcl attempts numeric or boolean coercion of the operand.
+///
+/// `in_context` is the coercion status of `expr` itself as seen by its
+/// parent (the top-level call passes `true`: a braced expr's overall
+/// result is used as a number/boolean by its caller). Recursion rules:
+///
+/// - `Binary`: both children inherit [`binop_coerces`] of the operator —
+///   a string-safe operator (`eq`, `in`, …) clears the context for its
+///   *own* operands, but a nested coercing sub-expression on either side
+///   still flags independently (`($a + 1) eq "3"` still flags `$a`).
+/// - `Unary`: all five unary operators (arithmetic negation, bitwise
+///   complement, logical `!`/`not`) coerce their operand.
+/// - `Ternary`: the condition is always boolean-coerced; each branch
+///   *inherits* the ternary's own context, since whichever branch's value
+///   flows out stands in for the ternary as a whole in the parent
+///   operator (`($c ? $tainted : 0) + 1` must still flag `$tainted`).
+/// - `Call` (a math function): every argument is numeric, regardless of
+///   context.
+/// - `Command` (`[cmd …]`, a nested command substitution): opaque — its
+///   contents are a separate statement's own arguments, not an expr
+///   operand at all, so this walk does not descend into it. If `cmd` is
+///   itself a T100/T101/… sink, that nested statement's own sink
+///   classification already covers it.
+/// - `Raw` (unparsed fallback text): position-blind but conservative —
+///   every variable found by [`ExprNode::vars`] is flagged (`rel_span:
+///   None`) regardless of `in_context`, since the parser gave up and the
+///   operator structure inside is unknown; erring towards a false
+///   positive here is safer than silently dropping coverage.
+fn collect_coercion_operands(expr: &ExprNode, in_context: bool, out: &mut Vec<CoercionOperand>) {
+    match expr {
+        ExprNode::Var {
+            name, start, end, ..
+        } => {
+            if in_context && !name.is_empty() {
+                out.push(CoercionOperand {
+                    name: name.clone(),
+                    rel_span: Some((*start, *end)),
+                });
+            }
+        }
+        ExprNode::Literal { .. } | ExprNode::String { .. } | ExprNode::Command { .. } => {}
+        ExprNode::Binary { op, left, right } => {
+            let child_ctx = binop_coerces(*op);
+            collect_coercion_operands(left, child_ctx, out);
+            collect_coercion_operands(right, child_ctx, out);
+        }
+        ExprNode::Unary { operand, .. } => {
+            collect_coercion_operands(operand, true, out);
+        }
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            collect_coercion_operands(condition, true, out);
+            collect_coercion_operands(true_branch, in_context, out);
+            collect_coercion_operands(false_branch, in_context, out);
+        }
+        ExprNode::Call { args, .. } => {
+            for arg in args {
+                collect_coercion_operands(arg, true, out);
+            }
+        }
+        ExprNode::Raw { text } => {
+            for name in (ExprNode::Raw { text: text.clone() }).vars() {
+                out.push(CoercionOperand {
+                    name,
+                    rel_span: None,
+                });
+            }
+        }
+    }
+}
+
+/// Emit T100 warnings for numeric-coercion-risk operands of a braced
+/// `expr` — an `AssignExpr`/`ExprEval` statement, or an `if`/`while`/`for`
+/// branch condition (see [`emit_branch_condition_warnings`]).
+///
+/// `resolve` maps a variable name occurring in `expr` to the `(Symbol,
+/// SSA version)` reaching this point; a `None` result skips that
+/// occurrence (no binding here). `base_offset`, when `Some`, is the
+/// absolute source offset of `expr`'s own text — `ExprNode::Var` offsets
+/// are relative to it, so a hit's absolute span is computable; `None`
+/// (or a `Raw`-derived hit with no `rel_span`) falls back to
+/// `fallback_span`, the caller's coarser span for the whole expr.
+fn emit_expr_coercion_warnings<S: std::hash::BuildHasher>(
+    expr: &ExprNode,
+    base_offset: Option<u32>,
+    fallback_span: Span,
+    resolve: impl Fn(&str) -> Option<(Symbol, u32)>,
     taints: &HashMap<ValueKey, TaintLattice, S>,
-    span: Span,
     warnings: &mut Vec<TaintWarning>,
-    ssa: &SsaFunction,
 ) {
-    for (&sym, &ver) in uses {
-        let name = ssa.var_name(sym);
-        if is_seeded_global_v0(name, ver) {
+    let mut hits = Vec::new();
+    collect_coercion_operands(expr, true, &mut hits);
+    let mut emitted: FxHashSet<Symbol> = FxHashSet::default();
+    for hit in hits {
+        let Some((sym, ver)) = resolve(&hit.name) else {
+            continue;
+        };
+        if is_seeded_global_v0(&hit.name, ver) || !emitted.insert(sym) {
             continue;
         }
         let t = taints
             .get(&(sym, ver))
             .copied()
             .unwrap_or(TaintLattice::clean());
-        if t.is_tainted() {
-            warnings.push(TaintWarning {
-                span,
-                variable: name.to_owned(),
-                sink_command: "expr".to_owned(),
-                code: DiagCode::T100,
-                message: format!(
-                    "Tainted variable ${name} flows into expr operand; \
-                     numeric coercion may misinterpret value \
-                     (use Tcl numeric-validation guards)"
-                ),
-                replacement: None,
-            });
+        if !t.is_tainted() {
+            continue;
         }
+        let span = match (hit.rel_span, base_offset) {
+            (Some((s, e)), Some(base)) => Span::new(base + s, base + e),
+            _ => fallback_span,
+        };
+        warnings.push(TaintWarning {
+            span,
+            variable: hit.name.clone(),
+            sink_command: "expr".to_owned(),
+            code: DiagCode::T100,
+            message: format!(
+                "Tainted variable ${} flows into expr operand; \
+                 numeric coercion may misinterpret value \
+                 (use Tcl numeric-validation guards)",
+                hit.name
+            ),
+            replacement: None,
+        });
+    }
+}
+
+/// Per-block context for the branch-condition taint scan, bundled so
+/// [`emit_branch_condition_warnings`] / [`emit_branch_condition_nested_command_warnings`]
+/// stay under the 7-argument clippy limit — mirrors [`TaintScan`] /
+/// [`SinkCall`] elsewhere in this module.
+struct BranchTaintCtx<'a, S> {
+    /// The condition's own block — `exit_versions` gives the SSA version of
+    /// each condition variable reaching the terminator.
+    ssa_block: &'a crate::ssa::SsaBlock,
+    ssa: &'a SsaFunction,
+    taints: &'a HashMap<ValueKey, TaintLattice, S>,
+    registry: &'a CommandRegistry,
+    dialect: Option<&'a str>,
+}
+
+/// Emit taint warnings for a block's `if`/`while`/`for` branch condition:
+/// T100 for a numeric-coercion-risk operand directly in the condition
+/// expression, plus the full sink family for any nested `[cmd …]`
+/// command substitution the condition contains (see
+/// [`emit_branch_condition_nested_command_warnings`]).
+///
+/// Branch conditions live on `Terminator::Branch`, not in
+/// `ssa_block.statements` — `find_taint_warnings`'s per-statement scan
+/// never reaches them, so without this dedicated pass a condition like
+/// `if {$tainted + 1 > 5} { … }` raised no T100 at all, even though it is
+/// evaluated exactly like any other braced `expr`. Resolves each
+/// condition variable's SSA version via the block's `exit_versions` (the
+/// version reaching the terminator), mirroring how
+/// [`crate::sccp::branch_decision`]'s constant-folding reads the same
+/// condition. Uses the condition's own span (tight — just the `{…}` text,
+/// not the enclosing `if`/`while`/`for` statement) for every hit: unlike
+/// `AssignExpr`/`ExprEval`, no absolute per-variable offset is threaded
+/// through the CFG-flattened `Terminator::Branch`, so this falls back to
+/// the whole-condition span rather than a per-operand one.
+fn emit_branch_condition_warnings<S: std::hash::BuildHasher>(
+    cfg: &CfgFunction,
+    bn: BlockId,
+    ctx: &BranchTaintCtx<'_, S>,
+    warnings: &mut Vec<TaintWarning>,
+) {
+    let Some(block) = cfg.blocks.get(&bn) else {
+        return;
+    };
+    let Some(Terminator::Branch {
+        condition, span, ..
+    }) = &block.terminator
+    else {
+        return;
+    };
+    let Some(fallback_span) = span else {
+        return;
+    };
+    let resolve = |name: &str| {
+        let sym = ctx.ssa.var_symbol(name)?;
+        let ver = ctx.ssa_block.exit_versions.get(&sym).copied().unwrap_or(0);
+        Some((sym, ver))
+    };
+    emit_expr_coercion_warnings(
+        condition,
+        None,
+        *fallback_span,
+        resolve,
+        ctx.taints,
+        warnings,
+    );
+    emit_branch_condition_nested_command_warnings(condition, ctx, *fallback_span, warnings);
+}
+
+/// Emit sink warnings for `[cmd …]` command substitutions nested inside a
+/// branch condition (e.g. `if {[exec $x] eq "ok"} { … }`).
+///
+/// A nested command substitution executes exactly like any other
+/// statement's, but the CFG builder's synthetic `<cond>` placeholder
+/// statement (`cfg_lower::lower_if`/`lower_for`/`lower_while`) records
+/// only `catch`/`regexp`-style output vars for W210 — not the real
+/// command name or arguments — so `find_taint_warnings`'s per-statement
+/// scan has nothing to dispatch `classify_sink` against for it. Uses
+/// [`ExprNode::command_texts`] to recover each nested `[cmd …]` verbatim
+/// (already the shape `classify_sink`/`emit_sink_warnings` expect, the
+/// same one the `AssignValue` "owned fallback" path re-parses), resolves
+/// its argument variables' SSA versions the same way as the coercion
+/// scan above, and reuses the very same sink classification and warning
+/// emission every other call site in this module goes through — no new
+/// per-command knowledge, just a new place a command's arguments can
+/// come from.
+fn emit_branch_condition_nested_command_warnings<S: std::hash::BuildHasher>(
+    condition: &ExprNode,
+    ctx: &BranchTaintCtx<'_, S>,
+    fallback_span: Span,
+    warnings: &mut Vec<TaintWarning>,
+) {
+    for text in condition.command_texts() {
+        let Some((command, call_args)) = parse_command_substitution(&text) else {
+            continue;
+        };
+        let Some((code, sink_label)) =
+            classify_sink(ctx.registry, &command, &call_args, ctx.dialect)
+        else {
+            continue;
+        };
+        let mut uses: HashMap<Symbol, u32> = HashMap::new();
+        for name in arg_var_names(&text) {
+            if let Some(sym) = ctx.ssa.var_symbol(&name) {
+                let ver = ctx.ssa_block.exit_versions.get(&sym).copied().unwrap_or(0);
+                uses.insert(sym, ver);
+            }
+        }
+        let env = TaintScan {
+            uses: &uses,
+            taints: ctx.taints,
+            ssa: ctx.ssa,
+        };
+        let sink_call = SinkCall {
+            command: &command,
+            args: &call_args,
+            registry: ctx.registry,
+            tokens: None,
+        };
+        emit_sink_warnings(&env, fallback_span, code, &sink_label, &sink_call, warnings);
     }
 }
 
@@ -2146,11 +2445,13 @@ struct SinkCall<'a> {
     /// Command registry — drives the position-aware sink filters
     /// (network-address slots, `[list]`-head recognition).
     registry: &'a CommandRegistry,
-    /// Per-word token spans for this call, when the statement carries them
-    /// (`None` for a synthetic call parsed out of an `AssignValue`'s command
-    /// substitution text, which has no token-span backing). Drives the
-    /// tight per-argument diagnostic span in [`sink_arg_span`] so the
-    /// squiggle lands on the tainted word, not the whole command.
+    /// Per-word source spans for this call, when available (`Statement::Call`
+    /// / `Statement::Barrier` carry them; the `AssignValue` "owned fallback"
+    /// path — a nested `[cmd …]` re-parsed out of a `set` RHS — does not, so
+    /// `None` there, and the synthetic sink call built for a nested `[cmd
+    /// …]` inside a branch condition also passes `None`). Drives
+    /// [`sink_arg_span`]'s per-argument highlighting; `None` falls every hit
+    /// back to the whole-statement span.
     tokens: Option<&'a CommandTokens>,
 }
 
@@ -2160,7 +2461,10 @@ struct SinkCall<'a> {
 /// name, `argv` does not). Falls back to `fallback` (the whole-statement
 /// span) when no token spans are available, or `name` isn't found in any
 /// argument word (e.g. it reached the sink through an already-resolved
-/// alias with no textual match).
+/// alias with no textual match). Narrows the T100/T101-family highlight
+/// from "the whole sink statement" down to "the one argument word that
+/// carries the tainted value" — e.g. `eval "prefix" $x "suffix"` underlines
+/// only `$x`.
 fn sink_arg_span(call: &SinkCall<'_>, name: &str, fallback: Span) -> Span {
     let Some(tokens) = call.tokens else {
         return fallback;
@@ -4387,6 +4691,320 @@ mod tests {
         assert!(
             warnings[0].span.start() > warnings[1].span.start(),
             "expected name order (aaa before bbb) regardless of source order: {warnings:?}",
+        );
+    }
+
+    /// TP: `interp alias {} myEval {} eval; myEval $x` still raises T100 —
+    /// `classify_sink` dispatches on `Statement::canonical_command_or_source()`,
+    /// so the alias resolves to `eval` even though the source spells the call
+    /// `myEval`, which is not itself a registered command.
+    #[test]
+    fn t100_fires_through_interp_alias_indirection() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "interp alias {} myEval {} eval\n\
+                       set x [gets stdin]\n\
+                       myEval $x\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().any(|w| w.code == DiagCode::T100),
+            "expected T100 through the `myEval` alias for `eval`, got {warnings:?}",
+        );
+    }
+
+    /// TP: `rename eval myEval; myEval $x` also raises T100 — the same
+    /// `CommandAliasMap` mechanism `interp alias` uses now also recognises
+    /// a static `rename oldName newName` (`detect_rename`), so a renamed
+    /// built-in resolves through `canonical_command_or_source()` exactly
+    /// like an `interp alias`.
+    #[test]
+    fn t100_fires_through_rename_indirection() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "rename eval myEval\n\
+                       set x [gets stdin]\n\
+                       myEval $x\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().any(|w| w.code == DiagCode::T100),
+            "expected T100 through the `myEval` rename of `eval`, got {warnings:?}",
+        );
+    }
+
+    /// TN: without the alias, a plain user command named `myEval` is not a
+    /// sink at all — proves the alias fix above isn't matching on the bare
+    /// name.
+    #[test]
+    fn t100_silent_for_unaliased_lookalike_command() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "proc myEval {x} { return $x }\n\
+                       set x [gets stdin]\n\
+                       myEval $x\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().all(|w| w.code != DiagCode::T100),
+            "a user proc named myEval must not be treated as the eval sink, got {warnings:?}",
+        );
+    }
+
+    /// TP: `puts $tainted` still raises T101 (not T100) end-to-end, now via
+    /// the registry-driven `taint_output_sink` dispatch in `classify_sink`
+    /// rather than a hardcoded `command == "puts"` match.
+    #[test]
+    fn t101_fires_for_puts_via_registry_driven_dispatch() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "set x [gets stdin]\nputs $x\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().any(|w| w.code == DiagCode::T101),
+            "expected T101 for tainted puts, got {warnings:?}",
+        );
+        assert!(
+            warnings.iter().all(|w| w.code != DiagCode::T100),
+            "puts must not also raise T100, got {warnings:?}",
+        );
+    }
+
+    /// FP fix / TN: `subst -nocommands $tainted` — the exact mitigation
+    /// `subst`'s own hover snippet recommends — must not raise T100, since
+    /// `-nocommands` disables the only hazard (command substitution) the
+    /// code names.
+    #[test]
+    fn t100_silent_for_subst_nocommands() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "set x [gets stdin]\nsubst -nocommands $x\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().all(|w| w.code != DiagCode::T100),
+            "subst -nocommands must not raise T100, got {warnings:?}",
+        );
+    }
+
+    /// TP regression: plain `subst $tainted` (no flags) keeps raising T100 —
+    /// the new sink gate must not suppress the common, genuinely dangerous
+    /// default-options call.
+    #[test]
+    fn t100_fires_for_subst_without_nocommands() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "set x [gets stdin]\nsubst $x\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().any(|w| w.code == DiagCode::T100),
+            "expected T100 for bare `subst $x`, got {warnings:?}",
+        );
+    }
+
+    /// TN: the Tcl 9.1 positive option form without `-commands` is equally
+    /// safe — `-variables` alone never runs command substitution.
+    #[test]
+    fn t100_silent_for_subst_positive_form_without_commands() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "set x [gets stdin]\nsubst -variables $x\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().all(|w| w.code != DiagCode::T100),
+            "subst -variables (Tcl 9.1 positive form) must not raise T100, got {warnings:?}",
+        );
+    }
+
+    /// TP: the Tcl 9.1 positive form *with* `-commands` present stays a sink.
+    #[test]
+    fn t100_fires_for_subst_positive_form_with_commands() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "set x [gets stdin]\nsubst -variables -commands $x\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().any(|w| w.code == DiagCode::T100),
+            "expected T100 for `subst -variables -commands $x`, got {warnings:?}",
+        );
+    }
+
+    /// FN fix — TP: a tainted variable used directly in an `if` branch
+    /// condition is evaluated exactly like any other braced `expr`, but
+    /// conditions live on `Terminator::Branch`, not in `ssa_block.statements`,
+    /// so the per-statement scan alone never reached them. Confirmed
+    /// previously absent by direct testing before `emit_branch_condition_warnings`
+    /// was added.
+    #[test]
+    fn t100_fires_for_tainted_if_condition() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source =
+            "proc f {} {\n  set x [gets stdin]\n  if {$x + 1 > 5} {\n    puts big\n  }\n}\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        let hit = warnings
+            .iter()
+            .find(|w| w.code == DiagCode::T100)
+            .unwrap_or_else(|| panic!("expected T100 for tainted if-condition, got {warnings:?}"));
+        // Tight span: just the `{...}` condition text, not the whole
+        // `if {...} { puts big }` statement (which also spans the body).
+        let text = &source[hit.span.start() as usize..hit.span.end() as usize];
+        assert!(
+            text.contains("$x + 1 > 5") && !text.contains("puts"),
+            "expected a condition-only span, got {text:?}",
+        );
+    }
+
+    /// TP: the same hazard through `while` and `for` conditions.
+    #[test]
+    fn t100_fires_for_tainted_while_and_for_conditions() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        for source in [
+            "proc f {} {\n  set x [gets stdin]\n  while {$x < 10} {\n    incr x\n  }\n}\n",
+            "proc f {} {\n  set x [gets stdin]\n  for {set i 0} {$i < $x} {incr i} {\n    puts $i\n  }\n}\n",
+        ] {
+            let cu = CompilationUnit::build_for(source, &registry, false)
+                .with_interprocedural(&registry, None);
+            let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+            assert!(
+                warnings.iter().any(|w| w.code == DiagCode::T100),
+                "expected T100 for tainted loop condition in {source:?}, got {warnings:?}",
+            );
+        }
+    }
+
+    /// FP fix / TN: `if {$tainted eq "admin"}` raises nothing — `eq` is a
+    /// pure string comparison with no numeric coercion, so neither the
+    /// "numeric coercion" message nor any other T100 variant applies. This
+    /// also proves the branch-condition pass reuses the same
+    /// `collect_coercion_operands` operator-context filter as the
+    /// `AssignExpr`/`ExprEval` path, not a re-implementation that flags
+    /// every variable indiscriminately.
+    #[test]
+    fn t100_silent_for_string_only_if_condition() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source =
+            "proc f {} {\n  set x [gets stdin]\n  if {$x eq \"admin\"} {\n    puts ok\n  }\n}\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().all(|w| w.code != DiagCode::T100),
+            "eq is a pure string compare, expected no T100, got {warnings:?}",
+        );
+    }
+
+    /// FP fix — TN: a tainted variable that only appears inside a nested
+    /// `[cmd $x]` command substitution within a braced expr must not be
+    /// flagged as an "expr operand: numeric coercion" hit — it flows into
+    /// that nested call's own argument, a completely different risk
+    /// category (code execution, if `cmd` is itself dangerous) which that
+    /// call's own sink classification already covers independently.
+    #[test]
+    fn t100_expr_operand_message_not_raised_for_var_only_in_nested_command_sub() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        // `string length` is a sanitiser (fixed numeric return) and not a
+        // sink, so the nested call itself raises nothing either — isolating
+        // the "expr operand" false positive this test targets.
+        let source = "proc f {} {\n  set x [gets stdin]\n  if {[string length $x] > 5} {\n    puts big\n  }\n}\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().all(|w| w.code != DiagCode::T100),
+            "$x only reaches a nested command-sub argument, not a direct \
+             expr operand; expected no T100, got {warnings:?}",
+        );
+    }
+
+    /// TP: a tainted variable nested through a nested command sub still
+    /// raises T100 when that nested command is *itself* a sink.
+    #[test]
+    fn t100_fires_when_nested_command_sub_is_itself_a_sink() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "proc f {} {\n  set x [gets stdin]\n  if {[exec $x] eq \"ok\"} {\n    puts ok\n  }\n}\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().any(|w| w.code == DiagCode::T100),
+            "expected T100 from the nested `exec $x`, got {warnings:?}",
+        );
+    }
+
+    /// TP: `$tainted` inside a ternary branch still flags when the ternary
+    /// itself sits in a numeric-coercion position — the branch's value
+    /// stands in for the ternary as a whole in the parent operator.
+    #[test]
+    fn t100_fires_for_tainted_var_through_ternary_branch_in_coercing_context() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "proc f {c} {\n  set x [gets stdin]\n  if {($c ? $x : 0) + 1 > 5} {\n    puts big\n  }\n}\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().any(|w| w.code == DiagCode::T100),
+            "expected T100 for $x flowing through a coerced ternary branch, got {warnings:?}",
+        );
+    }
+
+    /// TP: the ternary *condition* is always boolean-coerced, regardless of
+    /// the ternary's own surrounding context.
+    #[test]
+    fn t100_fires_for_tainted_var_in_ternary_condition() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source =
+            "proc f {} {\n  set x [gets stdin]\n  if {$x ? \"a\" : \"b\"} {\n    puts ok\n  }\n}\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().any(|w| w.code == DiagCode::T100),
+            "expected T100 for tainted ternary condition, got {warnings:?}",
+        );
+    }
+
+    /// Precision: `eval "prefix" $x "suffix"` underlines only the `$x`
+    /// argument word (2 characters), not the whole `eval "prefix" $x
+    /// "suffix"` statement — `tight_arg_span` narrows the highlight to the
+    /// one argument word that actually carries the tainted value, using the
+    /// real per-word source spans a compiled `Statement::Call` carries.
+    #[test]
+    fn t100_span_is_the_tainted_argument_word_not_the_whole_statement() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "proc f {} {\n  set x [gets stdin]\n  eval \"prefix\" $x \"suffix\"\n}\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        let hit = warnings
+            .iter()
+            .find(|w| w.code == DiagCode::T100)
+            .unwrap_or_else(|| panic!("expected T100, got {warnings:?}"));
+        let text = &source[hit.span.start() as usize..hit.span.end() as usize];
+        assert_eq!(
+            text, "$x",
+            "expected the tight `$x` argument span, got {text:?} from {hit:?}",
         );
     }
 }

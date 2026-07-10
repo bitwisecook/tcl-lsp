@@ -104,6 +104,13 @@ const MATRIX: &[Case] = &[
         silent: "set x [gets stdin]\nset n [string length $x]\nputs $n\n",
         note: "tainted data flows into puts output sink",
     },
+    Case {
+        code: "T100",
+        fire: "proc p {} {\n    set x [gets stdin]\n    if {$x + 1 > 5} {\n        puts big\n    }\n}\n",
+        silent: "proc p {} {\n    set x [gets stdin]\n    if {$x eq \"5\"} {\n        puts big\n    }\n}\n",
+        note: "tainted var as a direct numeric operand of an if-condition (+ is a \
+               coercion hazard; eq is a pure string compare and isn't)",
+    },
 ];
 
 /// The set of `code` strings carried by `diags` (mirrors Python `_codes`).
@@ -222,6 +229,10 @@ fn i230_fires_on_defect() {
 fn t101_fires_on_defect() {
     assert_fires(case_for("T101"));
 }
+#[test]
+fn t100_fires_on_defect() {
+    assert_fires(case_for("T100"));
+}
 
 // -- silent cases --------------------------------------------------------
 
@@ -264,6 +275,10 @@ fn i230_silent_on_corrected_form() {
 #[test]
 fn t101_silent_on_corrected_form() {
     assert_silent(case_for("T101"));
+}
+#[test]
+fn t100_silent_on_corrected_form() {
+    assert_silent(case_for("T100"));
 }
 
 // -- TestOptimisationMatrix ----------------------------------------------

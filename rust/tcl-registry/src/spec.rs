@@ -375,6 +375,20 @@ pub struct CommandSpec {
     /// `eval`/`uplevel`. `None` = no suppression colour.
     pub taint_sink_safe_colour: Option<TaintColour>,
 
+    /// Whether a call's own option flags make this command's taint-sink
+    /// classification live for *this* invocation, given its raw argument
+    /// words — checked before any sink code (T100 code-execution,
+    /// `taint_output_sink`, `taint_log_sink`) is assigned. `None` = the
+    /// sink always applies (the common case: `eval`/`uplevel`/`exec`/`expr`
+    /// take no flag that changes their hazard). `Some(f)` calls `f(args)`
+    /// (args excluding the command name); a `false` result suppresses sink
+    /// classification entirely for that call. Exists for commands like
+    /// `subst`, whose `-nocommands` flag (or, from Tcl 9.1, an
+    /// `-backslashes`/`-variables` positive form with no `-commands`)
+    /// disables the only hazard T100 warns about — see
+    /// `tcl_registry::commands::tcl::subst_::subst_evaluates_commands`.
+    pub taint_sink_gate: Option<fn(&[&str]) -> bool>,
+
     /// Option flags whose value carries a secret (e.g. `-password`,
     /// `-headers`) — drives credential-exposure checks. Empty = none.
     pub credential_options: &'static [&'static str],
@@ -536,6 +550,7 @@ impl CommandSpec {
         taint_transform: None,
         taint_double_encode_colour: None,
         taint_sink_safe_colour: None,
+        taint_sink_gate: None,
         credential_options: &[],
         sensitive_headers: &[],
         setter_constraints: &[],
