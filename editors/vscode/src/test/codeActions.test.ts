@@ -284,8 +284,7 @@ suite("Code Actions", () => {
     assert.ok(w004, "W004 diagnostic for -stride should be present");
 
     const actions = (await pollUntil(
-      () =>
-        vscode.commands.executeCommand("vscode.executeCodeActionProvider", w004Uri, w004.range),
+      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", w004Uri, w004.range),
       (r) =>
         Array.isArray(r) &&
         (r as vscode.CodeAction[]).some(
