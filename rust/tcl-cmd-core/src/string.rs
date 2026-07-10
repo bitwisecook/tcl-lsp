@@ -151,12 +151,34 @@ pub fn case_convert<O: ValueOps>(
             CaseMode::Title => i == first, // titlecase the first char, lowercase the rest
         };
         if uppercase {
-            out.extend(c.to_uppercase());
+            // `string totitle`'s first character uses the Unicode *titlecase*
+            // mapping (`Tcl_UniCharToTitle`), which differs from uppercase only
+            // for the Latin DŽ/LJ/NJ/DZ digraphs (string-17.7); everywhere else
+            // titlecase == uppercase.
+            match titlecase_digraph(c).filter(|_| matches!(mode, CaseMode::Title)) {
+                Some(tc) => out.push(tc),
+                None => out.extend(c.to_uppercase()),
+            }
         } else {
             out.extend(c.to_lowercase());
         }
     }
     Ok(ops.new_string(out))
+}
+
+/// The Unicode titlecase mapping for the characters whose `Titlecase_Mapping`
+/// differs from their `Uppercase_Mapping` — the Latin DŽ/LJ/NJ/DZ digraphs (all
+/// three case forms of each map to the single title form). Every other character
+/// titlecases to its uppercase mapping, so those return `None` (the caller falls
+/// back to [`char::to_uppercase`]).
+fn titlecase_digraph(c: char) -> Option<char> {
+    Some(match c {
+        '\u{01C4}' | '\u{01C5}' | '\u{01C6}' => '\u{01C5}', // DŽ / Dž / dž → Dž
+        '\u{01C7}' | '\u{01C8}' | '\u{01C9}' => '\u{01C8}', // LJ / Lj / lj → Lj
+        '\u{01CA}' | '\u{01CB}' | '\u{01CC}' => '\u{01CB}', // NJ / Nj / nj → Nj
+        '\u{01F1}' | '\u{01F2}' | '\u{01F3}' => '\u{01F2}', // DZ / Dz / dz → Dz
+        _ => return None,
+    })
 }
 
 /// `string replace string first last ?newstring?` — remove the characters in
@@ -723,6 +745,25 @@ mod tests {
         assert_eq!(word_start(&c, 0), 0);
         assert_eq!(word_start(&c, 100), 4); // clamps to last char of "def"
         assert_eq!(word_start(&[], 3), 0); // empty
+    }
+
+    #[test]
+    fn totitle_first_char_uses_titlecase_not_uppercase() {
+        let mut ops = StrOps;
+        let title = |ops: &mut StrOps, s: &str| {
+            case_convert(ops, &[s.to_owned()], CaseMode::Title, "u").unwrap()
+        };
+        // The Latin dz digraph (U+01F3) titlecases to Dž (U+01F2), not the
+        // uppercase DZ (U+01F1) — string-17.7; the rest is lowercased.
+        assert_eq!(title(&mut ops, "\u{01F3}BCabc"), "\u{01F2}bcabc");
+        assert_eq!(title(&mut ops, "\u{01C9}x"), "\u{01C8}x"); // lj → Lj
+        // A non-digraph first char still titlecases to its uppercase.
+        assert_eq!(title(&mut ops, "hELLO"), "Hello");
+        // `toupper` of the digraph is the uppercase form (U+01F1), not titlecase.
+        assert_eq!(
+            case_convert(&mut ops, &["\u{01F3}".to_owned()], CaseMode::Upper, "u").unwrap(),
+            "\u{01F1}"
+        );
     }
 
     #[test]
