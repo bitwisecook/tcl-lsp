@@ -1640,6 +1640,41 @@ proc use {} { bar 1 }
 }
 
 #[test]
+fn same_file_deleted_alias_call_is_unknown_command() {
+    // Regression: the arity resolver already abstains for a call through a
+    // deleted alias (`same_file_deleted_alias_call_does_not_false_positive`
+    // above), but `command_aliases` itself was never pruned on deletion, so
+    // W123 ("unknown command") still treated the deleted name as known —
+    // the call went through completely unchecked, neither an arity
+    // diagnostic nor an unknown-command one. Confirmed against tclsh 9.0.4:
+    // a call through a deleted alias fails "invalid command name".
+    let mut a = Analyser::new();
+    let src = "interp alias {} bar {} puts\ninterp alias {} bar {}\nbar 1\n";
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "a call through a deleted alias must be flagged unknown; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn same_file_redeclared_alias_after_deletion_is_still_known() {
+    // The inverse of the regression above: a name deleted and then
+    // re-declared later in the file must stay known — the re-declaration
+    // wins, exactly as `command_aliases`'s last-write-wins map already
+    // implies for arity resolution.
+    let mut a = Analyser::new();
+    let src = "interp alias {} bar {} puts\ninterp alias {} bar {}\ninterp alias {} bar {} format\nbar 1\n";
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "a re-declared alias must not be flagged unknown; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
 fn same_file_alias_query_form_is_not_a_deletion() {
     // `interp alias srcPath srcCmd` (no target path at all — 2 args
     // after `alias`) is a *query*, not a deletion; the alias must keep
@@ -3843,6 +3878,58 @@ fn tcloo_constructor_create_arity_accounts_for_mandatory_name() {
 }
 
 #[test]
+fn tcloo_constructor_createwithnamespace_arity_accounts_for_two_mandatory_words() {
+    // `createWithNamespace` consumes two mandatory words (the object name
+    // and the target namespace) ahead of the constructor's own
+    // parameters — same word layout as the sibling class-*definition*
+    // shape `oo::class createWithNamespace Name ::ns body` (see
+    // `oo_class_arg_roles`), just with constructor args standing in for
+    // the definition body. Unlike `new`/`create`, `createWithNamespace` is
+    // unexported by default (confirmed against `runtime/rust/src/cmd_oo.rs`'s
+    // `oo_class_factory`), so the class must `export` it for an external
+    // call to even reach the constructor — see the companion
+    // `..._is_not_checked_when_not_exported` test for the unexported case.
+    let src = |call: &str| {
+        format!(
+            "oo::class create Widget {{ constructor {{a b}} {{ }}; export createWithNamespace }}\n{call}\n"
+        )
+    };
+    assert_eq!(
+        e00x_codes_for(&src("Widget createWithNamespace fido ::ns 1")),
+        vec!["E002".to_owned()]
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget createWithNamespace fido ::ns 1 2")),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget createWithNamespace fido ::ns 1 2 3")),
+        vec!["E003".to_owned()]
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget createWithNamespace fido ::ns")),
+        vec!["E002".to_owned()],
+        "the mandatory object-name and namespace words themselves must be enforced"
+    );
+}
+
+#[test]
+fn tcloo_constructor_createwithnamespace_is_not_checked_when_not_exported() {
+    // `createWithNamespace` is unexported by default (confirmed against
+    // `runtime/rust/src/cmd_oo.rs`'s `oo_class_factory`: `cwn_ok =
+    // !block_unexported || cwn_exp`) — an external call to a class that
+    // never `export`s it raises "unknown method" at run time and never
+    // reaches the constructor, so it must not be arity-checked. This is
+    // the false positive Codex flagged on the companion test above before
+    // the `cd.exports` gate was added.
+    let src = "\
+oo::class create Widget { constructor {a b} { } }
+Widget createWithNamespace fido ::ns 1
+";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
 fn tcloo_constructor_arity_is_inherited_through_superclass() {
     // `Sub` declares no constructor of its own — `Base`'s is inherited
     // (confirmed against tclsh 9.0.4: a subclass with no `constructor`
@@ -3876,6 +3963,37 @@ fn tcloo_no_explicit_constructor_anywhere_is_never_arity_checked() {
     // `oo::class create Foo {}` then `Foo new 1 2 3` succeeds.
     let src = "oo::class create Widget { method bar {} { } }\nWidget new 1 2 3 4 5\n";
     assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_create_mandatory_name_is_checked_even_without_a_constructor() {
+    // Regression: a class with no explicit constructor anywhere in its MRO
+    // used to abstain from arity-checking `create` entirely, not just the
+    // constructor's own (unconstrained) parameters. `create`'s mandatory
+    // leading object-name word is enforced by the dispatcher itself,
+    // independent of the constructor -- confirmed against tclsh 9.0.4:
+    // `oo::class create Foo {}` then `Foo create` (no name) still raises
+    // "wrong # args", even though any number of trailing args succeeds.
+    let src = |call: &str| format!("oo::class create Widget {{ method bar {{}} {{ }} }}\n{call}\n");
+    assert_eq!(
+        e00x_codes_for(&src("Widget create")),
+        vec!["E002".to_owned()],
+        "the mandatory object-name word must still be enforced"
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget create fido")),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget create fido 1 2 3 4 5")),
+        Vec::<String>::new(),
+        "the unconstrained default constructor still accepts any trailing args"
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget new")),
+        Vec::<String>::new(),
+        "`new` has no mandatory name word, so it stays unchecked as before"
+    );
 }
 
 #[test]

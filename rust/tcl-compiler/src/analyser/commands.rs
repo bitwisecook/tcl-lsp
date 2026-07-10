@@ -159,6 +159,7 @@ impl Analyser {
                 cmd_ref,
                 &self.source,
                 self.registry.as_ref(),
+                || self.user_command_tail_names(),
             );
             self.result.diagnostics.extend(stray);
             // E201 (unterminated `[`) inside a body — `proc p {} { set y
@@ -621,7 +622,10 @@ impl Analyser {
     /// - **W001** (unknown subcommand on a `SubcommandSig` command) —
     ///   before `handle_namespace_eval_command` so `namespace foo` is
     ///   flagged.
-    /// - **E004** (malformed `if`).
+    /// - **E004** (malformed `if`) — dispatched generically off the
+    ///   resolved spec's `clause_shape_check` hook, not off `cmd_name`,
+    ///   so `if` is the trigger today only because it is the one
+    ///   command carrying that hook.
     /// - **W101** (`eval` with substituted args) — before body-walk
     ///   dispatch so the `ArgRole::Body` recursion into the `eval`
     ///   body still runs.
@@ -645,8 +649,13 @@ impl Analyser {
         }
         self.emit_w001_unknown_subcommand(cmd_name, args, cmd_tok, arg_tokens);
         self.emit_w002_disabled_command(cmd_name, cmd_tok);
-        if cmd_name == "if" {
-            self.emit_e004_malformed_if(args, cmd_tok, arg_tokens);
+        if let Some(checker) = self
+            .registry
+            .as_ref()
+            .and_then(|r| r.get(cmd_name))
+            .and_then(|spec| spec.clause_shape_check)
+        {
+            self.emit_e004_clause_shape_diagnostic(cmd_name, checker, args, cmd_tok, arg_tokens);
         }
         self.emit_w101_eval_string_concat(cmd_name, args, arg_tokens, arg_single);
         // W102 / W103 / W300 / W301 / W309 / W312 security-injection

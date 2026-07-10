@@ -56,6 +56,7 @@ pub mod base_objects;
 pub mod bigip;
 pub mod body_kind;
 pub mod cache;
+pub mod clause_shape;
 pub mod command_snapshot;
 pub mod commands;
 pub mod const_fold;
@@ -91,6 +92,7 @@ pub mod prelude {
     pub use crate::arg_role::{AppendedArity, ArgRole};
     pub use crate::arity::Arity;
     pub use crate::body_kind::BodyKind;
+    pub use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError};
     pub use crate::definer::{DefinerFamily, DefinitionBodyGrammar, MemberKind, MemberSpec};
     pub use crate::dialects::DialectSet;
     pub use crate::events::EventRequires;
@@ -120,6 +122,7 @@ pub use arity::Arity;
 pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::BodyKind;
 pub use cache::registry_for_dialect;
+pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
 pub use dialects::{
     DETECT_SCAN_BYTES, KNOWN_DIALECTS, available_dialects, detect_dialect,
     detect_dialect_directive, detect_dialect_from_source, dialect_from_extension,

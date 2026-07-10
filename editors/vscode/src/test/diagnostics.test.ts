@@ -37,6 +37,38 @@ suite("Diagnostics", () => {
     assert.ok(codes.includes("W100"), `Expected W100 (unbraced expr) in [${codes}]`);
     assert.ok(codes.includes("W101"), `Expected W101 (eval injection) in [${codes}]`);
     assert.ok(codes.includes("W302"), `Expected W302 (catch without result) in [${codes}]`);
+    assert.ok(codes.includes("E100"), `Expected E100 (stray close bracket) in [${codes}]`);
+    assert.ok(codes.includes("E102"), `Expected E102 (stray close brace) in [${codes}]`);
+  });
+
+  test("E100 range covers the stray ']' character itself", async () => {
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+
+    const e100 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "E100";
+    });
+    assert.ok(e100, "E100 diagnostic should be present");
+
+    // `set y string]` — the range must end one column past the `]`
+    // (LSP ranges are end-exclusive), not stop short of it.
+    const line = vscode.window.activeTextEditor!.document.lineAt(e100!.range.end.line).text;
+    assert.strictEqual(line[e100!.range.end.character - 1], "]");
+  });
+
+  test("E102 range covers the stray '}' character itself", async () => {
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+
+    const e102 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "E102";
+    });
+    assert.ok(e102, "E102 diagnostic should be present");
+
+    const line = vscode.window.activeTextEditor!.document.lineAt(e102!.range.end.line).text;
+    assert.strictEqual(line[e102!.range.end.character - 1], "}");
   });
 
   test("W100 diagnostic has error severity when expr contains substitutions", async () => {
@@ -135,6 +167,95 @@ suite("Diagnostics", () => {
       w125.length,
       2,
       `Expected exactly 2 W125 (orphaned else + elseif), got ${w125.length}: ${w125.map((d) => d.message).join("; ")}`,
+    );
+  });
+
+  test("E004 fires for each malformed `if` clause shape, precisely and not for well-formed ones", async () => {
+    const e004Uri = getDocUri("diagnostics-e004.tcl");
+    await activate(e004Uri);
+    const diagnostics = await waitForDiagnostics(e004Uri, { minCount: 3 });
+
+    const e004 = diagnostics.filter((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "E004";
+    });
+
+    // Exactly the three genuinely malformed `if`s in the fixture — the
+    // leading-`else`-as-condition and the well-formed elseif/else chain
+    // must not add a fourth or fifth.
+    assert.strictEqual(
+      e004.length,
+      3,
+      `Expected exactly 3 E004 diagnostics, got ${e004.length}: ${e004.map((d) => `${d.range.start.line}:${d.message}`).join("; ")}`,
+    );
+
+    const messages = e004.map((d) => d.message);
+    assert.ok(
+      messages.some((m) => m === 'No script following "1" argument'),
+      `Expected the "if {1}" case's message, got: ${messages.join("; ")}`,
+    );
+    assert.ok(
+      messages.some((m) => m === 'No script following "2" argument'),
+      `Expected the dangling "elseif {2}" case's message, got: ${messages.join("; ")}`,
+    );
+    assert.ok(
+      messages.some((m) => m === 'Extra words after "else" clause in "if" command'),
+      `Expected the extra-words case's message, got: ${messages.join("; ")}`,
+    );
+
+    // Every E004 is an error. The fixture's `if` heads sit at lines 3, 6,
+    // and 11 — a diagnostic landing on line 6 or 11 would mean the span
+    // regressed to whole-statement.
+    for (const d of e004) {
+      assert.strictEqual(d.severity, vscode.DiagnosticSeverity.Error, "E004 should be an error");
+    }
+    const byMessage = new Map(e004.map((d) => [d.message, d.range]));
+
+    // `if {1}` is a single-line statement, so its own tight anchor and a
+    // (hypothetical) whole-statement span would coincide on the line —
+    // the single-line range itself is the tight-anchoring proof here.
+    const conditionRange = byMessage.get('No script following "1" argument');
+    assert.strictEqual(conditionRange?.start.line, 3, `"if {1}" should anchor on line 3`);
+    assert.strictEqual(
+      conditionRange?.start.line,
+      conditionRange?.end.line,
+      `"if {1}" should anchor on a single line, got ${JSON.stringify(conditionRange)}`,
+    );
+
+    // The dangling `elseif {2}` sits on line 8; anchoring on line 6 (the
+    // `if` head) would mean the span regressed to whole-statement.
+    const elseifRange = byMessage.get('No script following "2" argument');
+    assert.strictEqual(elseifRange?.start.line, 8, `dangling "elseif {2}" should anchor on line 8`);
+    assert.strictEqual(
+      elseifRange?.start.line,
+      elseifRange?.end.line,
+      `dangling "elseif {2}" should anchor on a single line, got ${JSON.stringify(elseifRange)}`,
+    );
+
+    // The recognised final (multi-line) body legitimately spans several
+    // lines — the tightness property here is that it starts *after* the
+    // `if` head (line 11), not that it is single-line.
+    const extraWordsRange = byMessage.get('Extra words after "else" clause in "if" command');
+    assert.ok(
+      extraWordsRange !== undefined && extraWordsRange.start.line > 11,
+      `extra-words should anchor past line 11 (the \`if\` head), got ${JSON.stringify(extraWordsRange)}`,
+    );
+  });
+
+  test("E004 does not fire for a leading `else` bareword condition or a well-formed elseif/else chain", async () => {
+    const e004Uri = getDocUri("diagnostics-e004.tcl");
+    await activate(e004Uri);
+    const diagnostics = await waitForDiagnostics(e004Uri, { minCount: 3 });
+
+    const e004 = diagnostics.filter((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "E004";
+    });
+    // Neither the `if else { ... }` fixture block (lines 20-23) nor the
+    // well-formed elseif/else chain (lines 25-32) contributes an E004.
+    assert.ok(
+      e004.every((d) => d.range.start.line < 19),
+      `Expected no E004 at/after line 19 (the leading-else and well-formed blocks), got: ${e004.map((d) => `${d.range.start.line}:${d.message}`).join("; ")}`,
     );
   });
 
@@ -459,5 +580,46 @@ suite("Diagnostics", () => {
       w123On(diagnostics, 2),
       "the genuinely-unknown command must still be W123 (check stays live)",
     );
+  });
+
+  // Regression: the missing-open-brace recovery only excluded registry
+  // builtins from looking like an orphaned switch case, so a genuine call to
+  // an already-declared user proc with a single braced argument right after
+  // the case list — `renderReport { prose text }` — was swallowed as an
+  // extra case, corrupting the switch's argv and running the braced prose
+  // through command analysis as if it were Tcl (a phantom "Unknown command").
+  test("E101 recovery does not swallow a call to a known proc", async () => {
+    const uri = getDocUri("diagnostics-e101-known-proc.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.some((d) => codeOf(d) === "E101"),
+    });
+    const codes = diagnostics.map(codeOf);
+    assert.ok(codes.includes("E101"), `expected E101, got [${codes}]`);
+    assert.ok(
+      !codes.includes("W123"),
+      `the renderReport call must not be parsed as switch-case body text: [${codes}]`,
+    );
+  });
+
+  // Regression: the "stolen close brace" heuristic used to fire on whichever
+  // `}` was LAST in the swallowed text, even when that text spanned more
+  // than one top-level statement (here a sibling `proc` swallowed along with
+  // the `if` that actually stole the brace). Applying that fix parsed clean
+  // but silently nested the sibling proc inside the unclosed one instead of
+  // closing it where the missing brace belongs. Pure brace-counting can't
+  // safely pick a location once more than one statement is swallowed, so
+  // this must fall back to the generic (fix-less) E200 instead of guessing.
+  test("E103 abstains when the missing brace swallows more than one statement", async () => {
+    const uri = getDocUri("diagnostics-e103-multi-statement.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.some((d) => codeOf(d) === "E200" || codeOf(d) === "E103"),
+    });
+    const codes = diagnostics.map(codeOf);
+    assert.ok(!codes.includes("E103"), `expected no E103, got [${codes}]`);
+    assert.ok(codes.includes("E200"), `expected the generic E200, got [${codes}]`);
   });
 });

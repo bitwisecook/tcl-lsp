@@ -388,3 +388,137 @@ fn global_write_across_opaque_call_blocks_fold() {
     let source = result.get("source").and_then(Value::as_str).unwrap_or("");
     assert!(!source.contains("puts 6"), "{source:?}");
 }
+
+// Regression: a top-level variable reassigned via `global` inside a called
+// procedure must never be folded as if its initial assignment were a stable
+// constant. Confirmed against tclsh 8.6/9.0 as a real miscompile before this
+// was fixed — `puts $g` prints `17`, not the pre-call literal `4`.
+#[test]
+fn top_level_global_reassigned_by_callee_is_not_folded() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set g 4\nproc helper {} { global g\nset g 17 }\nhelper\nputs $g\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(
+        source.contains("puts $g"),
+        "must not fold `puts $g` to the stale literal 4: {source:?}"
+    );
+}
+
+// TN control: a top-level constant no procedure ever touches via `global`
+// must still fold — the whole-module scan introduced by the fix above must
+// not over-widen to every top-level variable.
+#[test]
+fn top_level_constant_untouched_by_any_proc_still_folds() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set safe_const 42\nproc other {} { puts unrelated }\nother\nputs $safe_const\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(source.contains("puts 42"), "{source:?}");
+}
+
+// Regression: O103 must not fold a call to a procedure renamed away
+// elsewhere in the file — confirmed against tclsh, which raises "invalid
+// command name" for the same script (the rename means `::foo` no longer
+// refers to the original body at runtime).
+#[test]
+fn proc_renamed_away_is_not_folded() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc ::foo {} { return 42 }\nrename ::foo ::bar\nputs [::foo]\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(source.contains("puts [::foo]"), "{source:?}");
+}
+
+// FN/TN control: an ordinary, untouched pure proc in the same file still
+// folds — the rename/alias trust gate must not over-widen to every
+// procedure in the module.
+#[test]
+fn untouched_proc_in_same_file_still_folds() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc ::foo {} { return 42 }\nproc ::other {} { return 1 }\nputs [::foo]\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(source.contains("puts 42"), "{source:?}");
+}
+
+// TP: a proc with a trailing variadic `args` parameter is seeded as a
+// canonical Tcl list (not skipped) — `args={2}` for `[::foo 1 2]` is a
+// one-element list, which renders bare as `2`, so `return $args` folds
+// end to end through the full LSP pipeline. Confirmed against tclsh 8.6:
+// `puts [::foo 1 2]` prints `2`.
+#[test]
+fn variadic_args_proc_returning_args_directly_folds() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc ::foo {a args} { return $args }\nputs [::foo 1 2]\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(source.contains("puts 2"), "{source:?}");
+}
+
+// Regression: a literal-body `uplevel #0 {...}` reassigns a variable in the
+// absolute global frame — at top level that coincides with the calling
+// scope, so it can mutate a variable there with no `global`/`upvar`
+// declaration of its own. Confirmed against tclsh 8.6/9.0 as a real
+// miscompile before SCCP widened tracked values across `Statement::UpFrame`:
+// `set n 5; uplevel #0 {set n 99}; puts $n` prints `99`, not the stale `5`.
+#[test]
+fn uplevel_hash0_reassignment_is_not_folded() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set n 5\nuplevel #0 { set n 99 }\nputs $n\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(
+        source.contains("puts $n"),
+        "must not fold `puts $n` to the stale literal 5: {source:?}"
+    );
+}
+
+// TN control: a plain top-level constant with no intervening `uplevel`/
+// `interp eval` barrier must still fold — the UpFrame-widening fix above
+// must not over-widen to every top-level variable.
+#[test]
+fn top_level_constant_untouched_by_uplevel_still_folds() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set n 5\nputs $n\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(source.contains("puts 5"), "{source:?}");
+}
+
+// Regression (P1, code review on #859): a `global` declaration hidden inside
+// a *static-body* `uplevel #0 { ... }` inside a proc lowers to
+// `Statement::UpFrame`, not a plain nested block. The whole-module
+// `scan_module_global_names` scan is built on the shared `for_each_statement`
+// visitor, which didn't descend into `UpFrame` bodies — so this name was
+// invisible to SCCP/O102's extra-escaping guard and the final read could
+// still fold to the stale pre-call literal. Confirmed against tclsh 8.6:
+// `set g 4; proc helper {} { uplevel #0 { global g; set g 17 } }; helper;
+// puts $g` prints `17`, not `4`.
+#[test]
+fn global_hidden_inside_uplevel_body_in_proc_is_not_folded() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set g 4\nproc helper {} { uplevel #0 { global g\nset g 17 } }\nhelper\nputs $g\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(
+        source.contains("puts $g"),
+        "must not fold `puts $g` to the stale literal 4: {source:?}"
+    );
+}

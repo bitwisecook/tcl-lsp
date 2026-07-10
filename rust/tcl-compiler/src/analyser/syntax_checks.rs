@@ -604,14 +604,28 @@ fn extract_first_word(stripped: &str) -> &str {
 /// Scan one command's token stream for stray `]` (E100) / `}` (E102)
 /// closers, returning the diagnostics (with quick-fixes where one can
 /// be derived).
+///
+/// `extra_known` lazily builds the set of user-declared command-like
+/// names seen so far in the walk (proc / class / alias / ensemble
+/// tails, tclOO instance commands, `unknown`-dispatch targets, inline
+/// stubs, …, see [`super::recovery::Analyser::user_command_tail_names`])
+/// — consulted alongside the registry so the E100 bracket-insertion
+/// heuristic recognises a call to an already-defined local command, not
+/// just a registry builtin. It is a closure rather than a pre-built set
+/// because this function runs on *every* command in the document while
+/// a stray closer is rare: building the set (a source-wide stub scan
+/// plus several map traversals) is only worth paying when a `]` is
+/// actually found, not on every clean command.
 pub(crate) fn stray_closer_diagnostics(
     cmd: &SegmentedCommand,
     source: &str,
     registry: Option<&CommandRegistry>,
+    extra_known: impl Fn() -> HashSet<String>,
 ) -> Vec<Diagnostic> {
     let tokens = &cmd.all_tokens;
     let in_quoted = classify_quoted_contexts(tokens);
     let mut out: Vec<Diagnostic> = Vec::new();
+    let mut cached_extra_known: Option<HashSet<String>> = None;
 
     for (idx, tok) in tokens.iter().enumerate() {
         if tok.kind != TokenType::Esc || in_quoted.get(idx).copied().unwrap_or(false) {
@@ -621,15 +635,17 @@ pub(crate) fn stray_closer_diagnostics(
             continue;
         };
 
-        // E102: a bare `}`.
-        if text == "}" {
-            out.push(make_e102(tok, source));
-            continue;
+        // E102: the first unescaped `}` anywhere in the token text (not
+        // just a token that is *only* `}` — `foo}bar` is just as stray
+        // as a lone `}`, matching the E100 compound-token scan below).
+        if let Some(rel) = first_unescaped_delim(text, b'}') {
+            out.push(make_e102(tok, rel, source));
         }
 
         // E100: the first unescaped `]` in the token text.
-        if let Some(rel) = first_unescaped_bracket(text) {
-            out.push(make_e100(cmd, tokens, idx, rel, source, registry));
+        if let Some(rel) = first_unescaped_delim(text, b']') {
+            let known = cached_extra_known.get_or_insert_with(&extra_known);
+            out.push(make_e100(cmd, tokens, idx, rel, source, registry, known));
         }
     }
     out
@@ -666,19 +682,61 @@ fn token_text<'a>(source: &'a str, tok: &Token) -> Option<&'a str> {
     }
 }
 
-/// Byte index of the first `]` not preceded by a backslash, or `None`.
-fn first_unescaped_bracket(text: &str) -> Option<usize> {
+/// Byte index of the first unescaped `delim` in `text`, or `None`.
+///
+/// A `delim` is escaped only when it is preceded by an *odd* run of
+/// backslashes — Tcl's `\\` is a literal backslash that consumes both
+/// bytes, so the next character is unaffected by it: `\]` escapes the
+/// bracket (odd run, length 1) but `\\]` does not (even run, length 2 —
+/// the pair collapses to one literal `\`, leaving the `]` bare).  A
+/// naive "preceded by exactly one `\`" check gets the even case wrong.
+fn first_unescaped_delim(text: &str, delim: u8) -> Option<usize> {
     let bytes = text.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] == b']' {
-            if i > 0 && bytes[i - 1] == b'\\' {
-                i += 1;
-                continue;
+        if bytes[i] == delim {
+            let mut backslashes = 0;
+            while backslashes < i && bytes[i - 1 - backslashes] == b'\\' {
+                backslashes += 1;
             }
-            return Some(i);
+            if backslashes % 2 == 0 {
+                return Some(i);
+            }
         }
         i += 1;
+    }
+    None
+}
+
+/// Locate the first *trailing* stray, unescaped `]` in a non-quoted
+/// `Esc` token of `tokens` — the `]` must be the last byte of its token
+/// text (`foo]`, not `foo]bar`), since only a trailing bracket fits the
+/// `recover_stray_close_bracket` merge-repair shape (a mid-word bracket
+/// has trailing text that wouldn't fit inside `[...]`; that shape is
+/// still diagnosed by E100, just not auto-repaired). Returns
+/// `(token_index, byte_index_within_token_text)`.
+///
+/// Built on the same escape/quote primitives as the E100 diagnostic
+/// scan in [`stray_closer_diagnostics`] (`classify_quoted_contexts`,
+/// `first_unescaped_delim`) so the two can never disagree about what
+/// counts as a stray bracket — a prior version kept an independent,
+/// escape-unaware detector here and it drifted, letting the repair fire
+/// (and corrupt downstream command-invocation recording) for brackets
+/// the diagnostic correctly treated as escaped.
+pub(crate) fn find_first_stray_bracket(tokens: &[Token], source: &str) -> Option<(usize, usize)> {
+    let in_quoted = classify_quoted_contexts(tokens);
+    for (idx, tok) in tokens.iter().enumerate() {
+        if tok.kind != TokenType::Esc || in_quoted.get(idx).copied().unwrap_or(false) {
+            continue;
+        }
+        let Some(text) = token_text(source, tok) else {
+            continue;
+        };
+        if let Some(rel) = first_unescaped_delim(text, b']')
+            && rel + 1 == text.len()
+        {
+            return Some((idx, rel));
+        }
     }
     None
 }
@@ -693,13 +751,30 @@ fn make_e100(
     rel: usize,
     source: &str,
     registry: Option<&CommandRegistry>,
+    extra_known: &HashSet<String>,
 ) -> Diagnostic {
     let bracket_off = tokens[bracket_idx].span.start() + u32::try_from(rel).unwrap_or(0);
+    // The span end is exclusive (`span_to_range` maps it straight to an
+    // LSP position with no adjustment), so it must sit one byte past the
+    // `]` itself — otherwise the highlighted range never covers the very
+    // character the diagnostic is about.
+    let bracket_end = bracket_off + 1;
     let insert = registry.and_then(|reg| {
-        find_bracket_insertion_point(cmd, tokens, bracket_idx, bracket_off, source, reg)
+        find_bracket_insertion_point(
+            cmd,
+            tokens,
+            bracket_idx,
+            bracket_off,
+            source,
+            reg,
+            extra_known,
+        )
     });
 
     let mut fixes: Vec<CodeFix> = Vec::new();
+    // When no insertion point can be inferred, keep the highlight tight
+    // around the stray `]` itself rather than the whole command — a
+    // fix-less diagnostic still needs to point precisely at the problem.
     let diag_start = if let Some(off) = insert {
         // Zero-width insertion of `[` at `off`.
         fixes.push(CodeFix {
@@ -708,15 +783,13 @@ fn make_e100(
             description: "Insert missing '['".to_string(),
         });
         off
-    } else if let Some(first) = tokens.first() {
-        first.span.start()
     } else {
         bracket_off
     };
 
     Diagnostic {
         code: DiagCode::E100,
-        span: Span::new(diag_start.min(bracket_off), bracket_off),
+        span: Span::new(diag_start.min(bracket_off), bracket_end),
         message: "Unmatched ']' \u{2014} missing opening '['?".to_string(),
         severity: Severity::Error,
         fixes,
@@ -727,15 +800,25 @@ fn make_e100(
 /// command name in the text before the `]`; a backward scan for a
 /// known command-name ESC token; an arity overflow on the enclosing
 /// command.
-fn find_bracket_insertion_point(
+///
+/// `extra_known` widens "known command name" beyond the registry to
+/// user-declared names already seen in the walk (procs, tclOO classes /
+/// instance commands, aliases, ensembles, `unknown`-dispatch targets, …)
+/// — a call to an already-defined local proc missing its `[` is just as
+/// recoverable as a call to a registry builtin.
+pub(crate) fn find_bracket_insertion_point(
     cmd: &SegmentedCommand,
     tokens: &[Token],
     bracket_idx: usize,
     bracket_off: u32,
     source: &str,
     registry: &CommandRegistry,
+    extra_known: &HashSet<String>,
 ) -> Option<u32> {
-    let known: HashSet<&str> = registry.command_names().collect();
+    let known: HashSet<&str> = registry
+        .command_names()
+        .chain(extra_known.iter().map(String::as_str))
+        .collect();
     let tok = &tokens[bracket_idx];
     let text = token_text(source, tok)?;
 
@@ -775,13 +858,18 @@ fn find_bracket_insertion_point(
     None
 }
 
-/// Build the E102 diagnostic for a bare `}` token, attaching the
-/// stray-brace removal fix when the `}` owns its line.
-fn make_e102(tok: &Token, source: &str) -> Diagnostic {
-    let fixes = stray_brace_fix(tok, source).into_iter().collect();
+/// Build the E102 diagnostic for a `}` at byte `rel` within token `tok`,
+/// attaching the stray-brace removal fix when the `}` owns its line —
+/// `tok` may be a compound word (`foo}bar`), so the highlighted span
+/// covers only the `}` character itself, not the whole token.
+fn make_e102(tok: &Token, rel: usize, source: &str) -> Diagnostic {
+    let brace_off = tok.span.start() + u32::try_from(rel).unwrap_or(0);
+    let fixes = stray_brace_fix(tok, brace_off, source)
+        .into_iter()
+        .collect();
     Diagnostic {
         code: DiagCode::E102,
-        span: tok.span,
+        span: Span::new(brace_off, brace_off + 1),
         message: "Unmatched '}' \u{2014} missing opening '{'?".to_string(),
         severity: Severity::Error,
         fixes,
@@ -789,11 +877,14 @@ fn make_e102(tok: &Token, source: &str) -> Diagnostic {
 }
 
 /// Build a fix that deletes a stray `}` and its line, when the line
-/// holds nothing but optional whitespace and the brace.
-fn stray_brace_fix(tok: &Token, source: &str) -> Option<CodeFix> {
-    let start_off = tok.span.start() as usize;
-    let end_off = tok.span.end() as usize;
-    if end_off > source.len() {
+/// holds nothing but optional whitespace and the brace (the `}` is not
+/// embedded in a larger word).
+fn stray_brace_fix(tok: &Token, brace_off: u32, source: &str) -> Option<CodeFix> {
+    let start_off = brace_off as usize;
+    let end_off = start_off + 1;
+    if tok.span.end() as usize != end_off || end_off > source.len() {
+        // Only a `}` that is its token's last byte can plausibly be the
+        // whole line's content; an embedded `foo}bar` never qualifies.
         return None;
     }
     let line_content_start = source[..start_off].rfind('\n').map_or(0, |p| p + 1);
@@ -1456,5 +1547,213 @@ mod tests {
             .find(|d| d.code == DiagCode::E200)
             .expect("E200 should fire");
         assert_eq!(d.message, "missing close-brace");
+    }
+
+    // -----------------------------------------------------------------
+    // Span precision: the highlighted range must cover the stray `]` /
+    // `}` character itself (issue: `span.end()` is exclusive per
+    // `span_to_range`, so an end offset *at* the delimiter excludes it
+    // from the editor's underline).
+    // -----------------------------------------------------------------
+
+    fn e100_span(src: &str) -> tcl_lexer::Span {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::E100)
+            .unwrap_or_else(|| panic!("no E100 for {src:?}"))
+            .span
+    }
+
+    fn e102_span(src: &str) -> tcl_lexer::Span {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::E102)
+            .unwrap_or_else(|| panic!("no E102 for {src:?}"))
+            .span
+    }
+
+    #[test]
+    fn e100_span_includes_the_bracket_with_a_fix() {
+        // `puts string]` — `string` is a known command name immediately
+        // before the `]`, so heuristic 1a anchors the fix at `string`'s
+        // own token start; the span must still run through (and
+        // include) the `]` itself.
+        let src = "puts string]";
+        let span = e100_span(src);
+        assert_eq!(
+            &src[span.start() as usize..span.end() as usize],
+            "string]",
+            "highlighted text must include the ']' — span={span:?}"
+        );
+        assert_eq!(src.as_bytes()[span.end() as usize - 1], b']');
+    }
+
+    #[test]
+    fn e100_span_is_tight_around_bracket_without_a_fix() {
+        // `set x blah]` — no known command / arity overflow, so no fix
+        // is available. The highlight must be just the `]` itself, not
+        // the whole command from `set`.
+        let src = "set x blah]";
+        let span = e100_span(src);
+        assert_eq!(
+            &src[span.start() as usize..span.end() as usize],
+            "]",
+            "fix-less E100 must highlight only the stray ']', not the whole command"
+        );
+    }
+
+    #[test]
+    fn e102_span_includes_the_brace() {
+        let src = "set x 1\n}\n";
+        let span = e102_span(src);
+        assert_eq!(&src[span.start() as usize..span.end() as usize], "}");
+    }
+
+    // -----------------------------------------------------------------
+    // Backslash-run parity: `\]` (odd run) is escaped and must not
+    // fire; `\\]` (even run — a literal backslash followed by a bare
+    // `]`) is NOT escaped and must fire. A naive "one preceding
+    // backslash" check gets the even case wrong.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn single_backslash_escapes_the_bracket() {
+        assert!(!codes(r"puts foo\]").contains(&"E100".to_string()));
+    }
+
+    #[test]
+    fn double_backslash_does_not_escape_the_bracket() {
+        // `\\` is a literal backslash (even run); the following `]` is
+        // bare and must still be flagged.
+        assert!(codes(r"puts foo\\]").contains(&"E100".to_string()));
+    }
+
+    #[test]
+    fn triple_backslash_escapes_the_bracket() {
+        // Odd run (3): the last backslash pairs with `]`.
+        assert!(!codes(r"puts foo\\\]").contains(&"E100".to_string()));
+    }
+
+    // -----------------------------------------------------------------
+    // E102 embedded-`}` detection: a `}` need not be a token's entire
+    // text to be stray — `foo}bar` is just as unmatched as a lone `}`,
+    // matching E100's compound-token scan (`foo]bar`).
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn embedded_close_brace_emits_e102() {
+        assert!(codes("set x foo}bar\n").contains(&"E102".to_string()));
+    }
+
+    #[test]
+    fn embedded_close_brace_escaped_does_not_fire() {
+        assert!(!codes(r"set x foo\}bar").contains(&"E102".to_string()));
+    }
+
+    #[test]
+    fn embedded_close_brace_no_fix_offered() {
+        // The whole-line-deletion fix only applies when `}` is the
+        // entire line; an embedded brace gets a diagnostic but no fix
+        // (deleting one character out of a bareword isn't a safe guess).
+        let mut a = Analyser::new();
+        let d = a
+            .analyse("set x foo}bar\n", "tcl8.6")
+            .diagnostics
+            .into_iter()
+            .find(|d| d.code == DiagCode::E102)
+            .expect("E102 expected");
+        assert!(d.fixes.is_empty());
+    }
+
+    // -----------------------------------------------------------------
+    // Known-name breadth: the bracket-insertion heuristic must
+    // recognise a call to an already-declared user proc / tclOO class /
+    // alias / ensemble, not just a registry builtin — the general form
+    // of "unknown, aliasing, tclOO" command resolution.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn insertion_point_recognises_user_defined_proc() {
+        let src = "proc myHelper {a b} {return $a}\nset y myHelper arg1 arg2]\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let e100 = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::E100)
+            .expect("E100 expected");
+        assert_eq!(e100.fixes.len(), 1, "{:?}", e100.fixes);
+        assert_eq!(e100.fixes[0].new_text, "[");
+        let insert_off = e100.fixes[0].span.start() as usize;
+        assert_eq!(
+            &src[insert_off..insert_off + "myHelper".len()],
+            "myHelper",
+            "fix should insert '[' right before the user proc call"
+        );
+        // No phantom unknown-command diagnostic on the repaired name.
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W123 && d.message.contains("elper")),
+            "repair must not corrupt the command name: {:?}",
+            r.diagnostics
+                .iter()
+                .map(|d| (d.code.to_string(), d.message.clone()))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn insertion_point_recognises_tcloo_class() {
+        let src = "oo::class create Widget {}\nset y Widget create]\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let e100 = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::E100)
+            .expect("E100 expected");
+        assert_eq!(e100.fixes.len(), 1, "{:?}", e100.fixes);
+    }
+
+    // -----------------------------------------------------------------
+    // Recovery/diagnostic unification: the repair must never fire (and
+    // corrupt downstream command-invocation recording) where E100 does
+    // not — regression coverage for the drift between the old
+    // independent `find_stray_close_bracket` and the escape-aware E100
+    // scan.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn escaped_bracket_with_arity_overflow_neither_fires_nor_repairs() {
+        // `set` only takes 1-2 args; the third + a *genuinely escaped*
+        // trailing `]` used to still trigger the old recovery's arity
+        // fallback (which ignored escaping entirely), silently
+        // "repairing" a bracket E100 correctly treats as a literal.
+        let src = r"set y bar baz\]";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::E100),
+            "escaped bracket must not be flagged: {:?}",
+            r.diagnostics
+                .iter()
+                .map(|d| d.code.to_string())
+                .collect::<Vec<_>>()
+        );
+        // Only the real arity error (E003 too many args) should fire —
+        // no phantom unknown-command from a bad repair.
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+            "no repair should have run: {:?}",
+            r.diagnostics
+                .iter()
+                .map(|d| (d.code.to_string(), d.message.clone()))
+                .collect::<Vec<_>>()
+        );
     }
 }

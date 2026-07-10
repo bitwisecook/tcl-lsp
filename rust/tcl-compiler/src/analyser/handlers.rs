@@ -960,6 +960,14 @@ impl Analyser {
     /// reason (an unresolved name) rather than the right one (a
     /// dynamically-defined ensemble the analyser can't see the
     /// subcommand map of).
+    ///
+    /// `namespace ensemble create`'s options are registry data
+    /// (`ENSEMBLE_CREATE_OPTIONS` in `tcl-registry`'s `namespace_`
+    /// module), not a hardcoded name list — walking by each option's
+    /// declared value arity (rather than a bare `opt == "-command"` scan
+    /// over every word) is what keeps another option's *value* word
+    /// (`-map`'s dict, `-subcommands`' list, …) from ever being misread as
+    /// `-command`'s own flag or value.
     pub fn handle_namespace_ensemble(
         &mut self,
         cmd_name: &str,
@@ -977,17 +985,35 @@ impl Analyser {
             self.ensemble_namespaces.insert(ns.clone());
         }
         let ns_prefix = ns.trim_start_matches(':');
-        for (i, opt) in args.iter().enumerate().skip(2) {
-            let Some(value) = (opt == "-command").then(|| args.get(i + 1)).flatten() else {
+
+        let dialect = tcl_registry::prelude::DialectSet::parse(&self.dialect);
+        let option_specs: Vec<&tcl_registry::hover::OptionSpec> = self
+            .registry
+            .as_ref()
+            .and_then(|r| r.get("namespace"))
+            .and_then(|spec| spec.subcommand("ensemble").map(|sub| (spec.dialects, sub)))
+            .map(|(parent_dialects, sub)| sub.option_specs(dialect, parent_dialects))
+            .unwrap_or_default();
+
+        let opts = &args[2..];
+        let mut i = 0usize;
+        while i < opts.len() {
+            let Some(spec) = option_specs.iter().find(|o| o.matches(opts[i].as_str())) else {
+                i += 1;
                 continue;
             };
-            // A dynamic value (`$var` / `[cmd]`) can't be resolved
-            // statically — leave it unrecorded, same convention as every
-            // other literal-only command-name extraction in this module.
-            if value.is_empty() || value.starts_with('$') || value.starts_with('[') {
-                continue;
+            if spec.name == "-command"
+                && let Some(value) = opts.get(i + 1)
+            {
+                // A dynamic value (`$var` / `[cmd]`) can't be resolved
+                // statically — leave it unrecorded, same convention as
+                // every other literal-only command-name extraction in
+                // this module.
+                if !(value.is_empty() || value.starts_with('$') || value.starts_with('[')) {
+                    self.ensemble_namespaces.insert(qualify(ns_prefix, value));
+                }
             }
-            self.ensemble_namespaces.insert(qualify(ns_prefix, value));
+            i += 1 + spec.value_word_count(opts, i);
         }
     }
 
@@ -3136,6 +3162,8 @@ mod tests {
     fn handle_namespace_ensemble_command_option_recorded() {
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
+        // `-command` recognition is registry-driven (`ENSEMBLE_CREATE_OPTIONS`).
+        a.registry = Some(tcl_registry::CommandRegistry::build_default());
         a.result
             .global_scope
             .children
@@ -3158,6 +3186,8 @@ mod tests {
     fn handle_namespace_ensemble_command_option_qualifies_relative_name() {
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
+        // `-command` recognition is registry-driven (`ENSEMBLE_CREATE_OPTIONS`).
+        a.registry = Some(tcl_registry::CommandRegistry::build_default());
         a.result
             .global_scope
             .children
@@ -3196,6 +3226,45 @@ mod tests {
         assert_eq!(
             a.ensemble_namespaces,
             std::collections::HashSet::from(["::myns".to_string()])
+        );
+    }
+
+    #[test]
+    fn handle_namespace_ensemble_other_options_value_word_is_not_mistaken_for_command_flag() {
+        // Regression: before the registry-driven option walk, the scan
+        // checked *every* word for literal equality with `-command`,
+        // including another option's own value word — `-map`'s value
+        // here is (pathologically, but syntactically legally) the string
+        // `-command`. A word-by-word scan misreads that value as the
+        // `-command` flag itself and steals the *next* word (the real
+        // `-command`'s own flag) as if it were a namespace name. Walking
+        // by each option's declared value arity instead correctly skips
+        // `-map`'s whole value before ever looking for `-command` again,
+        // so only the genuine `-command ::real::target` is recorded.
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.registry = Some(tcl_registry::CommandRegistry::build_default());
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "myns"));
+        a.handle_namespace_ensemble(
+            "namespace",
+            &[
+                "ensemble".to_string(),
+                "create".to_string(),
+                "-map".to_string(),
+                "-command".to_string(),
+                "-command".to_string(),
+                "::real::target".to_string(),
+            ],
+            &[0],
+        );
+        assert_eq!(
+            a.ensemble_namespaces,
+            std::collections::HashSet::from(["::myns".to_string(), "::real::target".to_string()]),
+            "only the genuine -command flag's value must be recorded, \
+             not -map's value word that happens to read \"-command\""
         );
     }
 

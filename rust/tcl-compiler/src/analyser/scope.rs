@@ -698,14 +698,18 @@ fn var_name_from_span(source: &str, span: Span) -> Option<&str> {
 }
 
 /// Inner content text + base offset of a wrapper token (`[…]` /
-/// `{…}`): the delimiter is a single leading byte, the span
-/// excludes the closing delimiter.
-fn inner_of(source: &str, span: Span) -> Option<(&str, u32)> {
-    let (s, e) = (span.start() as usize, span.end() as usize);
-    if s + 1 > e || e > source.len() {
+/// `{…}`): the delimiter is normally a single leading byte, skipped via
+/// `content_offset` — not hardcoded, since a synthetic recovery token
+/// (e.g. `Analyser::recover_stray_close_bracket`'s virtual `Cmd` token)
+/// has no real opener in the source and sets `content_offset` to `0`.
+/// The span excludes the closing delimiter.
+fn inner_of(source: &str, tok: Token) -> Option<(&str, u32)> {
+    let off = u32::from(tok.content_offset);
+    let (s, e) = ((tok.span.start() + off) as usize, tok.span.end() as usize);
+    if s > e || e > source.len() {
         return None;
     }
-    Some((&source[s + 1..e], span.start() + 1))
+    Some((&source[s..e], tok.span.start() + off))
 }
 
 /// Collect `$var` reads inside a command-substitution token,
@@ -718,7 +722,7 @@ fn collect_cmd_subst_reads(
     registry: &tcl_registry::CommandRegistry,
     out: &mut Vec<(String, Span)>,
 ) {
-    let Some((inner, base)) = inner_of(source, cmd_tok.span) else {
+    let Some((inner, base)) = inner_of(source, cmd_tok) else {
         return;
     };
     for cmd in crate::segmenter::segment_commands_with_offset(inner, base) {
@@ -768,7 +772,7 @@ fn collect_script_command_reads(
         } else if body_idx.contains(&pidx) && !structural {
             // Plain body inside a substitution — same scope, and the
             // main walk never reached it.
-            if let Some((inner, base)) = inner_of(source, arg.span) {
+            if let Some((inner, base)) = inner_of(source, *arg) {
                 for sub in crate::segmenter::segment_commands_with_offset(inner, base) {
                     collect_script_command_reads(source, &sub, registry, out);
                 }
@@ -786,7 +790,7 @@ fn collect_expr_reads(
     registry: &tcl_registry::CommandRegistry,
     out: &mut Vec<(String, Span)>,
 ) {
-    let Some((inner, base)) = inner_of(source, expr_tok.span) else {
+    let Some((inner, base)) = inner_of(source, expr_tok) else {
         return;
     };
     let Ok(tokens) = tcl_lexer::Lexer::new(inner).tokenise_all() else {

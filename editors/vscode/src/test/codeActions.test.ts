@@ -116,6 +116,156 @@ suite("Code Actions", () => {
     assert.ok(resultOptsFix, "Should provide a result+options capture quick fix");
   });
 
+  test("provides quick fix for E100 (stray close bracket)", async () => {
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+
+    const e100 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "E100";
+    });
+    assert.ok(e100, "E100 diagnostic should be present");
+
+    const actions = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, e100.range),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) =>
+            typeof a.title === "string" && a.title.toLowerCase().includes("insert missing '['"),
+        ),
+      { timeout: 10_000, label: "E100 insert bracket quick fix" },
+    )) as vscode.CodeAction[];
+
+    const quickFix = actions.find(
+      (a) => typeof a.title === "string" && a.title.toLowerCase().includes("insert missing '['"),
+    );
+    assert.ok(quickFix, "Should provide an insert-missing-bracket quick fix");
+
+    // The fixture's `set y string]` recognises `string` as a known
+    // command — the fix must insert `[` right before it, not just
+    // anywhere in the command.
+    const edit = quickFix!.edit;
+    assert.ok(edit, "quick fix should carry a workspace edit");
+    const changes = edit!.get(docUri);
+    assert.strictEqual(changes.length, 1);
+    assert.strictEqual(changes[0].newText, "[");
+  });
+
+  test("provides quick fix for E102 (stray close brace)", async () => {
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+
+    const e102 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "E102";
+    });
+    assert.ok(e102, "E102 diagnostic should be present");
+
+    const actions = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, e102.range),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title.toLowerCase().includes("remove extra '}'"),
+        ),
+      { timeout: 10_000, label: "E102 remove brace quick fix" },
+    )) as vscode.CodeAction[];
+
+    const quickFix = actions.find(
+      (a) => typeof a.title === "string" && a.title.toLowerCase().includes("remove extra '}'"),
+    );
+    assert.ok(quickFix, "Should provide a remove-extra-brace quick fix");
+  });
+
+  test("provides merge-into-body quick fix for E004 extra words", async () => {
+    const e004Uri = getDocUri("diagnostics-e004.tcl");
+    await activate(e004Uri);
+    const diagnostics = await waitForDiagnostics(e004Uri, { minCount: 3 });
+
+    const extraWords = diagnostics.find(
+      (d) => d.message === 'Extra words after "else" clause in "if" command',
+    );
+    assert.ok(extraWords, "extra-words E004 diagnostic should be present");
+
+    const actions = (await pollUntil(
+      () =>
+        vscode.commands.executeCommand(
+          "vscode.executeCodeActionProvider",
+          e004Uri,
+          extraWords.range,
+        ),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title.toLowerCase().includes("merge"),
+        ),
+      { timeout: 10_000, label: "E004 extra-words merge quick fix" },
+    )) as vscode.CodeAction[];
+
+    const mergeFix = actions.find(
+      (a) => typeof a.title === "string" && a.title.toLowerCase().includes("merge"),
+    );
+    assert.ok(mergeFix, "Should provide a merge-into-body quick fix");
+  });
+
+  test("provides remove-clause quick fix for a dangling E004 elseif", async () => {
+    const e004Uri = getDocUri("diagnostics-e004.tcl");
+    await activate(e004Uri);
+    const diagnostics = await waitForDiagnostics(e004Uri, { minCount: 3 });
+
+    const danglingElseif = diagnostics.find(
+      (d) => d.message === 'No script following "2" argument',
+    );
+    assert.ok(danglingElseif, "dangling-elseif E004 diagnostic should be present");
+
+    const actions = (await pollUntil(
+      () =>
+        vscode.commands.executeCommand(
+          "vscode.executeCodeActionProvider",
+          e004Uri,
+          danglingElseif.range,
+        ),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title.toLowerCase().includes("remove"),
+        ),
+      { timeout: 10_000, label: "E004 dangling-clause remove quick fix" },
+    )) as vscode.CodeAction[];
+
+    const removeFix = actions.find(
+      (a) => typeof a.title === "string" && a.title.toLowerCase().includes("remove"),
+    );
+    assert.ok(removeFix, "Should provide a remove-incomplete-clause quick fix");
+  });
+
+  test("offers no quick fix for an E004 whose first clause never completed", async () => {
+    const e004Uri = getDocUri("diagnostics-e004.tcl");
+    await activate(e004Uri);
+    const diagnostics = await waitForDiagnostics(e004Uri, { minCount: 3 });
+
+    const bareCondition = diagnostics.find((d) => d.message === 'No script following "1" argument');
+    assert.ok(bareCondition, "bare-condition E004 diagnostic should be present");
+
+    // No well-formed prefix exists to fall back to, so no quick fix should
+    // ever be offered here — a single read is enough (there is nothing to
+    // wait for; the assertion is that it never appears).
+    const actions = (await vscode.commands.executeCommand(
+      "vscode.executeCodeActionProvider",
+      e004Uri,
+      bareCondition.range,
+    )) as vscode.CodeAction[] | undefined;
+    const quickFixes = (actions ?? []).filter(
+      (a) => a.kind && a.kind.value === vscode.CodeActionKind.QuickFix.value,
+    );
+    assert.strictEqual(
+      quickFixes.length,
+      0,
+      `expected no quick fix, got: ${quickFixes.map((a) => a.title).join("; ")}`,
+    );
+  });
+
   test("provides guided collect bootstrap fix for IRULE1005", async () => {
     await activate(irulesDocUri);
     // IRULE1005 is a deep diagnostic — it fires after the initial basic
