@@ -415,6 +415,38 @@ suite("Diagnostics", () => {
     );
   });
 
+  test("S102 fires for loop-carried oscillation, anchored inside the loop, and is silent under a write trace", async () => {
+    // Both scenarios live in one fixture (like optimisation-o101.tcl): the
+    // top `accumulate` proc genuinely oscillates x between int and string
+    // every pass (S102's own KCS canonical example); the bottom `traced`
+    // proc has the identical shape but under a `trace add variable … write`
+    // — a write trace can rewrite the value's type on every access, so the
+    // literal-only view must not drive S102 (deep-review FP guard).
+    const uri = getDocUri("shimmerOscillation.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.some((d) => codeOf(d) === "S102"),
+    });
+
+    const s102s = diagnostics.filter((d) => codeOf(d) === "S102");
+    assert.ok(s102s.length > 0, "expected at least one S102 diagnostic");
+    assert.strictEqual(s102s[0].severity, vscode.DiagnosticSeverity.Warning, "S102 is a warning");
+
+    // Precision: anchored inside `accumulate`'s loop body (line >= 3), not
+    // the pre-loop initialiser `set x 0` (line 1).
+    assert.ok(
+      s102s.some((d) => d.range.start.line >= 3 && d.range.start.line <= 4),
+      `expected S102 anchored inside the loop body (lines 3-4), got lines [${s102s.map((d) => d.range.start.line)}]`,
+    );
+
+    // FP guard: no S102 anywhere inside `traced` (lines 8-15).
+    assert.ok(
+      !s102s.some((d) => d.range.start.line >= 8),
+      `traced variable must not fire S102, got lines [${s102s.map((d) => d.range.start.line)}]`,
+    );
+  });
+
   // Issue #777: object commands bound by `CLASS create NAME` and iterated via
   // `foreach elem [list c1 l1 …]` are known commands, so dispatching `$elem`
   // must not fire W307. Analysis has settled once the unknown-class commands

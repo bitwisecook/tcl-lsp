@@ -700,6 +700,19 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
 ///
 /// Returns a map from `(variable_name, ssa_version)` to inferred
 /// `TypeLattice`. Values absent from the map are implicitly `Unknown`.
+///
+/// `module_traces` (from [`crate::var_observability::scan_module_variable_traces`])
+/// is the module-wide variable-trace fact — the same one [`crate::sccp::sccp`]
+/// already consumes to force its (separate) constant-folding lattice to
+/// Overdefined for a traced name. A `trace add variable NAME write …` callback
+/// can rewrite `NAME`'s value (and therefore its intrep) immediately after any
+/// assignment, including one this pass would otherwise type `Known` from a
+/// literal — so every def of a traced name is forced `Overdefined` here too,
+/// the same way a scope-alias declaration (`global`/`variable`/`upvar`) already
+/// is. Without this, a `set`-only view of a traced variable's literal types
+/// could report a spurious S100/S101/S102 shimmer the trace callback either
+/// never causes or masks. `None` for the module-context-free callers ([`Self`]
+/// unit tests, isolated single-function rebuilds with no module to scan).
 #[must_use]
 pub fn propagate_types<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
@@ -707,6 +720,7 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
     sccp: &SccpResult,
     registry: &CommandRegistry,
     known_classes: &HashSet<String, S>,
+    module_traces: Option<&crate::var_observability::ModuleVariableTraces>,
 ) -> HashMap<ValueKey, TypeLattice> {
     let preds = cfg.predecessors();
     let order = crate::sccp::cfg_order(cfg);
@@ -822,7 +836,13 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
                         .get(&key)
                         .cloned()
                         .unwrap_or_else(TypeLattice::unknown);
-                    let merged = type_join(&old, &inferred);
+                    let def_type = if module_traces.is_some_and(|t| t.is_traced(ssa.var_name(var)))
+                    {
+                        TypeLattice::overdefined()
+                    } else {
+                        inferred.clone()
+                    };
+                    let merged = type_join(&old, &def_type);
                     if merged != old {
                         types.insert(key, merged);
                         changed = true;
@@ -1003,7 +1023,7 @@ mod tests {
             },
         );
         let x = ssa.var_symbol("x").unwrap();
-        let types = propagate_types(&f, &ssa, &sccp, &registry(), &HashSet::new());
+        let types = propagate_types(&f, &ssa, &sccp, &registry(), &HashSet::new(), None);
         assert_eq!(types.get(&(x, 1)), Some(&TypeLattice::of(TclType::Int)));
     }
 
@@ -1173,7 +1193,7 @@ mod tests {
         let mut sccp = empty_sccp(&cfg, &["entry", "exit"]);
         sccp.executable_edges.insert((entry, exit));
 
-        let types = propagate_types(&cfg, &ssa, &sccp, &registry(), &HashSet::new());
+        let types = propagate_types(&cfg, &ssa, &sccp, &registry(), &HashSet::new(), None);
         // x@1 (entry) should be Int.
         assert_eq!(types.get(&(x, 1)), Some(&TypeLattice::of(TclType::Int)));
         // x@2 (phi in exit) should propagate Int from entry.

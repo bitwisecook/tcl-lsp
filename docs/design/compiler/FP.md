@@ -4582,6 +4582,341 @@ by declaring their layout in `dialects/f5/irules/*__payload.py` — no change to
 
 ---
 
+### FP-SH-12 — a variable-write trace can rewrite a value's type on every access; S102 must not fire from its literal-only view
+
+- **Verdict:** FALSE POSITIVE (S102) — fixed
+- **Status:** FIXED (Rust port deep review). `type_infer::propagate_types` had
+  no trace awareness at all: a `trace add variable x write cb` callback can
+  rewrite `x` immediately after any `set`, so a `set`-only view of `x`'s
+  literal types cannot prove what the variable actually holds at loop
+  re-entry, yet the pass typed it purely from the visible literals.
+- **Codes:** S102
+- **Corpus:** synthetic (a traced accumulator oscillating int/string in a loop, the same shape S102's own worked example uses).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    trace add variable x write {apply {{n1 n2 op} {}}}
+    set x 0
+    while {1} {
+        set x [expr {$x + 1}]
+        set x [string range $x 0 end]
+    }
+}
+```
+
+#### Per-line reasoning
+
+1. `trace add variable x write …` installs a write trace on `x` — from this
+   point, every `set x …` may have its value replaced by the callback before
+   any later read observes it.
+2. `set x [expr {$x + 1}]` / `set x [string range $x 0 end]` are the visible
+   literal writes the pre-fix pass typed `x` from (INT, then STRING) — but
+   what `x` actually holds after either write is not provable without
+   knowing the trace callback's effect.
+3. Because the callback is opaque, the sound type for every def of `x` from
+   this point on is OVERDEFINED, not the literal's own type — so the header
+   phi can never resolve to SHIMMERED, and S102 must not fire.
+
+#### Why the analyser reaches that verdict
+
+`var_observability::scan_module_variable_traces` already builds
+`ModuleVariableTraces` (a module-wide, flow-insensitive trace-target set) for
+`sccp::sccp`'s own constant-folding lattice — added by the O101 deep review
+(PR #856) to fix an analogous SCCP gap. `type_infer::propagate_types` is a
+*separate* lattice (`TypeKind::{Unknown,Known,Shimmered,Overdefined}`, the one
+S100/S101/S102 consume) that never received the same fact. The fix threads
+`module_traces: Option<&ModuleVariableTraces>` into `propagate_types` and
+forces `TypeLattice::overdefined()` for any def whose variable name
+`is_traced()`, reusing the exact fact SCCP already computes rather than
+re-deriving trace recognition — see
+`rust/tcl-compiler/src/type_infer.rs`'s `propagate_types` doc comment.
+
+#### Tests
+
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_12_traced_variable_no_s102` (FP)
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_12_untraced_control_still_fires` (TP control)
+- `rust::tcl_compiler::shimmer::thunking::tests::no_s102_for_traced_variable` (FP, unit level)
+- `rust::tcl_compiler::shimmer::thunking::tests::thunking_still_fires_for_untraced_control` (TP control, unit level)
+
+---
+
+### FP-SH-13 — array-element writes collapse onto one SSA symbol; two stable-but-different elements must not read as one variable oscillating
+
+- **Verdict:** FALSE POSITIVE (S102) — open (documented, not fixed for S100/S101)
+- **Status:** FIXED for S102 (Rust port deep review); S100/S101 share the same
+  underlying array-element conflation and are not in scope for this fix.
+- **Codes:** S102
+- **Corpus:** synthetic (a per-element-stable array accumulator, the common
+  Tcl idiom `set arr(id) [somefn $arr(id)]`).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    set arr(x) 0
+    while {1} {
+        set arr(x) [expr {$arr(x) + 1}]
+        set arr(x) [string range $arr(x) 0 end]
+    }
+}
+```
+
+#### Per-line reasoning
+
+1. `tcl_syntax::naming::normalise_var_name` strips a `(key)` suffix before SSA
+   interning, so `arr(a)`, `arr(b)`, … all intern to the *same* `Symbol`
+   (`"arr"`) — a deliberate simplification elsewhere in the pipeline (var-ref
+   scanning, codegen slot resolution), not specific to shimmer analysis.
+2. Two array elements individually holding stable-but-different types (e.g.
+   `arr(count)` always INT, `arr(label)` always STRING) therefore look, to the
+   type lattice, exactly like *one* variable whose value alternates between
+   INT and STRING — the same shape as a genuine same-slot oscillation.
+3. Even the single-element reproducer above (which genuinely does oscillate
+   the *same* element) shares the same conflated-symbol code path, so a
+   general array-aware exclusion is the safer fix — see the "Why" section.
+
+#### Why the analyser reaches that verdict
+
+`shimmer::thunking::array_element_symbols` scans every `AssignConst` /
+`AssignExpr` / `AssignValue` / `Incr` statement in the function for a raw
+target name matching `codegen::values::split_array_ref`'s `arr(key)` shape
+(reused, not re-derived) and excludes the resolved base `Symbol` from S102
+entirely — `classify_thunking_phi` bails immediately for any such symbol. The
+guard is conservative in the *unsound* direction only for coverage, not
+correctness: a genuinely oscillating single array element (this reproducer)
+now goes undetected rather than risk flagging unrelated elements — an
+accepted trade-off documented here, not a residual bug. S100/S101 (use-site
+and non-loop phi shimmer) still see the same conflated symbol and are left
+as-is; a full fix needs per-element SSA modelling, out of scope for this
+review.
+
+#### Tests
+
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_13_array_element_conflation_no_s102` (FP)
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_13_scalar_control_still_fires` (TP control)
+- `rust::tcl_compiler::shimmer::thunking::tests::no_s102_for_array_element_conflation` (FP, unit level)
+
+---
+
+### FP-SH-14 — self-referential oscillation through an intermediate branch merge was a false negative; a non-self-referential reset through the same shape must stay silent
+
+- **Verdict:** FALSE NEGATIVE (S102) — fixed; paired with a same-shape FP guard
+- **Status:** FIXED (Rust port deep review).
+- **Codes:** S102
+- **Corpus:** synthetic (a data-dependent branch choosing which conversion runs each pass — the loop still pays the same per-iteration re-conversion cost as the direct-incoming case S102 already caught, just reached through an `if`/`else` instead of two straight-line statements).
+
+#### Reproducer (false negative, now fixed)
+
+```tcl
+proc f {n} {
+    set x "seed"
+    while {$n} {
+        if {$n % 2} {
+            set x [string range $x 0 end]
+        } else {
+            set x [list 1 2]
+        }
+        incr n -1
+    }
+    return $x
+}
+```
+
+#### Reproducer (paired FP guard — must stay silent)
+
+```tcl
+proc f {n} {
+    set x "seed"
+    while {$n} {
+        if {$n % 2} {
+            set x "value"
+        } else {
+            set x [list 1 2]
+        }
+        incr n -1
+    }
+    return $x
+}
+```
+
+#### Per-line reasoning
+
+1. In the false-negative reproducer, the `if` arm's `string range $x 0 end`
+   *reads* `$x`'s own prior value — `x` is a genuine loop-carried recurrence,
+   not a freshly-reset scratch variable.
+2. The loop-header phi's direct loop-internal predecessor is the bottom-of-
+   loop block *after* the `if`/`else` join — a SHIMMERED merge of the two
+   branch types, not a single KNOWN type. Pre-fix, `classify_thunking_phi`'s
+   `has_body_incoming` gate only accepted a KNOWN direct predecessor, so any
+   oscillation reached through an intermediate merge was invisible — silent,
+   even though the header's own lattice was already SHIMMERED.
+3. In the FP-guard reproducer, *neither* branch reads `$x` — both assign an
+   unrelated fresh literal every pass. `x` is not self-referential: each pass
+   produces a brand-new object with no prior state to reinterpret, so
+   despite the identical branch/merge shape, there is nothing to oscillate
+   between and S102 must stay silent (matches FP-SH-06's established
+   sibling-loop non-self-reference reasoning, extended to a single loop's
+   own branches).
+
+#### Why the analyser reaches that verdict
+
+`shimmer::thunking::loop_self_referential` checks, for the phi's own `Symbol`,
+whether any statement inside the natural loop both reads (`uses`) and writes
+(`defs`) that same symbol — the SSA def/use maps `find_thunking_warnings`
+already had on hand, no new dataflow pass needed. `classify_thunking_phi` now
+additionally accepts a SHIMMERED direct predecessor as body evidence (unpacking
+its `from_type`/`tcl_type` pair) *only* when `loop_self_referential` holds —
+so the FP-guard reproducer's non-self-referential merge is still rejected by
+the same gate, while the genuine recurrence is now recognised. The fix also
+anchors the warning's span on the actual in-loop statement that produced one
+of the two types (`per_loop_type_span`) rather than the phi's textually-
+earliest incoming def, which for both reproducers above is the `set x "seed"`
+initialiser — not where the developer needs to look.
+
+#### Tests
+
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_14_self_referential_branchy_oscillation_fires` (FN, now TP)
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_14_non_self_referential_branchy_reset_no_s102` (FP guard)
+- `rust::tcl_compiler::shimmer::thunking::tests::thunking_detected_for_self_referential_branchy_oscillation` (FN, unit level)
+- `rust::tcl_compiler::shimmer::thunking::tests::no_s102_for_non_self_referential_branchy_reset` (FP guard, unit level)
+- `rust::tcl_compiler::shimmer::thunking::tests::span_anchors_inside_loop_not_pre_loop_initialiser` (span precision)
+
+---
+
+### FP-SH-15 — tricky command/variable indirection stays conservative (no false positives): rename, interp alias, safe sub-interpreter eval, TclOO instance variables, `args`/parameters
+
+- **Verdict:** CONFIRM-CORRECT (conservative — several are also known FALSE NEGATIVE / detection-gap surfaces, documented not fixed)
+- **Status:** covered by regression tests (Rust port deep review); the
+  indirections themselves are not resolved (real detection gaps for `rename`,
+  `interp alias`, and TclOO instance variables — tracked here, not silently
+  assumed safe).
+- **Codes:** S102
+- **Corpus:** synthetic (one reproducer per indirection surface).
+
+#### Reproducers and per-surface reasoning
+
+1. **`rename set myset`** — a command renamed onto a registry builtin is not
+   resolved back to that builtin's spec anywhere `type_infer` looks, so
+   `myset x …` types as an unknown `Call` (OVERDEFINED return) — same
+   conservative outcome as calling any unregistered command
+   (`fp_sh_01_overdefined_silent`). Detection gap, not a false positive.
+2. **`interp alias {} myset {} set`** — the interpreter-level alias table is
+   not consulted by `type_infer` either; same conservative OVERDEFINED
+   outcome and same gap.
+3. **`$slave eval {...}`** (a safe sub-interpreter) — the braced body is an
+   opaque string argument to `eval`, not statically-analysed Tcl source in
+   this compilation unit; nothing inside it is visited. No crash, no S102.
+4. **TclOO instance variable via a bare `variable x` in a method body** — a
+   scope-alias declaration, structurally identical to a top-level `variable`
+   (`ssa::defs_of_with_registry`'s `CREATES_SCOPE_ALIAS` handling makes no
+   TclOO/non-TclOO distinction) — protected the same way FP-SH-02 documents.
+5. **`my variable x`** — *not* recognised as a scope-alias declaration at all
+   (the registry spec for `my` carries no `CREATES_SCOPE_ALIAS`/subcommand
+   table); `$x` reads the never-versioned live-in symbol, same as any unbound
+   name. A real detection blind spot for snit/TclOO instance-variable
+   shimmer reached exclusively through `my variable` — tracked here, not
+   fixed.
+6. **A plain positional parameter as the oscillation seed** (`proc f {p} {
+   while {1} { set p [expr {$p+1}]; set p [string range $p 0 end] } }`)  — a
+   parameter's entry type is unknowable at compile time (the caller may pass
+   anything), so `propagate_types` forces its SSA version-0 live-in to
+   OVERDEFINED — the same protection FP-SH-02 documents for `global`/
+   `variable`/`upvar`, but for an ordinary unaliased parameter. This also
+   means a loop that only starts oscillating from iteration 2 onward (once a
+   parameter-seeded value stabilises) is not detected — an accepted,
+   conservative limitation, not a fix target here.
+7. **An `unknown`-command result** (`set x [totallyUnknownCommand $x]`) types
+   OVERDEFINED exactly like FP-SH-01's `[unknownCmd]` case.
+
+#### Why the analyser reaches that verdict
+
+None of these six surfaces are special-cased anywhere in `shimmer/thunking.rs`
+— every one stays silent purely because the *type lattice* degrades to
+OVERDEFINED (unknown command return, live-in version 0, opaque string body) or
+the *SSA symbol* never versions at all (scope-alias `Barrier`, unrecognised
+`my variable`). No new logic was added or needed; these tests exist to pin the
+current, intentional behaviour so a future change to command resolution,
+`interp alias` handling, or `my`'s registry spec doesn't silently introduce a
+false positive through one of these paths.
+
+#### Tests
+
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_rename_indirection_no_s102`
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_interp_alias_indirection_no_s102`
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_safe_sub_interpreter_eval_no_s102`
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_tcloo_instance_variable_no_s102`
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_my_variable_idiom_no_s102`
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_parameter_seeded_oscillation_no_s102`
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_unknown_command_result_no_s102`
+
+---
+
+### FP-SH-16 — global/namespace aliasing only protects an *unwritten* entry type; a locally-initialised alias thunks like an ordinary local
+
+- **Verdict:** CONFIRM-CORRECT (documents the boundary of FP-SH-02's protection, not a new fix)
+- **Status:** covered by regression tests (Rust port deep review).
+- **Codes:** S102
+- **Corpus:** synthetic.
+
+#### Reproducer (TP — fires, by design)
+
+```tcl
+proc f {} {
+    global x
+    set x 0
+    while {1} {
+        set x [expr {$x + 1}]
+        set x [string range $x 0 end]
+    }
+}
+```
+
+#### Reproducer (TN control — stays silent)
+
+```tcl
+namespace eval ::foo {
+    variable x 0
+    proc bump {} {
+        variable x
+        while {1} {
+            set x [expr {$x + 1}]
+            set x [string range $x 0 end]
+        }
+    }
+}
+```
+
+#### Per-line reasoning
+
+1. FP-SH-02 protects an aliased name (`global`/`variable`/`upvar`) by leaving
+   its SSA version-0 live-in OVERDEFINED — sound *only* while no statement in
+   this function body has locally re-initialised it.
+2. In the TP reproducer, `set x 0` runs immediately after `global x`, giving
+   the loop header a real, versioned `Known(Int)` entry type. From that point
+   the alias carries no extra information the type lattice can use to stay
+   conservative — the loop oscillates exactly as it would for an unaliased
+   local, and S102 correctly fires.
+3. In the TN control, `bump`'s `variable x` is never followed by a local
+   `set` before the loop — the live-in stays version 0 / OVERDEFINED, so
+   FP-SH-02's protection still applies and S102 stays silent.
+
+This is a real, accepted precision boundary, not a bug: a genuine trace- or
+another-proc-driven external write between the local `set x 0` and the loop
+in the TP reproducer is invisible to this intraprocedural analysis (see
+FP-SH-12 for the one case — a *trace* — this review closed; an ordinary
+concurrent write through the same alias from a different proc, with no trace
+involved, remains an accepted gap matching `cfg_builder::global_write_info`'s
+own "sound over-approximation, not maximal precision" design note).
+
+#### Tests
+
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_16_global_alias_locally_initialised_still_fires` (TP)
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_16_namespace_alias_without_local_init_no_s102` (TN control)
+
+---
+
 
 ## OBJ — object dispatch (W307/W308) + snit modelling
 
