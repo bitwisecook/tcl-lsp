@@ -1,3 +1,4 @@
 {
-    "tclLsp.ai.enabled": true
+    "tclLsp.ai.enabled": true,
+    "tclLsp.optimiser.enabled": true
 }
