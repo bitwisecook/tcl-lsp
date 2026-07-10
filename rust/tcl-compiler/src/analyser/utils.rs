@@ -23,7 +23,7 @@
 //! `signature_scan::params` so the analyser can keep its imports
 //! flat.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::Token;
 use tcl_registry::{CommandRegistry, Traits};
@@ -237,6 +237,28 @@ pub fn recovery_known_commands<S: std::hash::BuildHasher>(
         insert_qualified_and_tail(&mut names, qname);
     }
     names
+}
+
+/// True when an earlier *unconditional* user `proc` named `qualified_name`
+/// lexically precedes `call_start` — Tcl resolves a proc over a same-named
+/// builtin/keyword at that call site, so the diagnostic that would fire
+/// against the builtin/keyword must be suppressed. Shared by W002's inline
+/// disabled-command shadow check and the EXPR-role emitters'
+/// (W100/W110/W003/W114) control-flow-keyword shadow check — both are the
+/// exact same position comparison against [`ProcDef::name_span`], just
+/// triggered from different call sites. W002's *per-item* flush path needs
+/// the fuller `UserResolutionFacts::resolves_to_user` instead (it also
+/// covers aliases/renames/classes/ensembles and namespace-qualified procs),
+/// so this simpler check isn't a fit there.
+#[must_use]
+pub fn proc_shadows_call<S: std::hash::BuildHasher>(
+    all_procs: &HashMap<String, super::types::ProcDef, S>,
+    qualified_name: &str,
+    call_start: u32,
+) -> bool {
+    all_procs
+        .get(qualified_name)
+        .is_some_and(|def| def.name_span.start() < call_start)
 }
 
 /// Insert `qname` (e.g. `::ns::foo`) — as-is, with the leading `::`

@@ -2113,3 +2113,73 @@ fn shimmer_noqa_for_unrelated_code_does_not_suppress_s100() {
         "S100 must still fire when the preceding noqa names an unrelated code: {diags:?}"
     );
 }
+
+// -- W003 (dialect-gated expr operators) ---------------------------------
+
+#[test]
+fn w003_tight_span_covers_only_the_operator() {
+    // The diagnostic must highlight just the 2-byte `lt`, not the whole
+    // `{$a lt $b}` condition or the enclosing `if`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl8.4\nif {$a lt $b} { puts hi }\n");
+    let w003: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("W003"))
+        .collect();
+    assert_eq!(w003.len(), 1, "{diags:?}");
+    let range = &w003[0]["range"];
+    assert_eq!(range["start"]["line"], 1);
+    assert_eq!(range["start"]["character"], 7);
+    assert_eq!(range["end"]["line"], 1);
+    assert_eq!(range["end"]["character"], 9, "span must cover only 'lt'");
+}
+
+#[test]
+fn w003_repeated_operators_get_distinct_ranges_over_the_wire() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl8.4\nif {$a in $b && $c in $d} { puts hi }\n",
+    );
+    let w003: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("W003"))
+        .collect();
+    assert_eq!(w003.len(), 2, "{diags:?}");
+    assert_ne!(w003[0]["range"], w003[1]["range"]);
+}
+
+#[test]
+fn w003_message_cites_the_relevant_tip() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl8.4\nexpr {2 in {1 2 3}}\n");
+    let w003: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("W003"))
+        .collect();
+    assert_eq!(w003.len(), 1, "{diags:?}");
+    assert!(message(w003[0]).contains("TIP 201"), "{}", message(w003[0]));
+}
+
+#[test]
+fn w003_eda_vendor_dialect_does_not_over_fire_on_in() {
+    // Regression: `xilinx-eda-tcl` is documented as running on top of a
+    // real Tcl 8.5 core, so TIP 201's `in` must not be flagged there.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: xilinx-eda-tcl\nexpr {2 in {1 2 3}}\n");
+    assert!(!has_code(&diags, "W003"), "{diags:?}");
+}
+
+#[test]
+fn w003_f5_tmsh_flags_string_relational_operators() {
+    // Regression: `f5-tmsh` used to have no `DialectSet` bit at all, so
+    // W003 silently never fired for it.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: f5-tmsh\nif {$a lt $b} { puts hi }\n");
+    assert!(has_code(&diags, "W003"), "{diags:?}");
+}

@@ -2218,6 +2218,343 @@ fn w003_silent_on_in_operator_in_tcl85() {
     );
 }
 
+/// Every W003 diagnostic for `src` analysed under `dialect`, alongside
+/// the exact source substring its span covers — the tight-highlight
+/// assertions below check that text directly rather than trusting
+/// hand-computed byte offsets.
+fn w003_hits(src: &str, dialect: &str) -> Vec<(String, Diagnostic)> {
+    let mut a = Analyser::new();
+    let result = a.analyse(src, dialect);
+    result
+        .diagnostics
+        .into_iter()
+        .filter(|d| d.code == DiagCode::W003)
+        .map(|d| {
+            let text = src[d.span.start() as usize..d.span.end() as usize].to_string();
+            (text, d)
+        })
+        .collect()
+}
+
+#[test]
+fn w003_tight_span_covers_only_the_operator_in_a_braced_if() {
+    // The whole condition is `$x lt $y` (11 chars); the diagnostic must
+    // highlight just the 2-byte `lt`, not the condition or the `if`.
+    let hits = w003_hits("if {$x lt $y} { puts hi }", "tcl8.4");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert_eq!(hits[0].0, "lt");
+}
+
+#[test]
+fn w003_tight_span_covers_only_the_operator_in_bare_expr() {
+    let hits = w003_hits("expr {2 in {1 2 3}}", "tcl8.4");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert_eq!(hits[0].0, "in");
+}
+
+#[test]
+fn w003_distinct_operators_each_get_their_own_tight_span() {
+    // Two *different* gated operators in one expression used to collapse
+    // onto one coarse diagnostic covering the whole condition; each must
+    // now get its own diagnostic at its own span.
+    let hits = w003_hits("if {$a lt $b && $c in $d} { puts hi }", "tcl8.4");
+    let mut texts: Vec<&str> = hits.iter().map(|(t, _)| t.as_str()).collect();
+    texts.sort_unstable();
+    assert_eq!(texts, vec!["in", "lt"], "{hits:?}");
+    // The two spans must not overlap.
+    assert_ne!(hits[0].1.span, hits[1].1.span);
+}
+
+#[test]
+fn w003_repeated_same_operator_gets_a_diagnostic_per_occurrence() {
+    let hits = w003_hits("if {$a in $b && $c in $d} { puts hi }", "tcl8.4");
+    assert_eq!(hits.len(), 2, "{hits:?}");
+    assert_eq!(hits[0].0, "in");
+    assert_eq!(hits[1].0, "in");
+    // Same text, but must anchor at two different source positions.
+    assert_ne!(hits[0].1.span.start(), hits[1].1.span.start());
+}
+
+#[test]
+fn w003_message_cites_the_relevant_tip() {
+    let hits = w003_hits("expr {2 in {1 2 3}}", "tcl8.4");
+    assert_eq!(hits.len(), 1);
+    assert!(
+        hits[0].1.message.contains("TIP 201"),
+        "{}",
+        hits[0].1.message
+    );
+    let hits = w003_hits("if {$x lt $y} { puts hi }", "tcl8.4");
+    assert_eq!(hits.len(), 1);
+    assert!(
+        hits[0].1.message.contains("TIP 461"),
+        "{}",
+        hits[0].1.message
+    );
+}
+
+#[test]
+fn w003_fires_on_all_six_gated_operators_pre_availability() {
+    // `ni`/`le`/`gt`/`ge` were only ever exercised indirectly before
+    // (only `lt` and `in` had a dedicated test); cover the full set.
+    for (src, op) in [
+        ("if {$x ni {a b c}} { puts hi }", "ni"),
+        ("if {$x le $y} { puts hi }", "le"),
+        ("if {$x gt $y} { puts hi }", "gt"),
+        ("if {$x ge $y} { puts hi }", "ge"),
+    ] {
+        let hits = w003_hits(src, "tcl8.4");
+        assert_eq!(hits.len(), 1, "{src}: {hits:?}");
+        assert_eq!(hits[0].0, op, "{src}");
+    }
+}
+
+#[test]
+fn w003_silent_on_ni_le_gt_ge_when_dialect_supports_them() {
+    // `ni` only needs 8.5+; `le`/`gt`/`ge` need 9.0+.
+    assert!(w003_hits("if {$x ni {a b c}} { puts hi }", "tcl8.5").is_empty());
+    for src in [
+        "if {$x le $y} { puts hi }",
+        "if {$x gt $y} { puts hi }",
+        "if {$x ge $y} { puts hi }",
+    ] {
+        assert!(w003_hits(src, "tcl9.0").is_empty(), "{src}");
+        assert!(w003_hits(src, "tcl8.5").len() == 1, "{src}");
+    }
+}
+
+#[test]
+fn w003_fires_on_unbraced_multiword_expr_at_a_tight_span() {
+    // `expr` is the only EXPR-role command that accepts an unbraced,
+    // multi-word expression; the gated keyword is its own Tcl word, so
+    // this exercises the separate `emit_w003_dialect_invalid_expr_words`
+    // path rather than the single-argument one above.
+    let hits = w003_hits("expr $a in $b", "tcl8.4");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert_eq!(hits[0].0, "in");
+    // No fix is offered for this shape (see doc comment on the emitter).
+    assert!(hits[0].1.fixes.is_empty());
+}
+
+#[test]
+fn w003_offers_lsearch_fix_for_in() {
+    let hits = w003_hits("expr {2 in {1 2 3}}", "tcl8.4");
+    assert_eq!(hits.len(), 1);
+    let fixes = &hits[0].1.fixes;
+    assert_eq!(fixes.len(), 1, "{fixes:?}");
+    assert_eq!(fixes[0].new_text, "([lsearch -exact {1 2 3} 2] >= 0)");
+}
+
+#[test]
+fn w003_offers_lsearch_fix_for_ni() {
+    let hits = w003_hits("expr {2 ni {1 2 3}}", "tcl8.4");
+    assert_eq!(hits.len(), 1);
+    let fixes = &hits[0].1.fixes;
+    assert_eq!(fixes.len(), 1, "{fixes:?}");
+    assert_eq!(fixes[0].new_text, "([lsearch -exact {1 2 3} 2] < 0)");
+}
+
+#[test]
+fn w003_offers_string_compare_fix_for_string_relational_ops() {
+    for (src, expect) in [
+        ("if {$x lt $y} { puts hi }", "([string compare $x $y] < 0)"),
+        ("if {$x le $y} { puts hi }", "([string compare $x $y] <= 0)"),
+        ("if {$x gt $y} { puts hi }", "([string compare $x $y] > 0)"),
+        ("if {$x ge $y} { puts hi }", "([string compare $x $y] >= 0)"),
+    ] {
+        let hits = w003_hits(src, "tcl8.4");
+        assert_eq!(hits.len(), 1, "{src}");
+        let fixes = &hits[0].1.fixes;
+        assert_eq!(fixes.len(), 1, "{src}: {fixes:?}");
+        assert_eq!(fixes[0].new_text, expect, "{src}");
+    }
+}
+
+#[test]
+fn w003_fix_span_replaces_exactly_the_gated_application() {
+    let src = "expr {2 in {1 2 3}}";
+    let hits = w003_hits(src, "tcl8.4");
+    let fix = &hits[0].1.fixes[0];
+    assert_eq!(
+        &src[fix.span.start() as usize..fix.span.end() as usize],
+        "2 in {1 2 3}"
+    );
+}
+
+#[test]
+fn w003_no_fix_when_operator_nested_in_a_larger_expression() {
+    // Only `in` is gated here (`&&` is fine everywhere); it is the sole
+    // W003 occurrence, but it is not the *whole* condition — rewriting
+    // just the `in` sub-expression while leaving `&& $c` around it is
+    // exactly the "nested" shape the fix deliberately declines.
+    let hits = w003_hits("if {$a in $b && $c} { puts hi }", "tcl8.4");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert!(hits[0].1.fixes.is_empty());
+}
+
+#[test]
+fn w003_no_fix_when_more_than_one_occurrence() {
+    let hits = w003_hits("if {$a lt $b && $c in $d} { puts hi }", "tcl8.4");
+    assert_eq!(hits.len(), 2);
+    assert!(hits[0].1.fixes.is_empty());
+    assert!(hits[1].1.fixes.is_empty());
+}
+
+#[test]
+fn w003_no_fix_when_operand_is_a_call() {
+    // `max($a, $b)` contains an unprotected space after the comma —
+    // splicing its rendered text bare into `lsearch`'s argument list
+    // would silently mis-word-split, so `is_simple_operand` excludes
+    // `Call` and no fix is offered even though this is the sole,
+    // top-level occurrence.
+    let hits = w003_hits("expr {max($a, $b) in $list}", "tcl8.4");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert!(hits[0].1.fixes.is_empty());
+}
+
+#[test]
+fn w003_silent_on_variable_named_like_a_gated_operator() {
+    // `$in` is a variable reference, not the `in` operator — the
+    // lexical prefilter alone can't tell the two apart, but the real
+    // expr parse must.
+    assert!(w003_hits("if {$in} { puts hi }", "tcl8.4").is_empty());
+    assert!(w003_hits("if {$ni && $lt} { puts hi }", "tcl8.4").is_empty());
+}
+
+#[test]
+fn w003_silent_on_array_element_named_like_a_gated_operator() {
+    assert!(w003_hits("if {$arr(in)} { puts hi }", "tcl8.4").is_empty());
+}
+
+#[test]
+fn w003_silent_on_quoted_string_literal_operator_word() {
+    // `"in"` is a quoted string literal, not the bareword operator.
+    let hits = w003_hits(r#"if {"in" eq $x} { puts hi }"#, "tcl8.4");
+    assert!(hits.is_empty(), "{hits:?}");
+}
+
+#[test]
+fn w003_silent_on_malformed_expression() {
+    // `lt` with no right-hand operand doesn't parse — `parse_expr`
+    // falls back to `Raw`, so W003 must stay silent rather than guess.
+    assert!(w003_hits("if {$x lt} { puts hi }", "tcl8.4").is_empty());
+}
+
+#[test]
+fn w003_dialect_is_file_wide_regardless_of_namespace_or_proc_nesting() {
+    // The active dialect is resolved once per file/analysis, not
+    // per-scope — a gated operator inside a deeply nested proc body
+    // must still be flagged.
+    let src = "namespace eval ::foo {\n  proc bar {} {\n    if {$x in $y} { return 1 }\n  }\n}\n";
+    let hits = w003_hits(src, "tcl8.4");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert_eq!(hits[0].0, "in");
+}
+
+#[test]
+fn w003_fires_inside_a_tcl_oo_method_body() {
+    let src = "oo::class create Foo {\n  method bar {} {\n    if {$x in $y} { return 1 }\n  }\n}\n";
+    let hits = w003_hits(src, "tcl8.4");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert_eq!(hits[0].0, "in");
+}
+
+#[test]
+fn w003_fires_inside_a_sub_interpreter_eval_body() {
+    // `interp eval`'s script argument is a registry BODY role, so it is
+    // walked like any other nested script. Static analysis can't know
+    // the sub-interpreter's own Tcl version, so it reasonably applies
+    // the enclosing file's dialect uniformly.
+    let src = "interp eval $safeInterp {\n  if {$x in $y} { return 1 }\n}\n";
+    let hits = w003_hits(src, "tcl8.4");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+}
+
+#[test]
+fn w003_suppressed_by_an_earlier_proc_shadowing_if() {
+    // A user `proc if {...} {...}` defined *before* the call site
+    // resolves at the call site instead of the builtin `::if` — Tcl's
+    // own name resolution, mirrored by W002's existing shadow rule and
+    // now shared by the EXPR-role dispatch (W100/W110/W003/W114 all at
+    // once, via `dispatch_expr_arguments`'s shadow guard).
+    let src = "proc if {c b} { return 1 }\nif {$x in $y} { puts hi }\n";
+    assert!(
+        w003_hits(src, "tcl8.4").is_empty(),
+        "shadowed 'if' must suppress W003"
+    );
+}
+
+#[test]
+fn w003_not_suppressed_by_a_later_proc_shadowing_if() {
+    // The shadowing proc is defined *after* this call site, so it
+    // cannot have been in effect when Tcl resolved this particular
+    // call — W003 must still fire here.
+    let src = "if {$x in $y} { puts hi }\nproc if {c b} { return 1 }\n";
+    assert_eq!(w003_hits(src, "tcl8.4").len(), 1);
+}
+
+#[test]
+fn w003_correctly_gates_eda_vendor_dialects_by_documented_base_version() {
+    // Regression for the registry fix (`DialectSet::expr_grammar_base_version`):
+    // these vendor dialects are documented as running on top of a real
+    // Tcl 8.5+ core (`docs/design/compiler/dialects-events.md`), so
+    // `in`/`ni` (TIP 201, 8.5+) must NOT be flagged for them — the old
+    // `DialectSet::TCL85_PLUS` check excluded them entirely and
+    // over-fired.
+    for dialect in [
+        "f5-iapps",
+        "xilinx-eda-tcl",
+        "intel-quartus-eda-tcl",
+        "mentor-eda-tcl",
+        "synopsys-eda-tcl",
+        "cadence-eda-tcl",
+        "expect",
+    ] {
+        assert!(
+            w003_hits("expr {2 in {1 2 3}}", dialect).is_empty(),
+            "{dialect} should support TIP 201 'in'"
+        );
+    }
+    // None of them reach Tcl 9.0, so the string-relational operators
+    // are still correctly flagged.
+    for dialect in [
+        "f5-iapps",
+        "xilinx-eda-tcl",
+        "intel-quartus-eda-tcl",
+        "mentor-eda-tcl",
+        "synopsys-eda-tcl",
+        "cadence-eda-tcl",
+        "expect",
+    ] {
+        assert_eq!(
+            w003_hits("if {$x lt $y} { puts hi }", dialect).len(),
+            1,
+            "{dialect} should still gate TIP 461 'lt'"
+        );
+    }
+}
+
+#[test]
+fn w003_f5_irules_stays_gated_on_its_tcl_8_4_runtime() {
+    // iRules advertises an 8.6-shaped command *signature* but its
+    // runtime `expr` evaluator is a genuine embedded Tcl 8.4.6 — both
+    // TIPs must be flagged, unlike the 8.5-base vendor dialects above.
+    assert_eq!(w003_hits("expr {2 in {1 2 3}}", "f5-irules").len(), 1);
+    assert_eq!(w003_hits("if {$x lt $y} { puts hi }", "f5-irules").len(), 1);
+}
+
+#[test]
+fn w003_f5_tmsh_now_gates_tip_461_but_not_tip_201() {
+    // Regression: `f5-tmsh` had no `DialectSet` bit at all, so
+    // `DialectSet::parse` returned `None` and W003 silently never fired
+    // for it — a false negative on its documented Tcl 8.5 base for
+    // `lt`/`le`/`gt`/`ge`. `expr_grammar_base_version` fixes this
+    // without touching `DialectSet::parse`'s existing per-command
+    // dialect-gating semantics.
+    assert!(w003_hits("expr {2 in {1 2 3}}", "f5-tmsh").is_empty());
+    assert_eq!(w003_hits("if {$x lt $y} { puts hi }", "f5-tmsh").len(), 1);
+}
+
 #[test]
 fn emit_variable_usage_diagnostics_is_a_noop() {
     // Hook is intentionally empty — running it must leave

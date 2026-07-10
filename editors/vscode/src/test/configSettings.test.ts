@@ -490,6 +490,8 @@ suite("Configuration Settings", () => {
     "E200",
     "W001",
     "W002",
+    "W003",
+    "W004",
     "W100",
     "W101",
     "W102",

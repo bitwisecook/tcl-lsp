@@ -36,7 +36,7 @@ use tcl_registry::Arity;
 use super::helpers::{has_substitution, is_ident_continue, is_integer_word};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::{PendingUserCallArity, Severity};
-use crate::expr_ast::{BinOp, ExprNode};
+use crate::expr_ast::{ExprNode, render_expr};
 
 /// The argument words of one command invocation, scoped to the prefix the
 /// caller has already consumed: `args` / `arg_tokens` / `arg_expand` are the
@@ -413,6 +413,13 @@ impl Analyser {
         // misses an iRules command like `when`/`log`/`session` under
         // tcl8.6, so use the dialect-independent `known_in_any_dialect`.
         if registry.get_for_dialect(bare, dialect).is_some() || !registry.known_in_any_dialect(bare)
+        {
+            return;
+        }
+        // An earlier *unconditional* user proc with this name shadows the
+        // would-be-disabled built-in at the call site.
+        let qualified = crate::naming::normalise_qualified_name(bare);
+        if super::utils::proc_shadows_call(&self.result.all_procs, &qualified, cmd_tok.span.start())
         {
             return;
         }
@@ -2410,17 +2417,32 @@ in the active dialect ({}).",
     }
 
     /// **W003.** Emit "Expression operator not available in active
-    /// dialect" warning for expressions that use a Tcl 9.0 string-
-    /// comparison operator (`lt` / `le` / `gt` / `ge`, TIP 461) in a
-    /// pre-9.0 dialect, or `in` / `ni` (TIP 201, Tcl 8.5+) in
-    /// Tcl 8.4 / f5-irules.
+    /// dialect" warnings for an EXPR-role argument that uses a Tcl
+    /// 9.0 string-comparison operator (`lt` / `le` / `gt` / `ge`,
+    /// TIP 461) in a pre-9.0 dialect, or `in` / `ni` (TIP 201, Tcl
+    /// 8.5+) in an earlier one. One diagnostic is emitted per
+    /// offending operator *occurrence*, anchored at that operator's
+    /// own token span rather than the whole argument, so the
+    /// squiggle stays tight around the actual problem even inside a
+    /// large compound expression.
+    ///
+    /// `content_span` is the argument's inner content: the caller has
+    /// already stripped any wrapping `{}` / `""` / `$` via the
+    /// token's `content_offset`, so this slices `self.source`
+    /// directly instead of trusting a possibly-reconstructed text —
+    /// a quoted `"$x lt $y"` argument's word text is canonicalised to
+    /// `"${x} lt ${y}"` by the segmenter, which would misalign any
+    /// offset computed from it.
     pub(in crate::analyser) fn emit_w003_dialect_invalid_expr_operator(
         &mut self,
-        expr_text: &str,
-        diag_span: tcl_lexer::Span,
+        content_span: tcl_lexer::Span,
     ) {
-        use tcl_registry::dialects::DialectSet;
-
+        let start = content_span.start() as usize;
+        let end = content_span.end() as usize;
+        if start > end || end > self.source.len() {
+            return;
+        }
+        let expr_text = &self.source[start..end];
         // Quick lexical bail-out — the gated operators are short
         // word-shaped keywords; if none appear as a whole word we
         // can skip the parse.  Boundary check uses ASCII identifier
@@ -2431,36 +2453,158 @@ in the active dialect ({}).",
         if !contains_gated_word(expr_text) {
             return;
         }
-        let Some(active) = DialectSet::parse(&self.dialect) else {
+        let Some((pre_85, pre_90)) = self.w003_gates() else {
             return;
         };
+
+        let trimmed = expr_text.trim();
+        let parsed = crate::parse_expr(trimmed, Some(self.dialect.as_str()));
+        if matches!(parsed, ExprNode::Raw { .. }) {
+            return;
+        }
+
+        // Re-tokenise the same (trimmed) text at the flat lexical
+        // level: every gated-keyword `Operator` token here
+        // corresponds 1:1 to a `Binary` node the parse above just
+        // confirmed is real (a successful parse consumes the whole
+        // token stream, and `in`/`ni`/`lt`/`le`/`gt`/`ge` are not
+        // valid prefix/atom tokens — the only way one is consumed is
+        // as a genuine infix application). This gives an exact
+        // per-occurrence span directly from `ExprToken::start/end`
+        // without adding source-position fields to `ExprNode::Binary`
+        // (which recursive/optimiser/codegen consumers across the
+        // compiler pattern-match on by name, not span).
+        let (tokens, _) = tcl_lexer::tokenise_expr_checked(trimmed, Some(self.dialect.as_str()));
+        let gated: Vec<(&tcl_lexer::ExprToken, &'static str)> = tokens
+            .iter()
+            .filter(|t| t.kind == tcl_lexer::ExprTokenType::Operator)
+            .filter_map(|t| gated_operator_name(&t.text, pre_85, pre_90).map(|name| (t, name)))
+            .collect();
+        if gated.is_empty() {
+            return;
+        }
+
+        // A mechanical rewrite is only safe to offer when the whole
+        // argument IS exactly the one gated application (`2 in {1 2
+        // 3}`, `$x lt $y`) with plain operands: the operator nested
+        // inside a larger expression, more than one gated occurrence,
+        // or an operand that isn't a single bare-word-safe atom
+        // (`Binary`/`Unary`/`Ternary`/`Call` — e.g. `max($a, $b)`
+        // contains an unprotected space) can't be reduced to one
+        // local text replacement.
+        let fix_text = (gated.len() == 1)
+            .then_some(&parsed)
+            .and_then(|node| match node {
+                ExprNode::Binary { op, left, right }
+                    if is_simple_operand(left) && is_simple_operand(right) =>
+                {
+                    rewrite_gated_operator(op.as_str(), &render_expr(left), &render_expr(right))
+                }
+                _ => None,
+            });
+
+        // Leading whitespace `expr_text.trim()` stripped, needed to
+        // translate a `trimmed`-local offset back to an
+        // `expr_text`-local (and then absolute source) offset.
+        let trim_base = u32::try_from(expr_text.len() - expr_text.trim_start().len()).unwrap_or(0);
+
+        for (tok, op_name) in gated {
+            let op_span = tcl_lexer::Span::new(
+                content_span.start() + trim_base + tok.start,
+                // `ExprToken::end` is inclusive; `Span` is exclusive.
+                content_span.start() + trim_base + tok.end + 1,
+            );
+            let mut fixes = Vec::new();
+            if let Some(new_text) = fix_text.clone() {
+                fixes.push(super::types::CodeFix {
+                    span: tcl_lexer::Span::new(
+                        content_span.start() + trim_base,
+                        content_span.start()
+                            + trim_base
+                            + u32::try_from(trimmed.len()).unwrap_or(0),
+                    ),
+                    new_text,
+                    description: format!(
+                        "Rewrite to a form supported by dialect '{}'",
+                        self.dialect
+                    ),
+                });
+            }
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: DiagCode::W003,
+                span: op_span,
+                message: format!(
+                    "Expression operator '{op_name}' is not available in dialect '{}'; requires {}.",
+                    self.dialect,
+                    w003_tip_citation(op_name)
+                ),
+                severity: Severity::Warning,
+                fixes,
+            });
+        }
+    }
+
+    /// **W003** for the multi-word `expr a b c …` form. Tcl's `expr`
+    /// is the only EXPR-role command whose expression can be spread
+    /// across several unbraced words (`if`/`while`/`for` require
+    /// their condition to be a single Tcl word — an unbraced
+    /// multi-word condition is a Tcl arity error, not valid syntax).
+    /// Written this way, a gated operator keyword is necessarily its
+    /// own standalone Tcl word, so its `arg_tokens` entry is already
+    /// an exact, tight span — no text-offset remapping needed, unlike
+    /// the single-argument path above.
+    pub(in crate::analyser) fn emit_w003_dialect_invalid_expr_words(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        joined_text: &str,
+    ) {
+        if !contains_gated_word(joined_text) {
+            return;
+        }
+        let Some((pre_85, pre_90)) = self.w003_gates() else {
+            return;
+        };
+        let parsed = crate::parse_expr(joined_text.trim(), Some(self.dialect.as_str()));
+        if matches!(parsed, ExprNode::Raw { .. }) {
+            return;
+        }
+        for (word, tok) in args.iter().zip(arg_tokens.iter()) {
+            let Some(op_name) = gated_operator_name(word, pre_85, pre_90) else {
+                continue;
+            };
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: DiagCode::W003,
+                span: tok.span,
+                message: format!(
+                    "Expression operator '{op_name}' is not available in dialect '{}'; requires {}.",
+                    self.dialect,
+                    w003_tip_citation(op_name)
+                ),
+                severity: Severity::Warning,
+                // The unbraced multi-word form has no single local
+                // span to rewrite in place without also re-bracing
+                // the whole expression (W100's concern, not this
+                // one) — left unfixed.
+                fixes: Vec::new(),
+            });
+        }
+    }
+
+    /// Resolve whether the active dialect gates TIP 201 (`in`/`ni`)
+    /// and/or TIP 461 (`lt`/`le`/`gt`/`ge`) `expr` operators, as
+    /// `(pre_85, pre_90)`. `None` when the active dialect string has
+    /// no documented `expr`-grammar base version, or neither TIP is
+    /// gated (nothing for W003 to check).
+    fn w003_gates(&self) -> Option<(bool, bool)> {
+        use tcl_registry::dialects::DialectSet;
+        let active = DialectSet::expr_grammar_base_version(&self.dialect)?;
         // Pre-Tcl-8.5 dialects don't accept `in` / `ni` (TIP 201).
         let pre_85 = !DialectSet::TCL85_PLUS.contains(active);
         // Pre-Tcl-9.0 dialects don't accept `lt` / `le` / `gt` / `ge`
         // (TIP 461); 9.0 and 9.1 both do.
         let pre_90 = !DialectSet::TCL90_PLUS.contains(active);
-        if !pre_85 && !pre_90 {
-            return;
-        }
-
-        let parsed = crate::parse_expr(expr_text.trim(), Some(self.dialect.as_str()));
-        if matches!(parsed, ExprNode::Raw { .. }) {
-            return;
-        }
-        let mut found: Vec<&'static str> = Vec::new();
-        walk_dialect_invalid_ops(&parsed, pre_85, pre_90, &mut found);
-        for op_name in found {
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W003,
-                span: diag_span,
-                message: format!(
-                    "Expression operator '{op_name}' is not available in dialect '{}'.",
-                    self.dialect
-                ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
-        }
+        (pre_85 || pre_90).then_some((pre_85, pre_90))
     }
 }
 
@@ -2689,43 +2833,61 @@ pub(super) fn contains_gated_word(text: &str) -> bool {
     false
 }
 
-fn walk_dialect_invalid_ops(
-    node: &ExprNode,
-    pre_85: bool,
-    pre_90: bool,
-    found: &mut Vec<&'static str>,
-) {
-    match node {
-        ExprNode::Binary { op, left, right } => {
-            walk_dialect_invalid_ops(left, pre_85, pre_90, found);
-            walk_dialect_invalid_ops(right, pre_85, pre_90, found);
-            match op {
-                BinOp::In if pre_85 => found.push("in"),
-                BinOp::Ni if pre_85 => found.push("ni"),
-                BinOp::StrLt if pre_90 => found.push("lt"),
-                BinOp::StrLe if pre_90 => found.push("le"),
-                BinOp::StrGt if pre_90 => found.push("gt"),
-                BinOp::StrGe if pre_90 => found.push("ge"),
-                _ => {}
-            }
-        }
-        ExprNode::Unary { operand, .. } => {
-            walk_dialect_invalid_ops(operand, pre_85, pre_90, found);
-        }
-        ExprNode::Ternary {
-            condition,
-            true_branch,
-            false_branch,
-        } => {
-            walk_dialect_invalid_ops(condition, pre_85, pre_90, found);
-            walk_dialect_invalid_ops(true_branch, pre_85, pre_90, found);
-            walk_dialect_invalid_ops(false_branch, pre_85, pre_90, found);
-        }
-        ExprNode::Call { args, .. } => {
-            for arg in args {
-                walk_dialect_invalid_ops(arg, pre_85, pre_90, found);
-            }
-        }
-        _ => {}
+/// The gated operator name for `word`, given which TIPs are
+/// unavailable in the active dialect — `None` when `word` isn't one
+/// of the six dialect-gated keywords, or the relevant TIP is actually
+/// available (`pre_85`/`pre_90` both false for it).
+fn gated_operator_name(word: &str, pre_85: bool, pre_90: bool) -> Option<&'static str> {
+    Some(match word {
+        "in" if pre_85 => "in",
+        "ni" if pre_85 => "ni",
+        "lt" if pre_90 => "lt",
+        "le" if pre_90 => "le",
+        "gt" if pre_90 => "gt",
+        "ge" if pre_90 => "ge",
+        _ => return None,
+    })
+}
+
+/// The TIP citation to surface in the W003 message for `op_name`.
+fn w003_tip_citation(op_name: &str) -> &'static str {
+    match op_name {
+        "in" | "ni" => "Tcl 8.5+ (TIP 201)",
+        _ => "Tcl 9.0+ (TIP 461)",
     }
+}
+
+/// Whether `node` is safe to splice as a bare Tcl word into a
+/// rewritten command (`lsearch` / `string compare`) with no extra
+/// quoting: it never contains an unprotected top-level space. Plain
+/// atoms are always safe (`Literal` is bare digits, `String` already
+/// carries its own `{}`/`""` delimiters, `Var` is `$name`/`${name}`,
+/// `Command` is bracket-delimited); `Binary`/`Unary`/`Ternary` would
+/// need re-parenthesising and `Call` (`max($a, $b)`) contains an
+/// unprotected space after the comma, so none of those are rewritten.
+fn is_simple_operand(node: &ExprNode) -> bool {
+    matches!(
+        node,
+        ExprNode::Literal { .. }
+            | ExprNode::String { .. }
+            | ExprNode::Var { .. }
+            | ExprNode::Command { .. }
+    )
+}
+
+/// Build the portable rewrite for a dialect-gated `expr` operator
+/// application, or `None` if `op_name` isn't one of the six gated
+/// keywords. `left`/`right` must already be safe bare-word text (see
+/// [`is_simple_operand`]) — the caller is responsible for checking
+/// that before rendering them.
+fn rewrite_gated_operator(op_name: &str, left: &str, right: &str) -> Option<String> {
+    Some(match op_name {
+        "in" => format!("([lsearch -exact {right} {left}] >= 0)"),
+        "ni" => format!("([lsearch -exact {right} {left}] < 0)"),
+        "lt" => format!("([string compare {left} {right}] < 0)"),
+        "le" => format!("([string compare {left} {right}] <= 0)"),
+        "gt" => format!("([string compare {left} {right}] > 0)"),
+        "ge" => format!("([string compare {left} {right}] >= 0)"),
+        _ => return None,
+    })
 }
