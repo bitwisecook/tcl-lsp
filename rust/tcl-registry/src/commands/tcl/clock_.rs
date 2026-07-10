@@ -25,7 +25,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 }];
 
 /// Options for `clock scan` / `clock format` / `clock add`.
-/// `-validate` is Tcl 9.0+ (TIP 532) and dialect-gated; the
+/// `-validate` is Tcl 9.0+ (TIP 688) and dialect-gated; the
 /// others exist since Tcl 8.5.
 static SCAN_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
@@ -68,7 +68,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         min_version: None,
     },
-    // `-validate` is Tcl 9.0+ (TIP 532).
+    // `-validate` is Tcl 9.0+ (TIP 688).
     OptionSpec {
         name: "-validate",
         value: OptionValue::value("boolean"),
@@ -344,11 +344,14 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         min_version: None,
     },
+    // `-validate` is Tcl 9.0+, same as `SCAN_OPTIONS`'s entry above — this
+    // duplicate table had drifted to `dialects: None`, silently omitting the
+    // gate for the top-level (pre-subcommand-resolution) completion/hover path.
     OptionSpec {
         name: "-validate",
         value: OptionValue::value("boolean"),
-        detail: "Validate date fields strictly.",
-        dialects: None,
+        detail: "Validate date fields strictly (Tcl 9.0+).",
+        dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
         min_version: None,
     },

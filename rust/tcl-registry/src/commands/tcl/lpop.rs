@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `lpop` — get and remove an element from a list variable (Tcl 9.0+, TIP 323).
+//! `lpop` — get and remove an element from a list variable (Tcl 9.0+, TIP 523).
 
 use crate::prelude::*;
 

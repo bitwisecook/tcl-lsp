@@ -513,6 +513,36 @@ suite("Diagnostics", () => {
     }
   });
 
+  // W004 (option not available in the active dialect): an abbreviated
+  // ensemble subcommand (`chan conf` ⇒ `configure`) must still be resolved
+  // against its own option table, and a same-file proc that redefines a
+  // builtin must suppress the diagnostic for calls that resolve to it.
+  test("W004 fires for a dialect-gated option, including on an abbreviated subcommand", async () => {
+    const uri = getDocUri("diagnostics-w004.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.filter((d) => codeOf(d) === "W004").length >= 2,
+    });
+    const w004 = diagnostics.filter((d) => codeOf(d) === "W004");
+    assert.strictEqual(
+      w004.length,
+      2,
+      `expected exactly two W004s (the proc-shadowed call must be suppressed), got [${w004.map((d) => d.message)}]`,
+    );
+    assert.ok(
+      w004.some((d) => d.message.includes("-stride") && d.message.includes("lsearch")),
+      `a W004 message should name lsearch's -stride, got: ${w004.map((d) => d.message)}`,
+    );
+    assert.ok(
+      w004.some((d) => d.message.includes("-inputmode") && d.message.includes("'chan' configure")),
+      `a W004 message should resolve the abbreviated 'chan conf' to 'chan' configure, got: ${w004.map((d) => d.message)}`,
+    );
+    for (const d of w004) {
+      assert.strictEqual(d.severity, vscode.DiagnosticSeverity.Warning, "W004 should be a warning");
+    }
+  });
+
   // E001 ("missing dispatch word"): a subcommand-dispatch registry command
   // (`string`) or a TclOO object (`$o`) invoked with no dispatch word at all
   // is a genuine arity error, tightly highlighted at just the command head.

@@ -40,6 +40,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Generate an event and arrange for it to be processed.",
         synopsis: "event generate window event ?option value ...?",
+        options: OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {

@@ -26,6 +26,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Append data to the clipboard on the specified display.",
         synopsis: "clipboard append ?-displayof window? ?-format format? ?-type type? data",
+        options: APPEND_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -33,6 +34,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Claim ownership of the clipboard and clear its contents.",
         synopsis: "clipboard clear ?-displayof window?",
+        options: CLEAR_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -40,7 +42,68 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Retrieve data from the clipboard on the specified display.",
         synopsis: "clipboard get ?-displayof window? ?-type type?",
+        options: GET_OPTIONS,
         ..SubCommand::DEFAULT
+    },
+];
+
+/// `append`: takes all three options — `-displayof`, `-format`, and
+/// `-type` — per the Tk `clipboard.n` manual page.
+const APPEND_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-displayof",
+        value: OptionValue::value("window"),
+        detail: "Specifies the display for the clipboard operation.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-format",
+        value: OptionValue::value("format"),
+        detail: "Specifies the representation format for the data (append).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-type",
+        value: OptionValue::value("type"),
+        detail: "Specifies the form in which the selection is to be returned.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
+
+/// `clear`: only `-displayof` — no `-format`/`-type` per the manual page.
+const CLEAR_OPTIONS: &[OptionSpec] = &[OptionSpec {
+    name: "-displayof",
+    value: OptionValue::value("window"),
+    detail: "Specifies the display for the clipboard operation.",
+    dialects: None,
+    aliases: &[],
+    min_version: None,
+}];
+
+/// `get`: `-displayof` and `-type` — no `-format` (that only applies to
+/// `append`) per the manual page.
+const GET_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-displayof",
+        value: OptionValue::value("window"),
+        detail: "Specifies the display for the clipboard operation.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-type",
+        value: OptionValue::value("type"),
+        detail: "Specifies the form in which the selection is to be returned.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

@@ -270,23 +270,27 @@ pub struct Analyser {
     /// per command) cost ``O(log N)`` instead of ``O(N)`` per
     /// call.  ``None`` outside an active analysis run.
     pub line_offsets: Option<Vec<usize>>,
-    /// Candidate E002 / E003 arity diagnostics collected during the
-    /// command walk, as `(command name, call-site namespace,
-    /// enforce_order, diagnostic)`.  Emitted in a post-walk pass
+    /// Candidate E002 / E003 arity diagnostics **and** W004
+    /// (dialect-invalid-option) diagnostics collected during the command
+    /// walk, as `(command name, call-site namespace, enforce_order,
+    /// diagnostic)`.  Both are "this registry builtin's rule was
+    /// violated" candidates with the identical suppression condition, so
+    /// they share one queue.  Emitted in a post-walk pass
     /// ([`Self::flush_arity_diagnostics`]) so a command that resolves
     /// to a user-defined proc / class / alias / ensemble / stub —
     /// which may be defined *after* its call site — suppresses the
-    /// builtin-arity check.  The namespace is captured so suppression
-    /// is scoped to the command the call actually resolves to (current
-    /// namespace → global), not to every same-tail-named definition
-    /// anywhere in the file.  `enforce_order` is `true` for top-level
-    /// calls (module body, `namespace eval` bodies, conditionals) which
-    /// execute in source order during load: a shadowing proc only
-    /// silences such a call when its definition lexically precedes it.
-    /// Proc-body calls (`enforce_order == false`) resolve after load,
-    /// so any same-named definition shadows regardless of order.
-    /// The arity check runs over the fully-resolved IR rather than
-    /// inline during the walk.
+    /// builtin check (the call dispatches to that definition at run
+    /// time, not to the registry builtin the candidate describes).  The
+    /// namespace is captured so suppression is scoped to the command the
+    /// call actually resolves to (current namespace → global), not to
+    /// every same-tail-named definition anywhere in the file.
+    /// `enforce_order` is `true` for top-level calls (module body,
+    /// `namespace eval` bodies, conditionals) which execute in source
+    /// order during load: a shadowing proc only silences such a call
+    /// when its definition lexically precedes it.  Proc-body calls
+    /// (`enforce_order == false`) resolve after load, so any same-named
+    /// definition shadows regardless of order.  The arity check runs
+    /// over the fully-resolved IR rather than inline during the walk.
     pub pending_arity: Vec<(String, String, bool, super::types::Diagnostic)>,
     /// Same-file user-call arity candidates — see
     /// [`super::types::PendingUserCallArity`]. Queued for *every* call

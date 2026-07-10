@@ -26,6 +26,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Set or query the packing options for one or more slaves.",
         synopsis: "pack configure slave ?slave ...? ?option value ...?",
+        options: OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {

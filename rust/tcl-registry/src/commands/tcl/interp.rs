@@ -149,8 +149,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "debug",
-        // Added in Tcl 8.5 (TIP 233).
-        dialects: Some(DialectSet::TCL85_PLUS),
+        // Added in Tcl 8.6 (TIP 378 — TIP 233 is an unrelated proposal about
+        // Tcl_SetTimeProc/virtualised time).
+        dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(1),
         detail: "Control debug mode.",
         synopsis: "interp debug path ?-frame ?bool??",

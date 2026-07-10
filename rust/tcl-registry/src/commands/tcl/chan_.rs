@@ -84,7 +84,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         min_version: None,
     },
-    // Tcl 9.0+ socket / terminal options (TIPs 528 / 160).
+    // Tcl 9.0+ socket / terminal options (TIPs 344 / 160).
     OptionSpec {
         name: "-nodelay",
         value: OptionValue::value("boolean"),
