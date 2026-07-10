@@ -180,6 +180,10 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::new(3, 4),
         return_type: Some(TclType::Int),
+        // The `varName` form writes the substituted *string* to its target
+        // while returning the replacement *count*.  The written string is not
+        // the count, so the target must not be typed `Int` (issue #867).
+        var_write_typing: VarWriteTyping::Destructured,
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
             reads: false,

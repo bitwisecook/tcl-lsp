@@ -109,6 +109,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Parse a binary string.",
         synopsis: "binary scan string formatString ?varName ...?",
         return_type: Some(TclType::Int),
+        // `binary scan` writes format-dependent values (`a` → string, `c`/`s`/
+        // `i` → int, `f` → double, `@` → none) to its targets while returning
+        // the *count* of conversions.  The targets are not the count, so they
+        // must not be typed `Int` (issue #867).
+        var_write_typing: VarWriteTyping::Destructured,
         arg_types: &[
             (
                 0,

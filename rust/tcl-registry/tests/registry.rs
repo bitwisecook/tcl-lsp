@@ -24,7 +24,8 @@
 //! `info commands` — the names below were taken from `info commands {[a-z]*}`
 //! on tclsh9.0 (and all exist on tclsh8.6 too).
 
-use tcl_registry::{CommandRegistry, Traits, registry_for_dialect};
+use tcl_registry::dialects::DialectSet;
+use tcl_registry::{CommandRegistry, TclType, Traits, VarWriteTyping, registry_for_dialect};
 
 /// Commands present in both tclsh8.6 and tclsh9.0 `info commands`.
 const CORE_COMMANDS: &[&str] = &[
@@ -199,4 +200,73 @@ fn nine_oh_only_commands_gated_by_dialect() {
     // registry should reflect that dialect gate.
     let nine = registry_for_dialect("tcl9.0");
     assert!(nine.get("const").is_some(), "const is a 9.0 builtin");
+}
+
+#[test]
+fn var_write_typing_declares_destructuring_writers() {
+    // The registry is the single source of truth for how a command types the
+    // variables it *writes* — distinct from what it *returns* (issue #867).
+    // A destructuring writer returns a leftover list / match count while
+    // writing element-wise pieces, so the compiler must read this rather than
+    // broadcast the return type onto the targets.
+    let reg = CommandRegistry::build_default();
+
+    let resolve = |name: &str, args: &[&str]| {
+        reg.resolve_call(name, args, DialectSet::empty())
+            .unwrap_or_else(|| panic!("{name} resolves"))
+            .var_write_typing()
+    };
+
+    // Destructuring writers widen their targets to "unknown intrep".
+    for (name, args) in [
+        ("lassign", &["$l", "a"][..]),
+        ("scan", &["$s", "%d", "a"][..]),
+        ("regexp", &["re", "$s", "m"][..]),
+        ("regsub", &["re", "$s", "sub", "out"][..]),
+    ] {
+        assert_eq!(
+            resolve(name, args),
+            VarWriteTyping::Destructured,
+            "{name} must declare Destructured var-write typing"
+        );
+    }
+
+    // `binary scan` carries the typing at the *subcommand* level; the bare
+    // `binary` command (and `binary format`) does not destructure.
+    assert_eq!(
+        resolve("binary", &["scan", "$d", "a3", "chars"]),
+        VarWriteTyping::Destructured,
+        "binary scan must declare Destructured var-write typing"
+    );
+    assert_eq!(
+        resolve("binary", &["format", "a3", "abc"]),
+        VarWriteTyping::ReturnValue,
+        "binary format does not destructure"
+    );
+
+    // Fixed-intrep writers: the line `gets` reads is a String; the list `lpop`
+    // leaves behind is a List — neither is the value the command returns.
+    assert_eq!(
+        resolve("gets", &["$ch", "line"]),
+        VarWriteTyping::Fixed(TclType::String),
+        "gets writes a String line"
+    );
+    assert_eq!(
+        registry_for_dialect("tcl9.0")
+            .resolve_call("lpop", &["l"], DialectSet::empty())
+            .expect("lpop resolves on 9.0")
+            .var_write_typing(),
+        VarWriteTyping::Fixed(TclType::List),
+        "lpop leaves a List in its variable"
+    );
+
+    // Control: an ordinary single-target writer keeps the default — its stored
+    // value IS its return value.
+    for name in ["append", "lappend"] {
+        assert_eq!(
+            resolve(name, &["v", "x"]),
+            VarWriteTyping::ReturnValue,
+            "{name} stores its return value — default ReturnValue"
+        );
+    }
 }

@@ -29,6 +29,7 @@ import { getDocUri, activate, waitForDiagnostics } from "./helper";
 //   #725  `$::var` (a qualified global read) must not draw "read before set" (W210)
 //   #726  a nested `[expr]` that is a command argument must not draw W114
 //   #727  go-to-definition of a method parameter resolves to the parameter name
+//   #867  `lassign` targets are list elements, not the List it returns -> no S100
 suite("Preview-version regression tickets", () => {
   const docUri = getDocUri("previewTickets.tcl");
 
@@ -52,6 +53,9 @@ suite("Preview-version regression tickets", () => {
     // #726 — the nested `[expr]` is a command argument, not an expression
     // context, so it must not draw W114.
     assert.ok(!codes.includes("W114"), `#726: unexpected W114 in [${codes}]`);
+    // #867 — `lassign $point px py pz` writes list elements, not the List the
+    // command returns, so the arithmetic on them must not draw an S100 shimmer.
+    assert.ok(!codes.includes("S100"), `#867: unexpected S100 in [${codes}]`);
 
     // #721 — the genuine E003 must be present, and exactly once (no duplicate
     // from the server pushing *and* the client pulling the same diagnostic).

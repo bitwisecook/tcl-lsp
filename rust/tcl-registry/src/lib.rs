@@ -113,7 +113,7 @@ pub mod prelude {
     pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
     pub use crate::taint::{SetterConstraint, TaintColour};
     pub use crate::traits::Traits;
-    pub use crate::types::TclType;
+    pub use crate::types::{TclType, VarWriteTyping};
 }
 
 // Re-export key types at crate root.
@@ -129,7 +129,7 @@ pub use dialects::{
 };
 pub use hover::ArgValue;
 pub use patterns::{FormatType, PatternType};
-pub use registry::{CommandRegistry, ResolvedTerminator};
+pub use registry::{CommandRegistry, ResolvedCall, ResolvedTerminator};
 pub use spec::{BytePayloadSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSubCommand};
 pub use special_vars::{
     SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, VarAccess, VarOrigin,
@@ -139,7 +139,7 @@ pub use special_vars::{
 pub use symbol_def::{DefinedSymbolKind, SymbolDef};
 pub use taint::{SetterConstraint, TaintColour};
 pub use traits::Traits;
-pub use types::TclType;
+pub use types::{TclType, VarWriteTyping};
 
 /// Crate version string.
 ///
