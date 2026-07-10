@@ -471,7 +471,21 @@ can simplify this" suggestion. None swept yet.
   documented-and-silently dropped (`command_prefix.rs`'s module doc), which
   the `apply_callback_arity`'s always-zero `baked` argument confirms is a
   live, unexercised code path.
-- [ ] **E004** malformed control flow (0) — synthetic.
+- [x] **E004** malformed `if` — RESOLVED (0 corpus firings; verified against
+  Tcl 9.0.4's `TclNRIfObjCmd`/`IfConditionCallback` C source and tclsh 8.6
+  rather than a corpus sweep, since real-world malformed `if`s don't occur):
+  cleared a genuine FP — `if else {a}` / `if elseif {a}` are structurally
+  well-formed (the bareword sits in the condition slot, never keyword-matched
+  there; real Tcl fails at expression evaluation instead, a distinct problem).
+  Also fixed a redundant-diagnostic bug (a malformed `if` drew both a generic
+  E002 and E004 for the same defect — `if`'s registry arity floor is now
+  descriptive-only, gated by `Traits::STRUCTURALLY_CHECKED_ARITY`), replaced
+  the generic "Malformed 'if' command" message with Tcl's own precise wording
+  per sub-case, and narrowed every span from the whole statement to the
+  offending word(s). The clause-chain walk itself moved into `tcl-registry`
+  (`commands::tcl::if_::walk_if`, exposed as a `clause_shape_check` hook on
+  `CommandSpec`) so it is shared with the `if_arg_roles` highlighting
+  resolver instead of being re-implemented in the compiler.
 - [ ] **E200** shimmer parse error (0) — synthetic.
 - [ ] **H300** possible paste error (0 corpus) — synthetic.
 

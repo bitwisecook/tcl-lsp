@@ -239,6 +239,16 @@ bitflags! {
         /// collector.
         const WASM_EMITS_NOTHING        = 1 << 52;
 
+        /// The registry's simple `min..=max` [`crate::Arity`] is a coarse
+        /// floor/ceiling only — this command's real grammar is a clause
+        /// chain validated by [`crate::spec::CommandSpec::clause_shape_check`]
+        /// (`if`'s `elseif`/`else` chain). The generic arity floor/ceiling
+        /// diagnostic (E002/E003) skips a command carrying this trait so its
+        /// dedicated structural diagnostic owns arity together with clause
+        /// shape — one precise diagnostic per malformed call instead of a
+        /// redundant generic one alongside it.
+        const STRUCTURALLY_CHECKED_ARITY = 1 << 54;
+
         /// The command concatenates its *entire* argument list into a single
         /// expression (`expr` — `expr $a + $b` evaluates the one expression
         /// `$a + $b`). This differs from commands whose expression is a single

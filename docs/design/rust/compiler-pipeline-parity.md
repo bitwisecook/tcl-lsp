@@ -835,7 +835,7 @@ Rust: `rust/tcl-compiler/src/analyser/*`, `compiler_checks.rs`, `irules_checks.r
 | E001 | Missing subcommand (bare `string`) | compiler_checks.py:716 | — | ❌ | Deferred (diagnostics.rs:3541 comment). Arity E002/E003 ported; empty/missing-subcommand not. |
 | E002 | Too few arguments | compiler_checks.py:929 | diagnostics.rs:3826 | ✅ | Registry-signature driven both. |
 | E003 | Too many arguments | compiler_checks.py:930 | diagnostics.rs:3841 | ✅ | |
-| E004 | Parse/internal error | compiler_checks.py:69 | state.rs:3073 | ✅ | |
+| E004 | Malformed `if` clause shape | compiler_checks.py:69 | validity.rs:`emit_e004_clause_shape_diagnostic` (registry `commands::tcl::if_::walk_if` hook) | ✅ | Rust exceeds parity: precise per-clause messages/spans, no leading-else FP, no redundant E002 |
 | E100 | Syntax | checks/_syntax.py:18 | syntax_checks.rs:691 | ✅ | |
 | E101 | Unclosed bracket / missing open brace | _analyser/_utils.py:134 | recovery.rs:310 | ✅ | Same insert-`{` CodeFix. |
 | E102 | Syntax | checks/_syntax.py:117 | syntax_checks.rs:756 | ✅ | |
