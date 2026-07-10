@@ -1151,6 +1151,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         optimiser_enabled,
         style_line_length,
         xc_diagnostics,
+        uri,
     };
     run_diagnostics_analyser_path(
         &delivery,
@@ -1459,6 +1460,10 @@ struct LiftInputs<'a> {
     optimiser_enabled: bool,
     style_line_length: u32,
     xc_diagnostics: bool,
+    /// The document URI — needed to build compiler-check `relatedInformation`
+    /// `Location`s (`lift_compiler_diagnostics`), which always point back
+    /// into the same document.
+    uri: &'a Uri,
 }
 
 /// Refine the analyser's single-file W120 against the workspace package
@@ -1505,6 +1510,7 @@ async fn refine_and_lift_diagnostics(
     let style_line_length = inputs.style_line_length;
     let xc_for_irules = inputs.xc_diagnostics && inputs.dialect == "f5-irules";
     let compiler_diags = Arc::clone(compiler_diags);
+    let lift_uri = inputs.uri.clone();
     tokio::task::spawn_blocking(move || {
         // `analyser_diags` is the cross-file-filtered set when `xcDiagnostics` is
         // on (else identical to `analysis_lifts.diagnostics`).
@@ -1516,6 +1522,7 @@ async fn refine_and_lift_diagnostics(
             optimiser_enabled,
             &opt_disabled,
             &disabled,
+            &lift_uri,
         ));
         diagnostics.extend(lift_source_style_diagnostics(
             &lift_text,
@@ -5180,6 +5187,7 @@ impl Backend {
         )
         .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
+        let lift_uri = uri.clone();
         tokio::task::spawn_blocking(move || {
             let mut diagnostics = lift_analyser_diagnostics(&text, &analyser_diags);
             append_brace_expr_perf_hints(&mut diagnostics, optimiser_enabled, &opt_disabled);
@@ -5189,6 +5197,7 @@ impl Backend {
                 optimiser_enabled,
                 &opt_disabled,
                 &disabled,
+                &lift_uri,
             ));
             diagnostics.extend(lift_source_style_diagnostics(
                 &text,
@@ -7860,29 +7869,33 @@ impl LanguageServer for Backend {
                     &doc.text, range, &uri_str,
                 ));
             }
-            // iRules-only: the `# Profiles:` header source action plus the
-            // control-flow quick-fixes (IRULE5002 unguarded drop / IRULE5004
-            // DNS::return) the analyser produces through the compiler-checks
-            // pass rather than `AnalysisResult.diagnostics`.  Only the iRules
-            // dialect's checks carry fixes, so the (re-)lowering is gated here.
-            if dialect == "f5-irules" {
-                if let Some(a) = core_code_actions::profiles_action(&doc.text, &analysis, &registry)
-                {
-                    actions.push(a);
-                }
-                let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
-                    &doc.text,
-                    &registry,
-                    &dialect,
-                    generic_patterns.as_deref(),
-                );
-                actions.extend(core_code_actions::check_diagnostic_actions(
-                    &doc.text,
-                    range,
-                    &checks.checks,
-                    &disabled_codes,
-                ));
+            // iRules-only: the `# Profiles:` header source action.
+            if dialect == "f5-irules"
+                && let Some(a) = core_code_actions::profiles_action(&doc.text, &analysis, &registry)
+            {
+                actions.push(a);
             }
+            // Compiler-check quick-fixes (`Diagnostic::fixes` — today the
+            // iRules-only IRULE5002/5004 control-flow fixes, but the lowering
+            // itself is dialect-generic: any compiler-checks diagnostic with a
+            // `CodeFix` — including a future shimmer S1xx fix — surfaces here
+            // regardless of dialect). Previously gated to `dialect ==
+            // "f5-irules"` alongside the truly iRules-specific `profiles_action`
+            // above, which meant a fix on a plain-Tcl document was silently
+            // dropped even though `check_diagnostic_actions` itself has no
+            // iRules-specific behaviour.
+            let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
+                &doc.text,
+                &registry,
+                &dialect,
+                generic_patterns.as_deref(),
+            );
+            actions.extend(core_code_actions::check_diagnostic_actions(
+                &doc.text,
+                range,
+                &checks.checks,
+                &disabled_codes,
+            ));
             actions
         })
         .await
@@ -10058,9 +10071,12 @@ fn lift_compiler_diagnostics(
     optimiser_enabled: bool,
     disabled_optimisations: &std::collections::HashSet<String>,
     disabled_diagnostics: &std::collections::HashSet<String>,
+    uri: &Uri,
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
     use tcl_compiler::compiler_checks::Severity as CheckSeverity;
-    use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
+    use tower_lsp_server::ls_types::{
+        DiagnosticRelatedInformation, DiagnosticSeverity, Location, NumberOrString,
+    };
 
     let line_index = tcl_lexer::LineIndex::new_lsp(text);
     let mut out: Vec<tower_lsp_server::ls_types::Diagnostic> = Vec::new();
@@ -10092,6 +10108,22 @@ fn lift_compiler_diagnostics(
         if disabled_diagnostics.contains(d.code.as_str()) {
             continue;
         }
+        // Secondary context spans (e.g. shimmer's "value defined here" /
+        // phi's "version from '<block>'" — see `ShimmerWarning::related`) —
+        // `None` rather than `Some(vec![])` when there are none, matching
+        // the LSP convention other diagnostics in this lift already follow.
+        let related_information = (!d.related.is_empty()).then(|| {
+            d.related
+                .iter()
+                .map(|(span, label)| DiagnosticRelatedInformation {
+                    location: Location {
+                        uri: uri.clone(),
+                        range: lift_span(text, &line_index, *span),
+                    },
+                    message: label.clone(),
+                })
+                .collect()
+        });
         out.push(tower_lsp_server::ls_types::Diagnostic {
             range: lift_span(text, &line_index, d.span),
             severity: Some(match d.severity {
@@ -10104,7 +10136,7 @@ fn lift_compiler_diagnostics(
             code_description: None,
             source: Some("tcl-lsp".to_string()),
             message: d.message,
-            related_information: None,
+            related_information,
             tags: None,
             data: None,
         });
@@ -11382,6 +11414,7 @@ mod tests {
             true,
             &std::collections::HashSet::new(),
             &std::collections::HashSet::new(),
+            &Uri::from_str("file:///s101_test.tcl").unwrap(),
         );
         assert!(
             diags.iter().any(|d| matches!(
@@ -11393,6 +11426,53 @@ mod tests {
         );
         // Every lifted diagnostic carries the shared source tag.
         assert!(diags.iter().all(|d| d.source.as_deref() == Some("tcl-lsp")));
+    }
+
+    /// An S101 phi-shimmer's `related` spans (`ShimmerWarning::related`,
+    /// wired through `compiler_checks::Diagnostic::related` — see
+    /// `from_shimmer`) must reach the client as LSP `relatedInformation`,
+    /// pointing back at the same document `uri` this lift was called with.
+    #[test]
+    fn lift_compiler_diagnostics_surfaces_shimmer_related_information() {
+        let registry = CommandRegistry::build_default();
+        // `x` merges Int (then-branch) and String (else-branch) at the phi —
+        // an out-of-loop S100 phi shimmer whose `related` spans point at
+        // both branches' `set x` definitions (see `phi.rs`'s
+        // `phi_shimmer_emitted_for_int_string_merge` unit test for the
+        // equivalent compiler-level assertion).
+        let src =
+            "set cond [gets stdin]\nif {$cond} { set x 1 } else { set x \"hello\" }\nputs $x\n";
+        let uri = Uri::from_str("file:///phi_shimmer.tcl").unwrap();
+        let diags = lift_compiler_diagnostics(
+            src,
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None),
+            true,
+            &std::collections::HashSet::new(),
+            &std::collections::HashSet::new(),
+            &uri,
+        );
+        let shimmer = diags
+            .iter()
+            .find(|d| {
+                matches!(
+                    &d.code,
+                    Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "S100"
+                )
+            })
+            .unwrap_or_else(|| panic!("expected an S100 phi shimmer, got: {diags:?}"));
+        let related = shimmer
+            .related_information
+            .as_ref()
+            .filter(|r| !r.is_empty())
+            .unwrap_or_else(|| panic!("expected non-empty relatedInformation, got: {shimmer:?}"));
+        assert!(
+            related.iter().all(|r| r.location.uri == uri),
+            "related location must point back at the same document: {related:?}"
+        );
+        assert!(
+            related.iter().any(|r| r.message.contains("version from")),
+            "expected a 'version from <block>' related label, got: {related:?}"
+        );
     }
 
     #[test]
@@ -11407,6 +11487,7 @@ mod tests {
             false,
             &std::collections::HashSet::new(),
             &std::collections::HashSet::new(),
+            &Uri::from_str("file:///s101_test.tcl").unwrap(),
         );
         assert!(
             !off.iter().any(is_o100),
@@ -11422,6 +11503,7 @@ mod tests {
             true,
             &disabled,
             &std::collections::HashSet::new(),
+            &Uri::from_str("file:///s101_test.tcl").unwrap(),
         );
         assert!(
             !per_code.iter().any(is_o100),
@@ -11446,6 +11528,7 @@ mod tests {
             true,
             &std::collections::HashSet::new(),
             &std::collections::HashSet::new(),
+            &Uri::from_str("file:///s101_test.tcl").unwrap(),
         );
         assert!(
             diags.iter().any(|d| matches!(
@@ -11477,6 +11560,7 @@ mod tests {
             true,
             &std::collections::HashSet::new(),
             &std::collections::HashSet::new(),
+            &Uri::from_str("file:///s101_test.tcl").unwrap(),
         );
         assert!(
             baseline.iter().any(is_irule3001),
@@ -11491,6 +11575,7 @@ mod tests {
             true,
             &std::collections::HashSet::new(),
             &disabled_diagnostics,
+            &Uri::from_str("file:///s101_test.tcl").unwrap(),
         );
         assert!(
             !filtered.iter().any(is_irule3001),

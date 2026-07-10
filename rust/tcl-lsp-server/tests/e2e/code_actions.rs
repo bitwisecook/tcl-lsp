@@ -166,6 +166,59 @@ fn test_w100_offers_brace_wrap() {
 }
 
 #[test]
+fn test_s100_eq_numeric_offers_numeric_comparison_fix() {
+    // S101 deep-review quick fix: a numeric var compared via `eq` against a
+    // numeric literal offers a mechanical `==` rewrite. Also proves the
+    // `code_action` handler's former `dialect == "f5-irules"` gate around
+    // compiler-check fixes (now lifted) doesn't still silently swallow this
+    // on a plain-Tcl document — `Lsp::tcl()`, not `Lsp::irules()`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x 42\nset z [expr {$x eq 42}]\n");
+    let s100 = with_code(&diags, "S100");
+    assert!(
+        !s100.is_empty(),
+        "expected an S100 diagnostic to drive the quick fix, got {diags:?}"
+    );
+    let actions = lsp.code_actions(&uri, range((0, 0), (1, 25)), json!(s100));
+    assert!(
+        titles(&actions)
+            .iter()
+            .any(|t| t.contains("Use numeric comparison")),
+        "expected the eq->== quick-fix action, got {:?}",
+        titles(&actions)
+    );
+    assert!(
+        new_texts(&actions).iter().any(|nt| nt == "=="),
+        "expected a newText of '==', got {:?}",
+        new_texts(&actions)
+    );
+}
+
+#[test]
+fn test_s100_eq_non_numeric_sibling_offers_no_fix() {
+    // FP guard: `$n eq "abc"` — rewriting to `==` would turn a well-defined
+    // "always false" string compare into a Tcl runtime error, so no fix is
+    // offered (the diagnostic still fires, informationally).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set n 5\nset z [expr {$n eq \"abc\"}]\n");
+    let s100 = with_code(&diags, "S100");
+    assert!(
+        !s100.is_empty(),
+        "expected an S100 diagnostic, got {diags:?}"
+    );
+    let actions = lsp.code_actions(&uri, range((0, 0), (1, 30)), json!(s100));
+    assert!(
+        !titles(&actions)
+            .iter()
+            .any(|t| t.contains("Use numeric comparison")),
+        "must not offer an unsafe rewrite when the sibling isn't numeric: {:?}",
+        titles(&actions)
+    );
+}
+
+#[test]
 fn test_w302_adds_result_capture_actions() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");

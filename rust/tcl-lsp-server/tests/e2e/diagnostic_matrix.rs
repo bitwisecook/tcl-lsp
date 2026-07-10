@@ -536,3 +536,214 @@ fn global_hidden_inside_uplevel_body_in_proc_is_not_folded() {
         "must not fold `puts $g` to the stale literal 4: {source:?}"
     );
 }
+
+// S101 deep-review end-to-end coverage: exercises the real server's own
+// dialect detection / whole-module scan / TclOO method pipeline, per the
+// review's "editor-facing" requirement — the compiler-level TP/FP/TN/FN
+// coverage lives in `rust/tcl-compiler/src/shimmer/*.rs` and
+// `rust/tcl-compiler/src/compiler_checks.rs`.
+
+#[test]
+fn s101_fires_for_shimmer_inside_loop() {
+    // TP: `$x` is a foreach element (String-typed) used as a List via
+    // `lindex` on every iteration — the canonical S101 case.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc f {items} {\n  foreach x $items {\n    set y [lindex $x 0]\n  }\n}\n",
+    );
+    assert!(
+        codes(&diags).contains("S101"),
+        "expected S101 for the in-loop shimmer, got {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn s101_fires_inside_tcloo_method_body() {
+    // TP (deep-review finding): before the fix, `find_shimmer_warnings_for_cu`
+    // / `run_all_checks`'s per-function loop iterated `cu.analysable_functions()`,
+    // which excludes TclOO method bodies — this exact per-iteration shimmer
+    // fired for an equivalent plain `proc` but was silently dropped for a
+    // `method`. See `shimmer::find_shimmer_warnings_for_cu`'s doc comment.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Foo {\n  method run {items} {\n    foreach x $items {\n      set y [lindex $x 0]\n    }\n  }\n}\n",
+    );
+    assert!(
+        codes(&diags).contains("S101"),
+        "expected S101 inside the TclOO method body, got {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn s101_related_information_points_at_the_definition_site() {
+    // Precision: a phi-merge shimmer's `relatedInformation` must point back
+    // at the branch that defined the conflicting value, not be silently
+    // dropped (`ShimmerWarning::related` → `compiler_checks::Diagnostic::related`
+    // → LSP `relatedInformation` — see `lift_compiler_diagnostics`).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "set cond [gets stdin]\nif {$cond} { set x 1 } else { set x \"hello\" }\nputs $x\n",
+    );
+    let shimmer = diags
+        .iter()
+        .find(|d| d.get("code").and_then(Value::as_str) == Some("S100"))
+        .unwrap_or_else(|| panic!("expected an S100 phi shimmer, got {:?}", codes(&diags)));
+    let related = shimmer
+        .get("relatedInformation")
+        .and_then(Value::as_array)
+        .filter(|r| !r.is_empty())
+        .unwrap_or_else(|| panic!("expected non-empty relatedInformation, got {shimmer:?}"));
+    assert!(
+        related.iter().any(|r| r
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .contains("version from")),
+        "{related:?}"
+    );
+}
+
+#[test]
+fn s101_silent_for_incr_after_module_wide_rename() {
+    // FP guard: `rename incr {}` deletes the builtin module-wide — a later
+    // `incr`-shaped call can no longer be trusted to mean Tcl's builtin, so
+    // no incr-shimmer should be claimed for it.
+    //
+    // Driven through `tcl-lsp.compilerExplorer` (which calls
+    // `find_shimmer_warnings_for_cu`, a fresh whole-unit rebuild), not the
+    // live `open_ready` push-diagnostics path: `ModuleCommandMutations` is a
+    // *module-wide* fact, and threading it through the salsa-incremental
+    // per-procedure diagnostics cache (`tcl_lsp_db::function_checks`) needs
+    // the same `#[salsa::interned]` treatment `ModuleVariableTraces` already
+    // received for `CfgContext` — a documented follow-up, not yet done (see
+    // `compiler_checks::function_nontaint_checks`'s doc comment). The live
+    // path currently still reports the (harmless, non-fix-bearing) message;
+    // this test covers the surface that already gets the full fix:
+    // compiler-explorer / MCP-server / CLI / `code_action` (all of which
+    // rebuild fresh, uncached, per call).
+    let mut lsp = Lsp::tcl();
+    let src = "rename incr {}\nproc f {items} {\n  foreach x $items {\n    incr x\n  }\n}\n";
+    let result = lsp.execute_command("tcl-lsp.compilerExplorer", serde_json::json!([src, "tcl"]));
+    let shimmer = result
+        .get("shimmer")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    assert!(
+        !shimmer
+            .iter()
+            .any(|w| { w.get("command").and_then(Value::as_str) == Some("incr") }),
+        "incr must not be trusted after a module-wide rename: {shimmer:?}"
+    );
+}
+
+#[test]
+fn s101_fires_for_incr_without_rename_control_via_explorer() {
+    // TN/control: the identical code with no `rename` still fires through
+    // the same `compilerExplorer` surface — proves the guard above is keyed
+    // on an actual rebinding, not a blanket regression of that surface.
+    let mut lsp = Lsp::tcl();
+    let src = "proc f {items} {\n  foreach x $items {\n    incr x\n  }\n}\n";
+    let result = lsp.execute_command("tcl-lsp.compilerExplorer", serde_json::json!([src, "tcl"]));
+    let shimmer = result
+        .get("shimmer")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    assert!(
+        shimmer
+            .iter()
+            .any(|w| w.get("command").and_then(Value::as_str) == Some("incr")),
+        "expected the no-rename control to still fire: {shimmer:?}"
+    );
+}
+
+#[test]
+fn s101_fires_through_interp_alias() {
+    // TP: a call through an `interp alias`-created name is checked exactly
+    // like a call to its target.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "interp alias {} li {} lindex\nproc f {items} {\n  foreach x $items {\n    li $x 0\n  }\n}\n",
+    );
+    assert!(
+        codes(&diags).contains("S101"),
+        "expected S101 through the 'li' alias to lindex, got {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn no_s100_shimmer_for_tcloo_instance_variable() {
+    // FP guard: `my variable count` links an object-instance variable whose
+    // true intrep depends on another method's last write, not the nominal
+    // return type of `my`. Before the registry fix (`oo_my.rs`'s `variable`
+    // subcommand), this spuriously claimed a String->Int shimmer.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Foo {\n  method bump {} {\n    my variable count\n    incr count\n  }\n}\n",
+    );
+    assert!(
+        !diags.iter().any(|d| {
+            matches!(d.get("code").and_then(Value::as_str), Some("S100" | "S101"))
+                && d.get("message")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .contains("'count'")
+        }),
+        "'my variable'-linked instance var must not spuriously shimmer: {diags:?}"
+    );
+}
+
+#[test]
+fn s101_tight_span_for_nested_command_substitution_via_explorer() {
+    // Precision: `set y [lindex $x 0]` is a `Statement::AssignValue` (the
+    // `[lindex …]` is a command substitution nested in the value, not a
+    // top-level `Statement::Call`), which carries no per-word tokens of its
+    // own for the nested call — the single most common shape a shimmer
+    // arises in. The highlighted span must still cover just `$x`, recovered
+    // from source via `nested_call_arg_spans`, not the whole statement.
+    //
+    // Driven through `tcl-lsp.compilerExplorer` (a fresh, uncached rebuild
+    // with real source text) rather than live `open_ready`: the LSP db's
+    // offset-0 memoised `function_checks` salsa query passes `""` as source
+    // for a regular top-level procedure's *cached* diagnostics, so that path
+    // still falls back to the whole-statement span — a documented, safe
+    // (never-wrong, just wider) limitation; see `function_checks`'s doc
+    // comment in `tcl-lsp-db`.
+    let mut lsp = Lsp::tcl();
+    let src = "proc f {items} {\n  foreach x $items {\n    set y [lindex $x 0]\n  }\n}\n";
+    let result = lsp.execute_command("tcl-lsp.compilerExplorer", serde_json::json!([src, "tcl"]));
+    let shimmer = result
+        .get("shimmer")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let w = shimmer
+        .iter()
+        .find(|w| w.get("command").and_then(Value::as_str) == Some("lindex"))
+        .unwrap_or_else(|| panic!("expected a lindex shimmer, got {shimmer:?}"));
+    let range = w.get("range").unwrap_or_else(|| panic!("no range: {w:?}"));
+    let start = range.get("startOffset").and_then(Value::as_u64).unwrap();
+    let end = range.get("endOffset").and_then(Value::as_u64).unwrap();
+    let arg_start = src.find("$x").unwrap() as u64;
+    let arg_end = arg_start + "$x".len() as u64;
+    assert_eq!(
+        (start, end),
+        (arg_start, arg_end),
+        "expected the span to cover exactly '$x' ({arg_start}..{arg_end}), \
+         not the whole statement: got {w:?}"
+    );
+}

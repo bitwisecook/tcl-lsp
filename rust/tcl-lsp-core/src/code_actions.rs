@@ -2403,6 +2403,44 @@ mod tests {
     }
 
     #[test]
+    fn check_actions_surface_s100_eq_numeric_fix_on_plain_tcl() {
+        // A plain-Tcl (no dialect) document — the S1xx shimmer family's
+        // eq/ne/lt/le/gt/ge -> ==/!=/</<=/>/>= quick fix
+        // (`shimmer::expr::find_operator_fix`) must reach `code_action`
+        // regardless of dialect. Also proves the `f5-irules`-only gate that
+        // used to wrap this call in `tcl-lsp-server::code_action` (now
+        // lifted) isn't still silently required.
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        use tcl_compiler::compiler_checks::run_all_checks;
+
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let src = "set x 42\nset z [expr {$x eq 42}]\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let checks = run_all_checks(&cu, &registry, None);
+        assert!(
+            checks
+                .iter()
+                .any(|d| d.code == DiagCode::S100 && !d.fixes.is_empty()),
+            "expected an S100 check with a fix, got {checks:?}",
+        );
+
+        let none_disabled = std::collections::HashSet::new();
+        let actions =
+            check_diagnostic_actions(src, whole_document_range(src), &checks, &none_disabled);
+        let fix = actions
+            .iter()
+            .find(|a| a.title.contains("Use numeric comparison"));
+        assert!(
+            fix.is_some(),
+            "expected the eq->== quick-fix action, got {actions:?}"
+        );
+        let fix = fix.unwrap();
+        assert_eq!(fix.kind, ActionKind::QuickFix);
+        assert_eq!(fix.edits.len(), 1);
+        assert_eq!(fix.edits[0].new_text, "==");
+    }
+
+    #[test]
     fn check_actions_empty_without_fixes() {
         // Checks with no fixes (or an out-of-range diagnostic) yield nothing.
         let src = "set x 1\n";

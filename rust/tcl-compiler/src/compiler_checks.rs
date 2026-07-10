@@ -39,8 +39,8 @@ use crate::irules_checks::{
 use crate::path_concat::{PathConcatWarning, find_path_concat_warnings};
 use crate::sccp::ConstantBranch;
 use crate::shimmer::{
-    ShimmerWarning, ThunkingWarning, find_byte_array_warnings, find_shimmer_warnings,
-    find_thunking_warnings,
+    ShimmerInputs, ShimmerWarning, ThunkingWarning, find_byte_array_warnings,
+    find_shimmer_warnings, find_thunking_warnings,
 };
 use crate::taint::{
     TaintWarning, find_destructive_file_warnings, find_setter_constraint_warnings,
@@ -82,6 +82,13 @@ pub struct Diagnostic {
     /// check has no such fix. Consumers emit one `TextEdit` per fix at its own
     /// `span`.
     pub fixes: Vec<CodeFix>,
+    /// Secondary spans with a human-readable label giving context for the
+    /// primary diagnostic (e.g. shimmer's "value defined here" pointing at
+    /// the def site of the variable whose intrep is being flagged). Empty
+    /// when the check has no useful related context. Consumers lower this to
+    /// their native "related information" concept (LSP
+    /// `DiagnosticRelatedInformation`).
+    pub related: Vec<(Span, String)>,
 }
 
 impl Diagnostic {
@@ -100,6 +107,7 @@ impl Diagnostic {
             ),
             replacement: None,
             fixes: Vec::new(),
+            related: Vec::new(),
         }
     }
 
@@ -117,7 +125,8 @@ impl Diagnostic {
             },
             message: w.message.clone(),
             replacement: None,
-            fixes: Vec::new(),
+            fixes: w.fixes.clone(),
+            related: w.related.clone(),
         }
     }
 
@@ -130,6 +139,7 @@ impl Diagnostic {
             message: w.message.clone(),
             replacement: None,
             fixes: Vec::new(),
+            related: w.related.clone(),
         }
     }
 
@@ -147,6 +157,7 @@ impl Diagnostic {
             message: w.message.clone(),
             replacement: w.replacement.clone(),
             fixes: Vec::new(),
+            related: Vec::new(),
         }
     }
 
@@ -166,6 +177,7 @@ impl Diagnostic {
             message: w.message.clone(),
             replacement: w.replacement.clone(),
             fixes: w.fixes.clone(),
+            related: Vec::new(),
         }
     }
 
@@ -178,6 +190,7 @@ impl Diagnostic {
             message: r.message.clone(),
             replacement: None,
             fixes: Vec::new(),
+            related: Vec::new(),
         }
     }
 
@@ -194,6 +207,7 @@ impl Diagnostic {
             message: w.message.clone(),
             replacement: w.replacement.clone(),
             fixes: Vec::new(),
+            related: Vec::new(),
         }
     }
 }
@@ -270,8 +284,20 @@ pub fn run_all_checks_with_solved_and_patterns(
     // memoise it per procedure on the offset-0 `FnLatticeKey` (SRV-INCREMENTAL
     // 2a): an unedited procedure's checks are a cache hit instead of recomputed
     // over the whole unit every edit.
+    // Walks `cu.analysable_body_function_units()` (top-level + procedures +
+    // TclOO/snit methods + synthetic `apply`/`namespace eval` body units,
+    // complexity-guarded bodies excluded) — see that method's doc comment
+    // for why this reaches further than `cu.analysable_functions()`.
     for fu in cu.analysable_body_function_units() {
-        for d in function_nontaint_checks(fu, registry, dialect) {
+        // `cu.source` is safe to pass whole here (not just this function's own
+        // slice): every unit `analysable_body_function_units()` yields from a
+        // plain `CompilationUnit::build` (as opposed to the LSP db's offset-0
+        // memoised `function_lattice`/`function_checks` salsa query — see
+        // `function_nontaint_checks`'s doc comment) carries spans already
+        // absolute against `cu.source` (`base_offset == 0`), so
+        // `find_operator_fix`'s `source[stmt_span...]` slice lands on the
+        // right text without any per-function rebasing.
+        for d in function_nontaint_checks(fu, registry, dialect, &cu.source) {
             out.push(shift(fu, d));
         }
     }
@@ -297,11 +323,30 @@ pub fn run_all_checks_with_solved_and_patterns(
 /// keyed on the offset-0 `FnLatticeKey` (SRV-INCREMENTAL 2a) — an unedited
 /// procedure's checks are a cache hit.  The S110 `*::payload` byte-command set is
 /// dialect-gated (empty outside iRules).
+///
+/// `source` feeds two source-derived shimmer refinements: the expr pass's
+/// eq/ne/lt/le/gt/ge quick fix (see `shimmer::expr::find_operator_fix`) and
+/// the use-site pass's tight per-argument span for a `[cmd …]` substitution
+/// embedded in a `set`/`AssignValue` (see
+/// `shimmer::use_site::nested_call_arg_spans`) — both need to locate exact
+/// text within the statement's own source span. `source` must therefore be
+/// **absolute against `fu`'s own spans** — correct when called on a
+/// freshly-built (non-memoised) `FunctionUnit` (`base_offset == 0`; every
+/// `run_all_checks*` caller here passes `&cu.source` for exactly this
+/// reason), but the LSP db's offset-0 memoised
+/// `function_lattice`/`function_checks` salsa query passes `""` instead
+/// (its `fu` spans are relative to the procedure's own offset-0 body, not
+/// `source` — using a real string there would silently slice the wrong text).
+/// An empty string safely yields no fix and no tight span (both callees
+/// bounds-check and fall back to a wider default), never a wrong one — only
+/// the diagnostic messages themselves are unaffected either way, since they
+/// need no source access.
 #[must_use]
 pub fn function_nontaint_checks(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
     dialect: Option<&str>,
+    source: &str,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
     for cb in &fu.sccp.constant_branches {
@@ -316,14 +361,30 @@ pub fn function_nontaint_checks(
     for r in find_loop_invariants(registry, &fu.cfg, &fu.ssa, dialect) {
         out.push(Diagnostic::from_redundant(&r));
     }
-    for w in find_shimmer_warnings(
-        &fu.cfg,
-        &fu.ssa,
-        &fu.types,
-        &fu.sccp.executable_blocks,
+    // `ModuleCommandMutations::default()` ("trusts everything") rather than a
+    // real module-wide scan: this function is memoised per procedure by the
+    // LSP db's salsa `FnLatticeKey` query (see this function's doc comment),
+    // keyed only on this procedure's own offset-0 body, so a real scan result
+    // computed from the whole module would go stale the moment a *different*
+    // procedure's `rename`/`interp alias` changed without also touching this
+    // one. Threading a real, cache-key-aware scan through here needs the same
+    // `#[salsa::interned]` treatment `ModuleVariableTraces` already received
+    // for `CfgContext` (see `tcl-lsp-db`) — a follow-up, not yet done. Until
+    // then this path keeps today's behaviour (every literal command name is
+    // trusted); [`find_shimmer_warnings_for_cu`] (the compiler-explorer / MCP
+    // / CLI whole-unit entry point, which rebuilds fresh every call and has
+    // no incremental cache to go stale) already computes and uses the real
+    // module-wide facts.
+    for w in find_shimmer_warnings(&ShimmerInputs {
+        cfg: &fu.cfg,
+        ssa: &fu.ssa,
+        types: &fu.types,
+        executable_blocks: &fu.sccp.executable_blocks,
         registry,
-        &fu.sccp.values,
-    ) {
+        values: &fu.sccp.values,
+        mutations: &crate::command_binding::ModuleCommandMutations::default(),
+        source,
+    }) {
         out.push(Diagnostic::from_shimmer(&w));
     }
     for w in find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks) {

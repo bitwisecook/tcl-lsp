@@ -1317,6 +1317,30 @@ pub fn proc_summary_cascade<'db>(
 /// offset-0 [`function_lattice`] unit, *before* `rebase_function_unit`); the
 /// caller adds the procedure's `body_offset`.  A body edit re-runs only the
 /// edited procedure's checks; every other proc is a cache hit.
+///
+/// Passes `""` for `function_nontaint_checks`'s `source` param, not the
+/// document text: `fu`'s spans here are offset-0 (relative to this
+/// procedure's own body), so slicing the whole document at those offsets
+/// would land on the wrong text. This costs two things, both source-derived
+/// and both falling back to a safe, wider default rather than a wrong one:
+/// the shimmer expr pass's eq/ne/lt/le/gt/ge quick fix, and the use-site
+/// pass's tight per-argument span for a `[cmd …]` substitution embedded in
+/// a `set`/`AssignValue` (`set y [lindex $x 0]` — see
+/// `tcl_compiler::shimmer::use_site::nested_call_arg_spans`), which widens
+/// to the whole statement instead of just `$x`. A top-level bare call
+/// (`dict get $badMap key1 key2`) is unaffected either way — its tight span
+/// comes from `CommandTokens`, not source search. Both costs are real only
+/// for the *cached live-diagnostics* path (a regular top-level procedure,
+/// reached through this `FnLatticeKey`-memoised query); `run_all_checks`
+/// callers (`code_action`, the compiler explorer, the CLI, and — via the
+/// `None`-arm fallback below `proc_taint_solve`'s call site — `TclOO` methods
+/// and other body units) always re-derive with real source, so they get
+/// both the fix and the tight span. Passing the true offset-0 body slice
+/// here instead of `""` (mirroring `solve_optimisations`'s
+/// `cu.source.get(body_offset..body_end)`) is a documented follow-up: it
+/// needs threading `body_source` into this query as a new tracked-fn
+/// parameter, which every call site building a `FnLatticeKey` would then
+/// need to supply. See `function_nontaint_checks`'s doc comment.
 #[salsa::tracked]
 pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<Vec<CompilerCheck>> {
     let fu = function_lattice(db, key);
@@ -1327,6 +1351,7 @@ pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<V
         &fu,
         &registry,
         dialect_opt,
+        "",
     ))
 }
 
@@ -1431,10 +1456,27 @@ pub fn proc_taint_solve<'db>(
     // **offset-0** spans (it runs on the offset-0 `function_lattice` unit), so we
     // add the procedure's `body_offset` here — the same rebase the whole-module
     // build's `rebase_function_unit` applies.  A proc without a lattice key (e.g.
-    // the top level, or a complexity-guarded body) falls back to the direct
-    // per-function computation on the *already-rebased* built unit (no offset add).
+    // the top level, a complexity-guarded body, or — see below — a `TclOO`/snit
+    // method or synthetic body unit, none of which the memoisation pass above
+    // seeds `lattice_keys` for) falls back to the direct per-function computation
+    // on the *already-rebased* built unit (no offset add).
+    //
+    // Walks `cu.all_body_function_units()`, not `cu.analysable_functions()` —
+    // the latter excludes methods and body units (see its doc comment), which
+    // silently dropped every shimmer/thunking/byte-array/SCCP/GVN finding from
+    // inside a method or `apply`/`namespace eval` body in the *live* push/pull
+    // diagnostics path, even after `compiler_checks::run_all_checks_with_
+    // solved_and_patterns` was fixed to cover them — this function has its own,
+    // parallel per-procedure assembly (for the salsa incremental cache) and
+    // needed the identical fix. `lattice_keys` only ever contains regular
+    // procedure entries (methods/body units aren't part of the offset-0
+    // memoisation this function's `lattice_memo` callback populates), so a
+    // method/body-unit `fu` here always — correctly — takes the fallback arm.
     let mut fn_checks: Vec<CompilerCheck> = Vec::new();
-    for fu in cu.analysable_functions() {
+    for fu in cu
+        .all_body_function_units()
+        .filter(|fu| !fu.complexity_guarded)
+    {
         match lattice_keys.get(&fu.name) {
             Some(&key) => {
                 let body_offset = cu
@@ -1462,11 +1504,14 @@ pub fn proc_taint_solve<'db>(
             None => {
                 // The built unit's fallback fus (complexity-guarded / top level)
                 // carry **absolute** spans already (`base_offset == 0`), so the
-                // per-function checks need no rebase.
+                // per-function checks need no rebase — and `cu.source` is safe to
+                // pass directly for the same reason (see
+                // `function_nontaint_checks`'s doc comment on its `source` param).
                 for d in tcl_compiler::compiler_checks::function_nontaint_checks(
                     fu,
                     &registry,
                     dialect_opt,
+                    &cu.source,
                 ) {
                     fn_checks.push(d);
                 }

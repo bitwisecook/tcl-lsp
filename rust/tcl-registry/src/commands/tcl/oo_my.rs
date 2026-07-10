@@ -23,6 +23,45 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "my method ?arg ...?",
 }];
 
+/// Every argument after the `variable` subcommand word is a variable name to
+/// link (`my variable a b c` links all of `a`, `b`, `c`), so — unlike a
+/// fixed-position `arg_roles` entry — this must be a resolver: the SSA
+/// def-extraction generic in `lowering/mod.rs::lower_default` (via
+/// `CommandRegistry::arg_indices_for_role`) calls it with the sub-relative
+/// args (everything after `variable`) and offsets the returned indices by
+/// `+1` for the subcommand word automatically.
+fn my_variable_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    (0..args.len())
+        .filter_map(|i| u8::try_from(i).ok())
+        .map(|i| (i, ArgRole::VarWrite))
+        .collect()
+}
+
+/// `my` forwards to an arbitrary method name, but `my variable ?name ...?`
+/// is `TclOO`'s own reserved dispatch — the per-object-namespace analogue of
+/// the top-level `variable` command (links each `name` to the object's
+/// private-namespace storage, same as `oo::define CLASS { variable name }`
+/// does for every method body). Modelled as the one recognised subcommand so
+/// [`Traits::CREATES_SCOPE_ALIAS`]'s per-subcommand sibling
+/// (`creates_scope_alias`) picks it up generically — the compiler's
+/// `is_scope_alias_call` widens its defs to `Overdefined` exactly like
+/// `global`/`variable`/`upvar`/`namespace upvar`, so a variable linked this
+/// way (whose true intrep may have been set by a *different* method) is not
+/// misreported as a local shimmer. Every other `my <method>` form still
+/// resolves to `None` here (no matching subcommand name) and is otherwise
+/// unaffected.
+const SUBCOMMANDS: &[SubCommand] = &[SubCommand {
+    name: "variable",
+    arity: Arity::at_least(1),
+    detail: "Link the named object-instance variable(s) into the current method's local scope.",
+    synopsis: "my variable ?name ...?",
+    return_type: Some(TclType::String),
+    arg_role_resolver: Some(my_variable_arg_roles),
+    creates_scope_alias: true,
+    dialects: Some(DialectSet::TCL86_PLUS),
+    ..SubCommand::DEFAULT
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "my",
@@ -30,6 +69,7 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
+        subcommands: SUBCOMMANDS,
         hover: Some(HoverSnippet {
             summary: "invoke a method on the current object",
             synopsis: &["my method ?arg ...?"],

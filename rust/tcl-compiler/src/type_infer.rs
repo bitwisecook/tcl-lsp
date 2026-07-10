@@ -700,6 +700,25 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
 ///
 /// Returns a map from `(variable_name, ssa_version)` to inferred
 /// `TypeLattice`. Values absent from the map are implicitly `Unknown`.
+///
+/// `module_traces` (from
+/// [`crate::var_observability::scan_module_variable_traces`]) is the
+/// module-wide variable-trace fact: a `trace add variable` write callback
+/// runs synchronously as part of the `set` that triggers it and can rewrite
+/// the value (and hence intrep) to anything, so a def of a traced name can't
+/// be trusted to hold the type its own assignment text suggests — even a
+/// plain local `set x 5` might not leave `x` holding `Int` if a trace
+/// intercepts it. Every def of a traced name is therefore widened to
+/// `Overdefined`, mirroring the SCCP `LatticeValue` treatment in
+/// [`crate::sccp::sccp`]. `None` for module-context-free callers and
+/// isolated single-function rebuilds that have no module to scan —
+/// deliberately *not* the broader `global`/`upvar`/`namespace` escaping set
+/// SCCP also
+/// consults: mere globalness doesn't retroactively invalidate a fresh local
+/// `set` for *type* purposes the way it does for cross-call *constant-value*
+/// folding, so widening on that broader set here would silence shimmer
+/// detection for the (extremely common) global-variable case without a
+/// matching soundness need — see FP-SH-02.
 #[must_use]
 pub fn propagate_types<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
@@ -707,6 +726,7 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
     sccp: &SccpResult,
     registry: &CommandRegistry,
     known_classes: &HashSet<String, S>,
+    module_traces: Option<&crate::var_observability::ModuleVariableTraces>,
 ) -> HashMap<ValueKey, TypeLattice> {
     let preds = cfg.predecessors();
     let order = crate::sccp::cfg_order(cfg);
@@ -793,28 +813,43 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
                 // mutated them arbitrarily); a scope-alias declaration
                 // (`global`/`variable`/`upvar`/`namespace upvar`) likewise
                 // widens its defs — the imported variable's intrep is
-                // external and unknown.'s
-                // barrier + `alias_cmds` arms.  Every def of one statement
-                // gets the same inferred type, so compute it once.
-                let inferred = match stmt {
-                    Statement::Barrier { .. } => TypeLattice::overdefined(),
-                    Statement::Call {
-                        command,
-                        args,
-                        defs,
-                        ..
-                    } if !defs.is_empty() && is_scope_alias_call(registry, command, args) => {
-                        TypeLattice::overdefined()
+                // external and unknown. A def of a module-traced name is
+                // widened the same way regardless of statement kind — a
+                // write-trace callback runs synchronously inside the write
+                // that triggers it and can silently rewrite the value (see
+                // this function's doc comment) — checked generically over
+                // `ssa_stmt.defs` rather than matched per `Statement`
+                // variant, so it applies uniformly to
+                // `AssignConst`/`AssignValue`/`AssignExpr`/`Incr`/`Call`
+                // alike. Every def of one statement gets the same inferred
+                // type, so compute it once.
+                let traced = ssa_stmt
+                    .defs
+                    .keys()
+                    .any(|&sym| module_traces.is_some_and(|mt| mt.is_traced(ssa.var_name(sym))));
+                let inferred = if traced {
+                    TypeLattice::overdefined()
+                } else {
+                    match stmt {
+                        Statement::Barrier { .. } => TypeLattice::overdefined(),
+                        Statement::Call {
+                            command,
+                            args,
+                            defs,
+                            ..
+                        } if !defs.is_empty() && is_scope_alias_call(registry, command, args) => {
+                            TypeLattice::overdefined()
+                        }
+                        _ => evaluate_type_def(
+                            stmt,
+                            &ssa_stmt.uses,
+                            &types,
+                            registry,
+                            known_classes,
+                            &namespace,
+                            ssa,
+                        ),
                     }
-                    _ => evaluate_type_def(
-                        stmt,
-                        &ssa_stmt.uses,
-                        &types,
-                        registry,
-                        known_classes,
-                        &namespace,
-                        ssa,
-                    ),
                 };
                 for (&var, &ver) in &ssa_stmt.defs {
                     let key = (var, ver);
@@ -1003,7 +1038,7 @@ mod tests {
             },
         );
         let x = ssa.var_symbol("x").unwrap();
-        let types = propagate_types(&f, &ssa, &sccp, &registry(), &HashSet::new());
+        let types = propagate_types(&f, &ssa, &sccp, &registry(), &HashSet::new(), None);
         assert_eq!(types.get(&(x, 1)), Some(&TypeLattice::of(TclType::Int)));
     }
 
@@ -1173,7 +1208,7 @@ mod tests {
         let mut sccp = empty_sccp(&cfg, &["entry", "exit"]);
         sccp.executable_edges.insert((entry, exit));
 
-        let types = propagate_types(&cfg, &ssa, &sccp, &registry(), &HashSet::new());
+        let types = propagate_types(&cfg, &ssa, &sccp, &registry(), &HashSet::new(), None);
         // x@1 (entry) should be Int.
         assert_eq!(types.get(&(x, 1)), Some(&TypeLattice::of(TclType::Int)));
         // x@2 (phi in exit) should propagate Int from entry.

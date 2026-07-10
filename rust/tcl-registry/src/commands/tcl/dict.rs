@@ -402,11 +402,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict getd dictionaryValue ?key ...? key default",
         pure: true,
         return_type: Some(TclType::String),
+        // Reads the dictionary value exactly like `dict get` (Tcl 9's
+        // `TclDictGetWithDefault` requires the same dict intrep conversion)
+        // — must shimmer identically, not `false`.
         arg_types: &[(
             0,
             ArgTypeHint {
                 expected: Some(TclType::Dict),
-                shimmers: false,
+                shimmers: true,
             },
         )],
         ..SubCommand::DEFAULT
@@ -420,11 +423,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict getdef dictionaryValue ?key ...? key default",
         pure: true,
         return_type: Some(TclType::String),
+        // See `getd` above — same `TclDictGetWithDefault` dict-read path as
+        // `dict get`.
         arg_types: &[(
             0,
             ArgTypeHint {
                 expected: Some(TclType::Dict),
-                shimmers: false,
+                shimmers: true,
             },
         )],
         ..SubCommand::DEFAULT
@@ -438,11 +443,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict getwithdefault dictionaryValue ?key ...? key default",
         pure: true,
         return_type: Some(TclType::String),
+        // See `getd` above — same `TclDictGetWithDefault` dict-read path as
+        // `dict get`.
         arg_types: &[(
             0,
             ArgTypeHint {
                 expected: Some(TclType::Dict),
-                shimmers: false,
+                shimmers: true,
             },
         )],
         ..SubCommand::DEFAULT

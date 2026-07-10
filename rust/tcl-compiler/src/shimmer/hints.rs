@@ -23,7 +23,7 @@
 //! - [`is_numeric_compatible`] — true when two types are interchangeable
 //!   in Tcl's arithmetic/boolean contexts.
 
-use tcl_registry::{CommandRegistry, TclType};
+use tcl_registry::{CommandRegistry, TclType, Traits};
 
 /// Return the expected `TclType` for argument `arg_index` of `command`
 /// when that argument position is tagged `shimmers = true` in the registry.
@@ -61,11 +61,62 @@ pub fn arg_shimmer_type(
             .and_then(|(_, h)| if h.shimmers { h.expected } else { None });
     }
 
-    let needle = u8::try_from(arg_index).ok()?;
-    spec.arg_types
-        .iter()
-        .find(|(i, _)| *i == needle)
-        .and_then(|(_, h)| if h.shimmers { h.expected } else { None })
+    let fixed = u8::try_from(arg_index).ok().and_then(|needle| {
+        spec.arg_types
+            .iter()
+            .find(|(i, _)| *i == needle)
+            .and_then(|(_, h)| if h.shimmers { h.expected } else { None })
+    });
+    fixed.or_else(|| loop_list_header_shimmer_type(spec, args, arg_index))
+}
+
+/// Return `Some(TclType::List)` for any in-range `arg_index` of a
+/// `Traits::LOOP_LIST_HEADER` command (`foreach`, `lmap`).
+///
+/// Registry-driven and command-name-agnostic — keyed purely on the trait
+/// bit, so any future command declaring `LOOP_LIST_HEADER` picks this up for
+/// free rather than needing its own hardcoded arm here. The list arguments
+/// can't be expressed as fixed-position `arg_types` entries because their
+/// count varies with the number of `varList`/`list` pairs; this structural
+/// rule is the general form the fixed-index table can't capture.
+///
+/// This command shape reaches the shimmer pass in two different `args`
+/// encodings, both of which this rule must cover:
+///
+/// - **Opaque / non-inlined calls** (`cfg_builder::lower_foreach_dispatch`'s
+///   non-inlined arm, taken for namespace-qualified loop vars or when body
+///   inlining is off): `args` is the literal source shape, `varList list
+///   ?varList list ...? body` — *every* position through the last `list` is
+///   genuinely List-shimmering, not just the `list` slots: `Tcl_ForeachObjCmd`
+///   calls `Tcl_ListObjGetElements` on **both** the `varList` grouping words
+///   and the data `list` words (splitting `varList` into its member variable
+///   names requires exactly the same list-object conversion). Only the final
+///   `body` word is not — but a `$var` used as a foreach body, while
+///   syntactically legal, is not a pattern real Tcl code uses, so the
+///   (already narrow, since `check_invocation`/`record_use_targets` only
+///   ever act on a `$`-prefixed pure-var-ref word to begin with) residual
+///   risk of over-claiming that one slot is negligible next to the false
+///   negatives from excluding the `varList` slots would otherwise cause.
+/// - **Inlined calls** (the default; `cfg_builder::cfg_lower::lower_foreach`'s
+///   synthetic `var_def` `Statement::Call`): `args` is a *different*,
+///   list-only encoding — one entry per iterator's data list, no `varList`
+///   words and no `body` at all (`iterators.iter().map(|it|
+///   it.list_arg.clone())`). Every position here is unconditionally a list.
+///
+/// Since a single `(command, args, arg_index)` triple can't tell which
+/// encoding produced it, and *every* position is a genuine list position in
+/// the inlined encoding while all but the last are in the opaque one, "every
+/// in-range position" is the rule that is correct for one encoding and
+/// correct-except-for-a-practically-unreachable-slot for the other.
+fn loop_list_header_shimmer_type(
+    spec: &tcl_registry::CommandSpec,
+    args: &[&str],
+    arg_index: usize,
+) -> Option<TclType> {
+    if !spec.traits.contains(Traits::LOOP_LIST_HEADER) {
+        return None;
+    }
+    (arg_index < args.len()).then_some(TclType::List)
 }
 
 /// Return `true` when the two types are numerically compatible — i.e. a
@@ -93,6 +144,71 @@ mod tests {
 
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
+    }
+
+    #[test]
+    fn arg_shimmer_type_foreach_opaque_shape_list_and_varlist_positions() {
+        // Opaque (non-inlined) call shape: literal source args `varList list
+        // body`. Both the varList (arg 0) and list (arg 1) positions are
+        // List-shimmering — `Tcl_ForeachObjCmd` list-splits both — the body
+        // (arg 2) is out of range once excluded... but since this rule
+        // covers every in-range position (see the function's doc comment),
+        // arg 2 also reports List here; `check_invocation` never reaches it
+        // in practice since a real body is never a pure `$var` reference.
+        let r = registry();
+        let args = ["x", "$l", "body"];
+        assert_eq!(
+            arg_shimmer_type(&r, "foreach", &args, 0),
+            Some(TclType::List)
+        );
+        assert_eq!(
+            arg_shimmer_type(&r, "foreach", &args, 1),
+            Some(TclType::List)
+        );
+    }
+
+    #[test]
+    fn arg_shimmer_type_foreach_inlined_shape_single_list_is_list() {
+        // Inlined call shape (the default): the synthetic `var_def` Call's
+        // `args` is list-only, one entry per iterator — `foreach x $l {...}`
+        // becomes `args = ["$l"]`, arg 0.
+        let r = registry();
+        assert_eq!(
+            arg_shimmer_type(&r, "foreach", &["$l"], 0),
+            Some(TclType::List)
+        );
+    }
+
+    #[test]
+    fn arg_shimmer_type_foreach_inlined_shape_multi_iterator_all_list() {
+        // `foreach a $la b $lb {...}` inlined: `args = ["$la", "$lb"]` — both
+        // positions are list positions.
+        let r = registry();
+        let args = ["$la", "$lb"];
+        assert_eq!(
+            arg_shimmer_type(&r, "foreach", &args, 0),
+            Some(TclType::List)
+        );
+        assert_eq!(
+            arg_shimmer_type(&r, "foreach", &args, 1),
+            Some(TclType::List)
+        );
+    }
+
+    #[test]
+    fn arg_shimmer_type_lmap_single_list_is_list() {
+        let r = registry();
+        assert_eq!(
+            arg_shimmer_type(&r, "lmap", &["$l"], 0),
+            Some(TclType::List)
+        );
+    }
+
+    #[test]
+    fn arg_shimmer_type_foreach_out_of_range_index_is_none() {
+        let r = registry();
+        assert_eq!(arg_shimmer_type(&r, "foreach", &["$l"], 1), None);
+        assert_eq!(arg_shimmer_type(&r, "foreach", &[], 0), None);
     }
 
     #[test]

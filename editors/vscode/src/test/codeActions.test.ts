@@ -300,6 +300,50 @@ suite("Code Actions", () => {
     assert.ok(removeFix.edit, "the quick fix should carry a workspace edit");
   });
 
+  // S101 deep-review quick fix: a numeric var compared via `eq` against a
+  // numeric literal offers a mechanical `==` rewrite.
+  test("provides numeric comparison quick fix for S100 (eq on numeric operands)", async () => {
+    const shimmerUri = getDocUri("shimmer-s101.tcl");
+    await activate(shimmerUri);
+    const diagnostics = await waitForDiagnostics(shimmerUri, {
+      predicate: (diags) =>
+        diags.some((d) => (typeof d.code === "object" ? d.code.value : d.code) === "S100"),
+    });
+    const s100 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "S100";
+    });
+    assert.ok(s100, "S100 diagnostic should be present");
+
+    const actions = (await pollUntil(
+      () =>
+        vscode.commands.executeCommand(
+          "vscode.executeCodeActionProvider",
+          shimmerUri,
+          s100.range,
+        ),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title.includes("numeric comparison"),
+        ),
+      { timeout: 10_000, label: "S100 numeric comparison quick fix" },
+    )) as vscode.CodeAction[];
+
+    const quickFix = actions.find(
+      (a) => typeof a.title === "string" && a.title.includes("numeric comparison"),
+    );
+    assert.ok(quickFix, "Should provide a numeric comparison quick fix");
+
+    const edit = quickFix.edit;
+    assert.ok(edit, "quick fix should carry a workspace edit");
+    const edits = edit.get(shimmerUri);
+    assert.ok(
+      edits.some((e) => e.newText === "=="),
+      `expected a newText of '==', got ${JSON.stringify(edits.map((e) => e.newText))}`,
+    );
+  });
+
   test("provides guided collect bootstrap fix for IRULE1005", async () => {
     await activate(irulesDocUri);
     // IRULE1005 is a deep diagnostic — it fires after the initial basic

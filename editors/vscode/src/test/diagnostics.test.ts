@@ -415,6 +415,95 @@ suite("Diagnostics", () => {
     );
   });
 
+  // S101 deep-review: a true-positive per-iteration shimmer in a plain proc,
+  // the same shape inside a TclOO method body (methods previously fell
+  // through a fresh-rebuild-only fix — see tcl-lsp-db's `proc_taint_solve`),
+  // and a guarded false positive via `my variable` (an object-instance
+  // variable's real intrep depends on another method's last write, not the
+  // nominal return type of `my`).
+  test("S101 fires for a per-iteration shimmer inside a plain proc and a TclOO method", async () => {
+    const uri = getDocUri("shimmer-s101.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.filter((d) => codeOf(d) === "S101").length >= 2,
+    });
+    const s101 = diagnostics.filter((d) => codeOf(d) === "S101");
+    assert.strictEqual(
+      s101.length,
+      2,
+      `expected exactly two S101s (plain proc + TclOO method), got [${diagnostics.map(codeOf)}]`,
+    );
+    for (const d of s101) {
+      assert.strictEqual(d.severity, vscode.DiagnosticSeverity.Warning, "S101 should be a warning");
+      assert.ok(
+        /lindex.*expects list/.test(d.message),
+        `S101 message should name the shimmering command, got: ${d.message}`,
+      );
+    }
+    // `shimmerLoop`'s `set y [lindex $x 0]`, 0-indexed line 11.
+    assert.ok(
+      s101.some((d) => d.range.start.line === 11),
+      `expected an S101 anchored to the plain-proc loop (line 11), got ${JSON.stringify(s101.map((d) => d.range.start))}`,
+    );
+    // `Counter::scan`'s `set y [lindex $x 0]`, 0-indexed line 35. Tight
+    // highlighting: TclOO method bodies reach the live diagnostics path
+    // through the fresh (non-memoised) fallback, which carries real source
+    // text, so the span narrows to exactly the `$x` argument rather than
+    // the whole `set y [lindex $x 0]` statement — see
+    // `nested_call_arg_spans` in `tcl-compiler`'s shimmer use-site pass.
+    const methodShimmer = s101.find((d) => d.range.start.line === 35);
+    assert.ok(
+      methodShimmer,
+      `expected an S101 anchored to the TclOO method loop (line 35), got ${JSON.stringify(s101.map((d) => d.range.start))}`,
+    );
+    assert.strictEqual(methodShimmer.range.start.character, 26);
+    assert.strictEqual(methodShimmer.range.end.character, 28);
+  });
+
+  test("S100 fires for a numeric var in a string comparison and offers a fix hint", async () => {
+    const uri = getDocUri("shimmer-s101.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.some((d) => codeOf(d) === "S100"),
+    });
+    const s100 = diagnostics.find((d) => codeOf(d) === "S100");
+    assert.ok(s100, `expected an S100, got [${diagnostics.map(codeOf)}]`);
+    assert.strictEqual(
+      s100.severity,
+      vscode.DiagnosticSeverity.Information,
+      "S100 should be information severity",
+    );
+    assert.ok(
+      s100.message.includes("=="),
+      `S100 message should suggest the numeric '==' rewrite, got: ${s100.message}`,
+    );
+    // `numericEqShimmer`'s `set z [expr {$n eq 42}]`, 0-indexed line 17.
+    assert.strictEqual(s100.range.start.line, 17);
+  });
+
+  test("S100/S101 silent for a TclOO instance variable linked via `my variable`", async () => {
+    const uri = getDocUri("shimmer-s101.tcl");
+    await activate(uri);
+    // Settle on the loop shimmers firing first (the fixture always produces
+    // them), then assert the `my variable`-linked `count` never shimmers.
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.filter((d) => codeOf(d) === "S101").length >= 2,
+    });
+    assert.ok(
+      !diagnostics.some(
+        (d) =>
+          (codeOf(d) === "S100" || codeOf(d) === "S101") &&
+          /'count'/.test(d.message),
+      ),
+      `'my variable'-linked instance var must not spuriously shimmer: ${diagnostics
+        .filter((d) => codeOf(d) === "S100" || codeOf(d) === "S101")
+        .map((d) => d.message)}`,
+    );
+  });
+
   // Issue #777: object commands bound by `CLASS create NAME` and iterated via
   // `foreach elem [list c1 l1 …]` are known commands, so dispatching `$elem`
   // must not fire W307. Analysis has settled once the unknown-class commands
