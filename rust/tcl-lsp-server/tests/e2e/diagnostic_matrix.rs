@@ -388,3 +388,78 @@ fn global_write_across_opaque_call_blocks_fold() {
     let source = result.get("source").and_then(Value::as_str).unwrap_or("");
     assert!(!source.contains("puts 6"), "{source:?}");
 }
+
+// Regression: a top-level variable reassigned via `global` inside a called
+// procedure must never be folded as if its initial assignment were a stable
+// constant. Confirmed against tclsh 8.6/9.0 as a real miscompile before this
+// was fixed — `puts $g` prints `17`, not the pre-call literal `4`.
+#[test]
+fn top_level_global_reassigned_by_callee_is_not_folded() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set g 4\nproc helper {} { global g\nset g 17 }\nhelper\nputs $g\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(
+        source.contains("puts $g"),
+        "must not fold `puts $g` to the stale literal 4: {source:?}"
+    );
+}
+
+// TN control: a top-level constant no procedure ever touches via `global`
+// must still fold — the whole-module scan introduced by the fix above must
+// not over-widen to every top-level variable.
+#[test]
+fn top_level_constant_untouched_by_any_proc_still_folds() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set safe_const 42\nproc other {} { puts unrelated }\nother\nputs $safe_const\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(source.contains("puts 42"), "{source:?}");
+}
+
+// Regression: O103 must not fold a call to a procedure renamed away
+// elsewhere in the file — confirmed against tclsh, which raises "invalid
+// command name" for the same script (the rename means `::foo` no longer
+// refers to the original body at runtime).
+#[test]
+fn proc_renamed_away_is_not_folded() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc ::foo {} { return 42 }\nrename ::foo ::bar\nputs [::foo]\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(source.contains("puts [::foo]"), "{source:?}");
+}
+
+// FN/TN control: an ordinary, untouched pure proc in the same file still
+// folds — the rename/alias trust gate must not over-widen to every
+// procedure in the module.
+#[test]
+fn untouched_proc_in_same_file_still_folds() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc ::foo {} { return 42 }\nproc ::other {} { return 1 }\nputs [::foo]\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(source.contains("puts 42"), "{source:?}");
+}
+
+// Regression: a proc with a trailing variadic `args` parameter must not be
+// argument-sensitively folded — `args` collects a *list* of the remaining
+// call arguments, not a single scalar value.
+#[test]
+fn variadic_args_proc_is_not_argument_sensitively_folded() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc ::foo {a args} { return $args }\nputs [::foo 1 2]\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(source.contains("puts [::foo 1 2]"), "{source:?}");
+}

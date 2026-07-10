@@ -175,6 +175,47 @@ suite("LSP Command Execution", () => {
     );
   });
 
+  // Regression: a top-level variable reassigned via `global` inside a called
+  // procedure must never be folded as if its initial assignment were a
+  // stable constant (see rust/tcl-lsp-server/tests/e2e/diagnostic_matrix.rs
+  // `top_level_global_reassigned_by_callee_is_not_folded` for the native
+  // e2e counterpart and the tclsh-verified miscompile this fixes).
+  test("tcl-lsp.optimiseDocument does not fold a global reassigned by a callee", async () => {
+    const doc = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: "set g 4\nproc helper {} { global g\nset g 17 }\nhelper\nputs $g\n",
+    });
+    await vscode.window.showTextDocument(doc);
+    const uri = doc.uri.toString();
+    const result = (await execLspCommand("tcl-lsp.optimiseDocument", uri, "full")) as {
+      source: string;
+    } | null;
+    assert.ok(result, "optimiseDocument should return a result");
+    assert.ok(
+      result.source.includes("puts $g"),
+      `must not fold \`puts $g\` to the stale literal 4: ${result.source}`,
+    );
+  });
+
+  // Regression: O103 must not fold a call to a procedure renamed away
+  // elsewhere in the same document.
+  test("tcl-lsp.optimiseDocument does not fold a call to a renamed-away proc", async () => {
+    const doc = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: "proc ::foo {} { return 42 }\nrename ::foo ::bar\nputs [::foo]\n",
+    });
+    await vscode.window.showTextDocument(doc);
+    const uri = doc.uri.toString();
+    const result = (await execLspCommand("tcl-lsp.optimiseDocument", uri, "full")) as {
+      source: string;
+    } | null;
+    assert.ok(result, "optimiseDocument should return a result");
+    assert.ok(
+      result.source.includes("puts [::foo]"),
+      `must not fold a call to a renamed-away proc: ${result.source}`,
+    );
+  });
+
   // -- fixAllSafeIssues -------------------------------------------------------
 
   test("tcl-lsp.fixAllSafeIssues returns applied list", async () => {
