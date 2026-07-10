@@ -119,7 +119,6 @@ const BOOL_TRAITS: &[(&str, Traits)] = &[
     ("creates_dynamic_barrier", Traits::CREATES_DYNAMIC_BARRIER),
     ("has_loop_body", Traits::HAS_LOOP_BODY),
     ("never_inline_body", Traits::NEVER_INLINE_BODY),
-    ("warn_without_terminator", Traits::WARN_WITHOUT_TERMINATOR),
     ("evaluates_code", Traits::EVALUATES_CODE),
     ("performs_substitution", Traits::PERFORMS_SUBSTITUTION),
     ("opens_channel", Traits::OPENS_CHANNEL),

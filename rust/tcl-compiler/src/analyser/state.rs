@@ -3758,8 +3758,7 @@ mod tests {
     #[test]
     fn analyse_no_w304_for_regexp_safe_literal_pattern() {
         // Pattern starts with `(` — non-dynamic, doesn't start with
-        // `-`, so the OFF gate suppresses regardless of the
-        // command's WARN_WITHOUT_TERMINATOR trait.
+        // `-`, so the OFF gate suppresses regardless of command.
         let diags = w304_diags("regexp {(a+)+$} $text\n");
         assert!(diags.is_empty(), "got {diags:?}");
     }

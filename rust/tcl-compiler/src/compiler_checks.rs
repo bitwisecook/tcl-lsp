@@ -146,7 +146,7 @@ impl Diagnostic {
             },
             message: w.message.clone(),
             replacement: w.replacement.clone(),
-            fixes: Vec::new(),
+            fixes: w.fixes.clone(),
         }
     }
 

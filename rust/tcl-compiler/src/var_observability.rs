@@ -259,7 +259,7 @@ impl VarObservability<'_> {
             collect_traced(&state, &mut names);
             if let Some(blk) = self.cfg.blocks.get(block) {
                 for stmt in &blk.statements {
-                    stmt_gen(stmt, &mut state);
+                    stmt_gen(stmt, &mut state, self.registry);
                     collect_traced(&state, &mut names);
                 }
             }
@@ -477,7 +477,8 @@ mod tests {
     fn traced_var_names_excludes_untraced_aliases() {
         let c = cu("proc ::p {} { global g\nset g 1\ntrace add variable t write cb\nset t 1 }");
         let fu = c.function("::p").unwrap();
-        let obs = analyse_var_observability(&fu.cfg);
+        let reg = registry();
+        let obs = analyse_var_observability(&fu.cfg, &reg);
         assert!(obs.escaping_var_names().contains("g"));
         assert!(obs.escaping_var_names().contains("t"));
         assert!(

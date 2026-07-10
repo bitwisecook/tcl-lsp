@@ -172,6 +172,11 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        // `TclNRSwitchObjCmd` (generic/tclCmdMZ.c) only scans for `-flag`
+        // words up to `objc - 2`: the trailing `string` and
+        // pattern-list-or-first-pattern words are never mistaken for
+        // options, even when dynamic/tainted and starting with `-`.
+        reserved_trailing_words: 2,
         ..CommandSpec::DEFAULT
     }
 }

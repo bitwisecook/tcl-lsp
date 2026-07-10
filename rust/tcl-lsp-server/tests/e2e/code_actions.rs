@@ -24,8 +24,11 @@
 //! editor does — so quick-fix offers are exercised against real (or, where a
 //! specific range matters, fabricated) diagnostics.
 //!
-//! The F5 iRules code actions (collect-bootstrap, taint quick-fixes, profile
-//! headers) run against the dedicated iRules server in `irules_e2e.rs`.
+//! The F5 iRules-only code actions (collect-bootstrap, the IRULE3001/3002
+//! wrap-with-encode taint fixes, profile headers) run against the dedicated
+//! iRules server in `irules.rs`. T102 (tainted data in option position) is
+//! dialect-general — not an iRules-specific check — so its `--`-insertion
+//! fix is exercised here against the plain `tcl` dialect.
 
 use crate::common::{Lsp, unique_uri};
 
@@ -342,6 +345,57 @@ fn test_w004_offers_remove_option_fix() {
         new_texts(&actions).iter().any(String::is_empty),
         "the remove-option fix deletes text (empty newText): {:?}",
         new_texts(&actions)
+    );
+}
+
+/// T102 (option injection) is dialect-general, not iRules-specific, so its
+/// `--`-insertion fix must reach the code-action response for a plain `tcl`
+/// document too — not only under `f5-irules` (see `irules::t102_insert_double_dash`).
+#[test]
+fn test_t102_insert_double_dash_default_dialect() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "set pattern [gets stdin]\nregexp $pattern $haystack\n",
+    );
+    let t102 = with_code(&diags, "T102");
+    assert!(
+        !t102.is_empty(),
+        "expected a T102 diagnostic to drive the quick fix, got {diags:?}"
+    );
+    let t102_range = t102[0]["range"].clone();
+    let actions = code_actions_only(&mut lsp, &uri, t102_range, json!(t102), &["quickfix"]);
+    let fixes: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| action_title(a).contains("--"))
+        .cloned()
+        .collect();
+    assert!(
+        !fixes.is_empty(),
+        "expected at least one '--' quick fix, got {actions:?}"
+    );
+    assert!(new_texts(&json!(fixes)).iter().any(|s| s == "-- "));
+}
+
+/// The `set matched [regexp $pattern $s]` capture idiom must fire T102
+/// exactly like the bare `regexp $pattern $s` call it wraps — a false
+/// negative in the taint pass's statement-shape handling, not a code-action
+/// concern, but only observable end-to-end through published diagnostics.
+#[test]
+fn test_t102_fires_for_assign_value_wrapped_call() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "set pattern [gets stdin]\nset result [regexp $pattern $haystack]\n",
+    );
+    let t102 = with_code(&diags, "T102");
+    assert!(
+        !t102.is_empty(),
+        "expected T102 for tainted $pattern inside `set result [regexp ...]`, got {diags:?}"
     );
 }
 

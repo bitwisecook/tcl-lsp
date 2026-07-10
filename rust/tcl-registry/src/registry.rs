@@ -1047,12 +1047,6 @@ impl CommandRegistry {
     /// command), so a linear scan at the call site is cheaper than
     /// a `HashSet` build.
     ///
-    /// `warn_without_terminator` lifts the
-    /// [`Traits::WARN_WITHOUT_TERMINATOR`] flag from the matched
-    /// command spec and surfaces it on `ResolvedTerminator`, but the
-    /// current W304 emitter does not consume it.  Kept on the resolver
-    /// for future emit logic and so the registry API doesn't need to
-    /// change when consumers start gating on it.
     #[must_use]
     pub fn resolve_option_terminator(
         &self,
@@ -1065,8 +1059,6 @@ impl CommandRegistry {
         } else {
             self.get_for_dialect(name, dialect)?
         };
-
-        let warn_flag = spec.traits.contains(Traits::WARN_WITHOUT_TERMINATOR);
 
         // Subcommand-scoped first. Resolve the subcommand word the same way
         // ensemble dispatch does — accepting a unique prefix abbreviation
@@ -1084,7 +1076,7 @@ impl CommandRegistry {
                 scan_start: 1,
                 subcommand: Some(sub.name),
                 options: sub.options,
-                warn_without_terminator: warn_flag,
+                reserved_trailing_words: 0,
             });
         }
 
@@ -1096,7 +1088,7 @@ impl CommandRegistry {
                 scan_start: 0,
                 subcommand: None,
                 options: spec.options,
-                warn_without_terminator: warn_flag,
+                reserved_trailing_words: spec.reserved_trailing_words,
             });
         }
 
@@ -1196,13 +1188,11 @@ pub struct ResolvedTerminator {
     /// require.  Per-command counts are small; a linear scan is
     /// cheaper than a heap-allocated set on the analyser hot path.
     pub options: &'static [crate::hover::OptionSpec],
-    /// Lifted from [`Traits::WARN_WITHOUT_TERMINATOR`] on the matched
-    /// command spec.  The current W304
-    /// emitter does not consume the flag (it is stored but never read).
-    /// Kept on the
-    /// type so future emit logic can gate on it without an API
-    /// change.
-    pub warn_without_terminator: bool,
+    /// Trailing words (after the command name) that are never scanned as
+    /// option candidates — see [`crate::spec::CommandSpec::reserved_trailing_words`].
+    /// `0` for every subcommand-scoped match (no subcommand currently
+    /// needs the reservation) and for any form without one declared.
+    pub reserved_trailing_words: usize,
 }
 
 /// Outcome of [`CommandRegistry::resolve_call`].
@@ -3156,7 +3146,6 @@ mod tests {
             .expect("regexp declares -- at the form level");
         assert_eq!(profile.scan_start, 0);
         assert!(profile.subcommand.is_none());
-        assert!(profile.warn_without_terminator);
         // ``-start`` takes a value; ``-nocase`` does not.
         // ``-start`` takes a value; ``-nocase`` does not.  The
         // resolver returns the borrowed options slice; callers
@@ -3191,17 +3180,6 @@ mod tests {
         // ``file mtime`` has no ``--`` terminator.
         let profile = reg.resolve_option_terminator("file", &["mtime", "$p"], DialectSet::empty());
         assert!(profile.is_none(), "got {profile:?}");
-    }
-
-    #[test]
-    fn resolve_option_terminator_warn_flag_off_for_non_regexp() {
-        let reg = CommandRegistry::build_default();
-        // ``unset`` declares ``--`` but does not carry the
-        // ``WARN_WITHOUT_TERMINATOR`` trait — only ``regexp`` does.
-        let profile = reg
-            .resolve_option_terminator("unset", &["$x"], DialectSet::empty())
-            .expect("unset declares --");
-        assert!(!profile.warn_without_terminator);
     }
 
     // -- ``is_canonical_list_command`` (W101 safe-idiom driver)

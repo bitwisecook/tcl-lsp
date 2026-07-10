@@ -102,9 +102,7 @@ const REGEXP_HOVER: HoverSnippet = HoverSnippet {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regexp",
-        traits: Traits::BYTE_COMPILED
-            | Traits::WARN_WITHOUT_TERMINATOR
-            | Traits::FRAME_HASH_BUILTIN,
+        traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::at_least(1),
         return_type: Some(TclType::Int),
         side_effects: &[SideEffect {

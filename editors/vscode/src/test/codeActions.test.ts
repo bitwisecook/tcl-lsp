@@ -83,6 +83,33 @@ suite("Code Actions", () => {
     assert.ok(quickFix, "Should provide an option terminator quick fix");
   });
 
+  test("provides quick fix for T102 (tainted data in option position) in a plain .tcl file", async () => {
+    // T102 is dialect-general (not iRules-specific), so its `--`-insertion
+    // fix must reach the code-action response for a plain .tcl document
+    // too — not only under the f5-irules dialect.
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+
+    const t102 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "T102";
+    });
+    assert.ok(t102, "T102 diagnostic should be present");
+
+    const actions = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, t102.range),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title.includes("--"),
+        ),
+      { timeout: 10_000, label: "T102 insert '--' quick fix" },
+    )) as vscode.CodeAction[];
+
+    const quickFix = actions.find((a) => typeof a.title === "string" && a.title.includes("--"));
+    assert.ok(quickFix, "Should provide an insert '--' quick fix for T102");
+  });
+
   test("provides quick fix for W302 (catch result capture)", async () => {
     await activate(docUri);
     const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
