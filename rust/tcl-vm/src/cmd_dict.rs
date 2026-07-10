@@ -307,22 +307,28 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
             let [varname, key, amt @ ..] = rest else {
                 return err("wrong # args: should be \"dict incr dictVarName key ?increment?\"");
             };
-            let inc = match amt.first() {
-                Some(v) => match v.as_int() {
-                    Ok(n) => n,
-                    Err(e) => return err(e.message),
+            // Read the increment and the stored value over the `i128` bignum
+            // stand-in (as `incr`/`expr` do), so a sum past `i64` promotes rather
+            // than silently wrapping (RUST_ISSUE_095).
+            let inc: i128 = match amt.first() {
+                Some(v) => match v.as_i128() {
+                    Some(n) => n,
+                    None => return err(format!("expected integer but got \"{}\"", v.to_str())),
                 },
                 None => 1,
             };
             dict_update(vm, varname, key, |old| {
                 let base = match old {
-                    Some(v) => match v.as_int() {
-                        Ok(n) => n,
-                        Err(e) => return Err(e.message),
+                    Some(v) => match v.as_i128() {
+                        Some(n) => n,
+                        None => return Err(format!("expected integer but got \"{}\"", v.to_str())),
                     },
                     None => 0,
                 };
-                Ok(Value::int(base.wrapping_add(inc)))
+                let sum = base
+                    .checked_add(inc)
+                    .ok_or_else(|| "integer value too large to represent".to_string())?;
+                Ok(crate::expr::int_value(sum))
             })
         }
         "append" => {

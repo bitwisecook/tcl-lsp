@@ -1150,6 +1150,33 @@ fn default_error_code(message: &str) -> &'static str {
     }
 }
 
+/// Rebuild a return-options dict with its `-level` replaced — the proc-boundary
+/// countdown for `return -level N` (`RUST_ISSUE_170`). Every other key (`-code`
+/// and any user options) is preserved; a missing `-level` is appended.
+pub(crate) fn with_return_level(options: &Value, new_level: i64) -> Value {
+    let mut items = Vec::new();
+    let mut have_level = false;
+    if let Ok(list) = options.as_list() {
+        let mut i = 0;
+        while i + 1 < list.len() {
+            if &*list[i].to_str() == "-level" {
+                items.push(Value::string("-level"));
+                items.push(Value::int(new_level));
+                have_level = true;
+            } else {
+                items.push(list[i].clone());
+                items.push(list[i + 1].clone());
+            }
+            i += 2;
+        }
+    }
+    if !have_level {
+        items.push(Value::string("-level"));
+        items.push(Value::int(new_level));
+    }
+    Value::list(items)
+}
+
 /// Look up a key in an options-dict value, returning the following element.
 pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
     let items = options.as_list().ok()?;
@@ -1229,15 +1256,12 @@ fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // `-level 0` makes the requested `-code` take effect *immediately* (the
     // completion IS that code, including `ok` — `return -level 0 -code N` is how
     // `try`/`catch` produce an arbitrary return code). A positive level raises
-    // TCL_RETURN, absorbed at the proc boundary; an explicit non-OK `-code` at
-    // level ≥ 1 takes effect immediately (simplification: skip the countdown).
-    let final_code = if level == 0 {
-        ret_code
-    } else if ret_code == Code::Ok {
-        Code::Return
-    } else {
-        ret_code
-    };
+    // TCL_RETURN carrying `-code`/`-level` in its options; each proc boundary
+    // decrements the level and only applies `-code` once it reaches 0, so
+    // `return -level 2 -code error` is seen as TCL_RETURN one level up, not an
+    // immediate error (`RUST_ISSUE_170`; the countdown lives at the proc boundary
+    // in `exec.rs`).
+    let final_code = if level == 0 { ret_code } else { Code::Return };
     Completion::new(final_code, value, options)
 }
 
@@ -1432,34 +1456,77 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if vm.exit_pending() {
         return comp;
     }
-    if let Some(r) = resvar
-        && let Err(e) = vm.set_var(&r.to_str(), comp.result.clone())
-    {
-        return e;
-    }
-    if let Some(o) = optvar
-        && let Err(e) = vm.set_var(&o.to_str(), completion_options(&comp))
-    {
-        return e;
-    }
-    if comp.code == Code::Error {
-        // Prefer the accumulated `errorInfo` source trace (the message plus the
-        // `while executing` / `invoked from within` frames) over the bare
-        // `-errorinfo` the completion carried; fall back when nothing logged.
+    // Compute the error metadata once — `take_error_info` consumes the trace, so
+    // the same values feed both the options dict and the `$errorInfo`/`$errorCode`
+    // globals. A non-error completion still clears any in-flight trace so the next
+    // error starts fresh.
+    let error_meta = if comp.code == Code::Error {
         let einfo = vm.take_error_info().unwrap_or_else(|| {
             opt_get(&comp.options, "-errorinfo").map_or_else(
                 || comp.result.to_str().to_string(),
                 |v| v.to_str().to_string(),
             )
         });
-        let ecode = resolved_error_code(&comp);
-        vm.publish_error(&einfo, &ecode);
+        Some((einfo, resolved_error_code(&comp), vm.error_line()))
     } else {
-        // A non-error completion ends any in-flight trace (e.g. an inner error
-        // that a deeper `catch` already consumed), so the next error is fresh.
         let _ = vm.take_error_info();
+        None
+    };
+
+    if let Some(r) = resvar
+        && let Err(e) = vm.set_var(&r.to_str(), comp.result.clone())
+    {
+        return e;
+    }
+    if let Some(o) = optvar {
+        let opts = match &error_meta {
+            Some((einfo, ecode, eline)) => catch_error_options(&comp, ecode, einfo, *eline),
+            None => completion_options(&comp),
+        };
+        if let Err(e) = vm.set_var(&o.to_str(), opts) {
+            return e;
+        }
+    }
+    if let Some((einfo, ecode, _)) = &error_meta {
+        vm.publish_error(einfo, ecode);
     }
     ok(Value::int(comp.code.as_int()))
+}
+
+/// The options dict `catch` binds for an error completion. C always attaches
+/// `-errorcode`, `-errorinfo`, and `-errorline` to an error's options — even a
+/// bare builtin error such as `catch {llength} m opts` — so
+/// `dict get $opts -errorcode` never fails (`RUST_ISSUE_013`). The resolved code
+/// and trace already fold in any values a user `error`/`throw`/`return` carried;
+/// any *other* carried option (a custom `-foo`) is preserved verbatim.
+fn catch_error_options(comp: &Completion<Value>, ecode: &Value, einfo: &str, eline: u32) -> Value {
+    let mut items = vec![
+        Value::string("-code"),
+        Value::int(comp.code.as_int()),
+        Value::string("-level"),
+        Value::int(0),
+        Value::string("-errorcode"),
+        ecode.clone(),
+        Value::string("-errorinfo"),
+        Value::string(einfo),
+        Value::string("-errorline"),
+        Value::int(i64::from(eline)),
+    ];
+    if let Ok(carried) = comp.options.as_list() {
+        let mut i = 0;
+        while i + 1 < carried.len() {
+            let k = carried[i].to_str();
+            if !matches!(
+                &*k,
+                "-code" | "-level" | "-errorcode" | "-errorinfo" | "-errorline"
+            ) {
+                items.push(carried[i].clone());
+                items.push(carried[i + 1].clone());
+            }
+            i += 2;
+        }
+    }
+    Value::list(items)
 }
 
 /// `unset ?-nocomplain? ?--? name ...` — remove variables / array elements.

@@ -684,7 +684,23 @@ impl Vm {
                 self.pop_call_frame();
                 self.pop_ns();
                 if c.code == Code::Return {
-                    c = ok(c.result);
+                    // TclUpdateReturnInfo: a proc boundary decrements the carried
+                    // return level. While it stays positive the TCL_RETURN keeps
+                    // unwinding one proc level at a time; when it reaches 0 the
+                    // carried `-code` takes effect (`RUST_ISSUE_170`).
+                    let level = crate::command::opt_get(&c.options, "-level")
+                        .and_then(|v| v.as_int().ok())
+                        .unwrap_or(1);
+                    if level > 1 {
+                        c.options = crate::command::with_return_level(&c.options, level - 1);
+                    } else {
+                        let code = crate::command::opt_get(&c.options, "-code")
+                            .and_then(|v| v.as_int().ok())
+                            .and_then(|n| i32::try_from(n).ok())
+                            .map_or(Code::Ok, code_from_int);
+                        c.options = crate::command::with_return_level(&c.options, 0);
+                        c.code = code;
+                    }
                 }
                 if c.code == Code::Error {
                     let call_site = acts.last().and_then(|parent| {
@@ -1935,11 +1951,19 @@ impl Vm {
                 let key = pop(f).to_str().to_string();
                 let cur = self.get_var(&name).unwrap_or_else(Value::empty);
                 let updated = dict_update_single(&cur, &key, |old| {
+                    // Add over the `i128` bignum stand-in (as `incr`/`expr` do) so
+                    // a sum past `i64` promotes rather than silently wrapping
+                    // (`RUST_ISSUE_095`).
                     let base = match old {
-                        Some(v) => v.as_int().map_err(|e| err(e.message))?,
+                        Some(v) => v.as_i128().ok_or_else(|| {
+                            err(format!("expected integer but got \"{}\"", v.to_str()))
+                        })?,
                         None => 0,
                     };
-                    Ok(Value::int(base.wrapping_add(amount)))
+                    let sum = base
+                        .checked_add(i128::from(amount))
+                        .ok_or_else(|| err("integer value too large to represent"))?;
+                    Ok(crate::expr::int_value(sum))
                 });
                 match updated {
                     Ok(result) => {

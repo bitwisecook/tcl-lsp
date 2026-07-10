@@ -71,6 +71,26 @@ impl ValueOps for Vm {
             .map_err(|_| ValueError::NotInteger(v.to_str().to_string()))
     }
 
+    /// `incr` / `dict incr` addition over the VM's `i128` bignum stand-in — the
+    /// same integer tower `expr` uses — so a sum past `i64` promotes (e.g.
+    /// `incr` at `i64::MAX` yields `9223372036854775808`) instead of the default
+    /// i64 `checked_add` erroring, and the result never silently wraps
+    /// (`RUST_ISSUE_095`; a sum beyond `i128` still overflows — full bignum is
+    /// `RUST_ISSUE_011`).
+    fn int_add(&mut self, a: Option<&Value>, b: &Value) -> Result<Value, ValueError> {
+        let operand = |v: &Value| -> Result<i128, ValueError> {
+            v.as_i128()
+                .ok_or_else(|| ValueError::NotInteger(v.to_str().to_string()))
+        };
+        let x = match a {
+            Some(v) => operand(v)?,
+            None => 0,
+        };
+        let y = operand(b)?;
+        let sum = x.checked_add(y).ok_or(ValueError::IntegerOverflow)?;
+        Ok(crate::expr::int_value(sum))
+    }
+
     fn as_double(&mut self, v: &Value) -> Result<f64, ValueError> {
         v.as_double()
             .map_err(|_| ValueError::NotDouble(v.to_str().to_string()))
