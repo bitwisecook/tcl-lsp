@@ -25,18 +25,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         name: "set",
         arity: Arity::at_least(0),
         detail: "",
-        synopsis: "",
+        synopsis: "table set ?-notouch? ?-subtable name | -georedundancy? ?-mustexist | -excl? key value ?timeout ?lifetime??",
         mutator: true,
-        options: const {
-            &[OptionSpec {
-                name: "--",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            }]
-        },
+        options: SET_OPTIONS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -49,18 +40,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         name: "add",
         arity: Arity::at_least(0),
         detail: "",
-        synopsis: "",
+        synopsis: "table add ?-notouch? ?-subtable name | -georedundancy? key value ?timeout ?lifetime??",
         mutator: true,
-        options: const {
-            &[OptionSpec {
-                name: "--",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            }]
-        },
+        options: SUBTABLE_OPTIONS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -73,18 +55,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         name: "incr",
         arity: Arity::at_least(0),
         detail: "",
-        synopsis: "",
+        synopsis: "table incr ?-notouch? ?-subtable name | -georedundancy? ?-mustexist? key ?delta?",
         mutator: true,
-        options: const {
-            &[OptionSpec {
-                name: "--",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            }]
-        },
+        options: MUSTEXIST_OPTIONS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -97,18 +70,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         name: "delete",
         arity: Arity::at_least(0),
         detail: "",
-        synopsis: "",
+        synopsis: "table delete ?-subtable name | -georedundancy? key | -all",
         mutator: true,
-        options: const {
-            &[OptionSpec {
-                name: "--",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            }]
-        },
+        options: DELETE_OPTIONS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -121,18 +85,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         name: "append",
         arity: Arity::at_least(0),
         detail: "",
-        synopsis: "",
+        synopsis: "table append ?-notouch? ?-subtable name | -georedundancy? ?-mustexist? key string",
         mutator: true,
-        options: const {
-            &[OptionSpec {
-                name: "--",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            }]
-        },
+        options: MUSTEXIST_OPTIONS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -145,18 +100,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         name: "replace",
         arity: Arity::at_least(0),
         detail: "",
-        synopsis: "",
+        synopsis: "table replace ?-notouch? ?-subtable name | -georedundancy? key value ?timeout ?lifetime??",
         mutator: true,
-        options: const {
-            &[OptionSpec {
-                name: "--",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            }]
-        },
+        options: SUBTABLE_OPTIONS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -169,17 +115,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         name: "keys",
         arity: Arity::at_least(0),
         detail: "",
-        synopsis: "",
-        options: const {
-            &[OptionSpec {
-                name: "--",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            }]
-        },
+        synopsis: "table keys -subtable name ?-count | -notouch?",
+        options: KEYS_OPTIONS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -192,17 +129,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         name: "lifetime",
         arity: Arity::at_least(0),
         detail: "",
-        synopsis: "",
-        options: const {
-            &[OptionSpec {
-                name: "--",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            }]
-        },
+        synopsis: "table lifetime ?-subtable name | -georedundancy? key ?value | -remaining?",
+        options: REMAINING_OPTIONS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -215,17 +143,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         name: "timeout",
         arity: Arity::at_least(0),
         detail: "",
-        synopsis: "",
-        options: const {
-            &[OptionSpec {
-                name: "--",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            }]
-        },
+        synopsis: "table timeout ?-subtable name | -georedundancy? key ?value | -remaining?",
+        options: REMAINING_OPTIONS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -238,17 +157,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         name: "lookup",
         arity: Arity::at_least(0),
         detail: "",
-        synopsis: "",
-        options: const {
-            &[OptionSpec {
-                name: "--",
-                value: OptionValue::flag(),
-                detail: "",
-                dialects: None,
-                aliases: &[],
-                min_version: None,
-            }]
-        },
+        synopsis: "table lookup ?-notouch? ?-subtable name | -georedundancy? key",
+        options: SUBTABLE_OPTIONS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -256,6 +166,252 @@ const SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::Both,
         }],
         ..SubCommand::DEFAULT
+    },
+];
+
+/// Shared by `add`, `replace`, and `lookup`: `-notouch` plus the subtable
+/// selector and the generic option-list terminator. Per
+/// <https://clouddocs.f5.com/api/irules/table.html> these three take no
+/// other options.
+const SUBTABLE_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-notouch",
+        value: OptionValue::flag(),
+        detail: "Do not reset lifetime/timeout on access.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-subtable",
+        value: OptionValue::value(""),
+        detail: "Operate on a named subtable.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-georedundancy",
+        value: OptionValue::flag(),
+        detail: "Enable geo-redundancy for this entry.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "--",
+        value: OptionValue::flag(),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
+
+/// `set`: `SUBTABLE_OPTIONS` plus the create-vs-replace guards.
+const SET_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-notouch",
+        value: OptionValue::flag(),
+        detail: "Do not reset lifetime/timeout on access.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-subtable",
+        value: OptionValue::value(""),
+        detail: "Operate on a named subtable.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-georedundancy",
+        value: OptionValue::flag(),
+        detail: "Enable geo-redundancy for this entry.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-mustexist",
+        value: OptionValue::flag(),
+        detail: "Fail if key does not already exist.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-excl",
+        value: OptionValue::flag(),
+        detail: "Fail if key already exists.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "--",
+        value: OptionValue::flag(),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
+
+/// `incr` and `append`: `SUBTABLE_OPTIONS` plus `-mustexist` (no `-excl`).
+const MUSTEXIST_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-notouch",
+        value: OptionValue::flag(),
+        detail: "Do not reset lifetime/timeout on access.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-subtable",
+        value: OptionValue::value(""),
+        detail: "Operate on a named subtable.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-georedundancy",
+        value: OptionValue::flag(),
+        detail: "Enable geo-redundancy for this entry.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-mustexist",
+        value: OptionValue::flag(),
+        detail: "Fail if key does not already exist.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "--",
+        value: OptionValue::flag(),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
+
+/// `delete`: no `-notouch` (a deletion doesn't touch a lifetime) — just the
+/// subtable selector, `-all`, and the terminator.
+const DELETE_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-subtable",
+        value: OptionValue::value(""),
+        detail: "Operate on a named subtable.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-georedundancy",
+        value: OptionValue::flag(),
+        detail: "Enable geo-redundancy for this entry.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-all",
+        value: OptionValue::flag(),
+        detail: "Delete all keys in a subtable.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "--",
+        value: OptionValue::flag(),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
+
+/// `timeout` and `lifetime`: no `-notouch` — the subtable selector plus
+/// `-remaining` for the query form.
+const REMAINING_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-subtable",
+        value: OptionValue::value(""),
+        detail: "Operate on a named subtable.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-georedundancy",
+        value: OptionValue::flag(),
+        detail: "Enable geo-redundancy for this entry.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-remaining",
+        value: OptionValue::flag(),
+        detail: "Return remaining time.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "--",
+        value: OptionValue::flag(),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
+
+/// `keys`: `-subtable` is mandatory, plus the mutually exclusive
+/// `-count`/`-notouch`.
+const KEYS_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-subtable",
+        value: OptionValue::value(""),
+        detail: "Operate on a named subtable.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-count",
+        value: OptionValue::flag(),
+        detail: "Return count of matching keys.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-notouch",
+        value: OptionValue::flag(),
+        detail: "Do not reset lifetime/timeout on access.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "--",
+        value: OptionValue::flag(),
+        detail: "",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

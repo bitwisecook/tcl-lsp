@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `ledit` — replace elements in a list variable, in place (Tcl 9.0+, TIP 638).
+//! `ledit` — replace elements in a list variable, in place (Tcl 9.0+, TIP 631).
 
 use crate::prelude::*;
 

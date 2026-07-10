@@ -25,7 +25,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 }];
 
 /// Options for `clock scan` / `clock format` / `clock add`.
-/// `-validate` is Tcl 9.0+ (TIP 532) and dialect-gated; the
+/// `-validate` is Tcl 9.0+ (TIP 688) and dialect-gated; the
 /// others exist since Tcl 8.5.
 static SCAN_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
@@ -68,7 +68,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         min_version: None,
     },
-    // `-validate` is Tcl 9.0+ (TIP 532).
+    // `-validate` is Tcl 9.0+ (TIP 688).
     OptionSpec {
         name: "-validate",
         value: OptionValue::value("boolean"),
