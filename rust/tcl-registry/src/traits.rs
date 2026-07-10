@@ -108,8 +108,6 @@ bitflags! {
         // Safety
         /// Inherently dangerous command.
         const UNSAFE                    = 1 << 29;
-        /// Warn about option injection without `--` terminator.
-        const WARN_WITHOUT_TERMINATOR   = 1 << 30;
         /// Password option command.
         const PASSWORD_OPTION           = 1 << 31;
 

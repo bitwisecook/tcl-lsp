@@ -97,11 +97,14 @@ use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::{CommandTokens, Statement};
+use crate::irules_checks::CodeFix;
 use crate::naming::normalise_var_name;
 use crate::rendered_properties::{RenderedProperties, RenderedValueProps};
 use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey};
-use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
+use crate::value_shapes::{
+    is_pure_var_ref, parse_command_substitution, parse_command_substitution_with_spans,
+};
 
 // Colour lattice
 
@@ -279,6 +282,24 @@ impl TaintLattice {
             colours: self.colours & !TaintColour::TAINTED,
         }
     }
+
+    /// Strip the shape-dependent mitigation colours (`T102_SAFE`:
+    /// `PATH_PREFIXED` / `NON_DASH_PREFIXED` / `IP_ADDRESS` / `PORT` /
+    /// `FQDN`) — used when a value passes through a command with no
+    /// registry classification (not a recognised source, sanitiser,
+    /// transform, or passthrough), so its effect on the value's string
+    /// shape is unknown. A "cannot start with `-`"-style proof cannot be
+    /// assumed to survive an arbitrary unclassified transformation (e.g.
+    /// `string range`, `lindex [split ...]`) even though the underlying
+    /// taint itself must. Commands specifically known to preserve shape
+    /// should get a registry classification instead of relying on this
+    /// (conservative, over-approximating) default.
+    #[must_use]
+    pub fn shape_unproven(self) -> Self {
+        Self {
+            colours: self.colours & !TaintColour::T102_SAFE,
+        }
+    }
 }
 
 // Diagnostic type
@@ -297,9 +318,13 @@ pub struct TaintWarning {
     /// Formatted message.
     pub message: String,
     /// Optional replacement text for a code-action fix. Currently
-    /// always `None` for taint diagnostics — wired through ahead of
-    /// the rich-fix work so the `PyO3` surface stays stable.
+    /// always `None` for taint diagnostics; see `fixes` for the
+    /// insertion-style code actions taint diagnostics actually use.
     pub replacement: Option<String>,
+    /// Suggested fixes whose range is independent of `span` (insertions /
+    /// out-of-span replacements) — see `irules_checks::CodeFix`. Empty
+    /// when the diagnostic has no such fix.
+    pub fixes: Vec<CodeFix>,
 }
 
 // Source-command classification
@@ -462,11 +487,17 @@ pub(crate) fn word_taint<S: std::hash::BuildHasher>(
         if let Some(t) = interproc_call_taint(&cmd, &args, uses, taints, ctx) {
             return t;
         }
-        // Propagate from the arguments inside the command sub.
+        // Propagate from the arguments inside the command sub. `cmd` has
+        // no registry classification (source / sanitiser / passthrough all
+        // missed above), so its effect on argument shape is unknown —
+        // strip shape-dependent mitigations (`shape_unproven`) rather than
+        // optimistically assuming e.g. `PATH_PREFIXED` survives an
+        // arbitrary `string range` / `lindex [split ...]` transform.
         let mut t = TaintLattice::clean();
         for arg in &args {
             t = t.join(word_taint(arg, uses, taints, ctx));
         }
+        t = t.shape_unproven();
         // Stamp the encoder/transform colour the command adds to a
         // tainted result (e.g. `uri::encode` → `URL_ENCODED`), so a
         // later pass through the same encoder is detectable as a
@@ -1474,6 +1505,7 @@ pub fn find_destructive_file_warnings<S: std::hash::BuildHasher, E: std::hash::B
                     code: DiagCode::W313,
                     message,
                     replacement: None,
+                    fixes: Vec::new(),
                 });
                 break;
             }
@@ -1767,6 +1799,7 @@ fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
                      double-encodes the value"
                 ),
                 replacement: None,
+                fixes: Vec::new(),
             });
             emitted.insert(sym);
         }
@@ -2027,11 +2060,13 @@ fn emit_statement_warnings<S: std::hash::BuildHasher>(
         emit_sink_warnings(&env, span, code, &sink_label, &sink_call, warnings);
     }
 
-    // T102: option injection — only for Call statements, after the primary
-    // sink (T100/output/log).
-    if let Statement::Call { args, .. } = stmt {
-        emit_option_injection(command, args, &env, span, registry, dialect, warnings);
-    }
+    // T102: option injection — any statement shape that resolves to a
+    // command invocation (bare `Call`, a `Barrier`, or a `set x [cmd ...]`
+    // `AssignValue`), after the primary sink (T100/output/log). Uses the
+    // same `sink_call` (command, call_args, registry) as the check above
+    // so a `set matched [regexp $pattern $s]` capture is scanned exactly
+    // like the bare `regexp $pattern $s` call it wraps.
+    emit_option_injection(&sink_call, &env, span, dialect, warnings, stmt);
 
     // Additional registry-driven SSRF / cross-interp sinks (T104 / T105),
     // which can co-occur with the primary classification.
@@ -2129,6 +2164,7 @@ fn emit_regexp_pattern_warnings<S: std::hash::BuildHasher>(
                  risk of regex injection or ReDoS"
             ),
             replacement: None,
+            fixes: Vec::new(),
         });
     }
 }
@@ -2301,6 +2337,7 @@ fn emit_expr_coercion_warnings<S: std::hash::BuildHasher>(
                 hit.name
             ),
             replacement: None,
+            fixes: Vec::new(),
         });
     }
 }
@@ -2801,12 +2838,14 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
             code,
             message,
             replacement: None,
+            fixes: Vec::new(),
         });
         emitted.insert(sym);
     }
 }
 
-/// Emit T102 warnings for option injection into a `WARN_WITHOUT_TERMINATOR` command.
+/// Emit T102 warnings for option injection into a command declaring a `--`
+/// option terminator.
 ///
 /// A T102 violation occurs when a tainted pure-variable-reference argument
 /// is passed to a command at a position that can be misinterpreted as a
@@ -2832,14 +2871,19 @@ fn arg_can_be_option(arg: &str) -> bool {
 /// Tcl scans for `-switch` args from `scan_start` until the first definite
 /// positional literal (one that cannot begin with `-`) or `--`. A literal
 /// `-option` that takes a value also consumes the following arg.
+/// `reserved_trailing_words` excludes a command's structurally-fixed
+/// trailing words (e.g. `switch`'s `string` + pattern-list) from the scan
+/// entirely, regardless of their shape — see
+/// [`tcl_registry::spec::CommandSpec::reserved_trailing_words`].
 fn option_scan_region(
     args: &[String],
     scan_start: usize,
     options: &[tcl_registry::hover::OptionSpec],
+    reserved_trailing_words: usize,
 ) -> HashSet<usize> {
     let mut region: HashSet<usize> = HashSet::new();
     let mut i = scan_start;
-    let n = args.len();
+    let n = args.len().saturating_sub(reserved_trailing_words);
     while i < n {
         let arg = &args[i];
         if arg == "--" {
@@ -2865,22 +2909,77 @@ fn option_scan_region(
     region
 }
 
+/// Resolve a tight per-argument span for a T102 diagnostic, so the
+/// highlighted range (and its `--`-insertion fix) covers only the
+/// offending argument rather than the whole statement.
+///
+/// - `Call` / `Barrier`: the argument's own token span, read directly off
+///   `tokens.argv` (offset by 1 to skip the command-name word — `argv[0]`
+///   is the command, `argv[i + 1]` is `args[i]`).
+/// - `AssignValue` (`set x [cmd ...]`): the embedded command has no
+///   token of its own on *this* statement — `tokens.argv[2]` is the
+///   whole bracketed value word (`argv[0]` = `set`, `argv[1]` = the
+///   variable name, `argv[2]` = the `[...]` value), so the argument's
+///   position is re-located inside that word's own text via
+///   `parse_command_substitution_with_spans` and offset by the value
+///   word's span start.
+///
+/// Returns `None` when the token data needed isn't available (e.g.
+/// synthetic/test-built IR with `tokens: None`) — callers fall back to
+/// the whole-statement span in that case. A tight span is a
+/// highlighting nicety, never a correctness requirement, so this never
+/// panics or guesses.
+fn t102_arg_span(stmt: &Statement, arg_index: usize) -> Option<Span> {
+    match stmt {
+        Statement::Call {
+            tokens: Some(t), ..
+        }
+        | Statement::Barrier {
+            tokens: Some(t), ..
+        } => t.argv.get(arg_index + 1).copied(),
+        Statement::AssignValue {
+            value,
+            tokens: Some(t),
+            ..
+        } => {
+            let value_span = t.argv.get(2)?;
+            let (_cmd, args) = parse_command_substitution_with_spans(value)?;
+            let (_text, arg_span) = args.get(arg_index)?;
+            Some(Span::new(
+                value_span.start() + arg_span.start(),
+                value_span.start() + arg_span.end(),
+            ))
+        }
+        _ => None,
+    }
+}
+
 /// Emit `T102` (option injection) for tainted variables that sit in an
 /// option-scanning position of a command declaring a `--` terminator.
 ///
 /// The option-terminator profile
 /// (`resolve_option_terminator`) supplies the subcommand-aware command
 /// label and the scan start, `option_scan_region` filters positions, and
-/// the `T102_SAFE` colour set mitigates.
+/// the `T102_SAFE` colour set mitigates. Each warning is anchored at the
+/// offending argument's own span (falling back to the whole statement's
+/// span when the tight span can't be resolved) and carries a `--`
+/// insertion fix alongside it. Takes `sink_call` (rather than separate
+/// `command`/`args`/`registry` parameters) since that's already built at
+/// the one call site for the primary sink classification — reusing it
+/// keeps this under clippy's argument-count lint without an `#[allow]`.
 fn emit_option_injection<S: std::hash::BuildHasher>(
-    command: &str,
-    args: &[String],
+    sink_call: &SinkCall<'_>,
     env: &TaintScan<'_, S>,
     span: Span,
-    registry: &CommandRegistry,
     dialect: Option<&str>,
     warnings: &mut Vec<TaintWarning>,
+    stmt: &Statement,
 ) {
+    let &SinkCall {
+        command,
+        args,
+        registry,
+    } = sink_call;
     let (uses, taints, ssa) = (env.uses, env.taints, env.ssa);
     let args_str: Vec<&str> = args.iter().map(String::as_str).collect();
     let Some(profile) =
@@ -2897,7 +2996,12 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
         None => command.to_owned(),
     };
 
-    let region = option_scan_region(args, profile.scan_start, profile.options);
+    let region = option_scan_region(
+        args,
+        profile.scan_start,
+        profile.options,
+        profile.reserved_trailing_words,
+    );
     if region.is_empty() {
         return;
     }
@@ -2936,8 +3040,25 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
             if t.colours.intersects(TaintColour::T102_SAFE) {
                 continue;
             }
+            // Anchor the diagnostic (and its fix) at the offending
+            // argument itself when the source tokens are available;
+            // fall back to the whole statement's span otherwise (no
+            // fix in that case — a fabricated span could misplace the
+            // insertion, e.g. before the command name rather than the
+            // argument).
+            let (warn_span, fixes) = match t102_arg_span(stmt, i) {
+                Some(tight) => (
+                    tight,
+                    vec![CodeFix {
+                        span: Span::new(tight.start(), tight.start()),
+                        new_text: "-- ".to_owned(),
+                        description: "Insert '--' option terminator".to_owned(),
+                    }],
+                ),
+                None => (span, Vec::new()),
+            };
             warnings.push(TaintWarning {
-                span,
+                span: warn_span,
                 variable: var.clone(),
                 sink_command: cmd_label.clone(),
                 code: DiagCode::T102,
@@ -2946,6 +3067,7 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
                      without '--' terminator; risk of option injection"
                 ),
                 replacement: None,
+                fixes,
             });
             emitted.insert(sym);
         }
@@ -3014,6 +3136,7 @@ pub fn find_setter_constraint_warnings<S: std::hash::BuildHasher, E: std::hash::
                     code: constraint.code,
                     message: constraint.message.to_owned(),
                     replacement: None,
+                    fixes: Vec::new(),
                 };
 
                 // Literal: neither `$` nor `[`.
@@ -4364,6 +4487,137 @@ mod tests {
         assert!(
             warnings.iter().all(|w| w.code != DiagCode::T102),
             "no T102 when `--` precedes the tainted path, got {warnings:?}",
+        );
+    }
+
+    /// FN regression (see `emit_statement_warnings`): T102 must fire for
+    /// a `set matched [regexp $pattern $s]` capture exactly as it does for
+    /// the bare `regexp $pattern $s` call it wraps — the earlier code only
+    /// ran the option-injection check on `Statement::Call`, silently
+    /// skipping the (dominant, in real Tcl) `set x [cmd ...]` idiom.
+    #[test]
+    fn t102_fires_for_assign_value_wrapped_call() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "set pattern [gets stdin]\nset result [regexp $pattern $haystack]",
+            &registry,
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_taint_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.taints,
+            &fu.sccp.executable_blocks,
+            &registry,
+            Some("tcl8.6"),
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.code == DiagCode::T102 && w.variable == "pattern"),
+            "expected T102 for tainted $pattern inside `set result [regexp ...]`, got {warnings:?}"
+        );
+    }
+
+    /// T102's diagnostic span must cover only the offending argument
+    /// (`$pattern`), not the whole statement — tight enough that the
+    /// editor squiggle sits on the actual problem, matching what W304
+    /// already does for the same position.
+    #[test]
+    fn t102_span_is_tight_around_the_tainted_argument_bare_call() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let src = "set pattern [gets stdin]\nregexp $pattern $haystack";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_taint_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.taints,
+            &fu.sccp.executable_blocks,
+            &registry,
+            Some("tcl8.6"),
+        );
+        let t102 = warnings
+            .iter()
+            .find(|w| w.code == DiagCode::T102)
+            .expect("expected a T102 warning");
+        let slice = &src[t102.span.start() as usize..t102.span.end() as usize];
+        assert_eq!(
+            slice, "$pattern",
+            "T102 span should cover exactly the tainted argument, got {slice:?} from {t102:?}"
+        );
+    }
+
+    /// Same tight-span requirement for the `set x [cmd ...]` shape: the
+    /// embedded command's argument has no token of its own on the
+    /// `AssignValue` statement, so the span is re-derived from the
+    /// bracketed value text — this pins that derivation to the exact
+    /// same byte range as the bare-call case above.
+    #[test]
+    fn t102_span_is_tight_around_the_tainted_argument_assign_value() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let src = "set pattern [gets stdin]\nset result [regexp $pattern $haystack]";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_taint_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.taints,
+            &fu.sccp.executable_blocks,
+            &registry,
+            Some("tcl8.6"),
+        );
+        let t102 = warnings
+            .iter()
+            .find(|w| w.code == DiagCode::T102)
+            .expect("expected a T102 warning");
+        let slice = &src[t102.span.start() as usize..t102.span.end() as usize];
+        assert_eq!(
+            slice, "$pattern",
+            "T102 span should cover exactly the tainted argument, got {slice:?} from {t102:?}"
+        );
+    }
+
+    /// T102 must carry a `--`-insertion fix anchored immediately before
+    /// the tainted argument, so applying it turns the flagged call into
+    /// the documented safe form (`regexp -- $pattern ...`).
+    #[test]
+    fn t102_carries_insert_terminator_fix_at_the_argument_start() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let src = "set pattern [gets stdin]\nregexp $pattern $haystack";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_taint_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.taints,
+            &fu.sccp.executable_blocks,
+            &registry,
+            Some("tcl8.6"),
+        );
+        let t102 = warnings
+            .iter()
+            .find(|w| w.code == DiagCode::T102)
+            .expect("expected a T102 warning");
+        assert_eq!(t102.fixes.len(), 1, "expected exactly one fix: {t102:?}");
+        let fix = &t102.fixes[0];
+        assert_eq!(
+            fix.span.start(),
+            fix.span.end(),
+            "fix must be a pure insertion"
+        );
+        assert_eq!(fix.span.start(), t102.span.start());
+        assert_eq!(fix.new_text, "-- ");
+        let mut fixed = src.to_owned();
+        fixed.insert_str(fix.span.start() as usize, &fix.new_text);
+        assert_eq!(
+            fixed,
+            "set pattern [gets stdin]\nregexp -- $pattern $haystack"
         );
     }
 

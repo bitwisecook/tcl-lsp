@@ -124,7 +124,6 @@ const ALL_TRAITS: &[Traits] = &[
     Traits::IS_UNESCAPE,
     Traits::PRODUCES_CANONICAL_LIST,
     Traits::UNSAFE,
-    Traits::WARN_WITHOUT_TERMINATOR,
     Traits::PASSWORD_OPTION,
     Traits::IS_SIDE_SWITCH,
     Traits::IRULES_TOP_LEVEL_ONLY,

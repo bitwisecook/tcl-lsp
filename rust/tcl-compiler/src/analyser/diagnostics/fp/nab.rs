@@ -175,6 +175,34 @@ fn fp_nab_05_braced_switch_form_should_not_fire_w304() {
 }
 
 #[test]
+fn fp_nab_05_dynamic_two_arg_switch_form_should_not_fire_w304() {
+    // FN regression: the exemption used to require the trailing word be a
+    // braced `Str` literal, missing the equally-safe dynamic 2-arg form —
+    // C Tcl's own `TclNRSwitchObjCmd` never scans either trailing word as
+    // an option once only `string` + pattern-list remain (`objc - 2`
+    // bound), regardless of whether the pattern list is a literal or a
+    // variable/command substitution.
+    let src = "proc f {x} { set cases {a {puts A} b {puts B}}; switch $x $cases }";
+    assert!(
+        !fires(src, D, "W304"),
+        "FP-NAB-05: dynamic 2-arg switch form must NOT fire W304; {:?}",
+        diags(src, D)
+    );
+}
+
+#[test]
+fn fp_nab_05_three_trailing_args_still_fires_w304() {
+    // TP control: only the *last two* trailing words are reserved: a third
+    // leading dynamic word is still a genuine option-scanning candidate.
+    let src = "proc f {a} { switch $a subject {puts hit} }";
+    assert!(
+        fires(src, D, "W304"),
+        "FP-NAB-05: a 3rd trailing dynamic word must still fire W304; {:?}",
+        diags(src, D)
+    );
+}
+
+#[test]
 fn fp_nab_05_w304_lexical_does_not_cross_proc_boundary() {
     // FP: W304 'currently resolves to ...' must not attribute an outer set to a
     // shadowing proc parameter.

@@ -290,6 +290,23 @@ pub struct CommandSpec {
     /// Options declared on the command (for completion and arity adjustment).
     pub options: &'static [OptionSpec],
 
+    /// Number of trailing words (after the command name) that C Tcl's own
+    /// option-scanning loop never treats as option candidates, regardless
+    /// of their syntactic shape — a structural arity fact, not a taint or
+    /// dialect concern. `switch`'s C implementation
+    /// (`TclNRSwitchObjCmd`/`generic/tclCmdMZ.c`) scans for `-flag` words
+    /// only up to `objc - 2`, so the trailing `string` and
+    /// pattern-list-or-first-pattern words are *never* mistaken for
+    /// options even when they're a tainted variable or command
+    /// substitution beginning with `-` — hence `switch $x $caseListVar`
+    /// needs no `--` terminator. Consumed by
+    /// [`crate::registry::CommandRegistry::resolve_option_terminator`]'s
+    /// `reserved_trailing_words` on [`crate::registry::ResolvedTerminator`],
+    /// which both W304 and T102's option-scan-region walk cap their scan
+    /// against. Default `0` (no reservation) keeps every existing spec
+    /// correct.
+    pub reserved_trailing_words: usize,
+
     /// Enumerable positional-argument values, keyed by 0-based
     /// argument index *after* the command name.  Drives command-level
     /// value completion — e.g. iRules `when EVENT timing enable|disable`
@@ -538,6 +555,7 @@ impl CommandSpec {
         closed_value_args: &[],
         event_requires: None,
         options: &[],
+        reserved_trailing_words: 0,
         arg_values: &[],
         body_kind: BodyKind::Plain,
         body_arg_implicit_args: 0,

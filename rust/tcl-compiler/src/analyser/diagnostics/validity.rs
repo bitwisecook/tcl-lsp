@@ -1731,13 +1731,6 @@ impl Analyser {
     /// The diagnostic carries a code-fix that prepends `"-- "` to
     /// the positional-argument span (with a one-byte extension for
     /// `Cmd` tokens whose lexer span excludes the closing `]`).
-    ///
-    /// **Note on `warn_without_terminator`:** the registry's
-    /// `Traits::WARN_WITHOUT_TERMINATOR` flag (set on `regexp` only
-    /// today) is plumbed onto [`tcl_registry::ResolvedTerminator`]
-    /// but is not consumed.  The OFF gate
-    /// fires uniformly for non-dynamic, non-`-`-prefixed values
-    /// regardless of the trait.
     pub(in crate::analyser) fn emit_w304_missing_option_terminator(
         &mut self,
         cmd_name: &str,
@@ -1766,20 +1759,6 @@ impl Analyser {
         else {
             return;
         };
-
-        // The braced pattern-list switch form ``switch $x { pat body … }``
-        // is NOT a runtime hazard: Tcl unambiguously identifies the
-        // trailing brace as the pattern list and never consumes the
-        // preceding word as an option.  Detect the two-arg braced form
-        // (the last arg is a brace-enclosed `Str` token) and exempt it
-        // entirely.  The SPLIT form (`switch $x -nocase {body} …`, 3+
-        // args) is still flagged.
-        if cmd_name == "switch"
-            && arg_tokens.len() == 2
-            && arg_tokens.last().map(|t| t.kind) == Some(tcl_lexer::TokenType::Str)
-        {
-            return;
-        }
 
         let Some(positional_idx) = first_positional_without_terminator(args, &profile) else {
             return;
@@ -2701,12 +2680,18 @@ const IRULES_EXPR_OPS: &[&str] = &[
 /// per-resolve `HashSet` allocation on the analyser hot path.
 /// Returns `None` when a `--` is encountered (positional arguments
 /// after `--` are explicitly terminated).
+///
+/// Never scans into a command's `reserved_trailing_words` (e.g.
+/// `switch`'s trailing `string` + pattern-list, which C Tcl's own
+/// option-scanning loop excludes structurally, regardless of shape — see
+/// [`tcl_registry::spec::CommandSpec::reserved_trailing_words`]).
 fn first_positional_without_terminator(
     args: &[String],
     profile: &tcl_registry::ResolvedTerminator,
 ) -> Option<usize> {
     let mut i = profile.scan_start;
-    while i < args.len() {
+    let n = args.len().saturating_sub(profile.reserved_trailing_words);
+    while i < n {
         let arg = args[i].as_str();
         if arg == "--" {
             return None;

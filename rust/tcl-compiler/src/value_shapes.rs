@@ -111,12 +111,8 @@ pub fn is_braced_whole_name_array_ref(text: &str) -> bool {
 /// argument). Callers that need full Tcl list quoting handle it upstream.
 #[must_use]
 pub fn parse_command_substitution(text: &str) -> Option<(String, Vec<String>)> {
-    let stripped = text.trim();
-    let inner = stripped.strip_prefix('[')?.strip_suffix(']')?.trim();
-    let mut parts = split_top_level_words(inner).into_iter();
-    let cmd = parts.next()?;
-    let args: Vec<String> = parts.collect();
-    Some((cmd, args))
+    let (command, args) = parse_command_substitution_with_spans(text)?;
+    Some((command, args.into_iter().map(|(text, _)| text).collect()))
 }
 
 /// Like [`parse_command_substitution`], but additionally returns each
@@ -125,11 +121,11 @@ pub fn parse_command_substitution(text: &str) -> Option<(String, Vec<String>)> {
 /// to anchor on the specific offending argument rather than the whole
 /// substitution.
 ///
-/// Uses the real [`Lexer`] rather than [`split_top_level_words`]'s
-/// hand-rolled bracket/brace counter, so word boundaries follow Tcl's
-/// actual quoting rules (this also makes it correct on inputs the counter
-/// gets wrong, e.g. a `#` comment or an escaped delimiter at the top
-/// level). Returns `None` for the same shapes as
+/// Uses the real [`Lexer`] rather than a hand-rolled bracket/brace
+/// counter, so word boundaries follow Tcl's actual quoting rules (this
+/// also makes it correct on inputs a naive counter gets wrong, e.g. a
+/// `#` comment or an escaped delimiter at the top level). Returns `None`
+/// for the same shapes as
 /// [`parse_command_substitution`], plus when the bracket body doesn't lex
 /// as a single command (an embedded `;`/newline followed by more words).
 #[must_use]
@@ -211,57 +207,6 @@ fn widened_token_text(inner: &str, tok: &tcl_lexer::Token) -> Option<(String, u3
         widened.to_owned(),
         u32::try_from(widened_end).unwrap_or(u32::MAX),
     ))
-}
-
-/// Split a command body into words on top-level whitespace, keeping
-/// `[...]` / `{...}` / `"..."` groups and backslash escapes intact.
-fn split_top_level_words(s: &str) -> Vec<String> {
-    let mut words = Vec::new();
-    let mut cur = String::new();
-    let mut brackets = 0i32;
-    let mut braces = 0i32;
-    let mut in_quote = false;
-    let mut chars = s.chars();
-    while let Some(c) = chars.next() {
-        match c {
-            '\\' => {
-                cur.push(c);
-                if let Some(n) = chars.next() {
-                    cur.push(n);
-                }
-            }
-            '"' if brackets <= 0 && braces <= 0 => {
-                in_quote = !in_quote;
-                cur.push(c);
-            }
-            '[' if !in_quote => {
-                brackets += 1;
-                cur.push(c);
-            }
-            ']' if !in_quote => {
-                brackets -= 1;
-                cur.push(c);
-            }
-            '{' if !in_quote => {
-                braces += 1;
-                cur.push(c);
-            }
-            '}' if !in_quote => {
-                braces -= 1;
-                cur.push(c);
-            }
-            c if c.is_ascii_whitespace() && brackets <= 0 && braces <= 0 && !in_quote => {
-                if !cur.is_empty() {
-                    words.push(std::mem::take(&mut cur));
-                }
-            }
-            _ => cur.push(c),
-        }
-    }
-    if !cur.is_empty() {
-        words.push(cur);
-    }
-    words
 }
 
 #[cfg(test)]
