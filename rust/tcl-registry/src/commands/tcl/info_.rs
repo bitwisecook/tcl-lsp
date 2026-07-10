@@ -36,7 +36,7 @@ const fn sub(name: &'static str, detail: &'static str, synopsis: &'static str) -
     }
 }
 
-/// A `SubSubCommand` gated to a later dialect (e.g. the 9.0 TclOO
+/// A `SubSubCommand` gated to a later dialect (e.g. the 9.0 `TclOO`
 /// introspection additions below, TIP 500/524/558).
 const fn sub_since(
     name: &'static str,
