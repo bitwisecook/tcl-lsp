@@ -228,3 +228,68 @@ suite("Dollar-before-close-quote (FP-STY-15)", () => {
     );
   });
 });
+
+// FP-STY-17 — same-file shadow suppression for W001 (unknown subcommand).
+//
+// Line 6 (`string reverse hello`, proc shadow) and line 9 (`info bogus`,
+// alias shadow) must stay silent for W001 — the call resolves to the
+// same-file proc/alias, not the registry ensemble. Line 12 (`dict bogus a
+// b`, untouched by either shadow) MUST fire W001 — the marker that
+// analysis ran.
+suite("Ensemble-command shadow suppression (FP-STY-17)", () => {
+  const docUri = getDocUri("ensembleShadowing.tcl");
+
+  test("unshadowed ensemble fires W001 (true case)", async () => {
+    await activate(docUri);
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "W001"),
+    });
+    const w001Lines = linesWithCode(diags, "W001");
+    assert.ok(
+      w001Lines.includes(12),
+      `expected W001 on unshadowed 'dict bogus' (line 12); got [${w001Lines}]`,
+    );
+  });
+
+  test("proc/alias shadowed ensemble calls stay silent (false case)", async () => {
+    await activate(docUri);
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "W001"),
+    });
+    for (const ln of linesWithCode(diags, "W001")) {
+      assert.ok([6, 9].includes(ln) === false, `unexpected W001 on shadowed-call line ${ln}`);
+    }
+  });
+});
+
+// FP-STY-18 — `{*}`-expanded subcommand position for W001.
+//
+// Line 4 (`dict {*}{create a b}`) splices list elements into the argument
+// list — a genuine valid call — and must stay silent for W001. Line 5
+// (`dict bogus a b`, unexpanded) MUST fire W001 (the marker that analysis
+// ran).
+suite("Expanded subcommand position (FP-STY-18)", () => {
+  const docUri = getDocUri("expandedSubcommand.tcl");
+
+  test("genuine unknown subcommand without expansion fires W001 (true case)", async () => {
+    await activate(docUri);
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "W001"),
+    });
+    const w001Lines = linesWithCode(diags, "W001");
+    assert.ok(
+      w001Lines.includes(5),
+      `expected W001 on unexpanded 'dict bogus' (line 5); got [${w001Lines}]`,
+    );
+  });
+
+  test("{*}-expanded literal subcommand stays silent (false case)", async () => {
+    await activate(docUri);
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "W001"),
+    });
+    for (const ln of linesWithCode(diags, "W001")) {
+      assert.notStrictEqual(ln, 4, `unexpected W001 on {*}-expanded line ${ln}`);
+    }
+  });
+});

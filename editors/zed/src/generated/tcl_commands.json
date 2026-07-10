@@ -2230,6 +2230,7 @@
         "bbox",
         "columnconfigure",
         "configure",
+        "content",
         "forget",
         "info",
         "location",
@@ -6292,6 +6293,7 @@
       "summary": "Geometry manager that packs slaves around the edges of a cavity.",
       "subcommands": [
         "configure",
+        "content",
         "forget",
         "info",
         "propagate",
@@ -6564,6 +6566,7 @@
       "summary": "Geometry manager for fixed or rubber-sheet placement.",
       "subcommands": [
         "configure",
+        "content",
         "forget",
         "info",
         "slaves"
@@ -9712,6 +9715,7 @@
         "geometry",
         "grid",
         "group",
+        "iconbadge",
         "iconbitmap",
         "iconify",
         "iconmask",

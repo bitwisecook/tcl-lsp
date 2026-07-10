@@ -30,6 +30,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        name: "content",
+        arity: Arity::exact(1),
+        detail: "Return a list of all slaves managed by the placer for the window (9.0+ name for `slaves`).",
+        synopsis: "place content window",
+        dialects: Some(DialectSet::TCL90_PLUS),
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
         name: "forget",
         arity: Arity::exact(1),
         detail: "Cause the placer to stop managing the geometry of the window.",

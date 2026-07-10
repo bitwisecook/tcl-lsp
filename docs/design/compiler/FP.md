@@ -9245,6 +9245,234 @@ the in-process analyser, exercised here:
 
 ---
 
+### FP-STY-17 — W001 same-file shadow suppression (proc / class / alias / ensemble / stub redefining a registry ensemble command)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_17_*`
+- **Codes:** W001 (unknown subcommand), subcommand-level W002 (disabled-in-dialect subcommand)
+- **Corpus:** any script that re-purposes a builtin ensemble name as its own
+  proc/class/alias — e.g. a namespace-local `proc string {op args} {…}`
+  wrapper, or a compatibility shim installed via `interp alias {} info {} …`.
+
+#### Reproducer
+
+```tcl
+proc string {op args} {
+    return "shadowed:$op"
+}
+string reverse hello
+```
+
+#### Per-line reasoning
+
+1. A `proc` (or `oo::class`/snit/itcl class, `interp alias`, `namespace
+   ensemble create -command`, or an inline `# tcl-lsp: stub`) whose name
+   matches a registry ensemble command **replaces** that command at the
+   call site — Tcl resolves the user definition, not the builtin, exactly
+   as it does for any other shadowed builtin (`close`, `apply`, …).
+2. The analyser already gets this right for the sibling arity diagnostics
+   (E002/E003): `emit_arity_diagnostics` queues every subcommand arity
+   check into `pending_arity` and `flush_arity_diagnostics` drops it when
+   the call resolves to a same-file proc/class/alias/ensemble/stub. W001
+   (`emit_w001_unknown_subcommand`) used to push straight into
+   `result.diagnostics`, bypassing that shadow check entirely — so
+   `string reverse hello` above drew a spurious "Unknown subcommand
+   'reverse' for 'string'" even though the call never reaches the builtin
+   ensemble at all.
+3. The fix queues the "unknown subcommand" verdict into the same
+   `pending_arity` list E002/E003/W004 already use (a wrong subcommand name
+   is the same species of "call is malformed against the resolved registry
+   signature" as a wrong argument count), and the subcommand-level "disabled
+   in this dialect" verdict into `pending_disabled_commands` (the queue the
+   whole-command W002 check uses). Both resolve through the shared
+   `UserResolutionFacts` shadow computation in `flush_arity_diagnostics` /
+   `flush_disabled_command_diagnostics` — no duplicated logic.
+4. Order-sensitivity is preserved: a top-level call *before* the shadowing
+   proc's definition still reaches the real builtin (Tcl executes
+   top-level commands in source order during load) and still fires; a
+   call inside a proc body is not order-gated (proc bodies run after the
+   whole script has loaded).
+5. The suppression is scoped to the shadowed name only — a *different*,
+   non-shadowed ensemble command in the same file still fires normally.
+
+#### tclsh ground truth (8.6.14 — confirmed by execution)
+
+```
+% proc string {op args} { return "shadowed:$op" }
+% string reverse hello
+shadowed:reverse
+% catch {string mach hello world} err; puts $err
+;# (evaluated BEFORE the proc definition, in a fresh interpreter)
+unknown or ambiguous subcommand "mach": must be bytelength, cat, compare,
+equal, first, index, is, last, length, map, match, range, repeat, replace,
+reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or
+wordstart
+```
+
+The user `proc string` completely replaces the builtin ensemble at the call
+site — there is no "unknown subcommand" to report — but the identical call
+*before* the proc is defined still hits the real builtin and still errors.
+
+#### Why the analyser reaches that verdict
+
+`analyser/diagnostics/validity.rs::emit_w001_unknown_subcommand` queues its
+"unknown subcommand" verdict into `Analyser::pending_arity` — the same queue
+E002/E003/W004 already use — instead of pushing directly.
+`Analyser::flush_arity_diagnostics` drains it post-walk through
+`UserResolutionFacts::resolves_to_user`, using each candidate's captured
+call-site-resolution namespace and `enforce_order` flag (`true` for
+top-level calls, `false` inside a proc/method body).
+
+#### Tests
+
+- `fp_sty_17_proc_shadow_no_w001` (FP)
+- `fp_sty_17_alias_shadow_no_w001` (FP)
+- `fp_sty_17_class_shadow_no_w001` (FP)
+- `fp_sty_17_stub_shadow_no_w001` (FP)
+- `fp_sty_17_unshadowed_command_still_fires` (TP — a different ensemble in
+  the same file is unaffected by the shadow)
+- `fp_sty_17_call_before_shadow_definition_still_fires` (TP — top-level
+  order-sensitivity)
+- `fp_sty_17_proc_body_call_shadowed_by_later_def_no_w001` (FP — proc-body
+  calls are not order-gated)
+
+---
+
+### FP-STY-18 — W001 `{*}`-expanded subcommand position (`cmd {*}{subcmd args…}`)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_18_*`
+- **Codes:** W001 (unknown subcommand)
+- **Corpus:** dynamic-dispatch helpers that build an ensemble call from a
+  list (`dict {*}$argsList`, or a literal `{*}{…}` spread used to keep a
+  long argument list readable) — the dynamic-variable form was already
+  exempt via the `$`/`[` substitution gate; only the literal-braced form
+  was missed.
+
+#### Reproducer
+
+```tcl
+dict {*}{create a b}
+```
+
+#### Per-line reasoning
+
+1. `{*}WORD` splices `WORD`'s **list elements**, not its literal text, into
+   the argument position. `dict {*}{create a b}` therefore calls `dict
+   create a b`, not a single subcommand literally named `"create a b"`.
+2. `emit_w001_unknown_subcommand` reads `args[0]` (`"create a b"`, the
+   whole spread word as one string) as the candidate subcommand name. It
+   is never equal to any registry subcommand, so it fired "Unknown
+   subcommand 'create a b' for 'dict'" on perfectly valid Tcl.
+3. The existing dynamic-substitution gate (`has_substitution`, checking for
+   `$`/`[`) does not catch this shape — `{create a b}` is a plain literal
+   with no substitution, so it fell through to the unknown-subcommand path.
+4. The fix threads the per-argument `{*}`-expansion flag through to the
+   emitter (mirroring the identical `arg_expand.first()` guard the
+   subcommand-arity check already applies) and skips the check outright
+   when the subcommand position is expanded — the same "abstain when the
+   effective value can't be read off the source" convention every other
+   dynamic-value gate in this emitter already follows.
+
+#### tclsh ground truth (8.6.14 — confirmed by execution)
+
+```
+% dict {*}{create a b}
+a b
+% dict {*}{bogus a b}
+unknown or ambiguous subcommand "bogus": must be append, create, exists,
+filter, for, get, incr, info, keys, lappend, map, merge, remove, replace,
+set, size, unset, update, values, or with
+```
+
+`{*}{create a b}` is a genuine, valid `dict create` call; `{*}{bogus a b}`
+is a genuine error — the check must tell them apart by evaluating the
+*spread* subcommand, not the raw source text, so it now abstains on both
+rather than misreading either.
+
+#### Why the analyser reaches that verdict
+
+`analyser/diagnostics/validity.rs::emit_w001_unknown_subcommand` now takes
+`arg_expand_in` and returns before any subcommand-name comparison when
+`arg_expand[0]` is set — identical to the guard
+`emit_arity_diagnostics`'s subcommand-arity path already had.
+
+#### Tests
+
+- `fp_sty_18_expanded_literal_subcommand_no_w001` (FP)
+- `fp_sty_18_genuine_unknown_subcommand_without_expansion_still_fires` (TP)
+
+---
+
+### FP-STY-19 — W001 missing Tk 9.0 subcommands (`wm iconbadge`, `grid`/`pack`/`place content`)
+
+- **Verdict:** FALSE POSITIVE (now fixed — registry data gap, not compiler logic)
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_19_*`
+- **Codes:** W001 (unknown subcommand), W002 (disabled-in-dialect subcommand)
+- **Corpus:** any Tk 9.0 script using the taskbar/dock icon badge API or the
+  9.0-renamed geometry-manager introspection subcommand.
+
+#### Reproducer
+
+```tcl
+wm iconbadge .win 5
+grid content .frame
+pack content .frame
+place content .frame
+```
+
+#### Per-line reasoning
+
+1. Tk 9.0 added `wm iconbadge window badge` (a short overlay label on the
+   window's taskbar/dock icon — `doc/wm.n`, absent from the 8.4/8.5/8.6
+   man pages) and renamed `grid`/`pack`/`place`'s `slaves` introspection
+   subcommand to `content` as the canonical spelling (`slaves` is kept only
+   as a documented backward-compatible synonym — `doc/grid.n`,
+   `doc/pack.n`, `doc/place.n`).
+2. None of the four were present in the registry's `SubCommand` tables at
+   all (`tcl-registry/src/commands/tk/{wm,grid,pack,place}.rs`), so every
+   ensemble/`is_known` lookup failed and the analyser reported a genuine
+   9.0 Tk API as an "Unknown subcommand" — this is a registry data
+   completeness gap, never a compiler-logic bug: the fix adds the missing
+   `SubCommand` entries, dialect-gated `TCL90_PLUS` (matching the gate
+   already used for `info cmdtype`, the other 9.0-only ensemble
+   subcommand), not any change to `emit_w001_unknown_subcommand` itself.
+3. Tk subcommands are checked regardless of the active *Tcl* dialect (the
+   `| DialectSet::TK` union in `emit_w001_unknown_subcommand`), so under an
+   explicit `tcl8.6` dialect these four now correctly downgrade to W002
+   ("disabled in the active dialect profile") rather than either firing
+   W001 or going unconditionally silent — matching the existing `package
+   files` / 8.6 precedent (FP.md has no dedicated entry for that one; see
+   `rust/tcl-compiler/tests/analyser.rs::package_files_is_disabled_under_tcl86_per_tclsh`).
+
+#### Ground truth (Tk 9.0 documentation — `doc/wm.n` / `doc/grid.n` / `doc/pack.n` / `doc/place.n`, tag `core-9-0-4`)
+
+```
+wm.n:    wm iconbadge window badge
+                Sets an icon badge for the taskbar or dock icon […]
+grid.n:  grid content master ?-option value?
+                […] this command was named "slaves" and that name is
+                kept as a synonym for backward compatibility.
+```
+
+(Confirmed by direct comparison of the `core-8-4-20` / `core-8-5-19` /
+`core-8-6-16` / `core-9-0-4` man-page tags — none of the four subcommands
+appear before 9.0.)
+
+#### Why the analyser reaches that verdict
+
+`tcl-registry/src/commands/tk/wm.rs` gains an `"iconbadge"` `SubCommand`
+entry (`dialects: Some(DialectSet::TCL90_PLUS)`); `grid.rs` / `pack.rs` /
+`place.rs` each gain a `"content"` entry with the same gate, alongside the
+pre-existing ungated `"slaves"` entry.
+
+#### Tests
+
+- `fp_sty_19_wm_iconbadge_not_unknown` (FP + the tcl8.6 W002-not-W001 verdict)
+- `fp_sty_19_grid_pack_place_content_not_unknown` (FP)
+- `fp_sty_19_genuine_unknown_wm_and_geometry_subcommands_still_fire` (TP)
+
+---
 
 ## Precision gaps (PR #498 deep-review) — ALL CLOSED
 

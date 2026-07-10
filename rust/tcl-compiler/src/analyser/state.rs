@@ -270,12 +270,13 @@ pub struct Analyser {
     /// per command) cost ``O(log N)`` instead of ``O(N)`` per
     /// call.  ``None`` outside an active analysis run.
     pub line_offsets: Option<Vec<usize>>,
-    /// Candidate E002 / E003 arity diagnostics **and** W004
-    /// (dialect-invalid-option) diagnostics collected during the command
-    /// walk, as `(command name, call-site namespace, enforce_order,
-    /// diagnostic)`.  Both are "this registry builtin's rule was
-    /// violated" candidates with the identical suppression condition, so
-    /// they share one queue.  Emitted in a post-walk pass
+    /// Candidate E002 / E003 arity diagnostics, W004
+    /// (dialect-invalid-option) diagnostics, **and** W001 (unknown
+    /// subcommand) diagnostics collected during the command walk, as
+    /// `(command name, call-site namespace, enforce_order, diagnostic)`.
+    /// All three are "this registry builtin's rule was violated" candidates
+    /// with the identical suppression condition, so they share one queue.
+    /// Emitted in a post-walk pass
     /// ([`Self::flush_arity_diagnostics`]) so a command that resolves
     /// to a user-defined proc / class / alias / ensemble / stub —
     /// which may be defined *after* its call site — suppresses the
@@ -3240,7 +3241,11 @@ mod tests {
     }
 
     #[test]
-    fn analyse_w001_anchors_at_cmd_plus_subcommand_range() {
+    fn analyse_w001_anchors_at_subcommand_token_only() {
+        // The squiggle sits tightly on the offending word alone — not the
+        // command name too — matching the "did you mean" fix's replacement
+        // range and the KCS doc's documented "squiggle under the subcommand
+        // token" behaviour.
         let mut a = Analyser::new();
         let src = "string bogus $x\n";
         let r = a.analyse(src, "tcl");
@@ -3252,7 +3257,7 @@ mod tests {
         assert_eq!(w001.len(), 1);
         let span = w001[0].span;
         let text = &src[span.start() as usize..span.end() as usize];
-        assert_eq!(text, "string bogus", "got {text:?}");
+        assert_eq!(text, "bogus", "got {text:?}");
     }
 
     #[test]
@@ -3316,6 +3321,88 @@ mod tests {
             assert_eq!(fixed, expected, "src={src:?} fixes={:?}", w001[0].fixes);
             assert!(!fixed.contains("lenght"), "src={src:?} fixed={fixed:?}");
         }
+    }
+
+    #[test]
+    fn analyse_w001_diagnostic_span_matches_fix_span() {
+        // The squiggle and the "did you mean" quick-fix must target the
+        // identical range — otherwise accepting the fix visibly leaves part
+        // of the squiggled text unchanged.
+        let mut a = Analyser::new();
+        let src = "string lenght $x\n";
+        let r = a.analyse(src, "tcl");
+        let w001: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W001)
+            .collect();
+        assert_eq!(w001.len(), 1, "got {:?}", r.diagnostics);
+        let fix = w001[0]
+            .fixes
+            .first()
+            .expect("expected a 'did you mean' fix");
+        assert_eq!(w001[0].span, fix.span, "got {:?}", w001[0]);
+    }
+
+    #[test]
+    fn analyse_w001_no_diagnostic_at_all_when_shadowed_by_proc() {
+        // A same-file `proc string {...}` must suppress W001 (and its
+        // subcommand-level W002 sibling) completely — not just avoid the
+        // specific message text. See FP-STY-17 in docs/design/compiler/FP.md.
+        let mut a = Analyser::new();
+        let src = "proc string {op args} { return $op }\nstring reverse hello\n";
+        let r = a.analyse(src, "tcl");
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| matches!(d.code, DiagCode::W001 | DiagCode::W002)),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_w001_shadow_suppression_is_scoped_to_the_shadowed_name() {
+        // Shadowing `string` must not suppress W001 for a genuinely unknown
+        // subcommand on a different, unshadowed ensemble in the same file.
+        let mut a = Analyser::new();
+        let src = "proc string {op args} { return $op }\ninfo bogus\n";
+        let r = a.analyse(src, "tcl");
+        let w001: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W001)
+            .collect();
+        assert_eq!(w001.len(), 1, "got {:?}", r.diagnostics);
+        assert!(w001[0].message.contains("'info'"), "got {:?}", w001[0]);
+    }
+
+    #[test]
+    fn analyse_no_w001_for_expanded_literal_subcommand() {
+        // `{*}{create a b}` splices the elements `create`, `a`, `b` into the
+        // argument list (confirmed against tclsh 8.6.14) — the raw source
+        // text "create a b" must never be compared against the subcommand
+        // set. See FP-STY-18 in docs/design/compiler/FP.md.
+        let mut a = Analyser::new();
+        let r = a.analyse("dict {*}{create a b}\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W001),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_w001_still_fires_for_unexpanded_unknown_subcommand() {
+        // TP control for the `{*}`-expansion skip: the identical subcommand
+        // set, without expansion, still fires on a genuine typo.
+        let mut a = Analyser::new();
+        let r = a.analyse("dict bogus a b\n", "tcl");
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == DiagCode::W001),
+            "got {:?}",
+            r.diagnostics
+        );
     }
 
     // -- E004 malformed-if emitter

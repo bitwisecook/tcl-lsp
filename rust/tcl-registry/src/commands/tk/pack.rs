@@ -30,6 +30,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        name: "content",
+        arity: Arity::exact(1),
+        detail: "Return a list of all slaves in the packing order for the master (9.0+ name for `slaves`).",
+        synopsis: "pack content master",
+        dialects: Some(DialectSet::TCL90_PLUS),
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
         name: "forget",
         arity: Arity::at_least(1),
         detail: "Remove each slave from the packing order for its master.",
