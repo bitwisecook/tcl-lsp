@@ -55,7 +55,8 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "E200",
     section: "error",
-    description: "Shimmer parse error — internal representation cannot be determined.",
+    description:
+      "Unterminated command — the parser could not tell where it ends (missing `]` / `\"` / `}`).",
     defaultEnabled: true,
   },
   {

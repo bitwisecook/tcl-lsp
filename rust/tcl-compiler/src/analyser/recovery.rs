@@ -463,6 +463,13 @@ impl Analyser {
         if self.disabled_diagnostics.contains("E200") {
             return;
         }
+        // The last unclosed Str/Cmd/Esc token in the command — both the
+        // message suffix and the diagnostic's anchor come from it.
+        let last_delim_tok = cmd
+            .all_tokens
+            .iter()
+            .rev()
+            .find(|t| matches!(t.kind, TokenType::Str | TokenType::Cmd | TokenType::Esc));
         // Prefer the delimiter the recovery segmenter recorded (from the
         // suspicious EOF-reaching token); fall back to the last
         // Str/Cmd/Esc token only when a partial wasn't produced by the
@@ -470,21 +477,21 @@ impl Analyser {
         let suffix = if let Some(delim) = cmd.partial_delimiter {
             delim.missing_message()
         } else {
-            let kind = cmd
-                .all_tokens
-                .iter()
-                .rev()
-                .find(|t| matches!(t.kind, TokenType::Str | TokenType::Cmd | TokenType::Esc))
-                .map(|t| t.kind);
-            match kind {
+            match last_delim_tok.map(|t| t.kind) {
                 Some(TokenType::Cmd) => "missing close-bracket",
                 Some(TokenType::Esc) => "missing \"",
                 _ => "missing close-brace",
             }
         };
+        // Anchor tightly at the unclosed delimiter's own opening position —
+        // not `cmd.span`, which covers the *whole* partial command and can
+        // run for many lines (the entire tail up to EOF). Zero-width,
+        // matching the E201/E202/E203 convention, so the squiggle sits on
+        // the actual problem instead of underlining unrelated source.
+        let anchor = last_delim_tok.map_or(cmd.span.start(), |t| t.span.start());
         self.result.diagnostics.push(super::types::Diagnostic {
             code: DiagCode::E200,
-            span: cmd.span,
+            span: Span::new(anchor, anchor),
             message: suffix.to_string(),
             severity: super::types::Severity::Error,
             fixes: Vec::new(),
@@ -933,6 +940,35 @@ mod tests {
                 .diagnostics
                 .iter()
                 .any(|d| d.code == DiagCode::E200)
+        );
+    }
+
+    #[test]
+    fn emit_partial_command_diagnostic_anchors_at_delimiter_not_command_start() {
+        // A multi-word command whose *last* word is the unclosed delimiter:
+        // the E200 span must sit at that word's start, not at the
+        // command's own start (which would underline the whole, possibly
+        // multi-line, command through EOF — a loose, unhelpful highlight).
+        let source = "oo::class create Foo {\n  method bar {} {\n    puts hi\n";
+        let mut a = analyser_with_source(source);
+        let commands: Vec<SegmentedCommand> = segment_commands_with_offset(source, 0);
+        let cmd = &commands[0];
+        // Sanity: this is genuinely one multi-word command, not already
+        // split at the delimiter.
+        assert!(cmd.span.start() < 21, "expected the command to start at 0");
+        a.emit_partial_command_diagnostic(cmd);
+        let d = a
+            .result
+            .diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::E200)
+            .unwrap();
+        assert_eq!(
+            (d.span.start(), d.span.end()),
+            (21, 21),
+            "expected a zero-width anchor at the unclosed `{{` (byte 21), not \
+             the command start (byte {}) or a wide span",
+            cmd.span.start()
         );
     }
 }

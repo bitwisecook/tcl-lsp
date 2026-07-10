@@ -48,10 +48,10 @@ use crate::segmenter::SegmentedCommand;
 /// token it picks, in priority order, where the `]` belongs: before a `#`
 /// comment line, a known-command line, or a `{`; otherwise it anchors at
 /// the `[`.
-pub(crate) fn unterminated_bracket_diagnostics(
+pub(crate) fn unterminated_bracket_diagnostics<S: std::hash::BuildHasher>(
     cmd: &SegmentedCommand,
     source: &str,
-    registry: Option<&CommandRegistry>,
+    known: &HashSet<String, S>,
 ) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     for tok in &cmd.all_tokens {
@@ -66,7 +66,7 @@ pub(crate) fn unterminated_bracket_diagnostics(
         } else {
             ""
         };
-        out.push(detect_e201(content, content_start, bracket_off, registry));
+        out.push(detect_e201(content, content_start, bracket_off, known));
     }
     out
 }
@@ -95,11 +95,11 @@ fn is_unterminated_cmd(tok: &Token, source: &str) -> bool {
 /// Build the E201 diagnostic for an unterminated `[`, choosing the
 /// insertion point via the comment / known-command / brace heuristics
 /// (in priority order), falling back to the bare `[`.
-fn detect_e201(
+fn detect_e201<S: std::hash::BuildHasher>(
     content: &str,
     content_start: u32,
     bracket_off: u32,
-    registry: Option<&CommandRegistry>,
+    known: &HashSet<String, S>,
 ) -> Diagnostic {
     // The heuristics *propose* an insertion offset (semantic); the
     // structural index *validates* it (syntactic). A proposed `]` that
@@ -125,25 +125,21 @@ fn detect_e201(
     if let Some(d) = e201_at_comment(content, content_start, bracket_off).and_then(&accept) {
         return d;
     }
-    if let Some(reg) = registry {
-        let (cmd_diag, swallowed_known_command) =
-            e201_at_command(content, content_start, bracket_off, reg, &index);
-        if let Some(d) = cmd_diag.and_then(&accept) {
-            return d;
-        }
-        // A known command was swallowed into a brace word inside the bracket
-        // (e.g. `proc …` inside `[foo {bar\nproc …}`). The `e201_at_brace`
-        // fallback would insert `]` before the `{`, folding the swallowed
-        // command into a brace-word argument and hiding it from analysis.
-        // Bail to the fix-less fallback instead: with no ghost `]`, the
-        // scan-to-next recovery's partial command stands, the unterminated
-        // `[` is still flagged, and the tail is analysed as real code.
-        if !swallowed_known_command
-            && let Some(d) = e201_at_brace(content, content_start, bracket_off).and_then(&accept)
-        {
-            return d;
-        }
-    } else if let Some(d) = e201_at_brace(content, content_start, bracket_off).and_then(&accept) {
+    let (cmd_diag, swallowed_known_command) =
+        e201_at_command(content, content_start, bracket_off, known, &index);
+    if let Some(d) = cmd_diag.and_then(&accept) {
+        return d;
+    }
+    // A known command was swallowed into a brace word inside the bracket
+    // (e.g. `proc …` inside `[foo {bar\nproc …}`). The `e201_at_brace`
+    // fallback would insert `]` before the `{`, folding the swallowed
+    // command into a brace-word argument and hiding it from analysis.
+    // Bail to the fix-less fallback instead: with no ghost `]`, the
+    // scan-to-next recovery's partial command stands, the unterminated
+    // `[` is still flagged, and the tail is analysed as real code.
+    if !swallowed_known_command
+        && let Some(d) = e201_at_brace(content, content_start, bracket_off).and_then(&accept)
+    {
         return d;
     }
     // Fallback: highlight just the opening `[`, no fix.
@@ -218,11 +214,11 @@ fn e201_at_comment(content: &str, content_start: u32, bracket_off: u32) -> Optio
 /// content captured real commands inside a brace word. `detect_e201` uses
 /// that to suppress the `e201_at_brace` fallback, which would otherwise
 /// insert `]` before the `{` and hide the swallowed command from analysis.
-fn e201_at_command(
+fn e201_at_command<S: std::hash::BuildHasher>(
     content: &str,
     content_start: u32,
     bracket_off: u32,
-    registry: &CommandRegistry,
+    known: &HashSet<String, S>,
     index: &tcl_lexer::BracketIndex,
 ) -> (Option<Diagnostic>, bool) {
     let lines: Vec<&str> = content.split('\n').collect();
@@ -240,7 +236,7 @@ fn e201_at_command(
         }
         let insert_idx = prev_line_content_end(&lines, i);
         let first_word = extract_first_word(stripped);
-        let is_known = registry.get(first_word).is_some();
+        let is_known = known.contains(first_word);
         // The structural index validates the boundary: if it sits inside
         // an inert span (a brace word / quoted run that swallowed the
         // line, e.g. `puts baz` inside `{bar\nputs baz}`), the candidate
@@ -301,18 +297,19 @@ fn e201_at_brace(content: &str, content_start: u32, bracket_off: u32) -> Option<
 /// when scanning a nested body whose tokens are absolute spans into the
 /// full `source`. The "reaches EOF" / "no closing delimiter" tests are
 /// relative to that end.
-pub(crate) fn unterminated_delimiter_diagnostics(
+pub(crate) fn unterminated_delimiter_diagnostics<S: std::hash::BuildHasher>(
     cmd: &SegmentedCommand,
     source: &str,
     region_end: usize,
     registry: Option<&CommandRegistry>,
+    known: &HashSet<String, S>,
 ) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     for tok in &cmd.all_tokens {
         if is_suspicious_quote(tok, cmd, source, region_end) {
-            out.push(detect_e202(tok, source, registry));
+            out.push(detect_e202(tok, source, known));
         } else if is_suspicious_str(tok, source, region_end) {
-            out.push(detect_e203(tok, cmd, source, registry));
+            out.push(detect_e203(tok, cmd, source, registry, known));
         }
     }
     out
@@ -330,10 +327,31 @@ fn token_inner<'a>(source: &'a str, tok: &Token) -> Option<&'a str> {
     }
 }
 
-/// True when `tok` is an `Esc` from an unterminated `"` at end-of-line
-/// that swallows the rest of the document: the token starts at a `"`, its
-/// inner text begins with a newline with non-blank content after it, and
-/// the command reaches EOF.
+/// `true` when `tok`'s delimiter genuinely closes within `region_end`: a
+/// non-empty word closed by `closer` right at `tok.span.end()`, or the
+/// empty `{}` / `""` special case where the lexer's inner-end span
+/// convention already covers the closer (content length exactly one byte —
+/// the closer itself — mirroring [`is_unterminated_cmd`]'s empty-`[]`
+/// handling for E201). Shared by [`is_suspicious_quote`] /
+/// [`is_suspicious_str`] so E202 / E203 detection doesn't need its own
+/// copy of the empty-delimiter special case.
+fn is_closed_within_region(tok: &Token, source: &str, region_end: usize, closer: u8) -> bool {
+    let bytes = source.as_bytes();
+    let end = tok.span.end() as usize;
+    if end < region_end && bytes.get(end) == Some(&closer) {
+        return true;
+    }
+    let content_start = tok.span.start() as usize + tok.content_offset as usize;
+    end == content_start + 1 && end > 0 && bytes.get(end - 1) == Some(&closer)
+}
+
+/// True when `tok` is an `Esc` from an unterminated `"` that swallows the
+/// rest of the region: the token starts at a `"` and never closes before
+/// `region_end`. Not gated on line count or content shape — a single-line
+/// `set x "hello` (no newline at all) is just as unterminated as a
+/// multi-line run, and must be flagged identically; the only thing that
+/// distinguishes "genuinely unterminated" from "closed" is whether a
+/// closing `"` actually appears (see [`is_closed_within_region`]).
 fn is_suspicious_quote(
     tok: &Token,
     cmd: &SegmentedCommand,
@@ -346,38 +364,23 @@ fn is_suspicious_quote(
     if source.as_bytes().get(tok.span.start() as usize) != Some(&b'"') {
         return false;
     }
-    let Some(text) = token_inner(source, tok) else {
-        return false;
-    };
-    if !text.starts_with('\n') || text[1..].trim().is_empty() {
+    if is_closed_within_region(tok, source, region_end, b'"') {
         return false;
     }
-    // Properly closed: the byte at the token's inner end is the closing `"`
-    // *within* the region. A closed multi-line quoted word that happens to
-    // sit at the very end of a body — `proc p {} {set x "\nhello"}`, where
-    // the closing `"` is the body's last byte so the command still "reaches
-    // EOF" — must NOT be flagged. (The inner-end span convention puts the
-    // closer at `span.end()`; an unterminated quote instead runs to
-    // `region_end`, so its `span.end()` is not `< region_end`.) Parallels
-    // the analogous `}` guard in `is_suspicious_str`.
-    if (tok.span.end() as usize) < region_end
-        && source.as_bytes().get(tok.span.end() as usize) == Some(&b'"')
-    {
-        return false;
-    }
-    // A properly closed quote wouldn't run to the end of the region.
-    if let Some(last) = cmd.all_tokens.last()
-        && (last.span.end() as usize) < region_end.saturating_sub(1)
-    {
-        return false;
-    }
-    true
+    // An unterminated quote swallows every byte up to the region boundary,
+    // so it is always the command's last token (barring a trailing
+    // separator/EOL); a quote that closes well short of `region_end` is a
+    // different construct's problem, not this one's.
+    cmd.all_tokens
+        .last()
+        .is_some_and(|last| (last.span.end() as usize) >= region_end.saturating_sub(1))
 }
 
-/// True when `tok` is a `Str` from an unterminated `{` spanning multiple
-/// lines with no closing `}`: a token text containing `}` is E103
-/// territory (brace closed at the wrong nesting level), not a truly
-/// missing brace.
+/// True when `tok` is a `Str` from an unterminated `{` with no closing
+/// `}`: a token text containing `}` is E103 territory (brace closed at the
+/// wrong nesting level), not a truly missing brace. Not gated on line
+/// count — see [`is_suspicious_quote`]'s doc for why a short, single-line
+/// unterminated brace must be flagged exactly like a long multi-line one.
 fn is_suspicious_str(tok: &Token, source: &str, region_end: usize) -> bool {
     if tok.kind != TokenType::Str {
         return false;
@@ -385,64 +388,53 @@ fn is_suspicious_str(tok: &Token, source: &str, region_end: usize) -> bool {
     if source.as_bytes().get(tok.span.start() as usize) != Some(&b'{') {
         return false;
     }
-    // Properly closed: the byte at the inner end is a `}` *within* the
-    // region. A `}` at or past `region_end` belongs to an enclosing
-    // construct (e.g. the body's own closing brace), so it does not close
-    // this token.
-    if (tok.span.end() as usize) < region_end
-        && source.as_bytes().get(tok.span.end() as usize) == Some(&b'}')
-    {
+    if is_closed_within_region(tok, source, region_end, b'}') {
         return false;
     }
     let Some(text) = token_inner(source, tok) else {
         return false;
     };
-    if text.contains('}') {
-        return false;
-    }
-    // Must span at least two lines.
-    if text.bytes().filter(|&b| b == b'\n').count() < 2 {
-        return false;
-    }
-    true
+    !text.contains('}')
 }
 
 /// Build the E202 diagnostic for an unterminated `"`: the known-command
 /// heuristic (insert `"` right after the opener) or the fix-less
 /// fallback.
-fn detect_e202(tok: &Token, source: &str, registry: Option<&CommandRegistry>) -> Diagnostic {
+fn detect_e202<S: std::hash::BuildHasher>(
+    tok: &Token,
+    source: &str,
+    known: &HashSet<String, S>,
+) -> Diagnostic {
     let quote_off = tok.span.start();
     let diag_span = Span::new(quote_off, quote_off);
-    if let Some(reg) = registry {
-        let text = token_inner(source, tok).unwrap_or("");
-        let lines: Vec<&str> = text.split('\n').collect();
-        if lines.len() >= 2 {
-            for (i, line) in lines.iter().enumerate() {
-                if i == 0 {
-                    continue;
-                }
-                let stripped = line.trim_start();
-                if stripped.is_empty() {
-                    continue;
-                }
-                if reg.get(extract_first_word(stripped)).is_some() {
-                    // Virtual `"` right after the opening `"`.
-                    let insert_off = quote_off + 1;
-                    return Diagnostic {
-                        code: DiagCode::E202,
-                        span: diag_span,
-                        message: "missing \"".to_string(),
-                        severity: Severity::Error,
-                        fixes: vec![CodeFix {
-                            span: Span::new(insert_off, insert_off),
-                            new_text: "\"".to_string(),
-                            description: "Insert missing '\"' to close string".to_string(),
-                        }],
-                    };
-                }
-                // First non-blank line isn't a known command — stop.
-                break;
+    let text = token_inner(source, tok).unwrap_or("");
+    let lines: Vec<&str> = text.split('\n').collect();
+    if lines.len() >= 2 {
+        for (i, line) in lines.iter().enumerate() {
+            if i == 0 {
+                continue;
             }
+            let stripped = line.trim_start();
+            if stripped.is_empty() {
+                continue;
+            }
+            if known.contains(extract_first_word(stripped)) {
+                // Virtual `"` right after the opening `"`.
+                let insert_off = quote_off + 1;
+                return Diagnostic {
+                    code: DiagCode::E202,
+                    span: diag_span,
+                    message: "missing \"".to_string(),
+                    severity: Severity::Error,
+                    fixes: vec![CodeFix {
+                        span: Span::new(insert_off, insert_off),
+                        new_text: "\"".to_string(),
+                        description: "Insert missing '\"' to close string".to_string(),
+                    }],
+                };
+            }
+            // First non-blank line isn't a known command — stop.
+            break;
         }
     }
     Diagnostic {
@@ -457,34 +449,35 @@ fn detect_e202(tok: &Token, source: &str, registry: Option<&CommandRegistry>) ->
 /// Build the E203 diagnostic for an unterminated `{`: the de-indented
 /// known-command heuristic (insert `}` at the newline before that line)
 /// or the fix-less fallback.
-fn detect_e203(
+fn detect_e203<S: std::hash::BuildHasher>(
     tok: &Token,
     cmd: &SegmentedCommand,
     source: &str,
     registry: Option<&CommandRegistry>,
+    known: &HashSet<String, S>,
 ) -> Diagnostic {
     let brace_off = tok.span.start();
     let diag_span = Span::new(brace_off, brace_off);
     let content_start = brace_off + u32::from(tok.content_offset);
-    if let Some(reg) = registry {
-        // `ArgRole` routing: when the unterminated `{` is an
-        // **expression** argument (`if {…`, `while {…`, `expr {…`,
-        // `for`'s condition, …) a following line that starts with a known
-        // command is a strong forgotten-close signal *even without a
-        // de-indent* — so EXPR braces recover with the aggressive
-        // command-break, unlike BODY / data which keep the conservative
-        // de-indent heuristic. Role never *suppresses* recovery, only
-        // makes it more eager.
-        let expr_role = unterminated_arg_is_expr(tok, cmd, reg);
-        if let Some(fix) = e203_brace_fix(tok, source, content_start, reg, expr_role) {
-            return Diagnostic {
-                code: DiagCode::E203,
-                span: diag_span,
-                message: "missing close-brace".to_string(),
-                severity: Severity::Error,
-                fixes: vec![fix],
-            };
-        }
+    // `ArgRole` routing: when the unterminated `{` is an
+    // **expression** argument (`if {…`, `while {…`, `expr {…`,
+    // `for`'s condition, …) a following line that starts with a known
+    // command is a strong forgotten-close signal *even without a
+    // de-indent* — so EXPR braces recover with the aggressive
+    // command-break, unlike BODY / data which keep the conservative
+    // de-indent heuristic. Role never *suppresses* recovery, only
+    // makes it more eager. The role lookup needs the real registry (for
+    // `arg_indices_for_role`); the fix search itself only needs the
+    // known-command-name universe.
+    let expr_role = registry.is_some_and(|reg| unterminated_arg_is_expr(tok, cmd, reg));
+    if let Some(fix) = e203_brace_fix(tok, source, content_start, known, expr_role) {
+        return Diagnostic {
+            code: DiagCode::E203,
+            span: diag_span,
+            message: "missing close-brace".to_string(),
+            severity: Severity::Error,
+            fixes: vec![fix],
+        };
     }
     Diagnostic {
         code: DiagCode::E203,
@@ -530,11 +523,11 @@ fn unterminated_arg_is_expr(
 /// braces the line must be **de-indented** (the conservative heuristic);
 /// for `expr_role` braces any following known-command line qualifies (the
 /// aggressive command-break via `ArgRole` routing).
-fn e203_brace_fix(
+fn e203_brace_fix<S: std::hash::BuildHasher>(
     tok: &Token,
     source: &str,
     content_start: u32,
-    registry: &CommandRegistry,
+    known: &HashSet<String, S>,
     expr_role: bool,
 ) -> Option<CodeFix> {
     let text = token_inner(source, tok)?;
@@ -563,9 +556,7 @@ fn e203_brace_fix(
             continue;
         }
         let indent = line.len() - stripped.len();
-        if (expr_role || indent < first_indent)
-            && registry.get(extract_first_word(stripped)).is_some()
-        {
+        if (expr_role || indent < first_indent) && known.contains(extract_first_word(stripped)) {
             // The brace content before this line must be balanced —
             // otherwise a single `}` can't recover it.  (The token is
             // already known to contain no `}`, so balance reduces to
@@ -1257,5 +1248,213 @@ mod tests {
                 .count(),
             1,
         );
+    }
+
+    // E200/E201/E202/E203 deep-review regression suite — TP/FP/TN/FN cases
+    // for the "known command" generality fix (procs/classes/aliases as
+    // recovery signals), the E202/E203 line-count false-negative fix, and
+    // the E200 fallback's tight-highlighting fix. Each case is checked
+    // against the C-Tcl `info complete` oracle in the comment (verified
+    // manually against tclsh8.6/tclsh9.0; see the review notes).
+
+    fn e20x_span(src: &str, code: &str) -> Option<(u32, u32)> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_str() == code)
+            .map(|d| (d.span.start(), d.span.end()))
+    }
+
+    // --- Known-command generality: user procs / classes / aliases ---------
+
+    #[test]
+    fn tp_e201_fix_recognises_user_defined_proc() {
+        // True positive: a `[` breaks before a call to a proc the document
+        // itself defines (not a registry builtin) — the fix must still be
+        // found, matching the same shape that already works for `puts`.
+        let src = "proc my_helper {x} {puts $x}\n\nset y [foo bar\nmy_helper hi\n";
+        let diags = recovery_diags(src, "E201");
+        assert_eq!(
+            diags,
+            vec![("missing close-bracket".to_string(), 1)],
+            "user proc call should be recognised as a recovery signal"
+        );
+    }
+
+    #[test]
+    fn tp_e203_fix_recognises_user_defined_class() {
+        // A `oo::class create` name is a document-local "known command" via
+        // the same signature-scan the fix draws on.
+        let src = "oo::class create Widget {\n  method draw {} {}\n}\n\nset q {\n    aaa\nWidget create obj1\n";
+        let diags = recovery_diags(src, "E203");
+        assert_eq!(diags, vec![("missing close-brace".to_string(), 1)]);
+    }
+
+    #[test]
+    fn tp_e203_fix_recognises_interp_alias() {
+        let src = "interp alias {} greet {} puts hi\n\nset q {\n    aaa\ngreet\n";
+        let diags = recovery_diags(src, "E203");
+        assert_eq!(diags, vec![("missing close-brace".to_string(), 1)]);
+    }
+
+    #[test]
+    fn tp_e203_fix_recognises_namespace_qualified_proc() {
+        // Both the qualified form (`myns::helper`) and the bare tail
+        // (`helper`) resolve against a namespace-nested proc definition.
+        let src = "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\n  aaa\nmyns::helper 1\n";
+        let diags = recovery_diags(src, "E203");
+        assert_eq!(diags, vec![("missing close-brace".to_string(), 1)]);
+    }
+
+    #[test]
+    fn tn_e203_does_not_recognise_undefined_identifier() {
+        // False-negative guard in the other direction: a genuine typo /
+        // undefined name must NOT be treated as a recovery signal — the
+        // fix-less fallback is the honest answer when nothing resolves.
+        let src = "set q {\n    aaa\nthis_is_not_a_real_command\n";
+        let diags = recovery_diags(src, "E203");
+        assert_eq!(diags, vec![("missing close-brace".to_string(), 0)]);
+    }
+
+    #[test]
+    fn tp_scan_to_next_recovers_document_analysis_past_user_proc() {
+        // The segmenter-level scan-to-next recovery (not just the E20x fix)
+        // must also recognise a user proc: previously, when nothing but
+        // user-defined calls followed a break, the whole tail was silently
+        // dropped from analysis (no E002 for a genuinely bad call). This is
+        // the true positive for that generality gap, pinned end-to-end.
+        let src = "proc my_helper {x} {puts $x}\n\nset q {\n  aaa\nmy_helper\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == DiagCode::E002),
+            "the swallowed `my_helper` call (wrong arity) must still be \
+             analysed as code, not silently dropped: {:?}",
+            r.diagnostics
+                .iter()
+                .map(|d| d.code.to_string())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    // --- E202/E203: short / single-line unterminated delimiters ------------
+    //
+    // Previously `is_suspicious_quote` required the token's inner text to
+    // *start* with a newline, and `is_suspicious_str` required at least two
+    // newlines — so the overwhelmingly common real-world shape (content on
+    // the same line as the opener, then EOF or one line break) went
+    // completely unflagged: no E202/E203, not even the generic E200
+    // fallback. `info complete` on each of these (tclsh 8.6/9.0) is `0`.
+
+    #[test]
+    fn tp_e202_fires_for_single_line_unterminated_quote_no_newline() {
+        // `set x "hello` — no newline at all, EOF right after the content.
+        assert_eq!(
+            recovery_diags("set x \"hello", "E202"),
+            vec![("missing \"".to_string(), 0)]
+        );
+    }
+
+    #[test]
+    fn tp_e202_fires_when_content_precedes_the_break() {
+        // `set x "hello\nworld` — content on the opening line, one break.
+        assert_eq!(
+            recovery_diags("set x \"hello\nworld\n", "E202"),
+            vec![("missing \"".to_string(), 0)]
+        );
+    }
+
+    #[test]
+    fn tp_e203_fires_for_single_line_unterminated_brace_no_newline() {
+        // `set x {hello` — no newline, EOF right after the content.
+        assert_eq!(
+            recovery_diags("set x {hello", "E203"),
+            vec![("missing close-brace".to_string(), 0)]
+        );
+    }
+
+    #[test]
+    fn tp_e203_fires_when_content_precedes_the_break() {
+        // `set x {hello\nworld` — content on the opening line, one break —
+        // previously silent because it fell one newline short of the old
+        // ">= 2 newlines" gate.
+        assert_eq!(
+            recovery_diags("set x {hello\nworld\n", "E203"),
+            vec![("missing close-brace".to_string(), 0)]
+        );
+    }
+
+    #[test]
+    fn tn_well_formed_empty_and_short_delimiters_are_silent() {
+        // Regression guard for the empty-`{}`/`""` special case: removing
+        // the line-count gate must not turn well-formed short/empty
+        // delimiters into false positives.
+        for src in [
+            "set x \"\"\n",
+            "set x {}\n",
+            "set x \"hello\"\n",
+            "set x {hello}\n",
+            "set x \"hello\nworld\"\n",
+            "set x {hello\nworld}\n",
+            "puts [llength []]\n",
+        ] {
+            assert!(
+                recovery_diags(src, "E202").is_empty(),
+                "unexpected E202 for {src:?}"
+            );
+            assert!(
+                recovery_diags(src, "E203").is_empty(),
+                "unexpected E203 for {src:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn tn_closed_multiline_quote_inside_body_stays_silent_when_short() {
+        // A closed multi-line quote at a body's end (the fix's target
+        // scenario for `e202_not_emitted_for_closed_multiline_quote_at_body_end`)
+        // must remain silent even with the line-count gate removed —
+        // "properly closed" is still detected purely from the closing
+        // delimiter, never from line count.
+        assert!(recovery_diags("proc p {} {set x \"\nhello\"}\n", "E202").is_empty());
+    }
+
+    // --- E200: tight highlighting -------------------------------------
+
+    #[test]
+    fn tp_e200_anchors_at_the_unclosed_delimiter_not_the_whole_command() {
+        // A tclOO class whose method body never closes: the outer class
+        // body's own `{` never closes either (its content contains a
+        // stray `}` from the balanced `method bar {}` parameter list, so
+        // it's E103/E200 territory, not the precise E203 detector). The
+        // diagnostic must anchor at the unclosed `{` — not span the whole
+        // multi-line `oo::class create Foo { ... }` command through EOF.
+        let src = "oo::class create Foo {\n  method bar {} {\n    puts hi\n";
+        let (start, end) = e20x_span(src, "E200").expect("E200 should fire");
+        assert_eq!((start, end), (start, start), "E200 span must be zero-width");
+        // The anchor sits at the outer class-body `{` (right after `Foo `,
+        // byte offset 21), not at byte 0 (`oo::class`).
+        assert_eq!(
+            start, 21,
+            "E200 must anchor at the unclosed `{{`, not the command start"
+        );
+        assert_eq!(&src[start as usize..=start as usize], "{");
+    }
+
+    #[test]
+    fn tp_e200_message_matches_the_actual_unclosed_delimiter_kind() {
+        // The E200 message must still name the *right* delimiter kind after
+        // the span fix — this pins the suffix selection logic, not just
+        // the anchor.
+        let src = "oo::class create Foo {\n  method bar {} {\n    puts hi\n";
+        let mut a = Analyser::new();
+        let d = a
+            .analyse(src, "tcl8.6")
+            .diagnostics
+            .into_iter()
+            .find(|d| d.code == DiagCode::E200)
+            .expect("E200 should fire");
+        assert_eq!(d.message, "missing close-brace");
     }
 }

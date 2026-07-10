@@ -235,6 +235,15 @@ pub struct Analyser {
     /// outside an active analysis run; handlers that need the
     /// registry must check `self.registry.is_some()`.
     pub registry: Option<tcl_registry::CommandRegistry>,
+    /// The "known command" universe for unclosed-delimiter recovery: the
+    /// active registry's names plus every proc / class / command-alias the
+    /// document itself defines. Populated alongside `registry` at the top
+    /// of every entry point via
+    /// [`super::utils::recovery_known_commands`] so the segmenter's
+    /// scan-to-next recovery and the E100/E201/E202/E203 diagnostics agree
+    /// on what counts as a "real command" starting a new line. Empty
+    /// outside an active analysis run.
+    pub recovery_known_commands: HashSet<String>,
     /// When `true`, the proc handler runs the deep-recursive
     /// pass of [`super::param_traits::infer_param_traits_deep`]
     /// after the shallow pass and unions the results via
@@ -482,6 +491,7 @@ impl Analyser {
             objdefined_vars: HashSet::new(),
             unresolved_commands_emitted: false,
             registry: None,
+            recovery_known_commands: HashSet::new(),
             deep_param_traits: false,
             stub_overlay: None,
             line_offsets: None,
@@ -641,11 +651,19 @@ impl Analyser {
         // ``apply_preceding_noqa`` (which runs per command and
         // would otherwise be ``O(N)`` per call).
         self.line_offsets = Some(compute_line_offsets(source));
+        // The recovery known-command universe (registry + this document's
+        // own procs/classes/aliases) — see `recovery_known_commands`. Stored
+        // on `self` so the per-command E100/E201/E202/E203 detectors below
+        // (and `apply_ghost_recovery`) consult the same set the segmenter
+        // scan-to-next recovery uses here.
+        self.recovery_known_commands = super::utils::recovery_known_commands(
+            source,
+            self.registry.as_ref().expect("registry just stashed"),
+        );
         let known_commands: HashSet<&str> = self
-            .registry
-            .as_ref()
-            .expect("registry just stashed")
-            .command_names()
+            .recovery_known_commands
+            .iter()
+            .map(String::as_str)
             .collect();
         let mut commands = crate::segmenter::segment_commands_with_recovery_and_config(
             source,
@@ -786,7 +804,7 @@ impl Analyser {
         let (clean, e201) = crate::segmenter::segment_with_recovery(
             source,
             self.lexer_config(),
-            self.registry.as_ref(),
+            &self.recovery_known_commands,
         );
         if e201.is_empty() {
             return false;
@@ -819,7 +837,7 @@ impl Analyser {
             let e201 = super::syntax_checks::unterminated_bracket_diagnostics(
                 cmd,
                 &self.source,
-                self.registry.as_ref(),
+                &self.recovery_known_commands,
             );
             self.result.diagnostics.extend(e201);
         }
@@ -844,6 +862,7 @@ impl Analyser {
             &self.source,
             region_end,
             self.registry.as_ref(),
+            &self.recovery_known_commands,
         );
         let mut emitted = false;
         for d in diags {
@@ -953,6 +972,10 @@ impl Analyser {
             registry.load_dialect(d);
         }
         self.registry = Some(registry);
+        self.recovery_known_commands = super::utils::recovery_known_commands(
+            source,
+            self.registry.as_ref().expect("registry just stashed"),
+        );
         self.line_offsets = Some(compute_line_offsets(source));
 
         let mut snapshots: Vec<super::snapshot::AnalyserSnapshot> =
@@ -1023,6 +1046,10 @@ impl Analyser {
             registry.load_dialect(d);
         }
         self.registry = Some(registry);
+        self.recovery_known_commands = super::utils::recovery_known_commands(
+            source,
+            self.registry.as_ref().expect("registry just stashed"),
+        );
         self.line_offsets = Some(compute_line_offsets(source));
 
         // Stub-directive pre-scan + overlay, matching ``analyse`` so command
@@ -1321,6 +1348,7 @@ impl Analyser {
     /// ``analyse_commands``).
     pub(super) fn clear_run_state(&mut self) {
         self.registry = None;
+        self.recovery_known_commands.clear();
         self.line_offsets = None;
         self.defer_proc_bodies = false;
         self.deferred_bodies.clear();

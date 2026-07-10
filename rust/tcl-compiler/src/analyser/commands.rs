@@ -171,7 +171,7 @@ impl Analyser {
             let e201 = super::syntax_checks::unterminated_bracket_diagnostics(
                 cmd_ref,
                 &self.source,
-                self.registry.as_ref(),
+                &self.recovery_known_commands,
             );
             self.result.diagnostics.extend(e201);
             // E202 (unterminated `"`) / E203 (unterminated `{`) inside a

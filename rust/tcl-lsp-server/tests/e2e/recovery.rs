@@ -534,3 +534,174 @@ fn c5_rapid_toggling_stays_consistent() {
         );
     }
 }
+
+// --------------------------------------------------------------------------- //
+// Known-command generality — a break just before a call to a command the
+// *document itself* defines (a proc, a TclOO class, an `interp alias`) must
+// recover exactly as well as a break before a call to a builtin. Before this
+// fix, the "does the next line start with a known command?" recovery signal
+// only ever consulted the static registry, so real-world files — almost all
+// of which call their own procs — silently lost the rest of the document to
+// analysis whenever no *builtin* call happened to follow the break.
+// --------------------------------------------------------------------------- //
+
+#[test]
+fn user_defined_proc_recovers_the_tail_like_a_builtin() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc my_helper {x} {puts $x}\n\nset q {\n  aaa\nmy_helper\n",
+    );
+    assert!(
+        has_recovery_error(&diags),
+        "unterminated {{ should flag; got {:?}",
+        codes(&diags)
+    );
+    // The swallowed `my_helper` call (no args, but `my_helper` needs one) must
+    // still be analysed as code — proof the tail isn't silently dropped just
+    // because nothing *builtin* follows the break.
+    assert!(
+        diags.iter().any(|d| code_str(d) == "E002"),
+        "tail `my_helper` call should arity-error; got {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn user_defined_class_recovers_the_tail() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create Widget {\n  method draw {} {}\n}\n\nset q {\n    aaa\nproc recovered_after_class {} {}\n",
+    );
+    let names = symbol_name_list(&lsp.document_symbols(&uri));
+    assert!(
+        names.iter().any(|n| n == "recovered_after_class"),
+        "tail proc not recovered past a user-class recovery signal; symbols={names:?}"
+    );
+}
+
+#[test]
+fn namespace_qualified_proc_call_recovers_the_tail() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\n  aaa\nmyns::helper 1\nproc recovered_after_ns {} {}\n",
+    );
+    let names = symbol_name_list(&lsp.document_symbols(&uri));
+    assert!(
+        names.iter().any(|n| n == "recovered_after_ns"),
+        "tail proc not recovered past a namespace-qualified call; symbols={names:?}"
+    );
+}
+
+// --------------------------------------------------------------------------- //
+// Short-form unterminated quote / brace — a delimiter left open with content
+// on the *same* line as the opener (the overwhelmingly common real-world
+// typo) must be flagged exactly like a long multi-line run. Before this fix,
+// both detectors required the run to already span multiple lines, so
+// `set x "hello` / `set x {hello` (content then EOF, or content then a
+// single line break) went completely unflagged — not even the generic
+// fallback fired.
+// --------------------------------------------------------------------------- //
+
+#[test]
+fn short_unterminated_quote_with_no_newline_is_flagged() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x \"hello");
+    assert!(
+        has_recovery_error(&diags),
+        "a same-line unterminated quote must be flagged; got {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn short_unterminated_brace_with_no_newline_is_flagged() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x {hello");
+    assert!(
+        has_recovery_error(&diags),
+        "a same-line unterminated brace must be flagged; got {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn unterminated_quote_with_content_before_one_line_break_is_flagged() {
+    // Content on the opening line, then a single break before EOF — one
+    // newline short of the old (removed) multi-line threshold.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x \"hello\nworld\n");
+    assert!(has_recovery_error(&diags), "got {:?}", codes(&diags));
+}
+
+#[test]
+fn unterminated_brace_with_content_before_one_line_break_is_flagged() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x {hello\nworld\n");
+    assert!(has_recovery_error(&diags), "got {:?}", codes(&diags));
+}
+
+#[test]
+fn well_formed_empty_and_short_delimiters_stay_silent() {
+    // Regression guard alongside the short-form fixes above: an empty `""`
+    // / `{}` and an ordinary short closed string/brace must never be
+    // (mis)flagged now that the line-count gate is gone.
+    for src in [
+        "set x \"\"\n",
+        "set x {}\n",
+        "set x \"hello\"\n",
+        "set x {hello}\n",
+    ] {
+        let mut lsp = Lsp::tcl();
+        let uri = unique_uri("tcl");
+        let diags = lsp.open_ready(&uri, src);
+        assert!(
+            !has_recovery_error(&diags),
+            "well-formed {src:?} flagged a recovery error: {:?}",
+            codes(&diags)
+        );
+    }
+}
+
+// --------------------------------------------------------------------------- //
+// E200 tight highlighting — the generic fallback (fires only when neither the
+// E201/E202/E203 detectors nor E103's stolen-brace detector can pin the
+// precise delimiter) must still anchor its range at the actual unclosed
+// delimiter, not spread across the whole (possibly multi-line) partial
+// command through EOF.
+// --------------------------------------------------------------------------- //
+
+#[test]
+fn generic_fallback_does_not_span_the_whole_document() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    // The outer class body's `{` never closes; its content contains a stray
+    // `}` from the balanced `method bar {}` parameter list, which routes
+    // detection to the generic fallback rather than the precise E203 path.
+    let src = "oo::class create Foo {\n  method bar {} {\n    puts hi\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        has_recovery_error(&diags),
+        "unterminated class body should flag; got {:?}",
+        codes(&diags)
+    );
+    let n_lines = i64::try_from(src.matches('\n').count() + 1).unwrap();
+    for d in diags.iter().filter(|d| is_recovery_error(d)) {
+        let end_line = d["range"]["end"]["line"].as_i64().unwrap_or(-1);
+        assert!(
+            end_line < n_lines - 1,
+            "recovery diagnostic spans to (or past) the document's last line \
+             — expected a tight anchor near the unclosed delimiter, not a \
+             whole-document underline: {d:?}"
+        );
+    }
+}

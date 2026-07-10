@@ -3772,7 +3772,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**E200:** Shimmer parse error — internal representation cannot be determined.",
+            "markdownDescription": "**E200:** Unterminated command — the parser could not tell where it ends (missing `]` / `\"` / `}`).",
             "order": 3
           }
         }
