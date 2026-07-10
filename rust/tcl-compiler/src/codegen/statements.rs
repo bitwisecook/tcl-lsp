@@ -24,6 +24,7 @@
 
 use crate::ir::Statement;
 
+use super::cmd_subst::{has_command_separator, parse_cmd_parts};
 use super::helpers::{SubstPart, parse_subst_template};
 use super::values::{is_qualified, needs_stk_var_ref, parse_simple_var_ref, split_array_ref};
 use super::{CodegenCtx, Op, Operand};
@@ -496,6 +497,12 @@ impl CodegenCtx<'_> {
             self.push_lit(&tcl_lexer::backslash_subst(value));
             return;
         }
+        // A whole-word command substitution compiles inline (on the explicit
+        // stack) rather than via the runtime `subst_word` fallback, so a
+        // `[yield]`/`[cmd]` inside it stays yieldable in a coroutine.
+        if self.try_emit_whole_cmd_subst(value) {
+            return;
+        }
         // Default: push as literal
         self.push_lit(value);
     }
@@ -519,6 +526,55 @@ impl CodegenCtx<'_> {
             && !value.starts_with("[dict create ")
             && !value.starts_with("[set ")
             && !value.starts_with("[format ")
+    }
+
+    /// If `value` is a *single whole-word command substitution* (`[cmd …]` and
+    /// nothing else) of a shape the command-parser handles faithfully, compile
+    /// it as a generic `INVOKE` on the explicit activation stack and return
+    /// `true`; otherwise return `false` and leave the caller to fall back to its
+    /// literal / `subst_word` path.
+    ///
+    /// C Tcl never runs a whole-word substitution through a recursive
+    /// `Tcl_EvalObjEx`; it compiles it to `INST_INVOKE`. Matching that keeps a
+    /// `[yield]`/`[cmd]` inside the substitution **yieldable** in a coroutine —
+    /// the runtime `subst_word` fallback re-enters the evaluator on the *host*
+    /// stack, a boundary a `yield` cannot cross (`cannot yield: C stack busy`).
+    ///
+    /// The generic `INVOKE` runs the real command (`string`, a user proc,
+    /// `yield`, …) exactly as `subst_word` would, only on the explicit stack —
+    /// so the change is behaviour-preserving apart from yieldability. It is used
+    /// in preference to the specialised inline forms (`STR_LEN`, `STR_CLASS`, …)
+    /// deliberately: those are pure builtins that never yield, so they need no
+    /// inlining here, and running the real command sidesteps their opcode edge
+    /// cases. The folded forms (`[list …]` / `[format …]` / `[dict create …]`)
+    /// and the specialised assignment path still own their contexts; this only
+    /// covers a whole-word substitution that would otherwise reach `push_lit`.
+    ///
+    /// Conservative on shape: escaped brackets (`\[` / `\]`, which the parser
+    /// cannot match — see [`Self::assign_value_inlines_cmd_subst`]), `{*}`
+    /// expansion, and multi-command bodies (a `;`/newline separator) keep the
+    /// runtime path. Those never carry the coroutine resume-value idiom, so
+    /// nothing yieldable is lost.
+    pub(crate) fn try_emit_whole_cmd_subst(&mut self, value: &str) -> bool {
+        if value.contains("\\[")
+            || value.contains("\\]")
+            || value.contains("{*}")
+            || has_command_separator(value)
+        {
+            return false;
+        }
+        if !matches!(
+            parse_subst_template(value).as_deref(),
+            Some([SubstPart::Cmd(_)])
+        ) {
+            return false;
+        }
+        let parts = parse_cmd_parts(value);
+        let Some((head, _)) = parts.split_first() else {
+            return false;
+        };
+        self.emit_generic_cmd_subst(&head.0, &parts[1..]);
+        true
     }
 
     /// Push variable reference for store operations (name/key on stack).

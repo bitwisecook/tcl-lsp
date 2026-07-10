@@ -200,9 +200,7 @@ fn resume(vm: &mut Vm, fqn: &str, value: Option<Value>) -> Completion<Value> {
     });
     // Deliver the resume value where the parked `yield`'s result belongs. A Fresh
     // coroutine starts at pc 0, so it takes no delivered value.
-    if !was_fresh
-        && let Some(top) = acts.last_mut()
-    {
+    if !was_fresh && let Some(top) = acts.last_mut() {
         top.push_operand(value.unwrap_or_else(Value::empty));
     }
 

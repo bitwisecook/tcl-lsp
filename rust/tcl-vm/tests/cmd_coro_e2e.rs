@@ -21,9 +21,16 @@
 //! Every expectation is the output of the same script under a locally-built
 //! **tclsh 9.0.4** (the truth oracle). Coroutines are implemented by capturing
 //! the explicit activation stack (no OS threads); a `yield` crosses the compiled
-//! stack (proc bodies, inline loops) but not a host re-entry (`catch`/`eval`/
-//! command-substitution/`apply`), where C Tcl's NR-enabled commands would let it
-//! through — those boundary cases are a documented follow-up, not tested here.
+//! stack (proc bodies, inline loops, nested proc calls) **and command
+//! substitution** — the `set arg [yield $result]` resume-value idiom and
+//! `cmd [yield]` argument position both stay on the explicit stack (a whole-word
+//! `[…]` compiles to an inline `INVOKE`, not a runtime `subst_word` re-entry).
+//!
+//! A `yield` reached across a host re-entry that the VM runs on the *native*
+//! Rust stack (`catch`/`eval`/`uplevel`/`apply`) still errors `cannot yield: C
+//! stack busy`. C Tcl makes those commands NR-enabled, so a real tclsh yields
+//! through them — this is the VM's remaining divergence and a documented
+//! follow-up (making those constructs re-enter the explicit trampoline).
 
 use std::cell::RefCell;
 use std::io::Write;
@@ -131,6 +138,55 @@ fn yield_across_nested_proc_call() {
              coroutine c g; list [c] [c]"
         ),
         "back {}"
+    );
+}
+
+#[test]
+fn yield_resume_value_via_command_substitution() {
+    // tclsh 9.0.4: the canonical resume-value idiom `set x [yield]`. `coroutine`
+    // runs the body to the first `yield` (returning ""); each resume delivers its
+    // argument as that `yield`'s result, which the body echoes on the next yield.
+    // A whole-word `[yield]` compiles to an inline INVOKE, so the yield stays on
+    // the explicit stack (a runtime `subst_word` re-entry could not cross it).
+    assert_eq!(
+        result(
+            "proc g {} { while 1 { set x [yield]; puts \"got=$x\" } }; \
+             coroutine c g; c one; c two"
+        ),
+        ""
+    );
+    assert_eq!(
+        run("proc g {} { while 1 { set x [yield]; puts \"got=$x\" } }; \
+             coroutine c g; c one; c two")
+        .2,
+        "got=one\ngot=two\n"
+    );
+}
+
+#[test]
+fn accumulator_generator_yield_expression() {
+    // tclsh 9.0.4: `set n [yield $sum]` both yields a value and receives the
+    // resume value in one command substitution — the generator's core pattern.
+    assert_eq!(
+        result(
+            "proc acc {} { set sum 0; while 1 { set n [yield $sum]; incr sum $n } }; \
+             coroutine a acc; list [a 5] [a 10] [a 3]"
+        ),
+        "5 15 18"
+    );
+}
+
+#[test]
+fn yield_in_command_argument_position() {
+    // tclsh 9.0.4: `[yield a]` as a command argument stays on the explicit stack.
+    // `coroutine` consumes the first yield ("a"); the resume value ("X") is what
+    // `set` stores and the body returns.
+    assert_eq!(
+        result(
+            "proc g {} { set r [string cat [yield a]]; return $r }; \
+             coroutine c g; c X"
+        ),
+        "X"
     );
 }
 

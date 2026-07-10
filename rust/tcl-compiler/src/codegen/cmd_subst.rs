@@ -414,9 +414,19 @@ impl CodegenCtx<'_> {
                 self.load_var(var_name);
                 return;
             }
-            // Bare $varname form (not normalised to ${var})
+            // Bare $varname form (not normalised to ${var}), including a
+            // namespace-qualified name (`$::x`, `$ns::v`): the `:` is a
+            // name character here, matching `is_var_name`/`parse_subst_template`
+            // (and `load_var`, which loads a qualified name via `LOAD_STK`).
+            // Without `:` a qualified `$::x` fell through to `push_lit("$::x")`,
+            // and the runtime `subst_word` leaves a bare `$name` (only `${…}`)
+            // untouched — so `[string length $::x]` measured the literal `$::x`.
             let rest = &arg[1..];
-            if !rest.is_empty() && rest.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            if !rest.is_empty()
+                && rest
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
+            {
                 self.load_var(rest);
                 return;
             }
@@ -504,10 +514,16 @@ impl CodegenCtx<'_> {
                 self.load_var(var_name);
             } else {
                 // Bare `$name` / `$name(idx)` — load the variable rather than
-                // pushing the unsubstituted literal.
+                // pushing the unsubstituted literal. A namespace-qualified name
+                // (`$::x`, `$ns::v`) counts as bare here (`:` is a name char,
+                // as in `is_var_name`/`load_var`); without it a qualified `$::x`
+                // fell through to `emit_value` → `push_lit("$::x")`, which the
+                // runtime leaves unsubstituted (only `${…}` is a subst trigger).
                 let rest = &word[1..];
-                let is_bare =
-                    !rest.is_empty() && rest.chars().all(|c| c.is_alphanumeric() || c == '_');
+                let is_bare = !rest.is_empty()
+                    && rest
+                        .chars()
+                        .all(|c| c.is_alphanumeric() || c == '_' || c == ':');
                 if is_bare || (!rest.is_empty() && split_array_ref(rest).is_some()) {
                     self.load_var(rest);
                 } else {
@@ -729,6 +745,12 @@ impl CodegenCtx<'_> {
                 Op::STR_CONCAT1,
                 vec![Operand::Imm(bytecode_imm(parts.len()))],
             );
+            return;
+        }
+        // A whole-word command substitution compiles inline (on the explicit
+        // stack) rather than via the runtime `subst_word` fallback, so a
+        // `[yield]`/`[cmd]` inside it stays yieldable in a coroutine.
+        if interpolate && self.try_emit_whole_cmd_subst(value) {
             return;
         }
         // Default: push as literal

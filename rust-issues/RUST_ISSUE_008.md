@@ -26,21 +26,29 @@ request that `dispatch_words` turns into a new `Tick::Suspend` (mirroring the
 `tailcall` → `Tick::Tailcall` plumbing; no compiler/bytecode change).
 
 Working and oracle-checked against tclsh 9.0.4
-(`rust/tcl-vm/tests/cmd_coro_e2e.rs`, 11 tests): `coroutine`/`yield`,
+(`rust/tcl-vm/tests/cmd_coro_e2e.rs`, 14 tests): `coroutine`/`yield`,
 generator-style bodies (`yield $x` in `foreach`/`while`/nested proc calls),
-independent interleaved coroutines, `[info coroutine]`, the resume command,
-`rename $coro {}` teardown + rename-to-new, the already-running guard, and
-`yield`/`yieldto` outside a coroutine. Boundary errors match C's
-`cannot yield: C stack busy`, detected via a `Vm::activation_depth` re-entry
-counter.
+**command substitution** (`set arg [yield $result]` — the resume-value idiom —
+and `cmd [yield]` argument position), independent interleaved coroutines,
+`[info coroutine]`, the resume command, `rename $coro {}` teardown +
+rename-to-new, the already-running guard, and `yield`/`yieldto` outside a
+coroutine. Boundary errors match C's `cannot yield: C stack busy`, detected via a
+`Vm::activation_depth` re-entry counter.
+
+**Command substitution is now yieldable.** A whole-word `[…]` compiles to an
+inline `INVOKE` on the explicit activation stack (matching C Tcl, which never
+runs a whole-word substitution through a recursive `Tcl_EvalObjEx`) rather than
+the runtime `subst_word` fallback, which re-entered the evaluator on the native
+stack. This closes the gating item for real-world generators. (En route it also
+fixed a pre-existing codegen bug: a namespace-qualified bare var `$::x`/`$ns::v`
+inside a command substitution was pushed as a literal instead of loaded, so e.g.
+`[string length $::x]` measured the string `"$::x"`.)
 
 **Remaining (still Open):**
-- A `yield` reached across a **host re-entry** — command substitution
-  `set x [yield]` (the resume-value idiom), `apply`, `catch`/`uplevel`/`eval` —
-  errors `cannot yield: C stack busy` instead of yielding, because those
-  constructs re-enter `run_activation` on the host stack rather than staying on
-  the explicit `acts` stack (C Tcl makes them NR-enabled). Extending the
-  yieldable surface is the next step and the gating item for real-world usage.
+- A `yield` reached across a host re-entry the VM runs on the **native Rust
+  stack** — `catch`/`uplevel`/`eval`/`apply` — still errors `cannot yield: C
+  stack busy` instead of yielding. C Tcl makes those NR-enabled; making them
+  re-enter the explicit trampoline is the remaining yieldable-surface work.
 - `yieldto` beyond the outside-a-coroutine error; the creating-namespace/`info
   level` refinements; the `after 0 $coro` event-loop driver (Phase 2).
 - The **wasm32** runtime coroutines (asyncify or VM-on-wasm) and the `thread`
