@@ -9279,11 +9279,14 @@ string reverse hello
    `string reverse hello` above drew a spurious "Unknown subcommand
    'reverse' for 'string'" even though the call never reaches the builtin
    ensemble at all.
-3. The fix queues both the "unknown subcommand" and the subcommand-level
-   "disabled in this dialect" verdicts into the same `pending_subcommand`
-   list and resolves them in `flush_arity_diagnostics`, through the
-   identical `non_proc_qnames` / `proc_offsets` / `stub_names` shadow
-   computation the arity path already uses — no duplicated logic.
+3. The fix queues the "unknown subcommand" verdict into the same
+   `pending_arity` list E002/E003/W004 already use (a wrong subcommand name
+   is the same species of "call is malformed against the resolved registry
+   signature" as a wrong argument count), and the subcommand-level "disabled
+   in this dialect" verdict into `pending_disabled_commands` (the queue the
+   whole-command W002 check uses). Both resolve through the shared
+   `UserResolutionFacts` shadow computation in `flush_arity_diagnostics` /
+   `flush_disabled_command_diagnostics` — no duplicated logic.
 4. Order-sensitivity is preserved: a top-level call *before* the shadowing
    proc's definition still reaches the real builtin (Tcl executes
    top-level commands in source order during load) and still fires; a
@@ -9313,9 +9316,10 @@ site — there is no "unknown subcommand" to report — but the identical call
 #### Why the analyser reaches that verdict
 
 `analyser/diagnostics/validity.rs::emit_w001_unknown_subcommand` queues its
-verdict into `Analyser::pending_subcommand` instead of pushing directly;
-`Analyser::flush_arity_diagnostics` drains it post-walk through the same
-shadow test as `pending_arity`, using each candidate's captured
+"unknown subcommand" verdict into `Analyser::pending_arity` — the same queue
+E002/E003/W004 already use — instead of pushing directly.
+`Analyser::flush_arity_diagnostics` drains it post-walk through
+`UserResolutionFacts::resolves_to_user`, using each candidate's captured
 call-site-resolution namespace and `enforce_order` flag (`true` for
 top-level calls, `false` inside a proc/method body).
 
