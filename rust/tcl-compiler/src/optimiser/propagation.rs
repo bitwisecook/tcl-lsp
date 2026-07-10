@@ -216,6 +216,9 @@ fn run_load_forwarding(
             let Some(use_stmt) = use_block.statements.get(use_idx) else {
                 continue;
             };
+            if has_intervening_barrier(fu, &chain.definition.block, idx, &use_site.block, use_idx) {
+                continue;
+            }
             // Prefer a per-argv applicable rewrite when the use
             // lives inside a `Statement::Call` whose tokens we
             // tracked. Each matching `$var` / `${var}` word gets
@@ -268,6 +271,72 @@ fn run_load_forwarding(
             ctx.report(opt);
         }
     }
+}
+
+/// True when an opaque effect — a `Statement::Barrier` or `Statement::UpFrame`
+/// (the CFG shape for a literal-body `uplevel`/`interp eval`) — could run
+/// between `def_block[def_idx]` and `use_block[use_idx]`, making a "sole
+/// reaching definition" forward unsound: `uplevel 1 {…}` / `uplevel #0 {…}`
+/// evaluates its body in a *different* frame (the caller's, or the absolute
+/// global one) and can reassign any name visible there, exactly like an
+/// opaque call. Independent of [`is_externally_mutable`] (which only catches
+/// `global`/`variable`/`upvar`/`trace`-*declared* aliasing): a plain proc-local
+/// variable with no alias/trace at all can still be mutated by a literal
+/// `uplevel #0 {…}` body a few lines later.
+///
+/// Same-block case: checked precisely (only the statements strictly between
+/// the two indices). Cross-block case: conservatively checks the remainder of
+/// `def_block`, the prefix of `use_block`, and — since enumerating every path
+/// between two arbitrary blocks is more machinery than this cheap forwarding
+/// pass warrants — every *other* block in the function; a barrier/upframe
+/// anywhere else in the body blocks the forward even if it turns out to sit on
+/// an unrelated branch.
+fn has_intervening_barrier(
+    fu: &crate::compilation_unit::FunctionUnit,
+    def_block: &str,
+    def_idx: usize,
+    use_block: &str,
+    use_idx: usize,
+) -> bool {
+    fn is_barrier(stmt: &Statement) -> bool {
+        matches!(stmt, Statement::Barrier { .. } | Statement::UpFrame { .. })
+    }
+
+    if def_block == use_block {
+        let Some(block) = fu.cfg.block_by_name(def_block) else {
+            return true; // can't verify safety — conservatively block the forward
+        };
+        let (lo, hi) = if def_idx <= use_idx {
+            (def_idx, use_idx)
+        } else {
+            (use_idx, def_idx)
+        };
+        return block.statements[lo.saturating_add(1)..hi.min(block.statements.len())]
+            .iter()
+            .any(is_barrier);
+    }
+    let Some(def_blk) = fu.cfg.block_by_name(def_block) else {
+        return true;
+    };
+    if def_blk.statements[(def_idx + 1).min(def_blk.statements.len())..]
+        .iter()
+        .any(is_barrier)
+    {
+        return true;
+    }
+    let Some(use_blk) = fu.cfg.block_by_name(use_block) else {
+        return true;
+    };
+    if use_blk.statements[..use_idx.min(use_blk.statements.len())]
+        .iter()
+        .any(is_barrier)
+    {
+        return true;
+    }
+    fu.cfg
+        .blocks
+        .values()
+        .any(|b| b.name != def_block && b.name != use_block && b.statements.iter().any(is_barrier))
 }
 
 /// O127 — store-to-load forwarding for a *computed* single-use
@@ -2985,6 +3054,39 @@ mod tests {
             opts.iter()
                 .any(|o| o.code == DiagCode::O102 && o.replacement == "7"),
             "expected O102 to still fold a genuinely private proc-local var, got {opts:?}",
+        );
+    }
+
+    // Regression: a literal-body `interp eval {}` (targeting the *current*
+    // interpreter — Tcl's documented meaning of the empty-string path) can
+    // reassign a variable in the calling scope exactly like an opaque call,
+    // even though it carries no `global`/`variable`/`upvar`/`trace`
+    // declaration for it. Confirmed against tclsh 8.6/9.0: `set n 5; interp
+    // eval {} {set n 99}; puts $n` prints `99`, not the stale `5`.
+    #[test]
+    fn o102_does_not_forward_past_interp_eval_barrier() {
+        let src = "set n 5\ninterp eval {} { set n 99 }\nputs $n\n";
+        let opts = run_pass(src);
+        assert!(
+            opts.iter()
+                .all(|o| !(o.code == DiagCode::O102 && o.replacement == "5")),
+            "must not forward the stale literal 5 past `interp eval {{}}`, got {opts:?}",
+        );
+    }
+
+    // Regression: a literal-body `uplevel #0 {…}` evaluates in the absolute
+    // global frame — at top level that coincides with the calling scope, so
+    // it can reassign a variable there too, with no alias declaration of its
+    // own. Confirmed against tclsh 8.6/9.0: `set n 5; uplevel #0 {set n
+    // 99}; puts $n` prints `99`.
+    #[test]
+    fn o102_does_not_forward_past_uplevel_hash0_upframe() {
+        let src = "set n 5\nuplevel #0 { set n 99 }\nputs $n\n";
+        let opts = run_pass(src);
+        assert!(
+            opts.iter()
+                .all(|o| !(o.code == DiagCode::O102 && o.replacement == "5")),
+            "must not forward the stale literal 5 past `uplevel #0`, got {opts:?}",
         );
     }
 
