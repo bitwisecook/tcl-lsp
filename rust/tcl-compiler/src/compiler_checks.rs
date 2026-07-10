@@ -280,10 +280,7 @@ pub fn run_all_checks_with_solved_and_patterns(
     // `TclOO` method bodies and synthetic body units (`apply` lambdas,
     // `namespace eval` bodies) — see [`shimmer_family_checks`]. SCCP/GVN
     // stay proc-only for now (unreviewed blast radius outside this family).
-    for fu in cu.methods.values().chain(cu.body_units.values()) {
-        if fu.complexity_guarded {
-            continue;
-        }
+    for fu in cu.analysable_methods_and_body_units() {
         for d in shimmer_family_checks(fu, registry, dialect) {
             out.push(shift(fu, d));
         }

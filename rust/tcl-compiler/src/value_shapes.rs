@@ -199,10 +199,8 @@ fn widened_token_text(inner: &str, tok: &tcl_lexer::Token) -> Option<(String, u3
     let start = tok.span.start() as usize;
     let end = tok.span.end() as usize;
     let text = inner.get(start..end)?;
-    let closer = match tok.kind {
-        TokenType::Str => '}',
-        TokenType::Cmd => ']',
-        _ => return Some((text.to_owned(), tok.span.end())),
+    let Some(closer) = tok.kind.group_closer() else {
+        return Some((text.to_owned(), tok.span.end()));
     };
     if text.ends_with(closer) {
         return Some((text.to_owned(), tok.span.end()));

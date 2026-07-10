@@ -1480,10 +1480,7 @@ pub fn proc_taint_solve<'db>(
     // identical second loop (see that function's doc comment for why: these
     // never get an offset-0 `FnLatticeKey`, so they carry absolute spans
     // already and need no rebase, same as the `None` arm above).
-    for fu in cu.methods.values().chain(cu.body_units.values()) {
-        if fu.complexity_guarded {
-            continue;
-        }
+    for fu in cu.analysable_methods_and_body_units() {
         for d in tcl_compiler::compiler_checks::shimmer_family_checks(fu, &registry, dialect_opt) {
             fn_checks.push(d);
         }
