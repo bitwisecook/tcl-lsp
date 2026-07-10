@@ -463,3 +463,37 @@ fn variadic_args_proc_is_not_argument_sensitively_folded() {
     let source = result.get("source").and_then(Value::as_str).unwrap_or("");
     assert!(source.contains("puts [::foo 1 2]"), "{source:?}");
 }
+
+// Regression: a literal-body `uplevel #0 {...}` reassigns a variable in the
+// absolute global frame — at top level that coincides with the calling
+// scope, so it can mutate a variable there with no `global`/`upvar`
+// declaration of its own. Confirmed against tclsh 8.6/9.0 as a real
+// miscompile before SCCP widened tracked values across `Statement::UpFrame`:
+// `set n 5; uplevel #0 {set n 99}; puts $n` prints `99`, not the stale `5`.
+#[test]
+fn uplevel_hash0_reassignment_is_not_folded() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set n 5\nuplevel #0 { set n 99 }\nputs $n\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(
+        source.contains("puts $n"),
+        "must not fold `puts $n` to the stale literal 5: {source:?}"
+    );
+}
+
+// TN control: a plain top-level constant with no intervening `uplevel`/
+// `interp eval` barrier must still fold — the UpFrame-widening fix above
+// must not over-widen to every top-level variable.
+#[test]
+fn top_level_constant_untouched_by_uplevel_still_folds() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set n 5\nputs $n\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(source.contains("puts 5"), "{source:?}");
+}

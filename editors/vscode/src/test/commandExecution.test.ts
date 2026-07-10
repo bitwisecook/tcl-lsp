@@ -216,6 +216,28 @@ suite("LSP Command Execution", () => {
     );
   });
 
+  // Regression: a literal-body `uplevel #0 {...}` reassigns a variable in
+  // the absolute global frame, which at top level coincides with the
+  // calling scope (see rust/tcl-lsp-server/tests/e2e/diagnostic_matrix.rs
+  // `uplevel_hash0_reassignment_is_not_folded` for the native e2e
+  // counterpart and the tclsh-verified miscompile this fixes).
+  test("tcl-lsp.optimiseDocument does not fold past an uplevel #0 reassignment", async () => {
+    const doc = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: "set n 5\nuplevel #0 { set n 99 }\nputs $n\n",
+    });
+    await vscode.window.showTextDocument(doc);
+    const uri = doc.uri.toString();
+    const result = (await execLspCommand("tcl-lsp.optimiseDocument", uri, "full")) as {
+      source: string;
+    } | null;
+    assert.ok(result, "optimiseDocument should return a result");
+    assert.ok(
+      result.source.includes("puts $n"),
+      `must not fold \`puts $n\` to the stale literal 5: ${result.source}`,
+    );
+  });
+
   // -- fixAllSafeIssues -------------------------------------------------------
 
   test("tcl-lsp.fixAllSafeIssues returns applied list", async () => {
