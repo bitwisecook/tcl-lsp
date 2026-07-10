@@ -149,6 +149,32 @@ suite("LSP Command Execution", () => {
     );
   });
 
+  // O101 (fold constant integer expressions): one true-positive fold and one
+  // guarded false-positive (a user-defined ::tcl::mathfunc:: shadowing the
+  // builtin) in the same fixture, since the shadow gate is name-specific
+  // rather than whole-module.
+  test("tcl-lsp.optimiseDocument folds a plain constant expr but not a shadowed-mathfunc one", async () => {
+    const o101Uri = getDocUri("optimisation-o101.tcl");
+    await activate(o101Uri);
+    const result = (await execLspCommand(
+      "tcl-lsp.optimiseDocument",
+      o101Uri.toString(),
+      "full",
+    )) as {
+      optimisations: unknown[];
+      source: string;
+    } | null;
+    assert.ok(result, "optimiseDocument should return a result");
+    assert.ok(
+      result.source.includes("return 3"),
+      `plain 'expr {1 + 2}' should fold to 'return 3': ${result.source}`,
+    );
+    assert.ok(
+      result.source.includes("expr {triple(2)}"),
+      `shadowed-mathfunc call must not fold: ${result.source}`,
+    );
+  });
+
   // -- fixAllSafeIssues -------------------------------------------------------
 
   test("tcl-lsp.fixAllSafeIssues returns applied list", async () => {
