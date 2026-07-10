@@ -286,3 +286,38 @@ fn nothing_to_fold_is_unchanged() {
     // A dynamic expression has no safe constant fold — source is preserved.
     assert!(source.contains("expr {$a + $b}"), "{source:?}");
 }
+
+// -- O103 (pure-proc constant fold) ---------------------------------------
+
+#[test]
+fn o103_folds_implicit_return_proc_end_to_end() {
+    // TP: the KCS O103 doc's own canonical example — a proc with no
+    // explicit `return`, relying on Tcl's "value of the last command
+    // executed" rule — must fold through the full LSP pipeline, not just
+    // the in-process pass. See docs/kcs/codes/kcs-optimisation-o103-static-proc-folding.md.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc double {n} { expr {$n * 2} }\nset x [double 21]\n",
+    );
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(source.contains("set x 42"), "{source:?}");
+}
+
+#[test]
+fn o103_does_not_fold_proc_renamed_over() {
+    // FP guard / miscompile-guard: `rename triple double` moves `triple`'s
+    // body onto the name `double`, so `[double 21]` now runs `triple`'s
+    // body (63), not the original `double` proc's body (42). The optimiser
+    // must leave the call site untouched rather than fold to the wrong
+    // constant.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc double {n} { expr {$n * 2} }\nproc triple {n} { expr {$n * 3} }\nrename triple double\nset x [double 21]\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(source.contains("set x [double 21]"), "{source:?}");
+}
