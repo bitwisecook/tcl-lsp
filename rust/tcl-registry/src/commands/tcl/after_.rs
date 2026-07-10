@@ -25,6 +25,47 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "after ms",
 }];
 
+/// Mark the sole script word of `after ms script` as [`ArgRole::Body`], so
+/// a bareword callback (`after 1000 myProc`) is recursed as a real command
+/// invocation — same-file arity checking then sees the `myProc` call
+/// exactly as it would inside any other script, rather than treating it as
+/// an opaque, unchecked value (matching `fileevent` / `chan event`'s static
+/// `(2, ArgRole::Body)` marking). Only reached for the *default*
+/// numeric-delay form: [`CommandRegistry::arg_indices_for_role`] tries
+/// subcommand resolution first, so `after cancel …` / `after idle …` /
+/// `after info …` never call this resolver at all.
+///
+/// `args[0]` is the delay (`after`'s own arity requires it). Marks a script
+/// word only when it is the **sole** trailing word (`args.len() == 2`):
+/// `after ms script script script ...?` concatenates every trailing word
+/// together (like `concat`) before evaluating the result as one script, so
+/// `after 1000 {cb} 1 2` really runs `cb 1 2`, not `cb` alone — with more
+/// than one trailing word, marking just the first as `Body` would recurse
+/// into a truncated, wrongly-arity-checked fragment of the real script
+/// (confirmed against tclsh 9.0.4: `after info` shows the registered script
+/// as the space-joined concatenation). Abstain in that case rather than
+/// model the concatenation — a single braced script is by far the
+/// idiomatic form.
+fn after_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    if args.len() == 2 {
+        vec![(1, ArgRole::Body)]
+    } else {
+        Vec::new()
+    }
+}
+
+/// Same concatenation-aware guard as [`after_arg_roles`], for `after idle
+/// script ?script script ...?`. `args` here is already the subcommand's
+/// own slice (the word after `idle`), so the sole script word is at index
+/// 0 — marked as `Body` only when it is the only trailing word.
+fn after_idle_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    if args.len() == 1 {
+        vec![(0, ArgRole::Body)]
+    } else {
+        Vec::new()
+    }
+}
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "cancel",
@@ -37,6 +78,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "idle",
         arity: Arity::at_least(1),
+        // Same concatenation shape as the default `after ms script` form
+        // (`after_arg_roles`) — mark the sole script word only when it is
+        // the only one present, abstaining rather than mis-recursing a
+        // truncated fragment when several words concatenate together.
+        arg_role_resolver: Some(after_idle_arg_roles),
         detail: "Arrange for a script to be evaluated later as an idle callback.",
         synopsis: "after idle script ?script script ...?",
         return_type: Some(TclType::String),
@@ -58,6 +104,7 @@ pub fn spec() -> CommandSpec {
         name: "after",
         traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),
+        arg_role_resolver: Some(after_arg_roles),
         subcommands: SUBCOMMANDS,
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {

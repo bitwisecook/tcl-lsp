@@ -401,6 +401,85 @@ $w1 fwd 1 2 3
     assert!(!has_code(&diags_ok, "E003"));
 }
 
+#[test]
+fn same_file_tcloo_constructor_call_arity_is_checked() {
+    // `ClassName new ?args?` / `ClassName create name ?args?` is checked
+    // against the class's own (or nearest inherited) `constructor` — a
+    // gap this review closed; previously neither form drew any arity
+    // diagnostic at all.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Widget { constructor {a b} { } }\nWidget new 1\n",
+    );
+    assert!(
+        has_code(&diags, "E002"),
+        "expected E002 for a 1-arg call to a 2-arg constructor; got {diags:?}"
+    );
+    let uri2 = unique_uri("tcl");
+    let diags_create = lsp.open_ready(
+        &uri2,
+        "oo::class create Widget { constructor {a b} { } }\nWidget create fido 1 2 3\n",
+    );
+    assert!(
+        has_code(&diags_create, "E003"),
+        "expected E003 for create's mandatory name plus 3 extra args against a 2-arg constructor; got {diags_create:?}"
+    );
+    let uri3 = unique_uri("tcl");
+    let diags_ok = lsp.open_ready(
+        &uri3,
+        "oo::class create Widget { constructor {a b} { } }\nWidget create fido 1 2\n",
+    );
+    assert!(!has_code(&diags_ok, "E002"));
+    assert!(!has_code(&diags_ok, "E003"));
+}
+
+#[test]
+fn same_file_tcloo_constructor_inherited_through_superclass_is_checked() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Base { constructor {a b} { } }\noo::class create Sub { superclass Base }\nSub new 1\n",
+    );
+    assert!(
+        has_code(&diags, "E002"),
+        "a subclass with no constructor of its own must inherit the superclass's; got {diags:?}"
+    );
+}
+
+#[test]
+fn same_file_tcloo_no_explicit_constructor_is_never_checked() {
+    // TclOO's default (inherited from `oo::object`) constructor accepts
+    // and ignores any number of arguments.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Widget { method bar {} { } }\nWidget new 1 2 3 4 5\n",
+    );
+    assert!(!has_code(&diags, "E002"));
+    assert!(!has_code(&diags, "E003"));
+}
+
+#[test]
+fn same_file_apply_lambda_call_arity_is_checked() {
+    // A direct `apply {{params} body} ?args?` call — another gap this
+    // review closed.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "apply {{a b} {return [expr {$a+$b}]}} 1\n");
+    assert!(
+        has_code(&diags, "E002"),
+        "expected E002 for a 1-arg call to a 2-param lambda; got {diags:?}"
+    );
+    let uri2 = unique_uri("tcl");
+    let diags_ok = lsp.open_ready(&uri2, "apply {{a b} {return [expr {$a+$b}]}} 1 2\n");
+    assert!(!has_code(&diags_ok, "E002"));
+    assert!(!has_code(&diags_ok, "E003"));
+}
+
 // -- TestDiagnosticCanaries ----------------------------------------------
 // One canary per analysis family, locked to the server's published output.
 

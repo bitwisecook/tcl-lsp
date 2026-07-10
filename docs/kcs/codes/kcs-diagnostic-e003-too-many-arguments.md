@@ -19,7 +19,7 @@ Why do I see a red squiggle saying a command was called with too many arguments?
 
 Passing more arguments than a command accepts will raise a runtime error. The extra words are never silently ignored, so the script will fail.
 
-This check is not limited to builtin commands: it also applies to same-file `proc` calls, `interp alias` targets (shifted by any prepended arguments), `rename`d commands (which keep the original's arity), and TclOO methods and `forward`s (including `forward NAME my TARGET ?ARG…?`, the idiom for forwarding to a sibling or inherited method).
+This check is not limited to builtin commands: it also applies to same-file `proc` calls, `interp alias` targets (shifted by any prepended arguments), `rename`d commands (which keep the original's arity), TclOO methods and `forward`s (including `forward NAME my TARGET ?ARG…?`, the idiom for forwarding to a sibling or inherited method), TclOO constructor calls (`ClassName new ?args?` / `ClassName create name ?args?`, checked against the nearest explicit `constructor` in the class's inheritance chain), and direct calls to an inline `apply {{params} body} ?args?` lambda.
 
 ## Symptoms
 
@@ -60,6 +60,11 @@ lsort -command oneArg {3 1 2}   ;# lsort appends 2 → E003 on `oneArg`
 
 Fix by widening the callback's parameter list (here to `{a b}`) or giving it a
 variadic tail (`{args}`) so it absorbs every appended argument.
+
+**This specific check requires cross-file diagnostics to be enabled** (the
+`xcDiagnostics` setting — off by default) — see the identical note on the
+[E002 page](kcs-diagnostic-e002-too-few-arguments.md#command-prefix-callback-context).
+Every other E003 case on this page fires unconditionally.
 
 ## Fix
 
