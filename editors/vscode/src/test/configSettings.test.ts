@@ -1073,8 +1073,13 @@ suite("Configuration Settings", () => {
     const config = vscode.workspace.getConfiguration("tclLsp.optimiser");
     try {
       await config.update("enabled", false, undefined);
+      // 20s, matching waitForDeepDiagnostics's default: under the full
+      // suite's background load (workspace warm-up, the #844 progressive
+      // diagnostics race, …) this round-trip routinely needs more than the
+      // 5s generic default.
       await waitForEffectiveConfig(docUri, (c) => c.optimiser_enabled === false, {
         label: "optimiser disabled",
+        timeout: 20000,
       });
 
       // Re-trigger analysis with a noop edit; snapshot the log
@@ -1097,6 +1102,7 @@ suite("Configuration Settings", () => {
       await config.update("enabled", undefined, undefined);
       await waitForEffectiveConfig(docUri, (c) => c.optimiser_enabled === true, {
         label: "optimiser re-enabled",
+        timeout: 20000,
       });
     }
   });
