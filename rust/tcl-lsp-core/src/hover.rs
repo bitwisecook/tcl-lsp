@@ -235,9 +235,10 @@ pub fn hover_with_dialect(
     // instance's class is known, render the method summary.
     // Checked before the proc lookup so a method call wins over
     // a same-named proc.
-    if let Some((inst, method)) =
+    if let Some((inst, method, is_dollar)) =
         crate::definition::instance_method_at_cursor(source, line, character)
-        && let Some(class_q) = analysis.instance_classes.get(&inst)
+        && let Some(class_q) =
+            crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
         && let Some(text) = obj_method_hover_text(analysis, class_q, &method)
     {
         return Some(Hover::markdown(text));

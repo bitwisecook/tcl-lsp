@@ -166,7 +166,15 @@ pub fn code_lenses(
         // counts both intra-class `my method` dispatch and external
         // `$obj method` call sites (via `instance_classes` type tracking),
         // plus the call sites of any subclass that inherits this definition.
-        emit_class_member_lenses(source, dialect, qname, class_def, analysis, &line_index, &mut lenses);
+        emit_class_member_lenses(
+            source,
+            dialect,
+            qname,
+            class_def,
+            analysis,
+            &line_index,
+            &mut lenses,
+        );
     }
 
     lenses
@@ -730,6 +738,38 @@ mod tests {
             .find(|l| l.range.start_line == 1)
             .expect("speak lens");
         assert_eq!(speak.command_title, "1 reference", "{lenses:?}");
+    }
+
+    #[test]
+    fn lens_matches_peek_for_inherited_method_with_subclass_my_dispatch() {
+        // Codex #881: the lens uses `method_references_for_class`, which counts
+        // a `my speak` call in an *inheriting* subclass body; the peek from the
+        // declaration must count it too (it now shares that resolver), so lens
+        // and peek can't drift.  Here `Base::speak` is referenced by `Derived`'s
+        // `my speak` and by `$d speak` — two sites.
+        let src = concat!(
+            "oo::class create Base {\n",
+            "    method speak {} {}\n",
+            "}\n",
+            "oo::class create Derived {\n",
+            "    superclass Base\n",
+            "    method twice {} { my speak }\n",
+            "}\n",
+            "set d [Derived new]\n",
+            "$d speak\n",
+        );
+        let analysis = analyse(src);
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let speak = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("speak lens");
+        assert_eq!(speak.command_title, "2 references", "{lenses:?}");
+        // Lens and peek (from the `Base::speak` declaration) must agree.
+        assert_lens_matches_references(src, 1);
     }
 
     #[test]

@@ -333,8 +333,9 @@ fn instance_method_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         analysis,
         include_declaration,
     } = *ctx;
-    let (inst, method) = crate::definition::instance_method_at_cursor(source, line, character)?;
-    let class_q = analysis.instance_classes.get(&inst)?;
+    let (inst, method, is_dollar) =
+        crate::definition::instance_method_at_cursor(source, line, character)?;
+    let class_q = crate::definition::receiver_instance_class(analysis, &inst, is_dollar)?;
     let (decl_span, call_spans) =
         method_references_for_class(source, dialect, analysis, class_q, &method)?;
     Some(build_member_ranges(
@@ -576,19 +577,26 @@ fn find_class_member_references(
         if !(body.start() < cursor_offset && cursor_offset < body.end()) {
             continue;
         }
-        let name_span: Option<Span> = class_def
-            .methods
-            .get(word)
-            .map(|m| m.name_span)
-            .or_else(|| class_def.class_methods.get(word).map(|m| m.name_span))
-            .or_else(|| class_def.properties.get(word).map(|p| p.name_span));
-        let decl_span = name_span?;
-        // Collect call-site spans by re-segmenting every
-        // method body (the analyser doesn't walk into method
-        // bodies for the `command_invocations` collection).
-        let bodies: Vec<Span> = collect_member_bodies(class_def);
+        // Methods / classmethods: defer to the shared resolver — the *same*
+        // one the code lens counts with — so the peek and the lens can never
+        // drift.  It covers intra-class `my method` dispatch, external
+        // `$obj method` / bare `objcmd method` sites, and the call sites of
+        // any subclass that inherits (does not override) this definition
+        // (which the class-local scan below would miss).
+        if class_def.methods.contains_key(word) || class_def.class_methods.contains_key(word) {
+            return method_references_for_class(
+                source,
+                dialect,
+                analysis,
+                &class_def.qualified_name,
+                word,
+            );
+        }
+        // Properties: no `$obj prop` dispatch and no inheritance model, so a
+        // class-local `my <prop>` scan is the whole story.
+        let decl_span = class_def.properties.get(word).map(|p| p.name_span)?;
         let mut call_spans: Vec<Span> = Vec::new();
-        for body_span in bodies {
+        for body_span in collect_member_bodies(class_def) {
             if body_span.is_empty() {
                 continue;
             }
@@ -610,14 +618,9 @@ fn find_class_member_references(
                 tcl_lexer::LexerConfig::for_dialect(dialect),
             );
             for cmd in &commands {
-                // Intra-class dispatch of a method/classmethod is `my <member>`
-                // — the member name is argv[1], not the command head. A bare
-                // head equal to the member name is NOT a call (a TclOO method is
-                // not a command in the body's namespace; `<member> …` without
-                // `my`/an object errors with "invalid command name"), and a
-                // property is read as `$prop`, never as a command head either —
-                // so matching the head produced both false positives (bare
-                // heads) and false negatives (`my <member>` missed).
+                // A property is read as `$prop`, never as a command head; the
+                // only command-form reference is `my <prop>` (its generated
+                // accessor).  Match that, at argv[1].
                 let Some(head) = cmd.argv.first() else {
                     continue;
                 };
@@ -640,27 +643,8 @@ fn find_class_member_references(
                 if &source[n_start..n_end] != word {
                     continue;
                 }
-                // Skip the declaration site itself (cannot happen — the
-                // declaration sits outside method bodies — but defensive).
-                if name_tok.span.start() == decl_span.start()
-                    && name_tok.span.end() == decl_span.end()
-                {
-                    continue;
-                }
                 call_spans.push(name_tok.span);
             }
-        }
-        // Append external `$obj method` call sites for
-        // methods / classmethods (not properties — those
-        // aren't dispatched as `$obj prop`).
-        if class_def.methods.contains_key(word) || class_def.class_methods.contains_key(word) {
-            call_spans.extend(find_obj_method_call_sites(
-                source,
-                dialect,
-                analysis,
-                &class_def.qualified_name,
-                word,
-            ));
         }
         return Some((decl_span, call_spans));
     }
@@ -1416,7 +1400,11 @@ mod tests {
         assert_eq!(sites.len(), 1, "{sites:?}");
         // The matched span is the `bark` method-name token of `rex bark`.
         let s = sites[0];
-        assert_eq!(&src[s.start() as usize..s.end() as usize], "bark", "{sites:?}");
+        assert_eq!(
+            &src[s.start() as usize..s.end() as usize],
+            "bark",
+            "{sites:?}"
+        );
     }
 
     #[test]
@@ -1432,6 +1420,19 @@ mod tests {
     }
 
     #[test]
+    fn references_from_cursor_on_bare_obj_command_call_site() {
+        // Codex #881 (symmetry): invoking Find All References with the cursor
+        // ON the `bark` token of a bare `rex bark` dispatch must resolve — not
+        // only the declaration-based peek.  `rex` is at col 0, `bark` at col 4.
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nDog create rex\nrex bark\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 4, 4, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(lines.contains(&4), "call site missing: {refs:?}");
+    }
+
+    #[test]
     fn bare_set_var_receiver_is_not_matched_without_dollar() {
         // FP guard: `set d [Dog new]` binds `d` as a *variable*, not a
         // command.  A bare `d bark` (no `$`) is NOT a valid dispatch in Tcl,
@@ -1439,6 +1440,9 @@ mod tests {
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nd bark\n";
         let analysis = analyse(src);
         let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark");
-        assert!(sites.is_empty(), "bare var receiver wrongly matched: {sites:?}");
+        assert!(
+            sites.is_empty(),
+            "bare var receiver wrongly matched: {sites:?}"
+        );
     }
 }
