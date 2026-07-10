@@ -198,6 +198,54 @@ fn vm_coroutines_run_on_wasm32() {
     );
 }
 
+/// The **shipped** VM-on-wasm cdylib (`rust/tcl-vm-wasm`) — the primary wasm
+/// compile target (RUST_ISSUE_008 piece 1) — builds to wasm32 and runs coroutine
+/// scripts through its `tcl_alloc`/`tcl_eval`/`tcl_dealloc` ABI under Node,
+/// returning the tclsh-9.0.4 oracle values. The generated-crate test above proves
+/// the raw capability; this pins the product crate, its ABI, and `verify.mjs`
+/// (including a `yield`-across-`catch` case, exercised on wasm).
+#[test]
+fn vm_wasm_crate_runs_coroutines_via_abi() {
+    if !have_wasm_target() {
+        eprintln!("wasm32-unknown-unknown target unavailable; skipping tcl-vm-wasm ABI test");
+        return;
+    }
+    if !have_node() {
+        eprintln!("node unavailable; skipping tcl-vm-wasm ABI test");
+        return;
+    }
+    let crate_path = crate_dir().join("..").join("tcl-vm-wasm");
+    let manifest = crate_path.join("Cargo.toml");
+    let build = Command::new(env!("CARGO"))
+        .args([
+            "build",
+            "--release",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--manifest-path",
+            manifest.to_str().expect("manifest path utf-8"),
+        ])
+        .output()
+        .expect("run cargo build");
+    assert!(
+        build.status.success(),
+        "tcl-vm-wasm build failed:\n{}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+    let wasm = crate_path.join("target/wasm32-unknown-unknown/release/tcl_vm_wasm.wasm");
+    assert!(wasm.exists(), "wasm artifact missing at {}", wasm.display());
+
+    // `verify.mjs` runs a generator, the resume-value idiom, and a
+    // yield-across-catch case through the ABI, exiting non-zero on any mismatch
+    // (so `run_node`'s success assertion is the real gate).
+    let out = run_node(&crate_path.join("verify.mjs"), &wasm);
+    assert!(out.contains("ok   generator: 234"), "verify output: {out}");
+    assert!(
+        out.contains("ok   catch: done:0: foo"),
+        "verify output: {out}"
+    );
+}
+
 fn run_node(harness: &Path, wasm: &Path) -> String {
     let out = Command::new("node")
         .arg(harness)

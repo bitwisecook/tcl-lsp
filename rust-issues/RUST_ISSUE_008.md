@@ -7,7 +7,7 @@
 | **Severity** | high |
 | **Subsystem** | Backend parity (WASM/VM/eBPF/registry) |
 | **Location** | `WASM backend` |
-| **Status** | Substantially resolved (VM coroutines incl. `coroprobe`/`coroinject`/`corotype`/`yieldto` + event loop + thread package; coroutines proven on wasm32 via the VM; `yield` now crosses `eval`/`uplevel 0` on the explicit stack). C `coroutine.test` runs the VM at **55/77** (3 skipped, 19 remaining are the documented host-re-entry divergence + unimplemented `info frame`/`interp create`). Open tail: wiring the VM as the primary wasm compile backend, and `yield` across `subst`/`lmap` (needs an inline-`subst` lowering / a collecting inline-`lmap` opcode). |
+| **Status** | Substantially resolved (VM coroutines incl. `coroprobe`/`coroinject`/`corotype`/`yieldto` + event loop + thread package incl. `mutex`/`cond`/`rwmutex`/`tpool`; coroutines proven on wasm32 via the VM, now the **default `tcl compwasm` backend** shipping a generic `vm.wasm` runner; `yield` now crosses `eval`/`uplevel 0`/`catch` on the explicit stack). C `coroutine.test` runs the VM at **55/77** (3 skipped, 19 remaining are the documented host-re-entry divergence + unimplemented `info frame`/`interp create`). Open tail: `yield` across `subst`/`lmap` (needs an inline-`subst` lowering / a collecting inline-`lmap` opcode). |
 | **Verification** | Oracle-checked against tclsh 9.0.4 (coroutine/event-loop suites, 28 `cmd_coro_e2e` tests) + the real C `tests/coroutine.test` through the VM (55/77) + a Node-executed wasm32 coroutine test; thread package via deterministic concurrency tests (`thread.test` is `testthread`-gated → N/A; no threaded oracle). |
 
 ## Finding
@@ -64,6 +64,18 @@ lambda executes on the coroutine's explicit stack; the proc is torn down with th
 coroutine. (The lambda-parse logic is shared with `apply` via `build_lambda_proc`;
 `apply`'s own behaviour is unchanged.)
 
+**`catch` is yieldable.** `cmd_catch` no longer runs its body via `eval_source`
+(a native re-entry that bumped `activation_depth`, so a `yield` inside `catch {…}`
+errored `cannot yield: C stack busy`). It now compiles the body and parks a
+`CatchReq` in `Vm.pending_catch`, which `dispatch_words` drains into a
+`Tick::PushCatch` → a resumable *catch frame* (`Frame::new_catch`) on the explicit
+stack — the same mechanism as `eval`/`uplevel 0`, but the frame **absorbs** the
+body's completion instead of propagating it: `unwind` recognises the catch frame,
+builds the body's errorInfo, and runs the shared `Vm::finish_catch` epilogue
+(bind the result/options vars, deliver the status code as `catch`'s result — for
+*any* completion code). `try` still re-enters natively (its `eval_body` calls
+`eval_source`), so `yield` across `try` remains barriered.
+
 ## Progress — event loop (Phase 2)
 
 The VM now has a minimal but faithful single-threaded event loop
@@ -100,12 +112,27 @@ names}`. `thread::send` serializes a script to the target's channel and (unless
 `tcl_platform(threaded)` is now honest — `0` on a bare VM, `1` once the embedder
 (`tcl-vm-cli`) calls `Vm::enable_threads`.
 
+**Sync primitives + thread pools.** `thread::mutex`/`rwmutex`/`cond` and
+`tpool::*` share the same `Arc<Shared>` registries. A mutex is a
+`Mutex<MutexState>` + `Condvar` (recursive: it honours a same-thread relock); a
+rwmutex is an `RwState` + `Condvar` (many readers xor one writer); a cond variable
+is a generation-counter gate + `Condvar`, and `thread::cond wait` releases its
+paired mutex and re-acquires it on wake. `tpool::create`/`post`/`wait`/`get`/
+`names` run a fixed worker set over a shared job queue — each worker builds its
+own `Vm` from the `Send` compile-service factory, runs an optional `-initcmd`
+once, then loops; `post -detached` discards the result and `get` blocks for (and
+propagates the error of) a job. `forbid(unsafe)` is kept throughout: the
+`Condvar`/`RwLock` primitives carry the safety, with no `unsafe impl Send`.
+
 No oracle: the reference tclsh 9.0.4 is a **non-threaded** build (no `Thread`
 package, `tcl_platform(threaded)` unset), so this subsystem is validated by
-deterministic concurrency tests (`rust/tcl-vm/tests/cmd_thread_e2e.rs`, 12 tests:
+deterministic concurrency tests (`rust/tcl-vm/tests/cmd_thread_e2e.rs`, 25 tests:
 sync/async send, per-worker isolation, worker-error propagation, exists/names/
-release, an atomic 4-thread `tsv::incr` counter totalling 1000, and the `tsv::*`
-element operations), with semantics per the Tcl `Thread` package docs.
+release, an atomic 4-thread `tsv::incr` counter totalling 1000, the `tsv::*`
+element operations, and the sync primitives — mutex roundtrip/recursion/serialised
+read-modify-write, `cond` notify + timeout, rwmutex writer exclusion, and the
+`tpool` post/collect/`-initcmd`-state/wait/error/`-detached`/names paths), with
+semantics per the Tcl `Thread` package docs.
 
 ## Progress — coroutines on wasm32 (Phase 4)
 
@@ -127,6 +154,35 @@ now `cfg`-gated off that target (an empty `env`), leaving native/WASI unchanged.
 
 This supersedes the runtime tree-walker's OS-thread-per-coroutine wasm stub (the
 plan's asyncify alternative): the VM delivers working wasm coroutines directly.
+
+## Progress — VM as the primary wasm compile target
+
+The VM is now the **default `tcl compwasm` backend**. Because the VM compiles Tcl
+at run time and `ModuleAsm` is not serialisable (no serde in `tcl-bytecode`), the
+artifact is a *generic* runner — the VM + compiler statically linked — that takes
+a script at run time, not a per-script embedded module. The new crate
+`rust/tcl-vm-wasm` (`crate-type = ["cdylib"]`, path deps `tcl-vm`/`tcl-compiler`/
+`tcl-registry`/`tcl-bytecode`) builds to `wasm32-unknown-unknown` with **no
+imports and no WASI** (pure-Rust `num-bigint`, so the tree-walker's
+`WASI_SDK_PATH`/libtommath blocker does not apply) and exports a three-call
+linear-memory ABI: `tcl_alloc(len) -> ptr`, `tcl_dealloc(ptr, len)`, and
+`tcl_eval(ptr, len) -> packed(out_ptr, out_len)` — which builds a `Vm`,
+`set_compiler`s the in-tree compile service, `eval_source`s the script (coroutines
+included), and returns its captured output. `make tcl-vm-wasm` builds and
+self-checks it (`verify.mjs` runs a generator, the `set n [yield]` resume-value
+idiom, and a `yield`-across-`catch` case under Node, asserting the tclsh-9.0.4
+values) and ships `build/tcl-vm-wasm/vm.wasm`; the wasm CI check `fmt`s and
+`clippy`s it for `wasm32`.
+
+Surfaces select the backend with a `--backend vm|tree-walker` flag (default `vm`):
+`tcl compwasm --backend vm` emits the shipped `vm.wasm` runner (compile-checking
+the script first), `--backend tree-walker` keeps the legacy eval-fallback emitter
+(the only one that yields a per-script WAT module, still used by the explorer's
+WAT view); the MCP `compile_wasm` tool mirrors it, returning the bytecode
+disassembly for `vm` and WAT for `tree-walker`. The product crate, its ABI, and
+`verify.mjs` are pinned by `vm_wasm_crate_runs_coroutines_via_abi` in
+`wasm_coro_e2e.rs`, and `compwasm_vm_backend_emits_runner` round-trips the CLI
+default (both skip cleanly without the wasm toolchain).
 
 ## Progress — C `coroutine.test` / `thread.test` harnesses
 
@@ -172,27 +228,24 @@ validated by the native `cmd_thread_e2e.rs` suite (per the `Thread` package docs
 the reference tclsh is non-threaded, so there is no threaded oracle).
 
 **Remaining (still Open):**
-- **`eval` and `uplevel 0` are now yieldable** (they run their body on the
-  explicit stack via a transparent script frame — see the harness section).
-  Still on the **native Rust stack**, so a `yield` across them errors `cannot
-  yield: C stack busy`: `subst` (the template's `[…]` run in `cmd_subst`), `lmap`
-  (always the runtime `cmd_lmap`), `catch`/`try`, `apply` in an *arbitrary*
-  position, `lsort -command`, and a `[yieldto …]` command substitution in an
-  argument slot that lowers to runtime `subst_word`. Extending the script-frame
-  mechanism needs a collecting inline-`lmap` opcode and an inline-`subst`
-  lowering (the ~8 remaining host-re-entry `coroutine.test` failures). `yieldto`,
-  the creating-namespace command resolution, and `info level`/`info coroutine`
-  are done.
+- **`eval`, `uplevel 0`, and `catch` are now yieldable** (they run their body on
+  the explicit stack via a transparent script/catch frame — see the harness
+  section). Still on the **native Rust stack**, so a `yield` across them errors
+  `cannot yield: C stack busy`: `subst` (the template's `[…]` run in `cmd_subst`),
+  `lmap` (always the runtime `cmd_lmap`), `try` (its `eval_body` re-enters via
+  `eval_source`), `apply` in an *arbitrary* position, `lsort -command`, and a
+  `[yieldto …]` command substitution in an argument slot that lowers to runtime
+  `subst_word`. Extending the script-frame mechanism to `subst`/`lmap` needs a
+  collecting inline-`lmap` opcode and an inline-`subst` lowering (the remaining
+  host-re-entry `coroutine.test` failures). `yieldto`, the creating-namespace
+  command resolution, and `info level`/`info coroutine` are done.
 - Introspection/embedding gaps behind the other ~11 `coroutine.test` failures:
   `info frame`, child interpreters (`interp create`), and raising `yieldto
   called in deleted namespace` when a coroutine's namespace is deleted while it
   is suspended.
-- Thread-package extras not yet modelled: `thread::mutex`/`cond`/`rwmutex` and
-  `tpool::*` (the sync-send + `tsv` model already gives safe coordination), and
-  the `tcl-registry` `Thread`-package `CommandSpec`s (LSP metadata; the runtime
-  and the `RUST_ISSUE_006` core-backing gate do not require them). The `thread`
-  package is a native-only VM feature (it needs OS threads); on wasm the VM runs
-  single-threaded with coroutines, matching the plan's per-backend model.
-- Wiring the VM as the primary **wasm compile target** (so the compiler emits
-  VM-on-wasm rather than the tree-walker C-ABI) is a larger, separate migration;
-  the coroutine capability it would carry is already proven here.
+- The `tcl-registry` `Thread`-package `CommandSpec`s for the sync primitives are
+  LSP metadata only (the runtime and the `RUST_ISSUE_006` core-backing gate do
+  not require them). The `thread` package (including the `mutex`/`cond`/`rwmutex`/
+  `tpool` primitives now landed) is a native-only VM feature — it needs OS
+  threads; on wasm the VM runs single-threaded with coroutines, matching the
+  plan's per-backend model.
