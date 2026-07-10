@@ -492,4 +492,45 @@ suite("Diagnostics", () => {
       "the genuinely-unknown command must still be W123 (check stays live)",
     );
   });
+
+  // Regression: the missing-open-brace recovery only excluded registry
+  // builtins from looking like an orphaned switch case, so a genuine call to
+  // an already-declared user proc with a single braced argument right after
+  // the case list — `renderReport { prose text }` — was swallowed as an
+  // extra case, corrupting the switch's argv and running the braced prose
+  // through command analysis as if it were Tcl (a phantom "Unknown command").
+  test("E101 recovery does not swallow a call to a known proc", async () => {
+    const uri = getDocUri("diagnostics-e101-known-proc.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.some((d) => codeOf(d) === "E101"),
+    });
+    const codes = diagnostics.map(codeOf);
+    assert.ok(codes.includes("E101"), `expected E101, got [${codes}]`);
+    assert.ok(
+      !codes.includes("W123"),
+      `the renderReport call must not be parsed as switch-case body text: [${codes}]`,
+    );
+  });
+
+  // Regression: the "stolen close brace" heuristic used to fire on whichever
+  // `}` was LAST in the swallowed text, even when that text spanned more
+  // than one top-level statement (here a sibling `proc` swallowed along with
+  // the `if` that actually stole the brace). Applying that fix parsed clean
+  // but silently nested the sibling proc inside the unclosed one instead of
+  // closing it where the missing brace belongs. Pure brace-counting can't
+  // safely pick a location once more than one statement is swallowed, so
+  // this must fall back to the generic (fix-less) E200 instead of guessing.
+  test("E103 abstains when the missing brace swallows more than one statement", async () => {
+    const uri = getDocUri("diagnostics-e103-multi-statement.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.some((d) => codeOf(d) === "E200" || codeOf(d) === "E103"),
+    });
+    const codes = diagnostics.map(codeOf);
+    assert.ok(!codes.includes("E103"), `expected no E103, got [${codes}]`);
+    assert.ok(codes.includes("E200"), `expected the generic E200, got [${codes}]`);
+  });
 });

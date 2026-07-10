@@ -39,6 +39,15 @@ if {[expr {$x > 0}]} {puts yes}
 
 Ensure each `}` closes the brace group it belongs to by placing `}]` in the correct order.
 
+`E103`'s auto-fix only fires when the missing brace swallowed exactly one
+nested construct — the common case of a single `if`/`switch`/`while`/`for`
+block stealing the enclosing scope's closer. When more than one top-level
+statement got swallowed (for example a sibling `proc` defined right after
+the unclosed one), which brace was "stolen" becomes ambiguous, so the
+analyser falls back to the generic **`E200`** ("missing close-brace")
+instead of guessing a fix location that could silently nest the following
+statement(s) inside the wrong scope.
+
 ## How to suppress
 
 Add `# noqa: E103` at the end of the offending line.

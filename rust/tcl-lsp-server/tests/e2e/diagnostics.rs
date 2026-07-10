@@ -1527,3 +1527,52 @@ fn e100_escaped_bracket_under_arity_overflow_is_silent() {
     assert!(!has_code(&diags, "E100"), "{:?}", codes(&diags));
     assert!(!has_code(&diags, "W123"), "{:?}", codes(&diags));
 }
+
+#[test]
+fn e101_recovery_does_not_swallow_a_call_to_a_known_proc() {
+    // Regression: only registry builtins were excluded from looking
+    // like an orphaned switch case, so a genuine call to an
+    // already-declared user proc with a single braced argument right
+    // after the case list — `renderReport { prose text }` — was
+    // swallowed as an extra case, corrupting the switch's argv and
+    // running the braced prose through command analysis as if it were
+    // Tcl (a phantom "Unknown command" on ordinary text).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc renderReport {body} {\n    puts $body\n}\n\nproc foo {x} {\n    switch $x\n    a {\n        return 1\n    }\n    renderReport {\n        Some unrelated braced-argument call, not a switch case.\n    }\n}\n",
+    );
+    assert!(has_code(&diags, "E101"), "{:?}", codes(&diags));
+    assert!(
+        !has_code(&diags, "W123"),
+        "the renderReport call must not be parsed as switch-case body text: {:?}",
+        diags
+            .iter()
+            .map(|d| (code_str(d), message(d).to_string()))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn e103_abstains_when_missing_brace_swallows_more_than_one_statement() {
+    // Regression: the "stolen close brace" heuristic used to fire on
+    // whichever `}` was LAST in the swallowed text, even when that
+    // text spanned more than one top-level statement (here a sibling
+    // `proc` swallowed along with the `if` that actually stole the
+    // brace). Applying that fix parsed clean but silently nested the
+    // sibling proc inside the unclosed one instead of closing it
+    // where the missing brace belongs — a structural corruption, not
+    // just an imprecise diagnostic. Pure brace-counting can't safely
+    // pick a location once more than one statement is swallowed, so
+    // this must fall back to the generic (fix-less) E200 instead of
+    // guessing wrong.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc foo {} {\n    if {1} {\n        puts hi\n    }\nproc bar {} {\n    return 1\n}\n",
+    );
+    assert!(!has_code(&diags, "E103"), "{:?}", codes(&diags));
+    assert!(has_code(&diags, "E200"), "{:?}", codes(&diags));
+}
