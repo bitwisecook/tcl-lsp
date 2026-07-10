@@ -886,7 +886,12 @@ impl Vm {
                 }
                 f.stack.push(Value::string(s));
             }
-            Op::NOP | Op::START_CMD => {}
+            // `START_CMD`/`NOP` are inert; so are the `catch` exception-range
+            // markers (the VM unwinds errors through its activation stack rather
+            // than bytecode exception ranges — the inline `dict for`/`dict map`/
+            // try codegen emits them for C-faithful reference bytecode,
+            // RUST_ISSUE_029/061).
+            Op::NOP | Op::START_CMD | Op::BEGIN_CATCH4 | Op::END_CATCH => {}
 
             // -- variables (stack form, by name) --
             Op::LOAD_STK => {
@@ -1789,7 +1794,10 @@ impl Vm {
             }
 
             // -- return --
-            Op::RETURN_IMM | Op::RETURN_STK => {
+            // `SYNTAX` shares `RETURN_IMM`'s shape (a code immediate, result +
+            // options on the stack): the inline `if {…}` codegen emits it to
+            // raise a compile-time expression error at runtime (RUST_ISSUE_061).
+            Op::RETURN_IMM | Op::RETURN_STK | Op::SYNTAX => {
                 let (result, options) = if f.stack.len() >= 2 {
                     let opts = pop(f);
                     let res = pop(f);
@@ -1797,10 +1805,10 @@ impl Vm {
                 } else {
                     (pop(f), Value::empty())
                 };
-                let code = if instr.op == Op::RETURN_IMM {
-                    code_from_int(imm0(instr))
-                } else {
+                let code = if instr.op == Op::RETURN_STK {
                     Code::Ok
+                } else {
+                    code_from_int(imm0(instr))
                 };
                 let final_code = if code == Code::Ok { Code::Return } else { code };
                 return Tick::Return(Completion::new(final_code, result, options));
@@ -2243,6 +2251,24 @@ impl Vm {
                     .last()
                     .cloned()
                     .unwrap_or_else(|| f.last_result.clone())));
+            }
+
+            // Push the current result / a normal return-options dict — the
+            // operands an inline catch epilogue consults.
+            Op::PUSH_RESULT => f.stack.push(f.last_result.clone()),
+            Op::PUSH_RETURN_OPTS => {
+                f.stack.push(crate::command::options_dict(Code::Ok, 0, &[]));
+            }
+            // Evaluate a popped script string and push its result — value-position
+            // multi-command substitution `[a; b]` (RUST_ISSUE_061). A non-OK
+            // completion unwinds like any other command error.
+            Op::EVAL_STK => {
+                let script = pop(f).to_str().to_string();
+                match self.eval_source(&script) {
+                    Ok(res) if res.code.is_ok() => f.stack.push(res.result),
+                    Ok(res) => return Tick::Return(res),
+                    Err(e) => return Tick::Return(err(e.message)),
+                }
             }
 
             other => {
