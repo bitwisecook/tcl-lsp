@@ -65,6 +65,11 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `errorLine` for `MakeProcError` stay correct), while a top-level or dynamic
     // body still evaluates as its own frame.
     let code = interp.eval_control_body(argv[1]);
+    // An `exit` in the body is uncatchable (C's `Tcl_Exit`): re-propagate it
+    // instead of turning it into a caught return code.
+    if interp.exit_pending() {
+        return code;
+    }
     // Snapshot the body's result BEFORE we overwrite the interp result with the
     // catch return value (read the value before clearing the result). `var_set`
     // retains it into the result var, so it survives the later `set_result`.
@@ -495,6 +500,30 @@ mod tests {
             String::from_utf8_lossy(src)
         );
         i.result_bytes()
+    }
+
+    #[test]
+    fn exit_records_code_and_is_uncatchable() {
+        leak_free(|i| {
+            // `exit N` records the code and unwinds (never terminates the host).
+            assert_eq!(i.eval_str(b"exit 7"), Code::Error);
+            assert_eq!(i.take_exit(), Some(7));
+            // Default code is 0.
+            assert_eq!(i.eval_str(b"exit"), Code::Error);
+            assert_eq!(i.take_exit(), Some(0));
+            // Uncatchable: `catch {exit}` re-propagates, so the trailing command
+            // never runs.
+            assert_eq!(i.eval_str(b"catch {exit 5}; set marker ran"), Code::Error);
+            assert_eq!(i.take_exit(), Some(5));
+            assert_eq!(run(i, b"info exists marker"), b"0");
+            // A non-integer code is the standard error; no exit is pending.
+            assert_eq!(i.eval_str(b"exit foo"), Code::Error);
+            assert_eq!(i.take_exit(), None);
+            assert_eq!(i.result_bytes(), b"expected integer but got \"foo\"");
+            // Arity.
+            assert_eq!(i.eval_str(b"exit a b"), Code::Error);
+            assert_eq!(i.take_exit(), None);
+        });
     }
 
     #[test]

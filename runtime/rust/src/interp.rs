@@ -683,6 +683,11 @@ pub struct InterpState {
     eval_depth: Cell<usize>,
     /// Count of commands dispatched (`info cmdcount`).
     cmd_count: Cell<u64>,
+    /// The code an `exit` requested, if any. `exit` does **not** terminate the
+    /// host process (that would kill the embedding LSP/analysis server); it
+    /// records the code here, unwinds uncatchably (`catch` re-propagates while it
+    /// is set), and the embedder consumes it via [`Interp::take_exit`].
+    exit_code: Cell<Option<i32>>,
     /// The `interp bgerror` handler command prefix (a Tcl list). Empty means the
     /// default. A background error (e.g. a destructor failing during implicit
     /// teardown) is reported to it: `{*}$handler $message $options`.
@@ -944,6 +949,7 @@ impl Interp {
             arg_locs: RefCell::new(Vec::new()),
             eval_depth: Cell::new(0),
             cmd_count: Cell::new(0),
+            exit_code: Cell::new(None),
             bgerror: RefCell::new(Vec::new()),
             bg_queue: RefCell::new(Vec::new()),
             events: RefCell::new(crate::cmd_event::EventQueue::default()),
@@ -1672,6 +1678,25 @@ impl Interp {
     /// `namespace eval` scope).
     pub(crate) fn in_proc(&self) -> bool {
         self.frames.borrow().in_proc()
+    }
+
+    /// Record the code an `exit` requested. See [`InterpState::exit_code`].
+    pub(crate) fn set_exit(&self, code: i32) {
+        self.exit_code.set(Some(code));
+    }
+
+    /// Whether an `exit` is pending — the unwinding completion propagates
+    /// uncatchably (C Tcl's `Tcl_Exit`), so `catch` re-propagates while it holds.
+    #[must_use]
+    pub fn exit_pending(&self) -> bool {
+        self.exit_code.get().is_some()
+    }
+
+    /// Take the pending `exit` code, if any. An embedder calls this after an
+    /// eval to learn a script asked to exit (and with what code); the runtime
+    /// itself never terminates the process.
+    pub fn take_exit(&self) -> Option<i32> {
+        self.exit_code.take()
     }
 
     // -- variables (the var resolver; `crate::vars`) --------------------------

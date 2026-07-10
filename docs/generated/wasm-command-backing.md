@@ -12,11 +12,11 @@ or an explicit *not required* classification.
 
 | status | count |
 | --- | --- |
-| handler | 96 |
+| handler | 97 |
 | handler (native) | 6 |
 | stdlib | 11 |
 | not-required | 111 |
-| known-gap (`RUST_ISSUE_007`) | 8 |
+| known-gap (`RUST_ISSUE_007`) | 7 |
 | **UNCLASSIFIED** | 0 |
 | **total** | 232 |
 
@@ -107,7 +107,7 @@ or an explicit *not required* classification.
 | `error` | handler |  |
 | `eval` | handler |  |
 | `exec` | not-required | external OS process; loop-registered as an explicit "not supported under the WASM runtime" stub (cmd_misc.rs) |
-| `exit` | known-gap | core process exit |
+| `exit` | handler |  |
 | `expr` | handler |  |
 | `fblocked` | handler |  |
 | `fconfigure` | handler |  |

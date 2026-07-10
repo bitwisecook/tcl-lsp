@@ -38,6 +38,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"const", const_cmd);
     interp.register_builtin(b"return", ret);
     interp.register_builtin(b"unset", unset);
+    interp.register_builtin(b"exit", exit_cmd);
     interp.register_builtin(b"subst", subst_cmd);
     crate::cmd_scan::install(interp);
     crate::cmd_format::install(interp);
@@ -379,6 +380,35 @@ fn parse_code(b: &[u8]) -> Option<Code> {
 /// `return ?-code code? ?-level n? ?-errorcode list? ?-errorinfo info?
 /// ?-options dict? ?result?` — complete with `-code` after unwinding `-level`
 /// proc/source boundaries (`Tcl_ReturnObjCmd`). A `-options` dict (as produced
+/// `exit ?returnCode?` — record the requested exit code and unwind uncatchably.
+///
+/// The embedded runtime never terminates the host process (that would kill the
+/// LSP / analysis server it is embedded in). Instead it records the code (so
+/// `catch` re-propagates while it is pending and the embedder can read it via
+/// [`Interp::take_exit`]) and returns `Error` to unwind out of the script.
+fn exit_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let code: i32 = match argv.len() {
+        1 => 0,
+        2 => {
+            let bytes = obj_bytes(argv[1]);
+            match tcl_cmd_core::sort::parse_wide(&bytes) {
+                // C truncates an out-of-`int`-range exit status.
+                Some(n) => i32::try_from(n).unwrap_or(n as i32),
+                None => {
+                    let mut m = b"expected integer but got \"".to_vec();
+                    m.extend_from_slice(&bytes);
+                    m.push(b'"');
+                    return interp.set_error(&m);
+                }
+            }
+        }
+        _ => return interp.set_error(b"wrong # args: should be \"exit ?returnCode?\""),
+    };
+    interp.set_exit(code);
+    interp.set_result_bytes(b"");
+    Code::Error
+}
+
 /// by `catch`) seeds the options; explicit flags override it.
 fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut code = Code::Ok;

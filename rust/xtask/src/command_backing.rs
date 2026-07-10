@@ -225,7 +225,6 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
         "coroprobe",
         "coroutine introspection (the runtime backs `coroutine`/`yield` but not this)",
     ),
-    ("exit", "core process exit"),
     ("tcl::unsupported::corotype", "coroutine type introspection"),
     ("timerate", "benchmarking command"),
     ("zlib", "core compression / checksums"),
