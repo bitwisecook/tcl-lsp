@@ -1090,8 +1090,16 @@ fn e001_tp_bare_history_subcommand_sibling_still_required() {
     // Every *other* WithSubcommands command in the same family keeps
     // requiring its dispatch word — the `history` carve-out must not leak
     // into commands whose registry `arity.min` is genuinely 1.
-    for snippet in ["array", "chan", "clock", "encoding", "file", "namespace", "package", "trace"]
-    {
+    for snippet in [
+        "array",
+        "chan",
+        "clock",
+        "encoding",
+        "file",
+        "namespace",
+        "package",
+        "trace",
+    ] {
         assert!(
             has_code(snippet, "tcl8.6", "E001"),
             "bare `{snippet}` should still require a subcommand"

@@ -211,7 +211,10 @@ fn bare_string_is_e001_with_tight_command_head_span() {
     assert_eq!(range["start"]["line"], 0);
     assert_eq!(range["start"]["character"], 0);
     assert_eq!(range["end"]["line"], 0);
-    assert_eq!(range["end"]["character"], 6, "span must cover only 'string'");
+    assert_eq!(
+        range["end"]["character"], 6,
+        "span must cover only 'string'"
+    );
     assert_eq!(
         e001[0].get("severity").and_then(Value::as_i64),
         Some(1) // Error
