@@ -12,11 +12,11 @@ or an explicit *not required* classification.
 
 | status | count |
 | --- | --- |
-| handler | 97 |
+| handler | 98 |
 | handler (native) | 6 |
 | stdlib | 11 |
 | not-required | 111 |
-| known-gap (`RUST_ISSUE_007`) | 7 |
+| known-gap (`RUST_ISSUE_007`) | 6 |
 | **UNCLASSIFIED** | 0 |
 | **total** | 232 |
 
@@ -62,7 +62,7 @@ or an explicit *not required* classification.
 | `::tcl::mathop::||` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::~` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::process` | not-required | OS subprocess management; needs host processes |
-| `::tcl::unsupported::corotype` | known-gap | coroutine type introspection |
+| `::tcl::unsupported::corotype` | handler |  |
 | `<` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `<<` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `<=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |

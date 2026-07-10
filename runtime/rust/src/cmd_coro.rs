@@ -51,6 +51,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"coroutine", coroutine_cmd);
     interp.register_builtin(b"yield", yield_cmd);
     interp.register_builtin(b"yieldto", yieldto_cmd);
+    interp.register_builtin(b"::tcl::unsupported::corotype", corotype_cmd);
 }
 
 // -- the cross-thread plumbing --------------------------------------------
@@ -411,6 +412,28 @@ fn yieldto_cmd(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
     interp.set_error(b"yieldto is not yet implemented")
 }
 
+/// `::tcl::unsupported::corotype coroName` — the coroutine's current type: the
+/// currently-running coroutine (e.g. `corotype [info coroutine]`) is `active`;
+/// any other live coroutine is suspended at a `yield` (this runtime has no
+/// `yieldto`, so never reports `yieldto`); anything else is not a coroutine.
+#[cfg(not(target_arch = "wasm32"))]
+fn corotype_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 2 {
+        return interp
+            .set_error(b"wrong # args: should be \"::tcl::unsupported::corotype coroName\"");
+    }
+    let name = interp.fqn_for(&obj_bytes(argv[1]));
+    if current_coroutine() == name {
+        interp.set_result_bytes(b"active");
+        return Code::Ok;
+    }
+    if interp.coros_mut().contains_key(&name) {
+        interp.set_result_bytes(b"yield");
+        return Code::Ok;
+    }
+    interp.set_error(b"can only get coroutine type of a coroutine")
+}
+
 /// Resume the coroutine named by `argv[0]` (its command invocation).
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn coro_resume_command(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -454,6 +477,16 @@ fn yield_cmd(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
 #[cfg(target_arch = "wasm32")]
 fn yieldto_cmd(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
     interp.set_error(b"yieldto is not supported in the single-threaded wasm build")
+}
+
+#[cfg(target_arch = "wasm32")]
+fn corotype_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 2 {
+        return interp
+            .set_error(b"wrong # args: should be \"::tcl::unsupported::corotype coroName\"");
+    }
+    // No coroutines exist on the single-threaded wasm build, so no name is one.
+    interp.set_error(b"can only get coroutine type of a coroutine")
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -518,6 +551,32 @@ mod tests {
         assert_eq!(run(&mut i, b"info coroutine"), b"");
         run(&mut i, b"proc who {} { yield [info coroutine] }");
         assert_eq!(run(&mut i, b"coroutine w who"), b"::w");
+    }
+
+    #[test]
+    fn corotype_reports_active_and_yield() {
+        use crate::interp::Code;
+        let mut i = Interp::new();
+        run(&mut i, b"proc gen {} { yield; yield }");
+        run(&mut i, b"coroutine c gen");
+        // A suspended coroutine is parked at a `yield`.
+        assert_eq!(run(&mut i, b"::tcl::unsupported::corotype c"), b"yield");
+        // A running coroutine sees itself as active.
+        run(
+            &mut i,
+            b"proc who {} { yield [::tcl::unsupported::corotype [info coroutine]] }",
+        );
+        assert_eq!(run(&mut i, b"coroutine w who"), b"active");
+        // A non-coroutine name errors.
+        assert_eq!(
+            i.eval_str(b"::tcl::unsupported::corotype nope"),
+            Code::Error
+        );
+        assert_eq!(
+            i.result_bytes(),
+            b"can only get coroutine type of a coroutine"
+        );
+        assert_eq!(i.eval_str(b"::tcl::unsupported::corotype"), Code::Error);
     }
 
     #[test]
