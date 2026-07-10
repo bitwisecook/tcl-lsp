@@ -1,0 +1,17 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name = "tcl-version"
+description = "The release version stamped into every user-facing binary."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]

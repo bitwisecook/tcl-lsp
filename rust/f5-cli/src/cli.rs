@@ -34,7 +34,8 @@ use clap::{Args, Parser, Subcommand};
 #[command(
     name = "f5-query",
     bin_name = "f5-query",
-    version,
+    // See tcl-cli: the release version comes from the tag, not the manifest.
+    version = tcl_version::VERSION,
     about = "Inspect, transform, and query F5 BIG-IP configs and iRules.",
     disable_help_subcommand = true,
     propagate_version = true
