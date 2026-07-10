@@ -791,10 +791,14 @@ impl Vm {
                     if level > 1 {
                         c.options = crate::command::with_return_level(&c.options, level - 1);
                     } else {
+                        // `Code::from_int` (not the local `code_from_int`): a
+                        // proc that returns `-code N` for a non-standard N must
+                        // surface `Code::Other(N)`, not collapse it to `Ok`
+                        // (RUST_ISSUE_008 coroutine-2.4; `return -code 100`).
                         let code = crate::command::opt_get(&c.options, "-code")
                             .and_then(|v| v.as_int().ok())
                             .and_then(|n| i32::try_from(n).ok())
-                            .map_or(Code::Ok, code_from_int);
+                            .map_or(Code::Ok, Code::from_int);
                         c.options = crate::command::with_return_level(&c.options, 0);
                         c.code = code;
                     }

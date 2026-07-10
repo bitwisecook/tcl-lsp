@@ -118,8 +118,11 @@ pub(crate) fn register(vm: &mut Vm) {
 /// coroutine (display form), or `""` at top level.
 pub(crate) fn current_coroutine(vm: &Vm) -> Value {
     match vm.coro.stack.last() {
-        Some(h) => Value::string(format!("::{}", h.name)),
-        None => Value::empty(),
+        // A coroutine that deleted its own command (`rename [info coroutine] {}`)
+        // is no longer live even though its driver is still on the stack; C Tcl
+        // then reports `[info coroutine]` as empty (coroutine-3.5).
+        Some(h) if is_coroutine(vm, &h.name) => Value::string(format!("::{}", h.name)),
+        _ => Value::empty(),
     }
 }
 
@@ -188,7 +191,19 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             Err(c) => return c,
         }
     } else {
-        args[1..].to_vec()
+        let mut w = args[1..].to_vec();
+        // C resolves a coroutine's initial command at creation, in the current
+        // namespace. When that namespace is not global, resolve the command word
+        // there and run its absolute name — the wrapper itself executes at the
+        // global level, so a bare name would otherwise miss a namespace-local
+        // command (coroutine-4.4).
+        let cxt = vm.current_ns().to_string();
+        if !cxt.is_empty()
+            && let Some(fqn) = vm.resolve_command_fqn(&cxt, &args[1].to_str())
+        {
+            w[0] = Value::string(format!("::{fqn}"));
+        }
+        w
     };
     // The body is `command arg…` reconstructed as a one-line script (list
     // quoting preserves the words exactly), dispatched through the compiled

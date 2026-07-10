@@ -382,3 +382,44 @@ fn renaming_a_coroutine_keeps_it_working() {
         "3"
     );
 }
+
+#[test]
+fn body_returning_a_custom_code_propagates_it() {
+    // tclsh 9.0.4 (coroutine-2.4): a coroutine whose body finishes with a
+    // non-standard `return -code 100` surfaces code 100 to the resumer, so
+    // `catch` reports 100 (not 0). Wrapped in `apply` for a proc-level context.
+    assert_eq!(
+        result(
+            "apply {{} { coroutine foo ::apply [list {} {yield;yield 1; return -code 100 ouch!}]; \
+             list [foo] [catch foo msg] $msg [catch foo msg] $msg }}"
+        ),
+        "1 100 ouch! 1 {invalid command name \"foo\"}"
+    );
+}
+
+#[test]
+fn info_coroutine_is_empty_after_self_deletion() {
+    // tclsh 9.0.4 (coroutine-3.5): once a coroutine deletes its own command,
+    // `[info coroutine]` reports empty even though its driver is still running.
+    assert_eq!(
+        result(
+            "proc a {} {info coroutine}; proc b {} {rename [info coroutine] {}; a}; \
+             coroutine foo b"
+        ),
+        ""
+    );
+}
+
+#[test]
+fn initial_command_resolves_in_the_creation_namespace() {
+    // tclsh 9.0.4 (coroutine-4.4): the coroutine's initial command is resolved
+    // in the namespace where `coroutine` was called, so the namespace-local `a`
+    // (not the global one) runs.
+    assert_eq!(
+        result(
+            "proc a {} {return global}; namespace eval b {proc a {} {return local}}; \
+             namespace eval b {coroutine foo a}"
+        ),
+        "local"
+    );
+}

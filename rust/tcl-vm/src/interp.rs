@@ -1548,7 +1548,7 @@ impl Vm {
     /// `commands` map key — a qualified name without the leading `::`), mirroring
     /// [`lookup_command`](Self::lookup_command)'s order: an absolute `::name`
     /// directly, else `cxt::name`, else the global `name`. `None` if unresolved.
-    fn resolve_command_fqn(&self, cxt: &str, name: &str) -> Option<String> {
+    pub(crate) fn resolve_command_fqn(&self, cxt: &str, name: &str) -> Option<String> {
         if let Some(abs) = name.strip_prefix("::") {
             return self.commands.contains_key(abs).then(|| abs.to_string());
         }
