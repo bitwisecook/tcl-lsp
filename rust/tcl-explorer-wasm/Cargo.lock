@@ -244,6 +244,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-cmd-core"
+version = "0.1.0"
+dependencies = [
+ "tcl-platform",
+ "tcl-runtime-api",
+ "tcl-syntax",
+]
+
+[[package]]
 name = "tcl-compiler"
 version = "0.1.0"
 dependencies = [
@@ -293,14 +302,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-platform"
+version = "0.1.0"
+
+[[package]]
 name = "tcl-registry"
 version = "0.1.0"
 dependencies = [
  "bitflags",
  "rustc-hash",
  "sha2",
+ "tcl-cmd-core",
  "tcl-core-types",
+ "tcl-lexer",
  "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-runtime-api"
+version = "0.1.0"
+dependencies = [
+ "tcl-core-types",
 ]
 
 [[package]]

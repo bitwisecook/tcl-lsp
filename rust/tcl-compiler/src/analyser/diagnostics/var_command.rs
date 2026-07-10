@@ -366,14 +366,7 @@ impl Analyser {
         }
         let all_tcloo = class_names.iter().all(|cls| {
             self.result.all_classes.get(cls).is_some_and(|cd| {
-                self.registry
-                    .as_ref()
-                    .and_then(|r| r.get(&cd.metaclass))
-                    .is_some_and(|s| {
-                        s.definition_body.is_some_and(|g| {
-                            g.family == tcl_registry::definer::DefinerFamily::TclOo
-                        })
-                    })
+                super::validity::is_tcloo_metaclass(self.registry.as_ref(), &cd.metaclass)
             })
         });
         if !all_tcloo {

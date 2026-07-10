@@ -670,6 +670,59 @@ impl Analyser {
         true
     }
 
+    /// Split an `apply` call's lambda-literal first argument
+    /// (`{{params} body ?ns?}`) into its list elements — `(token, text)`
+    /// pairs carrying absolute source spans, in declaration order (params,
+    /// body, and an optional target-namespace pin).
+    ///
+    /// Returns `None` when `cmd_name` isn't `apply`, there are no
+    /// arguments, or the first argument isn't a *braced* literal (a `$var`
+    /// / `[cmd]` / quoted lambda is opaque — its element boundaries can't
+    /// be split statically). Shared by [`Self::handle_apply_command`] (body
+    /// / scope walk) and the `apply` direct-call arity check
+    /// ([`super::diagnostics::validity::Analyser::emit_arity_diagnostics`])
+    /// so both consumers agree on exactly what counts as a
+    /// statically-inspectable lambda, rather than each re-implementing the
+    /// brace-literal guard and segmentation independently.
+    pub(in crate::analyser) fn parse_apply_lambda_elements(
+        &self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) -> Option<Vec<(Token, String)>> {
+        if cmd_name != "apply" || args.is_empty() || arg_tokens.is_empty() {
+            return None;
+        }
+        let lambda_tok = arg_tokens[0];
+        // Only a *braced* literal lambda can be split and offset-mapped safely
+        // (its content is verbatim source).
+        let lambda_start = lambda_tok.span.start() as usize;
+        if lambda_tok.kind != TokenType::Str
+            || self.source.as_bytes().get(lambda_start) != Some(&b'{')
+        {
+            return None;
+        }
+
+        // Split the lambda literal into its list elements. Re-segmenting the
+        // brace-stripped content (`args[0]`) at the lambda's absolute content
+        // offset yields the elements as command words carrying absolute-span
+        // tokens; flattening across commands keeps params / body paired even
+        // when a multi-line lambda puts them on separate lines (a newline
+        // splits *commands*, not *list elements*).
+        let base = lambda_tok.span.start() + u32::from(lambda_tok.content_offset);
+        let segmented = crate::segmenter::segment_commands_with_offset_and_config(
+            &args[0],
+            base,
+            self.lexer_config(),
+        );
+        Some(
+            segmented
+                .iter()
+                .flat_map(|c| c.argv.iter().copied().zip(c.texts.iter().cloned()))
+                .collect(),
+        )
+    }
+
     /// Handle an `apply {{params} body ?ns?} ?arg ...?` invocation.
     ///
     /// `apply`'s first argument is a *lambda* (an anonymous procedure), **not**
@@ -701,48 +754,15 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        if cmd_name != "apply" || args.is_empty() || arg_tokens.is_empty() {
+        let Some(elements) = self.parse_apply_lambda_elements(cmd_name, args, arg_tokens) else {
             return false;
-        }
-        let lambda_tok = arg_tokens[0];
-        // Only a *braced* literal lambda can be split and offset-mapped safely
-        // (its content is verbatim source). A `$var` / `[cmd]` / quoted lambda
-        // is opaque — leave it to the generic path (a no-op for a non-braced
-        // body word), so nothing regresses for dynamic lambdas.
-        let lambda_start = lambda_tok.span.start() as usize;
-        if lambda_tok.kind != TokenType::Str
-            || self.source.as_bytes().get(lambda_start) != Some(&b'{')
-        {
-            return false;
-        }
-
-        // Split the lambda literal into its list elements. Re-segmenting the
-        // brace-stripped content (`args[0]`) at the lambda's absolute content
-        // offset yields the elements as command words carrying absolute-span
-        // tokens; flattening across commands keeps params / body paired even
-        // when a multi-line lambda puts them on separate lines (a newline
-        // splits *commands*, not *list elements*).
-        let base = lambda_tok.span.start() + u32::from(lambda_tok.content_offset);
-        let segmented = crate::segmenter::segment_commands_with_offset_and_config(
-            &args[0],
-            base,
-            self.lexer_config(),
-        );
-        let elements: Vec<(Token, &str)> = segmented
-            .iter()
-            .flat_map(|c| {
-                c.argv
-                    .iter()
-                    .copied()
-                    .zip(c.texts.iter().map(String::as_str))
-            })
-            .collect();
+        };
         // A lambda needs at least a parameter list and a body.
         if elements.len() < 2 {
             return true;
         }
-        let (params_tok, params_text) = elements[0];
-        let (body_tok, body_text) = elements[1];
+        let (params_tok, params_text) = (elements[0].0, elements[0].1.as_str());
+        let (body_tok, body_text) = (elements[1].0, elements[1].1.as_str());
 
         // The body must itself be a braced literal to walk statically (matching
         // `analyse_body`'s own `TokenType::Str` guard); a bare / substituted
@@ -760,7 +780,7 @@ impl Analyser {
         // `proc` registers under the qualified name the runtime `apply` would
         // give it (`::p`, not `::caller::p`). A non-`::`-qualified pin resolves
         // relative to the caller (as `TclGetNamespaceFromObj`); absent → global.
-        let body_ns = match elements.get(2).map(|(_, t)| *t) {
+        let body_ns = match elements.get(2).map(|(_, t)| t.as_str()) {
             Some(ns) if !ns.is_empty() && !ns.starts_with('$') && !ns.starts_with('[') => {
                 let caller_ns = self.namespace_from_scope_path(scope_path);
                 qualify(caller_ns.trim_start_matches(':'), ns)
@@ -773,7 +793,7 @@ impl Analyser {
         let body_span = body_tok.span;
         // Anonymous, but keyed by source position so two lambdas never collide
         // in `all_variables` (keyed `"<scope_name>::<var>"`).
-        let scope_name = format!("apply@{}", lambda_tok.span.start());
+        let scope_name = format!("apply@{}", arg_tokens[0].span.start());
 
         // Root the lambda scope at `body_ns` under the global scope — NOT under
         // the caller — via the same `reconstruct_proc_scope` the per-item path
@@ -927,7 +947,19 @@ impl Analyser {
     }
 
     /// Handle `namespace ensemble create` — record the namespace as
-    /// an ensemble so its tail names become valid commands.
+    /// an ensemble so its tail names become valid commands, plus an
+    /// explicit `-command name` override when present.
+    ///
+    /// The implicit form (`namespace eval ::ens { namespace ensemble
+    /// create }`) dispatches through a command named after the enclosing
+    /// namespace; `-command NAME` instead creates the ensemble's dispatch
+    /// command under an arbitrary, possibly differently-namespaced, name.
+    /// Without recording that name too, a call through it (`myEns
+    /// subcmd …`) resolves to nothing the analyser knows — drawing a
+    /// spurious W123 and abstaining from arity checking for the wrong
+    /// reason (an unresolved name) rather than the right one (a
+    /// dynamically-defined ensemble the analyser can't see the
+    /// subcommand map of).
     pub fn handle_namespace_ensemble(
         &mut self,
         cmd_name: &str,
@@ -942,7 +974,20 @@ impl Analyser {
         }
         let ns = self.namespace_from_scope_path(scope_path);
         if !ns.is_empty() && ns != "::" {
-            self.ensemble_namespaces.insert(ns);
+            self.ensemble_namespaces.insert(ns.clone());
+        }
+        let ns_prefix = ns.trim_start_matches(':');
+        for (i, opt) in args.iter().enumerate().skip(2) {
+            let Some(value) = (opt == "-command").then(|| args.get(i + 1)).flatten() else {
+                continue;
+            };
+            // A dynamic value (`$var` / `[cmd]`) can't be resolved
+            // statically — leave it unrecorded, same convention as every
+            // other literal-only command-name extraction in this module.
+            if value.is_empty() || value.starts_with('$') || value.starts_with('[') {
+                continue;
+            }
+            self.ensemble_namespaces.insert(qualify(ns_prefix, value));
         }
     }
 
@@ -1395,6 +1440,10 @@ impl Analyser {
     /// recorded in [`Analyser::alias_offsets`] for the same-file arity
     /// resolver's top-level order gate.
     pub fn handle_interp_alias(&mut self, cmd_name: &str, args: &[String], offset: u32) {
+        if let Some(deleted) = crate::alias::detect_interp_alias_delete(cmd_name, args) {
+            self.deleted_commands.insert(deleted, offset);
+            return;
+        }
         let Some((qualified, target_cmd, prepended)) = detect_interp_alias(cmd_name, args) else {
             return;
         };
@@ -3081,6 +3130,73 @@ mod tests {
             &[0],
         );
         assert!(a.ensemble_namespaces.contains("::myns"));
+    }
+
+    #[test]
+    fn handle_namespace_ensemble_command_option_recorded() {
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "myns"));
+        a.handle_namespace_ensemble(
+            "namespace",
+            &[
+                "ensemble".to_string(),
+                "create".to_string(),
+                "-command".to_string(),
+                "::ens".to_string(),
+            ],
+            &[0],
+        );
+        assert!(a.ensemble_namespaces.contains("::myns"));
+        assert!(a.ensemble_namespaces.contains("::ens"));
+    }
+
+    #[test]
+    fn handle_namespace_ensemble_command_option_qualifies_relative_name() {
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "myns"));
+        a.handle_namespace_ensemble(
+            "namespace",
+            &[
+                "ensemble".to_string(),
+                "create".to_string(),
+                "-command".to_string(),
+                "ens".to_string(),
+            ],
+            &[0],
+        );
+        assert!(a.ensemble_namespaces.contains("::myns::ens"));
+    }
+
+    #[test]
+    fn handle_namespace_ensemble_command_option_dynamic_value_not_recorded() {
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "myns"));
+        a.handle_namespace_ensemble(
+            "namespace",
+            &[
+                "ensemble".to_string(),
+                "create".to_string(),
+                "-command".to_string(),
+                "$dyn".to_string(),
+            ],
+            &[0],
+        );
+        assert_eq!(
+            a.ensemble_namespaces,
+            std::collections::HashSet::from(["::myns".to_string()])
+        );
     }
 
     #[test]

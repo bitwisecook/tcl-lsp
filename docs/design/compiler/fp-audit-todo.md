@@ -432,6 +432,45 @@ can simplify this" suggestion. None swept yet.
   opening quote and merged the word with the next, dropping an argument.  Also
   cleared the paired W306 FP on `"^foo$"` end-anchors (the `$` is literal, not
   a substitution).  Genuine `$bar` foot-guns in quoted patterns still fire W306.
+  **2026-07-10 deep review — four false-negative gaps closed** (custom-arity
+  commands the sweep above called out, plus one adjacent registry gap found
+  alongside them): (1) `TclOO` constructor calls (`ClassName new ?args?` /
+  `ClassName create name ?args?`) were never arity-checked at all — now
+  resolved against the nearest explicit `constructor` in the class's MRO
+  (`ClassHierarchy::constructor_provider`), abstaining when no class in the
+  hierarchy declares one (TclOO's inherited default constructor accepts any
+  argument count). (2) A direct `apply {{params} body} ?args?` lambda call
+  was likewise unchecked — now checked against the lambda's own parsed
+  parameter list. (3) `namespace ensemble create -command NAME` (the
+  explicit-name form) wasn't recorded as a known command at all — only the
+  implicit "same name as the enclosing namespace" form was — causing a
+  spurious W123 (and wrong-reason arity abstention) on every call through it.
+  (4) `after ms script` / `after idle script` carried no `ArgRole::Body` at
+  all (unlike `fileevent`/`chan event`'s identical zero-appended-args shape),
+  so a bareword callback's own arity was invisible to every diagnostic path.
+  See `kcs-diagnostic-e002-too-few-arguments.md` / `-e003-` for the updated
+  user-facing scope list.  **Still open, not fixed in this pass:** `next`/
+  `nextto` call arity (the resolved next-in-MRO method's arity is statically
+  knowable via `ClassHierarchy::next_provider` but nothing checks it — the
+  registry's `next` spec is `Arity::any()`); `dict create`/`dict replace`/
+  `dict update`/`foreach`/`switch`'s even-word-count-beyond-N constraints
+  (`Arity` is a flat `(min, max)` — no parity/predicate hook exists to
+  express "N, or N+2, or N+4, …"); `interp alias {} name {}`'s **query** form
+  is correctly distinguished from its **deletion** form now (**2026-07-10**:
+  the deletion form is tracked via `deleted_commands`, mirroring `rename OLD
+  {}`), but a `rename`/alias re-established immediately after a deletion is
+  still (as with the pre-existing `rename`-vs-proc-redefinition case) treated
+  as permanently deleted rather than timestamp-compared — a known, accepted,
+  very-narrow imprecision shared with the existing `rename` convention;
+  **command-prefix callback arity is gated behind the `xcDiagnostics` toggle**
+  (default **off**, and mislabeled — its doc comment says "Surfaced only on
+  f5-irules documents" but it also silently gates the general-purpose
+  cross-file arity/W123-suppression pass for *every* dialect) — this is an
+  architectural/product-decision item flagged for the team, not changed here;
+  a braced multi-word command-prefix (`-command {cb extra}`) is still
+  documented-and-silently dropped (`command_prefix.rs`'s module doc), which
+  the `apply_callback_arity`'s always-zero `baked` argument confirms is a
+  live, unexercised code path.
 - [ ] **E004** malformed control flow (0) — synthetic.
 - [ ] **E200** shimmer parse error (0) — synthetic.
 - [ ] **H300** possible paste error (0 corpus) — synthetic.

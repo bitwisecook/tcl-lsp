@@ -349,6 +349,49 @@ suite("Diagnostics", () => {
     );
   });
 
+  // TclOO constructor calls (`ClassName new` / `ClassName create`) and
+  // direct `apply {{params} body}` lambda calls previously produced no
+  // arity diagnostic at all, however wrong the argument count.
+  test("E002/E003 fire for TclOO constructor calls and apply lambdas", async () => {
+    const uri = getDocUri("diagnostics-arity-tcloo-ctor.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.filter((d) => codeOf(d) === "E002").length >= 3,
+    });
+    const codes = diagnostics.map(codeOf).sort();
+    assert.deepStrictEqual(
+      codes,
+      ["E002", "E002", "E002", "E003"],
+      `expected exactly 3×E002 + 1×E003, got [${diagnostics.map(codeOf)}]`,
+    );
+    const e002 = diagnostics.filter((d) => codeOf(d) === "E002");
+    assert.ok(
+      e002.some((d) => d.message.includes("Widget new")),
+      `an E002 message should name the constructor call, got: ${e002.map((d) => d.message)}`,
+    );
+    assert.ok(
+      e002.some((d) => d.message.includes("Sub new")),
+      `an E002 message should cover an inherited constructor, got: ${e002.map((d) => d.message)}`,
+    );
+    assert.ok(
+      e002.some((d) => d.message.includes("apply")),
+      `an E002 message should name apply, got: ${e002.map((d) => d.message)}`,
+    );
+    const e003 = diagnostics.find((d) => codeOf(d) === "E003");
+    assert.ok(
+      e003?.message.includes("Widget create"),
+      `the E003 message should name the create call, got: ${e003?.message}`,
+    );
+    for (const d of diagnostics) {
+      assert.strictEqual(
+        d.severity,
+        vscode.DiagnosticSeverity.Error,
+        `${codeOf(d)} should be an error`,
+      );
+    }
+  });
+
   // E001 ("missing dispatch word"): a subcommand-dispatch registry command
   // (`string`) or a TclOO object (`$o`) invoked with no dispatch word at all
   // is a genuine arity error, tightly highlighted at just the command head.

@@ -76,6 +76,42 @@ impl ClassHierarchy {
             .map(String::as_str)
     }
 
+    /// Resolve which class provides an *explicit* constructor for
+    /// `class_name`, walking the MRO chain — mirrors [`Self::method_target`],
+    /// but for `TclOO`'s single per-class constructor slot
+    /// (`ClassDef::constructors`) rather than a named method.
+    ///
+    /// Returns `None` when no class on the chain declares an *effective*
+    /// one: `TclOO` falls back to a permissive default constructor
+    /// (inherited from `oo::object`) that accepts and ignores any number
+    /// of arguments both when no `constructor` was ever written
+    /// (confirmed against tclsh 9.0.4: `oo::class create Foo {}` then `Foo
+    /// new 1 2 3` succeeds) **and** when the effective (most recent)
+    /// `constructor` declaration has a literally empty body — `TclOO`
+    /// treats `constructor {a b} {}` as if no constructor were declared at
+    /// all (confirmed against tclsh 9.0.4: `info class constructor Foo`
+    /// returns empty, and `Foo new`/`Foo new 1 2 3` both succeed for that
+    /// class; a body with any content at all — even a single space or a
+    /// comment — *is* a real, arity-enforcing constructor). `source` is the
+    /// full document text `body_span` indexes into (see
+    /// [`is_empty_method_body`]) — this hierarchy holds no source text of
+    /// its own. Callers must treat `None` as "any argument count is
+    /// valid", not "the constructor takes no arguments".
+    #[must_use]
+    pub fn constructor_provider(&self, class_name: &str, source: &str) -> Option<&str> {
+        let mro = self.mro_map.get(class_name)?;
+        mro.iter().find_map(|ancestor| {
+            self.classes
+                .get(ancestor)
+                .filter(|cd| {
+                    cd.constructors
+                        .last()
+                        .is_some_and(|c| !is_empty_method_body(source, c.body_span))
+                })
+                .map(|_| ancestor.as_str())
+        })
+    }
+
     /// Resolve `TclOO` `next` / `nextto`: the class *after* the current
     /// provider in `class`'s MRO that provides `method`.
     ///
@@ -137,6 +173,31 @@ impl ClassHierarchy {
 /// downstream lookups don't have to disambiguate.  Cycles in the
 /// pure-superclass hierarchy land in `result.errors`; the
 /// affected classes get a single-element MRO (themselves only).
+///
+/// Whether a `TclOO` method/constructor body span is *effectively* empty —
+/// `{}` / `[]` / `""` with **nothing at all** between the delimiters.
+/// `TclOO` treats exactly this shape as "no constructor was written" (see
+/// [`ClassHierarchy::constructor_provider`]'s doc comment); any body
+/// content at all, even a single space or a comment, keeps it real
+/// (confirmed against tclsh 9.0.4).
+///
+/// `body_span` follows this project's general delimited-word convention
+/// (`docs/kcs/kcs-issue-highlight-drops-closing-delimiter.md`): for
+/// non-empty content the span covers the opening delimiter through the
+/// *last inner character*, excluding the closer (e.g. `{ }`'s span slices
+/// to `"{ "`, two bytes); for genuinely empty content the span instead
+/// extends one further to sit *on* the closer (`{}`'s span slices to the
+/// full `"{}"`, also two bytes, but ending on `}` rather than before it).
+/// So an empty body is exactly the two-byte slice `"{}"` / `"[]"` /
+/// `"\"\""` — no non-empty content is ever pair-shaped like that (a
+/// single-inner-character body such as `{x}` slices to `"{x"`, not `"{}"`)
+/// — a cheap, unambiguous string-equality test rather than re-parsing.
+pub(in crate::analyser) fn is_empty_method_body(source: &str, body_span: tcl_lexer::Span) -> bool {
+    let start = body_span.start() as usize;
+    let end = body_span.end() as usize;
+    matches!(source.get(start..end), Some("{}" | "[]" | "\"\""))
+}
+
 /// Resolve a possibly-bare superclass / mixin name written in the body of
 /// class `owner` to a qualified name keyed in `classes`.
 ///
@@ -619,6 +680,103 @@ mod tests {
         let classes = map(vec![cls("::A", &[], &[], &[])]);
         let h = build_class_hierarchy(classes);
         assert_eq!(h.method_target("::A", "nope"), None);
+    }
+
+    /// `constructor_provider` mirrors `method_target` but over
+    /// `ClassDef::constructors` rather than `methods`.
+    ///
+    /// Real source text `is_empty_method_body` slices into: byte 0-1 is
+    /// `"{}"` (an empty body), byte 2-4 is `"{x"` (`is_empty_method_body`'s
+    /// documented non-empty-content slice shape — the span covers the
+    /// opener through the last inner byte, excluding the closer).
+    const CTOR_SRC: &str = "{}{x}";
+    const EMPTY_BODY: Span = Span::new(0, 2);
+    const NON_EMPTY_BODY: Span = Span::new(2, 4);
+
+    /// A real (non-empty-bodied) constructor.
+    fn cls_with_ctor(qname: &str, supers: &[&str]) -> ClassDef {
+        cls_with_ctor_body(qname, supers, NON_EMPTY_BODY)
+    }
+
+    fn cls_with_ctor_body(qname: &str, supers: &[&str], body_span: Span) -> ClassDef {
+        let mut cd = cls(qname, supers, &[], &[]);
+        cd.constructors.push(MethodDef {
+            name: "<constructor>".to_string(),
+            params: Vec::new(),
+            name_span: span(),
+            body_span,
+            kind: "constructor".to_string(),
+            visibility: "public".to_string(),
+            doc: String::new(),
+            forward_target: None,
+        });
+        cd
+    }
+
+    #[test]
+    fn constructor_provider_none_when_no_class_declares_one() {
+        let classes = map(vec![cls("::A", &[], &[], &[])]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.constructor_provider("::A", CTOR_SRC), None);
+    }
+
+    #[test]
+    fn constructor_provider_own_class() {
+        let classes = map(vec![cls_with_ctor("::A", &[])]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.constructor_provider("::A", CTOR_SRC), Some("::A"));
+    }
+
+    #[test]
+    fn constructor_provider_inherited_from_superclass() {
+        // ::B has no constructor of its own; ::A's is inherited.
+        let classes = map(vec![
+            cls_with_ctor("::A", &[]),
+            cls("::B", &["::A"], &[], &[]),
+        ]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.constructor_provider("::B", CTOR_SRC), Some("::A"));
+    }
+
+    #[test]
+    fn constructor_provider_own_overrides_inherited() {
+        let classes = map(vec![
+            cls_with_ctor("::A", &[]),
+            cls_with_ctor("::B", &["::A"]),
+        ]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.constructor_provider("::B", CTOR_SRC), Some("::B"));
+    }
+
+    #[test]
+    fn constructor_provider_none_for_empty_body_constructor() {
+        // `constructor {a b} {}` (a literally empty body) is `TclOO`'s way
+        // of writing "no constructor" — confirmed against tclsh 9.0.4:
+        // `info class constructor` returns empty and `new` accepts any
+        // argument count.
+        let classes = map(vec![cls_with_ctor_body("::A", &[], EMPTY_BODY)]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.constructor_provider("::A", CTOR_SRC), None);
+    }
+
+    #[test]
+    fn constructor_provider_falls_back_to_superclass_when_own_is_empty_bodied() {
+        let classes = map(vec![
+            cls_with_ctor("::A", &[]),
+            cls_with_ctor_body("::B", &["::A"], EMPTY_BODY),
+        ]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.constructor_provider("::B", CTOR_SRC), Some("::A"));
+    }
+
+    #[test]
+    fn is_empty_method_body_matches_only_the_exact_delimiter_pair() {
+        assert!(is_empty_method_body(CTOR_SRC, EMPTY_BODY));
+        assert!(!is_empty_method_body(CTOR_SRC, NON_EMPTY_BODY));
+        assert!(is_empty_method_body("[]", Span::new(0, 2)));
+        assert!(is_empty_method_body("\"\"", Span::new(0, 2)));
+        // Out-of-range span — must not panic, must not report empty.
+        assert!(!is_empty_method_body("{}", Span::new(0, 5)));
     }
 
     #[test]
