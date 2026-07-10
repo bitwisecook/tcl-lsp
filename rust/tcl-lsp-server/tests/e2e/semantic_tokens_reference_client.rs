@@ -769,6 +769,58 @@ fn large_file_range_semantic_tokens_converges_via_refresh() {
     );
 }
 
+/// #844 Gap 4 (negative): the convergence continuation must fire **no**
+/// `workspace/semanticTokens/refresh` when the coarse and enriched viewports
+/// already agree. Every other Gap-4 test appends a provably-retagged construct so
+/// `enriched != served` is guaranteed whenever the comparison runs — so none of
+/// them exercises the `enriched == served` branch. A regression that made that
+/// comparison spuriously report a difference (an off-by-one viewport clip,
+/// non-deterministic token order) would fire a refresh on *every* cold viewport
+/// request; the refresh carries no URI, so a client re-pulls tokens for every open
+/// document — a visible flicker of already-correct tokens.
+#[test]
+fn range_semantic_tokens_no_spurious_refresh_when_converged() {
+    let mut lsp = Lsp::tcl();
+    // Plain `generate_big_tcl` (no regex / object-dispatch construct): the coarse
+    // (segmenter + registry) and enriched (CU + analysis) tiers are identical —
+    // that is exactly why the convergence tests above have to *append* a regex
+    // proc to force a difference. The file is still large/cold enough that the
+    // CU/analysis reads overrun `SEMANTIC_TOKENS_FAST_PATH_BUDGET`, so `pending`
+    // is `Some` and the continuation actually runs the coarse-vs-enriched compare.
+    let big = generate_big_tcl(600);
+    let line_count = u32::try_from(big.lines().count()).unwrap();
+    let start = (line_count.saturating_sub(6), 0);
+    let end = (line_count, 0);
+
+    let uri = unique_uri("tcl");
+    lsp.open_document_lang(&uri, &big, "tcl", 1);
+    let since = lsp.server_request_cursor();
+    let first = decode_semantic_tokens(&lsp.semantic_tokens_range(&uri, start, end));
+    assert!(
+        !first.is_empty(),
+        "the cold range must still serve the coarse tier immediately"
+    );
+
+    // Give the detached continuation ample time to land its reads and run the
+    // comparison. Whether the race is won (`pending` is `None`, no continuation)
+    // or lost (continuation runs, finds coarse == enriched), the correct outcome
+    // is the same: zero refreshes.
+    std::thread::sleep(std::time::Duration::from_millis(750));
+    let refreshes = lsp
+        .server_requests()
+        .into_iter()
+        .skip(since)
+        .filter(|r| {
+            r.get("method").and_then(|m| m.as_str()) == Some("workspace/semanticTokens/refresh")
+        })
+        .count();
+    assert_eq!(
+        refreshes, 0,
+        "no workspace/semanticTokens/refresh must fire when the coarse and enriched \
+         viewports are identical — a spurious refresh flickers every open document"
+    );
+}
+
 // -- generators / small utils --------------------------------------------
 
 /// Byte offset -> (line, character) for an ASCII string.
