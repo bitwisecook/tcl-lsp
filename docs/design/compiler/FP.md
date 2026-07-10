@@ -4812,6 +4812,15 @@ initialiser — not where the developer needs to look.
    scope-alias declaration, structurally identical to a top-level `variable`
    (`ssa::defs_of_with_registry`'s `CREATES_SCOPE_ALIAS` handling makes no
    TclOO/non-TclOO distinction) — protected the same way FP-SH-02 documents.
+   Confirmed against the real diagnostic pipeline, not merely by the method
+   body going unanalysed: `compiler_checks::run_all_checks` used to iterate
+   `analysable_functions()`, which never reached TclOO method bodies at all
+   (a *different*, unrelated coverage gap PR #872's T101 review closed by
+   switching to `analysable_body_function_units()`) — re-verified post-fix
+   that an *unaliased* plain local oscillating the same way inside a method
+   body now genuinely fires S102 (`tcl diag` on a bare `set local …` inside
+   `method run {}`), so the silence on `variable x` is the scope-alias
+   protection actually firing, not the method body being skipped.
 5. **`my variable x`** — *not* recognised as a scope-alias declaration at all
    (the registry spec for `my` carries no `CREATES_SCOPE_ALIAS`/subcommand
    table); `$x` reads the never-versioned live-in symbol, same as any unbound
@@ -4832,7 +4841,7 @@ initialiser — not where the developer needs to look.
 
 #### Why the analyser reaches that verdict
 
-None of these six surfaces are special-cased anywhere in `shimmer/thunking.rs`
+None of these seven surfaces are special-cased anywhere in `shimmer/thunking.rs`
 — every one stays silent purely because the *type lattice* degrades to
 OVERDEFINED (unknown command return, live-in version 0, opaque string body) or
 the *SSA symbol* never versions at all (scope-alias `Barrier`, unrecognised
