@@ -498,18 +498,9 @@ fn find_operator_fix(source: &str, stmt_span: Span, op: BinOp) -> Option<CodeFix
     let end = usize::try_from(stmt_span.end()).ok()?;
     let slice = source.get(start..end)?;
 
-    let is_word_char = |c: char| c.is_alphanumeric() || c == '_';
-    let mut matches = slice.match_indices(word).filter(|&(i, _)| {
-        let before_ok = slice[..i]
-            .chars()
-            .next_back()
-            .is_none_or(|c| !is_word_char(c));
-        let after_ok = slice[i + word.len()..]
-            .chars()
-            .next()
-            .is_none_or(|c| !is_word_char(c));
-        before_ok && after_ok
-    });
+    let mut matches = slice
+        .match_indices(word)
+        .filter(|&(i, _)| super::is_standalone_word_at(slice, i, word.len()));
     let (offset, _) = matches.next()?;
     if matches.next().is_some() {
         return None;

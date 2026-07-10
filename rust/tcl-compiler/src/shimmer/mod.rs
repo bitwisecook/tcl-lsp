@@ -132,6 +132,30 @@ pub(crate) struct ShimmerInputs<'a> {
     pub source: &'a str,
 }
 
+/// Whether `text[start..start + len]` is bounded by non-identifier
+/// characters (or a text boundary) on both sides — i.e. it appears as a
+/// standalone word, not as a substring of a larger identifier.
+///
+/// Shared by [`expr::find_operator_fix`] and
+/// [`use_site::nested_call_arg_spans`], both of which locate a
+/// mechanical-fix target by scanning already-parsed source text rather
+/// than re-parsing it (see `find_operator_fix`'s doc comment for why this
+/// textual-scan approximation is safe here).
+fn is_standalone_word_at(text: &str, start: usize, len: usize) -> bool {
+    fn is_word_char(c: char) -> bool {
+        c.is_alphanumeric() || c == '_'
+    }
+    let before_ok = text[..start]
+        .chars()
+        .next_back()
+        .is_none_or(|c| !is_word_char(c));
+    let after_ok = text[start + len..]
+        .chars()
+        .next()
+        .is_none_or(|c| !is_word_char(c));
+    before_ok && after_ok
+}
+
 /// Find intrep-shimmer warnings for a single function.
 ///
 /// Runs three sub-passes in order:
@@ -168,18 +192,16 @@ pub(crate) fn find_shimmer_warnings(inputs: &ShimmerInputs<'_>) -> Vec<ShimmerWa
 /// [`crate::gvn::find_redundancies_for_cu`]) so downstream tooling — the
 /// compiler explorer, the MCP server — can run the analysis without
 /// re-deriving per-function inputs. Walks every statically-analysable body
-/// in `cu.all_body_function_units()` order — top-level, every procedure,
-/// **and** every `TclOO`/snit method body and synthetic body unit (`apply`
-/// lambda, `namespace eval` block). `cu.functions()`/`analysable_functions()`
-/// deliberately skip methods and body units (kept for the per-proc passes'
-/// established behaviour — see their doc comments); shimmer has no such
-/// constraint, and skipping them silently dropped every shimmer/thunking/
-/// byte-array finding inside a method or lambda body even though the CFG /
-/// SSA / type pipeline already analyses them soundly (`cu.methods` /
-/// `cu.body_units` are built through the identical pipeline as
-/// `cu.procedures`). The complexity guard is re-applied by hand since
-/// `all_body_function_units` — unlike `analysable_functions` — doesn't
-/// filter it out.
+/// in `cu.analysable_body_function_units()` order — top-level, every
+/// procedure, **and** every `TclOO`/snit method body and synthetic body unit
+/// (`apply` lambda, `namespace eval` block). `cu.functions()`/
+/// `analysable_functions()` deliberately skip methods and body units (kept
+/// for the per-proc passes' established behaviour — see their doc
+/// comments); shimmer has no such constraint, and skipping them silently
+/// dropped every shimmer/thunking/byte-array finding inside a method or
+/// lambda body even though the CFG / SSA / type pipeline already analyses
+/// them soundly (`cu.methods` / `cu.body_units` are built through the
+/// identical pipeline as `cu.procedures`).
 ///
 /// `mutations` (module-wide `rename`/`interp alias`/proc-redefinition facts)
 /// is computed once here via
@@ -193,10 +215,7 @@ pub fn find_shimmer_warnings_for_cu(
 ) -> Vec<ShimmerWarning> {
     let mutations = crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
     let mut out = Vec::new();
-    for fu in cu
-        .all_body_function_units()
-        .filter(|fu| !fu.complexity_guarded)
-    {
+    for fu in cu.analysable_body_function_units() {
         out.extend(find_shimmer_warnings(&ShimmerInputs {
             cfg: &fu.cfg,
             ssa: &fu.ssa,
@@ -218,10 +237,7 @@ pub fn find_thunking_warnings_for_cu(
     cu: &crate::compilation_unit::CompilationUnit,
 ) -> Vec<ThunkingWarning> {
     let mut out = Vec::new();
-    for fu in cu
-        .all_body_function_units()
-        .filter(|fu| !fu.complexity_guarded)
-    {
+    for fu in cu.analysable_body_function_units() {
         out.extend(find_thunking_warnings(
             &fu.cfg,
             &fu.ssa,
@@ -275,10 +291,7 @@ pub fn find_byte_array_warnings_for_cu(
 ) -> Vec<ShimmerWarning> {
     let payload_layouts = registry.byte_array_payload_layouts();
     let mut out = Vec::new();
-    for fu in cu
-        .all_body_function_units()
-        .filter(|fu| !fu.complexity_guarded)
-    {
+    for fu in cu.analysable_body_function_units() {
         out.extend(find_byte_array_warnings(
             &fu.cfg,
             &fu.ssa,

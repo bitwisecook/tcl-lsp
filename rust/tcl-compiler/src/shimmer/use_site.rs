@@ -70,11 +70,20 @@ use super::{ShimmerWarning, type_name};
 /// `ModuleCommandMutations` already uses for the optimiser's builtin-fold
 /// gate — see its doc comment), so the corresponding shimmer check is
 /// suppressed rather than risk a false claim about a command that may no
-/// longer mean what its name suggests. An `interp alias`-created name is
-/// additionally *resolved* to its target via
-/// [`crate::ir::Statement::canonical_command_or_source`] before the lookup,
-/// so a call through the alias is checked exactly like a call to the target
-/// itself.
+/// longer mean what its name suggests. For a top-level [`Statement::Call`],
+/// an `interp alias`-created name is additionally *resolved* to its target
+/// via [`crate::ir::Statement::canonical_command_or_source`] before the
+/// lookup, so a call through the alias is checked exactly like a call to
+/// the target itself — `canonical_command` is populated at IR-lowering
+/// time from the module-wide alias table. A `[cmd …]` substitution
+/// embedded in a `Statement::AssignValue` has no such pre-resolved field
+/// (it's parsed ad hoc from source text by
+/// [`crate::value_shapes::parse_command_substitution`], not lowered as its
+/// own bound `Statement::Call`), so an alias used in that position is
+/// looked up — and `mutations.trusts()`-gated — under its literal alias
+/// spelling: `set y [li $x 0]` is not checked as a `lindex` call. Exposing
+/// the lowering pass's alias table for this ad-hoc lookup too is a known
+/// gap, not yet done.
 ///
 /// `inputs.source` is the whole compilation unit's source text — used only
 /// to recover a tight per-argument span for a `[cmd …]` substitution
@@ -415,7 +424,6 @@ fn nested_call_arg_spans(
         return None;
     }
 
-    let is_word_char = |c: char| c.is_alphanumeric() || c == '_';
     let mut cursor = 0usize;
     let mut spans = vec![Span::empty(stmt_span.start())];
     for arg in args {
@@ -423,15 +431,7 @@ fn nested_call_arg_spans(
             .match_indices(arg.as_str())
             .find_map(|(i, _)| {
                 let abs = cursor + i;
-                let before_ok = sub_text[..abs]
-                    .chars()
-                    .next_back()
-                    .is_none_or(|c| !is_word_char(c));
-                let after_ok = sub_text[abs + arg.len()..]
-                    .chars()
-                    .next()
-                    .is_none_or(|c| !is_word_char(c));
-                (before_ok && after_ok).then_some(abs)
+                super::is_standalone_word_at(sub_text, abs, arg.len()).then_some(abs)
             })?;
         cursor = found + arg.len();
         let abs_start = stmt_span.start() + u32::try_from(sub_start + found).ok()?;
@@ -462,7 +462,10 @@ fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Sy
         // call. The statement's own `tokens` (when present) describe the
         // outer `set`'s words, not the nested substitution's, so per-argument
         // spans are instead recovered from the source text directly — see
-        // [`nested_call_arg_spans`].
+        // [`nested_call_arg_spans`]. Unlike the `Statement::Call` arm above,
+        // `command` here is *not* resolved through `interp alias` — see
+        // this module's top doc comment for why (no pre-lowered
+        // `canonical_command` exists for an ad-hoc-parsed substitution).
         Statement::AssignValue { value, .. } => {
             let trimmed = value.trim();
             if let Some((command, args)) = crate::value_shapes::parse_command_substitution(trimmed)

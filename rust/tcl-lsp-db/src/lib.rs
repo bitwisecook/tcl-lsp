@@ -1461,8 +1461,8 @@ pub fn proc_taint_solve<'db>(
     // seeds `lattice_keys` for) falls back to the direct per-function computation
     // on the *already-rebased* built unit (no offset add).
     //
-    // Walks `cu.all_body_function_units()`, not `cu.analysable_functions()` —
-    // the latter excludes methods and body units (see its doc comment), which
+    // Walks `cu.analysable_body_function_units()`, not `cu.analysable_functions()`
+    // — the latter excludes methods and body units (see its doc comment), which
     // silently dropped every shimmer/thunking/byte-array/SCCP/GVN finding from
     // inside a method or `apply`/`namespace eval` body in the *live* push/pull
     // diagnostics path, even after `compiler_checks::run_all_checks_with_
@@ -1473,10 +1473,7 @@ pub fn proc_taint_solve<'db>(
     // memoisation this function's `lattice_memo` callback populates), so a
     // method/body-unit `fu` here always — correctly — takes the fallback arm.
     let mut fn_checks: Vec<CompilerCheck> = Vec::new();
-    for fu in cu
-        .all_body_function_units()
-        .filter(|fu| !fu.complexity_guarded)
-    {
+    for fu in cu.analysable_body_function_units() {
         match lattice_keys.get(&fu.name) {
             Some(&key) => {
                 let body_offset = cu

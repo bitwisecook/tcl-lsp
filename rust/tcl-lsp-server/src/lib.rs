@@ -2468,6 +2468,34 @@ impl Backend {
         self.db_file_analysis(uri).await
     }
 
+    /// [`cached_analysis`], but for compiler-check/optimiser diagnostics —
+    /// the same salsa-memoised [`tcl_lsp_db::compiler_check_diagnostics`]
+    /// query [`compute_compiler_diags`] uses on the push-diagnostics path,
+    /// so a feature that only needs `CompilerDiagnostics` (e.g. `code_action`'s
+    /// compiler-check quick-fix lowering) shares that per-procedure
+    /// memoisation instead of paying for
+    /// [`tcl_lsp_db::compiler_check_diagnostics_uncached`]'s full rebuild on
+    /// every request. `None` when the document has no `SourceFile` input yet
+    /// (the caller falls back to the uncached build, as [`analysis_for`]
+    /// does for [`cached_analysis`]) or a concurrent edit cancelled the read.
+    async fn cached_compiler_diagnostics(
+        &self,
+        uri: &Uri,
+    ) -> Option<Arc<tcl_lsp_db::CompilerDiagnostics>> {
+        let file = (*self.db_files.lock().await).get(uri).copied()?;
+        let config = self.resolved_db_config(uri).await;
+        let snapshot = self.db.lock().await.clone();
+        tokio::task::spawn_blocking(move || {
+            salsa::Cancelled::catch(|| {
+                tcl_lsp_db::compiler_check_diagnostics(&snapshot, file, config)
+            })
+            .ok()
+        })
+        .await
+        .ok()
+        .flatten()
+    }
+
     /// Resolve an analysis for the document.  Consults the
     /// cache first; computes a fresh analysis when no entry
     /// exists.  Returns a shared `Arc` the caller can move into
@@ -7847,9 +7875,15 @@ impl LanguageServer for Backend {
         let context_diags = lift_context_diagnostics(&params.context.diagnostics);
         let dialect = doc.dialect.clone();
         let uri_str = uri.as_str().to_string();
-        // IRULE4002 generic-name patterns for the iRules-only compiler-checks
-        // code-action lowering below (uncached, off the salsa path).
+        // IRULE4002 generic-name patterns — only consulted by the uncached
+        // fallback below, when `cached_checks` is `None`.
         let generic_patterns = self.generic_variable_patterns.lock().await.clone();
+        // The compiler-check quick-fix lowering below needs `CompilerDiagnostics`
+        // for this document; reuse the salsa-memoised build shared with the
+        // push-diagnostics path (`compute_compiler_diags`) when one exists,
+        // rather than unconditionally paying for a from-scratch parse/CFG/SSA/
+        // SCCP/type-inference rebuild on every `code_action` request.
+        let cached_checks = self.cached_compiler_diagnostics(&uri).await;
         let actions = tokio::task::spawn_blocking(move || {
             let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
             actions.extend(core_code_actions::package_require_actions(
@@ -7884,12 +7918,15 @@ impl LanguageServer for Backend {
             // above, which meant a fix on a plain-Tcl document was silently
             // dropped even though `check_diagnostic_actions` itself has no
             // iRules-specific behaviour.
-            let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
-                &doc.text,
-                &registry,
-                &dialect,
-                generic_patterns.as_deref(),
-            );
+            let checks = match cached_checks {
+                Some(c) => c,
+                None => Arc::new(tcl_lsp_db::compiler_check_diagnostics_uncached(
+                    &doc.text,
+                    &registry,
+                    &dialect,
+                    generic_patterns.as_deref(),
+                )),
+            };
             actions.extend(core_code_actions::check_diagnostic_actions(
                 &doc.text,
                 range,

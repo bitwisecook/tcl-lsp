@@ -284,10 +284,15 @@ pub fn run_all_checks_with_solved_and_patterns(
     // memoise it per procedure on the offset-0 `FnLatticeKey` (SRV-INCREMENTAL
     // 2a): an unedited procedure's checks are a cache hit instead of recomputed
     // over the whole unit every edit.
+    //
     // Walks `cu.analysable_body_function_units()` (top-level + procedures +
     // TclOO/snit methods + synthetic `apply`/`namespace eval` body units,
-    // complexity-guarded bodies excluded) — see that method's doc comment
-    // for why this reaches further than `cu.analysable_functions()`.
+    // complexity-guarded bodies excluded), not `cu.analysable_functions()` —
+    // the latter deliberately excludes methods and body units for unrelated
+    // historical reasons (see its doc comment) and doing so here silently
+    // dropped every one of these diagnostic families from inside a method or
+    // lambda body, even though `cu.methods`/`cu.body_units` are built
+    // through the identical CFG/SSA/SCCP/type pipeline as `cu.procedures`.
     for fu in cu.analysable_body_function_units() {
         // `cu.source` is safe to pass whole here (not just this function's own
         // slice): every unit `analysable_body_function_units()` yields from a
