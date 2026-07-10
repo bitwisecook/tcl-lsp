@@ -1712,6 +1712,13 @@ pub struct Backend {
     /// not coalesce them itself (VS Code does; eglot may not) would re-pull
     /// every open document once per refresh.
     semantic_tokens_refresh_pending: Arc<std::sync::atomic::AtomicBool>,
+    /// Abort handle for the most recent [`Backend::spawn_workspace_warm`] task, so
+    /// a fresh warm (from `initialize` / folder-add / config-change) supersedes any
+    /// still-running one. Without it, overlapping warms each hold their own
+    /// `WORKSPACE_WARM_MAX_CONCURRENCY` snapshots, so the global snapshot bound
+    /// would hold only per-warm. A `std::sync::Mutex`: locked only briefly (swap +
+    /// abort) from the sync `spawn_workspace_warm`, never across an await.
+    warm_task: std::sync::Mutex<Option<tokio::task::AbortHandle>>,
     /// Serialises the document-sync notification handlers (`did_open` /
     /// `did_change` / `did_close`) so their buffer mutations apply in the exact
     /// order the client sent them.
@@ -1988,6 +1995,7 @@ impl Backend {
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            warm_task: std::sync::Mutex::new(None),
             edit_serialize: Mutex::new(()),
         }
     }
@@ -5427,7 +5435,10 @@ impl Backend {
     ///   acquiring a permit and drops it as soon as its analysis returns), so a
     ///   concurrent `set_text` waits on at most that many in-flight reads — and
     ///   each is the cancellable per-item query, so `set_text` cancels them at a
-    ///   per-item boundary rather than waiting them out.
+    ///   per-item boundary rather than waiting them out. A fresh warm aborts the
+    ///   previous one (`warm_task`), so overlapping scans (initialize / folder-add
+    ///   / config-change) keep that bound *global*, not merely per-warm, and drop
+    ///   the redundant re-walk.
     ///
     /// Warms under every distinct config a request could resolve to — the global
     /// `db_config` plus each folder-scoped override in `folder_db_configs` —
@@ -5445,7 +5456,7 @@ impl Backend {
         let db_project = Arc::clone(&self.db_project);
         let db_config = Arc::clone(&self.db_config);
         let folder_db_configs = Arc::clone(&self.folder_db_configs);
-        tokio::spawn(async move {
+        let task = tokio::spawn(async move {
             let Some(project) = *db_project.lock().await else {
                 return;
             };
@@ -5498,6 +5509,16 @@ impl Backend {
             }
             while warms.join_next().await.is_some() {}
         });
+        // Supersede any still-running warm so overlapping scans (initialize /
+        // folder-add / config-change) can't stack their snapshots or redundantly
+        // re-walk the workspace. Aborting at the per-item await boundaries (with
+        // the existing `Cancelled::catch`) keeps the global snapshot bound at
+        // `WORKSPACE_WARM_MAX_CONCURRENCY`.
+        if let Ok(mut guard) = self.warm_task.lock()
+            && let Some(prev) = guard.replace(task.abort_handle())
+        {
+            prev.abort();
+        }
     }
 
     /// Detach the #844 Gap 4 convergence continuation for a range request served
@@ -13204,6 +13225,7 @@ mod tests {
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            warm_task: std::sync::Mutex::new(None),
             edit_serialize: Mutex::new(()),
         }
     }
