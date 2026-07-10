@@ -227,11 +227,10 @@ pub(crate) fn command_span(tokens: &[Token], sm: &SourceMap<'_>) -> Span {
 /// cannot be derived from the token *type*, and `cmd.range` consumers (W105
 /// unbraced-body detection, segmenter tiling) rely on the inner-end for them.
 fn widen_word_end(tok: Token, sm: &SourceMap<'_>) -> u32 {
-    let closer = match tok.kind {
-        TokenType::Str => b'}',
-        TokenType::Cmd => b']',
-        _ => return tok.span.end(),
+    let Some(closer) = tok.kind.group_closer() else {
+        return tok.span.end();
     };
+    let closer = closer as u8;
     let end = tok.span.end();
     if sm.token_text(tok).is_empty() {
         // Empty `{}` / `[]`: span already covers the closer — don't widen.

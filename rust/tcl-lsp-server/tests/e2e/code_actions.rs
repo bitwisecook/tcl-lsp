@@ -745,7 +745,6 @@ fn test_no_profiles_action_for_tcl_dialect() {
     let sa = kinds(&actions, "source");
     assert!(sa.iter().all(|a| !action_title(a).contains("Profiles")));
 }
-
 // -- TestE100E102QuickFixes -----------------------------------------------
 
 #[test]
@@ -867,4 +866,23 @@ fn test_e102_no_fix_offered_for_embedded_brace() {
         "{:?}",
         titles(&actions)
     );
+}
+
+// -- TestShimmerNoqaSuppressQuickFix --------------------------------------
+
+#[test]
+fn test_s100_offers_noqa_suppress_action() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x hello\nincr x\n");
+    let s100 = with_code(&diags, "S100");
+    assert!(!s100.is_empty(), "expected an S100 to drive the quick fix");
+    let actions = lsp.code_actions(&uri, range((1, 0), (1, 6)), json!(s100));
+    assert!(
+        titles(&actions)
+            .iter()
+            .any(|t| t == "Suppress S100 with a noqa comment"),
+        "expected an S100 noqa-suppress action, got {actions:?}"
+    );
+    assert!(new_texts(&actions).iter().any(|s| s == "# noqa: S100\n"));
 }

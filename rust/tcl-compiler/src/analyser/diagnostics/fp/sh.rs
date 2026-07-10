@@ -820,3 +820,64 @@ namespace eval ::foo {
         "FP-SH-16: namespace alias without a local re-init must not fire S102; got {got:?}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// FP-SH-09 — a variable under a live write-trace is not confidently typed
+// ---------------------------------------------------------------------------
+
+/// FP-SH-09: `trace add variable v write cb` registers a callback that can
+/// rewrite `v`'s value — and so its intrep — on every subsequent write. A
+/// `set v hello` *after* the trace is installed must not be trusted as a
+/// definite String: the trace callback runs on that very `set` and may
+/// substitute a different value. Claiming S100 on the following `incr v`
+/// would be unsound.
+#[test]
+fn fp_sh_09_traced_variable_write_not_confidently_typed() {
+    let src = "\
+proc f {} {
+    trace add variable v write cb
+    set v hello
+    incr v
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-09: a write-traced variable's def must widen to OVERDEFINED; got {got:?}"
+    );
+}
+
+/// FP-SH-09 TP control: the identical `set`/`incr` pair with no trace
+/// anywhere in the function must still fire — the widening is trace-gated,
+/// not a blanket suppression of `incr` shimmer.
+#[test]
+fn fp_sh_09_untraced_variable_still_fires() {
+    let src = "proc f {} {\n    set v hello\n    incr v\n}\n";
+    let got = codes(src, D);
+    assert!(
+        got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-09 TP: untraced incr shimmer must still fire; got {got:?}"
+    );
+}
+
+/// FP-SH-09: the trace can be installed by a *different* proc — the
+/// module-wide `ModuleVariableTraces` fact must still widen the def, not
+/// just a same-function `analyse_var_observability` scan.
+#[test]
+fn fp_sh_09_module_wide_trace_from_another_proc_suppresses_shimmer() {
+    let src = "\
+proc install_trace {} {
+    trace add variable ::v write cb
+}
+proc use_it {} {
+    install_trace
+    set ::v hello
+    incr ::v
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-09: a trace installed by a different proc must still widen the def; got {got:?}"
+    );
+}

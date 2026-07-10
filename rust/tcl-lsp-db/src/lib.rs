@@ -1474,6 +1474,23 @@ pub fn proc_taint_solve<'db>(
         }
     }
 
+    // The intrep-shimmer family alone, extended to `TclOO` method bodies and
+    // synthetic body units (`apply` lambdas, `namespace eval` bodies). The
+    // main per-function loop above still iterates the proc-only
+    // `analysable_functions`, unlike `compiler_checks::run_all_checks_with_solved_and_patterns`'s
+    // direct path (which iterates the wider `all_body_function_units` and so
+    // needs no separate top-up — see `analysable_methods_and_body_units`'s
+    // own doc comment for why adding it there too would double-count), so
+    // this memoised path needs its own top-up loop to reach the same
+    // methods/body units. These never get an offset-0 `FnLatticeKey`, so
+    // they carry absolute spans already and need no rebase, same as the
+    // `None` arm above.
+    for fu in cu.analysable_methods_and_body_units() {
+        for d in tcl_compiler::compiler_checks::shimmer_family_checks(fu, &registry, dialect_opt) {
+            fn_checks.push(d);
+        }
+    }
+
     let optimisations = solve_optimisations(db, &cu, &lattice_keys, &registry, dialect_opt);
     Arc::new(CheckSolve {
         taints,

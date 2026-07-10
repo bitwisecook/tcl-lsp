@@ -265,11 +265,18 @@ pub fn run_all_checks_with_solved_and_patterns(
     let mut out: Vec<Diagnostic> = Vec::new();
 
     // Per-function non-taint checks (SCCP constant branches, GVN redundancies,
-    // shimmer / thunking / byte-array), computed on each procedure and rebased to
-    // its offset.  Factored into [`function_nontaint_checks`] so the LSP db can
-    // memoise it per procedure on the offset-0 `FnLatticeKey` (SRV-INCREMENTAL
-    // 2a): an unedited procedure's checks are a cache hit instead of recomputed
-    // over the whole unit every edit.
+    // shimmer / thunking / byte-array), computed on each procedure — **and**,
+    // via `analysable_body_function_units`, every `TclOO` method body and
+    // synthetic body unit (`apply` lambda, `namespace eval` body) too, so the
+    // shimmer family `function_nontaint_checks` folds in reaches those places
+    // as well (no separate widening loop needed here: unlike
+    // `tcl-lsp-db::proc_taint_solve`'s memoised path below, which still
+    // iterates the proc-only `analysable_functions` and so keeps its own
+    // explicit `shimmer_family_checks` pass over methods/body units) —
+    // rebased to its offset. Factored into [`function_nontaint_checks`] so
+    // the LSP db can memoise it per procedure on the offset-0 `FnLatticeKey`
+    // (SRV-INCREMENTAL 2a): an unedited procedure's checks are a cache hit
+    // instead of recomputed over the whole unit every edit.
     for fu in cu.analysable_body_function_units() {
         for d in function_nontaint_checks(fu, registry, dialect) {
             out.push(shift(fu, d));
@@ -316,6 +323,29 @@ pub fn function_nontaint_checks(
     for r in find_loop_invariants(registry, &fu.cfg, &fu.ssa, dialect) {
         out.push(Diagnostic::from_redundant(&r));
     }
+    out.extend(shimmer_family_checks(fu, registry, dialect));
+    out
+}
+
+/// The intrep-shimmer diagnostic family alone for one function body: use-site
+/// / expression / phi shimmer (S100/S101), loop-oscillation thunking (S102),
+/// and byte-array corruption (S110).
+///
+/// Split out of [`function_nontaint_checks`] so it can also run over `TclOO`
+/// method bodies and synthetic body units (`apply` lambdas, `namespace eval`
+/// bodies) — [`CompilationUnit.methods`](crate::compilation_unit::CompilationUnit::methods)
+/// and `.body_units` are excluded from the SCCP/GVN half (`cu.analysable_functions()`
+/// only walks the top level and procedures), so without this split every
+/// shimmer diagnostic was silently unreachable inside a method or a
+/// `namespace eval` body. The S110 `*::payload` byte-command set is
+/// dialect-gated (empty outside iRules).
+#[must_use]
+pub fn shimmer_family_checks(
+    fu: &FunctionUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<Diagnostic> {
+    let mut out: Vec<Diagnostic> = Vec::new();
     for w in find_shimmer_warnings(
         &fu.cfg,
         &fu.ssa,
@@ -496,6 +526,36 @@ mod tests {
         let mut r = CommandRegistry::build_default();
         r.load_irules();
         r
+    }
+
+    /// Regression: `function_nontaint_checks` (called per unit from the
+    /// `analysable_body_function_units` loop, which already reaches `TclOO`
+    /// method bodies) folds in `shimmer_family_checks` itself — a second,
+    /// separate loop explicitly re-walking methods/body-units for shimmer
+    /// would double-emit every S100/S101/S102/S110 inside one. Exactly this
+    /// double-count was introduced transiently when two independent fixes
+    /// (this shimmer-coverage widening and #872's taint-coverage widening)
+    /// were rebased together: #872 widened the base loop from
+    /// `analysable_functions` to `analysable_body_function_units`, which
+    /// made the shimmer-only top-up loop redundant.
+    #[test]
+    fn shimmer_not_double_counted_in_tcloo_method_body() {
+        let src = "oo::class create C {\n    method m {} {\n        set x hello\n        incr x\n    }\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let diags = run_all_checks(&cu, &registry(), None);
+        let s100: Vec<_> = diags.iter().filter(|d| d.code.as_str() == "S100").collect();
+        assert_eq!(s100.len(), 1, "expected exactly one S100, got {s100:?}");
+    }
+
+    /// Same double-count guard for a `namespace eval` body (the other
+    /// synthetic body-unit kind `analysable_body_function_units` reaches).
+    #[test]
+    fn shimmer_not_double_counted_in_namespace_eval_body() {
+        let src = "namespace eval ns {\n    set x hello\n    incr x\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let diags = run_all_checks(&cu, &registry(), None);
+        let s100: Vec<_> = diags.iter().filter(|d| d.code.as_str() == "S100").collect();
+        assert_eq!(s100.len(), 1, "expected exactly one S100, got {s100:?}");
     }
 
     #[test]

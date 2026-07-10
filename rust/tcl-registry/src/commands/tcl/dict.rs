@@ -402,11 +402,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict getd dictionaryValue ?key ...? key default",
         pure: true,
         return_type: Some(TclType::String),
+        // Same dict-argument shape as plain `dict get`'s `SubCommand`: the
+        // key-path lookup forces a dict intrep on `dictionaryValue` exactly
+        // the same way, default value or not — `shimmers: false` here was
+        // an inconsistency, not a documented difference from `dict get`.
         arg_types: &[(
             0,
             ArgTypeHint {
                 expected: Some(TclType::Dict),
-                shimmers: false,
+                shimmers: true,
             },
         )],
         ..SubCommand::DEFAULT
@@ -420,11 +424,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict getdef dictionaryValue ?key ...? key default",
         pure: true,
         return_type: Some(TclType::String),
+        // Same dict-argument shape as plain `dict get`'s `SubCommand`: the
+        // key-path lookup forces a dict intrep on `dictionaryValue` exactly
+        // the same way, default value or not — `shimmers: false` here was
+        // an inconsistency, not a documented difference from `dict get`.
         arg_types: &[(
             0,
             ArgTypeHint {
                 expected: Some(TclType::Dict),
-                shimmers: false,
+                shimmers: true,
             },
         )],
         ..SubCommand::DEFAULT
@@ -438,11 +446,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict getwithdefault dictionaryValue ?key ...? key default",
         pure: true,
         return_type: Some(TclType::String),
+        // Same dict-argument shape as plain `dict get`'s `SubCommand`: the
+        // key-path lookup forces a dict intrep on `dictionaryValue` exactly
+        // the same way, default value or not — `shimmers: false` here was
+        // an inconsistency, not a documented difference from `dict get`.
         arg_types: &[(
             0,
             ArgTypeHint {
                 expected: Some(TclType::Dict),
-                shimmers: false,
+                shimmers: true,
             },
         )],
         ..SubCommand::DEFAULT

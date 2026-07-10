@@ -1944,3 +1944,116 @@ fn e103_abstains_when_missing_brace_swallows_more_than_one_statement() {
     assert!(!has_code(&diags, "E103"), "{:?}", codes(&diags));
     assert!(has_code(&diags, "E200"), "{:?}", codes(&diags));
 }
+
+#[test]
+fn shimmer_incr_on_string_is_s100_info_with_tight_range() {
+    // The range must cover only the `$x` argument — not the whole `incr x`
+    // call and not the `[lindex $x 0]` substitution around it.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x hello\nlindex $x 0\n");
+    let s100: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("S100"))
+        .collect();
+    assert_eq!(s100.len(), 1, "expected exactly one S100: {diags:?}");
+    let range = &s100[0]["range"];
+    assert_eq!(range["start"]["line"], 1);
+    assert_eq!(range["start"]["character"], 7, "must start at '$x'");
+    assert_eq!(range["end"]["line"], 1);
+    assert_eq!(range["end"]["character"], 9, "must end after '$x'");
+    assert_eq!(
+        s100[0].get("severity").and_then(Value::as_i64),
+        Some(3), // Information
+        "S100 is informational: {:?}",
+        s100[0]
+    );
+}
+
+#[test]
+fn clean_list_used_with_lindex_has_no_s100() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x [list 1 2 3]\nlindex $x 0\n");
+    assert!(!has_code(&diags, "S100"), "unexpected S100: {diags:?}");
+}
+
+#[test]
+fn shimmer_fires_inside_tcloo_method_body() {
+    // TclOO method bodies previously got zero shimmer coverage (the
+    // compiler-checks aggregator only walked the top level and procedures).
+    // Exactly one, not two: `tcl-lsp-db::proc_taint_solve` (the live server's
+    // memoised path) has its own top-up loop for methods/body units,
+    // independent of `compiler_checks.rs`'s direct path — a regression where
+    // both the top-up loop *and* the main loop covered methods/body units
+    // would double-emit every shimmer diagnostic inside one.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src =
+        "oo::class create C {\n    method m {} {\n        set x hello\n        incr x\n    }\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    let s100: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("S100"))
+        .collect();
+    assert_eq!(
+        s100.len(),
+        1,
+        "expected exactly one S100 inside a TclOO method body: {diags:?}"
+    );
+}
+
+#[test]
+fn shimmer_fires_inside_namespace_eval_body() {
+    // Same double-count guard as `shimmer_fires_inside_tcloo_method_body`,
+    // for the other synthetic body-unit kind.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval ns {\n    set x hello\n    incr x\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    let s100: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("S100"))
+        .collect();
+    assert_eq!(
+        s100.len(),
+        1,
+        "expected exactly one S100 inside a namespace eval body: {diags:?}"
+    );
+}
+
+#[test]
+fn shimmer_fires_through_interp_alias() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "interp alias {} myindex {} ::lindex\nset x hello\nmyindex $x 0\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        has_code(&diags, "S100"),
+        "expected S100 through an interp alias to a shimmering builtin: {diags:?}"
+    );
+}
+
+#[test]
+fn shimmer_noqa_suppresses_s100() {
+    // `# noqa: S100` on the line before the shimmering command must
+    // suppress it through the live publishDiagnostics pipeline.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x hello\n# noqa: S100\nlindex $x 0\n");
+    assert!(
+        !has_code(&diags, "S100"),
+        "S100 must be suppressed by a preceding '# noqa: S100': {diags:?}"
+    );
+}
+
+#[test]
+fn shimmer_noqa_for_unrelated_code_does_not_suppress_s100() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x hello\n# noqa: W100\nlindex $x 0\n");
+    assert!(
+        has_code(&diags, "S100"),
+        "S100 must still fire when the preceding noqa names an unrelated code: {diags:?}"
+    );
+}

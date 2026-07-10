@@ -57,6 +57,23 @@ pub fn spec() -> CommandSpec {
             | Traits::WASM_EMITS_NOTHING,
         arity: Arity::at_least(3),
         arg_role_resolver: Some(foreach_arg_roles),
+        // Index 0 here is a fixed key, not a real source-position argument
+        // index: the CFG builder lowers a `foreach` header to a synthetic
+        // `Statement::Call` whose `args` are *only* the list arguments (one
+        // per iterator group — the var-lists live in `defs`, not `args`; see
+        // `cfg_builder::cfg_lower::lower_foreach`). Every list argument
+        // expects the same List intrep (`$l` forces it via
+        // `TclListObjGetElements`, exactly like `llength`'s operand), so
+        // `shimmer::use_site::foreach_header_expected_type` reads this one
+        // entry and applies it uniformly to every iterator group, including
+        // the later ones a positional per-index table couldn't reach.
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::List),
+                shimmers: true,
+            },
+        )],
         lowering_hook: Some(crate::hooks::LoweringHookId::Foreach),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {

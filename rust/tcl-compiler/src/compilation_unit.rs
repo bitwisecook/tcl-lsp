@@ -1208,6 +1208,34 @@ impl CompilationUnit {
         v.sort_by(|a, b| a.name.cmp(&b.name));
         v.into_iter()
     }
+
+    /// Every `TclOO` method and synthetic body unit (`apply` lambda,
+    /// `namespace eval` body) that isn't complexity-guarded — the extra half
+    /// of [`Self::all_body_function_units`] beyond [`Self::analysable_functions`]
+    /// (top-level + procedures), name-sorted for reproducibility.
+    ///
+    /// Exists for a pass that already reaches top-level + procedures through
+    /// [`Self::analysable_functions`] elsewhere and wants *only* these two
+    /// extra function kinds added, without double-visiting top-level or a
+    /// procedure or double-counting a diagnostic. Used by
+    /// `tcl-lsp-db::proc_taint_solve`'s shimmer-family top-up loop: that
+    /// memoised query's main per-function loop still iterates
+    /// [`Self::analysable_functions`] (proc-only), unlike
+    /// `compiler_checks::run_all_checks_with_solved_and_patterns`'s direct
+    /// path, which iterates the wider [`Self::all_body_function_units`]
+    /// (filtered) and so needs no separate top-up — adding this iterator's
+    /// output there too would re-run `shimmer_family_checks` a second time
+    /// over the methods/body units `function_nontaint_checks` already covers.
+    pub fn analysable_methods_and_body_units(&self) -> impl Iterator<Item = &FunctionUnit> {
+        let mut v: Vec<&FunctionUnit> = self
+            .methods
+            .values()
+            .chain(self.body_units.values())
+            .filter(|fu| !fu.complexity_guarded)
+            .collect();
+        v.sort_by(|a, b| a.name.cmp(&b.name));
+        v.into_iter()
+    }
 }
 
 /// Per-arg-position call-site literal evidence for one callee.

@@ -1516,6 +1516,7 @@ async fn refine_and_lift_diagnostics(
             optimiser_enabled,
             &opt_disabled,
             &disabled,
+            &analysis_lifts.suppressed_lines,
         ));
         diagnostics.extend(lift_source_style_diagnostics(
             &lift_text,
@@ -5189,6 +5190,7 @@ impl Backend {
                 optimiser_enabled,
                 &opt_disabled,
                 &disabled,
+                &analysis.suppressed_lines,
             ));
             diagnostics.extend(lift_source_style_diagnostics(
                 &text,
@@ -7860,29 +7862,29 @@ impl LanguageServer for Backend {
                     &doc.text, range, &uri_str,
                 ));
             }
-            // iRules-only: the `# Profiles:` header source action plus the
-            // control-flow quick-fixes (IRULE5002 unguarded drop / IRULE5004
-            // DNS::return) the analyser produces through the compiler-checks
-            // pass rather than `AnalysisResult.diagnostics`.  Only the iRules
-            // dialect's checks carry fixes, so the (re-)lowering is gated here.
-            if dialect == "f5-irules" {
-                if let Some(a) = core_code_actions::profiles_action(&doc.text, &analysis, &registry)
-                {
-                    actions.push(a);
-                }
-                let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
-                    &doc.text,
-                    &registry,
-                    &dialect,
-                    generic_patterns.as_deref(),
-                );
-                actions.extend(core_code_actions::check_diagnostic_actions(
-                    &doc.text,
-                    range,
-                    &checks.checks,
-                    &disabled_codes,
-                ));
+            // iRules-only: the `# Profiles:` header source action.
+            if dialect == "f5-irules"
+                && let Some(a) = core_code_actions::profiles_action(&doc.text, &analysis, &registry)
+            {
+                actions.push(a);
             }
+            // Compiler-check quick-fixes: the iRules control-flow fixes
+            // (IRULE5002 unguarded drop / IRULE5004 DNS::return) plus the
+            // shimmer-family noqa-suppress action (S100/S101/S102/S110) —
+            // every dialect's checks are lowered here, not just iRules'; a
+            // plain-Tcl document's checks simply carry no IRULE-family fixes.
+            let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
+                &doc.text,
+                &registry,
+                &dialect,
+                generic_patterns.as_deref(),
+            );
+            actions.extend(core_code_actions::check_diagnostic_actions(
+                &doc.text,
+                range,
+                &checks.checks,
+                &disabled_codes,
+            ));
             actions
         })
         .await
@@ -9399,10 +9401,13 @@ fn lift_config_diagnostic(
 }
 
 /// Whether `code` is suppressed at `line` by an inline `# noqa` or a
-/// top-of-file `# tcl-lsp: disable=…` directive — the same `_is_suppressed`
+/// top-of-file `# tcl-lsp: disable=…` directive — the same `is_suppressed`
 /// contract `tcl_lsp_core::source_style` applies (a `"*"` entry suppresses
-/// every code; the file-level `-1` bucket is document-wide).
-fn xc_is_suppressed(
+/// every code; the file-level `-1` bucket is document-wide). Shared by every
+/// diagnostic family this module lifts directly (XC, compiler-checks);
+/// `lift_analyser_diagnostics` / `lift_source_style_diagnostics` apply the
+/// same contract via `tcl_lsp_core`'s own (private) copy.
+fn line_suppressed(
     code: &str,
     line: i32,
     suppressed: &std::collections::HashMap<i32, HashSet<String>>,
@@ -9432,7 +9437,7 @@ fn lift_xc_diagnostics(
         .into_iter()
         .filter(|d| !disabled.contains(&d.code))
         .filter(|d| {
-            !xc_is_suppressed(
+            !line_suppressed(
                 &d.code,
                 i32::try_from(d.range.start.line).unwrap_or(i32::MAX),
                 suppressed,
@@ -10058,6 +10063,7 @@ fn lift_compiler_diagnostics(
     optimiser_enabled: bool,
     disabled_optimisations: &std::collections::HashSet<String>,
     disabled_diagnostics: &std::collections::HashSet<String>,
+    suppressed_lines: &std::collections::HashMap<i32, HashSet<String>>,
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
     use tcl_compiler::compiler_checks::Severity as CheckSeverity;
     use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
@@ -10092,8 +10098,17 @@ fn lift_compiler_diagnostics(
         if disabled_diagnostics.contains(d.code.as_str()) {
             continue;
         }
+        let range = lift_span(text, &line_index, d.span);
+        // Inline `# noqa` / top-of-file suppression. The analyser path bakes
+        // `suppressed_lines` into its own build; this separate lift needs the
+        // same check applied explicitly — previously missing entirely, so
+        // `# noqa: S100` (and every other compiler-check code) had no effect.
+        let start_line = i32::try_from(range.start.line).unwrap_or(i32::MAX);
+        if line_suppressed(d.code.as_str(), start_line, suppressed_lines) {
+            continue;
+        }
         out.push(tower_lsp_server::ls_types::Diagnostic {
-            range: lift_span(text, &line_index, d.span),
+            range,
             severity: Some(match d.severity {
                 CheckSeverity::Error => DiagnosticSeverity::ERROR,
                 CheckSeverity::Warning => DiagnosticSeverity::WARNING,
@@ -10128,6 +10143,13 @@ fn lift_compiler_diagnostics(
         if disabled_optimisations.contains(o.code.as_str()) {
             continue;
         }
+        let range = lift_span(text, &line_index, o.span);
+        // Inline `# noqa` / top-of-file suppression — see the `.checks` loop
+        // above for why this was previously missing.
+        let start_line = i32::try_from(range.start.line).unwrap_or(i32::MAX);
+        if line_suppressed(o.code.as_str(), start_line, suppressed_lines) {
+            continue;
+        }
         // Surface the fold/rewrite text as the quick-fix `data.replacement`, so
         // editors and the e2e battery can apply the suggested replacement.
         // Never for a `hint_only` optimisation: its span covers the whole
@@ -10146,7 +10168,7 @@ fn lift_compiler_diagnostics(
             })
         });
         out.push(tower_lsp_server::ls_types::Diagnostic {
-            range: lift_span(text, &line_index, o.span),
+            range,
             severity: Some(DiagnosticSeverity::HINT),
             code: Some(NumberOrString::String(o.code.to_string())),
             code_description: None,
@@ -11382,6 +11404,7 @@ mod tests {
             true,
             &std::collections::HashSet::new(),
             &std::collections::HashSet::new(),
+            &std::collections::HashMap::new(),
         );
         assert!(
             diags.iter().any(|d| matches!(
@@ -11407,6 +11430,7 @@ mod tests {
             false,
             &std::collections::HashSet::new(),
             &std::collections::HashSet::new(),
+            &std::collections::HashMap::new(),
         );
         assert!(
             !off.iter().any(is_o100),
@@ -11422,6 +11446,7 @@ mod tests {
             true,
             &disabled,
             &std::collections::HashSet::new(),
+            &std::collections::HashMap::new(),
         );
         assert!(
             !per_code.iter().any(is_o100),
@@ -11446,6 +11471,7 @@ mod tests {
             true,
             &std::collections::HashSet::new(),
             &std::collections::HashSet::new(),
+            &std::collections::HashMap::new(),
         );
         assert!(
             diags.iter().any(|d| matches!(
@@ -11477,6 +11503,7 @@ mod tests {
             true,
             &std::collections::HashSet::new(),
             &std::collections::HashSet::new(),
+            &std::collections::HashMap::new(),
         );
         assert!(
             baseline.iter().any(is_irule3001),
@@ -11491,11 +11518,79 @@ mod tests {
             true,
             &std::collections::HashSet::new(),
             &disabled_diagnostics,
+            &std::collections::HashMap::new(),
         );
         assert!(
             !filtered.iter().any(is_irule3001),
             "IRULE3001 must be suppressed when disabled per-check: {:?}",
             filtered.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
+        );
+    }
+
+    /// `# noqa: S100` on the line before the shimmering command must
+    /// suppress it through the live compiler-checks lift — previously
+    /// `lift_compiler_diagnostics` never consulted `suppressed_lines` at
+    /// all, so `# noqa` had no effect on any compiler-check code (S1xx
+    /// shimmer, T1xx taint, IRULE1xxx-5xxx, O1xx, GVN, SCCP).
+    #[test]
+    fn lift_compiler_diagnostics_honours_inline_noqa_suppression() {
+        let registry = CommandRegistry::build_default();
+        let src = "set x hello\nincr x\n";
+        let is_s100 = |d: &tower_lsp_server::ls_types::Diagnostic| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "S100");
+
+        // Baseline: S100 fires with no suppression.
+        let baseline = lift_compiler_diagnostics(
+            src,
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None),
+            true,
+            &std::collections::HashSet::new(),
+            &std::collections::HashSet::new(),
+            &std::collections::HashMap::new(),
+        );
+        assert!(baseline.iter().any(is_s100), "expected S100 baseline");
+
+        // `# noqa: S100` on the line before `incr x` suppresses it.
+        let suppressed_src = "set x hello\n# noqa: S100\nincr x\n";
+        let suppressed_lines = Analyser::new()
+            .analyse(suppressed_src, "tcl8.6")
+            .suppressed_lines
+            .clone();
+        let filtered = lift_compiler_diagnostics(
+            suppressed_src,
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(suppressed_src, &registry, "", None),
+            true,
+            &std::collections::HashSet::new(),
+            &std::collections::HashSet::new(),
+            &suppressed_lines,
+        );
+        assert!(
+            !filtered.iter().any(is_s100),
+            "S100 must be suppressed by a preceding '# noqa: S100', got: {:?}",
+            filtered.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
+        );
+
+        // TN control: a `# noqa` for an unrelated code must not incidentally
+        // suppress S100.
+        let unrelated_src = "set x hello\n# noqa: W999\nincr x\n";
+        let unrelated_suppressed = Analyser::new()
+            .analyse(unrelated_src, "tcl8.6")
+            .suppressed_lines
+            .clone();
+        let unfiltered = lift_compiler_diagnostics(
+            unrelated_src,
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(unrelated_src, &registry, "", None),
+            true,
+            &std::collections::HashSet::new(),
+            &std::collections::HashSet::new(),
+            &unrelated_suppressed,
+        );
+        assert!(
+            unfiltered.iter().any(is_s100),
+            "S100 must still fire when the preceding noqa names an unrelated code: {:?}",
+            unfiltered
+                .iter()
+                .map(|d| d.code.clone())
+                .collect::<Vec<_>>(),
         );
     }
 
