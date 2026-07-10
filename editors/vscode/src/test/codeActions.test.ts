@@ -131,7 +131,8 @@ suite("Code Actions", () => {
       (r) =>
         Array.isArray(r) &&
         (r as vscode.CodeAction[]).some(
-          (a) => typeof a.title === "string" && a.title.toLowerCase().includes("insert missing '['"),
+          (a) =>
+            typeof a.title === "string" && a.title.toLowerCase().includes("insert missing '['"),
         ),
       { timeout: 10_000, label: "E100 insert bracket quick fix" },
     )) as vscode.CodeAction[];
