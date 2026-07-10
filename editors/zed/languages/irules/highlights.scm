@@ -70,7 +70,6 @@
 (command
   name: (simple_word) @function.builtin
   (#any-of? @function.builtin
-    "::tcl::mathop::eq" "::tcl::mathop::in" "::tcl::mathop::ne" "::tcl::mathop::ni" "::tcl::process" "::tcl::unsupported::corotype"
     "AAA::acct_result" "AAA::acct_send" "AAA::auth_result" "AAA::auth_send" "ACCESS2::access2_proc" "ACCESS::acl"
     "ACCESS::disable" "ACCESS::enable" "ACCESS::flowid" "ACCESS::log" "ACCESS::oauth" "ACCESS::perflow"
     "ACCESS::policy" "ACCESS::respond" "ACCESS::restrict_irule_events" "ACCESS::saml" "ACCESS::session" "ACCESS::user"
@@ -252,35 +251,13 @@
     "remote_port" "remquo" "rmd160" "scan" "seek" "send"
     "server_addr" "server_port" "serverside" "session" "sha1" "sha256"
     "sha384" "sha512" "sharedvar" "snat" "snatpool" "socket"
-    "split" "string" "subst" "substr" "table" "tcl::mathop"
-    "tcl::mathop::eq" "tcl::mathop::in" "tcl::mathop::ne" "tcl::mathop::ni" "tcl::process" "tcl::tm::path"
-    "tcl::tm::roots" "tclLog" "tclPkgSetup" "tclPkgUnknown" "tcl_endOfWord" "tcl_findLibrary"
-    "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore" "tcpdump" "tell"
-    "testaccessproc" "testalarm" "testapplylambda" "testappverifierpresent" "testasync" "testbigdata"
-    "testbignumobj" "testbooleanobj" "testbumpinterpepoch" "testbytestring" "testchancreate" "testchannel"
-    "testchannelevent" "testchmod" "testcmdinfo" "testcmdobj2" "testcmdtoken" "testcmdtrace"
-    "testconcatobj" "testconvertobj" "testcpuid" "testcreatecommand" "testdcall" "testdel"
-    "testdelassocdata" "testdoubledigits" "testdoubleobj" "testdstring" "testencoding" "testevalex"
-    "testevalobjv" "testevent" "testexithandler" "testexitmainloop" "testexprdouble" "testexprdoubleobj"
-    "testexprlong" "testexprlongobj" "testexprparser" "testexprstring" "testfevent" "testfile"
-    "testfilehandler" "testfilelink" "testfilesystem" "testfilewait" "testfindexecutable" "testfindfirst"
-    "testfindlast" "testfork" "testfstildeexpand" "testgetassocdata" "testgetdefenc" "testgetindexfromobjstruct"
-    "testgetint" "testgetintforindex" "testgetopenfile" "testgetplatform" "testgetunichar" "testgetvarfullname"
-    "testgotsig" "testhandlecount" "testhashsystemhash" "testindexobj" "testinterpdelete" "testinterpresolver"
-    "testintobj" "testisempty" "testlink" "testlinkarray" "testlistapi" "testlistobj"
-    "testlistrep" "testlocale" "testlongsize" "testlutil" "testmainthread" "testmsb"
-    "testnrelevels" "testnreunwind" "testnumutfchars" "testobj" "testopenfilechannelproc" "testpanic"
-    "testparseargs" "testparser" "testparsevar" "testparsevarname" "testpostinit" "testpreferstable"
-    "testprint" "testpurebytesobj" "testregexp" "testreturn" "testsaveresult" "testservicemode"
-    "testset2" "testsetassocdata" "testsetbytearraylength" "testsetdefenc" "testseterr" "testseterrorcode"
-    "testsetmainloop" "testsetnoerr" "testsetobjerrorcode" "testsetplatform" "testsimplefilesystem" "testsize"
-    "testsocket" "teststaticlibrary" "teststaticpkg" "teststatproc" "teststringbytes" "teststringobj"
-    "testtranslatefilename" "testuniclass" "testupvar" "testutfnext" "testutfprev" "testutftonormalized"
-    "testutftonormalizeddstring" "testwrongnumargs" "time" "timer" "timerate" "timing"
-    "trace" "traffic_group" "translate" "unicode" "uniq_ordered_ip_list" "uniq_sorted_ip_list"
-    "unknown" "unload" "unset" "update" "urlcatblindquery" "urlcatquery"
-    "use" "virtual" "vlan_id" "vwait" "whereis" "writeFile"
-    "xff_list" "xff_uniq_ordered_ip_list" "xff_uniq_sorted_ip_list" "zlib"))
+    "split" "string" "subst" "substr" "table" "tclLog"
+    "tclPkgSetup" "tclPkgUnknown" "tcl_endOfWord" "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord"
+    "tcl_wordBreakAfter" "tcl_wordBreakBefore" "tcpdump" "tell" "time" "timer"
+    "timerate" "timing" "trace" "traffic_group" "translate" "unicode"
+    "uniq_ordered_ip_list" "uniq_sorted_ip_list" "unknown" "unload" "unset" "update"
+    "urlcatblindquery" "urlcatquery" "use" "virtual" "vlan_id" "vwait"
+    "whereis" "writeFile" "xff_list" "xff_uniq_ordered_ip_list" "xff_uniq_sorted_ip_list" "zlib"))
 
 ; Highlight unset / variable arguments as variables
 (command

@@ -262,3 +262,21 @@ bitflags! {
         const EXPR_CONCATENATES_ARGS    = 1 << 53;
     }
 }
+
+/// Clause/block words that behave as [`Traits::LANGUAGE_KEYWORD`] tokens but
+/// have no standalone `CommandSpec` — they are never independently invocable
+/// (`else` only means anything as an `if` clause), so they cannot carry a
+/// registry entry of their own the way `if`/`foreach`/`proc` do.
+///
+/// Single source of truth for every consumer that needs "the real Tcl
+/// keywords a `CommandSpec`-driven scan alone would miss": the LSP's
+/// semantic-token classifier
+/// (`tcl_lsp_core::semantic_tokens::LANGUAGE_KEYWORD_SUB_KEYWORDS`, which
+/// unions in its own further residue — the `TclOO` method-body helpers
+/// `callback`/`mymethod`/`link`, which are context-sensitive rather than
+/// unconditional keywords) and the static TextMate-grammar generator
+/// (`xtask`'s `gen_tmlanguage_keywords`, which unions in the iRules-only
+/// `when`). Keeping this list here instead of duplicating it in both means a
+/// new clause word is added once and both consumers pick it up.
+pub const CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC: &[&str] =
+    &["else", "elseif", "on", "trap", "finally"];

@@ -69,12 +69,13 @@
 //!
 //! A few real, in-scope words never come from the registry projection:
 //!
-//! * **Clause continuations** (`else`, `elseif`, `on`, `trap`, `finally`) and
-//!   the iRules block keyword `when` have no standalone `CommandSpec` (or, for
-//!   `when`, sit outside the `ALL_TCL` scope above) but are real Tcl keywords,
-//!   so they are added statically — mirroring
-//!   [`tcl_lsp_core`]'s `LANGUAGE_KEYWORD_SUB_KEYWORDS` residue for the same
-//!   reason.
+//! * **Clause continuations** (`else`, `elseif`, `on`, `trap`, `finally` —
+//!   [`tcl_registry::traits::CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`], shared
+//!   with `tcl_lsp_core::semantic_tokens`'s equivalent residue so the two
+//!   never drift on which clause words are real keywords) and the iRules
+//!   block keyword `when` have no standalone `CommandSpec` (or, for `when`,
+//!   sit outside the `ALL_TCL` scope above) but are real Tcl keywords, so
+//!   they are added statically.
 //! * `itcl::class` is package-gated (`package require Itcl`) so the ambient
 //!   projection below excludes it, but it is namespace-qualified — no
 //!   collision risk with an ordinary bareword — so it is added statically too.
@@ -114,12 +115,15 @@ use std::process::ExitCode;
 use anyhow::{Context, Result, bail};
 use tcl_registry::CommandRegistry;
 use tcl_registry::dialects::DialectSet;
-use tcl_registry::traits::Traits;
+use tcl_registry::traits::{CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC, Traits};
 
-use crate::util::repo_root;
+use crate::util::{self, repo_root};
 
-/// Clause/block words with no standalone `CommandSpec` (see module docs).
-const STATIC_CONTROL_WORDS: &[&str] = &["else", "elseif", "on", "trap", "finally", "when"];
+/// The iRules block keyword `when`, added alongside
+/// [`CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`] (see module docs for why it
+/// isn't covered by the `ALL_TCL` dialect scope this generator otherwise
+/// uses).
+const WHEN: &str = "when";
 
 /// Package-gated but namespace-qualified, so safe to blanket-match (see
 /// module docs).
@@ -130,9 +134,9 @@ const STATIC_OTHER_WORDS: &[&str] = &["itcl::class"];
 const CONTEXT_SENSITIVE_EXCLUDE: &[&str] = &["my", "next", "nextto", "self"];
 
 /// The human-curated control/other split for registry-sourced keywords —
-/// mainstream branch/loop/jump/exception-style words go to `control`;
-/// everything else in [`Buckets::keyword`] falls through to `other`. See the
-/// module docs for why this isn't derived from the `CONTROL_FLOW` trait.
+/// mainstream branch/loop/jump/exception-style words go to [`Buckets::control`];
+/// every other `LANGUAGE_KEYWORD` command falls through to [`Buckets::other`].
+/// See the module docs for why this isn't derived from the `CONTROL_FLOW` trait.
 const CONTROL_STYLE: &[&str] = &[
     "break",
     "catch",
@@ -174,23 +178,10 @@ fn classify(reg: &CommandRegistry) -> Buckets {
     let dialects = DialectSet::ALL_TCL;
 
     for name in reg.command_names() {
-        if name == "disabled_in_irules" || CONTEXT_SENSITIVE_EXCLUDE.contains(&name) {
+        if name == util::DISABLED_SENTINEL || CONTEXT_SENSITIVE_EXCLUDE.contains(&name) {
             continue;
         }
-        if !name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ':')
-        {
-            continue;
-        }
-        // `testXxx` is Tcl core's own, stable naming convention for commands
-        // that exist only in the special `tcltest`-instrumented debug build
-        // (tclUnixTest.c et al) — never present in a normal user interpreter,
-        // so not "common" by any definition. `::tcl::…` is Tcl's own reserved
-        // internal-implementation namespace (documented as such), technically
-        // callable but not what a user would recognise as a built-in command.
-        // Neither belongs in a "common built-ins" highlight list.
-        if (name.starts_with("test") && name.len() > "test".len()) || name.contains("tcl::") {
+        if !util::is_safe_command_name(name) || util::is_internal_or_test_harness_noise(name) {
             continue;
         }
         let Some(spec) = reg.get(name) else { continue };
@@ -209,8 +200,12 @@ fn classify(reg: &CommandRegistry) -> Buckets {
         }
     }
 
-    b.control
-        .extend(STATIC_CONTROL_WORDS.iter().map(|s| (*s).to_owned()));
+    b.control.extend(
+        CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC
+            .iter()
+            .chain([&WHEN])
+            .map(|s| (*s).to_owned()),
+    );
     b.other
         .extend(STATIC_OTHER_WORDS.iter().map(|s| (*s).to_owned()));
     b
