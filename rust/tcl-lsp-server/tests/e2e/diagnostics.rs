@@ -1982,26 +1982,43 @@ fn clean_list_used_with_lindex_has_no_s100() {
 fn shimmer_fires_inside_tcloo_method_body() {
     // TclOO method bodies previously got zero shimmer coverage (the
     // compiler-checks aggregator only walked the top level and procedures).
+    // Exactly one, not two: `tcl-lsp-db::proc_taint_solve` (the live server's
+    // memoised path) has its own top-up loop for methods/body units,
+    // independent of `compiler_checks.rs`'s direct path — a regression where
+    // both the top-up loop *and* the main loop covered methods/body units
+    // would double-emit every shimmer diagnostic inside one.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src =
         "oo::class create C {\n    method m {} {\n        set x hello\n        incr x\n    }\n}\n";
     let diags = lsp.open_ready(&uri, src);
-    assert!(
-        has_code(&diags, "S100"),
-        "expected S100 inside a TclOO method body: {diags:?}"
+    let s100: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("S100"))
+        .collect();
+    assert_eq!(
+        s100.len(),
+        1,
+        "expected exactly one S100 inside a TclOO method body: {diags:?}"
     );
 }
 
 #[test]
 fn shimmer_fires_inside_namespace_eval_body() {
+    // Same double-count guard as `shimmer_fires_inside_tcloo_method_body`,
+    // for the other synthetic body-unit kind.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "namespace eval ns {\n    set x hello\n    incr x\n}\n";
     let diags = lsp.open_ready(&uri, src);
-    assert!(
-        has_code(&diags, "S100"),
-        "expected S100 inside a namespace eval body: {diags:?}"
+    let s100: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("S100"))
+        .collect();
+    assert_eq!(
+        s100.len(),
+        1,
+        "expected exactly one S100 inside a namespace eval body: {diags:?}"
     );
 }
 

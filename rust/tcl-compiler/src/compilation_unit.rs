@@ -1217,13 +1217,15 @@ impl CompilationUnit {
     /// Exists for a pass that already reaches top-level + procedures through
     /// [`Self::analysable_functions`] elsewhere and wants *only* these two
     /// extra function kinds added, without double-visiting top-level or a
-    /// procedure. The shimmer-family checks are exactly this shape: they run
-    /// once per function inside the general per-proc pipeline (which walks
-    /// `analysable_functions()`), and once more here to reach methods and
-    /// body units that pipeline skips — see `compiler_checks::shimmer_family_checks`'s
-    /// two call sites (`compiler_checks.rs` and `tcl-lsp-db::proc_taint_solve`,
-    /// which must independently reach the identical result — see that
-    /// query's own doc comment for why the split exists).
+    /// procedure or double-counting a diagnostic. Used by
+    /// `tcl-lsp-db::proc_taint_solve`'s shimmer-family top-up loop: that
+    /// memoised query's main per-function loop still iterates
+    /// [`Self::analysable_functions`] (proc-only), unlike
+    /// `compiler_checks::run_all_checks_with_solved_and_patterns`'s direct
+    /// path, which iterates the wider [`Self::all_body_function_units`]
+    /// (filtered) and so needs no separate top-up — adding this iterator's
+    /// output there too would re-run `shimmer_family_checks` a second time
+    /// over the methods/body units `function_nontaint_checks` already covers.
     pub fn analysable_methods_and_body_units(&self) -> impl Iterator<Item = &FunctionUnit> {
         let mut v: Vec<&FunctionUnit> = self
             .methods
