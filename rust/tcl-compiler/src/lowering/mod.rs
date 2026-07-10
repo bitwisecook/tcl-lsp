@@ -1080,12 +1080,6 @@ impl<'r> Lowerer<'r> {
         } else if let Some((qualified, target)) = detect_rename(cmd_name, &args_owned) {
             self.aliases.insert(qualified, (target, Vec::new()));
         }
-        // Detect a static `rename old new` — feeds the same alias table so
-        // a call through the renamed name resolves `canonical_command` to
-        // `old`, just like an `interp alias` target (see `detect_rename`).
-        if let Some((qualified, target)) = detect_rename(cmd_name, &args_owned) {
-            self.aliases.insert(qualified, (target, vec![]));
-        }
 
         self.record_namespace_directives(cmd_name, args, seg, namespace);
 

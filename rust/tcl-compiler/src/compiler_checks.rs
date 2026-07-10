@@ -399,7 +399,10 @@ pub fn push_taint_and_module_checks(
     // a variable's value in ways static analysis can't see; a name traced
     // anywhere in the module is conservatively treated as tainted everywhere
     // — see `taint::apply_module_variable_traces`.
-    let module_traces = crate::var_observability::scan_module_variable_traces(&cu.ir_module);
+    let module_traces = crate::compilation_unit::ModuleTraceFacts {
+        traced_variables: &cu.ir_module.traced_variables,
+        has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+    };
     // `analysable_body_function_units` (not `analysable_functions`) so a sink
     // inside a TclOO method body — or an `apply` lambda / `namespace eval`
     // body — is still checked; see its doc comment.
@@ -407,7 +410,7 @@ pub fn push_taint_and_module_checks(
         let taints = crate::taint::apply_module_variable_traces(
             solved.taints_for(&fu.name, &fu.taints).clone(),
             &fu.ssa,
-            &module_traces,
+            module_traces,
         );
         // A namespace-scoped proc of the same name shadows a builtin for
         // every call made from that namespace (`proc ::myns::puts {...}`

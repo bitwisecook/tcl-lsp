@@ -545,7 +545,7 @@ fn collect_taint_warnings(
     registry: &CommandRegistry,
     dialect: &str,
     shadow_proc_qnames: &std::collections::HashSet<&str>,
-    module_traces: &tcl_compiler::var_observability::ModuleVariableTraces,
+    module_traces: tcl_compiler::compilation_unit::ModuleTraceFacts<'_>,
     line_index: &LineIndex,
     out: &mut Vec<Value>,
 ) {
@@ -737,7 +737,10 @@ pub fn dataflow_graph(source: &str, registry: &CommandRegistry, dialect: &str) -
     // Taint warnings: top level first, then each procedure.
     let shadow_proc_qnames: std::collections::HashSet<&str> =
         cu.procedures.keys().map(String::as_str).collect();
-    let module_traces = tcl_compiler::var_observability::scan_module_variable_traces(&cu.ir_module);
+    let module_traces = tcl_compiler::compilation_unit::ModuleTraceFacts {
+        traced_variables: &cu.ir_module.traced_variables,
+        has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+    };
     let mut taint_warnings: Vec<Value> = Vec::new();
     collect_taint_warnings(
         &cu.top_level,
@@ -745,7 +748,7 @@ pub fn dataflow_graph(source: &str, registry: &CommandRegistry, dialect: &str) -
         registry,
         dialect,
         &shadow_proc_qnames,
-        &module_traces,
+        module_traces,
         &line_index,
         &mut taint_warnings,
     );
@@ -757,7 +760,7 @@ pub fn dataflow_graph(source: &str, registry: &CommandRegistry, dialect: &str) -
             registry,
             dialect,
             &shadow_proc_qnames,
-            &module_traces,
+            module_traces,
             &line_index,
             &mut taint_warnings,
         );

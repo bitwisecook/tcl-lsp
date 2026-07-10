@@ -1920,11 +1920,13 @@ fn irule3002_name_position_safe(
 /// reference) — always clean, silently dropping any taint `x` carried
 /// *before* the trace was installed.
 ///
-/// Uses [`crate::var_observability::ModuleVariableTraces`]'s existing
+/// Uses [`crate::ir::Module::traced_variables`] /
+/// [`crate::ir::Module::has_dynamic_variable_trace`] — the same
 /// flow-insensitive, whole-module over-approximation (the same "traced
 /// anywhere ⇒ traced everywhere, for the module's lifetime" rule already
-/// applied to the optimiser's constant-fold trust gate) rather than a
-/// bespoke traced-name scan.
+/// applied to the optimiser's constant-fold trust gate via
+/// [`crate::compilation_unit::ModuleTraceFacts`]) rather than a bespoke
+/// traced-name scan.
 ///
 /// Two passes:
 /// 1. Every `(symbol, version)` already in `taints` for a traced name is
@@ -1941,15 +1943,17 @@ fn irule3002_name_position_safe(
 pub fn apply_module_variable_traces(
     mut taints: HashMap<ValueKey, TaintLattice>,
     ssa: &SsaFunction,
-    traces: &crate::var_observability::ModuleVariableTraces,
+    traces: crate::compilation_unit::ModuleTraceFacts<'_>,
 ) -> HashMap<ValueKey, TaintLattice> {
+    let is_traced =
+        |name: &str| traces.has_dynamic_variable_trace || traces.traced_variables.contains(name);
     for (key, lattice) in &mut taints {
-        if traces.is_traced(ssa.var_name(key.0)) {
+        if is_traced(ssa.var_name(key.0)) {
             *lattice = TaintLattice::tainted();
         }
     }
     for name in collect_global_reads(ssa) {
-        if traces.is_traced(&name)
+        if is_traced(&name)
             && let Some(sym) = ssa.var_symbol(&name)
         {
             taints
@@ -1979,7 +1983,10 @@ pub fn find_taint_warnings_for_cu(
     let mut out = Vec::new();
     let solved = crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect);
     let proc_qnames: HashSet<&str> = cu.procedures.keys().map(String::as_str).collect();
-    let module_traces = crate::var_observability::scan_module_variable_traces(&cu.ir_module);
+    let module_traces = crate::compilation_unit::ModuleTraceFacts {
+        traced_variables: &cu.ir_module.traced_variables,
+        has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+    };
     // `analysable_body_function_units` (not `analysable_functions`) so a
     // sink inside a TclOO method body — or an `apply` lambda / `namespace
     // eval` body — is still checked; see its doc comment.
@@ -1988,7 +1995,7 @@ pub fn find_taint_warnings_for_cu(
         let taints = apply_module_variable_traces(
             solved.taints_for(&fu.name, &fu.taints).clone(),
             &fu.ssa,
-            &module_traces,
+            module_traces,
         );
         let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(&fu.name);
         let shadowed = shadowed_builtin_names(&namespace, proc_qnames.iter().copied(), registry);
@@ -4723,6 +4730,7 @@ mod tests {
             &fu.sccp.executable_blocks,
             &registry,
             Some("tcl8.6"),
+            &HashSet::new(),
         );
         assert!(
             warnings
@@ -4750,6 +4758,7 @@ mod tests {
             &fu.sccp.executable_blocks,
             &registry,
             Some("tcl8.6"),
+            &HashSet::new(),
         );
         let t102 = warnings
             .iter()
@@ -4781,6 +4790,7 @@ mod tests {
             &fu.sccp.executable_blocks,
             &registry,
             Some("tcl8.6"),
+            &HashSet::new(),
         );
         let t102 = warnings
             .iter()
@@ -4810,6 +4820,7 @@ mod tests {
             &fu.sccp.executable_blocks,
             &registry,
             Some("tcl8.6"),
+            &HashSet::new(),
         );
         let t102 = warnings
             .iter()
@@ -4855,6 +4866,7 @@ mod tests {
             &fu.sccp.executable_blocks,
             &registry,
             Some("tcl8.6"),
+            &HashSet::new(),
         );
         let t102 = warnings
             .iter()
@@ -4899,6 +4911,7 @@ mod tests {
             &fu.sccp.executable_blocks,
             &registry,
             Some("tcl8.6"),
+            &HashSet::new(),
         );
         assert!(
             warnings
@@ -5987,7 +6000,8 @@ mod tests {
 
         /// Cross-proc: a trace installed by one proc still taints a read of
         /// the same global variable in a different function (the module-wide
-        /// `ModuleVariableTraces` over-approximation, not a per-function one).
+        /// `Module::traced_variables` over-approximation, not a per-function
+        /// one).
         #[test]
         fn trace_installed_in_another_proc_still_taints_this_read() {
             let w = taint_warnings_for(
@@ -6004,8 +6018,8 @@ mod tests {
 
         /// A dynamic trace target (`trace add variable $name …`) can't be
         /// resolved to a literal name, so — mirroring
-        /// `ModuleVariableTraces`'s existing `dynamic` flag — every name in
-        /// the module is conservatively treated as traced (tainted).
+        /// `Module::has_dynamic_variable_trace` — every name in the module is
+        /// conservatively treated as traced (tainted).
         #[test]
         fn dynamic_trace_target_taints_every_name() {
             let w = taint_warnings_for(
@@ -6045,24 +6059,23 @@ mod tests {
     /// `variable_trace_taint` above.
     mod apply_module_variable_traces_tests {
         use super::*;
-        use crate::var_observability::scan_module_variable_traces;
+        use crate::compilation_unit::ModuleTraceFacts;
 
         #[test]
         fn forces_existing_entries_for_a_traced_name() {
-            let m = crate::lowering::lower_to_ir(
-                "proc p {} { trace add variable t write cb\nset t 1\nputs $t }",
-                &CommandRegistry::build_default(),
-            );
-            let traces = scan_module_variable_traces(&m);
-            assert!(traces.is_traced("t"));
-
             let cu = crate::compilation_unit::CompilationUnit::build_for(
                 "proc p {} { trace add variable t write cb\nset t 1\nputs $t }",
                 &CommandRegistry::build_default(),
                 false,
             );
+            assert!(cu.ir_module.traced_variables.contains("t"));
+            let traces = ModuleTraceFacts {
+                traced_variables: &cu.ir_module.traced_variables,
+                has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+            };
+
             let fu = cu.function("::p").unwrap();
-            let patched = apply_module_variable_traces(fu.taints.clone(), &fu.ssa, &traces);
+            let patched = apply_module_variable_traces(fu.taints.clone(), &fu.ssa, traces);
             let sym = fu.ssa.var_symbol("t").expect("t interned");
             assert!(
                 patched.get(&(sym, 1)).is_some_and(|t| t.is_tainted()),
@@ -6078,10 +6091,14 @@ mod tests {
                 &registry,
                 false,
             );
+            assert!(!cu.ir_module.traced_variables.contains("t"));
+            assert!(!cu.ir_module.has_dynamic_variable_trace);
+            let traces = ModuleTraceFacts {
+                traced_variables: &cu.ir_module.traced_variables,
+                has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+            };
             let fu = cu.function("::p").unwrap();
-            let traces = scan_module_variable_traces(&cu.ir_module);
-            assert!(!traces.is_traced("t"));
-            let patched = apply_module_variable_traces(fu.taints.clone(), &fu.ssa, &traces);
+            let patched = apply_module_variable_traces(fu.taints.clone(), &fu.ssa, traces);
             assert_eq!(
                 patched, fu.taints,
                 "no trace in scope — map must be unchanged"
