@@ -1058,16 +1058,19 @@ impl Analyser {
                 let Some(provider) = hierarchy.constructor_provider(class_qn, &self.source) else {
                     // No explicit constructor anywhere in the MRO — TclOO's
                     // inherited default constructor accepts any argument
-                    // count, so `new` is never checked here. `create`'s own
-                    // mandatory object-name word is a separate requirement
+                    // count, so `new` is never checked here. The form's own
+                    // mandatory leading words are a separate requirement
                     // enforced by the dispatcher itself, independent of the
-                    // constructor: `oo::class create Foo {}; Foo create`
-                    // still raises "wrong # args" (confirmed against tclsh
-                    // 9.0.4) even though nothing constrains the constructor
-                    // args that may follow the name.
-                    if cand.is_create {
-                        let arity = bump_arity(Arity::at_least(0), 1);
-                        let display_name = format!("{} create", cand.class_name);
+                    // constructor: `oo::class create Foo {}; Foo create` still
+                    // raises "wrong # args" (confirmed against tclsh 9.0.4)
+                    // even though nothing constrains the constructor args that
+                    // may follow the name. Reuses `extra_leading_words` so
+                    // `create` (1 word) and `createWithNamespace` (2) are both
+                    // covered by the same rule.
+                    let extra = cand.form.extra_leading_words();
+                    if extra > 0 {
+                        let arity = bump_arity(Arity::at_least(0), extra);
+                        let display_name = format!("{} {}", cand.class_name, cand.form.as_str());
                         if let Some(diag) = arity_verdict(
                             &display_name,
                             arity,
