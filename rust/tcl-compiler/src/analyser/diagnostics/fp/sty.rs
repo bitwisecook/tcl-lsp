@@ -186,6 +186,36 @@ fn fp_sty_04_lassign_destructure_channels_no_w126() {
     );
 }
 
+#[test]
+fn tp_sty_04_puts_non_channel_literal_still_fires_w126() {
+    // TP control for FP-STY-04: `puts` now declares its `channelId`
+    // argument's position (via a dynamic `arg_role_resolver`, since the
+    // optional leading `-nonewline` shifts it), so a value that provably
+    // isn't a channel in that slot must still fire W126 — the fix above
+    // only silences the *destructured, type-unknown* case, not a
+    // genuinely wrong literal.
+    let src = "puts \"not_a_channel\" hello";
+    assert!(
+        fires(src, D, "W126"),
+        "TP: a non-channel literal in puts's channelId position must fire W126; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn tn_sty_04_puts_single_arg_is_content_not_channel() {
+    // TN control: `puts hello` has only ONE positional arg — per Tcl
+    // semantics that's the content string (written to stdout), not a
+    // channel — so no Channel-role position applies and W126 must stay
+    // silent (there is nothing to misclassify as a channel).
+    let src = "puts hello";
+    assert!(
+        !fires(src, D, "W126"),
+        "TN: puts's sole positional arg is content, not a channel; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
 // ---------------------------------------------------------------------------
 // FP-STY-05 — W302 catch fire-and-forget (bare + subcommand-aware)
 // ---------------------------------------------------------------------------

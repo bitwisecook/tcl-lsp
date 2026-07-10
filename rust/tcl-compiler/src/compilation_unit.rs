@@ -1173,6 +1173,26 @@ impl CompilationUnit {
         self.functions().chain(extra)
     }
 
+    /// Like [`Self::all_body_function_units`] but skips complexity-guarded
+    /// bodies — the coverage-complete counterpart to
+    /// [`Self::analysable_functions`].
+    ///
+    /// `compiler_checks::run_all_checks` (SCCP / GVN / shimmer / taint) used
+    /// to iterate [`Self::analysable_functions`], which — per that method's
+    /// "backwards compatibility" note — never reached `TclOO` method bodies
+    /// or synthetic `apply`/`namespace eval` body units: a tainted value
+    /// flowing into `puts` (or any other sink) *inside a method* produced no
+    /// diagnostic at all, even though the optimiser's whole-module pass
+    /// already iterates `cu.methods` directly (`optimiser::manager`) and
+    /// `all_body_function_units` already exists for other coverage-complete
+    /// analyses (regex-source tracking). This is the drop-in replacement
+    /// that closes that gap without reintroducing a guarded body (whose
+    /// trivial lattices would contribute noise, not findings) — see
+    /// `compiler_checks::push_taint_and_module_checks`.
+    pub fn analysable_body_function_units(&self) -> impl Iterator<Item = &FunctionUnit> {
+        self.all_body_function_units().filter(|fu| !fu.complexity_guarded)
+    }
+
     /// The synthetic body units (`apply` / `namespace eval`) alone, name-sorted.
     pub fn body_function_units(&self) -> impl Iterator<Item = &FunctionUnit> {
         let mut v: Vec<&FunctionUnit> = self.body_units.values().collect();

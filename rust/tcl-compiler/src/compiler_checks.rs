@@ -270,7 +270,7 @@ pub fn run_all_checks_with_solved_and_patterns(
     // memoise it per procedure on the offset-0 `FnLatticeKey` (SRV-INCREMENTAL
     // 2a): an unedited procedure's checks are a cache hit instead of recomputed
     // over the whole unit every edit.
-    for fu in cu.analysable_functions() {
+    for fu in cu.analysable_body_function_units() {
         for d in function_nontaint_checks(fu, registry, dialect) {
             out.push(shift(fu, d));
         }
@@ -363,7 +363,7 @@ pub fn push_taint_and_module_checks(
     // per-function `fu.taints` for the warning families so a tainted argument
     // flowing into a callee parameter and then a sink is reported (cross-proc
     // entry-taint).
-    for fu in cu.analysable_functions() {
+    for fu in cu.analysable_body_function_units() {
         let taints = solved.taints_for(&fu.name, &fu.taints);
         for w in find_taint_warnings(
             &fu.cfg,

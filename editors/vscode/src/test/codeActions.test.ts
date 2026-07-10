@@ -312,4 +312,40 @@ suite("Code Actions", () => {
     );
     assert.ok(collectFix, "Should provide a collect bootstrap quick fix");
   });
+
+  test("provides quick fix for T101 (tainted data into puts)", async () => {
+    const t101Uri = getDocUri("taint-t101.tcl");
+    await activate(t101Uri);
+    const diagnostics = await waitForDiagnostics(t101Uri, {
+      predicate: (diags) =>
+        diags.some((d) => {
+          const code = typeof d.code === "object" ? d.code.value : d.code;
+          return code === "T101";
+        }),
+    });
+
+    const t101 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "T101";
+    });
+    assert.ok(t101, "T101 diagnostic should be present");
+    // The diagnostic must highlight only the tainted `$x` argument, not the
+    // whole `puts $x` statement.
+    assert.strictEqual(t101.range.start.character, t101.range.end.character - 2);
+
+    const actions = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", t101Uri, t101.range),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title.includes("strip CR/LF"),
+        ),
+      { timeout: 10_000, label: "T101 sanitise quick fix" },
+    )) as vscode.CodeAction[];
+
+    const sanitiseFix = actions.find(
+      (a) => typeof a.title === "string" && a.title.includes("strip CR/LF"),
+    );
+    assert.ok(sanitiseFix, "Should provide a strip-CR/LF sanitise quick fix");
+  });
 });

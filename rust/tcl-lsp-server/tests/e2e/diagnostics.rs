@@ -405,6 +405,36 @@ fn bare_snit_instance_dispatch_is_not_e001() {
     assert!(!has_code(&lsp.open_ready(&uri, src), "E001"));
 }
 
+// -- TestT101OutputSinkSpan ------------------------------------------------
+// T101 (tainted data into `puts`) end-to-end: the diagnostic must highlight
+// only the tainted argument word, not the whole `puts $x` statement.
+
+#[test]
+fn puts_tainted_data_has_tight_argument_span() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set x [gets stdin]\nputs $x\n";
+    let diags = lsp.open_ready(&uri, src);
+    let t101: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("T101"))
+        .collect();
+    assert_eq!(t101.len(), 1, "expected exactly one T101: {diags:?}");
+    let range = &t101[0]["range"];
+    // Line 1 (0-based) is `puts $x`; `$x` starts at character 5, ends at 7 —
+    // not the whole 7-character statement starting at character 0.
+    assert_eq!(range["start"]["line"], 1);
+    assert_eq!(
+        range["start"]["character"], 5,
+        "span must start at `$x`, not the `puts` command word: {diags:?}"
+    );
+    assert_eq!(range["end"]["line"], 1);
+    assert_eq!(
+        range["end"]["character"], 7,
+        "span must cover only `$x`: {diags:?}"
+    );
+}
+
 // -- TestSameFileCallArity ------------------------------------------------
 // End-to-end arity checks generalised beyond the builtin registry to
 // same-file proc / `interp alias` / `rename` calls. Previously, calling a

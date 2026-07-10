@@ -673,6 +673,18 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
                     namespace,
                 );
             }
+            // A command that writes more than one variable (`lassign list a
+            // b`, `scan $s $fmt a b`, `regexp ... a b`) destructures its
+            // argument into element-wise values — the command's own single
+            // `return_type` fact (`lassign` → `List`, the *leftover*
+            // elements; `regexp` → `Boolean`, the match count) describes
+            // neither def and must not be broadcast onto both. Conservative
+            // Overdefined until a per-command element-type model exists (as
+            // `collection_element_class` already provides for `dict`
+            // `lappend`, whose single-target shape never reaches this arm).
+            if defs.len() > 1 {
+                return TypeLattice::overdefined();
+            }
             return_type_for_command(registry, command, &arg_refs, known_classes, namespace)
         }
 
@@ -1015,6 +1027,69 @@ mod tests {
             &ssa,
         );
         assert_eq!(t, TypeLattice::of(TclType::Int));
+    }
+
+    #[test]
+    fn lassign_destructure_defs_are_overdefined_not_command_return_type() {
+        // TP: `lassign $pipe a b` writes TWO variables; `lassign`'s own
+        // `return_type` (List — the *leftover* elements) must not be
+        // broadcast onto both destructured targets. Pre-fix, both `a` and
+        // `b` were typed LIST, so a later channel-position use (`puts $a
+        // ...`) would falsely fire W126 ("has type LIST, not CHANNEL") —
+        // see FP-STY-04.
+        let stmt = Statement::Call {
+            span: Span::new(0, 0),
+            command: "lassign".to_owned(),
+            canonical_command: None,
+            args: vec!["$pipe".to_owned(), "a".to_owned(), "b".to_owned()],
+            defs: vec!["a".to_owned(), "b".to_owned()],
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        };
+        let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
+        let t = evaluate_type_def(
+            &stmt,
+            &HashMap::new(),
+            &HashMap::new(),
+            &registry(),
+            &HashSet::new(),
+            "::",
+            &ssa,
+        );
+        assert_eq!(t, TypeLattice::overdefined());
+    }
+
+    #[test]
+    fn single_def_command_still_uses_its_declared_return_type() {
+        // TN control: a command that writes exactly one variable (`append`)
+        // legitimately shares its return value with that variable — the
+        // `defs.len() > 1` guard must not blunt this already-precise case.
+        let stmt = Statement::Call {
+            span: Span::new(0, 0),
+            command: "append".to_owned(),
+            canonical_command: None,
+            args: vec!["result".to_owned(), "x".to_owned()],
+            defs: vec!["result".to_owned()],
+            reads: Vec::new(),
+            reads_own_defs: true,
+            safe_on_uninit: true,
+            tokens: None,
+            foreach_groups: None,
+        };
+        let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
+        let t = evaluate_type_def(
+            &stmt,
+            &HashMap::new(),
+            &HashMap::new(),
+            &registry(),
+            &HashSet::new(),
+            "::",
+            &ssa,
+        );
+        assert_eq!(t, TypeLattice::of(TclType::String));
     }
 
     #[test]

@@ -84,19 +84,19 @@
 //! [`Traits::EVALUATES_CODE`] flags inside `find_taint_warnings`.
 
 use std::collections::{HashMap, HashSet};
-use tcl_core_types::DiagCode;
+use tcl_core_types::{DiagCode, DiagFamily};
 
 use bitflags::bitflags;
 use rustc_hash::FxHashSet;
 
 use tcl_lexer::{Lexer, SourceMap, Span, TokenType, backslash_subst};
 use tcl_registry::dialects::DialectSet;
-use tcl_registry::{CommandRegistry, Traits};
+use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
 use crate::interprocedural::InterproceduralAnalysis;
-use crate::ir::Statement;
+use crate::ir::{CommandTokens, Statement};
 use crate::naming::normalise_var_name;
 use crate::rendered_properties::{RenderedProperties, RenderedValueProps};
 use crate::sccp::{SccpResult, cfg_order};
@@ -1245,87 +1245,64 @@ fn propagate_statement_taints(
 /// statement that acts as a taint sink, or `None` if the statement is
 /// not a sink.
 ///
-/// Covers:
-/// - **T100** — code-execution sinks (`eval`, `exec`, `uplevel`,
-///   `subst`, `expr` via `EVALUATES_CODE` / `TAINT_SINK` traits).
-/// - **T101** — output sinks (`puts`).
-/// - **IRULE3001 / IRULE3002 / IRULE3003 / IRULE3004** — iRules output
-///   sinks, only under the `"f5-irules"` / `"irules"` dialect. See
-///   [`classify_irules_sink`].
+/// Single registry-driven classification via
+/// [`tcl_registry::taint::classify_taint_sinks`] — no command name is
+/// matched here. The registry's most specific fact wins: a command that
+/// declares an explicit output/log sink code (`puts` → `taint_output_sink
+/// = "T101"`, `HTTP::respond` → `"IRULE3001"`, `log` → `taint_log_sink =
+/// "IRULE3003"`) is classified as that sink, even when it also carries the
+/// generic `TAINT_SINK` trait; only a command with *no* declared sink code
+/// falls back to the trait-driven **T100** code-execution classification
+/// (`EVALUATES_CODE` / `TAINT_SINK` — `eval`, `exec`, `uplevel`, `subst`,
+/// `expr`).
+///
+/// `classify_taint_sinks` is asked with an empty dialect (no
+/// `supports_dialect` filtering) so a dialect-restricted non-iRules sink
+/// (`exec` declares `NON_IRULES_OPERATORS`) keeps its T100 classification
+/// even in a registry that also has iRules specs loaded. The iRules-only
+/// sink codes (`IRULE…`, from `taint_output_sink` / `taint_log_sink` on
+/// iRules specs) are instead gated explicitly on the active document
+/// dialect via [`DiagCode::family`] — the same explicit `is_irules_dialect`
+/// gate [`find_setter_constraint_warnings`] uses for IRULE3101, rather than
+/// relying on whether the shared registry happens to have those specs
+/// loaded.
 fn classify_sink(
     registry: &CommandRegistry,
     command: &str,
     args: &[String],
     dialect: Option<&str>,
 ) -> Option<(DiagCode, String)> {
-    if let Some(spec) = registry.get(command) {
-        // T100: dangerous code-execution sinks.
-        if spec.traits.contains(Traits::EVALUATES_CODE) {
-            return Some((DiagCode::T100, command.to_owned()));
+    let subcommand = args.first().map(String::as_str);
+    let info = tcl_registry::taint::classify_taint_sinks(
+        registry,
+        command,
+        subcommand,
+        DialectSet::empty(),
+    );
+
+    if let Some(code_str) = info.output_sink.or(info.log_sink) {
+        let code: DiagCode = code_str.parse().unwrap_or_else(|_| {
+            panic!("registry declared unknown sink code {code_str:?} for {command}")
+        });
+        if code.family() == DiagFamily::IRule && !is_irules_dialect(dialect) {
+            return None;
         }
-        // expr, subst, exec also carry TAINT_SINK but not EVALUATES_CODE.
-        if spec.traits.contains(Traits::TAINT_SINK) {
-            // puts → T101 (output, not code execution).
-            if command == "puts" {
-                return Some((DiagCode::T101, "puts".to_owned()));
-            }
-            // Everything else with TAINT_SINK is T100.
-            return Some((DiagCode::T100, command.to_owned()));
-        }
+        let label = if info.output_sink_is_subcommand_qualified {
+            let canonical = subcommand
+                .and_then(|s| registry.get(command).and_then(|spec| spec.resolve_subcommand(s)))
+                .map_or_else(|| subcommand.unwrap_or_default(), |sub| sub.name);
+            format!("{command} {canonical}")
+        } else {
+            command.to_owned()
+        };
+        return Some((code, label));
     }
 
-    // iRules-dialect sinks. Kept after registry-driven T100/T101 so
-    // shared commands (currently none) would prefer the generic
-    // classification.
-    if is_irules_dialect(dialect)
-        && let Some(hit) = classify_irules_sink(registry, command, args)
-    {
-        return Some(hit);
+    if info.is_code_sink {
+        return Some((DiagCode::T100, command.to_owned()));
     }
 
     None
-}
-
-/// Classify iRules-specific output sinks.
-///
-/// Recognised sinks:
-///
-/// | Command                               | Code        | Label              |
-/// |---------------------------------------|-------------|--------------------|
-/// | `HTTP::respond`                       | `IRULE3001` | `HTTP::respond`    |
-/// | `HTTP::header insert\|replace`        | `IRULE3002` | `HTTP::header …`   |
-/// | `HTTP::cookie insert\|replace`        | `IRULE3002` | `HTTP::cookie …`   |
-/// | `HTTP::redirect`                      | `IRULE3004` | `HTTP::redirect`   |
-/// | `log`                                 | `IRULE3003` | `log`              |
-///
-/// TODO: once the Rust command registry carries `taint_hints` /
-/// `taint_output_sink_subcommands` metadata, replace the hardcoded
-/// command list with registry lookups.
-fn classify_irules_sink(
-    registry: &CommandRegistry,
-    command: &str,
-    args: &[String],
-) -> Option<(DiagCode, String)> {
-    // IRULE3002 output-sink subcommands come from the registry
-    // (`taint_output_sink_subcommands`), resolved prefix-aware so a legal
-    // abbreviation (`HTTP::cookie ins`) is not a false negative
-    // (RUST_ISSUE_023). This also removes the hardcoded `HTTP::header` /
-    // `HTTP::cookie` command list — any spec that declares output-sink
-    // subcommands participates.
-    if let Some(spec) = registry.get(command)
-        && !spec.taint_output_sink_subcommands.is_empty()
-        && let Some(sub_word) = args.first()
-        && let Some(sub) = spec.resolve_subcommand(sub_word)
-        && spec.taint_output_sink_subcommands.contains(&sub.name)
-    {
-        return Some((DiagCode::Irule3002, format!("{command} {}", sub.name)));
-    }
-    match command {
-        "HTTP::respond" => Some((DiagCode::Irule3001, command.to_owned())),
-        "HTTP::redirect" => Some((DiagCode::Irule3004, command.to_owned())),
-        "log" => Some((DiagCode::Irule3003, command.to_owned())),
-        _ => None,
-    }
 }
 
 /// Registry-driven SSRF / cross-interpreter sinks (T104 / T105),
@@ -1848,7 +1825,10 @@ pub fn find_taint_warnings_for_cu(
 ) -> Vec<TaintWarning> {
     let mut out = Vec::new();
     let solved = crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect);
-    for fu in cu.analysable_functions() {
+    // `analysable_body_function_units` (not `analysable_functions`) so a
+    // sink inside a TclOO method body — or an `apply` lambda / `namespace
+    // eval` body — is still checked; see its doc comment.
+    for fu in cu.analysable_body_function_units() {
         let exec = &fu.sccp.executable_blocks;
         let taints = solved.taints_for(&fu.name, &fu.taints);
         out.extend(find_taint_warnings(
@@ -1948,12 +1928,19 @@ fn emit_statement_warnings<S: std::hash::BuildHasher>(
         Statement::AssignValue { value, .. } => parse_command_substitution(value.trim()),
         _ => None,
     };
-    let (command, call_args): (&str, &[String]) = match stmt {
-        Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
-            (command.as_str(), args.as_slice())
+    let (command, call_args, tokens): (&str, &[String], Option<&CommandTokens>) = match stmt {
+        // Prefer the canonical target the lowerer already resolved
+        // (`stmt.canonical_command_or_source()`, populated for a resolved
+        // `interp alias`) over the source spelling, so `interp alias {}
+        // myputs {} puts; myputs $tainted` is classified against `puts`'s
+        // registry sink data instead of silently missing it because
+        // `"myputs"` isn't a registered command. Falls back to the source
+        // name unchanged when no alias was resolved (the common case).
+        Statement::Call { args, tokens, .. } | Statement::Barrier { args, tokens, .. } => {
+            (stmt.canonical_command_or_source(), args.as_slice(), tokens.as_ref())
         }
         Statement::AssignValue { .. } => match assign_parsed.as_ref() {
-            Some((cmd, sub_args)) => (cmd.as_str(), sub_args.as_slice()),
+            Some((cmd, sub_args)) => (cmd.as_str(), sub_args.as_slice(), None),
             None => return,
         },
         _ => return,
@@ -1987,6 +1974,7 @@ fn emit_statement_warnings<S: std::hash::BuildHasher>(
         command,
         args: call_args,
         registry,
+        tokens,
     };
     // Primary sink classification (T100 code-exec / T101 + iRules output / log).
     if let Some((code, sink_label)) = classify_sink(registry, command, call_args, dialect) {
@@ -2152,6 +2140,33 @@ struct SinkCall<'a> {
     /// Command registry — drives the position-aware sink filters
     /// (network-address slots, `[list]`-head recognition).
     registry: &'a CommandRegistry,
+    /// Per-word token spans for this call, when the statement carries them
+    /// (`None` for a synthetic call parsed out of an `AssignValue`'s command
+    /// substitution text, which has no token-span backing). Drives the
+    /// tight per-argument diagnostic span in [`sink_arg_span`] so the
+    /// squiggle lands on the tainted word, not the whole command.
+    tokens: Option<&'a CommandTokens>,
+}
+
+/// The tight span of the argument word that carries `name`, using the
+/// statement's per-word token spans (`call.tokens.argv`, offset by one to
+/// skip the command-name slot at index 0 — `call.args` excludes the command
+/// name, `argv` does not). Falls back to `fallback` (the whole-statement
+/// span) when no token spans are available, or `name` isn't found in any
+/// argument word (e.g. it reached the sink through an already-resolved
+/// alias with no textual match).
+fn sink_arg_span(call: &SinkCall<'_>, name: &str, fallback: Span) -> Span {
+    let Some(tokens) = call.tokens else {
+        return fallback;
+    };
+    for (i, arg) in call.args.iter().enumerate() {
+        if arg_var_names(arg).contains(name)
+            && let Some(&arg_span) = tokens.argv.get(i + 1)
+        {
+            return arg_span;
+        }
+    }
+    fallback
 }
 
 /// Positional argument strings of `args` under `spec`, skipping option
@@ -2193,12 +2208,24 @@ fn sink_var_position_safe(
     args: &[String],
     name: &str,
 ) -> bool {
+    // A value that only reaches an `ArgRole::Channel` argument slot (e.g.
+    // `puts`'s optional leading `channelId`) is a handle, not sink content
+    // — regardless of which sink code classified the call. The position
+    // comes from the command's registry-declared arg roles
+    // (`arg_role_resolver` for `puts`, since the channel slot shifts with
+    // the optional leading `-nonewline`), so a future output sink with its
+    // own channel argument is covered for free with no name check here.
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let channel_positions = registry.arg_indices_for_role(command, &arg_refs, ArgRole::Channel);
+    if !channel_positions.is_empty()
+        && args
+            .iter()
+            .enumerate()
+            .all(|(i, a)| channel_positions.contains(&i) || !arg_var_names(a).contains(name))
+    {
+        return true;
+    }
     match code {
-        // `puts ?-nonewline? ?channelId? string` — only the trailing
-        // content arg is an output sink; a tainted channel id is a handle.
-        DiagCode::T101 if command == "puts" => args
-            .last()
-            .is_none_or(|content| !arg_var_names(content).contains(name)),
         // T104 SSRF — only the network-address positional slots named by
         // `taint_network_sink_args`. `Some(&[])` (positions unspecified)
         // imposes no filter.
@@ -2458,7 +2485,7 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
             _ => format!("Tainted variable ${name} flows into {sink_label}"),
         };
         warnings.push(TaintWarning {
-            span,
+            span: sink_arg_span(call, name, span),
             variable: name.to_owned(),
             sink_command: sink_label.to_owned(),
             code,
@@ -3750,17 +3777,18 @@ mod tests {
     #[test]
     fn classify_irules_sink_http_respond() {
         let reg = tcl_registry::registry_for_dialect("f5-irules");
-        let hit = classify_irules_sink(reg, "HTTP::respond", &[]);
+        let hit = classify_sink(reg, "HTTP::respond", &[], Some("f5-irules"));
         assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::Irule3001));
     }
 
     #[test]
     fn classify_irules_sink_http_header_insert() {
         let reg = tcl_registry::registry_for_dialect("f5-irules");
-        let hit = classify_irules_sink(
+        let hit = classify_sink(
             reg,
             "HTTP::header",
             &["insert".to_owned(), "X-Foo".to_owned(), "bar".to_owned()],
+            Some("f5-irules"),
         );
         assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::Irule3002));
         assert_eq!(hit.as_ref().unwrap().1, "HTTP::header insert");
@@ -3769,10 +3797,11 @@ mod tests {
     #[test]
     fn classify_irules_sink_http_cookie_replace() {
         let reg = tcl_registry::registry_for_dialect("f5-irules");
-        let hit = classify_irules_sink(
+        let hit = classify_sink(
             reg,
             "HTTP::cookie",
             &["replace".to_owned(), "sid".to_owned(), "val".to_owned()],
+            Some("f5-irules"),
         );
         assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::Irule3002));
         assert_eq!(hit.as_ref().unwrap().1, "HTTP::cookie replace");
@@ -3783,10 +3812,11 @@ mod tests {
         // RUST_ISSUE_023: `HTTP::cookie ins` is a legal abbreviation of `insert`
         // and must still classify as the IRULE3002 output sink.
         let reg = tcl_registry::registry_for_dialect("f5-irules");
-        let hit = classify_irules_sink(
+        let hit = classify_sink(
             reg,
             "HTTP::cookie",
             &["ins".to_owned(), "sid".to_owned(), "val".to_owned()],
+            Some("f5-irules"),
         );
         assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::Irule3002));
         // The label reports the canonical subcommand name.
@@ -3796,10 +3826,11 @@ mod tests {
     #[test]
     fn classify_irules_sink_http_header_remove_is_none() {
         let reg = tcl_registry::registry_for_dialect("f5-irules");
-        let hit = classify_irules_sink(
+        let hit = classify_sink(
             reg,
             "HTTP::header",
             &["remove".to_owned(), "X-Foo".to_owned()],
+            Some("f5-irules"),
         );
         assert!(hit.is_none(), "remove subcommand must not emit IRULE3002");
     }
@@ -3808,15 +3839,25 @@ mod tests {
     fn classify_irules_sink_log_and_redirect() {
         let reg = tcl_registry::registry_for_dialect("f5-irules");
         assert_eq!(
-            classify_irules_sink(reg, "log", &["local0.info".to_owned(), "x".to_owned()])
-                .as_ref()
-                .map(|(c, _)| *c),
+            classify_sink(
+                reg,
+                "log",
+                &["local0.info".to_owned(), "x".to_owned()],
+                Some("f5-irules")
+            )
+            .as_ref()
+            .map(|(c, _)| *c),
             Some(DiagCode::Irule3003),
         );
         assert_eq!(
-            classify_irules_sink(reg, "HTTP::redirect", &["https://evil".to_owned()])
-                .as_ref()
-                .map(|(c, _)| *c),
+            classify_sink(
+                reg,
+                "HTTP::redirect",
+                &["https://evil".to_owned()],
+                Some("f5-irules")
+            )
+            .as_ref()
+            .map(|(c, _)| *c),
             Some(DiagCode::Irule3004),
         );
     }
@@ -3826,6 +3867,39 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let hit = classify_sink(&registry, "HTTP::respond", &["body".to_owned()], None);
         assert!(hit.is_none(), "no dialect → no IRULE3001, got {hit:?}");
+    }
+
+    #[test]
+    fn classify_sink_skips_irules_without_dialect_even_when_specs_loaded() {
+        // Stronger than `classify_sink_skips_irules_without_dialect`: the
+        // registry here *does* have the iRules specs loaded (as a shared
+        // multi-dialect registry might), so `registry.get("HTTP::respond")`
+        // succeeds. The IRULE3001 classification must still be withheld
+        // because the active *document* dialect (`None`) isn't iRules —
+        // mirrors `find_setter_constraint_warnings`'s explicit
+        // `is_irules_dialect` gate for IRULE3101.
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        assert!(registry.get("HTTP::respond").is_some());
+        let hit = classify_sink(&registry, "HTTP::respond", &["body".to_owned()], None);
+        assert!(
+            hit.is_none(),
+            "no dialect → no IRULE3001 even with iRules specs loaded, got {hit:?}"
+        );
+    }
+
+    #[test]
+    fn classify_sink_exec_stays_t100_under_irules_dialect() {
+        // `exec` declares `dialects: Some(NON_IRULES_OPERATORS)`, so it does
+        // not "support" the iRules `DialectSet`. T100 classification must
+        // not depend on `supports_dialect` — it's a plain trait fact,
+        // independent of the active document dialect — or `exec` would lose
+        // its T100 sink status the moment a registry also carries iRules
+        // specs and the document declares the iRules dialect.
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        let hit = classify_sink(&registry, "exec", &["$cmd".to_owned()], Some("f5-irules"));
+        assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::T100));
     }
 
     #[test]

@@ -98,6 +98,12 @@ const MATRIX: &[Case] = &[
         silent: "proc p {cond} {\n    if {$cond} { return 1 }\n    return 0\n}\n",
         note: "constant condition",
     },
+    Case {
+        code: "T101",
+        fire: "set x [gets stdin]\nputs $x\n",
+        silent: "set x [gets stdin]\nset n [string length $x]\nputs $n\n",
+        note: "tainted data flows into puts output sink",
+    },
 ];
 
 /// The set of `code` strings carried by `diags` (mirrors Python `_codes`).
@@ -212,6 +218,10 @@ fn w302_fires_on_defect() {
 fn i230_fires_on_defect() {
     assert_fires(case_for("I230"));
 }
+#[test]
+fn t101_fires_on_defect() {
+    assert_fires(case_for("T101"));
+}
 
 // -- silent cases --------------------------------------------------------
 
@@ -250,6 +260,10 @@ fn w302_silent_on_corrected_form() {
 #[test]
 fn i230_silent_on_corrected_form() {
     assert_silent(case_for("I230"));
+}
+#[test]
+fn t101_silent_on_corrected_form() {
+    assert_silent(case_for("T101"));
 }
 
 // -- TestOptimisationMatrix ----------------------------------------------
