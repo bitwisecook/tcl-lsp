@@ -334,10 +334,10 @@ fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 // non-boolean result raises `expected boolean value` — matching
                 // C's `Tcl_GetBooleanFromObj` rather than a loose string test
                 // (RUST_ISSUE_092).
-                match crate::expr::to_bool(interp.get_obj_result()) {
+                match dict_filter_bool(interp.get_obj_result()) {
                     Ok(true) => kept.push((k, v)),
                     Ok(false) => {}
-                    Err(e) => return interp.set_error(&e.msg),
+                    Err(msg) => return interp.set_error(&msg),
                 }
             }
             Code::Continue => {}
@@ -347,6 +347,44 @@ fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     interp.set_result(dict::new_dict_obj(&kept));
     Code::Ok
+}
+
+/// Coerce a `dict filter -filter script` body result to a boolean like C's
+/// `Tcl_GetBooleanFromObj`, returning the C error message bytes on a non-boolean
+/// (`RUST_ISSUE_092`). On the numeric-tower build this is the canonical `expr`
+/// parser (arbitrary-precision non-zero test); the degraded no-`tommath` wasm
+/// build (where `expr` is compiled out) falls back to the boolean keywords plus a
+/// `parse_whole` numeric non-zero test — enough to keep `dict filter` building and
+/// working for the common results in that reduced runtime.
+#[cfg(have_tommath)]
+fn dict_filter_bool(o: *mut TclObj) -> Result<bool, Vec<u8>> {
+    crate::expr::to_bool(o).map_err(|e| e.msg)
+}
+
+#[cfg(not(have_tommath))]
+fn dict_filter_bool(o: *mut TclObj) -> Result<bool, Vec<u8>> {
+    use tcl_syntax::number::{parse_whole, Number};
+    let bytes = obj_bytes(o);
+    let s = core::str::from_utf8(&bytes).unwrap_or("");
+    let trimmed = s.trim();
+    match trimmed.to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => return Ok(true),
+        "0" | "false" | "no" | "off" => return Ok(false),
+        _ => {}
+    }
+    if let Some(n) = parse_whole(trimmed) {
+        match n {
+            Number::Int(v) => return Ok(v != 0),
+            Number::Double(d) => return Ok(d != 0.0),
+            // A bignum is zero iff every magnitude digit is `0`.
+            Number::Big { digits, .. } => return Ok(digits.bytes().any(|b| b != b'0')),
+            // NaN is not a valid Tcl boolean — fall through to the error.
+            Number::Nan { .. } => {}
+        }
+    }
+    let mut m = b"expected boolean value but got ".to_vec();
+    m.extend_from_slice(tcl_syntax::list::describe_bad_value(s).as_bytes());
+    Err(m)
 }
 
 // -- variable-mutating subcommands (copy-on-write) -------------------------
