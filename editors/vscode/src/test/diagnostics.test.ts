@@ -494,9 +494,7 @@ suite("Diagnostics", () => {
     });
     assert.ok(
       !diagnostics.some(
-        (d) =>
-          (codeOf(d) === "S100" || codeOf(d) === "S101") &&
-          /'count'/.test(d.message),
+        (d) => (codeOf(d) === "S100" || codeOf(d) === "S101") && /'count'/.test(d.message),
       ),
       `'my variable'-linked instance var must not spuriously shimmer: ${diagnostics
         .filter((d) => codeOf(d) === "S100" || codeOf(d) === "S101")

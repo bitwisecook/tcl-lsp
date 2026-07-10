@@ -317,11 +317,7 @@ suite("Code Actions", () => {
 
     const actions = (await pollUntil(
       () =>
-        vscode.commands.executeCommand(
-          "vscode.executeCodeActionProvider",
-          shimmerUri,
-          s100.range,
-        ),
+        vscode.commands.executeCommand("vscode.executeCodeActionProvider", shimmerUri, s100.range),
       (r) =>
         Array.isArray(r) &&
         (r as vscode.CodeAction[]).some(
