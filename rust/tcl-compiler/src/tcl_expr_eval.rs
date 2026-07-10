@@ -308,13 +308,14 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         // function itself accepts boolean words (the registry of that fact is
         // the mathfunc module, not a name check here).
         let boolean_ok = accepts_boolean_operand(&name);
+        let octal = self.octal;
         let nums: Option<Vec<Num>> = args
             .iter()
             .map(|v| {
                 let parsed = if boolean_ok {
                     v.to_number()
                 } else {
-                    strict_number(v)
+                    strict_number_for_dialect(v, octal)
                 };
                 parsed.map(|t| match t {
                     TclValue::Int(i) => Num::Int(i),
@@ -331,28 +332,37 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
     fn arith(&mut self, op: BinOp, left: FoldValue, right: FoldValue) -> Result<FoldValue, ()> {
         // Arithmetic operands are strict numbers: Tcl's `+`/`-`/`*`/… read
         // them with `Tcl_GetNumberFromObj`, which rejects boolean words, so
-        // `expr {true + 0}` is an error, not `1`. `strict_number` omits the
-        // boolean coercion `to_number`/`parse_literal` add.
-        let a = strict_number(&left).ok_or(())?;
-        let b = strict_number(&right).ok_or(())?;
+        // `expr {true + 0}` is an error, not `1`. `strict_number_for_dialect`
+        // omits the boolean coercion `to_number`/`parse_literal` add, and
+        // additionally honours the dialect's leading-zero rule (see its doc).
+        let a = strict_number_for_dialect(&left, self.octal).ok_or(())?;
+        let b = strict_number_for_dialect(&right, self.octal).ok_or(())?;
         apply_binary(op, a, b).map(FoldValue::from_tcl).ok_or(())
     }
     fn unary(&mut self, op: UnaryOp, value: FoldValue) -> Result<FoldValue, ()> {
         match op {
             // Logical negation *does* take a boolean (`expr {!true}` → 0), so
-            // it keeps the boolean-accepting `to_number` coercion.
+            // it keeps the boolean-accepting `to_number` coercion. Truthiness
+            // of a bare leading-zero operand is dialect-invariant (a run of
+            // zero digits is zero under either reading, and any other
+            // leading-zero run is non-zero under both), so no dialect
+            // handling is needed here.
             UnaryOp::Not | UnaryOp::WordNot => {
                 let truthy = value.to_number().ok_or(())?.is_truthy();
                 Ok(FoldValue::Int(i64::from(!truthy)))
             }
             // Arithmetic/bitwise unaries reject boolean words like the binary
-            // arithmetic path (`expr {-true}`, `expr {~yes}` are errors).
-            UnaryOp::Pos => strict_number(&value).map(FoldValue::from_tcl).ok_or(()),
-            UnaryOp::Neg => match strict_number(&value).ok_or(())? {
+            // arithmetic path (`expr {-true}`, `expr {~yes}` are errors), and
+            // are dialect-sensitive the same way `arith` is (`expr {-010}`
+            // is `-8` in tcl8.x, `-10` in tcl9.0).
+            UnaryOp::Pos => strict_number_for_dialect(&value, self.octal)
+                .map(FoldValue::from_tcl)
+                .ok_or(()),
+            UnaryOp::Neg => match strict_number_for_dialect(&value, self.octal).ok_or(())? {
                 TclValue::Int(i) => i.checked_neg().map(FoldValue::Int).ok_or(()),
                 TclValue::Float(f) => Ok(FoldValue::Float(-f)),
             },
-            UnaryOp::BitNot => match strict_number(&value).ok_or(())? {
+            UnaryOp::BitNot => match strict_number_for_dialect(&value, self.octal).ok_or(())? {
                 TclValue::Int(i) => Ok(FoldValue::Int(!i)),
                 TclValue::Float(_) => Err(()),
             },
@@ -478,6 +488,45 @@ fn strict_number(value: &FoldValue) -> Option<TclValue> {
             Number::Big { .. } => None,
         },
     }
+}
+
+/// Like [`strict_number`] but for the arithmetic/unary/math-function
+/// operand path, which — unlike [`strict_number`]'s comparison callers —
+/// must honour the active dialect's leading-zero rule: `Some(true)` = tcl8.x
+/// octal (`010` → 8; `08`/`09` are invalid octal, and Tcl raises an error
+/// for them in arithmetic context, so this declines rather than guess),
+/// `Some(false)` = tcl9.0 decimal (`010` → 10, matching the shared grammar
+/// [`strict_number`] already applies).
+///
+/// `None` (dialect unknown) folds only when the octal and decimal readings
+/// *agree* — e.g. `07` is `7` under both (`7` is a valid octal digit), so
+/// it isn't actually ambiguous — and declines when they disagree (`010`:
+/// octal 8 vs decimal 10) or either reading is invalid (`08`/`09`: invalid
+/// octal, valid decimal). This is more precise than blanket-declining every
+/// bare leading-zero operand under an unknown dialect while staying sound:
+/// the two candidate dialects are the only readings a real Tcl interpreter
+/// could apply.
+///
+/// Unlike [`classify_operand`], a leading-zero operand that fails to parse
+/// under the active dialect always declines (`None`) here rather than
+/// falling back to a string classification — arithmetic has no string
+/// fallback in Tcl (`expr {08 + 1}` is a runtime error under the 8.x octal
+/// rule, not a string operation), so "can't fold" is the only sound outcome.
+fn strict_number_for_dialect(value: &FoldValue, octal: Option<bool>) -> Option<TclValue> {
+    let FoldValue::Str(s) = value else {
+        return strict_number(value);
+    };
+    if is_bare_leading_zero(s) {
+        return match octal {
+            Some(true) => parse_octal_literal(s),
+            Some(false) => strict_number(value),
+            None => match (parse_octal_literal(s), strict_number(value)) {
+                (Some(o), Some(d)) if o == d => Some(o),
+                _ => None,
+            },
+        };
+    }
+    strict_number(value)
 }
 
 // Binary operators
@@ -623,12 +672,18 @@ fn tcl_div(a: TclValue, b: TclValue) -> Option<TclValue> {
             }
         }
         _ => {
-            let fa = a.as_f64();
-            let fb = b.as_f64();
-            if fb == 0.0 {
+            // A non-zero numerator over a zero divisor is Inf/-Inf, a real
+            // (foldable) Tcl value — only 0.0/0.0 is a domain error
+            // (tclsh: `expr {5.0/0.0}` -> Inf, `expr {0.0/0.0}` errors).
+            // IEEE-754 division naturally produces NaN for exactly that
+            // case, so decline on NaN rather than blanket-declining
+            // whenever the divisor is zero — the same pattern `tcl_pow`'s
+            // float path already uses below.
+            let r = a.as_f64() / b.as_f64();
+            if r.is_nan() {
                 return None;
             }
-            Some(TclValue::Float(fa / fb))
+            Some(TclValue::Float(r))
         }
     }
 }
@@ -905,6 +960,58 @@ mod tests {
     }
 
     #[test]
+    fn dialect_aware_leading_zero_folds_in_arithmetic() {
+        // TP: the octal-vs-decimal split must also apply to arithmetic /
+        // unary / math-function operands, not just comparisons. Each value
+        // verified against real tclsh8.6: `010 + 1` = 9 (octal 8+1),
+        // `010 * 2` = 16, `-010` = -8, `abs(-010)` = 8.
+        let eval_d = |expr: &str, dialect: &str| {
+            eval_tcl_expr_in_dialect(&parse_expr(expr, None), &Env::new(), dialect)
+        };
+        for d in ["tcl8.4", "tcl8.5", "tcl8.6", "f5-irules", "f5-iapps"] {
+            assert_eq!(eval_d("010 + 1", d), Some(TclValue::Int(9)), "{d}");
+            assert_eq!(eval_d("010 * 2", d), Some(TclValue::Int(16)), "{d}");
+            assert_eq!(eval_d("-010", d), Some(TclValue::Int(-8)), "{d}");
+            assert_eq!(eval_d("abs(-010)", d), Some(TclValue::Int(8)), "{d}");
+        }
+        // tcl9.0 decimal (TIP 472): `010 + 1` = 11 (decimal 10+1).
+        assert_eq!(eval_d("010 + 1", "tcl9.0"), Some(TclValue::Int(11)));
+        assert_eq!(eval_d("-010", "tcl9.0"), Some(TclValue::Int(-10)));
+    }
+
+    #[test]
+    fn dialect_blind_arithmetic_declines_on_bare_leading_zero() {
+        // FN guard (regression for the fix): when the dialect is genuinely
+        // unknown (plain `eval_tcl_expr`, no octal info at all), arithmetic
+        // on a bare leading-zero literal whose octal and decimal readings
+        // *disagree* must decline rather than silently pick one — `010` is
+        // octal 8 vs decimal 10.
+        assert_eq!(eval_str("010 + 1"), None);
+        assert_eq!(eval_str("-010"), None);
+        assert_eq!(eval_str("abs(-010)"), None);
+        // Unaffected: no leading-zero operand, arithmetic still folds.
+        assert_eq!(eval_str("10 + 1"), Some(TclValue::Int(11)));
+        // Unaffected: `07` is 7 under both readings (7 is a valid octal
+        // digit), so a dialect-blind fold is still sound here.
+        assert_eq!(eval_str("07 + 1"), Some(TclValue::Int(8)));
+    }
+
+    #[test]
+    fn invalid_octal_arithmetic_declines_under_octal_dialect() {
+        // TN: `08 + 1` is a genuine Tcl *error* under the 8.x octal rule
+        // (`08` is not valid octal — tclsh: "invalid bareword \"08\"") —
+        // the const-folder has no error channel, so it must decline (defer
+        // to the runtime, which will raise the real error) rather than
+        // guess a decimal reading.
+        let eval_d = |expr: &str, dialect: &str| {
+            eval_tcl_expr_in_dialect(&parse_expr(expr, None), &Env::new(), dialect)
+        };
+        assert_eq!(eval_d("08 + 1", "tcl8.6"), None);
+        // Decimal dialect reads `08` as 8, so this is fine there.
+        assert_eq!(eval_d("08 + 1", "tcl9.0"), Some(TclValue::Int(9)));
+    }
+
+    #[test]
     fn leading_zero_is_octal_only_excludes_tcl9() {
         assert!(leading_zero_is_octal("tcl8.4"));
         assert!(leading_zero_is_octal("tcl8.5"));
@@ -966,7 +1073,26 @@ mod tests {
     fn division_by_zero() {
         assert_eq!(eval_str("1 / 0"), None);
         assert_eq!(eval_str("1 % 0"), None);
-        assert_eq!(eval_str("1.0 / 0.0"), None);
+        // tclsh: `expr {0.0/0.0}` is a domain error (NaN) — declines.
+        assert_eq!(eval_str("0.0 / 0.0"), None);
+    }
+
+    #[test]
+    fn float_division_by_zero_with_nonzero_numerator_folds_to_infinity() {
+        // TP (fixes a previous over-conservative decline): tclsh:
+        // `expr {1.0/0.0}` -> Inf, `expr {-1.0/0.0}` -> -Inf,
+        // `expr {1.0/-0.0}` -> -Inf. A non-zero numerator over a zero
+        // divisor is a real, foldable IEEE value, not a domain error —
+        // only 0.0/0.0 itself errors.
+        assert_eq!(eval_str("1.0 / 0.0"), Some(TclValue::Float(f64::INFINITY)));
+        assert_eq!(
+            eval_str("-1.0 / 0.0"),
+            Some(TclValue::Float(f64::NEG_INFINITY))
+        );
+        assert_eq!(
+            eval_str("1.0 / -0.0"),
+            Some(TclValue::Float(f64::NEG_INFINITY))
+        );
     }
 
     #[test]

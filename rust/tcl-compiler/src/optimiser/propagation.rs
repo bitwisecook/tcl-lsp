@@ -743,12 +743,21 @@ fn walk_statement(
                 expr.as_ref(),
                 *braced,
                 constants,
+                &cu.ir_module.procedures,
             );
         }
         Statement::AssignExpr {
             span, name, expr, ..
         } => {
-            try_substitute_assign_expr(ctx, *span, name, expr, constants, numeric);
+            try_substitute_assign_expr(
+                ctx,
+                *span,
+                name,
+                expr,
+                constants,
+                numeric,
+                &cu.ir_module.procedures,
+            );
         }
         Statement::If {
             clauses, else_body, ..
@@ -818,8 +827,8 @@ fn evaluate_proc_with_constants(
     octal: Option<bool>,
 ) -> Option<ConstValue> {
     let seed = seed_params_from_args(params, args)?;
-    let result = crate::sccp::sccp(&callee.cfg, &callee.ssa, Some(&seed), octal);
-    resolve_return_constant(callee, &result)
+    let result = crate::sccp::sccp(&callee.cfg, &callee.ssa, Some(&seed), octal, None);
+    resolve_return_constant(callee, &result, octal)
 }
 
 /// Bind each of `params` to its constant call argument for the
@@ -897,6 +906,7 @@ fn const_value_text(cv: &ConstValue) -> String {
 fn resolve_return_constant(
     fu: &FunctionUnit,
     result: &crate::sccp::SccpResult,
+    octal: Option<bool>,
 ) -> Option<ConstValue> {
     use crate::cfg::Terminator;
     let preds = fu.cfg.predecessors();
@@ -906,10 +916,15 @@ fn resolve_return_constant(
             continue;
         }
         let folded = match &block.terminator {
-            Some(Terminator::Return { value, expr, .. }) => {
-                fold_return_under_lattice(fu, *bn, value.as_deref(), expr.as_ref(), result)?
-            }
-            None => resolve_fallthrough_value(fu, *bn, result, &preds)?,
+            Some(Terminator::Return { value, expr, .. }) => fold_return_under_lattice(
+                fu,
+                *bn,
+                value.as_deref(),
+                expr.as_ref(),
+                result,
+                octal,
+            )?,
+            None => resolve_fallthrough_value(fu, *bn, result, &preds, octal)?,
             Some(_) => continue, // Goto / Branch — not an exit point
         };
         match &found {
@@ -950,6 +965,7 @@ fn resolve_fallthrough_value(
         crate::cfg::BlockId,
         std::collections::HashSet<crate::cfg::BlockId>,
     >,
+    octal: Option<bool>,
 ) -> Option<ConstValue> {
     let mut executable_preds = preds
         .get(&bn)
@@ -962,7 +978,7 @@ fn resolve_fallthrough_value(
     }
     let block = fu.cfg.blocks.get(pred)?;
     let last = block.statements.last()?;
-    fold_tail_statement_under_lattice(fu, *pred, last, result)
+    fold_tail_statement_under_lattice(fu, *pred, last, result, octal)
 }
 
 /// Resolve the value Tcl's "result of the last executed command" rule
@@ -979,9 +995,10 @@ fn fold_tail_statement_under_lattice(
     bn: crate::cfg::BlockId,
     stmt: &Statement,
     result: &crate::sccp::SccpResult,
+    octal: Option<bool>,
 ) -> Option<ConstValue> {
     match stmt {
-        Statement::ExprEval { expr, .. } => fold_expr_under_lattice(fu, bn, expr, result),
+        Statement::ExprEval { expr, .. } => fold_expr_under_lattice(fu, bn, expr, result, octal),
         Statement::AssignConst { name, .. }
         | Statement::AssignExpr { name, .. }
         | Statement::AssignValue { name, .. }
@@ -999,6 +1016,7 @@ fn fold_return_under_lattice(
     value: Option<&str>,
     expr: Option<&crate::expr_ast::ExprNode>,
     result: &crate::sccp::SccpResult,
+    octal: Option<bool>,
 ) -> Option<ConstValue> {
     let value = value?.trim();
 
@@ -1013,7 +1031,7 @@ fn fold_return_under_lattice(
     }
 
     // Path 3 — `return [expr {…}]`.
-    fold_expr_under_lattice(fu, bn, expr?, result)
+    fold_expr_under_lattice(fu, bn, expr?, result, octal)
 }
 
 /// Resolve a simple `$name` variable reference to its SCCP-proved constant
@@ -1073,8 +1091,9 @@ fn fold_expr_under_lattice(
     bn: crate::cfg::BlockId,
     expr: &crate::expr_ast::ExprNode,
     result: &crate::sccp::SccpResult,
+    octal: Option<bool>,
 ) -> Option<ConstValue> {
-    use crate::tcl_expr_eval::{Env, eval_tcl_expr};
+    use crate::tcl_expr_eval::{Env, eval_tcl_expr_with_octal};
 
     let mut env: Env = Env::new();
     if let Some(ssa_block) = fu.ssa.blocks.get(&bn) {
@@ -1088,7 +1107,7 @@ fn fold_expr_under_lattice(
             }
         }
     }
-    let v = eval_tcl_expr(expr, &env)?;
+    let v = eval_tcl_expr_with_octal(expr, &env, octal)?;
     Some(crate::sccp::tcl_value_to_const(v))
 }
 
@@ -1268,14 +1287,21 @@ fn try_fold_return_terminator(
     expr: Option<&crate::expr_ast::ExprNode>,
     _braced: bool,
     constants: &std::collections::HashMap<String, String>,
+    procedures: &std::collections::HashMap<String, crate::ir::Procedure>,
 ) {
     use crate::naming::normalise_var_name;
 
     // O115: `return [expr {[expr {E}]}]` → `return [expr {E}]`. Checked
-    // before the `expr`-gate below because the return value of a cmd-sub
-    // also populates `expr`, yet the redundant-nested-expr collapse
-    // operates on the raw value text.
-    if let Some(collapsed) = value.and_then(|raw| o115_redundant_nested_expr(raw.trim())) {
+    // before the `expr.is_some()` early-return below because the return
+    // value of a cmd-sub also populates `expr`, yet the redundant-nested-
+    // expr collapse operates on the raw value text. Also requires `expr`
+    // to be untouched anywhere in the module (mirrors the O129
+    // builtin-fold trust check) — both the outer and inner `[expr {…}]`
+    // are genuine command substitutions, and a shadowed `expr` no longer
+    // has builtin semantics.
+    if ctx.command_mutations.trusts("expr")
+        && let Some(collapsed) = value.and_then(|raw| o115_redundant_nested_expr(raw.trim()))
+    {
         ctx.report(Optimisation::new(
             DiagCode::O115,
             "Remove redundant nested expr",
@@ -1286,10 +1312,13 @@ fn try_fold_return_terminator(
     }
 
     // O101: a constant `[expr {…}]` return value folds to its value
-    // (`return [expr {1 + 2}]` → `return 3`).
+    // (`return [expr {1 + 2}]` → `return 3`). Same trust requirement as
+    // the O115 check above — a shadowed `expr` no longer has builtin
+    // semantics and must not be folded as if it did.
     if let Some(inner) = value
         .map(str::trim)
         .and_then(|t| t.strip_prefix('[').and_then(|s| s.strip_suffix(']')))
+        && ctx.command_mutations.trusts("expr")
     {
         let mut parts = inner.splitn(2, char::is_whitespace);
         if parts.next() == Some("expr") {
@@ -1298,7 +1327,10 @@ fn try_fold_return_terminator(
                 .strip_prefix('{')
                 .and_then(|b| b.strip_suffix('}'))
                 .unwrap_or(body);
-            if let Some(folded) = super::helpers::expr_simplify::try_fold_expr(body, ctx.dialect)
+            let body_node = crate::expr_parser::parse_expr(body, ctx.dialect);
+            if !super::helpers::expr_simplify::expr_uses_shadowed_mathfunc(&body_node, procedures)
+                && let Some(folded) =
+                    super::helpers::expr_simplify::try_fold_expr(body, ctx.dialect)
                 && !folded.contains(['$', '['])
             {
                 ctx.report(Optimisation::new(
@@ -1359,18 +1391,36 @@ fn try_substitute_assign_expr(
     expr: &crate::expr_ast::ExprNode,
     constants: &std::collections::HashMap<String, String>,
     numeric: NumericCtx<'_>,
+    procedures: &std::collections::HashMap<String, crate::ir::Procedure>,
 ) {
     use super::helpers::expr_simplify::{
-        expr_has_command_subst, instcombine_expr_typed, substitute_expr_constants,
+        expr_has_command_subst, expr_uses_shadowed_mathfunc, instcombine_expr_typed,
+        substitute_expr_constants,
     };
     use super::helpers::spans::full_rewrite_span;
     use crate::expr_parser::parse_expr;
-    use crate::tcl_expr_eval::{Env, eval_tcl_expr, format_tcl_value};
+    use crate::tcl_expr_eval::{
+        Env, eval_tcl_expr_with_octal, format_tcl_value, leading_zero_is_octal,
+    };
 
     if matches!(expr, crate::expr_ast::ExprNode::Raw { .. }) {
         return;
     }
     if expr_has_command_subst(expr) {
+        return;
+    }
+    // `expr` renamed/aliased anywhere in the module means the source's
+    // `[expr {…}]` no longer has builtin semantics — do not propagate a
+    // rewrite computed as if it did.
+    if !ctx.command_mutations.trusts("expr") {
+        return;
+    }
+    // A math-function call in the expression shadowed by a user-defined
+    // `::tcl::mathfunc::<name>` proc means folding it would use builtin
+    // semantics that no longer apply. Substitution doesn't change which
+    // function names are called, so checking the pre-substitution AST is
+    // sufficient.
+    if expr_uses_shadowed_mathfunc(expr, procedures) {
         return;
     }
     let expr_text = crate::expr_ast::render_expr(expr);
@@ -1385,7 +1435,8 @@ fn try_substitute_assign_expr(
     // keep the expression wrapper around the substituted text.
     let parsed = parse_expr(&result.text, ctx.dialect);
     let env = Env::new();
-    if let Some(val) = eval_tcl_expr(&parsed, &env) {
+    let octal = ctx.dialect.map(leading_zero_is_octal);
+    if let Some(val) = eval_tcl_expr_with_octal(&parsed, &env, octal) {
         let folded = format_tcl_value(val);
         let needs_quoting = folded.is_empty()
             || folded.contains([
@@ -1455,12 +1506,32 @@ fn try_o101_expr_arg_fold(
     ctx: &PassContext<'_>,
     inner: &str,
     constants: &std::collections::HashMap<String, String>,
+    procedures: &std::collections::HashMap<String, crate::ir::Procedure>,
 ) -> Option<String> {
     let mut parts = inner.splitn(2, char::is_whitespace);
     if parts.next() != Some("expr") {
         return None;
     }
+    // `expr` renamed/aliased anywhere in the module — a shadowed `expr` no
+    // longer has builtin semantics, so this text no longer means what it
+    // looks like. Mirrors the O129 builtin-fold gate (`try_o129_fold`).
+    if !ctx.command_mutations.trusts("expr") {
+        return None;
+    }
     let raw_body = parts.next().unwrap_or("").trim();
+    let body = raw_body
+        .strip_prefix('{')
+        .and_then(|b| b.strip_suffix('}'))
+        .unwrap_or(raw_body);
+    // A math-function call shadowed by a user-defined
+    // `::tcl::mathfunc::<name>` proc anywhere in the module means folding
+    // it would use builtin semantics that no longer apply.
+    if super::helpers::expr_simplify::expr_uses_shadowed_mathfunc(
+        &crate::expr_parser::parse_expr(body, ctx.dialect),
+        procedures,
+    ) {
+        return None;
+    }
     let folded =
         if let Some(braced_body) = raw_body.strip_prefix('{').and_then(|b| b.strip_suffix('}')) {
             super::helpers::expr_simplify::try_fold_expr_with_constants(
@@ -1494,8 +1565,12 @@ fn visit_call_cmd_subst_folds(
             continue;
         };
         // O115: collapse a redundant double-`expr` cmd-sub in this
-        // argument value position (needs no interproc summary).
-        if let Some(collapsed) = o115_redundant_nested_expr(text) {
+        // argument value position (needs no interproc summary). Requires
+        // `expr` untouched anywhere in the module — both layers are
+        // genuine command substitutions.
+        if ctx.command_mutations.trusts("expr")
+            && let Some(collapsed) = o115_redundant_nested_expr(text)
+        {
             ctx.report(Optimisation::new(
                 DiagCode::O115,
                 "Remove redundant nested expr",
@@ -1508,7 +1583,9 @@ fn visit_call_cmd_subst_folds(
         // position (`return [expr {1 + 2}]` → `return 3`). The general
         // `AssignExpr` / `ExprEval` expr folds don't reach a cmd-sub
         // embedded in a `Call` argument, so handle it here.
-        if let Some(folded) = try_o101_expr_arg_fold(ctx, inner, constants) {
+        if let Some(folded) =
+            try_o101_expr_arg_fold(ctx, inner, constants, &cu.ir_module.procedures)
+        {
             ctx.report(Optimisation::new(
                 DiagCode::O101,
                 "Fold constant expression",
@@ -2546,6 +2623,37 @@ mod tests {
     }
 
     #[test]
+    fn shadowed_mathfunc_cmd_sub_arg_not_folded() {
+        // FP guard: `proc ::tcl::mathfunc::abs` shadows the builtin
+        // everywhere in the module — the cmd-sub-argument O101 fold path
+        // (try_o101_expr_arg_fold) must not fold `abs(-5)` using builtin
+        // semantics.
+        let opts = run_pass("proc ::tcl::mathfunc::abs {x} { return 999 }\nputs [expr {abs(-5)}]");
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O101),
+            "must not fold a shadowed math function in a cmd-sub argument: {opts:?}",
+        );
+    }
+
+    #[test]
+    fn shadowed_mathfunc_return_value_not_folded() {
+        // FP guard: `return [expr {…}]` folding must also respect the
+        // math-function shadow gate.
+        use tcl_registry::CommandRegistry;
+        let reg = CommandRegistry::build_default();
+        let source =
+            "proc ::tcl::mathfunc::abs {x} { return 999 }\nproc f {} { return [expr {abs(-5)}] }";
+        let cu = CompilationUnit::build_for(source, &reg, false).with_interprocedural(&reg, None);
+        let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations.iter().all(|o| o.code != DiagCode::O101),
+            "must not fold a shadowed math function in a return value: {:?}",
+            ctx.optimisations,
+        );
+    }
+
+    #[test]
     fn quoted_expr_cmd_sub_arg_not_folded_under_constants() {
         // `puts [expr "$a + $b"]` is the quoted form — it uses textual
         // substitution, so we conservatively never fold it.
@@ -2554,6 +2662,75 @@ mod tests {
             opts.iter()
                 .all(|o| !(o.code == DiagCode::O101 && o.replacement == "7")),
             "quoted expr must not fold under constants, got {opts:?}",
+        );
+    }
+
+    /// Like [`run_pass`] but populates `ctx.command_mutations` from the
+    /// whole module, the way the real pipeline does — needed to exercise
+    /// the `expr`-redefinition trust gate.
+    fn run_pass_with_mutations(source: &str) -> Vec<Optimisation> {
+        let reg = registry();
+        let cu = CompilationUnit::build_for(source, &reg, false);
+        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.command_mutations =
+            crate::command_binding::scan_module_command_mutations(&cu.ir_module, &reg);
+        run(&mut ctx, &cu);
+        ctx.optimisations
+    }
+
+    #[test]
+    fn renamed_expr_cmd_sub_arg_not_folded() {
+        // FP guard: once `expr` is renamed anywhere in the module,
+        // `puts [expr {$a + $b}]` no longer calls the builtin evaluator.
+        let opts = run_pass_with_mutations(
+            "rename expr real_expr\nset a 3\nset b 4\nputs [expr {$a + $b}]",
+        );
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O101),
+            "must not fold a cmd-sub through a renamed expr: {opts:?}",
+        );
+    }
+
+    #[test]
+    fn renamed_expr_assign_expr_substitution_not_folded() {
+        // FP guard: `set x [expr {$a + $b}]` (the AssignExpr form,
+        // try_substitute_assign_expr) must also respect the trust gate.
+        let opts = run_pass_with_mutations("rename expr real_expr\nset a 3\nset x [expr {$a + 1}]");
+        assert!(
+            opts.iter()
+                .all(|o| !(o.code == DiagCode::O100 || o.code == DiagCode::O101)),
+            "must not propagate/fold set x [expr {{…}}] through a renamed expr: {opts:?}",
+        );
+    }
+
+    #[test]
+    fn ordinary_expr_cmd_sub_arg_still_folds_under_mutation_scan() {
+        // TN/control: an unrelated module-wide mutation scan (no rename of
+        // `expr` itself) must not block the fold.
+        let opts = run_pass_with_mutations("set a 3\nset b 4\nputs [expr {$a + $b}]");
+        assert!(
+            opts.iter()
+                .any(|o| o.code == DiagCode::O101 && o.replacement == "7"),
+            "expected O101 fold under an unrelated mutation scan, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn renamed_expr_return_value_not_folded() {
+        // FP guard: `return [expr {…}]` folding (try_fold_return_terminator)
+        // must also respect the trust gate.
+        use tcl_registry::CommandRegistry;
+        let reg = CommandRegistry::build_default();
+        let source = "rename expr real_expr\nproc f {} { return [expr {1 + 2}] }";
+        let cu = CompilationUnit::build_for(source, &reg, false).with_interprocedural(&reg, None);
+        let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.command_mutations =
+            crate::command_binding::scan_module_command_mutations(&cu.ir_module, &reg);
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations.iter().all(|o| o.code != DiagCode::O101),
+            "must not fold a renamed expr in a return value: {:?}",
+            ctx.optimisations,
         );
     }
 

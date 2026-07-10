@@ -55,7 +55,9 @@ use crate::compilation_unit::FunctionUnit;
 use crate::expr_ast::{BinOp, ExprNode, ExprOffset, render_expr};
 use crate::expr_parser::parse_expr;
 use crate::naming::normalise_var_name;
-use crate::tcl_expr_eval::{Env, eval_tcl_expr, format_tcl_value};
+use crate::tcl_expr_eval::{
+    Env, eval_tcl_expr_with_octal, format_tcl_value, leading_zero_is_octal,
+};
 use crate::types::{TclType, TypeKind, TypeLattice};
 
 /// Operand type facts for the current function: which variable names are
@@ -184,15 +186,33 @@ fn node_provably_integer(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
     }
 }
 
-/// Whether the (delimiter-stripped) text of an `expr` string literal parses
-/// as an integer or float — the SCCP-inlined-constant case.
-fn is_numeric_string(text: &str) -> bool {
-    let t = text
-        .trim()
+/// Strip the surrounding `"…"` / `{…}` delimiters (if any) from an `expr`
+/// literal or a propagated constant's value text, for the numeric
+/// classifiers below.
+fn strip_literal_delims(text: &str) -> &str {
+    text.trim()
         .trim_start_matches(['"', '{'])
         .trim_end_matches(['"', '}'])
-        .trim();
-    !t.is_empty() && (t.parse::<i64>().is_ok() || t.parse::<f64>().is_ok())
+        .trim()
+}
+
+/// Whether the (delimiter-stripped) text of an `expr` string literal or a
+/// propagated constant's value parses as a Tcl number — the SCCP-inlined-
+/// constant case. Backed by the shared `tcl_syntax::number` grammar (the
+/// same one the const-folder and [`is_integer_string`] use) rather than
+/// Rust's own `str::parse`, which rejects Tcl's `0x`/`0o`/`0b` prefixes and
+/// `_` digit separators — a hex/octal/binary constant is a real Tcl number
+/// and must classify as one here, or two callers (the O120 eq/ne string-
+/// compare promotion gate and the O100/O101 constant-substitution binder)
+/// wrongly treat it as "provably not a number".
+fn is_numeric_string(text: &str) -> bool {
+    use tcl_syntax::number::Number;
+    let t = strip_literal_delims(text);
+    !t.is_empty()
+        && matches!(
+            tcl_syntax::number::parse_whole(t),
+            Some(Number::Int(_) | Number::Big { .. } | Number::Double(_) | Number::Nan { .. })
+        )
 }
 
 /// Whether the (delimiter-stripped) text of an `expr` literal parses as a Tcl
@@ -201,13 +221,8 @@ fn is_numeric_string(text: &str) -> bool {
 /// so it agrees with the const-folder.
 fn is_integer_string(text: &str) -> bool {
     use tcl_syntax::number::Number;
-    let t = text
-        .trim()
-        .trim_start_matches(['"', '{'])
-        .trim_end_matches(['"', '}'])
-        .trim();
     matches!(
-        tcl_syntax::number::parse_whole(t),
+        tcl_syntax::number::parse_whole(strip_literal_delims(text)),
         Some(Number::Int(_) | Number::Big { .. })
     )
 }
@@ -234,7 +249,7 @@ pub fn try_fold_expr(expr: &str, dialect: Option<&str>) -> Option<String> {
         return None;
     }
     let env = Env::new();
-    let value = eval_tcl_expr(&node, &env)?;
+    let value = eval_tcl_expr_with_octal(&node, &env, dialect.map(leading_zero_is_octal))?;
     let rendered = format_tcl_value(value);
     if rendered == trimmed {
         return None;
@@ -280,7 +295,7 @@ pub fn try_fold_expr_with_constants<S: std::hash::BuildHasher>(
             env.insert(name.clone(), EnvValue::Str(value.clone()));
         }
     }
-    let value = eval_tcl_expr(&node, &env)?;
+    let value = eval_tcl_expr_with_octal(&node, &env, dialect.map(leading_zero_is_octal))?;
     let rendered = format_tcl_value(value);
     if rendered == trimmed {
         return None;
@@ -402,8 +417,12 @@ pub fn substitute_expr_constants<S: std::hash::BuildHasher>(
     }
 }
 
+/// Whether `text` is safe to inline as a bare (unquoted) token when
+/// substituting a constant into `expr` text. Delegates to
+/// [`is_numeric_string`] — the same Tcl-number grammar, not a locally
+/// re-implemented Rust-`str::parse` approximation.
 fn is_numeric_literal(text: &str) -> bool {
-    text.trim().parse::<i64>().is_ok() || text.trim().parse::<f64>().is_ok()
+    is_numeric_string(text)
 }
 
 // instcombine / strength-reduce / strlen / streq
@@ -1402,6 +1421,54 @@ pub fn expr_has_command_subst(node: &ExprNode) -> bool {
     }
 }
 
+/// Return `true` when `node` invokes a Tcl math function (`abs(...)`,
+/// `max(...)`, …) whose name is shadowed by a user-defined
+/// `::tcl::mathfunc::<name>` proc anywhere in the module.
+///
+/// Math functions are not `CommandSpec`s — they live in the shared
+/// `tcl_syntax::expr::mathfunc` dispatch table the const-folder and the
+/// runtime both consume — so there is no registry purity/redefinition fact
+/// to consult the way [`crate::command_binding::ModuleCommandMutations`]
+/// covers ordinary commands. The module's own `proc` definitions are the
+/// only source of truth: real Tcl compiles `abs(x)` to a `tcl::mathfunc::abs`
+/// command invocation and only falls back to the C builtin when nothing
+/// shadows it, so folding `abs(-5)` to `5` is unsound whenever
+/// `::tcl::mathfunc::abs` has been (re)defined.
+#[must_use]
+pub fn expr_uses_shadowed_mathfunc<S: std::hash::BuildHasher>(
+    node: &ExprNode,
+    procedures: &std::collections::HashMap<String, crate::ir::Procedure, S>,
+) -> bool {
+    match node {
+        ExprNode::Call { function, args, .. } => {
+            let key = format!("::tcl::mathfunc::{}", function.to_ascii_lowercase());
+            procedures.contains_key(&key)
+                || args
+                    .iter()
+                    .any(|a| expr_uses_shadowed_mathfunc(a, procedures))
+        }
+        ExprNode::Binary { left, right, .. } => {
+            expr_uses_shadowed_mathfunc(left, procedures)
+                || expr_uses_shadowed_mathfunc(right, procedures)
+        }
+        ExprNode::Unary { operand, .. } => expr_uses_shadowed_mathfunc(operand, procedures),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            expr_uses_shadowed_mathfunc(condition, procedures)
+                || expr_uses_shadowed_mathfunc(true_branch, procedures)
+                || expr_uses_shadowed_mathfunc(false_branch, procedures)
+        }
+        ExprNode::Literal { .. }
+        | ExprNode::Var { .. }
+        | ExprNode::Raw { .. }
+        | ExprNode::String { .. }
+        | ExprNode::Command { .. } => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1658,6 +1725,46 @@ mod tests {
         assert!(is_numeric_string("\"3.5\""));
         assert!(!is_numeric_string("\"abc\""));
         assert!(!is_numeric_string(""));
+    }
+
+    #[test]
+    fn is_numeric_string_recognises_non_decimal_tcl_numbers() {
+        // TP: hex/octal/binary/underscore-separated forms are real Tcl
+        // numbers (tclsh: 0x1a==26, 0o17==15, 0b101==5, 1_000==1000) — the
+        // shared `tcl_syntax::number` grammar accepts them even though
+        // Rust's own `str::parse::<i64>/<f64>` (the previous
+        // implementation) rejects all four.
+        for text in ["0x1a", "0o17", "0b101", "1_000", "\"0x1a\""] {
+            assert!(is_numeric_string(text), "{text:?} should be numeric");
+        }
+        // TN control: still rejects genuine non-numbers.
+        assert!(!is_numeric_string("hello"));
+        assert!(!is_numeric_string("0xzz"));
+    }
+
+    #[test]
+    fn is_numeric_literal_agrees_with_is_numeric_string() {
+        // is_numeric_literal (the substitute_expr_constants bare-vs-quoted
+        // gate) now delegates to the same grammar, so a hex constant
+        // inlines bare instead of being needlessly quoted.
+        assert!(is_numeric_literal("0x1a"));
+        assert!(!is_numeric_literal("hello"));
+    }
+
+    #[test]
+    fn hex_string_literal_is_not_wrongly_promoted_to_streq() {
+        // FP guard: `"0x1a" == $y` must NOT promote to `eq` (O120) — 0x1a
+        // is a genuine Tcl number (tclsh: `expr {"0x1a" == 26}` -> 1, a
+        // numeric compare), so treating it as "provably non-numeric" would
+        // silently turn a numeric comparison into a string comparison.
+        // Before the fix, `is_numeric_string("0x1a")` was false, so
+        // `node_provably_non_numeric` wrongly returned true for this
+        // literal and the eq/ne promotion fired.
+        let (out, changed) = try_eq_ne_string_compare_simplify_expr("\"0x1a\" == $y");
+        assert!(
+            !changed,
+            "hex literal must not be promoted to string eq, got {out:?}"
+        );
     }
 
     // try_strlen_simplify_expr

@@ -46,13 +46,13 @@ use crate::taint::{TaintLattice, propagate_taints};
 use crate::type_infer::propagate_types;
 use crate::types::TypeLattice;
 
-/// Module-wide CFG-determining context (upvar summaries + proc params) shared
-/// by every procedure/method build so each rebuilt CFG matches the whole-module
-/// build.  Produced by [`crate::cfg_builder::prepare_cfg_context`].
-type CfgContext = (
-    HashMap<String, crate::cfg_builder::upvar_info::UpvarInfo>,
-    HashMap<String, Vec<String>>,
-);
+/// Module-wide CFG-determining context (upvar summaries + proc params +
+/// global-write summaries) shared by every procedure/method build so each
+/// rebuilt CFG matches the whole-module build.  Produced by
+/// [`crate::cfg_builder::prepare_cfg_context`]; re-exported here under the
+/// same name for this file's existing call sites (the canonical definition
+/// lives in [`crate::cfg_builder::CfgContext`]).
+type CfgContext = crate::cfg_builder::CfgContext;
 
 /// One procedure's **offset-0** baseline-lattice build request, handed to the
 /// [`ProcLatticeCache`] callback by [`CompilationUnit::build_for_memoized`].
@@ -79,6 +79,15 @@ pub struct LatticeRequest<'a> {
     /// Module-wide `proc -> params` context (from
     /// [`crate::cfg_builder::prepare_cfg_context`]).
     pub proc_params: &'a HashMap<String, Vec<String>>,
+    /// Module-wide `proc -> outer-scope write summary` context (from
+    /// [`crate::cfg_builder::prepare_cfg_context`]).
+    pub global_write_procs:
+        &'a HashMap<String, crate::cfg_builder::global_write_info::GlobalWriteInfo>,
+    /// Module-wide variable-trace summary (from
+    /// [`crate::var_observability::scan_module_variable_traces`]), so SCCP
+    /// forces `Overdefined` on a name traced by a *different* proc — not
+    /// just one traced within this procedure's own body.
+    pub module_traces: &'a crate::var_observability::ModuleVariableTraces,
     /// Analysis dialect — selects the registry the lattice pipeline runs under.
     pub dialect: &'a str,
     /// Interprocedural caller-uniform-literal SCCP seeds for this procedure
@@ -223,6 +232,7 @@ impl FunctionUnit {
             registry,
             param_constants,
             &HashSet::new(),
+            None,
         )
     }
 
@@ -235,6 +245,14 @@ impl FunctionUnit {
     /// entry points default to an empty set (no object typing); the
     /// compilation-unit builders ([`Self::build_for`] and friends) source the
     /// real set from [`crate::signature_scan`].
+    ///
+    /// `module_traces` (from
+    /// [`crate::var_observability::scan_module_variable_traces`]) is the
+    /// module-wide variable-trace fact, so a name traced by a *different*
+    /// proc still forces SCCP to `Overdefined` here.  `None` for the
+    /// module-context-free entry points ([`Self::build`],
+    /// [`Self::build_with_param_constants`]) and for isolated single-function
+    /// rebuilds that have no module to scan.
     #[must_use]
     pub fn build_with_param_constants_and_classes(
         name: impl Into<String>,
@@ -248,6 +266,7 @@ impl FunctionUnit {
             >,
         >,
         known_classes: &HashSet<String>,
+        module_traces: Option<&crate::var_observability::ModuleVariableTraces>,
     ) -> Self {
         // Complexity guard (block-count half): a pathologically large body
         // would cost seconds of SSA + dataflow for near-zero findings, so skip
@@ -268,6 +287,7 @@ impl FunctionUnit {
             &ssa,
             param_constants,
             Some(registry.leading_zero_is_octal()),
+            module_traces,
         );
         // Surface `[info exists X]` / `[array exists X]`
         // folds (parameter → exists, never-defined non-param → absent)
@@ -577,6 +597,13 @@ impl CompilationUnit {
         // every passthrough callsite is replaced with a Statement::Block
         // that splices the body inline.
         crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
+        // Module-wide variable-trace fact (F4b): a name traced by *any* proc
+        // in the module must be treated as externally mutable everywhere,
+        // since the relative call order between the proc that installs the
+        // trace and the code that reads/writes the name isn't statically
+        // known. Computed once and shared by every function build below (and
+        // the memoised path), mirroring `call_site_constants`/`known_classes`.
+        let module_traces = crate::var_observability::scan_module_variable_traces(&ir_module);
         let cfg_module = build_cfg(&ir_module, defer_top_level);
         // Collect call-site literal arg values per user proc so each
         // callee's SCCP can fold a param every caller passes the same literal
@@ -601,6 +628,7 @@ impl CompilationUnit {
             registry,
             None,
             &known_class_set,
+            Some(&module_traces),
         );
         // Module-wide upvar/param context — the CFG-determining context a
         // procedure body is rebuilt under.  Computed once and shared by every
@@ -649,7 +677,12 @@ impl CompilationUnit {
             // procedure has a real body, (c) the module context is available,
             // and (d) the seeds encode into the hashable key form.
             let memoised = match (cache.as_mut(), proc, cfg_context.as_ref(), encoded_pc) {
-                (Some(memo), Some(proc), Some((upvar_procs, proc_params)), Some(encoded_pc)) => {
+                (
+                    Some(memo),
+                    Some(proc),
+                    Some((upvar_procs, proc_params, global_write_procs)),
+                    Some(encoded_pc),
+                ) => {
                     // Normalise the body to offset 0 so a shifted-but-unchanged
                     // procedure produces an identical request (memo hit).
                     let mut body = proc.body.clone();
@@ -660,6 +693,8 @@ impl CompilationUnit {
                         params,
                         upvar_procs,
                         proc_params,
+                        global_write_procs,
+                        module_traces: &module_traces,
                         dialect,
                         param_constants: &encoded_pc,
                         known_classes: &known_classes,
@@ -682,14 +717,25 @@ impl CompilationUnit {
                     registry,
                     param_constants.as_ref(),
                     &known_class_set,
+                    Some(&module_traces),
                 )
             });
             procedures.insert(qname.clone(), fu);
         }
-        let methods =
-            Self::build_method_units(&ir_module, cfg_context.as_ref(), &known_class_set, registry);
-        let body_units =
-            Self::build_body_units(&ir_module, cfg_context.as_ref(), &known_class_set, registry);
+        let methods = Self::build_method_units(
+            &ir_module,
+            cfg_context.as_ref(),
+            &known_class_set,
+            registry,
+            &module_traces,
+        );
+        let body_units = Self::build_body_units(
+            &ir_module,
+            cfg_context.as_ref(),
+            &known_class_set,
+            registry,
+            &module_traces,
+        );
         // Build the cross-event scope from the
         // ``::when::*`` subset of procedures.  ``None`` when no
         // ``when`` block is present so non-iRules consumers
@@ -731,11 +777,12 @@ impl CompilationUnit {
         cfg_context: Option<&CfgContext>,
         known_class_set: &HashSet<String>,
         registry: &CommandRegistry,
+        module_traces: &crate::var_observability::ModuleVariableTraces,
     ) -> HashMap<String, FunctionUnit> {
         if ir_module.methods.is_empty() {
             return HashMap::new();
         }
-        let (upvar_procs, proc_params) =
+        let (upvar_procs, proc_params, global_write_procs) =
             cfg_context.expect("cfg_context computed when methods are present");
         ir_module
             .methods
@@ -747,6 +794,7 @@ impl CompilationUnit {
                     true,
                     upvar_procs.clone(),
                     proc_params.clone(),
+                    global_write_procs.clone(),
                 );
                 // Body-byte half of the complexity guard (the block-count
                 // half is applied inside `build`); skip an oversized
@@ -764,6 +812,7 @@ impl CompilationUnit {
                         registry,
                         None,
                         known_class_set,
+                        Some(module_traces),
                     )
                 };
                 (mqname.clone(), fu)
@@ -788,11 +837,12 @@ impl CompilationUnit {
         cfg_context: Option<&CfgContext>,
         known_class_set: &HashSet<String>,
         registry: &CommandRegistry,
+        module_traces: &crate::var_observability::ModuleVariableTraces,
     ) -> HashMap<String, FunctionUnit> {
         if ir_module.body_units.is_empty() {
             return HashMap::new();
         }
-        let (upvar_procs, proc_params) =
+        let (upvar_procs, proc_params, global_write_procs) =
             cfg_context.expect("cfg_context computed when body units are present");
         ir_module
             .body_units
@@ -804,6 +854,7 @@ impl CompilationUnit {
                     true,
                     upvar_procs.clone(),
                     proc_params.clone(),
+                    global_write_procs.clone(),
                 );
                 // Same body-byte complexity guard as procs/methods: a huge
                 // generated lambda body contributes trivial lattices instead of
@@ -819,6 +870,7 @@ impl CompilationUnit {
                         registry,
                         None,
                         known_class_set,
+                        Some(module_traces),
                     )
                 };
                 (qname.clone(), fu)
@@ -1254,7 +1306,7 @@ mod tests {
                    namespace eval ::b { proc x {p2 extra} { set q $p2 } }
 ";
         let m = lower_to_ir_with_config(src, &reg, tcl_lexer::LexerConfig::default());
-        let (_, proc_params) = crate::cfg_builder::prepare_cfg_context(&m);
+        let (_, proc_params, _) = crate::cfg_builder::prepare_cfg_context(&m);
         // `::b::x` sorts after `::a::x`, so the short name `x` deterministically
         // resolves to `::b::x`'s parameters on every run.
         assert_eq!(

@@ -263,6 +263,161 @@ fn o101_constant_folding_ternary_unary_logical() {
     assert!(opt_absent("set v [expr {$x + 1}]", TCL, "O101"));
 }
 
+#[test]
+fn o101_dialect_octal_arithmetic() {
+    // TP: `010` is octal 8 under tcl8.x/f5-irules (this suite's default
+    // dialect, TCL = "tcl8.6") — tclsh8.6: `010 + 1` = 9, `010 * 2` = 16,
+    // `-010` = -8. Before the dialect-aware fix these folded to the
+    // decimal reading (11, 20, -10) — a miscompile.
+    assert!(optimised("set v [expr {010 + 1}]", TCL).contains("set v 9"));
+    assert!(optimised("set v [expr {010 * 2}]", TCL).contains("set v 16"));
+    assert!(optimised("set v [expr {-010}]", TCL).contains("set v -8"));
+    assert!(optimised("set v [expr {010 + 1}]", IR).contains("set v 9"));
+
+    // TP (control): the same source under plain tcl9.0 reads `010` as
+    // decimal (TIP 472) — tclsh9.0: `010 + 1` = 11.
+    assert!(optimised("set v [expr {010 + 1}]", "tcl9.0").contains("set v 11"));
+
+    // FN guard: `08` is invalid octal under tcl8.x (Tcl raises an error —
+    // tclsh8.6: `expr {08 + 1}` -> "invalid bareword \"08\"") so the
+    // const-folder must decline rather than guess a decimal reading.
+    assert!(opt_absent("set v [expr {08 + 1}]", TCL, "O101"));
+    // Unaffected under tcl9.0, where `08` is decimal 8.
+    assert!(optimised("set v [expr {08 + 1}]", "tcl9.0").contains("set v 9"));
+}
+
+#[test]
+fn o101_expr_redefinition_guard() {
+    // FP guard: once `expr` is renamed, `expr {1 + 2}` no longer calls the
+    // builtin evaluator — O101 must not fold it.
+    assert!(opt_absent(
+        "rename expr real_expr\nexpr {1 + 2}",
+        TCL,
+        "O101"
+    ));
+    // TN/control: an unrelated rename elsewhere in the module doesn't
+    // block the fold (the gate is keyed on `expr` specifically).
+    assert!(opt_fires(
+        "rename puts real_puts\nexpr {1 + 2}",
+        TCL,
+        "O101"
+    ));
+}
+
+#[test]
+fn o101_mathfunc_redefinition_guard() {
+    // FP guard: `proc ::tcl::mathfunc::abs` shadows the builtin math
+    // function everywhere in the module — real Tcl compiles `abs(x)` to a
+    // `tcl::mathfunc::abs` command invocation, so once that's
+    // user-defined, `expr {abs(-5)}` no longer means "call the C abs".
+    assert!(opt_absent(
+        "proc ::tcl::mathfunc::abs {x} { return 999 }\nexpr {abs(-5)}",
+        TCL,
+        "O101"
+    ));
+    // TN/control: no override present, folds as usual. tclsh: abs(-5)=5.
+    assert!(optimised("set v [expr {abs(-5)}]", TCL).contains("set v 5"));
+}
+
+#[test]
+fn o101_global_write_across_call_guard() {
+    // FP guard (repro A): `mutate` writes the global `x` via `global x; set x
+    // 99`, called between the top-level `set x 5` and the `expr {$x + 1}`
+    // read. tclsh: `mutate` runs before the `puts`, so `x` is 99 there —
+    // `expr {$x + 1}` is 100, NOT 6. Before the CFG builder widened the
+    // call's `defs` with the callee's global-write summary, SCCP treated `x`
+    // as still holding the SSA value from the top-level `set x 5` across the
+    // opaque `mutate` call, and O101 wrongly folded to `puts 6`.
+    assert!(opt_absent(
+        "proc mutate {} { global x; set x 99 }\nset x 5\nmutate\nputs [expr {$x + 1}]",
+        TCL,
+        "O101"
+    ));
+
+    // TN/control: an unrelated global write in a *different* proc must not
+    // widen `x` — the fix is name-precise, not a coarse "any call may
+    // mutate any global" widening. tclsh: `mutate_y` never touches `x`, so
+    // `expr {$x + 1}` is still 6 and O101 correctly folds it.
+    assert!(
+        optimised(
+            "proc mutate_y {} { global y; incr y }\nset x 5\nmutate_y\nputs [expr {$x + 1}]",
+            TCL,
+        )
+        .contains("puts 6")
+    );
+
+    // TP (transitive): `outer` doesn't write `x` itself but calls `mutate`,
+    // which does — the call-graph closure must still invalidate `x` at the
+    // `outer` call site. tclsh: same 100 result as the direct-call repro.
+    assert!(opt_absent(
+        "proc mutate {} { global x; set x 99 }\nproc outer {} { mutate }\nset x 5\nouter\nputs [expr {$x + 1}]",
+        TCL,
+        "O101"
+    ));
+
+    // TP (namespace variable): `variable` writes are outer-scope too.
+    // tclsh: same reasoning as the `global` repro — 100, not 6.
+    assert!(opt_absent(
+        "namespace eval ::ns { variable x 5 }\nproc ::ns::mutate {} { variable x; set x 99 }\nset ::ns::x 5\n::ns::mutate\nputs [expr {$::ns::x + 1}]",
+        TCL,
+        "O101"
+    ));
+
+    // TP (embedded command substitution): the same soundness gap reached via
+    // `set y [mutate]` rather than a bare `mutate` statement — the
+    // embedded-substitution scan must catch it too.
+    assert!(opt_absent(
+        "proc mutate {} { global x; set x 99; return 1 }\nset x 5\nset y [mutate]\nputs [expr {$x + 1}]",
+        TCL,
+        "O101"
+    ));
+
+    // TP (conditional-branch write): sound over-approximation — a global
+    // write on a branch that may not execute still invalidates the name at
+    // the call site (the analysis is flow-insensitive by design).
+    assert!(opt_absent(
+        "proc mutate {} { global x\nif {$::cond} { set x 99 } }\nset x 5\nmutate\nputs [expr {$x + 1}]",
+        TCL,
+        "O101"
+    ));
+}
+
+#[test]
+fn o101_module_wide_variable_trace_guard() {
+    // FP guard (repro B): a trace on `x` is installed by `install_trace`, a
+    // *different* proc than the code performing the final `set x 6` / read
+    // — the flow-sensitive TRACED flag (installed and read in the same
+    // function body) can't see this; it needs the module-wide fact. tclsh:
+    // the write trace rewrites `x` to 99 on every write, so `set x 6` really
+    // leaves `x` == 99 and `expr {$x + 1}` is 100, NOT 7.
+    assert!(opt_absent(
+        "proc install_trace {} { trace add variable ::x write {apply {a {set ::x 99}}} }\nset x 5\ninstall_trace\nset x 6\nputs [expr {$x + 1}]",
+        TCL,
+        "O101"
+    ));
+
+    // TN/control: an unrelated trace (on a different variable) must not
+    // widen `x` — the fix is name-precise. tclsh: `y` is never written by
+    // this trace, `x` stays a plain local, so `expr {$x + 1}` still folds.
+    assert!(
+        optimised(
+            "trace add variable y write cb\nset x 6\nputs [expr {$x + 1}]",
+            TCL,
+        )
+        .contains("puts 7")
+    );
+
+    // TP (trace removed later still declines to fold): the fact is
+    // flow-insensitive by design — a later `trace remove` does not
+    // "untrace" a name for this analysis, so this only ever prevents an
+    // otherwise-unsound fold, it never wrongly blocks one tclsh agrees with.
+    assert!(opt_absent(
+        "trace add variable x write cb\ntrace remove variable x write cb\nset x 6\nputs [expr {$x + 1}]",
+        TCL,
+        "O101"
+    ));
+}
+
 // ===========================================================================
 // O102 — fold [expr {...}] command substitution
 // ===========================================================================

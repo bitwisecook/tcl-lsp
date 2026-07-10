@@ -2009,6 +2009,7 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                         true,
                         req.upvar_procs.clone(),
                         req.proc_params.clone(),
+                        req.global_write_procs.clone(),
                     );
                     let pc = crate::compilation_unit::decode_param_constants(req.param_constants);
                     let known_classes: std::collections::HashSet<String> =
@@ -2020,6 +2021,7 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                         &registry,
                         pc.as_ref(),
                         &known_classes,
+                        Some(req.module_traces),
                     );
                     cache.insert(key, fu.clone());
                     fu
@@ -2103,6 +2105,7 @@ fn memoized_compilation_unit_shift_correctness() {
                     true,
                     req.upvar_procs.clone(),
                     req.proc_params.clone(),
+                    req.global_write_procs.clone(),
                 );
                 let pc = crate::compilation_unit::decode_param_constants(req.param_constants);
                 let fu = FunctionUnit::build_with_param_constants(

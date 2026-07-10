@@ -41,9 +41,12 @@
 //!   `10 ** 18` (≤ `i64::MAX`) still folds. See
 //!   [`exponentiation_big_results_past_wide_decline_to_fold`].
 //! * **Dialect-aware leading zero.** The 8.x-vs-9.0 octal rule is resolved via
-//!   the explicit [`eval_tcl_expr_in_dialect`] entry point. A bare leading-zero
-//!   operand under an *unknown* dialect is deliberately declined (`None`) rather
-//!   than guessed.
+//!   the explicit [`eval_tcl_expr_in_dialect`] entry point, and applies to
+//!   arithmetic/unary/math-function operands as well as comparisons. A bare
+//!   leading-zero operand under an *unknown* dialect folds only when the
+//!   octal and decimal readings agree (`07` is `7` either way) and declines
+//!   (`None`) when they disagree (`010`: octal 8 vs decimal 10) rather than
+//!   guessing.
 //! * **`format_tcl_value`** takes a `TclValue`, so free-float cases are written
 //!   `format_tcl_value(TclValue::Float(3.14))`.
 //!
@@ -208,10 +211,14 @@ fn modulo_sign_follows_divisor() {
 
 #[test]
 fn division_and_modulo_by_zero_decline() {
-    // tclsh: all are "divide by zero" errors → not foldable (None).
+    // tclsh: integer division/modulo by zero are "divide by zero" errors →
+    // not foldable (None). A float division by zero with a non-zero
+    // numerator is a real IEEE value (Inf), not an error — tclsh:
+    // `expr {1.0/0}` -> Inf; only 0.0/0.0 itself is a domain error.
     assert_eq!(eval_str("1 / 0"), None);
     assert_eq!(eval_str("1 % 0"), None);
-    assert_eq!(eval_str("1.0 / 0"), None);
+    assert_eq!(eval_str("1.0 / 0"), Some(float(f64::INFINITY)));
+    assert_eq!(eval_str("0.0 / 0"), None);
 }
 
 // =========================================================================
@@ -226,6 +233,11 @@ fn exponentiation_integer_and_float() {
     assert_eq!(eval_str("2 ** 10"), Some(int(1024)));
     assert_eq!(eval_str("4 ** 2"), Some(int(16)));
     assert_eq!(eval_str("0xff ** 2"), Some(int(65025)));
+    // `07` is unambiguous under a dialect-blind fold: it reads as 7 under
+    // both the octal rule (a valid octal digit) and the decimal rule, so
+    // this still folds even without dialect info (unlike `010`, whose
+    // octal/decimal readings disagree — see `dialect_blind_arithmetic_
+    // declines_on_bare_leading_zero` in src/tcl_expr_eval.rs).
     assert_eq!(eval_str("18 ** 07"), Some(int(612_220_032)));
     assert_eq!(eval_str("0xff ** 0x3"), Some(int(16_581_375)));
     assert_eq!(eval_str("5 ** 0"), Some(int(1)));

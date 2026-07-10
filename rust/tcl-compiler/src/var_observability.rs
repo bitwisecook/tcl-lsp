@@ -94,7 +94,12 @@ impl EscapeFlag {
 }
 
 /// A per-variable flag map; absent names default to `EscapeFlag::empty()`.
-type State = HashMap<String, EscapeFlag>;
+///
+/// `pub(crate)` so [`crate::cfg_builder::global_write_info`] can thread the
+/// same state type through its own flow-insensitive whole-body walk (it
+/// reuses [`stmt_gen`] rather than re-deriving the `global`/`variable`/
+/// `upvar` recognition logic).
+pub(crate) type State = HashMap<String, EscapeFlag>;
 
 /// Variable named by a `trace` command, or `None`.  Recognises both the
 /// `trace add variable NAME …` (8.5+) and the 8.4 `trace variable NAME …`
@@ -120,7 +125,11 @@ fn mark(state: &mut State, args: &[String], idx: usize, flag: EscapeFlag) {
 }
 
 /// Apply `stmt`'s alias / trace declarations to `state` in place.
-fn stmt_gen(stmt: &Statement, state: &mut State) {
+///
+/// `pub(crate)`: reused by [`crate::cfg_builder::global_write_info`] for its
+/// own flow-insensitive whole-body scan — the recognition logic for
+/// `global` / `variable` / `upvar` / `trace` lives here once.
+pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State) {
     let (Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. }) = stmt
     else {
         return;
@@ -307,6 +316,131 @@ pub fn analyse_var_observability(cfg: &CfgFunction) -> VarObservability<'_> {
     }
 }
 
+/// Module-wide (flow-insensitive, call-order-independent) summary of every
+/// `trace add variable` / `trace variable` target across the whole module —
+/// top level, every proc, every method — the [`crate::command_binding::
+/// ModuleCommandMutations`] pattern applied to variable traces instead of
+/// command bindings.
+///
+/// [`analyse_var_observability`]'s flow-sensitive `TRACED` flag only
+/// recognises a trace that is added *and read in the same function body*: a
+/// trace installed by one proc and observed through a variable read in a
+/// *different* proc — reached via a call whose relative order isn't
+/// statically known — is invisible to it. That gap is real and unsound:
+///
+/// ```tcl
+/// proc install_trace {} { trace add variable ::x write {apply {a {set ::x 99}}} }
+/// set x 5
+/// install_trace
+/// set x 6
+/// puts [expr {$x + 1}]     ;# tclsh: 100 (the trace fires on `set x 6`).
+/// ```
+///
+/// Rather than a full interprocedural call-order fixpoint, this takes the
+/// same sound over-approximation `ModuleCommandMutations` does: a name traced
+/// *anywhere* in the module is treated as traced *everywhere*, for the
+/// lifetime of the module (a later `trace remove` does not "untrace" it here
+/// — the fact is flow-insensitive by design, so it only ever prevents an
+/// unsound fold, never causes one).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub struct ModuleVariableTraces {
+    /// Literal variable names traced anywhere in the module.
+    names: std::collections::BTreeSet<String>,
+    /// A body traces a dynamically-computed target (`trace add variable
+    /// $name write …`) — resolution of *any* name is opaque, mirroring
+    /// [`crate::command_binding::ModuleCommandMutations`]'s `dynamic` flag.
+    dynamic: bool,
+}
+
+impl ModuleVariableTraces {
+    /// True when `name` is traced somewhere in the module (or the module
+    /// traces a dynamically-computed target, which could be any name).
+    #[must_use]
+    pub fn is_traced(&self, name: &str) -> bool {
+        self.dynamic || self.names.contains(canonical_outer_name(name))
+    }
+}
+
+/// Canonicalise a variable name for module-wide outer-scope matching: strip
+/// a `$`/`${…}`/array-index wrapper (via [`normalise_var_name`]), then a
+/// single leading `::` — the top-level scope *is* the global namespace, so
+/// `trace add variable ::x …` and a bare top-level `set x …` name the same
+/// variable, and must canonicalise to the same string for [`ModuleVariableTraces::is_traced`]
+/// to recognise them as one. A deeper `::ns::x` is left with its remaining
+/// `::` intact: a bare local can never collide with it, and any *direct*
+/// reference to `::ns::x` elsewhere is already unconditionally treated as
+/// externally mutable by SCCP's own `starts_with("::")` rule, so this lookup
+/// is never reached for that spelling.
+fn canonical_outer_name(name: &str) -> &str {
+    let n = normalise_var_name(name);
+    n.strip_prefix("::").unwrap_or(n)
+}
+
+/// Scan `module` for every `trace add variable` / `trace variable` target —
+/// top level, every proc, every method — recursing into nested control-flow
+/// bodies via [`crate::ir_helpers::nested_bodies`].
+#[must_use]
+pub fn scan_module_variable_traces(module: &crate::ir::Module) -> ModuleVariableTraces {
+    let mut names = std::collections::BTreeSet::new();
+    let mut dynamic = false;
+
+    let mut visit = |script: &crate::ir::Script| {
+        walk_trace_targets(script, &mut names, &mut dynamic);
+    };
+    visit(&module.top_level);
+    for proc in module.procedures.values() {
+        visit(&proc.body);
+    }
+    for method in module.methods.values() {
+        visit(&method.body);
+    }
+
+    ModuleVariableTraces { names, dynamic }
+}
+
+fn walk_trace_targets(
+    script: &crate::ir::Script,
+    names: &mut std::collections::BTreeSet<String>,
+    dynamic: &mut bool,
+) {
+    for stmt in &script.statements {
+        record_trace_target(stmt, names, dynamic);
+        for body in crate::ir_helpers::nested_bodies(stmt) {
+            walk_trace_targets(body, names, dynamic);
+        }
+    }
+}
+
+/// Record `stmt`'s trace target (if any) into `names`, or set `dynamic` when
+/// the target is not a literal name. Mirrors [`stmt_gen`]'s `"trace"` arm,
+/// but module-wide rather than keyed into a per-block flag state.
+fn record_trace_target(
+    stmt: &Statement,
+    names: &mut std::collections::BTreeSet<String>,
+    dynamic: &mut bool,
+) {
+    let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
+        return;
+    };
+    let canon = stmt.canonical_command_or_source();
+    if canon.strip_prefix("::").unwrap_or(canon) != "trace" {
+        return;
+    }
+    let Some(target) = trace_target(args) else {
+        return;
+    };
+    if target.starts_with('$') {
+        *dynamic = true;
+        return;
+    }
+    let name = canonical_outer_name(target);
+    if name.is_empty() {
+        *dynamic = true;
+        return;
+    }
+    names.insert(name.to_owned());
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -383,5 +517,81 @@ mod tests {
         let obs = analyse_var_observability(&fu.cfg);
         assert!(obs.escaping_var_names().is_empty());
         assert!(EscapeFlag::empty().is_empty());
+    }
+
+    fn module(src: &str) -> crate::ir::Module {
+        crate::lowering::lower_to_ir(src, &CommandRegistry::build_default())
+    }
+
+    #[test]
+    fn empty_module_traces_nothing() {
+        let m = module("");
+        assert_eq!(scan_module_variable_traces(&m), ModuleVariableTraces::default());
+    }
+
+    #[test]
+    fn top_level_trace_recorded() {
+        let m = module("trace add variable ::x write cb");
+        let t = scan_module_variable_traces(&m);
+        assert!(t.is_traced("::x"));
+        assert!(t.is_traced("x"));
+        assert!(!t.is_traced("y"));
+    }
+
+    #[test]
+    fn trace_inside_helper_proc_recorded_module_wide() {
+        // The F4b repro: the trace is installed by a *different* proc than
+        // the one reading the variable — a module-wide, not per-function,
+        // fact.
+        let m = module("proc install_trace {} { trace add variable ::x write cb }\nset x 5");
+        let t = scan_module_variable_traces(&m);
+        assert!(t.is_traced("x"));
+    }
+
+    #[test]
+    fn legacy_8_4_trace_variable_spelling_recorded() {
+        let m = module("proc p {} { trace variable v w cb }");
+        let t = scan_module_variable_traces(&m);
+        assert!(t.is_traced("v"));
+    }
+
+    #[test]
+    fn trace_inside_nested_control_flow_recorded() {
+        let m = module("proc p {} { if {$c} { trace add variable v write cb } }");
+        let t = scan_module_variable_traces(&m);
+        assert!(t.is_traced("v"));
+    }
+
+    #[test]
+    fn unrelated_name_not_traced() {
+        let m = module("proc p {} { trace add variable v write cb }");
+        let t = scan_module_variable_traces(&m);
+        assert!(!t.is_traced("other"));
+    }
+
+    #[test]
+    fn dynamic_trace_target_forces_every_name_traced() {
+        let m = module("proc p {name} { trace add variable $name write cb }");
+        let t = scan_module_variable_traces(&m);
+        assert!(t.is_traced("anything"));
+        assert!(t.is_traced("x"));
+    }
+
+    #[test]
+    fn trace_removed_later_still_counted_flow_insensitively() {
+        // By design (module doc): the fact is flow-insensitive, so a later
+        // `trace remove` does not "untrace" the name — this only ever
+        // prevents an unsound fold, never causes one.
+        let m =
+            module("proc p {} { trace add variable v write cb\ntrace remove variable v write cb }");
+        let t = scan_module_variable_traces(&m);
+        assert!(t.is_traced("v"));
+    }
+
+    #[test]
+    fn method_body_trace_recorded() {
+        let m = module("oo::class create C {\n method m {} { trace add variable v write cb }\n}");
+        let t = scan_module_variable_traces(&m);
+        assert!(t.is_traced("v"));
     }
 }

@@ -31,6 +31,65 @@ use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
 use crate::naming::normalise_var_name;
 
+/// The nested script bodies a structured-control-flow statement contains —
+/// every shape a flow-*insensitive* whole-body walk needs to recurse into
+/// (`If`/`For`/`While`/`Foreach`/`Catch`/`Block`/`UpFrame`/`Switch`/`Try`).
+/// `pub(crate)` so both [`crate::cfg_builder::global_write_info`] (per-proc
+/// global-write summaries) and [`crate::var_observability`] (module-wide
+/// trace-target summaries) share one recursive-descent shape instead of each
+/// re-deriving it.
+///
+/// Distinct from [`collect_defs_from_script`]'s per-statement match: that
+/// walk also extracts *defs* at each nesting level (iteration variables,
+/// catch/try result vars) as part of the same pass, so it isn't a drop-in
+/// replacement for a caller that only wants "which scripts nest inside this
+/// statement".
+#[must_use]
+pub(crate) fn nested_bodies(stmt: &Statement) -> Vec<&Script> {
+    match stmt {
+        Statement::If {
+            clauses, else_body, ..
+        } => {
+            let mut bodies: Vec<&Script> = clauses.iter().map(|c| &c.body).collect();
+            if let Some(e) = else_body {
+                bodies.push(e);
+            }
+            bodies
+        }
+        Statement::For {
+            init, next, body, ..
+        } => vec![init, next, body],
+        Statement::While { body, .. }
+        | Statement::Foreach { body, .. }
+        | Statement::Catch { body, .. }
+        | Statement::Block { body, .. }
+        | Statement::UpFrame { body, .. } => vec![body],
+        Statement::Switch {
+            arms, default_body, ..
+        } => {
+            let mut bodies: Vec<&Script> = arms.iter().filter_map(|a| a.body.as_ref()).collect();
+            if let Some(d) = default_body {
+                bodies.push(d);
+            }
+            bodies
+        }
+        Statement::Try {
+            body,
+            handlers,
+            finally_body,
+            ..
+        } => {
+            let mut bodies = vec![body];
+            bodies.extend(handlers.iter().map(|h| &h.body));
+            if let Some(f) = finally_body {
+                bodies.push(f);
+            }
+            bodies
+        }
+        _ => Vec::new(),
+    }
+}
+
 /// Collect all variable names defined anywhere inside a script (recursive).
 ///
 /// Walks through structured IR nodes (`If`, `For`, `While`, `Foreach`,
