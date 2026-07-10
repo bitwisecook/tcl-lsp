@@ -141,7 +141,7 @@ pub fn parse_command_substitution_with_spans(text: &str) -> Option<(String, Vec<
     let mut prev_kind = TokenType::Eol;
     let mut saw_terminator = false;
 
-    for tok in &tokens {
+    for (idx, tok) in tokens.iter().enumerate() {
         match tok.kind {
             TokenType::Comment | TokenType::Sep => {
                 prev_kind = tok.kind;
@@ -161,6 +161,40 @@ pub fn parse_command_substitution_with_spans(text: &str) -> Option<(String, Vec<
             return None;
         }
         let (word_text, tok_end) = widened_token_text(inner, tok)?;
+        // Two closing delimiters the raw token stream can leave
+        // unclaimed by any token's span, needing manual recovery here:
+        //
+        // - The `in_quote` closing `"` — unlike `Str`/`Cmd`, there is no
+        //   dedicated token kind for a double-quoted word to attach
+        //   `group_closer()` to, so a trailing `"` immediately after the
+        //   last fragment of a quoted word (e.g. `"/api/*"`, or `"a[foo]"`
+        //   right after the nested command substitution's own widened
+        //   `]`) is silently dropped.
+        // - A non-degenerate braced-var's closing `}` (`${p}`) — `Var`
+        //   also covers the unbraced `$name` form, which has no closer at
+        //   all, so `group_closer()` can't unconditionally claim `}` for
+        //   the whole kind the way it does for `Str`/`Cmd`.
+        //
+        // Only claim the byte when the *next* token doesn't already start
+        // there (e.g. `"a$b"` emits the closing `"` as its own adjacent
+        // token — nothing orphaned to recover in that shape, and claiming
+        // it here too would double it).
+        let next_start = tokens.get(idx + 1).map(|t| t.span.start());
+        let orphaned_closer = match inner.as_bytes().get(tok_end as usize) {
+            Some(b'"') => true,
+            Some(b'}') if tok.kind == TokenType::Var => true,
+            _ => false,
+        } && next_start != Some(tok_end);
+        let (word_text, tok_end) = if orphaned_closer {
+            let start = usize::try_from(tok.span.start()).ok()?;
+            let widened_end = tok_end as usize + 1;
+            (
+                inner.get(start..widened_end)?.to_owned(),
+                u32::try_from(widened_end).unwrap_or(u32::MAX),
+            )
+        } else {
+            (word_text, tok_end)
+        };
         let abs_span = Span::new(base + tok.span.start(), base + tok_end);
         if matches!(prev_kind, TokenType::Sep | TokenType::Eol) || words.is_empty() {
             words.push((word_text, abs_span));
@@ -392,5 +426,80 @@ mod tests {
         let (x_text, x_span) = &args[1];
         assert_eq!(x_text, "x");
         assert_eq!(&text[x_span.start() as usize..x_span.end() as usize], "x");
+    }
+
+    /// A non-degenerate braced variable reference (`${p}`, real name
+    /// inside the braces) keeps its closing `}` — the raw `Var` token's
+    /// span excludes it (same inner-end convention as `Str`/`Cmd`), and
+    /// `Var` has no `group_closer()` entry since the *unbraced* `$name`
+    /// form has no closer at all to unconditionally claim.
+    #[test]
+    fn spans_braced_var_keeps_closing_brace() {
+        let text = "[file normalize ${p}]";
+        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        assert_eq!(cmd, "file");
+        assert_eq!(args[1].0, "${p}");
+        assert_eq!(
+            &text[args[1].1.start() as usize..args[1].1.end() as usize],
+            "${p}"
+        );
+    }
+
+    /// Control: an unbraced `$name` reference must not gain a spurious
+    /// trailing `}` from the fix above.
+    #[test]
+    fn spans_unbraced_var_unaffected() {
+        let text = "[file normalize $p]";
+        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        assert_eq!(cmd, "file");
+        assert_eq!(args[1].0, "$p");
+    }
+
+    /// A double-quoted word with no embedded substitution keeps its
+    /// closing `"` in the returned text — the lexer's raw token span for
+    /// the final content fragment excludes it (there is no dedicated
+    /// token kind for a quoted word to attach `group_closer()` to, unlike
+    /// `Str`/`Cmd`), so it must be recovered from the one-byte gap that
+    /// widening otherwise leaves unclaimed.
+    #[test]
+    fn spans_quoted_word_keeps_closing_quote() {
+        let text = r#"[string match "/api/*" $uri]"#;
+        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        assert_eq!(cmd, "string");
+        assert_eq!(args[1].0, "\"/api/*\"");
+        assert_eq!(
+            &text[args[1].1.start() as usize..args[1].1.end() as usize],
+            "\"/api/*\""
+        );
+    }
+
+    /// Same recovery applies when the quoted word's last fragment follows
+    /// an embedded command substitution rather than being the whole word.
+    #[test]
+    fn spans_quoted_word_with_nested_command_sub_keeps_closing_quote() {
+        let text = r#"[string match "a[foo]b" $c]"#;
+        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        assert_eq!(cmd, "string");
+        assert_eq!(args[1].0, "\"a[foo]b\"");
+        assert_eq!(
+            &text[args[1].1.start() as usize..args[1].1.end() as usize],
+            "\"a[foo]b\""
+        );
+    }
+
+    /// Control: when the closing quote directly follows an embedded
+    /// `$var` substitution, the lexer already emits it as its own
+    /// adjacent token (no gap) — confirms the fix above doesn't
+    /// double-append in that shape.
+    #[test]
+    fn spans_quoted_word_after_var_substitution_keeps_closing_quote() {
+        let text = r#"[string match "a$b" $c]"#;
+        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        assert_eq!(cmd, "string");
+        assert_eq!(args[1].0, "\"a$b\"");
+        assert_eq!(
+            &text[args[1].1.start() as usize..args[1].1.end() as usize],
+            "\"a$b\""
+        );
     }
 }
