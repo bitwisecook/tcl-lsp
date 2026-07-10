@@ -1658,6 +1658,11 @@ mod tests {
             "namespace",
             &["upvar".into(), "ns".into(), "x".into(), "y".into()]
         ));
+        assert!(is_scope_alias_call(
+            &reg,
+            "my",
+            &["variable".into(), "count".into()]
+        ));
         // A plain command (and `namespace eval`) is not a scope alias.
         assert!(!is_scope_alias_call(&reg, "set", &["x".into(), "1".into()]));
         assert!(!is_scope_alias_call(
@@ -1665,6 +1670,9 @@ mod tests {
             "namespace",
             &["eval".into(), "ns".into(), "body".into()]
         ));
+        // `my`'s other subcommands (an arbitrary method name) are not scope
+        // aliases — only the reserved `variable` word is.
+        assert!(!is_scope_alias_call(&reg, "my", &["touch".into()]));
     }
 
     #[test]

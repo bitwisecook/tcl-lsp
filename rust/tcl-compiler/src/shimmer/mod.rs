@@ -279,7 +279,7 @@ mod tests {
                 &types,
                 &sccp.executable_blocks,
                 &registry(),
-                &sccp.values
+                &sccp.values,
             )
             .is_empty()
         );

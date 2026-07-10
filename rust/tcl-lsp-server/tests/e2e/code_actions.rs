@@ -989,3 +989,32 @@ fn test_s100_offers_noqa_suppress_action() {
     );
     assert!(new_texts(&actions).iter().any(|s| s == "# noqa: S100\n"));
 }
+
+/// (Regression guard) `eq` against a numeric literal never offers a
+/// numeric-comparison rewrite, even when both operands are provably
+/// numeric — `eq`/`ne`/`lt`/`le`/`gt`/`ge` compare the operands' *string*
+/// representations, never their numeric value (`"10" lt "2"` is true,
+/// `10 < 2` is false), so no such rewrite is ever semantics-preserving. The
+/// S100 diagnostic still fires, and the generic noqa suppress is still
+/// offered — only the (unsound) mechanical rewrite is withheld.
+#[test]
+fn test_s100_eq_numeric_offers_no_numeric_comparison_fix() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x 42\nset z [expr {$x eq 42}]\n");
+    let s100 = with_code(&diags, "S100");
+    assert!(!s100.is_empty(), "expected an S100 to drive the quick fix");
+    let actions = lsp.code_actions(&uri, range((1, 0), (1, 25)), json!(s100));
+    assert!(
+        !titles(&actions)
+            .iter()
+            .any(|t| t.contains("numeric comparison")),
+        "must never offer a semantics-changing numeric rewrite, got {actions:?}"
+    );
+    assert!(
+        titles(&actions)
+            .iter()
+            .any(|t| t == "Suppress S100 with a noqa comment"),
+        "expected the noqa suppress action to still be offered, got {actions:?}"
+    );
+}

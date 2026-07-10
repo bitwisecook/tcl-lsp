@@ -190,6 +190,16 @@ fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode) {
                 }
 
                 // String comparison operators: operands should be String.
+                // No rewrite to the numeric equivalent (eq→==, ne→!=, lt→<,
+                // le→<=, gt→>, ge→>=) is ever offered — `eq`/`ne`/`lt`/…
+                // always compare the operands' *string* representations,
+                // never their numeric value, so the two families disagree
+                // whenever the string forms don't sort/compare the same way
+                // as the numbers they denote (`"10" lt "2"` is true
+                // lexicographically but `10 < 2` is false; `"1.0" eq "1"` is
+                // false but `1.0 == 1` is true). "Both operands are numeric"
+                // does not make the rewrite safe, so only the informational
+                // warning fires.
                 BinOp::StrEq
                 | BinOp::StrNe
                 | BinOp::StrLt
@@ -312,8 +322,17 @@ fn check_numeric_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinO
     let Some(current) = lattice.tcl_type else {
         return;
     };
-    // Only flag clearly non-numeric types (String, List, Dict).
-    if matches!(current, TclType::String | TclType::List | TclType::Dict) {
+    // Only flag clearly non-numeric types (String, List, Dict, ByteArray). A
+    // byte array in an arithmetic context is a textbook C Tcl shimmer: Tcl
+    // has no numeric intrep of its own, so `Tcl_GetNumberFromObj` falls back
+    // to parsing the byte array's *string* rep (each byte relabelled as a
+    // Latin-1 code point) as a number and, on success, replaces the cached
+    // byte-array intrep with Int/Double — exactly the same in-place intrep
+    // clobber as the String/List/Dict cases, just via the byte-array route.
+    if matches!(
+        current,
+        TclType::String | TclType::List | TclType::Dict | TclType::ByteArray
+    ) {
         // De-duplicate per (statement span, variable) within the block.
         if !ctx.seen.insert((ctx.stmt_span, base.to_owned())) {
             return;
@@ -344,6 +363,11 @@ fn check_numeric_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinO
 
 /// Emit a shimmer if `node` is a numeric variable used in a string
 /// comparison.  S101 inside a loop body, S100 outside one.
+///
+/// No `CodeFix` is ever attached: `eq`/`ne`/`lt`/`le`/`gt`/`ge` compare the
+/// operands' string representations, never their numeric value, so no
+/// rewrite to the numeric-equivalent operator is generally safe — see the
+/// `BinOp::StrEq | …` match arm's doc comment in [`collect_expr_shimmers`].
 fn check_string_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) {
     let ExprNode::Var { name, .. } = node else {
         return;
@@ -383,6 +407,7 @@ fn check_string_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp
         } else {
             DiagCode::S100
         };
+        let numeric_op = numeric_equivalent(op);
         ctx.out.push(ShimmerWarning {
             span: ctx.stmt_span,
             variable: base.to_owned(),
@@ -393,10 +418,27 @@ fn check_string_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp
             code,
             message: format!(
                 "{code}: numeric variable '{base}' used in string comparison (op {op:?}); \
-                 consider using == or != instead"
+                 if a numeric comparison was intended, use '{numeric_op}' instead"
             ),
             related: Vec::new(),
         });
+    }
+}
+
+/// The numeric-comparison equivalent of a string-comparison `BinOp`, used
+/// only for the diagnostic's hint text — not a suggestion that the rewrite
+/// is behaviourally equivalent. Panics on any other variant — only ever
+/// called with `BinOp::Str{Eq,Ne,Lt,Le,Gt,Ge}` from
+/// [`check_string_operand`]'s single call site.
+fn numeric_equivalent(op: BinOp) -> &'static str {
+    match op {
+        BinOp::StrEq => "==",
+        BinOp::StrNe => "!=",
+        BinOp::StrLt => "<",
+        BinOp::StrLe => "<=",
+        BinOp::StrGt => ">",
+        BinOp::StrGe => ">=",
+        _ => unreachable!("numeric_equivalent called with a non-string-comparison BinOp"),
     }
 }
 
@@ -563,6 +605,53 @@ mod tests {
         assert!(
             str_cmp_shimmers.is_empty(),
             "unexpected String-in-string-cmp shimmer: {str_cmp_shimmers:?}"
+        );
+    }
+
+    /// A byte-array-typed variable used in arithmetic shimmers to Numeric —
+    /// the same in-place intrep clobber as String/List/Dict, reached via
+    /// `Tcl_GetNumberFromObj` falling back to the byte array's string rep.
+    #[test]
+    fn expr_shimmer_bytearray_in_arithmetic() {
+        let cu = CompilationUnit::build_for(
+            "set b [binary format c* {49 50}]\nset y [expr {$b + 1}]",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let has_shimmer = w
+            .iter()
+            .any(|sw| sw.variable == "b" && sw.from_type == TclType::ByteArray);
+        assert!(
+            has_shimmer,
+            "expected bytearray-in-arithmetic shimmer, got: {w:?}"
+        );
+    }
+
+    /// (Regression guard) `eq`/`ne`/`lt`/`le`/`gt`/`ge` never get an
+    /// auto-fix, even when both operands are provably numeric — a prior
+    /// version of this check offered a rewrite to the numeric-equivalent
+    /// operator whenever both sides looked numeric, but Tcl's string
+    /// comparison operators compare string *representations*, not numeric
+    /// value: `"10" lt "2"` is true (lexicographic) while `10 < 2` is false,
+    /// so the rewrite silently changes program behaviour. `ShimmerWarning`
+    /// no longer carries a `fixes` field at all — this only re-confirms the
+    /// informational warning still fires for the case that used to (wrongly)
+    /// offer a fix.
+    #[test]
+    fn expr_shimmer_lt_both_numeric_still_fires_with_no_fix_offered() {
+        let src = "set x 10\nset y 2\nset z [expr {$x lt $y}]";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let s = w
+            .iter()
+            .find(|sw| sw.variable == "x" || sw.variable == "y")
+            .unwrap_or_else(|| panic!("expected an Int-in-string-cmp shimmer, got: {w:?}"));
+        assert!(
+            s.message.contains("if a numeric comparison was intended"),
+            "expected the informational hint, got: {s:?}"
         );
     }
 }

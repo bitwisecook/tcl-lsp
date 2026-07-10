@@ -564,6 +564,43 @@ mod tests {
         assert!(run_all_checks(&cu, &registry(), None).is_empty());
     }
 
+    /// (FP guard) `my variable count` links an object-instance variable whose
+    /// true intrep depends on another method's last write, not the nominal
+    /// return type of `my`. Before the registry fix (`oo_my.rs`'s `variable`
+    /// subcommand), this spuriously claimed a String->Int shimmer on `incr`.
+    #[test]
+    fn no_shimmer_for_tcloo_instance_variable_linked_via_my_variable() {
+        let src = "oo::class create Counter {\n    method bump {} {\n        my variable count\n        incr count\n    }\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let diags = run_all_checks(&cu, &registry(), None);
+        let shimmer: Vec<_> = diags
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "S100" | "S101"))
+            .collect();
+        assert!(
+            shimmer.is_empty(),
+            "'my variable'-linked instance var must not spuriously shimmer: {shimmer:?}"
+        );
+    }
+
+    /// (TN control) The same method body, minus `my variable`, still fires
+    /// S100/S101 — proves the guard above is keyed on the scope-alias link,
+    /// not a blanket regression of `incr`-on-String detection inside methods.
+    #[test]
+    fn shimmer_still_fires_in_tcloo_method_without_my_variable() {
+        let src = "oo::class create Counter {\n    method bump {} {\n        set count hello\n        incr count\n    }\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let diags = run_all_checks(&cu, &registry(), None);
+        let shimmer: Vec<_> = diags
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "S100" | "S101"))
+            .collect();
+        assert!(
+            !shimmer.is_empty(),
+            "expected a shimmer for the untraced-and-unlinked case: {diags:?}"
+        );
+    }
+
     #[test]
     fn run_all_checks_reports_sccp_constant_branch() {
         let cu =
