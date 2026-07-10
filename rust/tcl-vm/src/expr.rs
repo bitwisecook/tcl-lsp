@@ -28,6 +28,9 @@
 
 use std::cmp::Ordering;
 
+use num_bigint::BigInt;
+use num_integer::Integer;
+use num_traits::{Signed, ToPrimitive, Zero};
 use tcl_runtime_api::Code;
 use tcl_syntax::expr::{BinOp, ExprOps, UnaryOp};
 use tcl_syntax::number::{self, Number};
@@ -37,8 +40,9 @@ use crate::interp::Vm;
 use crate::value::Value;
 
 /// A coerced numeric operand. `Big` carries an out-of-`i64` integer that still
-/// fits `i128` — the VM's bounded stand-in for Tcl's arbitrary-precision
-/// integers, so arithmetic promotes on overflow instead of wrapping.
+/// fits `i128` — the fast integer tier; an operand or result beyond `i128`
+/// promotes to the arbitrary-precision [`BigInt`] path (`RUST_ISSUE_011`) rather
+/// than wrapping.
 #[derive(Clone, Copy)]
 enum Num {
     Int(i64),
@@ -70,6 +74,120 @@ pub(crate) fn int_value(r: i128) -> Value {
     i64::try_from(r).map_or_else(|_| Value::string(r.to_string()), Value::int)
 }
 
+/// Wrap an arbitrary-precision integer result as a value, narrowing to a wide
+/// when it fits (so `2+2` via the bignum path is still `Value::int(4)`), else its
+/// canonical decimal string (`RUST_ISSUE_011`).
+pub(crate) fn big_value(r: &BigInt) -> Value {
+    r.to_i64()
+        .map_or_else(|| Value::string(r.to_string()), Value::int)
+}
+
+/// The exact arbitrary-precision integer value of `v`, or `None` when `v` is not
+/// an integer (a float / non-number). Covers magnitudes beyond `i128` that
+/// [`Value::as_i128`] can't, by reading the parsed `Big` literal. Shared with
+/// `value_ops::int_add` so `incr`/`dict incr` promote to bignum too.
+pub(crate) fn value_as_bigint(v: &Value) -> Option<BigInt> {
+    if let Ok(n) = v.as_int() {
+        return Some(BigInt::from(n));
+    }
+    match number::parse_whole(v.to_str().trim()) {
+        Some(Number::Int(n)) => Some(BigInt::from(n)),
+        Some(Number::Big {
+            negative,
+            radix,
+            digits,
+        }) => {
+            let b = BigInt::parse_bytes(digits.as_bytes(), radix as u32)?;
+            Some(if negative { -b } else { b })
+        }
+        _ => None,
+    }
+}
+
+/// Integer arithmetic in arbitrary precision — the promotion target of the
+/// `i128` fast path ([`int_arith`]) on overflow, and the direct path when an
+/// operand already exceeds `i128`. Div/mod are floor (sign of divisor), matching
+/// Tcl; bit ops use two's-complement (`num-bigint`'s semantics = Tcl's).
+fn big_arith(op: BinOp, x: &BigInt, y: &BigInt) -> Result<Value, TclError> {
+    use BinOp::{Add, BitAnd, BitOr, BitXor, Div, LShift, Mod, Mul, Pow, RShift, Sub};
+    let r = match op {
+        Add => x + y,
+        Sub => x - y,
+        Mul => x * y,
+        Div => {
+            if y.is_zero() {
+                return Err(divzero());
+            }
+            x.div_floor(y)
+        }
+        Mod => {
+            if y.is_zero() {
+                return Err(divzero());
+            }
+            x.mod_floor(y)
+        }
+        Pow => return big_pow(x, y),
+        LShift | RShift => {
+            let Some(shift) = y.to_usize() else {
+                if y.is_negative() {
+                    return Err(TclError::new("negative shift argument"));
+                }
+                // A shift wider than any representable result: `<<` overflows to
+                // an enormous value (unrepresentable — but such a huge shift is a
+                // pathological program), `>>` collapses to the sign.
+                return Ok(big_value(
+                    &(if matches!(op, RShift) && x.is_negative() {
+                        BigInt::from(-1)
+                    } else {
+                        BigInt::zero()
+                    }),
+                ));
+            };
+            if matches!(op, LShift) {
+                x << shift
+            } else {
+                x >> shift
+            }
+        }
+        BitAnd => x & y,
+        BitOr => x | y,
+        BitXor => x ^ y,
+        _ => return Err(TclError::new("unsupported integer operator")),
+    };
+    Ok(big_value(&r))
+}
+
+/// `x ** y` in arbitrary precision. A negative exponent on an integer base is `0`
+/// except for `±1` (C's `TclExecute` integer-power rule); a huge exponent that
+/// can't fit `u32` is only reachable with `|base| <= 1` (else the result is
+/// astronomically large), so those collapse to the base-driven value.
+fn big_pow(x: &BigInt, y: &BigInt) -> Result<Value, TclError> {
+    if y.is_negative() {
+        let r = if x == &BigInt::from(1) {
+            1
+        } else if x == &BigInt::from(-1) {
+            if y.is_even() { 1 } else { -1 }
+        } else if x.is_zero() {
+            return Err(TclError::new("exponentiation of zero by negative power"));
+        } else {
+            0
+        };
+        return Ok(Value::int(r));
+    }
+    if let Some(exp) = y.to_u32() {
+        return Ok(big_value(&x.pow(exp)));
+    }
+    // Exponent beyond `u32`: only `|x| <= 1` yields a representable result.
+    let r = if x == &BigInt::from(1) || x.is_zero() {
+        x.clone()
+    } else if x == &BigInt::from(-1) {
+        BigInt::from(if y.is_even() { 1 } else { -1 })
+    } else {
+        return Err(TclError::new("exponent too large"));
+    };
+    Ok(big_value(&r))
+}
+
 fn to_num(v: &Value) -> Result<Num, TclError> {
     if let Ok(n) = v.as_int() {
         return Ok(Num::Int(n));
@@ -98,6 +216,11 @@ pub(crate) fn cvt_to_numeric(v: Value) -> Result<Value, TclError> {
     }
     if let Some(b) = v.as_i128() {
         return Ok(int_value(b));
+    }
+    // An integer past `i128` keeps its exact (bignum) value, canonicalised to its
+    // decimal string, rather than degrading to a lossy `double` (`RUST_ISSUE_011`).
+    if let Some(b) = value_as_bigint(&v) {
+        return Ok(big_value(&b));
     }
     if let Ok(d) = v.as_double() {
         return Ok(Value::double(d));
@@ -184,44 +307,32 @@ fn fmod_i(x: i128, y: i128) -> i128 {
     }
 }
 
-fn ipow(mut base: i128, mut exp: i128) -> i128 {
-    if exp < 0 {
-        return match base {
-            1 => 1,
-            -1 => {
-                if exp % 2 == 0 {
-                    1
-                } else {
-                    -1
-                }
-            }
-            _ => 0,
-        };
-    }
-    let mut acc: i128 = 1;
-    while exp > 0 {
-        if exp & 1 == 1 {
-            acc = acc.wrapping_mul(base);
-        }
-        exp >>= 1;
-        if exp > 0 {
-            base = base.wrapping_mul(base);
-        }
-    }
-    acc
+/// Promote an `i128` integer operation that overflowed (or can't stay bounded)
+/// to the arbitrary-precision path (`RUST_ISSUE_011`).
+fn promote(op: BinOp, x: i128, y: i128) -> Result<Value, TclError> {
+    big_arith(op, &BigInt::from(x), &BigInt::from(y))
 }
 
-/// Integer arithmetic in `i128`, narrowing the result to a wide when it fits.
-/// `i64`-range operands and results behave exactly as before; an `i64`-overflow
-/// now promotes (e.g. `2**70`, `9223372036854775807 + 1`) instead of wrapping,
-/// up to the `i128` range (the VM's bounded stand-in for Tcl's bignums — a
-/// genuinely `i128`-overflowing result still wraps, lacking a wider rep).
+/// Integer arithmetic in `i128`, narrowing the result to a wide when it fits and
+/// **promoting to arbitrary precision on overflow** rather than wrapping: `2**70`
+/// / `9223372036854775807 + 1` fit `i128`; `2**200` / a product past `2^127`
+/// promote to a bignum, matching tclsh (`RUST_ISSUE_011`). `i64`-range operands
+/// and results are unchanged.
 fn int_arith(op: BinOp, x: i128, y: i128) -> Result<Value, TclError> {
     use BinOp::{Add, BitAnd, BitOr, BitXor, Div, LShift, Mod, Mul, Pow, RShift, Sub};
     let r = match op {
-        Add => x.wrapping_add(y),
-        Sub => x.wrapping_sub(y),
-        Mul => x.wrapping_mul(y),
+        Add => match x.checked_add(y) {
+            Some(r) => r,
+            None => return promote(op, x, y),
+        },
+        Sub => match x.checked_sub(y) {
+            Some(r) => r,
+            None => return promote(op, x, y),
+        },
+        Mul => match x.checked_mul(y) {
+            Some(r) => r,
+            None => return promote(op, x, y),
+        },
         Div => {
             if y == 0 {
                 return Err(divzero());
@@ -234,23 +345,30 @@ fn int_arith(op: BinOp, x: i128, y: i128) -> Result<Value, TclError> {
             }
             fmod_i(x, y)
         }
-        Pow => ipow(x, y),
+        // Powers grow fast; let the bignum path compute then narrow if it fits.
+        Pow => return promote(op, x, y),
         LShift => {
-            if (0..128).contains(&y) {
-                x.wrapping_shl(u32::try_from(y).unwrap_or(0))
-            } else if y >= 128 {
-                0
-            } else {
+            if y < 0 {
                 return Err(TclError::new("negative shift argument"));
+            }
+            // Fast path only when the shift stays within `i128`; else promote.
+            match u32::try_from(y)
+                .ok()
+                .filter(|&s| s < 127)
+                .and_then(|s| x.checked_shl(s).filter(|r| r >> s == x))
+            {
+                Some(r) => r,
+                None => return promote(op, x, y),
             }
         }
         RShift => {
-            if (0..128).contains(&y) {
-                x >> u32::try_from(y).unwrap_or(0)
-            } else if y >= 128 {
+            if y < 0 {
+                return Err(TclError::new("negative shift argument"));
+            }
+            if y >= 128 {
                 if x < 0 { -1 } else { 0 }
             } else {
-                return Err(TclError::new("negative shift argument"));
+                x >> u32::try_from(y).unwrap_or(0)
             }
         }
         BitAnd => x & y,
@@ -307,20 +425,27 @@ fn float_operand_err(v: &Value, side: &str, op: BinOp) -> TclError {
 pub fn arith(op: BinOp, a: &Value, b: &Value) -> Result<Value, TclError> {
     let x = to_num_operand(a, "left", op)?;
     let y = to_num_operand(b, "right", op)?;
-    match (num_i128(x), num_i128(y)) {
-        // Both operands are integers (in-range or i128-promoted): integer path.
-        (Some(xi), Some(yi)) => int_arith(op, xi, yi),
-        // An integer-only operator with a (valid) float operand: that operand is
-        // the error. Name the offending side (the left operand wins if both are
-        // floats, matching C's left-to-right operand check).
-        _ if is_int_only(op) => {
-            if num_i128(x).is_none() {
-                Err(float_operand_err(a, "left", op))
-            } else {
-                Err(float_operand_err(b, "right", op))
-            }
+    // Fast integer path: both operands fit `i128` (promotes to bignum on overflow).
+    if let (Some(xi), Some(yi)) = (num_i128(x), num_i128(y)) {
+        return int_arith(op, xi, yi);
+    }
+    // Not both `i128`-fit. When *both* are integers (an operand already past
+    // `i128`), stay exact via the arbitrary-precision path (`RUST_ISSUE_011`).
+    if let (Some(xb), Some(yb)) = (value_as_bigint(a), value_as_bigint(b)) {
+        return big_arith(op, &xb, &yb);
+    }
+    // At least one operand is a genuine float (or non-number).
+    if is_int_only(op) {
+        // An integer-only operator with a float operand: that operand is the
+        // error (a huge-integer operand took the bignum path above). Name the
+        // offending side (left wins if both are floats, matching C's order).
+        if value_as_bigint(a).is_none() {
+            Err(float_operand_err(a, "left", op))
+        } else {
+            Err(float_operand_err(b, "right", op))
         }
-        _ => dbl_arith(op, num_f(x), num_f(y)),
+    } else {
+        dbl_arith(op, num_f(x), num_f(y))
     }
 }
 
@@ -340,6 +465,15 @@ pub fn compare(op: BinOp, a: &Value, b: &Value) -> Result<bool, TclError> {
     let ord = match op {
         StrEq | StrNe | StrLt | StrLe | StrGt | StrGe => str_ord(),
         _ => match (to_num(a), to_num(b)) {
+            // When an operand is an integer past `i128`, compare exactly as
+            // bignums — `num_cmp`'s `f64` fallback would lose precision
+            // (`RUST_ISSUE_011`); the common `i128`-fit case stays on `num_cmp`.
+            (Ok(x), Ok(y)) if num_i128(x).is_none() || num_i128(y).is_none() => {
+                match (value_as_bigint(a), value_as_bigint(b)) {
+                    (Some(xb), Some(yb)) => xb.cmp(&yb),
+                    _ => num_cmp(x, y),
+                }
+            }
             (Ok(x), Ok(y)) => num_cmp(x, y),
             _ => str_ord(),
         },
@@ -366,13 +500,19 @@ pub fn unary(op: UnaryOp, v: &Value) -> Result<Value, TclError> {
         Neg => match to_num(v) {
             Ok(Num::Int(n)) => Ok(Value::int(n.wrapping_neg())),
             Ok(Num::Big(b)) => Ok(int_value(b.wrapping_neg())),
-            Ok(Num::Dbl(f)) => Ok(Value::double(-f)),
+            // A huge integer (past `i128`) coerces to `Num::Dbl`; negate it
+            // exactly as a bignum, not as a lossy float (`RUST_ISSUE_011`).
+            Ok(Num::Dbl(f)) => {
+                Ok(value_as_bigint(v).map_or_else(|| Value::double(-f), |b| big_value(&-b)))
+            }
             Err(_) => Err(unary_operand_err(v, "-")),
         },
         Pos => match to_num(v) {
             Ok(Num::Int(n)) => Ok(Value::int(n)),
             Ok(Num::Big(b)) => Ok(int_value(b)),
-            Ok(Num::Dbl(f)) => Ok(Value::double(f)),
+            Ok(Num::Dbl(f)) => {
+                Ok(value_as_bigint(v).map_or_else(|| Value::double(f), |b| big_value(&b)))
+            }
             Err(_) => Err(unary_operand_err(v, "+")),
         },
         // `~` needs an integer; a double is a "floating-point value" operand
@@ -380,7 +520,11 @@ pub fn unary(op: UnaryOp, v: &Value) -> Result<Value, TclError> {
         BitNot => match to_num(v) {
             Ok(Num::Int(n)) => Ok(Value::int(!n)),
             Ok(Num::Big(b)) => Ok(int_value(!b)),
-            Ok(Num::Dbl(_)) | Err(_) => Err(unary_operand_err(v, "~")),
+            // A huge integer bit-complements exactly (`~x == -x-1`); a real float
+            // is the operand error.
+            Ok(Num::Dbl(_)) => value_as_bigint(v)
+                .map_or_else(|| Err(unary_operand_err(v, "~")), |b| Ok(big_value(&!b))),
+            Err(_) => Err(unary_operand_err(v, "~")),
         },
         // `!` accepts any boolean (incl. numbers and the boolean words); a NaN or
         // non-numeric non-boolean is the operand error (not "expected boolean").
@@ -522,6 +666,75 @@ mod tests {
                 .unwrap(),
             1
         );
+    }
+
+    /// The arbitrary-precision integer tower (`RUST_ISSUE_011`): operations that
+    /// overflow `i128` (or whose operands already exceed it) stay exact and match
+    /// tclsh 9.0.4, instead of wrapping or degrading to a lossy `double`.
+    #[test]
+    fn bignum_tower_stays_exact() {
+        let big = |op: BinOp, a: &str, b: &str| {
+            arith(op, &Value::string(a), &Value::string(b))
+                .unwrap()
+                .to_str()
+                .to_string()
+        };
+        // (2^64)^2 = 2^128 — a product past i128 promotes to an exact bignum.
+        assert_eq!(
+            big(BinOp::Mul, "18446744073709551616", "18446744073709551616"),
+            "340282366920938463463374607431768211456"
+        );
+        // Pow, floor div/mod and shifts stay exact.
+        assert_eq!(
+            arith(BinOp::Pow, &Value::int(2), &Value::int(200))
+                .unwrap()
+                .to_str()
+                .to_string(),
+            "1606938044258990275541962092341162602522202993782792835301376"
+        );
+        assert_eq!(
+            big(BinOp::Div, "1000000000000000000000000000000", "3"),
+            "333333333333333333333333333333"
+        );
+        assert_eq!(big(BinOp::Mod, "1000000000000000000000000000000", "7"), "1");
+        assert_eq!(
+            arith(BinOp::LShift, &Value::int(1), &Value::int(100))
+                .unwrap()
+                .to_str()
+                .to_string(),
+            "1267650600228229401496703205376"
+        );
+        // i64/i128-overflowing sums promote instead of wrapping.
+        assert_eq!(
+            arith(BinOp::Add, &Value::int(i64::MAX), &Value::int(1))
+                .unwrap()
+                .to_str()
+                .to_string(),
+            "9223372036854775808"
+        );
+        // Exact bignum comparison — an `f64` would collapse `2^100` and `2^100+1`.
+        let (a, b) = (
+            "1267650600228229401496703205376",
+            "1267650600228229401496703205377",
+        );
+        assert!(compare(BinOp::Lt, &Value::string(a), &Value::string(b)).unwrap());
+        assert!(!compare(BinOp::Eq, &Value::string(a), &Value::string(b)).unwrap());
+        // Unary negate / bit-not of a bignum stay exact; `0 ** -n` errors like C.
+        assert_eq!(
+            unary(UnaryOp::Neg, &Value::string(a))
+                .unwrap()
+                .to_str()
+                .to_string(),
+            format!("-{a}")
+        );
+        assert_eq!(
+            unary(UnaryOp::BitNot, &Value::string(a))
+                .unwrap()
+                .to_str()
+                .to_string(),
+            format!("-{b}")
+        );
+        assert!(arith(BinOp::Pow, &Value::int(0), &Value::int(-1)).is_err());
     }
 
     #[test]
