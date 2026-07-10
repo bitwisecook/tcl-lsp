@@ -51,6 +51,24 @@ lambda executes on the coroutine's explicit stack; the proc is torn down with th
 coroutine. (The lambda-parse logic is shared with `apply` via `build_lambda_proc`;
 `apply`'s own behaviour is unchanged.)
 
+## Progress — event loop (Phase 2)
+
+The VM now has a minimal but faithful single-threaded event loop
+(`rust/tcl-vm/src/cmd_event.rs`, ported from the tree-walker's `cmd_event.rs`):
+`after`/`vwait`/`update` over an `EventQueue` (deadline-ordered timers + a FIFO
+idle queue) on the `Vm`. This is the scheduler half of coroutines — `after 0
+$coro` schedules a resume and `vwait`/`update` drives it. Event-handler errors go
+to the `bgerror` handler (or stderr). Oracle-checked in
+`rust/tcl-vm/tests/cmd_event_e2e.rs` (12 tests): `after 0`/`after idle`,
+scheduling vs deadline order, `after cancel` by id/script, `update idletasks`,
+the `after#0` id, the error messages, and the coroutine-driver pattern.
+
+En route, a startup-init bug was fixed: the interp's bootstrap ran `set
+::auto_path [list [info library]]`, which errors when no Tcl library is
+configured — leaving `::auto_path` unset (so the `unknown`/auto-load path failed
+with `can't read "::auto_path"`) and polluting `::errorInfo`. The init now sets
+`::auto_path` to `{}` and appends `[info library]` under a `catch`.
+
 **Remaining (still Open):**
 - A `yield` reached across a host re-entry the VM runs on the **native Rust
   stack** — `catch`/`uplevel`/`eval`, and `apply` in an *arbitrary* position
@@ -58,6 +76,6 @@ coroutine. (The lambda-parse logic is shared with `apply` via `build_lambda_proc
   yield: C stack busy` instead of yielding. C Tcl makes those NR-enabled; making
   them re-enter the explicit trampoline is the remaining yieldable-surface work.
 - `yieldto` beyond the outside-a-coroutine error; the creating-namespace/`info
-  level` refinements; the `after 0 $coro` event-loop driver (Phase 2).
+  level` refinements.
 - The **wasm32** runtime coroutines (asyncify or VM-on-wasm) and the `thread`
   package (Phase 3) — untouched.

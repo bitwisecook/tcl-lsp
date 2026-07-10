@@ -132,7 +132,7 @@ proc unknown {cmd args} {
     return -code error -errorcode [list TCL LOOKUP COMMAND $cmd] \
         "invalid command name \"$cmd\""
 }
-if {![info exists ::auto_path]} { set ::auto_path [list [info library]] }
+if {![info exists ::auto_path]} { set ::auto_path {}; catch {lappend ::auto_path [info library]} }
 "#;
 
 /// Build an `OK` completion (empty options dict).
@@ -341,6 +341,9 @@ pub struct Vm {
     /// -command`/OO-method re-entry sits between, so the suspend is rejected
     /// (`cannot yield: C stack busy`).
     pub(crate) activation_depth: usize,
+    /// The event loop's pending timer/idle events (`after`/`vwait`/`update`).
+    /// The scheduler half of the coroutine subsystem. See [`crate::cmd_event`].
+    pub(crate) events: crate::cmd_event::EventQueue,
 }
 
 /// A suspended coroutine's saved per-flow execution context: the call/namespace
@@ -470,6 +473,7 @@ impl Vm {
             oo: crate::cmd_oo::OoState::default(),
             coro: crate::cmd_coro::CoroSystem::default(),
             activation_depth: 0,
+            events: crate::cmd_event::EventQueue::default(),
         };
         register_builtins(&mut vm);
         vm.bootstrap_globals();
@@ -841,6 +845,30 @@ impl Vm {
             self.bgerror_handler = prefix.clone();
         }
         self.bgerror_handler.clone()
+    }
+
+    /// The effective background-error handler command prefix for the event loop,
+    /// or `""` when none is callable (so a handler error is not routed through
+    /// the `unknown` fallback). Used by [`crate::cmd_event`].
+    ///
+    /// Prefers the configured `interp bgerror` prefix when its head command
+    /// exists; otherwise falls back to a user-defined `bgerror` proc — C's
+    /// default handler `::tcl::Bgerror` (an init.tcl library proc the VM does not
+    /// load) merely formats the error and dispatches to `bgerror`.
+    pub(crate) fn bgerror_handler_prefix(&self) -> String {
+        let prefix = self.bgerror_handler.to_str();
+        let head = tcl_syntax::list::split_list_lenient(&prefix)
+            .into_iter()
+            .next()
+            .unwrap_or_default()
+            .to_string();
+        if !head.is_empty() && self.lookup_command(&head).is_some() {
+            return prefix.to_string();
+        }
+        if self.lookup_command("bgerror").is_some() {
+            return "bgerror".to_string();
+        }
+        String::new()
     }
 
     /// Whether this interp's `time` limit has elapsed. The stored time value is
