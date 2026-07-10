@@ -813,6 +813,7 @@ impl Analyser {
             cmd,
             &self.source,
             self.registry.as_ref(),
+            || self.user_command_tail_names(),
         );
         self.result.diagnostics.extend(stray);
         if !ghost_recovery_applied {

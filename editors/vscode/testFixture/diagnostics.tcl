@@ -14,3 +14,10 @@ if {$x == "foo"} { puts yes }
 
 # W304 - option-bearing command without -- for dynamic input
 regexp $pattern $x
+
+# E100 - stray close bracket, missing opening '['
+set y string]
+
+# E102 - stray close brace, missing opening '{'
+set z 1
+}

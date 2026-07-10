@@ -37,6 +37,38 @@ suite("Diagnostics", () => {
     assert.ok(codes.includes("W100"), `Expected W100 (unbraced expr) in [${codes}]`);
     assert.ok(codes.includes("W101"), `Expected W101 (eval injection) in [${codes}]`);
     assert.ok(codes.includes("W302"), `Expected W302 (catch without result) in [${codes}]`);
+    assert.ok(codes.includes("E100"), `Expected E100 (stray close bracket) in [${codes}]`);
+    assert.ok(codes.includes("E102"), `Expected E102 (stray close brace) in [${codes}]`);
+  });
+
+  test("E100 range covers the stray ']' character itself", async () => {
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+
+    const e100 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "E100";
+    });
+    assert.ok(e100, "E100 diagnostic should be present");
+
+    // `set y string]` — the range must end one column past the `]`
+    // (LSP ranges are end-exclusive), not stop short of it.
+    const line = vscode.window.activeTextEditor!.document.lineAt(e100!.range.end.line).text;
+    assert.strictEqual(line[e100!.range.end.character - 1], "]");
+  });
+
+  test("E102 range covers the stray '}' character itself", async () => {
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+
+    const e102 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "E102";
+    });
+    assert.ok(e102, "E102 diagnostic should be present");
+
+    const line = vscode.window.activeTextEditor!.document.lineAt(e102!.range.end.line).text;
+    assert.strictEqual(line[e102!.range.end.character - 1], "}");
   });
 
   test("W100 diagnostic has error severity when expr contains substitutions", async () => {

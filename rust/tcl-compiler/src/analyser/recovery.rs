@@ -32,6 +32,14 @@
 //!   around a stray ``]`` into a virtual ``CMD`` token so a
 //!   typo like ``switch ACCESS::policy agent_id] {…}`` parses
 //!   like ``switch ACCESS::policy [agent_id] {…}`` would have.
+//!   Detection and insertion-point resolution are shared with the
+//!   E100 diagnostic (`syntax_checks::find_first_stray_bracket` /
+//!   `find_bracket_insertion_point`) so this repair only ever fires
+//!   where E100 also fires, at the position E100's own quick-fix
+//!   would insert ``[`` — two independent copies of this heuristic
+//!   previously drifted apart and could repair (and corrupt
+//!   downstream command-invocation recording for) brackets E100
+//!   itself did not flag.
 //! - [`looks_like_switch_case`] — peeks at a follow-on command
 //!   to see if it looks like a ``pattern { body }`` pair (used
 //!   by `recover_missing_open_brace`).
@@ -71,31 +79,24 @@ impl Analyser {
     /// Repair a command whose source contains a stray ``]`` (a
     /// missing ``[``).
     ///
-    /// Walks `cmd.all_tokens` looking for an `Esc` token that ends
-    /// in ``]`` (and isn't inside a double-quoted string), then
-    /// scans backward for a known command name — that's the
-    /// position the missing ``[`` should have been at.
-    /// Subsequent argv / texts / `single_token_word` entries are
-    /// merged into a single virtual ``Cmd`` token so
-    /// downstream dispatch sees the intended ``[name args]``
-    /// command-substitution shape.
-    ///
-    /// Three resolution paths, in priority order:
-    ///
-    /// 1. The bracket token's own text starts with a known
-    ///    command name (e.g. ``foo]``) — the bracket itself
-    ///    is the start.
-    /// 2. A preceding `Esc` token is exactly a known command
-    ///    name — the merge starts there.
-    /// 3. Arity fallback — when the enclosing command has a
-    ///    bounded ``max`` and the argv overflows, the missing
-    ///    ``[`` belongs before the ``max``-th argument.
+    /// Finds the first *trailing* stray ``]`` via
+    /// [`super::syntax_checks::find_first_stray_bracket`] — the same
+    /// escape/quote-aware detector the E100 diagnostic uses, so this
+    /// repair only ever fires where E100 also fires — then resolves the
+    /// insertion point via
+    /// [`super::syntax_checks::find_bracket_insertion_point`] (the same
+    /// heuristics that pick the diagnostic's own quick-fix location:
+    /// own-token command-name prefix, backward scan for a known command
+    /// word, arity overflow on the enclosing command).  Subsequent argv
+    /// / texts / `single_token_word` entries are merged into a single
+    /// virtual ``Cmd`` token so downstream dispatch sees the intended
+    /// ``[name args]`` command-substitution shape.
     ///
     /// Returns silently when no resolution path succeeds; the
     /// command falls through to normal dispatch unchanged.
     pub(super) fn recover_stray_close_bracket(&self, cmd: &mut SegmentedCommand) {
         let Some((bracket_tok_idx, bracket_char_idx)) =
-            find_stray_close_bracket(&cmd.all_tokens, &self.source)
+            super::syntax_checks::find_first_stray_bracket(&cmd.all_tokens, &self.source)
         else {
             return;
         };
@@ -104,70 +105,48 @@ impl Analyser {
             Some(i) if i > 0 => i,
             _ => return,
         };
+        let bracket_off = bracket_tok.span.start() + u32::try_from(bracket_char_idx).unwrap_or(0);
 
-        let known = self.builtin_command_names_const();
-        let prefix = if bracket_char_idx > 0 {
-            let span = bracket_tok.span;
-            let start = span.start() as usize;
-            let end = start + bracket_char_idx;
-            &self.source[start..end]
+        let extra_known = self.user_command_tail_names();
+        let owned_fallback_registry;
+        let registry: &tcl_registry::CommandRegistry = if let Some(r) = self.registry.as_ref() {
+            r
         } else {
-            ""
+            use tcl_registry::CommandRegistry;
+            use tcl_registry::prelude::DialectSet;
+            let mut reg = CommandRegistry::build_default();
+            if let Some(d) = DialectSet::parse(&self.dialect) {
+                reg.load_dialect(d);
+            }
+            owned_fallback_registry = reg;
+            &owned_fallback_registry
         };
-
-        let mut cmd_start_all_idx: Option<usize> = None;
-        let mut cmd_start_argv_idx: Option<usize> = None;
-
-        if known.contains(prefix) {
-            cmd_start_all_idx = Some(bracket_tok_idx);
-            cmd_start_argv_idx = Some(bracket_argv_idx);
-        } else {
-            for i in (1..bracket_tok_idx).rev() {
-                let t = cmd.all_tokens[i];
-                if t.kind != TokenType::Esc {
-                    continue;
-                }
-                let text = self.token_text(t);
-                if known.contains(text) {
-                    cmd_start_all_idx = Some(i);
-                    cmd_start_argv_idx = find_argv_index(&cmd.argv, t);
-                    break;
-                }
-            }
-        }
-
-        // Arity-based fallback.
-        if cmd_start_all_idx.is_none() || cmd_start_argv_idx.is_none() {
-            let cmd_name = cmd.texts.first().map_or("", String::as_str);
-            if let Some(spec_max) = lookup_max_arity(cmd_name) {
-                let nargs = cmd.argv.len().saturating_sub(1);
-                if nargs > spec_max && spec_max >= 1 {
-                    let target_argv_idx = spec_max;
-                    if target_argv_idx < cmd.argv.len() {
-                        let target_tok = cmd.argv[target_argv_idx];
-                        if target_tok.span.start() < bracket_tok.span.start() {
-                            cmd_start_argv_idx = Some(target_argv_idx);
-                            for (j, t) in cmd.all_tokens.iter().enumerate() {
-                                if t.span.start() == target_tok.span.start() {
-                                    cmd_start_all_idx = Some(j);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        let Some(cmd_start_all_idx) = cmd_start_all_idx else {
+        let Some(insert_off) = super::syntax_checks::find_bracket_insertion_point(
+            cmd,
+            &cmd.all_tokens,
+            bracket_tok_idx,
+            bracket_off,
+            &self.source,
+            registry,
+            &extra_known,
+        ) else {
             return;
         };
-        let Some(cmd_start_argv_idx) = cmd_start_argv_idx else {
+
+        let Some(cmd_start_argv_idx) = cmd.argv.iter().position(|t| t.span.start() == insert_off)
+        else {
             return;
         };
         if cmd_start_argv_idx == 0 {
             return; // don't merge the enclosing command name itself
         }
+        let Some(cmd_start_all_idx) = cmd
+            .all_tokens
+            .iter()
+            .position(|t| t.span.start() == insert_off)
+        else {
+            return;
+        };
 
         // Build the virtual Cmd token spanning from the start
         // of the resolved sub-command to the byte just before
@@ -177,12 +156,9 @@ impl Analyser {
         // there's no ``[`` to skip in the source.  The whole
         // span is content; downstream token-text slicing
         // therefore yields the inner command directly.
-        let src_start = cmd.argv[cmd_start_argv_idx].span.start() as usize;
-        let bracket_char_offset = bracket_tok.span.start() as usize + bracket_char_idx;
-        let virtual_span = Span::new(
-            u32::try_from(src_start).expect("src_start fits in u32"),
-            u32::try_from(bracket_char_offset).expect("bracket end fits in u32"),
-        );
+        let src_start = insert_off as usize;
+        let bracket_char_offset = bracket_off as usize;
+        let virtual_span = Span::new(insert_off, bracket_off);
         let virtual_cmd = Token::with_content_offset(TokenType::Cmd, virtual_span, 0);
 
         // Splice all_tokens.
@@ -197,6 +173,66 @@ impl Analyser {
             .splice(cmd_start_argv_idx..=bracket_argv_idx, [virtual_text]);
         cmd.single_token_word
             .splice(cmd_start_argv_idx..=bracket_argv_idx, [true]);
+    }
+
+    /// User-declared command-like names visible so far in the walk:
+    /// proc / class tail names, command-alias tail names, ensemble-
+    /// namespace tail names, tclOO instance commands bound by `CLASS
+    /// create NAME`, inline `# tcl-lsp: stub` declarations,
+    /// `tclLsp.extraCommands`, and any explicit `unknown`-proc dispatch
+    /// targets.
+    ///
+    /// Consulted by [`super::syntax_checks::find_bracket_insertion_point`]
+    /// alongside the registry so the E100 bracket-insertion heuristic (and
+    /// this module's repair, which shares it) recognises a call to an
+    /// already-defined local command — a proc, a tclOO class or instance,
+    /// an alias, an ensemble — not just a registry builtin.  Mirrors
+    /// `Analyser::build_w123_known_names`'s candidate set; built fresh
+    /// from whatever `self.result` holds *so far* (E100 runs inline
+    /// during the walk, not as W123's post-pass), so a forward reference
+    /// to a not-yet-declared name is out of scope here — the same
+    /// backward-only visibility every other inline per-command check has.
+    pub(super) fn user_command_tail_names(&self) -> std::collections::HashSet<String> {
+        fn tail(qn: &str) -> Option<&str> {
+            qn.rsplit_once("::")
+                .map(|(_, t)| t)
+                .filter(|t| !t.is_empty())
+        }
+        let mut names: std::collections::HashSet<String> = std::collections::HashSet::new();
+        names.extend(
+            self.result
+                .all_procs
+                .keys()
+                .filter_map(|qn| tail(qn))
+                .map(str::to_string),
+        );
+        names.extend(
+            self.result
+                .all_classes
+                .keys()
+                .filter_map(|qn| tail(qn))
+                .map(str::to_string),
+        );
+        names.extend(
+            self.result
+                .command_aliases
+                .keys()
+                .filter_map(|qn| tail(qn))
+                .map(str::to_string),
+        );
+        names.extend(
+            self.ensemble_namespaces
+                .iter()
+                .filter_map(|ns| tail(ns))
+                .map(str::to_string),
+        );
+        names.extend(self.result.created_instance_commands.iter().cloned());
+        names.extend(self.extra_commands.iter().cloned());
+        names.extend(super::utils::scan_stub_command_names(&self.source));
+        if let Some(info) = self.result.unknown_proc_info.as_ref() {
+            names.extend(info.dispatch_targets.iter().cloned());
+        }
+        names
     }
 
     /// Repair a ``switch`` command whose source is missing
@@ -491,19 +527,6 @@ impl Analyser {
         });
     }
 
-    /// Lookup a token's text by re-slicing the analyser's source
-    /// buffer.
-    ///
-    /// `Token` stores a span only — text is materialised on
-    /// demand. The leading delimiter (``$`` / ``${`` / ``[`` /
-    /// ``{`` / ``"``) is stripped via ``content_offset`` so the
-    /// returned slice is the token's inner text.
-    fn token_text(&self, tok: Token) -> &str {
-        let start = tok.span.start() as usize + tok.content_offset as usize;
-        let end = tok.span.end() as usize;
-        &self.source[start..end.min(self.source.len())]
-    }
-
     /// Constant-folded view of [`Self::builtin_command_names`].
     ///
     /// `recover_stray_close_bracket` runs in `&self` context
@@ -526,53 +549,6 @@ impl Analyser {
     }
 }
 
-/// Locate the first stray ``]`` ESC token in a command's token
-/// stream, ignoring brackets inside double-quoted runs.
-///
-/// Returns ``Some((token_index, char_index_within_token))`` when
-/// a stray bracket is found.  The bracket must be the *last*
-/// character of its token text (``foo]``, not ``foo]bar``) —
-/// partial mid-token brackets are usually not the recovery shape
-/// we're after.
-fn find_stray_close_bracket(tokens: &[Token], source: &str) -> Option<(usize, usize)> {
-    // Track quoted context across the token stream.
-    let mut prev_in_quote = false;
-    for (ti, &tok) in tokens.iter().enumerate() {
-        if matches!(tok.kind, TokenType::Sep | TokenType::Eol) {
-            prev_in_quote = false;
-            continue;
-        }
-        let self_opens = tok.kind == TokenType::Esc && tok.content_offset > 0;
-        let in_quoted_word = prev_in_quote || self_opens;
-        prev_in_quote = tok.in_quote;
-        if tok.kind != TokenType::Esc {
-            continue;
-        }
-        if in_quoted_word {
-            continue;
-        }
-        let span = tok.span;
-        let start = span.start() as usize + tok.content_offset as usize;
-        let end = span.end() as usize;
-        if start >= end || end > source.len() {
-            continue;
-        }
-        let text = &source[start..end];
-        // ``]`` must be the trailing character.
-        if let Some(idx) = text.rfind(']')
-            && idx == text.len() - 1
-        {
-            // Char index within the token (relative to span
-            // start, not content start): ``idx`` is the offset
-            // within the inner text, so add the content offset
-            // back to get the offset from the span start.
-            let char_idx = idx + tok.content_offset as usize;
-            return Some((ti, char_idx));
-        }
-    }
-    None
-}
-
 /// Return the index of `tok` in `argv`, or `None` if absent.
 ///
 /// Identity is by source span — argv tokens are by-value
@@ -580,26 +556,6 @@ fn find_stray_close_bracket(tokens: &[Token], source: &str) -> Option<(usize, us
 /// the span start is the canonical match.
 fn find_argv_index(argv: &[Token], tok: Token) -> Option<usize> {
     argv.iter().position(|t| t.span.start() == tok.span.start())
-}
-
-/// Look up the maximum argv arity for a command from the
-/// default registry.
-///
-/// Returns ``None`` for unknown commands or for commands with
-/// an unbounded upper bound.  `max` of ``0`` is also treated as
-/// "no useful constraint" — the recovery only fires when there
-/// are *excess* args beyond a known cap.
-fn lookup_max_arity(cmd_name: &str) -> Option<usize> {
-    use tcl_registry::CommandRegistry;
-    if cmd_name.is_empty() {
-        return None;
-    }
-    let registry = CommandRegistry::build_default();
-    let spec = registry.get(cmd_name)?;
-    if spec.arity.is_unlimited() {
-        return None;
-    }
-    Some(spec.arity.max as usize)
 }
 
 /// Return ``true`` when *cmd* looks like a bare ``pattern { body }``
