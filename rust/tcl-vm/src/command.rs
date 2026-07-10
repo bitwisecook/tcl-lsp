@@ -162,6 +162,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_trace::register(vm);
     crate::cmd_try::register(vm);
     crate::cmd_oo::register(vm);
+    crate::cmd_coro::register(vm);
 }
 
 /// `exit ?returnCode?` — request process termination with `returnCode`
@@ -394,7 +395,16 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             "can't {verb} \"{old_name}\": command doesn't exist"
         ));
     };
-    if !new_name.is_empty() {
+    // A coroutine's state travels with its command: a delete (`rename $coro {}`)
+    // drops it (no `finally` runs — the frozen continuation is inert data,
+    // matching C Tcl); a rename re-keys it so it keeps working under the new name.
+    let old_fqn = vm.qualify_name(&old_name);
+    let is_coro = crate::cmd_coro::is_coroutine(vm, &old_fqn);
+    if new_name.is_empty() {
+        if is_coro {
+            crate::cmd_coro::on_command_deleted(vm, &old_fqn);
+        }
+    } else {
         // An unqualified target binds in the current namespace; a qualified one
         // is used as given. `register_command` canonicalises the key.
         let key = if new_name.contains("::") {
@@ -402,6 +412,9 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         } else {
             vm.qualify_name(&new_name)
         };
+        if is_coro {
+            crate::cmd_coro::on_command_renamed(vm, &old_fqn, &key);
+        }
         // A proc executes in the namespace it currently lives in, so renaming
         // it across namespaces re-homes its body (C `TclRenameCommand` updates
         // the command's `nsPtr`). `namespace current` inside the body then

@@ -151,6 +151,24 @@ pub(crate) struct OoState {
     def_stack: Vec<(DefTarget, usize)>,
 }
 
+/// The per-flow OO execution stacks — the subset of [`OoState`] that a coroutine
+/// owns and that is swapped in/out on suspend/resume (the class/object
+/// registries stay shared). Mirrors `runtime/rust/src/cmd_oo.rs`'s `OoExec`.
+#[derive(Default)]
+pub(crate) struct OoExec {
+    call_stack: Vec<OoFrame>,
+    def_stack: Vec<(DefTarget, usize)>,
+}
+
+impl OoState {
+    /// Exchange this interpreter's live OO execution stacks with `e` — one half
+    /// of a coroutine context switch. The registries are shared and untouched.
+    pub(crate) fn swap_exec(&mut self, e: &mut OoExec) {
+        std::mem::swap(&mut self.call_stack, &mut e.call_stack);
+        std::mem::swap(&mut self.def_stack, &mut e.def_stack);
+    }
+}
+
 /// Render a canonical FQN in display (`::`-qualified) form.
 fn display(canonical: &str) -> String {
     format!("::{canonical}")

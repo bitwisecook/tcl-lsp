@@ -331,6 +331,35 @@ pub struct Vm {
     /// the active method-call stack (for `self`/`my`/`next`), and the current
     /// definition target (`oo::define`/`oo::objdefine`). See [`crate::cmd_oo`].
     pub(crate) oo: crate::cmd_oo::OoState,
+    /// The coroutine subsystem: live coroutines, the active-driver stack (for
+    /// `[info coroutine]` + the yield-boundary check), and the pending
+    /// `yield`/`yieldto` request. See [`crate::cmd_coro`].
+    pub(crate) coro: crate::cmd_coro::CoroSystem,
+    /// Count of nested [`Vm::drive`](Self) invocations — the host re-entry
+    /// counter. A `yield` is legal only at the depth its coroutine's driver
+    /// started at; a deeper depth means a `catch`/`uplevel`/`eval`/`lsort
+    /// -command`/OO-method re-entry sits between, so the suspend is rejected
+    /// (`cannot yield: C stack busy`).
+    pub(crate) activation_depth: usize,
+}
+
+/// A suspended coroutine's saved per-flow execution context: the call/namespace
+/// stack tails **above** the shared global entry, plus the scalar error/script
+/// state and the OO execution stacks. Exchanged with the live context by
+/// [`Vm::swap_flow`]. `default()` is a fresh flow rooted at the global level (an
+/// about-to-start coroutine, before it has pushed any frame).
+#[derive(Default)]
+pub(crate) struct ParkedFlow {
+    frames: Vec<CallFrame>,
+    ns_stack: Vec<String>,
+    ns_script_frames: Vec<usize>,
+    recursion_depth: usize,
+    error_info: Option<String>,
+    error_logged: bool,
+    error_line: u32,
+    invoked_name: Option<String>,
+    script_stack: Vec<String>,
+    oo: crate::cmd_oo::OoExec,
 }
 
 /// `interp limit` configuration for one interpreter — the `commands` and `time`
@@ -439,6 +468,8 @@ impl Vm {
             // is more useful for the VM and every test seeds explicitly.
             rand_seed: 1,
             oo: crate::cmd_oo::OoState::default(),
+            coro: crate::cmd_coro::CoroSystem::default(),
+            activation_depth: 0,
         };
         register_builtins(&mut vm);
         vm.bootstrap_globals();
@@ -2052,6 +2083,37 @@ impl Vm {
             Ok(c) => c,
             Err(e) => err(e.message),
         }
+    }
+
+    /// Exchange the live per-flow execution context with `p` — the coroutine
+    /// context switch (`cmd_coro::resume`). Its own inverse: two calls restore
+    /// the original. The **shared** global frame (`frames[0]`) and global
+    /// namespace (`ns_stack[0]`) stay in place — only the supra-global tails move
+    /// — so globals, `uplevel #0`, and `::x` stay coherent across flows and each
+    /// coroutine roots at frame level 1. Everything else (error trace, script
+    /// stack, OO call/def stacks) swaps wholesale. Registries, channels, commands,
+    /// etc. are shared and untouched (they are not part of a flow).
+    ///
+    /// Modelled on [`Self::eval_at_level`]'s split-off/restore of `frames` +
+    /// `ns_stack` + `recursion_depth`.
+    pub(crate) fn swap_flow(&mut self, p: &mut ParkedFlow) {
+        // frames / ns_stack: exchange the tail above the shared global entry.
+        let mut ftail = self.frames.split_off(1);
+        std::mem::swap(&mut ftail, &mut p.frames);
+        self.frames.append(&mut ftail);
+        let ns_cut = 1.min(self.ns_stack.len());
+        let mut nstail = self.ns_stack.split_off(ns_cut);
+        std::mem::swap(&mut nstail, &mut p.ns_stack);
+        self.ns_stack.append(&mut nstail);
+        // Scalars / stacks: plain exchange.
+        std::mem::swap(&mut self.ns_script_frames, &mut p.ns_script_frames);
+        std::mem::swap(&mut self.recursion_depth, &mut p.recursion_depth);
+        std::mem::swap(&mut self.error_info, &mut p.error_info);
+        std::mem::swap(&mut self.error_logged, &mut p.error_logged);
+        std::mem::swap(&mut self.error_line, &mut p.error_line);
+        std::mem::swap(&mut self.invoked_name, &mut p.invoked_name);
+        std::mem::swap(&mut self.script_stack, &mut p.script_stack);
+        self.oo.swap_exec(&mut p.oo);
     }
 
     /// The unqualified names of commands (or, with `procs_only`, just user

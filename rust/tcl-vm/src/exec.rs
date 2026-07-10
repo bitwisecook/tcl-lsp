@@ -61,8 +61,11 @@ struct DictIterState {
     pos: usize,
 }
 
-/// One activation record: a bytecode function in mid-execution.
-struct Frame {
+/// One activation record: a bytecode function in mid-execution. `pub(crate)` so
+/// a suspended coroutine can own its frozen activation stack (`Vec<Frame>`); the
+/// fields stay private to `exec` (a coroutine only stores/moves whole frames and
+/// pushes its resume value via [`Frame::push_operand`]).
+pub(crate) struct Frame {
     asm: Rc<FunctionAsm>,
     off2idx: Rc<HashMap<i32, usize>>,
     /// `FOREACH_START` index → paired `FOREACH_STEP` index (the implicit jump).
@@ -85,7 +88,7 @@ struct Frame {
 }
 
 impl Frame {
-    fn new(asm: Rc<FunctionAsm>, is_proc: bool) -> Self {
+    pub(crate) fn new(asm: Rc<FunctionAsm>, is_proc: bool) -> Self {
         let off2idx = Rc::new(build_off2idx(&asm));
         let foreach_pairs = Rc::new(pair_foreach(&asm));
         Self {
@@ -100,6 +103,14 @@ impl Frame {
             last_result: Value::empty(),
             is_proc,
         }
+    }
+
+    /// Push `v` onto this frame's operand stack. Used by a coroutine `resume` to
+    /// deliver the resume value as the result of the `yield` that suspended here
+    /// — exactly where the normal builtin-return path (`f.stack.push`) would have
+    /// put the command's result, so the following instruction is oblivious.
+    pub(crate) fn push_operand(&mut self, v: Value) {
+        self.stack.push(v);
     }
 }
 
@@ -134,6 +145,37 @@ enum Tick {
     /// its place (in the caller's activation), its result becoming the proc's.
     /// `words` is `[cmd, arg, …]` (the `tailcall` prefix word already dropped).
     Tailcall(Vec<Value>),
+    /// `yield`/`yieldto` — suspend the running coroutine, freezing the whole
+    /// activation stack. Only reachable in [`DriveMode::CoroDriver`]; the driver
+    /// returns [`RunExit::Yielded`] leaving `acts` intact (pc already past the
+    /// suspend point).
+    Suspend(YieldReq),
+}
+
+/// A coroutine suspend request, produced by the `yield`/`yieldto` builtins and
+/// carried out of [`Vm::drive`](Vm) to the coroutine's `resume`.
+pub(crate) enum YieldReq {
+    /// `yield ?value?` — `value` is what the resumer receives.
+    Yield(Value),
+    /// `yieldto cmd ?arg …?` — the resume runs `cmd args` in the resumer's
+    /// context (a tail-call-flavoured handoff).
+    YieldTo(Vec<Value>),
+}
+
+/// How [`Vm::drive`](Vm) treats a [`Tick::Suspend`]: `Plain` is an ordinary
+/// activation (a top-level yield is an error); `CoroDriver` is a coroutine's
+/// `resume`, which suspends on yield.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DriveMode {
+    Plain,
+    CoroDriver,
+}
+
+/// How a [`Vm::drive`](Vm) invocation ended: the activation stack emptied
+/// (`Done`), or a coroutine suspended (`Yielded`, `acts` left frozen).
+pub(crate) enum RunExit {
+    Done(Completion<Value>),
+    Yielded(YieldReq),
 }
 
 fn build_off2idx(asm: &FunctionAsm) -> HashMap<i32, usize> {
@@ -529,20 +571,54 @@ impl Vm {
         self.run_activation(Frame::new(Rc::new(asm.clone()), false))
     }
 
-    /// Drive the NRE trampoline from an initial activation to completion. The
-    /// initial frame's `is_proc` decides whether the outermost body is a proc
+    /// Run one activation stack to completion (the ordinary, non-coroutine path).
+    /// The initial frame's `is_proc` decides whether the outermost body is a proc
     /// call (so `unwind` pops a call-frame + namespace and absorbs `return`):
     /// `false` for a module top-level ([`run_function`](Self::run_function)),
     /// `true` for [`invoke_command`](Self::invoke_command) running a proc body.
     fn run_activation(&mut self, initial: Frame) -> Completion<Value> {
         let mut acts: Vec<Frame> = vec![initial];
+        match self.drive(&mut acts, DriveMode::Plain) {
+            RunExit::Done(c) => c,
+            // A `yield` reached at top level (outside a coroutine driver) is
+            // rejected by the `yield` builtin before it sets `coro.pending`, so
+            // `Plain` mode never observes a suspend.
+            RunExit::Yielded(_) => unreachable!("Plain-mode drive cannot suspend"),
+        }
+    }
+
+    /// Drive the NRE trampoline over `acts` until it empties (`RunExit::Done`) or,
+    /// in [`DriveMode::CoroDriver`], a `yield`/`yieldto` suspends the coroutine
+    /// (`RunExit::Yielded`, `acts` left frozen). Both `run_activation` and a
+    /// coroutine's `resume` funnel through here so the trampoline logic
+    /// (`enter_proc`/`unwind`/`run_tailcall`/inline-loop redirection) is shared.
+    ///
+    /// `activation_depth` counts nested `drive` invocations — the host re-entry
+    /// counter `yield` consults to reject a suspend across a `catch`/`uplevel`/
+    /// `eval`/OO-method boundary (`cannot yield: C stack busy`).
+    fn drive(&mut self, acts: &mut Vec<Frame>, mode: DriveMode) -> RunExit {
+        self.activation_depth += 1;
+        let exit = self.drive_loop(acts, mode);
+        self.activation_depth -= 1;
+        exit
+    }
+
+    /// Drive a coroutine's activation stack until it suspends (`yield`) or
+    /// completes — the `resume` entry point (`cmd_coro`). Runs in
+    /// [`DriveMode::CoroDriver`] so a `Tick::Suspend` freezes `acts` and returns
+    /// `RunExit::Yielded` instead of erroring.
+    pub(crate) fn drive_coro(&mut self, acts: &mut Vec<Frame>) -> RunExit {
+        self.drive(acts, DriveMode::CoroDriver)
+    }
+
+    fn drive_loop(&mut self, acts: &mut Vec<Frame>, mode: DriveMode) -> RunExit {
         loop {
             // Enforce `interp limit $i time` for unbounded bytecode loops: the
             // counter is Vm-scoped so it survives the short activations a
             // command-driven loop re-enters (see `limit_check_tick`).
             if let Some(c) = self.limit_check_tick() {
-                if let Some(done) = self.unwind(&mut acts, c) {
-                    return done;
+                if let Some(done) = self.unwind(acts, c) {
+                    return RunExit::Done(done);
                 }
                 continue;
             }
@@ -555,8 +631,8 @@ impl Vm {
                 Tick::Call { proc, argv } => match self.enter_proc(&proc, &argv) {
                     Ok(()) => acts.push(Frame::new(Rc::clone(&proc.body), true)),
                     Err(c) => {
-                        if let Some(done) = self.unwind(&mut acts, c) {
-                            return done;
+                        if let Some(done) = self.unwind(acts, c) {
+                            return RunExit::Done(done);
                         }
                     }
                 },
@@ -571,15 +647,28 @@ impl Vm {
                     {
                         continue;
                     }
-                    if let Some(done) = self.unwind(&mut acts, c) {
-                        return done;
+                    if let Some(done) = self.unwind(acts, c) {
+                        return RunExit::Done(done);
                     }
                 }
                 Tick::Tailcall(words) => {
-                    if let Some(done) = self.run_tailcall(&mut acts, &words) {
-                        return done;
+                    if let Some(done) = self.run_tailcall(acts, &words) {
+                        return RunExit::Done(done);
                     }
                 }
+                Tick::Suspend(req) => match mode {
+                    // Freeze `acts` in place (pc already past the yield) and hand
+                    // the request back to `resume`.
+                    DriveMode::CoroDriver => return RunExit::Yielded(req),
+                    // Defensive: the `yield` builtin's boundary check rejects a
+                    // top-level suspend before it reaches here.
+                    DriveMode::Plain => {
+                        let c = err("cannot yield: C stack busy");
+                        if let Some(done) = self.unwind(acts, c) {
+                            return RunExit::Done(done);
+                        }
+                    }
+                },
             }
         }
     }
@@ -2308,6 +2397,13 @@ impl Vm {
             Some(Command::Builtin(bf)) => {
                 self.set_invoked_name(&name);
                 let res = bf(self, &words[1..]);
+                // A `yield`/`yieldto` sets `coro.pending` (after its own boundary
+                // check); convert it into a suspend `Tick` that freezes the whole
+                // activation stack. The builtin's placeholder result is dropped —
+                // the resume value replaces it on the operand stack.
+                if let Some(req) = self.coro.pending.take() {
+                    return Ok(Some(Tick::Suspend(req)));
+                }
                 if res.code.is_ok() {
                     f.stack.push(res.result);
                     Ok(None)
