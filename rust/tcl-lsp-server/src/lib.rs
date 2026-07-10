@@ -651,12 +651,15 @@ impl DeliveryCtx<'_> {
     /// before the send would let a `did_close` clearing-publish land between the
     /// currency check and the send, repainting squiggles on a now-closed document
     /// that nothing downstream clears (the deep pass then finds `!is_current` and
-    /// returns without publishing). The consequence to accept: on the progressive
-    /// path this is a *second* lock-held-across-send publish per cycle, so on a
-    /// ≥ `DIAGNOSTICS_FAST_TIER_MIN_LINES` file under a transiently slow client
-    /// (the bounded `channel(1)` transport parks the send) the worst-case
-    /// cross-document head-of-line stall is doubled versus a single-publish cycle
-    /// — a bounded, deliberate tradeoff for early feedback, not an oversight.
+    /// returns without publishing). This is a *second* lock-held-across-send
+    /// publish per cycle, so under a transiently slow client (the bounded
+    /// `channel(1)` transport parks the send) it would otherwise freeze every other
+    /// document's `did_change`/hover for however long that client takes to drain.
+    /// To cap that, the send is bounded by `timeout(DIAGNOSTICS_FAST_TIER_BUDGET,
+    /// …)`: the lock is held for at most the budget, after which this best-effort
+    /// push is dropped (the deep tier still supersedes it — the same outcome as the
+    /// already-accepted lift-worker-panic drop). The lock is *not* released before
+    /// the send — that would reopen `RUST_ISSUE_098` — only time-bounded.
     async fn deliver_fast_tier_if_current(
         &self,
         diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
@@ -669,9 +672,16 @@ impl DeliveryCtx<'_> {
             .get(self.uri)
             .is_some_and(|doc| doc.revision == self.revision)
         {
-            self.client
-                .publish_diagnostics(self.uri.clone(), diags, self.version)
-                .await;
+            // Best-effort/droppable (see above): cap the lock hold so a slow client
+            // can't hold `documents` hostage for every other document's edits.
+            // Dropping the parked `channel(1)` send on timeout is atomic — the push
+            // is simply lost and the deep tier supersedes it.
+            let _ = tokio::time::timeout(
+                DIAGNOSTICS_FAST_TIER_BUDGET,
+                self.client
+                    .publish_diagnostics(self.uri.clone(), diags, self.version),
+            )
+            .await;
         }
     }
 
@@ -5419,19 +5429,34 @@ impl Backend {
     ///   each is the cancellable per-item query, so `set_text` cancels them at a
     ///   per-item boundary rather than waiting them out.
     ///
-    /// Uses the process-global `db_config`: correct for every file in a
-    /// single-folder workspace (the common case), and harmless where a folder
-    /// overrides it — that file's warm lands under a different cache key and the
-    /// query simply recomputes it, exactly as before this warm existed.
+    /// Warms under every distinct config a request could resolve to — the global
+    /// `db_config` plus each folder-scoped override in `folder_db_configs` —
+    /// because `project_class_index` / `project_proc_var_index` apply a single
+    /// `resolved_db_config(uri)` uniformly to *every* project file. A
+    /// global-config-only warm would therefore miss the whole-project enrichment
+    /// loop for every file the moment any folder sets an override (not just the
+    /// overridden folder's files), since the loop keys `file_analysis_incremental`
+    /// on that one resolved config. Deduped, so a single-config workspace (the
+    /// common case) still warms each file exactly once; for the handful of override
+    /// folders a real workspace has, the extra `files × configs` primes are cheap
+    /// salsa cache fills.
     fn spawn_workspace_warm(&self) {
         let db = Arc::clone(&self.db);
         let db_project = Arc::clone(&self.db_project);
         let db_config = Arc::clone(&self.db_config);
+        let folder_db_configs = Arc::clone(&self.folder_db_configs);
         tokio::spawn(async move {
             let Some(project) = *db_project.lock().await else {
                 return;
             };
-            let config = *db_config.lock().await;
+            // Every config a request could resolve to: the global one plus each
+            // folder override, deduped (a single-config workspace warms once).
+            let mut configs = vec![*db_config.lock().await];
+            for (_, folder_config) in folder_db_configs.lock().await.iter() {
+                if !configs.contains(folder_config) {
+                    configs.push(*folder_config);
+                }
+            }
             let files: Vec<tcl_lsp_db::SourceFile> = {
                 let snapshot = db.lock().await.clone();
                 project.files(&snapshot).clone()
@@ -5444,28 +5469,32 @@ impl Backend {
                 .min(WORKSPACE_WARM_MAX_CONCURRENCY);
             let permits = Arc::new(Semaphore::new(concurrency));
             let mut warms = tokio::task::JoinSet::new();
-            for file in files {
-                // Acquire the permit *before* spawning so at most `concurrency` warm
-                // tasks (and thus snapshots) exist at once: the loop backpressures on
-                // a very large workspace rather than parking one pending task per
-                // file on the semaphore. `acquire_owned` moves the permit into the
-                // task, which holds it until its analysis returns.
-                let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
-                    break;
-                };
-                let db = Arc::clone(&db);
-                warms.spawn(async move {
-                    let _permit = permit;
-                    // Clone the snapshot only after the permit is held, so `set_text`
-                    // never waits on more than `concurrency` in-flight reads.
-                    let snapshot = db.lock().await.clone();
-                    let _ = tokio::task::spawn_blocking(move || {
-                        let _ = salsa::Cancelled::catch(|| {
-                            tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
-                        });
-                    })
-                    .await;
-                });
+            for config in configs {
+                for file in files.iter().copied() {
+                    // Acquire the permit *before* spawning so at most `concurrency`
+                    // warm tasks (and thus snapshots) exist at once: the loop
+                    // backpressures on a very large workspace rather than parking one
+                    // pending task per item on the semaphore. `acquire_owned` moves
+                    // the permit into the task, which holds it until its analysis
+                    // returns.
+                    let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
+                        break;
+                    };
+                    let db = Arc::clone(&db);
+                    warms.spawn(async move {
+                        let _permit = permit;
+                        // Clone the snapshot only after the permit is held, so
+                        // `set_text` never waits on more than `concurrency` in-flight
+                        // reads.
+                        let snapshot = db.lock().await.clone();
+                        let _ = tokio::task::spawn_blocking(move || {
+                            let _ = salsa::Cancelled::catch(|| {
+                                tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+                            });
+                        })
+                        .await;
+                    });
+                }
             }
             while warms.join_next().await.is_some() {}
         });
