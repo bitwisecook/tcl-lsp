@@ -152,7 +152,9 @@ suite("Code Actions", () => {
     await activate(e004Uri);
     const diagnostics = await waitForDiagnostics(e004Uri, { minCount: 3 });
 
-    const danglingElseif = diagnostics.find((d) => d.message === 'No script following "2" argument');
+    const danglingElseif = diagnostics.find(
+      (d) => d.message === 'No script following "2" argument',
+    );
     assert.ok(danglingElseif, "dangling-elseif E004 diagnostic should be present");
 
     const actions = (await pollUntil(
