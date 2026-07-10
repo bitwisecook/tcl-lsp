@@ -241,6 +241,34 @@ pub fn sccp(
     octal: Option<bool>,
     module_traces: Option<&ModuleVariableTraces>,
 ) -> SccpResult {
+    sccp_with_extra_escaping(cfg, ssa, param_constants, octal, &HashSet::new(), module_traces)
+}
+
+/// Like [`sccp`] but additionally forces every name in `extra_escaping` to
+/// `Overdefined`, the same treatment [`is_externally_mutable`] already gives
+/// a name this *function's own* `global`/`variable`/`upvar`/`trace`
+/// declares.
+///
+/// Needed for the *top-level* script specifically: top-level names already
+/// live in the global frame (there is no separate local frame for them to
+/// shadow), so a name the top-level body never mentions via `global` can
+/// still be reassigned mid-run by any *other* procedure's own `global NAME;
+/// set NAME …` — a plain call, with nothing textually resembling an alias
+/// from the top level's point of view, and therefore invisible to the
+/// per-function [`crate::var_observability`] scan `sccp` runs internally.
+/// [`crate::var_observability::scan_module_global_names`] computes the
+/// whole-module fact this closes the gap with; every other caller passes an
+/// empty set (via plain [`sccp`]) and gets identical behaviour to before.
+#[must_use]
+#[allow(clippy::implicit_hasher)]
+pub fn sccp_with_extra_escaping(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
+    octal: Option<bool>,
+    extra_escaping: &HashSet<String>,
+    module_traces: Option<&ModuleVariableTraces>,
+) -> SccpResult {
     let preds = compute_predecessors(cfg);
     let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
     if let Some(seed) = param_constants {
@@ -265,8 +293,13 @@ pub fn sccp(
     // Force every such definition to OVERDEFINED so SCCP never propagates a
     // constant through it; the read is still tracked for liveness. The check
     // consults the whole-function (flow-insensitive) view of the
-    // `var_observability` alias/trace lattice.
-    let escaping = crate::var_observability::analyse_var_observability(cfg).escaping_var_names();
+    // `var_observability` alias/trace lattice, widened by any whole-module
+    // fact the caller supplies (see `sccp_with_extra_escaping`).
+    let mut escaping =
+        crate::var_observability::analyse_var_observability(cfg).escaping_var_names();
+    if !extra_escaping.is_empty() {
+        escaping.extend(extra_escaping.iter().cloned());
+    }
 
     let mut executable_blocks: HashSet<BlockId> = HashSet::new();
     let mut executable_edges: HashSet<(BlockId, BlockId)> = HashSet::new();
@@ -452,7 +485,12 @@ fn branch_deferrable(
 /// different proc, reached through a call whose order relative to this
 /// read/write isn't statically known — see
 /// [`ModuleVariableTraces`]'s module doc for the repro this closes).
-fn is_externally_mutable(
+///
+/// `pub(crate)`: also consulted by [`crate::optimiser::propagation`]'s
+/// def-use-chain-based load-forwarding (O102), which does not otherwise run
+/// through this module's lattice and so needs the same predicate applied
+/// directly.
+pub(crate) fn is_externally_mutable(
     name: &str,
     escaping: &HashSet<String>,
     module_traces: Option<&ModuleVariableTraces>,

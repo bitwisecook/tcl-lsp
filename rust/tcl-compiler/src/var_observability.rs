@@ -260,6 +260,70 @@ fn collect_escaping(state: &State, names: &mut std::collections::HashSet<String>
     }
 }
 
+/// Whole-module scan: every (normalised) variable name declared via a
+/// literal `global NAME …` statement anywhere in the module — the
+/// top-level script, every procedure, every `TclOO` method body, and every
+/// synthetic body unit (`apply` lambda / `namespace eval` body).
+///
+/// The per-function escaping-set computed by [`analyse_var_observability`]
+/// (and consulted by [`crate::sccp::sccp`]) answers "is this name aliased
+/// *within this function's own body*" — sound for an ordinary procedure,
+/// whose local frame is genuinely private unless *that body itself*
+/// declares `global`/`variable`/`upvar`. It is unsound for the *top-level*
+/// script: top-level names already live in the global frame (there is no
+/// separate local frame for them to shadow), so a name the top-level body
+/// never mentions via `global` can still be reassigned mid-run by any
+/// *other* procedure's own `global NAME; set NAME …` — an ordinary call,
+/// with nothing textually resembling an alias, from the top level's point
+/// of view.  (Reproduced against tclsh 8.6/9.0: `set n 1; proc p {} {global
+/// n; set n 2}; p; puts $n` prints `2`; before this scan fed into SCCP as
+/// `extra_escaping`, the optimiser proposed folding the final `puts` to the
+/// stale literal `1`.)
+///
+/// This whole-module union is fed into the *top-level* unit's SCCP build
+/// (see `CompilationUnit::build_for_with_config`) as `extra_escaping` to
+/// close that gap; per-procedure/method scoping needs no such widening —
+/// each already protects its own declared aliases flow-sensitively.
+#[must_use]
+pub fn scan_module_global_names(
+    ir_module: &crate::ir::Module,
+) -> std::collections::HashSet<String> {
+    use crate::ir::{Script, Statement, for_each_statement};
+    use crate::var_scoping::global_declaration_indices;
+
+    let mut names = std::collections::HashSet::new();
+    let mut visit = |script: &Script| {
+        for_each_statement(script, &mut |stmt| {
+            let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
+                return;
+            };
+            let canon = stmt.canonical_command_or_source();
+            if canon.strip_prefix("::").unwrap_or(canon) != "global" {
+                return;
+            }
+            for i in global_declaration_indices(args) {
+                if let Some(a) = args.get(i) {
+                    let name = normalise_var_name(a);
+                    if !name.is_empty() {
+                        names.insert(name.to_owned());
+                    }
+                }
+            }
+        });
+    };
+    visit(&ir_module.top_level);
+    for proc in ir_module.procedures.values() {
+        visit(&proc.body);
+    }
+    for method in ir_module.methods.values() {
+        visit(&method.body);
+    }
+    for body in ir_module.body_units.values() {
+        visit(&body.body);
+    }
+    names
+}
+
 /// Compute the flow-sensitive alias/observability lattice for `cfg`.
 #[must_use]
 pub fn analyse_var_observability(cfg: &CfgFunction) -> VarObservability<'_> {
@@ -596,5 +660,35 @@ mod tests {
         let m = module("oo::class create C {\n method m {} { trace add variable v write cb }\n}");
         let t = scan_module_variable_traces(&m);
         assert!(t.is_traced("v"));
+    }
+
+    #[test]
+    fn scan_module_global_names_finds_proc_body_global() {
+        let c = cu("proc ::p {} { global n\nset n 2 }");
+        let names = scan_module_global_names(&c.ir_module);
+        assert!(names.contains("n"), "{names:?}");
+    }
+
+    #[test]
+    fn scan_module_global_names_ignores_local_and_namespace_vars() {
+        let c = cu("proc ::p {} { set x 1\nvariable v\nset v 2 }");
+        let names = scan_module_global_names(&c.ir_module);
+        assert!(names.is_empty(), "{names:?}");
+    }
+
+    #[test]
+    fn scan_module_global_names_finds_declaration_nested_in_if() {
+        // A `global` declaration buried inside a conditional body must still
+        // be found — the scan is flow-insensitive (any occurrence counts).
+        let c = cu("proc ::p {} { if {1} { global n\nset n 2 } }");
+        let names = scan_module_global_names(&c.ir_module);
+        assert!(names.contains("n"), "{names:?}");
+    }
+
+    #[test]
+    fn scan_module_global_names_finds_declaration_in_method_body() {
+        let c = cu("oo::class create C {\n method m {} { global n\nset n 2 }\n}");
+        let names = scan_module_global_names(&c.ir_module);
+        assert!(names.contains("n"), "{names:?}");
     }
 }

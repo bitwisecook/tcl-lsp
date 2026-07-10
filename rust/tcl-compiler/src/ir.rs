@@ -94,6 +94,73 @@ impl Script {
     }
 }
 
+/// Recursively visit every statement in `script`, including nested bodies
+/// (`if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`), in source order.
+/// Each statement is visited before its own nested bodies (pre-order): a
+/// compound statement (`If`, `For`, …) is passed to `visit` once for itself,
+/// then its nested scripts are walked in turn.
+///
+/// Shared traversal for whole-module / whole-body scans that need "every
+/// statement anywhere in this script" without each re-deriving the same
+/// nested-body match arms (e.g. [`crate::var_observability::scan_module_global_names`]).
+pub fn for_each_statement(script: &Script, visit: &mut impl FnMut(&Statement)) {
+    for stmt in &script.statements {
+        visit(stmt);
+        match stmt {
+            Statement::Block { body, .. }
+            | Statement::While { body, .. }
+            | Statement::Catch { body, .. }
+            | Statement::Foreach { body, .. } => {
+                for_each_statement(body, visit);
+            }
+            Statement::If {
+                clauses, else_body, ..
+            } => {
+                for c in clauses {
+                    for_each_statement(&c.body, visit);
+                }
+                if let Some(b) = else_body {
+                    for_each_statement(b, visit);
+                }
+            }
+            Statement::For {
+                init, next, body, ..
+            } => {
+                for_each_statement(init, visit);
+                for_each_statement(next, visit);
+                for_each_statement(body, visit);
+            }
+            Statement::Try {
+                body,
+                handlers,
+                finally_body,
+                ..
+            } => {
+                for_each_statement(body, visit);
+                for h in handlers {
+                    for_each_statement(&h.body, visit);
+                }
+                if let Some(fb) = finally_body {
+                    for_each_statement(fb, visit);
+                }
+            }
+            Statement::Switch {
+                arms, default_body, ..
+            } => {
+                for a in arms {
+                    if let Some(b) = &a.body {
+                        for_each_statement(b, visit);
+                    }
+                }
+                if let Some(b) = default_body {
+                    for_each_statement(b, visit);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 /// An `if` clause: condition + body.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IfClause {
@@ -795,6 +862,59 @@ mod tests {
         }];
         let script = Script::from_statements(stmts);
         assert_eq!(script.statements.len(), 1);
+    }
+
+    #[test]
+    fn for_each_statement_visits_nested_bodies_in_order() {
+        // `if {c} { inner1 } else { inner2 }` — the visitor must see the
+        // `If` itself plus both nested-body calls, in source order.
+        let inner1 = Statement::Call {
+            span: Span::new(0, 0),
+            command: "inner1".into(),
+            canonical_command: None,
+            args: Vec::new(),
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        };
+        let inner2 = Statement::Call {
+            span: Span::new(0, 0),
+            command: "inner2".into(),
+            canonical_command: None,
+            args: Vec::new(),
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        };
+        let if_stmt = Statement::If {
+            span: Span::new(0, 0),
+            clauses: vec![IfClause {
+                condition: ExprNode::Raw { text: "c".into() },
+                condition_span: Span::new(0, 0),
+                body: Script::from_statements(vec![inner1]),
+                body_span: Span::new(0, 0),
+            }],
+            else_body: Some(Script::from_statements(vec![inner2])),
+            else_span: None,
+        };
+        let script = Script::from_statements(vec![if_stmt]);
+
+        let mut seen: Vec<String> = Vec::new();
+        for_each_statement(&script, &mut |stmt| {
+            let name = match stmt {
+                Statement::If { .. } => "if".to_owned(),
+                Statement::Call { command, .. } => command.clone(),
+                _ => "other".to_owned(),
+            };
+            seen.push(name);
+        });
+        assert_eq!(seen, vec!["if", "inner1", "inner2"]);
     }
 
     #[test]

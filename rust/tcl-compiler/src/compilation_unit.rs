@@ -40,7 +40,7 @@ use crate::ir::Module as IrModule;
 use crate::lowering::lower_to_ir_with_config;
 use crate::memory_ssa::{MemorySsaFunction, build_memory_ssa};
 use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props};
-use crate::sccp::{SccpResult, sccp};
+use crate::sccp::{SccpResult, sccp_with_extra_escaping};
 use crate::ssa::{SsaFunction, ValueKey, build_ssa};
 use crate::taint::{TaintLattice, propagate_taints};
 use crate::type_infer::propagate_types;
@@ -268,6 +268,77 @@ impl FunctionUnit {
         known_classes: &HashSet<String>,
         module_traces: Option<&crate::var_observability::ModuleVariableTraces>,
     ) -> Self {
+        Self::build_full(
+            name,
+            cfg,
+            params,
+            registry,
+            param_constants,
+            known_classes,
+            &HashSet::new(),
+            module_traces,
+        )
+    }
+
+    /// Like [`Self::build_with_param_constants_and_classes`] but additionally
+    /// widens SCCP's escaping-set with `extra_global_escaping` — see
+    /// [`crate::sccp::sccp_with_extra_escaping`]. Only the *top-level* unit
+    /// build needs this (top-level names already live in the global frame,
+    /// so a name never `global`-declared in the top-level body itself can
+    /// still be reassigned by another procedure's own `global NAME` — see
+    /// [`crate::var_observability::scan_module_global_names`]); every other
+    /// caller goes through [`Self::build_with_param_constants_and_classes`]
+    /// with an implicit empty set and sees identical behaviour to before
+    /// this existed.
+    #[must_use]
+    pub fn build_with_param_constants_classes_and_escaping(
+        name: impl Into<String>,
+        cfg: CfgFunction,
+        params: &[String],
+        registry: &CommandRegistry,
+        param_constants: Option<
+            &std::collections::HashMap<
+                (String, crate::ssa::Version),
+                crate::analyses::LatticeValue,
+            >,
+        >,
+        known_classes: &HashSet<String>,
+        extra_global_escaping: &HashSet<String>,
+        module_traces: Option<&crate::var_observability::ModuleVariableTraces>,
+    ) -> Self {
+        Self::build_full(
+            name,
+            cfg,
+            params,
+            registry,
+            param_constants,
+            known_classes,
+            extra_global_escaping,
+            module_traces,
+        )
+    }
+
+    /// Shared body behind [`Self::build_with_param_constants_and_classes`] and
+    /// [`Self::build_with_param_constants_classes_and_escaping`] — the two
+    /// differ only in whether SCCP's escaping-set is widened with a
+    /// whole-module fact.
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    fn build_full(
+        name: impl Into<String>,
+        cfg: CfgFunction,
+        params: &[String],
+        registry: &CommandRegistry,
+        param_constants: Option<
+            &std::collections::HashMap<
+                (String, crate::ssa::Version),
+                crate::analyses::LatticeValue,
+            >,
+        >,
+        known_classes: &HashSet<String>,
+        extra_global_escaping: &HashSet<String>,
+        module_traces: Option<&crate::var_observability::ModuleVariableTraces>,
+    ) -> Self {
         // Complexity guard (block-count half): a pathologically large body
         // would cost seconds of SSA + dataflow for near-zero findings, so skip
         // the deep analysis and flag the unit. The body-byte half is applied by
@@ -282,11 +353,12 @@ impl FunctionUnit {
         // The registry encodes the analysis dialect's Tcl version, which fixes
         // how a bare leading-zero literal (`08`, `010`) is read when SCCP folds
         // `==`/`!=` (octal in tcl8.x / F5 / EDA, decimal in tcl9.0).
-        let mut sccp = sccp(
+        let mut sccp = sccp_with_extra_escaping(
             &cfg,
             &ssa,
             param_constants,
             Some(registry.leading_zero_is_octal()),
+            extra_global_escaping,
             module_traces,
         );
         // Surface `[info exists X]` / `[array exists X]`
@@ -621,13 +693,21 @@ impl CompilationUnit {
             v.sort_unstable();
             v
         };
-        let top_level = FunctionUnit::build_with_param_constants_and_classes(
+        // Every name any procedure/method declares via `global NAME` —
+        // top-level bare names already live in the global frame, so a call
+        // to such a procedure can reassign one mid-run even though the
+        // top-level body never mentions it via `global` itself. See
+        // `crate::var_observability::scan_module_global_names`.
+        let top_level_extra_escaping =
+            crate::var_observability::scan_module_global_names(&ir_module);
+        let top_level = FunctionUnit::build_with_param_constants_classes_and_escaping(
             "::top",
             cfg_module.top_level.clone(),
             &[],
             registry,
             None,
             &known_class_set,
+            &top_level_extra_escaping,
             Some(&module_traces),
         );
         // Module-wide upvar/param context — the CFG-determining context a
@@ -1334,6 +1414,64 @@ mod tests {
                 .executable_blocks
                 .contains(&cu.top_level.ssa.entry)
         );
+    }
+
+    /// Regression: a top-level bare name reassigned by *another* procedure's
+    /// own `global NAME` must never resolve to a `Const` in the top-level
+    /// unit's own SCCP lattice — top-level names already live in the global
+    /// frame, so the write is visible there even though the top-level body
+    /// itself never declares `global`. Confirmed against tclsh 8.6/9.0 as a
+    /// real miscompile before `scan_module_global_names` fed into
+    /// `sccp_with_extra_escaping`: the optimiser proposed folding a later
+    /// `puts $g` / `if {$g == …}` to the stale pre-call literal.
+    #[test]
+    fn top_level_var_touched_by_callee_global_is_overdefined() {
+        let reg = registry();
+        let src = "set g 4\nproc helper {} { global g\nset g 17 }\nhelper\n";
+        let cu = CompilationUnit::build_for(src, &reg, false);
+        let sym = cu
+            .top_level
+            .ssa
+            .var_symbol("g")
+            .expect("top-level `g` should be interned");
+        let all_overdefined = cu
+            .top_level
+            .sccp
+            .values
+            .iter()
+            .filter(|((s, _), _)| *s == sym)
+            .all(|(_, lv)| !matches!(lv, crate::analyses::LatticeValue::Const(_)));
+        assert!(
+            all_overdefined,
+            "expected every `g` lattice entry to be non-Const, got {:?}",
+            cu.top_level
+                .sccp
+                .values
+                .iter()
+                .filter(|((s, _), _)| *s == sym)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    /// Control: a top-level name *no* procedure ever `global`-declares must
+    /// still fold to a genuine `Const` — the whole-module scan must not
+    /// over-widen every top-level variable (that would be a precision
+    /// regression, not a soundness fix).
+    #[test]
+    fn top_level_var_untouched_by_any_callee_still_folds() {
+        let reg = registry();
+        let src = "set safe_const 42\nproc other {} { puts unrelated }\nother\n";
+        let cu = CompilationUnit::build_for(src, &reg, false);
+        let sym = cu
+            .top_level
+            .ssa
+            .var_symbol("safe_const")
+            .expect("top-level `safe_const` should be interned");
+        let has_const =
+            cu.top_level.sccp.values.iter().any(|((s, _), lv)| {
+                *s == sym && matches!(lv, crate::analyses::LatticeValue::Const(_))
+            });
+        assert!(has_const, "expected `safe_const` to still fold to a Const");
     }
 
     #[test]

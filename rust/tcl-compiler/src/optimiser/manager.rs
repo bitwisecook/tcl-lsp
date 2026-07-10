@@ -767,9 +767,14 @@ pub fn optimise_raw(
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<Optimisation> {
-    // Split the raw CU build to avoid recomputing on
-    // `with_interprocedural` — done in two lines for clarity.
-    let cu = CompilationUnit::build_for_with_config(
+    // Split the raw CU build to avoid `with_interprocedural`'s taint
+    // re-run (irrelevant for `optimise_raw`'s test callers) — but `cu.interproc`
+    // is still populated (`try_fold_static_proc_call` / `try_o103_proc_fold`
+    // in `propagation` read it directly, the same field `optimise_unit_raw`'s
+    // production callers populate via `with_interprocedural`), so an O103
+    // interprocedural fold behaves identically whether exercised through this
+    // helper or the real pipeline.
+    let mut cu = CompilationUnit::build_for_with_config(
         source,
         registry,
         false,
@@ -782,6 +787,7 @@ pub fn optimise_raw(
         dialect,
         crate::interprocedural::ObjectTypeMap(&object_types),
     );
+    cu.interproc = Some(ia.clone());
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);
     // The whole-module builtin-fold trust gate (O129).

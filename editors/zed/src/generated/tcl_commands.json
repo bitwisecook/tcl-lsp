@@ -140,14 +140,6 @@
       "summary": "list membership"
     },
     {
-      "name": "::tcl::mathop::max",
-      "summary": "maximum of arguments"
-    },
-    {
-      "name": "::tcl::mathop::min",
-      "summary": "minimum of arguments"
-    },
-    {
       "name": "::tcl::mathop::ne",
       "summary": "string inequality"
     },
@@ -5639,10 +5631,6 @@
       "summary": "Calculate the cotangent of the angle (in degrees) Angle (in degrees)."
     },
     {
-      "name": "max",
-      "summary": "maximum of arguments"
-    },
-    {
       "name": "md4::HMACFinal",
       "summary": "Finalise an incremental HMAC-MD4 and return the result."
     },
@@ -5838,10 +5826,6 @@
       "name": "mime::word_encode",
       "summary": "Encode a string per RFC 2047.",
       "pure": true
-    },
-    {
-      "name": "min",
-      "summary": "minimum of arguments"
     },
     {
       "name": "mkdoc::run",
@@ -7790,14 +7774,6 @@
     {
       "name": "tcl::mathop::in",
       "summary": "list membership"
-    },
-    {
-      "name": "tcl::mathop::max",
-      "summary": "maximum of arguments"
-    },
-    {
-      "name": "tcl::mathop::min",
-      "summary": "minimum of arguments"
     },
     {
       "name": "tcl::mathop::ne",
