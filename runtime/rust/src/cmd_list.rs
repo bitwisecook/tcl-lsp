@@ -154,19 +154,9 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             },
             None => {
                 let empty = list::new_list_obj(&[]); // rc 0
-                let stored = match &elem {
-                    Some(k) => interp.var_set_elem(&base, k, empty),
-                    None => interp.var_set(&base, empty),
-                };
-                match stored {
-                    Ok(()) => {
-                        interp.set_result(empty);
-                        Code::Ok
-                    }
-                    Err(e) => {
-                        drop_fresh(empty);
-                        crate::builtins::var_error(interp, &name, e)
-                    }
+                match interp.store_var_result(&base, elem.as_deref(), empty) {
+                    Ok(()) => Code::Ok,
+                    Err(e) => crate::builtins::var_error(interp, &name, e),
                 }
             }
         };
@@ -191,20 +181,12 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
 
     // Always store back: rebinds the variable (a refcount-neutral re-set when
-    // appended in place) and fires the write trace once.
-    let stored = match &elem {
-        Some(k) => interp.var_set_elem(&base, k, result),
-        None => interp.var_set(&base, result),
-    };
-    match stored {
-        Ok(()) => {
-            interp.set_result(result);
-            Code::Ok
-        }
-        Err(e) => {
-            drop_fresh(result);
-            crate::builtins::var_error(interp, &name, e)
-        }
+    // appended in place) and fires the write trace once. `store_var_result`
+    // holds a protective reference across the store so a write trace that unsets
+    // the variable can't free a fresh `result` before it becomes the result.
+    match interp.store_var_result(&base, elem.as_deref(), result) {
+        Ok(()) => Code::Ok,
+        Err(e) => crate::builtins::var_error(interp, &name, e),
     }
 }
 
@@ -1211,6 +1193,29 @@ mod tests {
         assert_eq!(
             ok(b"set l {1 2}; set m 0; trace add variable l write {incr ::m;#}; lappend l 3; set m"),
             b"1"
+        );
+    }
+
+    /// A write trace that mutates or unsets the variable during `lappend`
+    /// (append-7.x): the result is the variable's *post-trace* value (empty when
+    /// unset, the trace's new value otherwise), matching C — and the fresh list
+    /// object is not freed mid-command (the `run` helper's leak / double-free
+    /// counters guard against the use-after-free this used to be).
+    #[test]
+    fn lappend_write_trace_unset_and_rewrite() {
+        // The write trace unsets the variable: result is empty, var gone.
+        assert_eq!(
+            ok(b"proc foo args {global x; unset x}\ntrace add variable x write foo\nlappend x 1"),
+            b""
+        );
+        assert_eq!(
+            ok(b"proc foo args {global x; unset x}\ntrace add variable x write foo\nlappend x 1; info exists x"),
+            b"0"
+        );
+        // The write trace rewrites the variable: result reflects the new value.
+        assert_eq!(
+            ok(b"proc foo args {global y; set y ZZZ}\ntrace add variable y write foo\nlappend y 1"),
+            b"ZZZ"
         );
     }
 

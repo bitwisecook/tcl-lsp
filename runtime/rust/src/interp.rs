@@ -1796,6 +1796,49 @@ impl Interp {
         Ok(())
     }
 
+    /// Store `obj` into the `(base, elem)` variable and, on success, publish it
+    /// as the interp result — while holding a **protective reference** across the
+    /// store. `var_set`/`var_set_elem` fire the write trace, and a trace that
+    /// `unset`s the variable drops the store's reference; for a *fresh* `obj`
+    /// (the value `lappend`/`append` just built) that was the only reference, so
+    /// without this bracket the object is freed mid-command and the following
+    /// `set_result` reads freed memory — a use-after-free that a write-traced
+    /// `lappend`/`append` hits (append-7.x, var-traces). On a store error the
+    /// bracket releases the reference (freeing a fresh `obj`, as the old
+    /// `drop_fresh` did) and the error is returned for the caller to render.
+    pub(crate) fn store_var_result(
+        &mut self,
+        base: &[u8],
+        elem: Option<&[u8]>,
+        obj: *mut TclObj,
+    ) -> Result<(), VarError> {
+        // SAFETY: `obj` is a live object the caller just built or read; the
+        // increment/decrement bracket keeps it alive across the trace firing.
+        unsafe { obj::incr_ref_count(obj) };
+        let stored = match elem {
+            Some(k) => self.var_set_elem(base, k, obj),
+            None => self.var_set(base, obj),
+        };
+        if stored.is_ok() {
+            // The result is the variable's value *after* the write trace ran, not
+            // necessarily the value we stored: a trace may have rewritten the
+            // variable (C returns the new value) or unset it (C returns empty).
+            // `var_get*` are trace-free store reads, so this fires no read trace.
+            let final_val = match elem {
+                Some(k) => self.var_get_elem(base, k),
+                None => self.var_get(base),
+            };
+            match final_val {
+                Some(v) => self.set_result(v),
+                None => self.set_result_bytes(b""),
+            }
+        }
+        // SAFETY: balances the protective increment above (the store retained its
+        // own reference on success; `set_result` retained the result's).
+        unsafe { obj::decr_ref_count(obj) };
+        stored
+    }
+
     /// Flag the scalar `name` `const` (the `const` command, after its value is
     /// stored and its write traces have fired).
     pub(crate) fn mark_constant(&self, name: &[u8]) {

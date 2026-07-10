@@ -96,22 +96,12 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Always store back: rebinds the variable to `result` — a refcount-neutral
     // re-set when it was grown in place — and fires the write trace exactly once
     // (the in-place path used to skip the store and so fire no trace, diverging
-    // from C; this fixes that).
-    let stored = match &elem {
-        Some(k) => interp.var_set_elem(&base, k, result),
-        None => interp.var_set(&base, result),
-    };
-    match stored {
-        Ok(()) => {
-            interp.set_result(result);
-            Code::Ok
-        }
-        Err(e) => {
-            // `result` is fresh (rc 0) on the copy/new path; on the in-place path
-            // it's the frame-owned object and `drop_fresh` is a no-op.
-            drop_fresh(result);
-            crate::builtins::var_error(interp, &name, e)
-        }
+    // from C; this fixes that). `store_var_result` holds a protective reference
+    // across the store so a write trace that unsets the variable can't free a
+    // fresh `result` before it becomes the result (a use-after-free).
+    match interp.store_var_result(&base, elem.as_deref(), result) {
+        Ok(()) => Code::Ok,
+        Err(e) => crate::builtins::var_error(interp, &name, e),
     }
 }
 
@@ -1544,6 +1534,18 @@ mod tests {
         let (c, m) = run(b"array set a {p 1}; append a(q)");
         assert_eq!(c, Code::Error);
         assert_eq!(&m, b"can't read \"a(q)\": no such element in array");
+    }
+
+    /// A write trace that unsets the variable during `append` (append-7.x): the
+    /// result is empty (the var's post-trace value), and the fresh string object
+    /// is not freed mid-command — the `run` helper's leak / double-free counters
+    /// guard against the former use-after-free.
+    #[test]
+    fn append_write_trace_unset() {
+        assert_eq!(
+            ok(b"proc foo args {global y; unset y}\ntrace add variable y write foo\nappend y abc"),
+            b""
+        );
     }
 
     /// `append` routed through the shared byte core: byte-exact (a high byte
