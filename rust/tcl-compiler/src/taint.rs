@@ -94,8 +94,10 @@
 //! * `tcl_registry::taint::is_sanitiser` covers fixed-numeric-return
 //!   sanitisers (e.g. `string length`, `string is integer`).
 //!
-//! Sinks are still resolved through the [`Traits::TAINT_SINK`] /
-//! [`Traits::EVALUATES_CODE`] flags inside `find_taint_warnings`.
+//! Sink classification itself is registry-driven too: [`classify_sink`]
+//! asks [`tcl_registry::taint::classify_taint_sinks`] (which reads
+//! [`Traits::TAINT_SINK`] / [`Traits::EVALUATES_CODE`] plus each spec's
+//! declared output/log sink code) rather than matching command names.
 
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::{DiagCode, DiagFamily};
