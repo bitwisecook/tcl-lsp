@@ -270,15 +270,31 @@ fn c2_bare_set_after_break_still_arity_errors() {
 }
 
 #[test]
-fn c2_bare_set_after_unterminated_expr_brace_still_analysed() {
-    // An unterminated braced *expression* (`if {…`) must also recover so the
-    // following command is analysed — a bare `set` still arity-errors.
+fn c2_if_with_unterminated_expr_brace_flags_its_own_malformed_clause() {
+    // Unlike an unterminated *bracket* substitution (`[foo bar`, whose
+    // content is still live Tcl-command syntax the parser keeps
+    // recognising even without a closing `]` — see
+    // `c2_bare_set_after_break_still_arity_errors`), an unterminated
+    // *brace* word has no such inherent structure: the lexer can't know in
+    // advance it will be handed to `if` as a script argument, so with no
+    // closing `}` the whole remainder of the file — condition *and*
+    // `set\n` — is swallowed as one opaque, unparsed span (confirmed via
+    // `tcl explore --show structuralIndex`: 1 unterminated brace, 0
+    // command boundaries beyond EOF, the entire tail folded into a single
+    // "inert" span). So `set` is genuinely never re-tokenised as its own
+    // command here — this does *not* exercise the same tail-recovery path
+    // the bracket sibling test does. What *is* still true, and is what
+    // this test actually verifies: `if`'s own single swallowed argument
+    // (condition only, no body) is itself an arity/shape defect — E002 (a
+    // plain arity floor) or the more precise E004 (`if`'s dedicated
+    // clause-shape check, which subsumes E002 for `if` — see
+    // `tcl-compiler`'s `no_duplicate_e002_alongside_e004`).
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "if {$x > 5\nset\n");
     assert!(
-        codes(&diags).contains("E002"),
-        "tail `set` after `if {{` should arity-error; got {:?}",
+        codes(&diags).contains("E002") || codes(&diags).contains("E004"),
+        "if's own malformed (condition-only) clause should still arity/shape-error; got {:?}",
         codes(&diags)
     );
 }

@@ -106,6 +106,7 @@ class StringCommand(CommandDef):
 | `is_control_flow` | `bool` | `False` | Command is a control-flow statement (break, continue, return) |
 | `needs_start_cmd` | `bool` | `False` | Bytecode control flow: needs a `startCmd` instruction |
 | `creates_scope_alias` | `bool` | `False` | Creates a scope alias (upvar-like binding) |
+| `structurally_checked_arity` | `bool` | `False` | Registry `arity` is a descriptive floor only; a `clause_shape_check` hook owns real arity + shape validation, so the generic E002/E003 floor/ceiling check steps aside (`if`) |
 
 #### Purity and optimisation
 
@@ -120,6 +121,7 @@ class StringCommand(CommandDef):
 |-------|------|---------|---------|
 | `arg_roles` | `dict[int, ArgRole]` | `{}` | Static arg roles: `BODY`, `EXPR`, `VAR_NAME`, `VAR_READ`, `PATTERN`, etc. |
 | `arg_role_resolver` | `ArgRoleResolver \| None` | `None` | Dynamic arg-role resolution for variable-layout commands (if, try, switch) |
+| `clause_shape_check` | `ClauseShapeChecker \| None` | `None` | Validates a clause-chain shape a plain `min..=max` arity can't express (if's `elseif`/`else` chain -- see `tcl_registry::clause_shape`); the compiler dispatches on the hook's presence, not the command name |
 | `arg_types` | `dict[int, ArgTypeHint]` | `{}` | Per-argument type expectations (e.g. `INT`, `LIST`).  Drives shimmer detection |
 | `return_type` | `TclType \| None` | `None` | Return type of the command |
 | `keyword_completions` | `KeywordCompletionProvider \| None` | `None` | Keyword+scaffold completions for structural commands |

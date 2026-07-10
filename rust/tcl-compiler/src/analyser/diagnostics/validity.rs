@@ -72,6 +72,42 @@ fn count_positionals(args: &[String], arg_expand: &[bool], start: usize) -> (usi
     (nargs_min, any_expand)
 }
 
+/// Widen a single braced (`Str`) / bracketed (`Cmd`) word token's `end`
+/// to cover its own closing delimiter — the per-token equivalent of the
+/// segmenter's `widen_word_end` (`crate::segmenter`, private to its own
+/// recovery logic, so duplicated here rather than exposed cross-module).
+/// Per the lexer's inner-end convention (see `AGENTS.md`, "Word-token
+/// closing delimiters"), a non-empty braced/bracketed word's `end()`
+/// already sits on the closer byte, one short of covering it; an empty
+/// `{}` / `[]` already has `end()` past the closer, so it is left alone
+/// (widening it could swallow an unrelated adjacent `}` / `]` from
+/// whatever encloses this word — `RUST_ISSUE_527`). Any other token kind
+/// (a bareword, `then`/`elseif`/`else`, a `Var`, …) has no closer to
+/// widen for.
+fn widen_token_end(tok: tcl_lexer::Token, source: &str) -> u32 {
+    let closer = match tok.kind {
+        tcl_lexer::TokenType::Str => b'}',
+        tcl_lexer::TokenType::Cmd => b']',
+        _ => return tok.span.end(),
+    };
+    let end = tok.span.end();
+    if tcl_lexer::SourceMap::new(source).token_text(tok).is_empty() {
+        return end;
+    }
+    if source.as_bytes().get(end as usize) == Some(&closer) {
+        end + 1
+    } else {
+        end
+    }
+}
+
+/// A single word token's full source span, closing delimiter included
+/// (see [`widen_token_end`]) — for anchoring a diagnostic tightly on one
+/// whole word rather than dropping its last byte.
+fn widened_word_span(tok: tcl_lexer::Token, source: &str) -> tcl_lexer::Span {
+    tcl_lexer::Span::new(tok.span.start(), widen_token_end(tok, source))
+}
+
 /// Compare a resolved [`Arity`] against an observed positional-argument
 /// count and build the E002 / E003 diagnostic, or `None` when the count
 /// fits. Shared by the registry-command arity path
@@ -524,11 +560,15 @@ impl Analyser {
         );
 
         // `TclOO` constructor-call arity (`ClassName new ?args?` /
-        // `ClassName create name ?args?`) — queued unconditionally whenever
-        // the first word is literally `new`/`create`, independent of
+        // `ClassName create name ?args?` / `ClassName createWithNamespace
+        // name ::ns ?args?`) — queued unconditionally whenever the first
+        // word is literally one of those three keywords, independent of
         // whether `cmd_name` resolves to anything at all; a call whose head
         // isn't a locally-known class is silently dropped at flush time.
-        if matches!(args.first().map(String::as_str), Some("new" | "create")) {
+        if matches!(
+            args.first().map(String::as_str),
+            Some("new" | "create" | "createWithNamespace")
+        ) {
             self.queue_ctor_arity_candidate(
                 cmd_name,
                 &ArityWords {
@@ -654,6 +694,12 @@ impl Analyser {
     /// for the subcommand path), so the leading-option scan and
     /// positional count operate on the same coordinate system as
     /// `sig`.
+    ///
+    /// A `sig` carrying [`tcl_registry::Traits::STRUCTURALLY_CHECKED_ARITY`]
+    /// (`if`) is skipped entirely: its registry `arity` is a descriptive
+    /// floor only, and its dedicated structural diagnostic (E004) already
+    /// covers every too-few-/malformed-shape case this generic check
+    /// would otherwise duplicate.
     fn check_simple_arity(
         &mut self,
         resolution_name: &str,
@@ -662,6 +708,12 @@ impl Analyser {
         words: &ArityWords<'_>,
         scope_path: &[usize],
     ) {
+        if sig
+            .traits
+            .contains(tcl_registry::Traits::STRUCTURALLY_CHECKED_ARITY)
+        {
+            return;
+        }
         let ArityWords {
             args,
             arg_tokens,
@@ -936,24 +988,26 @@ impl Analyser {
 
     /// Idempotent: drains `pending_ctor_arity`, so a second call is a no-op.
     ///
-    /// Resolves each queued `ClassName new` / `ClassName create name`
-    /// candidate against `all_classes` (fully populated post-walk, after
-    /// every per-item body has been grafted) using the same current-
-    /// namespace-then-global resolution and top-level order gate as the
-    /// same-file proc/alias arity path. Only genuine `TclOO` classes
-    /// (`oo::class` / `oo::configurable` / `oo::abstract` / `oo::singleton`
-    /// metaclasses) are checked — snit/itcl classes use an entirely
-    /// different instantiation protocol (`TypeName instanceName ?args?`,
-    /// never `new`/`create`), so their (unrelated) `new`/`create` calls, if
-    /// any, must not be arity-checked against a `TclOO` constructor.
+    /// Resolves each queued `ClassName new` / `ClassName create name` /
+    /// `ClassName createWithNamespace name ::ns` candidate against
+    /// `all_classes` (fully populated post-walk, after every per-item body
+    /// has been grafted) using the same current-namespace-then-global
+    /// resolution and top-level order gate as the same-file proc/alias
+    /// arity path. Only genuine `TclOO` classes (`oo::class` /
+    /// `oo::configurable` / `oo::abstract` / `oo::singleton` metaclasses)
+    /// are checked — snit/itcl classes use an entirely different
+    /// instantiation protocol (`TypeName instanceName ?args?`, never
+    /// `new`/`create`/`createWithNamespace`), so their (unrelated) calls,
+    /// if any, must not be arity-checked against a `TclOO` constructor.
     ///
     /// A candidate resolving to a class with no explicit constructor
     /// anywhere in its MRO is dropped — `TclOO`'s inherited default
     /// constructor accepts any argument count (confirmed against tclsh
-    /// 9.0.4). `create`'s mandatory leading object-name word is folded into
-    /// the expected bound (`bump_arity`) before comparison, so its arity
-    /// message reads in terms of `create`'s own full argument list, not the
-    /// constructor's.
+    /// 9.0.4). Each form's mandatory leading words
+    /// ([`super::types::CtorForm::extra_leading_words`]) are folded into
+    /// the expected bound (`bump_arity`) before comparison, so the arity
+    /// message reads in terms of the call's own full argument list, not
+    /// the constructor's.
     pub fn flush_ctor_arity_diagnostics(&mut self) {
         if self.pending_ctor_arity.is_empty() {
             return;
@@ -978,6 +1032,28 @@ impl Analyser {
                 };
                 if !is_tcloo_metaclass(self.registry.as_ref(), &cd.metaclass) {
                     continue; // snit / itcl — `new`/`create` mean something else
+                }
+                // Unlike `new`/`create` (exported by default — only an explicit
+                // `unexport` blocks an external call), `createWithNamespace` is
+                // *unexported by default*: an external `ClassName
+                // createWithNamespace …` (every call this candidate queue can
+                // even see — a literal `my createWithNamespace` never resolves
+                // `my` as a class name, so it never reaches here) raises
+                // "unknown method" and never touches the constructor unless the
+                // class explicitly `export`s it (confirmed against this
+                // project's own `runtime/rust/src/cmd_oo.rs`'s
+                // `oo_class_factory`: `cwn_ok = !block_unexported ||
+                // cwn_exp`). Order-insensitively checking the whole file's
+                // `exports` set (rather than only exports in effect by
+                // `cand.call_off`) trades a vanishingly rare false negative — an
+                // export that lexically follows a top-level call — for
+                // eliminating a real false positive on every default-unexported
+                // class, consistent with this pass's abstain-when-unsure
+                // convention.
+                if matches!(cand.form, super::types::CtorForm::CreateWithNamespace)
+                    && !cd.exports.contains("createWithNamespace")
+                {
+                    continue;
                 }
                 let Some(provider) = hierarchy.constructor_provider(class_qn, &self.source) else {
                     // No explicit constructor anywhere in the MRO — TclOO's
@@ -1031,16 +1107,8 @@ impl Analyser {
                     continue;
                 };
                 let arity = crate::signature_scan::arity::arity_of(&ctor.params);
-                let arity = if cand.is_create {
-                    bump_arity(arity, 1)
-                } else {
-                    arity
-                };
-                let display_name = format!(
-                    "{} {}",
-                    cand.class_name,
-                    if cand.is_create { "create" } else { "new" }
-                );
+                let arity = bump_arity(arity, cand.form.extra_leading_words());
+                let display_name = format!("{} {}", cand.class_name, cand.form.as_str());
                 if let Some(diag) = arity_verdict(
                     &display_name,
                     arity,
@@ -1102,15 +1170,16 @@ impl Analyser {
 
     /// Queue a `TclOO` constructor-call (`ClassName new ?args?` /
     /// `ClassName create name ?args?`) arity candidate. Queued
-    /// unconditionally by every call whose first word is `new`/`create`
-    /// (the caller's guard) — [`Self::flush_ctor_arity_diagnostics`]
-    /// resolves it post-walk against `all_classes`, which mid-walk may not
-    /// yet hold a forward-referenced class. A call whose head doesn't
-    /// resolve to a locally-known class is silently dropped at flush time,
-    /// exactly like [`Self::queue_user_call_arity_candidate`].
+    /// unconditionally by every call whose first word is
+    /// `new`/`create`/`createWithNamespace` (the caller's guard) —
+    /// [`Self::flush_ctor_arity_diagnostics`] resolves it post-walk against
+    /// `all_classes`, which mid-walk may not yet hold a forward-referenced
+    /// class. A call whose head doesn't resolve to a locally-known class is
+    /// silently dropped at flush time, exactly like
+    /// [`Self::queue_user_call_arity_candidate`].
     ///
-    /// `words.args` still has `new`/`create` at index 0; the positional
-    /// count starts at index 1 so the keyword itself is never counted.
+    /// `words.args` still has the keyword at index 0; the positional count
+    /// starts at index 1 so the keyword itself is never counted.
     fn queue_ctor_arity_candidate(
         &mut self,
         cmd_name: &str,
@@ -1126,7 +1195,11 @@ impl Analyser {
             arg_expand,
             cmd_tok,
         } = *words;
-        let is_create = args[0] == "create";
+        let form = match args[0].as_str() {
+            "create" => super::types::CtorForm::Create,
+            "createWithNamespace" => super::types::CtorForm::CreateWithNamespace,
+            _ => super::types::CtorForm::New,
+        };
         let (nargs_min, positional_any_expand) = count_positionals(args, arg_expand, 1);
         let full_span = match arg_tokens.last() {
             Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
@@ -1137,7 +1210,7 @@ impl Analyser {
                 class_name: cmd_name.to_string(),
                 ns: self.command_resolution_namespace(scope_path),
                 enforce_order: !self.scope_path_in_proc_body(scope_path),
-                is_create,
+                form,
                 call_off: cmd_tok.span.start(),
                 full_span,
                 nargs_min,
@@ -1278,136 +1351,198 @@ impl Analyser {
         None
     }
 
-    /// **E004.** Emit "Malformed `if` command" / "Extra words after
-    /// `else` clause" errors when an `if` invocation's structural
-    /// shape doesn't match `if COND BODY ?elseif COND BODY ...?
-    /// ?else BODY?`.
+    /// **E004.** Emit a precise "malformed `if`" diagnostic from a
+    /// registry [`tcl_registry::ClauseShapeChecker`] hook — the grammar
+    /// walk itself lives once, in `tcl-registry`
+    /// (`commands::tcl::if_::walk_if`), shared with the `if_arg_roles`
+    /// highlighting resolver, so this emitter never re-parses `if`'s
+    /// shape independently.
     ///
-    /// Fires when an `if` invocation's syntactic shape is invalid.
-    /// The cases:
+    /// Dispatched generically off the resolved command spec's
+    /// `clause_shape_check` hook (see
+    /// [`Self::emit_dispatch_site_diagnostics`]) rather than
+    /// `cmd_name == "if"`, so a namespace-qualified `::if` is covered
+    /// too — registry name resolution already normalises the leading
+    /// `::` for every command. `if` is the only hook today, so the
+    /// diagnostic code below is hardcoded to `E004`; a second hook
+    /// consumer would need this to carry its own code.
     ///
-    /// - `"malformed if"` — empty arg list, or no clauses after
-    ///   the full walk.
-    /// - `"malformed if else clause"` — bare `else` with no body
-    ///   following.
-    /// - `'extra words after "else" clause'` — `else BODY` with
-    ///   one or more trailing words.
-    /// - `"malformed if clause"` — condition with no body
-    ///   (with or without an intervening `then` keyword).
+    /// Verified against Tcl 9.0.4's `TclNRIfObjCmd` /
+    /// `IfConditionCallback` (`generic/tclCmdIL.c`) and tclsh 8.6 (same
+    /// algorithm): a leading `else`/`elseif` bareword condition
+    /// (`if else {a}`) is *not* a malformed `if` — it is a well-formed
+    /// `if` whose condition fails at expression-evaluation time (an
+    /// invalid-bareword error), a distinct problem this diagnostic does
+    /// not own.
     ///
-    /// Detected analyser-side at the `if`-command dispatch site
-    /// rather than by walking lowered IR, matching the established
-    /// W302 / W001 dispatch-site pattern.  This also covers a case
-    /// `lowering/structured.rs::lower_if` doesn't: it currently
-    /// doesn't produce an "extra words after else" barrier at all.
-    ///
-    /// Severity: `Error`.  No code fixes.  Span anchors at the
-    /// command-head token through the last argument-token end (the
-    /// full command source range).
-    pub(in crate::analyser) fn emit_e004_malformed_if(
+    /// Anchors on the offending word(s) — the dangling keyword or
+    /// condition for a missing expression/script, or just the extra
+    /// words for a trailing-words error — not the whole `if` statement,
+    /// which can span many lines in an `elseif` chain. Offers a code fix
+    /// only where one is unambiguous:
+    /// - **extra words** — merge them into the final recognised body by
+    ///   wrapping the untouched source slice from that body through the
+    ///   last extra word in one more brace pair (preserves original
+    ///   word delimiters and whitespace verbatim; no re-parsing);
+    /// - **a dangling `elseif`/`else` clause following at least one
+    ///   complete clause** — remove it, restoring the last well-formed
+    ///   prefix;
+    /// - a missing *first* clause (`if` alone, or `if {cond}` with
+    ///   nothing else) offers no fix: there is no well-formed prefix to
+    ///   fall back to, and inventing a body would be a guess, not a
+    ///   mechanical fix.
+    pub(in crate::analyser) fn emit_e004_clause_shape_diagnostic(
         &mut self,
+        cmd_name: &str,
+        checker: tcl_registry::ClauseShapeChecker,
         args: &[String],
         cmd_tok: tcl_lexer::Token,
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        let full_span = match arg_tokens.last() {
-            Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
-            None => cmd_tok.span,
-        };
-        let push_malformed = |this: &mut Self| {
-            this.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::E004,
-                span: full_span,
-                message: "Malformed 'if' command".to_string(),
-                severity: Severity::Error,
-                fixes: Vec::new(),
-            });
-        };
-        let push_extra_words = |this: &mut Self| {
-            this.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::E004,
-                span: full_span,
-                message: "Extra words after \"else\" clause in \"if\" command".to_string(),
-                severity: Severity::Error,
-                fixes: Vec::new(),
-            });
+        use tcl_registry::ClauseShapeError;
+
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let Some(error) = checker(&arg_strs) else {
+            return;
         };
 
-        if args.is_empty() {
-            push_malformed(self);
-            return;
-        }
+        let word_span = |i: usize| {
+            arg_tokens
+                .get(i)
+                .map_or(cmd_tok.span, |t| widened_word_span(*t, &self.source))
+        };
 
-        // Mandatory first clause: ``COND ?then? BODY``.  A leading ``else`` /
-        // ``elseif`` keyword sits in the condition slot — Tcl would take it as a
-        // bareword condition (a runtime error), but structurally it's an
-        // almost-certain misplaced keyword, so it's linted as malformed (see
-        // ``analyse_emits_e004_for_if_with_only_else``).
-        if args[0] == "else" || args[0] == "elseif" {
-            push_malformed(self);
-            return;
-        }
-        let mut i = 1; // args[0] is the condition
-        if i < args.len() && args[i] == "then" {
-            i += 1;
-        }
-        if i >= args.len() {
-            // Condition (or ``COND then``) with no body — ``if {1}`` / ``if {1}
-            // then``.
-            push_malformed(self);
-            return;
-        }
-        i += 1; // consume the first body
+        let (span, message) = match error {
+            ClauseShapeError::MissingExpr { after: None } => (
+                cmd_tok.span,
+                format!("No expression after \"{cmd_name}\" argument"),
+            ),
+            ClauseShapeError::MissingExpr { after: Some(i) } => (
+                word_span(i),
+                format!(
+                    "No expression after \"{}\" argument",
+                    args.get(i).map_or("", String::as_str)
+                ),
+            ),
+            ClauseShapeError::MissingBody { after: i } => (
+                word_span(i),
+                format!(
+                    "No script following \"{}\" argument",
+                    args.get(i).map_or("", String::as_str)
+                ),
+            ),
+            ClauseShapeError::ExtraWords { first_extra } => {
+                let start = arg_tokens.get(first_extra).map(|t| t.span.start());
+                let end = arg_tokens.last().map(|t| widen_token_end(*t, &self.source));
+                let span = match (start, end) {
+                    (Some(s), Some(e)) => tcl_lexer::Span::new(s, e),
+                    _ => cmd_tok.span,
+                };
+                // Matches Tcl's own message text exactly: `Tcl_IfObjCmd`
+                // builds this from a *static* string, always naming "if"
+                // literally — never the invoked spelling (unlike the
+                // other two messages above, which do use it).
+                (
+                    span,
+                    "Extra words after \"else\" clause in \"if\" command".to_string(),
+                )
+            }
+        };
 
-        // Optional tail: an ``elseif`` chain, a final ``else BODY``, or a bare
-        // implicit-else BODY (Tcl allows ``if {c} {then} {else}`` with no
-        // ``else`` keyword).
-        while i < args.len() {
-            if args[i] == "elseif" {
-                i += 1; // consume ``elseif``
-                if i >= args.len() {
-                    // ``elseif`` with no condition.
-                    push_malformed(self);
-                    return;
-                }
-                i += 1; // condition
-                if i < args.len() && args[i] == "then" {
-                    i += 1;
-                }
-                if i >= args.len() {
-                    // ``elseif COND`` with no body.
-                    push_malformed(self);
-                    return;
-                }
-                i += 1; // body
-                continue;
+        let fixes = self.e004_fixes(args, arg_tokens, error);
+
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::E004,
+            span,
+            message,
+            severity: Severity::Error,
+            fixes,
+        });
+    }
+
+    /// Code fixes for [`Self::emit_e004_clause_shape_diagnostic`]. See
+    /// that method's doc comment for which cases get a fix and why.
+    fn e004_fixes(
+        &self,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        error: tcl_registry::ClauseShapeError,
+    ) -> Vec<super::types::CodeFix> {
+        use tcl_registry::ClauseShapeError;
+
+        match error {
+            ClauseShapeError::ExtraWords { first_extra } => {
+                // `first_extra >= 2` always: the walk only reaches
+                // `ExtraWords` after consuming the mandatory first
+                // clause's body (index >= 1), so the recognised final
+                // body this merges from is always in range.
+                let Some(body_tok) = arg_tokens.get(first_extra - 1) else {
+                    return Vec::new();
+                };
+                let Some(last_tok) = arg_tokens.last() else {
+                    return Vec::new();
+                };
+                let start = body_tok.span.start();
+                let end = widen_token_end(*last_tok, &self.source);
+                let Some(slice) = self.source.get(start as usize..end as usize) else {
+                    return Vec::new();
+                };
+                vec![super::types::CodeFix {
+                    span: tcl_lexer::Span::new(start, end),
+                    new_text: format!("{{{slice}}}"),
+                    description: "Merge trailing words into the if body".to_string(),
+                }]
             }
-            if args[i] == "else" {
-                i += 1; // consume ``else``
-                if i >= args.len() {
-                    // ``else`` with no body following.
-                    push_malformed(self);
-                    return;
-                }
-                i += 1; // else body
-                if i < args.len() {
-                    // ``else BODY <extra...>``.
-                    push_extra_words(self);
-                    return;
-                }
-                return; // ``… else BODY`` — well-formed.
+            ClauseShapeError::MissingExpr {
+                after: Some(kw_idx),
+            } => {
+                // A dangling `elseif` always follows a complete clause
+                // (the walk only reaches the `elseif`/`else` lookup after
+                // consuming one), so removing from the keyword onward
+                // always restores a well-formed prefix.
+                self.remove_dangling_clause_fix(kw_idx, arg_tokens)
             }
-            // A bare word here is the implicit-else body (no ``else`` keyword).
-            // Exactly one is well-formed; any trailing words are the "extra
-            // words after else" error Tcl reports for ``if {1} {a} {b} {c}``.
-            i += 1;
-            if i < args.len() {
-                push_extra_words(self);
-                return;
+            ClauseShapeError::MissingBody { after } => {
+                // `after` names the last present word of the *dangling*
+                // clause (a condition, `then`, or `else`) — walk back to
+                // the `elseif`/`else` keyword that opened it. Word 0 is
+                // never a real keyword (it is always the mandatory first
+                // condition, whatever its text), so the search excludes
+                // it — `after` staying at 0 or 1 there means the very
+                // first clause never completed, and no prefix fix
+                // exists.
+                let Some(start_idx) = (1..=after)
+                    .rev()
+                    .find(|&k| args.get(k).is_some_and(|w| w == "elseif" || w == "else"))
+                else {
+                    return Vec::new();
+                };
+                self.remove_dangling_clause_fix(start_idx, arg_tokens)
             }
-            return; // implicit ``… else`` — well-formed.
+            ClauseShapeError::MissingExpr { after: None } => Vec::new(),
         }
-        // Ran out exactly after a clause (``if {1} {a}``) — well-formed.
+    }
+
+    /// A [`super::types::CodeFix`] removing every word from
+    /// `arg_tokens[start_idx]` through the end of the command —
+    /// restoring the well-formed `if` prefix that precedes a dangling
+    /// trailing clause.
+    fn remove_dangling_clause_fix(
+        &self,
+        start_idx: usize,
+        arg_tokens: &[tcl_lexer::Token],
+    ) -> Vec<super::types::CodeFix> {
+        let (Some(start_tok), Some(last_tok)) = (arg_tokens.get(start_idx), arg_tokens.last())
+        else {
+            return Vec::new();
+        };
+        let start = start_tok.span.start();
+        let end = widen_token_end(*last_tok, &self.source);
+        vec![super::types::CodeFix {
+            span: tcl_lexer::Span::new(start, end),
+            new_text: String::new(),
+            description: "Remove incomplete trailing clause".to_string(),
+        }]
     }
 
     /// **W304.** Emit "Missing option terminator (`--`)" diagnostics

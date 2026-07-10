@@ -207,6 +207,68 @@ fn test_w302_no_fix_when_result_present() {
     assert!(new_texts(&actions).is_empty());
 }
 
+#[test]
+fn test_e004_extra_words_offers_merge_into_body_fix() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "if {1} {a} {b} {c}\n");
+    let e004 = with_code(&diags, "E004");
+    assert!(!e004.is_empty(), "expected an E004 diagnostic");
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((0, 15), (0, 18)),
+        json!(e004),
+        &["quickfix"],
+    );
+    assert!(
+        titles(&actions)
+            .iter()
+            .any(|t| t.to_lowercase().contains("merge"))
+    );
+    assert!(new_texts(&actions).iter().any(|nt| nt == "{{b} {c}}"));
+}
+
+#[test]
+fn test_e004_dangling_elseif_offers_remove_clause_fix() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "if {1} {a} elseif\n");
+    let e004 = with_code(&diags, "E004");
+    assert!(!e004.is_empty(), "expected an E004 diagnostic");
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((0, 12), (0, 18)),
+        json!(e004),
+        &["quickfix"],
+    );
+    assert!(
+        titles(&actions)
+            .iter()
+            .any(|t| t.to_lowercase().contains("remove"))
+    );
+    assert!(new_texts(&actions).iter().any(String::is_empty));
+}
+
+#[test]
+fn test_e004_missing_first_clause_offers_no_fix() {
+    // `if {1}` has no well-formed prefix to fall back to — no fix.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "if {1}\n");
+    let e004 = with_code(&diags, "E004");
+    assert!(!e004.is_empty(), "expected an E004 diagnostic");
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((0, 3), (0, 6)),
+        json!(e004),
+        &["quickfix"],
+    );
+    assert!(new_texts(&actions).is_empty(), "got {actions:?}");
+}
+
 // -- TestRefactorActions -------------------------------------------------
 
 #[test]

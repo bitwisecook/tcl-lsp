@@ -3878,6 +3878,58 @@ fn tcloo_constructor_create_arity_accounts_for_mandatory_name() {
 }
 
 #[test]
+fn tcloo_constructor_createwithnamespace_arity_accounts_for_two_mandatory_words() {
+    // `createWithNamespace` consumes two mandatory words (the object name
+    // and the target namespace) ahead of the constructor's own
+    // parameters — same word layout as the sibling class-*definition*
+    // shape `oo::class createWithNamespace Name ::ns body` (see
+    // `oo_class_arg_roles`), just with constructor args standing in for
+    // the definition body. Unlike `new`/`create`, `createWithNamespace` is
+    // unexported by default (confirmed against `runtime/rust/src/cmd_oo.rs`'s
+    // `oo_class_factory`), so the class must `export` it for an external
+    // call to even reach the constructor — see the companion
+    // `..._is_not_checked_when_not_exported` test for the unexported case.
+    let src = |call: &str| {
+        format!(
+            "oo::class create Widget {{ constructor {{a b}} {{ }}; export createWithNamespace }}\n{call}\n"
+        )
+    };
+    assert_eq!(
+        e00x_codes_for(&src("Widget createWithNamespace fido ::ns 1")),
+        vec!["E002".to_owned()]
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget createWithNamespace fido ::ns 1 2")),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget createWithNamespace fido ::ns 1 2 3")),
+        vec!["E003".to_owned()]
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget createWithNamespace fido ::ns")),
+        vec!["E002".to_owned()],
+        "the mandatory object-name and namespace words themselves must be enforced"
+    );
+}
+
+#[test]
+fn tcloo_constructor_createwithnamespace_is_not_checked_when_not_exported() {
+    // `createWithNamespace` is unexported by default (confirmed against
+    // `runtime/rust/src/cmd_oo.rs`'s `oo_class_factory`: `cwn_ok =
+    // !block_unexported || cwn_exp`) — an external call to a class that
+    // never `export`s it raises "unknown method" at run time and never
+    // reaches the constructor, so it must not be arity-checked. This is
+    // the false positive Codex flagged on the companion test above before
+    // the `cd.exports` gate was added.
+    let src = "\
+oo::class create Widget { constructor {a b} { } }
+Widget createWithNamespace fido ::ns 1
+";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
 fn tcloo_constructor_arity_is_inherited_through_superclass() {
     // `Sub` declares no constructor of its own — `Base`'s is inherited
     // (confirmed against tclsh 9.0.4: a subclass with no `constructor`

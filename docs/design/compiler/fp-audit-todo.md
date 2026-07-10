@@ -471,7 +471,35 @@ can simplify this" suggestion. None swept yet.
   documented-and-silently dropped (`command_prefix.rs`'s module doc), which
   the `apply_callback_arity`'s always-zero `baked` argument confirms is a
   live, unexercised code path.
-- [ ] **E004** malformed control flow (0) — synthetic.
+  **2026-07-10 follow-up — two centralization gaps in the above closed:**
+  (1) the `new`/`create` constructor-arity check missed `createWithNamespace`
+  entirely (`ClassName createWithNamespace name ::ns ?args?` — the three
+  keywords' word layout is shared with `oo_class_arg_roles`'s identical
+  class-*definition* shapes) — `PendingCtorArity`'s `is_create: bool` is now
+  `CtorForm::{New,Create,CreateWithNamespace}`, each with its own leading-
+  word bump. (2) `handle_namespace_ensemble`'s `-command` extraction scanned
+  every word for literal equality with `-command`, so another option's value
+  word that happened to read `-command` (e.g. a pathological `-map` value)
+  could be misread as the flag itself — `namespace ensemble create`'s option
+  surface (`-command`/`-map`/`-parameters`/`-prefixes`/`-subcommands`/
+  `-unknown`, verified against this project's own `cmd_namespace.rs` VM
+  implementation) is now registry data (`ENSEMBLE_CREATE_OPTIONS`), walked
+  by declared value arity like every other option-skip in the analyser.
+- [x] **E004** malformed `if` — RESOLVED (0 corpus firings; verified against
+  Tcl 9.0.4's `TclNRIfObjCmd`/`IfConditionCallback` C source and tclsh 8.6
+  rather than a corpus sweep, since real-world malformed `if`s don't occur):
+  cleared a genuine FP — `if else {a}` / `if elseif {a}` are structurally
+  well-formed (the bareword sits in the condition slot, never keyword-matched
+  there; real Tcl fails at expression evaluation instead, a distinct problem).
+  Also fixed a redundant-diagnostic bug (a malformed `if` drew both a generic
+  E002 and E004 for the same defect — `if`'s registry arity floor is now
+  descriptive-only, gated by `Traits::STRUCTURALLY_CHECKED_ARITY`), replaced
+  the generic "Malformed 'if' command" message with Tcl's own precise wording
+  per sub-case, and narrowed every span from the whole statement to the
+  offending word(s). The clause-chain walk itself moved into `tcl-registry`
+  (`commands::tcl::if_::walk_if`, exposed as a `clause_shape_check` hook on
+  `CommandSpec`) so it is shared with the `if_arg_roles` highlighting
+  resolver instead of being re-implemented in the compiler.
 - [ ] **E200** shimmer parse error (0) — synthetic.
 - [ ] **H300** possible paste error (0 corpus) — synthetic.
 
