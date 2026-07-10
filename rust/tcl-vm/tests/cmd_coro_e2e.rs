@@ -26,11 +26,12 @@
 //! `cmd [yield]` argument position both stay on the explicit stack (a whole-word
 //! `[…]` compiles to an inline `INVOKE`, not a runtime `subst_word` re-entry).
 //!
-//! A `yield` reached across a host re-entry that the VM runs on the *native*
-//! Rust stack (`catch`/`eval`/`uplevel`/`apply`) still errors `cannot yield: C
-//! stack busy`. C Tcl makes those commands NR-enabled, so a real tclsh yields
-//! through them — this is the VM's remaining divergence and a documented
-//! follow-up (making those constructs re-enter the explicit trampoline).
+//! `yield` also crosses `eval`, `uplevel 0`, and `catch` — each runs its body on
+//! the explicit stack (a transparent script / catch activation). A `yield`
+//! reached across a host re-entry the VM still runs on the *native* Rust stack
+//! (`subst`, `apply` in an arbitrary position, `lsort -command`) errors `cannot
+//! yield: C stack busy`. C Tcl makes those NR-enabled, so a real tclsh yields
+//! through them — the remaining divergence and a documented follow-up.
 
 use std::cell::RefCell;
 use std::io::Write;
@@ -173,6 +174,51 @@ fn accumulator_generator_yield_expression() {
              coroutine a acc; list [a 5] [a 10] [a 3]"
         ),
         "5 15 18"
+    );
+}
+
+// ===========================================================================
+// yield across `catch` (RUST_ISSUE_008 piece 2)
+// ===========================================================================
+
+#[test]
+fn yield_inside_catch_body_round_trips() {
+    // tclsh 9.0.4: a `yield` inside a `catch {…}` body runs on the explicit
+    // stack, so the coroutine suspends *through* the catch and, on resume, the
+    // resume value becomes the catch body's result (status 0).
+    assert_eq!(
+        result(
+            "proc g {} { set r [catch {yield inner} m]; yield \"done:$r:$m\" }; \
+             coroutine c g; list [c] [c foo]"
+        ),
+        "done:0: foo"
+    );
+}
+
+#[test]
+fn yield_in_catch_inside_a_generator_loop() {
+    // A generator whose loop body wraps each `yield` in `catch`: the three
+    // resumes see 2, 3, then the body returns.
+    assert_eq!(
+        result(
+            "proc g {} { foreach n {1 2 3} { catch {yield $n} }; return finished }; \
+             coroutine c g; list [c] [c] [c]"
+        ),
+        "2 3 finished"
+    );
+}
+
+#[test]
+fn catch_captures_a_post_resume_error_across_yield() {
+    // tclsh 9.0.4: the body yields inside the catch, then (after resume) raises an
+    // error — which the *same* catch captures (status 1, message), proving the
+    // catch context survives the suspend/resume.
+    assert_eq!(
+        result(
+            "proc g {} { set c [catch { set x [yield a]; error \"boom-$x\" } m]; yield \"$c/$m\" }; \
+             coroutine c g; list [c] [c Z]"
+        ),
+        "1/boom- Z"
     );
 }
 

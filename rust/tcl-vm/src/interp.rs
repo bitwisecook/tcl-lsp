@@ -348,6 +348,14 @@ pub struct Vm {
     /// `invoke_command` fallback path), mirroring how `coro.pending` becomes a
     /// `Tick::Suspend`.
     pub(crate) pending_eval: Option<(Rc<FunctionAsm>, Option<&'static str>)>,
+    /// A `catch` body an about-to-run `catch` wants evaluated on the *explicit*
+    /// stack (so a `yield` in it stays yieldable). Unlike `pending_eval`, the
+    /// body's completion is **absorbed** (not propagated): a catch frame runs it
+    /// and its epilogue records the result/options and yields the status code.
+    /// Set by `cmd_catch`, drained by `dispatch_words` into a
+    /// [`Tick::PushCatch`](crate::exec) (or run via a nested drive on the
+    /// `invoke_command` fallback).
+    pub(crate) pending_catch: Option<crate::exec::CatchReq>,
     /// The event loop's pending timer/idle events (`after`/`vwait`/`update`).
     /// The scheduler half of the coroutine subsystem. See [`crate::cmd_event`].
     pub(crate) events: crate::cmd_event::EventQueue,
@@ -484,6 +492,7 @@ impl Vm {
             coro: crate::cmd_coro::CoroSystem::default(),
             activation_depth: 0,
             pending_eval: None,
+            pending_catch: None,
             events: crate::cmd_event::EventQueue::default(),
             thread: crate::cmd_thread::ThreadSystem::default(),
         };

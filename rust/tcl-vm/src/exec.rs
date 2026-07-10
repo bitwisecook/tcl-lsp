@@ -97,6 +97,26 @@ pub(crate) struct Frame {
     /// would add on error (`("eval" body line N)` / `("uplevel" body line N)`).
     /// `None` for a command-substitution `EVAL_STK`, which adds no body frame.
     body_label: Option<&'static str>,
+    /// Set on a **catch** activation: the body runs on the explicit stack (like a
+    /// script frame) but its completion — of *any* code — is absorbed by the catch
+    /// epilogue (`Vm::finish_catch`) rather than propagated. Carries the optional
+    /// result / options variable names to bind.
+    catch: Option<Box<CatchCtx>>,
+}
+
+/// A `catch`'s bind targets, carried on its activation until it completes.
+pub(crate) struct CatchCtx {
+    resvar: Option<Value>,
+    optvar: Option<Value>,
+}
+
+/// A `catch` body deferred to the explicit stack: the compiled body plus the
+/// variable names to bind once it completes. Mirrors `pending_eval`'s tuple, but
+/// its completion is absorbed (see [`Frame::catch`]).
+pub(crate) struct CatchReq {
+    pub(crate) asm: Rc<FunctionAsm>,
+    pub(crate) resvar: Option<Value>,
+    pub(crate) optvar: Option<Value>,
 }
 
 impl Frame {
@@ -116,6 +136,7 @@ impl Frame {
             is_proc,
             is_script: false,
             body_label: None,
+            catch: None,
         }
     }
 
@@ -127,6 +148,18 @@ impl Frame {
         let mut f = Self::new(asm, false);
         f.is_script = true;
         f.body_label = label;
+        f
+    }
+
+    /// A **catch** activation: the body runs on the explicit stack (yieldable),
+    /// but its completion is absorbed by the catch epilogue rather than delivered
+    /// to the parent (see [`Frame::catch`]).
+    pub(crate) fn new_catch(req: CatchReq) -> Self {
+        let mut f = Self::new(req.asm, false);
+        f.catch = Some(Box::new(CatchCtx {
+            resvar: req.resvar,
+            optvar: req.optvar,
+        }));
         f
     }
 
@@ -175,6 +208,10 @@ enum Tick {
         asm: Rc<FunctionAsm>,
         label: Option<&'static str>,
     },
+    /// Run a `catch` body on the explicit stack (yieldable) via a catch
+    /// activation ([`Frame::new_catch`]); its completion is absorbed by the catch
+    /// epilogue. Drained from `Vm.pending_catch`, mirroring `PushScript`.
+    PushCatch(CatchReq),
     /// `tailcall cmd ?arg …?` — the current proc finishes and `cmd args` runs in
     /// its place (in the caller's activation), its result becoming the proc's.
     /// `words` is `[cmd, arg, …]` (the `tailcall` prefix word already dropped).
@@ -671,6 +708,7 @@ impl Vm {
                     }
                 },
                 Tick::PushScript { asm, label } => acts.push(Frame::new_script(asm, label)),
+                Tick::PushCatch(req) => acts.push(Frame::new_catch(req)),
                 Tick::Return(c) => {
                     // A `break`/`continue` *returned by a command* (`if {…} $z`,
                     // `eval break`) inside an inline loop body: jump to the
@@ -780,7 +818,7 @@ impl Vm {
         mut c: Completion<Value>,
     ) -> Option<Completion<Value>> {
         loop {
-            let act = acts.pop().expect("unwinding a non-empty stack");
+            let mut act = acts.pop().expect("unwinding a non-empty stack");
             // An error unwinding through an inlined command body (`eval {…}`)
             // adds the body frames the uncompiled command would, before this
             // activation's own proc frame (innermost first) — the compiled
@@ -867,6 +905,27 @@ impl Vm {
                     });
                     if let Some((cmd, line)) = call_site {
                         self.log_command_info(&cmd, "", line);
+                    }
+                }
+            }
+            // A `catch` activation absorbs the body's completion of *any* code:
+            // its epilogue binds the result / options variables and yields the
+            // status code as an integer, delivered to the parent as this `catch`
+            // command's result (`exit` stays uncatchable — `finish_catch` passes
+            // it straight through).
+            if let Some(ctx) = act.catch.take() {
+                let fc = self.finish_catch(c, ctx.resvar.as_ref(), ctx.optvar.as_ref());
+                match acts.last_mut() {
+                    None => return Some(fc),
+                    Some(parent) => {
+                        if fc.code.is_ok() {
+                            parent.stack.push(fc.result);
+                            return None;
+                        }
+                        // A rare `set`-into-the-result-var failure (or an
+                        // uncatchable `exit`) keeps unwinding.
+                        c = fc;
+                        continue;
                     }
                 }
             }
@@ -2482,6 +2541,11 @@ impl Vm {
                 if let Some((asm, label)) = self.pending_eval.take() {
                     return Ok(Some(Tick::PushScript { asm, label }));
                 }
+                // A `catch` defers its body the same way, but into a catch frame
+                // whose completion the epilogue absorbs (see `Frame::catch`).
+                if let Some(req) = self.pending_catch.take() {
+                    return Ok(Some(Tick::PushCatch(req)));
+                }
                 if res.code.is_ok() {
                     f.stack.push(res.result);
                     Ok(None)
@@ -2573,6 +2637,13 @@ impl Vm {
                 // `invoke_command` re-entry.
                 if let Some((asm, label)) = self.pending_eval.take() {
                     return self.run_activation(Frame::new_script(asm, label));
+                }
+                // A `catch` deferred its body: run it via a nested drive (a `yield`
+                // inside cannot cross this native re-entry), then absorb its
+                // completion with the catch epilogue.
+                if let Some(req) = self.pending_catch.take() {
+                    let comp = self.run_activation(Frame::new_script(req.asm, None));
+                    return self.finish_catch(comp, req.resvar.as_ref(), req.optvar.as_ref());
                 }
                 res
             }

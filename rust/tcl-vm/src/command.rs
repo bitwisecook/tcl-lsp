@@ -1487,50 +1487,82 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             return err("wrong # args: should be \"catch script ?resultVarName? ?optionVarName?\"");
         }
     };
-    let comp = match vm.eval_source(&script.to_str()) {
-        Ok(c) => c,
-        Err(e) => Completion::new(Code::Error, e.into_value(), Value::empty()),
-    };
-    // `exit` is not catchable (C Tcl's `Tcl_Exit`): if the body requested an
-    // exit, propagate the unwind rather than swallowing it.
-    if vm.exit_pending() {
-        return comp;
-    }
-    // Compute the error metadata once — `take_error_info` consumes the trace, so
-    // the same values feed both the options dict and the `$errorInfo`/`$errorCode`
-    // globals. A non-error completion still clears any in-flight trace so the next
-    // error starts fresh.
-    let error_meta = if comp.code == Code::Error {
-        let einfo = vm.take_error_info().unwrap_or_else(|| {
-            opt_get(&comp.options, "-errorinfo").map_or_else(
-                || comp.result.to_str().to_string(),
-                |v| v.to_str().to_string(),
-            )
-        });
-        Some((einfo, resolved_error_code(&comp), vm.error_line()))
-    } else {
-        let _ = vm.take_error_info();
-        None
-    };
-
-    if let Some(r) = resvar
-        && let Err(e) = vm.set_var(&r.to_str(), comp.result.clone())
-    {
-        return e;
-    }
-    if let Some(o) = optvar {
-        let opts = match &error_meta {
-            Some((einfo, ecode, eline)) => catch_error_options(&comp, ecode, einfo, *eline),
-            None => completion_options(&comp),
-        };
-        if let Err(e) = vm.set_var(&o.to_str(), opts) {
-            return e;
+    // Defer the body to the *explicit* stack so a `yield` inside it stays
+    // yieldable (RUST_ISSUE_008): compile it and hand it to the trampoline via
+    // `pending_catch`. A catch frame runs the body and its completion — of any
+    // code — is absorbed by `finish_catch` (which binds the result/options vars
+    // and yields the status code). Mirrors `cmd_eval`'s `pending_eval`, but
+    // catch's completion is caught rather than propagated.
+    match vm.compile_source_cached(&script.to_str()) {
+        Ok(asm) => {
+            vm.pending_catch = Some(crate::exec::CatchReq {
+                asm,
+                resvar: resvar.map(|v| (*v).clone()),
+                optvar: optvar.map(|v| (*v).clone()),
+            });
+            ok(Value::empty())
+        }
+        // A body that fails to *parse* is itself a catchable error: run the
+        // epilogue directly with the parse-error completion (no body to execute).
+        Err(e) => {
+            let comp = Completion::new(Code::Error, Value::string(e.message), Value::empty());
+            vm.finish_catch(comp, resvar, optvar)
         }
     }
-    if let Some((einfo, ecode, _)) = &error_meta {
-        vm.publish_error(einfo, ecode);
+}
+
+impl Vm {
+    /// The `catch` epilogue, shared by the explicit-stack catch frame
+    /// ([`crate::exec`]'s `unwind`) and the `invoke_command` / parse-error
+    /// fallbacks: from the body's completion `comp`, bind the result and options
+    /// variables and return the status code as an integer (this `catch` command's
+    /// result). An uncatchable `exit` unwind passes straight through; a failure to
+    /// write a bind variable propagates as this catch's own error.
+    ///
+    /// `take_error_info` consumes the accumulated trace, so the same values feed
+    /// both the options dict and the `$errorInfo`/`$errorCode` globals; a
+    /// non-error completion still clears any in-flight trace so the next error
+    /// starts fresh.
+    pub(crate) fn finish_catch(
+        &mut self,
+        comp: Completion<Value>,
+        resvar: Option<&Value>,
+        optvar: Option<&Value>,
+    ) -> Completion<Value> {
+        if self.exit_pending() {
+            return comp;
+        }
+        let error_meta = if comp.code == Code::Error {
+            let einfo = self.take_error_info().unwrap_or_else(|| {
+                opt_get(&comp.options, "-errorinfo").map_or_else(
+                    || comp.result.to_str().to_string(),
+                    |v| v.to_str().to_string(),
+                )
+            });
+            Some((einfo, resolved_error_code(&comp), self.error_line()))
+        } else {
+            let _ = self.take_error_info();
+            None
+        };
+        if let Some(r) = resvar
+            && let Err(e) = self.set_var(&r.to_str(), comp.result.clone())
+        {
+            return e;
+        }
+        if let Some(o) = optvar {
+            let opts = match &error_meta {
+                Some((einfo, ecode, eline)) => catch_error_options(&comp, ecode, einfo, *eline),
+                None => completion_options(&comp),
+            };
+            if let Err(e) = self.set_var(&o.to_str(), opts) {
+                return e;
+            }
+        }
+        if let Some((einfo, ecode, _)) = &error_meta {
+            self.publish_error(einfo, ecode);
+        }
+        ok(Value::int(comp.code.as_int()))
     }
-    ok(Value::int(comp.code.as_int()))
 }
 
 /// The options dict `catch` binds for an error completion. C always attaches
