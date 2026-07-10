@@ -499,3 +499,26 @@ fn top_level_constant_untouched_by_uplevel_still_folds() {
     let source = result.get("source").and_then(Value::as_str).unwrap_or("");
     assert!(source.contains("puts 5"), "{source:?}");
 }
+
+// Regression (P1, code review on #859): a `global` declaration hidden inside
+// a *static-body* `uplevel #0 { ... }` inside a proc lowers to
+// `Statement::UpFrame`, not a plain nested block. The whole-module
+// `scan_module_global_names` scan is built on the shared `for_each_statement`
+// visitor, which didn't descend into `UpFrame` bodies — so this name was
+// invisible to SCCP/O102's extra-escaping guard and the final read could
+// still fold to the stale pre-call literal. Confirmed against tclsh 8.6:
+// `set g 4; proc helper {} { uplevel #0 { global g; set g 17 } }; helper;
+// puts $g` prints `17`, not `4`.
+#[test]
+fn global_hidden_inside_uplevel_body_in_proc_is_not_folded() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set g 4\nproc helper {} { uplevel #0 { global g\nset g 17 } }\nhelper\nputs $g\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(
+        source.contains("puts $g"),
+        "must not fold `puts $g` to the stale literal 4: {source:?}"
+    );
+}

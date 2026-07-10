@@ -108,6 +108,7 @@ pub fn for_each_statement(script: &Script, visit: &mut impl FnMut(&Statement)) {
         visit(stmt);
         match stmt {
             Statement::Block { body, .. }
+            | Statement::UpFrame { body, .. }
             | Statement::While { body, .. }
             | Statement::Catch { body, .. }
             | Statement::Foreach { body, .. } => {
@@ -915,6 +916,47 @@ mod tests {
             seen.push(name);
         });
         assert_eq!(seen, vec!["if", "inner1", "inner2"]);
+    }
+
+    #[test]
+    fn for_each_statement_descends_into_upframe_body() {
+        // FN guard (P1, code review): `UpFrame` (a static-body `uplevel
+        // ?level? {...}`) has a nested `body: Script` just like `Block` /
+        // `While` / `Catch` / `Foreach`, but was missing from the grouped
+        // match arm — the visitor stopped at the `UpFrame` statement itself
+        // and never walked its body, so a whole-module scan built on this
+        // visitor (e.g. `var_observability::scan_module_global_names`)
+        // silently missed anything declared inside a static `uplevel` body.
+        let inner = Statement::Call {
+            span: Span::new(0, 0),
+            command: "inner".into(),
+            canonical_command: None,
+            args: Vec::new(),
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        };
+        let upframe = Statement::UpFrame {
+            span: Span::new(0, 0),
+            frame_shift: 0,
+            body: Script::from_statements(vec![inner]),
+            tokens: None,
+        };
+        let script = Script::from_statements(vec![upframe]);
+
+        let mut seen: Vec<String> = Vec::new();
+        for_each_statement(&script, &mut |stmt| {
+            let name = match stmt {
+                Statement::UpFrame { .. } => "upframe".to_owned(),
+                Statement::Call { command, .. } => command.clone(),
+                _ => "other".to_owned(),
+            };
+            seen.push(name);
+        });
+        assert_eq!(seen, vec!["upframe", "inner"]);
     }
 
     #[test]
