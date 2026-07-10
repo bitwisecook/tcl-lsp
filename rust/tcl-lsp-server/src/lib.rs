@@ -266,6 +266,24 @@ const WORKSPACE_WARM_MAX_CONCURRENCY: usize = 16;
 /// refresh; this collapses a burst into one fire per window.
 const SEMANTIC_TOKENS_REFRESH_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(50);
 
+/// What "still the current state" means for a diagnostics run at publish time,
+/// and therefore what the currency guard re-checks under the `documents` lock
+/// before delivering (`RUST_ISSUE_098`).
+///
+/// A run against an **open** buffer is current only while the document is still
+/// open at the revision it was captured for.  A run against a **closed** but
+/// on-disk workspace file (#865 — so its Problems / File-Explorer badge survives
+/// the editor tab closing) is current only while the document is still closed:
+/// a concurrent `did_open` makes the open buffer authoritative, so a late
+/// closed-file publish must not land on top of it.
+#[derive(Clone, Copy)]
+enum DiagCurrency {
+    /// Open buffer at this revision.
+    Open(u64),
+    /// A closed workspace file analysed from its on-disk contents (#865).
+    ClosedFromDisk,
+}
+
 /// One document edit's complete, self-consistent diagnostics input — captured
 /// together so the analysed text, the published version, and the salsa input
 /// handle all describe the *same* revision (no divergence between a `documents`
@@ -280,7 +298,9 @@ struct DiagJob {
     /// by language id / basename, not by the resolved dialect alone — see
     /// [`is_apl_source`]).
     language_id: String,
-    revision: u64,
+    /// Whether this run targets the open buffer or a closed on-disk file (#865),
+    /// deciding what the publish-time currency guard re-checks.
+    currency: DiagCurrency,
     version: Option<i32>,
     file: Option<tcl_lsp_db::SourceFile>,
     config: tcl_lsp_db::AnalyserConfig,
@@ -538,9 +558,59 @@ impl DiagInputs {
             text,
             dialect,
             language_id,
-            revision,
+            currency: DiagCurrency::Open(revision),
             version,
             file,
+            config,
+        })
+    }
+
+    /// Capture a diagnostics job for a **closed** workspace file from its on-disk
+    /// contents (#865), so a file that was opened and then had its editor tab
+    /// closed keeps its Problems / File-Explorer badge instead of being cleared.
+    ///
+    /// The on-disk text is read from the salsa `SourceFile` input that
+    /// [`Backend::reindex_index_from_disk`] refreshes on `did_close` /
+    /// `did_change_watched_files`, so it always describes the current on-disk
+    /// state (not a possibly-discarded unsaved buffer).  Returns `None` when the
+    /// document is open again (the open path is then authoritative) or has no
+    /// readable on-disk `SourceFile` (an untitled buffer or a deleted file — the
+    /// caller then clears any stale squiggles instead).
+    ///
+    /// `file` is carried so the base analysis still runs through the cancellable,
+    /// memoised salsa query; `text` is the same on-disk source the handle holds,
+    /// used by the source-style / recovery lifts.  `version` is `None` (a closed
+    /// file has no editor document version).
+    async fn capture_closed_job(&self, uri: &Uri, dialect: &str) -> Option<DiagJob> {
+        // An open buffer is owned by the open path; never shadow it from disk.
+        if self.documents.lock().await.contains_key(uri) {
+            return None;
+        }
+        let file = *self.db_files.lock().await.get(uri)?;
+        // Read the handle's text under the `db` lock alone (the `db_files` lock
+        // is already released), so this never holds `db_files` across `db` and
+        // the global `db` → `db_files` order is preserved.
+        let text = {
+            let db = self.db.lock().await;
+            file.text(&*db).clone()
+        };
+        let config = {
+            let folder = self.folder_db_configs.lock().await;
+            match longest_folder_match(&folder, uri) {
+                Some(cfg) => *cfg,
+                None => *self.db_config.lock().await,
+            }
+        };
+        Some(DiagJob {
+            text,
+            dialect: dialect.to_owned(),
+            // A closed file carries no editor `language_id`; F5 model dialects are
+            // still routed by their resolved `dialect` + basename, so plain-Tcl /
+            // iRules source (the #865 case) is unaffected.
+            language_id: String::new(),
+            currency: DiagCurrency::ClosedFromDisk,
+            version: None,
+            file: Some(file),
             config,
         })
     }
@@ -603,25 +673,47 @@ struct DeliveryCtx<'a> {
     documents: &'a Arc<Mutex<HashMap<Uri, DocumentState>>>,
     pull_diag_cache: &'a Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
     uri: &'a Uri,
-    revision: u64,
+    currency: DiagCurrency,
     version: Option<i32>,
     client_supports_pull: bool,
 }
 
 impl DeliveryCtx<'_> {
-    /// Publish `diags` iff the document is still at this run's `revision`,
-    /// holding the `documents` lock across the currency check AND the
-    /// pull-cache/publish delivery so a concurrent `did_close`/`did_change`
-    /// cannot interleave between them — otherwise a `did_close` that lands in
-    /// that window clears the squiggles and drops the pull-cache entry, only
-    /// for this run's late delivery to re-publish and re-cache them for the
-    /// now-closed document (`RUST_ISSUE_098`).
+    /// Whether this run is still the current state for `uri`, evaluated against a
+    /// held `documents` snapshot.  An open run is current while the buffer is
+    /// open at the captured revision; a closed-file run (#865) is current while
+    /// the buffer stays closed (a reopen hands authority back to the open path).
+    fn is_current(&self, docs: &HashMap<Uri, DocumentState>) -> bool {
+        match self.currency {
+            DiagCurrency::Open(revision) => docs
+                .get(self.uri)
+                .is_some_and(|doc| doc.revision == revision),
+            DiagCurrency::ClosedFromDisk => !docs.contains_key(self.uri),
+        }
+    }
+
+    /// The `PullDiagEntry.revision` to cache this set under.  An open run caches
+    /// its editor revision so a later pull can match it; a closed-file run caches
+    /// the `u64::MAX` sentinel, which no live editor revision reaches — so a
+    /// reopened document's pull always recomputes rather than serving a stale
+    /// closed-file set.
+    fn revision_for_cache(&self) -> u64 {
+        match self.currency {
+            DiagCurrency::Open(revision) => revision,
+            DiagCurrency::ClosedFromDisk => u64::MAX,
+        }
+    }
+
+    /// Publish `diags` iff this run is still current for `uri`, holding the
+    /// `documents` lock across the currency check AND the pull-cache/publish
+    /// delivery so a concurrent `did_close`/`did_change` cannot interleave
+    /// between them — otherwise a `did_close` that lands in that window clears
+    /// the squiggles and drops the pull-cache entry, only for this run's late
+    /// delivery to re-publish and re-cache them for the now-closed document
+    /// (`RUST_ISSUE_098`).
     async fn deliver_if_current(&self, diags: Vec<tower_lsp_server::ls_types::Diagnostic>) {
         let docs = self.documents.lock().await;
-        if docs
-            .get(self.uri)
-            .is_some_and(|doc| doc.revision == self.revision)
-        {
+        if self.is_current(&docs) {
             self.cache_and_deliver(diags).await;
         }
     }
@@ -668,10 +760,7 @@ impl DeliveryCtx<'_> {
             return;
         }
         let docs = self.documents.lock().await;
-        if docs
-            .get(self.uri)
-            .is_some_and(|doc| doc.revision == self.revision)
-        {
+        if self.is_current(&docs) {
             // Best-effort/droppable (see above): cap the lock hold so a slow client
             // can't hold `documents` hostage for every other document's edits.
             // Dropping the parked `channel(1)` send on timeout is atomic — the push
@@ -693,7 +782,7 @@ impl DeliveryCtx<'_> {
             self.uri.clone(),
             PullDiagEntry {
                 result_id: next_pull_diag_result_id(),
-                revision: self.revision,
+                revision: self.revision_for_cache(),
                 diagnostics: diags.clone(),
             },
         );
@@ -1109,7 +1198,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         text,
         dialect,
         language_id,
-        revision,
+        currency,
         version,
         file,
         config,
@@ -1120,7 +1209,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         documents: &documents,
         pull_diag_cache: &pull_diag_cache,
         uri,
-        revision,
+        currency,
         version,
         client_supports_pull,
     };
@@ -1582,13 +1671,10 @@ async fn publish_diagnostics_result(
         // clearing empty publish overwritten (and its pull-cache removal
         // undone) by this run's late squiggles (RUST_ISSUE_098).
         let docs = delivery.documents.lock().await;
-        let is_current = docs
-            .get(delivery.uri)
-            .is_some_and(|doc| doc.revision == delivery.revision);
-        if !is_current {
-            // Superseded by a newer edit, which has marked the document
-            // dirty — settled for this version; the worker will process
-            // the newer state.
+        if !delivery.is_current(&docs) {
+            // Superseded by a newer edit (open run) or a reopen (closed run),
+            // which has taken authority for this URI — settled for this version;
+            // the authoritative path publishes the newer state.
             return true;
         }
         {
@@ -3022,6 +3108,14 @@ impl Backend {
             .collect();
         self.db_remove_sources_batch(&removed_urls).await;
         drop(docs);
+        // Clear the Problems / File-Explorer badge of any removed-folder file
+        // that still carried one (#865) — it is no longer part of the workspace,
+        // so a retained closed-file badge would be stale.
+        for uri in &removed_urls {
+            if self.pull_diag_cache.lock().await.contains_key(uri) {
+                self.clear_closed_diagnostics(uri).await;
+            }
+        }
     }
 
     async fn reindex_index_from_disk(&self, uri: &Uri) {
@@ -3068,6 +3162,77 @@ impl Backend {
         index.remove_document(uri.as_str());
         if let Some((_, _, analysis)) = &scanned {
             index.add_document(uri.as_str(), analysis);
+        }
+    }
+
+    /// Compute and publish a **closed** workspace file's diagnostics from its
+    /// on-disk contents (#865), so a file that was opened and had its editor tab
+    /// closed keeps its Problems / File-Explorer badge instead of losing it the
+    /// moment the tab closes.  Runs the *same* [`run_diagnostics_core`] pipeline
+    /// the open path uses — analyser, compiler checks, source-style, and the
+    /// cross-file W120/W123 refinement — so a closed file shows exactly the set
+    /// it showed while open, kept accurate against disk.
+    ///
+    /// Callers must have refreshed the on-disk salsa source first (via
+    /// [`Self::reindex_index_from_disk`]).  When the URI has no readable on-disk
+    /// `SourceFile` (an untitled buffer, or a file deleted between the reindex and
+    /// here), the closed-job capture yields `None` and the stale squiggles are
+    /// cleared instead — matching the pre-#865 close behaviour for such files.
+    async fn publish_closed_file_diagnostics(&self, uri: &Uri) {
+        // Resolve the dialect the way `reindex_index_from_disk` did, so the
+        // registry the analyser consults matches the on-disk source.
+        let dialect = match self.resolve_folder_dialect(uri).await {
+            Some(d) => d,
+            None => self.default_dialect.lock().await.clone(),
+        };
+        let inputs = self.diag_inputs(uri, &dialect).await;
+        match inputs.capture_closed_job(uri, &dialect).await {
+            Some(job) => {
+                run_diagnostics_core(inputs, uri, job).await;
+            }
+            None => self.clear_closed_diagnostics(uri).await,
+        }
+    }
+
+    /// Clear any previously-published diagnostics for a closed URI that no longer
+    /// has an on-disk source (untitled / deleted), and drop its pull-cache entry.
+    /// Guarded on the document still being closed, so a `did_open` racing in
+    /// cannot have this empty publish blank a freshly reopened buffer.
+    async fn clear_closed_diagnostics(&self, uri: &Uri) {
+        let docs = self.documents.lock().await;
+        if docs.contains_key(uri) {
+            return;
+        }
+        // Hold `documents` across the clearing publish + pull-cache drop (the
+        // `documents` → `pull_diag_cache` order), exactly as the open publish
+        // holds it, so a concurrent reopen cannot interleave (`RUST_ISSUE_098`).
+        self.client
+            .publish_diagnostics(uri.clone(), Vec::new(), None)
+            .await;
+        self.pull_diag_cache.lock().await.remove(uri);
+    }
+
+    /// Refresh the diagnostics of every **closed** file that currently carries a
+    /// badge (i.e. has a pull-cache entry but is not open), after a workspace-wide
+    /// change (a config / master-switch toggle, a disabled-code change) that the
+    /// open-document reschedule does not cover.  A closed file that is now clean,
+    /// or whose diagnostics are disabled by the new config, is emptied by the
+    /// same pipeline; one that still has problems is republished so its badge
+    /// stays accurate.
+    async fn reschedule_closed_file_diagnostics(&self) {
+        // Snapshot the closed-and-badged URIs under `documents` → `pull_diag_cache`
+        // (the established lock order) before doing any per-file work.
+        let closed: Vec<Uri> = {
+            let docs = self.documents.lock().await;
+            let cache = self.pull_diag_cache.lock().await;
+            cache
+                .keys()
+                .filter(|uri| !docs.contains_key(*uri))
+                .cloned()
+                .collect()
+        };
+        for uri in closed {
+            self.publish_closed_file_diagnostics(&uri).await;
         }
     }
 
@@ -5983,6 +6148,11 @@ impl LanguageServer for Backend {
         // master switch goes off, dropping O-codes when the optimiser goes off)
         // rather than lingering until the next keystroke.
         self.reschedule_all_open_documents().await;
+        // The same toggles govern closed files that still carry a badge (#865):
+        // a master-switch-off must clear their squiggles too, and a disabled-code
+        // change must re-lint them — the open-document reschedule alone would
+        // leave a closed file's badge frozen at its pre-toggle set.
+        self.reschedule_closed_file_diagnostics().await;
         // On-demand providers cache their last result client-side and only
         // re-request on a document edit — a bare config change (e.g. toggling
         // `features.folding` off) would otherwise leave stale folding ranges /
@@ -6016,17 +6186,6 @@ impl LanguageServer for Backend {
                 .remove_document(uri.as_str());
             drop(docs);
         }
-        // Clear any previously-published diagnostics so a later didOpen for the
-        // same URI starts clean.  Published outside the lock; a diagnostics run
-        // for the now-closed doc no longer publishes (its currency re-check
-        // fails), so this empty publish is the last word for the URI.
-        self.client
-            .publish_diagnostics(uri.clone(), Vec::new(), None)
-            .await;
-        // Drop the pull-diagnostic cache entry so a `workspace/diagnostic`
-        // sweep no longer reports the now-closed document and a later reopen
-        // recomputes from scratch.
-        self.pull_diag_cache.lock().await.remove(uri);
         // Drop the cached semantic-token baseline so a reopened document starts
         // from a fresh `full` rather than diffing against a stale stream.
         self.last_semantic_tokens.lock().await.remove(uri);
@@ -6040,6 +6199,18 @@ impl LanguageServer for Backend {
         // refreshes both the salsa db source and the disk-backed index entry (or
         // drops both when the URI is not a readable file).
         self.reindex_index_from_disk(uri).await;
+        // #865: keep the file's Problems / File-Explorer badge after its editor
+        // tab closes.  Rather than the old unconditional empty publish — which
+        // made a closed-but-on-disk workspace file lose its diagnostics until it
+        // was reopened — republish its on-disk diagnostics through the same
+        // pipeline the open path uses (so the set is identical, kept accurate
+        // against disk).  For a URI with no readable on-disk source (untitled
+        // buffer, deleted file) this clears the squiggles and drops the pull-cache
+        // entry, exactly as before.  The reindex above primed the salsa source it
+        // reads; both re-check the document is still closed under the `documents`
+        // lock, so a racing `did_open` can never have a stale closed publish land
+        // on a freshly reopened buffer (`RUST_ISSUE_098`).
+        self.publish_closed_file_diagnostics(uri).await;
     }
 
     async fn did_change_workspace_folders(&self, params: DidChangeWorkspaceFoldersParams) {
@@ -6096,6 +6267,13 @@ impl LanguageServer for Backend {
         // project's true on-disk state between restarts.
         let mut domain_changed = false;
         let mut config_changed = false;
+        // Closed files that already carry a badge (a pull-cache entry) and whose
+        // on-disk change must refresh (#865) or clear that badge.  Collected here
+        // and applied after the whole batch has updated the resolution domain, so
+        // each refresh analyses against the final on-disk state — never a
+        // half-applied one when several files change together.
+        let mut closed_badge_refresh: Vec<Uri> = Vec::new();
+        let mut closed_badge_clear: Vec<Uri> = Vec::new();
         for change in params.changes {
             // A project `.tcl-lsp.ini` (or user `config.ini`) edit re-applies the
             // layered config — a live-reload for these files.
@@ -6109,6 +6287,10 @@ impl LanguageServer for Backend {
             if self.documents.lock().await.contains_key(&change.uri) {
                 continue;
             }
+            // Only a file that already has a badge (was opened, so it has a
+            // pull-cache entry) has its diagnostics refreshed/cleared here — a
+            // never-opened file that changes on disk gains no surprise badge.
+            let had_badge = self.pull_diag_cache.lock().await.contains_key(&change.uri);
             if change.typ == FileChangeType::DELETED {
                 self.workspace_index
                     .write()
@@ -6117,12 +6299,26 @@ impl LanguageServer for Backend {
                 // Drop it from the salsa `Project` too, so a deleted file's procs
                 // stop suppressing W123 / driving the arity error cross-file.
                 self.db_remove_source(&change.uri).await;
+                if had_badge {
+                    closed_badge_clear.push(change.uri.clone());
+                }
             } else {
                 // CREATED or CHANGED: re-analyse from disk (a Tcl source file)
                 // or drop it if it no longer reads as one.
                 self.reindex_index_from_disk(&change.uri).await;
+                if had_badge {
+                    closed_badge_refresh.push(change.uri.clone());
+                }
             }
             domain_changed = true;
+        }
+        // Refresh/clear the badges of the closed files that changed on disk, now
+        // the resolution domain has settled (#865).
+        for uri in &closed_badge_clear {
+            self.clear_closed_diagnostics(uri).await;
+        }
+        for uri in &closed_badge_refresh {
+            self.publish_closed_file_diagnostics(uri).await;
         }
         // A watched (non-open) file's create/change/delete shifts the cross-file
         // resolution domain *and* `workspace_index` (the always-on W120/W123
@@ -6144,6 +6340,9 @@ impl LanguageServer for Backend {
             self.pull_and_apply_config().await;
             self.scan_workspace_folders().await;
             self.reschedule_all_open_documents().await;
+            // Closed files that carry a badge follow the same reconfigured
+            // disabled-code / master-switch state (#865).
+            self.reschedule_closed_file_diagnostics().await;
         }
     }
 
@@ -13574,6 +13773,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn did_close_removes_document_and_clears_pull_cache() {
+        // `file:///close.tcl` has no on-disk source, so #865's closed-file
+        // republish finds nothing to analyse and falls back to clearing the
+        // badge — the untitled / deleted-file path.
         let backend = test_backend();
         let uri = Uri::from_str("file:///close.tcl").unwrap();
         register(&backend, &uri, "set x 1\n").await;
@@ -13596,8 +13798,340 @@ mod tests {
         );
         assert!(
             !backend.pull_diag_cache.lock().await.contains_key(&uri),
-            "did_close should drop the pull-cache entry",
+            "a closed URI with no on-disk source should drop its pull-cache entry",
         );
+    }
+
+    // #865 — a workspace file that was opened and then had its editor tab closed
+    // must keep its Problems / File-Explorer badge (the diagnostics computed from
+    // its on-disk contents), instead of the old unconditional empty publish that
+    // dropped the badge until the file was reopened.  Observed through the
+    // pull-cache the push path keeps in lock-step (the test client's socket is
+    // detached, so the notification itself is a no-op).
+
+    /// TP: a closed on-disk file that has a problem keeps a non-empty badge.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn did_close_retains_diagnostics_for_on_disk_file_with_problems() {
+        let root = unique_scratch_dir("close-retain");
+        let on_disk = root.join("warn.tcl");
+        // `y` is assigned but never read → W211, a stable Tcl-dialect diagnostic.
+        std::fs::write(&on_disk, "proc foo {} { set y 1 }\n").unwrap();
+        let backend = test_backend();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        register(&backend, &uri, "proc foo {} { set y 1 }\n").await;
+        backend
+            .db_set_source(
+                &uri,
+                "proc foo {} { set y 1 }\n".to_owned(),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+
+        backend
+            .did_close(DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+            })
+            .await;
+
+        assert!(
+            !backend.documents.lock().await.contains_key(&uri),
+            "did_close still removes the open buffer",
+        );
+        let cache = backend.pull_diag_cache.lock().await;
+        let entry = cache
+            .get(&uri)
+            .expect("a closed on-disk file with problems must keep a pull-cache entry");
+        assert!(
+            entry.diagnostics.iter().any(|d| matches!(
+                &d.code,
+                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W211"
+            )),
+            "the retained badge must carry the file's W211: {:?}",
+            entry.diagnostics,
+        );
+        drop(cache);
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// TP + disk-accuracy: the retained badge reflects the *on-disk* file, not the
+    /// (possibly discarded) buffer that was open — a buffer edited clean then
+    /// closed-without-saving still shows the on-disk problem.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn did_close_badge_reflects_on_disk_not_discarded_buffer() {
+        let root = unique_scratch_dir("close-disk-accurate");
+        let on_disk = root.join("warn.tcl");
+        std::fs::write(&on_disk, "proc foo {} { set y 1 }\n").unwrap();
+        let backend = test_backend();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        // The open buffer is clean; only disk has the W211.  The retained badge
+        // must come from disk.
+        register(&backend, &uri, "proc foo {} { return 1 }\n").await;
+        backend
+            .db_set_source(
+                &uri,
+                "proc foo {} { return 1 }\n".to_owned(),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+
+        backend
+            .did_close(DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+            })
+            .await;
+
+        let cache = backend.pull_diag_cache.lock().await;
+        let entry = cache.get(&uri).expect("closed on-disk file keeps an entry");
+        assert!(
+            entry.diagnostics.iter().any(|d| matches!(
+                &d.code,
+                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W211"
+            )),
+            "badge must reflect the on-disk W211, not the clean discarded buffer: {:?}",
+            entry.diagnostics,
+        );
+        drop(cache);
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// TN: a closed on-disk file with no problems gets an empty badge (no false
+    /// File-Explorer decoration).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn did_close_publishes_empty_badge_for_clean_on_disk_file() {
+        let root = unique_scratch_dir("close-clean");
+        let on_disk = root.join("clean.tcl");
+        // A defined-and-called proc with no unused variables — no diagnostics.
+        let clean = "proc greet {} { puts hello }\ngreet\n";
+        std::fs::write(&on_disk, clean).unwrap();
+        let backend = test_backend();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        register(&backend, &uri, clean).await;
+        backend
+            .db_set_source(&uri, clean.to_owned(), "tcl8.6".to_owned())
+            .await;
+
+        backend
+            .did_close(DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+            })
+            .await;
+
+        let cache = backend.pull_diag_cache.lock().await;
+        let entry = cache
+            .get(&uri)
+            .expect("a clean closed on-disk file still primes the cache (empty)");
+        assert!(
+            entry.diagnostics.is_empty(),
+            "a clean file must not gain a badge: {:?}",
+            entry.diagnostics,
+        );
+        drop(cache);
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// FP-guard: a file deleted before its tab closes loses its badge (no stale
+    /// decoration for a file that is gone).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn did_close_clears_badge_when_file_deleted_before_close() {
+        let root = unique_scratch_dir("close-deleted");
+        let on_disk = root.join("gone.tcl");
+        std::fs::write(&on_disk, "proc foo {} { set y 1 }\n").unwrap();
+        let backend = test_backend();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        register(&backend, &uri, "proc foo {} { set y 1 }\n").await;
+        backend
+            .db_set_source(
+                &uri,
+                "proc foo {} { set y 1 }\n".to_owned(),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+        backend.pull_diag_cache.lock().await.insert(
+            uri.clone(),
+            PullDiagEntry {
+                result_id: next_pull_diag_result_id(),
+                revision: 0,
+                diagnostics: Vec::new(),
+            },
+        );
+        // The file vanishes from disk before the tab closes.
+        std::fs::remove_file(&on_disk).unwrap();
+
+        backend
+            .did_close(DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+            })
+            .await;
+
+        assert!(
+            !backend.pull_diag_cache.lock().await.contains_key(&uri),
+            "a deleted file must not keep a stale badge",
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// FN-guard: the closed-file capture never shadows a document that is open
+    /// again — a `did_open` racing in front of the closed run keeps authority, so
+    /// a late closed publish cannot blank a freshly reopened buffer.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn capture_closed_job_is_none_for_open_document() {
+        let root = unique_scratch_dir("close-reopen");
+        let on_disk = root.join("buf.tcl");
+        std::fs::write(&on_disk, "proc foo {} { set y 1 }\n").unwrap();
+        let backend = test_backend();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        register(&backend, &uri, "proc foo {} { set y 1 }\n").await;
+        backend
+            .db_set_source(
+                &uri,
+                "proc foo {} { set y 1 }\n".to_owned(),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+
+        let inputs = backend.diag_inputs(&uri, "tcl8.6").await;
+        assert!(
+            inputs.capture_closed_job(&uri, "tcl8.6").await.is_none(),
+            "an open document must not be captured as a closed-file job",
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// Master switch off must clear a closed file's retained badge too — the
+    /// open-document reschedule alone would freeze it at its pre-toggle set.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn reschedule_closed_file_diagnostics_clears_badge_when_master_off() {
+        let root = unique_scratch_dir("close-master-off");
+        let on_disk = root.join("warn.tcl");
+        std::fs::write(&on_disk, "proc foo {} { set y 1 }\n").unwrap();
+        let backend = test_backend();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        // Prime the on-disk salsa source + a non-empty badge, as a prior close would.
+        backend
+            .db_set_source(
+                &uri,
+                "proc foo {} { set y 1 }\n".to_owned(),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+        backend.pull_diag_cache.lock().await.insert(
+            uri.clone(),
+            PullDiagEntry {
+                result_id: next_pull_diag_result_id(),
+                revision: u64::MAX,
+                diagnostics: vec![tower_lsp_server::ls_types::Diagnostic {
+                    range: tower_lsp_server::ls_types::Range::default(),
+                    code: Some(tower_lsp_server::ls_types::NumberOrString::String(
+                        "W211".to_owned(),
+                    )),
+                    ..Default::default()
+                }],
+            },
+        );
+
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "diagnostics": false })
+                .as_object()
+                .unwrap(),
+        );
+        backend.reschedule_closed_file_diagnostics().await;
+
+        let cache = backend.pull_diag_cache.lock().await;
+        let entry = cache.get(&uri).expect("entry stays, now emptied");
+        assert!(
+            entry.diagnostics.is_empty(),
+            "master-switch-off must clear the closed file's badge: {:?}",
+            entry.diagnostics,
+        );
+        drop(cache);
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// An external on-disk change to a closed, badged file refreshes its badge.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn watched_change_refreshes_closed_file_badge() {
+        let root = unique_scratch_dir("watched-refresh");
+        let on_disk = root.join("warn.tcl");
+        // Starts clean; a prior open/close primed an (empty) badge.
+        std::fs::write(&on_disk, "set x 1\n").unwrap();
+        let backend = test_backend();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        backend
+            .db_set_source(&uri, "set x 1\n".to_owned(), "tcl8.6".to_owned())
+            .await;
+        backend.pull_diag_cache.lock().await.insert(
+            uri.clone(),
+            PullDiagEntry {
+                result_id: next_pull_diag_result_id(),
+                revision: u64::MAX,
+                diagnostics: Vec::new(),
+            },
+        );
+        // An external edit introduces a W211.
+        std::fs::write(&on_disk, "proc foo {} { set y 1 }\n").unwrap();
+
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp_server::ls_types::FileEvent {
+                    uri: uri.clone(),
+                    typ: FileChangeType::CHANGED,
+                }],
+            })
+            .await;
+
+        let cache = backend.pull_diag_cache.lock().await;
+        let entry = cache.get(&uri).expect("badge stays cached");
+        assert!(
+            entry.diagnostics.iter().any(|d| matches!(
+                &d.code,
+                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W211"
+            )),
+            "an external change must refresh a closed file's badge: {:?}",
+            entry.diagnostics,
+        );
+        drop(cache);
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// Deleting a closed, badged file on disk clears its badge.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn watched_delete_clears_closed_file_badge() {
+        let root = unique_scratch_dir("watched-delete");
+        let on_disk = root.join("warn.tcl");
+        std::fs::write(&on_disk, "proc foo {} { set y 1 }\n").unwrap();
+        let backend = test_backend();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        backend
+            .db_set_source(
+                &uri,
+                "proc foo {} { set y 1 }\n".to_owned(),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+        backend.pull_diag_cache.lock().await.insert(
+            uri.clone(),
+            PullDiagEntry {
+                result_id: next_pull_diag_result_id(),
+                revision: u64::MAX,
+                diagnostics: vec![tower_lsp_server::ls_types::Diagnostic::default()],
+            },
+        );
+        std::fs::remove_file(&on_disk).unwrap();
+
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp_server::ls_types::FileEvent {
+                    uri: uri.clone(),
+                    typ: FileChangeType::DELETED,
+                }],
+            })
+            .await;
+
+        assert!(
+            !backend.pull_diag_cache.lock().await.contains_key(&uri),
+            "deleting a closed file must clear its badge",
+        );
+        std::fs::remove_dir_all(&root).ok();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
