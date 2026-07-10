@@ -592,6 +592,62 @@ fn disabled_subcommand_form_shadowed_by_ensemble_head_proc_is_clean() {
 }
 
 #[test]
+fn w001_span_covers_only_the_subcommand_word() {
+    // The squiggle must sit tightly on the offending word alone — not the
+    // command name too. `string bogus $x`: "string " is 7 characters, so
+    // "bogus" spans [7, 12).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "string bogus $x\n");
+    let w001: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("W001"))
+        .collect();
+    assert_eq!(w001.len(), 1, "expected exactly one W001: {diags:?}");
+    let range = &w001[0]["range"];
+    assert_eq!(range["start"]["line"], 0);
+    assert_eq!(
+        range["start"]["character"], 7,
+        "span must start at 'bogus', not 'string'"
+    );
+    assert_eq!(range["end"]["line"], 0);
+    assert_eq!(
+        range["end"]["character"], 12,
+        "span must cover only 'bogus'"
+    );
+}
+
+#[test]
+fn proc_shadowing_ensemble_command_suppresses_w001() {
+    // FP regression (FP-STY-17): a same-file `proc string {...}` replaces
+    // the builtin `string` ensemble at the call site, end to end.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc string {op args} { return $op }\nstring reverse hello\n",
+    );
+    assert!(
+        !has_code(&diags, "W001"),
+        "proc-shadowed ensemble call must not fire W001: {diags:?}"
+    );
+}
+
+#[test]
+fn unshadowed_ensemble_command_still_fires_w001_alongside_a_shadowed_one() {
+    // TP control paired with the FP above: shadowing `string` must not
+    // blind the server to a genuine unknown subcommand on a different
+    // ensemble in the same file.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "proc string {op args} { return $op }\ninfo bogus\n");
+    assert!(
+        has_code(&diags, "W001"),
+        "unshadowed ensemble must still fire W001: {diags:?}"
+    );
+}
+
+#[test]
 fn bare_tcloo_object_dispatch_is_e001() {
     // `set o [Dog new]; $o` — TclOO's per-object dispatcher requires a
     // method word before it attempts any method lookup.

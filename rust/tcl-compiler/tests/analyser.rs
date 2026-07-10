@@ -437,6 +437,24 @@ mod diagnostics {
     }
 
     #[test]
+    fn proc_shadowing_ensemble_command_suppresses_w001() {
+        // tclsh8.6: `proc string {op args} {...}` completely replaces the
+        // builtin `string` ensemble at the call site — `string reverse x`
+        // dispatches to the user proc, not the registry subcommand set, so
+        // it must not be flagged "Unknown subcommand".  See FP-STY-17.
+        let src = "proc string {op args} { return $op }\nstring reverse x\n";
+        assert!(!fires(src, D, "W001"), "got {:?}", analyser_diags(src, D));
+    }
+
+    #[test]
+    fn ensemble_shadowing_does_not_hide_a_genuinely_unknown_subcommand() {
+        // The proc-shadow suppression above is scoped to `string` only — a
+        // different, unshadowed ensemble in the same file still fires.
+        let src = "proc string {op args} { return $op }\ninfo bogus\n";
+        assert!(fires(src, D, "W001"), "got {:?}", analyser_diags(src, D));
+    }
+
+    #[test]
     fn error_diagnostics_have_a_span() {
         // The error anchors at the start of the script. The diagnostic carries
         // a byte `span`; assert it starts at offset 0 (the `set` token).

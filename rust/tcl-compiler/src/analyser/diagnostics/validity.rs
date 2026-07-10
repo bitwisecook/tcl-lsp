@@ -167,6 +167,20 @@ fn dialect_availability_suffix(dialects: Option<tcl_registry::prelude::DialectSe
     format!(" (available in: {})", names.join(", "))
 }
 
+/// The *content* range of a subcommand word token — excluding a wrapper
+/// delimiter (`{…}` / `"…"`) when present.  Wrapper tokens carry the opening
+/// delimiter via `content_offset` and intentionally exclude the closing
+/// delimiter from `span.end` (see the word-token closing-delimiter
+/// convention); using the content range gives `length` (not `{length}` /
+/// `"length"`) for a wrapped subcommand and is identical to the full span for
+/// a bare `Esc` word (`content_offset == 0`). Shared by the W001 diagnostic
+/// span and its "did you mean" [`CodeFix`](super::types::CodeFix) span so the
+/// squiggle and the quick-fix target the same text.
+fn subcommand_content_span(tok: tcl_lexer::Token) -> tcl_lexer::Span {
+    let content_start = tok.span.start() + u32::from(tok.content_offset);
+    tcl_lexer::Span::new(content_start, tok.span.end())
+}
+
 /// Namespace-qualify `cmd_name`'s resolution candidates the Tcl way: current
 /// namespace first, then global. Shared by the builtin-shadowing suppression
 /// check ([`Analyser::flush_arity_diagnostics`]) and the same-file
@@ -354,31 +368,6 @@ pub(super) fn is_tcloo_metaclass(
 }
 
 impl Analyser {
-    /// **W001.** Emit "Unknown subcommand" warning for commands
-    /// whose registry signature is a [`SubcommandSig`](super::dispatch::SubcommandSig)
-    /// when the first argument doesn't resolve to a known subcommand.
-    ///
-    /// Skips:
-    ///
-    /// - commands the registry doesn't know (no signature),
-    /// - simple-command signatures (no subcommand dispatch),
-    /// - signatures with `allow_unknown == true` (generated
-    ///   dialect packs),
-    /// - first-arg values containing ``$`` / ``[`` (dynamic
-    ///   substitution — runtime-resolved),
-    /// - empty arg lists (handled by the E001 emitter).
-    ///
-    /// When emission is warranted, includes a "did you mean…?"
-    /// suffix using [`crate::text::suggest_similar`] over the
-    /// known subcommand set (max 1 suggestion within edit
-    /// distance 3).
-    ///
-    /// One case is not handled: a subcommand position that is
-    /// ``{*}``-expanded (``arg_expand[0]``). ``process_command`` does
-    /// not currently thread the expansion flag through; the literal-
-    /// text ``$`` / ``[`` gate covers the dynamic-substitution case,
-    /// and ``{*}LITERAL`` for an unknown subcommand is rare enough in
-    /// practice that the gap is acceptable.
     /// **W002** — the command is disabled in the active dialect profile: it
     /// exists in the registry but not for the active dialect (e.g. `dict` under
     /// `tcl8.4`, added in 8.5).  Only a *literal* command head is checked — a
@@ -476,12 +465,53 @@ impl Analyser {
         super::dispatch::signature_for_command(registry, cmd_name, dialect)
     }
 
+    /// **W001.** Emit "Unknown subcommand" warning for commands
+    /// whose registry signature is a [`SubcommandSig`](super::dispatch::SubcommandSig)
+    /// when the first argument doesn't resolve to a known subcommand.
+    ///
+    /// Skips:
+    ///
+    /// - commands the registry doesn't know (no signature),
+    /// - simple-command signatures (no subcommand dispatch),
+    /// - signatures with `allow_unknown == true` (generated
+    ///   dialect packs),
+    /// - a `{*}`-expanded subcommand word (`cmd {*}bogus …`) — its literal
+    ///   text is not what ends up in the subcommand position at run time,
+    /// - first-arg values containing ``$`` / ``[`` (dynamic
+    ///   substitution — runtime-resolved),
+    /// - empty arg lists (handled by the E001 emitter).
+    ///
+    /// When emission is warranted, includes a "did you mean…?"
+    /// suffix using [`crate::text::suggest_similar`] over the
+    /// known subcommand set (max 1 suggestion within edit
+    /// distance 3), and anchors the diagnostic at the subcommand token's
+    /// *content* range only ([`subcommand_content_span`]) — not the command
+    /// name — so the squiggle sits tightly on the one word that is actually
+    /// wrong, matching the "did you mean" fix's replacement range.
+    ///
+    /// A verdict is not pushed directly: the genuinely-unknown-subcommand
+    /// case is queued into [`Analyser::pending_arity`] — the same queue the
+    /// sibling E002/E003 arity check and W004 use, since a wrong subcommand
+    /// name is the same species of "call is malformed against the resolved
+    /// registry signature" as a wrong argument count — and the
+    /// subcommand-level-disabled-in-dialect case into
+    /// [`Analyser::pending_disabled_commands`] (the same queue
+    /// [`Self::emit_w002_disabled_command`] uses). Both are resolved
+    /// post-walk through [`UserResolutionFacts`], the identical shadow
+    /// computation every one of those checks shares. This covers the same
+    /// tricky-Tcl surface: a same-file `proc string {…}`, an `oo::class` /
+    /// snit / itcl class named `string`, an `interp alias` pointed at
+    /// `string`, a `namespace ensemble create -command string`, a static
+    /// `rename` target, or an inline `# tcl-lsp: stub string` all resolve
+    /// the call to something the registry ensemble signature has nothing to
+    /// do with, so none of them may draw a false "unknown subcommand".
     pub(in crate::analyser) fn emit_w001_unknown_subcommand(
         &mut self,
         cmd_name: &str,
         args: &[String],
         cmd_tok: tcl_lexer::Token,
         arg_tokens: &[tcl_lexer::Token],
+        arg_expand_in: &[bool],
         scope_path: &[usize],
     ) {
         use super::dispatch::{CommandSignature, signature_for_command};
@@ -494,6 +524,16 @@ impl Analyser {
             // Empty arg list — E001 path; not in scope here.
             return;
         };
+        // A `{*}`-expanded subcommand word (`cmd {*}bogus …`) splices
+        // ``bogus``'s *elements* into the subcommand position at run time,
+        // not its literal text — a multi-element literal (`cmd {*}{a b}`)
+        // would otherwise be misread as one bogus subcommand named `"a b"`.
+        // `arg_expand_in` is parallel to the full argv (command name at
+        // index 0); drop that slot so it lines up with `args`.
+        let arg_expand: &[bool] = arg_expand_in.get(1..).unwrap_or(&[]);
+        if arg_expand.first().copied().unwrap_or(false) {
+            return;
+        }
         // Dynamic-value subcommand position — can't resolve statically.
         if arg_tokens
             .first()
@@ -555,6 +595,8 @@ impl Analyser {
         // proc/alias/rename/class/ensemble that shadows it — e.g. `proc
         // package {args} {…}` fully overriding the `package` ensemble) can
         // depend on facts not yet known mid-walk.
+        let ns = self.command_resolution_namespace(scope_path);
+        let enforce_order = !self.scope_path_in_proc_body(scope_path);
         if let Some(CommandSignature::WithSubcommands(any_sig)) =
             signature_for_command(registry, cmd_name, DialectSet::all())
             && any_sig.is_known(first_arg)
@@ -587,8 +629,6 @@ impl Analyser {
                 severity: Severity::Warning,
                 fixes: Vec::new(),
             };
-            let ns = self.command_resolution_namespace(scope_path);
-            let enforce_order = !self.scope_path_in_proc_body(scope_path);
             self.pending_disabled_commands
                 .push((cmd_name.to_string(), ns, enforce_order, diag));
             return;
@@ -597,46 +637,34 @@ impl Analyser {
         let candidates: Vec<&str> = sig.subcommands.keys().map(String::as_str).collect();
         let suggestions = crate::text::suggest_similar(first_arg, candidates.iter().copied(), 1, 3);
         let mut fixes: Vec<super::types::CodeFix> = Vec::new();
+        // Anchor the squiggle at the subcommand token's content range only —
+        // not the command name — so it sits tightly on the one word that is
+        // actually wrong; the "did you mean" fix targets the identical range.
+        let span = match arg_tokens.first() {
+            Some(sub_tok) => subcommand_content_span(*sub_tok),
+            None => cmd_tok.span,
+        };
         if let Some(best) = suggestions.first() {
             use std::fmt::Write as _;
             let _ = write!(message, "; did you mean '{best}'?");
-            if let Some(sub_tok) = arg_tokens.first() {
-                // Target the *content* range of the subcommand
-                // token rather than its full span.  Wrapper tokens
-                // (`Str` braced, `Esc` quoted) carry the opening
-                // delimiter via ``content_offset`` and intentionally
-                // exclude the closing delimiter from ``span.end``;
-                // replacing the full span would leave a stray
-                // ``}`` / ``"`` behind (e.g. ``string {lenght}`` →
-                // ``string length}``).  Using the content range
-                // ([span.start + content_offset, span.end)) gives
-                // ``{length}`` / ``"length"`` for the wrapped forms
-                // and remains identical to the full span for bare
-                // ``Esc`` words (``content_offset == 0``).
-                let content_start = sub_tok.span.start() + u32::from(sub_tok.content_offset);
-                let fix_span = tcl_lexer::Span::new(content_start, sub_tok.span.end());
-                fixes.push(super::types::CodeFix {
-                    span: fix_span,
-                    new_text: (*best).to_string(),
-                    description: format!("Replace with '{best}'"),
-                });
-            }
+            fixes.push(super::types::CodeFix {
+                span,
+                new_text: (*best).to_string(),
+                description: format!("Replace with '{best}'"),
+            });
         }
-        // Anchor at the command-head + subcommand-name range so
-        // the squiggle covers ``cmd subname`` rather than the
-        // entire invocation: combine the command token with the
-        // subcommand arg token.
-        let span = match arg_tokens.first() {
-            Some(sub_tok) => tcl_lexer::Span::new(cmd_tok.span.start(), sub_tok.span.end()),
-            None => cmd_tok.span,
-        };
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W001,
-            span,
-            message,
-            severity: Severity::Warning,
-            fixes,
-        });
+        self.pending_arity.push((
+            cmd_name.to_string(),
+            ns,
+            enforce_order,
+            super::types::Diagnostic {
+                code: DiagCode::W001,
+                span,
+                message,
+                severity: Severity::Warning,
+                fixes,
+            },
+        ));
     }
 
     /// **E002 / E003.** Argument-count check for simple (non-
@@ -1058,10 +1086,11 @@ impl Analyser {
     /// Idempotent: drains `pending_arity` and `pending_user_call_arity`,
     /// so a second call is a no-op.
     ///
-    /// `pending_arity` carries both E002/E003 arity candidates and W004
-    /// (dialect-invalid-option) candidates (see its field doc); the
-    /// resolution loop below never inspects `diag.code`, so both share the
-    /// identical shadowing suppression with no special-casing.
+    /// `pending_arity` carries E002/E003 arity candidates, W004
+    /// (dialect-invalid-option) candidates, and W001 (unknown-subcommand)
+    /// candidates (see its field doc); the resolution loop below never
+    /// inspects `diag.code`, so all three share the identical shadowing
+    /// suppression with no special-casing.
     pub fn flush_arity_diagnostics(&mut self) {
         if self.pending_arity.is_empty() && self.pending_user_call_arity.is_empty() {
             return;

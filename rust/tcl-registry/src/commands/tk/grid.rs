@@ -52,6 +52,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        name: "content",
+        arity: Arity::at_least(1),
+        detail: "Return a list of all slaves in the grid for the master (9.0+ name for `slaves`).",
+        synopsis: "grid content master ?-option value?",
+        dialects: Some(DialectSet::TCL90_PLUS),
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
         name: "forget",
         arity: Arity::at_least(1),
         detail: "Remove each slave from the grid for its master.",

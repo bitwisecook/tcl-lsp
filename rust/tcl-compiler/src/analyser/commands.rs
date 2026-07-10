@@ -647,7 +647,14 @@ impl Analyser {
         if cmd_name == "catch" {
             self.emit_w302_catch_no_result_var(args, cmd_tok, arg_tokens, arg_single);
         }
-        self.emit_w001_unknown_subcommand(cmd_name, args, cmd_tok, arg_tokens, scope_path);
+        self.emit_w001_unknown_subcommand(
+            cmd_name,
+            args,
+            cmd_tok,
+            arg_tokens,
+            arg_expand_in,
+            scope_path,
+        );
         self.emit_w002_disabled_command(cmd_name, cmd_tok, scope_path);
         if let Some(checker) = self
             .registry
