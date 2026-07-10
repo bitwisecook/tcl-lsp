@@ -12,11 +12,11 @@ or an explicit *not required* classification.
 
 | status | count |
 | --- | --- |
-| handler | 101 |
+| handler | 103 |
 | handler (native) | 6 |
 | stdlib | 11 |
 | not-required | 111 |
-| known-gap (`RUST_ISSUE_007`) | 3 |
+| known-gap (`RUST_ISSUE_007`) | 1 |
 | **UNCLASSIFIED** | 0 |
 | **total** | 232 |
 
@@ -96,8 +96,8 @@ or an explicit *not required* classification.
 | `concat` | handler |  |
 | `const` | handler |  |
 | `continue` | handler |  |
-| `coroinject` | known-gap | coroutine introspection (the runtime backs `coroutine`/`yield` but not this) |
-| `coroprobe` | known-gap | coroutine introspection (the runtime backs `coroutine`/`yield` but not this) |
+| `coroinject` | handler |  |
+| `coroprobe` | handler |  |
 | `coroutine` | handler |  |
 | `dict` | handler |  |
 | `disabled_in_irules` | not-required | F5 iRules dialect artifact, not a real Tcl 9 command |

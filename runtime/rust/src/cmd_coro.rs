@@ -51,6 +51,8 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"coroutine", coroutine_cmd);
     interp.register_builtin(b"yield", yield_cmd);
     interp.register_builtin(b"yieldto", yieldto_cmd);
+    interp.register_builtin(b"coroprobe", coroprobe_cmd);
+    interp.register_builtin(b"coroinject", coroinject_cmd);
     interp.register_builtin(b"::tcl::unsupported::corotype", corotype_cmd);
 }
 
@@ -86,16 +88,24 @@ mod imp {
         });
     }
 
-    /// Main → worker: resume with a value, or tear the coroutine down.
+    /// Main → worker: resume with a value, tear the coroutine down, run a probe
+    /// command in the suspended context (`coroprobe`), or queue a command to run
+    /// on the next resume (`coroinject`).
     pub(super) enum ToCoro {
         Resume(Vec<u8>),
         Terminate,
+        Probe(Vec<Vec<u8>>),
+        Inject(Vec<Vec<u8>>),
     }
 
-    /// Worker → main: a `yield` (value), or the body finished (code + result).
+    /// Worker → main: a `yield` (value), the body finished (code + result), a
+    /// probe's result (code + result + its error trace, to transplant into the
+    /// caller), or an acknowledgement that an inject was queued.
     pub(super) enum FromCoro {
         Yield(Vec<u8>),
         Done(Code, Vec<u8>),
+        ProbeDone(Code, Vec<u8>, crate::interp::ErrorSnapshot),
+        InjectAck,
     }
 
     /// A live coroutine: its saved execution context (swapped on handoff) plus
@@ -260,34 +270,79 @@ mod imp {
         }
     }
 
+    /// Evaluate the command `words` in the current (worker) context — used to run
+    /// `coroprobe`/`coroinject` scripts inside a suspended coroutine's frames.
+    /// Returns the completion code and the result bytes (mirroring the body
+    /// dispatch in `worker_main`).
+    fn eval_words(interp: &mut Interp, words: &[Vec<u8>]) -> (Code, Vec<u8>) {
+        let argv: Vec<*mut TclObj> = words.iter().map(|b| obj::new_string_bytes(b)).collect();
+        for &a in &argv {
+            unsafe { obj::incr_ref_count(a) };
+        }
+        let code = interp.dispatch(&argv);
+        let result = interp.result_bytes();
+        for &a in &argv {
+            unsafe { obj::decr_ref_count(a) };
+        }
+        (code, result)
+    }
+
     /// `yield ?value?` — suspend the current coroutine, returning `value` to the
-    /// resumer; the result is whatever value resumes it.
+    /// resumer; the result is whatever value resumes it. While suspended the
+    /// worker also services `coroprobe` (run a command here, stay suspended) and
+    /// `coroinject` (queue a command for the next resume) requests.
     pub(super) fn do_yield(interp: &mut Interp, value: Vec<u8>) -> Code {
         let name = current_name();
         if name.is_empty() {
             return interp.set_error(b"yield can only be called in a coroutine");
         }
-        // Restore the caller's context, hand back the yield value, and block.
+        // Restore the caller's context, hand back the yield value, then loop
+        // servicing requests until an actual resume (or teardown) arrives.
         interp.coro_swap_named(&name);
-        let resumed = TLS.with(|t| {
-            let b = t.borrow();
-            let tls = b.as_ref().expect("coroutine TLS");
-            if tls.from_coro.send(FromCoro::Yield(value)).is_err() {
-                return None;
+        let mut outgoing = FromCoro::Yield(value);
+        let mut pending_inject: Option<Vec<Vec<u8>>> = None;
+        loop {
+            let to_send = outgoing;
+            let msg = TLS.with(|t| {
+                let b = t.borrow();
+                let tls = b.as_ref().expect("coroutine TLS");
+                if tls.from_coro.send(to_send).is_err() {
+                    return None;
+                }
+                tls.to_coro.recv().ok()
+            });
+            match msg {
+                Some(ToCoro::Resume(v)) => {
+                    // A queued `coroinject` runs first, in this (now swapped-in)
+                    // context, with the yield command + resume value appended; its
+                    // result becomes what `yield` returns.
+                    if let Some(mut words) = pending_inject.take() {
+                        words.push(b"yield".to_vec());
+                        words.push(v);
+                        let (code, _result) = eval_words(interp, &words);
+                        return code;
+                    }
+                    interp.set_result_bytes(&v);
+                    return Code::Ok;
+                }
+                // `coroprobe`: the caller has swapped our context in, so run the
+                // command here, capture its error trace for transplanting, and
+                // stay suspended.
+                Some(ToCoro::Probe(words)) => {
+                    let (code, result) = eval_words(interp, &words);
+                    let snap = interp.snapshot_error();
+                    outgoing = FromCoro::ProbeDone(code, result, snap);
+                }
+                // `coroinject`: remember the command; it runs on the next resume.
+                Some(ToCoro::Inject(words)) => {
+                    pending_inject = Some(words);
+                    outgoing = FromCoro::InjectAck;
+                }
+                // Deleted while suspended (Terminate / closed channel): unwind
+                // this worker without touching the interpreter further (the main
+                // thread is blocked awaiting us).
+                _ => std::panic::panic_any(CoroTerminate),
             }
-            match tls.to_coro.recv() {
-                Ok(ToCoro::Resume(v)) => Some(v),
-                _ => None,
-            }
-        });
-        match resumed {
-            Some(v) => {
-                interp.set_result_bytes(&v);
-                Code::Ok
-            }
-            // Deleted while suspended: unwind this worker without touching the
-            // interpreter further (the main thread is blocked awaiting us).
-            None => std::panic::panic_any(CoroTerminate),
         }
     }
 
@@ -333,7 +388,9 @@ mod imp {
                 interp.set_result_bytes(&result);
                 code
             }
-            Err(_) => {
+            // A resume only ever draws `Yield`/`Done`; a probe/inject reply or a
+            // closed channel here means the worker is gone.
+            _ => {
                 finish(interp, name);
                 interp.set_error(b"coroutine is dead")
             }
@@ -351,6 +408,84 @@ mod imp {
             }
         }
         interp.delete_command(name);
+    }
+
+    /// `coroprobe coroName cmd ?arg ...?` — run `cmd args` in the *suspended*
+    /// coroutine `name`'s context (its frames/variables) and return the result;
+    /// the coroutine stays suspended. Its error trace (if any) is transplanted
+    /// into the caller once the context is swapped back out.
+    pub(super) fn probe(interp: &mut Interp, name: &[u8], words: Vec<Vec<u8>>) -> Code {
+        if !interp.coros_mut().contains_key(name) {
+            return interp.set_error(b"can only inject a probe command into a coroutine");
+        }
+        let chans = {
+            let mut reg = interp.coros_mut();
+            let entry = reg.get_mut(name).expect("checked above");
+            entry.from_coro.take().map(|rx| (entry.to_coro.clone(), rx))
+        };
+        let Some((to_coro, from_coro)) = chans else {
+            return interp.set_error(b"can only inject a probe command into a suspended coroutine");
+        };
+        // Swap the coroutine's context in so the probe runs in its frames, hand
+        // off, and block for the result — then swap back to the caller's context.
+        // The swap is a symmetric toggle, so it is self-correcting regardless of
+        // whether the caller is the main flow or another coroutine.
+        interp.coro_swap_named(name);
+        let sent = to_coro.send(ToCoro::Probe(words)).is_ok();
+        let msg = if sent { from_coro.recv().ok() } else { None };
+        interp.coro_swap_named(name);
+        if let Some(entry) = interp.coros_mut().get_mut(name) {
+            entry.from_coro = Some(from_coro);
+        }
+        match msg {
+            Some(FromCoro::ProbeDone(code, result, snap)) => {
+                interp.set_result_bytes(&result);
+                if code == Code::Error {
+                    interp.restore_error(snap);
+                    interp.append_frame_noline(b"injected coroutine probe command");
+                }
+                code
+            }
+            _ => {
+                finish(interp, name);
+                interp.set_error(b"coroutine is dead")
+            }
+        }
+    }
+
+    /// `coroinject coroName cmd ?arg ...?` — queue `cmd args` to run inside the
+    /// *suspended* coroutine `name` the next time it is resumed, before it
+    /// continues; the yield command and resume value are appended, and the
+    /// injected command's result becomes what `yield` returns. Returns empty.
+    pub(super) fn inject(interp: &mut Interp, name: &[u8], words: Vec<Vec<u8>>) -> Code {
+        if !interp.coros_mut().contains_key(name) {
+            return interp.set_error(b"can only inject a command into a coroutine");
+        }
+        let chans = {
+            let mut reg = interp.coros_mut();
+            let entry = reg.get_mut(name).expect("checked above");
+            entry.from_coro.take().map(|rx| (entry.to_coro.clone(), rx))
+        };
+        let Some((to_coro, from_coro)) = chans else {
+            return interp.set_error(b"can only inject a command into a suspended coroutine");
+        };
+        // No context swap: the worker only records the command (it runs later, on
+        // resume). Send + await the acknowledgement to keep the channel in step.
+        let sent = to_coro.send(ToCoro::Inject(words)).is_ok();
+        let msg = if sent { from_coro.recv().ok() } else { None };
+        if let Some(entry) = interp.coros_mut().get_mut(name) {
+            entry.from_coro = Some(from_coro);
+        }
+        match msg {
+            Some(FromCoro::InjectAck) => {
+                interp.set_result_bytes(b"");
+                Code::Ok
+            }
+            _ => {
+                finish(interp, name);
+                interp.set_error(b"coroutine is dead")
+            }
+        }
     }
 
     /// Terminate a *suspended* coroutine `name` (e.g. `rename $coro {}` deletes
@@ -410,6 +545,28 @@ fn yieldto_cmd(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
     // `yieldto cmd args` yields and arranges for `cmd args` to be invoked on the
     // next resume. Not yet needed by the OO suites; report rather than misbehave.
     interp.set_error(b"yieldto is not yet implemented")
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn coroprobe_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 3 {
+        return interp
+            .set_error(b"wrong # args: should be \"coroprobe coroName cmd ?arg1 arg2 ...?\"");
+    }
+    let name = interp.fqn_for(&obj_bytes(argv[1]));
+    let words: Vec<Vec<u8>> = argv[2..].iter().map(|&a| obj_bytes(a)).collect();
+    imp::probe(interp, &name, words)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn coroinject_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 3 {
+        return interp
+            .set_error(b"wrong # args: should be \"coroinject coroName cmd ?arg1 arg2 ...?\"");
+    }
+    let name = interp.fqn_for(&obj_bytes(argv[1]));
+    let words: Vec<Vec<u8>> = argv[2..].iter().map(|&a| obj_bytes(a)).collect();
+    imp::inject(interp, &name, words)
 }
 
 /// `::tcl::unsupported::corotype coroName` — the coroutine's current type: the
@@ -477,6 +634,25 @@ fn yield_cmd(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
 #[cfg(target_arch = "wasm32")]
 fn yieldto_cmd(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
     interp.set_error(b"yieldto is not supported in the single-threaded wasm build")
+}
+
+#[cfg(target_arch = "wasm32")]
+fn coroprobe_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 3 {
+        return interp
+            .set_error(b"wrong # args: should be \"coroprobe coroName cmd ?arg1 arg2 ...?\"");
+    }
+    // No coroutines exist on the single-threaded wasm build, so no name is one.
+    interp.set_error(b"can only inject a probe command into a coroutine")
+}
+
+#[cfg(target_arch = "wasm32")]
+fn coroinject_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 3 {
+        return interp
+            .set_error(b"wrong # args: should be \"coroinject coroName cmd ?arg1 arg2 ...?\"");
+    }
+    interp.set_error(b"can only inject a command into a coroutine")
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -590,5 +766,68 @@ mod tests {
         // The interpreter keeps working afterward (no frame-stack corruption).
         run(&mut i, b"proc p {a b} { expr {$a + $b} }");
         assert_eq!(run(&mut i, b"p 2 3"), b"5");
+    }
+
+    #[test]
+    fn coroprobe_reads_and_mutates_suspended_context() {
+        use crate::interp::Code;
+        let mut i = Interp::new();
+        run(
+            &mut i,
+            b"coroutine c apply {{} { set local 42; while 1 { set got [yield ready] } }}",
+        );
+        // A probe reads the coroutine's frame variable; the coro stays suspended.
+        assert_eq!(run(&mut i, b"coroprobe c set local"), b"42");
+        assert_eq!(run(&mut i, b"coroprobe c set local"), b"42");
+        assert_eq!(run(&mut i, b"llength [info commands c]"), b"1");
+        // A probe mutation persists across the context swap-out.
+        run(&mut i, b"coroprobe c set local 99");
+        assert_eq!(run(&mut i, b"coroprobe c set local"), b"99");
+        // A normal resume still works after probing.
+        assert_eq!(run(&mut i, b"c hello"), b"ready");
+        // Errors: not a coroutine, arity, probe-command failure.
+        assert_eq!(i.eval_str(b"coroprobe nosuch set x"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            b"can only inject a probe command into a coroutine"
+        );
+        assert_eq!(i.eval_str(b"coroprobe c"), Code::Error);
+        assert_eq!(i.eval_str(b"coroprobe c set nope"), Code::Error);
+        assert_eq!(i.result_bytes(), b"can't read \"nope\": no such variable");
+    }
+
+    #[test]
+    fn coroinject_runs_on_next_resume() {
+        use crate::interp::Code;
+        let mut i = Interp::new();
+        run(
+            &mut i,
+            b"coroutine d apply {{} { while 1 { set ::last [yield ready] } }}",
+        );
+        // Inject returns empty and defers to the next resume.
+        assert_eq!(
+            run(&mut i, b"coroinject d apply {{args} {return INJECTED}}"),
+            b""
+        );
+        // The next resume runs the injected command first; its result is what the
+        // body's `yield` returns, and the resume itself returns the next yield.
+        assert_eq!(run(&mut i, b"d hello"), b"ready");
+        assert_eq!(run(&mut i, b"set ::last"), b"INJECTED");
+        // A resume with no pending injection behaves normally.
+        assert_eq!(run(&mut i, b"d world"), b"ready");
+        assert_eq!(run(&mut i, b"set ::last"), b"world");
+        // The injected command receives the yield command + resume value appended.
+        run(
+            &mut i,
+            b"coroinject d apply {{args} {set ::iargs $args; return X}}",
+        );
+        run(&mut i, b"d payload");
+        assert_eq!(run(&mut i, b"set ::iargs"), b"yield payload");
+        // Not a coroutine errors.
+        assert_eq!(i.eval_str(b"coroinject nosuch set x"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            b"can only inject a command into a coroutine"
+        );
     }
 }

@@ -391,6 +391,15 @@ pub(crate) struct ExceptionState {
     already_logged: bool,
 }
 
+/// A captured slice of [`ExceptionState`] — the `errorInfo`/`errorCode`
+/// accumulation — moved between flows by [`Interp::snapshot_error`] /
+/// [`Interp::restore_error`] (see `coroprobe`).
+pub(crate) struct ErrorSnapshot {
+    info: Option<Vec<u8>>,
+    code: Vec<u8>,
+    code_explicit: bool,
+}
+
 /// A coroutine's saved execution context: the per-flow interpreter state that
 /// is swapped in while the coroutine runs and swapped back out when it yields
 /// (`cmd_coro` / [`Interp::swap_coro_ctx`]). Shared definitions (namespaces,
@@ -3411,6 +3420,30 @@ impl Interp {
     pub(crate) fn error_info(&self) -> Vec<u8> {
         let info = self.exc.borrow().info.clone();
         info.unwrap_or_else(|| self.result_bytes())
+    }
+
+    /// Capture the error trace state (`errorInfo`/`errorCode` accumulation), so a
+    /// command run in a *different* flow can transplant it into this one. Used by
+    /// `coroprobe`: the probe runs in the coroutine's (swapped-in) exception
+    /// state, but its error must surface in the *caller's* trace once that state
+    /// is swapped back out.
+    pub(crate) fn snapshot_error(&self) -> ErrorSnapshot {
+        let exc = self.exc.borrow();
+        ErrorSnapshot {
+            info: exc.info.clone(),
+            code: exc.code.clone(),
+            code_explicit: exc.code_explicit,
+        }
+    }
+
+    /// Restore an [`ErrorSnapshot`] captured by [`snapshot_error`] into this
+    /// flow's exception state (the trace continues from there — e.g. `coroprobe`
+    /// then appends its own `(injected coroutine probe command)` frame).
+    pub(crate) fn restore_error(&self, snap: ErrorSnapshot) {
+        let mut exc = self.exc.borrow_mut();
+        exc.info = snap.info;
+        exc.code = snap.code;
+        exc.code_explicit = snap.code_explicit;
     }
 
     /// `info frame` (no arg): the depth of the source-location stack.
