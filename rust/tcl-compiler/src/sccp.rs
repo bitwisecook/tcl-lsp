@@ -626,15 +626,12 @@ fn sccp_process_statements(
             continue;
         }
         for (&var, ver) in &stmt_ssa.defs {
-            let val = if is_externally_mutable(
-                ssa.var_name(var),
-                escaping,
-                has_dynamic_variable_trace,
-            ) {
-                LatticeValue::Overdefined
-            } else {
-                evaluate_def(stmt_ssa, &*values, ssa, octal)
-            };
+            let val =
+                if is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace) {
+                    LatticeValue::Overdefined
+                } else {
+                    evaluate_def(stmt_ssa, &*values, ssa, octal)
+                };
             if set_value(values, (var, *ver), &val) {
                 changed = true;
             }
