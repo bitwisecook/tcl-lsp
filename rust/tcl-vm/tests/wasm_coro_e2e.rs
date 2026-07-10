@@ -199,7 +199,7 @@ fn vm_coroutines_run_on_wasm32() {
 }
 
 /// The **shipped** VM-on-wasm cdylib (`rust/tcl-vm-wasm`) — the primary wasm
-/// compile target (RUST_ISSUE_008 piece 1) — builds to wasm32 and runs coroutine
+/// compile target (`RUST_ISSUE_008` piece 1) — builds to wasm32 and runs coroutine
 /// scripts through its `tcl_alloc`/`tcl_eval`/`tcl_dealloc` ABI under Node,
 /// returning the tclsh-9.0.4 oracle values. The generated-crate test above proves
 /// the raw capability; this pins the product crate, its ABI, and `verify.mjs`
@@ -235,13 +235,17 @@ fn vm_wasm_crate_runs_coroutines_via_abi() {
     let wasm = crate_path.join("target/wasm32-unknown-unknown/release/tcl_vm_wasm.wasm");
     assert!(wasm.exists(), "wasm artifact missing at {}", wasm.display());
 
-    // `verify.mjs` runs a generator, the resume-value idiom, and a
-    // yield-across-catch case through the ABI, exiting non-zero on any mismatch
-    // (so `run_node`'s success assertion is the real gate).
+    // `verify.mjs` runs a generator, the resume-value idiom, a yield-across-catch
+    // case, and a yield-across-`lmap` case through the ABI, exiting non-zero on any
+    // mismatch (so `run_node`'s success assertion is the real gate).
     let out = run_node(&crate_path.join("verify.mjs"), &wasm);
     assert!(out.contains("ok   generator: 234"), "verify output: {out}");
     assert!(
         out.contains("ok   catch: done:0: foo"),
+        "verify output: {out}"
+    );
+    assert!(
+        out.contains("ok   lmap: 2 3 {A B C}"),
         "verify output: {out}"
     );
 }

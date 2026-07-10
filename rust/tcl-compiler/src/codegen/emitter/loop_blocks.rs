@@ -42,6 +42,10 @@ pub struct ForeachInfo {
     /// header `Call`'s `defs` + `foreach_groups`. Carried onto the
     /// `FOREACH_START` instruction so the VM can bind them (C Tcl `ForeachInfo`).
     pub var_groups: Vec<Vec<String>>,
+    /// This is an `lmap` (a collecting loop): the codegen strips the body's
+    /// trailing `POP` and emits `LMAP_COLLECT` so each iteration's result is
+    /// gathered VM-side, and `FOREACH_END` yields `list(accum)`.
+    pub collect: bool,
 }
 
 /// Metadata about a complex foreach: one whose body block terminates with a
@@ -109,6 +113,7 @@ pub fn detect_foreach(cfg: &CfgFunction) -> HashMap<String, ForeachInfo> {
                         end: cfg.block_name(*false_target).to_owned(),
                         list_args: args.clone(),
                         var_groups,
+                        collect: command == "lmap",
                     },
                 );
                 break;

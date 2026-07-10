@@ -50,6 +50,14 @@ struct ForeachState {
     iter_max: usize,
     /// Instruction index of the loop body (just after `FOREACH_START`).
     body_idx: usize,
+    /// This is a collecting loop (`lmap`): `LMAP_COLLECT` appends each
+    /// fall-through iteration's result to `accum`, and `FOREACH_END` pushes
+    /// `list(accum)` as the loop result. `false` for a plain `foreach`.
+    collect: bool,
+    /// Collected per-iteration results for a collecting loop (the `lmap`
+    /// accumulator). Lives here rather than on the operand stack so it survives a
+    /// `break`/`continue` that leaves the stack at a statement boundary.
+    accum: Vec<Value>,
 }
 
 /// Iterator state for a compiled `dict for` / `dict map` loop, keyed by the
@@ -1588,6 +1596,8 @@ impl Vm {
                     iter_num: 0,
                     iter_max,
                     body_idx,
+                    collect: instr.foreach_collect,
+                    accum: Vec::new(),
                 });
                 if let Some(&step) = f.foreach_pairs.get(&start_idx) {
                     f.pc = step;
@@ -1623,8 +1633,26 @@ impl Vm {
                     f.pc = body;
                 }
             }
+            Op::LMAP_COLLECT => {
+                // Append this fall-through iteration's result to the collecting
+                // loop's accumulator. A `break`/`continue` redirect jumps past this
+                // opcode (to `FOREACH_END` / `FOREACH_STEP`), so a skipped iteration
+                // contributes nothing — matching C `lmap`.
+                let v = pop(f);
+                if let Some(st) = f.foreach_stack.last_mut() {
+                    st.accum.push(v);
+                }
+            }
             Op::FOREACH_END => {
-                f.foreach_stack.pop();
+                let st = f.foreach_stack.pop();
+                // A collecting loop (`lmap`) yields `list(accum)`; a plain
+                // `foreach` yields nothing (its `""` result is pushed by the
+                // loop-end block).
+                if let Some(st) = st
+                    && st.collect
+                {
+                    f.stack.push(Value::list(st.accum));
+                }
             }
 
             // Compiled `dict for` / `dict map` iteration primitives. `dictFirst

@@ -46,6 +46,11 @@ const cases = [
   // `yield` crossing a `catch` body.
   ['catch', 'proc g {} { set r [catch {yield inner} m]; yield "done:$r:$m" }; ' +
     'coroutine c g; puts [list [c] [c foo]]', 'done:0: foo'],
+  // `yield` crossing a straight-line `lmap` (the inline collecting loop): the
+  // first yield (1) is consumed by creation, the resumes see 2,3, and the loop
+  // returns the mapped list of resume values.
+  ['lmap', 'proc g {} { lmap n {1 2 3} {yield $n} }; ' +
+    'coroutine c g; puts [list [c A] [c B] [c C]]', '2 3 {A B C}'],
 ];
 
 let failed = false;

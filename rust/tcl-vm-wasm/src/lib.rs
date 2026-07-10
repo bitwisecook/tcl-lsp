@@ -43,12 +43,15 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::{first_fatal_parse_error, lower_to_ir};
+use tcl_compiler::lowering::{first_fatal_parse_error, lower_to_ir_for_bytecode};
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, Vm};
 
 /// The injected compile service: `lower → CFG → bytecode`, the same pipeline the
-/// native embedder (`tcl-vm-cli`) and the wasm coroutine e2e test use.
+/// native embedder (`tcl-vm-cli`) uses. It lowers with `lower_to_ir_for_bytecode`
+/// (not the analysis `lower_to_ir`) so the VM-faithful barriers fire — e.g. a
+/// branching `lmap` or a directly-nested `foreach` routes to its runtime builtin
+/// rather than an inline shape the bytecode path can't compile correctly.
 struct Svc(CommandRegistry);
 
 impl CompileService for Svc {
@@ -58,7 +61,7 @@ impl CompileService for Svc {
         if let Some(msg) = first_fatal_parse_error(src) {
             return Err(CompileError(msg));
         }
-        let ir = lower_to_ir(src, &self.0);
+        let ir = lower_to_ir_for_bytecode(src, &self.0);
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.0))
     }

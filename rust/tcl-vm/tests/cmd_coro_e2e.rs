@@ -26,12 +26,14 @@
 //! `cmd [yield]` argument position both stay on the explicit stack (a whole-word
 //! `[…]` compiles to an inline `INVOKE`, not a runtime `subst_word` re-entry).
 //!
-//! `yield` also crosses `eval`, `uplevel 0`, and `catch` — each runs its body on
-//! the explicit stack (a transparent script / catch activation). A `yield`
-//! reached across a host re-entry the VM still runs on the *native* Rust stack
-//! (`subst`, `apply` in an arbitrary position, `lsort -command`) errors `cannot
-//! yield: C stack busy`. C Tcl makes those NR-enabled, so a real tclsh yields
-//! through them — the remaining divergence and a documented follow-up.
+//! `yield` also crosses `eval`, `uplevel 0`, `catch`, and a straight-line `lmap`
+//! — each runs its body on the explicit stack (a transparent script / catch
+//! activation, or the inline collecting loop). A `yield` reached across a host
+//! re-entry the VM still runs on the *native* Rust stack (`subst`, a
+//! *consumed*/branching `lmap`, `apply` in an arbitrary position, `lsort
+//! -command`) errors `cannot yield: C stack busy`. C Tcl makes those NR-enabled,
+//! so a real tclsh yields through them — the remaining divergence and a
+//! documented follow-up.
 
 use std::cell::RefCell;
 use std::io::Write;
@@ -219,6 +221,39 @@ fn catch_captures_a_post_resume_error_across_yield() {
              coroutine c g; list [c] [c Z]"
         ),
         "1/boom- Z"
+    );
+}
+
+// ===========================================================================
+// yield across `lmap` (RUST_ISSUE_008 piece 2)
+// ===========================================================================
+
+#[test]
+fn yield_across_lmap_generator_collects() {
+    // tclsh 9.0.4: a straight-line `lmap` body lowers to the inline collecting
+    // loop, so `yield` crosses it on the explicit stack. `coroutine` consumes the
+    // first yield (1); the resumes see 2, 3, and the loop then returns the mapped
+    // list of the three resume values.
+    assert_eq!(
+        result(
+            "proc g {} { lmap n {1 2 3} {yield $n} }; \
+             coroutine c g; list [c A] [c B] [c C]"
+        ),
+        "2 3 {A B C}"
+    );
+}
+
+#[test]
+fn yield_across_multivar_lmap_generator() {
+    // A two-variable `lmap` (2 groups over 4 elements = 2 iterations): the first
+    // yield ("12") is consumed by creation, `[c P]` yields the second ("34"), then
+    // the loop returns the collected resume values `{P Q}`.
+    assert_eq!(
+        result(
+            "proc g {} { lmap {a b} {1 2 3 4} {yield $a$b} }; \
+             coroutine c g; list [c P] [c Q]"
+        ),
+        "34 {P Q}"
     );
 }
 
