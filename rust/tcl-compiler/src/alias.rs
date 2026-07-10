@@ -24,7 +24,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::naming::normalise_qualified_name;
+use crate::naming::{is_dynamic_word, normalise_qualified_name};
 
 /// Alias store: qualified name → (target command, prepended args).
 pub type CommandAliasMap = HashMap<String, (String, Vec<String>)>;
@@ -53,6 +53,16 @@ pub fn detect_interp_alias(
     let prepended: Vec<String> = args[5..].to_vec();
 
     if !matches!(src_path.as_str(), "" | "{}") || !matches!(target_path.as_str(), "" | "{}") {
+        return None;
+    }
+    // A dynamic target (`interp alias {} myEval {} $target`) cannot be
+    // resolved to a static command name; recording it verbatim would map
+    // `myEval` to the literal, never-registered string `"$target"`,
+    // silently dropping arg-role/body/sink treatment for `myEval` calls
+    // instead of just leaving them unaliased. A dynamic alias name
+    // (`interp alias {} $name {} eval`) is safe to skip too — the
+    // resulting key can never match a real call's literal command word.
+    if is_dynamic_word(alias_name) || is_dynamic_word(target_cmd) {
         return None;
     }
 
@@ -116,6 +126,14 @@ pub fn detect_rename(cmd_name: &str, args: &[String]) -> Option<(String, String)
     let old = &args[0];
     let new = &args[1];
     if old.is_empty() || new.is_empty() {
+        return None;
+    }
+    // `rename $old newName` / `rename oldName [x]` — a dynamic component
+    // means the true target isn't known statically; recording it verbatim
+    // would map `newName` to a literal, never-registered string like
+    // `"$old"`, silently dropping arg-role/body/sink treatment for
+    // `newName` calls instead of just leaving them unaliased.
+    if is_dynamic_word(old) || is_dynamic_word(new) {
         return None;
     }
     Some((normalise_qualified_name(new), old.clone()))
@@ -198,6 +216,34 @@ mod tests {
     }
 
     #[test]
+    fn detect_interp_alias_rejects_dynamic_target() {
+        // `interp alias {} myEval {} $target` — the true target isn't
+        // known statically; must not map `myEval` to the literal string
+        // `"$target"` (which would silently drop arg-role/sink treatment
+        // for `myEval` calls instead of just leaving them unaliased).
+        let args: Vec<String> = vec![
+            "alias".into(),
+            "{}".into(),
+            "myEval".into(),
+            "{}".into(),
+            "$target".into(),
+        ];
+        assert!(detect_interp_alias("interp", &args).is_none());
+    }
+
+    #[test]
+    fn detect_interp_alias_rejects_dynamic_name() {
+        let args: Vec<String> = vec![
+            "alias".into(),
+            "{}".into(),
+            "$name".into(),
+            "{}".into(),
+            "eval".into(),
+        ];
+        assert!(detect_interp_alias("interp", &args).is_none());
+    }
+
+    #[test]
     fn detect_rename_basic() {
         let args: Vec<String> = vec!["eval".into(), "myEval".into()];
         let result = detect_rename("rename", &args);
@@ -208,6 +254,23 @@ mod tests {
     fn detect_rename_wrong_command() {
         let args: Vec<String> = vec!["eval".into(), "myEval".into()];
         assert!(detect_rename("puts", &args).is_none());
+    }
+
+    #[test]
+    fn detect_rename_rejects_dynamic_old_name() {
+        // `rename $old eval` — the true source isn't known statically;
+        // must not map `eval` to the literal string `"$old"` (which would
+        // silently drop arg-role/sink treatment for genuine `eval` calls
+        // later in the same script instead of just leaving them
+        // unaliased).
+        let args: Vec<String> = vec!["$old".into(), "eval".into()];
+        assert!(detect_rename("rename", &args).is_none());
+    }
+
+    #[test]
+    fn detect_rename_rejects_dynamic_new_name() {
+        let args: Vec<String> = vec!["eval".into(), "myEval[x]".into()];
+        assert!(detect_rename("rename", &args).is_none());
     }
 
     #[test]
