@@ -260,7 +260,7 @@ mod tests {
     fn find_shimmer_warnings_empty_function() {
         let f = Function::new("::top", "entry");
         let ssa = crate::ssa::build_ssa(&f, &registry());
-        let sccp = crate::sccp::sccp(&f, &ssa, None, None);
+        let sccp = crate::sccp::sccp(&f, &ssa, None, None, None);
         let types: HashMap<ValueKey, TypeLattice> = HashMap::new();
         assert!(
             find_shimmer_warnings(

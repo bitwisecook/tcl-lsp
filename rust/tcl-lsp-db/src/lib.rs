@@ -37,6 +37,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use tcl_compiler::cfg_builder::build_cfg_function_with_upvars;
+use tcl_compiler::cfg_builder::global_write_info::GlobalWriteInfo;
 use tcl_compiler::cfg_builder::upvar_info::UpvarInfo;
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit, LatticeRequest};
 use tcl_compiler::compiler_checks::{DiagCode, Diagnostic as CompilerCheck};
@@ -45,6 +46,7 @@ use tcl_compiler::ir::Script;
 use tcl_compiler::optimiser::Optimisation;
 use tcl_compiler::ssa::ValueKey;
 use tcl_compiler::taint::TaintLattice;
+use tcl_compiler::var_observability::ModuleVariableTraces;
 // The compiler's per-proc return-taint summary (the colour-aware transfer
 // function the interprocedural fixpoint converges) — aliased to avoid clashing
 // with this crate's `ProcTaintSummary` (the *interproc-analysis* projection in
@@ -681,18 +683,24 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
     ))
 }
 
-/// Interned module-wide CFG context (`upvar_procs` + `proc_params` from
-/// `prepare_cfg_context`), the context a procedure body's CFG is built under.
-/// Interned once per build and shared by every [`FnLatticeKey`] so a procedure's
-/// key stays small and the per-build interning cost is `O(procs)`, not
-/// `O(procs²)`.  The entry vecs are sorted by name before interning so an equal
-/// context (regardless of hash-map iteration order) yields the same id.
+/// Interned module-wide context (`upvar_procs` + `proc_params` +
+/// `global_write_procs` from `prepare_cfg_context`, plus the module-wide
+/// variable-trace fact from `scan_module_variable_traces`) that a
+/// procedure body's CFG + SCCP lattice is built under. Interned once per
+/// build and shared by every [`FnLatticeKey`] so a procedure's key stays
+/// small and the per-build interning cost is `O(procs)`, not `O(procs²)`.
+/// The entry vecs are sorted by name before interning so an equal context
+/// (regardless of hash-map iteration order) yields the same id.
 #[salsa::interned]
 pub struct CfgContext<'db> {
     #[returns(ref)]
     pub upvar_ctx: Vec<(String, UpvarInfo)>,
     #[returns(ref)]
     pub proc_params: Vec<(String, Vec<String>)>,
+    #[returns(ref)]
+    pub global_write_ctx: Vec<(String, GlobalWriteInfo)>,
+    #[returns(ref)]
+    pub module_traces: ModuleVariableTraces,
 }
 
 /// Interned identity of one procedure's **offset-0** baseline lattice
@@ -752,8 +760,17 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
     let upvar: HashMap<String, UpvarInfo> = context.upvar_ctx(db).iter().cloned().collect();
     let proc_params: HashMap<String, Vec<String>> =
         context.proc_params(db).iter().cloned().collect();
+    let global_write_procs: HashMap<String, GlobalWriteInfo> =
+        context.global_write_ctx(db).iter().cloned().collect();
     let registry = db.registry(key.dialect(db));
-    let cfg = build_cfg_function_with_upvars(key.qname(db), key.body(db), true, upvar, proc_params);
+    let cfg = build_cfg_function_with_upvars(
+        key.qname(db),
+        key.body(db),
+        true,
+        upvar,
+        proc_params,
+        global_write_procs,
+    );
     let param_constants =
         tcl_compiler::compilation_unit::decode_param_constants(key.param_constants(db));
     let known_classes: HashSet<String> = key.known_classes(db).iter().cloned().collect();
@@ -764,6 +781,7 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
         &registry,
         param_constants.as_ref(),
         &known_classes,
+        Some(context.module_traces(db)),
     ))
 }
 
@@ -889,7 +907,19 @@ fn build_unit_with_keys<'db>(
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect();
             proc_params.sort_by(|a, b| a.0.cmp(&b.0));
-            CfgContext::new(db, upvar, proc_params)
+            let mut global_write: Vec<(String, GlobalWriteInfo)> = req
+                .global_write_procs
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            global_write.sort_by(|a, b| a.0.cmp(&b.0));
+            CfgContext::new(
+                db,
+                upvar,
+                proc_params,
+                global_write,
+                req.module_traces.clone(),
+            )
         });
         let key = FnLatticeKey::new(
             db,

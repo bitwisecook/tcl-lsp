@@ -27,7 +27,7 @@ use tcl_lexer::backslash_subst;
 use super::values::{parse_braced_scalar_ref, parse_simple_var_ref};
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp, render_expr};
-use crate::tcl_expr_eval::{Env, TclValue, eval_tcl_expr};
+use crate::tcl_expr_eval::{Env, TclValue, eval_tcl_expr_with_octal};
 
 /// Operators whose constant integer value `eval_tcl_expr` computes soundly and
 /// which C Tcl folds at compile time: arithmetic, shift, bitwise, logical, and
@@ -248,7 +248,13 @@ impl CodegenCtx<'_> {
             ExprNode::Unary { op, .. } => unaryop_folds(*op),
             _ => false,
         };
-        if foldable && let Some(TclValue::Int(i)) = eval_tcl_expr(node, &Env::new()) {
+        if foldable
+            && let Some(TclValue::Int(i)) = eval_tcl_expr_with_octal(
+                node,
+                &Env::new(),
+                Some(self.registry.leading_zero_is_octal()),
+            )
+        {
             self.push_lit(&i.to_string());
             return true;
         }

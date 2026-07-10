@@ -49,7 +49,7 @@ use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Script, Statement, SwitchArm, SwitchMode};
 use crate::naming::normalise_var_name;
-use crate::tcl_expr_eval::{Env, EnvValue, eval_tcl_expr};
+use crate::tcl_expr_eval::{Env, EnvValue, eval_tcl_expr_with_octal, leading_zero_is_octal};
 
 use super::helpers::literals::is_plain_literal;
 use super::helpers::spans::full_rewrite_span;
@@ -174,7 +174,8 @@ fn visit_while(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
     else {
         return;
     };
-    if let Some(val) = eval_tcl_expr(condition, env)
+    if let Some(val) =
+        eval_tcl_expr_with_octal(condition, env, ctx.dialect.map(leading_zero_is_octal))
         && !val.is_truthy()
     {
         ctx.report(Optimisation::new(
@@ -200,7 +201,8 @@ fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
     else {
         return;
     };
-    if let Some(val) = eval_tcl_expr(condition, env)
+    if let Some(val) =
+        eval_tcl_expr_with_octal(condition, env, ctx.dialect.map(leading_zero_is_octal))
         && !val.is_truthy()
     {
         if init.statements.is_empty() {
@@ -270,8 +272,9 @@ fn try_eliminate_if(
     else_span: Option<tcl_lexer::Span>,
     env: &Env,
 ) {
+    let octal = ctx.dialect.map(leading_zero_is_octal);
     for clause in clauses {
-        let Some(val) = eval_tcl_expr(&clause.condition, env) else {
+        let Some(val) = eval_tcl_expr_with_octal(&clause.condition, env, octal) else {
             return;
         };
         if val.is_truthy() {

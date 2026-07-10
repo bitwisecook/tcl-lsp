@@ -37,6 +37,7 @@ use crate::ir::{CommandTokens, Module, Script, Statement};
 use crate::ir_helpers::defs_from_ir_script;
 use crate::naming::normalise_var_name;
 
+use self::global_write_info::GlobalWriteInfo;
 use self::upvar_info::{UpvarInfo, collect_upvar_targets};
 
 /// Choose the [`CommandTokens`] for a "frozen" `while`/`for` runtime call.
@@ -108,6 +109,7 @@ fn all_str_tokens(cmd: &str, args: &[String]) -> CommandTokens {
 }
 
 mod cfg_lower;
+pub mod global_write_info;
 pub mod upvar_info;
 
 /// Mutable block used during construction, frozen into [`Block`] at the end.
@@ -135,6 +137,12 @@ pub(crate) struct CfgBuilder {
     /// wiring to resolve param-based upvar sources (`upvar 1 $param
     /// local`) against the actual call-site argument.
     proc_params: HashMap<String, Vec<String>>,
+    /// Map from command name to the outer-scope (global/namespace) variable
+    /// names that proc's body writes (see [`global_write_info`]), used to
+    /// widen caller-side `defs` at a call site exactly like `upvar_procs` —
+    /// so SCCP treats a global/namespace name as overdefined across an
+    /// opaque call that writes it, not as an ordinary untouched local.
+    global_write_procs: HashMap<String, GlobalWriteInfo>,
     /// Stack of `(break_target, continue_target)` block names for the
     /// enclosing loops, so `break` / `continue` in a body lower to a CFG
     /// edge.  Without this a `while 1 { … break }` exit block is
@@ -180,13 +188,14 @@ const MAX_LOWER_DEPTH: usize = 256;
 
 impl CfgBuilder {
     fn new(inline_loops: bool) -> Self {
-        Self::new_with_upvars(inline_loops, HashMap::new(), HashMap::new())
+        Self::new_with_upvars(inline_loops, HashMap::new(), HashMap::new(), HashMap::new())
     }
 
     fn new_with_upvars(
         inline_loops: bool,
         upvar_procs: HashMap<String, UpvarInfo>,
         proc_params: HashMap<String, Vec<String>>,
+        global_write_procs: HashMap<String, GlobalWriteInfo>,
     ) -> Self {
         Self {
             counter: 0,
@@ -196,6 +205,7 @@ impl CfgBuilder {
             inline_loops,
             upvar_procs,
             proc_params,
+            global_write_procs,
             loop_stack: Vec::new(),
             exception_edges: Vec::new(),
             faithful_exceptions: false,
@@ -231,25 +241,42 @@ impl CfgBuilder {
     /// tokens whose head is a known upvar proc; merges those defs
     /// into the host Call when possible, or emits a synthetic
     /// `<upvar-invalidate>` Call before a non-Call host.
+    ///
+    /// The same two forms also widen `defs` with `global_write_procs`
+    /// (a callee that writes an outer-scope name via `global`/`variable`/
+    /// `upvar #0`, see [`global_write_info`]) — a global name doesn't
+    /// depend on call-site arguments, so no params-based mapping is
+    /// needed, just the literal name list.
     fn apply_upvar_invalidation(&self, mut stmt: Statement) -> Vec<Statement> {
-        // 1. Direct-call extras: command is a known upvar proc.
+        // 1. Direct-call extras: command is a known upvar proc / a proc that
+        //    writes outer-scope names.
         let direct_extras: Vec<String> = match &stmt {
-            Statement::Call { command, args, .. } => self
-                .upvar_procs
-                .get(command.as_str())
-                .map(|info| {
-                    let params: &[String] = self
-                        .proc_params
-                        .get(command.as_str())
-                        .map_or(&[][..], Vec::as_slice);
-                    info.caller_side_defs(args, params)
-                })
-                .unwrap_or_default(),
+            Statement::Call { command, args, .. } => {
+                let mut extras = self
+                    .upvar_procs
+                    .get(command.as_str())
+                    .map(|info| {
+                        let params: &[String] = self
+                            .proc_params
+                            .get(command.as_str())
+                            .map_or(&[][..], Vec::as_slice);
+                        info.caller_side_defs(args, params)
+                    })
+                    .unwrap_or_default();
+                if let Some(info) = self.global_write_procs.get(command.as_str()) {
+                    for name in &info.names {
+                        if !extras.contains(name) {
+                            extras.push(name.clone());
+                        }
+                    }
+                }
+                extras
+            }
             _ => Vec::new(),
         };
 
         // 2. Embedded-substitution extras: walk text for
-        //    `[upvar_proc arg]` substitutions.
+        //    `[upvar_proc arg]` / `[global_write_proc arg]` substitutions.
         let texts: Vec<&str> = match &stmt {
             Statement::AssignValue { value, .. } if value.contains('[') => vec![value.as_str()],
             Statement::Call { args, .. } => args
@@ -262,6 +289,11 @@ impl CfgBuilder {
         let mut embedded_extras: Vec<String> = Vec::new();
         for text in texts {
             for d in self.upvar_defs_from_text(text) {
+                if !embedded_extras.contains(&d) {
+                    embedded_extras.push(d);
+                }
+            }
+            for d in self.global_write_defs_from_text(text) {
                 if !embedded_extras.contains(&d) {
                     embedded_extras.push(d);
                 }
@@ -358,6 +390,47 @@ impl CfgBuilder {
             for d in info.caller_side_defs(&raw_args, params) {
                 if !defs.contains(&d) {
                     defs.push(d);
+                }
+            }
+        }
+        defs
+    }
+
+    /// Scan *text* for `[command_substitution]` tokens and accumulate the
+    /// outer-scope (global/namespace) names any embedded call to a known
+    /// global-writing proc writes — the embedded-substitution analogue of
+    /// [`Self::upvar_defs_from_text`], for the same soundness reason: a
+    /// global write reached via `set y [mutate]` is just as real as one
+    /// reached via a bare `mutate` statement.
+    fn global_write_defs_from_text(&self, text: &str) -> Vec<String> {
+        use tcl_lexer::{Lexer, SourceMap, TokenType};
+
+        if self.global_write_procs.is_empty() || !text.contains('[') {
+            return Vec::new();
+        }
+
+        let sm = SourceMap::new(text);
+        let lexer = Lexer::new(text);
+        let Ok(tokens) = lexer.tokenise_all() else {
+            return Vec::new();
+        };
+
+        let mut defs: Vec<String> = Vec::new();
+        for tok in &tokens {
+            if tok.kind != TokenType::Cmd {
+                continue;
+            }
+            let inner = sm.token_text(*tok);
+            let words = words_from_text(inner);
+            let Some(cmd) = words.first() else {
+                continue;
+            };
+            let Some(info) = self.global_write_procs.get(cmd.as_str()) else {
+                continue;
+            };
+            for name in &info.names {
+                if !defs.contains(name) {
+                    defs.push(name.clone());
                 }
             }
         }
@@ -1033,14 +1106,25 @@ pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
     result
 }
 
-/// Return the upvar-procs map and the parameter-list map used by
-/// the CFG builder's upvar-invalidation pass.  Both the qualified
-/// and short forms are registered for every proc.
+/// Module-wide CFG-determining context: the upvar-procs map, the
+/// parameter-list map, and the global-write-procs map
+/// ([`global_write_info::detect_global_write_procs`]) [`prepare_cfg_context`]
+/// returns. The single canonical definition [`crate::compilation_unit`]
+/// reuses for its own `CfgContext` alias, so the two never drift apart.
+pub type CfgContext = (
+    HashMap<String, UpvarInfo>,
+    HashMap<String, Vec<String>>,
+    HashMap<String, GlobalWriteInfo>,
+);
+
+/// Return the upvar-procs map, the parameter-list map, and the
+/// global-write-procs map ([`global_write_info::detect_global_write_procs`])
+/// used by the CFG builder's call-site invalidation pass.  Both the
+/// qualified and short forms are registered for every proc.
 #[must_use]
-pub fn prepare_cfg_context(
-    module: &Module,
-) -> (HashMap<String, UpvarInfo>, HashMap<String, Vec<String>>) {
+pub fn prepare_cfg_context(module: &Module) -> CfgContext {
     let upvar_procs = detect_upvar_procs(module);
+    let global_write_procs = global_write_info::detect_global_write_procs(module);
     let mut proc_params: HashMap<String, Vec<String>> = HashMap::new();
     // Iterate procedures in a deterministic (qualified-name) order: a *short*
     // name shared by two procedures (`::a::x` and `::b::x`) is inserted by both,
@@ -1059,7 +1143,7 @@ pub fn prepare_cfg_context(
         }
         proc_params.insert(qname.clone(), proc.params.clone());
     }
-    (upvar_procs, proc_params)
+    (upvar_procs, proc_params, global_write_procs)
 }
 
 /// Build CFGs for a whole module: top-level script + each procedure.
@@ -1091,10 +1175,15 @@ pub fn build_cfg_codegen(module: &Module, defer_top_level: bool) -> CfgModule {
 }
 
 fn build_cfg_inner(module: &Module, defer_top_level: bool, faithful: bool) -> CfgModule {
-    let (upvar_procs, proc_params) = prepare_cfg_context(module);
+    let (upvar_procs, proc_params, global_write_procs) = prepare_cfg_context(module);
 
     let new_builder = |inline: bool| {
-        let b = CfgBuilder::new_with_upvars(inline, upvar_procs.clone(), proc_params.clone());
+        let b = CfgBuilder::new_with_upvars(
+            inline,
+            upvar_procs.clone(),
+            proc_params.clone(),
+            global_write_procs.clone(),
+        );
         if faithful {
             b.with_faithful_exceptions()
         } else {
@@ -1137,22 +1226,27 @@ pub fn build_cfg_function(name: &str, script: &Script, inline_loops: bool) -> Fu
 /// hasher); the signature is generalised over `BuildHasher` and rehashes
 /// into the builder's default-hashed maps on entry.
 #[must_use]
-pub fn build_cfg_function_with_upvars<S1, S2>(
+pub fn build_cfg_function_with_upvars<S1, S2, S3>(
     name: &str,
     script: &Script,
     inline_loops: bool,
     upvar_procs: HashMap<String, UpvarInfo, S1>,
     proc_params: HashMap<String, Vec<String>, S2>,
+    global_write_procs: HashMap<String, GlobalWriteInfo, S3>,
 ) -> Function
 where
     S1: std::hash::BuildHasher,
     S2: std::hash::BuildHasher,
+    S3: std::hash::BuildHasher,
 {
     // Rehash into the builder's default-hashed maps (cheap, once per function).
     let upvar_procs: HashMap<String, UpvarInfo> = upvar_procs.into_iter().collect();
     let proc_params: HashMap<String, Vec<String>> = proc_params.into_iter().collect();
-    let mut builder = CfgBuilder::new_with_upvars(inline_loops, upvar_procs, proc_params)
-        .with_faithful_exceptions();
+    let global_write_procs: HashMap<String, GlobalWriteInfo> =
+        global_write_procs.into_iter().collect();
+    let mut builder =
+        CfgBuilder::new_with_upvars(inline_loops, upvar_procs, proc_params, global_write_procs)
+            .with_faithful_exceptions();
     builder.build_function(name, script)
 }
 
@@ -1978,7 +2072,7 @@ mod tests {
     #[test]
     fn prepare_cfg_context_registers_params_for_all_procs() {
         let module = lower_module("proc ::ns::p {a b} { upvar 1 $a x }\nproc q {c} {}");
-        let (_upvar_procs, proc_params) = prepare_cfg_context(&module);
+        let (_upvar_procs, proc_params, _global_write_procs) = prepare_cfg_context(&module);
         assert_eq!(
             proc_params.get("::ns::p"),
             Some(&vec!["a".to_string(), "b".to_string()]),

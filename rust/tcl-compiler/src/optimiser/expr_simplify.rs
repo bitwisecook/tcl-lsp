@@ -57,7 +57,9 @@
 use crate::compilation_unit::CompilationUnit;
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
-use crate::tcl_expr_eval::{Env, eval_tcl_expr, format_tcl_value};
+use crate::tcl_expr_eval::{
+    Env, eval_tcl_expr_with_octal, format_tcl_value, leading_zero_is_octal,
+};
 use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
 
@@ -68,79 +70,76 @@ use super::{Optimisation, PassContext};
 /// in `cu`.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     use super::helpers::expr_simplify::operand_types;
+    let procedures = &cu.ir_module.procedures;
     let top_numeric = operand_types(&cu.top_level);
-    walk_script(
-        ctx,
-        &cu.ir_module.top_level,
-        ctx.dialect,
-        Some(&top_numeric),
-    );
+    walk_script(ctx, &cu.ir_module.top_level, Some(&top_numeric), procedures);
     for (qname, proc) in &cu.ir_module.procedures {
         let numeric = cu.procedures.get(qname).map(operand_types);
-        walk_script(ctx, &proc.body, ctx.dialect, numeric.as_ref());
+        walk_script(ctx, &proc.body, numeric.as_ref(), procedures);
     }
 }
+
+type Procedures = std::collections::HashMap<String, crate::ir::Procedure>;
 
 fn walk_script(
     ctx: &mut PassContext<'_>,
     script: &Script,
-    dialect: Option<&str>,
     numeric: NumericCtx<'_>,
+    procedures: &Procedures,
 ) {
     for stmt in &script.statements {
-        walk_statement(ctx, stmt, dialect, numeric);
+        walk_statement(ctx, stmt, numeric, procedures);
     }
-    let _ = dialect;
 }
 
 fn walk_statement(
     ctx: &mut PassContext<'_>,
     stmt: &Statement,
-    dialect: Option<&str>,
     numeric: NumericCtx<'_>,
+    procedures: &Procedures,
 ) {
     match stmt {
         Statement::ExprEval { span, expr } => {
-            try_rewrite_expr(ctx, *span, expr);
+            try_rewrite_expr(ctx, *span, expr, procedures);
         }
         Statement::AssignExpr {
             span, name, expr, ..
         } => {
-            try_rewrite_assign_expr(ctx, *span, name, expr, numeric);
+            try_rewrite_assign_expr(ctx, *span, name, expr, numeric, procedures);
         }
         Statement::If {
             clauses, else_body, ..
         } => {
             for c in clauses {
-                walk_script(ctx, &c.body, dialect, numeric);
+                walk_script(ctx, &c.body, numeric, procedures);
             }
             if let Some(body) = else_body {
-                walk_script(ctx, body, dialect, numeric);
+                walk_script(ctx, body, numeric, procedures);
             }
         }
         Statement::While { body, .. } | Statement::Catch { body, .. } => {
-            walk_script(ctx, body, dialect, numeric);
+            walk_script(ctx, body, numeric, procedures);
         }
         Statement::For {
             init, next, body, ..
         } => {
-            walk_script(ctx, init, dialect, numeric);
-            walk_script(ctx, body, dialect, numeric);
-            walk_script(ctx, next, dialect, numeric);
+            walk_script(ctx, init, numeric, procedures);
+            walk_script(ctx, body, numeric, procedures);
+            walk_script(ctx, next, numeric, procedures);
         }
-        Statement::Foreach { body, .. } => walk_script(ctx, body, dialect, numeric),
+        Statement::Foreach { body, .. } => walk_script(ctx, body, numeric, procedures),
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            walk_script(ctx, body, dialect, numeric);
+            walk_script(ctx, body, numeric, procedures);
             for h in handlers {
-                walk_script(ctx, &h.body, dialect, numeric);
+                walk_script(ctx, &h.body, numeric, procedures);
             }
             if let Some(fb) = finally_body {
-                walk_script(ctx, fb, dialect, numeric);
+                walk_script(ctx, fb, numeric, procedures);
             }
         }
         Statement::Switch {
@@ -148,11 +147,11 @@ fn walk_statement(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    walk_script(ctx, b, dialect, numeric);
+                    walk_script(ctx, b, numeric, procedures);
                 }
             }
             if let Some(db) = default_body {
-                walk_script(ctx, db, dialect, numeric);
+                walk_script(ctx, db, numeric, procedures);
             }
         }
         _ => {}
@@ -175,9 +174,11 @@ fn try_rewrite_assign_expr(
     name: &str,
     expr: &ExprNode,
     numeric: NumericCtx<'_>,
+    procedures: &Procedures,
 ) {
     use super::helpers::expr_simplify::{
-        expr_has_command_subst, instcombine_expr_typed, try_strength_reduce_expr_typed,
+        expr_has_command_subst, expr_uses_shadowed_mathfunc, instcombine_expr_typed,
+        try_strength_reduce_expr_typed,
     };
     use super::helpers::spans::full_rewrite_span;
 
@@ -189,10 +190,25 @@ fn try_rewrite_assign_expr(
     if expr_has_command_subst(expr) {
         return;
     }
+    // All three rewrites below (full fold, instcombine, strength-reduce)
+    // assume `[expr {…}]` still has builtin arithmetic semantics — a
+    // `rename`/`interp alias`/redefining `proc` anywhere in the module
+    // invalidates that, so decline outright.
+    if !ctx.command_mutations.trusts("expr") {
+        return;
+    }
 
-    // 1. Full constant fold.
+    // 1. Full constant fold. Only when no math-function call in the
+    // expression is shadowed by a user-defined `::tcl::mathfunc::<name>`
+    // proc — evaluating it would use builtin semantics that no longer
+    // apply. (instcombine / strength-reduce below are pure syntactic
+    // identities that don't evaluate a call's result, so they're
+    // unaffected by a shadowed math function.)
     let env = Env::new();
-    if let Some(val) = eval_tcl_expr(expr, &env) {
+    let octal = ctx.dialect.map(leading_zero_is_octal);
+    if !expr_uses_shadowed_mathfunc(expr, procedures)
+        && let Some(val) = eval_tcl_expr_with_octal(expr, &env, octal)
+    {
         let folded = format_tcl_value(val);
         let original = crate::expr_ast::render_expr(expr);
         if folded != original.trim() {
@@ -264,7 +280,20 @@ fn collapse_assign_expr_wrapper(name: &str, simplified: &str) -> String {
     format!("set {name} [expr {{{simplified}}}]")
 }
 
-fn try_rewrite_expr(ctx: &mut PassContext<'_>, span: Span, expr: &ExprNode) {
+fn try_rewrite_expr(
+    ctx: &mut PassContext<'_>,
+    span: Span,
+    expr: &ExprNode,
+    procedures: &Procedures,
+) {
+    // Both rewrites below assume this statement's `expr` — and, for the
+    // O115 unwrap, any nested `[expr {…}]` inside it — is the untouched
+    // builtin. A `rename`/`interp alias`/redefining `proc` anywhere in the
+    // module invalidates that assumption for every occurrence, so decline
+    // outright rather than fold with semantics that no longer apply.
+    if !ctx.command_mutations.trusts("expr") {
+        return;
+    }
     // O115: unwrap `[expr {…}]` in expression context. Detected
     // from the expression AST so the rewrite sees the parsed
     // form (the source span on `ExprEval` does not always cover
@@ -290,7 +319,10 @@ fn try_rewrite_expr(ctx: &mut PassContext<'_>, span: Span, expr: &ExprNode) {
     if matches!(expr, ExprNode::Raw { .. }) {
         return;
     }
-    if let Some(val) = eval_tcl_expr(expr, &env) {
+    let octal = ctx.dialect.map(leading_zero_is_octal);
+    if !super::helpers::expr_simplify::expr_uses_shadowed_mathfunc(expr, procedures)
+        && let Some(val) = eval_tcl_expr_with_octal(expr, &env, octal)
+    {
         let folded = format_tcl_value(val);
         // Compare against the original body text slice when it is
         // recoverable; the outer span covers the whole `expr …`
@@ -328,6 +360,20 @@ mod tests {
         ctx.optimisations
     }
 
+    /// Like [`run_pass`] but populates `ctx.command_mutations` from the
+    /// whole module, the way the real pipeline (`manager::optimise_unit_raw`)
+    /// does — needed to exercise the `expr`-redefinition trust gate, since
+    /// a bare `PassContext::new` defaults to "trusts everything".
+    fn run_pass_with_mutations(source: &str) -> Vec<Optimisation> {
+        let reg = registry();
+        let cu = CompilationUnit::build_for(source, &reg, false);
+        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.command_mutations =
+            crate::command_binding::scan_module_command_mutations(&cu.ir_module, &reg);
+        run(&mut ctx, &cu);
+        ctx.optimisations
+    }
+
     #[test]
     fn constant_expr_folds_to_literal() {
         let opts = run_pass("expr {1 + 2}");
@@ -357,6 +403,77 @@ mod tests {
             opts.iter()
                 .all(|o| o.code != DiagCode::O101 && o.code != DiagCode::O115),
             "unexpected rewrite: {opts:?}",
+        );
+    }
+
+    #[test]
+    fn renamed_expr_is_not_folded() {
+        // FP guard: once `expr` has been renamed anywhere in the module,
+        // `expr {1 + 2}` no longer means "evaluate the arithmetic
+        // expression" — it means "call whatever `expr` now resolves to"
+        // (here, nothing — the builtin was moved to `real_expr`). O101
+        // must not fold it as if the builtin were still in place.
+        let opts = run_pass_with_mutations("rename expr real_expr\nexpr {1 + 2}");
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O101),
+            "must not fold a renamed expr: {opts:?}",
+        );
+    }
+
+    #[test]
+    fn ordinary_mathfunc_call_still_folds() {
+        // TN/control: no override present — abs(-5) folds as usual.
+        let opts = run_pass("expr {abs(-5)}");
+        assert!(
+            opts.iter()
+                .any(|o| o.code == DiagCode::O101 && o.replacement == "5"),
+            "expected O101 fold of abs(-5), got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn shadowed_mathfunc_call_is_not_folded() {
+        // FP guard: `proc ::tcl::mathfunc::abs` shadows the builtin `abs`
+        // math function everywhere in the module — O101 must not fold
+        // `abs(-5)` to `5` using builtin semantics that no longer apply.
+        let opts = run_pass("proc ::tcl::mathfunc::abs {x} { return 999 }\nexpr {abs(-5)}");
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O101),
+            "must not fold a shadowed math function: {opts:?}",
+        );
+    }
+
+    #[test]
+    fn shadowed_mathfunc_in_assign_expr_is_not_folded() {
+        // Same guard, `set x [expr {…}]` form.
+        let opts = run_pass("proc ::tcl::mathfunc::abs {x} { return 999 }\nset v [expr {abs(-5)}]");
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O101),
+            "must not fold a shadowed math function in AssignExpr: {opts:?}",
+        );
+    }
+
+    #[test]
+    fn ordinary_expr_still_folds_under_mutation_scan() {
+        // TN/TP control: a module with *no* rename/alias touching `expr`
+        // still folds normally even when `command_mutations` is populated
+        // from a real scan (proves the gate isn't over-broad).
+        let opts = run_pass_with_mutations("expr {1 + 2}");
+        assert!(
+            opts.iter()
+                .any(|o| o.code == DiagCode::O101 && o.replacement == "3"),
+            "expected O101 fold under an unrelated mutation scan, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn renamed_expr_nested_unwrap_is_not_rewritten() {
+        // FP guard: the O115 redundant-nested-expr unwrap also assumes
+        // both layers of `[expr {…}]` are builtin calls.
+        let opts = run_pass_with_mutations("rename expr real_expr\nexpr {[expr {$x + 1}]}");
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O115),
+            "must not unwrap through a renamed expr: {opts:?}",
         );
     }
 
