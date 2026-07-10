@@ -407,3 +407,139 @@ async fn catch_body_diagnostics_are_delivered() {
     drop(client_write);
     server.abort();
 }
+
+/// Delivery-invariant regression guard (see the `main.rs` delivery invariant).
+///
+/// Diagnostics delivery relies on the transport being bounded and
+/// backpressured: `publish_diagnostics(..).await` suspends until the client
+/// drains, so a client that falls behind never makes the server reorder
+/// publishes or drop the final state. This drives exactly that — a burst of
+/// rapid edits with the client deliberately not reading in between — then drains
+/// and asserts:
+///   1. **Ordering**: published `version`s are monotonically non-decreasing. A
+///      regression that makes delivery fire-and-forget (a detached `tokio::spawn`
+///      per publish, dropping backpressure) would let publishes race and land
+///      out of version order — this fails then.
+///   2. **No loss of final state**: the last edit's version is published with
+///      its diagnostic. A drop-on-full transport would lose it — this fails then.
+#[tokio::test]
+async fn rapid_edits_deliver_diagnostics_in_version_order_without_loss() {
+    let (client_side, server_side) = tokio::io::duplex(65536);
+    let (server_read, server_write) = tokio::io::split(server_side);
+    let (client_read, mut client_write) = tokio::io::split(client_side);
+
+    let (service, socket) = LspService::new(Backend::new);
+    let server = tokio::spawn(async move {
+        Server::new(server_read, server_write, socket)
+            .serve(service)
+            .await;
+    });
+    let mut reader = BufReader::new(client_read);
+
+    let init = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}"#;
+    client_write
+        .write_all(frame(init).as_bytes())
+        .await
+        .unwrap();
+    let _ = read_until_id(&mut reader, "\"id\":1", 5).await;
+    client_write
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#).as_bytes())
+        .await
+        .unwrap();
+
+    let did_open = concat!(
+        r#"{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"#,
+        r#""uri":"file:///order.tcl","languageId":"tcl","version":1,"#,
+        r#""text":"set var 10 10\n"}}}"#,
+    );
+    client_write
+        .write_all(frame(did_open).as_bytes())
+        .await
+        .unwrap();
+
+    // Full-replace edits, alternating clean / E003 so consecutive versions differ
+    // (no salsa early-cutoff skip), with the client NOT reading in between (it
+    // falls behind). The final version (7) is a distinctive E003.
+    //
+    // The edits are spaced past `DIAGNOSTICS_DEBOUNCE` (50 ms) so the per-URI
+    // worker publishes each version *separately* rather than coalescing the whole
+    // burst into a single v7 publish. That is what gives the ordering assertion
+    // below teeth: because the client still never reads here, ≥2 version-tagged
+    // publishes queue in-flight in the transport at once, so a fire-and-forget
+    // delivery regression (which only manifests with ≥2 racing publishes) would
+    // actually reorder them. Coalesced into one publish, the `windows(2)` loop
+    // would iterate zero times and pass vacuously — see the `>= 2` tripwire.
+    let edits = [
+        ("set var 10\n", 2),
+        ("set var 10 10\n", 3),
+        ("set var 10\n", 4),
+        ("set var 10 10\n", 5),
+        ("set var 10\n", 6),
+        ("set a 1 2 3 4\n", 7),
+    ];
+    for (text, version) in edits {
+        let change = format!(
+            r#"{{"jsonrpc":"2.0","method":"textDocument/didChange","params":{{"textDocument":{{"uri":"file:///order.tcl","version":{version}}},"contentChanges":[{{"text":{text:?}}}]}}}}"#,
+        );
+        client_write
+            .write_all(frame(&change).as_bytes())
+            .await
+            .unwrap();
+        // > DIAGNOSTICS_DEBOUNCE so this version publishes before the next edit
+        // marks the slot dirty again (defeats coalescing without draining, so the
+        // client stays behind).
+        tokio::time::sleep(Duration::from_millis(120)).await;
+    }
+
+    // Now drain everything and inspect the version-tagged publishes.
+    let frames = collect_frames(&mut reader, Duration::from_millis(2500)).await;
+    let publishes: Vec<(i64, String)> = frames
+        .iter()
+        .filter(|f| {
+            f.contains("textDocument/publishDiagnostics") && f.contains("file:///order.tcl")
+        })
+        .filter_map(|f| {
+            let v: serde_json::Value = serde_json::from_str(f).ok()?;
+            let version = v.get("params")?.get("version")?.as_i64()?;
+            Some((version, f.clone()))
+        })
+        .collect();
+    let versions: Vec<i64> = publishes.iter().map(|(v, _)| *v).collect();
+
+    // Tripwire: a single coalesced publish makes the ordering `windows(2)` loop
+    // below vacuous (zero pairs). The guard only has teeth with ≥2 in-flight
+    // publishes to observe landing in order, so fail loudly rather than pass
+    // silently if coalescing ever collapses the spaced burst.
+    assert!(
+        publishes.len() >= 2,
+        "expected ≥2 in-flight version-tagged publishes to exercise delivery ordering, \
+         got {versions:?}: {frames:?}",
+    );
+    // 1) Ordering: never a lower version after a higher one.
+    for pair in publishes.windows(2) {
+        assert!(
+            pair[0].0 <= pair[1].0,
+            "publishes must arrive in non-decreasing version order (a fire-and-forget \
+             delivery regression would reorder them): {versions:?}",
+        );
+    }
+    // 2) No loss of the final state: version 7's diagnostics must arrive.
+    let final_publish = publishes.iter().rev().find(|(v, _)| *v == 7);
+    assert!(
+        final_publish.is_some(),
+        "the final edit's diagnostics (version 7) must be delivered — never dropped: {versions:?}",
+    );
+    assert!(
+        final_publish.unwrap().1.contains("E003"),
+        "the final publish must carry the final state's E003: {}",
+        final_publish.unwrap().1,
+    );
+
+    let exit = r#"{"jsonrpc":"2.0","method":"exit","params":null}"#;
+    client_write
+        .write_all(frame(exit).as_bytes())
+        .await
+        .unwrap();
+    drop(client_write);
+    server.abort();
+}

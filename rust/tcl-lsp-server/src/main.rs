@@ -72,5 +72,27 @@ async fn main() {
     // type-hierarchy capability shim (a no-op for all but `initialize`).
     let service =
         service.map_response(|resp: Option<Response>| resp.map(inject_type_hierarchy_provider));
+    // INVARIANT (no lost diagnostics under a slow client): the diagnostics
+    // delivery path relies on this transport being *bounded and
+    // backpressured*. `tower-lsp-server` 0.23 gives the `Client` a bounded
+    // `futures::mpsc::channel(1)` drained by a single `.forward(FramedWrite(
+    // stdout))`, so a `client.publish_diagnostics(..).await` suspends when the
+    // channel is full and resolves only once the message is durably queued —
+    // it never `try_send`s (drop-on-full) and never buffers unboundedly. That
+    // awaited backpressure *is* the "wait for the buffer to drain" behaviour; a
+    // burst of publishes to a slow client is throttled, not lost.
+    //
+    // Two things must not silently break this — re-audit the whole delivery
+    // path (`deliver_diagnostics`, `deliver_fast_tier_if_current`,
+    // `publish_diagnostics_result`) if either changes:
+    //   1. Swapping `tower-lsp-server` for a build whose client channel is
+    //      unbounded or uses `try_send` — outbound would then grow without
+    //      bound or drop under load. The dep is version-pinned in `Cargo.toml`;
+    //      treat an upgrade that touches its transport as a delivery-review gate.
+    //   2. Making any diagnostics publish fire-and-forget (e.g. wrapping it in a
+    //      detached `tokio::spawn` to avoid holding the `documents` lock across
+    //      the send). That discards backpressure: publishes would reorder and
+    //      accumulate unboundedly, and a state-gated/disconnected drop would go
+    //      unnoticed. Delivery MUST stay an inline `.await`.
     Server::new(stdin, stdout, socket).serve(service).await;
 }
