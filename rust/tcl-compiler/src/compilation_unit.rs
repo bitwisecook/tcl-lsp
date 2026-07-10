@@ -28,7 +28,7 @@
 //! accessor methods that return `Option<&T>` — `None` when the analysis
 //! hasn't been run on this unit yet.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use tcl_registry::CommandRegistry;
 
@@ -83,11 +83,6 @@ pub struct LatticeRequest<'a> {
     /// [`crate::cfg_builder::prepare_cfg_context`]).
     pub global_write_procs:
         &'a HashMap<String, crate::cfg_builder::global_write_info::GlobalWriteInfo>,
-    /// Module-wide variable-trace summary (from
-    /// [`crate::var_observability::scan_module_variable_traces`]), so SCCP
-    /// forces `Overdefined` on a name traced by a *different* proc — not
-    /// just one traced within this procedure's own body.
-    pub module_traces: &'a crate::var_observability::ModuleVariableTraces,
     /// Analysis dialect — selects the registry the lattice pipeline runs under.
     pub dialect: &'a str,
     /// Interprocedural caller-uniform-literal SCCP seeds for this procedure
@@ -106,6 +101,21 @@ pub struct LatticeRequest<'a> {
     /// typing).  Sourced from [`crate::signature_scan`] so the standalone and
     /// incremental builds derive an identical set from the same source.
     pub known_classes: &'a [String],
+    /// Literal variable-trace target names from [`crate::ir::Module::
+    /// traced_variables`] (sorted, mirroring `known_classes`) — a
+    /// whole-module fact SCCP's trace-safety gate needs (see
+    /// [`crate::sccp::sccp`]).  Folded into the memo key like
+    /// `known_classes`: a trace installed anywhere in the module can change
+    /// any procedure's SCCP result, so adding/removing one must invalidate
+    /// every cached lattice, not just the procedure whose body carries the
+    /// `trace` call.
+    pub traced_variables: &'a [String],
+    /// [`crate::ir::Module::has_dynamic_variable_trace`] — `true` when a
+    /// variable-trace install/remove call targets a non-literal name
+    /// anywhere in the module, which SCCP must treat as "every variable is
+    /// potentially traced". Whole-module, folded into the memo key
+    /// alongside `traced_variables`.
+    pub has_dynamic_variable_trace: bool,
 }
 
 /// Salsa-native per-procedure lattice memo used by
@@ -191,6 +201,37 @@ pub struct FunctionUnit {
     pub base_offset: i64,
 }
 
+/// Whole-module variable-trace fact that [`crate::sccp::sccp`] needs —
+/// [`crate::ir::Module::traced_variables`] /
+/// [`crate::ir::Module::has_dynamic_variable_trace`], threaded through
+/// unchanged from `Module`. Bundled into one parameter (mirroring
+/// `known_classes`'s "whole-unit fact, identical for every procedure"
+/// shape) so [`FunctionUnit::build_with_param_constants_and_classes`]
+/// stays under the clippy `too_many_arguments` ceiling.
+#[derive(Debug, Clone, Copy)]
+pub struct ModuleTraceFacts<'a> {
+    /// [`crate::ir::Module::traced_variables`].
+    pub traced_variables: &'a BTreeSet<String>,
+    /// [`crate::ir::Module::has_dynamic_variable_trace`].
+    pub has_dynamic_variable_trace: bool,
+}
+
+impl ModuleTraceFacts<'_> {
+    /// No `Module` in hand (a standalone per-function build) — behaviourally
+    /// identical to "nothing is traced".
+    #[must_use]
+    pub fn none() -> Self {
+        // A `'static` empty set is safe to hand out as `'a` for any `'a`: an
+        // immutable, never-mutated `BTreeSet` needs no real backing storage
+        // lifetime tie, only a place to point.
+        static EMPTY: std::sync::OnceLock<BTreeSet<String>> = std::sync::OnceLock::new();
+        Self {
+            traced_variables: EMPTY.get_or_init(BTreeSet::new),
+            has_dynamic_variable_trace: false,
+        }
+    }
+}
+
 impl FunctionUnit {
     /// Build per-function analyses from a CFG + its source
     /// parameters. Does *not* populate `memory_ssa`; call
@@ -232,7 +273,7 @@ impl FunctionUnit {
             registry,
             param_constants,
             &HashSet::new(),
-            None,
+            ModuleTraceFacts::none(),
         )
     }
 
@@ -246,10 +287,9 @@ impl FunctionUnit {
     /// compilation-unit builders ([`Self::build_for`] and friends) source the
     /// real set from [`crate::signature_scan`].
     ///
-    /// `module_traces` (from
-    /// [`crate::var_observability::scan_module_variable_traces`]) is the
-    /// module-wide variable-trace fact, so a name traced by a *different*
-    /// proc still forces SCCP to `Overdefined` here.  `None` for the
+    /// `trace_facts` ([`ModuleTraceFacts`]) is the module-wide variable-trace
+    /// fact, so a name traced by a *different* proc still forces SCCP to
+    /// `Overdefined` here. [`ModuleTraceFacts::none()`] for the
     /// module-context-free entry points ([`Self::build`],
     /// [`Self::build_with_param_constants`]) and for isolated single-function
     /// rebuilds that have no module to scan.
@@ -266,7 +306,7 @@ impl FunctionUnit {
             >,
         >,
         known_classes: &HashSet<String>,
-        module_traces: Option<&crate::var_observability::ModuleVariableTraces>,
+        trace_facts: ModuleTraceFacts<'_>,
     ) -> Self {
         Self::build_full(
             name,
@@ -276,7 +316,7 @@ impl FunctionUnit {
             param_constants,
             known_classes,
             &HashSet::new(),
-            module_traces,
+            trace_facts,
         )
     }
 
@@ -305,7 +345,7 @@ impl FunctionUnit {
         >,
         known_classes: &HashSet<String>,
         extra_global_escaping: &HashSet<String>,
-        module_traces: Option<&crate::var_observability::ModuleVariableTraces>,
+        trace_facts: ModuleTraceFacts<'_>,
     ) -> Self {
         Self::build_full(
             name,
@@ -315,7 +355,7 @@ impl FunctionUnit {
             param_constants,
             known_classes,
             extra_global_escaping,
-            module_traces,
+            trace_facts,
         )
     }
 
@@ -338,7 +378,7 @@ impl FunctionUnit {
         >,
         known_classes: &HashSet<String>,
         extra_global_escaping: &HashSet<String>,
-        module_traces: Option<&crate::var_observability::ModuleVariableTraces>,
+        trace_facts: ModuleTraceFacts<'_>,
     ) -> Self {
         // Complexity guard (block-count half): a pathologically large body
         // would cost seconds of SSA + dataflow for near-zero findings, so skip
@@ -360,7 +400,11 @@ impl FunctionUnit {
             param_constants,
             Some(registry.leading_zero_is_octal()),
             extra_global_escaping,
-            module_traces,
+            crate::sccp::TraceInputs {
+                registry,
+                traced_variables: trace_facts.traced_variables,
+                has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace,
+            },
         );
         // Surface `[info exists X]` / `[array exists X]`
         // folds (parameter → exists, never-defined non-param → absent)
@@ -379,7 +423,7 @@ impl FunctionUnit {
             registry,
             known_classes,
             extra_global_escaping,
-            module_traces,
+            trace_facts,
         );
         let return_type = crate::type_infer::infer_function_return_type(
             &cfg,
@@ -678,13 +722,6 @@ impl CompilationUnit {
         // every passthrough callsite is replaced with a Statement::Block
         // that splices the body inline.
         crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
-        // Module-wide variable-trace fact (F4b): a name traced by *any* proc
-        // in the module must be treated as externally mutable everywhere,
-        // since the relative call order between the proc that installs the
-        // trace and the code that reads/writes the name isn't statically
-        // known. Computed once and shared by every function build below (and
-        // the memoised path), mirroring `call_site_constants`/`known_classes`.
-        let module_traces = crate::var_observability::scan_module_variable_traces(&ir_module);
         let cfg_module = build_cfg(&ir_module, defer_top_level);
         // Collect call-site literal arg values per user proc so each
         // callee's SCCP can fold a param every caller passes the same literal
@@ -709,6 +746,17 @@ impl CompilationUnit {
         // `crate::var_observability::scan_module_global_names`.
         let top_level_extra_escaping =
             crate::var_observability::scan_module_global_names(&ir_module);
+        // Whole-module variable-trace fact — computed once by lowering
+        // and stored on `ir_module`, so every per-function build below is a
+        // cheap reference pass-through, not a recomputation. `traced_variable_names`
+        // is the `Vec` form (already sorted — `BTreeSet` iterates in order)
+        // `LatticeRequest`'s memo key carries, mirroring `known_classes`.
+        let trace_facts = ModuleTraceFacts {
+            traced_variables: &ir_module.traced_variables,
+            has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
+        };
+        let traced_variable_names: Vec<String> =
+            ir_module.traced_variables.iter().cloned().collect();
         let top_level = FunctionUnit::build_with_param_constants_classes_and_escaping(
             "::top",
             cfg_module.top_level.clone(),
@@ -717,7 +765,7 @@ impl CompilationUnit {
             None,
             &known_class_set,
             &top_level_extra_escaping,
-            Some(&module_traces),
+            trace_facts,
         );
         // Module-wide upvar/param context — the CFG-determining context a
         // procedure body is rebuilt under.  Computed once and shared by every
@@ -783,10 +831,11 @@ impl CompilationUnit {
                         upvar_procs,
                         proc_params,
                         global_write_procs,
-                        module_traces: &module_traces,
                         dialect,
                         param_constants: &encoded_pc,
                         known_classes: &known_classes,
+                        traced_variables: &traced_variable_names,
+                        has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
                     });
                     // Rebase the offset-0 memo result to the procedure's real
                     // position so every consumer sees **absolute** spans without
@@ -806,7 +855,7 @@ impl CompilationUnit {
                     registry,
                     param_constants.as_ref(),
                     &known_class_set,
-                    Some(&module_traces),
+                    trace_facts,
                 )
             });
             procedures.insert(qname.clone(), fu);
@@ -816,14 +865,14 @@ impl CompilationUnit {
             cfg_context.as_ref(),
             &known_class_set,
             registry,
-            &module_traces,
+            trace_facts,
         );
         let body_units = Self::build_body_units(
             &ir_module,
             cfg_context.as_ref(),
             &known_class_set,
             registry,
-            &module_traces,
+            trace_facts,
         );
         // Build the cross-event scope from the
         // ``::when::*`` subset of procedures.  ``None`` when no
@@ -866,7 +915,7 @@ impl CompilationUnit {
         cfg_context: Option<&CfgContext>,
         known_class_set: &HashSet<String>,
         registry: &CommandRegistry,
-        module_traces: &crate::var_observability::ModuleVariableTraces,
+        trace_facts: ModuleTraceFacts<'_>,
     ) -> HashMap<String, FunctionUnit> {
         if ir_module.methods.is_empty() {
             return HashMap::new();
@@ -901,7 +950,7 @@ impl CompilationUnit {
                         registry,
                         None,
                         known_class_set,
-                        Some(module_traces),
+                        trace_facts,
                     )
                 };
                 (mqname.clone(), fu)
@@ -926,7 +975,7 @@ impl CompilationUnit {
         cfg_context: Option<&CfgContext>,
         known_class_set: &HashSet<String>,
         registry: &CommandRegistry,
-        module_traces: &crate::var_observability::ModuleVariableTraces,
+        trace_facts: ModuleTraceFacts<'_>,
     ) -> HashMap<String, FunctionUnit> {
         if ir_module.body_units.is_empty() {
             return HashMap::new();
@@ -959,7 +1008,7 @@ impl CompilationUnit {
                         registry,
                         None,
                         known_class_set,
-                        Some(module_traces),
+                        trace_facts,
                     )
                 };
                 (qname.clone(), fu)

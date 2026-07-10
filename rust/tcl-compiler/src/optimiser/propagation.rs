@@ -65,6 +65,7 @@ use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{CommandTokens, Script, Statement};
 use crate::naming::normalise_var_name;
 use tcl_core_types::DiagCode;
+use tcl_registry::CommandRegistry;
 
 use super::helpers::expr_simplify::{NumericCtx, operand_types, try_unwrap_expr_in_expr};
 use super::helpers::literals::{is_safe_word, is_static_var_word};
@@ -99,22 +100,24 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // must apply the *same* externally-mutable guard SCCP applies itself
     // (`global`/`variable`/`upvar`/`trace` aliasing, plus — for the
     // top-level body specifically — any name some other procedure declares
-    // via `global`; see `scan_module_global_names` — and, for every function,
-    // a name `trace add variable`d by some *other* proc; see
-    // `scan_module_variable_traces`), or it would forward a stale literal
-    // past a call that reassigns or traces the "sole" def.
-    let top_level_extra_escaping =
-        crate::var_observability::scan_module_global_names(&cu.ir_module);
-    let module_traces = crate::var_observability::scan_module_variable_traces(&cu.ir_module);
-    run_load_forwarding(
-        ctx,
-        &cu.top_level,
-        &top_level_extra_escaping,
-        &module_traces,
-    );
-    let no_extra_escaping = std::collections::HashSet::new();
-    for fu in cu.procedures.values() {
-        run_load_forwarding(ctx, fu, &no_extra_escaping, &module_traces);
+    // via `global`; see `scan_module_global_names`, and, for every function,
+    // a name traced by some *other* proc, via the registry-driven whole-
+    // module `Module::traced_variables`/`has_dynamic_variable_trace` facts),
+    // or it would forward a stale literal past a call that reassigns or
+    // traces the "sole" def.
+    if let Some(registry) = ctx.registry {
+        let top_level_extra_escaping =
+            crate::var_observability::scan_module_global_names(&cu.ir_module);
+        let trace = crate::sccp::TraceInputs {
+            registry,
+            traced_variables: &cu.ir_module.traced_variables,
+            has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+        };
+        run_load_forwarding(ctx, &cu.top_level, &top_level_extra_escaping, trace);
+        let no_extra_escaping = std::collections::HashSet::new();
+        for fu in cu.procedures.values() {
+            run_load_forwarding(ctx, fu, &no_extra_escaping, trace);
+        }
     }
     // O127 store-to-load forwarding for *computed* single-use
     // assignments (`set x [cmd]` inlined to its sole use site, then the
@@ -196,19 +199,11 @@ fn statement_may_have_untracked_effects(
 /// - `escaping` (this function's own [`analyse_var_observability`] plus
 ///   `extra_escaping` — the top-level's
 ///   [`crate::var_observability::scan_module_global_names`] result, or an
-///   empty set for an ordinary procedure) combined with `module_traces`
-///   ([`crate::var_observability::scan_module_variable_traces`]) via
-///   [`crate::sccp::is_externally_mutable`] — the same guard SCCP applies
-///   to its own lattice, so O102 (independent of the SCCP lattice) stays
-///   consistent with it.
-/// - `unsafe_names` ([`trace_and_alias_unsafe_names`]), seeded from the
-///   registry-driven, whole-module [`crate::ir::Module::traced_variables`]
-///   fact — kept *in addition to* `module_traces` because
-///   `ModuleVariableTraces`'s trace-target detection doesn't yet recognise
-///   every spelling (an abbreviated type word like `trace add var …`, or
-///   `trace remove`/`vdelete`) that the registry-driven fact does; this
-///   is strictly additional conservatism; a name either check flags is
-///   never forwarded.
+///   empty set for an ordinary procedure — plus `trace.traced_variables`,
+///   the registry-driven whole-module [`crate::ir::Module::traced_variables`]
+///   fact) via [`crate::sccp::is_externally_mutable`] — the same guard SCCP
+///   applies to its own lattice, so O102 (independent of the SCCP lattice)
+///   stays consistent with it.
 /// - [`has_intervening_barrier`] — a `Statement::Barrier`/`UpFrame`
 ///   (a literal-body `uplevel`/`interp eval`, which *can* reach into an
 ///   arbitrary frame) between def and use, checked both same-block
@@ -217,12 +212,10 @@ fn run_load_forwarding(
     ctx: &mut PassContext<'_>,
     fu: &crate::compilation_unit::FunctionUnit,
     extra_escaping: &std::collections::HashSet<String>,
-    module_traces: &crate::var_observability::ModuleVariableTraces,
+    trace: crate::sccp::TraceInputs<'_>,
 ) {
     use crate::def_use::{DefKind, UseKind};
     use crate::ir::Statement;
-
-    let unsafe_names = trace_and_alias_unsafe_names(ctx, fu);
 
     // Independent of the SCCP lattice (see the doc comment on the call
     // site in `run`), this pass must apply the same externally-mutable
@@ -230,19 +223,17 @@ fn run_load_forwarding(
     // `upvar`/`trace`-aliased name's "sole reaching def" is not actually
     // sole: some other call frame can reassign it between the def and a
     // later use.
-    let mut escaping =
-        crate::var_observability::analyse_var_observability(&fu.cfg).escaping_var_names();
-    if !extra_escaping.is_empty() {
-        escaping.extend(extra_escaping.iter().cloned());
-    }
+    let mut escaping = crate::var_observability::analyse_var_observability(&fu.cfg, trace.registry)
+        .escaping_var_names();
+    escaping.extend(extra_escaping.iter().cloned());
+    escaping.extend(trace.traced_variables.iter().cloned());
 
     for chain in fu.def_use.chains.values() {
         if chain.definition.kind != DefKind::Statement {
             continue;
         }
         let var_name = chain.key.0.as_str();
-        if crate::sccp::is_externally_mutable(var_name, &escaping, Some(module_traces))
-            || unsafe_names.is_unsafe(var_name)
+        if crate::sccp::is_externally_mutable(var_name, &escaping, trace.has_dynamic_variable_trace)
         {
             continue;
         }
@@ -845,132 +836,16 @@ fn run_function(
 ) {
     // Project the per-function SCCP lattice into a name → literal
     // map that survives only when every tracked version of the
-    // variable collapses to the same single constant value.
-    let mut constants = sccp_constants_for(fu);
-    if !constants.is_empty() {
-        trace_and_alias_unsafe_names(ctx, fu).retain_safe(&mut constants);
-    }
+    // variable collapses to the same single constant value. No
+    // additional trace/alias filtering is needed here: `sccp()` itself
+    // forces a traced or frame-aliased name's own lattice entry (and
+    // anything derived from it) to `Overdefined`, so a projected literal
+    // is already trace/alias-safe by construction — `run_load_forwarding`
+    // (below) is the one exception that still needs its own check, since it
+    // runs an independent def-use-chain scan that never consults `fu.sccp`.
+    let constants = sccp_constants_for(fu);
     let numeric = operand_types(fu);
     walk_script(ctx, cu, script, &constants, Some(&numeric), namespace);
-}
-
-/// Base variable names a forward/propagation must not trust — because a
-/// read of the name can run arbitrary handler code, a write handler can
-/// rewrite the stored value, or the name is reachable from another frame
-/// (so a call between the SCCP-tracked def and a later use could write it
-/// without a new SSA version appearing in *this* function) — plus every
-/// name whose SCCP-constant value is only constant *because* it was
-/// computed from one of those unsafe reads (`set v [expr {$a * 2}]}` where
-/// `a` carries a variable trace must not let `v` read as constant either:
-/// SCCP folds `v`'s value from `a`'s lattice entry with no notion of
-/// tracing, so the taint has to be tracked structurally through the SSA
-/// def/use graph, not just at the immediately-traced name).
-///
-/// Shared by the O100/O101/O103/O112/branch-condition propagation paths
-/// (via [`run_function`]'s `constants` map) and the O102 load-forwarding
-/// gate in [`run_load_forwarding`] — the same risk class applies to every
-/// pass that treats an SCCP-proved or reaching-definition literal as safe
-/// to inline.
-pub(super) struct UnsafeNames {
-    dynamic: bool,
-    names: std::collections::BTreeSet<String>,
-}
-
-impl UnsafeNames {
-    pub(super) fn is_unsafe(&self, name: &str) -> bool {
-        self.dynamic || self.names.contains(name)
-    }
-
-    /// True when any name `expr` reads is unsafe — for gating a whole
-    /// expression (a branch condition) rather than one variable.
-    pub(super) fn any_unsafe<'a>(&self, names: impl IntoIterator<Item = &'a String>) -> bool {
-        self.dynamic || names.into_iter().any(|n| self.names.contains(n))
-    }
-
-    /// Drop every unsafe name from a name-keyed SCCP-projection map
-    /// (`propagation`'s `constants`, `branch_folding`'s `constants`,
-    /// `structure_elimination`'s `Env`) in place — the one choke point
-    /// every SCCP-constant-trusting pass filters through.
-    pub(super) fn retain_safe<V>(&self, map: &mut std::collections::HashMap<String, V>) {
-        if self.dynamic {
-            map.clear();
-        } else {
-            map.retain(|name, _| !self.names.contains(name));
-        }
-    }
-}
-
-pub(super) fn trace_and_alias_unsafe_names(
-    ctx: &PassContext<'_>,
-    fu: &FunctionUnit,
-) -> UnsafeNames {
-    let dynamic_variable_trace = ctx.ir_module.is_some_and(|m| m.has_dynamic_variable_trace);
-    if dynamic_variable_trace {
-        return UnsafeNames {
-            dynamic: true,
-            names: std::collections::BTreeSet::new(),
-        };
-    }
-    let traced_variables = ctx.ir_module.map(|m| &m.traced_variables);
-    let aliased: std::collections::BTreeSet<String> = match &fu.memory_ssa {
-        Some(m) => m.aliased_names(),
-        None => crate::memory_ssa::compute_aliases(&fu.ssa)
-            .iter()
-            .flat_map(crate::memory_ssa::AliasSet::names)
-            .collect(),
-    };
-    let is_directly_unsafe = |name: &str| -> bool {
-        if aliased.contains(name) {
-            return true;
-        }
-        let key = normalise_var_name(&format!("${name}"))
-            .trim_start_matches("::")
-            .to_owned();
-        traced_variables.is_some_and(|t| t.contains(&key))
-    };
-
-    // Seed the tainted-symbol set from every SSA symbol whose base name is
-    // directly unsafe, then propagate to a fixed point: any statement that
-    // reads a tainted symbol taints every symbol it defines. Symbol-level
-    // (not `(Symbol, Version)`-level) — coarser than SCCP's own per-version
-    // lattice, but consistent with `sccp_constants_for`'s own name-level
-    // granularity, and cheap since it only runs when a name is unsafe.
-    let mut tainted: std::collections::HashSet<crate::ssa::Symbol> =
-        std::collections::HashSet::new();
-    for block in fu.ssa.blocks.values() {
-        for stmt in &block.statements {
-            for &sym in stmt.uses.keys().chain(stmt.defs.keys()) {
-                if is_directly_unsafe(fu.ssa.var_name(sym)) {
-                    tainted.insert(sym);
-                }
-            }
-        }
-    }
-    loop {
-        let mut changed = false;
-        for block in fu.ssa.blocks.values() {
-            for stmt in &block.statements {
-                if stmt.uses.keys().any(|s| tainted.contains(s)) {
-                    for &d in stmt.defs.keys() {
-                        if tainted.insert(d) {
-                            changed = true;
-                        }
-                    }
-                }
-            }
-        }
-        if !changed {
-            break;
-        }
-    }
-
-    UnsafeNames {
-        dynamic: false,
-        names: tainted
-            .into_iter()
-            .map(|s| fu.ssa.var_name(s).to_owned())
-            .collect(),
-    }
 }
 
 fn walk_script(
@@ -1120,14 +995,46 @@ fn walk_statement(
 /// `return` terminators. Used for the argument-sensitive O103 fold
 /// (`[::math::add 2 4]` → `6`) that the summary's argument-independent
 /// `constant_return` cannot express.
+///
+/// This re-runs SCCP fresh (not `callee.sccp`), so it must feed the same
+/// registry + whole-module trace facts the original build did — otherwise
+/// this specific re-run path would be independently trace-blind (the same
+/// silent-miscompile class `run_function`/`run_load_forwarding` guard
+/// against). `ctx.registry` / `ctx.ir_module` are `None` only in a bare
+/// hand-built `PassContext` (some pass-level unit tests); default to an
+/// empty/false fact then, matching `run_function`'s own
+/// `ctx.ir_module`-absent fallback.
 fn evaluate_proc_with_constants(
+    ctx: &PassContext<'_>,
     callee: &FunctionUnit,
     params: &[String],
     args: &[ConstValue],
     octal: Option<bool>,
 ) -> Option<ConstValue> {
     let seed = seed_params_from_args(params, args)?;
-    let result = crate::sccp::sccp(&callee.cfg, &callee.ssa, Some(&seed), octal, None);
+    let default_registry;
+    let registry: &CommandRegistry = if let Some(r) = ctx.registry {
+        r
+    } else {
+        default_registry = CommandRegistry::build_default();
+        &default_registry
+    };
+    let empty_traced = std::collections::BTreeSet::new();
+    let (traced_variables, has_dynamic_variable_trace) = match ctx.ir_module {
+        Some(m) => (&m.traced_variables, m.has_dynamic_variable_trace),
+        None => (&empty_traced, false),
+    };
+    let result = crate::sccp::sccp(
+        &callee.cfg,
+        &callee.ssa,
+        Some(&seed),
+        octal,
+        crate::sccp::TraceInputs {
+            registry,
+            traced_variables,
+            has_dynamic_variable_trace,
+        },
+    );
     resolve_return_constant(callee, &result, octal)
 }
 
@@ -1975,6 +1882,7 @@ fn try_o103_proc_fold(
         && let Some(callee) = cu.procedures.get(&qname)
         && let Some(args) = parse_static_call_args(ctx, inner, 1, constants)
         && let Some(cv) = evaluate_proc_with_constants(
+            ctx,
             callee,
             &summary.params,
             &args,
@@ -3239,14 +3147,24 @@ mod tests {
     // Precision control: a top-level name that *no* procedure ever
     // `global`-declares must still fold — the whole-module scan must not
     // over-widen to every top-level variable.
+    //
+    // Note this now folds via O100, not O102: the intervening call to
+    // `other` is a command O102 cannot prove pure (it has no interprocedural
+    // purity or upvar-reach information — a callee can dynamically alias
+    // any name in the caller's frame via `upvar` with no textual
+    // `global`/`variable` declaration anywhere), so O102's own independent
+    // same-block scan conservatively withholds. SCCP (O100) already proves
+    // `safe_const` a genuine whole-function constant via its own escaping
+    // set (which correctly found no alias/trace anywhere for it), so the
+    // fold still happens end to end.
     #[test]
     fn o102_still_forwards_top_level_global_no_proc_touches() {
         let src = "set safe_const 42\nproc other {} { puts unrelated }\nother\nputs $safe_const";
         let opts = run_pass(src);
         assert!(
-            opts.iter()
-                .any(|o| o.code == DiagCode::O102 && o.replacement == "42"),
-            "expected O102 to still fold an untouched top-level constant, got {opts:?}",
+            opts.iter().any(|o| matches!(o.code, DiagCode::O100 | DiagCode::O102)
+                && o.replacement == "42"),
+            "expected an untouched top-level constant to still fold, got {opts:?}",
         );
     }
 

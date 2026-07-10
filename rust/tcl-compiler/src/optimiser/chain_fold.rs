@@ -58,6 +58,7 @@ use std::collections::HashSet;
 use tcl_core_types::DiagCode;
 
 use tcl_lexer::TokenType;
+use tcl_registry::CommandRegistry;
 
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Script, Statement};
@@ -71,21 +72,37 @@ use super::{Optimisation, PassContext};
 /// Run the chain-fold pass over the whole compilation unit.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     let cross = ctx.cross_event_vars.clone();
-    let top_protected = protected_vars(&cu.top_level, &cross);
+    // `ctx.registry` is always set by the `optimise*` entry points; a bare
+    // hand-built `PassContext` (some pass-level unit tests) leaves it
+    // `None`, so fall back to a default-dialect registry rather than
+    // panic — `trace`'s `ESTABLISHES_VARIABLE_TRACE` grammar is core Tcl,
+    // present in every dialect's registry.
+    let default_registry;
+    let registry: &CommandRegistry = if let Some(r) = ctx.registry {
+        r
+    } else {
+        default_registry = CommandRegistry::build_default();
+        &default_registry
+    };
+    let top_protected = protected_vars(&cu.top_level, &cross, registry);
     fold_script(ctx, &cu.ir_module.top_level, &top_protected);
     for (qname, proc) in &cu.ir_module.procedures {
         let protected = cu
             .procedures
             .get(qname)
-            .map_or_else(|| cross.clone(), |fu| protected_vars(fu, &cross));
+            .map_or_else(|| cross.clone(), |fu| protected_vars(fu, &cross, registry));
         fold_script(ctx, &proc.body, &protected);
     }
 }
 
 /// Variables that must never have a write-chain folded: those that escape
 /// the frame (aliased / traced) plus the iRules cross-event state set.
-fn protected_vars(fu: &FunctionUnit, cross_event: &HashSet<String>) -> HashSet<String> {
-    let mut set = analyse_var_observability(&fu.cfg).escaping_var_names();
+fn protected_vars(
+    fu: &FunctionUnit,
+    cross_event: &HashSet<String>,
+    registry: &CommandRegistry,
+) -> HashSet<String> {
+    let mut set = analyse_var_observability(&fu.cfg, registry).escaping_var_names();
     set.extend(cross_event.iter().cloned());
     set
 }

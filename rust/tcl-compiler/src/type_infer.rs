@@ -707,7 +707,7 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
 /// analyse_var_observability`]), named by `extra_global_escaping` (the
 /// whole-module `global`-declaration scan for the *top-level* unit — see
 /// [`crate::var_observability::scan_module_global_names`]), or traced
-/// *anywhere in the module* (`module_traces`) — is forced `Overdefined` here,
+/// *anywhere in the module* (`trace_facts`) — is forced `Overdefined` here,
 /// reusing the exact predicate [`crate::sccp::sccp_with_extra_escaping`] and
 /// [`crate::optimiser::propagation`]'s O102 load-forwarding already apply to
 /// their own (separate) lattices, rather than re-deriving a third,
@@ -717,9 +717,10 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
 /// `global` itself but another's `global NAME` can still reach, or a write
 /// trace's callback, can all change what the name actually holds — reporting
 /// a shimmer purely from the visible literals could be a false positive (or
-/// miss the real one). `extra_global_escaping` is empty and `module_traces`
-/// is `None` for the module-context-free callers ([`Self`] unit tests,
-/// isolated single-function rebuilds with no module to scan).
+/// miss the real one). `extra_global_escaping` is empty and `trace_facts` is
+/// [`crate::compilation_unit::ModuleTraceFacts::none()`] for the
+/// module-context-free callers ([`Self`] unit tests, isolated single-function
+/// rebuilds with no module to scan).
 #[must_use]
 pub fn propagate_types<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
@@ -728,15 +729,16 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
     registry: &CommandRegistry,
     known_classes: &HashSet<String, S>,
     extra_global_escaping: &HashSet<String, S>,
-    module_traces: Option<&crate::var_observability::ModuleVariableTraces>,
+    trace_facts: crate::compilation_unit::ModuleTraceFacts<'_>,
 ) -> HashMap<ValueKey, TypeLattice> {
     let preds = cfg.predecessors();
     let order = crate::sccp::cfg_order(cfg);
     let mut escaping =
-        crate::var_observability::analyse_var_observability(cfg).escaping_var_names();
+        crate::var_observability::analyse_var_observability(cfg, registry).escaping_var_names();
     if !extra_global_escaping.is_empty() {
         escaping.extend(extra_global_escaping.iter().cloned());
     }
+    escaping.extend(trace_facts.traced_variables.iter().cloned());
     // Constructor heads written `[Foo new]` inside this function resolve
     // relative names against the function's own namespace.
     let namespace = function_namespace(&cfg.name);
@@ -746,7 +748,7 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
         known_classes,
         namespace: &namespace,
         escaping: &escaping,
-        module_traces,
+        has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace,
     };
 
     let mut types: HashMap<ValueKey, TypeLattice> = HashMap::new();
@@ -839,9 +841,10 @@ struct StatementTypingCtx<'a, S: std::hash::BuildHasher> {
     namespace: &'a str,
     /// Names [`crate::sccp::is_externally_mutable`] should treat as
     /// unconditionally aliased/escaping (per-function `analyse_var_observability`
-    /// union'd with the caller's whole-module `extra_global_escaping`).
+    /// union'd with the caller's whole-module `extra_global_escaping` and
+    /// `trace_facts.traced_variables`).
     escaping: &'a HashSet<String>,
-    module_traces: Option<&'a crate::var_observability::ModuleVariableTraces>,
+    has_dynamic_variable_trace: bool,
 }
 
 /// Evaluate each statement's defs for one block, forcing every def of a name
@@ -892,7 +895,7 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
             let def_type = if crate::sccp::is_externally_mutable(
                 ctx.ssa.var_name(var),
                 ctx.escaping,
-                ctx.module_traces,
+                ctx.has_dynamic_variable_trace,
             ) {
                 TypeLattice::overdefined()
             } else {
@@ -1083,7 +1086,7 @@ mod tests {
             &registry(),
             &HashSet::new(),
             &HashSet::new(),
-            None,
+            crate::compilation_unit::ModuleTraceFacts::none(),
         );
         assert_eq!(types.get(&(x, 1)), Some(&TypeLattice::of(TclType::Int)));
     }
@@ -1261,7 +1264,7 @@ mod tests {
             &registry(),
             &HashSet::new(),
             &HashSet::new(),
-            None,
+            crate::compilation_unit::ModuleTraceFacts::none(),
         );
         // x@1 (entry) should be Int.
         assert_eq!(types.get(&(x, 1)), Some(&TypeLattice::of(TclType::Int)));

@@ -264,6 +264,34 @@ suite("LSP Command Execution", () => {
     );
   });
 
+  test("tcl-lsp.optimiseDocument does not eliminate a branch guarded by a cross-procedural trace", async () => {
+    // Regression for O107 (unreachable-code elimination): SCCP used to have
+    // no notion of variable traces, so it proved `if {$x}` constant (`x` is
+    // `1` at every call) and O107 deleted the "unreachable" `else` body's
+    // `puts no` — silently losing the trace-firing read of `$x` through the
+    // DCE path. The trace is installed by a *called* proc (`setup`), not
+    // lexically between the `set` and the `if`, so only the whole-module
+    // trace fact catches it. tclsh prints "trace fired" then "yes" — the
+    // `else` body never runs, but the compiler cannot prove that
+    // statically, so it must survive in the rewritten source.
+    const branchUri = getDocUri("optimiserTraceSafetyBranch.tcl");
+    await activate(branchUri);
+    const uri = branchUri.toString();
+    const result = (await execLspCommand("tcl-lsp.optimiseDocument", uri, "full")) as {
+      optimisations: Array<{ code: string }>;
+      source: string;
+    } | null;
+    assert.ok(result, "optimiseDocument should return a result");
+    assert.ok(
+      result.source.includes("puts no"),
+      `trace-guarded else branch must survive the optimiser unchanged, got: ${result.source}`,
+    );
+    assert.ok(
+      !result.optimisations.some((o) => o.code === "O107"),
+      `expected no O107, got: ${JSON.stringify(result.optimisations)}`,
+    );
+  });
+
   // -- fixAllSafeIssues -------------------------------------------------------
 
   test("tcl-lsp.fixAllSafeIssues returns applied list", async () => {

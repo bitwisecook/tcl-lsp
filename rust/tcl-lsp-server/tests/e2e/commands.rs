@@ -122,6 +122,37 @@ fn optimise_document_does_not_forward_across_a_variable_trace() {
 }
 
 #[test]
+fn optimise_document_does_not_eliminate_a_branch_guarded_by_a_cross_procedural_trace() {
+    // Regression for O107 (unreachable-code elimination): SCCP used to have
+    // no notion of variable traces at all, so it proved `if {$x}` constant
+    // (`x` is `1` at every call) and O107 deleted the "unreachable" `else`
+    // body's `puts no` — silently losing the trace-firing read of `$x` the
+    // same way the O102 forward above did, but through the DCE path
+    // instead. The trace is installed by a *called* proc (`setup`), not
+    // lexically between the `set` and the `if`, so only the whole-module
+    // `Module::traced_variables` fact (not a same-function scan) catches
+    // it. tclsh: prints "trace fired" then "yes" — `else { puts no }` never
+    // runs, but the compiler cannot prove that statically, so it must
+    // survive in the rewritten source.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc onread {name1 name2 op} {\n    puts \"trace fired\"\n}\nproc setup {} {\n    trace add variable ::x read onread\n}\nset x 1\nsetup\nif {$x} {\n    puts yes\n} else {\n    puts no\n}\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", json!([uri, "full"]));
+    assert!(!result.is_null());
+    assert!(
+        source(&result).contains("puts no"),
+        "trace-guarded else branch must survive the optimiser unchanged, got: {}",
+        source(&result)
+    );
+    let fired_o107 = result
+        .get("optimisations")
+        .and_then(Value::as_array)
+        .is_some_and(|arr| arr.iter().any(|o| o.get("code") == Some(&json!("O107"))));
+    assert!(!fired_o107, "expected no O107, got: {result:?}");
+}
+
+#[test]
 fn minify_preserves_switch_braced_quoted_pattern_closers() {
     // Issue #540: a braced `{a b}` / quoted `"c d"` pattern's end was derived one
     // char short, so the minifier dropped the closing `}` / `"` and re-emitted a

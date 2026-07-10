@@ -23,9 +23,10 @@
 //! using CFG reachability so unreachable branches never drag their
 //! targets down to `Overdefined`.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use rustc_hash::FxHashSet;
+use tcl_registry::CommandRegistry;
 
 use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
@@ -33,7 +34,6 @@ use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey};
 use crate::tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr_with_octal};
-use crate::var_observability::ModuleVariableTraces;
 
 // Public aliases
 
@@ -227,6 +227,12 @@ pub struct SccpResult {
 /// `Some(false)` for the tcl9.0 decimal rule (`"08"` → 8, `"010"` → 10),
 /// and `None` to decline folding such ambiguous operands (the safe default
 /// for callers without dialect context).
+///
+/// `trace` bundles the registry-driven whole-module trace facts this
+/// function consults in addition to its own intra-procedural
+/// [`crate::var_observability`] lattice — see [`TraceInputs`]. A caller
+/// with no `Module` in hand (a standalone unit test) passes an empty
+/// `BTreeSet` and `false`, behaviourally identical to "nothing is traced".
 #[must_use]
 // `implicit_hasher`: `param_constants` is an `Option<&HashMap>` that almost
 // every caller passes as `None` (only the interprocedural seed passes `Some`).
@@ -239,16 +245,30 @@ pub fn sccp(
     ssa: &SsaFunction,
     param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
     octal: Option<bool>,
-    module_traces: Option<&ModuleVariableTraces>,
+    trace: TraceInputs<'_>,
 ) -> SccpResult {
-    sccp_with_extra_escaping(
-        cfg,
-        ssa,
-        param_constants,
-        octal,
-        &HashSet::new(),
-        module_traces,
-    )
+    sccp_with_extra_escaping(cfg, ssa, param_constants, octal, &HashSet::new(), trace)
+}
+
+/// Registry-driven whole-module trace facts [`sccp`] /
+/// [`sccp_with_extra_escaping`] consult when widening their escaping-set,
+/// bundled into one `Copy` struct to keep those functions' argument count
+/// under the clippy `too_many_arguments` ceiling.
+#[derive(Clone, Copy)]
+pub struct TraceInputs<'a> {
+    /// Resolves the variable-trace grammar for the intra-procedural
+    /// [`crate::var_observability`] lattice `sccp` builds internally.
+    pub registry: &'a CommandRegistry,
+    /// [`crate::ir::Module::traced_variables`] — every literal variable
+    /// name targeted anywhere in the module by a
+    /// `Traits::ESTABLISHES_VARIABLE_TRACE` subcommand; also catches a
+    /// trace installed by a *called* proc, invisible to the
+    /// single-`CfgFunction` `var_observability` view.
+    pub traced_variables: &'a BTreeSet<String>,
+    /// [`crate::ir::Module::has_dynamic_variable_trace`] — set when any
+    /// such subcommand targets a non-literal (dynamic) name, in which case
+    /// *every* variable is potentially traced.
+    pub has_dynamic_variable_trace: bool,
 }
 
 /// Like [`sccp`] but additionally forces every name in `extra_escaping` to
@@ -274,7 +294,7 @@ pub fn sccp_with_extra_escaping(
     param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
     octal: Option<bool>,
     extra_escaping: &HashSet<String>,
-    module_traces: Option<&ModuleVariableTraces>,
+    trace: TraceInputs<'_>,
 ) -> SccpResult {
     let preds = compute_predecessors(cfg);
     let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
@@ -301,12 +321,13 @@ pub fn sccp_with_extra_escaping(
     // constant through it; the read is still tracked for liveness. The check
     // consults the whole-function (flow-insensitive) view of the
     // `var_observability` alias/trace lattice, widened by any whole-module
-    // fact the caller supplies (see `sccp_with_extra_escaping`).
-    let mut escaping =
-        crate::var_observability::analyse_var_observability(cfg).escaping_var_names();
-    if !extra_escaping.is_empty() {
-        escaping.extend(extra_escaping.iter().cloned());
-    }
+    // fact the caller supplies (`extra_escaping`) and by the whole-module
+    // `traced_variables` fact — the latter also catches a trace installed by
+    // a *called* proc, which the single-`CfgFunction` view here cannot see.
+    let mut escaping = crate::var_observability::analyse_var_observability(cfg, trace.registry)
+        .escaping_var_names();
+    escaping.extend(extra_escaping.iter().cloned());
+    escaping.extend(trace.traced_variables.iter().cloned());
 
     let mut executable_blocks: HashSet<BlockId> = HashSet::new();
     let mut executable_edges: HashSet<(BlockId, BlockId)> = HashSet::new();
@@ -356,7 +377,7 @@ pub fn sccp_with_extra_escaping(
                     ssa,
                     &escaping,
                     octal,
-                    module_traces,
+                    trace.has_dynamic_variable_trace,
                 );
 
                 // Terminator.
@@ -487,11 +508,14 @@ fn branch_deferrable(
 }
 
 /// A name is externally mutable (and so never a constant) when it is global /
-/// namespace-qualified, escapes via alias / trace *within this function*, or
-/// is traced *anywhere in the module* (a `trace add variable` installed by a
-/// different proc, reached through a call whose order relative to this
-/// read/write isn't statically known — see
-/// [`ModuleVariableTraces`]'s module doc for the repro this closes).
+/// namespace-qualified, escapes via alias / trace *within this function* (or
+/// is traced *anywhere in the module* — a `trace add variable` installed by
+/// a different proc, unioned into `escaping` by the caller; see [`sccp`]'s
+/// docs), or the module installs a variable trace on a non-literal
+/// (dynamic) target — in which case *every* name is potentially traced and
+/// none can be trusted, mirroring
+/// [`crate::gvn::is_pure_command_with_traces`]'s handling of
+/// `has_dynamic_trace`.
 ///
 /// `pub(crate)`: also consulted by [`crate::optimiser::propagation`]'s
 /// def-use-chain-based load-forwarding (O102), which does not otherwise run
@@ -500,11 +524,9 @@ fn branch_deferrable(
 pub(crate) fn is_externally_mutable(
     name: &str,
     escaping: &HashSet<String>,
-    module_traces: Option<&ModuleVariableTraces>,
+    has_dynamic_variable_trace: bool,
 ) -> bool {
-    name.starts_with("::")
-        || escaping.contains(name)
-        || module_traces.is_some_and(|t| t.is_traced(name))
+    has_dynamic_variable_trace || name.starts_with("::") || escaping.contains(name)
 }
 
 /// Join phi values from edge-executable predecessors for one block. Returns
@@ -556,7 +578,7 @@ fn sccp_process_statements(
     ssa: &SsaFunction,
     escaping: &HashSet<String>,
     octal: Option<bool>,
-    module_traces: Option<&ModuleVariableTraces>,
+    has_dynamic_variable_trace: bool,
 ) -> bool {
     let mut changed = false;
     for stmt_ssa in &ssa_block.statements {
@@ -604,11 +626,12 @@ fn sccp_process_statements(
             continue;
         }
         for (&var, ver) in &stmt_ssa.defs {
-            let val = if is_externally_mutable(ssa.var_name(var), escaping, module_traces) {
-                LatticeValue::Overdefined
-            } else {
-                evaluate_def(stmt_ssa, &*values, ssa, octal)
-            };
+            let val =
+                if is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace) {
+                    LatticeValue::Overdefined
+                } else {
+                    evaluate_def(stmt_ssa, &*values, ssa, octal)
+                };
             if set_value(values, (var, *ver), &val) {
                 changed = true;
             }
@@ -1501,6 +1524,31 @@ mod tests {
     use crate::cfg::{Block, BlockId, Function, Terminator};
     use crate::expr_ast::ExprNode;
 
+    fn registry() -> CommandRegistry {
+        CommandRegistry::build_default()
+    }
+
+    /// Convenience wrapper over [`sccp`] for tests with no `Module` in
+    /// hand — no traced variables, no dynamic variable trace.
+    fn sccp_no_traces(
+        cfg: &CfgFunction,
+        ssa: &SsaFunction,
+        param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
+        octal: Option<bool>,
+    ) -> SccpResult {
+        sccp(
+            cfg,
+            ssa,
+            param_constants,
+            octal,
+            TraceInputs {
+                registry: &registry(),
+                traced_variables: &BTreeSet::new(),
+                has_dynamic_variable_trace: false,
+            },
+        )
+    }
+
     /// Intern `name` and insert a fresh block; returns its [`BlockId`].
     fn block(f: &mut Function, name: &str) -> BlockId {
         let id = f.intern_block(name);
@@ -1773,7 +1821,7 @@ mod tests {
             &ssa,
             &escaping,
             None,
-            None
+            false
         ));
         assert_eq!(
             values.get(&(x, 2)),
@@ -1821,7 +1869,7 @@ mod tests {
         ssa.blocks.get_mut(&entry).unwrap().statements.push(stmt);
         let x = ssa.var_symbol("x").unwrap();
 
-        let r = sccp(&f, &ssa, None, None, None);
+        let r = sccp_no_traces(&f, &ssa, None, None);
         assert!(r.executable_blocks.contains(&entry));
         assert_eq!(
             r.values.get(&(x, 1)),
@@ -1851,7 +1899,7 @@ mod tests {
         });
         let ssa = make_ssa(&f, vec![]);
 
-        let r = sccp(&f, &ssa, None, None, None);
+        let r = sccp_no_traces(&f, &ssa, None, None);
         assert!(r.executable_blocks.contains(&t));
         assert!(!r.executable_blocks.contains(&e));
         assert_eq!(r.constant_branches.len(), 1);
@@ -1882,7 +1930,7 @@ mod tests {
         });
         let ssa = make_ssa(&f, vec![]);
 
-        let r = sccp(&f, &ssa, None, None, None);
+        let r = sccp_no_traces(&f, &ssa, None, None);
         assert!(!r.executable_blocks.contains(&t));
         assert!(r.executable_blocks.contains(&e));
     }
@@ -1915,7 +1963,7 @@ mod tests {
         });
         let ssa = make_ssa(&f, vec![]);
 
-        let r = sccp(&f, &ssa, None, None, None);
+        let r = sccp_no_traces(&f, &ssa, None, None);
         assert!(r.executable_blocks.contains(&t));
         assert!(r.executable_blocks.contains(&e));
         assert!(r.constant_branches.is_empty());
@@ -2533,7 +2581,7 @@ mod tests {
             "proc ::p {} { for {set i 0} {$i < 10} {incr i} {}\n if {$i == 10} { return yes } else { return no } }",
         );
         let fu = c.function("::p").unwrap();
-        let r = sccp(&fu.cfg, &fu.ssa, None, None, None);
+        let r = sccp_no_traces(&fu.cfg, &fu.ssa, None, None);
         let cb = r
             .constant_branches
             .iter()
@@ -2546,7 +2594,7 @@ mod tests {
             "proc ::a {} { set j 0\n for {set k 5} {$k > 0} {incr k -1} { incr j }\n if {$j == 5} { return yes } else { return no } }",
         );
         let fa = ca.function("::a").unwrap();
-        let ra = sccp(&fa.cfg, &fa.ssa, None, None, None);
+        let ra = sccp_no_traces(&fa.cfg, &fa.ssa, None, None);
         let cba = ra
             .constant_branches
             .iter()
@@ -2560,7 +2608,7 @@ mod tests {
             "proc ::q {n} { for {set i 0} {$i < $n} {incr i} {}\n if {$i == 10} { return yes } else { return no } }",
         );
         let fq = cq.function("::q").unwrap();
-        let rq = sccp(&fq.cfg, &fq.ssa, None, None, None);
+        let rq = sccp_no_traces(&fq.cfg, &fq.ssa, None, None);
         assert!(
             !rq.constant_branches
                 .iter()
@@ -2618,7 +2666,7 @@ mod tests {
 
         let cg = cu(global_src);
         let fg = cg.function("::p").unwrap();
-        let rg = sccp(&fg.cfg, &fg.ssa, None, None, None);
+        let rg = sccp_no_traces(&fg.cfg, &fg.ssa, None, None);
         assert!(
             rg.constant_branches.is_empty(),
             "global var must not fold a constant branch"
@@ -2626,7 +2674,7 @@ mod tests {
 
         let cl = cu(local_src);
         let fl = cl.function("::p").unwrap();
-        let rl = sccp(&fl.cfg, &fl.ssa, None, None, None);
+        let rl = sccp_no_traces(&fl.cfg, &fl.ssa, None, None);
         assert!(
             !rl.constant_branches.is_empty(),
             "local var should still fold the constant branch"
@@ -2646,7 +2694,7 @@ mod tests {
         let with_upframe =
             cu("set n 5\nuplevel #0 { set n 99 }\nif {$n == 5} { set r yes } else { set r no }\n");
         let f = with_upframe.function("::top").unwrap();
-        let r = sccp(&f.cfg, &f.ssa, None, None, None);
+        let r = sccp_no_traces(&f.cfg, &f.ssa, None, None);
         assert!(
             r.constant_branches.is_empty(),
             "a value reachable through an UpFrame must not fold a constant branch, got {:?}",

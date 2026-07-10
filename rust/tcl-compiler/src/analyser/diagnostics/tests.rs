@@ -2620,10 +2620,17 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                 "tcl",
                 &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
                     // Key + build mirror the db's `function_lattice` query,
-                    // including the whole-unit `known_classes` fingerprint.
+                    // including the whole-unit `known_classes` /
+                    // `traced_variables` fingerprints.
                     let key = format!(
-                        "{}\u{0}{:?}\u{0}{:?}\u{0}{:?}\u{0}{:?}",
-                        req.qname, req.body, req.params, req.param_constants, req.known_classes
+                        "{}\u{0}{:?}\u{0}{:?}\u{0}{:?}\u{0}{:?}\u{0}{:?}\u{0}{:?}",
+                        req.qname,
+                        req.body,
+                        req.params,
+                        req.param_constants,
+                        req.known_classes,
+                        req.traced_variables,
+                        req.has_dynamic_variable_trace,
                     );
                     if let Some(fu) = cache.get(&key) {
                         return fu.clone();
@@ -2639,6 +2646,12 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                     let pc = crate::compilation_unit::decode_param_constants(req.param_constants);
                     let known_classes: std::collections::HashSet<String> =
                         req.known_classes.iter().cloned().collect();
+                    let traced_variables: std::collections::BTreeSet<String> =
+                        req.traced_variables.iter().cloned().collect();
+                    let trace_facts = crate::compilation_unit::ModuleTraceFacts {
+                        traced_variables: &traced_variables,
+                        has_dynamic_variable_trace: req.has_dynamic_variable_trace,
+                    };
                     let fu = FunctionUnit::build_with_param_constants_and_classes(
                         req.qname,
                         cfg,
@@ -2646,7 +2659,7 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                         &registry,
                         pc.as_ref(),
                         &known_classes,
-                        Some(req.module_traces),
+                        trace_facts,
                     );
                     cache.insert(key, fu.clone());
                     fu

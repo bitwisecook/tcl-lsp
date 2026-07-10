@@ -661,35 +661,76 @@ fn o112_constant_branch_elimination_blocks_on_variable_trace() {
     // permanently silencing the trace. tclsh: prints "trace fired" then
     // "yes" on every run — the `if` must stay a real runtime check so the
     // trace keeps firing.
-    // Note: the `else` body's *contents* (`puts no`) are lost regardless —
-    // see `o107_dead_code_elimination_of_unreachable_branch_is_a_known_gap`
-    // below for that separate, still-open gap. This test only asserts
-    // O112 itself does not collapse the `if` structure.
+    // Note: the `else` body's *contents* (`puts no`) used to be lost
+    // regardless — see `o107_dead_code_elimination_of_unreachable_branch`
+    // below, which now also asserts they survive (SCCP itself is
+    // trace-safe, so every trace-blind consumer inherits correctness). This
+    // test only asserts O112 itself does not collapse the `if` structure.
     let src = "proc onread {name1 name2 op} {\n    puts \"trace fired\"\n}\nproc setup {} {\n    trace add variable ::x read onread\n}\nset x 1\nsetup\nif {$x} {\n    puts yes\n} else {\n    puts no\n}\n";
     assert!(opt_absent(src, TCL, "O112"));
     assert!(optimised(src, TCL).contains("if {$x}"));
 }
 
 #[test]
-fn o107_dead_code_elimination_of_unreachable_branch_respects_variable_trace() {
-    // Was a documented, deliberate gap: `elimination.rs`'s O107 "unreachable
-    // code" deletion was a *third* independent consumer of SCCP's
-    // `executable_blocks`/`constant_branches` facts, and (unlike
-    // `propagation`/`branch_folding`/`structure_elimination`, which this
-    // module's `O100`/`O112` trace-safety tests cover directly) had no
-    // per-pass retrofit — so it still deleted the "provably unreachable"
-    // `else` body's contents even when `x`'s constant-ness was only true
-    // because SCCP didn't know about the `trace add variable ::x` a
-    // *different* proc installs.
-    //
-    // Fixed for free at the root, not by a fourth per-pass patch: SCCP
-    // itself (`sccp.rs`) now consults a whole-module variable-trace fact
-    // (`var_observability::ModuleVariableTraces`, threaded in via
-    // `compilation_unit.rs`) and forces `x` to `Overdefined`, so
-    // `executable_blocks`/`constant_branches` — and every one of their
-    // consumers, including this one — see the `else` arm as reachable.
-    // No optimisation fires at all; the source survives byte-for-byte.
+fn o107_dead_code_elimination_of_unreachable_branch() {
+    // Regression: `elimination.rs`'s O107 "unreachable code" deletion is a
+    // consumer of SCCP's `executable_blocks`/`constant_branches` facts, same
+    // as `propagation`/`branch_folding`/`structure_elimination` above. It
+    // used to independently rediscover the "provably unreachable" `else`
+    // body (once O112 stopped collapsing the `if` structure itself) and
+    // delete its *contents* on a later pass, silently losing the same
+    // trace-firing behaviour through a different code path. Now that SCCP's
+    // own dataflow (`rust/tcl-compiler/src/sccp.rs`) treats a read of a
+    // traced/aliased variable as `Overdefined` — via the whole-module
+    // `Module::traced_variables` fact, which also catches a trace installed
+    // by a *called* proc like this — every consumer inherits correctness
+    // for free: `if {$x}` is no longer provably constant, so O107 must not
+    // fire and both arms survive. tclsh: prints "trace fired" then "yes" —
+    // the `else` body never runs, but it must still be present in the
+    // rewritten source since the compiler cannot prove that statically.
     let src = "proc onread {name1 name2 op} {\n    puts \"trace fired\"\n}\nproc setup {} {\n    trace add variable ::x read onread\n}\nset x 1\nsetup\nif {$x} {\n    puts yes\n} else {\n    puts no\n}\n";
+    assert!(opt_absent(src, TCL, "O107"));
+    assert!(optimised(src, TCL).contains("puts no"));
+}
+
+#[test]
+fn o107_true_positive_untraced_branch_still_eliminated() {
+    // TP / precision guard: the trace-safety fix above must not make dead
+    // code universally survive — the identical shape with no trace anywhere
+    // in the module is still provably unreachable and the `else` content is
+    // still eliminated. (The identical-shaped structure folds via O112 —
+    // higher optimiser priority — which collapses the whole `if`, so O107
+    // itself never gets a separate "unreachable else block" to delete here;
+    // observable behaviour, not the specific code, is what this guards.)
+    // tclsh: prints "yes" only; `puts no` never runs and the rewritten
+    // source drops it.
+    let src = "set x 1\nif {$x} {\n    puts yes\n} else {\n    puts no\n}\n";
+    assert!(!optimised(src, TCL).contains("puts no"));
+}
+
+#[test]
+fn o107_false_positive_guard_unrelated_variable_name_still_eliminated() {
+    // FP guard: a trace on a *different*, merely similarly-named variable
+    // (`x2`, sharing the `x` prefix) must not spuriously widen `x`'s own
+    // branch to Overdefined — the registry-driven `traced_variables` lookup
+    // is an exact-name set membership test, not a prefix/substring match.
+    // (See the TP test above for why this folds via O112, not O107, once
+    // the trace-guard doesn't apply.) tclsh: prints "yes" only.
+    let src = "proc onread {name1 name2 op} {\n    puts \"trace fired\"\n}\nproc setup {} {\n    trace add variable ::x2 read onread\n}\nset x 1\nsetup\nif {$x} {\n    puts yes\n} else {\n    puts no\n}\n";
+    assert!(!optimised(src, TCL).contains("puts no"));
+}
+
+#[test]
+fn o107_dynamic_variable_trace_target_blocks_elimination() {
+    // FN guard: a *non-literal* trace target (`trace add variable $name
+    // ...`) exercises `Module::has_dynamic_variable_trace` rather than the
+    // literal `traced_variables` set — a distinct code path in
+    // `is_externally_mutable` that must widen *every* variable, not just
+    // named ones, exactly like `crate::gvn::is_pure_command_with_traces`'s
+    // `has_dynamic_trace` handling. tclsh: prints "trace fired" then "yes"
+    // — `else { puts no }` never runs but must still survive since the
+    // compiler cannot enumerate which name(s) `$name` could be.
+    let src = "proc onread {name1 name2 op} {\n    puts \"trace fired\"\n}\nproc setup {name} {\n    trace add variable $name read onread\n}\nset x 1\nsetup ::x\nif {$x} {\n    puts yes\n} else {\n    puts no\n}\n";
     assert!(opt_absent(src, TCL, "O107"));
     assert!(optimised(src, TCL).contains("puts no"));
 }

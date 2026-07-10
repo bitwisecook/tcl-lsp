@@ -54,17 +54,22 @@ use crate::tcl_expr_eval::{Env, EnvValue, eval_tcl_expr_with_octal, leading_zero
 use super::helpers::literals::is_plain_literal;
 use super::helpers::spans::full_rewrite_span;
 use super::helpers::tokens::extract_body_text;
-use super::propagation::trace_and_alias_unsafe_names;
 use super::{Optimisation, PassContext};
 
 /// Run the structure-elimination pass across every function in
 /// `cu` — walks the top-level IR script and each
 /// procedure body, evaluating each compound-statement condition
 /// against the per-function SCCP lattice.
+///
+/// No trace/alias filtering is applied to the projected `Env`: `sccp()`
+/// itself already forces a traced or frame-aliased variable's lattice
+/// entry to `Overdefined`, so `sccp_env_for`'s projection is trace/alias
+/// safe by construction — O102 `run_load_forwarding` is the one pass that
+/// still needs its own check, since it runs an independent def-use-chain
+/// scan that never consults `fu.sccp` at all.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // Top-level script.
-    let mut top_env = sccp_env_for(&cu.top_level);
-    trace_and_alias_unsafe_names(ctx, &cu.top_level).retain_safe(&mut top_env);
+    let top_env = sccp_env_for(&cu.top_level);
     walk_script(ctx, &cu.ir_module.top_level, &top_env);
 
     // Procedures.
@@ -72,8 +77,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let Some(ir_proc) = cu.ir_module.procedures.get(qname) else {
             continue;
         };
-        let mut env = sccp_env_for(fu);
-        trace_and_alias_unsafe_names(ctx, fu).retain_safe(&mut env);
+        let env = sccp_env_for(fu);
         walk_script(ctx, &ir_proc.body, &env);
     }
 }
