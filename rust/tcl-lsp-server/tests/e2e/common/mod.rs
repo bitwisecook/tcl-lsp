@@ -207,9 +207,19 @@ struct Shared {
     /// `codeLens/refresh`. Captured separately from `notifications` (which only
     /// holds id-less messages) so a test can assert the server actually asked
     /// for a refresh, in addition to `auto_reply` answering it so the server
-    /// never blocks. Shares `notify_cv` for the same wait/wake contract.
+    /// never blocks.
     server_requests: Mutex<Vec<Value>>,
+    /// Wakes waiters on `notifications`.
+    ///
+    /// A `Condvar` is bound to exactly one `Mutex` for its lifetime: waiting on
+    /// the same one with two different mutexes is a std-documented misuse that
+    /// panics with "attempted to use a condition variable with two mutexes"
+    /// (detected by the pthread backend on macOS; the futex backend used on
+    /// Linux does not notice, so CI never saw it). `server_requests` therefore
+    /// has its own `requests_cv` rather than sharing this one.
     notify_cv: Condvar,
+    /// Wakes waiters on `server_requests`. See `notify_cv`.
+    requests_cv: Condvar,
     /// The `tclLsp` configuration reply for `workspace/configuration`. Mutable
     /// so `apply_configuration` can change what the server re-pulls.
     tcllsp_config: Mutex<Value>,
@@ -300,6 +310,7 @@ impl Lsp {
             notifications: Mutex::new(Vec::new()),
             server_requests: Mutex::new(Vec::new()),
             notify_cv: Condvar::new(),
+            requests_cv: Condvar::new(),
             tcllsp_config: Mutex::new(config),
             stderr: Mutex::new(String::new()),
         });
@@ -672,7 +683,11 @@ impl Lsp {
                 !remaining.is_zero(),
                 "no server-initiated {method:?} request within {timeout:?}"
             );
-            let (guard, _) = self.shared.notify_cv.wait_timeout(reqs, remaining).unwrap();
+            let (guard, _) = self
+                .shared
+                .requests_cv
+                .wait_timeout(reqs, remaining)
+                .unwrap();
             reqs = guard;
         }
     }
@@ -990,7 +1005,7 @@ fn route(msg: &Value, shared: &Arc<Shared>) {
         // Server-initiated request — record it (so a test can assert the
         // server actually asked), then answer so the server never blocks.
         shared.server_requests.lock().unwrap().push(msg.clone());
-        shared.notify_cv.notify_all();
+        shared.requests_cv.notify_all();
         auto_reply(msg, shared);
     } else {
         // Notification.
