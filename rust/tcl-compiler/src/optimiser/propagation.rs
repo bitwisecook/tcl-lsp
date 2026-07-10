@@ -124,20 +124,24 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     }
 }
 
-/// Whether `stmt`, if it appears between a forwarding candidate's
-/// definition and use, must block the forward: it may run arbitrary
-/// code that mutates state the forward's literal replacement doesn't
-/// account for — a barrier (`eval`/`uplevel`/`interp eval`/…), a
-/// frame-crossing `uplevel`/`upvar` body, a call the registry cannot
-/// prove pure (including every call to a proc, since an unregistered
-/// name classifies as an unknown write — see
-/// `side_effects::fallback_unknown_write`), or an assignment whose
-/// value itself runs a command substitution.
+/// Whether `stmt`, if it appears between a `O127` store-to-load
+/// forwarding candidate's definition and use, must block the forward:
+/// moving the definition's *computed* side-effecting value (a command
+/// substitution) later, past `stmt`, could reorder its observable effects
+/// relative to `stmt`'s own — a barrier (`eval`/`uplevel`/`interp eval`/…),
+/// a frame-crossing `uplevel`/`upvar` body, a call the registry cannot
+/// prove pure (including every call to a proc, since an unregistered name
+/// classifies as an unknown write — see
+/// `side_effects::fallback_unknown_write`), or an assignment whose value
+/// itself runs a command substitution.
 ///
-/// Shared by the `O102` load-forwarding same-block scan
-/// ([`run_load_forwarding`]) and the `O127` store-to-load
-/// `intervening_is_safe` gate — the same class of intervening effect
-/// invalidates both kinds of forward.
+/// Used only by the `O127` store-to-load `intervening_is_safe` gate.
+/// `O102`'s plain-variable load-forwarding ([`run_load_forwarding`]) does
+/// *not* need this: it never moves a side-effecting computation, only a
+/// literal value, and a plain proc-local variable cannot be rewritten by
+/// an intervening call at all without an alias/trace/barrier — each of
+/// which `run_load_forwarding` already checks directly (see its own doc
+/// comment).
 fn statement_may_have_untracked_effects(
     stmt: &Statement,
     registry: &tcl_registry::CommandRegistry,
@@ -177,9 +181,17 @@ fn statement_may_have_untracked_effects(
 /// use is on a non-Call statement (where we still don't have
 /// per-operand spans).
 ///
-/// Safety gates layer two independent alias/trace facts and two
-/// independent intervening-effect scans, each catching cases the other
-/// misses:
+/// Safety gates layer two independent alias/trace facts plus one
+/// intervening-effect scan, each catching cases the other misses. A plain
+/// proc-local variable that is never `global`/`variable`/`upvar`/`trace`
+/// declared anywhere in the module cannot be touched by an intervening
+/// call to *any* other proc — Tcl's frame-based scoping gives a callee no
+/// way to reach a caller's private local without one of those four
+/// mechanisms — so, unlike an earlier revision of this pass, an ordinary
+/// intervening call does *not* gate the forward on its own (see
+/// `o102_still_forwards_top_level_global_no_proc_touches` and
+/// `o102_still_forwards_genuinely_local_proc_variable`, which lock this
+/// precision in):
 ///
 /// - `escaping` (this function's own [`analyse_var_observability`] plus
 ///   `extra_escaping` — the top-level's
@@ -198,16 +210,9 @@ fn statement_may_have_untracked_effects(
 ///   is strictly additional conservatism; a name either check flags is
 ///   never forwarded.
 /// - [`has_intervening_barrier`] — a `Statement::Barrier`/`UpFrame`
-///   between def and use, checked both same-block (precisely) and
-///   cross-block (conservatively).
-/// - [`same_block_span_is_safe`] — for a def/use pair in the same block,
-///   additionally scans for [`statement_may_have_untracked_effects`] (an
-///   intervening call the registry can't prove pure, including any call
-///   to a proc) — stricter than `has_intervening_barrier` alone, at the
-///   cost of occasionally declining a forward `O100`'s SCCP-based
-///   substitution still fires for (see
-///   `o102_side_effecting_intervening_call_widens_to_o100_only`) — a
-///   precision trade-off, not a correctness gap.
+///   (a literal-body `uplevel`/`interp eval`, which *can* reach into an
+///   arbitrary frame) between def and use, checked both same-block
+///   (precisely) and cross-block (conservatively).
 fn run_load_forwarding(
     ctx: &mut PassContext<'_>,
     fu: &crate::compilation_unit::FunctionUnit,
@@ -217,13 +222,6 @@ fn run_load_forwarding(
     use crate::def_use::{DefKind, UseKind};
     use crate::ir::Statement;
 
-    let Some(registry) = ctx.registry else {
-        return;
-    };
-    let (traced_commands, has_dynamic_trace) = match ctx.ir_module {
-        Some(m) => (m.traced_commands.clone(), m.has_dynamic_trace),
-        None => (std::collections::BTreeSet::new(), false),
-    };
     let unsafe_names = trace_and_alias_unsafe_names(ctx, fu);
 
     // Independent of the SCCP lattice (see the doc comment on the call
@@ -288,22 +286,7 @@ fn run_load_forwarding(
             let Some(use_stmt) = use_block.statements.get(use_idx) else {
                 continue;
             };
-            // Same-block forwards must not cross an intervening
-            // barrier / unprovable call — see the function doc for
-            // why a cross-block def/use pair only gets the barrier scan.
-            if has_intervening_barrier(fu, &chain.definition.block, idx, &use_site.block, use_idx)
-                || (use_site.block == chain.definition.block
-                    && use_idx > idx
-                    && !same_block_span_is_safe(
-                        block,
-                        idx,
-                        use_idx,
-                        registry,
-                        ctx.dialect,
-                        &traced_commands,
-                        has_dynamic_trace,
-                    ))
-            {
+            if has_intervening_barrier(fu, &chain.definition.block, idx, &use_site.block, use_idx) {
                 continue;
             }
             report_load_forward(ctx, fu, use_stmt, var_name, &message, &literal);
@@ -375,31 +358,6 @@ fn has_intervening_barrier(
         .blocks
         .values()
         .any(|b| b.name != def_block && b.name != use_block && b.statements.iter().any(is_barrier))
-}
-
-/// True when no statement strictly between `def_idx` and `use_idx` in
-/// `block` may have an untracked effect (see
-/// [`statement_may_have_untracked_effects`]).
-fn same_block_span_is_safe(
-    block: &crate::cfg::Block,
-    def_idx: usize,
-    use_idx: usize,
-    registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&str>,
-    traced_commands: &std::collections::BTreeSet<String>,
-    has_dynamic_trace: bool,
-) -> bool {
-    !(def_idx..use_idx).skip(1).any(|i| {
-        block.statements.get(i).is_some_and(|s| {
-            statement_may_have_untracked_effects(
-                s,
-                registry,
-                dialect,
-                traced_commands,
-                has_dynamic_trace,
-            )
-        })
-    })
 }
 
 /// Emit the `O102` rewrite(s) for one use site: a precise, applicable

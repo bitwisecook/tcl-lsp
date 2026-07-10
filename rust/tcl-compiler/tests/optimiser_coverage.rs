@@ -549,20 +549,24 @@ fn o102_interp_eval_self_target_barrier_blocks_forward() {
 }
 
 #[test]
-fn o102_sub_interpreter_isolation_is_a_known_conservative_gap() {
-    // A *named* sub-interpreter's variables are isolated from the
-    // caller's — `interp eval slave {set x 99}` does not touch the
-    // master's `x`, so forwarding the master's final `puts $x` to the
-    // literal `5` would in fact be sound (tclsh: prints `99` inside the
-    // slave block, then `5` for the master, unaffected). But `interp
-    // create` / `interp eval` both lower as `Statement::Barrier` — an
-    // always-unsafe kill in `statement_may_have_untracked_effects` — so
-    // the same-block scan conservatively gives up this specific,
-    // provably-safe forward rather than special-casing "this barrier
-    // targets an isolated sub-interpreter". Documented trade-off: no
-    // forward at all, rather than a wrong one.
+fn o102_sub_interpreter_isolation_no_longer_over_blocked() {
+    // Precision guard: a *named* sub-interpreter's variables are isolated
+    // from the caller's — `interp eval slave {set x 99}` does not touch
+    // the master's `x` (tclsh: prints `99` inside the slave block, then
+    // `5` for the master, unaffected) — and `interp eval` with a named
+    // (non-self) target is not a `Statement::Barrier`/`UpFrame`, so
+    // `has_intervening_barrier` correctly does not gate on it. Was
+    // previously a documented "conservative gap" only because an older
+    // revision of `run_load_forwarding` blocked on *any* impure
+    // intervening call, not just a real frame-crossing barrier — see
+    // `o102_side_effecting_intervening_call_is_still_forwarded` for the
+    // general case this generalises. The nested literal body's own `$x`
+    // reference (lexically inside the slave's script, a separate
+    // namespace) still only earns a hint (not a precise applicable
+    // rewrite), so the source is unchanged either way — this test only
+    // locks in that O102 no longer *unconditionally* declines here.
     let src = "set x 5\ninterp create slave\ninterp eval slave {\n    set x 99\n    puts $x\n}\nputs $x\n";
-    assert!(opt_absent(src, TCL, "O102"));
+    assert!(opt_fires(src, TCL, "O102"));
     assert!(optimised(src, TCL).contains("puts $x"));
 }
 
@@ -589,30 +593,32 @@ fn o102_pure_intervening_call_is_still_forwarded() {
 }
 
 #[test]
-fn o102_side_effecting_intervening_call_widens_to_o100_only() {
-    // Precision note, not a correctness bug: `puts` genuinely carries a
-    // side effect (`SideEffectTarget::FileIo`), so it is *not* pure per
-    // the registry, and the O102 same-block scan conservatively declines
-    // to forward across it (unlike `string length` above). The
-    // observable output is still correct — `puts` cannot write `x` — but
-    // the rewrite comes from the position-blind O100 SCCP-constant
-    // substitution instead of O102's positional, intervening-scanned
-    // forward. Documents the boundary rather than asserting a code that
-    // no longer fires here.
+fn o102_side_effecting_intervening_call_is_still_forwarded() {
+    // TN / precision guard: `puts` genuinely carries a side effect
+    // (`SideEffectTarget::FileIo`), but it has no way to *write* `x` —
+    // Tcl's frame-based scoping means an intervening call can only touch
+    // `x` via an alias (`global`/`variable`/`upvar`), a trace, or a
+    // frame-crossing `uplevel`/`interp eval` body, all of which
+    // `run_load_forwarding` checks directly (see its doc comment) rather
+    // than gating on every impure intervening statement. Neither applies
+    // here, so O102 fires the same as the provably-pure case above.
     let src = "set x 5\nputs \"start\"\nputs $x\n";
-    assert!(opt_absent(src, TCL, "O102"));
-    assert!(opt_fires(src, TCL, "O100"));
+    assert!(opt_fires(src, TCL, "O102"));
     assert!(optimised(src, TCL).contains("puts 5"));
 }
 
 #[test]
-fn o102_unregistered_proc_call_between_def_and_use_blocks_forward() {
-    // TP: a call to a proc the registry knows nothing about is treated
-    // conservatively (`fallback_unknown_write` — an unknown command
-    // defaults to an unproven write, never pure), so it must gate the
-    // same-block intervening scan even with no trace/barrier at all.
+fn o102_unregistered_proc_call_between_def_and_use_still_forwards() {
+    // TN / precision guard: a call to a proc the registry knows nothing
+    // about cannot reach a caller's private, unaliased local (`x` is
+    // never `global`/`variable`/`upvar` declared, and `helper` contains
+    // no barrier), so the forward is sound — mirrors
+    // `o102_still_forwards_top_level_global_no_proc_touches` in
+    // propagation.rs's own unit tests, which locks in the same precision
+    // at the whole-module-scan level.
     let src = "proc helper {} {\n    # opaque to the registry\n}\nset x 5\nhelper\nputs $x\n";
-    assert!(opt_absent(src, TCL, "O102"));
+    assert!(opt_fires(src, TCL, "O102"));
+    assert!(optimised(src, TCL).contains("puts 5"));
 }
 
 #[test]
