@@ -54,7 +54,16 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     interp.set_result(v);
                     Code::Ok
                 }
-                Err(e) => interp.set_error(e.message().as_bytes()),
+                // The shared core reports errors by message only; re-attach C's
+                // `-errorcode` for the dict-parse failures so `catch … optsVar`
+                // sees `TCL VALUE DICTIONARY …` and not `NONE` (dict-4.x).
+                Err(e) => {
+                    let msg = e.message().as_bytes();
+                    match dict_parse_error_code(e.message()) {
+                        Some(code) => interp.error_with_code(msg, code),
+                        None => interp.set_error(msg),
+                    }
+                }
             };
         }
     }
@@ -903,6 +912,25 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
     m.extend_from_slice(usage);
     m.push(b'"');
     interp.set_error(&m)
+}
+
+/// The C `-errorcode` for a dict string-parse failure, keyed off the message the
+/// shared `tcl-cmd-core` core produced (which carries no code of its own). The
+/// message set mirrors [`bad_dict`] / C's `SetDictFromAny`.
+fn dict_parse_error_code(msg: &str) -> Option<&'static [u8]> {
+    if msg == "missing value to go with key" {
+        Some(b"TCL VALUE DICTIONARY")
+    } else if msg.starts_with("dict element in braces followed by")
+        || msg.starts_with("dict element in quotes followed by")
+    {
+        Some(b"TCL VALUE DICTIONARY JUNK")
+    } else if msg == "unmatched open brace in dict" {
+        Some(b"TCL VALUE DICTIONARY BRACE")
+    } else if msg == "unmatched open quote in dict" {
+        Some(b"TCL VALUE DICTIONARY QUOTE")
+    } else {
+        None
+    }
 }
 
 /// Map a dict string-parse failure to its C-faithful message + `-errorcode`
