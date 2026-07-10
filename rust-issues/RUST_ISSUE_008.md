@@ -7,7 +7,7 @@
 | **Severity** | high |
 | **Subsystem** | Backend parity (WASM/VM/eBPF/registry) |
 | **Location** | `WASM backend` |
-| **Status** | Substantially resolved (VM coroutines incl. `coroprobe`/`coroinject`/`corotype`/`yieldto` + event loop + thread package incl. `mutex`/`cond`/`rwmutex`/`tpool`; coroutines proven on wasm32 via the VM, now the **default `tcl compwasm` backend** shipping a generic `vm.wasm` runner; `yield` now crosses `eval`/`uplevel 0`/`catch`, and a straight-line `lmap` — the inline collecting loop — on the explicit stack). C `coroutine.test` runs the VM at **58/77** (3 skipped; the lmap-in-`apply` cases 9.2/10.1/10.3 now pass, 10.2 still diverges on coroinject stacking order). Open tail: `yield` across `subst` (needs an inline-`subst` lowering) and `lmap` in *consumed*/branching positions (which stay on the runtime builtin). |
+| **Status** | Substantially resolved (VM coroutines incl. `coroprobe`/`coroinject`/`corotype`/`yieldto` + event loop + thread package incl. `mutex`/`cond`/`rwmutex`/`tpool`; coroutines proven on wasm32 via the VM, now the **default `tcl compwasm` backend** shipping a generic `vm.wasm` runner; `yield` now crosses `eval`/`uplevel 0`/`catch`, a straight-line `lmap` (the inline collecting loop), and `subst` (a scanner-driven subst frame) on the explicit stack). C `coroutine.test` runs the VM at **60/77** (3 skipped; the lmap-in-`apply` 9.2/10.1/10.3 and the `subst`-as-coroutine 1.13/1.14 now pass; 10.2 still diverges on coroinject stacking order). Open tail: a `[yieldto …]` in a command-substitution *argument* slot (7.3/12.1, lowers to runtime `subst_word`), `lmap` in a *consumed*/branching position, and `try`/`apply`/`lsort -command`. |
 | **Verification** | Oracle-checked against tclsh 9.0.4 (coroutine/event-loop suites, 28 `cmd_coro_e2e` tests) + the real C `tests/coroutine.test` through the VM (55/77) + a Node-executed wasm32 coroutine test; thread package via deterministic concurrency tests (`thread.test` is `testthread`-gated → N/A; no threaded oracle). |
 
 ## Finding
@@ -218,26 +218,49 @@ stay sound):
   `cmd_coro_e2e.rs` (yield-across-`lmap` generators), plus the wasm `verify.mjs`
   case.
 
+## Progress — yieldable `subst` (scanner-driven subst frame)
+
+`cmd_subst` used to run a native byte-scanner (`subst.rs`'s `subst_command`) that
+evaluated each `[…]` via `vm.eval_source` — a native re-entry, so a `yield` in a
+bracket errored `cannot yield: C stack busy`. It now parks the template + switches
+in `Vm.pending_subst`, which the trampoline drains into a **subst activation
+frame** — modelled on the `catch` frame, but *resumable* (re-entered once per
+bracket). The frame (`Frame::subst`, an empty placeholder asm — it never runs
+bytecode) is scanner-driven: `tick` routes it to `tick_subst`, which scans literal
+/ backslash / `$…` runs **natively** into the accumulated output (these never
+yield) and, on a top-level `[`, compiles the bracket body and pushes it as a
+yieldable **child script frame**, leaving the cursor past the `]`. So a `[yield]`
+inside a bracket freezes the whole scan (cursor + output) with the coroutine.
+
+`unwind` folds each bracket's completion back by C's per-bracket subst rules
+(`Vm::fold_subst_bracket`, subst-8.x/10.x): `Ok`/`Return`/any other code appends
+the value and `continue` drops it (both **resume** the scan — the subst frame is
+re-ticked), a `break` finalises with the output so far, and an error propagates.
+The native `subst_command` stays for the non-command paths (`expr` command subst,
+literal `PUSH` word substitution) and the `invoke_command` fallback runs the subst
+frame via a nested drive (not yieldable there, as before). Closes `coroutine.test`
+1.13/1.14 (`coroutine foo eval {subst {>>[yield a],[yield b]<<}}`). Oracle-checked
+in `cmd_coro_e2e.rs` (yield/error across `subst`) and `builtins_e2e.rs`
+(break/continue/return-per-bracket), plus the wasm `verify.mjs` case.
+
 ## Progress — C `coroutine.test` / `thread.test` harnesses
 
 The actual C Tcl 9.0.4 `tests/coroutine.test` runs through the VM (bytecode) via
-tcltest: **58 / 77 passing, 3 skipped** (the `testnrelevels`/`memory` constraints
-gate C-only test commands the VM does not provide). `eval`, `uplevel 0`, and a
-straight-line `lmap` are now yieldable — a `yield`/`yieldto` reached through them
-runs on the *explicit* activation stack (a transparent [script
-frame](../rust/tcl-vm/src/exec.rs) / the inline collecting loop, see below),
-closing 1.7/1.8/1.9/1.10/1.12 and the lmap-in-`apply` cases 9.2/10.1/10.3. The 16
-remaining failures are the design divergence, not regressions:
+tcltest: **60 / 77 passing, 3 skipped** (the `testnrelevels`/`memory` constraints
+gate C-only test commands the VM does not provide). `eval`, `uplevel 0`, a
+straight-line `lmap`, and `subst` are now yieldable — a `yield`/`yieldto` reached
+through them runs on the *explicit* activation stack (a transparent [script
+frame](../rust/tcl-vm/src/exec.rs), the inline collecting loop, or the subst
+frame, see below), closing 1.7/1.8/1.9/1.10/1.12, the lmap-in-`apply` cases
+9.2/10.1/10.3, and the `subst`-as-coroutine cases 1.13/1.14. The 14 remaining
+failures are the design divergence, not regressions:
 
 - **`yield`/`yieldto` still cannot cross a host re-entry the VM runs on the
-  native Rust stack** (5): `subst` (1.13/1.14 — the template's command
-  substitutions run in the `cmd_subst` builtin), `try` + event loop (7.14), and
-  mutual `yieldto` whose `[yieldto …]` sits in a command-substitution argument
-  slot that lowers to runtime `subst_word` (7.3, 12.1). Extending the mechanism to
-  these needs an inline-`subst` lowering — the remaining yieldable-surface work.
-  (Straight-line `lmap` is now inline and yieldable; a *consumed*/branching `lmap`
-  still barriers to the runtime builtin, but `coroutine.test` does not exercise
-  that form.)
+  native Rust stack** (3): `try` + event loop (7.14), and mutual `yieldto` whose
+  `[yieldto …]` sits in a command-substitution argument *slot* that lowers to
+  runtime `subst_word` (7.3, 12.1) — distinct from the `subst` command, which is
+  now yieldable. (A *consumed*/branching `lmap` also still barriers to the runtime
+  builtin, but `coroutine.test` does not exercise that form.)
 - **Introspection/embedding features the VM does not implement** (11): `info
   frame` (3.2/3.6/3.7/10.9), child interpreters `interp create` (7.7/9.9/12.1),
   and detecting a coroutine whose namespace was deleted mid-suspend to raise
@@ -265,17 +288,17 @@ validated by the native `cmd_thread_e2e.rs` suite (per the `Thread` package docs
 the reference tclsh is non-threaded, so there is no threaded oracle).
 
 **Remaining (still Open):**
-- **`eval`, `uplevel 0`, `catch`, and a straight-line `lmap` are now yieldable**
-  (they run their body on the explicit stack via a transparent script/catch frame
-  or the inline collecting loop — see the harness section). Still on the **native
-  Rust stack**, so a `yield` across them errors `cannot yield: C stack busy`:
-  `subst` (the template's `[…]` run in `cmd_subst`), `lmap` in a *consumed*/
+- **`eval`, `uplevel 0`, `catch`, a straight-line `lmap`, and `subst` are now
+  yieldable** (they run their body on the explicit stack via a transparent
+  script/catch frame, the inline collecting loop, or the scanner-driven subst
+  frame — see the harness section). Still on the **native Rust stack**, so a
+  `yield` across them errors `cannot yield: C stack busy`: `lmap` in a *consumed*/
   branching position (which stays on the runtime `cmd_lmap`), `try` (its
   `eval_body` re-enters via `eval_source`), `apply` in an *arbitrary* position,
-  `lsort -command`, and a `[yieldto …]` command substitution in an argument slot
-  that lowers to runtime `subst_word`. The remaining yieldable-surface work is an
-  inline-`subst` lowering. `yieldto`, the creating-namespace command resolution,
-  and `info level`/`info coroutine` are done.
+  `lsort -command`, and a `[yieldto …]` command substitution in an argument *slot*
+  that lowers to runtime `subst_word` (distinct from the now-yieldable `subst`
+  command). `yieldto`, the creating-namespace command resolution, and `info
+  level`/`info coroutine` are done.
 - Introspection/embedding gaps behind the other ~11 `coroutine.test` failures:
   `info frame`, child interpreters (`interp create`), and raising `yieldto
   called in deleted namespace` when a coroutine's namespace is deleted while it

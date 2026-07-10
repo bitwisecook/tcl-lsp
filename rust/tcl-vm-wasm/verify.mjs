@@ -51,6 +51,10 @@ const cases = [
   // returns the mapped list of resume values.
   ['lmap', 'proc g {} { lmap n {1 2 3} {yield $n} }; ' +
     'coroutine c g; puts [list [c A] [c B] [c C]]', '2 3 {A B C}'],
+  // `yield` crossing a `subst` template's `[…]` brackets (the scanner-driven subst
+  // frame): resumes fold into the output, which is returned once the scan finishes.
+  ['subst', 'proc g {} { subst {a=[yield 1]b=[yield 2]} }; ' +
+    'coroutine c g; puts [list [c P] [c Q]]', '2 a=Pb=Q'],
 ];
 
 let failed = false;

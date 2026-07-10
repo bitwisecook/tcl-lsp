@@ -521,6 +521,16 @@ fn subst_command() {
     out_eq("set a(k) v\nputs [subst {got $a(k)}]\n", "got v\n");
     out_eq("puts [subst -novariables {keep $x}]\n", "keep $x\n");
     out_eq("puts [subst -nocommands {keep [cmd]}]\n", "keep [cmd]\n");
+    // Per-bracket control flow (subst-8.x/10.x, matched against tclsh 9.0.4):
+    // `break` finalises with the text so far, `continue` drops the bracket's
+    // value, and `return` (any non-error code) substitutes its result. These
+    // exercise the yieldable subst frame's rules via the non-coroutine path.
+    out_eq("puts [subst {a[break]b}]\n", "a\n");
+    out_eq("puts [subst {a[continue]b}]\n", "ab\n");
+    out_eq("puts [subst {a[return -level 0 X]b}]\n", "aXb\n");
+    // `-nobackslashes` leaves an escape verbatim; the default decodes it.
+    out_eq("puts [subst -nobackslashes {a\\tb}]\n", "a\\tb\n");
+    out_eq("puts [subst {x[expr 1][expr 2]y}]\n", "x12y\n");
 }
 
 #[test]

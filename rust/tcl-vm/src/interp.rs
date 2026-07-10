@@ -356,6 +356,11 @@ pub struct Vm {
     /// [`Tick::PushCatch`](crate::exec) (or run via a nested drive on the
     /// `invoke_command` fallback).
     pub(crate) pending_catch: Option<crate::exec::CatchReq>,
+    /// A `subst` an about-to-run `subst` command wants performed on the *explicit*
+    /// stack (so a `yield` in a `[…]` stays yieldable). Set by `cmd_subst`, drained
+    /// by `dispatch_words` into a [`Tick::PushSubst`](crate::exec) (or run via a
+    /// nested drive on the `invoke_command` fallback). See [`Frame::subst`].
+    pub(crate) pending_subst: Option<crate::exec::SubstReq>,
     /// The event loop's pending timer/idle events (`after`/`vwait`/`update`).
     /// The scheduler half of the coroutine subsystem. See [`crate::cmd_event`].
     pub(crate) events: crate::cmd_event::EventQueue,
@@ -493,6 +498,7 @@ impl Vm {
             activation_depth: 0,
             pending_eval: None,
             pending_catch: None,
+            pending_subst: None,
             events: crate::cmd_event::EventQueue::default(),
             thread: crate::cmd_thread::ThreadSystem::default(),
         };

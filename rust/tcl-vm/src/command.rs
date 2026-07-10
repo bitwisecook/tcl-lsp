@@ -893,10 +893,19 @@ fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
         }
     }
-    match crate::subst::subst_command(vm, &string.to_str(), backslashes, commands, variables) {
-        Ok(s) => ok(Value::string(s)),
-        Err(e) => err(e.message),
-    }
+    // Defer to the *explicit* stack so a `yield` inside a `[…]` stays yieldable
+    // (RUST_ISSUE_008): park the template + switches in `pending_subst`, drained by
+    // the trampoline into a scanner-driven subst frame (mirrors `cmd_catch`'s
+    // `pending_catch`). The frame's accumulated result replaces this builtin's
+    // placeholder; on the native `invoke_command` fallback it runs via a nested
+    // drive (not yieldable, as before).
+    vm.pending_subst = Some(crate::exec::SubstReq {
+        template: string.to_str().to_string(),
+        backslashes,
+        commands,
+        variables,
+    });
+    ok(Value::empty())
 }
 
 /// Match a `subst` option by unique abbreviation (Tcl's `Tcl_GetIndexFromObj`):

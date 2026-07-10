@@ -1049,7 +1049,11 @@ impl LocalVarTable {
 }
 
 /// Complete assembly for one CFG function.
-#[derive(Debug, Clone)]
+///
+/// `Default` yields an empty function (no instructions) — used as the placeholder
+/// asm for a scanner-driven activation like the VM's `subst` frame, which never
+/// executes bytecode.
+#[derive(Debug, Clone, Default)]
 pub struct FunctionAsm {
     /// Function name.
     pub name: String,

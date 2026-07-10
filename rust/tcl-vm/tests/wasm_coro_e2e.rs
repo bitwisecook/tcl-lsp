@@ -248,6 +248,7 @@ fn vm_wasm_crate_runs_coroutines_via_abi() {
         out.contains("ok   lmap: 2 3 {A B C}"),
         "verify output: {out}"
     );
+    assert!(out.contains("ok   subst: 2 a=Pb=Q"), "verify output: {out}");
 }
 
 fn run_node(harness: &Path, wasm: &Path) -> String {

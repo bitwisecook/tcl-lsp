@@ -26,14 +26,14 @@
 //! `cmd [yield]` argument position both stay on the explicit stack (a whole-word
 //! `[…]` compiles to an inline `INVOKE`, not a runtime `subst_word` re-entry).
 //!
-//! `yield` also crosses `eval`, `uplevel 0`, `catch`, and a straight-line `lmap`
-//! — each runs its body on the explicit stack (a transparent script / catch
-//! activation, or the inline collecting loop). A `yield` reached across a host
-//! re-entry the VM still runs on the *native* Rust stack (`subst`, a
-//! *consumed*/branching `lmap`, `apply` in an arbitrary position, `lsort
-//! -command`) errors `cannot yield: C stack busy`. C Tcl makes those NR-enabled,
-//! so a real tclsh yields through them — the remaining divergence and a
-//! documented follow-up.
+//! `yield` also crosses `eval`, `uplevel 0`, `catch`, a straight-line `lmap`, and
+//! `subst` — each runs its body on the explicit stack (a transparent script /
+//! catch activation, the inline collecting loop, or the scanner-driven subst
+//! frame). A `yield` reached across a host re-entry the VM still runs on the
+//! *native* Rust stack (a *consumed*/branching `lmap`, `apply` in an arbitrary
+//! position, `lsort -command`) errors `cannot yield: C stack busy`. C Tcl makes
+//! those NR-enabled, so a real tclsh yields through them — the remaining
+//! divergence and a documented follow-up.
 
 use std::cell::RefCell;
 use std::io::Write;
@@ -254,6 +254,54 @@ fn yield_across_multivar_lmap_generator() {
              coroutine c g; list [c P] [c Q]"
         ),
         "34 {P Q}"
+    );
+}
+
+// ===========================================================================
+// yield across `subst` (RUST_ISSUE_008 piece 2)
+// ===========================================================================
+
+#[test]
+fn yield_across_subst_command_substitutions() {
+    // tclsh 9.0.4: a `subst` whose template has yielding `[…]` brackets runs on a
+    // scanner-driven subst frame, so `yield` crosses it. `coroutine` consumes the
+    // first yield (1); `[c P]` resumes it (folding "P" into the output) and yields
+    // the second bracket's 2; `[c Q]` resumes that and the scan finishes with the
+    // fully-substituted template.
+    assert_eq!(
+        result(
+            "proc g {} { subst {a=[yield 1]b=[yield 2]} }; \
+             coroutine c g; list [c P] [c Q]"
+        ),
+        "2 a=Pb=Q"
+    );
+}
+
+#[test]
+fn subst_generator_of_bracket_values() {
+    // Two adjacent yielding brackets: the resume values concatenate into the subst
+    // result once the scan completes.
+    assert_eq!(
+        result(
+            "proc g {} { subst {[yield a][yield b]} }; \
+             coroutine c g; list [c X] [c Y]"
+        ),
+        "b XY"
+    );
+}
+
+#[test]
+fn catch_absorbs_subst_bracket_error_across_yield() {
+    // A `subst` bracket yields, then (after resume) a later bracket errors; the
+    // error propagates out of the subst and is caught by the enclosing `catch`,
+    // proving the subst frame's state survived the suspend and its error unwinds
+    // cleanly (status 1, message).
+    assert_eq!(
+        result(
+            "proc g {} { set r [catch {subst {v=[yield 1][error boom]}} m]; yield \"$r/$m\" }; \
+             coroutine c g; list [c A] [c B]"
+        ),
+        "1/boom B"
     );
 }
 

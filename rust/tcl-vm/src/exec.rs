@@ -110,6 +110,12 @@ pub(crate) struct Frame {
     /// epilogue (`Vm::finish_catch`) rather than propagated. Carries the optional
     /// result / options variable names to bind.
     catch: Option<Box<CatchCtx>>,
+    /// Set on a **subst** activation: a scanner-driven frame (no bytecode) that
+    /// scans a `subst` template, running each top-level `[…]` as a yieldable child
+    /// script frame and folding its completion back in by subst rules. Resumable
+    /// once per bracket, so a `yield` inside a bracket freezes the whole scan with
+    /// the coroutine (`RUST_ISSUE_008`).
+    subst: Option<Box<crate::subst::SubstState>>,
 }
 
 /// A `catch`'s bind targets, carried on its activation until it completes.
@@ -125,6 +131,25 @@ pub(crate) struct CatchReq {
     pub(crate) asm: Rc<FunctionAsm>,
     pub(crate) resvar: Option<Value>,
     pub(crate) optvar: Option<Value>,
+}
+
+/// A `subst` deferred to the explicit stack: the template plus its three
+/// substitution switches. Parked in `Vm.pending_subst` by `cmd_subst` and drained
+/// into a subst activation (see [`Frame::subst`]), so a `yield` inside a `[…]`
+/// stays yieldable.
+pub(crate) struct SubstReq {
+    pub(crate) template: String,
+    pub(crate) backslashes: bool,
+    pub(crate) commands: bool,
+    pub(crate) variables: bool,
+}
+
+/// The outcome of folding a subst `[…]` bracket completion into its subst frame
+/// (see [`Vm::fold_subst_bracket`]): either resume the scan (re-tick the frame)
+/// or drop the frame and keep unwinding with this completion.
+enum SubstFold {
+    Resume,
+    Unwind(Completion<Value>),
 }
 
 impl Frame {
@@ -145,6 +170,7 @@ impl Frame {
             is_script: false,
             body_label: None,
             catch: None,
+            subst: None,
         }
     }
 
@@ -168,6 +194,20 @@ impl Frame {
             resvar: req.resvar,
             optvar: req.optvar,
         }));
+        f
+    }
+
+    /// A **subst** activation: a scanner-driven frame (empty placeholder asm — it
+    /// never executes bytecode) carrying the resumable scan state. `tick` runs the
+    /// scanner instead of the bytecode dispatch when `subst` is set.
+    pub(crate) fn new_subst(req: SubstReq) -> Self {
+        let mut f = Self::new(Rc::new(FunctionAsm::default()), false);
+        f.subst = Some(Box::new(crate::subst::SubstState::new(
+            req.template,
+            req.backslashes,
+            req.commands,
+            req.variables,
+        )));
         f
     }
 
@@ -220,6 +260,10 @@ enum Tick {
     /// activation ([`Frame::new_catch`]); its completion is absorbed by the catch
     /// epilogue. Drained from `Vm.pending_catch`, mirroring `PushScript`.
     PushCatch(CatchReq),
+    /// Run a `subst` on the explicit stack (yieldable) via a subst activation
+    /// ([`Frame::new_subst`]); its `[…]` bodies run as child script frames and are
+    /// folded back by subst rules. Drained from `Vm.pending_subst`.
+    PushSubst(SubstReq),
     /// `tailcall cmd ?arg …?` — the current proc finishes and `cmd args` runs in
     /// its place (in the caller's activation), its result becoming the proc's.
     /// `words` is `[cmd, arg, …]` (the `tailcall` prefix word already dropped).
@@ -717,6 +761,7 @@ impl Vm {
                 },
                 Tick::PushScript { asm, label } => acts.push(Frame::new_script(asm, label)),
                 Tick::PushCatch(req) => acts.push(Frame::new_catch(req)),
+                Tick::PushSubst(req) => acts.push(Frame::new_subst(req)),
                 Tick::Return(c) => {
                     // A `break`/`continue` *returned by a command* (`if {…} $z`,
                     // `eval break`) inside an inline loop body: jump to the
@@ -854,67 +899,7 @@ impl Vm {
                 }
             }
             if act.is_proc {
-                // An error unwinding out of a proc body adds a
-                // `(procedure "name" line N)` frame before the frame is popped,
-                // then the call site (the command that invoked the proc) logs
-                // its own `invoked from within "…"` frame.
-                if c.code == Code::Error
-                    && let Some(name) = self.current_proc_name()
-                {
-                    // The `(procedure … line N)` frame reports the body-relative
-                    // line of the failing command. A runtime-compiled proc body
-                    // (the common case) carries body-relative instruction lines
-                    // with `body_base_line == 0`, so the line is used as-is; a proc
-                    // compiled inside a module carries absolute lines, so subtract
-                    // its definition line (`absolute − base + 1`).
-                    let base = act.asm.body_base_line;
-                    let n = if base == 0 {
-                        self.error_line().max(1)
-                    } else {
-                        self.error_line()
-                            .saturating_sub(base)
-                            .saturating_add(1)
-                            .max(1)
-                    };
-                    self.append_proc_frame(&name, n);
-                }
-                self.pop_call_frame();
-                self.pop_ns();
-                if c.code == Code::Return {
-                    // TclUpdateReturnInfo: a proc boundary decrements the carried
-                    // return level. While it stays positive the TCL_RETURN keeps
-                    // unwinding one proc level at a time; when it reaches 0 the
-                    // carried `-code` takes effect (`RUST_ISSUE_170`).
-                    let level = crate::command::opt_get(&c.options, "-level")
-                        .and_then(|v| v.as_int().ok())
-                        .unwrap_or(1);
-                    if level > 1 {
-                        c.options = crate::command::with_return_level(&c.options, level - 1);
-                    } else {
-                        // `Code::from_int` (not the local `code_from_int`): a
-                        // proc that returns `-code N` for a non-standard N must
-                        // surface `Code::Other(N)`, not collapse it to `Ok`
-                        // (RUST_ISSUE_008 coroutine-2.4; `return -code 100`).
-                        let code = crate::command::opt_get(&c.options, "-code")
-                            .and_then(|v| v.as_int().ok())
-                            .and_then(|n| i32::try_from(n).ok())
-                            .map_or(Code::Ok, Code::from_int);
-                        c.options = crate::command::with_return_level(&c.options, 0);
-                        c.code = code;
-                    }
-                }
-                if c.code == Code::Error {
-                    let call_site = acts.last().and_then(|parent| {
-                        parent
-                            .asm
-                            .instructions
-                            .get(parent.pc.saturating_sub(1))
-                            .map(|i| (i.source_cmd_text.clone(), i.source_line))
-                    });
-                    if let Some((cmd, line)) = call_site {
-                        self.log_command_info(&cmd, "", line);
-                    }
-                }
+                self.unwind_proc_frame(&act, acts, &mut c);
             }
             // A `catch` activation absorbs the body's completion of *any* code:
             // its epilogue binds the result / options variables and yields the
@@ -933,6 +918,20 @@ impl Vm {
                         // A rare `set`-into-the-result-var failure (or an
                         // uncatchable `exit`) keeps unwinding.
                         c = fc;
+                        continue;
+                    }
+                }
+            }
+            // A subst activation's `[…]` child (`act`) just completed: fold its
+            // result into the enclosing subst frame's scan by subst rules (see
+            // [`Vm::fold_subst_bracket`]). `Resume` re-ticks the subst frame;
+            // `Unwind` drops it and keeps unwinding (a `break`'s output / an error).
+            if acts.last().is_some_and(|p| p.subst.is_some()) {
+                let parent = acts.last_mut().expect("subst parent present");
+                match Self::fold_subst_bracket(parent, c) {
+                    SubstFold::Resume => return None,
+                    SubstFold::Unwind(nc) => {
+                        c = nc;
                         continue;
                     }
                 }
@@ -956,6 +955,93 @@ impl Vm {
                     }
                     // Error / uncaught Break|Continue / unabsorbed Return keep unwinding.
                 }
+            }
+        }
+    }
+
+    /// Unwind one proc activation `act`: on error add its `(procedure "name" line
+    /// N)` errorInfo frame, pop the call-frame + namespace, apply
+    /// `TclUpdateReturnInfo` (a proc boundary decrements a carried `-code`/`-level`
+    /// return — `RUST_ISSUE_170`), and on error log the caller's `invoked from
+    /// within "…"` frame. Mutates `c` in place. Split out of [`Vm::unwind`].
+    fn unwind_proc_frame(&mut self, act: &Frame, acts: &[Frame], c: &mut Completion<Value>) {
+        // The `(procedure … line N)` frame reports the body-relative line of the
+        // failing command. A runtime-compiled proc body (the common case) carries
+        // body-relative instruction lines with `body_base_line == 0`, so the line
+        // is used as-is; a proc compiled inside a module carries absolute lines, so
+        // subtract its definition line (`absolute − base + 1`).
+        if c.code == Code::Error
+            && let Some(name) = self.current_proc_name()
+        {
+            let base = act.asm.body_base_line;
+            let n = if base == 0 {
+                self.error_line().max(1)
+            } else {
+                self.error_line()
+                    .saturating_sub(base)
+                    .saturating_add(1)
+                    .max(1)
+            };
+            self.append_proc_frame(&name, n);
+        }
+        self.pop_call_frame();
+        self.pop_ns();
+        if c.code == Code::Return {
+            // While the carried return level stays positive the TCL_RETURN keeps
+            // unwinding one proc level at a time; when it reaches 0 the carried
+            // `-code` takes effect. `Code::from_int` (not the local
+            // `code_from_int`): `return -code N` for a non-standard N must surface
+            // `Code::Other(N)`, not collapse to `Ok` (coroutine-2.4).
+            let level = crate::command::opt_get(&c.options, "-level")
+                .and_then(|v| v.as_int().ok())
+                .unwrap_or(1);
+            if level > 1 {
+                c.options = crate::command::with_return_level(&c.options, level - 1);
+            } else {
+                let code = crate::command::opt_get(&c.options, "-code")
+                    .and_then(|v| v.as_int().ok())
+                    .and_then(|n| i32::try_from(n).ok())
+                    .map_or(Code::Ok, Code::from_int);
+                c.options = crate::command::with_return_level(&c.options, 0);
+                c.code = code;
+            }
+        }
+        if c.code == Code::Error
+            && let Some((cmd, line)) = acts.last().and_then(|parent| {
+                parent
+                    .asm
+                    .instructions
+                    .get(parent.pc.saturating_sub(1))
+                    .map(|i| (i.source_cmd_text.clone(), i.source_line))
+            })
+        {
+            self.log_command_info(&cmd, "", line);
+        }
+    }
+
+    /// Fold a subst `[…]` bracket body's completion into the parent subst frame's
+    /// scan, per C's per-bracket `subst` rules (subst-8.x/10.x): `Ok`/`Return`/any
+    /// other code appends the value and `continue` drops it (both `Resume` the
+    /// scan — the caller re-ticks the subst frame); a `break` finalises the result
+    /// with the output accumulated so far and an error propagates (both `Unwind`,
+    /// dropping the subst frame). The scan state is cleared on `Unwind` so the
+    /// dropped frame delivers its `ok`/error result normally.
+    fn fold_subst_bracket(parent: &mut Frame, c: Completion<Value>) -> SubstFold {
+        match c.code {
+            Code::Ok | Code::Return | Code::Other(_) => {
+                let v = c.result.to_str();
+                parent.subst.as_mut().expect("subst state").out.push_str(&v);
+                SubstFold::Resume
+            }
+            Code::Continue => SubstFold::Resume,
+            Code::Break => {
+                let out = std::mem::take(&mut parent.subst.as_mut().expect("subst state").out);
+                parent.subst = None;
+                SubstFold::Unwind(ok(Value::string(out)))
+            }
+            Code::Error => {
+                parent.subst = None;
+                SubstFold::Unwind(c)
             }
         }
     }
@@ -1000,9 +1086,35 @@ impl Vm {
         Ok(())
     }
 
+    /// One scan step of a subst activation: append the next literal / `$…` run and
+    /// either finish (`Return` with the accumulated output), pause for a top-level
+    /// `[…]` (compile it and push a yieldable child script frame), or fail. The
+    /// bracket's completion is folded back into the scan state by the subst rules
+    /// in [`Vm::unwind`].
+    fn tick_subst(&mut self, f: &mut Frame) -> Tick {
+        let step = {
+            let st = f.subst.as_mut().expect("subst frame carries scan state");
+            crate::subst::subst_scan_step(self, st)
+        };
+        match step {
+            crate::subst::SubstStep::Done(out) => Tick::Return(ok(Value::string(out))),
+            crate::subst::SubstStep::Error(msg) => Tick::Return(err(msg)),
+            crate::subst::SubstStep::Bracket(inner) => match self.compile_source_cached(&inner) {
+                Ok(asm) => Tick::PushScript { asm, label: None },
+                Err(e) => Tick::Return(err(e.message)),
+            },
+        }
+    }
+
     /// Execute a single instruction of the top activation.
     #[allow(clippy::too_many_lines)] // One match over every opcode; the VM's central dispatch is clearer whole.
     fn tick(&mut self, f: &mut Frame) -> Tick {
+        // A subst activation is scanner-driven, not bytecode-driven: run the next
+        // scan step (native literal/`$` runs, pausing at each top-level `[…]`)
+        // instead of the instruction dispatch below.
+        if f.subst.is_some() {
+            return self.tick_subst(f);
+        }
         let asm = Rc::clone(&f.asm);
         if f.pc >= asm.instructions.len() {
             return Tick::Return(ok(f
@@ -2574,6 +2686,11 @@ impl Vm {
                 if let Some(req) = self.pending_catch.take() {
                     return Ok(Some(Tick::PushCatch(req)));
                 }
+                // A `subst` defers to a scanner-driven subst frame, whose `[…]`
+                // bodies run yieldably as child frames (see `Frame::subst`).
+                if let Some(req) = self.pending_subst.take() {
+                    return Ok(Some(Tick::PushSubst(req)));
+                }
                 if res.code.is_ok() {
                     f.stack.push(res.result);
                     Ok(None)
@@ -2672,6 +2789,12 @@ impl Vm {
                 if let Some(req) = self.pending_catch.take() {
                     let comp = self.run_activation(Frame::new_script(req.asm, None));
                     return self.finish_catch(comp, req.resvar.as_ref(), req.optvar.as_ref());
+                }
+                // A `subst` deferred: run the scanner-driven subst frame via a
+                // nested drive (its `[…]` bodies can't yield across this native
+                // re-entry), returning its accumulated result.
+                if let Some(req) = self.pending_subst.take() {
+                    return self.run_activation(Frame::new_subst(req));
                 }
                 res
             }
