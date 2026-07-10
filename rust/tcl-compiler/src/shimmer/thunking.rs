@@ -271,24 +271,20 @@ fn loop_self_referential(ssa: &SsaFunction, loop_block_set: &HashSet<String>, sy
 /// in-loop def produced that type (the oscillation was detected purely from
 /// the header phi's own direct incoming edges).
 fn per_loop_type_span(
+    ctx: &ThunkCtx<'_>,
     loop_block_set: &HashSet<String>,
-    destructure: &HashSet<String>,
-    ssa: &SsaFunction,
-    types: &HashMap<ValueKey, TypeLattice>,
-    empty_by_name: &HashMap<Symbol, HashSet<Version>>,
-    def_map: &HashMap<ValueKey, Span>,
     sym: Symbol,
     target: TclType,
 ) -> Option<Span> {
-    let name_to_id = ssa_name_to_id(ssa);
+    let name_to_id = ssa_name_to_id(ctx.ssa);
     let mut best: Option<Span> = None;
     for lbn in loop_block_set {
-        if destructure.contains(lbn) {
+        if ctx.destructure.contains(lbn) {
             continue;
         }
         let Some(lssa) = name_to_id
             .get(lbn.as_str())
-            .and_then(|id| ssa.blocks.get(id))
+            .and_then(|id| ctx.ssa.blocks.get(id))
         else {
             continue;
         };
@@ -296,19 +292,21 @@ fn per_loop_type_span(
             let Some(&ver) = s.defs.get(&sym) else {
                 continue;
             };
-            if empty_by_name
+            if ctx
+                .empty_by_name
                 .get(&sym)
                 .is_some_and(|set| set.contains(&ver))
             {
                 continue;
             }
-            let matches_target = types
+            let matches_target = ctx
+                .types
                 .get(&(sym, ver))
                 .is_some_and(|t| t.kind == TypeKind::Known && t.tcl_type == Some(target));
             if !matches_target {
                 continue;
             }
-            let Some(&sp) = def_map.get(&(sym, ver)) else {
+            let Some(&sp) = ctx.def_map.get(&(sym, ver)) else {
                 continue;
             };
             best = Some(match best {
@@ -460,16 +458,7 @@ fn classify_thunking_phi(
     let span = [type_b, type_a]
         .into_iter()
         .find_map(|t| {
-            per_loop_type_span(
-                this_loop,
-                ctx.destructure,
-                ctx.ssa,
-                ctx.types,
-                ctx.empty_by_name,
-                ctx.def_map,
-                phi.name,
-                t,
-            )
+            per_loop_type_span(ctx, this_loop, phi.name, t)
         })
         .unwrap_or_else(|| phi_span(phi, ctx.ssa, ctx.def_map));
     let related: Vec<_> = phi

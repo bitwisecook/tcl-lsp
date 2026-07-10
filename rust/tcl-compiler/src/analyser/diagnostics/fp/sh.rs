@@ -640,7 +640,7 @@ proc f {} {
     );
 }
 
-/// FP-SH-15: a TclOO instance variable declared with a bare `variable` in a
+/// FP-SH-15: a `TclOO` instance variable declared with a bare `variable` in a
 /// method body is a scope-alias declaration, like `global`/top-level
 /// `variable` — its entry type is unknown, so an oscillating loop over it
 /// must not fire S102.
@@ -665,7 +665,7 @@ oo::class create C {
     );
 }
 
-/// FP-SH-15: `my variable x` (the TclOO idiom for binding an instance
+/// FP-SH-15: `my variable x` (the `TclOO` idiom for binding an instance
 /// variable inside a method) is not recognised as a scope-alias declaration
 /// at all — `$x` reads the never-versioned live-in symbol, same as an
 /// unbound name.  No S102 (and no crash).
