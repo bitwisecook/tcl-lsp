@@ -75,14 +75,14 @@ function cleanupStaleTestHosts(extensionDevelopmentPath: string, extensionTestsP
 async function main() {
   const extensionDevelopmentPath = path.resolve(__dirname, "../../");
   const extensionTestsPath = path.resolve(__dirname, "./index");
-  const failureMarker = path.resolve(
-    extensionDevelopmentPath,
-    ".vscode-test",
-    "mocha-failures.json",
-  );
+  // index.ts writes this unconditionally when mocha's run() callback fires,
+  // pass or fail — its *absence* after the exit-timeout watchdog fires below
+  // means mocha never finished at all (a hang), which is never safe to treat
+  // as success.
+  const resultMarker = path.resolve(extensionDevelopmentPath, ".vscode-test", "mocha-result.json");
   cleanupStaleTestHosts(extensionDevelopmentPath, extensionTestsPath);
   try {
-    fs.unlinkSync(failureMarker);
+    fs.unlinkSync(resultMarker);
   } catch {
     // No stale marker to remove.
   }
@@ -133,12 +133,30 @@ async function main() {
     emitProcessSnapshot(extensionDevelopmentPath, extensionTestsPath);
     cleanupStaleTestHosts(extensionDevelopmentPath, extensionTestsPath);
     if (err instanceof Error && err.message.includes("did not exit within")) {
-      if (fs.existsSync(failureMarker)) {
-        console.error("VS Code tests failed before the runner timeout cleanup.");
+      if (fs.existsSync(resultMarker)) {
+        let failures: number | null = null;
+        try {
+          failures = JSON.parse(fs.readFileSync(resultMarker, "utf8")).failures;
+        } catch {
+          // Unparseable marker -- treat like a failure below.
+        }
+        if (failures === 0) {
+          console.warn(
+            "VS Code tests completed successfully but the runner did not exit; continuing after cleanup.",
+          );
+          process.exit(0);
+        }
+        console.error(
+          `VS Code tests reported ${failures ?? "an unknown number of"} failure(s) before the runner timeout cleanup.`,
+        );
         process.exit(1);
       }
-      console.warn("VS Code tests completed but runner did not exit; continuing after cleanup.");
-      process.exit(0);
+      // No marker at all means mocha's run() callback never fired -- the
+      // suite was still mid-run (hung, or just slower than the watchdog)
+      // when we killed it. That is never safe to report as success: it has
+      // silently skipped every test after the point it got stuck.
+      console.error(`${err.message} -- mocha never completed (likely hung). Treating as failure.`);
+      process.exit(1);
     }
     console.error("Failed to run tests:", err);
     process.exit(1);
