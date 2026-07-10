@@ -19,13 +19,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import * as fs from "fs";
-import {
-  getDocUri,
-  activate,
-  waitForDiagnostics,
-  waitForDeepDiagnostics,
-  getServerLogSize,
-} from "./helper";
+import { getDocUri, activate, waitForDiagnostics } from "./helper";
 
 // Issue #844: diagnostics are progressive. On a large document the server
 // publishes a workspace-independent *fast tier* (the analyser's syntax /
@@ -90,19 +84,20 @@ suite("Progressive diagnostics (#844)", () => {
       }
     });
 
-    const since = getServerLogSize();
     try {
       await activate(docUri);
-      // The deep pass has run once this log line lands.
-      await waitForDeepDiagnostics(docUri, { since, timeout: 45_000 });
-      // The final surfaced set must carry both the fast-tier analyser code and
-      // the deep-tier-only optimiser code — nothing is lost by going progressive.
+      // Wait for the deep tier to land. The optimiser O111 (paired with the
+      // analyser W100) is produced only by the deep pass, so its presence marks
+      // the deep tier — and the final set must carry both, proving nothing is
+      // lost by going progressive. Keyed on the diagnostics themselves (not the
+      // server-log ring buffer, which a late-running suite can have already
+      // filled past its cap).
       const finalDiags = await waitForDiagnostics(docUri, {
         predicate: (diags) => {
           const codes = diags.map(codeOf);
           return codes.includes("W100") && codes.includes("O111");
         },
-        timeout: 45_000,
+        timeout: 50_000,
       });
       const finalCodes = finalDiags.map(codeOf);
       assert.ok(
