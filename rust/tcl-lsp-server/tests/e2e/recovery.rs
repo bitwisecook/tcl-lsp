@@ -598,6 +598,37 @@ fn namespace_qualified_proc_call_recovers_the_tail() {
     );
 }
 
+#[test]
+fn absolute_namespace_qualified_proc_call_recovers_the_tail() {
+    // `signature_scan::qualify` always records a namespaced proc as
+    // `::ns::name`; a recovery-point call written in the equally-valid
+    // absolute form (`::myns::helper`, leading `::`) must be recognised
+    // just as readily as the bare `myns::helper` form covered above.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\n  aaa\n::myns::helper\nproc recovered_after_absolute_ns {} {}\n",
+    );
+    assert!(
+        has_recovery_error(&diags),
+        "unterminated {{ should flag; got {:?}",
+        codes(&diags)
+    );
+    // The swallowed `::myns::helper` call (no args, but `helper` needs one)
+    // must still be analysed as code — proof the tail isn't dropped.
+    assert!(
+        diags.iter().any(|d| code_str(d) == "E002"),
+        "tail `::myns::helper` call should arity-error; got {:?}",
+        codes(&diags)
+    );
+    let names = symbol_name_list(&lsp.document_symbols(&uri));
+    assert!(
+        names.iter().any(|n| n == "recovered_after_absolute_ns"),
+        "tail proc not recovered past an absolute namespace-qualified call; symbols={names:?}"
+    );
+}
+
 // --------------------------------------------------------------------------- //
 // Short-form unterminated quote / brace — a delimiter left open with content
 // on the *same* line as the opener (the overwhelmingly common real-world

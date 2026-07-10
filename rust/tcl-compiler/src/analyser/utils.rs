@@ -224,11 +224,17 @@ pub fn recovery_known_commands(source: &str, registry: &CommandRegistry) -> Hash
     names
 }
 
-/// Insert `qname` (e.g. `::ns::foo`) and its unqualified tail (`foo`) into
-/// `names`, stripped of the leading `::`. Mirrors the tail-matching the W123
-/// unresolved-command pass already uses for the same proc/class/alias
-/// collections (`build_w123_known_names`).
+/// Insert `qname` (e.g. `::ns::foo`) — as-is, with the leading `::`
+/// stripped, and as its unqualified tail (`foo`) — into `names`. Mirrors the
+/// tail-matching the W123 unresolved-command pass already uses for the same
+/// proc/class/alias collections (`build_w123_known_names`), plus the
+/// original fully-qualified form: `signature_scan::qualify` always prepends
+/// `::`, and a recovery-point call can be written either way
+/// (`::ns::foo` or `ns::foo`), so both must be recognised.
 fn insert_qualified_and_tail(names: &mut HashSet<String>, qname: &str) {
+    if !qname.is_empty() {
+        names.insert(qname.to_string());
+    }
     let absolute = qname.trim_start_matches("::");
     if !absolute.is_empty() {
         names.insert(absolute.to_string());
@@ -1350,6 +1356,20 @@ proc foo {} {}
         assert!(
             known.contains("helper"),
             "expected the unqualified tail: {known:?}"
+        );
+    }
+
+    #[test]
+    fn recovery_known_commands_adds_the_leading_colon_colon_form_too() {
+        // `signature_scan::qualify` always records `::myns::helper`; a
+        // recovery-point call can equally be written that way (absolute
+        // Tcl syntax), so the leading-`::` form must be recognised
+        // alongside the stripped/tail forms asserted above.
+        let src = "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\nunclosed\n";
+        let known = recovery_known_commands(src, &registry());
+        assert!(
+            known.contains("::myns::helper"),
+            "expected the fully-qualified leading-:: form: {known:?}"
         );
     }
 
