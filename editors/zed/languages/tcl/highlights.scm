@@ -70,7 +70,6 @@
 (command
   name: (simple_word) @function.builtin
   (#any-of? @function.builtin
-    "::tcl::mathop::eq" "::tcl::mathop::in" "::tcl::mathop::ne" "::tcl::mathop::ni" "::tcl::process" "::tcl::unsupported::corotype"
     "after" "append" "array" "auto_execok" "auto_import" "auto_load"
     "auto_load_index" "auto_mkindex" "auto_mkindex_old" "auto_qualify" "auto_reset" "bgerror"
     "binary" "cd" "chan" "clock" "close" "concat"
@@ -87,32 +86,11 @@
     "pkg::create" "pkg_mkIndex" "pkg_mkindex" "puts" "pwd" "re_quote"
     "read" "readFile" "regex::quote" "regex_quote" "regexp" "regexp::quote"
     "registry" "regsub" "remquo" "scan" "seek" "socket"
-    "split" "string" "subst" "tcl::mathop" "tcl::mathop::eq" "tcl::mathop::in"
-    "tcl::mathop::ne" "tcl::mathop::ni" "tcl::process" "tcl::tm::path" "tcl::tm::roots" "tclLog"
-    "tclPkgSetup" "tclPkgUnknown" "tcl_endOfWord" "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord"
-    "tcl_wordBreakAfter" "tcl_wordBreakBefore" "tell" "testaccessproc" "testalarm" "testapplylambda"
-    "testappverifierpresent" "testasync" "testbigdata" "testbignumobj" "testbooleanobj" "testbumpinterpepoch"
-    "testbytestring" "testchancreate" "testchannel" "testchannelevent" "testchmod" "testcmdinfo"
-    "testcmdobj2" "testcmdtoken" "testcmdtrace" "testconcatobj" "testconvertobj" "testcpuid"
-    "testcreatecommand" "testdcall" "testdel" "testdelassocdata" "testdoubledigits" "testdoubleobj"
-    "testdstring" "testencoding" "testevalex" "testevalobjv" "testevent" "testexithandler"
-    "testexitmainloop" "testexprdouble" "testexprdoubleobj" "testexprlong" "testexprlongobj" "testexprparser"
-    "testexprstring" "testfevent" "testfile" "testfilehandler" "testfilelink" "testfilesystem"
-    "testfilewait" "testfindexecutable" "testfindfirst" "testfindlast" "testfork" "testfstildeexpand"
-    "testgetassocdata" "testgetdefenc" "testgetindexfromobjstruct" "testgetint" "testgetintforindex" "testgetopenfile"
-    "testgetplatform" "testgetunichar" "testgetvarfullname" "testgotsig" "testhandlecount" "testhashsystemhash"
-    "testindexobj" "testinterpdelete" "testinterpresolver" "testintobj" "testisempty" "testlink"
-    "testlinkarray" "testlistapi" "testlistobj" "testlistrep" "testlocale" "testlongsize"
-    "testlutil" "testmainthread" "testmsb" "testnrelevels" "testnreunwind" "testnumutfchars"
-    "testobj" "testopenfilechannelproc" "testpanic" "testparseargs" "testparser" "testparsevar"
-    "testparsevarname" "testpostinit" "testpreferstable" "testprint" "testpurebytesobj" "testregexp"
-    "testreturn" "testsaveresult" "testservicemode" "testset2" "testsetassocdata" "testsetbytearraylength"
-    "testsetdefenc" "testseterr" "testseterrorcode" "testsetmainloop" "testsetnoerr" "testsetobjerrorcode"
-    "testsetplatform" "testsimplefilesystem" "testsize" "testsocket" "teststaticlibrary" "teststaticpkg"
-    "teststatproc" "teststringbytes" "teststringobj" "testtranslatefilename" "testuniclass" "testupvar"
-    "testutfnext" "testutfprev" "testutftonormalized" "testutftonormalizeddstring" "testwrongnumargs" "time"
-    "timer" "timerate" "trace" "unicode" "unknown" "unload"
-    "unset" "update" "vwait" "writeFile" "zlib"))
+    "split" "string" "subst" "tclLog" "tclPkgSetup" "tclPkgUnknown"
+    "tcl_endOfWord" "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore"
+    "tell" "time" "timer" "timerate" "trace" "unicode"
+    "unknown" "unload" "unset" "update" "vwait" "writeFile"
+    "zlib"))
 
 ; Highlight unset / variable arguments as variables
 (command

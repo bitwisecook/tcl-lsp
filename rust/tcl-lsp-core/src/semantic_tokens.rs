@@ -148,7 +148,8 @@ enum TokenKind {
     BinaryCount = 24,
     /// `binary` modifier: `u` / `s` (signed/unsigned) or `*` (all).
     BinaryFlag = 25,
-    /// Operator — the `regsub` whole-match replacement backref `\&`.
+    /// Operator — an `expr` operator (`+`, `==`, `&&`, …) or the `regsub`
+    /// whole-match replacement backref `\&`.
     Operator = 26,
     /// BIG-IP object name referenced from iRules code (pool, data group,
     /// virtual, node, …).
@@ -235,8 +236,14 @@ const MOD_DEFINITION: u32 = 1 << 1;
 /// command declares / writes (`set x`, `incr n`, `global v`, `lassign … a`).
 const MOD_DECLARATION: u32 = 1 << 0;
 
-/// Sub-keywords highlighted as `keyword` that are **not** standalone
-/// commands, so they have no `CommandSpec` to carry the
+/// `TclOO` method-body helper commands (used inside a method body, not
+/// definition-context members) without a standalone `CommandSpec` — the part
+/// of [`is_language_keyword_sub_keyword`]'s residue specific to this crate
+/// (its clause-keyword half lives in the registry; see that function's docs).
+const METHOD_BODY_HELPER_SUB_KEYWORDS: &[&str] = &["callback", "mymethod", "link"];
+
+/// `true` for sub-keywords highlighted as `keyword` that are **not**
+/// standalone commands, so they have no `CommandSpec` to carry the
 /// `LANGUAGE_KEYWORD` trait, **and** are not definition-body members.
 ///
 /// Definition-body member sub-keywords (`method`, `constructor`, `typemethod`,
@@ -245,29 +252,30 @@ const MOD_DECLARATION: u32 = 1 << 0;
 /// (via [`crate::oo_body::is_member`] in [`emit_command_head`] for the script
 /// form and [`insert_oo_define_keyword_overrides`] for the inline form), so a
 /// same-named user proc outside a definition body is never mis-coloured and
-/// `TclOO` and snit members behave identically. This list is only the residue
-/// the grammar does not model: clause keywords of `if`/`try`/`switch` and the
-/// `TclOO` method-*body* helper commands. The standalone commands (`if`,
-/// `while`, `proc`, `when`, `oo::*`, …) come from the registry's
-/// `LANGUAGE_KEYWORD` trait.
-const LANGUAGE_KEYWORD_SUB_KEYWORDS: &[&str] = &[
-    // Clause keywords of if / try / switch — not standalone commands.
-    "else", "elseif", "on", "trap", "finally",
-    // TclOO method-body helper commands (used inside a method body, not
-    // definition-context members) without a standalone CommandSpec.
-    "callback", "mymethod", "link",
-];
+/// `TclOO` and snit members behave identically. This residue only covers what
+/// the grammar does not otherwise model: clause keywords of `if`/`try`/`switch`
+/// ([`tcl_registry::traits::CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`] —
+/// shared with `xtask`'s `gen_tmlanguage_keywords` TextMate-grammar generator,
+/// so the two never drift on which clause words are real keywords) and the
+/// `TclOO` method-*body* helper commands
+/// ([`METHOD_BODY_HELPER_SUB_KEYWORDS`], specific to this crate). The
+/// standalone commands (`if`, `while`, `proc`, `when`, `oo::*`, …) come from
+/// the registry's `LANGUAGE_KEYWORD` trait.
+fn is_language_keyword_sub_keyword(name: &str) -> bool {
+    tcl_registry::traits::CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC.contains(&name)
+        || METHOD_BODY_HELPER_SUB_KEYWORDS.contains(&name)
+}
 
 /// Classify a command-head token name: a name is a `keyword`
 /// when it carries the registry's `LANGUAGE_KEYWORD` trait or is one
-/// of the non-command [`LANGUAGE_KEYWORD_SUB_KEYWORDS`]; a
+/// of the non-command sub-keywords ([`is_language_keyword_sub_keyword`]); a
 /// `::`-qualified name is a `namespace`; everything else is a
 /// `function`.
 fn classify_command_head(name: &str, registry: &CommandRegistry) -> TokenKind {
     let is_keyword = registry.get(name).is_some_and(|s| {
         s.traits
             .contains(tcl_registry::prelude::Traits::LANGUAGE_KEYWORD)
-    }) || LANGUAGE_KEYWORD_SUB_KEYWORDS.contains(&name);
+    }) || is_language_keyword_sub_keyword(name);
     if is_keyword {
         TokenKind::Keyword
     } else if is_operator_command(name) {
@@ -3637,7 +3645,7 @@ fn emit_command_head(
     // `typemethod`, `constructor`, …) is a keyword — context-sensitively, so a
     // same-named user proc outside a definition body is unaffected.  This
     // covers the snit-specific members (`typemethod`, `typeconstructor`,
-    // `onconfigure`, …) that are not in [`LANGUAGE_KEYWORD_SUB_KEYWORDS`].
+    // `onconfigure`, …) that [`is_language_keyword_sub_keyword`] does not cover.
     if !head_text.contains("::")
         && oo_grammar.is_some_and(|g| crate::oo_body::is_member(g, head_text))
     {
@@ -3694,7 +3702,7 @@ fn emit_command_head(
         let is_keyword = registry.get(head_text).is_some_and(|s| {
             s.traits
                 .contains(tcl_registry::prelude::Traits::LANGUAGE_KEYWORD)
-        }) || LANGUAGE_KEYWORD_SUB_KEYWORDS.contains(&tail);
+        }) || is_language_keyword_sub_keyword(tail);
         let kind = if is_keyword {
             TokenKind::Keyword
         } else {
@@ -8007,5 +8015,63 @@ mod tests {
             "semantic-token legend not fully handled:\n  {}",
             failures.join("\n  ")
         );
+    }
+
+    /// Issue #862: `set`, `lassign`, `incr`, `lappend`, `append`, `expr` (every
+    /// plain builtin — `function` + `defaultLibrary`) rendered as unstyled
+    /// plain text for users whose theme has no rule for the custom
+    /// `support.function.tcl` scope. A `semanticTokenScopes` override was
+    /// mapping `function.defaultLibrary` to that scope, which **replaces**
+    /// (not supplements) VS Code's built-in cross-theme default for the
+    /// standard `function`/`defaultLibrary` combo — so themes lacking that
+    /// exact scope lost highlighting entirely instead of falling back to the
+    /// built-in default the way every other standard type does. `operator`,
+    /// `decorator` and `namespace` carried the same risk for the same reason
+    /// (and `operator`'s scope, `keyword.operator.format.tcl`, was outright
+    /// wrong for the general case — it covers every `expr` operator and the
+    /// `regsub` `\&` backref, not just `format`). Standard LSP types get no
+    /// override unless the override is either essentially universal across
+    /// themes (`number`, `regexp` — near-ubiquitous `TextMate` scopes that
+    /// match the grammar's own naming) or the type has no sane built-in
+    /// default at all (custom types like `object`, `event`, `escape`, the
+    /// `regexp*`/`format*`/`clock*`/`binary*` families).
+    #[test]
+    fn vscode_semantic_token_scopes_do_not_shadow_standard_defaults() {
+        const MUST_NOT_OVERRIDE: &[&str] = &[
+            "function.defaultLibrary",
+            "operator",
+            "decorator",
+            "namespace",
+        ];
+
+        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let pkg = manifest.join("../../editors/vscode/package.json");
+        let text = std::fs::read_to_string(&pkg)
+            .unwrap_or_else(|e| panic!("reading {}: {e}", pkg.display()));
+        let json: serde_json::Value =
+            serde_json::from_str(&text).expect("package.json is valid JSON");
+
+        let blocks = json["contributes"]["semanticTokenScopes"]
+            .as_array()
+            .expect("contributes.semanticTokenScopes is an array");
+
+        let mut failures = Vec::new();
+        for block in blocks {
+            let lang = block["language"].as_str().unwrap_or_default();
+            let Some(scopes) = block["scopes"].as_object() else {
+                continue;
+            };
+            for &key in MUST_NOT_OVERRIDE {
+                if scopes.contains_key(key) {
+                    failures.push(format!(
+                        "language `{lang}` overrides `{key}`, shadowing VS Code's \
+                         built-in cross-theme default (issue #862) — remove it from \
+                         contributes.semanticTokenScopes in editors/vscode/package.json"
+                    ));
+                }
+            }
+        }
+
+        assert!(failures.is_empty(), "{}", failures.join("\n  "));
     }
 }
