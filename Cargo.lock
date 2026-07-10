@@ -4259,6 +4259,7 @@ name = "tcl-lsp-server"
 version = "0.1.0"
 dependencies = [
  "f5-xc",
+ "futures-util",
  "salsa",
  "serde_json",
  "tcl-bigip",

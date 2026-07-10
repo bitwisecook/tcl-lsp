@@ -37,6 +37,9 @@ use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
+// `FutureExt::shared` lets the progressive diagnostics path compute the base
+// per-file analysis once and await it from both the deep pass and the fast tier.
+use futures_util::future::FutureExt;
 use tcl_compiler::compiler_checks::DiagCode;
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult, NonAsciiMode};
@@ -1081,18 +1084,50 @@ async fn run_diagnostics_analyser_path(
         line_count,
     };
 
+    // Compute the base per-file analysis once and share it (`.shared()`): the deep
+    // pass awaits it inside its `join!` (concurrently with the compiler and
+    // cross-file passes, #844 Gap 2), and — when the budget elapses — the fast tier
+    // awaits the *same* future for its coarse publish. `Shared` lets any polled
+    // clone drive the read, so the fast-tier await below still makes progress while
+    // the deep future is parked. This is the explicit form of what salsa's
+    // block-and-share gave implicitly, but without the second `compute_base_analysis`
+    // call parking a blocking-pool thread on the already-in-flight base read.
+    let base = compute_base_analysis(
+        salsa_ctx,
+        lift_inputs.disabled,
+        inputs.extra_commands,
+        inputs.non_ascii_mode,
+    )
+    .shared();
+
     // Trivial documents skip the progressive machinery entirely and take the
     // single-publish path, so cold-start warm-up can never turn a one-line file
     // into two publishes (see [`DIAGNOSTICS_FAST_TIER_MIN_LINES`]).
     if line_count < DIAGNOSTICS_FAST_TIER_MIN_LINES {
-        return run_deep_diagnostics(delivery, salsa_ctx, lift_inputs, inputs, project, timing)
-            .await;
+        return run_deep_diagnostics(
+            delivery,
+            salsa_ctx,
+            lift_inputs,
+            inputs,
+            project,
+            timing,
+            base,
+        )
+        .await;
     }
 
     // The authoritative deep pass performs the full publish and reports whether
     // the version settled.  Race it against the fast-tier budget.
     let fast_tier_deadline = tokio::time::Instant::now() + DIAGNOSTICS_FAST_TIER_BUDGET;
-    let deep = run_deep_diagnostics(delivery, salsa_ctx, lift_inputs, inputs, project, timing);
+    let deep = run_deep_diagnostics(
+        delivery,
+        salsa_ctx,
+        lift_inputs,
+        inputs,
+        project,
+        timing,
+        base.clone(),
+    );
     tokio::pin!(deep);
 
     tokio::select! {
@@ -1107,18 +1142,10 @@ async fn run_diagnostics_analyser_path(
     }
 
     // Budget elapsed with the deep pass still running: publish the flicker-safe
-    // fast tier now.  Re-reading the per-file analysis is a salsa cache hit once
-    // the deep pass's own base read has landed (and the very computation the fast
-    // tier needs if it has not) — never a second whole-file walk.  A cancellation
-    // here is harmless: the deep pass observes the same edit and settles it.
-    if let ControlFlow::Continue(analysis) = compute_base_analysis(
-        salsa_ctx,
-        lift_inputs.disabled,
-        inputs.extra_commands,
-        inputs.non_ascii_mode,
-    )
-    .await
-    {
+    // fast tier now, from the shared base future the deep pass is already awaiting
+    // — one in-flight read, never a second whole-file walk. A cancellation here is
+    // harmless: the deep pass observes the same edit and settles it.
+    if let ControlFlow::Continue(analysis) = base.await {
         publish_fast_tier(delivery, &analysis, lift_inputs).await;
     }
     deep.await
@@ -1134,6 +1161,11 @@ async fn run_diagnostics_analyser_path(
 /// cancellation — the compiler / cross-file passes may do a little wasted work
 /// before observing the same cancellation, the trade #844 explicitly accepts.
 ///
+/// `base` is the per-file analyser walk, supplied by the caller (as a `Shared`
+/// future) rather than started here, so the progressive fast tier can await the
+/// *same* computation instead of issuing a second one; it is simply the first arm
+/// of the `join!`.
+///
 /// Returns whether the version **settled** (published or superseded), matching
 /// the old serial path — `false` only on a genuine salsa cancellation.
 async fn run_deep_diagnostics(
@@ -1143,14 +1175,10 @@ async fn run_deep_diagnostics(
     inputs: &AnalyserPathInputs<'_>,
     project: Option<tcl_lsp_db::Project>,
     timing: PublishTiming<'_>,
+    base: impl std::future::Future<Output = ControlFlow<bool, Arc<AnalysisResult>>>,
 ) -> bool {
     let (base_result, compiler_result, project_result) = tokio::join!(
-        compute_base_analysis(
-            salsa_ctx,
-            lift_inputs.disabled,
-            inputs.extra_commands,
-            inputs.non_ascii_mode,
-        ),
+        base,
         compute_compiler_diags(salsa_ctx, inputs.registry, inputs.generic_variable_patterns),
         compute_project_diags(salsa_ctx, project),
     );
