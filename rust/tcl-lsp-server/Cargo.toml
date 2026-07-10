@@ -45,6 +45,11 @@ tcl-explorer = { path = "../tcl-explorer" }
 salsa = "0.27"
 serde_json = "1"
 tokio = { version = "1", features = ["io-std", "io-util", "rt-multi-thread", "sync", "macros", "time"] }
+# Bounded, backpressured client transport (`futures::mpsc::channel(1)` +
+# `FramedWrite(stdout)`) is what guarantees diagnostics are never dropped or
+# unboundedly buffered under a slow client. An upgrade that changes its
+# transport is a diagnostics-delivery review gate — see the invariant in
+# `main.rs` and `deliver_diagnostics`.
 tower-lsp-server = "0.23"
 # `util` gives us `ServiceExt::map_response`, used in `main.rs` to inject the
 # `typeHierarchyProvider` capability into the `initialize` response (ls-types

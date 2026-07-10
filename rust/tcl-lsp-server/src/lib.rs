@@ -550,6 +550,13 @@ impl DiagInputs {
 ///   twice (#721); a refresh also covers cross-file (`xcDiagnostics`) updates
 ///   the client would otherwise not know to re-pull.
 /// - **Push-only client**: publish as before, the only channel it has.
+///
+/// The `publish_diagnostics(..).await` here must stay an **inline await**, never
+/// a detached `tokio::spawn`: the transport's bounded, backpressured channel is
+/// what guarantees no diagnostic is dropped or unboundedly buffered under a slow
+/// client (the await *is* the wait-for-drain). Making it fire-and-forget would
+/// discard that backpressure — reordering publishes and hiding a
+/// state-gated/disconnected drop. See the delivery invariant in `main.rs`.
 async fn deliver_diagnostics(
     client: &Client,
     uri: &Uri,
