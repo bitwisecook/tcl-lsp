@@ -423,7 +423,7 @@ impl FunctionUnit {
             registry,
             known_classes,
             extra_global_escaping,
-            module_traces,
+            trace_facts,
         );
         let return_type = crate::type_infer::infer_function_return_type(
             &cfg,
