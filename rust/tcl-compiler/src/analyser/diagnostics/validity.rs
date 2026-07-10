@@ -980,8 +980,29 @@ impl Analyser {
                     continue; // snit / itcl — `new`/`create` mean something else
                 }
                 let Some(provider) = hierarchy.constructor_provider(class_qn, &self.source) else {
-                    continue; // no explicit constructor anywhere in the MRO —
-                    // TclOO's inherited default accepts any argument count
+                    // No explicit constructor anywhere in the MRO — TclOO's
+                    // inherited default constructor accepts any argument
+                    // count, so `new` is never checked here. `create`'s own
+                    // mandatory object-name word is a separate requirement
+                    // enforced by the dispatcher itself, independent of the
+                    // constructor: `oo::class create Foo {}; Foo create`
+                    // still raises "wrong # args" (confirmed against tclsh
+                    // 9.0.4) even though nothing constrains the constructor
+                    // args that may follow the name.
+                    if cand.is_create {
+                        let arity = bump_arity(Arity::at_least(0), 1);
+                        let display_name = format!("{} create", cand.class_name);
+                        if let Some(diag) = arity_verdict(
+                            &display_name,
+                            arity,
+                            cand.nargs_min,
+                            cand.positional_any_expand,
+                            cand.full_span,
+                        ) {
+                            diags.push(diag);
+                        }
+                    }
+                    continue;
                 };
                 // `constructor_provider` picked `provider` from its *final*
                 // (last-declared) constructor only — re-select within it,
