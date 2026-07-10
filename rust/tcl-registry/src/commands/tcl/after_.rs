@@ -25,6 +25,28 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "after ms",
 }];
 
+/// Mark the first script word of `after ms ?script script ...?` as
+/// [`ArgRole::Body`], so a bareword callback (`after 1000 myProc`) is
+/// recursed as a real command invocation — same-file arity checking then
+/// sees the `myProc` call exactly as it would inside any other script,
+/// rather than treating it as an opaque, unchecked value (matching
+/// `fileevent` / `chan event`'s static `(2, ArgRole::Body)` marking, and
+/// `uplevel`'s dynamic resolver for the same "trailing words concatenate
+/// into one script" shape). Only reached for the *default* numeric-delay
+/// form: [`CommandRegistry::arg_indices_for_role`] tries subcommand
+/// resolution first, so `after cancel …` / `after idle …` / `after
+/// info …` never call this resolver at all.
+///
+/// `args[0]` is the delay (`after`'s own arity requires it); a script is
+/// present only when a second word follows.
+fn after_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    if args.len() >= 2 {
+        vec![(1, ArgRole::Body)]
+    } else {
+        Vec::new()
+    }
+}
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "cancel",
@@ -37,6 +59,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "idle",
         arity: Arity::at_least(1),
+        // Only the first script word is marked, mirroring `uplevel`'s
+        // resolver: idiomatic Tcl passes one braced script, and the
+        // rarely-used "several words concatenate into one script" form
+        // is a pre-existing convention shared with `uplevel` (see its
+        // `arg_role_resolver` doc comment), not a gap introduced here.
+        arg_roles: &[(0, ArgRole::Body)],
         detail: "Arrange for a script to be evaluated later as an idle callback.",
         synopsis: "after idle script ?script script ...?",
         return_type: Some(TclType::String),
@@ -58,6 +86,7 @@ pub fn spec() -> CommandSpec {
         name: "after",
         traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),
+        arg_role_resolver: Some(after_arg_roles),
         subcommands: SUBCOMMANDS,
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {

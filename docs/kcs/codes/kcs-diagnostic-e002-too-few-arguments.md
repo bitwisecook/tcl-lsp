@@ -19,7 +19,7 @@ Why do I see a red squiggle saying a command was called with too few arguments?
 
 Calling a command with fewer arguments than it requires will always raise a runtime error. Catching this statically prevents unexpected failures in production.
 
-This check is not limited to builtin commands: it also applies to same-file `proc` calls, `interp alias` targets (shifted by any prepended arguments), `rename`d commands (which keep the original's arity), and TclOO methods and `forward`s (including `forward NAME my TARGET ?ARG…?`, the idiom for forwarding to a sibling or inherited method).
+This check is not limited to builtin commands: it also applies to same-file `proc` calls, `interp alias` targets (shifted by any prepended arguments), `rename`d commands (which keep the original's arity), TclOO methods and `forward`s (including `forward NAME my TARGET ?ARG…?`, the idiom for forwarding to a sibling or inherited method), TclOO constructor calls (`ClassName new ?args?` / `ClassName create name ?args?`, checked against the nearest explicit `constructor` in the class's inheritance chain — a class with no `constructor` anywhere in its hierarchy is never checked, since `TclOO`'s built-in default constructor accepts any number of arguments), and direct calls to an inline `apply {{params} body} ?args?` lambda.
 
 ## Symptoms
 
@@ -61,6 +61,15 @@ lsort -command cmp {3 1 2}   ;# lsort appends only 2 → E002 on `cmp`
 Fix by giving the extra parameters defaults (`{a b {c 0}}`) or removing them so
 the callback matches the appended-argument count. (A callback whose appended
 count is open-ended — `AtLeast(n)` — never draws `E002`.)
+
+**This specific check requires cross-file diagnostics to be enabled** (the
+`xcDiagnostics` setting — off by default). Callback arity is resolved against
+the project-wide table of proc signatures, which only the cross-file pass
+builds; with `xcDiagnostics` off, a mismatched callback like the `cmp` example
+above draws no diagnostic at all, in any editor, and from the `tcl` CLI's
+`diag` command. Every other E002 case on this page (same-file `proc`/alias/
+`rename`/TclOO calls, constructors, `apply`) fires unconditionally and does
+not need this setting.
 
 ## Fix
 

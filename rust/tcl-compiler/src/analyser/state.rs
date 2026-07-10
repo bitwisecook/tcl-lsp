@@ -285,6 +285,12 @@ pub struct Analyser {
     /// same post-walk pass as [`Self::pending_arity`]
     /// ([`Self::flush_arity_diagnostics`]).
     pub pending_user_call_arity: Vec<super::types::PendingUserCallArity>,
+    /// `TclOO` constructor-call (`ClassName new` / `ClassName create`)
+    /// arity candidates — see [`super::types::PendingCtorArity`]. Queued
+    /// whenever a call's first word is literally `new`/`create` and
+    /// resolved in the same post-walk pass as [`Self::pending_arity`]
+    /// ([`Self::flush_ctor_arity_diagnostics`]).
+    pub pending_ctor_arity: Vec<super::types::PendingCtorArity>,
     /// W108 non-ASCII detection mode (`tclLsp.style.nonAscii`).
     /// [`NonAsciiMode::Default`] resolves per dialect at emit time
     /// (strict for F5 iRules/iApps, confusables otherwise).
@@ -481,6 +487,7 @@ impl Analyser {
             line_offsets: None,
             pending_arity: Vec::new(),
             pending_user_call_arity: Vec::new(),
+            pending_ctor_arity: Vec::new(),
             non_ascii_mode: NonAsciiMode::Default,
             structure_only: false,
             defer_proc_bodies: false,
@@ -1241,6 +1248,7 @@ impl Analyser {
         self.flush_disabled_command_diagnostics();
         self.flush_w304_diagnostics();
         self.flush_arity_diagnostics();
+        self.flush_ctor_arity_diagnostics();
         self.emit_missing_package_require_diagnostics(&diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);

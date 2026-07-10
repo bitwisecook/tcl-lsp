@@ -76,6 +76,28 @@ impl ClassHierarchy {
             .map(String::as_str)
     }
 
+    /// Resolve which class provides an *explicit* constructor for
+    /// `class_name`, walking the MRO chain — mirrors [`Self::method_target`],
+    /// but for `TclOO`'s single per-class constructor slot
+    /// (`ClassDef::constructors`) rather than a named method.
+    ///
+    /// Returns `None` when no class on the chain declares one: `TclOO`
+    /// falls back to a permissive default constructor (inherited from
+    /// `oo::object`) that accepts and ignores any number of arguments in
+    /// that case (confirmed against tclsh 9.0.4: `oo::class create Foo {}`
+    /// then `Foo new 1 2 3` succeeds). Callers must treat `None` as "any
+    /// argument count is valid", not "the constructor takes no arguments".
+    #[must_use]
+    pub fn constructor_provider(&self, class_name: &str) -> Option<&str> {
+        let mro = self.mro_map.get(class_name)?;
+        mro.iter().find_map(|ancestor| {
+            self.classes
+                .get(ancestor)
+                .filter(|cd| !cd.constructors.is_empty())
+                .map(|_| ancestor.as_str())
+        })
+    }
+
     /// Resolve `TclOO` `next` / `nextto`: the class *after* the current
     /// provider in `class`'s MRO that provides `method`.
     ///
@@ -619,6 +641,58 @@ mod tests {
         let classes = map(vec![cls("::A", &[], &[], &[])]);
         let h = build_class_hierarchy(classes);
         assert_eq!(h.method_target("::A", "nope"), None);
+    }
+
+    /// `constructor_provider` mirrors `method_target` but over
+    /// `ClassDef::constructors` rather than `methods`.
+    fn cls_with_ctor(qname: &str, supers: &[&str]) -> ClassDef {
+        let mut cd = cls(qname, supers, &[], &[]);
+        cd.constructors.push(MethodDef {
+            name: "<constructor>".to_string(),
+            params: Vec::new(),
+            name_span: span(),
+            body_span: span(),
+            kind: "constructor".to_string(),
+            visibility: "public".to_string(),
+            doc: String::new(),
+            forward_target: None,
+        });
+        cd
+    }
+
+    #[test]
+    fn constructor_provider_none_when_no_class_declares_one() {
+        let classes = map(vec![cls("::A", &[], &[], &[])]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.constructor_provider("::A"), None);
+    }
+
+    #[test]
+    fn constructor_provider_own_class() {
+        let classes = map(vec![cls_with_ctor("::A", &[])]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.constructor_provider("::A"), Some("::A"));
+    }
+
+    #[test]
+    fn constructor_provider_inherited_from_superclass() {
+        // ::B has no constructor of its own; ::A's is inherited.
+        let classes = map(vec![
+            cls_with_ctor("::A", &[]),
+            cls("::B", &["::A"], &[], &[]),
+        ]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.constructor_provider("::B"), Some("::A"));
+    }
+
+    #[test]
+    fn constructor_provider_own_overrides_inherited() {
+        let classes = map(vec![
+            cls_with_ctor("::A", &[]),
+            cls_with_ctor("::B", &["::A"]),
+        ]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.constructor_provider("::B"), Some("::B"));
     }
 
     #[test]

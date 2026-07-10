@@ -90,6 +90,9 @@ pub struct AnalyserSnapshot {
     /// alongside `pending_arity`). Snapshotted for the same rollback
     /// reason.
     pub pending_user_call_arity: Vec<super::types::PendingUserCallArity>,
+    /// Pending `TclOO` constructor-call arity candidates (flushed post-walk
+    /// alongside `pending_arity`). Snapshotted for the same rollback reason.
+    pub pending_ctor_arity: Vec<super::types::PendingCtorArity>,
 }
 
 impl Analyser {
@@ -121,6 +124,7 @@ impl Analyser {
             cmd_command_sites: self.cmd_command_sites.clone(),
             pending_arity: self.pending_arity.clone(),
             pending_user_call_arity: self.pending_user_call_arity.clone(),
+            pending_ctor_arity: self.pending_ctor_arity.clone(),
         }
     }
 
@@ -152,6 +156,7 @@ impl Analyser {
         self.cmd_command_sites = snap.cmd_command_sites;
         self.pending_arity = snap.pending_arity;
         self.pending_user_call_arity = snap.pending_user_call_arity;
+        self.pending_ctor_arity = snap.pending_ctor_arity;
         // Cache invalidation — the namespace cache keys on scope
         // path identity, which the deep-copy disrupts.
         self.ns_cache.clear();

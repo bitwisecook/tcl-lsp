@@ -1277,6 +1277,62 @@ fn same_file_proc_with_trailing_args_is_unbounded() {
 }
 
 #[test]
+fn after_default_form_braced_callback_is_arity_checked() {
+    // `after ms script` appends zero args when it fires the script (unlike a
+    // `-command` callback), so the callback is checked like an ordinary
+    // in-body call, not the command-prefix mechanism — `cb` needs 2 args and
+    // gets none. Body recursion only descends a *braced* word (`analyse_body`'s
+    // `TokenType::Str` guard, the same convention `uplevel`'s resolver
+    // documents), so the script must be braced here.
+    let src = "proc cb {a b} { return [expr {$a+$b}] }\nafter 1000 {cb}\n";
+    assert_eq!(
+        arity_codes(src, "tcl8.6"),
+        vec!["E002".to_owned()],
+        "after's script word must recurse as a real call, not an opaque value"
+    );
+}
+
+#[test]
+fn after_idle_braced_callback_is_arity_checked() {
+    let src = "proc cb {a b} { return [expr {$a+$b}] }\nafter idle {cb}\n";
+    assert_eq!(
+        arity_codes(src, "tcl8.6"),
+        vec!["E002".to_owned()],
+        "after idle's script word must recurse exactly like after ms's"
+    );
+}
+
+#[test]
+fn after_default_form_bareword_callback_is_not_yet_checked() {
+    // A *bareword* callback (no braces) is valid Tcl and equally broken at
+    // runtime, but stays unchecked today — the same pre-existing, documented
+    // limitation as every other `ArgRole::Body` consumer (`analyse_body`
+    // recurses only a `Str`-kind token). Pinned as a TN-shaped regression
+    // guard so a future body-recursion change to this convention is a
+    // deliberate decision, not a silent behaviour change.
+    let src = "proc cb {a b} { return [expr {$a+$b}] }\nafter 1000 cb\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), Vec::<String>::new());
+}
+
+#[test]
+fn after_correct_arity_callback_is_silent() {
+    let src = "proc cb {a b} { return [expr {$a+$b}] }\nafter 1000 {cb 1 2}\nafter idle {cb 3 4}\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), Vec::<String>::new());
+}
+
+#[test]
+fn after_cancel_argument_is_not_arity_checked_as_a_callback() {
+    // `after cancel` takes an id (or a script used only for *matching*, never
+    // executed) — its argument must not be treated as a Body/call.
+    let src = "proc cb {a b} { return [expr {$a+$b}] }\nafter cancel cb\n";
+    assert_eq!(
+        arity_codes(src, "tcl8.6"),
+        Vec::<String>::new(),
+        "after cancel's argument identifies a pending callback; it is never invoked"
+    );
+}
+
+#[test]
 fn same_file_args_not_last_is_an_ordinary_required_name() {
     // `args` only collects extra arguments when it's the *last*
     // parameter; here it's an ordinary required name, so the proc has
@@ -1483,6 +1539,40 @@ fn same_file_over_applied_alias_always_flags_regardless_of_argcount() {
             "over-applied alias must always flag '{call}', got {codes:?}"
         );
     }
+}
+
+#[test]
+fn same_file_deleted_alias_call_does_not_false_positive() {
+    // `interp alias {} bar {}` (target path present, target command
+    // absent) deletes a previously-created alias — confirmed against
+    // tclsh 9.0.4: a later `bar` call fails "invalid command name", not
+    // a "wrong # args" against the alias's stale target arity. Must
+    // abstain, not misdiagnose the failure as an arity mismatch.
+    let src = "proc foo {a b} {}\ninterp alias {} bar {} foo\ninterp alias {} bar {}\nbar 1\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), Vec::<String>::new());
+}
+
+#[test]
+fn same_file_deleted_alias_call_inside_proc_body_does_not_false_positive() {
+    // Deletion is not order-gated inside a proc body, same convention as
+    // every other fact here — the deletion is unconditionally in effect
+    // by the time any proc body runs.
+    let src = "\
+proc foo {a b} {}
+interp alias {} bar {} foo
+interp alias {} bar {}
+proc use {} { bar 1 }
+";
+    assert_eq!(arity_codes(src, "tcl8.6"), Vec::<String>::new());
+}
+
+#[test]
+fn same_file_alias_query_form_is_not_a_deletion() {
+    // `interp alias srcPath srcCmd` (no target path at all — 2 args
+    // after `alias`) is a *query*, not a deletion; the alias must keep
+    // resolving normally afterwards.
+    let src = "proc foo {a b} {}\ninterp alias {} bar {} foo\ninterp alias {} bar\nbar 1\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), vec!["E002".to_owned()]);
 }
 
 #[test]
@@ -3637,6 +3727,191 @@ $o make 1
     assert_eq!(e00x_codes_for(src), Vec::<String>::new());
 }
 
+// -- TclOO constructor call-site arity (`ClassName new` / `ClassName create`)
+
+#[test]
+fn tcloo_constructor_new_arity_fires_and_stays_silent() {
+    let src =
+        |call: &str| format!("oo::class create Widget {{ constructor {{a b}} {{ }} }}\n{call}\n");
+    assert_eq!(
+        e00x_codes_for(&src("Widget new 1")),
+        vec!["E002".to_owned()]
+    );
+    assert_eq!(e00x_codes_for(&src("Widget new 1 2")), Vec::<String>::new());
+    assert_eq!(
+        e00x_codes_for(&src("Widget new 1 2 3")),
+        vec!["E003".to_owned()]
+    );
+}
+
+#[test]
+fn tcloo_constructor_create_arity_accounts_for_mandatory_name() {
+    // `create` consumes one mandatory word (the object name) ahead of the
+    // constructor's own parameters — confirmed against tclsh 9.0.4:
+    // `Widget create fido 1` fails "should be Widget create objectName a b".
+    let src =
+        |call: &str| format!("oo::class create Widget {{ constructor {{a b}} {{ }} }}\n{call}\n");
+    assert_eq!(
+        e00x_codes_for(&src("Widget create fido 1")),
+        vec!["E002".to_owned()]
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget create fido 1 2")),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget create")),
+        vec!["E002".to_owned()],
+        "the mandatory object-name word itself must be enforced"
+    );
+}
+
+#[test]
+fn tcloo_constructor_arity_is_inherited_through_superclass() {
+    // `Sub` declares no constructor of its own — `Base`'s is inherited
+    // (confirmed against tclsh 9.0.4: a subclass with no `constructor`
+    // block uses the nearest ancestor's).
+    let src = "\
+oo::class create Base { constructor {a b} { } }
+oo::class create Sub { superclass Base }
+Sub new 1
+";
+    assert_eq!(e00x_codes_for(src), vec!["E002".to_owned()]);
+}
+
+#[test]
+fn tcloo_constructor_own_overrides_inherited() {
+    let src = "\
+oo::class create Base { constructor {a b} { } }
+oo::class create Sub { superclass Base; constructor {a} { } }
+Sub new 1 2
+";
+    assert_eq!(
+        e00x_codes_for(src),
+        vec!["E003".to_owned()],
+        "Sub's own 1-arg constructor must win over Base's 2-arg one"
+    );
+}
+
+#[test]
+fn tcloo_no_explicit_constructor_anywhere_is_never_arity_checked() {
+    // TclOO's default (inherited from `oo::object`) constructor accepts and
+    // ignores any number of arguments — confirmed against tclsh 9.0.4:
+    // `oo::class create Foo {}` then `Foo new 1 2 3` succeeds.
+    let src = "oo::class create Widget { method bar {} { } }\nWidget new 1 2 3 4 5\n";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_constructor_arity_snit_new_is_not_checked() {
+    // A snit type's `new`/`create` (if it even has one — snit instantiates
+    // via `TypeName instanceName ?args?`, not `new`/`create`) must never be
+    // arity-checked against a `TclOO` constructor; snit is a wholly
+    // different object system.
+    let src = "\
+snit::type Widget {
+    constructor {a b} { }
+}
+Widget new 1
+";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_constructor_arity_dynamic_expand_abstains() {
+    // `{*}`-expanded args can't be counted statically — matches the same
+    // any-uncertainty-abstains convention as every other arity path here.
+    let src = "\
+oo::class create Widget { constructor {a b} { } }
+set args {1}
+Widget new {*}$args
+";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_constructor_arity_forward_reference_in_proc_body_resolves() {
+    // A proc body runs after the whole file loads, so a class defined
+    // *later* in the file still resolves — not order-gated, mirroring
+    // `queue_user_call_arity_candidate`'s proc-body convention.
+    let src = "\
+proc make {} { Widget new 1 }
+oo::class create Widget { constructor {a b} { } }
+";
+    assert_eq!(e00x_codes_for(src), vec!["E002".to_owned()]);
+}
+
+#[test]
+fn tcloo_constructor_arity_via_oo_define_after_class_create() {
+    // The constructor need not be declared inline in `oo::class create` —
+    // a later `oo::define ClassName { constructor {...} {...} }` populates
+    // the same `ClassDef::constructors` slot the arity check reads.
+    let src = "\
+oo::class create Widget {}
+oo::define Widget {
+    constructor {a b} { }
+}
+Widget new 1
+";
+    assert_eq!(e00x_codes_for(src), vec!["E002".to_owned()]);
+}
+
+#[test]
+fn tcloo_constructor_arity_top_level_before_class_definition_abstains() {
+    // A top-level call textually before the class exists fails at run time
+    // ("invalid command name"), not with a constructor-arity mismatch —
+    // matches the same order-gating convention as a shadowing proc.
+    let src = "\
+Widget new 1
+oo::class create Widget { constructor {a b} { } }
+";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+// -- `apply {{params} body}` direct-call arity
+
+#[test]
+fn apply_lambda_arity_fires_and_stays_silent() {
+    assert_eq!(
+        e00x_codes_for("apply {{a b} {return [expr {$a+$b}]}} 1\n"),
+        vec!["E002".to_owned()]
+    );
+    assert_eq!(
+        e00x_codes_for("apply {{a b} {return [expr {$a+$b}]}} 1 2\n"),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        e00x_codes_for("apply {{a b} {return [expr {$a+$b}]}} 1 2 3\n"),
+        vec!["E003".to_owned()]
+    );
+}
+
+#[test]
+fn apply_lambda_with_default_param_is_silent_when_omitted() {
+    let src = "apply {{a {b 2}} {return [expr {$a+$b}]}} 1\n";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn apply_lambda_with_args_catchall_is_unbounded() {
+    let src = "apply {{a args} {return $a}} 1 2 3 4 5\n";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn apply_dynamic_lambda_abstains() {
+    // `apply $lambda …` — the lambda literal isn't statically visible, so
+    // nothing here can be counted; must not false-fire.
+    let src = "set lambda {{a b} {return $a}}\napply $lambda 1\n";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn apply_expand_args_abstains_too_few() {
+    let src = "set rest {1}\napply {{a b} {return $a}} {*}$rest\n";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
 #[test]
 fn w307_suppressed_for_braced_namespace_var_proc_param() {
     // `${namespace}::define::…` — the dispatched variable is the *braced*
@@ -3794,6 +4069,30 @@ fn extra_commands_suppress_w123() {
     assert!(
         !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
         "extraCommands should suppress W123; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn namespace_ensemble_explicit_command_option_suppresses_w123() {
+    // `namespace ensemble create -command NAME` dispatches under an
+    // explicit, differently-named command — not the enclosing namespace's
+    // own name (the implicit form). A call through it must not draw a
+    // spurious "unknown command" (baseline: it does, before the name is
+    // recorded).
+    let src = "\
+namespace eval ::ns {
+    namespace export foo
+    proc foo {a b} { return ok }
+    namespace ensemble create -command ::ens -map {f foo}
+}
+::ens f 1 2
+";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "an explicit -command ensemble name must not draw W123; got {:?}",
         r.diagnostics,
     );
 }
