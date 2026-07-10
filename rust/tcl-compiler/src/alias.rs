@@ -65,6 +65,39 @@ pub fn detect_interp_alias(
     Some((qualified, target_cmd.clone(), prepended))
 }
 
+/// Detect the `interp alias srcPath srcCmd {}` **deletion** form —
+/// present but empty `targetCmd` deletes a previously created
+/// current-interpreter alias (confirmed against tclsh 9.0.4: a call
+/// through the deleted name afterwards fails "invalid command name",
+/// exactly like a deleted `rename`). Distinct from the two-argument
+/// *query* form (`interp alias srcPath srcCmd`, target path absent
+/// entirely), which reads back the current target and deletes nothing —
+/// that shape fails this function's exact `args.len() == 4` guard and
+/// [`detect_interp_alias`]'s `args.len() >= 5` guard alike, so neither
+/// function fires for it.
+///
+/// Returns the qualified alias name to delete, or `None` when this
+/// isn't a current-interpreter deletion.
+#[must_use]
+pub fn detect_interp_alias_delete(cmd_name: &str, args: &[String]) -> Option<String> {
+    if cmd_name != "interp" || args.len() != 4 {
+        return None;
+    }
+    if args[0] != "alias" {
+        return None;
+    }
+    let src_path = &args[1];
+    let alias_name = &args[2];
+    let target_path = &args[3];
+    if !matches!(src_path.as_str(), "" | "{}") || !matches!(target_path.as_str(), "" | "{}") {
+        return None;
+    }
+    if alias_name.is_empty() {
+        return None;
+    }
+    Some(normalise_qualified_name(alias_name))
+}
+
 /// Look up a command alias, namespace-aware.
 ///
 /// Returns `(target_cmd, prepended_args)` or `None`.
@@ -163,6 +196,43 @@ mod tests {
             "y".into(),
         ];
         assert!(detect_interp_alias("interp", &args).is_none());
+    }
+
+    #[test]
+    fn detect_delete_basic() {
+        let args: Vec<String> = vec!["alias".into(), "{}".into(), "bar".into(), "{}".into()];
+        assert_eq!(
+            detect_interp_alias_delete("interp", &args),
+            Some("::bar".to_string())
+        );
+    }
+
+    #[test]
+    fn detect_delete_rejects_query_form() {
+        // Only 2 args after `alias` (no target path at all) — a query,
+        // not a deletion.
+        let args: Vec<String> = vec!["alias".into(), "{}".into(), "bar".into()];
+        assert!(detect_interp_alias_delete("interp", &args).is_none());
+    }
+
+    #[test]
+    fn detect_delete_rejects_creation_form() {
+        // 5 args (a real target command present) — a creation, not a
+        // deletion.
+        let args: Vec<String> = vec![
+            "alias".into(),
+            "{}".into(),
+            "bar".into(),
+            "{}".into(),
+            "foo".into(),
+        ];
+        assert!(detect_interp_alias_delete("interp", &args).is_none());
+    }
+
+    #[test]
+    fn detect_delete_rejects_foreign_interp() {
+        let args: Vec<String> = vec!["alias".into(), "slave".into(), "bar".into(), "{}".into()];
+        assert!(detect_interp_alias_delete("interp", &args).is_none());
     }
 
     #[test]

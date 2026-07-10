@@ -140,6 +140,44 @@ pub struct PendingUserCallArity {
     pub positional_any_expand: bool,
 }
 
+/// A queued `TclOO` constructor-call arity candidate — `ClassName new
+/// ?args?` / `ClassName create name ?args?` — mirroring
+/// [`PendingUserCallArity`]'s architecture exactly: queued unconditionally
+/// whenever a call's first word is literally `new`/`create` (regardless of
+/// whether the head even resolves to a class), and resolved post-walk
+/// ([`super::state::Analyser::flush_ctor_arity_diagnostics`]) once
+/// `all_classes` — and thus the class hierarchy a constructor may be
+/// inherited through — is fully populated.  A candidate that doesn't
+/// resolve to a locally-known class, or resolves to one with no explicit
+/// constructor anywhere in its MRO (`TclOO`'s default constructor accepts
+/// any argument count), is silently dropped at flush time.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingCtorArity {
+    /// Class name as written at the call site (`Dog`, `::ns::Dog`).
+    pub class_name: String,
+    /// Call-site resolution namespace
+    /// (`Analyser::command_resolution_namespace`).
+    pub ns: String,
+    /// Same order-gating convention as [`PendingUserCallArity::enforce_order`]
+    /// — a top-level `Dog new` must have `Dog`'s definition lexically
+    /// precede it; a call inside a proc/method body is not order-gated.
+    pub enforce_order: bool,
+    /// `true` for `create` (whose first word after the keyword is a
+    /// mandatory object name, not part of the constructor's own
+    /// arguments), `false` for `new`.
+    pub is_create: bool,
+    /// Offset of the class-name token, for the top-level order gate.
+    pub call_off: u32,
+    /// Full diagnostic span (class-name head through the last argument).
+    pub full_span: Span,
+    /// Lower-bound positional count of the words *after* `new`/`create`
+    /// (for `create`, this includes the mandatory object-name word).
+    pub nargs_min: usize,
+    /// Whether any positional word is `{*}`-expanded — same convention as
+    /// [`PendingUserCallArity::positional_any_expand`].
+    pub positional_any_expand: bool,
+}
+
 /// Variable definition record.
 ///
 /// Populated by [`Analyser`](super::Analyser) every time it

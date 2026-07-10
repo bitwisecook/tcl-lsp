@@ -169,6 +169,45 @@ pub(super) fn shift_arity(arity: Arity, prepended: u16) -> Arity {
     Arity::new(min, max)
 }
 
+/// Add `extra` to both bounds of `arity` — the inverse of [`shift_arity`].
+/// Used for `oo::class create NAME ?args?`'s mandatory leading object-name
+/// word: a caller-side *extra* required argument ahead of the
+/// constructor's own parameters, the opposite of an alias/forward's
+/// baked-in prepended args (which the *target* never sees).
+fn bump_arity(arity: Arity, extra: u16) -> Arity {
+    let min = arity.min.saturating_add(extra);
+    let max = if arity.is_unlimited() {
+        Arity::UNLIMITED
+    } else {
+        arity.max.saturating_add(extra)
+    };
+    Arity::new(min, max)
+}
+
+/// Whether `metaclass` denotes a genuine `TclOO` class. Snit (`snit::type` /
+/// `snit::widget` / `::snit::widgetadaptor`) and [incr Tcl] (`itcl::class`)
+/// instantiate via `TypeName instanceName ?args?`, never `new`/`create` — a
+/// class recorded under one of those metaclasses must not be
+/// constructor-arity-checked here.
+///
+/// Registry-driven, not a hardcoded metaclass-name list: `metaclass` is
+/// itself a definer *command* name (`oo::class`, `snit::type`, `itcl::class`,
+/// …), each registered with a [`DefinitionBodyGrammar`](tcl_registry::definer::DefinitionBodyGrammar)
+/// tagged by [`DefinerFamily`](tcl_registry::definer::DefinerFamily), so any
+/// future `TclOo`-family metaclass the registry gains is recognised
+/// automatically. Shared with `var_command.rs`'s `e001_for_bare_object_dispatch`
+/// (the E001 "`$obj` with no method word" check), so the two paths that both
+/// need to tell `TclOO` apart from snit/itcl never disagree on the same input.
+pub(super) fn is_tcloo_metaclass(
+    registry: Option<&tcl_registry::CommandRegistry>,
+    metaclass: &str,
+) -> bool {
+    registry.and_then(|r| r.get(metaclass)).is_some_and(|s| {
+        s.definition_body
+            .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::TclOo)
+    })
+}
+
 impl Analyser {
     /// **W001.** Emit "Unknown subcommand" warning for commands
     /// whose registry signature is a [`SubcommandSig`](super::dispatch::SubcommandSig)
@@ -484,6 +523,31 @@ impl Analyser {
             scope_path,
         );
 
+        // `TclOO` constructor-call arity (`ClassName new ?args?` /
+        // `ClassName create name ?args?`) — queued unconditionally whenever
+        // the first word is literally `new`/`create`, independent of
+        // whether `cmd_name` resolves to anything at all; a call whose head
+        // isn't a locally-known class is silently dropped at flush time.
+        if matches!(args.first().map(String::as_str), Some("new" | "create")) {
+            self.queue_ctor_arity_candidate(
+                cmd_name,
+                &ArityWords {
+                    args,
+                    arg_tokens,
+                    arg_expand,
+                    cmd_tok,
+                },
+                scope_path,
+            );
+        }
+
+        // `apply {{params} body} ?arg ...?` — a direct call to an inline
+        // lambda. Unlike the two candidates above, the lambda's own arity
+        // is fully knowable at the call site (no forward reference, no
+        // cross-item merge to wait for), so this checks synchronously
+        // rather than through the pending/flush queue.
+        self.emit_apply_lambda_arity(cmd_name, args, arg_tokens, arg_expand, cmd_tok, scope_path);
+
         let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
         // Scope-aware: a head inside a scoped command environment resolves to
         // its scoped signature (`top set …`, `columns`), everything else to the
@@ -682,6 +746,59 @@ impl Analyser {
         }
     }
 
+    /// **E002 / E003** for `apply {{params} body} ?arg ...?`: check the
+    /// trailing arguments against the inline lambda's *own* declared
+    /// parameter list — the same "wrong # args" `TclOO`/`proc` argument
+    /// binding rules apply to a lambda (confirmed against tclsh 9.0.4:
+    /// `apply {{a b} {}} 1` fails `wrong # args: should be "apply
+    /// lambdaExpr a b"`).
+    ///
+    /// A no-op when the first argument isn't a *braced* literal lambda
+    /// (matching [`Analyser::parse_apply_lambda_elements`]'s guard — a
+    /// dynamic `apply $lambda …` is opaque and left unchecked, the same
+    /// any-uncertainty-abstains convention as every other arity path here).
+    ///
+    /// Queued through [`Self::pending_arity`] rather than pushed
+    /// immediately: `apply` is an ordinary command name and can be shadowed
+    /// by a user `proc apply {lambda x} {…}` exactly like any other
+    /// builtin (confirmed against tclsh 9.0.4 — a user-defined `apply`
+    /// resolves ahead of the language builtin), so this candidate must go
+    /// through the same post-walk builtin-shadowing suppression
+    /// (`Self::flush_arity_diagnostics`) as every other simple-command
+    /// arity check, rather than bypassing it.
+    fn emit_apply_lambda_arity(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        arg_expand: &[bool],
+        cmd_tok: tcl_lexer::Token,
+        scope_path: &[usize],
+    ) {
+        let Some(elements) = self.parse_apply_lambda_elements(cmd_name, args, arg_tokens) else {
+            return;
+        };
+        let Some((_, params_text)) = elements.first() else {
+            return;
+        };
+        let params = crate::signature_scan::params::parse_param_list(params_text);
+        let arity = crate::signature_scan::arity::arity_of(&params);
+        // Positional count starts *after* the lambda literal (index 1).
+        let (nargs_min, positional_any_expand) = count_positionals(args, arg_expand, 1);
+        let full_span = match arg_tokens.last() {
+            Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
+            None => cmd_tok.span,
+        };
+        if let Some(diag) =
+            arity_verdict("apply", arity, nargs_min, positional_any_expand, full_span)
+        {
+            let ns = self.command_resolution_namespace(scope_path);
+            let enforce_order = !self.scope_path_in_proc_body(scope_path);
+            self.pending_arity
+                .push((cmd_name.to_string(), ns, enforce_order, diag));
+        }
+    }
+
     /// Post-walk flush of the [`Self::pending_arity`] candidates
     /// collected by [`Self::emit_arity_diagnostics`].
     ///
@@ -817,6 +934,106 @@ impl Analyser {
         }
     }
 
+    /// Idempotent: drains `pending_ctor_arity`, so a second call is a no-op.
+    ///
+    /// Resolves each queued `ClassName new` / `ClassName create name`
+    /// candidate against `all_classes` (fully populated post-walk, after
+    /// every per-item body has been grafted) using the same current-
+    /// namespace-then-global resolution and top-level order gate as the
+    /// same-file proc/alias arity path. Only genuine `TclOO` classes
+    /// (`oo::class` / `oo::configurable` / `oo::abstract` / `oo::singleton`
+    /// metaclasses) are checked — snit/itcl classes use an entirely
+    /// different instantiation protocol (`TypeName instanceName ?args?`,
+    /// never `new`/`create`), so their (unrelated) `new`/`create` calls, if
+    /// any, must not be arity-checked against a `TclOO` constructor.
+    ///
+    /// A candidate resolving to a class with no explicit constructor
+    /// anywhere in its MRO is dropped — `TclOO`'s inherited default
+    /// constructor accepts any argument count (confirmed against tclsh
+    /// 9.0.4). `create`'s mandatory leading object-name word is folded into
+    /// the expected bound (`bump_arity`) before comparison, so its arity
+    /// message reads in terms of `create`'s own full argument list, not the
+    /// constructor's.
+    pub fn flush_ctor_arity_diagnostics(&mut self) {
+        if self.pending_ctor_arity.is_empty() {
+            return;
+        }
+        let pending = std::mem::take(&mut self.pending_ctor_arity);
+        let mut diags: Vec<super::types::Diagnostic> = Vec::new();
+        {
+            // Scoped so the `class_hierarchy()` borrow of `self.result` ends
+            // before the diagnostics are pushed onto `self.result.diagnostics`
+            // below — sharing the memoised hierarchy (built once per analysis,
+            // reused by hover / hierarchy LSP providers) rather than rebuilding
+            // an owned copy just for this pass.
+            let hierarchy = self.result.class_hierarchy();
+            for cand in &pending {
+                let candidates = qualify_candidates(&cand.ns, &cand.class_name);
+                let Some((class_qn, cd)) = candidates.iter().find_map(|c| {
+                    let cd = self.result.all_classes.get(c)?;
+                    let in_effect = !cand.enforce_order || cd.name_span.start() < cand.call_off;
+                    in_effect.then_some((c.as_str(), cd))
+                }) else {
+                    continue; // not a (yet-defined) class call — nothing to check
+                };
+                if !is_tcloo_metaclass(self.registry.as_ref(), &cd.metaclass) {
+                    continue; // snit / itcl — `new`/`create` mean something else
+                }
+                let Some(provider) = hierarchy.constructor_provider(class_qn, &self.source) else {
+                    continue; // no explicit constructor anywhere in the MRO —
+                    // TclOO's inherited default accepts any argument count
+                };
+                // `constructor_provider` picked `provider` from its *final*
+                // (last-declared) constructor only — re-select within it,
+                // honouring both the empty-body exclusion and (for a
+                // top-level call) definition order: a class created via
+                // `oo::class create Foo {}` and only later given a
+                // `constructor` through a separate `oo::define Foo { … }`
+                // has no constructor in effect for any call between the
+                // two (confirmed against tclsh 9.0.4). A redefinition
+                // mid-file is honoured the same way — the constructor
+                // *in effect at the call site*, not simply the last one
+                // written anywhere in the file, the same convention
+                // `resolve_indirect_call_target` uses for a same-file proc.
+                // When the immediate provider has no qualifying entry, this
+                // abstains rather than walking further up the MRO for an
+                // ancestor's constructor that might have been in effect —
+                // a conservative, sound-by-abstention simplification for
+                // this rare a combination (order-sensitive call *and*
+                // multiple inheritance/redefinition), not a soundness gap.
+                let Some(ctor) = self.result.all_classes.get(provider).and_then(|cd| {
+                    cd.constructors.iter().rev().find(|c| {
+                        !super::class_hierarchy::is_empty_method_body(&self.source, c.body_span)
+                            && (!cand.enforce_order || c.name_span.start() < cand.call_off)
+                    })
+                }) else {
+                    continue;
+                };
+                let arity = crate::signature_scan::arity::arity_of(&ctor.params);
+                let arity = if cand.is_create {
+                    bump_arity(arity, 1)
+                } else {
+                    arity
+                };
+                let display_name = format!(
+                    "{} {}",
+                    cand.class_name,
+                    if cand.is_create { "create" } else { "new" }
+                );
+                if let Some(diag) = arity_verdict(
+                    &display_name,
+                    arity,
+                    cand.nargs_min,
+                    cand.positional_any_expand,
+                    cand.full_span,
+                ) {
+                    diags.push(diag);
+                }
+            }
+        }
+        self.result.diagnostics.extend(diags);
+    }
+
     /// Queue a same-file user-call arity candidate for every command
     /// invocation, independent of whether it also resolves to a
     /// registry signature — [`Self::flush_arity_diagnostics`] resolves
@@ -860,6 +1077,51 @@ impl Analyser {
             nargs_min,
             positional_any_expand,
         });
+    }
+
+    /// Queue a `TclOO` constructor-call (`ClassName new ?args?` /
+    /// `ClassName create name ?args?`) arity candidate. Queued
+    /// unconditionally by every call whose first word is `new`/`create`
+    /// (the caller's guard) — [`Self::flush_ctor_arity_diagnostics`]
+    /// resolves it post-walk against `all_classes`, which mid-walk may not
+    /// yet hold a forward-referenced class. A call whose head doesn't
+    /// resolve to a locally-known class is silently dropped at flush time,
+    /// exactly like [`Self::queue_user_call_arity_candidate`].
+    ///
+    /// `words.args` still has `new`/`create` at index 0; the positional
+    /// count starts at index 1 so the keyword itself is never counted.
+    fn queue_ctor_arity_candidate(
+        &mut self,
+        cmd_name: &str,
+        words: &ArityWords<'_>,
+        scope_path: &[usize],
+    ) {
+        if cmd_name.is_empty() || cmd_name.contains(['$', '[']) {
+            return; // dynamic class name — nothing to resolve statically
+        }
+        let ArityWords {
+            args,
+            arg_tokens,
+            arg_expand,
+            cmd_tok,
+        } = *words;
+        let is_create = args[0] == "create";
+        let (nargs_min, positional_any_expand) = count_positionals(args, arg_expand, 1);
+        let full_span = match arg_tokens.last() {
+            Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
+            None => cmd_tok.span,
+        };
+        self.pending_ctor_arity
+            .push(super::types::PendingCtorArity {
+                class_name: cmd_name.to_string(),
+                ns: self.command_resolution_namespace(scope_path),
+                enforce_order: !self.scope_path_in_proc_body(scope_path),
+                is_create,
+                call_off: cmd_tok.span.start(),
+                full_span,
+                nargs_min,
+                positional_any_expand,
+            });
     }
 
     /// Whether a fact (a proc definition, `rename`, or `interp alias`)
@@ -954,6 +1216,20 @@ impl Analyser {
                 continue;
             }
             if let Some((target, prepended)) = candidates.iter().find_map(|c| {
+                // `interp alias srcPath srcCmd {}` (or a `rename c {}`)
+                // deletes an alias exactly like it deletes a proc — same
+                // blanket "any in-effect deletion wins" convention as the
+                // proc branch above (`via_rename_hop` doesn't apply here;
+                // an alias is re-resolved by name on every call, never
+                // chased back through a rename the way a proc's original
+                // definition is).
+                if self
+                    .deleted_commands
+                    .get(c.as_str())
+                    .is_some_and(|&off| Self::fact_in_effect(cand, off))
+                {
+                    return None;
+                }
                 let alias = self.command_aliases.get(c)?;
                 let off = *self.alias_offsets.get(c)?;
                 Self::fact_in_effect(cand, off).then_some(alias)
