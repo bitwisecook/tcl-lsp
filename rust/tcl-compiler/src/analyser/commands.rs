@@ -750,8 +750,7 @@ impl Analyser {
         // to guard once here for every EXPR-role emitter at once, rather
         // than duplicating the check per diagnostic.
         let qualified = crate::naming::normalise_qualified_name(cmd_name);
-        if let Some(def) = self.result.all_procs.get(&qualified)
-            && def.name_span.start() < cmd_tok.span.start()
+        if super::utils::proc_shadows_call(&self.result.all_procs, &qualified, cmd_tok.span.start())
         {
             return;
         }

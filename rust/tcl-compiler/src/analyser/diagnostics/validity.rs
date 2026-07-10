@@ -416,6 +416,13 @@ impl Analyser {
         {
             return;
         }
+        // An earlier *unconditional* user proc with this name shadows the
+        // would-be-disabled built-in at the call site.
+        let qualified = crate::naming::normalise_qualified_name(bare);
+        if super::utils::proc_shadows_call(&self.result.all_procs, &qualified, cmd_tok.span.start())
+        {
+            return;
+        }
         // Best-effort "available in: …" hint read straight from the
         // registry spec's own dialect gate. Only resolves when the spec is
         // among the packs this registry instance loaded regardless of
