@@ -58,6 +58,20 @@ bytecode-level shortcut.
 - **Variable traces**: tclsh does not fold through variables (observable side
   effects), so our bytecode matches the non-folded output
 
+Type inference applies a related but distinct widening for traced names: a
+`trace add variable ... write` callback runs synchronously inside the `set`
+that triggers it and can rewrite the value (and hence intrep) to anything,
+so every SSA def of a module-traced name is widened to `OVERDEFINED`
+regardless of statement kind (`AssignConst`/`AssignValue`/`Incr`/`Call`
+alike) — see `propagate_types` in `rust/tcl-compiler/src/type_infer.rs`,
+fed by `scan_module_variable_traces` in
+`rust/tcl-compiler/src/var_observability.rs`. This is deliberately narrower
+than SCCP's `global`/`upvar`/`namespace` escaping set: mere globalness
+doesn't retroactively invalidate a fresh local `set` for *type* purposes
+the way it does for cross-call *constant-value* folding, so widening on
+that broader set would silence shimmer detection for the common
+global-variable case without a matching soundness need.
+
 ### Type inference lattice
 
 ```
@@ -86,6 +100,14 @@ the type lattice records `SHIMMERED(from_type, to_type)`.  This triggers:
 - S100: Value accessed as incompatible type
 - S101: Implicit shimmer
 - S102: Cross-command type conflict
+
+Shimmer/thunking/byte-array analysis runs per body unit — every `proc`,
+every TclOO method, and every synthetic unit (`apply` lambda,
+`namespace eval` block) gets its own CFG/SSA and type-inference pass; a
+unit not reachable from the "top-level procs only" enumeration silently
+gets no shimmer analysis at all, which is why new call-site shapes should
+be checked against `all_body_function_units()` rather than a
+procs-only iterator.
 
 ### Interaction with optimisation passes
 
