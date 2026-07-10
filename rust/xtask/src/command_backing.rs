@@ -213,10 +213,6 @@ const NOT_REQUIRED: &[(&str, &str)] = &[
 /// visible progress marker. Names are canonical (no leading `::`). Kept sorted.
 const KNOWN_UNBACKED: &[(&str, &str)] = &[
     (
-        "classvariable",
-        "TclOO method-body helper for class-shared variables",
-    ),
-    (
         "coroinject",
         "coroutine introspection (the runtime backs `coroutine`/`yield` but not this)",
     ),
