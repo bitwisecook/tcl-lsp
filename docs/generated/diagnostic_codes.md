@@ -83,7 +83,7 @@
 | H300 | hint | Possible paste error — repeated assignment to same variable with same value. | ✓ |
 | I230 | hint | Constant branch condition — the alternate branch is provably unreachable. | ✓ |
 | I231 | hint | Constant switch arm condition — the arm is provably unreachable. | ✓ |
-| W123 | hint | Unresolved command — not found in registry, user procs, or `unknown` handler. | ✗ |
+| W123 | hint | Unresolved command — not found in registry, user procs, or `unknown` handler. | ✓ |
 | W242 | hint | Loop termination cannot be proven — counter not provably modified by the loop body or step. | ✗ |
 | S100 | shimmer | Single shimmer outside a loop — object internal representation changed. | ✓ |
 | S101 | shimmer | Shimmer inside a loop body — per-iteration representation conversion cost. | ✓ |

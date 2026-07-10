@@ -579,8 +579,8 @@ suite("Configuration Settings", () => {
     });
   }
 
-  test("diagnostics.W123 defaults to false (opt-in)", () => {
-    assert.strictEqual(cfg().get<boolean>("diagnostics.W123"), false);
+  test("diagnostics.W123 defaults to true", () => {
+    assert.strictEqual(cfg().get<boolean>("diagnostics.W123"), true);
   });
 
   // Runtime validation

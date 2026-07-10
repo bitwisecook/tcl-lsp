@@ -405,7 +405,7 @@ diagnostic_codes! {
     W120 => "W120", diag(Warning, true, "Command used without a corresponding `package require`.");
     W121 => "W121", diag(Warning, true, "Subnet mask has non-contiguous bits.");
     W122 => "W122", diag(Warning, true, "Mistyped IPv4 address (octet > 255 or leading zero).");
-    W123 => "W123", diag(Hint, false, "Unresolved command — not found in registry, user procs, or `unknown` handler.");
+    W123 => "W123", diag(Hint, true, "Unresolved command — not found in registry, user procs, or `unknown` handler.");
     W124 => "W124", diag(Warning, true, "Invalid IP address literal.");
     W125 => "W125", diag(Warning, true, "Orphaned control-flow keyword used as standalone command.");
     W126 => "W126", diag(Warning, true, "Non-channel value in channel argument position.");

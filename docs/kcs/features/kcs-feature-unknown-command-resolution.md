@@ -15,7 +15,7 @@ all-editors, jetbrains (other editors via XDG config), warning
 
 ## How to use
 
-- **Enable**: W123 is opt-in. Set `tclLsp.diagnostics.W123 = true` in your editor settings.
+- **Enable**: W123 is on by default. Set `tclLsp.diagnostics.W123 = false` in your editor settings to disable it.
 - **Diagnostics**: Unresolved commands appear as HINT-level underlines. Hover shows the message and any "did you mean?" suggestion.
 - **Code actions**: When a suggestion is available, a quick-fix replaces the command name.
 - **Suppress per-line**: Append `# noqa: W123` to suppress on a specific line.
@@ -75,7 +75,7 @@ against the union of: registry commands, user-defined procs, stub commands,
 
 ## Example
 
-With `tclLsp.diagnostics.W123` enabled:
+With `tclLsp.diagnostics.W123` at its default (enabled):
 
 ```tcl
 proc greet {name} {

@@ -4109,7 +4109,7 @@
           "tclLsp.diagnostics.W123": {
             "scope": "resource",
             "type": "boolean",
-            "default": false,
+            "default": true,
             "markdownDescription": "**W123:** Unresolved command — not found in registry, user procs, or `unknown` handler.",
             "order": 3
           },

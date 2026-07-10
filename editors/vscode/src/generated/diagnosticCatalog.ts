@@ -454,7 +454,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "W123",
     section: "hint",
     description: "Unresolved command — not found in registry, user procs, or `unknown` handler.",
-    defaultEnabled: false,
+    defaultEnabled: true,
   },
   {
     code: "W242",
