@@ -319,6 +319,21 @@ struct SemanticTokensRefreshCtx {
 /// side.
 type SemanticTokensCache = Arc<Mutex<HashMap<Uri, (String, Vec<u32>)>>>;
 
+/// What a timed-out `semantic_tokens_range` request (#844 Gap 4) hands to its
+/// convergence continuation: the partial CU / analysis results plus their reads.
+/// Each `Option<Option<..>>` slot is `Some` iff that read landed within the
+/// budget — in which case it is reused directly and its `JoinHandle` (still
+/// carried, but spent) is never awaited again; a `None` slot means the read is
+/// still un-consumed and the continuation awaits its handle. Capturing the slots
+/// is what stops a CU that landed before the timeout from being lost (and its
+/// spent handle re-polled) when the analysis read is the one that overran.
+type RangeConvergencePending = (
+    Option<Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>>,
+    Option<Option<Arc<tcl_compiler::analyser::AnalysisResult>>>,
+    tokio::task::JoinHandle<Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>>,
+    tokio::task::JoinHandle<Option<Arc<tcl_compiler::analyser::AnalysisResult>>>,
+);
+
 impl SemanticTokensRefreshCtx {
     /// Compare the just-landed enriched token stream against whatever `uri`'s
     /// cache currently holds (the coarse tier served while the enriched
@@ -5388,6 +5403,66 @@ impl Backend {
             while warms.join_next().await.is_some() {}
         });
     }
+
+    /// Detach the #844 Gap 4 convergence continuation for a range request served
+    /// the coarse tier: await the enriched CU / analysis (reusing any that landed
+    /// within the budget via its slot, never re-awaiting a spent handle),
+    /// recompute the viewport-filtered range, and fire a coalesced
+    /// `workspace/semanticTokens/refresh` if it genuinely differs from the coarse
+    /// `served` stream. The range stream is never in `last_semantic_tokens`, so
+    /// the diff is against the exact `served` bytes rather than the token cache.
+    fn spawn_range_convergence(
+        &self,
+        served: Vec<u32>,
+        registry: Arc<CommandRegistry>,
+        text: String,
+        dialect: String,
+        range: CoreLspRange,
+        pending: RangeConvergencePending,
+    ) {
+        let (cu_slot, analysis_slot, cu_handle, analysis_handle) = pending;
+        let refresh_ctx = SemanticTokensRefreshCtx {
+            client: self.client.clone(),
+            last_semantic_tokens: Arc::clone(&self.last_semantic_tokens),
+            refresh_pending: Arc::clone(&self.semantic_tokens_refresh_pending),
+        };
+        tokio::spawn(async move {
+            // Reuse a result that already landed within the budget; otherwise await
+            // the still-running read. A `None` slot means the handle was never
+            // awaited to completion, so awaiting it here is safe — never a re-poll
+            // of a spent handle.
+            let cu = match cu_slot {
+                Some(cu) => cu,
+                None => cu_handle.await.ok().flatten(),
+            };
+            let analysis = match analysis_slot {
+                Some(analysis) => analysis,
+                None => analysis_handle.await.ok().flatten(),
+            };
+            // Both `None` ⇒ the reads were cancelled by a concurrent edit, which
+            // schedules its own token refresh — nothing to converge.
+            if cu.is_none() && analysis.is_none() {
+                return;
+            }
+            let enriched = tokio::task::spawn_blocking(move || {
+                core_semantic_tokens::range_with_cu_and_analysis(
+                    &text,
+                    &dialect,
+                    range,
+                    &registry,
+                    cu.as_deref(),
+                    analysis.as_deref(),
+                )
+                .data
+            })
+            .await;
+            if let Ok(enriched) = enriched
+                && enriched != served
+            {
+                refresh_ctx.request_refresh_coalesced();
+            }
+        });
+    }
 }
 
 impl LanguageServer for Backend {
@@ -7006,19 +7081,45 @@ impl LanguageServer for Backend {
             _ => None,
         };
         let (cached_cu, cached_analysis, pending) = match handles {
-            Some((mut cu_handle, mut analysis_handle)) => tokio::select! {
-                biased;
-                pair = async {
-                    let cu = (&mut cu_handle).await.ok().flatten();
-                    let analysis = (&mut analysis_handle).await.ok().flatten();
-                    (cu, analysis)
-                } => (pair.0, pair.1, None),
-                () = tokio::time::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => {
-                    // Budget won: serve coarse now, hand the still-running reads to
-                    // the convergence continuation below.
-                    (None, None, Some((cu_handle, analysis_handle)))
+            Some((mut cu_handle, mut analysis_handle)) => {
+                // Race the enriched reads against the budget, but capture each
+                // result into an outer slot *as it lands*, so a partial completion
+                // survives the dropped race future. A slot is `Some` iff its handle
+                // was awaited to completion — so a `None` slot means the handle is
+                // still un-consumed (the continuation may safely await it), while a
+                // `Some` slot is reused directly, never re-awaiting a spent handle.
+                // Without this, a CU that landed within budget while the analysis
+                // did not would be consumed and then lost when the timeout drops
+                // the race future, and the spent CU handle would be re-awaited in
+                // the continuation (a re-poll of a completed `JoinHandle`) — losing
+                // the enrichment and the convergence refresh.
+                let mut cu_slot: Option<
+                    Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>,
+                > = None;
+                let mut analysis_slot: Option<Option<Arc<tcl_compiler::analyser::AnalysisResult>>> =
+                    None;
+                let both_ready = tokio::select! {
+                    biased;
+                    () = async {
+                        cu_slot = Some((&mut cu_handle).await.ok().flatten());
+                        analysis_slot = Some((&mut analysis_handle).await.ok().flatten());
+                    } => true,
+                    () = tokio::time::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => false,
+                };
+                if both_ready {
+                    // Both landed inside the budget — serve the enriched viewport.
+                    (cu_slot.flatten(), analysis_slot.flatten(), None)
+                } else {
+                    // Budget won: serve coarse, handing whatever partial result
+                    // landed plus the still-running (un-consumed) reads to the
+                    // convergence continuation below.
+                    (
+                        None,
+                        None,
+                        Some((cu_slot, analysis_slot, cu_handle, analysis_handle)),
+                    )
                 }
-            },
+            }
             None => (None, None, None),
         };
         // Pure-CPU tokenisation on a worker so a parser panic is contained
@@ -7043,48 +7144,18 @@ impl LanguageServer for Backend {
             data: None,
         })?;
 
-        // Convergence (#844 Gap 4): we served the coarse tier because the enriched
-        // reads overran the budget. Detach a continuation that awaits them and,
-        // once the enriched viewport genuinely differs from what we served, fires
-        // a coalesced refresh so the editor re-requests and converges. Fired
-        // unconditionally on difference: the range stream is never written to
-        // `last_semantic_tokens`, so there is no cache entry to diff against —
-        // we diff against the exact coarse `core_data` we returned instead.
-        if let Some((cu_handle, analysis_handle)) = pending {
-            let served = core_data.clone();
-            let converge_registry = Arc::clone(&registry);
-            let (converge_text, converge_dialect) = (doc.text.clone(), doc.dialect.clone());
-            let refresh_ctx = SemanticTokensRefreshCtx {
-                client: self.client.clone(),
-                last_semantic_tokens: Arc::clone(&self.last_semantic_tokens),
-                refresh_pending: Arc::clone(&self.semantic_tokens_refresh_pending),
-            };
-            tokio::spawn(async move {
-                let cu = cu_handle.await.ok().flatten();
-                let analysis = analysis_handle.await.ok().flatten();
-                // Both `None` ⇒ the reads were cancelled by a concurrent edit,
-                // which schedules its own token refresh — nothing to converge.
-                if cu.is_none() && analysis.is_none() {
-                    return;
-                }
-                let enriched = tokio::task::spawn_blocking(move || {
-                    core_semantic_tokens::range_with_cu_and_analysis(
-                        &converge_text,
-                        &converge_dialect,
-                        core_range,
-                        &converge_registry,
-                        cu.as_deref(),
-                        analysis.as_deref(),
-                    )
-                    .data
-                })
-                .await;
-                if let Ok(enriched) = enriched
-                    && enriched != served
-                {
-                    refresh_ctx.request_refresh_coalesced();
-                }
-            });
+        // Convergence (#844 Gap 4): if we served the coarse tier because the
+        // enriched reads overran the budget, detach a continuation that awaits
+        // them and refreshes once the enriched viewport differs.
+        if let Some(pending) = pending {
+            self.spawn_range_convergence(
+                core_data.clone(),
+                Arc::clone(&registry),
+                doc.text.clone(),
+                doc.dialect.clone(),
+                core_range,
+                pending,
+            );
         }
 
         Ok(Some(SemanticTokensRangeResult::Tokens(LspSemanticTokens {
