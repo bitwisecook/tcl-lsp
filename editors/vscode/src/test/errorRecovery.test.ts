@@ -309,6 +309,65 @@ suite("Error Recovery (known-command generality)", () => {
       `tail proc not recovered past a namespace-qualified call; symbols=[${names}]`,
     );
   });
+
+  // The known-command signal extends past this file's own procs/classes/
+  // aliases to two more layers: a `rename OLD NEW` target (this file), a
+  // proc defined in a *different* workspace file the on-disk scan indexes
+  // without ever being opened (`workspaceSiblingHelper.tcl`), and a command
+  // a `package require`d library provides (`mypkglib/pkgIndex.tcl`, scanned
+  // the same way the pre-existing `rbclib` auto-load fixture is). Each is
+  // proven live the same way as the `my_helper` case above: a bare `string`
+  // chained onto the same line has no subcommand, which always draws its
+  // own E001 ("requires a subcommand") once analysed — independent of
+  // whatever recognised the target head.
+
+  test("a renamed command recovers the tail", async () => {
+    await activate(docUri);
+    const editor = vscode.window.activeTextEditor!;
+    const diags = await setContentAndWait(
+      editor,
+      docUri,
+      "rename puts my_puts\n\nset q {\n  aaa\nmy_puts hi; string\n",
+    );
+    assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
+    assert.ok(
+      diags.some((d) => codeOf(d) === "E001"),
+      `renamed-command tail call should be live code (chained bare \`string\` \
+       has no subcommand): [${diags.map(codeOf)}]`,
+    );
+  });
+
+  test("a proc defined in a different workspace file recovers the tail", async () => {
+    await activate(docUri);
+    const editor = vscode.window.activeTextEditor!;
+    await setTestContent(editor, "set q {\n  aaa\nworkspace_helper 1; string\n");
+    const diags = await waitForDiagnostics(docUri, {
+      timeout: 15_000,
+      predicate: (ds) => ds.some((d) => codeOf(d) === "E001"),
+    });
+    assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
+    assert.ok(
+      diags.some((d) => codeOf(d) === "E001"),
+      `a call to a sibling-file proc should be live code (chained bare \`string\` \
+       has no subcommand): [${diags.map(codeOf)}]`,
+    );
+  });
+
+  test("a command from a package-required library recovers the tail", async () => {
+    await activate(docUri);
+    const editor = vscode.window.activeTextEditor!;
+    await setTestContent(editor, "package require mypkg\nset q {\n  aaa\nmypkg_helper 1; string\n");
+    const diags = await waitForDiagnostics(docUri, {
+      timeout: 15_000,
+      predicate: (ds) => ds.some((d) => codeOf(d) === "E001"),
+    });
+    assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
+    assert.ok(
+      diags.some((d) => codeOf(d) === "E001"),
+      `a call to a package-provided command should be live code (chained bare \
+       \`string\` has no subcommand): [${diags.map(codeOf)}]`,
+    );
+  });
 });
 
 suite("Error Recovery (short-form unterminated quote / brace)", () => {

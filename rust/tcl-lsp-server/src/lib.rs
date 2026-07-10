@@ -775,6 +775,9 @@ async fn compute_base_analysis(
     disabled: &HashSet<String>,
     extra_commands: &HashSet<String>,
     non_ascii_mode: NonAsciiMode,
+    registry: &CommandRegistry,
+    workspace_index: &Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    package_resolver: &Arc<RwLock<PackageResolver>>,
 ) -> ControlFlow<bool, Arc<AnalysisResult>> {
     let &SalsaAnalysisCtx {
         db,
@@ -784,6 +787,52 @@ async fn compute_base_analysis(
         text,
         dialect,
     } = ctx;
+
+    // A document with an unclosed delimiter needs a wider "known command"
+    // universe than the folder/global-scoped `extra_commands` salsa input
+    // carries: the workspace's own procs/classes and the commands *this*
+    // document's `package require`s resolve to (the recovery known-command
+    // hierarchy — see `tcl_compiler::analyser::utils::recovery_known_commands`,
+    // which this widens one layer up). Resolving that is real work (a
+    // workspace-index read, package-database lookup + file reads) and is
+    // inherently per-document — a document's own `package require`s decide
+    // which package commands apply, which the shared, folder/global-scoped
+    // salsa `AnalyserConfig` cannot express — so this bypasses the cached path
+    // entirely and only runs on this rare, edit-transient branch, mirroring
+    // `recovery_known_commands`'s own `script_is_complete` gate: a
+    // well-formed document pays nothing extra.
+    if !tcl_lexer::script_is_complete(text) {
+        let widened = widen_recovery_extra_commands(
+            extra_commands,
+            text,
+            dialect,
+            registry,
+            workspace_index,
+            package_resolver,
+        )
+        .await;
+        let (a_text, a_dialect, a_disabled) =
+            (text.to_owned(), dialect.to_owned(), disabled.clone());
+        return match tokio::task::spawn_blocking(move || {
+            Backend::configured_analyser(a_disabled, non_ascii_mode, widened)
+                .analyse(&a_text, &a_dialect)
+                .clone()
+        })
+        .await
+        {
+            Ok(analysis) => ControlFlow::Continue(Arc::new(analysis)),
+            Err(e) => {
+                eprintln!(
+                    "tcl-lsp: recovery-path diagnostics worker panicked for {} (is_panic={}); \
+                     skipping this document's diagnostics to avoid a retry livelock",
+                    uri.as_str(),
+                    e.is_panic(),
+                );
+                ControlFlow::Break(true)
+            }
+        };
+    }
+
     if let Some(file) = file {
         // Clone a fresh, short-lived snapshot for just this read and move it
         // into the worker; it drops when the read finishes, so it never holds
@@ -833,6 +882,72 @@ async fn compute_base_analysis(
         .unwrap_or_default();
         ControlFlow::Continue(analysis)
     }
+}
+
+/// Widen `base` (the resolved `tclLsp.extraCommands`) with the workspace's
+/// own proc/class names and the commands available to `text` through package
+/// resolution — the LSP-layer name-resolution hierarchy the unclosed-
+/// delimiter recovery heuristics need beyond what a single-file `Analyser`
+/// can see on its own. `tcl_compiler::analyser::utils::recovery_known_commands`
+/// unions the registry with the document's own signature scan; this unions
+/// one layer further out: every workspace-indexed proc/class (regardless of
+/// which file defines it — `WorkspaceIndex::procs`/`classes`), every
+/// auto-loadable command the scanned library paths provide (`tclIndex`-style,
+/// no `package require` needed — mirrors the #832 W123 refinement), and, when
+/// `text` itself `package require`s something, the commands that package's
+/// resolved implementation files define.
+///
+/// `text`'s own `package require`s are read via a fresh signature scan
+/// (mirroring `recovery_known_commands`'s own in-file scan) rather than
+/// `WorkspaceIndex::package_requires_for` — the index only learns a
+/// document's requires from an *already-published* analysis, which this
+/// document, being analysed for the first time right now, cannot yet have.
+///
+/// Workspace names go through `tcl_compiler::analyser::utils::insert_qualified_and_tail`
+/// — the same three-form (as-is / `::`-stripped / tail) insertion
+/// `recovery_known_commands` uses for a document's own procs/classes/
+/// aliases/renames — rather than a second, hand-rolled copy: a workspace
+/// proc referenced by its absolute `::ns::name` form needs recognising just
+/// as much as one referenced relatively.
+///
+/// Only called from [`compute_base_analysis`]'s `!script_is_complete`
+/// recovery branch — never on the well-formed-document hot path.
+async fn widen_recovery_extra_commands(
+    base: &HashSet<String>,
+    text: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+    workspace_index: &Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    package_resolver: &Arc<RwLock<PackageResolver>>,
+) -> HashSet<String> {
+    let mut names = base.clone();
+    {
+        let index = workspace_index.read().await;
+        for p in index.procs() {
+            tcl_compiler::analyser::utils::insert_qualified_and_tail(&mut names, &p.qualified_name);
+        }
+        for c in index.classes() {
+            tcl_compiler::analyser::utils::insert_qualified_and_tail(&mut names, &c.qualified_name);
+        }
+    }
+    let requires: Vec<String> = tcl_compiler::signature_scan::extract_signatures(text, registry)
+        .package_requires
+        .into_iter()
+        .map(|pr| pr.name)
+        .collect();
+    let resolver = package_resolver.read().await;
+    for name in resolver.auto_command_names() {
+        names.insert(name.trim_start_matches("::").to_owned());
+    }
+    if !requires.is_empty() {
+        let commands = resolver.package_defined_commands(&requires, &|path| {
+            std::fs::read_to_string(path)
+                .map(|text| defined_command_tails(&text, dialect))
+                .unwrap_or_default()
+        });
+        names.extend(commands);
+    }
+    names
 }
 
 /// The cross-file analyser diagnostics for the deep tier: `project_diagnostics`
@@ -1123,6 +1238,9 @@ async fn run_diagnostics_analyser_path(
         lift_inputs.disabled,
         inputs.extra_commands,
         inputs.non_ascii_mode,
+        inputs.registry,
+        inputs.workspace_index,
+        inputs.package_resolver,
     )
     .shared();
 

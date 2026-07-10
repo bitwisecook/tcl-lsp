@@ -659,6 +659,7 @@ impl Analyser {
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
             self.registry.as_ref().expect("registry just stashed"),
+            &self.extra_commands,
         );
         let known_commands: HashSet<&str> = self
             .recovery_known_commands
@@ -976,6 +977,7 @@ impl Analyser {
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
             self.registry.as_ref().expect("registry just stashed"),
+            &self.extra_commands,
         );
         self.line_offsets = Some(compute_line_offsets(source));
 
@@ -1050,6 +1052,7 @@ impl Analyser {
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
             self.registry.as_ref().expect("registry just stashed"),
+            &self.extra_commands,
         );
         self.line_offsets = Some(compute_line_offsets(source));
 

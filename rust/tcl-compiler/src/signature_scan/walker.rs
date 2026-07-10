@@ -133,6 +133,7 @@ pub(super) fn scan(
             "package" => handlers::handle_package(texts, argv, conditional, &mut ctx.result),
             "source" => handlers::handle_source(texts, argv, &mut ctx.result),
             "interp" => handlers::handle_interp(texts, &mut ctx.result),
+            "rename" => handlers::handle_rename(texts, ns_prefix, &mut ctx.result),
             // Every stock `TclOO` metaclass creates a class via the same
             // `METACLASS create NAME ?BODY?` interface — `oo::configurable`
             // (property-bearing), `oo::abstract`, and `oo::singleton` included,

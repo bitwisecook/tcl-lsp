@@ -136,6 +136,21 @@ pub struct SignatureCommandAlias {
     pub extras: Vec<String>,
 }
 
+/// A `rename OLD NEW` recorded by the signature scanner.
+///
+/// `NEW` becomes a callable command name subject to ordinary command-name
+/// resolution — like `proc`, a bare `NEW` inside a `namespace eval` is
+/// namespace-relative, unlike `interp alias`'s always-global aliasName. Only
+/// recorded when `NEW` is non-empty: `rename OLD {}` deletes `OLD` rather
+/// than introducing a new name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignatureRename {
+    /// Fully-qualified new command name (with leading `::`).
+    pub qualified_name: String,
+    /// The old command name text as written at the call site.
+    pub target: String,
+}
+
 /// A `namespace import` recorded by the signature scanner.
 ///
 /// Records both direct `namespace import PATTERN` calls and the
@@ -229,6 +244,8 @@ pub struct SignatureScanResult {
     /// Every local-interpreter `interp alias`, keyed by alias
     /// qualified name.
     pub command_aliases: BTreeMap<String, SignatureCommandAlias>,
+    /// Every `rename OLD NEW`, keyed by the new qualified name.
+    pub renames: BTreeMap<String, SignatureRename>,
     /// Every recorded `namespace import` (direct + conjectured).
     pub namespace_imports: Vec<SignatureNamespaceImport>,
     /// Every `auto_path` mutation (one record per path element).
