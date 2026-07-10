@@ -963,7 +963,7 @@ Rust: `rust/tcl-compiler/src/analyser/*`, `compiler_checks.rs`, `irules_checks.r
 | Per-item incremental | — (none) | per_item.rs, item_tree.rs, state.rs | ➕ | Rust-ahead: offset-stable item identity + per-body memoisation, fuzzer-gated byte-identical to `analyse`. |
 | MRO algorithm | mro.py:38 `_tcloo_dfs` (two-pass DFS + late placement) | mro.rs:91 | ✅ | **Not C3** — both implement TclOO's `tclOOCall.c` two-pass DFS (correct for TclOO). |
 | Class hierarchy (CHA) | class_hierarchy.py | class_hierarchy.rs | ➕ | Parity + Rust defensive backfill/re-linearise. Non-deterministic `errors` order only (benign). |
-| TclOO construct coverage | _analyser/_oo.py (full) | analyser/oo.rs, handlers.rs | ❗ | Rust gaps: `oo::class` accepts only `create` (drops `new`/`createWithNamespace`); `initialise` body not walked; `property -get/-set` accessor bodies not walked. |
+| TclOO construct coverage | _analyser/_oo.py (full) | analyser/oo.rs, handlers.rs | ✅ | Stale-note fix: the three gaps previously listed here (`oo::class` dropping `new`/`createWithNamespace`; `initialise` body not walked; `property -get/-set` accessor bodies not walked) are all covered — see `oo_class_create_with_namespace_is_recognised`, `oo_initialise_body_is_walked`, `oo_property_accessor_bodies_are_walked` in `oo.rs`. |
 | snit support | _oo.py:492-790 + class_names.py | — | ❌ | **Largest OO gap** — no snit handling in the Rust analyser. |
 | Signature discovery | analyser/signature_scan.py | signature_scan/* | ✅ | Full parity (proc/namespace/import/package/source/interp-alias/oo::class/itcl::class, conditional recursion, tcllib factory resolver). |
 | proc lookup / reference matching | analyser/proc_lookup.py | signature_help.rs:322 | ✅ | Identical 3-way name predicate. |

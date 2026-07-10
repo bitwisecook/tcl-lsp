@@ -560,11 +560,15 @@ impl Analyser {
         );
 
         // `TclOO` constructor-call arity (`ClassName new ?args?` /
-        // `ClassName create name ?args?`) — queued unconditionally whenever
-        // the first word is literally `new`/`create`, independent of
+        // `ClassName create name ?args?` / `ClassName createWithNamespace
+        // name ::ns ?args?`) — queued unconditionally whenever the first
+        // word is literally one of those three keywords, independent of
         // whether `cmd_name` resolves to anything at all; a call whose head
         // isn't a locally-known class is silently dropped at flush time.
-        if matches!(args.first().map(String::as_str), Some("new" | "create")) {
+        if matches!(
+            args.first().map(String::as_str),
+            Some("new" | "create" | "createWithNamespace")
+        ) {
             self.queue_ctor_arity_candidate(
                 cmd_name,
                 &ArityWords {
@@ -984,24 +988,26 @@ impl Analyser {
 
     /// Idempotent: drains `pending_ctor_arity`, so a second call is a no-op.
     ///
-    /// Resolves each queued `ClassName new` / `ClassName create name`
-    /// candidate against `all_classes` (fully populated post-walk, after
-    /// every per-item body has been grafted) using the same current-
-    /// namespace-then-global resolution and top-level order gate as the
-    /// same-file proc/alias arity path. Only genuine `TclOO` classes
-    /// (`oo::class` / `oo::configurable` / `oo::abstract` / `oo::singleton`
-    /// metaclasses) are checked — snit/itcl classes use an entirely
-    /// different instantiation protocol (`TypeName instanceName ?args?`,
-    /// never `new`/`create`), so their (unrelated) `new`/`create` calls, if
-    /// any, must not be arity-checked against a `TclOO` constructor.
+    /// Resolves each queued `ClassName new` / `ClassName create name` /
+    /// `ClassName createWithNamespace name ::ns` candidate against
+    /// `all_classes` (fully populated post-walk, after every per-item body
+    /// has been grafted) using the same current-namespace-then-global
+    /// resolution and top-level order gate as the same-file proc/alias
+    /// arity path. Only genuine `TclOO` classes (`oo::class` /
+    /// `oo::configurable` / `oo::abstract` / `oo::singleton` metaclasses)
+    /// are checked — snit/itcl classes use an entirely different
+    /// instantiation protocol (`TypeName instanceName ?args?`, never
+    /// `new`/`create`/`createWithNamespace`), so their (unrelated) calls,
+    /// if any, must not be arity-checked against a `TclOO` constructor.
     ///
     /// A candidate resolving to a class with no explicit constructor
     /// anywhere in its MRO is dropped — `TclOO`'s inherited default
     /// constructor accepts any argument count (confirmed against tclsh
-    /// 9.0.4). `create`'s mandatory leading object-name word is folded into
-    /// the expected bound (`bump_arity`) before comparison, so its arity
-    /// message reads in terms of `create`'s own full argument list, not the
-    /// constructor's.
+    /// 9.0.4). Each form's mandatory leading words
+    /// ([`super::types::CtorForm::extra_leading_words`]) are folded into
+    /// the expected bound (`bump_arity`) before comparison, so the arity
+    /// message reads in terms of the call's own full argument list, not
+    /// the constructor's.
     pub fn flush_ctor_arity_diagnostics(&mut self) {
         if self.pending_ctor_arity.is_empty() {
             return;
@@ -1058,16 +1064,8 @@ impl Analyser {
                     continue;
                 };
                 let arity = crate::signature_scan::arity::arity_of(&ctor.params);
-                let arity = if cand.is_create {
-                    bump_arity(arity, 1)
-                } else {
-                    arity
-                };
-                let display_name = format!(
-                    "{} {}",
-                    cand.class_name,
-                    if cand.is_create { "create" } else { "new" }
-                );
+                let arity = bump_arity(arity, cand.form.extra_leading_words());
+                let display_name = format!("{} {}", cand.class_name, cand.form.as_str());
                 if let Some(diag) = arity_verdict(
                     &display_name,
                     arity,
@@ -1129,15 +1127,16 @@ impl Analyser {
 
     /// Queue a `TclOO` constructor-call (`ClassName new ?args?` /
     /// `ClassName create name ?args?`) arity candidate. Queued
-    /// unconditionally by every call whose first word is `new`/`create`
-    /// (the caller's guard) — [`Self::flush_ctor_arity_diagnostics`]
-    /// resolves it post-walk against `all_classes`, which mid-walk may not
-    /// yet hold a forward-referenced class. A call whose head doesn't
-    /// resolve to a locally-known class is silently dropped at flush time,
-    /// exactly like [`Self::queue_user_call_arity_candidate`].
+    /// unconditionally by every call whose first word is
+    /// `new`/`create`/`createWithNamespace` (the caller's guard) —
+    /// [`Self::flush_ctor_arity_diagnostics`] resolves it post-walk against
+    /// `all_classes`, which mid-walk may not yet hold a forward-referenced
+    /// class. A call whose head doesn't resolve to a locally-known class is
+    /// silently dropped at flush time, exactly like
+    /// [`Self::queue_user_call_arity_candidate`].
     ///
-    /// `words.args` still has `new`/`create` at index 0; the positional
-    /// count starts at index 1 so the keyword itself is never counted.
+    /// `words.args` still has the keyword at index 0; the positional count
+    /// starts at index 1 so the keyword itself is never counted.
     fn queue_ctor_arity_candidate(
         &mut self,
         cmd_name: &str,
@@ -1153,7 +1152,11 @@ impl Analyser {
             arg_expand,
             cmd_tok,
         } = *words;
-        let is_create = args[0] == "create";
+        let form = match args[0].as_str() {
+            "create" => super::types::CtorForm::Create,
+            "createWithNamespace" => super::types::CtorForm::CreateWithNamespace,
+            _ => super::types::CtorForm::New,
+        };
         let (nargs_min, positional_any_expand) = count_positionals(args, arg_expand, 1);
         let full_span = match arg_tokens.last() {
             Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
@@ -1164,7 +1167,7 @@ impl Analyser {
                 class_name: cmd_name.to_string(),
                 ns: self.command_resolution_namespace(scope_path),
                 enforce_order: !self.scope_path_in_proc_body(scope_path),
-                is_create,
+                form,
                 call_off: cmd_tok.span.start(),
                 full_span,
                 nargs_min,
