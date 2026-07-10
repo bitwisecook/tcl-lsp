@@ -562,6 +562,10 @@ impl Vm {
         ] {
             let _ = self.write_array_raw("tcl_platform", k, Value::string(v.as_str()));
         }
+        // `std::env` is unsupported on wasm32-unknown-unknown (a bare wasm host
+        // has no process environment; the std shim panics). The VM runs there —
+        // e.g. the pure-data coroutine VM on wasm — with an empty `env` array.
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         for (k, v) in std::env::vars() {
             let _ = self.write_array_raw("env", &k, Value::string(v));
         }
@@ -575,7 +579,10 @@ impl Vm {
         // init derives it from `$env(TCL_LIBRARY)` (set when the caller points
         // the VM at a real library tree). Library scripts (tcltest) read it at
         // load time, so default it to "" rather than leaving it unset.
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         let tcl_library = std::env::var("TCL_LIBRARY").unwrap_or_default();
+        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+        let tcl_library = String::new();
         self.write_scalar_raw("tcl_library", Value::string(tcl_library));
     }
 

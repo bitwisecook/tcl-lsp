@@ -7,8 +7,8 @@
 | **Severity** | high |
 | **Subsystem** | Backend parity (WASM/VM/eBPF/registry) |
 | **Location** | `WASM backend` |
-| **Status** | Open |
-| **Verification** | Reported by review agent (confidence: high) |
+| **Status** | Substantially resolved (VM coroutines + event loop + thread package; coroutines proven on wasm32 via the VM). Open tail: wiring the VM as the primary wasm compile backend, and VM `yield` across `catch`/`uplevel`/`eval`. |
+| **Verification** | Oracle-checked against tclsh 9.0.4 (coroutine/event-loop suites) + a Node-executed wasm32 coroutine test; thread package via deterministic concurrency tests (no threaded oracle). |
 
 ## Finding
 
@@ -94,6 +94,27 @@ sync/async send, per-worker isolation, worker-error propagation, exists/names/
 release, an atomic 4-thread `tsv::incr` counter totalling 1000, and the `tsv::*`
 element operations), with semantics per the Tcl `Thread` package docs.
 
+## Progress — coroutines on wasm32 (Phase 4)
+
+The VM's coroutines are **pure data** (a frozen `Vec<Frame>` + saved flow, no OS
+threads, no `unsafe`), so — as the plan anticipated — they are wasm-portable
+without asyncify: the path to wasm coroutines is *the VM running on wasm32*. This
+is proven end to end: the whole compile→run pipeline (`tcl-vm` + `tcl-compiler`)
+builds for `wasm32-unknown-unknown`, and `rust/tcl-vm/tests/wasm_coro_e2e.rs`
+generates a tiny `cdylib` over this workspace's crates, builds it to wasm32, and
+runs it under **Node**'s `WebAssembly` API (no imports, no WASI). Three coroutine
+scripts return the same tclsh-9.0.4 oracle values as on native: a `foreach`
+generator with yieldable `[c]` command substitution → `234`, the `set n [yield
+$sum]` resume-value idiom → `51518`, and `coroutine … apply {lambda}` → `809`.
+The test skips cleanly without the wasm32 target or `node`.
+
+One portability fix landed with it: `bootstrap_globals` populated the `env` array
+via `std::env::vars()`, which the wasm32-unknown-unknown std shim aborts on; it is
+now `cfg`-gated off that target (an empty `env`), leaving native/WASI unchanged.
+
+This supersedes the runtime tree-walker's OS-thread-per-coroutine wasm stub (the
+plan's asyncify alternative): the VM delivers working wasm coroutines directly.
+
 **Remaining (still Open):**
 - A `yield` reached across a host re-entry the VM runs on the **native Rust
   stack** — `catch`/`uplevel`/`eval`, and `apply` in an *arbitrary* position
@@ -105,6 +126,9 @@ element operations), with semantics per the Tcl `Thread` package docs.
 - Thread-package extras not yet modelled: `thread::mutex`/`cond`/`rwmutex` and
   `tpool::*` (the sync-send + `tsv` model already gives safe coordination), and
   the `tcl-registry` `Thread`-package `CommandSpec`s (LSP metadata; the runtime
-  and the `RUST_ISSUE_006` core-backing gate do not require them).
-- The **wasm32** runtime coroutines (asyncify or VM-on-wasm) — Phase 4,
-  untouched.
+  and the `RUST_ISSUE_006` core-backing gate do not require them). The `thread`
+  package is a native-only VM feature (it needs OS threads); on wasm the VM runs
+  single-threaded with coroutines, matching the plan's per-backend model.
+- Wiring the VM as the primary **wasm compile target** (so the compiler emits
+  VM-on-wasm rather than the tree-walker C-ABI) is a larger, separate migration;
+  the coroutine capability it would carry is already proven here.
