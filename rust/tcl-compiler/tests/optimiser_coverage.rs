@@ -665,28 +665,27 @@ fn o112_constant_branch_elimination_blocks_on_variable_trace() {
 }
 
 #[test]
-fn o107_dead_code_elimination_of_unreachable_branch_is_a_known_gap() {
-    // Documented, deliberate scope limitation: `elimination.rs`'s O107
-    // "unreachable code" deletion is a *third* independent consumer of
-    // SCCP's trace-blind `executable_blocks`/`constant_branches` facts —
-    // discovered while fixing O100/O112's own consumption of the same
-    // upstream data (`structure_elimination`'s O112 fix above correctly
-    // keeps the `if` statement's *structure*, but O107 still deletes the
-    // now-"provably unreachable" `else` body's *contents* on a later
-    // pass, silently losing the same trace-firing behaviour through a
-    // different code path). Root cause: SCCP's own dataflow
-    // (`rust/tcl-compiler/src/sccp.rs`) has no notion of variable traces
-    // or frame-aliasing at all — every consumer of its lattice /
-    // reachability facts (this file's `propagation`/`branch_folding`/
-    // `structure_elimination`, now fixed, plus `elimination`, not yet)
-    // inherits the gap independently. The robust fix is at the SCCP
-    // level itself (treat a read of a traced/aliased variable as
-    // `Overdefined`), not another per-consumer patch — asserting the
-    // current, known-wrong behaviour here so a future fix flips this
-    // assertion instead of regressing silently past an absent test.
+fn o107_dead_code_elimination_of_unreachable_branch_respects_variable_trace() {
+    // Was a documented, deliberate gap: `elimination.rs`'s O107 "unreachable
+    // code" deletion was a *third* independent consumer of SCCP's
+    // `executable_blocks`/`constant_branches` facts, and (unlike
+    // `propagation`/`branch_folding`/`structure_elimination`, which this
+    // module's `O100`/`O112` trace-safety tests cover directly) had no
+    // per-pass retrofit — so it still deleted the "provably unreachable"
+    // `else` body's contents even when `x`'s constant-ness was only true
+    // because SCCP didn't know about the `trace add variable ::x` a
+    // *different* proc installs.
+    //
+    // Fixed for free at the root, not by a fourth per-pass patch: SCCP
+    // itself (`sccp.rs`) now consults a whole-module variable-trace fact
+    // (`var_observability::ModuleVariableTraces`, threaded in via
+    // `compilation_unit.rs`) and forces `x` to `Overdefined`, so
+    // `executable_blocks`/`constant_branches` — and every one of their
+    // consumers, including this one — see the `else` arm as reachable.
+    // No optimisation fires at all; the source survives byte-for-byte.
     let src = "proc onread {name1 name2 op} {\n    puts \"trace fired\"\n}\nproc setup {} {\n    trace add variable ::x read onread\n}\nset x 1\nsetup\nif {$x} {\n    puts yes\n} else {\n    puts no\n}\n";
-    assert!(opt_fires(src, TCL, "O107"));
-    assert!(!optimised(src, TCL).contains("puts no"));
+    assert!(opt_absent(src, TCL, "O107"));
+    assert!(optimised(src, TCL).contains("puts no"));
 }
 
 // ===========================================================================
