@@ -35,8 +35,8 @@ use bpf_tcl_ir::{BpfDiag, BpfError};
 use tcl_lexer::Span;
 
 use crate::ebpf::insn::{
-    ADD, AND, DIV, Insn, JEQ, JNE, JSGE, JSGT, JSLE, JSLT, LSH, MOD, MUL, OR, R0, R1, R2, R3, R6,
-    R7, R10, RSH, SUB, SZ_B, SZ_DW, SZ_H, SZ_W, XOR, alu64_imm, alu64_reg, alu64_reg_off, call,
+    ADD, AND, ARSH, DIV, Insn, JEQ, JNE, JSGE, JSGT, JSLE, JSLT, LSH, MOD, MUL, OR, R0, R1, R2, R3,
+    R6, R7, R10, SUB, SZ_B, SZ_DW, SZ_H, SZ_W, XOR, alu64_imm, alu64_reg, alu64_reg_off, call,
     exit, ja, jmp_imm, jmp_reg, ldx, mov64_imm, mov64_reg, neg64, st_imm, stx,
 };
 
@@ -291,11 +291,14 @@ fn emit_term(term: &Term, pend: &mut Vec<Pending>) {
 /// Map an [`IntBinOp`] to its eBPF ALU opcode plus the instruction `off` field.
 ///
 /// Tcl integers are signed 64-bit — the CFG lowers comparisons to signed jumps
-/// (`JSLT`, …) and uses sign-extending moves — so `/` and `%` must use the
-/// **signed** eBPF division ops. `BPF_SDIV` / `BPF_SMOD` are encoded as `DIV` /
-/// `MOD` with `off == 1`; the plain unsigned `DIV` / `MOD` (off 0) reinterpret a
-/// negative operand as a huge unsigned value, giving a catastrophically wrong
-/// result silently (`RUST_ISSUE_031`). Every other op keeps `off == 0`.
+/// (`JSLT`, …) and uses sign-extending moves — so `/`, `%`, and `>>` must use the
+/// **signed** eBPF ops. `BPF_SDIV` / `BPF_SMOD` are encoded as `DIV` / `MOD` with
+/// `off == 1`; the plain unsigned `DIV` / `MOD` (off 0) reinterpret a negative
+/// operand as a huge unsigned value, giving a catastrophically wrong result
+/// silently (`RUST_ISSUE_031`). `>>` likewise lowers to the arithmetic
+/// (sign-preserving) `ARSH`, not the logical `RSH`, so `-8 >> 1` is `-4` as Tcl
+/// requires rather than a huge positive (`RUST_ISSUE_062` / `097`). Every other
+/// op keeps `off == 0`.
 fn bin_alu(op: IntBinOp) -> (u8, i16) {
     match op {
         IntBinOp::Add => (ADD, 0),
@@ -307,7 +310,7 @@ fn bin_alu(op: IntBinOp) -> (u8, i16) {
         IntBinOp::Or => (OR, 0),
         IntBinOp::Xor => (XOR, 0),
         IntBinOp::Shl => (LSH, 0),
-        IntBinOp::Shr => (RSH, 0),
+        IntBinOp::Shr => (ARSH, 0),
     }
 }
 
@@ -364,7 +367,7 @@ mod tests {
 
     #[test]
     fn division_uses_signed_ops() {
-        // RUST_ISSUE_031: `/` and `%` on signed Tcl integers must emit the
+        // `RUST_ISSUE_031`: `/` and `%` on signed Tcl integers must emit the
         // signed eBPF ops (BPF_SDIV / BPF_SMOD = DIV / MOD with off == 1), not
         // the unsigned forms that mangle negative operands.
         let div_op = alu64_reg_off(DIV, R1, R2, 1).op;

@@ -467,6 +467,80 @@ impl Lowerer<'_> {
         }
     }
 
+    /// Truncate a computed value `tmp` into `dst` to the named integer width:
+    /// `seti32` sign-extends the low 32 bits (`(v << 32) >> 32`, arithmetic), so
+    /// a value overflowing 32 bits becomes its signed 32-bit truncation; `setu32`
+    /// zeroes the high half (`v & ((1 << 32) - 1)`, the mask computed because a
+    /// bare `0xFFFFFFFF` immediate exceeds the v1 32-bit const limit); `setint`
+    /// keeps the full 64-bit value (`RUST_ISSUE_172`).
+    fn emit_width_set(
+        &mut self,
+        cmd: &str,
+        tmp: SlotId,
+        dst: SlotId,
+        insts: &mut Vec<Inst>,
+        span: Span,
+    ) -> Result<(), BpfError> {
+        let mut konst = |this: &mut Self, val: i64| -> Result<SlotId, BpfError> {
+            let s = this.fresh_slot(Ty::Int, span)?;
+            insts.push(Inst::Const { dst: s, val, span });
+            Ok(s)
+        };
+        match cmd {
+            "seti32" => {
+                let sh = konst(self, 32)?;
+                let hi = self.fresh_slot(Ty::Int, span)?;
+                insts.push(Inst::Bin {
+                    dst: hi,
+                    op: IntBinOp::Shl,
+                    a: tmp,
+                    b: sh,
+                    span,
+                });
+                insts.push(Inst::Bin {
+                    dst,
+                    op: IntBinOp::Shr,
+                    a: hi,
+                    b: sh,
+                    span,
+                });
+            }
+            "setu32" => {
+                let one = konst(self, 1)?;
+                let sh = konst(self, 32)?;
+                let hi = self.fresh_slot(Ty::Int, span)?;
+                insts.push(Inst::Bin {
+                    dst: hi,
+                    op: IntBinOp::Shl,
+                    a: one,
+                    b: sh,
+                    span,
+                });
+                let mask = self.fresh_slot(Ty::Int, span)?;
+                insts.push(Inst::Bin {
+                    dst: mask,
+                    op: IntBinOp::Sub,
+                    a: hi,
+                    b: one,
+                    span,
+                });
+                insts.push(Inst::Bin {
+                    dst,
+                    op: IntBinOp::And,
+                    a: tmp,
+                    b: mask,
+                    span,
+                });
+            }
+            _ => insts.push(Inst::Copy {
+                dst,
+                src: tmp,
+                span,
+            }),
+        }
+        Ok(())
+    }
+
     fn lower_call(
         &mut self,
         cmd: &str,
@@ -482,11 +556,7 @@ impl Lowerer<'_> {
                 let expr = parse_expr(&args[1], None);
                 let tmp = self.lower_expr(&expr, insts, span)?;
                 let dst = self.var_slot(&args[0], Ty::Int, span)?;
-                insts.push(Inst::Copy {
-                    dst,
-                    src: tmp,
-                    span,
-                });
+                self.emit_width_set(cmd, tmp, dst, insts, span)?;
                 Ok(None)
             }
             "setbuf" => {
