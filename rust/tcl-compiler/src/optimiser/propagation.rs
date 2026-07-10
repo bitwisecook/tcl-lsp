@@ -916,14 +916,9 @@ fn resolve_return_constant(
             continue;
         }
         let folded = match &block.terminator {
-            Some(Terminator::Return { value, expr, .. }) => fold_return_under_lattice(
-                fu,
-                *bn,
-                value.as_deref(),
-                expr.as_ref(),
-                result,
-                octal,
-            )?,
+            Some(Terminator::Return { value, expr, .. }) => {
+                fold_return_under_lattice(fu, *bn, value.as_deref(), expr.as_ref(), result, octal)?
+            }
             None => resolve_fallthrough_value(fu, *bn, result, &preds, octal)?,
             Some(_) => continue, // Goto / Branch — not an exit point
         };
