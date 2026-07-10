@@ -1453,6 +1453,48 @@ mod tests {
         );
     }
 
+    /// Regression, dual-ported-variable flavour of the above: C Tcl's
+    /// interpreter-linked globals (`tcl_precision`, `auto_path`, `env`,
+    /// `tcl_platform`, …) are ordinary Tcl variables from the analysed
+    /// script's point of view — `global`/`set` on them lowers exactly like
+    /// any other name — so they must get exactly the same
+    /// `scan_module_global_names` protection as `g` above, with no
+    /// special-casing needed anywhere in the compiler. `tcl_precision` is
+    /// registered in `tcl_registry::special_vars` (confirmed by the
+    /// `for name in [...]` list in that crate's own tests), so this also
+    /// locks in that the read-side SCCP protection and the write-side
+    /// `special_var_write_effect` side-effect tagging (`side_effects.rs`)
+    /// compose correctly on the same variable rather than one substituting
+    /// for the other.
+    #[test]
+    fn top_level_dual_ported_var_touched_by_callee_global_is_overdefined() {
+        let reg = registry();
+        let src = "set tcl_precision 4\nproc helper {} { global tcl_precision\nset tcl_precision 17 }\nhelper\n";
+        let cu = CompilationUnit::build_for(src, &reg, false);
+        let sym = cu
+            .top_level
+            .ssa
+            .var_symbol("tcl_precision")
+            .expect("top-level `tcl_precision` should be interned");
+        let all_overdefined = cu
+            .top_level
+            .sccp
+            .values
+            .iter()
+            .filter(|((s, _), _)| *s == sym)
+            .all(|(_, lv)| !matches!(lv, crate::analyses::LatticeValue::Const(_)));
+        assert!(
+            all_overdefined,
+            "expected every `tcl_precision` lattice entry to be non-Const, got {:?}",
+            cu.top_level
+                .sccp
+                .values
+                .iter()
+                .filter(|((s, _), _)| *s == sym)
+                .collect::<Vec<_>>()
+        );
+    }
+
     /// Control: a top-level name *no* procedure ever `global`-declares must
     /// still fold to a genuine `Const` — the whole-module scan must not
     /// over-widen every top-level variable (that would be a precision

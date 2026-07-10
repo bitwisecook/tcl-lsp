@@ -1155,6 +1155,74 @@ mod tests {
     }
 
     #[test]
+    fn tcloo_method_bodies_get_zero_o100_family_optimisations() {
+        // Coverage gap, not a bug: `branch_folding::run` walks
+        // `cu.analysable_functions()` and `propagation::run` walks
+        // `cu.top_level` + `cu.procedures` directly — neither visits
+        // `cu.methods`. So today the O100/O101/O102/O103
+        // constant-propagation and branch-folding family never fires inside
+        // a TclOO method body, even for a body this trivially foldable.
+        // Contrast with O109 (dead-store elimination, `elimination.rs`),
+        // which explicitly iterates `cu.methods` with its own
+        // instance-variable escaping rules. This test locks in the
+        // *current* behaviour so a future change that starts analysing
+        // method bodies is a deliberate, reviewed decision — not an
+        // accidental regression noticed only via a diff in generated
+        // diagnostics.
+        let src = "oo::class create Counter {\n    \
+                   method bump {} {\n        set n 5\n        return $n\n    }\n}\n";
+        let opts = optimise(src, &registry());
+        assert!(
+            opts.iter().all(|o| !matches!(
+                o.code,
+                DiagCode::O100 | DiagCode::O101 | DiagCode::O102 | DiagCode::O103
+            )),
+            "TclOO method bodies are not yet analysed by the O100 family, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn interp_eval_barrier_body_never_gets_o100_family_diagnostics() {
+        // True negative, by design rather than by soundness gap: a literal
+        // `interp eval {} {…}` body lowers its whole argument list to a
+        // single opaque `Statement::Barrier` (`command`/`args`/`tokens`
+        // only — see `ir.rs::Statement::Barrier`), never a nested `Script`.
+        // There is nothing for any pass's recursive statement walk to
+        // descend into, so an obviously-foldable expression written
+        // *inside* that literal body (`expr {1+1}`) never gets an O101
+        // constant-expr-fold diagnostic — `interp eval`'s body text is
+        // opaque to every static-analysis pass, exactly like a bare
+        // `eval`/`uplevel`/`unknown` body with a non-trivial target. This
+        // locks in that "no diagnostic" here is the *expected* shape, not
+        // an unnoticed hole.
+        let src = "interp eval {} { set x [expr {1+1}] }\n";
+        let opts = optimise(src, &registry());
+        assert!(
+            opts.iter().all(|o| !matches!(
+                o.code,
+                DiagCode::O100 | DiagCode::O101 | DiagCode::O102 | DiagCode::O103
+            )),
+            "content inside an `interp eval` barrier body must not be analysed, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn same_pattern_in_a_plain_proc_does_fold_as_control() {
+        // Precision control for the coverage-gap test above: the identical
+        // `set n 5; return $n` shape, in a plain (non-TclOO) proc, does
+        // fold (SCCP proves `n` constant and O100 rewrites the `return`
+        // directly) — proving the gap above is specific to method bodies
+        // rather than the pattern being unfoldable everywhere.
+        let src = "proc bump {} {\n    set n 5\n    return $n\n}\n";
+        let opts = optimise(src, &registry());
+        assert!(
+            opts.iter()
+                .any(|o| o.code == DiagCode::O100 && o.replacement == "return 5"),
+            "control: same set/return pattern in a plain proc should fold, got {opts:?}",
+        );
+    }
+
+    #[test]
     fn dialect_gated_passes_observe_active_dialect() {
         // irules-only O124 should fire when dialect = f5-irules.
         let src = "proc ::dead {} { return 1 }\nwhen HTTP_REQUEST { set x 0 }\n";
