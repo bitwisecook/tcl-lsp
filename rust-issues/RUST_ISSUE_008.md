@@ -7,8 +7,8 @@
 | **Severity** | high |
 | **Subsystem** | Backend parity (WASM/VM/eBPF/registry) |
 | **Location** | `WASM backend` |
-| **Status** | Substantially resolved (VM coroutines + event loop + thread package; coroutines proven on wasm32 via the VM). Open tail: wiring the VM as the primary wasm compile backend, and VM `yield` across `catch`/`uplevel`/`eval`. |
-| **Verification** | Oracle-checked against tclsh 9.0.4 (coroutine/event-loop suites) + a Node-executed wasm32 coroutine test; thread package via deterministic concurrency tests (no threaded oracle). |
+| **Status** | Substantially resolved (VM coroutines incl. `coroprobe`/`coroinject`/`corotype`/`yieldto` + event loop + thread package; coroutines proven on wasm32 via the VM). C `coroutine.test` runs the VM at **50/77** (3 skipped, 24 remaining are the documented host-re-entry divergence + unimplemented `info frame`/`interp create`). Open tail: wiring the VM as the primary wasm compile backend, and VM `yield` across `catch`/`uplevel`/`eval`/`subst`. |
+| **Verification** | Oracle-checked against tclsh 9.0.4 (coroutine/event-loop suites, 26 `cmd_coro_e2e` tests) + the real C `tests/coroutine.test` through the VM (50/77) + a Node-executed wasm32 coroutine test; thread package via deterministic concurrency tests (`thread.test` is `testthread`-gated → N/A; no threaded oracle). |
 
 ## Finding
 
@@ -26,7 +26,7 @@ request that `dispatch_words` turns into a new `Tick::Suspend` (mirroring the
 `tailcall` → `Tick::Tailcall` plumbing; no compiler/bytecode change).
 
 Working and oracle-checked against tclsh 9.0.4
-(`rust/tcl-vm/tests/cmd_coro_e2e.rs`, 17 tests): `coroutine`/`yield`,
+(`rust/tcl-vm/tests/cmd_coro_e2e.rs`, 26 tests): `coroutine`/`yield`,
 generator-style bodies (`yield $x` in `foreach`/`while`/nested proc calls),
 **command substitution** (`set arg [yield $result]` — the resume-value idiom —
 and `cmd [yield]` argument position), **`coroutine c apply {lambda}`** (the
@@ -35,6 +35,19 @@ coroutine]`, the resume command, `rename $coro {}` teardown + rename-to-new, the
 already-running guard, and `yield`/`yieldto` outside a coroutine. Boundary errors
 match C's `cannot yield: C stack busy`, detected via a `Vm::activation_depth`
 re-entry counter.
+
+The TCL90 introspection/steering commands are implemented too: **`coroprobe`**
+(evaluate a command in a *suspended* coroutine's own frame without resuming it),
+**`coroinject`** (schedule a command to run in the coroutine at its next resume,
+transforming what the parked `yield` returns), **`::tcl::unsupported::corotype`**
+(report `active`/`yield`/`yieldto`), and **`yieldto`** delivering its N resume
+args as a list. Further C-parity fixes: a body finishing with `return -code N`
+for a non-standard N surfaces `Code::Other(N)` to the resumer; `[info coroutine]`
+is empty once a coroutine deletes its own command; a coroutine's initial command
+resolves in the namespace where `coroutine` was called; and **unset variable
+traces fire on frame teardown** — both a normal proc return and coroutine
+teardown (completion or deletion of a suspended coroutine) now unset a frame's
+locals and fire their traces, as C does.
 
 **Command substitution is now yieldable.** A whole-word `[…]` compiles to an
 inline `INVOKE` on the explicit activation stack (matching C Tcl, which never
@@ -115,14 +128,50 @@ now `cfg`-gated off that target (an empty `env`), leaving native/WASI unchanged.
 This supersedes the runtime tree-walker's OS-thread-per-coroutine wasm stub (the
 plan's asyncify alternative): the VM delivers working wasm coroutines directly.
 
+## Progress — C `coroutine.test` / `thread.test` harnesses
+
+The actual C Tcl 9.0.4 `tests/coroutine.test` runs through the VM (bytecode) via
+tcltest: **50 / 77 passing, 3 skipped** (the `testnrelevels`/`memory` constraints
+gate C-only test commands the VM does not provide). The 24 remaining failures are
+the design divergence, not regressions:
+
+- **`yield`/`yieldto` cannot cross a host re-entry the VM runs on the native Rust
+  stack** (13): `uplevel` (1.7/1.8/1.12), `eval` (1.9/1.10), `subst`
+  (1.13/1.14), `lmap`-wrapped yield/yieldto (9.2, 10.1/10.2/10.3), `try` +
+  event loop (7.14), and mutual `yieldto` whose `[yieldto …]` sits in a
+  command-substitution argument slot that lowers to the runtime `subst_word`
+  fallback rather than an inline `INVOKE` (7.3, 12.1). C Tcl NR-enables these;
+  the VM reports the real `cannot yield: C stack busy` as an ordinary catchable
+  error. Making every such construct re-enter the explicit trampoline is the
+  open yieldable-surface work.
+- **Introspection/embedding features the VM does not implement** (11): `info
+  frame` (3.2/3.6/3.7/10.9), child interpreters `interp create` (7.7/9.9/12.1),
+  and detecting a coroutine whose namespace was deleted mid-suspend to raise
+  `yieldto called in deleted namespace` (7.8–7.11).
+
+The C `thread.test` (52 tests) is **not applicable** to the VM's thread package:
+every test is gated on the `testthread`/`thread` constraints, which require the
+core `tcl::test` `testthread` command and a `Thread`-package/threaded build — a
+different design from the VM's shared-nothing `Thread`-extension-style package
+(Phase 3). Run through the VM, all 52 skip. The VM's threading is instead
+validated by the native `cmd_thread_e2e.rs` suite (per the `Thread` package docs;
+the reference tclsh is non-threaded, so there is no threaded oracle).
+
 **Remaining (still Open):**
-- A `yield` reached across a host re-entry the VM runs on the **native Rust
-  stack** — `catch`/`uplevel`/`eval`, and `apply` in an *arbitrary* position
-  (not the `coroutine … apply` form, which is handled) — still errors `cannot
-  yield: C stack busy` instead of yielding. C Tcl makes those NR-enabled; making
-  them re-enter the explicit trampoline is the remaining yieldable-surface work.
-- `yieldto` beyond the outside-a-coroutine error; the creating-namespace/`info
-  level` refinements.
+- A `yield`/`yieldto` reached across a host re-entry the VM runs on the **native
+  Rust stack** — `catch`/`uplevel`/`eval`/`subst`/`lmap`/`try`, `apply` in an
+  *arbitrary* position (not the `coroutine … apply` form, which is handled), and
+  a `[yieldto …]` command substitution in an argument slot that lowers to runtime
+  `subst_word` — still errors `cannot yield: C stack busy` instead of yielding. C
+  Tcl makes those NR-enabled; making every such construct re-enter the explicit
+  trampoline is the remaining yieldable-surface work (see the harness section:
+  ~13 of the 24 `coroutine.test` failures). `yieldto` itself, the
+  creating-namespace command resolution, and `info level`/`info coroutine` are
+  done.
+- Introspection/embedding gaps behind the other ~11 `coroutine.test` failures:
+  `info frame`, child interpreters (`interp create`), and raising `yieldto
+  called in deleted namespace` when a coroutine's namespace is deleted while it
+  is suspended.
 - Thread-package extras not yet modelled: `thread::mutex`/`cond`/`rwmutex` and
   `tpool::*` (the sync-send + `tsv` model already gives safe coordination), and
   the `tcl-registry` `Thread`-package `CommandSpec`s (LSP metadata; the runtime
