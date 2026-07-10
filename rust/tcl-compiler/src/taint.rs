@@ -2975,10 +2975,17 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
     warnings: &mut Vec<TaintWarning>,
     stmt: &Statement,
 ) {
+    // `tokens` is unused here: T102's own `t102_arg_span(stmt, arg_index)`
+    // re-derives the tight per-argument span directly from `stmt` (it
+    // already knows the exact `arg_index` from `option_scan_region`'s
+    // iteration, so an index-based lookup is more precise than
+    // `sink_arg_span`'s name-based scan, which could mismatch when the
+    // same variable name occurs in more than one scanned position).
     let &SinkCall {
         command,
         args,
         registry,
+        tokens: _,
     } = sink_call;
     let (uses, taints, ssa) = (env.uses, env.taints, env.ssa);
     let args_str: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -4618,6 +4625,82 @@ mod tests {
         assert_eq!(
             fixed,
             "set pattern [gets stdin]\nregexp -- $pattern $haystack"
+        );
+    }
+
+    /// `interp alias {} myregexp {} regexp` makes `myregexp` behave
+    /// exactly like `regexp` at runtime (tclsh 9.0.4-verified), including
+    /// its option parsing — so a tainted argument reaching `myregexp`
+    /// must trip T102 just as it would through the bare `regexp` name.
+    /// `emit_statement_warnings`'s `canonical_command_or_source()` dispatch
+    /// (shared by the whole sink family, see the `t100_fires_through_*`
+    /// tests) resolves the alias for registry classification, while the
+    /// message and span still anchor on the alias call the source
+    /// actually wrote.
+    #[test]
+    fn t102_fires_through_an_interp_alias() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let src = "interp alias {} myregexp {} regexp\nset pattern [gets stdin]\nmyregexp $pattern $haystack";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_taint_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.taints,
+            &fu.sccp.executable_blocks,
+            &registry,
+            Some("tcl8.6"),
+        );
+        let t102 = warnings
+            .iter()
+            .find(|w| w.code == DiagCode::T102)
+            .unwrap_or_else(|| {
+                panic!("expected a T102 warning through the alias, got {warnings:?}")
+            });
+        assert_eq!(t102.variable, "pattern");
+        assert!(
+            t102.message.contains("'regexp'"),
+            "message should name the resolved target command, got {:?}",
+            t102.message
+        );
+        // The span/fix still anchor on the alias call's own argument,
+        // not some fabricated position for the aliased-to command.
+        assert_eq!(t102.fixes.len(), 1);
+        let fix = &t102.fixes[0];
+        let mut fixed = src.to_owned();
+        fixed.insert_str(fix.span.start() as usize, &fix.new_text);
+        assert_eq!(
+            fixed,
+            "interp alias {} myregexp {} regexp\nset pattern [gets stdin]\nmyregexp -- $pattern $haystack"
+        );
+    }
+
+    /// `rename regexp myregexp` resolves through the same `CommandAliasMap`
+    /// mechanism as `interp alias` (`detect_rename`, see the T100 sibling
+    /// tests `t100_fires_through_rename_indirection` /
+    /// `t100_silent_for_unaliased_lookalike_command`), so T102 must also
+    /// fire through a renamed command name, not just an `interp alias`.
+    #[test]
+    fn t102_fires_through_a_rename() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let src = "rename regexp myregexp\nset pattern [gets stdin]\nmyregexp $pattern $haystack";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_taint_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.taints,
+            &fu.sccp.executable_blocks,
+            &registry,
+            Some("tcl8.6"),
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.code == DiagCode::T102 && w.variable == "pattern"),
+            "expected T102 for tainted $pattern through the `myregexp` rename, got {warnings:?}"
         );
     }
 
