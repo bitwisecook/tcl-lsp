@@ -96,6 +96,35 @@ fn alias_declared_outside_body_matches_full() {
     );
 }
 
+// Same hazard as `alias_declared_outside_body_matches_full`, but for a static
+// `rename` (taint-limitations investigation #1): `rename puts myputs` at the
+// top level populates the same lowerer alias table `interp alias` does, so a
+// file that renames a command outside any body must equally forgo the
+// isolated body cache.
+#[test]
+fn rename_declared_outside_body_matches_full() {
+    let src = "rename puts myputs\nproc f {x} { myputs $x }\n";
+    assert!(
+        tcl_compiler::lowering::source_may_alias_commands(src),
+        "file with a top-level `rename` must be flagged so it forgoes the body cache"
+    );
+    let db = TclDatabase::default();
+    let cfg = AnalyserConfig::new(
+        &db,
+        Vec::new(),
+        tcl_compiler::analyser::NonAsciiMode::Default,
+        Vec::new(),
+        None,
+    );
+    let file = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned());
+    let inc = file_analysis_incremental(&db, file, cfg);
+    let full = file_analysis(&db, file, cfg);
+    assert_eq!(
+        inc.diagnostics, full.diagnostics,
+        "incremental (memoised) analysis must match a fresh build when a rename is in scope"
+    );
+}
+
 #[test]
 #[ignore = "slow corpus sweep (~100s over tmp/); run with --ignored"]
 fn file_analysis_incremental_matches_full_over_corpus() {

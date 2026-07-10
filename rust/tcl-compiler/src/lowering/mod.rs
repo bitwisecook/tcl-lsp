@@ -1080,6 +1080,12 @@ impl<'r> Lowerer<'r> {
         } else if let Some((qualified, target)) = detect_rename(cmd_name, &args_owned) {
             self.aliases.insert(qualified, (target, Vec::new()));
         }
+        // Detect a static `rename old new` — feeds the same alias table so
+        // a call through the renamed name resolves `canonical_command` to
+        // `old`, just like an `interp alias` target (see `detect_rename`).
+        if let Some((qualified, target)) = detect_rename(cmd_name, &args_owned) {
+            self.aliases.insert(qualified, (target, vec![]));
+        }
 
         self.record_namespace_directives(cmd_name, args, seg, namespace);
 
@@ -2327,19 +2333,21 @@ pub fn body_cache_eligible(body: &str) -> bool {
 }
 
 /// Whether `source` may establish a command alias (`interp alias {} name {}
-/// target`) that a cached proc body could reference.
+/// target`, or a static `rename old new`) that a cached proc body could
+/// reference.
 ///
-/// `interp alias` populates the lowerer's alias table, and `resolve_alias`
-/// consults it while lowering *every* subsequent body — but the isolated
-/// body-cache lowering starts with an empty table, so an alias declared at the
-/// top level (outside any body the per-body [`body_cache_eligible`] scan
-/// inspects) would silently resolve differently there. The whole file must
-/// therefore forgo the body cache when this returns `true`. `interp` is the only
-/// command that feeds the alias table (see `detect_interp_alias`), so scanning
-/// for it as a word is both sufficient and conservative.
+/// `interp alias` and `rename` both populate the lowerer's alias table, and
+/// `resolve_alias` consults it while lowering *every* subsequent body — but
+/// the isolated body-cache lowering starts with an empty table, so an alias
+/// declared at the top level (outside any body the per-body
+/// [`body_cache_eligible`] scan inspects) would silently resolve differently
+/// there. The whole file must therefore forgo the body cache when this
+/// returns `true`. `interp` and `rename` are the only commands that feed the
+/// alias table (see `detect_interp_alias` / `detect_rename`), so scanning for
+/// either as a word is both sufficient and conservative.
 #[must_use]
 pub fn source_may_alias_commands(source: &str) -> bool {
-    contains_word_followed_by_ws(source, "interp")
+    contains_word_followed_by_ws(source, "interp") || contains_word_followed_by_ws(source, "rename")
 }
 
 /// True when `word` occurs in `source` followed by Tcl inter-word whitespace —
@@ -2435,6 +2443,44 @@ mod body_cache_eligible_tests {
             format!("{cached:?}"),
             format!("{fresh:?}"),
             "an alias-in-scope body cache is expected to diverge from the in-place lowering"
+        );
+    }
+
+    #[test]
+    fn source_may_alias_commands_flags_rename() {
+        use super::source_may_alias_commands;
+        // A static `rename` establishes an alias a cached body cannot see —
+        // same hazard as `interp alias`, see `detect_rename`.
+        assert!(source_may_alias_commands(
+            "rename puts myputs\nproc f {x} { myputs $x }\n"
+        ));
+        assert!(source_may_alias_commands("rename\tputs myputs"));
+        // `rename` as a substring of a bareword does not trip it.
+        assert!(!source_may_alias_commands("set renamed 1"));
+    }
+
+    // Same hazard as `alias_in_scope_makes_body_cache_diverge`, for a static
+    // `rename`: `rename puts myputs` at the top level must make `f`'s body
+    // resolve `myputs` to `puts`, which the isolated (empty-alias-table) body
+    // cache cannot see.
+    #[test]
+    fn rename_in_scope_makes_body_cache_diverge() {
+        use tcl_registry::CommandRegistry;
+
+        use super::{
+            lower_proc_body_isolated, lower_to_ir_with_body_cache, lower_to_ir_with_config,
+        };
+
+        let reg = CommandRegistry::build_default();
+        let cfg = tcl_lexer::LexerConfig::default();
+        let src = "rename puts myputs\nproc f {x} { myputs $x }\n";
+        let cache = |body: &str, ns: &str| lower_proc_body_isolated(body, ns, &reg, cfg);
+        let cached = lower_to_ir_with_body_cache(src, &reg, cfg, &cache);
+        let fresh = lower_to_ir_with_config(src, &reg, cfg);
+        assert_ne!(
+            format!("{cached:?}"),
+            format!("{fresh:?}"),
+            "a rename-in-scope body cache is expected to diverge from the in-place lowering"
         );
     }
 }

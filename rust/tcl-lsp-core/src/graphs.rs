@@ -535,6 +535,7 @@ pub fn call_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Va
 /// yields a `variable` + `sink_command` (the path-concat warning is a
 /// `TaintWarning` with `sink_command="set"`; the Rust `PathConcatWarning`
 /// carries no command field, so we supply the same constant).
+#[allow(clippy::too_many_arguments)]
 fn collect_taint_warnings(
     fu: &FunctionUnit,
     taints: &std::collections::HashMap<
@@ -543,6 +544,8 @@ fn collect_taint_warnings(
     >,
     registry: &CommandRegistry,
     dialect: &str,
+    shadow_proc_qnames: &std::collections::HashSet<&str>,
+    module_traces: &tcl_compiler::var_observability::ModuleVariableTraces,
     line_index: &LineIndex,
     out: &mut Vec<Value>,
 ) {
@@ -556,6 +559,22 @@ fn collect_taint_warnings(
         }));
     };
 
+    // A namespace-scoped proc of the same name shadows a builtin for every
+    // call made from that namespace — see `taint::shadowed_builtin_names`.
+    let namespace = tcl_compiler::optimiser::helpers::naming::namespace_from_qualified(&fu.name);
+    let shadowed = tcl_compiler::taint::shadowed_builtin_names(
+        &namespace,
+        shadow_proc_qnames.iter().copied(),
+        registry,
+    );
+    // `trace add variable` / `trace variable` lets a runtime callback rewrite
+    // a variable in ways static analysis can't see — a traced name is
+    // conservatively treated as tainted everywhere in the module — see
+    // `taint::apply_module_variable_traces`.
+    let taints =
+        tcl_compiler::taint::apply_module_variable_traces(taints.clone(), &fu.ssa, module_traces);
+    let taints = &taints;
+
     // 1. Sink injection (T100 / T101 / T102 families).
     for w in find_taint_warnings(
         &fu.cfg,
@@ -564,6 +583,7 @@ fn collect_taint_warnings(
         &fu.sccp.executable_blocks,
         registry,
         Some(dialect),
+        &shadowed,
     ) {
         push(
             w.code.as_str(),
@@ -715,12 +735,17 @@ pub fn dataflow_graph(source: &str, registry: &CommandRegistry, dialect: &str) -
         tcl_compiler::taint_interproc::solve_interprocedural_taints(&cu, registry, Some(dialect));
 
     // Taint warnings: top level first, then each procedure.
+    let shadow_proc_qnames: std::collections::HashSet<&str> =
+        cu.procedures.keys().map(String::as_str).collect();
+    let module_traces = tcl_compiler::var_observability::scan_module_variable_traces(&cu.ir_module);
     let mut taint_warnings: Vec<Value> = Vec::new();
     collect_taint_warnings(
         &cu.top_level,
         solved.taints_for(&cu.top_level.name, &cu.top_level.taints),
         registry,
         dialect,
+        &shadow_proc_qnames,
+        &module_traces,
         &line_index,
         &mut taint_warnings,
     );
@@ -731,6 +756,8 @@ pub fn dataflow_graph(source: &str, registry: &CommandRegistry, dialect: &str) -
             solved.taints_for(&fu.name, &fu.taints),
             registry,
             dialect,
+            &shadow_proc_qnames,
+            &module_traces,
             &line_index,
             &mut taint_warnings,
         );

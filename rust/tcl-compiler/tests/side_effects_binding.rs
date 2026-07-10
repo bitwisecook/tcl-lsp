@@ -816,10 +816,17 @@ fn end_point(cfg: &tcl_compiler::cfg::Function) -> (tcl_compiler::cfg::BlockId, 
     last.expect("no non-empty block")
 }
 
-/// Source spelling / canonical name of a statement. Falls back to the source
-/// spelling when no canonical name was resolved.
+/// The literal source-surface command word of a statement — deliberately
+/// NOT `canonical_command_or_source()`. These helpers locate a statement by
+/// what the test source literally wrote (e.g. the bare `b` call after
+/// `rename a b`), so they can query the flow-sensitive binding lattice at
+/// that exact point; resolving through the canonical/alias target first
+/// would make a renamed or aliased call unfindable by its own written name.
 fn stmt_command(stmt: &Statement) -> &str {
-    stmt.canonical_command_or_source()
+    match stmt {
+        Statement::Call { command, .. } | Statement::Barrier { command, .. } => command.as_str(),
+        _ => "",
+    }
 }
 
 /// Source-surface command spelling of a statement — never the resolved
