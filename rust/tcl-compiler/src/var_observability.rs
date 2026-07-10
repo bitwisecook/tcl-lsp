@@ -250,6 +250,37 @@ impl VarObservability<'_> {
         }
         names
     }
+
+    /// Whole-function union: every name that is ever under a `trace` at any
+    /// point in the body — [`Self::escaping_var_names`] narrowed to the
+    /// `TRACED` flag alone (excluding a plain `global` / `variable` /
+    /// `upvar` alias with no trace). The flow-insensitive view: a trace
+    /// added partway through the function is treated as covering the whole
+    /// function, the same conservative widening [`Self::escaping_var_names`]
+    /// already applies for SCCP.
+    #[must_use]
+    pub fn traced_var_names(&self) -> std::collections::HashSet<String> {
+        let mut names = std::collections::HashSet::new();
+        for block in &self.ordered_blocks {
+            let mut state = self.block_entry.get(block).cloned().unwrap_or_default();
+            collect_traced(&state, &mut names);
+            if let Some(blk) = self.cfg.blocks.get(block) {
+                for stmt in &blk.statements {
+                    stmt_gen(stmt, &mut state);
+                    collect_traced(&state, &mut names);
+                }
+            }
+        }
+        names
+    }
+}
+
+fn collect_traced(state: &State, names: &mut std::collections::HashSet<String>) {
+    for (name, flag) in state {
+        if flag.is_traced() {
+            names.insert(name.clone());
+        }
+    }
 }
 
 fn collect_escaping(state: &State, names: &mut std::collections::HashSet<String>) {
@@ -550,6 +581,25 @@ mod tests {
         let obs = analyse_var_observability(&fu.cfg);
         assert!(obs.is_traced_at(fu.cfg.entry, 2, "t"));
         assert!(obs.escaping_var_names().contains("t"));
+        assert!(obs.traced_var_names().contains("t"));
+    }
+
+    /// [`VarObservability::traced_var_names`] narrows `escaping_var_names`
+    /// to the `TRACED` flag alone — a plain alias with no trace (`global g`)
+    /// must not appear in it, even though it does appear in the broader
+    /// `escaping_var_names` set.
+    #[test]
+    fn traced_var_names_excludes_untraced_aliases() {
+        let c = cu("proc ::p {} { global g\nset g 1\ntrace add variable t write cb\nset t 1 }");
+        let fu = c.function("::p").unwrap();
+        let obs = analyse_var_observability(&fu.cfg);
+        assert!(obs.escaping_var_names().contains("g"));
+        assert!(obs.escaping_var_names().contains("t"));
+        assert!(
+            !obs.traced_var_names().contains("g"),
+            "an untraced global alias must not appear in traced_var_names"
+        );
+        assert!(obs.traced_var_names().contains("t"));
     }
 
     #[test]

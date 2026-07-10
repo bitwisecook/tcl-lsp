@@ -55,7 +55,9 @@ proc accumulate {} {
 
 ## How to suppress
 
-Put `# noqa: S102` on the line **before** the offending command.
+Add `# noqa: S102` on the line **above** the offending command, or apply
+the "Suppress S102 with a noqa comment" quick fix offered on the
+diagnostic.
 
 ## Related
 

@@ -276,6 +276,19 @@ pub fn run_all_checks_with_solved_and_patterns(
         }
     }
 
+    // The intrep-shimmer family alone (S100/S101/S102/S110), extended to
+    // `TclOO` method bodies and synthetic body units (`apply` lambdas,
+    // `namespace eval` bodies) — see [`shimmer_family_checks`]. SCCP/GVN
+    // stay proc-only for now (unreviewed blast radius outside this family).
+    for fu in cu.methods.values().chain(cu.body_units.values()) {
+        if fu.complexity_guarded {
+            continue;
+        }
+        for d in shimmer_family_checks(fu, registry, dialect) {
+            out.push(shift(fu, d));
+        }
+    }
+
     // Taint (per-function, reading the interprocedural `solved`) + iRules
     // module-level checks — the half that is not per-function-pure.
     push_taint_and_module_checks(cu, registry, dialect, solved, generic_patterns, &mut out);
@@ -316,6 +329,29 @@ pub fn function_nontaint_checks(
     for r in find_loop_invariants(registry, &fu.cfg, &fu.ssa, dialect) {
         out.push(Diagnostic::from_redundant(&r));
     }
+    out.extend(shimmer_family_checks(fu, registry, dialect));
+    out
+}
+
+/// The intrep-shimmer diagnostic family alone for one function body: use-site
+/// / expression / phi shimmer (S100/S101), loop-oscillation thunking (S102),
+/// and byte-array corruption (S110).
+///
+/// Split out of [`function_nontaint_checks`] so it can also run over `TclOO`
+/// method bodies and synthetic body units (`apply` lambdas, `namespace eval`
+/// bodies) — [`CompilationUnit.methods`](crate::compilation_unit::CompilationUnit::methods)
+/// and `.body_units` are excluded from the SCCP/GVN half (`cu.analysable_functions()`
+/// only walks the top level and procedures), so without this split every
+/// shimmer diagnostic was silently unreachable inside a method or a
+/// `namespace eval` body. The S110 `*::payload` byte-command set is
+/// dialect-gated (empty outside iRules).
+#[must_use]
+pub fn shimmer_family_checks(
+    fu: &FunctionUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<Diagnostic> {
+    let mut out: Vec<Diagnostic> = Vec::new();
     for w in find_shimmer_warnings(
         &fu.cfg,
         &fu.ssa,

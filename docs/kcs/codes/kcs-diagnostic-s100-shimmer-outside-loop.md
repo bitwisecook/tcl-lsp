@@ -45,7 +45,9 @@ expr {$x_num + 1}; string length $x
 
 ## How to suppress
 
-Put `# noqa: S100` on the line **before** the offending command.
+Add `# noqa: S100` on the line **above** the offending command, or apply
+the "Suppress S100 with a noqa comment" quick fix offered on the
+diagnostic.
 
 ## Related
 

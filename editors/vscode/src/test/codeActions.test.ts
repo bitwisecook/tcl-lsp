@@ -382,4 +382,46 @@ suite("Code Actions", () => {
     );
     assert.ok(sanitiseFix, "Should provide a strip-CR/LF sanitise quick fix");
   });
+
+  test("provides a noqa suppress quick fix for S100 (shimmer)", async () => {
+    const shimmerUri = getDocUri("shimmerPrecision.tcl");
+    await activate(shimmerUri);
+    const diagnostics = await waitForDiagnostics(shimmerUri, {
+      predicate: (diags) =>
+        diags.some((d) => {
+          const code = typeof d.code === "object" ? d.code.value : d.code;
+          return code === "S100";
+        }),
+    });
+
+    // Line 7 (0-indexed): `    lindex $x 0` inside `proc shimmer_true_case`.
+    const s100 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "S100" && d.range.start.line === 7;
+    });
+    assert.ok(s100, "S100 diagnostic on line 7 should be present");
+
+    const actions = (await pollUntil(
+      () =>
+        vscode.commands.executeCommand("vscode.executeCodeActionProvider", shimmerUri, s100.range),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title === "Suppress S100 with a noqa comment",
+        ),
+      { timeout: 10_000, label: "S100 noqa suppress quick fix" },
+    )) as vscode.CodeAction[];
+
+    const suppressFix = actions.find(
+      (a) => typeof a.title === "string" && a.title === "Suppress S100 with a noqa comment",
+    );
+    assert.ok(suppressFix, "Should provide an S100 noqa suppress quick fix");
+
+    const edit = suppressFix.edit;
+    assert.ok(edit, "Suppress fix should carry a workspace edit");
+    const changes = edit.get(shimmerUri);
+    assert.strictEqual(changes.length, 1, "expected exactly one text edit");
+    // The inserted comment must match the call's 4-space indentation.
+    assert.strictEqual(changes[0].newText, "    # noqa: S100\n");
+  });
 });

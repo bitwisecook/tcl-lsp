@@ -1474,6 +1474,21 @@ pub fn proc_taint_solve<'db>(
         }
     }
 
+    // The intrep-shimmer family alone, extended to `TclOO` method bodies and
+    // synthetic body units (`apply` lambdas, `namespace eval` bodies) —
+    // mirrors `compiler_checks::run_all_checks_with_solved_and_patterns`'s
+    // identical second loop (see that function's doc comment for why: these
+    // never get an offset-0 `FnLatticeKey`, so they carry absolute spans
+    // already and need no rebase, same as the `None` arm above).
+    for fu in cu.methods.values().chain(cu.body_units.values()) {
+        if fu.complexity_guarded {
+            continue;
+        }
+        for d in tcl_compiler::compiler_checks::shimmer_family_checks(fu, &registry, dialect_opt) {
+            fn_checks.push(d);
+        }
+    }
+
     let optimisations = solve_optimisations(db, &cu, &lattice_keys, &registry, dialect_opt);
     Arc::new(CheckSolve {
         taints,

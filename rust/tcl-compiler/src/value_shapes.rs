@@ -18,6 +18,8 @@
 
 //! Shared Tcl value-shape helpers used across compiler passes.
 
+use tcl_lexer::{Lexer, Span, TokenType};
+
 /// Scan one Tcl variable reference starting at `text[at]`, returning the
 /// byte index just past its end, or `None` when `text[at..]` does not
 /// start with a valid reference.
@@ -115,6 +117,102 @@ pub fn parse_command_substitution(text: &str) -> Option<(String, Vec<String>)> {
     let cmd = parts.next()?;
     let args: Vec<String> = parts.collect();
     Some((cmd, args))
+}
+
+/// Like [`parse_command_substitution`], but additionally returns each
+/// argument's byte span *within `text`* (the caller adds its own base
+/// offset to get an absolute source position) — for diagnostics that need
+/// to anchor on the specific offending argument rather than the whole
+/// substitution.
+///
+/// Uses the real [`Lexer`] rather than [`split_top_level_words`]'s
+/// hand-rolled bracket/brace counter, so word boundaries follow Tcl's
+/// actual quoting rules (this also makes it correct on inputs the counter
+/// gets wrong, e.g. a `#` comment or an escaped delimiter at the top
+/// level). Returns `None` for the same shapes as
+/// [`parse_command_substitution`], plus when the bracket body doesn't lex
+/// as a single command (an embedded `;`/newline followed by more words).
+#[must_use]
+pub fn parse_command_substitution_with_spans(text: &str) -> Option<(String, Vec<(String, Span)>)> {
+    let leading_ws = u32::try_from(text.len() - text.trim_start().len()).unwrap_or(u32::MAX);
+    let stripped = text.trim();
+    let inner = stripped.strip_prefix('[')?.strip_suffix(']')?;
+    // Offset of `inner`'s first byte within `text`: leading whitespace + `[`.
+    let base = leading_ws + 1;
+
+    let tokens = Lexer::new(inner).tokenise_all().ok()?;
+    let mut words: Vec<(String, Span)> = Vec::new();
+    let mut prev_kind = TokenType::Eol;
+    let mut saw_terminator = false;
+
+    for tok in &tokens {
+        match tok.kind {
+            TokenType::Comment | TokenType::Sep => {
+                prev_kind = tok.kind;
+                continue;
+            }
+            TokenType::Eol => {
+                if !words.is_empty() {
+                    saw_terminator = true;
+                }
+                prev_kind = tok.kind;
+                continue;
+            }
+            TokenType::Eof => break,
+            _ => {}
+        }
+        if saw_terminator {
+            return None;
+        }
+        let (word_text, tok_end) = widened_token_text(inner, tok)?;
+        let abs_span = Span::new(base + tok.span.start(), base + tok_end);
+        if matches!(prev_kind, TokenType::Sep | TokenType::Eol) || words.is_empty() {
+            words.push((word_text, abs_span));
+        } else {
+            // Adjacent tokens with no separator concatenate onto the
+            // previous word (e.g. `$a$b` or `foo$x`).
+            let (last_text, last_span) =
+                words.last_mut().expect("words is non-empty in this branch");
+            last_text.push_str(&word_text);
+            *last_span = Span::new(last_span.start(), abs_span.end());
+        }
+        prev_kind = tok.kind;
+    }
+
+    let mut it = words.into_iter();
+    let (cmd, _cmd_span) = it.next()?;
+    Some((cmd, it.collect()))
+}
+
+/// Return `tok`'s text and exclusive end offset (both relative to `inner`),
+/// widened to include a `{…}` / `[…]` word's closing delimiter when the raw
+/// token span omits it.
+///
+/// The lexer follows an inner-end convention for `Str` (`{…}`) and `Cmd`
+/// (`[…]`) tokens: a *non-empty* group's span ends one byte before its
+/// closer (see `segmenter::widen_word_end`, the same convention this
+/// mirrors). An *empty* group (`{}` / `[]`) is the exception — its span
+/// already covers the closer. The discriminator used here is the extracted
+/// text itself: if it doesn't already end with the closer, the group is
+/// non-empty and one more byte is pulled in.
+fn widened_token_text(inner: &str, tok: &tcl_lexer::Token) -> Option<(String, u32)> {
+    let start = tok.span.start() as usize;
+    let end = tok.span.end() as usize;
+    let text = inner.get(start..end)?;
+    let closer = match tok.kind {
+        TokenType::Str => '}',
+        TokenType::Cmd => ']',
+        _ => return Some((text.to_owned(), tok.span.end())),
+    };
+    if text.ends_with(closer) {
+        return Some((text.to_owned(), tok.span.end()));
+    }
+    let widened_end = end + closer.len_utf8();
+    let widened = inner.get(start..widened_end)?;
+    Some((
+        widened.to_owned(),
+        u32::try_from(widened_end).unwrap_or(u32::MAX),
+    ))
 }
 
 /// Split a command body into words on top-level whitespace, keeping
@@ -264,5 +362,92 @@ mod tests {
         let (cmd, args) = parse_command_substitution("[pwd]").unwrap();
         assert_eq!(cmd, "pwd");
         assert!(args.is_empty());
+    }
+
+    #[test]
+    fn spans_basic_arg_offsets_are_exact() {
+        let text = "[lindex $x 0]";
+        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        assert_eq!(cmd, "lindex");
+        assert_eq!(args.len(), 2);
+        let (x_text, x_span) = &args[0];
+        assert_eq!(x_text, "$x");
+        assert_eq!(&text[x_span.start() as usize..x_span.end() as usize], "$x");
+        let (zero_text, zero_span) = &args[1];
+        assert_eq!(zero_text, "0");
+        assert_eq!(
+            &text[zero_span.start() as usize..zero_span.end() as usize],
+            "0"
+        );
+    }
+
+    #[test]
+    fn spans_account_for_leading_whitespace_and_inner_padding() {
+        let text = "  [ set x 42 ]  ";
+        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        assert_eq!(cmd, "set");
+        let (x_text, x_span) = &args[0];
+        assert_eq!(x_text, "x");
+        assert_eq!(&text[x_span.start() as usize..x_span.end() as usize], "x");
+        let (v_text, v_span) = &args[1];
+        assert_eq!(v_text, "42");
+        assert_eq!(&text[v_span.start() as usize..v_span.end() as usize], "42");
+    }
+
+    #[test]
+    fn spans_none_for_non_bracketed_or_empty() {
+        assert!(parse_command_substitution_with_spans("llength $x").is_none());
+        assert!(parse_command_substitution_with_spans("[]").is_none());
+    }
+
+    #[test]
+    fn spans_none_for_multiple_top_level_commands() {
+        // A second command after a newline/`;` inside the substitution body
+        // is not a single-command shape this helper models.
+        assert!(parse_command_substitution_with_spans("[set x 1; set y 2]").is_none());
+    }
+
+    #[test]
+    fn spans_nested_command_substitution_keeps_full_bracket_text() {
+        let text = "[list [read $fd]]";
+        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        assert_eq!(cmd, "list");
+        assert_eq!(args.len(), 1);
+        let (nested_text, nested_span) = &args[0];
+        assert_eq!(nested_text, "[read $fd]");
+        assert_eq!(
+            &text[nested_span.start() as usize..nested_span.end() as usize],
+            "[read $fd]"
+        );
+    }
+
+    #[test]
+    fn spans_braced_arg_keeps_full_brace_text() {
+        let text = "[list {a b c}]";
+        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        assert_eq!(cmd, "list");
+        let (braced_text, braced_span) = &args[0];
+        assert_eq!(braced_text, "{a b c}");
+        assert_eq!(
+            &text[braced_span.start() as usize..braced_span.end() as usize],
+            "{a b c}"
+        );
+    }
+
+    #[test]
+    fn spans_empty_group_arg_not_overwidened() {
+        let text = "[list {} x]";
+        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        assert_eq!(cmd, "list");
+        assert_eq!(args.len(), 2);
+        let (empty_text, empty_span) = &args[0];
+        assert_eq!(empty_text, "{}");
+        assert_eq!(
+            &text[empty_span.start() as usize..empty_span.end() as usize],
+            "{}"
+        );
+        let (x_text, x_span) = &args[1];
+        assert_eq!(x_text, "x");
+        assert_eq!(&text[x_span.start() as usize..x_span.end() as usize], "x");
     }
 }
