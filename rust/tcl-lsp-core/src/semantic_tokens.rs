@@ -148,7 +148,8 @@ enum TokenKind {
     BinaryCount = 24,
     /// `binary` modifier: `u` / `s` (signed/unsigned) or `*` (all).
     BinaryFlag = 25,
-    /// Operator — the `regsub` whole-match replacement backref `\&`.
+    /// Operator — an `expr` operator (`+`, `==`, `&&`, …) or the `regsub`
+    /// whole-match replacement backref `\&`.
     Operator = 26,
     /// BIG-IP object name referenced from iRules code (pool, data group,
     /// virtual, node, …).
@@ -8007,5 +8008,59 @@ mod tests {
             "semantic-token legend not fully handled:\n  {}",
             failures.join("\n  ")
         );
+    }
+
+    /// Issue #862: `set`, `lassign`, `incr`, `lappend`, `append`, `expr` (every
+    /// plain builtin — `function` + `defaultLibrary`) rendered as unstyled
+    /// plain text for users whose theme has no rule for the custom
+    /// `support.function.tcl` scope. A `semanticTokenScopes` override was
+    /// mapping `function.defaultLibrary` to that scope, which **replaces**
+    /// (not supplements) VS Code's built-in cross-theme default for the
+    /// standard `function`/`defaultLibrary` combo — so themes lacking that
+    /// exact scope lost highlighting entirely instead of falling back to the
+    /// built-in default the way every other standard type does. `operator`,
+    /// `decorator` and `namespace` carried the same risk for the same reason
+    /// (and `operator`'s scope, `keyword.operator.format.tcl`, was outright
+    /// wrong for the general case — it covers every `expr` operator and the
+    /// `regsub` `\&` backref, not just `format`). Standard LSP types get no
+    /// override unless the override is either essentially universal across
+    /// themes (`number`, `regexp` — near-ubiquitous TextMate scopes that
+    /// match the grammar's own naming) or the type has no sane built-in
+    /// default at all (custom types like `object`, `event`, `escape`, the
+    /// `regexp*`/`format*`/`clock*`/`binary*` families).
+    #[test]
+    fn vscode_semantic_token_scopes_do_not_shadow_standard_defaults() {
+        const MUST_NOT_OVERRIDE: &[&str] =
+            &["function.defaultLibrary", "operator", "decorator", "namespace"];
+
+        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let pkg = manifest.join("../../editors/vscode/package.json");
+        let text = std::fs::read_to_string(&pkg)
+            .unwrap_or_else(|e| panic!("reading {}: {e}", pkg.display()));
+        let json: serde_json::Value =
+            serde_json::from_str(&text).expect("package.json is valid JSON");
+
+        let blocks = json["contributes"]["semanticTokenScopes"]
+            .as_array()
+            .expect("contributes.semanticTokenScopes is an array");
+
+        let mut failures = Vec::new();
+        for block in blocks {
+            let lang = block["language"].as_str().unwrap_or_default();
+            let Some(scopes) = block["scopes"].as_object() else {
+                continue;
+            };
+            for &key in MUST_NOT_OVERRIDE {
+                if scopes.contains_key(key) {
+                    failures.push(format!(
+                        "language `{lang}` overrides `{key}`, shadowing VS Code's \
+                         built-in cross-theme default (issue #862) — remove it from \
+                         contributes.semanticTokenScopes in editors/vscode/package.json"
+                    ));
+                }
+            }
+        }
+
+        assert!(failures.is_empty(), "{}", failures.join("\n  "));
     }
 }
