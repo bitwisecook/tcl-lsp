@@ -49,6 +49,7 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 
 mod audit_option_dialects;
+mod command_backing;
 mod diag_tables;
 mod gen_ai;
 mod gen_editor_catalogs;
@@ -95,6 +96,16 @@ enum Command {
 
     /// Probe `OptionSpec` dialect gates against real tclsh 8.4/8.5/8.6/9.0.
     AuditOptionDialects,
+
+    /// Check the WASM runtime backs every core-Tcl registry command
+    /// (`RUST_ISSUE_006`); regenerate `docs/generated/wasm-command-backing.md`.
+    #[command(name = "command-backing")]
+    WasmBacking {
+        /// Verify backing + report are in sync instead of rewriting; exit
+        /// non-zero on a gap, a stale classification, or report drift.
+        #[arg(long)]
+        check: bool,
+    },
 
     /// Generate the `docs/generated/` code tables from the `DiagCode` catalogue.
     DiagTables {
@@ -162,6 +173,7 @@ fn main() -> anyhow::Result<ExitCode> {
             trim_to,
         } => tzdata_bundle::run(&zoneinfo, &output, trim_from, trim_to),
         Command::AuditOptionDialects => audit_option_dialects::run(),
+        Command::WasmBacking { check } => command_backing::run(check),
         Command::DiagTables { check } => diag_tables::run(check),
         Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),
         Command::GenZedQueries { check } => gen_zed_queries::run(check),

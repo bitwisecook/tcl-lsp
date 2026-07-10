@@ -279,6 +279,18 @@ path, or an explicit "not required" classification such as the
 `tcl::mathop::*` prefix-form operators).  The runtime port is a distinct
 workstream (`runtime/rust/`).
 
+This contract is enforced by the **`cargo xtask command-backing`** drift
+gate (wired into `make xtask-check`): it cross-checks the registry's core
+Tcl 9.0 command specs against the runtime's `register_builtin`
+registrations, classifies the residue (stdlib fallback / not-required /
+known-gap), and writes
+[`docs/generated/wasm-command-backing.md`](docs/generated/wasm-command-backing.md).
+`--check` fails on report drift, on any unclassified command (a new gap),
+or on a stale classification — so the registry and runtime cannot silently
+diverge.  A genuinely-missing command that is a real gap goes on the
+`KNOWN_UNBACKED` allow-list in `rust/xtask/src/command_backing.rs`
+(tracked by `RUST_ISSUE_007`) until it gains a handler.
+
 For a walkthrough of how a Tcl script becomes a WASM module (the
 6-phase codegen pipeline, per-statement dispatch order, per-command
 file layout), see

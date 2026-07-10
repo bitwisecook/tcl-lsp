@@ -144,7 +144,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: rust-check check-all prep-pr
 # Tests
 .PHONY: test test-ext test-ext-rust test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all
-.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-audit-option-dialects
+.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-command-backing xtask-audit-option-dialects
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust rust-deny
 .PHONY: build-report-assets lint-report-ts typecheck-report-ts check-report-assets
@@ -479,7 +479,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # scripts/check/*.py.  These need the Rust toolchain, so CI runs them in the
 # Rust-capable rust-tests job (rust-gate.yml / ci.yml), never in the Python-only
 # ci-fast job.  `xtask-check` is the CI aggregate.
-xtask-check: xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
+xtask-check: xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-command-backing ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
 
 xtask-kcs-index-links: ## Validate docs links + design/KCS index coverage (⇐ scripts/check/kcs_index_links.py)
 	@echo "==> Checking docs links + index coverage (cargo xtask)"
@@ -512,6 +512,10 @@ xtask-gen-jetbrains-catalog: ## Verify the JetBrains Kotlin catalog/settings/pan
 xtask-gen-ai-diagnostics: ## Verify ai/shared/diagnostics.json + AI prompt/skill files are in sync with the DiagCode catalogue (drift gate)
 	@echo "==> Checking generated AI files are in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-ai-diagnostics --check
+
+xtask-command-backing: ## Verify the WASM runtime backs every core-Tcl registry command (RUST_ISSUE_006 drift + gap gate)
+	@echo "==> Checking WASM command backing coverage is in sync (cargo xtask)"
+	cd $(ROOT) && cargo xtask command-backing --check
 
 xtask-audit-option-dialects: ## Regenerate tmp/option_dialect_audit.json from built tclsh trees (on-demand; needs tmp/tcl*/unix)
 	@echo "==> Auditing OptionSpec dialect gates (cargo xtask)"
