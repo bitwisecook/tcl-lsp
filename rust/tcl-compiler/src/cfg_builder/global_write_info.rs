@@ -86,10 +86,16 @@ impl GlobalWriteInfo {
 /// recursive/mutually-recursive cycles terminate safely.
 #[must_use]
 pub fn detect_global_write_procs(module: &Module) -> HashMap<String, GlobalWriteInfo> {
+    // `stmt_gen` needs a registry to resolve the variable-trace grammar, but
+    // this scan only ever reads its `writes_outer_scope()` (GLOBAL/NAMESPACE)
+    // bit, never `is_traced()` — so a dialect-specific registry is
+    // unnecessary here; the default registry resolves `global`/`variable`/
+    // `upvar` identically across every dialect.
+    let registry = tcl_registry::CommandRegistry::build_default();
     let mut own: HashMap<String, GlobalWriteInfo> = HashMap::new();
     let mut direct_calls: HashMap<String, BTreeSet<String>> = HashMap::new();
     for (qname, proc) in &module.procedures {
-        let info = own_body_global_writes(&proc.body);
+        let info = own_body_global_writes(&proc.body, &registry);
         let calls = direct_call_targets(&proc.body);
         for key in registered_keys(qname) {
             own.insert(key.clone(), info.clone());
@@ -148,10 +154,13 @@ fn registered_keys(qname: &str) -> Vec<String> {
 /// stay in the flag-state path.  Pass 2: walk `body` again collecting every
 /// write-target name, resolving each through the alias map first and
 /// falling back to the flag-state identity check.
-fn own_body_global_writes(body: &Script) -> GlobalWriteInfo {
+fn own_body_global_writes(
+    body: &Script,
+    registry: &tcl_registry::CommandRegistry,
+) -> GlobalWriteInfo {
     let mut state = State::default();
     let mut renamed_aliases: HashMap<String, String> = HashMap::new();
-    accumulate_state(body, &mut state, &mut renamed_aliases);
+    accumulate_state(body, &mut state, &mut renamed_aliases, registry);
 
     let mut names = BTreeSet::new();
     collect_write_targets(body, &state, &renamed_aliases, &mut names);
@@ -162,12 +171,13 @@ fn accumulate_state(
     script: &Script,
     state: &mut State,
     renamed_aliases: &mut HashMap<String, String>,
+    registry: &tcl_registry::CommandRegistry,
 ) {
     for stmt in &script.statements {
-        stmt_gen(stmt, state);
+        stmt_gen(stmt, state, registry);
         collect_renamed_outer_alias(stmt, renamed_aliases);
         for body in nested_bodies(stmt) {
-            accumulate_state(body, state, renamed_aliases);
+            accumulate_state(body, state, renamed_aliases, registry);
         }
     }
 }

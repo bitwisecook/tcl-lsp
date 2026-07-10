@@ -65,6 +65,7 @@ use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{CommandTokens, Script, Statement};
 use crate::naming::normalise_var_name;
 use tcl_core_types::DiagCode;
+use tcl_registry::CommandRegistry;
 
 use super::helpers::expr_simplify::{NumericCtx, operand_types, try_unwrap_expr_in_expr};
 use super::helpers::literals::{is_safe_word, is_static_var_word};
@@ -845,32 +846,41 @@ fn run_function(
 ) {
     // Project the per-function SCCP lattice into a name → literal
     // map that survives only when every tracked version of the
-    // variable collapses to the same single constant value.
-    let mut constants = sccp_constants_for(fu);
-    if !constants.is_empty() {
-        trace_and_alias_unsafe_names(ctx, fu).retain_safe(&mut constants);
-    }
+    // variable collapses to the same single constant value. No
+    // additional trace/alias filtering is needed here: `sccp()` itself
+    // forces a traced or frame-aliased name's own lattice entry (and
+    // anything derived from it) to `Overdefined`, so a projected literal
+    // is already trace/alias-safe by construction — see
+    // `trace_and_alias_unsafe_names`'s docs for why `run_load_forwarding`
+    // (below) is the one exception that still needs its own check.
+    let constants = sccp_constants_for(fu);
     let numeric = operand_types(fu);
     walk_script(ctx, cu, script, &constants, Some(&numeric), namespace);
 }
 
-/// Base variable names a forward/propagation must not trust — because a
-/// read of the name can run arbitrary handler code, a write handler can
-/// rewrite the stored value, or the name is reachable from another frame
-/// (so a call between the SCCP-tracked def and a later use could write it
-/// without a new SSA version appearing in *this* function) — plus every
-/// name whose SCCP-constant value is only constant *because* it was
-/// computed from one of those unsafe reads (`set v [expr {$a * 2}]}` where
-/// `a` carries a variable trace must not let `v` read as constant either:
-/// SCCP folds `v`'s value from `a`'s lattice entry with no notion of
-/// tracing, so the taint has to be tracked structurally through the SSA
-/// def/use graph, not just at the immediately-traced name).
+/// Base variable names [`run_load_forwarding`] (O102) must not trust —
+/// because a read of the name can run arbitrary handler code, a write
+/// handler can rewrite the stored value, or the name is reachable from
+/// another frame (so a call between the reaching def and a later use could
+/// write it without a new SSA version appearing in *this* function) — plus
+/// every name whose forwarded value is only constant *because* it was
+/// computed from one of those unsafe reads, tracked structurally through
+/// the SSA def/use graph (not just at the immediately-traced/-aliased
+/// name).
 ///
-/// Shared by the O100/O101/O103/O112/branch-condition propagation paths
-/// (via [`run_function`]'s `constants` map) and the O102 load-forwarding
-/// gate in [`run_load_forwarding`] — the same risk class applies to every
-/// pass that treats an SCCP-proved or reaching-definition literal as safe
-/// to inline.
+/// [`run_load_forwarding`] is the *one* propagation entry point this taint
+/// still needs to be computed for: every other pass in this module
+/// (`run_function`'s `constants` map, `branch_folding`'s constants /
+/// constant-branches, `structure_elimination`'s `Env`) reads exclusively
+/// from `fu.sccp.values` / `fu.sccp.constant_branches`, and `sccp()` itself
+/// already forces a traced/frame-aliased name's own lattice entry —
+/// and transitively, by ordinary Overdefined propagation through
+/// `evaluate_def`, anything computed from it — to `Overdefined`. Those
+/// passes get trace/alias safety for free from SCCP's fixpoint and need no
+/// separate check. `run_load_forwarding` is the exception because it does
+/// its *own* independent same-block reaching-definition scan over
+/// `fu.def_use.chains` and never consults `fu.sccp` at all, so it has no
+/// upstream Overdefined taint to inherit.
 pub(super) struct UnsafeNames {
     dynamic: bool,
     names: std::collections::BTreeSet<String>,
@@ -879,24 +889,6 @@ pub(super) struct UnsafeNames {
 impl UnsafeNames {
     pub(super) fn is_unsafe(&self, name: &str) -> bool {
         self.dynamic || self.names.contains(name)
-    }
-
-    /// True when any name `expr` reads is unsafe — for gating a whole
-    /// expression (a branch condition) rather than one variable.
-    pub(super) fn any_unsafe<'a>(&self, names: impl IntoIterator<Item = &'a String>) -> bool {
-        self.dynamic || names.into_iter().any(|n| self.names.contains(n))
-    }
-
-    /// Drop every unsafe name from a name-keyed SCCP-projection map
-    /// (`propagation`'s `constants`, `branch_folding`'s `constants`,
-    /// `structure_elimination`'s `Env`) in place — the one choke point
-    /// every SCCP-constant-trusting pass filters through.
-    pub(super) fn retain_safe<V>(&self, map: &mut std::collections::HashMap<String, V>) {
-        if self.dynamic {
-            map.clear();
-        } else {
-            map.retain(|name, _| !self.names.contains(name));
-        }
     }
 }
 
@@ -1120,14 +1112,44 @@ fn walk_statement(
 /// `return` terminators. Used for the argument-sensitive O103 fold
 /// (`[::math::add 2 4]` → `6`) that the summary's argument-independent
 /// `constant_return` cannot express.
+///
+/// This re-runs SCCP fresh (not `callee.sccp`), so it must feed the same
+/// registry + whole-module trace facts the original build did — otherwise
+/// this specific re-run path would be independently trace-blind (the same
+/// silent-miscompile class `run_function`/`run_load_forwarding` guard
+/// against). `ctx.registry` / `ctx.ir_module` are `None` only in a bare
+/// hand-built `PassContext` (some pass-level unit tests); default to an
+/// empty/false fact then, matching `run_function`'s own
+/// `ctx.ir_module`-absent fallback.
 fn evaluate_proc_with_constants(
+    ctx: &PassContext<'_>,
     callee: &FunctionUnit,
     params: &[String],
     args: &[ConstValue],
     octal: Option<bool>,
 ) -> Option<ConstValue> {
     let seed = seed_params_from_args(params, args)?;
-    let result = crate::sccp::sccp(&callee.cfg, &callee.ssa, Some(&seed), octal, None);
+    let default_registry;
+    let registry: &CommandRegistry = if let Some(r) = ctx.registry {
+        r
+    } else {
+        default_registry = CommandRegistry::build_default();
+        &default_registry
+    };
+    let empty_traced = std::collections::BTreeSet::new();
+    let (traced_variables, has_dynamic_variable_trace) = match ctx.ir_module {
+        Some(m) => (&m.traced_variables, m.has_dynamic_variable_trace),
+        None => (&empty_traced, false),
+    };
+    let result = crate::sccp::sccp(
+        &callee.cfg,
+        &callee.ssa,
+        Some(&seed),
+        octal,
+        registry,
+        traced_variables,
+        has_dynamic_variable_trace,
+    );
     resolve_return_constant(callee, &result, octal)
 }
 
@@ -1975,6 +1997,7 @@ fn try_o103_proc_fold(
         && let Some(callee) = cu.procedures.get(&qname)
         && let Some(args) = parse_static_call_args(ctx, inner, 1, constants)
         && let Some(cv) = evaluate_proc_with_constants(
+            ctx,
             callee,
             &summary.params,
             &args,

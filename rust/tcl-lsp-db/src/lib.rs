@@ -39,14 +39,15 @@ use std::sync::{Arc, Mutex};
 use tcl_compiler::cfg_builder::build_cfg_function_with_upvars;
 use tcl_compiler::cfg_builder::global_write_info::GlobalWriteInfo;
 use tcl_compiler::cfg_builder::upvar_info::UpvarInfo;
-use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit, LatticeRequest};
+use tcl_compiler::compilation_unit::{
+    CompilationUnit, FunctionUnit, LatticeRequest, ModuleTraceFacts,
+};
 use tcl_compiler::compiler_checks::{DiagCode, Diagnostic as CompilerCheck};
 use tcl_compiler::interprocedural::{InterproceduralAnalysis, ProcSummary};
 use tcl_compiler::ir::Script;
 use tcl_compiler::optimiser::Optimisation;
 use tcl_compiler::ssa::ValueKey;
 use tcl_compiler::taint::TaintLattice;
-use tcl_compiler::var_observability::ModuleVariableTraces;
 // The compiler's per-proc return-taint summary (the colour-aware transfer
 // function the interprocedural fixpoint converges) — aliased to avoid clashing
 // with this crate's `ProcTaintSummary` (the *interproc-analysis* projection in
@@ -684,13 +685,12 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
 }
 
 /// Interned module-wide context (`upvar_procs` + `proc_params` +
-/// `global_write_procs` from `prepare_cfg_context`, plus the module-wide
-/// variable-trace fact from `scan_module_variable_traces`) that a
-/// procedure body's CFG + SCCP lattice is built under. Interned once per
-/// build and shared by every [`FnLatticeKey`] so a procedure's key stays
-/// small and the per-build interning cost is `O(procs)`, not `O(procs²)`.
-/// The entry vecs are sorted by name before interning so an equal context
-/// (regardless of hash-map iteration order) yields the same id.
+/// `global_write_procs` from `prepare_cfg_context`) that a procedure body's
+/// CFG is built under. Interned once per build and shared by every
+/// [`FnLatticeKey`] so a procedure's key stays small and the per-build
+/// interning cost is `O(procs)`, not `O(procs²)`. The entry vecs are sorted
+/// by name before interning so an equal context (regardless of hash-map
+/// iteration order) yields the same id.
 #[salsa::interned]
 pub struct CfgContext<'db> {
     #[returns(ref)]
@@ -699,8 +699,6 @@ pub struct CfgContext<'db> {
     pub proc_params: Vec<(String, Vec<String>)>,
     #[returns(ref)]
     pub global_write_ctx: Vec<(String, GlobalWriteInfo)>,
-    #[returns(ref)]
-    pub module_traces: ModuleVariableTraces,
 }
 
 /// Interned identity of one procedure's **offset-0** baseline lattice
@@ -738,6 +736,20 @@ pub struct FnLatticeKey<'db> {
     /// type-propagation pass in [`function_lattice`].
     #[returns(ref)]
     pub known_classes: Vec<String>,
+    /// Literal variable-trace target names (sorted) from
+    /// [`tcl_compiler::ir::Module::traced_variables`] — a whole-module fact
+    /// identical for every procedure, folded into the key exactly like
+    /// `known_classes`: SCCP's trace-safety gate (see
+    /// [`tcl_compiler::sccp::sccp`]) treats a name in this set as never a
+    /// compile-time constant, so a trace installed anywhere in the module can
+    /// change any procedure's cached lattice.
+    #[returns(ref)]
+    pub traced_variables: Vec<String>,
+    /// [`tcl_compiler::ir::Module::has_dynamic_variable_trace`] — `true` when
+    /// a variable-trace install/remove call targets a non-literal name
+    /// anywhere in the module. Folded into the key alongside
+    /// `traced_variables`.
+    pub has_dynamic_variable_trace: bool,
 }
 
 /// Memoised offset-0 baseline lattice (CFG → SSA → def-use → SCCP → type →
@@ -774,6 +786,11 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
     let param_constants =
         tcl_compiler::compilation_unit::decode_param_constants(key.param_constants(db));
     let known_classes: HashSet<String> = key.known_classes(db).iter().cloned().collect();
+    let traced_variables: BTreeSet<String> = key.traced_variables(db).iter().cloned().collect();
+    let trace_facts = ModuleTraceFacts {
+        traced_variables: &traced_variables,
+        has_dynamic_variable_trace: key.has_dynamic_variable_trace(db),
+    };
     Arc::new(FunctionUnit::build_with_param_constants_and_classes(
         key.qname(db),
         cfg,
@@ -781,7 +798,7 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
         &registry,
         param_constants.as_ref(),
         &known_classes,
-        Some(context.module_traces(db)),
+        trace_facts,
     ))
 }
 
@@ -913,13 +930,7 @@ fn build_unit_with_keys<'db>(
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect();
             global_write.sort_by(|a, b| a.0.cmp(&b.0));
-            CfgContext::new(
-                db,
-                upvar,
-                proc_params,
-                global_write,
-                req.module_traces.clone(),
-            )
+            CfgContext::new(db, upvar, proc_params, global_write)
         });
         let key = FnLatticeKey::new(
             db,
@@ -930,6 +941,8 @@ fn build_unit_with_keys<'db>(
             req.dialect.to_owned(),
             req.param_constants.to_vec(),
             req.known_classes.to_vec(),
+            req.traced_variables.to_vec(),
+            req.has_dynamic_variable_trace,
         );
         lattice_keys.insert(req.qname.to_owned(), key);
         (*function_lattice(db, key)).clone()
