@@ -493,7 +493,15 @@ fn proc_usage(proc: &ProcDef) -> String {
     // name containing spaces shows as `{a b c}` and an empty name as `{}`
     // (proc-3.6/3.7). A trailing `args` becomes the raw `?arg ...?` suffix — not
     // a list element, so its space isn't braced.
-    let mut elems: Vec<Value> = vec![Value::string(simple)];
+    //
+    // A multi-word `usage_name` (`apply lambdaExpr`, a method's `<obj> <method>`)
+    // is already several leading words, not one name — split it so each is its
+    // own (unbraced) list element rather than one `{apply lambdaExpr}` blob.
+    let mut elems: Vec<Value> = if proc.usage_name.is_some() {
+        simple.split(' ').map(Value::string).collect()
+    } else {
+        vec![Value::string(simple)]
+    };
     let mut suffix = "";
     for p in &proc.params {
         if p.name == "args" {
@@ -2349,6 +2357,15 @@ impl Vm {
                     Err(res)
                 }
             }
+            Some(Command::Object(key)) => {
+                let res = crate::cmd_oo::oo_dispatch(self, &key, &name, &words[1..]);
+                if res.code.is_ok() {
+                    f.stack.push(res.result);
+                    Ok(None)
+                } else {
+                    Err(res)
+                }
+            }
             // Tcl's `unknown` fallback: an unresolved command name is handed to
             // the user-defined `unknown` proc as `unknown name arg…` (the basis
             // for auto-loading, ensembles, and the iRule command mocks). Only
@@ -2395,6 +2412,7 @@ impl Vm {
             }
             Some(Command::ChildInterp(child)) => self.dispatch_child(&child, argv),
             Some(Command::Ensemble(e)) => self.dispatch_ensemble(name, &e, argv),
+            Some(Command::Object(key)) => crate::cmd_oo::oo_dispatch(self, &key, name, argv),
             // `unknown` fallback (see `dispatch_words`): `unknown name arg…`.
             None if name != "unknown" && self.lookup_command("unknown").is_some() => {
                 let mut full = Vec::with_capacity(argv.len() + 1);
@@ -2404,6 +2422,36 @@ impl Vm {
             }
             None => err(format!("invalid command name \"{name}\"")),
         }
+    }
+
+    /// Run a `TclOO` method body: enter the proc activation, link the object's
+    /// instance variables into the fresh frame, push the OO call context, run
+    /// the body to completion, then pop the context. This is the OO analogue of
+    /// [`invoke_command`](Self::invoke_command)'s `Proc` arm plus the
+    /// instance-variable linking the runtime's `run_proc` does.
+    ///
+    /// `link_vars` are `(local, storage-fqn)` pairs: each links a method-local
+    /// name to the object namespace's variable of that FQN (namespace variables
+    /// live in the global frame keyed by their qualified name, so the link is at
+    /// level 0). The `frame` carries the resolved method chain that `self`/`my`/
+    /// `next` consult while the body runs.
+    pub(crate) fn oo_run_method(
+        &mut self,
+        proc: &ProcDef,
+        argv: &[Value],
+        link_vars: &[(String, String)],
+        frame: crate::cmd_oo::OoFrame,
+    ) -> Completion<Value> {
+        if let Err(c) = self.enter_proc(proc, argv) {
+            return c;
+        }
+        for (local, storage) in link_vars {
+            self.add_link(local, 0, storage);
+        }
+        self.oo.call_stack.push(frame);
+        let result = self.run_activation(Frame::new(Rc::clone(&proc.body), true));
+        self.oo.call_stack.pop();
+        result
     }
 
     /// Run a `tailcall` in the place of the proc that issued it. The proc's

@@ -505,19 +505,13 @@ fn info_dispatch_and_abbreviation() {
 ///   info hostname   -> the host name
 ///   info coroutine  -> "" at top level (or the coroutine name)
 ///   info frame      -> a frame count / dict
-///   info object / info class -> `TclOO` introspection
 /// UNIMPLEMENTED in the VM (coverage limit, not a correctness bug on supported
 /// input): asserting the VM's actual error so the gap is pinned and visible.
+/// (`info object`/`info class` are now implemented — see `RUST_ISSUE_009` — so
+/// they are no longer in this list.)
 #[test]
 fn info_unimplemented_subcommands_error() {
-    for sub in [
-        "cmdcount",
-        "hostname",
-        "coroutine",
-        "frame",
-        "object",
-        "class",
-    ] {
+    for sub in ["cmdcount", "hostname", "coroutine", "frame"] {
         let (ok, msg, _) = run(&format!("info {sub}"));
         assert!(!ok, "VM unexpectedly implemented `info {sub}`: {msg}");
         assert_eq!(

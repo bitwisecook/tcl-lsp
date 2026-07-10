@@ -50,6 +50,7 @@ mod cmd_lseq;
 mod cmd_math;
 mod cmd_mathop;
 mod cmd_namespace;
+mod cmd_oo;
 mod cmd_package;
 mod cmd_prefix;
 mod cmd_regexp;

@@ -327,6 +327,10 @@ pub struct Vm {
     /// it accumulates across the short-lived activations a command-driven loop
     /// (`$while {1} {…}`) spins through.
     limit_tick: u32,
+    /// The `TclOO` object system's runtime state — the class/object registries,
+    /// the active method-call stack (for `self`/`my`/`next`), and the current
+    /// definition target (`oo::define`/`oo::objdefine`). See [`crate::cmd_oo`].
+    pub(crate) oo: crate::cmd_oo::OoState,
 }
 
 /// `interp limit` configuration for one interpreter — the `commands` and `time`
@@ -434,6 +438,7 @@ impl Vm {
             // deterministic; Tcl auto-seeds from the clock, but reproducibility
             // is more useful for the VM and every test seeds explicitly.
             rand_seed: 1,
+            oo: crate::cmd_oo::OoState::default(),
         };
         register_builtins(&mut vm);
         vm.bootstrap_globals();
@@ -732,6 +737,7 @@ impl Vm {
             Command::Alias(_) => "alias",
             Command::ChildInterp(_) => "interp",
             Command::Ensemble(_) => "ensemble",
+            Command::Object(_) => "object",
         })
     }
 

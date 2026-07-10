@@ -248,6 +248,9 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         },
         "script" => ok(Value::string(vm.current_script())),
         "nameofexecutable" => ok(Value::empty()),
+        // TclOO introspection — dispatched into the object system.
+        "object" => crate::cmd_oo::info_object(vm, rest),
+        "class" => crate::cmd_oo::info_class(vm, rest),
         other => err(format!("unknown or ambiguous subcommand \"{other}\"")),
     }
 }

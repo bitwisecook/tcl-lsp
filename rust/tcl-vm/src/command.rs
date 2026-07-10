@@ -84,6 +84,12 @@ pub enum Command {
     /// A `namespace ensemble` — invoking `cmd sub args…` resolves `sub` against
     /// the ensemble's subcommands and dispatches to the mapped target.
     Ensemble(Rc<EnsembleDef>),
+    /// A `TclOO` object or class (`Foo create obj` / `obj method …`): the name
+    /// keys into the interp's `oo` state (`OoState::objects`/`classes`).
+    /// Invoking it dispatches `method args…` against the object (`oo_dispatch`).
+    /// Analogous to [`Command::ChildInterp`] — a command backed by a Vm-side
+    /// table keyed by the (canonical) name.
+    Object(String),
 }
 
 /// A `namespace ensemble create`d command (`tclEnsemble.c`).
@@ -155,6 +161,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_switch::register(vm);
     crate::cmd_trace::register(vm);
     crate::cmd_try::register(vm);
+    crate::cmd_oo::register(vm);
 }
 
 /// `exit ?returnCode?` — request process termination with `returnCode`
@@ -980,7 +987,7 @@ fn validate_param_name(name: &str) -> Result<(), String> {
 }
 
 /// Parse a proc parameter spec (`"a b {c 1} args"`) into params + `has_args`.
-fn parse_params(spec: &str) -> Result<(Vec<Param>, bool), String> {
+pub(crate) fn parse_params(spec: &str) -> Result<(Vec<Param>, bool), String> {
     let elems = split_list(spec).map_err(|e| e.message().to_string())?;
     let mut params = Vec::with_capacity(elems.len());
     for e in &elems {
@@ -1699,7 +1706,12 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `variable ?name value ...? name ?value?` — namespace variables (currently global).
-fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+pub(crate) fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    // Inside an `oo::define`/`oo::objdefine` body, `variable` *declares* instance
+    // variables rather than linking a namespace variable (C's `TclOODefineVariablesObjCmd`).
+    if let Some(res) = crate::cmd_oo::maybe_declare_variable(vm, args) {
+        return res;
+    }
     if args.is_empty() {
         return err("wrong # args: should be \"variable ?name value ...? name ?value?\"");
     }
