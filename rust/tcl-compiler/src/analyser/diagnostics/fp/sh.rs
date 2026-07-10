@@ -392,3 +392,431 @@ fn fp_sh_08_add_still_fires() {
         "FP-SH-08 TP: $s + 0 must still fire shimmer; got {got:?}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// FP-SH-12 — a `trace add variable … write …` callback can rewrite a value's
+// type on every access, so a traced variable's `set`-only literal types must
+// not drive S102
+// ---------------------------------------------------------------------------
+
+/// FP-SH-12: a variable under a write trace must not fire S102 from its
+/// visible `set` literals alone — the trace callback can rewrite the value
+/// (and therefore its intrep) after every write, so the compiler cannot
+/// prove the two literal types are what the variable actually holds at loop
+/// re-entry.  [`tcl_compiler::type_infer::propagate_types`] forces every def
+/// of a traced name to OVERDEFINED via the module-wide
+/// `var_observability::ModuleVariableTraces` fact — the same one SCCP's own
+/// (separate) constant-folding lattice already consumes.
+#[test]
+fn fp_sh_12_traced_variable_no_s102() {
+    let src = "\
+proc f {} {
+    # x is under a write trace -- its value after any `set` is not
+    # provably what the literal says, so the loop below must NOT fire
+    # S102 even though the visible literals alternate int/string.
+    trace add variable x write {apply {{n1 n2 op} {}}}
+    set x 0
+    while {1} {
+        set x [expr {$x + 1}]
+        set x [string range $x 0 end]
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-12: traced variable must not fire S102; got {got:?}"
+    );
+}
+
+/// FP-SH-12 TP control: the identical loop shape, untraced, must still fire
+/// S102 — proves the trace check isn't blanket-silencing the whole family.
+#[test]
+fn fp_sh_12_untraced_control_still_fires() {
+    let src = "\
+proc f {} {
+    set x 0
+    while {1} {
+        set x [expr {$x + 1}]
+        set x [string range $x 0 end]
+    }
+}
+";
+    assert!(
+        fires(src, D, "S102"),
+        "FP-SH-12 TP: untraced control must still fire S102; got {:?}",
+        codes(src, D)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-SH-13 — array-element writes collapse onto one SSA symbol per array;
+// two individually-stable-but-different elements must not be reported as
+// one variable oscillating
+// ---------------------------------------------------------------------------
+
+/// FP-SH-13: `normalise_var_name` strips the `(key)` suffix before SSA
+/// interning, so every element of an array shares one symbol / version
+/// chain.  A loop that keeps writing different-but-per-element-stable types
+/// to different array elements must not fire S102 — the elements are
+/// independent runtime slots, not the same value shimmering back and forth.
+#[test]
+fn fp_sh_13_array_element_conflation_no_s102() {
+    let src = "\
+proc f {} {
+    set arr(x) 0
+    while {1} {
+        set arr(x) [expr {$arr(x) + 1}]
+        set arr(x) [string range $arr(x) 0 end]
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-13: array-element writes must not fire S102; got {got:?}"
+    );
+}
+
+/// FP-SH-13 TP control: the identical oscillation on a plain scalar (not an
+/// array element) must still fire S102.
+#[test]
+fn fp_sh_13_scalar_control_still_fires() {
+    let src = "\
+proc f {} {
+    set x 0
+    while {1} {
+        set x [expr {$x + 1}]
+        set x [string range $x 0 end]
+    }
+}
+";
+    assert!(
+        fires(src, D, "S102"),
+        "FP-SH-13 TP: plain scalar oscillation must still fire S102; got {:?}",
+        codes(src, D)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-SH-14 — a self-referential variable that oscillates through an
+// intermediate branch merge (not a direct loop-header incoming edge) is
+// still genuine thunking; a non-self-referential reset through the same
+// branch shape is not
+// ---------------------------------------------------------------------------
+
+/// FP-SH-14 TP: `if {...} {set x [string range $x 0 end]} else {set x [list
+/// 1 2]}` inside a loop — one branch reads `$x`'s own prior value, so the
+/// variable is self-referential and genuinely oscillates between whichever
+/// type survived the previous pass and whichever branch runs next.  The
+/// direct loop-internal predecessor into the header phi is itself a
+/// SHIMMERED merge (the if/else join), not a single KNOWN type — this must
+/// still fire S102.
+#[test]
+fn fp_sh_14_self_referential_branchy_oscillation_fires() {
+    let src = "\
+proc f {n} {
+    set x \"seed\"
+    while {$n} {
+        if {$n % 2} {
+            set x [string range $x 0 end]
+        } else {
+            set x [list 1 2]
+        }
+        incr n -1
+    }
+    return $x
+}
+";
+    assert!(
+        fires(src, D, "S102"),
+        "FP-SH-14 TP: self-referential branchy oscillation must fire S102; got {:?}",
+        codes(src, D)
+    );
+}
+
+/// FP-SH-14 FP guard: the same branch shape, but *neither* arm reads `$x` —
+/// both assign an unrelated fresh literal.  The variable is not
+/// self-referential: each pass creates a brand-new, unrelated value with
+/// nothing to reinterpret, so this must NOT fire S102 even though the
+/// header phi is still SHIMMERED and the direct predecessor is still a
+/// merge.
+#[test]
+fn fp_sh_14_non_self_referential_branchy_reset_no_s102() {
+    let src = "\
+proc f {n} {
+    set x \"seed\"
+    while {$n} {
+        if {$n % 2} {
+            set x \"value\"
+        } else {
+            set x [list 1 2]
+        }
+        incr n -1
+    }
+    return $x
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-14: non-self-referential branchy reset must not fire S102; got {got:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-SH-15 — tricky command/variable indirection stays silent (conservative,
+// no false positives): `rename`, `interp alias`, a safe sub-interpreter's
+// `eval`, TclOO instance variables, and `args`/positional parameters as the
+// oscillation seed
+// ---------------------------------------------------------------------------
+
+/// FP-SH-15: a command renamed onto `set` (`rename set myset`) is not
+/// resolved back to the registry's `set` spec for type inference, so the
+/// literal-driven oscillation through the alias is invisible — conservative
+/// (no S102), not a crash or a false positive through the indirection.
+#[test]
+fn fp_sh_15_rename_indirection_no_s102() {
+    let src = "\
+proc f {} {
+    rename set myset
+    myset x 0
+    while {1} {
+        myset x [expr {$x + 1}]
+        myset x [string range $x 0 end]
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-15: rename indirection must not fire a spurious S102; got {got:?}"
+    );
+}
+
+/// FP-SH-15: `interp alias {} myset {} set` is the same indirection through
+/// the interpreter's alias table rather than `rename` — same conservative,
+/// no-S102 outcome.
+#[test]
+fn fp_sh_15_interp_alias_indirection_no_s102() {
+    let src = "\
+interp alias {} myset {} set
+proc f {} {
+    myset x 0
+    while {1} {
+        myset x [expr {$x + 1}]
+        myset x [string range $x 0 end]
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-15: interp alias indirection must not fire a spurious S102; got {got:?}"
+    );
+}
+
+/// FP-SH-15: a safe sub-interpreter's `$slave eval {...}` body is an opaque
+/// string argument, not statically-analysed Tcl source — no S102 from
+/// inside it (and no crash walking into it).
+#[test]
+fn fp_sh_15_safe_sub_interpreter_eval_no_s102() {
+    let src = "\
+proc f {} {
+    set slave [interp create -safe]
+    $slave eval {
+        set x 0
+        while {1} {
+            set x [expr {$x + 1}]
+            set x [string range $x 0 end]
+        }
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-15: a safe sub-interpreter's eval body must not fire S102; got {got:?}"
+    );
+}
+
+/// FP-SH-15: a `TclOO` instance variable declared with a bare `variable` in a
+/// method body is a scope-alias declaration, like `global`/top-level
+/// `variable` — its entry type is unknown, so an oscillating loop over it
+/// must not fire S102.
+#[test]
+fn fp_sh_15_tcloo_instance_variable_no_s102() {
+    let src = "\
+oo::class create C {
+    variable x
+    constructor {} { set x 0 }
+    method run {} {
+        while {1} {
+            set x [expr {$x + 1}]
+            set x [string range $x 0 end]
+        }
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-15: TclOO instance variable must not fire S102; got {got:?}"
+    );
+}
+
+/// FP-SH-15: `my variable x` (the `TclOO` idiom for binding an instance
+/// variable inside a method) is not recognised as a scope-alias declaration
+/// at all — `$x` reads the never-versioned live-in symbol, same as an
+/// unbound name.  No S102 (and no crash).
+#[test]
+fn fp_sh_15_my_variable_idiom_no_s102() {
+    let src = "\
+oo::class create C {
+    constructor {} { my variable x; set x 0 }
+    method run {} {
+        my variable x
+        while {1} {
+            set x [expr {$x + 1}]
+            set x [string range $x 0 end]
+        }
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-15: 'my variable' idiom must not fire S102; got {got:?}"
+    );
+}
+
+/// FP-SH-15: a proc parameter's entry type is unknown (the caller can pass
+/// anything) — `propagate_types` forces a live-in (SSA version 0) to
+/// OVERDEFINED, so a loop that oscillates a plain positional parameter must
+/// not fire S102. Mirrors [`fp_sh_02_variable_alias_no_shimmer`]'s aliasing
+/// rationale, but for an ordinary (unaliased) parameter.
+#[test]
+fn fp_sh_15_parameter_seeded_oscillation_no_s102() {
+    let src = "\
+proc f {p} {
+    while {1} {
+        set p [expr {$p + 1}]
+        set p [string range $p 0 end]
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-15: parameter-seeded oscillation must not fire S102; got {got:?}"
+    );
+}
+
+/// FP-SH-15: an `unknown`-command call (undefined at compile time) types
+/// OVERDEFINED, exactly like the FP-SH-01 `[unknownCmd]` case — must not
+/// fire S102 through the indirection.
+#[test]
+fn fp_sh_15_unknown_command_result_no_s102() {
+    let src = "\
+proc f {} {
+    set x 0
+    while {1} {
+        set x [totallyUnknownCommand $x]
+        set x [string range $x 0 end]
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-15: unknown-command result must not fire S102; got {got:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-SH-16 — global/namespace aliasing protects a name even once it has a
+// local prior version, matching the externally-mutable guard SCCP/O102
+// already apply to their own lattices
+// ---------------------------------------------------------------------------
+
+/// FP-SH-16: `global x; set x 0` before the loop gives the header phi a
+/// real, versioned `Known(Int)` entry type — but `x` stays externally
+/// mutable throughout this function's body regardless: another procedure's
+/// own `global x; set x …` (reached through a call whose relative order
+/// isn't statically known) or a write trace's callback can rewrite it
+/// between any two statements here, including the loop's own. Reusing
+/// `crate::sccp::is_externally_mutable` — the same predicate
+/// `sccp_with_extra_escaping` and O102 load-forwarding already apply to
+/// their own (separate) lattices — for the type lattice closes this: no
+/// literal-driven def of an aliased name is trusted, so S102 must not fire.
+#[test]
+fn fp_sh_16_global_alias_locally_initialised_no_s102() {
+    let src = "\
+proc f {} {
+    global x
+    set x 0
+    while {1} {
+        set x [expr {$x + 1}]
+        set x [string range $x 0 end]
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-16: a locally-initialised global must not fire S102 — another \
+         proc's `global x` write, or a trace, could rewrite it between any two \
+         statements here; got {got:?}"
+    );
+}
+
+/// FP-SH-16 TP control: an *unaliased* sibling local in the same function,
+/// oscillating the same way, must still fire — proves the escaping-set
+/// widening is keyed on the aliased name specifically, not a blanket
+/// suppression of S102 for the whole function.
+#[test]
+fn fp_sh_16_unaliased_sibling_local_still_fires() {
+    let src = "\
+proc f {} {
+    global x
+    set x 0
+    set y 0
+    while {1} {
+        set x [expr {$x + 1}]
+        set x [string range $x 0 end]
+        set y [expr {$y + 1}]
+        set y [string range $y 0 end]
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        got.iter().any(|c| c == "S102"),
+        "FP-SH-16 TP: an unaliased sibling local in the same function must still \
+         fire S102; got {got:?}"
+    );
+}
+
+/// FP-SH-16 TN control: a namespace variable declared with `variable x` but
+/// never locally re-initialised before the loop keeps its unknown entry
+/// type (SSA version 0 stays OVERDEFINED) — no S102.
+#[test]
+fn fp_sh_16_namespace_alias_without_local_init_no_s102() {
+    let src = "\
+namespace eval ::foo {
+    variable x 0
+    proc bump {} {
+        variable x
+        while {1} {
+            set x [expr {$x + 1}]
+            set x [string range $x 0 end]
+        }
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-16: namespace alias without a local re-init must not fire S102; got {got:?}"
+    );
+}

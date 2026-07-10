@@ -372,7 +372,15 @@ impl FunctionUnit {
             params.iter().map(String::as_str).collect();
         sccp.constant_branches
             .extend(crate::sccp::existence_constant_branches(&cfg, &param_set));
-        let types = propagate_types(&cfg, &ssa, &sccp, registry, known_classes);
+        let types = propagate_types(
+            &cfg,
+            &ssa,
+            &sccp,
+            registry,
+            known_classes,
+            extra_global_escaping,
+            module_traces,
+        );
         let return_type = crate::type_infer::infer_function_return_type(
             &cfg,
             &sccp,

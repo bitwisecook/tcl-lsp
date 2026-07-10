@@ -536,3 +536,115 @@ fn global_hidden_inside_uplevel_body_in_proc_is_not_folded() {
         "must not fold `puts $g` to the stale literal 4: {source:?}"
     );
 }
+
+// S102 deep-review end-to-end coverage: exercises the real server's own
+// whole-document diagnostic pipeline, not just the compiler API directly.
+
+/// The 0-indexed start line of the (first) diagnostic carrying `code`, if any.
+fn s102_start_line(diags: &[Value], code: &str) -> Option<i64> {
+    diags
+        .iter()
+        .find(|d| matches!(d.get("code"), Some(Value::String(s)) if s == code))
+        .and_then(|d| d.get("range"))
+        .and_then(|r| r.get("start"))
+        .and_then(|s| s.get("line"))
+        .and_then(Value::as_i64)
+}
+
+#[test]
+fn s102_fires_for_scalar_loop_oscillation() {
+    // TP baseline: the S102 KCS doc's own canonical example (a properly
+    // initialised accumulator that alternates int/string every pass).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc accumulate {} {\n    set x 0\n    while {1} {\n        \
+         set x [expr {$x + 1}]\n        set x [string range $x 0 end]\n    }\n}\n",
+    );
+    assert!(codes(&diags).contains("S102"), "{diags:?}");
+}
+
+#[test]
+fn s102_span_anchors_inside_loop_not_pre_loop_initialiser() {
+    // Precision fix: the warning must land on the loop-body statement that
+    // produces the surprising type (line 3, `set x [expr …]`, 0-indexed),
+    // not on the pre-loop initialiser (line 1, `set x 0`) — the old
+    // "textually earliest incoming def" heuristic always picked the latter.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc accumulate {} {\n    set x 0\n    while {1} {\n        \
+         set x [expr {$x + 1}]\n        set x [string range $x 0 end]\n    }\n}\n",
+    );
+    let line = s102_start_line(&diags, "S102").expect("expected an S102 diagnostic");
+    assert!(
+        line >= 3,
+        "S102 should anchor inside the loop body (line >= 3), got line {line}: {diags:?}"
+    );
+}
+
+#[test]
+fn s102_silent_for_traced_variable() {
+    // FP guard: a write-traced variable's literal-only view must not drive
+    // S102 — the trace callback can rewrite the value's type on every
+    // access.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc f {} {\n    trace add variable x write {apply {{n1 n2 op} {}}}\n    \
+         set x 0\n    while {1} {\n        set x [expr {$x + 1}]\n        \
+         set x [string range $x 0 end]\n    }\n}\n",
+    );
+    assert!(!codes(&diags).contains("S102"), "{diags:?}");
+}
+
+#[test]
+fn s102_silent_for_array_element_conflation() {
+    // FP guard: array-element writes collapse onto one SSA symbol per array
+    // (the `(key)` suffix is stripped before interning) — must not be
+    // reported as one variable oscillating.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc f {} {\n    set arr(x) 0\n    while {1} {\n        \
+         set arr(x) [expr {$arr(x) + 1}]\n        \
+         set arr(x) [string range $arr(x) 0 end]\n    }\n}\n",
+    );
+    assert!(!codes(&diags).contains("S102"), "{diags:?}");
+}
+
+#[test]
+fn s102_fires_for_self_referential_branchy_oscillation() {
+    // FN fix: oscillation reached through an intermediate if/else merge (a
+    // SHIMMERED direct predecessor into the loop header, not a single KNOWN
+    // type) is genuine thunking when the variable reads its own prior value.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc f {n} {\n    set x \"seed\"\n    while {$n} {\n        \
+         if {$n % 2} {\n            set x [string range $x 0 end]\n        } else {\n            \
+         set x [list 1 2]\n        }\n        incr n -1\n    }\n    return $x\n}\n",
+    );
+    assert!(codes(&diags).contains("S102"), "{diags:?}");
+}
+
+#[test]
+fn s102_silent_for_non_self_referential_branchy_reset() {
+    // FP guard paired with the fix above: neither branch reads `$x`, so the
+    // variable is not self-referential — a fresh, unrelated value each pass
+    // costs nothing extra to "oscillate" between.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc f {n} {\n    set x \"seed\"\n    while {$n} {\n        \
+         if {$n % 2} {\n            set x \"value\"\n        } else {\n            \
+         set x [list 1 2]\n        }\n        incr n -1\n    }\n    return $x\n}\n",
+    );
+    assert!(!codes(&diags).contains("S102"), "{diags:?}");
+}

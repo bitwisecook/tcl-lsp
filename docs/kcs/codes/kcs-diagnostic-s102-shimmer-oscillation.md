@@ -26,25 +26,36 @@ The value converts back and forth on every iteration, making the performance cos
 ## Example that triggers it
 
 ```tcl
-while {1} {
-    set x [expr {$x + 1}]
-    set x [string range $x 0 end]
+proc accumulate {} {
+    set x 0
+    while {1} {
+        set x [expr {$x + 1}]
+        set x [string range $x 0 end]
+    }
 }
 ```
 
-The analyser reports **`S102`** because `x` alternates between integer and string types.
+The analyser reports **`S102`** because `x` alternates between integer and string types
+on every pass through the loop.
 
 ## Fix
 
+Give the two roles separate variables so neither one's intrep has to keep
+flipping:
+
 ```tcl
-while {1} {
-    set x_num [expr {$x_num + 1}]; set x_str [string range $x_num 0 end]
+proc accumulate {} {
+    set x_num 0
+    while {1} {
+        set x_num [expr {$x_num + 1}]
+        set x_str [string range $x_num 0 end]
+    }
 }
 ```
 
 ## How to suppress
 
-Add `# noqa: S102` at the end of the offending line.
+Put `# noqa: S102` on the line **before** the offending command.
 
 ## Related
 
