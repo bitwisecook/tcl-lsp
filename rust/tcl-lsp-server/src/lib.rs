@@ -5382,15 +5382,19 @@ impl Backend {
             let permits = Arc::new(Semaphore::new(concurrency));
             let mut warms = tokio::task::JoinSet::new();
             for file in files {
+                // Acquire the permit *before* spawning so at most `concurrency` warm
+                // tasks (and thus snapshots) exist at once: the loop backpressures on
+                // a very large workspace rather than parking one pending task per
+                // file on the semaphore. `acquire_owned` moves the permit into the
+                // task, which holds it until its analysis returns.
+                let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
+                    break;
+                };
                 let db = Arc::clone(&db);
-                let permits = Arc::clone(&permits);
                 warms.spawn(async move {
-                    // Bound live snapshots to the permit count: clone the snapshot
-                    // only *after* acquiring a permit, so `set_text` never waits on
-                    // more than `concurrency` in-flight reads.
-                    let Ok(_permit) = permits.acquire().await else {
-                        return;
-                    };
+                    let _permit = permit;
+                    // Clone the snapshot only after the permit is held, so `set_text`
+                    // never waits on more than `concurrency` in-flight reads.
                     let snapshot = db.lock().await.clone();
                     let _ = tokio::task::spawn_blocking(move || {
                         let _ = salsa::Cancelled::catch(|| {
@@ -7082,17 +7086,18 @@ impl LanguageServer for Backend {
         };
         let (cached_cu, cached_analysis, pending) = match handles {
             Some((mut cu_handle, mut analysis_handle)) => {
-                // Race the enriched reads against the budget, but capture each
-                // result into an outer slot *as it lands*, so a partial completion
-                // survives the dropped race future. A slot is `Some` iff its handle
-                // was awaited to completion — so a `None` slot means the handle is
-                // still un-consumed (the continuation may safely await it), while a
-                // `Some` slot is reused directly, never re-awaiting a spent handle.
-                // Without this, a CU that landed within budget while the analysis
-                // did not would be consumed and then lost when the timeout drops
-                // the race future, and the spent CU handle would be re-awaited in
-                // the continuation (a re-poll of a completed `JoinHandle`) — losing
-                // the enrichment and the convergence refresh.
+                // Race the enriched reads against the budget, capturing each result
+                // into an outer slot *as it lands* so a partial completion survives
+                // the dropped race future. The two reads are polled concurrently
+                // (`join!`), so each slot fills independently of the other's landing
+                // order. A slot is `Some` iff its handle was awaited to completion —
+                // so a `None` slot means the handle is still un-consumed (the
+                // continuation awaits it), while a `Some` slot is reused directly,
+                // never re-awaiting a spent handle. Without the slots, a read that
+                // landed within budget while its sibling overran would be consumed
+                // and then lost when the timeout drops the race future, and its spent
+                // handle re-awaited in the continuation (a re-poll of a completed
+                // `JoinHandle`) — losing the enrichment and the convergence refresh.
                 let mut cu_slot: Option<
                     Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>,
                 > = None;
@@ -7101,8 +7106,12 @@ impl LanguageServer for Backend {
                 let both_ready = tokio::select! {
                     biased;
                     () = async {
-                        cu_slot = Some((&mut cu_handle).await.ok().flatten());
-                        analysis_slot = Some((&mut analysis_handle).await.ok().flatten());
+                        tokio::join!(
+                            async { cu_slot = Some((&mut cu_handle).await.ok().flatten()) },
+                            async {
+                                analysis_slot = Some((&mut analysis_handle).await.ok().flatten());
+                            },
+                        );
                     } => true,
                     () = tokio::time::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => false,
                 };
