@@ -526,7 +526,10 @@ mod tests {
     #[test]
     fn empty_module_traces_nothing() {
         let m = module("");
-        assert_eq!(scan_module_variable_traces(&m), ModuleVariableTraces::default());
+        assert_eq!(
+            scan_module_variable_traces(&m),
+            ModuleVariableTraces::default()
+        );
     }
 
     #[test]

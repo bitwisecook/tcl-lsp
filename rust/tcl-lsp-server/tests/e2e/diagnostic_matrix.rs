@@ -349,7 +349,10 @@ fn expr_redefinition_blocks_fold() {
     // invokes the builtin evaluator — O101 must leave it unrewritten.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "rename expr real_expr\nproc p {} { return [expr {1 + 2}] }\n");
+    lsp.open_ready(
+        &uri,
+        "rename expr real_expr\nproc p {} { return [expr {1 + 2}] }\n",
+    );
     let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
     let source = result.get("source").and_then(Value::as_str).unwrap_or("");
     assert!(source.contains("expr {1 + 2}"), "{source:?}");
