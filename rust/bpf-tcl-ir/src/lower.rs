@@ -595,6 +595,15 @@ impl Lowerer<'_> {
                 span,
                 "`loop` must appear at the handler/loop top level, not nested inside `if` (v1)",
             )),
+            other if is_concurrency_command(other) => Err(BpfError::new(
+                BpfDiag::OutOfSubset,
+                span,
+                format!(
+                    "`{other}`: concurrency is not supported on the eBPF backend \
+                     (no coroutines, threads, or event loop — an eBPF program is a \
+                     single bounded run to a verdict)"
+                ),
+            )),
             other => Err(BpfError::new(
                 BpfDiag::UnknownCommand,
                 span,
@@ -804,6 +813,22 @@ fn arity(span: Span, cmd: &str, usage: &str) -> BpfError {
         span,
         format!("`{cmd}` expects: {cmd} {usage}"),
     )
+}
+
+/// Whether `cmd` is a Tcl concurrency primitive — coroutines
+/// (`coroutine`/`yield`/`yieldto`/`coroinject`/`coroprobe`) or the `thread`
+/// package (`thread::*`, `tsv::*`, `tpool::*`). None can exist on eBPF (a program
+/// is a single bounded run to a verdict), so they earn a specific `OutOfSubset`
+/// diagnostic rather than the generic "unknown command". (The event loop —
+/// `after`/`vwait`/`update` — is rejected earlier by the typed front-end as an
+/// out-of-subset construct.)
+fn is_concurrency_command(cmd: &str) -> bool {
+    matches!(
+        cmd,
+        "coroutine" | "yield" | "yieldto" | "coroinject" | "coroprobe"
+    ) || cmd.starts_with("thread::")
+        || cmd.starts_with("tsv::")
+        || cmd.starts_with("tpool::")
 }
 
 fn map_bin(op: BinOp) -> Option<IntBinOp> {
