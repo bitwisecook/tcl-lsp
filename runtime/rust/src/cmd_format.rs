@@ -78,6 +78,10 @@ fn format_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut argi = 0usize;
     let mut out: Vec<u8> = Vec::new();
     let mut i = 0;
+    // XPG3 `%n$` positional specifiers may not be mixed with plain `%` sequential
+    // ones (C's `Tcl_AppendFormatToObj`); these track which style has been seen.
+    let mut used_xpg = false;
+    let mut used_seq = false;
 
     // Fetch the next sequential / explicit argument as bytes.
     macro_rules! next_arg {
@@ -235,7 +239,41 @@ fn format_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         };
         i += 1;
 
-        let arg = next_arg!(interp, args, argi, explicit);
+        // Fetch this conversion's argument, enforcing the XPG3 rule: a `%n$`
+        // positional index must be in range and must not be mixed with plain
+        // sequential `%` specifiers (format-11.x), matching C's messages.
+        let arg = match explicit {
+            Some(n) => {
+                if used_seq {
+                    return err(
+                        interp,
+                        b"cannot mix \"%\" and \"%n$\" conversion specifiers",
+                    );
+                }
+                used_xpg = true;
+                match args.get(n) {
+                    Some(&a) => obj_bytes(a),
+                    None => return err(interp, b"\"%n$\" argument index out of range"),
+                }
+            }
+            None => {
+                if used_xpg {
+                    return err(
+                        interp,
+                        b"cannot mix \"%\" and \"%n$\" conversion specifiers",
+                    );
+                }
+                used_seq = true;
+                let n = argi;
+                argi += 1;
+                match args.get(n) {
+                    Some(&a) => obj_bytes(a),
+                    None => {
+                        return err(interp, b"not enough arguments for all format specifiers");
+                    }
+                }
+            }
+        };
         match render(interp, conv, &spec, &arg) {
             Ok(field) => out.extend_from_slice(&field),
             Err(code) => return code,
@@ -362,9 +400,10 @@ fn int_field(interp: &mut Interp, spec: &Spec, value: i64, conv: u8) -> Result<V
     // value is zero and never applied to decimal conversions.
     let prefix: &[u8] = if spec.alt && magnitude != 0 {
         match conv {
+            // Tcl 9 uses a lowercase `0x` prefix even for `%#X` (only the digits
+            // uppercase): `format %#X 12` → `0xC` (`tclStringObj.c`).
             b'o' => b"0o",
-            b'x' => b"0x",
-            b'X' => b"0X",
+            b'x' | b'X' => b"0x",
             b'b' => b"0b",
             _ => b"",
         }
@@ -510,7 +549,7 @@ fn fix_exponent(s: &str) -> String {
 
 /// Apply width + justification to a fully-rendered body. `numeric` controls
 /// nothing here (zero-pad is handled by the callers); spaces always pad.
-fn pad(spec: &Spec, body: Vec<u8>, _numeric: bool) -> Vec<u8> {
+fn pad(spec: &Spec, body: Vec<u8>, numeric: bool) -> Vec<u8> {
     if !spec.has_width || body.len() >= spec.width {
         return body;
     }
@@ -520,7 +559,11 @@ fn pad(spec: &Spec, body: Vec<u8>, _numeric: bool) -> Vec<u8> {
         out.extend_from_slice(&body);
         out.extend(std::iter::repeat_n(b' ', pad_n));
     } else {
-        out.extend(std::iter::repeat_n(b' ', pad_n));
+        // A string/char field with the `0` flag zero-pads on the left, like C's
+        // `format %05s a` → `0000a`. Numeric fields do their own sign/precision-
+        // aware zero-padding before reaching here, so they always space-pad.
+        let fill = if spec.zero && !numeric { b'0' } else { b' ' };
+        out.extend(std::iter::repeat_n(fill, pad_n));
         out.extend_from_slice(&body);
     }
     out
