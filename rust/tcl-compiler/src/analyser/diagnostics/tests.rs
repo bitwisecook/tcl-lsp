@@ -927,7 +927,7 @@ fn subcommand_version_gates_fire_w002() {
         ("binary decode base64 abc", "tcl8.6", "tcl8.5"),
         ("interp bgerror {}", "tcl8.5", "tcl8.4"),
         ("interp limit {} time", "tcl8.5", "tcl8.4"),
-        ("interp debug {}", "tcl8.5", "tcl8.4"),
+        ("interp debug {}", "tcl8.6", "tcl8.5"),
         ("interp cancel", "tcl8.6", "tcl8.5"),
         ("interp children", "tcl8.6", "tcl8.5"),
         ("clock add 0 1 day", "tcl8.5", "tcl8.4"),
