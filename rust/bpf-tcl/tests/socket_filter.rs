@@ -63,7 +63,7 @@ fn signed_shift_and_32bit_widths() {
             "when SOCKET_FILTER { setint x {0 - 8}\n accept {$x >> 1} }\n",
             &mut pkt
         ),
-        (-4i64) as u64
+        (-4i64).cast_unsigned()
     );
     // seti32 sign-extends the low 32 bits: (1<<31) → i32::MIN (RUST_ISSUE_172).
     assert_eq!(
@@ -71,7 +71,7 @@ fn signed_shift_and_32bit_widths() {
             "when SOCKET_FILTER { seti32 x {1 << 31}\n accept {$x} }\n",
             &mut pkt
         ),
-        i64::from(i32::MIN) as u64
+        i64::from(i32::MIN).cast_unsigned()
     );
     // setu32 zero-extends: (1<<31) stays 0x8000_0000 (RUST_ISSUE_172).
     assert_eq!(
