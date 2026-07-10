@@ -1393,6 +1393,7 @@ dependencies = [
  "tcl-irules",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-version",
  "tokio",
  "ureq",
 ]
@@ -4086,6 +4087,7 @@ dependencies = [
  "tcl-pkg",
  "tcl-registry",
  "tcl-sandbox",
+ "tcl-version",
 ]
 
 [[package]]
@@ -4268,6 +4270,7 @@ dependencies = [
  "tcl-lsp-core",
  "tcl-lsp-db",
  "tcl-registry",
+ "tcl-version",
  "temp-env",
  "tokio",
  "tower",
@@ -4290,6 +4293,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-version",
  "tokio",
 ]
 
@@ -4358,6 +4362,10 @@ dependencies = [
  "bitflags 2.13.0",
  "tcl-lexer",
 ]
+
+[[package]]
+name = "tcl-version"
+version = "0.1.0"
 
 [[package]]
 name = "tcl-vm"

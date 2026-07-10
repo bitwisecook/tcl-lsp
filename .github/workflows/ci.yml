@@ -479,7 +479,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu gcc-riscv64-linux-gnu qemu-user
 
+      # Stamp the release version into every user-facing binary. The
+      # tcl-version crate prefers this over `git describe`; without it a tag
+      # build would still be correct, but this avoids depending on the checkout
+      # having tags fetched.
       - name: Cross-compile native binaries (server + mcp + CLIs)
+        env:
+          TCL_LSP_VERSION: ${{ github.ref_name }}
         shell: bash
         run: |
           set -euo pipefail

@@ -32,6 +32,7 @@ name = "tcl-lsp-server"
 path = "src/main.rs"
 
 [dependencies]
+tcl-version = { path = "../tcl-version" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-compiler = { path = "../tcl-compiler" }

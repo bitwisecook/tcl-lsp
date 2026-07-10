@@ -5091,7 +5091,8 @@ impl LanguageServer for Backend {
                 // Protocol identity must match the editor's
                 // expectations ("tcl-lsp"), not the crate/binary name.
                 name: "tcl-lsp".to_owned(),
-                version: Some(env!("CARGO_PKG_VERSION").to_owned()),
+                // The release version from the tag, not the manifest's 0.1.0.
+                version: Some(tcl_version::VERSION.to_owned()),
             }),
             ..Default::default()
         })
