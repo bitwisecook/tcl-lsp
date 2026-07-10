@@ -150,30 +150,139 @@ pub(super) fn arity_verdict(
     }
 }
 
-/// Namespace-qualify `cmd_name`'s resolution candidates the Tcl way:
-/// current namespace first, then global. Shared by the
-/// builtin-shadowing suppression check
-/// ([`Analyser::flush_arity_diagnostics`]) and the same-file proc/alias/
-/// rename resolution chase
-/// ([`Analyser::resolve_indirect_call_target`]), so both walk the
-/// identical candidate order.
-///
-/// A name containing `::` but not starting with it (`inner::p`) is
-/// still *relative* — Tcl resolves it against the current namespace
-/// before falling back to global (confirmed against tclsh 9.0.4:
-/// calling `inner::p` from inside `namespace eval ::ns { … }` reaches
-/// `::ns::inner::p`, not `::inner::p`, when both exist). Only a
-/// leading `::` is a genuinely absolute name.
+/// Format the "(available in: …)" suffix for a W002 message from a
+/// command/subcommand's registry-declared dialect restriction — entirely
+/// data-driven from [`tcl_registry::CommandSpec::dialects`] /
+/// [`tcl_registry::SubCommand::dialects`], never a per-command name check.
+/// Empty when `dialects` is `None` (unrestricted) or has no primitive
+/// member (defensive; a restricted spec always has at least one).
+fn dialect_availability_suffix(dialects: Option<tcl_registry::prelude::DialectSet>) -> String {
+    let Some(dialects) = dialects else {
+        return String::new();
+    };
+    let names = dialects.member_names();
+    if names.is_empty() {
+        return String::new();
+    }
+    format!(" (available in: {})", names.join(", "))
+}
+
+/// Namespace-qualify `cmd_name`'s resolution candidates the Tcl way: current
+/// namespace first, then global. Shared by the builtin-shadowing suppression
+/// check ([`Analyser::flush_arity_diagnostics`]) and the same-file
+/// proc/alias/rename resolution chase
+/// ([`Analyser::resolve_indirect_call_target`]), so both walk the identical
+/// candidate order — and, via [`crate::naming::bareword_resolution_candidates`],
+/// the identical order the optimiser's interprocedural proc resolution uses,
+/// so a fix to the rule can't drift between the two.
 fn qualify_candidates(ns: &str, cmd_name: &str) -> Vec<String> {
-    if cmd_name.starts_with("::") {
-        return vec![cmd_name.to_owned()];
+    crate::naming::bareword_resolution_candidates(ns, cmd_name)
+}
+
+/// Whole-file facts needed to decide whether a same-file call resolves to a
+/// user definition rather than falling through to a registry builtin.
+///
+/// Shared by the two same-file "does this call resolve away from the
+/// builtin" suppression checks — [`Analyser::flush_arity_diagnostics`]
+/// (suppress a builtin arity mismatch) and
+/// [`Analyser::flush_disabled_command_diagnostics`] (suppress a
+/// disabled-in-dialect warning) — both need the identical resolution rule,
+/// so a fix to one (e.g. the `rename`-target gap this closed) automatically
+/// applies to the other. Built once per flush pass over the fully-merged
+/// post-walk facts (`all_procs` / `all_classes` / `command_aliases` /
+/// `renamed_commands` / `ensemble_namespaces` — populated cross-item after
+/// every per-item body has been grafted).
+///
+/// Owns its data (rather than borrowing `Analyser`) so a flush loop can
+/// build it once up front and then freely take/mutate other `Analyser`
+/// fields (`pending_arity`, `result.diagnostics`, …) while iterating —
+/// borrowing through a whole-`&Analyser` build call would otherwise pin the
+/// borrow checker's view to "all of `self`" for the facts' lifetime.
+struct UserResolutionFacts {
+    /// Fully-qualified names that unconditionally denote a user command once
+    /// declared anywhere in the file: `TclOO`/snit/itcl classes, `interp
+    /// alias` names, and `namespace ensemble create` namespaces. Not
+    /// order-gated — a deliberately permissive, false-negative-avoiding
+    /// convention (a genuinely order-violating call is rare enough that
+    /// abstaining from a real builtin-mismatch report is the safer trade).
+    non_proc_qnames: FxHashSet<String>,
+    /// Qualified proc name → its definition token offset.
+    proc_offsets: FxHashMap<String, u32>,
+    /// Qualified *new* name (a static `rename OLD NEW`) → the `rename`
+    /// statement's token offset. `rename` moves an existing command's
+    /// identity onto `NEW`, so once in effect `NEW` is a real command
+    /// exactly like a proc definition — order-gated the same way.
+    rename_offsets: FxHashMap<String, u32>,
+    /// Document-global `# tcl-lsp: stub` command names (unqualified).
+    stub_names: std::collections::HashSet<String>,
+}
+
+impl UserResolutionFacts {
+    fn build(a: &Analyser) -> Self {
+        let mut non_proc_qnames: FxHashSet<String> = FxHashSet::default();
+        non_proc_qnames.extend(a.result.all_classes.keys().cloned());
+        non_proc_qnames.extend(a.result.command_aliases.keys().cloned());
+        non_proc_qnames.extend(a.ensemble_namespaces.iter().cloned());
+        let proc_offsets: FxHashMap<String, u32> = a
+            .result
+            .all_procs
+            .iter()
+            .map(|(qname, def)| (qname.clone(), def.name_span.start()))
+            .collect();
+        let rename_offsets: FxHashMap<String, u32> = a
+            .result
+            .renamed_commands
+            .keys()
+            .filter_map(|new_qname| {
+                a.rename_offsets
+                    .get(new_qname)
+                    .map(|&off| (new_qname.clone(), off))
+            })
+            .collect();
+        let stub_names = super::utils::scan_stub_command_names(&a.source);
+        Self {
+            non_proc_qnames,
+            proc_offsets,
+            rename_offsets,
+            stub_names,
+        }
     }
-    let global = format!("::{cmd_name}");
-    if ns == "::" {
-        return vec![global];
+
+    /// Whether a call to `cmd_name` (resolved at `ns`, at byte offset
+    /// `call_off`) resolves to a user-declared proc, class, alias, rename
+    /// target, ensemble, or stub, rather than falling through to the
+    /// registry builtin that produced the candidate diagnostic.
+    ///
+    /// `enforce_order` gates **proc** and **rename** shadowing to a
+    /// definition that lexically precedes the call: true for a top-level
+    /// call site (the module body, a `namespace eval` body, or a
+    /// conditional), which executes in source order during load, so a
+    /// same-named definition appearing later in the file has not run yet. A
+    /// proc-body call (`enforce_order == false`) runs only after the whole
+    /// file has loaded, so any same-named definition anywhere in the file is
+    /// already in effect. Classes / aliases / ensembles / stubs always exist
+    /// by run time and are never order-gated.
+    fn resolves_to_user(
+        &self,
+        cmd_name: &str,
+        ns: &str,
+        enforce_order: bool,
+        call_off: u32,
+    ) -> bool {
+        let bare = cmd_name.rsplit("::").next().unwrap_or(cmd_name);
+        let candidates = qualify_candidates(ns, cmd_name);
+        candidates.iter().any(|c| {
+            self.non_proc_qnames.contains(c.as_str())
+                || self
+                    .proc_offsets
+                    .get(c.as_str())
+                    .is_some_and(|&off| !enforce_order || off < call_off)
+                || self
+                    .rename_offsets
+                    .get(c.as_str())
+                    .is_some_and(|&off| !enforce_order || off < call_off)
+        }) || self.stub_names.contains(bare)
     }
-    let relative = format!("{ns}::{cmd_name}");
-    vec![relative, global]
 }
 
 /// Shift a resolved [`Arity`] down by an `interp alias` / `TclOO`
@@ -273,13 +382,23 @@ impl Analyser {
     /// **W002** — the command is disabled in the active dialect profile: it
     /// exists in the registry but not for the active dialect (e.g. `dict` under
     /// `tcl8.4`, added in 8.5).  Only a *literal* command head is checked — a
-    /// `$obj` / `[cmd]` head is W307's concern — and an earlier unconditional
-    /// user-proc definition that shadows the built-in suppresses it (Tcl
-    /// resolves the proc at the call site).
+    /// `$obj` / `[cmd]` head is W307's concern.
+    ///
+    /// Queues the candidate onto [`Self::pending_disabled_commands`] rather
+    /// than emitting inline: whether the call actually reaches the disabled
+    /// builtin depends on same-file facts (a shadowing proc / class / `interp
+    /// alias` / static `rename` / `namespace ensemble create`) that may not
+    /// be fully known until the whole file (or, on the per-item path, every
+    /// grafted body) has been walked — a forward-declared shadowing proc is
+    /// the common case a same-pass check would miss entirely.
+    /// [`Self::flush_disabled_command_diagnostics`] resolves every candidate
+    /// post-walk using the same current-namespace-then-global resolution and
+    /// top-level order gate as [`Self::flush_arity_diagnostics`].
     pub(in crate::analyser) fn emit_w002_disabled_command(
         &mut self,
         cmd_name: &str,
         cmd_tok: tcl_lexer::Token,
+        scope_path: &[usize],
     ) {
         use tcl_registry::prelude::DialectSet;
         // A dynamic command head (`$obj method`, `[lookup] arg`) is resolved at
@@ -308,32 +427,29 @@ impl Analyser {
         {
             return;
         }
-        // An earlier *unconditional* user proc with this name shadows the
-        // would-be-disabled built-in at the call site.
-        let qualified = crate::naming::normalise_qualified_name(bare);
-        if let Some(def) = self.result.all_procs.get(&qualified)
-            && def.name_span.start() < cmd_tok.span.start()
-        {
-            return;
-        }
+        // Best-effort "available in: …" hint read straight from the
+        // registry spec's own dialect gate. Only resolves when the spec is
+        // among the packs this registry instance loaded regardless of
+        // dialect (core Tcl / stdlib / tcllib / Tk / itcl / …, via
+        // `CommandRegistry::build_default`); a command exclusive to a
+        // *different* dialect family (e.g. an iRules-only name referenced
+        // from a `tcl8.6` file) isn't loaded here, so `get` returns `None`
+        // and the message falls back to the plain form — never wrong, just
+        // sometimes less specific.
+        let suffix = registry.get(bare).map_or(String::new(), |spec| {
+            dialect_availability_suffix(spec.dialects)
+        });
         let diag = super::types::Diagnostic {
             code: DiagCode::W002,
             span: cmd_tok.span,
-            message: format!("'{cmd_name}' is disabled in the active dialect profile"),
+            message: format!("'{cmd_name}' is disabled in the active dialect profile{suffix}"),
             severity: Severity::Warning,
             fixes: Vec::new(),
         };
-        // Per-item path (isolated body): the body's own `all_procs` couldn't
-        // prove a shadow, but a *sibling/enclosing* user proc still might.  That
-        // is a cross-item fact, so defer the shadow re-check to the tail (over
-        // the merged `all_procs`).  `capture_global_reads.is_some()` marks the
-        // isolated-body analysis; on the whole-file path it is `None` and W002 is
-        // emitted inline exactly as before.
-        if self.capture_global_reads.is_some() {
-            self.pending_disabled_commands.push((qualified, diag));
-        } else {
-            self.result.diagnostics.push(diag);
-        }
+        let ns = self.command_resolution_namespace(scope_path);
+        let enforce_order = !self.scope_path_in_proc_body(scope_path);
+        self.pending_disabled_commands
+            .push((cmd_name.to_string(), ns, enforce_order, diag));
     }
 
     /// Resolve a command's signature, honouring the active scoped command
@@ -366,6 +482,7 @@ impl Analyser {
         args: &[String],
         cmd_tok: tcl_lexer::Token,
         arg_tokens: &[tcl_lexer::Token],
+        scope_path: &[usize],
     ) {
         use super::dispatch::{CommandSignature, signature_for_command};
         use tcl_registry::prelude::DialectSet;
@@ -432,6 +549,12 @@ impl Analyser {
         // whole commands (`emit_w002_disabled_command`): it EXISTS, just not
         // here, so it must be reported as disabled-in-dialect rather than as an
         // "Unknown subcommand" with a misleading spelling suggestion.
+        //
+        // Deferred exactly like the whole-command form: whether `cmd_name`
+        // itself resolves to the registry ensemble (rather than a same-file
+        // proc/alias/rename/class/ensemble that shadows it — e.g. `proc
+        // package {args} {…}` fully overriding the `package` ensemble) can
+        // depend on facts not yet known mid-walk.
         if let Some(CommandSignature::WithSubcommands(any_sig)) =
             signature_for_command(registry, cmd_name, DialectSet::all())
             && any_sig.is_known(first_arg)
@@ -440,15 +563,34 @@ impl Analyser {
                 Some(sub_tok) => tcl_lexer::Span::new(cmd_tok.span.start(), sub_tok.span.end()),
                 None => cmd_tok.span,
             };
-            self.result.diagnostics.push(super::types::Diagnostic {
+            // Best-effort "available in: …" hint from the registry's own
+            // dialect gate on the matching `SubCommand` entry (falling back
+            // to the parent command's, the same inheritance
+            // `emit_w004_dialect_invalid_option` uses). An abbreviated
+            // `first_arg` that doesn't literally match a `SubCommand.name`
+            // just yields no hint — the base message stays accurate either
+            // way.
+            let suffix = registry.get(cmd_name).map_or(String::new(), |spec| {
+                spec.subcommands
+                    .iter()
+                    .find(|s| s.name == first_arg.as_str())
+                    .map_or(String::new(), |sub| {
+                        dialect_availability_suffix(sub.dialects.or(spec.dialects))
+                    })
+            });
+            let diag = super::types::Diagnostic {
                 code: DiagCode::W002,
                 span,
                 message: format!(
-                    "'{cmd_name} {first_arg}' is disabled in the active dialect profile"
+                    "'{cmd_name} {first_arg}' is disabled in the active dialect profile{suffix}"
                 ),
                 severity: Severity::Warning,
                 fixes: Vec::new(),
-            });
+            };
+            let ns = self.command_resolution_namespace(scope_path);
+            let enforce_order = !self.scope_path_in_proc_body(scope_path);
+            self.pending_disabled_commands
+                .push((cmd_name.to_string(), ns, enforce_order, diag));
             return;
         }
         let mut message = format!("Unknown subcommand '{first_arg}' for '{cmd_name}'");
@@ -851,56 +993,68 @@ impl Analyser {
         }
     }
 
-    /// Post-walk flush of the [`Self::pending_arity`] candidates
-    /// collected by [`Self::emit_arity_diagnostics`].
+    /// Post-walk flush of the [`Self::pending_disabled_commands`] candidates
+    /// collected by [`Self::emit_w002_disabled_command`] and the subcommand
+    /// form embedded in [`Self::emit_w001_unknown_subcommand`].
     ///
     /// Runs after the command walk completes, when `all_procs`,
-    /// `all_classes`, `command_aliases`, `ensemble_namespaces` and the
-    /// inline stub set are fully populated.  A candidate is dropped
-    /// only when the call **resolves to** a user definition rather than
-    /// the builtin whose registry arity produced it — resolution
-    /// follows Tcl's rule for unqualified commands (the call-site
-    /// namespace, then global `::`), using the namespace captured at
-    /// emit time.  So `proc ::ns::close {...}` suppresses a `close`
-    /// call inside `::ns` (and a qualified `::ns::close ...`), but a
-    /// `close` call in another namespace still resolves to the builtin
-    /// and is checked.  Document-global declarations — inline
-    /// `# tcl-lsp: stub`s — suppress by bare name regardless of
-    /// namespace.
+    /// `all_classes`, `command_aliases`, `renamed_commands` and
+    /// `ensemble_namespaces` are fully populated (post cross-item merge on
+    /// the per-item path). A candidate is dropped exactly when
+    /// [`UserResolutionFacts::resolves_to_user`] says the call resolves to a
+    /// user definition rather than the builtin the candidate warns about —
+    /// the identical resolution rule [`Self::flush_arity_diagnostics`] uses
+    /// to suppress a builtin-arity mismatch, so e.g. a namespace-scoped `proc
+    /// ::ns::dict {...}` correctly suppresses a `dict` call inside `::ns`,
+    /// and an `interp alias {} dict {} …` / `rename myimpl dict` /
+    /// `oo::class create dict {…}` established anywhere in the file
+    /// (unconditionally for aliases/classes/ensembles/stubs; only when
+    /// lexically preceding a top-level call for a proc/rename target)
+    /// likewise suppresses it.
     ///
-    /// Suppression by a shadowing **proc** also honours definition
-    /// reachability: a top-level call (one whose
-    /// `enforce_order` flag is set — module body, `namespace eval`
-    /// body, or a conditional) is silenced only when the proc's
-    /// definition lexically precedes it, since top-level commands run
-    /// in source order during load (so a `close x y z` *before* a later
-    /// `proc close` still reaches the builtin).  Proc-body calls run
-    /// after load and are not order-gated.  Classes / aliases /
-    /// ensembles / stubs always exist at run time and are never
-    /// order-gated.  (Excluding *conditionally* defined procs would
-    /// need the CFG dominator model, which is not modelled here.)
-    ///
-    /// Emit the per-item path's pending W002 (disabled-in-dialect command)
-    /// diagnostics, re-applying the user-proc-shadowing suppression against the
-    /// merged `all_procs` (a cross-item fact unavailable to an isolated body).
-    /// No-op on the whole-file `analyse` path (W002 is emitted inline there, so
-    /// `pending_disabled_commands` is empty) — keeping the two paths
-    /// byte-identical.  The position guard (`name_span.start() < call.start()`)
-    /// matches the inline check, so a unique-named proc resolves identically
-    /// whether checked inline or here (duplicate proc names already force the
-    /// per-item path to fall back).
+    /// Idempotent: drains `pending_disabled_commands`, so a second call is a
+    /// no-op.
     pub(in crate::analyser) fn flush_disabled_command_diagnostics(&mut self) {
+        if self.pending_disabled_commands.is_empty() {
+            return;
+        }
+        let facts = UserResolutionFacts::build(self);
         let pending = std::mem::take(&mut self.pending_disabled_commands);
-        for (qualified, diag) in pending {
-            if let Some(def) = self.result.all_procs.get(&qualified)
-                && def.name_span.start() < diag.span.start()
-            {
+        for (cmd_name, ns, enforce_order, diag) in pending {
+            let call_off = diag.span.start();
+            if facts.resolves_to_user(&cmd_name, &ns, enforce_order, call_off) {
                 continue;
             }
             self.result.diagnostics.push(diag);
         }
     }
 
+    /// Post-walk flush of the [`Self::pending_arity`] / [`Self::pending_user_call_arity`]
+    /// candidates collected by [`Self::emit_arity_diagnostics`] and
+    /// [`Self::queue_user_call_arity_candidate`].
+    ///
+    /// The [`Self::pending_arity`] half drops a candidate exactly when
+    /// [`UserResolutionFacts::resolves_to_user`] says the call **resolves
+    /// to** a user definition rather than the builtin whose registry arity
+    /// produced it — resolution follows Tcl's rule for unqualified commands
+    /// (the call-site namespace, then global `::`), using the namespace
+    /// captured at emit time.  So `proc ::ns::close {...}` suppresses a
+    /// `close` call inside `::ns` (and a qualified `::ns::close ...`), but a
+    /// `close` call in another namespace still resolves to the builtin and
+    /// is checked.  Document-global declarations — inline `# tcl-lsp:
+    /// stub`s — suppress by bare name regardless of namespace.
+    ///
+    /// Suppression by a shadowing **proc** or **rename target** also honours
+    /// definition reachability: a top-level call (one whose `enforce_order`
+    /// flag is set — module body, `namespace eval` body, or a conditional)
+    /// is silenced only when the definition lexically precedes it, since
+    /// top-level commands run in source order during load (so a `close x y
+    /// z` *before* a later `proc close` still reaches the builtin).
+    /// Proc-body calls run after load and are not order-gated.  Classes /
+    /// aliases / ensembles / stubs always exist at run time and are never
+    /// order-gated.  (Excluding *conditionally* defined procs would need the
+    /// CFG dominator model, which is not modelled here.)
+    ///
     /// Idempotent: drains `pending_arity` and `pending_user_call_arity`,
     /// so a second call is a no-op.
     ///
@@ -912,50 +1066,12 @@ impl Analyser {
         if self.pending_arity.is_empty() && self.pending_user_call_arity.is_empty() {
             return;
         }
-        // Fully-qualified non-proc user-command names the calls may
-        // resolve to (classes / aliases keyed by qualified name;
-        // ensemble namespaces *are* the command name).  These always
-        // exist by the time the script runs, so they suppress the
-        // builtin arity check regardless of definition order.
-        let mut non_proc_qnames: FxHashSet<&str> = FxHashSet::default();
-        non_proc_qnames.extend(self.result.all_classes.keys().map(String::as_str));
-        non_proc_qnames.extend(self.result.command_aliases.keys().map(String::as_str));
-        non_proc_qnames.extend(self.ensemble_namespaces.iter().map(String::as_str));
-        // Qualified proc name → definition offset (the proc-name
-        // token start).  A shadowing proc only silences a *top-level*
-        // call (`enforce_order`) when its definition lexically
-        // precedes the call; proc-body calls are not order-gated.
-        // Conditional / nested definitions are still treated as
-        // shadowing here — distinguishing unconditionally-reachable
-        // definitions needs the CFG dominator model, which is not
-        // modelled here.
-        let proc_offsets: FxHashMap<&str, u32> = self
-            .result
-            .all_procs
-            .iter()
-            .map(|(qname, def)| (qname.as_str(), def.name_span.start()))
-            .collect();
-        // Inline stubs are document-global and unqualified.
-        let stub_names = super::utils::scan_stub_command_names(&self.source);
+        let facts = UserResolutionFacts::build(self);
 
         let pending = std::mem::take(&mut self.pending_arity);
         for (cmd_name, ns, enforce_order, diag) in pending {
-            let bare = cmd_name.rsplit("::").next().unwrap_or(&cmd_name);
-            // Candidate qualified names this call could resolve to.
-            let candidates = qualify_candidates(&ns, &cmd_name);
-            // A proc shadows only when reachable at the call: top-level
-            // calls require the definition to lexically precede them
-            // (`def_off < call_off`); proc-body calls accept any
-            // same-named definition.  Classes / aliases / ensembles /
-            // stubs are not order-gated.
             let call_off = diag.span.start();
-            let resolves_to_user = candidates.iter().any(|c| {
-                non_proc_qnames.contains(c.as_str())
-                    || proc_offsets
-                        .get(c.as_str())
-                        .is_some_and(|&def_off| !enforce_order || def_off < call_off)
-            }) || stub_names.contains(bare);
-            if resolves_to_user {
+            if facts.resolves_to_user(&cmd_name, &ns, enforce_order, call_off) {
                 continue;
             }
             self.result.diagnostics.push(diag);
@@ -973,10 +1089,10 @@ impl Analyser {
         let user_pending = std::mem::take(&mut self.pending_user_call_arity);
         for cand in user_pending {
             let bare = cand.cmd_name.rsplit("::").next().unwrap_or(&cand.cmd_name);
-            if stub_names.contains(bare) {
+            if facts.stub_names.contains(bare) {
                 continue;
             }
-            let Some(arity) = self.resolve_indirect_call_target(&cand, &proc_offsets) else {
+            let Some(arity) = self.resolve_indirect_call_target(&cand, &facts.proc_offsets) else {
                 continue;
             };
             if let Some(diag) = arity_verdict(
@@ -1266,7 +1382,7 @@ impl Analyser {
     fn resolve_indirect_call_target(
         &self,
         cand: &PendingUserCallArity,
-        proc_offsets: &FxHashMap<&str, u32>,
+        proc_offsets: &FxHashMap<String, u32>,
     ) -> Option<Arity> {
         const MAX_HOPS: u8 = 8;
         let mut cur = cand.cmd_name.clone();

@@ -1227,6 +1227,45 @@ fn e003_proc_body_call_not_order_gated() {
     );
 }
 
+#[test]
+fn e003_static_rename_onto_builtin_name_suppresses_arity() {
+    // `rename OLD NEW` moves OLD's identity onto NEW — `rename myimpl
+    // close` makes `close` a real command backed by `myimpl`'s own
+    // 3-parameter signature, not the registry `close` builtin (max 2), so
+    // a 3-argument call must not fire E003.  Order-gated the same way as a
+    // proc: the rename statement must lexically precede a top-level call.
+    let src = "proc myimpl {a b c} { return $a }\nrename myimpl close\nclose 1 2 3\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::E003),
+        "no E003 expected — close was renamed onto myimpl's 3-arg signature, got {:?}",
+        r.diagnostics
+    );
+}
+
+#[test]
+fn e003_top_level_call_before_rename_onto_builtin_still_fires() {
+    // The mirror image of `e003_top_level_call_before_shadowing_proc_fires`
+    // for a rename target: a top-level call *before* the `rename` runs
+    // still reaches the original builtin at load time.
+    let src = "close 1 2 3\nproc myimpl {a b c} { return $a }\nrename myimpl close\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.6");
+    let e003: Vec<&Diagnostic> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::E003)
+        .collect();
+    assert_eq!(
+        e003.len(),
+        1,
+        "expected E003 on the top-level close before the rename took effect, got {:?}",
+        r.diagnostics
+    );
+    assert_eq!(e003[0].span.start(), 0, "wrong call flagged");
+}
+
 // Same-file proc / TclOO forward / `interp alias` / `rename` arity
 // (generalises E002/E003 beyond the builtin registry).
 

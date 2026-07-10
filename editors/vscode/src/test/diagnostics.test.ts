@@ -592,6 +592,56 @@ suite("Diagnostics", () => {
   // BLT/Rbc idiom) with no `package require`, plus one genuinely-unknown
   // command. The package database resolves the library commands exactly as
   // go-to-definition does, so they must NOT be flagged "Unknown command"
+  // W002 (disabled-in-dialect command): a genuinely disabled command with no
+  // shadowing definition must fire, while a same-file proc / interp alias /
+  // forward-declared proc-body shadow — resolved with Tcl's real
+  // namespace-then-global, load-order-aware rules — must not.
+  test("W002 fires only for the unshadowed disabled call, not the shadowed ones", async () => {
+    const uri = getDocUri("w002.tcl");
+    const doc = await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+
+    const text = doc.getText();
+    const lineOf = (needle: string): number => {
+      const idx = text.indexOf(needle);
+      assert.ok(idx >= 0, `fixture must contain ${JSON.stringify(needle)}`);
+      return doc.positionAt(idx).line;
+    };
+    const unshadowedLine = lineOf("dict create a 1");
+    const namespaceShadowedLine = lineOf("dict foo bar");
+    const aliasShadowedLine = lineOf("aliasedDisabled foo bar");
+    const forwardDeclaredLine = lineOf("lmap x {1 2 3}");
+
+    const w002On = (diags: vscode.Diagnostic[], line: number) =>
+      diags.some((d) => codeOf(d) === "W002" && d.range.start.line === line);
+
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => w002On(diags, unshadowedLine),
+    });
+
+    assert.ok(
+      w002On(diagnostics, unshadowedLine),
+      `expected W002 on the unshadowed 'dict create' call (line ${unshadowedLine})`,
+    );
+    assert.ok(
+      diagnostics.some((d) => codeOf(d) === "W002" && /available in: tcl8\.5/.test(d.message)),
+      `expected the W002 message to name the dialects dict is available in: ` +
+        `${diagnostics.map((d) => d.message).join("; ")}`,
+    );
+    assert.ok(
+      !w002On(diagnostics, namespaceShadowedLine),
+      `a namespace-scoped shadowing proc must suppress W002 (line ${namespaceShadowedLine})`,
+    );
+    assert.ok(
+      !w002On(diagnostics, aliasShadowedLine),
+      `an interp alias establishing the name must suppress W002 (line ${aliasShadowedLine})`,
+    );
+    assert.ok(
+      !w002On(diagnostics, forwardDeclaredLine),
+      `a forward-declared proc-body shadow must suppress W002 (line ${forwardDeclaredLine})`,
+    );
+  });
+
   // (W123) — while the genuine unknown still is. `xcDiagnostics` stays off.
   test("auto_path library commands are not unknown (issue #832)", async () => {
     const uri = getDocUri("autoloadLibrary.tcl");

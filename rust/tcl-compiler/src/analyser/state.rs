@@ -350,17 +350,23 @@ pub struct Analyser {
     /// def — one of the divergences the per-item path must reproduce.  `None` on
     /// the whole-file `analyse` path (reads resolve against the populated scope).
     pub(super) capture_global_reads: Option<Vec<(String, tcl_lexer::Span)>>,
-    /// Deferred W002 (disabled-in-dialect command) diagnostics whose
-    /// user-proc-shadowing suppression is a **cross-item** fact (the file's full
-    /// `all_procs`).  On the per-item path an isolated body has only its own
-    /// procs, so a would-be-W002 site that the body can't prove shadowed is
-    /// captured here (qualified call name + the built diagnostic) instead of
-    /// emitted; [`Self::graft_proc_body`] rebases the span and
-    /// [`Self::flush_disabled_command_diagnostics`] re-applies the shadow check
-    /// against the merged `all_procs` in the tail.  Empty on the whole-file
-    /// `analyse` path (W002 is emitted inline there), so the tail flush is a
-    /// no-op — byte-identical.
-    pub(super) pending_disabled_commands: Vec<(String, super::types::Diagnostic)>,
+    /// Deferred W002 (disabled-in-dialect command) diagnostics — both the
+    /// whole-command form ([`Self::emit_w002_disabled_command`]) and the
+    /// subcommand form embedded in
+    /// [`Self::emit_w001_unknown_subcommand`]. Always deferred (never emitted
+    /// inline) because the user-definition-shadowing suppression check needs
+    /// the fully-merged, whole-file facts (`all_procs`, `command_aliases`,
+    /// `renamed_commands`, `all_classes`, `ensemble_namespaces`) — on the
+    /// per-item path an isolated body only has its own, so a would-be-W002
+    /// site that the body can't prove shadowed is captured here as `(command
+    /// name, call-site namespace, enforce_order, diagnostic)` — the same
+    /// shape as [`Self::pending_arity`] — and [`Self::graft_proc_body`]
+    /// rebases the span via [`super::per_item::rebase_fragment`].
+    /// [`Self::flush_disabled_command_diagnostics`] resolves every candidate
+    /// (both paths alike) against the merged facts in the tail, using the
+    /// same current-namespace-then-global resolution and top-level order gate
+    /// as [`Self::flush_arity_diagnostics`].
+    pub(super) pending_disabled_commands: Vec<(String, String, bool, super::types::Diagnostic)>,
     /// Deferred W304 (missing `--` option terminator) diagnostics whose
     /// severity/message depend on resolving a `$var` against the **most recent
     /// literal `set` in the whole file** ([`last_literal_set_value_for_var`],

@@ -430,6 +430,167 @@ fn history_unknown_subcommand_is_still_w001_not_e001() {
     assert!(!has_code(&diags, "E001"));
 }
 
+// -- W002 (disabled-in-dialect command), end to end -----------------------
+
+/// The `(character, character)` span of the first diagnostic carrying `code`
+/// on `line`, or `None` if there isn't one.
+fn range_on_line(diags: &[Value], code: &str, line: i64) -> Option<(i64, i64)> {
+    diags.iter().find_map(|d| {
+        if code_str(d).as_deref() != Some(code) {
+            return None;
+        }
+        let range = d.get("range")?;
+        let start = range.get("start")?;
+        if start.get("line")?.as_i64()? != line {
+            return None;
+        }
+        let end = range.get("end")?;
+        Some((
+            start.get("character")?.as_i64()?,
+            end.get("character")?.as_i64()?,
+        ))
+    })
+}
+
+#[test]
+fn disabled_command_is_w002_with_a_tight_span() {
+    // `dict` is Tcl 8.5+; under `tcl8.4` the call is disabled, and the
+    // squiggle must cover exactly the 4-character `dict` token — not the
+    // whole line — so the editor highlights only the offending name.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl8.4\ndict create a 1\n");
+    let w002: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("W002"))
+        .collect();
+    assert_eq!(w002.len(), 1, "expected exactly one W002: {diags:?}");
+    assert_eq!(
+        message(w002[0]),
+        "'dict' is disabled in the active dialect profile \
+         (available in: tcl8.5, tcl8.6, tcl9.0, tcl9.1)"
+    );
+    assert_eq!(
+        range_on_line(&diags, "W002", 1),
+        Some((0, 4)),
+        "the span must cover exactly 'dict' on line 1: {diags:?}"
+    );
+}
+
+#[test]
+fn disabled_command_enabled_in_active_dialect_is_clean() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl9.0\ndict create a 1\n");
+    assert!(
+        !has_code(&diags, "W002"),
+        "dict is native in 9.0: {diags:?}"
+    );
+}
+
+#[test]
+fn disabled_subcommand_is_w002_with_a_command_plus_subcommand_span() {
+    // `package files` is Tcl 9.0+; the squiggle covers `package files`
+    // (command head through the subcommand word), not the whole call.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "package files mypackage\n");
+    assert!(
+        !has_code(&diags, "W001"),
+        "must not report as unknown: {diags:?}"
+    );
+    assert_eq!(
+        range_on_line(&diags, "W002", 0),
+        Some((0, 13)),
+        "the span must cover 'package files' (13 chars): {diags:?}"
+    );
+}
+
+#[test]
+fn disabled_command_shadowed_by_namespace_scoped_proc_is_clean() {
+    // A namespace-scoped `proc dict` shadows the disabled builtin for
+    // unqualified calls resolved inside that namespace — Tcl's real
+    // current-namespace-then-global resolution rule, not merely "was `dict`
+    // defined anywhere in the file".
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "# tcl-dialect: tcl8.4\nnamespace eval ::ns {\n    proc dict {args} { return $args }\n    dict foo bar\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "W002"),
+        "a namespace-scoped shadowing proc must suppress W002: {diags:?}"
+    );
+}
+
+#[test]
+fn disabled_command_shadowed_by_forward_declared_proc_body_is_clean() {
+    // The shadowing proc is declared *after* the call site textually, but
+    // the call only runs (inside another proc's body) once the whole file
+    // has loaded — so the later definition is already in effect.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "# tcl-dialect: tcl8.4\nproc use_dict {} {\n    dict create a 1\n}\nproc dict {args} { return $args }\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "W002"),
+        "a forward-declared proc-body shadow must suppress W002: {diags:?}"
+    );
+}
+
+#[test]
+fn disabled_command_top_level_call_before_shadowing_proc_still_fires() {
+    // The mirror image: a *top-level* call before its shadowing proc's
+    // definition still reaches the disabled builtin at load time.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "# tcl-dialect: tcl8.4\ndict create a 1\nproc dict {args} { return $args }\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        has_code(&diags, "W002"),
+        "a top-level call before its shadowing proc must still fire W002: {diags:?}"
+    );
+}
+
+#[test]
+fn disabled_command_shadowed_by_interp_alias_is_clean() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "# tcl-dialect: tcl8.4\ninterp alias {} dict {} list\ndict create a 1\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "W002"),
+        "an interp alias establishing the name must suppress W002: {diags:?}"
+    );
+}
+
+#[test]
+fn disabled_command_shadowed_by_rename_is_clean() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "# tcl-dialect: tcl8.4\nproc myimpl {args} { return $args }\nrename myimpl dict\ndict create a 1\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "W002"),
+        "a rename establishing the name must suppress W002: {diags:?}"
+    );
+}
+
+#[test]
+fn disabled_subcommand_form_shadowed_by_ensemble_head_proc_is_clean() {
+    // A user `proc package` overrides the *whole* ensemble command — the
+    // call never reaches the registry `package files` subcommand check.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc package {args} { return $args }\npackage files mypackage\n",
+    );
+    assert!(
+        !has_code(&diags, "W002"),
+        "a shadowed ensemble head must suppress the subcommand-form W002: {diags:?}"
+    );
+}
+
 #[test]
 fn bare_tcloo_object_dispatch_is_e001() {
     // `set o [Dog new]; $o` — TclOO's per-object dispatcher requires a

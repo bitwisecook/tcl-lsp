@@ -465,12 +465,12 @@ impl Analyser {
                 self.record_var_read(&name, shift(span, delta), &[]);
             }
         }
-        // Re-defer the body's would-be-W002 sites with rebased spans; the tail
-        // re-applies the shadow check against the merged `all_procs`.
-        for (qname, mut diag) in frag.disabled_commands {
-            diag.span = shift(diag.span, delta);
-            self.pending_disabled_commands.push((qname, diag));
-        }
+        // Re-defer the body's would-be-W002 sites (already rebased by
+        // `rebase_fragment`); the tail re-applies the shadow check against
+        // the merged `all_procs` / `command_aliases` / `renamed_commands` /
+        // `all_classes` / `ensemble_namespaces`.
+        self.pending_disabled_commands
+            .extend(frag.disabled_commands);
         // Re-defer the body's source-dependent W304 sites, rebasing the token,
         // fix, and diagnostic spans to absolute; the tail classifies each `$var`
         // against the full file source.
@@ -507,12 +507,16 @@ pub struct BodyFragment {
     /// Qualified (`::`/`static::`) reads that missed the isolated body's empty
     /// enclosing global scope; replayed on the shell's real globals at graft.
     global_reads: Vec<(String, tcl_lexer::Span)>,
-    /// W002 (disabled-in-dialect command) sites whose user-proc-shadowing
-    /// suppression depends on the file's full `all_procs` (a cross-item fact the
-    /// isolated body lacks): `(qualified call name, deferred diagnostic)`.  The
-    /// graft rebases the diagnostic span and re-defers it; the tail re-checks the
-    /// shadow against the merged `all_procs`.
-    disabled_commands: Vec<(String, super::types::Diagnostic)>,
+    /// W002 (disabled-in-dialect command) sites — always deferred (see
+    /// [`super::state::Analyser::pending_disabled_commands`]), so this is
+    /// simply the isolated body's own queue: `(command name, call-site
+    /// namespace, enforce_order, deferred diagnostic)`, the same shape as
+    /// [`Self::pending_arity`]. `rebase_fragment` rebases the diagnostic span
+    /// in place; the graft re-defers it onto the shell's queue and the tail
+    /// re-checks the shadow against the merged `all_procs` /
+    /// `command_aliases` / `renamed_commands` / `all_classes` /
+    /// `ensemble_namespaces`.
+    disabled_commands: Vec<(String, String, bool, super::types::Diagnostic)>,
     /// Deferred W304 (missing `--`) sites whose `$var` classification needs the
     /// whole-file most-recent-`set` resolution (invisible to an isolated body).
     /// The graft rebases the token + fix + diagnostic spans; the tail classifies
@@ -781,6 +785,9 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
         }
     }
     for (_, _, _, diag) in &mut frag.pending_arity {
+        rebase_diag(diag, d);
+    }
+    for (_, _, _, diag) in &mut frag.disabled_commands {
         rebase_diag(diag, d);
     }
     for cand in &mut frag.pending_user_call_arity {
