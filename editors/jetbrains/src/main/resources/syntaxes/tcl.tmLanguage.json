@@ -327,19 +327,19 @@
     "keyword": {
       "patterns": [
         {
-          "comment": "Control flow keywords (when is iRule-specific but this grammar serves all dialects)",
+          "comment": "Control flow keywords (when is iRule-specific but this grammar serves all dialects). lmap lives here (not in the built-in-commands list below) because the registry carries it with the same LANGUAGE_KEYWORD trait as foreach — it binds loop variables, not just a plain library call.",
           "name": "keyword.control.tcl",
-          "match": "(?<=^|\\s|;|\\[)(?:if|else|elseif|for|foreach|while|when|switch|break|continue|return|catch|try|throw|on|trap|finally|yield|yieldto|tailcall)(?=\\s|$|;)"
+          "match": "(?<=^|\\s|;|\\[)(?:if|else|elseif|for|foreach|lmap|while|when|switch|break|continue|return|catch|try|throw|on|trap|finally|yield|yieldto|tailcall)(?=\\s|$|;)"
         },
         {
           "comment": "Definition keywords (proc/method handled in #definitions for name capture)",
           "name": "keyword.other.tcl",
-          "match": "(?<=^|\\s|;|\\[)(?:proc|method|constructor|destructor|namespace|variable|global|upvar|uplevel|package|source|rename|interp|coroutine|apply|oo::class|oo::define|oo::objdefine)(?=\\s|$|;)"
+          "match": "(?<=^|\\s|;|\\[)(?:proc|method|constructor|destructor|namespace|variable|classvariable|global|upvar|uplevel|package|source|rename|interp|coroutine|apply|foreachLine|oo::class|oo::define|oo::objdefine|oo::abstract|oo::configurable|oo::singleton|itcl::class)(?=\\s|$|;)"
         },
         {
           "comment": "Common built-in commands",
           "name": "support.function.tcl",
-          "match": "(?<=^|\\s|;|\\[)(?:set|unset|puts|gets|read|open|close|expr|eval|info|array|dict|string|list|lappend|lassign|lindex|linsert|llength|lmap|lrange|lrepeat|lreplace|lreverse|lsearch|lset|lsort|join|split|format|scan|regexp|regsub|append|incr|after|file|glob|cd|pid|exec|socket|fconfigure|fileevent|flush|seek|tell|eof|fblocked|fcopy|chan|encoding|concat|subst|error|exit|time|update|vwait|parray|load|unload)(?=\\s|$|;)"
+          "match": "(?<=^|\\s|;|\\[)(?:set|unset|puts|gets|read|open|close|expr|eval|info|array|dict|string|list|lappend|lassign|lindex|linsert|llength|lrange|lrepeat|lreplace|lreverse|lsearch|lset|lsort|join|split|format|scan|regexp|regsub|append|incr|after|file|glob|cd|pid|exec|socket|fconfigure|fileevent|flush|seek|tell|eof|fblocked|fcopy|chan|encoding|concat|subst|error|exit|time|update|vwait|parray|load|unload)(?=\\s|$|;)"
         }
       ]
     },

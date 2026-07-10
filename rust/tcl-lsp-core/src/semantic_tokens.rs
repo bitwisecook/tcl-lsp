@@ -8024,14 +8024,18 @@ mod tests {
     /// wrong for the general case — it covers every `expr` operator and the
     /// `regsub` `\&` backref, not just `format`). Standard LSP types get no
     /// override unless the override is either essentially universal across
-    /// themes (`number`, `regexp` — near-ubiquitous TextMate scopes that
+    /// themes (`number`, `regexp` — near-ubiquitous `TextMate` scopes that
     /// match the grammar's own naming) or the type has no sane built-in
     /// default at all (custom types like `object`, `event`, `escape`, the
     /// `regexp*`/`format*`/`clock*`/`binary*` families).
     #[test]
     fn vscode_semantic_token_scopes_do_not_shadow_standard_defaults() {
-        const MUST_NOT_OVERRIDE: &[&str] =
-            &["function.defaultLibrary", "operator", "decorator", "namespace"];
+        const MUST_NOT_OVERRIDE: &[&str] = &[
+            "function.defaultLibrary",
+            "operator",
+            "decorator",
+            "namespace",
+        ];
 
         let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let pkg = manifest.join("../../editors/vscode/package.json");

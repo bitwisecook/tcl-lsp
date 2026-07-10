@@ -1428,9 +1428,8 @@ fn issue_862_reported_builtins_are_function_default_library_at_top_level() {
         let hit = toks
             .iter()
             .find(|t| t.ttype == "function" && tok_text(src, t) == name);
-        let t = hit.unwrap_or_else(|| {
-            panic!("`{name}` did not classify as a function token: {toks:?}")
-        });
+        let t = hit
+            .unwrap_or_else(|| panic!("`{name}` did not classify as a function token: {toks:?}"));
         assert!(
             has_default_library(t),
             "`{name}` must carry the defaultLibrary modifier: {t:?} in {toks:?}",
@@ -1461,7 +1460,9 @@ fn issue_862_reported_builtins_are_function_default_library_in_tcloo_method_body
             .iter()
             .find(|t| t.ttype == "function" && tok_text(src, t) == name);
         let t = hit.unwrap_or_else(|| {
-            panic!("`{name}` did not classify as a function token inside a TclOO method body: {toks:?}")
+            panic!(
+                "`{name}` did not classify as a function token inside a TclOO method body: {toks:?}"
+            )
         });
         assert!(
             has_default_library(t),

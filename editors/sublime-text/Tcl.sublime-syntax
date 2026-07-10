@@ -240,14 +240,16 @@ contexts:
 
   # Keywords
   keyword:
-    # Control flow
-    - match: '(?<=^|\s|;|\[)(?:if|else|elseif|for|foreach|while|switch|break|continue|return|catch|try|throw|yield|yieldto|tailcall)(?=\s|$|;)'
+    # Control flow. lmap lives here (not in the built-in-commands list below)
+    # because the registry carries it with the same LANGUAGE_KEYWORD trait as
+    # foreach — it binds loop variables, not just a plain library call (#862).
+    - match: '(?<=^|\s|;|\[)(?:if|else|elseif|for|foreach|lmap|while|switch|break|continue|return|catch|try|throw|yield|yieldto|tailcall)(?=\s|$|;)'
       scope: keyword.control.tcl
     # Definitions
     - match: '(?<=^|\s|;|\[)(?:proc|namespace|variable|global|upvar|uplevel|package|source|rename|interp|coroutine|apply)(?=\s|$|;)'
       scope: keyword.other.tcl
     # Built-in commands
-    - match: '(?<=^|\s|;|\[)(?:set|unset|puts|gets|read|open|close|expr|eval|info|array|dict|string|list|lappend|lassign|lindex|linsert|llength|lmap|lrange|lrepeat|lreplace|lreverse|lsearch|lset|lsort|join|split|format|scan|regexp|regsub|append|incr|after|file|glob|cd|pid|exec|socket|fconfigure|fileevent|flush|seek|tell|eof|fblocked|fcopy|chan|encoding|concat|subst|error|exit|time|update|vwait|parray|load|unload)(?=\s|$|;)'
+    - match: '(?<=^|\s|;|\[)(?:set|unset|puts|gets|read|open|close|expr|eval|info|array|dict|string|list|lappend|lassign|lindex|linsert|llength|lrange|lrepeat|lreplace|lreverse|lsearch|lset|lsort|join|split|format|scan|regexp|regsub|append|incr|after|file|glob|cd|pid|exec|socket|fconfigure|fileevent|flush|seek|tell|eof|fblocked|fcopy|chan|encoding|concat|subst|error|exit|time|update|vwait|parray|load|unload)(?=\s|$|;)'
       scope: support.function.tcl
 
   # Operators
