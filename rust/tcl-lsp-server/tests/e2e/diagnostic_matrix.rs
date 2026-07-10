@@ -321,3 +321,67 @@ fn o103_does_not_fold_proc_renamed_over() {
     let source = result.get("source").and_then(Value::as_str).unwrap_or("");
     assert!(source.contains("set x [double 21]"), "{source:?}");
 }
+
+// O101 deep-review (F1-F4) end-to-end coverage: each case exercises the real
+// server's own dialect detection / whole-module scan, not just the compiler
+// API directly, per the review's "editor-facing" requirement.
+
+#[test]
+fn irules_dialect_leading_zero_folds_as_octal() {
+    // TP: opened with the `tcl-irule` language id, so the server's own
+    // dialect detection selects iRules' octal-leading-zero reading (same as
+    // tcl8.x) — tclsh8.6/iRules: `010 + 1` == 9 (octal 8 + 1), not 11.
+    let mut lsp = Lsp::irules();
+    let uri = unique_uri("irule");
+    lsp.open_ready_lang(
+        &uri,
+        "when RULE_INIT {\n log local0. [expr {010 + 1}]\n}\n",
+        "tcl-irule",
+    );
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(source.contains("log local0. 9"), "{source:?}");
+}
+
+#[test]
+fn expr_redefinition_blocks_fold() {
+    // FP guard (F2): once `expr` is renamed, `[expr {1 + 2}]` no longer
+    // invokes the builtin evaluator — O101 must leave it unrewritten.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "rename expr real_expr\nproc p {} { return [expr {1 + 2}] }\n");
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(source.contains("expr {1 + 2}"), "{source:?}");
+    assert!(!source.contains("return 3"), "{source:?}");
+}
+
+#[test]
+fn expr_not_redefined_still_folds() {
+    // TN/control: the same source with no `rename` still folds normally —
+    // proves the F2 guard is keyed on an actual rebinding, not a blanket
+    // regression.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc p {} { return [expr {1 + 2}] }\n");
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(source.contains("return 3"), "{source:?}");
+}
+
+#[test]
+fn global_write_across_opaque_call_blocks_fold() {
+    // FP guard (F4a): `mutate` writes the global `x` via `global x; set x
+    // 99`, called between the top-level `set x 5` and the `expr {$x + 1}`
+    // read. tclsh: `x` is 99 by the time `puts` runs, so the correct value
+    // is 100 — O101 must not fold this to `puts 6`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc mutate {} { global x; set x 99 }\nset x 5\nmutate\nputs [expr {$x + 1}]\n",
+    );
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", serde_json::json!([uri, "full"]));
+    let source = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(!source.contains("puts 6"), "{source:?}");
+}
