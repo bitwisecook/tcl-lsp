@@ -185,9 +185,16 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
 
         // O115: a branch condition that is itself a redundant `[expr {…}]`
         // wrapper (`if {[expr {$x}]} …`) unwraps to its inner expression.
-        // Checked before the constant cascade.
+        // Checked before the constant cascade. Unlike the rest of this
+        // cascade — which folds the condition text using Tcl's own
+        // internal expr evaluation (never a command dispatch, so
+        // `rename`/`interp alias`-ing `expr` cannot affect it) — this
+        // specific rewrite assumes the embedded `[expr {…}]` substring is
+        // a genuine command substitution dispatching to builtin `expr`,
+        // so it alone needs the trust gate.
         if let Some(unwrapped) = try_unwrap_expr_in_expr(inner)
             && unwrapped != inner
+            && ctx.command_mutations.trusts("expr")
         {
             ctx.report(Optimisation::new(
                 DiagCode::O115,
@@ -985,5 +992,48 @@ mod tests {
             .find(|o| o.code == DiagCode::O115)
             .expect("expected an O115 unwrap on the branch condition");
         assert_eq!(o115.replacement, "{$x}");
+    }
+
+    #[test]
+    fn renamed_expr_blocks_branch_condition_unwrap() {
+        // FP guard: `if {[expr {$x}]} …` embeds a genuine command
+        // substitution — once `expr` is renamed anywhere in the module,
+        // `[expr {$x}]` no longer means "evaluate $x as an expression", so
+        // the O115 unwrap must not fire.
+        let source = "rename expr real_expr\nif {[expr {$x}]} { puts a } else { puts b }";
+        let reg = registry();
+        let cu = CompilationUnit::build_for(source, &reg, false);
+        let mut ctx = build_ctx(&cu.source);
+        ctx.command_mutations =
+            crate::command_binding::scan_module_command_mutations(&cu.ir_module, &reg);
+        super::super::run_passes(&mut ctx, &cu, &[PassId::BranchFolding]);
+        assert!(
+            ctx.optimisations.iter().all(|o| o.code != DiagCode::O115),
+            "must not unwrap through a renamed expr: {:?}",
+            ctx.optimisations,
+        );
+    }
+
+    #[test]
+    fn plain_branch_condition_fold_unaffected_by_expr_rename() {
+        // TN/control: `if`/`while` conditions are evaluated by Tcl's own
+        // internal expr engine, never by dispatching a command literally
+        // named "expr" — so renaming `expr` elsewhere in the module must
+        // NOT block a plain (no explicit `[expr {…}]` substring) constant
+        // branch fold.
+        let source = "rename expr real_expr\nif {2 + 2 == 4} { puts a } else { puts b }";
+        let reg = registry();
+        let cu = CompilationUnit::build_for(source, &reg, false);
+        let mut ctx = build_ctx(&cu.source);
+        ctx.command_mutations =
+            crate::command_binding::scan_module_command_mutations(&cu.ir_module, &reg);
+        super::super::run_passes(&mut ctx, &cu, &PassId::all());
+        assert!(
+            ctx.optimisations
+                .iter()
+                .any(|o| o.code == DiagCode::O101 || o.code == DiagCode::O112),
+            "plain condition fold must be unaffected by an unrelated expr rename: {:?}",
+            ctx.optimisations,
+        );
     }
 }

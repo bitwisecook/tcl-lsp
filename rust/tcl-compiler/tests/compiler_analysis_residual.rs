@@ -949,6 +949,7 @@ fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit
                     true,
                     req.upvar_procs.clone(),
                     req.proc_params.clone(),
+                    req.global_write_procs.clone(),
                 );
                 let pc =
                     tcl_compiler::compilation_unit::decode_param_constants(req.param_constants);

@@ -561,7 +561,7 @@ mod tests {
         ssa.blocks.insert(entry_id, entry);
 
         let du = build_def_use_chains(&ssa, Some(&cfg));
-        let sccp_result = sccp(&cfg, &ssa, None, None);
+        let sccp_result = sccp(&cfg, &ssa, None, None, None);
         let g = extract_function_dataflow::<std::collections::hash_map::RandomState>(
             "::top",
             &ssa,
