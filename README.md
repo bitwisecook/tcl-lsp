@@ -205,6 +205,12 @@ proc broken {x {
 string length "a" "b"   ;# E003: too many arguments
 ```
 
+Problems persist for workspace files after you close their editor tab: a file
+that showed diagnostics keeps its **Problems** entry and File Explorer badge,
+recomputed from its on-disk contents, instead of the badge vanishing the moment
+the tab closes. Deleting the file (or removing its workspace folder) clears the
+badge.
+
 ### Special-variable awareness
 
 Interpreter-provided globals — `auto_path`, `env`, `errorInfo`, `tcl_platform`,
