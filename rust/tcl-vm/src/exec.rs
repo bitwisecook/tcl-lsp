@@ -85,6 +85,18 @@ pub(crate) struct Frame {
     /// Whether this activation owns a `Vm` call-frame (a proc body) that must be
     /// popped, and whose boundary absorbs `Return`.
     is_proc: bool,
+    /// A *transparent* script activation (`eval`/`uplevel`/`catch`/`subst` body
+    /// run on the explicit stack so a `yield` inside it stays yieldable). It owns
+    /// no `Vm` call-frame; on completion its result is delivered to the parent
+    /// exactly as an inline command's would be — an `ok` result is pushed to the
+    /// parent's operand stack, and a `break`/`continue` is offered to the parent's
+    /// enclosing loop rather than unwinding through it. Mutually exclusive with
+    /// `is_proc`.
+    is_script: bool,
+    /// For a script activation, the `errorInfo` body label the uncompiled command
+    /// would add on error (`("eval" body line N)` / `("uplevel" body line N)`).
+    /// `None` for a command-substitution `EVAL_STK`, which adds no body frame.
+    body_label: Option<&'static str>,
 }
 
 impl Frame {
@@ -102,7 +114,20 @@ impl Frame {
             expand_markers: Vec::new(),
             last_result: Value::empty(),
             is_proc,
+            is_script: false,
+            body_label: None,
         }
+    }
+
+    /// A transparent script activation (see [`Frame::is_script`]) for a body run
+    /// yieldably on the explicit stack (`EVAL_STK`, and the `eval`/`uplevel`
+    /// builtins routed through it). `label` is the `errorInfo` body-frame label
+    /// (`Some("eval")`/`Some("uplevel")`), or `None` for a command substitution.
+    pub(crate) fn new_script(asm: Rc<FunctionAsm>, label: Option<&'static str>) -> Self {
+        let mut f = Self::new(asm, false);
+        f.is_script = true;
+        f.body_label = label;
+        f
     }
 
     /// Push `v` onto this frame's operand stack. Used by a coroutine `resume` to
@@ -141,6 +166,15 @@ enum Tick {
     Return(Completion<Value>),
     /// Call a proc — push a new activation + call-frame.
     Call { proc: Rc<ProcDef>, argv: Vec<Value> },
+    /// Run a compiled script on the explicit stack — push a *transparent* script
+    /// activation ([`Frame::new_script`]). Used by `EVAL_STK` (and the
+    /// `eval`/`uplevel` builtins routed through it) so a `yield` inside the body
+    /// stays yieldable instead of re-entering the evaluator on the native stack.
+    /// `label` is the `errorInfo` body-frame label (`None` for command subst).
+    PushScript {
+        asm: Rc<FunctionAsm>,
+        label: Option<&'static str>,
+    },
     /// `tailcall cmd ?arg …?` — the current proc finishes and `cmd args` runs in
     /// its place (in the caller's activation), its result becoming the proc's.
     /// `words` is `[cmd, arg, …]` (the `tailcall` prefix word already dropped).
@@ -636,6 +670,7 @@ impl Vm {
                         }
                     }
                 },
+                Tick::PushScript { asm, label } => acts.push(Frame::new_script(asm, label)),
                 Tick::Return(c) => {
                     // A `break`/`continue` *returned by a command* (`if {…} $z`,
                     // `eval break`) inside an inline loop body: jump to the
@@ -752,6 +787,25 @@ impl Vm {
             // analogue of C's `CmdFrame` trace.
             if c.code == Code::Error {
                 self.apply_error_regions(&act);
+                // A transparent `eval`/`uplevel` body adds its `("eval" body line
+                // N)` frame as the error unwinds out of it — the compiled-stack
+                // analogue of the post-`eval_source` `append_body_frame` the
+                // builtins used to do (eval-2.5) — then logs the `eval`/`uplevel`
+                // command's own `invoked from within "eval …"` call-site frame
+                // (the enclosing instruction that pushed this body), as the
+                // nested-drive builtins' propagated error did.
+                if let Some(label) = act.body_label {
+                    self.append_body_frame(label);
+                    if let Some((cmd, line)) = acts.last().and_then(|parent| {
+                        parent
+                            .asm
+                            .instructions
+                            .get(parent.pc.saturating_sub(1))
+                            .map(|i| (i.source_cmd_text.clone(), i.source_line))
+                    }) {
+                        self.log_command_info(&cmd, "", line);
+                    }
+                }
             }
             if act.is_proc {
                 // An error unwinding out of a proc body adds a
@@ -823,7 +877,17 @@ impl Vm {
                         parent.stack.push(c.result);
                         return None;
                     }
-                    // Error / Break / Continue / unabsorbed Return keep unwinding.
+                    // A transparent script activation (`eval`/`uplevel`/… body run
+                    // on the explicit stack) delivers `break`/`continue` to the
+                    // enclosing frame's loop, exactly as an inline `[break]` in
+                    // that frame would — it does not unwind through the frame.
+                    if act.is_script
+                        && matches!(c.code, Code::Break | Code::Continue)
+                        && Self::catch_loop_completion(parent, c.code)
+                    {
+                        return None;
+                    }
+                    // Error / uncaught Break|Continue / unabsorbed Return keep unwinding.
                 }
             }
         }
@@ -2364,10 +2428,14 @@ impl Vm {
             // multi-command substitution `[a; b]` (RUST_ISSUE_061). A non-OK
             // completion unwinds like any other command error.
             Op::EVAL_STK => {
+                // Run the script on the *explicit* stack (a transparent script
+                // frame) rather than a nested drive, so a `yield` inside it stays
+                // yieldable (RUST_ISSUE_008). Its result/`break`/`continue`/error
+                // is delivered to this frame by `unwind` exactly as the old inline
+                // push/`Tick::Return` did.
                 let script = pop(f).to_str().to_string();
-                match self.eval_source(&script) {
-                    Ok(res) if res.code.is_ok() => f.stack.push(res.result),
-                    Ok(res) => return Tick::Return(res),
+                match self.compile_source_cached(&script) {
+                    Ok(asm) => return Tick::PushScript { asm, label: None },
                     Err(e) => return Tick::Return(err(e.message)),
                 }
             }
@@ -2407,6 +2475,12 @@ impl Vm {
                 // the resume value replaces it on the operand stack.
                 if let Some(req) = self.coro.pending.take() {
                     return Ok(Some(Tick::Suspend(req)));
+                }
+                // An `eval`/`uplevel`-style builtin defers its body to the
+                // explicit stack (yieldable): drain it into a `PushScript`, whose
+                // frame result replaces this builtin's placeholder (as for yield).
+                if let Some((asm, label)) = self.pending_eval.take() {
+                    return Ok(Some(Tick::PushScript { asm, label }));
                 }
                 if res.code.is_ok() {
                     f.stack.push(res.result);
@@ -2491,7 +2565,16 @@ impl Vm {
         match self.lookup_command(name) {
             Some(Command::Builtin(bf)) => {
                 self.set_invoked_name(name);
-                bf(self, argv)
+                let res = bf(self, argv);
+                // An `eval`/`uplevel`-style builtin deferred its body to
+                // `pending_eval`. This call site is on the native Rust stack (no
+                // trampoline to push onto), so run the body via a nested drive —
+                // a `yield` inside cannot cross it, exactly like every other
+                // `invoke_command` re-entry.
+                if let Some((asm, label)) = self.pending_eval.take() {
+                    return self.run_activation(Frame::new_script(asm, label));
+                }
+                res
             }
             Some(Command::Proc(p)) => match self.enter_proc(&p, argv) {
                 Ok(()) => self.run_activation(Frame::new(Rc::clone(&p.body), true)),

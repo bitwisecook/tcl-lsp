@@ -341,6 +341,13 @@ pub struct Vm {
     /// -command`/OO-method re-entry sits between, so the suspend is rejected
     /// (`cannot yield: C stack busy`).
     pub(crate) activation_depth: usize,
+    /// A script an `eval`/`uplevel`-style builtin wants run on the *explicit*
+    /// stack (so a `yield` in it stays yieldable): the compiled body + its
+    /// `errorInfo` body label. Set by the builtin and drained by `dispatch_words`
+    /// into a [`Tick::PushScript`](crate::exec) (or run via a nested drive on the
+    /// `invoke_command` fallback path), mirroring how `coro.pending` becomes a
+    /// `Tick::Suspend`.
+    pub(crate) pending_eval: Option<(Rc<FunctionAsm>, Option<&'static str>)>,
     /// The event loop's pending timer/idle events (`after`/`vwait`/`update`).
     /// The scheduler half of the coroutine subsystem. See [`crate::cmd_event`].
     pub(crate) events: crate::cmd_event::EventQueue,
@@ -476,6 +483,7 @@ impl Vm {
             oo: crate::cmd_oo::OoState::default(),
             coro: crate::cmd_coro::CoroSystem::default(),
             activation_depth: 0,
+            pending_eval: None,
             events: crate::cmd_event::EventQueue::default(),
             thread: crate::cmd_thread::ThreadSystem::default(),
         };
@@ -3095,6 +3103,29 @@ impl Vm {
             self.clear_error_logged();
         }
         Ok(comp)
+    }
+
+    /// Compile `src` to its top-level activation (module cached exactly like
+    /// [`eval_source`](Self::eval_source)) and register the module's procs,
+    /// *without* running it. `EVAL_STK` pushes the returned activation onto the
+    /// explicit stack (a transparent [script frame](crate::exec::Frame)) so a
+    /// `yield` inside the evaluated script stays yieldable — the yieldable
+    /// counterpart of the nested drive `eval_source` performs.
+    pub(crate) fn compile_source_cached(&mut self, src: &str) -> Result<Rc<FunctionAsm>, TclError> {
+        let module = if let Some(m) = self.eval_cache.get(src) {
+            Rc::clone(m)
+        } else {
+            let Some(c) = self.compiler.as_ref() else {
+                return Err(TclError::new(
+                    "eval / command substitution requires a CompileService",
+                ));
+            };
+            let m = Rc::new(c.compile(src).map_err(|e| TclError::new(e.0))?);
+            self.eval_cache.insert(src.to_string(), Rc::clone(&m));
+            m
+        };
+        self.merge_procs(&module.procedures);
+        Ok(Rc::new(module.top_level.clone()))
     }
 }
 

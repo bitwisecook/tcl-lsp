@@ -455,3 +455,30 @@ fn initial_command_resolves_in_the_creation_namespace() {
         "local"
     );
 }
+
+#[test]
+fn yield_across_eval() {
+    // tclsh 9.0.4 (coroutine-1.9/1.10): a `yield` reached through `eval` (the
+    // list form, run on the explicit stack) crosses the boundary — creation
+    // consumes 0, then each resume yields the next.
+    assert_eq!(
+        result(
+            "proc gen {} {set i 0; while {$i<3} {eval yield [expr {$i*10}]; incr i}}; \
+             coroutine c gen; list [c] [c] [c]"
+        ),
+        "10 20 {}"
+    );
+}
+
+#[test]
+fn yield_across_uplevel_0() {
+    // tclsh 9.0.4 (coroutine-1.7/1.8/1.12): a `yield` reached through `uplevel 0`
+    // (same frame, run on the explicit stack) crosses the boundary.
+    assert_eq!(
+        result(
+            "proc gen {} {set i 0; while {$i<3} {uplevel 0 yield [expr {$i*10}]; incr i}}; \
+             coroutine c gen; list [c] [c] [c]"
+        ),
+        "10 20 {}"
+    );
+}

@@ -279,18 +279,18 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             .collect::<Vec<_>>()
             .join(" ")
     };
-    let c = match vm.eval_source(&script) {
-        Ok(c) => c,
+    // Defer the body to the *explicit* stack so a `yield` inside it stays
+    // yieldable (RUST_ISSUE_008): compile it and hand it to the trampoline via
+    // `pending_eval`, which pushes a transparent script frame whose result
+    // replaces this placeholder. The script frame adds the `("eval" body line N)`
+    // errorInfo frame itself on error (eval-2.5; see `Frame::body_label`).
+    match vm.compile_source_cached(&script) {
+        Ok(asm) => {
+            vm.pending_eval = Some((asm, Some("eval")));
+            ok(Value::empty())
+        }
         Err(e) => err(e.message),
-    };
-    if c.code == Code::Error {
-        // An error unwinding out of an `eval` body adds an `("eval" body
-        // line N)` frame to errorInfo (C's uncompiled eval), before the
-        // enclosing INVOKE logs its `invoked from within "eval {…}"` frame
-        // (eval-2.5).
-        vm.append_body_frame("eval");
     }
-    c
 }
 
 /// Monotonic counter minting unique temporary command names for `apply`.
@@ -1735,6 +1735,20 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .map(|v| v.to_str().to_string())
         .collect::<Vec<_>>()
         .join(" ");
+    // `uplevel 0` (and `uplevel #<current level>`) runs in the *current* frame —
+    // no frame swap — so defer it to the explicit stack (yieldable), like `eval`
+    // (RUST_ISSUE_008; coroutine-1.7/1.8/1.12). Every other level swaps to a
+    // different frame that must be restored afterwards, which a transparent
+    // script frame cannot carry, so those keep the nested-drive `eval_at_level`.
+    if target == cur {
+        return match vm.compile_source_cached(&script) {
+            Ok(asm) => {
+                vm.pending_eval = Some((asm, Some("uplevel")));
+                ok(Value::empty())
+            }
+            Err(e) => err(e.message),
+        };
+    }
     vm.eval_at_level(target, &script)
 }
 
