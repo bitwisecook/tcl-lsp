@@ -109,6 +109,46 @@ suite("LSP Command Execution", () => {
     assert.ok(typeof result.source === "string", "result should have source string");
   });
 
+  test("tcl-lsp.optimiseDocument folds O103 pure-proc calls, including implicit return", async () => {
+    // TP: `quad` has no explicit `return` (Tcl's "value of the last command
+    // executed" rule — the KCS O103 doc's own canonical example) and must
+    // still fold end to end through the real extension + packaged server.
+    const o103Uri = getDocUri("o103.tcl");
+    await activate(o103Uri);
+    const result = (await execLspCommand(
+      "tcl-lsp.optimiseDocument",
+      o103Uri.toString(),
+      "full",
+    )) as {
+      optimisations: unknown[];
+      source: string;
+    } | null;
+    assert.ok(result, "optimiseDocument should return a result");
+    assert.ok(result.source.includes("set q 20"), `expected "set q 20" in:\n${result.source}`);
+  });
+
+  test("tcl-lsp.optimiseDocument does not fold a proc call renamed over", async () => {
+    // FP guard / miscompile-guard: `rename triple double` moves `triple`'s
+    // body onto the name `double` — `optimiseDocument` must leave
+    // `set d [double 21]` untouched rather than fold it to the *original*
+    // `double` proc's constant return (a real miscompile).
+    const o103Uri = getDocUri("o103.tcl");
+    await activate(o103Uri);
+    const result = (await execLspCommand(
+      "tcl-lsp.optimiseDocument",
+      o103Uri.toString(),
+      "full",
+    )) as {
+      optimisations: unknown[];
+      source: string;
+    } | null;
+    assert.ok(result, "optimiseDocument should return a result");
+    assert.ok(
+      result.source.includes("set d [double 21]"),
+      `expected "set d [double 21]" to survive unfolded in:\n${result.source}`,
+    );
+  });
+
   // -- fixAllSafeIssues -------------------------------------------------------
 
   test("tcl-lsp.fixAllSafeIssues returns applied list", async () => {
