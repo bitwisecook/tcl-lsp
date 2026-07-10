@@ -411,6 +411,38 @@ fn info_coroutine_is_empty_after_self_deletion() {
 }
 
 #[test]
+fn completing_coroutine_fires_local_unset_traces() {
+    // tclsh 9.0.4 (coroutine-4.1): the coroutine's frame is destroyed when its
+    // body finishes, so the traced local `v` gets its unset trace (after the two
+    // writes across the two resumes).
+    assert_eq!(
+        result(
+            "proc foo {} { set v 1; trace add variable v {write unset} bar; \
+             yield; set v 2; yield; set v 3 }; \
+             proc bar args {lappend ::res $args}; coroutine a foo; \
+             apply {{} { list [a] [a] $::res }}"
+        ),
+        "{} 3 {{v {} write} {v {} write} {v {} unset}}"
+    );
+}
+
+#[test]
+fn deleting_a_suspended_coroutine_fires_local_unset_traces() {
+    // tclsh 9.0.4 (coroutine-4.3 tail): deleting a *suspended* coroutine unsets
+    // its parked locals, firing their unset traces even though the frame never
+    // returns normally.
+    assert_eq!(
+        result(
+            "proc foo {} { set v 1; trace add variable v {write unset} bar; \
+             yield; set v 2; yield; set v 3 }; \
+             proc bar args {lappend ::res $args}; \
+             apply {{} { coroutine a foo; a; rename a {}; set ::res }}"
+        ),
+        "{v {} write} {v {} unset}"
+    );
+}
+
+#[test]
 fn initial_command_resolves_in_the_creation_namespace() {
     // tclsh 9.0.4 (coroutine-4.4): the coroutine's initial command is resolved
     // in the namespace where `coroutine` was called, so the namespace-local `a`

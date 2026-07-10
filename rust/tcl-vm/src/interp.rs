@@ -2026,9 +2026,61 @@ impl Vm {
 
     pub(crate) fn pop_call_frame(&mut self) {
         if self.frames.len() > 1 {
+            self.fire_frame_unset_traces();
             self.frames.pop();
             self.recursion_depth = self.recursion_depth.saturating_sub(1);
         }
+    }
+
+    /// Fire `unset` variable traces on the current frame's genuine locals just
+    /// before the frame is destroyed — C Tcl unsets a call frame's locals when
+    /// the frame is deleted, firing their unset traces (coroutine-4.1/4.2, and
+    /// the general proc-return case). Links are skipped: they alias a variable
+    /// owned by another frame, whose trace fires when *that* frame goes. The
+    /// fired traces are then dropped, since their variables no longer exist.
+    /// Guarded on `var_traces` being non-empty, so it is free in the common case.
+    fn fire_frame_unset_traces(&mut self) {
+        if self.var_traces.is_empty() {
+            return;
+        }
+        let Some(frame) = self.frames.last() else {
+            return;
+        };
+        let level = frame.level;
+        // Genuine locals (scalars/arrays), sorted for a deterministic order.
+        let mut names: Vec<String> = frame
+            .locals
+            .iter()
+            .filter(|(_, l)| matches!(l, Local::Scalar(_) | Local::Array(_)))
+            .map(|(n, _)| n.clone())
+            .collect();
+        names.sort();
+        for nm in &names {
+            // The frame is still on the stack, so the name resolves to this
+            // level; C ignores errors from unset traces, as does `fire_var_traces`.
+            let _ = self.fire_var_traces(nm, "unset");
+        }
+        // Drop every trace scoped to this frame level — those variables are gone.
+        let prefix = format!("{level}\u{0}");
+        self.var_traces.retain(|k, _| !k.starts_with(&prefix));
+    }
+
+    /// Fire `unset` traces on a suspended coroutine's parked locals as the
+    /// coroutine is torn down: its frozen frames are about to vanish, so swap the
+    /// parked flow in, unwind it frame by frame (each `pop_call_frame` fires that
+    /// frame's unset traces), then swap the caller's flow back (`parked` is left
+    /// emptied for the caller to drop). Matches C Tcl unsetting a deleted
+    /// coroutine's variables (coroutine-4.3). Free when no traces are registered.
+    pub(crate) fn fire_parked_unset_traces(&mut self, parked: &mut ParkedFlow) {
+        if self.var_traces.is_empty() {
+            return;
+        }
+        self.swap_flow(parked);
+        while self.frames.len() > 1 {
+            self.pop_call_frame();
+            self.pop_ns();
+        }
+        self.swap_flow(parked);
     }
 
     /// Push a non-proc call frame for a `namespace eval`/`inscope` body running

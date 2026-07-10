@@ -138,9 +138,17 @@ pub(crate) fn is_coroutine(vm: &Vm, fqn: &str) -> bool {
 /// `apply` coroutine's bound lambda proc is removed here (its lifetime is the
 /// coroutine's).
 pub(crate) fn on_command_deleted(vm: &mut Vm, fqn: &str) {
-    if let Some(state) = vm.coro.live.remove(fqn)
-        && let Some(p) = state.temp_proc
-    {
+    let Some(mut state) = vm.coro.live.remove(fqn) else {
+        return;
+    };
+    // A suspended coroutine's locals are about to disappear with its frozen
+    // frames; fire their `unset` traces first (C unsets a deleted coroutine's
+    // variables). A running coroutine's frames are on the live stack instead, so
+    // their traces fire the normal way as those frames pop.
+    if state.status == CoroStatus::Suspended {
+        vm.fire_parked_unset_traces(&mut state.parked);
+    }
+    if let Some(p) = state.temp_proc {
         vm.take_command(&p);
     }
 }
