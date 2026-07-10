@@ -457,9 +457,7 @@ fn classify_thunking_phi(
     // purely from the header's own two direct incoming edges).
     let span = [type_b, type_a]
         .into_iter()
-        .find_map(|t| {
-            per_loop_type_span(ctx, this_loop, phi.name, t)
-        })
+        .find_map(|t| per_loop_type_span(ctx, this_loop, phi.name, t))
         .unwrap_or_else(|| phi_span(phi, ctx.ssa, ctx.def_map));
     let related: Vec<_> = phi
         .incoming
