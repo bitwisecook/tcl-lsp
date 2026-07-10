@@ -241,7 +241,14 @@ pub fn sccp(
     octal: Option<bool>,
     module_traces: Option<&ModuleVariableTraces>,
 ) -> SccpResult {
-    sccp_with_extra_escaping(cfg, ssa, param_constants, octal, &HashSet::new(), module_traces)
+    sccp_with_extra_escaping(
+        cfg,
+        ssa,
+        param_constants,
+        octal,
+        &HashSet::new(),
+        module_traces,
+    )
 }
 
 /// Like [`sccp`] but additionally forces every name in `extra_escaping` to
@@ -2639,7 +2646,7 @@ mod tests {
         let with_upframe =
             cu("set n 5\nuplevel #0 { set n 99 }\nif {$n == 5} { set r yes } else { set r no }\n");
         let f = with_upframe.function("::top").unwrap();
-        let r = sccp(&f.cfg, &f.ssa, None, None);
+        let r = sccp(&f.cfg, &f.ssa, None, None, None);
         assert!(
             r.constant_branches.is_empty(),
             "a value reachable through an UpFrame must not fold a constant branch, got {:?}",

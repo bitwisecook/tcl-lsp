@@ -291,6 +291,7 @@ impl FunctionUnit {
     /// with an implicit empty set and sees identical behaviour to before
     /// this existed.
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn build_with_param_constants_classes_and_escaping(
         name: impl Into<String>,
         cfg: CfgFunction,
