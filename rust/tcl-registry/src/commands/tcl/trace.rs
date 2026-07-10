@@ -31,17 +31,37 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "trace option ?arg arg ...?",
 }];
 
+/// Resolve a `trace add|remove` type word (`variable`/`command`/
+/// `execution`) the way C Tcl 9.0's `Tcl_GetIndexFromObj` does: a
+/// unique, non-empty prefix is accepted, so `trace add v x read h` /
+/// `trace add var x read h` install the same variable trace as the
+/// full spelling (checked against tclsh 8.6.14).
+fn resolve_trace_type(word: &str) -> Option<&'static str> {
+    const TYPES: &[&str] = &["variable", "command", "execution"];
+    if word.is_empty() {
+        return None;
+    }
+    let mut hits = TYPES.iter().copied().filter(|t| t.starts_with(word));
+    let first = hits.next()?;
+    if hits.next().is_some() {
+        return None; // ambiguous prefix
+    }
+    Some(first)
+}
+
 /// Arg-role resolver for `trace add`.
 ///
 /// `trace add variable name ops commandPrefix` writes to `name` —
 /// the trace handler can rewrite the variable at runtime, so SSA
 /// must see `name` as a definition site.
 ///
-/// The resolver only fires for the `variable` form so
+/// The resolver only fires for the `variable` form (accepting any
+/// unique-prefix abbreviation of it, e.g. `var`/`v`) so
 /// `trace add execution` and `trace add command` (which take a
 /// command name, not a variable) don't appear as SSA defs.
 fn trace_add_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.first() == Some(&"variable") && args.len() >= 2 {
+    if args.first().is_some_and(|w| resolve_trace_type(w) == Some("variable")) && args.len() >= 2
+    {
         return vec![(1, ArgRole::VarWrite)];
     }
     Vec::new()
@@ -51,7 +71,8 @@ fn trace_add_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// registry consistency with `trace add variable` so consumers can
 /// query both spellings via the same `ArgRole::VarWrite` lookup.
 fn trace_remove_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.first() == Some(&"variable") && args.len() >= 2 {
+    if args.first().is_some_and(|w| resolve_trace_type(w) == Some("variable")) && args.len() >= 2
+    {
         return vec![(1, ArgRole::VarWrite)];
     }
     Vec::new()
@@ -70,7 +91,7 @@ fn trace_type_command_prefix(args: &[&str], installing: bool) -> Vec<(u8, Append
         return Vec::new();
     }
     let arity = if installing {
-        match args.first().copied() {
+        match args.first().and_then(|w| resolve_trace_type(w)) {
             Some("variable" | "command") => AppendedArity::Exactly(3),
             Some("execution") => AppendedArity::AtLeast(2),
             _ => AppendedArity::Unknown,

@@ -506,6 +506,20 @@ fn o102_legacy_trace_variable_form_blocks_forward() {
 }
 
 #[test]
+fn o102_abbreviated_trace_add_variable_blocks_forward() {
+    // C Tcl's `Tcl_GetIndexFromObj` accepts a unique prefix of the trace
+    // type word, so `trace add var x read h` installs the same variable
+    // trace as the full `variable` spelling (tclsh 8.6.14: prints "read
+    // trace fired" then "5"). The registry's `arg_role_resolver` for
+    // `trace add`/`remove` previously hand-matched the literal word
+    // `"variable"` only, so this abbreviated form recorded no
+    // `traced_variables` fact and still forwarded to `puts 5`.
+    let src = "proc onread {name1 name2 op} {\n    puts \"read trace fired\"\n}\ntrace add var x read onread\nset x 5\nputs $x\n";
+    assert!(opt_absent(src, TCL, "O102"));
+    assert!(optimised(src, TCL).contains("puts $x"));
+}
+
+#[test]
 fn o102_transitive_trace_taint_through_expr_blocks_forward() {
     // TP for the deeper, transitive fix: `a` carries a read trace, and
     // `v`'s SCCP-constant value is *computed from* `a` inside

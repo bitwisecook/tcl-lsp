@@ -2553,10 +2553,43 @@ fn lower_with(mut lowerer: Lowerer<'_>, source: &str) -> Module {
 fn populate_trace_facts(module: &mut Module, registry: &CommandRegistry) {
     let top_level = module.top_level.clone();
     walk_for_trace(&top_level, module, registry);
-    let proc_bodies: Vec<Script> = module.procedures.values().map(|p| p.body.clone()).collect();
-    for body in &proc_bodies {
+    // Every statically-known frame, not just named procedures: a `trace`
+    // call inside a `namespace eval` / `apply` body (`Module::body_units`)
+    // or a `TclOO` method (`Module::methods`) is just as live as one inside
+    // a `proc` — omitting either class here would silently under-populate
+    // `traced_variables` the moment an optimiser pass starts reaching into
+    // those bodies (`CompilationUnit::all_body_function_units`).
+    let bodies: Vec<Script> = module
+        .procedures
+        .values()
+        .map(|p| p.body.clone())
+        .chain(module.body_units.values().map(|p| p.body.clone()))
+        .chain(module.methods.values().map(|m| m.body.clone()))
+        .collect();
+    for body in &bodies {
         walk_for_trace(body, module, registry);
     }
+}
+
+/// Resolve a `trace add|remove` type word (`variable`/`command`/
+/// `execution`) against C Tcl 9.0's `Tcl_GetIndexFromObj` abbreviation
+/// rule: a unique, non-empty prefix is accepted (`trace add e foo enter
+/// h` installs the same execution trace as the full spelling, checked
+/// against tclsh 8.6.14). Mirrors
+/// `tcl_registry::commands::tcl::trace`'s private resolver of the same
+/// name — duplicated rather than exposed across the crate boundary for
+/// one three-word list.
+fn resolve_trace_type_word(word: &str) -> Option<&'static str> {
+    const TYPES: &[&str] = &["variable", "command", "execution"];
+    if word.is_empty() {
+        return None;
+    }
+    let mut hits = TYPES.iter().copied().filter(|t| t.starts_with(word));
+    let first = hits.next()?;
+    if hits.next().is_some() {
+        return None; // ambiguous prefix
+    }
+    Some(first)
 }
 
 fn walk_for_trace(script: &Script, module: &mut Module, registry: &CommandRegistry) {
@@ -2566,7 +2599,16 @@ fn walk_for_trace(script: &Script, module: &mut Module, registry: &CommandRegist
             Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. }
                 if command.trim_start_matches("::") == "trace" =>
             {
-                if args.len() >= 4 && args[0] == "add" && args[1] == "execution" {
+                let is_add = args.first().is_some_and(|w| {
+                    registry
+                        .get(command)
+                        .and_then(|spec| spec.resolve_subcommand(w))
+                        .is_some_and(|sub| sub.name == "add")
+                });
+                if args.len() >= 4
+                    && is_add
+                    && resolve_trace_type_word(&args[1]) == Some("execution")
+                {
                     let target = &args[2];
                     if is_literal_trace_target(target) {
                         let canonical = target.trim_start_matches("::").to_string();
@@ -3782,6 +3824,62 @@ mod tests {
             "traced_commands={:?}",
             m.traced_commands,
         );
+    }
+
+    #[test]
+    fn trace_add_variable_abbreviated_type_word_recorded() {
+        // `trace add v x write h` / `trace add var x write h` install the
+        // same variable trace as the full `variable` spelling — C Tcl
+        // accepts any unique prefix (checked against tclsh 8.6.14).
+        let m = lower_to_ir("trace add v x write h", &reg());
+        assert!(m.traced_variables.contains("x"), "{:?}", m.traced_variables);
+        let m = lower_to_ir("trace add var x write h", &reg());
+        assert!(m.traced_variables.contains("x"), "{:?}", m.traced_variables);
+    }
+
+    #[test]
+    fn trace_remove_variable_abbreviated_type_word_recorded() {
+        let m = lower_to_ir("trace remove var x write h", &reg());
+        assert!(m.traced_variables.contains("x"), "{:?}", m.traced_variables);
+    }
+
+    #[test]
+    fn trace_add_execution_abbreviated_type_word_not_variable() {
+        // `e`/`exec` abbreviate `execution`, not `variable` — must not
+        // widen `traced_variables`.
+        let m = lower_to_ir("trace add e foo enter h", &reg());
+        assert!(m.traced_variables.is_empty());
+        assert!(m.traced_commands.contains("foo"), "{:?}", m.traced_commands);
+    }
+
+    #[test]
+    fn trace_add_variable_inside_namespace_eval_body_recorded() {
+        // A trace installed inside a `namespace eval` body (a synthetic
+        // `Module::body_units` entry, not a named proc) must populate the
+        // same whole-module fact as one inside a `proc`.
+        let m = lower_to_ir(
+            "namespace eval ::n { trace add variable ::x write h }",
+            &reg(),
+        );
+        assert!(m.traced_variables.contains("x"), "{:?}", m.traced_variables);
+    }
+
+    #[test]
+    fn trace_add_variable_inside_apply_body_recorded() {
+        let m = lower_to_ir(
+            "apply {{} { trace add variable ::x write h }}",
+            &reg(),
+        );
+        assert!(m.traced_variables.contains("x"), "{:?}", m.traced_variables);
+    }
+
+    #[test]
+    fn trace_add_variable_inside_method_body_recorded() {
+        let m = lower_to_ir(
+            "oo::class create C { method m {} { trace add variable ::x write h } }",
+            &reg(),
+        );
+        assert!(m.traced_variables.contains("x"), "{:?}", m.traced_variables);
     }
 
     // barrier-gate
