@@ -45,7 +45,7 @@ use crate::common::helpers::*;
 use crate::common::{Lsp, Rng, unique_uri};
 
 use serde_json::{Value, json};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 // --------------------------------------------------------------------------- #
 // Client-side text mirror (native port of tests/lsp_e2e/_textmirror.py).
@@ -330,8 +330,29 @@ fn assert_buffer_equiv(
     lsp.settle_analysis(edited_uri, edited_version + 1, fresh_text);
     lsp.open_ready(fresh_uri, fresh_text);
 
-    let edited_tokens = decode_semantic_tokens(&lsp.semantic_tokens(edited_uri));
-    let fresh_tokens = decode_semantic_tokens(&lsp.semantic_tokens(fresh_uri));
+    // Either buffer's first `semanticTokens/full` can be served the transient
+    // *coarse* tier when its enriched (SSA/SCCP-informed) computation overruns
+    // the 40 ms fast-path budget under load; the server then fires
+    // `workspace/semanticTokens/refresh` once the enriched stream lands (issue
+    // #829). A raw compare can therefore catch a coarse/enriched *tier split*
+    // that is a scheduling artefact, not a stale-cache divergence.
+    //
+    // Fast path: if the first reads already agree, the buffers are consistent —
+    // whichever tier each was served, they match, which is the whole invariant.
+    // Only on an apparent divergence do we converge *both* buffers onto their
+    // settled enriched streams (as a conformant client does) and re-compare, so
+    // a real stale-cache bug still fails with a clean diff while a tier split
+    // does not flake.
+    let fresh_first = decode_semantic_tokens(&lsp.semantic_tokens(fresh_uri));
+    let edited_first = decode_semantic_tokens(&lsp.semantic_tokens(edited_uri));
+    let (edited_tokens, fresh_tokens) = if toks(&edited_first) == toks(&fresh_first) {
+        (edited_first, fresh_first)
+    } else {
+        (
+            settled_tokens(lsp, edited_uri),
+            settled_tokens(lsp, fresh_uri),
+        )
+    };
     assert_eq!(
         toks(&edited_tokens),
         toks(&fresh_tokens),
@@ -345,6 +366,46 @@ fn assert_buffer_equiv(
         edited_syms == fresh_syms,
         "document-symbol tree diverged (content or position drift)"
     );
+}
+
+/// Fetch `uri`'s semantic tokens, converging onto the settled *enriched* stream.
+///
+/// `semanticTokens/full` may serve the cheap coarse tier when the enriched
+/// (SSA/SCCP-informed) computation overruns its 40 ms fast-path budget, then
+/// fire `workspace/semanticTokens/refresh` once the enriched stream lands — and
+/// it fires that refresh *iff* the enriched stream differs from the one just
+/// served (`deliver_if_changed`). So a request that draws no follow-up refresh
+/// was already the enriched stream; one that does is re-pulled. Looping until a
+/// request draws no refresh converges on the enriched tier the way a conformant
+/// client (and the `semantic_tokens_reference_client` suite) does, whichever
+/// tier won the first race — the deterministic input an oracle comparison needs.
+///
+/// If the enriched stream is starved past the deadline the last response is
+/// returned unchanged, so a genuine divergence is reported by the caller's
+/// assertion rather than the test hanging.
+fn settled_tokens(lsp: &mut Lsp, uri: &str) -> Vec<SemToken> {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        let since = lsp.server_request_cursor();
+        let current = decode_semantic_tokens(&lsp.semantic_tokens(uri));
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return current;
+        }
+        // A follow-up refresh means the stream just served was the coarse tier
+        // and a better (enriched) one has landed — re-pull. No refresh within the
+        // grace means the served stream is already the enriched tier.
+        if lsp
+            .try_await_server_request(
+                "workspace/semanticTokens/refresh",
+                remaining.min(Duration::from_secs(2)),
+                since,
+            )
+            .is_none()
+        {
+            return current;
+        }
+    }
 }
 
 /// A comparable tuple form of a decoded semantic token.
