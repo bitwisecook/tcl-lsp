@@ -30,9 +30,11 @@ import { getDocUri, activate, waitForDiagnostics } from "./helper";
 // both the fast-tier analyser code and a deep-only optimiser code, and (b) when
 // the split is observable, the fast tier is published first.
 //
-// The precise fast→deep ordering / subset property is pinned deterministically
-// in the Rust lsp_e2e suite (`large_file_publishes_fast_tier_before_deep_tier`);
-// this test is the editor-integration companion.
+// The fast→deep ordering / subset property is asserted more strictly — when the
+// race is observable — by the Rust lsp_e2e suite
+// (`large_file_publishes_fast_tier_before_deep_tier`); like this test, that one
+// falls back to a completeness-only check on a host fast enough to coalesce the
+// two waves into a single publish. This test is the editor-integration companion.
 suite("Progressive diagnostics (#844)", () => {
   const fixtureName = "progressiveDiagnostics.tcl";
   const docUri = getDocUri(fixtureName);
@@ -121,9 +123,9 @@ suite("Progressive diagnostics (#844)", () => {
         );
       } else {
         // On an unexpectedly fast host the whole pipeline can land inside the
-        // budget and coalesce to one publish. The split itself is pinned
-        // deterministically by the Rust lsp_e2e suite; completeness above is
-        // still asserted.
+        // budget and coalesce to one publish. The split itself is asserted (when
+        // observable) by the Rust lsp_e2e suite, which carries the same coalesce
+        // fallback; completeness above is still asserted here.
         console.log(
           "progressive diagnostics: fast/deep split coalesced into one publish " +
             "this run — completeness still asserted",

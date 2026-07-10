@@ -641,6 +641,22 @@ impl DeliveryCtx<'_> {
     /// deep publish (held across the push), so a superseding edit or a
     /// `did_close` in the window can never let a stale fast tier land
     /// (`RUST_ISSUE_098`).
+    /// Publish the fast tier for a push client, iff this run's revision is still
+    /// current. Skipped for a pull client (the pull path always serves the
+    /// complete deep set, never the reduced fast tier).
+    ///
+    /// Like [`publish_diagnostics_result`], this holds the `documents` lock
+    /// **across** `publish_diagnostics().await`, and that is load-bearing: the
+    /// lock-across-send is what closes `RUST_ISSUE_098`. Releasing `documents`
+    /// before the send would let a `did_close` clearing-publish land between the
+    /// currency check and the send, repainting squiggles on a now-closed document
+    /// that nothing downstream clears (the deep pass then finds `!is_current` and
+    /// returns without publishing). The consequence to accept: on the progressive
+    /// path this is a *second* lock-held-across-send publish per cycle, so on a
+    /// ≥ `DIAGNOSTICS_FAST_TIER_MIN_LINES` file under a transiently slow client
+    /// (the bounded `channel(1)` transport parks the send) the worst-case
+    /// cross-document head-of-line stall is doubled versus a single-publish cycle
+    /// — a bounded, deliberate tradeoff for early feedback, not an oversight.
     async fn deliver_fast_tier_if_current(
         &self,
         diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
@@ -1167,7 +1183,12 @@ async fn run_diagnostics_analyser_path(
 /// of the `join!`.
 ///
 /// Returns whether the version **settled** (published or superseded), matching
-/// the old serial path — `false` only on a genuine salsa cancellation.
+/// the old serial path — `false` only on a genuine salsa cancellation. A
+/// deterministic worker panic in a *secondary* pass (compiler / cross-file)
+/// degrades that pass to its empty / per-file fallback and still publishes the
+/// currency-guarded deep tier, so the fast tier — which may already have replaced
+/// the client's set with its reduced subset — is never left as the terminal
+/// state (#844).
 async fn run_deep_diagnostics(
     delivery: &DeliveryCtx<'_>,
     salsa_ctx: &SalsaAnalysisCtx<'_>,
@@ -1188,15 +1209,29 @@ async fn run_deep_diagnostics(
     };
     let compiler_diags: Arc<tcl_lsp_db::CompilerDiagnostics> = match compiler_result {
         ControlFlow::Continue(d) => d,
-        ControlFlow::Break(settled) => return settled,
+        // Cancellation → retry the latest state.
+        ControlFlow::Break(false) => return false,
+        // Deterministic worker panic → degrade to no compiler diags but STILL
+        // publish below. The fast tier may already have replaced the client's
+        // complete set with its reduced subset; an early return here would leave
+        // that reduced set as the terminal state (settled ⇒ no retry, #844) —
+        // stripping the O1xx/refined-W12x/cross-file findings the user had. The
+        // degraded deep publish is still a strict superset of the fast tier, just
+        // without the compiler/optimiser hints.
+        ControlFlow::Break(true) => Arc::new(tcl_lsp_db::CompilerDiagnostics {
+            checks: Vec::new(),
+            optimisations: Vec::new(),
+        }),
     };
     // `Some` is the cross-file-resolved set (`xcDiagnostics` on, salsa input
     // present); `None` falls back to the per-file set, matching the pre-split
-    // behaviour.
+    // behaviour — as does a deterministic worker panic (`Break(true)`), which
+    // degrades to the per-file set and still publishes rather than stranding the
+    // fast tier (see the compiler arm above). `Break(false)` is cancellation.
     let analyser_diags: Vec<_> = match project_result {
         ControlFlow::Continue(Some(d)) => d,
-        ControlFlow::Continue(None) => analysis.diagnostics.clone(),
-        ControlFlow::Break(settled) => return settled,
+        ControlFlow::Continue(None) | ControlFlow::Break(true) => analysis.diagnostics.clone(),
+        ControlFlow::Break(false) => return false,
     };
 
     // #804: extra requires this document inherits from configured entry points
@@ -7102,9 +7137,13 @@ impl LanguageServer for Backend {
         // behaviour, so a static cold viewport no longer stays coarse until the
         // next scroll/edit.
         let uri = &params.text_document.uri;
-        // Both handles gate on the same salsa input, so they are `Some` together
-        // (indexed document) or `None` together (unindexed buffer → coarse only,
-        // nothing to converge to).
+        // Normally both handles are `Some` (indexed document) or `None` (unindexed
+        // buffer → coarse only, nothing to converge to). They are read under
+        // *separate* `db_files` locks, though, so a concurrent
+        // `did_close`/`db_remove_source` between the two can leave one `Some` and
+        // the other `None`; the `_ => None` arm below then degrades to coarse-only
+        // (`pending = None`) and the orphaned read detaches but self-cancels on the
+        // same `Project`-input bump.
         let handles = match (
             self.db_compilation_unit_handle(uri).await,
             self.db_file_analysis_handle(uri).await,

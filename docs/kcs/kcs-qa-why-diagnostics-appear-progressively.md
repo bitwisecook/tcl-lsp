@@ -14,14 +14,14 @@ others follow a moment later?
 
 ## Answer
 
-On a big or freshly opened file the server delivers diagnostics
+On a large Tcl file the server delivers diagnostics
 **progressively**: it shows the ones it can work out quickly first, then
 fills in the rest once the deeper analysis finishes. You get useful
 feedback early instead of a blank editor until every check has run.
 
-The first wave — the **fast tier** — is everything the server can decide from
-the one file on its own: syntax and structural errors, style lints (line
-length, trailing whitespace), and variable-usage warnings. The second wave —
+The first wave — the **fast tier** — is the cheap single-file pass: syntax and
+structural errors, style lints (line length, trailing whitespace), and
+variable-usage warnings. The second wave —
 the **deep tier** — adds the checks that take longer or need the wider
 picture: the optimiser and compiler warnings, the shimmer and taint findings,
 and the workspace-aware checks that look at your other files and installed

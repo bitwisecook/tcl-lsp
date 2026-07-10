@@ -457,9 +457,18 @@ async fn rapid_edits_deliver_diagnostics_in_version_order_without_loss() {
         .await
         .unwrap();
 
-    // A burst of rapid full-replace edits, alternating clean / E003 so
-    // intermediate versions differ, with the client NOT reading in between (it
+    // Full-replace edits, alternating clean / E003 so consecutive versions differ
+    // (no salsa early-cutoff skip), with the client NOT reading in between (it
     // falls behind). The final version (7) is a distinctive E003.
+    //
+    // The edits are spaced past `DIAGNOSTICS_DEBOUNCE` (50 ms) so the per-URI
+    // worker publishes each version *separately* rather than coalescing the whole
+    // burst into a single v7 publish. That is what gives the ordering assertion
+    // below teeth: because the client still never reads here, ≥2 version-tagged
+    // publishes queue in-flight in the transport at once, so a fire-and-forget
+    // delivery regression (which only manifests with ≥2 racing publishes) would
+    // actually reorder them. Coalesced into one publish, the `windows(2)` loop
+    // would iterate zero times and pass vacuously — see the `>= 2` tripwire.
     let edits = [
         ("set var 10\n", 2),
         ("set var 10 10\n", 3),
@@ -476,6 +485,10 @@ async fn rapid_edits_deliver_diagnostics_in_version_order_without_loss() {
             .write_all(frame(&change).as_bytes())
             .await
             .unwrap();
+        // > DIAGNOSTICS_DEBOUNCE so this version publishes before the next edit
+        // marks the slot dirty again (defeats coalescing without draining, so the
+        // client stays behind).
+        tokio::time::sleep(Duration::from_millis(120)).await;
     }
 
     // Now drain everything and inspect the version-tagged publishes.
@@ -493,9 +506,14 @@ async fn rapid_edits_deliver_diagnostics_in_version_order_without_loss() {
         .collect();
     let versions: Vec<i64> = publishes.iter().map(|(v, _)| *v).collect();
 
+    // Tripwire: a single coalesced publish makes the ordering `windows(2)` loop
+    // below vacuous (zero pairs). The guard only has teeth with ≥2 in-flight
+    // publishes to observe landing in order, so fail loudly rather than pass
+    // silently if coalescing ever collapses the spaced burst.
     assert!(
-        !publishes.is_empty(),
-        "expected at least one version-tagged publish: {frames:?}",
+        publishes.len() >= 2,
+        "expected ≥2 in-flight version-tagged publishes to exercise delivery ordering, \
+         got {versions:?}: {frames:?}",
     );
     // 1) Ordering: never a lower version after a higher one.
     for pair in publishes.windows(2) {
