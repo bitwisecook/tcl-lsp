@@ -25,6 +25,7 @@
 use crate::arg_role::ArgRole;
 use crate::arity::Arity;
 use crate::body_kind::BodyKind;
+use crate::clause_shape::ClauseShapeChecker;
 use crate::dialects::DialectSet;
 use crate::forms::{CommandForm, SubCommandForm};
 use crate::hooks::{
@@ -177,6 +178,14 @@ pub struct CommandSpec {
 
     /// Dynamic argument role resolver (for variable-layout commands).
     pub arg_role_resolver: Option<ArgRoleResolver>,
+
+    /// Clause-chain shape validator, for a command whose valid argument
+    /// shapes aren't a single `min..=max` [`Arity`] range (`if`'s
+    /// `elseif`/`else` chain). See [`crate::clause_shape`]. A command
+    /// carrying this hook should also set
+    /// [`Traits::STRUCTURALLY_CHECKED_ARITY`] so the generic arity
+    /// floor/ceiling check steps aside in its favour.
+    pub clause_shape_check: Option<ClauseShapeChecker>,
 
     /// Static [`ArgRole::CommandPrefix`] positions and their appended arities
     /// (`lsort` positional forms, `socket -server` handled via options).  Each
@@ -490,6 +499,7 @@ impl CommandSpec {
         arity: Arity::any(),
         arg_roles: &[],
         arg_role_resolver: None,
+        clause_shape_check: None,
         command_prefixes: &[],
         command_prefix_resolver: None,
         return_type: None,

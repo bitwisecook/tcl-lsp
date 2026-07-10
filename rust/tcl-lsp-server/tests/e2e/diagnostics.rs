@@ -73,6 +73,15 @@ fn message(d: &Value) -> &str {
     d.get("message").and_then(Value::as_str).unwrap_or("")
 }
 
+/// Diagnostics from `diags` carrying `code`.
+fn with_code(diags: &[Value], code: &str) -> Vec<Value> {
+    diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some(code))
+        .cloned()
+        .collect()
+}
+
 // -- TestPushDiagnostics -------------------------------------------------
 
 #[test]
@@ -100,6 +109,113 @@ fn arity_error_is_e002_with_error_severity() {
         .collect();
     assert!(!e002.is_empty());
     assert_eq!(e002[0].get("severity").and_then(Value::as_i64), Some(1)); // Error
+}
+
+// -- E004 malformed `if` — end-to-end. Each message/range is
+// cross-checked against tclsh 8.6 and Tcl 9.0.4's `Tcl_IfObjCmd` source
+// in the unit-level truth table (`tcl-registry`'s
+// `commands::tcl::if_::tests`, `tcl-compiler`'s `analyser::state::tests`
+// `tp_*` / `fp_*` / `tn_*` cases); this layer only asserts the
+// diagnostic survives the full LSP round trip (server → JSON-RPC →
+// `publishDiagnostics`) with the right code, message, and — critically
+// — a *tight* range, not the whole statement.
+
+/// A diagnostic's `range` as `((start_line, start_char), (end_line, end_char))`.
+fn diag_range(d: &Value) -> ((i64, i64), (i64, i64)) {
+    let get = |path: &[&str]| -> i64 {
+        let mut v = d.get("range").expect("diagnostic has a range");
+        for p in path {
+            v = v.get(p).unwrap_or(&Value::Null);
+        }
+        v.as_i64().unwrap_or(-1)
+    };
+    (
+        (get(&["start", "line"]), get(&["start", "character"])),
+        (get(&["end", "line"]), get(&["end", "character"])),
+    )
+}
+
+#[test]
+fn e004_bare_if_names_the_invoked_command_and_anchors_on_it() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "if\n");
+    let e004 = with_code(&diags, "E004");
+    assert_eq!(e004.len(), 1, "got {diags:?}");
+    assert_eq!(message(&e004[0]), "No expression after \"if\" argument");
+    assert_eq!(diag_range(&e004[0]), ((0, 0), (0, 2)));
+}
+
+#[test]
+fn e004_condition_without_body_anchors_on_the_condition_word() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "if {1}\n");
+    let e004 = with_code(&diags, "E004");
+    assert_eq!(e004.len(), 1, "got {diags:?}");
+    assert_eq!(message(&e004[0]), "No script following \"1\" argument");
+    assert_eq!(diag_range(&e004[0]), ((0, 3), (0, 6)));
+}
+
+#[test]
+fn e004_extra_words_anchors_only_the_extra_word_not_the_whole_statement() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "if {1} {a} {b} {c}\n");
+    let e004 = with_code(&diags, "E004");
+    assert_eq!(e004.len(), 1, "got {diags:?}");
+    assert_eq!(
+        message(&e004[0]),
+        "Extra words after \"else\" clause in \"if\" command"
+    );
+    // Just "{c}" (columns 15..18) — not the whole `if ... {c}` statement.
+    assert_eq!(diag_range(&e004[0]), ((0, 15), (0, 18)));
+}
+
+#[test]
+fn e004_leading_else_bareword_condition_is_not_flagged() {
+    // `if else {a}` — "else" is a well-formed (if ill-typed) condition,
+    // not a malformed `if`; see the FP fix in
+    // `tcl-compiler`'s `analyser::state::tests::fp_leading_else_is_not_malformed`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "if else {a}\n");
+    assert!(with_code(&diags, "E004").is_empty(), "got {diags:?}");
+}
+
+#[test]
+fn e004_qualified_double_colon_if_is_checked() {
+    // `::if` names the same global command as `if` — the E004 dispatch
+    // is generic on the resolved spec's hook, not on the literal
+    // `cmd_name == "if"` text, so registry `::`-stripping picks this up
+    // for free.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "::if {1} {a} {b} {c}\n");
+    assert_eq!(with_code(&diags, "E004").len(), 1, "got {diags:?}");
+}
+
+#[test]
+fn e004_well_formed_elseif_chain_has_no_e004() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "if {$a} {\n  puts a\n} elseif {$b} {\n  puts b\n} else {\n  puts c\n}\n",
+    );
+    assert!(with_code(&diags, "E004").is_empty(), "got {diags:?}");
+}
+
+#[test]
+fn e004_no_duplicate_e002_for_the_same_malformed_if() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "if {1}\n");
+    assert_eq!(with_code(&diags, "E004").len(), 1, "got {diags:?}");
+    assert!(
+        with_code(&diags, "E002").is_empty(),
+        "E004 must not carry a redundant generic E002 alongside it: {diags:?}"
+    );
 }
 
 #[test]
