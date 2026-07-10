@@ -12,11 +12,11 @@ or an explicit *not required* classification.
 
 | status | count |
 | --- | --- |
-| handler | 100 |
+| handler | 101 |
 | handler (native) | 6 |
 | stdlib | 11 |
 | not-required | 111 |
-| known-gap (`RUST_ISSUE_007`) | 4 |
+| known-gap (`RUST_ISSUE_007`) | 3 |
 | **UNCLASSIFIED** | 0 |
 | **total** | 232 |
 
@@ -235,7 +235,7 @@ or an explicit *not required* classification.
 | `tell` | handler |  |
 | `throw` | handler |  |
 | `time` | handler |  |
-| `timerate` | known-gap | benchmarking command |
+| `timerate` | handler |  |
 | `trace` | handler |  |
 | `try` | handler |  |
 | `unknown` | stdlib | init.tcl |

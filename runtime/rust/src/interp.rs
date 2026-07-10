@@ -688,6 +688,12 @@ pub struct InterpState {
     /// records the code here, unwinds uncatchably (`catch` re-propagates while it
     /// is set), and the embedder consumes it via [`Interp::take_exit`].
     exit_code: Cell<Option<i32>>,
+    /// The last `timerate -calibrate` measurement overhead (µs per iteration),
+    /// C's process-global `static double measureOverhead`. It is the default
+    /// `-overhead` subtracted from a plain `timerate`; zero until calibrated.
+    /// Per-interp here (not process-global) so the per-thread interps of the
+    /// `thread` package do not race on it.
+    measure_overhead: Cell<f64>,
     /// The `interp bgerror` handler command prefix (a Tcl list). Empty means the
     /// default. A background error (e.g. a destructor failing during implicit
     /// teardown) is reported to it: `{*}$handler $message $options`.
@@ -950,6 +956,7 @@ impl Interp {
             eval_depth: Cell::new(0),
             cmd_count: Cell::new(0),
             exit_code: Cell::new(None),
+            measure_overhead: Cell::new(0.0),
             bgerror: RefCell::new(Vec::new()),
             bg_queue: RefCell::new(Vec::new()),
             events: RefCell::new(crate::cmd_event::EventQueue::default()),
@@ -1683,6 +1690,17 @@ impl Interp {
     /// Record the code an `exit` requested. See [`InterpState::exit_code`].
     pub(crate) fn set_exit(&self, code: i32) {
         self.exit_code.set(Some(code));
+    }
+
+    /// The `timerate` calibration overhead (µs/iteration).
+    /// See [`InterpState::measure_overhead`].
+    pub(crate) fn measure_overhead(&self) -> f64 {
+        self.measure_overhead.get()
+    }
+
+    /// Update the `timerate` calibration overhead (µs/iteration).
+    pub(crate) fn set_measure_overhead(&self, us: f64) {
+        self.measure_overhead.set(us);
     }
 
     /// Whether an `exit` is pending — the unwinding completion propagates
