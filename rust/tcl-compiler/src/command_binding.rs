@@ -454,6 +454,15 @@ pub fn analyse_command_binding<'a>(
 pub struct ModuleCommandMutations {
     /// Canonical names of core builtins some body may rebind.
     names: std::collections::HashSet<String>,
+    /// Canonical names that are the *source* or *target* of a `rename`, or
+    /// the alias name of an `interp alias`, anywhere in the module — i.e.
+    /// a name that no longer reliably denotes the proc it was declared as
+    /// (or never denoted one at all). Unlike `names`, this is NOT
+    /// restricted to builtins: a plain `proc NAME { … }` declaration is
+    /// deliberately excluded (declaring a name as itself is the expected,
+    /// trustworthy binding) — only `rename` / `interp alias` touching the
+    /// name is recorded. Feeds [`Self::trusts_proc_binding`].
+    rebound: std::collections::HashSet<String>,
     /// A body performs a dynamic `rename`/alias/proc (target not
     /// statically known) → resolution of *any* name is opaque.
     dynamic: bool,
@@ -469,6 +478,28 @@ impl ModuleCommandMutations {
             return false;
         }
         !self.names.contains(&nqn(command_name))
+    }
+
+    /// True when `proc_name` can still be trusted to denote the module
+    /// procedure it was declared as at an arbitrary later call site — i.e.
+    /// its bare name was never the subject of a later `rename` (as the old
+    /// name being moved away *or* the new name a different command moved
+    /// onto) or `interp alias` (as the alias name) anywhere in the module.
+    ///
+    /// Flow-insensitive and whole-module, like [`Self::trusts`]: a
+    /// rebinding buried in a proc body only takes effect when that proc
+    /// runs, and the cross-proc call order isn't statically known, so any
+    /// observed rebinding of the name is treated as live everywhere. This
+    /// is what makes it sound to gate the optimiser's proc-call constant
+    /// fold (O103) on this query — folding a call to the *original* proc's
+    /// constant return would miscompile a script that later does
+    /// `rename otherProc thisName` or `interp alias {} thisName {} other`.
+    #[must_use]
+    pub fn trusts_proc_binding(&self, proc_name: &str) -> bool {
+        if self.dynamic {
+            return false;
+        }
+        !self.rebound.contains(&nqn(proc_name))
     }
 }
 
@@ -493,6 +524,85 @@ fn collect_tampered_builtins(
     }
 }
 
+/// Record the proc-binding-relevant names touched by a `rename` or `interp
+/// alias` statement: the *source* name (vacated — no longer denotes what it
+/// used to) and, for a static target, the *destination* name (now denoting
+/// whatever the source used to, not its own original declaration, if it
+/// even had one). A `proc` (re)declaration is deliberately NOT recorded —
+/// declaring `NAME` as itself is the expected, trustworthy binding; only
+/// *moving* a binding onto a name, or *vacating* a name that used to denote
+/// a proc, breaks the "this bare name still denotes the proc it was
+/// declared as" invariant [`ModuleCommandMutations::trusts_proc_binding`]
+/// needs. Independent of the [`State`] lattice — a direct syntactic scan,
+/// since (unlike the builtin-only trust gate) there is no meaningful
+/// "default" binding to diff a proc name against: a plain declaration
+/// *also* changes the name's binding away from its textual default, so
+/// diffing against `default_binding` cannot distinguish "declared itself"
+/// from "rebound to something else".
+fn collect_proc_rebindings(
+    stmt: &Statement,
+    namespace: &str,
+    rebound: &mut std::collections::HashSet<String>,
+    dynamic: &mut bool,
+) {
+    let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
+        return;
+    };
+    let cmd = stmt.canonical_command_or_source();
+    let cmd_bare = cmd.strip_prefix("::").unwrap_or(cmd);
+    match cmd_bare {
+        "rename" => {
+            if args.len() != 2 || is_dynamic_word(&args[0]) || is_dynamic_word(&args[1]) {
+                *dynamic = true;
+                return;
+            }
+            insert_rebound_candidates(&args[0], namespace, rebound);
+            if !args[1].is_empty() {
+                insert_rebound_candidates(&args[1], namespace, rebound);
+            }
+        }
+        "interp" => {
+            if let Some((alias_name, target_cmd, _prepended)) = detect_interp_alias(cmd, args) {
+                if is_dynamic_word(&alias_name) || is_dynamic_word(&target_cmd) {
+                    *dynamic = true;
+                    return;
+                }
+                insert_rebound_candidates(&alias_name, namespace, rebound);
+            } else if args.first().map(String::as_str) == Some("alias") {
+                *dynamic = true;
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Record every name a bare `rename` / `interp alias` argument could
+/// resolve to when it runs inside `namespace` — Tcl resolves an
+/// unqualified command name against the *current* namespace at the point
+/// the `rename`/`interp alias` executes, not the global namespace (a
+/// `proc ::ns::doit {} { rename triple double }` renames `::ns::triple`
+/// to `::ns::double`, not `::triple`/`::double` — confirmed against
+/// tclsh 9.0.4). This scan is flow-insensitive and doesn't know whether a
+/// same-named command already exists in `namespace` at that point, so it
+/// conservatively records BOTH the namespace-relative and the
+/// global-rooted candidate for a bare name — the same sound
+/// over-approximation [`collect_tampered_builtins`] already applies.
+/// A name that already contains `::` resolves unambiguously (rooted at
+/// `::`, matching the optimiser's own `resolve_proc_qname` simplified
+/// qualification rule), so only one candidate is recorded for it.
+fn insert_rebound_candidates(
+    name: &str,
+    namespace: &str,
+    rebound: &mut std::collections::HashSet<String>,
+) {
+    if name.contains("::") || namespace == "::" {
+        rebound.insert(nqn(name));
+        return;
+    }
+    rebound.insert(nqn(&format!("{namespace}::{name}")));
+    rebound.insert(nqn(name));
+}
+
 /// Apply the gen of every `Call` / `Barrier` in `script` (recursing into
 /// nested structured bodies, in source order) to `state`, collecting
 /// after *each* mutation — so a builtin renamed away and later restored
@@ -502,12 +612,15 @@ fn walk_body_calls(
     script: &crate::ir::Script,
     state: &mut State,
     registry: &CommandRegistry,
+    namespace: &str,
     names: &mut std::collections::HashSet<String>,
+    rebound: &mut std::collections::HashSet<String>,
     dynamic: &mut bool,
 ) {
     for stmt in &script.statements {
         match stmt {
             Statement::Call { .. } | Statement::Barrier { .. } => {
+                collect_proc_rebindings(stmt, namespace, rebound, dynamic);
                 stmt_gen(stmt, state, registry);
                 collect_tampered_builtins(state, registry, names, dynamic);
             }
@@ -515,23 +628,23 @@ fn walk_body_calls(
                 clauses, else_body, ..
             } => {
                 for c in clauses {
-                    walk_body_calls(&c.body, state, registry, names, dynamic);
+                    walk_body_calls(&c.body, state, registry, namespace, names, rebound, dynamic);
                 }
                 if let Some(b) = else_body {
-                    walk_body_calls(b, state, registry, names, dynamic);
+                    walk_body_calls(b, state, registry, namespace, names, rebound, dynamic);
                 }
             }
             Statement::For {
                 init, next, body, ..
             } => {
-                walk_body_calls(init, state, registry, names, dynamic);
-                walk_body_calls(next, state, registry, names, dynamic);
-                walk_body_calls(body, state, registry, names, dynamic);
+                walk_body_calls(init, state, registry, namespace, names, rebound, dynamic);
+                walk_body_calls(next, state, registry, namespace, names, rebound, dynamic);
+                walk_body_calls(body, state, registry, namespace, names, rebound, dynamic);
             }
             Statement::While { body, .. }
             | Statement::Catch { body, .. }
             | Statement::Foreach { body, .. } => {
-                walk_body_calls(body, state, registry, names, dynamic);
+                walk_body_calls(body, state, registry, namespace, names, rebound, dynamic);
             }
             Statement::Try {
                 body,
@@ -539,12 +652,12 @@ fn walk_body_calls(
                 finally_body,
                 ..
             } => {
-                walk_body_calls(body, state, registry, names, dynamic);
+                walk_body_calls(body, state, registry, namespace, names, rebound, dynamic);
                 for h in handlers {
-                    walk_body_calls(&h.body, state, registry, names, dynamic);
+                    walk_body_calls(&h.body, state, registry, namespace, names, rebound, dynamic);
                 }
                 if let Some(fb) = finally_body {
-                    walk_body_calls(fb, state, registry, names, dynamic);
+                    walk_body_calls(fb, state, registry, namespace, names, rebound, dynamic);
                 }
             }
             Statement::Switch {
@@ -552,11 +665,11 @@ fn walk_body_calls(
             } => {
                 for a in arms {
                     if let Some(b) = &a.body {
-                        walk_body_calls(b, state, registry, names, dynamic);
+                        walk_body_calls(b, state, registry, namespace, names, rebound, dynamic);
                     }
                 }
                 if let Some(b) = default_body {
-                    walk_body_calls(b, state, registry, names, dynamic);
+                    walk_body_calls(b, state, registry, namespace, names, rebound, dynamic);
                 }
             }
             _ => {}
@@ -568,31 +681,48 @@ fn walk_body_calls(
 /// CFG-free recursive IR walk over the top-level script *and* every proc
 /// / method body, so it can run before per-function CFGs are built.
 ///
-/// Only *tampered-with core builtins* are reported (see
-/// [`collect_tampered_builtins`]).  The result feeds the optimiser's
-/// builtin-fold trust gate via [`ModuleCommandMutations::trusts`].
+/// Tampered-with core builtins and rebound names generally are reported
+/// (see [`collect_tampered_builtins`]).  The result feeds both the
+/// optimiser's builtin-fold trust gate ([`ModuleCommandMutations::trusts`])
+/// and its proc-call fold trust gate
+/// ([`ModuleCommandMutations::trusts_proc_binding`]).
 #[must_use]
 pub fn scan_module_command_mutations(
     ir_module: &crate::ir::Module,
     registry: &CommandRegistry,
 ) -> ModuleCommandMutations {
     let mut names = std::collections::HashSet::new();
+    let mut rebound = std::collections::HashSet::new();
     let mut dynamic = false;
 
-    let mut visit = |script: &crate::ir::Script| {
+    let mut visit = |script: &crate::ir::Script, namespace: &str| {
         let mut state = State::default();
-        walk_body_calls(script, &mut state, registry, &mut names, &mut dynamic);
+        walk_body_calls(
+            script,
+            &mut state,
+            registry,
+            namespace,
+            &mut names,
+            &mut rebound,
+            &mut dynamic,
+        );
     };
 
-    visit(&ir_module.top_level);
-    for proc in ir_module.procedures.values() {
-        visit(&proc.body);
+    visit(&ir_module.top_level, "::");
+    for (qname, proc) in &ir_module.procedures {
+        let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(qname);
+        visit(&proc.body, &namespace);
     }
-    for method in ir_module.methods.values() {
-        visit(&method.body);
+    for (mqname, method) in &ir_module.methods {
+        let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(mqname);
+        visit(&method.body, &namespace);
     }
 
-    ModuleCommandMutations { names, dynamic }
+    ModuleCommandMutations {
+        names,
+        rebound,
+        dynamic,
+    }
 }
 
 #[cfg(test)]
@@ -707,5 +837,101 @@ mod tests {
         let cu2 = CompilationUnit::build_for("set x foo\nrename $x bar", &reg, false);
         let m2 = scan_module_command_mutations(&cu2.ir_module, &reg);
         assert!(!m2.trusts("string") && !m2.trusts("lappend"));
+    }
+
+    #[test]
+    fn trusts_proc_binding_true_for_untouched_proc() {
+        // TP control: a proc never named by any `rename` / `interp alias`
+        // is trusted.
+        let reg = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for("proc myproc {} { return 1 }", &reg, false);
+        let m = scan_module_command_mutations(&cu.ir_module, &reg);
+        assert!(m.trusts_proc_binding("myproc"));
+        assert!(m.trusts_proc_binding("::myproc"));
+    }
+
+    #[test]
+    fn trusts_proc_binding_false_for_rename_source_and_target() {
+        // FP guard: `rename triple double` perturbs BOTH names — `triple`
+        // (vacated, no longer denotes what it did) and `double` (now
+        // denotes `triple`'s body, not `double`'s own declaration).
+        let reg = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "proc double {n} { expr {$n * 2} }\nproc triple {n} { expr {$n * 3} }\nrename triple double\n",
+            &reg,
+            false,
+        );
+        let m = scan_module_command_mutations(&cu.ir_module, &reg);
+        assert!(!m.trusts_proc_binding("double"), "rename target");
+        assert!(!m.trusts_proc_binding("triple"), "rename source");
+    }
+
+    #[test]
+    fn trusts_proc_binding_false_for_interp_alias_name() {
+        let reg = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "proc answer {} { return 42 }\nproc other {} { return 99 }\ninterp alias {} answer {} other\n",
+            &reg,
+            false,
+        );
+        let m = scan_module_command_mutations(&cu.ir_module, &reg);
+        assert!(!m.trusts_proc_binding("answer"));
+        // The alias *target* itself is untouched — still trusted.
+        assert!(m.trusts_proc_binding("other"));
+    }
+
+    #[test]
+    fn trusts_proc_binding_unaffected_by_unrelated_rename() {
+        // TN control: renaming a DIFFERENT proc must not untrust this one —
+        // `trusts_proc_binding` is per-name, unlike the whole-module
+        // `dynamic` wildcard.
+        let reg = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "proc double {n} { expr {$n * 2} }\nproc triple {n} { expr {$n * 3} }\nrename triple somethingElse\n",
+            &reg,
+            false,
+        );
+        let m = scan_module_command_mutations(&cu.ir_module, &reg);
+        assert!(m.trusts_proc_binding("double"));
+    }
+
+    #[test]
+    fn trusts_proc_binding_false_for_namespace_relative_rename() {
+        // FP guard (reported in code review): a bare `rename` argument
+        // inside a namespaced proc resolves relative to THAT proc's own
+        // namespace, not the global namespace — `rename triple double`
+        // inside `proc ::ns::doit` renames `::ns::triple` onto
+        // `::ns::double`. An earlier version always rooted the bare names
+        // globally (`::triple`/`::double`), so it never distrusted the
+        // actually-affected namespaced names.
+        let reg = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "namespace eval ::ns {\n    proc double {n} { expr {$n * 2} }\n    proc triple {n} { expr {$n * 3} }\n}\nproc ::ns::doit {} { rename triple double }\n",
+            &reg,
+            false,
+        );
+        let m = scan_module_command_mutations(&cu.ir_module, &reg);
+        assert!(
+            !m.trusts_proc_binding("::ns::double"),
+            "namespace-relative rename target"
+        );
+        assert!(
+            !m.trusts_proc_binding("::ns::triple"),
+            "namespace-relative rename source"
+        );
+        // The scan is flow-insensitive (it can't know whether `double`/
+        // `triple` already existed as GLOBAL commands at the point
+        // `::ns::doit` runs), so it conservatively distrusts the
+        // global-rooted candidate too — a deliberate, sound
+        // over-approximation (a missed fold, never a wrong one),
+        // mirroring `collect_tampered_builtins`'s existing philosophy.
+        assert!(
+            !m.trusts_proc_binding("::double"),
+            "global-rooted candidate"
+        );
+        assert!(
+            !m.trusts_proc_binding("::triple"),
+            "global-rooted candidate"
+        );
     }
 }
