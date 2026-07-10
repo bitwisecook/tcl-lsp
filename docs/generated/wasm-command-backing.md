@@ -12,11 +12,11 @@ or an explicit *not required* classification.
 
 | status | count |
 | --- | --- |
-| handler | 94 |
+| handler | 96 |
 | handler (native) | 6 |
 | stdlib | 11 |
 | not-required | 111 |
-| known-gap (`RUST_ISSUE_007`) | 10 |
+| known-gap (`RUST_ISSUE_007`) | 8 |
 | **UNCLASSIFIED** | 0 |
 | **total** | 232 |
 
@@ -196,7 +196,7 @@ or an explicit *not required* classification.
 | `string` | handler |  |
 | `subst` | handler |  |
 | `switch` | handler |  |
-| `tailcall` | known-gap | core tail-call control command |
+| `tailcall` | handler |  |
 | `tcl::build-info` | handler |  |
 | `tcl::mathop` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::!` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
@@ -234,7 +234,7 @@ or an explicit *not required* classification.
 | `tcl_findLibrary` | not-required | library-bootstrap helper; not defined in the embedded Tcl 9 init.tcl and absent from bare tclsh 9 |
 | `tell` | handler |  |
 | `throw` | handler |  |
-| `time` | known-gap | core timing command |
+| `time` | handler |  |
 | `timerate` | known-gap | benchmarking command |
 | `trace` | handler |  |
 | `try` | handler |  |

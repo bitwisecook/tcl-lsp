@@ -37,6 +37,10 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"continue", continue_cmd);
     interp.register_builtin(b"foreach", foreach);
     interp.register_builtin(b"lmap", lmap);
+    // `time` only evaluates a body `count` times — no numeric tower needed (the
+    // count parses through the shared radix grammar, not `expr`).
+    interp.register_builtin(b"time", time_cmd);
+    interp.register_builtin(b"tailcall", tailcall_cmd);
     // `if`/`while`/`for` test Tcl expressions → need the numeric tower.
     #[cfg(have_tommath)]
     {
@@ -72,6 +76,94 @@ fn continue_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     interp.set_result_bytes(b"");
     Code::Continue
+}
+
+// -- time ------------------------------------------------------------------
+
+/// `time command ?count?` — evaluate `command` (in the current frame) `count`
+/// times (default 1) and report the average as the 4-element list
+/// `N microseconds per iteration` (C `Tcl_TimeObjCmd`). `N` is an integer for
+/// `count <= 1` (0 when `count <= 0`) and a double otherwise. A body that does
+/// not complete `OK` (error / break / continue / return) propagates.
+fn time_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 2 || argv.len() > 3 {
+        return wrong_args(interp, b"time command ?count?");
+    }
+    let count: i128 = if argv.len() == 3 {
+        let bytes = obj_bytes(argv[2]);
+        match tcl_cmd_core::sort::parse_wide(&bytes) {
+            Some(n) => n,
+            None => {
+                let mut m = b"expected integer but got \"".to_vec();
+                m.extend_from_slice(&bytes);
+                m.push(b'"');
+                return interp.set_error(&m);
+            }
+        }
+    } else {
+        1
+    };
+    let script = obj_bytes(argv[1]);
+    let start = interp.host().clock().now_micros();
+    let mut i = count;
+    while i > 0 {
+        let code = interp.eval_body(&script);
+        if code != Code::Ok {
+            return code;
+        }
+        i -= 1;
+    }
+    let elapsed = interp
+        .host()
+        .clock()
+        .now_micros()
+        .saturating_sub(start)
+        .max(0);
+    // The result's first word matches C's list element type: an integer for
+    // `count <= 1`, a double (`microseconds / count`) otherwise. Built as list
+    // text (four simple words) so no per-element object bookkeeping is needed.
+    let num = if count <= 1 {
+        i64::try_from(if count <= 0 { 0 } else { elapsed })
+            .unwrap_or(i64::MAX)
+            .to_string()
+    } else {
+        #[allow(clippy::cast_precision_loss)]
+        let per = elapsed as f64 / count as f64;
+        let mut s = format!("{per}");
+        if !s.contains(['.', 'e', 'E']) {
+            s.push_str(".0");
+        }
+        s
+    };
+    let mut res = num.into_bytes();
+    res.extend_from_slice(b" microseconds per iteration");
+    interp.set_result_bytes(&res);
+    Code::Ok
+}
+
+// -- tailcall --------------------------------------------------------------
+
+/// `tailcall command ?arg ...?` — arrange for `command args` to run and its
+/// result to become the enclosing proc's result. Must be called from a proc /
+/// lambda / method. This mirrors the bytecode VM's pragmatic form: `command
+/// args` is dispatched now and a `TCL_RETURN` carries its result out of the
+/// proc (rather than being deferred to run in the caller's frame after unwind —
+/// the observable proc result is the same for the common case).
+fn tailcall_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if !interp.in_proc() {
+        return interp.set_error(b"tailcall can only be called from a proc, lambda or method");
+    }
+    if argv.len() < 2 {
+        // `tailcall` with no command is a plain return of "".
+        interp.set_result_bytes(b"");
+        return Code::Return;
+    }
+    let code = interp.dispatch(&argv[1..]);
+    if code == Code::Ok {
+        Code::Return
+    } else {
+        code
+    }
 }
 
 // -- if --------------------------------------------------------------------
@@ -394,6 +486,52 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    #[test]
+    fn time_reports_microseconds_and_propagates() {
+        leak_free(|i| {
+            // `count 0` is deterministic (no iterations run).
+            assert_eq!(run(i, b"time {} 0"), b"0 microseconds per iteration");
+            // A real body: the report ends in the fixed suffix (the count is
+            // timing-dependent, so only the shape is asserted).
+            let r = run(i, b"time {set x 1}");
+            assert!(
+                r.ends_with(b" microseconds per iteration"),
+                "{:?}",
+                String::from_utf8_lossy(&r)
+            );
+            // A non-`OK` body propagates its code + message.
+            assert_eq!(i.eval_str(b"time {error boom}"), Code::Error);
+            assert_eq!(i.result_bytes(), b"boom");
+            // A non-integer count is the standard error.
+            assert_eq!(i.eval_str(b"time {} xyz"), Code::Error);
+            assert_eq!(i.result_bytes(), b"expected integer but got \"xyz\"");
+            // Arity.
+            assert_eq!(i.eval_str(b"time"), Code::Error);
+        });
+    }
+
+    #[test]
+    fn tailcall_returns_the_invoked_result_from_the_proc() {
+        leak_free(|i| {
+            run(i, b"proc g {} {return G}");
+            run(i, b"proc f {} {tailcall g; return NOPE}");
+            assert_eq!(run(i, b"f"), b"G");
+            // With arguments.
+            run(i, b"proc h {a b} {return $a$b}");
+            run(i, b"proc f2 {} {tailcall h X Y}");
+            assert_eq!(run(i, b"f2"), b"XY");
+            // No command → returns "" from the proc.
+            run(i, b"proc f3 {} {tailcall; return NOPE}");
+            assert_eq!(run(i, b"f3"), b"");
+            // Outside a proc → error.
+            assert_eq!(i.eval_str(b"tailcall x"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"tailcall can only be called from a proc, lambda or method"
+            );
+        });
     }
 
     #[cfg(have_tommath)]
