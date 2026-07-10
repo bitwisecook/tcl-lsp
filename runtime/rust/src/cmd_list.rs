@@ -60,6 +60,8 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"lreplace", lreplace);
     interp.register_builtin(b"lset", lset);
     interp.register_builtin(b"ledit", ledit);
+    interp.register_builtin(b"lpop", lpop);
+    interp.register_builtin(b"lremove", lremove);
     interp.register_builtin(b"lsearch", lsearch);
     interp.register_builtin(b"lsort", lsort);
 }
@@ -523,6 +525,101 @@ fn ledit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.set_error(&m);
     }
     interp.set_result(newlist);
+    Code::Ok
+}
+
+/// `lpop varName ?index?` — remove and return the element at `index` (default
+/// the last), storing the shortened list back into the variable. A radix or
+/// `end`-relative index resolves via the shared index core (RUST_ISSUE_007).
+fn lpop(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 2 {
+        return wrong_args(interp, b"lpop varName ?index?");
+    }
+    let name = obj_bytes(argv[1]);
+    let (base, elem) = crate::frame::split_array_ref(&name);
+    let cur = match &elem {
+        Some(k) => interp.var_get_elem(&base, k),
+        None => interp.var_get(&base),
+    };
+    let Some(listobj) = cur else {
+        let msg = interp.read_miss_msg(&base, elem.as_deref());
+        return interp.set_error(&msg);
+    };
+    let elems = match list::list_elements(listobj) {
+        Ok(v) => v,
+        Err(e) => return bad_list(interp, e),
+    };
+    let len = elems.len();
+    let (idx, spec_desc): (isize, Vec<u8>) = if argv.len() == 2 {
+        (len as isize - 1, b"end".to_vec())
+    } else if argv.len() == 3 {
+        let spec = obj_bytes(argv[2]);
+        match index_spec(&spec, len) {
+            Some(i) => (i, spec),
+            None => return bad_index(interp, &spec),
+        }
+    } else {
+        // A nested index path drills into sub-lists (rare); not specialised here.
+        return interp.set_error(b"lpop with a nested index path is not supported");
+    };
+    if idx < 0 || idx as usize >= len {
+        let mut m = b"index \"".to_vec();
+        m.extend_from_slice(&spec_desc);
+        m.extend_from_slice(b"\" out of range");
+        return interp.set_error(&m);
+    }
+    let idx = idx as usize;
+    let removed = elems[idx];
+    let out: Vec<*mut TclObj> = elems
+        .iter()
+        .enumerate()
+        .filter_map(|(i, e)| (i != idx).then_some(*e))
+        .collect();
+    let newlist = list::new_list_obj(&out); // retains survivors
+                                            // Retain `removed` (via the result) *before* the store releases the old
+                                            // list, so it survives to be returned.
+    interp.set_result(removed);
+    let stored = match &elem {
+        Some(k) => interp.var_set_elem(&base, k, newlist),
+        None => interp.var_set(&base, newlist),
+    };
+    if stored.is_err() {
+        drop_fresh(newlist);
+        let mut m = b"can't set \"".to_vec();
+        m.extend_from_slice(&name);
+        m.extend_from_slice(b"\": variable is array");
+        return interp.set_error(&m);
+    }
+    Code::Ok
+}
+
+/// `lremove list ?index ...?` — return `list` with the elements at the given
+/// indices removed. Indices resolve (radix + `end`-relative), duplicates
+/// collapse, and out-of-range indices are ignored (RUST_ISSUE_007).
+fn lremove(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 2 {
+        return wrong_args(interp, b"lremove list ?index ...?");
+    }
+    let elems = match list::list_elements(argv[1]) {
+        Ok(v) => v,
+        Err(e) => return bad_list(interp, e),
+    };
+    let len = elems.len();
+    let mut remove = vec![false; len];
+    for &iv in &argv[2..] {
+        let spec = obj_bytes(iv);
+        match index_spec(&spec, len) {
+            Some(i) if i >= 0 && (i as usize) < len => remove[i as usize] = true,
+            Some(_) => {} // out of range — ignored, as C's lremove does
+            None => return bad_index(interp, &spec),
+        }
+    }
+    let out: Vec<*mut TclObj> = elems
+        .iter()
+        .enumerate()
+        .filter_map(|(i, e)| (!remove[i]).then_some(*e))
+        .collect();
+    set_list(interp, &out);
     Code::Ok
 }
 

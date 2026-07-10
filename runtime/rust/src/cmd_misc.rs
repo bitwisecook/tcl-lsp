@@ -35,6 +35,50 @@ pub fn install(interp: &mut Interp) {
     // `tcl::build-info` — build metadata; the tcltest helper (`tcltests.tcl`)
     // queries it for the `debug`/`purify`/`memdebug`/`deprecated` constraints.
     interp.register_builtin(b"::tcl::build-info", build_info_cmd);
+    // `pid ?channelId?` — the process id (a channel argument would list the pids
+    // of the pipeline behind it, which the WASM runtime has none of).
+    interp.register_builtin(b"pid", pid_cmd);
+    // Commands with a registry spec but no portable WASM backing: report an
+    // explicit "not supported under the WASM runtime" error rather than the
+    // generic `invalid command name` an unregistered command yields
+    // (RUST_ISSUE_007). Each needs an OS process, sockets, native loading, or the
+    // event loop, none of which the single-threaded WASM tier provides.
+    for name in [
+        b"exec".as_slice(),
+        b"socket",
+        b"load",
+        b"fileevent",
+        b"fcopy",
+    ] {
+        interp.register_builtin(name, unsupported_cmd);
+    }
+}
+
+/// `pid ?channelId?` — the current process id, or the empty list for a channel
+/// argument (the WASM tier runs no external pipelines).
+fn pid_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    match argv.len() {
+        1 => {
+            interp.set_result_bytes(std::process::id().to_string().as_bytes());
+            Code::Ok
+        }
+        2 => {
+            interp.set_result_bytes(b"");
+            Code::Ok
+        }
+        _ => wrong_args(interp, b"pid ?channelId?"),
+    }
+}
+
+/// A command that is genuinely not portable to the single-threaded WASM runtime
+/// (external process, socket, native load, or event loop). A clear error keeps
+/// it distinct from an unimplemented or mistyped command.
+fn unsupported_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let name = obj_bytes(argv[0]);
+    let mut m = b"\"".to_vec();
+    m.extend_from_slice(&name);
+    m.extend_from_slice(b"\" is not supported under the WASM runtime");
+    interp.set_error(&m)
 }
 
 /// The runtime's build-info string (`<patchlevel>+<commit>.<features…>`). None of
