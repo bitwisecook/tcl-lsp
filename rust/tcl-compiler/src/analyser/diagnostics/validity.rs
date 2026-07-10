@@ -33,7 +33,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_core_types::DiagCode;
 use tcl_registry::Arity;
 
-use super::helpers::{is_ident_continue, is_integer_word};
+use super::helpers::{has_substitution, is_ident_continue, is_integer_word};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::{PendingUserCallArity, Severity};
 use crate::expr_ast::{BinOp, ExprNode};
@@ -303,7 +303,10 @@ impl Analyser {
             return;
         };
         // Dynamic-value subcommand position — can't resolve statically.
-        if first_arg.contains('$') || first_arg.contains('[') {
+        if arg_tokens
+            .first()
+            .is_some_and(|tok| has_substitution(first_arg, tok))
+        {
             return;
         }
         // Tk geometry/widget ensemble commands (`grid` / `pack` / `wm` / …)
@@ -507,10 +510,17 @@ impl Analyser {
                 let Some(sub_name) = args.first() else {
                     // **E001.** A subcommand-dispatch command invoked with no
                     // subcommand at all (`string` / `dict` / `info` on its
-                    // own).  Queued as a
-                    // `pending_arity` candidate so an earlier shadowing user
-                    // proc / class / alias / ensemble / stub suppresses it,
-                    // exactly like the E002 / E003 paths.
+                    // own). Skipped when the registry's `subcommand_required`
+                    // is `false` — a bare call has a well-defined default
+                    // (e.g. `history` == `history info`), so it is not an
+                    // arity error at all, not merely a suppressed one.
+                    // Otherwise queued as a `pending_arity` candidate so an
+                    // earlier shadowing user proc / class / alias / ensemble
+                    // / stub suppresses it, exactly like the E002 / E003
+                    // paths.
+                    if !sig.subcommand_required {
+                        return;
+                    }
                     let ns = self.command_resolution_namespace(scope_path);
                     let enforce_order = !self.scope_path_in_proc_body(scope_path);
                     self.pending_arity.push((
@@ -533,7 +543,10 @@ impl Analyser {
                     return;
                 }
                 // Dynamic subcommand value — can't resolve statically.
-                if sub_name.contains('$') || sub_name.contains('[') {
+                if arg_tokens
+                    .first()
+                    .is_some_and(|tok| has_substitution(sub_name, tok))
+                {
                     return;
                 }
                 // Resolve exact-or-unique-prefix so an abbreviated subcommand

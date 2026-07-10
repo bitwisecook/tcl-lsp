@@ -587,19 +587,27 @@ pub fn apply_preceding_noqa<S, T>(
 /// Match `# tcl-lsp: disable=…` (case-insensitive on the keyword),
 /// returning the trailing CODE list as a borrowed slice. Returns
 /// `None` if the line doesn't match the directive shape.
+///
+/// Uses [`str::get`] rather than byte-index slicing for the keyword
+/// checks: a fixed ASCII-length prefix like `s[..kw_end]` panics when a
+/// multi-byte UTF-8 character (an em dash, accented letter, …) straddles
+/// that byte offset — `s.get(..kw_end)` instead returns `None` for a
+/// non-boundary offset exactly as it does for a too-short `s`, so a
+/// leading comment with early non-ASCII text is simply "not a directive"
+/// rather than a panic.
 fn parse_disable_directive(line: &str) -> Option<&str> {
     let mut s = line.trim_start();
     s = s.strip_prefix('#')?.trim_start();
     let lower_prefix = "tcl-lsp";
     let kw_end = lower_prefix.len();
-    if s.len() < kw_end || !s[..kw_end].eq_ignore_ascii_case(lower_prefix) {
+    if !s.get(..kw_end)?.eq_ignore_ascii_case(lower_prefix) {
         return None;
     }
     s = s[kw_end..].trim_start();
     s = s.strip_prefix(':')?.trim_start();
     let disable_kw = "disable";
     let dis_end = disable_kw.len();
-    if s.len() < dis_end || !s[..dis_end].eq_ignore_ascii_case(disable_kw) {
+    if !s.get(..dis_end)?.eq_ignore_ascii_case(disable_kw) {
         return None;
     }
     s = s[dis_end..].trim_start();
@@ -738,6 +746,27 @@ mod tests {
         let src = "# Just a comment\nproc foo {} {}\n";
         let codes = parse_file_suppression(src);
         assert!(codes.is_empty());
+    }
+
+    #[test]
+    fn parse_file_suppression_multibyte_leading_comment_does_not_panic() {
+        // Regression: the fixed-byte-offset keyword checks in
+        // `parse_disable_directive` used to slice at `line[..kw_end]` /
+        // `line[..dis_end]` unconditionally, which panics
+        // (`byte index N is not a char boundary`) whenever a multi-byte
+        // UTF-8 character — an em dash, an accented letter, any ordinary
+        // non-ASCII text — straddles that offset. Neither of these is
+        // adversarial input: both are plausible header-comment text.
+        //
+        // An em dash a few bytes into the leading comment straddles the
+        // "tcl-lsp" keyword's 7-byte check.
+        let em_dash_early = "# E001 \u{2014} missing dispatch word\nproc foo {} {}\n";
+        assert!(parse_file_suppression(em_dash_early).is_empty());
+
+        // An em dash inside the post-colon text straddles the "disable"
+        // keyword's own 7-byte check.
+        let em_dash_after_colon = "# tcl-lsp: abcdef\u{2014}ghi\nproc foo {} {}\n";
+        assert!(parse_file_suppression(em_dash_after_colon).is_empty());
     }
 
     #[test]

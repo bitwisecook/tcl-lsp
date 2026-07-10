@@ -36,7 +36,8 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "E001",
     section: "error",
-    description: "Missing subcommand — e.g. bare `string` without a subcommand.",
+    description:
+      "Missing dispatch word — e.g. bare `string` without a subcommand, or `$obj` with no TclOO method.",
     defaultEnabled: true,
   },
   {

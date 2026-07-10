@@ -283,7 +283,7 @@ macro_rules! diagnostic_codes {
 }
 
 diagnostic_codes! {
-    E001 => "E001", diag(Error, true, "Missing subcommand — e.g. bare `string` without a subcommand.");
+    E001 => "E001", diag(Error, true, "Missing dispatch word — e.g. bare `string` without a subcommand, or `$obj` with no TclOO method.");
     E002 => "E002", diag(Error, true, "Too few arguments for command.");
     E003 => "E003", diag(Error, true, "Too many arguments for command.");
     E004 => "E004", diag_internal(Error, true, "Malformed `if` command — missing clauses or extra words after `else`.");

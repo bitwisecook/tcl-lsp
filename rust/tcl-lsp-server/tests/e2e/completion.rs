@@ -394,6 +394,20 @@ fn partial_subcommand() {
 }
 
 #[test]
+fn history_bare_subcommands() {
+    // `history` is a `WithSubcommands` registry command like `string`, but a
+    // bare call is itself valid Tcl (defaults to `history info`); completion
+    // at the bare position must still offer its subcommand list.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "history ");
+    let ls: std::collections::BTreeSet<String> = labels(&mut lsp, &uri, 0, 8).into_iter().collect();
+    for expected in ["add", "clear", "info", "keep"] {
+        assert!(ls.contains(expected), "missing {expected:?} in {ls:?}");
+    }
+}
+
+#[test]
 fn namespace_subcommands() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");

@@ -2,7 +2,7 @@
 
 | Code | Section | Description | Default |
 |------|---------|-------------|---------|
-| E001 | error | Missing subcommand — e.g. bare `string` without a subcommand. | ✓ |
+| E001 | error | Missing dispatch word — e.g. bare `string` without a subcommand, or `$obj` with no TclOO method. | ✓ |
 | E002 | error | Too few arguments for command. | ✓ |
 | E003 | error | Too many arguments for command. | ✓ |
 | E004 | error | Malformed `if` command — missing clauses or extra words after `else`. | ✓ |
