@@ -4691,7 +4691,7 @@
               "null"
             ],
             "default": null,
-            "markdownDescription": "**O102:** Fold constant `[expr {...}]` command substitutions. (`null` = inherit from profile)",
+            "markdownDescription": "**O102:** Forward a variable's single reaching literal load to its use sites. (`null` = inherit from profile)",
             "order": 4
           },
           "tclLsp.optimiser.O103": {

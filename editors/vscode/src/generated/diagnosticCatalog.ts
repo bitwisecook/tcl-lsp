@@ -749,7 +749,7 @@ export const OPTIMISATIONS: OptimisationDef[] = [
   },
   {
     code: "O102",
-    description: "Fold constant `[expr {...}]` command substitutions.",
+    description: "Forward a variable's single reaching literal load to its use sites.",
     defaultEnabled: true,
   },
   {

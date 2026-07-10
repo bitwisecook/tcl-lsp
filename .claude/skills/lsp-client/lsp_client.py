@@ -751,7 +751,7 @@ def print_optimizations(result: dict | None, content: str) -> None:
         print("  (no optimizations available)")
         return
 
-    opts = result.get("optimizations", [])
+    opts = result.get("optimisations", [])
     optimized_source = result.get("source", content)
 
     print(f"=== Optimizations ({len(opts)} items) ===")

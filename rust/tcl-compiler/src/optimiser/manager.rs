@@ -116,6 +116,33 @@ fn sort_optimisations(opts: &mut [Optimisation]) {
     });
 }
 
+/// Build a [`PassContext`] wired the way every production entry point below
+/// needs it: `registry` (place-bridge / purity resolution), `ir_module`
+/// (the whole-module trace facts — `traced_commands` / `has_dynamic_trace`
+/// / `traced_variables` / `has_dynamic_variable_trace` — without this the
+/// O127 store-to-load-forwarding trace-purity gate and the O102
+/// load-forwarding variable-trace gate silently see an empty/false default
+/// and never actually block on a real trace), and `command_mutations` (the
+/// whole-module builtin-fold trust gate, O129/O116/O118 — without this a
+/// renamed/redefined builtin, e.g. `rename string {}; [string length …]`,
+/// still gets const-folded with its original semantics, a silent
+/// miscompile). One choke point so a future entry point can't forget any
+/// of the three the way `optimise_unit`'s production path once forgot
+/// `ir_module`.
+fn build_pass_context<'a>(
+    cu: &'a CompilationUnit,
+    registry: &'a CommandRegistry,
+    dialect: Option<&'a str>,
+) -> PassContext<'a> {
+    let ia = cu.interproc.clone().unwrap_or_default();
+    let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
+    ctx.registry = Some(registry);
+    ctx.ir_module = Some(&cu.ir_module);
+    ctx.command_mutations =
+        crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
+    ctx
+}
+
 /// Phase 1 of [`optimise_unit`]: run every pass over the built unit and return
 /// the **canonicalised raw** optimisation set (before overlap selection /
 /// const-dead-store coupling / group renumbering — that whole-module tail is
@@ -134,19 +161,7 @@ pub fn optimise_unit_raw(
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<Optimisation> {
-    let ia = cu.interproc.clone().unwrap_or_default();
-    let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
-    ctx.registry = Some(registry);
-    // The whole-module builtin-fold trust gate (O129/O116/O118).
-    // Without this the production path leaves `command_mutations` at its default,
-    // whose `trusts()` returns `true` for everything, so renamed/redefined
-    // builtins (`rename string {}; [string length …]`) get const-folded — a
-    // silent miscompile. The test-only `optimise_raw` already wired this; the
-    // shipping `optimise_unit` did not.  (For the per-procedure memo this is the
-    // whole-module mutation set, threaded in via the single-proc unit's
-    // `ir_module`.)
-    ctx.command_mutations =
-        crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
+    let mut ctx = build_pass_context(cu, registry, dialect);
     run_passes(&mut ctx, cu, &PassId::all());
 
     // Determinism chokepoint.  Several passes iterate `HashMap`s
@@ -721,11 +736,7 @@ pub fn find_dead_stores(
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<DeadStore> {
-    let ia = cu.interproc.clone().unwrap_or_default();
-    let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
-    ctx.registry = Some(registry);
-    ctx.command_mutations =
-        crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
+    let mut ctx = build_pass_context(cu, registry, dialect);
     run_passes(&mut ctx, cu, &PassId::all());
     ctx.dead_stores
 }
@@ -743,11 +754,7 @@ pub fn optimise_by_pass(
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<(PassId, Vec<Optimisation>)> {
-    let ia = cu.interproc.clone().unwrap_or_default();
-    let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
-    ctx.registry = Some(registry);
-    ctx.command_mutations =
-        crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
+    let mut ctx = build_pass_context(cu, registry, dialect);
     let mut by_pass = Vec::new();
     for pass in PassId::all() {
         let before = ctx.optimisations.len();
@@ -787,12 +794,8 @@ pub fn optimise_raw(
         dialect,
         crate::interprocedural::ObjectTypeMap(&object_types),
     );
-    cu.interproc = Some(ia.clone());
-    let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
-    ctx.registry = Some(registry);
-    // The whole-module builtin-fold trust gate (O129).
-    ctx.command_mutations =
-        crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
+    cu.interproc = Some(ia);
+    let mut ctx = build_pass_context(&cu, registry, dialect);
     run_passes(&mut ctx, &cu, &PassId::all());
     ctx.optimisations
 }

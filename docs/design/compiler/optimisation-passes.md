@@ -23,6 +23,16 @@ Source: `compiler/optimiser/` —
 `_unused_procs.py`,
 `compiler/gvn.py`
 
+**Note:** the source-file column above and below predates the Rust
+rewrite — Python has been fully retired (see `AGENTS.md`). The
+equivalent Rust modules live under `rust/tcl-compiler/src/optimiser/`
+(`manager.rs`, `propagation.rs`, `elimination.rs`, `expr_simplify.rs`,
+`code_sinking.rs`, `tail_call.rs`, `unused_procs.rs`, and
+`rust/tcl-compiler/src/gvn.rs`). The `O102` row has been verified and
+corrected against the current Rust behaviour; the rest of this table
+has not been re-audited row-by-row and may still describe
+Python-era-only behaviour.
+
 ## Content
 
 ### Complete pass table
@@ -31,7 +41,7 @@ Source: `compiler/optimiser/` —
 |------|------|-------------|---------|
 | O100 | Constant propagation | `_propagation.py` | Variable has known constant value |
 | O101 | Fold constant expression | `_propagation.py` | All `expr` operands are constants |
-| O102 | Fold expr command substitution | `_propagation.py` | `[expr {...}]` with constant result |
+| O102 | Forward single reaching literal load | `propagation.rs` (`run_load_forwarding`) | Variable has exactly one reaching literal definition, not trace-tainted or frame-aliased |
 | O103 | ICIP (interprocedural constant fold) | `_propagation.py` | Pure proc called with all-constant args |
 | O104 | String build chain | `_propagation.py` | `set` + `append` sequence detected |
 | O105 | GVN/CSE redundancy | `gvn.py` | Same pure computation appears twice |

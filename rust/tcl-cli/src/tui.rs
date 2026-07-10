@@ -366,7 +366,11 @@ mod tests {
         let mut terminal = Terminal::new(TestBackend::new(78, 20)).expect("test terminal");
         terminal.draw(|frame| draw(frame, &app)).expect("draw");
         let buf = terminal.backend().buffer();
-        let text: String = buf.content().iter().map(|c| c.symbol()).collect();
+        let text: String = buf
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
         assert!(text.contains("views"), "sidebar title: {text}");
         assert!(text.contains("detail"), "detail panel: {text}");
         assert!(text.contains("expand"), "footer hint: {text}");

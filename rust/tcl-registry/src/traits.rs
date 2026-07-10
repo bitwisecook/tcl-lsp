@@ -260,5 +260,17 @@ bitflags! {
         /// the `Expr` arg-role so widening it does not perturb the analyser
         /// passes (expr re-lexing, W110) that consume the role.
         const EXPR_CONCATENATES_ARGS    = 1 << 53;
+
+        /// (Subcommand) installs or removes an active variable trace on a
+        /// named target — `trace add|remove|variable|vdelete` (not
+        /// `info`/`vinfo`, which only *query* trace state). A variable
+        /// carrying an active trace can run arbitrary handler code on
+        /// read/write/unset, and a write handler can rewrite the value
+        /// being stored — so no compiler pass may treat a read of this
+        /// variable as equivalent to its last literal assignment, or elide
+        /// an assignment to it as dead. Single source of truth for the
+        /// module-wide traced-variable fact consumed by the propagation
+        /// optimiser (`O102` load-forwarding) and dead-store elimination.
+        const ESTABLISHES_VARIABLE_TRACE = 1 << 54;
     }
 }

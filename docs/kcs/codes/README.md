@@ -184,7 +184,7 @@ for historical reference.
 
 - [O100 — constant propagation](kcs-optimisation-o100-constant-propagation.md)
 - [O101 — integer expression folding](kcs-optimisation-o101-integer-expression-folding.md)
-- [O102 — command substitution folding](kcs-optimisation-o102-command-substitution-folding.md)
+- [O102 — load forwarding](kcs-optimisation-o102-load-forwarding.md)
 - [O103 — static proc folding](kcs-optimisation-o103-static-proc-folding.md)
 - [O104 — string build chain folding](kcs-optimisation-o104-string-build-chain-folding.md)
 - [O105 — constant var-ref propagation / GVN/CSE](kcs-optimisation-o105-constant-var-ref-propagation.md)

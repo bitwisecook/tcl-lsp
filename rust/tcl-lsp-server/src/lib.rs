@@ -10130,7 +10130,15 @@ fn lift_compiler_diagnostics(
         }
         // Surface the fold/rewrite text as the quick-fix `data.replacement`, so
         // editors and the e2e battery can apply the suggested replacement.
-        let data = (!o.replacement.is_empty()).then(|| {
+        // Never for a `hint_only` optimisation: its span covers the whole
+        // consuming statement (there is no precise sub-span to target), so
+        // splicing `replacement` in at `[startOffset, endOffset)` would
+        // replace the entire statement with a bare fragment — e.g. an O102
+        // hint on `set v [expr {$a * 2}]` carries replacement `"5"` and
+        // would corrupt the statement into the standalone literal `5` if
+        // ever applied. A hint-only diagnostic is informational only; it
+        // must never advertise an auto-apply payload.
+        let data = (!o.hint_only && !o.replacement.is_empty()).then(|| {
             serde_json::json!({
                 "replacement": o.replacement,
                 "startOffset": o.span.start(),

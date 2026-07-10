@@ -54,6 +54,7 @@ use crate::tcl_expr_eval::{Env, EnvValue, eval_tcl_expr_with_octal, leading_zero
 use super::helpers::literals::is_plain_literal;
 use super::helpers::spans::full_rewrite_span;
 use super::helpers::tokens::extract_body_text;
+use super::propagation::trace_and_alias_unsafe_names;
 use super::{Optimisation, PassContext};
 
 /// Run the structure-elimination pass across every function in
@@ -62,7 +63,8 @@ use super::{Optimisation, PassContext};
 /// against the per-function SCCP lattice.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // Top-level script.
-    let top_env = sccp_env_for(&cu.top_level);
+    let mut top_env = sccp_env_for(&cu.top_level);
+    trace_and_alias_unsafe_names(ctx, &cu.top_level).retain_safe(&mut top_env);
     walk_script(ctx, &cu.ir_module.top_level, &top_env);
 
     // Procedures.
@@ -70,7 +72,8 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let Some(ir_proc) = cu.ir_module.procedures.get(qname) else {
             continue;
         };
-        let env = sccp_env_for(fu);
+        let mut env = sccp_env_for(fu);
+        trace_and_alias_unsafe_names(ctx, fu).retain_safe(&mut env);
         walk_script(ctx, &ir_proc.body, &env);
     }
 }

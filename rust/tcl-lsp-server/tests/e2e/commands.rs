@@ -100,6 +100,28 @@ fn optimise_returns_optimisation_offers() {
 }
 
 #[test]
+fn optimise_document_does_not_forward_across_a_variable_trace() {
+    // Regression for a confirmed silent miscompile: `tcl-lsp.optimiseDocument`
+    // (`profile: "full"`) previously rewrote this to `puts 5`, dropping the
+    // `trace add variable` read-handler's `puts "trace fired"` side effect —
+    // and, for a write trace, the literal text at the `set` isn't even
+    // guaranteed to be the runtime value. tclsh: prints "trace fired" then
+    // "5" — the read of `$x` must survive as a real runtime variable access
+    // so the trace keeps firing.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc onread {name1 name2 op} {\n    puts \"trace fired\"\n}\nproc setup {} {\n    trace add variable ::x read onread\n}\nsetup\nset x 5\nputs $x\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", json!([uri, "full"]));
+    assert!(!result.is_null());
+    assert!(
+        source(&result).contains("puts $x"),
+        "trace-guarded read must survive the optimiser unchanged, got: {}",
+        source(&result)
+    );
+}
+
+#[test]
 fn minify_preserves_switch_braced_quoted_pattern_closers() {
     // Issue #540: a braced `{a b}` / quoted `"c d"` pattern's end was derived one
     // char short, so the minifier dropped the closing `}` / `"` and re-emitted a

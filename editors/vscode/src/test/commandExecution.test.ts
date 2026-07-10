@@ -238,6 +238,32 @@ suite("LSP Command Execution", () => {
     );
   });
 
+  test("tcl-lsp.optimiseDocument does not forward across a variable trace", async () => {
+    // Regression: the optimiser used to rewrite the final `puts $x` to
+    // `puts 5`, silently dropping the `trace add variable ::x read onread`
+    // handler's `puts "trace fired"` side effect (installed indirectly via
+    // a called proc, not lexically between the `set` and the read). tclsh
+    // prints "trace fired" then "5" for this fixture — the read of `$x`
+    // must survive the optimiser as a real runtime variable access so the
+    // trace keeps firing.
+    const traceUri = getDocUri("optimiserTraceSafety.tcl");
+    await activate(traceUri);
+    const uri = traceUri.toString();
+    const result = (await execLspCommand("tcl-lsp.optimiseDocument", uri, "full")) as {
+      optimisations: Array<{ code: string }>;
+      source: string;
+    } | null;
+    assert.ok(result, "optimiseDocument should return a result");
+    assert.ok(
+      result.source.includes("puts $x"),
+      `trace-guarded read must survive the optimiser unchanged, got: ${result.source}`,
+    );
+    assert.ok(
+      !result.optimisations.some((o) => o.code === "O102"),
+      `expected no O102 forward across the trace, got: ${JSON.stringify(result.optimisations)}`,
+    );
+  });
+
   // -- fixAllSafeIssues -------------------------------------------------------
 
   test("tcl-lsp.fixAllSafeIssues returns applied list", async () => {

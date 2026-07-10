@@ -124,6 +124,50 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     }
 }
 
+/// Whether `stmt`, if it appears between a `O127` store-to-load
+/// forwarding candidate's definition and use, must block the forward:
+/// moving the definition's *computed* side-effecting value (a command
+/// substitution) later, past `stmt`, could reorder its observable effects
+/// relative to `stmt`'s own — a barrier (`eval`/`uplevel`/`interp eval`/…),
+/// a frame-crossing `uplevel`/`upvar` body, a call the registry cannot
+/// prove pure (including every call to a proc, since an unregistered name
+/// classifies as an unknown write — see
+/// `side_effects::fallback_unknown_write`), or an assignment whose value
+/// itself runs a command substitution.
+///
+/// Used only by the `O127` store-to-load `intervening_is_safe` gate.
+/// `O102`'s plain-variable load-forwarding ([`run_load_forwarding`]) does
+/// *not* need this: it never moves a side-effecting computation, only a
+/// literal value, and a plain proc-local variable cannot be rewritten by
+/// an intervening call at all without an alias/trace/barrier — each of
+/// which `run_load_forwarding` already checks directly (see its own doc
+/// comment).
+fn statement_may_have_untracked_effects(
+    stmt: &Statement,
+    registry: &tcl_registry::CommandRegistry,
+    dialect: Option<&str>,
+    traced: &std::collections::BTreeSet<String>,
+    has_dynamic_trace: bool,
+) -> bool {
+    use super::helpers::expr_simplify::expr_has_command_subst;
+    use crate::gvn::is_pure_command_with_traces;
+
+    match stmt {
+        Statement::Barrier { .. } | Statement::UpFrame { .. } => true,
+        Statement::AssignValue { value, .. } => value.contains('['),
+        Statement::AssignExpr { expr, .. } => expr_has_command_subst(expr),
+        Statement::Call { command, args, .. } => !is_pure_command_with_traces(
+            registry,
+            command,
+            args,
+            dialect,
+            traced,
+            has_dynamic_trace,
+        ),
+        _ => false,
+    }
+}
+
 /// Forward a single reaching literal definition to each of its
 /// Operand use sites. Emits `O102` ("Forward literal load") with
 /// the literal text as replacement.
@@ -137,15 +181,38 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 /// use is on a non-Call statement (where we still don't have
 /// per-operand spans).
 ///
-/// `extra_escaping` widens the per-function externally-mutable guard with a
-/// whole-module fact the single-function view can't see on its own — pass
-/// the top-level's [`crate::var_observability::scan_module_global_names`]
-/// result when `fu` is the top-level unit, or an empty set for an ordinary
-/// procedure (see the call sites in [`run`]). `module_traces` is the
-/// whole-module [`crate::var_observability::scan_module_variable_traces`]
-/// fact, applied for every function alike (mirroring SCCP's own use of it):
-/// a name traced by some *other* proc is invisible to this function's own
-/// per-function alias/trace lattice.
+/// Safety gates layer two independent alias/trace facts plus one
+/// intervening-effect scan, each catching cases the other misses. A plain
+/// proc-local variable that is never `global`/`variable`/`upvar`/`trace`
+/// declared anywhere in the module cannot be touched by an intervening
+/// call to *any* other proc — Tcl's frame-based scoping gives a callee no
+/// way to reach a caller's private local without one of those four
+/// mechanisms — so, unlike an earlier revision of this pass, an ordinary
+/// intervening call does *not* gate the forward on its own (see
+/// `o102_still_forwards_top_level_global_no_proc_touches` and
+/// `o102_still_forwards_genuinely_local_proc_variable`, which lock this
+/// precision in):
+///
+/// - `escaping` (this function's own [`analyse_var_observability`] plus
+///   `extra_escaping` — the top-level's
+///   [`crate::var_observability::scan_module_global_names`] result, or an
+///   empty set for an ordinary procedure) combined with `module_traces`
+///   ([`crate::var_observability::scan_module_variable_traces`]) via
+///   [`crate::sccp::is_externally_mutable`] — the same guard SCCP applies
+///   to its own lattice, so O102 (independent of the SCCP lattice) stays
+///   consistent with it.
+/// - `unsafe_names` ([`trace_and_alias_unsafe_names`]), seeded from the
+///   registry-driven, whole-module [`crate::ir::Module::traced_variables`]
+///   fact — kept *in addition to* `module_traces` because
+///   `ModuleVariableTraces`'s trace-target detection doesn't yet recognise
+///   every spelling (an abbreviated type word like `trace add var …`, or
+///   `trace remove`/`vdelete`) that the registry-driven fact does; this
+///   is strictly additional conservatism; a name either check flags is
+///   never forwarded.
+/// - [`has_intervening_barrier`] — a `Statement::Barrier`/`UpFrame`
+///   (a literal-body `uplevel`/`interp eval`, which *can* reach into an
+///   arbitrary frame) between def and use, checked both same-block
+///   (precisely) and cross-block (conservatively).
 fn run_load_forwarding(
     ctx: &mut PassContext<'_>,
     fu: &crate::compilation_unit::FunctionUnit,
@@ -154,6 +221,8 @@ fn run_load_forwarding(
 ) {
     use crate::def_use::{DefKind, UseKind};
     use crate::ir::Statement;
+
+    let unsafe_names = trace_and_alias_unsafe_names(ctx, fu);
 
     // Independent of the SCCP lattice (see the doc comment on the call
     // site in `run`), this pass must apply the same externally-mutable
@@ -171,7 +240,9 @@ fn run_load_forwarding(
         if chain.definition.kind != DefKind::Statement {
             continue;
         }
-        if crate::sccp::is_externally_mutable(chain.key.0.as_str(), &escaping, Some(module_traces))
+        let var_name = chain.key.0.as_str();
+        if crate::sccp::is_externally_mutable(var_name, &escaping, Some(module_traces))
+            || unsafe_names.is_unsafe(var_name)
         {
             continue;
         }
@@ -200,7 +271,6 @@ fn run_load_forwarding(
         if !is_value_safe_bare_word(&literal) {
             continue;
         }
-        let var_name = chain.key.0.as_str();
         let message =
             format!("Forward literal load of '{var_name}' from its single reaching definition");
         for use_site in &chain.uses {
@@ -219,56 +289,7 @@ fn run_load_forwarding(
             if has_intervening_barrier(fu, &chain.definition.block, idx, &use_site.block, use_idx) {
                 continue;
             }
-            // Prefer a per-argv applicable rewrite when the use
-            // lives inside a `Statement::Call` whose tokens we
-            // tracked. Each matching `$var` / `${var}` word gets
-            // its own O102 with the argv span as target.
-            let mut emitted_applicable = false;
-            if let Statement::Call {
-                tokens: Some(tokens),
-                ..
-            } = use_stmt
-            {
-                for (i, argv_span) in tokens.argv.iter().enumerate() {
-                    let Some(text) = tokens.argv_texts.get(i) else {
-                        continue;
-                    };
-                    // A braced word (`{$x}`) is a literal — Tcl performs no
-                    // substitution inside braces — so `$x` there must not be
-                    // forwarded. `argv_texts` has the braces stripped, so the
-                    // word kind is the only signal.
-                    if tokens.argv_kinds.get(i) == Some(&tcl_lexer::TokenType::Str) {
-                        continue;
-                    }
-                    if !simple_var_ref_matches(text, var_name) {
-                        continue;
-                    }
-                    ctx.report(Optimisation::new(
-                        DiagCode::O102,
-                        message.clone(),
-                        full_word_span(ctx.source, fu.abs_span(*argv_span)),
-                        literal.clone(),
-                    ));
-                    emitted_applicable = true;
-                }
-            }
-            if emitted_applicable {
-                continue;
-            }
-            // Fall back to a hint-only diagnostic on the whole
-            // consuming statement when the use wasn't on a
-            // Call, `CommandTokens` weren't captured, or no argv
-            // entry matched as a simple `$var` word (e.g. the
-            // read is inside an interpolated string — the O100
-            // string-interpolation path handles that).
-            let mut opt = Optimisation::new(
-                DiagCode::O102,
-                message.clone(),
-                fu.abs_span(use_stmt.span()),
-                literal.clone(),
-            );
-            opt.hint_only = true;
-            ctx.report(opt);
+            report_load_forward(ctx, fu, use_stmt, var_name, &message, &literal);
         }
     }
 }
@@ -279,10 +300,10 @@ fn run_load_forwarding(
 /// reaching definition" forward unsound: `uplevel 1 {…}` / `uplevel #0 {…}`
 /// evaluates its body in a *different* frame (the caller's, or the absolute
 /// global one) and can reassign any name visible there, exactly like an
-/// opaque call. Independent of [`is_externally_mutable`] (which only catches
-/// `global`/`variable`/`upvar`/`trace`-*declared* aliasing): a plain proc-local
-/// variable with no alias/trace at all can still be mutated by a literal
-/// `uplevel #0 {…}` body a few lines later.
+/// opaque call. Independent of [`crate::sccp::is_externally_mutable`] (which
+/// only catches `global`/`variable`/`upvar`/`trace`-*declared* aliasing): a
+/// plain proc-local variable with no alias/trace at all can still be mutated
+/// by a literal `uplevel #0 {…}` body a few lines later.
 ///
 /// Same-block case: checked precisely (only the statements strictly between
 /// the two indices). Cross-block case: conservatively checks the remainder of
@@ -337,6 +358,63 @@ fn has_intervening_barrier(
         .blocks
         .values()
         .any(|b| b.name != def_block && b.name != use_block && b.statements.iter().any(is_barrier))
+}
+
+/// Emit the `O102` rewrite(s) for one use site: a precise, applicable
+/// per-argv rewrite for each bare `$var` / `${var}` word in a
+/// `Statement::Call`'s tracked tokens, or a hint-only fallback covering
+/// the whole consuming statement when no such word is found (the use is
+/// on a non-`Call` statement, `CommandTokens` weren't captured, or the
+/// read is nested inside a larger construct — e.g. an interpolated
+/// string, which the O100 string-interpolation path handles instead).
+fn report_load_forward(
+    ctx: &mut PassContext<'_>,
+    fu: &crate::compilation_unit::FunctionUnit,
+    use_stmt: &Statement,
+    var_name: &str,
+    message: &str,
+    literal: &str,
+) {
+    let mut emitted_applicable = false;
+    if let Statement::Call {
+        tokens: Some(tokens),
+        ..
+    } = use_stmt
+    {
+        for (i, argv_span) in tokens.argv.iter().enumerate() {
+            let Some(text) = tokens.argv_texts.get(i) else {
+                continue;
+            };
+            // A braced word (`{$x}`) is a literal — Tcl performs no
+            // substitution inside braces — so `$x` there must not be
+            // forwarded. `argv_texts` has the braces stripped, so the
+            // word kind is the only signal.
+            if tokens.argv_kinds.get(i) == Some(&tcl_lexer::TokenType::Str) {
+                continue;
+            }
+            if !simple_var_ref_matches(text, var_name) {
+                continue;
+            }
+            ctx.report(Optimisation::new(
+                DiagCode::O102,
+                message.to_owned(),
+                full_word_span(ctx.source, fu.abs_span(*argv_span)),
+                literal.to_owned(),
+            ));
+            emitted_applicable = true;
+        }
+    }
+    if emitted_applicable {
+        return;
+    }
+    let mut opt = Optimisation::new(
+        DiagCode::O102,
+        message.to_owned(),
+        fu.abs_span(use_stmt.span()),
+        literal.to_owned(),
+    );
+    opt.hint_only = true;
+    ctx.report(opt);
 }
 
 /// O127 — store-to-load forwarding for a *computed* single-use
@@ -660,34 +738,18 @@ fn intervening_is_safe(
     use_idx: usize,
     def_read_names: &std::collections::BTreeSet<String>,
 ) -> bool {
-    use super::helpers::expr_simplify::expr_has_command_subst;
-    use crate::gvn::is_pure_command_with_traces;
-
     for idx in (def_idx + 1)..use_idx {
         let Some(stmt) = block.statements.get(idx) else {
             break;
         };
-        match stmt {
-            // A barrier (incl. lowered eval) may mutate any name —
-            // always a kill.  An `UpFrame` (uplevel / upvar reaching a
-            // parent frame) likewise runs an opaque body that can mutate
-            // any name the inlined expression reads, so it is a kill too.
-            Statement::Barrier { .. } | Statement::UpFrame { .. } => return false,
-            Statement::AssignValue { value, .. } if value.contains('[') => return false,
-            Statement::AssignExpr { expr, .. } if expr_has_command_subst(expr) => return false,
-            Statement::Call { command, args, .. }
-                if !is_pure_command_with_traces(
-                    env.registry,
-                    command,
-                    args,
-                    env.ctx.dialect,
-                    env.traced,
-                    env.has_dynamic_trace,
-                ) =>
-            {
-                return false;
-            }
-            _ => {}
+        if statement_may_have_untracked_effects(
+            stmt,
+            env.registry,
+            env.ctx.dialect,
+            env.traced,
+            env.has_dynamic_trace,
+        ) {
+            return false;
         }
         // A redefinition of any read name invalidates the forward.
         if let Some(sb) = ssa_block.statements.get(idx)
@@ -784,9 +846,131 @@ fn run_function(
     // Project the per-function SCCP lattice into a name → literal
     // map that survives only when every tracked version of the
     // variable collapses to the same single constant value.
-    let constants = sccp_constants_for(fu);
+    let mut constants = sccp_constants_for(fu);
+    if !constants.is_empty() {
+        trace_and_alias_unsafe_names(ctx, fu).retain_safe(&mut constants);
+    }
     let numeric = operand_types(fu);
     walk_script(ctx, cu, script, &constants, Some(&numeric), namespace);
+}
+
+/// Base variable names a forward/propagation must not trust — because a
+/// read of the name can run arbitrary handler code, a write handler can
+/// rewrite the stored value, or the name is reachable from another frame
+/// (so a call between the SCCP-tracked def and a later use could write it
+/// without a new SSA version appearing in *this* function) — plus every
+/// name whose SCCP-constant value is only constant *because* it was
+/// computed from one of those unsafe reads (`set v [expr {$a * 2}]}` where
+/// `a` carries a variable trace must not let `v` read as constant either:
+/// SCCP folds `v`'s value from `a`'s lattice entry with no notion of
+/// tracing, so the taint has to be tracked structurally through the SSA
+/// def/use graph, not just at the immediately-traced name).
+///
+/// Shared by the O100/O101/O103/O112/branch-condition propagation paths
+/// (via [`run_function`]'s `constants` map) and the O102 load-forwarding
+/// gate in [`run_load_forwarding`] — the same risk class applies to every
+/// pass that treats an SCCP-proved or reaching-definition literal as safe
+/// to inline.
+pub(super) struct UnsafeNames {
+    dynamic: bool,
+    names: std::collections::BTreeSet<String>,
+}
+
+impl UnsafeNames {
+    pub(super) fn is_unsafe(&self, name: &str) -> bool {
+        self.dynamic || self.names.contains(name)
+    }
+
+    /// True when any name `expr` reads is unsafe — for gating a whole
+    /// expression (a branch condition) rather than one variable.
+    pub(super) fn any_unsafe<'a>(&self, names: impl IntoIterator<Item = &'a String>) -> bool {
+        self.dynamic || names.into_iter().any(|n| self.names.contains(n))
+    }
+
+    /// Drop every unsafe name from a name-keyed SCCP-projection map
+    /// (`propagation`'s `constants`, `branch_folding`'s `constants`,
+    /// `structure_elimination`'s `Env`) in place — the one choke point
+    /// every SCCP-constant-trusting pass filters through.
+    pub(super) fn retain_safe<V>(&self, map: &mut std::collections::HashMap<String, V>) {
+        if self.dynamic {
+            map.clear();
+        } else {
+            map.retain(|name, _| !self.names.contains(name));
+        }
+    }
+}
+
+pub(super) fn trace_and_alias_unsafe_names(
+    ctx: &PassContext<'_>,
+    fu: &FunctionUnit,
+) -> UnsafeNames {
+    let dynamic_variable_trace = ctx.ir_module.is_some_and(|m| m.has_dynamic_variable_trace);
+    if dynamic_variable_trace {
+        return UnsafeNames {
+            dynamic: true,
+            names: std::collections::BTreeSet::new(),
+        };
+    }
+    let traced_variables = ctx.ir_module.map(|m| &m.traced_variables);
+    let aliased: std::collections::BTreeSet<String> = match &fu.memory_ssa {
+        Some(m) => m.aliased_names(),
+        None => crate::memory_ssa::compute_aliases(&fu.ssa)
+            .iter()
+            .flat_map(crate::memory_ssa::AliasSet::names)
+            .collect(),
+    };
+    let is_directly_unsafe = |name: &str| -> bool {
+        if aliased.contains(name) {
+            return true;
+        }
+        let key = normalise_var_name(&format!("${name}"))
+            .trim_start_matches("::")
+            .to_owned();
+        traced_variables.is_some_and(|t| t.contains(&key))
+    };
+
+    // Seed the tainted-symbol set from every SSA symbol whose base name is
+    // directly unsafe, then propagate to a fixed point: any statement that
+    // reads a tainted symbol taints every symbol it defines. Symbol-level
+    // (not `(Symbol, Version)`-level) — coarser than SCCP's own per-version
+    // lattice, but consistent with `sccp_constants_for`'s own name-level
+    // granularity, and cheap since it only runs when a name is unsafe.
+    let mut tainted: std::collections::HashSet<crate::ssa::Symbol> =
+        std::collections::HashSet::new();
+    for block in fu.ssa.blocks.values() {
+        for stmt in &block.statements {
+            for &sym in stmt.uses.keys().chain(stmt.defs.keys()) {
+                if is_directly_unsafe(fu.ssa.var_name(sym)) {
+                    tainted.insert(sym);
+                }
+            }
+        }
+    }
+    loop {
+        let mut changed = false;
+        for block in fu.ssa.blocks.values() {
+            for stmt in &block.statements {
+                if stmt.uses.keys().any(|s| tainted.contains(s)) {
+                    for &d in stmt.defs.keys() {
+                        if tainted.insert(d) {
+                            changed = true;
+                        }
+                    }
+                }
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+
+    UnsafeNames {
+        dynamic: false,
+        names: tainted
+            .into_iter()
+            .map(|s| fu.ssa.var_name(s).to_owned())
+            .collect(),
+    }
 }
 
 fn walk_script(
@@ -2392,7 +2576,7 @@ fn render_propagation_word(value: &str) -> String {
     }
 }
 
-fn sccp_constants_for(fu: &FunctionUnit) -> std::collections::HashMap<String, String> {
+pub(super) fn sccp_constants_for(fu: &FunctionUnit) -> std::collections::HashMap<String, String> {
     use super::helpers::literals::format_constant;
 
     let mut per_var: std::collections::HashMap<crate::ssa::Symbol, Vec<&ConstValue>> =
@@ -2434,8 +2618,17 @@ mod tests {
     }
 
     fn run_pass(source: &str) -> Vec<Optimisation> {
-        let cu = CompilationUnit::build_for(source, &registry(), false);
+        let reg = registry();
+        let cu = CompilationUnit::build_for(source, &reg, false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        // Mirror `optimise_unit_raw`'s production wiring — `run_load_forwarding`
+        // (O102) needs `ctx.registry` for its intervening-call purity scan, and
+        // the trace/alias safety gates need `ctx.ir_module`. Without these two
+        // fields set, a hand-built `PassContext` silently loses O102 coverage
+        // (and O127's pre-existing trace-purity gate), which is exactly the bug
+        // this test helper would otherwise mask.
+        ctx.registry = Some(&reg);
+        ctx.ir_module = Some(&cu.ir_module);
         run(&mut ctx, &cu);
         ctx.optimisations
     }

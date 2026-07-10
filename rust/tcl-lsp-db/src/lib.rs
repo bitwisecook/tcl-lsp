@@ -1719,8 +1719,16 @@ pub fn function_optimisations<'db>(
         redefined_methods: HashSet::new(),
         namespace_imports: Vec::new(),
         namespace_exports: Vec::new(),
+        // Always empty/false here — the caller (`memoised_module_optimisations`)
+        // falls back to the whole-module `optimise_unit` whenever the real
+        // module carries any trace fact, so this per-proc offset-0 unit is
+        // only ever built for a module with none. See that fallback's
+        // comment for why threading these through the salsa `OptDepsKey`
+        // instead was not the chosen fix.
         traced_commands: BTreeSet::new(),
         has_dynamic_trace: false,
+        traced_variables: BTreeSet::new(),
+        has_dynamic_variable_trace: false,
     };
     let empty_cfg = tcl_compiler::cfg::Function::new("::", "entry");
     let top_fu = FunctionUnit::build("::", empty_cfg.clone(), &[], &registry);
@@ -1747,6 +1755,27 @@ pub fn function_optimisations<'db>(
         &registry,
         dialect_opt,
     ))
+}
+
+/// Whether `module` carries any whole-module trace fact (execution *or*
+/// variable — `Module::traced_commands` / `has_dynamic_trace` /
+/// `traced_variables` / `has_dynamic_variable_trace`).
+///
+/// The single-proc offset-0 `Module` [`function_optimisations`] builds has
+/// no way to reconstruct these — its `OptDepsKey` threads `proc_names` /
+/// `callees` / `redefined`, but not trace state, so a memoised per-proc
+/// unit would silently see "nothing is traced" regardless of the real
+/// module content. [`solve_optimisations`] falls back to the whole-module
+/// build whenever this is `true`, exactly like its `mutations` /
+/// `has_arg_sensitive_target` fallbacks — traces are rare enough in
+/// practice that this costs little, and it is far lower-risk than
+/// widening the salsa dependency key to thread four more whole-module
+/// facts through the per-proc cache.
+fn module_has_trace_facts(module: &tcl_compiler::ir::Module) -> bool {
+    !module.traced_commands.is_empty()
+        || module.has_dynamic_trace
+        || !module.traced_variables.is_empty()
+        || module.has_dynamic_variable_trace
 }
 
 /// Assemble a document's optimisations from the per-procedure memo (Task 4).
@@ -1790,6 +1819,7 @@ fn solve_optimisations<'db>(
         || mutations != tcl_compiler::command_binding::ModuleCommandMutations::default()
         || has_arg_sensitive_target
         || !every_proc_keyed
+        || module_has_trace_facts(&cu.ir_module)
     {
         return tcl_compiler::optimiser::optimise_unit(cu, registry, dialect_opt);
     }
@@ -1870,8 +1900,17 @@ fn solve_optimisations<'db>(
             redefined_methods: HashSet::new(),
             namespace_imports: Vec::new(),
             namespace_exports: Vec::new(),
-            traced_commands: BTreeSet::new(),
-            has_dynamic_trace: false,
+            // Copied from the real whole-module facts (unlike the per-proc
+            // offset-0 unit above, this top-level-only unit is built
+            // straight from `cu`, so there is no salsa-caching reason to
+            // default these — and the `has_trace_facts` fallback above
+            // means this path only runs at all when the module has none,
+            // but copy the real values rather than asserting that by
+            // omission).
+            traced_commands: cu.ir_module.traced_commands.clone(),
+            has_dynamic_trace: cu.ir_module.has_dynamic_trace,
+            traced_variables: cu.ir_module.traced_variables.clone(),
+            has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
         },
         cfg_module: tcl_compiler::cfg::CfgModule {
             top_level: cu.cfg_module.top_level.clone(),
