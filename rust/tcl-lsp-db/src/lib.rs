@@ -1340,7 +1340,6 @@ pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<V
         &fu,
         &registry,
         dialect_opt,
-        "",
     ))
 }
 
@@ -1481,7 +1480,6 @@ pub fn proc_taint_solve<'db>(
                     fu,
                     &registry,
                     dialect_opt,
-                    &cu.source,
                 ) {
                     fn_checks.push(d);
                 }
@@ -1501,12 +1499,7 @@ pub fn proc_taint_solve<'db>(
     // they carry absolute spans already and need no rebase, same as the
     // `None` arm above.
     for fu in cu.analysable_methods_and_body_units() {
-        for d in tcl_compiler::compiler_checks::shimmer_family_checks(
-            fu,
-            &registry,
-            dialect_opt,
-            &cu.source,
-        ) {
+        for d in tcl_compiler::compiler_checks::shimmer_family_checks(fu, &registry, dialect_opt) {
             fn_checks.push(d);
         }
     }

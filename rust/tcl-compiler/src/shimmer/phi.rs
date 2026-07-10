@@ -154,7 +154,6 @@ fn classify_phi_shimmer(ctx: &PhiCtx<'_>, phi: &Phi, in_loop: bool) -> Option<Sh
             to = type_name(to),
         ),
         related,
-        fixes: Vec::new(),
     })
 }
 

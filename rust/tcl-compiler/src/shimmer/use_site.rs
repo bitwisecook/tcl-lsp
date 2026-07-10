@@ -404,7 +404,6 @@ fn check_invocation(
                 to = type_name(expected),
             ),
             related,
-            fixes: Vec::new(),
         });
     }
 }
@@ -571,7 +570,6 @@ fn check_incr_var(ctx: &mut UseSiteCtx<'_>, var: &str, span: Span, uses: &HashMa
             from = type_name(current),
         ),
         related,
-        fixes: Vec::new(),
     });
 }
 

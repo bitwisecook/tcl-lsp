@@ -267,7 +267,6 @@ fn byte_warning(
         code: DiagCode::S110,
         message,
         related,
-        fixes: Vec::new(),
     }
 }
 

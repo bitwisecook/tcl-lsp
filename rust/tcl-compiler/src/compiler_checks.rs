@@ -117,7 +117,7 @@ impl Diagnostic {
             },
             message: w.message.clone(),
             replacement: None,
-            fixes: w.fixes.clone(),
+            fixes: Vec::new(),
         }
     }
 
@@ -278,7 +278,7 @@ pub fn run_all_checks_with_solved_and_patterns(
     // (SRV-INCREMENTAL 2a): an unedited procedure's checks are a cache hit
     // instead of recomputed over the whole unit every edit.
     for fu in cu.analysable_body_function_units() {
-        for d in function_nontaint_checks(fu, registry, dialect, &cu.source) {
+        for d in function_nontaint_checks(fu, registry, dialect) {
             out.push(shift(fu, d));
         }
     }
@@ -304,26 +304,11 @@ pub fn run_all_checks_with_solved_and_patterns(
 /// keyed on the offset-0 `FnLatticeKey` (SRV-INCREMENTAL 2a) — an unedited
 /// procedure's checks are a cache hit.  The S110 `*::payload` byte-command set is
 /// dialect-gated (empty outside iRules).
-///
-/// `source` feeds the expr pass's eq/ne/lt/le/gt/ge quick fix (see
-/// `shimmer::expr::find_operator_fix`), which needs to locate exact text
-/// within the statement's own source span. `source` must therefore be
-/// **absolute against `fu`'s own spans** — correct when called on a
-/// freshly-built (non-memoised) `FunctionUnit` (`base_offset == 0`; every
-/// `run_all_checks*` caller here passes `&cu.source` for exactly this
-/// reason), but the LSP db's offset-0 memoised
-/// `function_lattice`/`function_checks` salsa query passes `""` instead
-/// (its `fu` spans are relative to the procedure's own offset-0 body, not
-/// `source` — using a real string there would silently slice the wrong
-/// text). An empty string safely yields no fix (bounds-checked, falls back
-/// to no fix rather than a wrong one) — only the fix is unavailable, the
-/// diagnostic message itself is unaffected either way.
 #[must_use]
 pub fn function_nontaint_checks(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
     dialect: Option<&str>,
-    source: &str,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
     for cb in &fu.sccp.constant_branches {
@@ -338,7 +323,7 @@ pub fn function_nontaint_checks(
     for r in find_loop_invariants(registry, &fu.cfg, &fu.ssa, dialect) {
         out.push(Diagnostic::from_redundant(&r));
     }
-    out.extend(shimmer_family_checks(fu, registry, dialect, source));
+    out.extend(shimmer_family_checks(fu, registry, dialect));
     out
 }
 
@@ -353,14 +338,12 @@ pub fn function_nontaint_checks(
 /// only walks the top level and procedures), so without this split every
 /// shimmer diagnostic was silently unreachable inside a method or a
 /// `namespace eval` body. The S110 `*::payload` byte-command set is
-/// dialect-gated (empty outside iRules). `source` — see
-/// [`function_nontaint_checks`]'s doc comment.
+/// dialect-gated (empty outside iRules).
 #[must_use]
 pub fn shimmer_family_checks(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
     dialect: Option<&str>,
-    source: &str,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
     for w in find_shimmer_warnings(
@@ -370,7 +353,6 @@ pub fn shimmer_family_checks(
         &fu.sccp.executable_blocks,
         registry,
         &fu.sccp.values,
-        source,
     ) {
         out.push(Diagnostic::from_shimmer(&w));
     }

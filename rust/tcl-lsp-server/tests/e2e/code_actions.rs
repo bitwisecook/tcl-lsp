@@ -990,12 +990,15 @@ fn test_s100_offers_noqa_suppress_action() {
     assert!(new_texts(&actions).iter().any(|s| s == "# noqa: S100\n"));
 }
 
-/// A numeric var compared via `eq` against a numeric literal — both operands
-/// are provably numeric, so the rewrite to `==` is semantics-preserving and
-/// offered as a quick fix alongside (not instead of) the generic noqa
-/// suppress action.
+/// (Regression guard) `eq` against a numeric literal never offers a
+/// numeric-comparison rewrite, even when both operands are provably
+/// numeric — `eq`/`ne`/`lt`/`le`/`gt`/`ge` compare the operands' *string*
+/// representations, never their numeric value (`"10" lt "2"` is true,
+/// `10 < 2` is false), so no such rewrite is ever semantics-preserving. The
+/// S100 diagnostic still fires, and the generic noqa suppress is still
+/// offered — only the (unsound) mechanical rewrite is withheld.
 #[test]
-fn test_s100_eq_numeric_offers_numeric_comparison_fix() {
+fn test_s100_eq_numeric_offers_no_numeric_comparison_fix() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "set x 42\nset z [expr {$x eq 42}]\n");
@@ -1003,28 +1006,15 @@ fn test_s100_eq_numeric_offers_numeric_comparison_fix() {
     assert!(!s100.is_empty(), "expected an S100 to drive the quick fix");
     let actions = lsp.code_actions(&uri, range((1, 0), (1, 25)), json!(s100));
     assert!(
-        titles(&actions)
-            .iter()
-            .any(|t| t.contains("numeric comparison")),
-        "expected a numeric-comparison quick fix, got {actions:?}"
-    );
-    assert!(new_texts(&actions).iter().any(|s| s == "=="));
-}
-
-/// (FP guard) `eq` against a non-numeric sibling must not offer the numeric
-/// rewrite — only the generic noqa suppress.
-#[test]
-fn test_s100_eq_non_numeric_sibling_offers_no_numeric_fix() {
-    let mut lsp = Lsp::tcl();
-    let uri = unique_uri("tcl");
-    let diags = lsp.open_ready(&uri, "set n 5\nset z [expr {$n eq \"abc\"}]\n");
-    let s100 = with_code(&diags, "S100");
-    assert!(!s100.is_empty(), "expected an S100 to drive the quick fix");
-    let actions = lsp.code_actions(&uri, range((1, 0), (1, 29)), json!(s100));
-    assert!(
         !titles(&actions)
             .iter()
             .any(|t| t.contains("numeric comparison")),
-        "must not offer an unsafe rewrite when the sibling isn't numeric, got {actions:?}"
+        "must never offer a semantics-changing numeric rewrite, got {actions:?}"
+    );
+    assert!(
+        titles(&actions)
+            .iter()
+            .any(|t| t == "Suppress S100 with a noqa comment"),
+        "expected the noqa suppress action to still be offered, got {actions:?}"
     );
 }

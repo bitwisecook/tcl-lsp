@@ -47,9 +47,10 @@ fn my_variable_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// `is_scope_alias_call` widens its defs to `Overdefined` exactly like
 /// `global`/`variable`/`upvar`/`namespace upvar`, so a variable linked this
 /// way (whose true intrep may have been set by a *different* method) is not
-/// misreported as a local shimmer. Every other `my <method>` form still
-/// resolves to `None` here (no matching subcommand name) and is otherwise
-/// unaffected.
+/// misreported as a local shimmer. `allow_unknown_subcommands` keeps every
+/// other `my <method>` form dispatching freely instead of tripping W001 —
+/// the analyser cannot know a class's user-defined method names statically,
+/// so only `variable` (and its unique-prefix abbreviations) is validated.
 const SUBCOMMANDS: &[SubCommand] = &[SubCommand {
     name: "variable",
     arity: Arity::at_least(1),
@@ -70,6 +71,7 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         subcommands: SUBCOMMANDS,
+        allow_unknown_subcommands: true,
         hover: Some(HoverSnippet {
             summary: "invoke a method on the current object",
             synopsis: &["my method ?arg ...?"],

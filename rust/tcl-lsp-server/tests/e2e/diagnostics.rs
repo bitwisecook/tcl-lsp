@@ -2100,6 +2100,19 @@ fn no_shimmer_for_tcloo_instance_variable_linked_via_my_variable() {
     );
 }
 
+/// (Regression guard) `my` dispatches to an arbitrary `TclOO` method name — the
+/// registry only recognises `variable` (for the scope-alias trait) and must
+/// keep `allow_unknown_subcommands` set, or every other `my <method>` call
+/// (the overwhelmingly common form) would falsely draw W001.
+#[test]
+fn my_arbitrary_method_call_does_not_draw_w001() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create Counter {\n    method bump {} {\n        my touch\n    }\n    method touch {} {}\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(!has_code(&diags, "W001"), "unexpected W001: {diags:?}");
+}
+
 #[test]
 fn shimmer_fires_through_interp_alias() {
     let mut lsp = Lsp::tcl();
