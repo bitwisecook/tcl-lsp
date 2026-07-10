@@ -49,6 +49,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "rust/tcl-version",
     "rust/tcl-core-types",
     "rust/tcl-lexer",
     "rust/tcl-syntax",
