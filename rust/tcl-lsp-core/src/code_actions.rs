@@ -1872,6 +1872,41 @@ fn strip_crlf_before_output(line: &str, d: &ContextDiagnostic, var: &str) -> Vec
     }]
 }
 
+/// Build the "add `-nocommands`" T100 quick-fix for a `subst` sink:
+/// inserts `-nocommands` right after the standalone `subst` word on
+/// `line`, or no action when the line doesn't contain one (defensive —
+/// the caller already matched the diagnostic message, so this should
+/// always find it).
+fn subst_nocommands_fix(line: &str, line_no: u32) -> Vec<CodeAction> {
+    let bytes = line.as_bytes();
+    let Some(start) = line.find("subst") else {
+        return Vec::new();
+    };
+    let word_start_ok = start == 0 || !bytes[start - 1].is_ascii_alphanumeric();
+    let after = start + "subst".len();
+    let word_end_ok = bytes.get(after).is_none_or(|c| !c.is_ascii_alphanumeric());
+    if !word_start_ok || !word_end_ok {
+        return Vec::new();
+    }
+    let insert_char_col = line[..after].chars().count();
+    let insert_col = char_col_to_utf16_local(line, insert_char_col);
+    vec![CodeAction {
+        title: "Add -nocommands to disable command substitution".to_string(),
+        edits: vec![crate::rename::TextEdit {
+            range: LspRange {
+                start_line: line_no,
+                start_character: insert_col,
+                end_line: line_no,
+                end_character: insert_col,
+            },
+            new_text: " -nocommands".to_string(),
+        }],
+        kind: ActionKind::QuickFix,
+        command: None,
+        data_group_definition: None,
+    }]
+}
+
 fn taint_quickfix(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
     let line_no = d.range.start_line as usize;
     let Some(line) = source.split('\n').nth(line_no) else {
@@ -1886,6 +1921,16 @@ fn taint_quickfix(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
     }
     if d.code == "T101" || d.code == "IRULE3003" {
         return strip_crlf_before_output(line, d, &var);
+    }
+
+    // T100 on a `subst` sink: `-nocommands` disables the only hazard the
+    // diagnostic names (command substitution) without changing the call's
+    // variable/backslash substitution behaviour — exactly the mitigation
+    // `subst`'s own hover snippet recommends. Other T100 sinks (`eval`,
+    // `uplevel`, `exec`, a braced `expr` operand) have no equivalent
+    // single-flag fix, so this only fires for the `subst` sink label.
+    if d.code == "T100" && d.message.contains(" into subst;") {
+        return subst_nocommands_fix(line, d.range.start_line);
     }
 
     let (encoder, proc_template): (&str, Option<&str>) = match d.code.as_str() {

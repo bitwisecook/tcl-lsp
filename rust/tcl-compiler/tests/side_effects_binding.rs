@@ -822,6 +822,20 @@ fn stmt_command(stmt: &Statement) -> &str {
     stmt.canonical_command_or_source()
 }
 
+/// Source-surface command spelling of a statement — never the resolved
+/// canonical name. `Statement::canonical_command_or_source()` now also
+/// resolves through a static `rename` (`tcl_compiler::alias::detect_rename`),
+/// not just `interp alias`, so a test that locates a statement *by its
+/// literal source text* (e.g. "the bare `b` call after `rename a b`") must
+/// not use it — `canonical_command_or_source()` would return `"a"` there,
+/// not `"b"`.
+fn stmt_source_command(stmt: &Statement) -> &str {
+    match stmt {
+        Statement::Call { command, .. } | Statement::Barrier { command, .. } => command.as_str(),
+        _ => "",
+    }
+}
+
 /// Binding of `query` at the first statement whose command (canonical-or-source)
 /// equals `canonical`.
 fn binding_at_command(
@@ -842,12 +856,14 @@ fn binding_at_command(
     panic!("no statement with command {canonical:?}");
 }
 
-/// Index of the first statement in the entry block whose command equals `name`.
+/// Index of the first statement in the entry block whose *source-surface*
+/// command equals `name` (not the alias/rename-resolved canonical name —
+/// see [`stmt_source_command`]).
 fn stmt_idx_in_entry(cfg: &tcl_compiler::cfg::Function, name: &str) -> usize {
     let blk = cfg.blocks.get(&cfg.entry).expect("entry block");
     blk.statements
         .iter()
-        .position(|s| stmt_command(s) == name)
+        .position(|s| stmt_source_command(s) == name)
         .unwrap_or_else(|| panic!("no statement {name:?} in entry block"))
 }
 

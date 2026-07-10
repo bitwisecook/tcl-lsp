@@ -512,6 +512,32 @@ fn t102_insert_double_dash() {
 }
 
 #[test]
+fn t100_subst_add_nocommands() {
+    let mut lsp = Lsp::irules();
+    let actions = taint_fix(
+        &mut lsp,
+        "subst $tainted\n",
+        "T100",
+        "Tainted variable $tainted flows into subst; possible code injection",
+        (0, 0),
+        (0, 14),
+    );
+    let fixes: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| action_title(a).contains("-nocommands"))
+        .cloned()
+        .collect();
+    assert_eq!(fixes.len(), 1);
+    assert!(
+        ca_new_texts(&json!(fixes))
+            .iter()
+            .any(|s| s.contains("-nocommands"))
+    );
+}
+
+#[test]
 fn braced_variable_wrapped() {
     let mut lsp = Lsp::irules();
     let actions = taint_fix(
