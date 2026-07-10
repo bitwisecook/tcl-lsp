@@ -12,11 +12,11 @@ or an explicit *not required* classification.
 
 | status | count |
 | --- | --- |
-| handler | 98 |
+| handler | 99 |
 | handler (native) | 6 |
 | stdlib | 11 |
 | not-required | 111 |
-| known-gap (`RUST_ISSUE_007`) | 6 |
+| known-gap (`RUST_ISSUE_007`) | 5 |
 | **UNCLASSIFIED** | 0 |
 | **total** | 232 |
 
@@ -89,7 +89,7 @@ or an explicit *not required* classification.
 | `break` | handler |  |
 | `catch` | handler |  |
 | `cd` | handler |  |
-| `chan` | known-gap | core I/O ensemble |
+| `chan` | handler |  |
 | `classvariable` | known-gap | TclOO method-body helper for class-shared variables |
 | `clock` | handler |  |
 | `close` | handler |  |

@@ -212,7 +212,6 @@ const NOT_REQUIRED: &[(&str, &str)] = &[
 /// implemented one by one; removing a name here (as it gains a handler) is the
 /// visible progress marker. Names are canonical (no leading `::`). Kept sorted.
 const KNOWN_UNBACKED: &[(&str, &str)] = &[
-    ("chan", "core I/O ensemble"),
     (
         "classvariable",
         "TclOO method-body helper for class-shared variables",

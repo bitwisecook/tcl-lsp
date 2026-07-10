@@ -121,6 +121,73 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"fblocked", fblocked_cmd);
     interp.register_builtin(b"seek", seek_cmd);
     interp.register_builtin(b"tell", tell_cmd);
+    interp.register_builtin(b"chan", chan_cmd);
+}
+
+/// `chan subcommand ?arg ...?` — the core channel ensemble. Its subcommand set
+/// (and their order) is C's, so the "unknown or ambiguous subcommand" error and
+/// unique-prefix resolution match (`chan pu` is ambiguous between `push`/`puts`).
+/// The subcommands the embedded runtime backs forward to the corresponding
+/// channel command (the resolved subcommand word sits in `argv[0]`, which those
+/// handlers ignore); the event-driven / reflected / stacked-channel ones it does
+/// not provide report that.
+fn chan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    const SUBS: &[&[u8]] = &[
+        b"blocked",
+        b"close",
+        b"configure",
+        b"copy",
+        b"create",
+        b"eof",
+        b"event",
+        b"flush",
+        b"gets",
+        b"isbinary",
+        b"names",
+        b"pending",
+        b"pipe",
+        b"pop",
+        b"postevent",
+        b"push",
+        b"puts",
+        b"read",
+        b"seek",
+        b"tell",
+        b"truncate",
+    ];
+    if argv.len() < 2 {
+        return wrong_args(interp, b"chan subcommand ?arg ...?");
+    }
+    let sub = obj_bytes(argv[1]);
+    let names: Vec<Vec<u8>> = SUBS.iter().map(|s| s.to_vec()).collect();
+    let Some(idx) = crate::ensemble::resolve_subcommand(&names, &sub, true) else {
+        let mut m = b"unknown or ambiguous subcommand \"".to_vec();
+        m.extend_from_slice(&sub);
+        m.extend_from_slice(b"\": must be ");
+        m.extend_from_slice(&crate::ensemble::must_be(&names));
+        return interp.set_error(&m);
+    };
+    // `argv[1..]` is `subcommand args…`; each target reads its arguments from
+    // `argv[1..]` and uses `argv[0]` (the subcommand word) only for error text.
+    let rest = &argv[1..];
+    match SUBS[idx] {
+        b"blocked" => fblocked_cmd(interp, rest),
+        b"close" => close_cmd(interp, rest),
+        b"configure" => fconfigure_cmd(interp, rest),
+        b"eof" => eof_cmd(interp, rest),
+        b"flush" => flush_cmd(interp, rest),
+        b"gets" => gets_cmd(interp, rest),
+        b"puts" => puts_cmd(interp, rest),
+        b"read" => read_cmd(interp, rest),
+        b"seek" => seek_cmd(interp, rest),
+        b"tell" => tell_cmd(interp, rest),
+        other => {
+            let mut m = b"chan ".to_vec();
+            m.extend_from_slice(other);
+            m.extend_from_slice(b" is not supported under the WASM runtime");
+            interp.set_error(&m)
+        }
+    }
 }
 
 fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
@@ -577,6 +644,43 @@ mod tests {
             String::from_utf8_lossy(src)
         );
         i.result_bytes()
+    }
+
+    #[test]
+    fn chan_ensemble_forwards_and_reports() {
+        let mut i = Interp::new();
+        let path = std::env::temp_dir().join(format!("tclrt_chan_ens_{}.txt", std::process::id()));
+        let p = path.display();
+        // Supported subcommands forward to the channel commands.
+        ok(&mut i, format!("set f [open {p} w]").as_bytes());
+        ok(&mut i, b"chan puts $f {via chan}");
+        ok(&mut i, b"chan close $f");
+        ok(&mut i, format!("set f [open {p} r]").as_bytes());
+        assert_eq!(ok(&mut i, b"chan gets $f"), b"via chan");
+        assert_eq!(ok(&mut i, b"chan eof $f"), b"0");
+        ok(&mut i, b"chan close $f");
+        // Unknown subcommand → the full C error + subcommand list.
+        assert_eq!(i.eval_str(b"chan badcmd"), Code::Error);
+        assert!(
+            i.result_bytes().starts_with(
+                b"unknown or ambiguous subcommand \"badcmd\": must be blocked, close,"
+            ),
+            "{:?}",
+            String::from_utf8_lossy(&i.result_bytes())
+        );
+        // `pu` is an ambiguous prefix (push / puts).
+        assert_eq!(i.eval_str(b"chan pu"), Code::Error);
+        assert!(i
+            .result_bytes()
+            .starts_with(b"unknown or ambiguous subcommand \"pu\""));
+        // A recognised-but-unbacked subcommand reports rather than mis-dispatching.
+        assert_eq!(i.eval_str(b"chan pipe"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            b"chan pipe is not supported under the WASM runtime"
+        );
+        assert_eq!(i.eval_str(b"chan"), Code::Error);
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
