@@ -190,6 +190,50 @@ fn yield_in_command_argument_position() {
     );
 }
 
+// ===========================================================================
+// coroutine … apply {lambda}
+// ===========================================================================
+
+#[test]
+fn coroutine_apply_generator() {
+    // tclsh 9.0.4: `coroutine c apply {lambda}` — the canonical anonymous
+    // generator. The lambda body runs on the coroutine's explicit stack, so
+    // `yield` in its loop works. Creation consumes the first yield ("hi"); the
+    // four resumes give 1, 2, 3, then "" as the body ends.
+    assert_eq!(
+        run(
+            "coroutine c apply {{} { yield hi; foreach x {1 2 3} { yield $x } }}; \
+             puts [c]; puts [c]; puts [c]; puts [c]"
+        )
+        .2,
+        "1\n2\n3\n\n"
+    );
+}
+
+#[test]
+fn coroutine_apply_with_parameter() {
+    // tclsh 9.0.4: the lambda's formal parameter is bound from the extra
+    // `coroutine` arguments. Creation consumes the first yield (10).
+    assert_eq!(
+        result(
+            "coroutine c apply {{start} { set i $start; while 1 { yield $i; incr i } }} 10; \
+             list [c] [c] [c]"
+        ),
+        "11 12 13"
+    );
+}
+
+#[test]
+fn coroutine_apply_lambda_proc_is_cleaned_up() {
+    // tclsh 9.0.4: deleting the coroutine drops it; the VM additionally tears
+    // down the internal proc the lambda was bound to (no leak). Observing "1"
+    // here (the `catch` on the now-gone `c`) matches C's post-delete behaviour.
+    assert_eq!(
+        result("coroutine c apply {{} { yield a; yield b }}; rename c {}; catch {c}"),
+        "1"
+    );
+}
+
 #[test]
 fn independent_coroutines_interleave() {
     // tclsh 9.0.4: two coroutines keep separate state.

@@ -26,14 +26,15 @@ request that `dispatch_words` turns into a new `Tick::Suspend` (mirroring the
 `tailcall` → `Tick::Tailcall` plumbing; no compiler/bytecode change).
 
 Working and oracle-checked against tclsh 9.0.4
-(`rust/tcl-vm/tests/cmd_coro_e2e.rs`, 14 tests): `coroutine`/`yield`,
+(`rust/tcl-vm/tests/cmd_coro_e2e.rs`, 17 tests): `coroutine`/`yield`,
 generator-style bodies (`yield $x` in `foreach`/`while`/nested proc calls),
 **command substitution** (`set arg [yield $result]` — the resume-value idiom —
-and `cmd [yield]` argument position), independent interleaved coroutines,
-`[info coroutine]`, the resume command, `rename $coro {}` teardown +
-rename-to-new, the already-running guard, and `yield`/`yieldto` outside a
-coroutine. Boundary errors match C's `cannot yield: C stack busy`, detected via a
-`Vm::activation_depth` re-entry counter.
+and `cmd [yield]` argument position), **`coroutine c apply {lambda}`** (the
+anonymous-generator form), independent interleaved coroutines, `[info
+coroutine]`, the resume command, `rename $coro {}` teardown + rename-to-new, the
+already-running guard, and `yield`/`yieldto` outside a coroutine. Boundary errors
+match C's `cannot yield: C stack busy`, detected via a `Vm::activation_depth`
+re-entry counter.
 
 **Command substitution is now yieldable.** A whole-word `[…]` compiles to an
 inline `INVOKE` on the explicit activation stack (matching C Tcl, which never
@@ -44,11 +45,18 @@ fixed a pre-existing codegen bug: a namespace-qualified bare var `$::x`/`$ns::v`
 inside a command substitution was pushed as a literal instead of loaded, so e.g.
 `[string length $::x]` measured the string `"$::x"`.)
 
+**`coroutine … apply {lambda}` is yieldable.** `cmd_coroutine` binds the lambda
+to an internal proc and runs *that* (`lambdaProc arg…`) as the body, so the
+lambda executes on the coroutine's explicit stack; the proc is torn down with the
+coroutine. (The lambda-parse logic is shared with `apply` via `build_lambda_proc`;
+`apply`'s own behaviour is unchanged.)
+
 **Remaining (still Open):**
 - A `yield` reached across a host re-entry the VM runs on the **native Rust
-  stack** — `catch`/`uplevel`/`eval`/`apply` — still errors `cannot yield: C
-  stack busy` instead of yielding. C Tcl makes those NR-enabled; making them
-  re-enter the explicit trampoline is the remaining yieldable-surface work.
+  stack** — `catch`/`uplevel`/`eval`, and `apply` in an *arbitrary* position
+  (not the `coroutine … apply` form, which is handled) — still errors `cannot
+  yield: C stack busy` instead of yielding. C Tcl makes those NR-enabled; making
+  them re-enter the explicit trampoline is the remaining yieldable-surface work.
 - `yieldto` beyond the outside-a-coroutine error; the creating-namespace/`info
   level` refinements; the `after 0 $coro` event-loop driver (Phase 2).
 - The **wasm32** runtime coroutines (asyncify or VM-on-wasm) and the `thread`

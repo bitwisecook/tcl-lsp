@@ -299,22 +299,26 @@ fn fresh_apply_name() -> String {
     format!("::tcl::apply::lambda{n}")
 }
 
-/// `apply lambda ?arg ...?` — invoke an anonymous function `{params body ?ns?}`.
-/// Implemented by binding the lambda to a temporary command and evaluating a
-/// call, so parameter binding and `return` semantics match a normal proc.
-fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some((lambda, call_args)) = args.split_first() else {
-        return err("wrong # args: should be \"apply lambdaExpr ?arg ...?\"");
-    };
+/// Parse a lambda expression `{params body ?namespace?}` and define it as a
+/// fresh internal proc, returning that proc's canonical name (`Err` with the
+/// diagnostic on a malformed lambda).
+///
+/// Shared by `apply` and by `coroutine … apply …`. The caller owns the proc's
+/// lifetime: `apply` deletes it right after the call; a coroutine keeps it alive
+/// for the coroutine's life so the lambda body runs on the coroutine's *explicit
+/// activation stack* (a `yield` inside it is then yieldable — the generic
+/// `apply` path evaluates the body through a host-stack re-entry, which a
+/// `yield` cannot cross).
+pub(crate) fn build_lambda_proc(vm: &mut Vm, lambda: &Value) -> Result<String, Completion<Value>> {
     let parts = match lambda.as_list() {
         Ok(p) => p,
-        Err(c) => return err(c.message),
+        Err(c) => return Err(err(c.message)),
     };
     if parts.len() < 2 || parts.len() > 3 {
-        return err(format!(
+        return Err(err(format!(
             "can't interpret \"{}\" as a lambda expression",
             lambda.to_str()
-        ));
+        )));
     }
     let (params_vec, has_args) = match parse_params(&parts[0].to_str()) {
         Ok(p) => p,
@@ -326,12 +330,12 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 &e,
                 &format!("\n    (parsing lambda expression \"{}\")", lambda.to_str()),
             );
-            return err(e);
+            return Err(err(e));
         }
     };
     let body = parts[1].clone();
     let Some(body_asm) = vm.compile_dynamic_body(&body.to_str()) else {
-        return err("apply: could not compile lambda body");
+        return Err(err("apply: could not compile lambda body"));
     };
     // The optional third element is the namespace the body runs in (default
     // global). Strip a leading `::` to the canonical form. A named namespace
@@ -344,7 +348,7 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // The message names the fully-qualified namespace: a relative third
         // element is resolved from the global namespace, so it is reported with a
         // leading `::` (apply-3.3 — `NONEXIST::…` → `::NONEXIST::…`).
-        return err(format!("namespace \"::{namespace}\" not found"));
+        return Err(err(format!("namespace \"::{namespace}\" not found")));
     }
 
     let name = fresh_apply_name();
@@ -357,6 +361,20 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         body_src: body,
         usage_name: Some("apply lambdaExpr".to_string()),
     });
+    Ok(name)
+}
+
+/// `apply lambda ?arg ...?` — invoke an anonymous function `{params body ?ns?}`.
+/// Implemented by binding the lambda to a temporary command and evaluating a
+/// call, so parameter binding and `return` semantics match a normal proc.
+fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some((lambda, call_args)) = args.split_first() else {
+        return err("wrong # args: should be \"apply lambdaExpr ?arg ...?\"");
+    };
+    let name = match build_lambda_proc(vm, lambda) {
+        Ok(n) => n,
+        Err(c) => return c,
+    };
     let mut words = Vec::with_capacity(call_args.len() + 1);
     words.push(Value::string(name.as_str()));
     words.extend_from_slice(call_args);

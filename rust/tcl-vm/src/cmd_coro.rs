@@ -66,6 +66,10 @@ struct CoroState {
     /// The saved per-flow execution context (call/ns tails, error/script state).
     parked: ParkedFlow,
     status: CoroStatus,
+    /// For a `coroutine … apply {lambda} …`, the internal proc the lambda was
+    /// bound to (so its body runs on this coroutine's explicit stack). Deleted
+    /// with the coroutine — its lifetime is the coroutine's, not one call's.
+    temp_proc: Option<String>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -109,9 +113,15 @@ pub(crate) fn is_coroutine(vm: &Vm, fqn: &str) -> bool {
 
 /// Drop a coroutine's state on command deletion (`rename $coro {}`). The
 /// continuation is pure data, so teardown is a plain remove — no `finally`
-/// blocks run, matching C Tcl. The command itself is removed by the caller.
+/// blocks run, matching C Tcl. The command itself is removed by the caller; an
+/// `apply` coroutine's bound lambda proc is removed here (its lifetime is the
+/// coroutine's).
 pub(crate) fn on_command_deleted(vm: &mut Vm, fqn: &str) {
-    vm.coro.live.remove(fqn);
+    if let Some(state) = vm.coro.live.remove(fqn)
+        && let Some(p) = state.temp_proc
+    {
+        vm.take_command(&p);
+    }
 }
 
 /// Move a coroutine's state to a new key on `rename $coro $new`.
@@ -135,11 +145,35 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             "can't create procedure \"{name}\": command already exists"
         ));
     }
+    // `coroutine NAME apply {lambda} arg…` — bind the lambda to an internal proc
+    // and run *that* (`lambdaProc arg…`), so the lambda body executes on this
+    // coroutine's explicit activation stack and a `yield` inside it is yieldable.
+    // The generic `apply` builtin would run the body through a host-stack
+    // re-entry, where a `yield` cannot cross. The proc is torn down with the
+    // coroutine (`temp_proc`). Everything else runs `command arg…` verbatim.
+    let mut temp_proc = None;
+    let words: Vec<Value> = if args.len() >= 3 && &*args[1].to_str() == "apply" {
+        match crate::command::build_lambda_proc(vm, &args[2]) {
+            Ok(lambda_name) => {
+                let mut w = Vec::with_capacity(args.len() - 2);
+                w.push(Value::string(lambda_name.as_str()));
+                w.extend_from_slice(&args[3..]);
+                temp_proc = Some(lambda_name);
+                w
+            }
+            Err(c) => return c,
+        }
+    } else {
+        args[1..].to_vec()
+    };
     // The body is `command arg…` reconstructed as a one-line script (list
     // quoting preserves the words exactly), dispatched through the compiled
     // `INVOKE` path so a proc call stays on the coroutine's explicit stack.
-    let body_src = Value::list(args[1..].to_vec()).to_str();
+    let body_src = Value::list(words).to_str();
     let Some(body) = vm.compile_dynamic_body(&body_src) else {
+        if let Some(p) = &temp_proc {
+            vm.take_command(p);
+        }
         return err(format!("coroutine \"{name}\": could not compile body"));
     };
     vm.coro.live.insert(
@@ -148,6 +182,7 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             acts: vec![Frame::new(body, false)],
             parked: ParkedFlow::default(),
             status: CoroStatus::Fresh,
+            temp_proc,
         },
     );
     vm.register_command(&fqn, Command::Builtin(coro_resume));
@@ -234,7 +269,12 @@ fn resume(vm: &mut Vm, fqn: &str, value: Option<Value>) -> Completion<Value> {
             if !vm.exit_pending() {
                 vm.take_command(fqn);
             }
-            vm.coro.live.remove(fqn);
+            // Drop the state and, for an `apply` coroutine, its bound lambda proc.
+            if let Some(state) = vm.coro.live.remove(fqn)
+                && let Some(p) = state.temp_proc
+            {
+                vm.take_command(&p);
+            }
             c
         }
     }
