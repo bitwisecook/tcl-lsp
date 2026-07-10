@@ -221,6 +221,7 @@ impl Analyser {
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
             self.registry.as_ref().expect("registry just stashed"),
+            &self.extra_commands,
         );
         let known: HashSet<&str> = self
             .recovery_known_commands

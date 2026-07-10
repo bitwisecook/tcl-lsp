@@ -196,19 +196,33 @@ pub fn scan_stub_command_names(source: &str) -> HashSet<String> {
 /// own `proc`s, so a break just before a call to one of them falls back to
 /// the imprecise generic diagnostic (or, worse, the recovery point is never
 /// found at all and the rest of the document goes unanalysed). This unions
-/// the registry names with every proc / class / command-alias name the
-/// document itself defines — qualified and unqualified tail — using the same
-/// fast, non-lowering scan [`crate::signature_scan::extract_signatures`]
-/// already uses for background-indexed files, so recovery recognises a
-/// document's own procs as readily as a builtin.
+/// the registry names with every proc / class / command-alias /
+/// rename-target name the document itself defines — qualified and
+/// unqualified tail — using the same fast, non-lowering scan
+/// [`crate::signature_scan::extract_signatures`] already uses for
+/// background-indexed files, so recovery recognises a document's own procs
+/// as readily as a builtin.
 ///
-/// Gated on [`tcl_lexer::script_is_complete`]: recovery only ever runs on a
-/// document with an unclosed delimiter, so a complete script skips the extra
-/// scan entirely — zero added cost on the overwhelmingly common well-formed
-/// edit.
+/// `extra` is unioned in unconditionally alongside the registry — the same
+/// user-declared / LSP-layer-resolved name set [`super::state::Analyser::extra_commands`]
+/// already carries for the W123 unresolved-command check (`tclLsp.extraCommands`,
+/// widened one layer up in `tcl-lsp-server` with workspace- and package-resolved
+/// names on the recovery path — see `widen_recovery_extra_commands` there). It is
+/// a plain in-memory set by the time it reaches here, so folding it in costs
+/// nothing extra beyond the registry union already does.
+///
+/// Gated on [`tcl_lexer::script_is_complete`]: the in-file signature scan only
+/// ever runs on a document with an unclosed delimiter, so a complete script
+/// skips that extra scan entirely — zero added cost on the overwhelmingly
+/// common well-formed edit.
 #[must_use]
-pub fn recovery_known_commands(source: &str, registry: &CommandRegistry) -> HashSet<String> {
+pub fn recovery_known_commands<S: std::hash::BuildHasher>(
+    source: &str,
+    registry: &CommandRegistry,
+    extra: &HashSet<String, S>,
+) -> HashSet<String> {
     let mut names: HashSet<String> = registry.command_names().map(str::to_owned).collect();
+    names.extend(extra.iter().cloned());
     if tcl_lexer::script_is_complete(source) {
         return names;
     }
@@ -218,6 +232,7 @@ pub fn recovery_known_commands(source: &str, registry: &CommandRegistry) -> Hash
         .keys()
         .chain(sig.classes.keys())
         .chain(sig.command_aliases.keys())
+        .chain(sig.renames.keys())
     {
         insert_qualified_and_tail(&mut names, qname);
     }
@@ -231,7 +246,17 @@ pub fn recovery_known_commands(source: &str, registry: &CommandRegistry) -> Hash
 /// original fully-qualified form: `signature_scan::qualify` always prepends
 /// `::`, and a recovery-point call can be written either way
 /// (`::ns::foo` or `ns::foo`), so both must be recognised.
-fn insert_qualified_and_tail(names: &mut HashSet<String>, qname: &str) {
+///
+/// `pub` (not just `pub(super)`) because `tcl-lsp-server` reuses this exact
+/// three-form insertion when widening the recovery known-command set with
+/// workspace-indexed and package-resolved names one layer up — those names
+/// carry the same `::`-qualified shape and need the same recognition rules,
+/// so this is the single place that logic lives rather than a second,
+/// independently-maintained copy.
+pub fn insert_qualified_and_tail<S: std::hash::BuildHasher>(
+    names: &mut HashSet<String, S>,
+    qname: &str,
+) {
     if !qname.is_empty() {
         names.insert(qname.to_string());
     }
@@ -1329,9 +1354,20 @@ proc foo {} {}
 
     #[test]
     fn recovery_known_commands_includes_registry_names() {
-        let known = recovery_known_commands("set x [foo\n", &registry());
+        let known = recovery_known_commands("set x [foo\n", &registry(), &HashSet::new());
         assert!(known.contains("set"));
         assert!(known.contains("puts"));
+    }
+
+    #[test]
+    fn recovery_known_commands_includes_extra_even_for_a_complete_script() {
+        // `extra` (the LSP-layer-widened `extraCommands` set) is unioned in
+        // unconditionally, same as the registry — unlike the in-file
+        // signature scan it is not gated on `script_is_complete`, since it
+        // costs nothing extra to fold in a set the caller already built.
+        let extra: HashSet<String> = ["workspace_helper".to_string()].into_iter().collect();
+        let known = recovery_known_commands("set x 1\n", &registry(), &extra);
+        assert!(known.contains("workspace_helper"));
     }
 
     #[test]
@@ -1340,7 +1376,11 @@ proc foo {} {}
         // well-formed document (however many procs it defines) never pays
         // for it, and its user-defined names are simply absent (recovery
         // never runs on complete input anyway).
-        let known = recovery_known_commands("proc my_helper {} {}\nmy_helper\n", &registry());
+        let known = recovery_known_commands(
+            "proc my_helper {} {}\nmy_helper\n",
+            &registry(),
+            &HashSet::new(),
+        );
         assert!(!known.contains("my_helper"));
         assert!(known.contains("proc")); // registry names are always present
     }
@@ -1348,7 +1388,7 @@ proc foo {} {}
     #[test]
     fn recovery_known_commands_adds_user_proc_qualified_and_tail() {
         let src = "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry());
+        let known = recovery_known_commands(src, &registry(), &HashSet::new());
         assert!(
             known.contains("myns::helper"),
             "expected the qualified name: {known:?}"
@@ -1366,7 +1406,7 @@ proc foo {} {}
         // Tcl syntax), so the leading-`::` form must be recognised
         // alongside the stripped/tail forms asserted above.
         let src = "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry());
+        let known = recovery_known_commands(src, &registry(), &HashSet::new());
         assert!(
             known.contains("::myns::helper"),
             "expected the fully-qualified leading-:: form: {known:?}"
@@ -1377,15 +1417,48 @@ proc foo {} {}
     fn recovery_known_commands_adds_user_class_and_alias() {
         let src =
             "oo::class create Widget {}\ninterp alias {} greet {} puts hi\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry());
+        let known = recovery_known_commands(src, &registry(), &HashSet::new());
         assert!(known.contains("Widget"), "{known:?}");
         assert!(known.contains("greet"), "{known:?}");
     }
 
     #[test]
+    fn recovery_known_commands_adds_rename_target() {
+        let src = "rename puts my_puts\n\nset q {\nunclosed\n";
+        let known = recovery_known_commands(src, &registry(), &HashSet::new());
+        assert!(
+            known.contains("my_puts"),
+            "expected the rename target: {known:?}"
+        );
+    }
+
+    #[test]
+    fn recovery_known_commands_adds_namespaced_rename_target() {
+        let src = "namespace eval myns {\n  rename puts loud_puts\n}\n\nset q {\nunclosed\n";
+        let known = recovery_known_commands(src, &registry(), &HashSet::new());
+        assert!(
+            known.contains("myns::loud_puts"),
+            "expected the qualified rename target: {known:?}"
+        );
+        assert!(
+            known.contains("loud_puts"),
+            "expected the unqualified tail: {known:?}"
+        );
+    }
+
+    #[test]
+    fn recovery_known_commands_rename_to_empty_deletes_not_defines() {
+        // `rename OLD {}` deletes OLD; it must not introduce an empty-string
+        // "command name".
+        let src = "rename puts {}\n\nset q {\nunclosed\n";
+        let known = recovery_known_commands(src, &registry(), &HashSet::new());
+        assert!(!known.contains(""));
+    }
+
+    #[test]
     fn recovery_known_commands_does_not_invent_undefined_names() {
         let src = "set q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry());
+        let known = recovery_known_commands(src, &registry(), &HashSet::new());
         assert!(!known.contains("not_a_real_proc"));
         assert!(!known.contains("unclosed")); // plain data, not a definition
     }
