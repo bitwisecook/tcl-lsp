@@ -4853,14 +4853,22 @@ false positive through one of these paths.
 
 ---
 
-### FP-SH-16 — global/namespace aliasing only protects an *unwritten* entry type; a locally-initialised alias thunks like an ordinary local
+### FP-SH-16 — global/namespace aliasing only protected an *unwritten* entry type; a locally-initialised alias thunked like an ordinary local
 
-- **Verdict:** CONFIRM-CORRECT (documents the boundary of FP-SH-02's protection, not a new fix)
-- **Status:** covered by regression tests (Rust port deep review).
+- **Verdict:** FALSE POSITIVE (S102) — fixed
+- **Status:** FIXED (Rust port deep review, closed on rebase). Originally
+  written up as CONFIRM-CORRECT / an accepted precision boundary; closed once
+  rebasing onto `origin/rust` picked up PR #859 (O100/O102/O103 soundness
+  fixes), which built `crate::sccp::is_externally_mutable` (escaping-set +
+  module-trace check) and the whole-module `extra_global_escaping`
+  (`crate::var_observability::scan_module_global_names`) fact for its own
+  (separate) constant-folding lattice — reusing both for the type lattice
+  closes this gap too, for free, instead of leaving the two lattices with
+  divergent aliasing-soundness models.
 - **Codes:** S102
 - **Corpus:** synthetic.
 
-#### Reproducer (TP — fires, by design)
+#### Reproducer (previously a false positive, now silent)
 
 ```tcl
 proc f {} {
@@ -4873,7 +4881,7 @@ proc f {} {
 }
 ```
 
-#### Reproducer (TN control — stays silent)
+#### Reproducer (TN control — stays silent, unaffected)
 
 ```tcl
 namespace eval ::foo {
@@ -4888,31 +4896,66 @@ namespace eval ::foo {
 }
 ```
 
+#### Reproducer (TP control — an unaliased sibling local in the same function still fires)
+
+```tcl
+proc f {} {
+    global x
+    set x 0
+    set y 0
+    while {1} {
+        set x [expr {$x + 1}]
+        set x [string range $x 0 end]
+        set y [expr {$y + 1}]
+        set y [string range $y 0 end]
+    }
+}
+```
+
 #### Per-line reasoning
 
 1. FP-SH-02 protects an aliased name (`global`/`variable`/`upvar`) by leaving
    its SSA version-0 live-in OVERDEFINED — sound *only* while no statement in
    this function body has locally re-initialised it.
-2. In the TP reproducer, `set x 0` runs immediately after `global x`, giving
-   the loop header a real, versioned `Known(Int)` entry type. From that point
-   the alias carries no extra information the type lattice can use to stay
-   conservative — the loop oscillates exactly as it would for an unaliased
-   local, and S102 correctly fires.
+2. In the first reproducer, `set x 0` runs immediately after `global x`,
+   giving the loop header a real, versioned `Known(Int)` entry type — the
+   FP-SH-02 live-in protection alone no longer applies from that point.
+   Pre-fix, the type lattice had no OTHER aliasing-awareness at all (unlike
+   SCCP's own lattice), so it typed the loop's literals as if `x` were an
+   ordinary local — but `x` stays reachable by *another* procedure's own
+   `global x; set x …` (through a call whose relative order isn't statically
+   known) for the rest of this function's body, exactly the cross-proc
+   soundness gap `cfg_builder::global_write_info` closed for SCCP. Reusing
+   `is_externally_mutable` — which checks the per-function escaping set
+   (`global`/`variable`/`upvar` anywhere in this body, flow-insensitively)
+   *and* the module trace fact — forces every def of `x` to OVERDEFINED for
+   the rest of the function, so S102 no longer fires from the unsound literal
+   view.
 3. In the TN control, `bump`'s `variable x` is never followed by a local
-   `set` before the loop — the live-in stays version 0 / OVERDEFINED, so
-   FP-SH-02's protection still applies and S102 stays silent.
+   `set` before the loop — the live-in stays version 0 / OVERDEFINED (belt
+   and braces with the fix above: `x` is doubly protected now).
+4. In the TP control, `y` is never declared `global`/`variable`/`upvar` — it
+   is not in the escaping set, so its own genuine oscillation still fires
+   S102 normally. Proves the fix is keyed on the aliased name specifically,
+   not a blanket suppression of S102 for the whole function.
 
-This is a real, accepted precision boundary, not a bug: a genuine trace- or
-another-proc-driven external write between the local `set x 0` and the loop
-in the TP reproducer is invisible to this intraprocedural analysis (see
-FP-SH-12 for the one case — a *trace* — this review closed; an ordinary
-concurrent write through the same alias from a different proc, with no trace
-involved, remains an accepted gap matching `cfg_builder::global_write_info`'s
-own "sound over-approximation, not maximal precision" design note).
+#### Why the analyser reaches that verdict
+
+`type_infer::propagate_types` now takes `extra_global_escaping` (threaded
+from the same whole-module scan SCCP's top-level build already computes) and
+independently calls `var_observability::analyse_var_observability(cfg)
+.escaping_var_names()` for the per-function view, unions the two, and passes
+the result to `crate::sccp::is_externally_mutable` at every def site
+(`type_infer_process_statements`) — the exact same predicate
+`sccp_with_extra_escaping` and O102 load-forwarding already apply to their
+own lattices, so a name aliased anywhere in this function's own body (or
+`::`-qualified, or module-wide-traced) is never trusted from its literal
+alone, regardless of how many local versions it has.
 
 #### Tests
 
-- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_16_global_alias_locally_initialised_still_fires` (TP)
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_16_global_alias_locally_initialised_no_s102` (FP, now fixed)
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_16_unaliased_sibling_local_still_fires` (TP control)
 - `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_16_namespace_alias_without_local_init_no_s102` (TN control)
 
 ---

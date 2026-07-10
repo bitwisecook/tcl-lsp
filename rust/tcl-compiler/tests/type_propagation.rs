@@ -716,20 +716,27 @@ fn complex_expression_inference() {
 #[test]
 fn namespaced_scalar_keeps_qualified_symbol_type() {
     // The qualified scalar `::ns::x` is typed under its own fully-qualified
-    // symbol. "alpha beta" is a plain (non-numeric, non-list-literal) word.
+    // symbol — but `crate::sccp::is_externally_mutable` treats any
+    // `::`-prefixed name as externally mutable unconditionally (the same
+    // predicate `sccp_with_extra_escaping`/O102 load-forwarding already
+    // apply to their own lattices): a fully-qualified name bypasses
+    // `global`/`variable` declarations entirely, so no aliasing-declaration
+    // scan could ever catch a *different* procedure writing it directly by
+    // the same qualified name. So the symbol is correctly keyed and typed —
+    // just conservatively OVERDEFINED, not the literal's own type.
     let src = "set ::ns::x \"alpha beta\"\nset n [llength $::ns::x]";
     let t = var_type(src, "::ns::x").expect("::ns::x typed");
-    assert_eq!(t.kind, TypeKind::Known);
-    assert_eq!(t.tcl_type, Some(TclType::String));
+    assert_eq!(t.kind, TypeKind::Overdefined);
 }
 
 #[test]
 fn namespaced_array_element_uses_base_array_symbol_type() {
-    // `set ::ns::arr(k) ...` flows under the base array symbol `::ns::arr`.
+    // `set ::ns::arr(k) ...` flows under the base array symbol `::ns::arr`,
+    // conservatively OVERDEFINED for the same reason as the scalar case
+    // above.
     let src = "set ::ns::arr(k) \"alpha beta\"\nset n [llength $::ns::arr(k)]";
     let t = var_type(src, "::ns::arr").expect("::ns::arr typed");
-    assert_eq!(t.kind, TypeKind::Known);
-    assert_eq!(t.tcl_type, Some(TclType::String));
+    assert_eq!(t.kind, TypeKind::Overdefined);
 }
 
 #[test]

@@ -734,20 +734,23 @@ proc f {} {
 }
 
 // ---------------------------------------------------------------------------
-// FP-SH-16 — global/namespace aliasing only protects an otherwise-unknown
-// entry type; once the aliased name is locally initialised before the loop,
-// it is typed exactly like an ordinary local
+// FP-SH-16 — global/namespace aliasing protects a name even once it has a
+// local prior version, matching the externally-mutable guard SCCP/O102
+// already apply to their own lattices
 // ---------------------------------------------------------------------------
 
-/// FP-SH-16 TP: `global x; set x 0` before the loop gives the header phi a
-/// real, versioned `Known(Int)` entry type, so the loop oscillates exactly
-/// as an ordinary local would — the `global` alias does not add any extra
-/// suppression once the variable has a local prior version.  Documents the
-/// current, accepted boundary of the scope-alias protection (see
-/// `fp_sh_02_global_alias_no_shimmer` for the *unwritten* case, which stays
-/// silent).
+/// FP-SH-16: `global x; set x 0` before the loop gives the header phi a
+/// real, versioned `Known(Int)` entry type — but `x` stays externally
+/// mutable throughout this function's body regardless: another procedure's
+/// own `global x; set x …` (reached through a call whose relative order
+/// isn't statically known) or a write trace's callback can rewrite it
+/// between any two statements here, including the loop's own. Reusing
+/// `crate::sccp::is_externally_mutable` — the same predicate
+/// `sccp_with_extra_escaping` and O102 load-forwarding already apply to
+/// their own (separate) lattices — for the type lattice closes this: no
+/// literal-driven def of an aliased name is trusted, so S102 must not fire.
 #[test]
-fn fp_sh_16_global_alias_locally_initialised_still_fires() {
+fn fp_sh_16_global_alias_locally_initialised_no_s102() {
     let src = "\
 proc f {} {
     global x
@@ -758,11 +761,39 @@ proc f {} {
     }
 }
 ";
+    let got = codes(src, D);
     assert!(
-        fires(src, D, "S102"),
-        "FP-SH-16 TP: a locally-initialised global must still fire S102 like an \
-         ordinary local; got {:?}",
-        codes(src, D)
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-16: a locally-initialised global must not fire S102 — another \
+         proc's `global x` write, or a trace, could rewrite it between any two \
+         statements here; got {got:?}"
+    );
+}
+
+/// FP-SH-16 TP control: an *unaliased* sibling local in the same function,
+/// oscillating the same way, must still fire — proves the escaping-set
+/// widening is keyed on the aliased name specifically, not a blanket
+/// suppression of S102 for the whole function.
+#[test]
+fn fp_sh_16_unaliased_sibling_local_still_fires() {
+    let src = "\
+proc f {} {
+    global x
+    set x 0
+    set y 0
+    while {1} {
+        set x [expr {$x + 1}]
+        set x [string range $x 0 end]
+        set y [expr {$y + 1}]
+        set y [string range $y 0 end]
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        got.iter().any(|c| c == "S102"),
+        "FP-SH-16 TP: an unaliased sibling local in the same function must still \
+         fire S102; got {got:?}"
     );
 }
 

@@ -701,18 +701,25 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
 /// Returns a map from `(variable_name, ssa_version)` to inferred
 /// `TypeLattice`. Values absent from the map are implicitly `Unknown`.
 ///
-/// `module_traces` (from [`crate::var_observability::scan_module_variable_traces`])
-/// is the module-wide variable-trace fact — the same one [`crate::sccp::sccp`]
-/// already consumes to force its (separate) constant-folding lattice to
-/// Overdefined for a traced name. A `trace add variable NAME write …` callback
-/// can rewrite `NAME`'s value (and therefore its intrep) immediately after any
-/// assignment, including one this pass would otherwise type `Known` from a
-/// literal — so every def of a traced name is forced `Overdefined` here too,
-/// the same way a scope-alias declaration (`global`/`variable`/`upvar`) already
-/// is. Without this, a `set`-only view of a traced variable's literal types
-/// could report a spurious S100/S101/S102 shimmer the trace callback either
-/// never causes or masks. `None` for the module-context-free callers ([`Self`]
-/// unit tests, isolated single-function rebuilds with no module to scan).
+/// Every def of a name [`crate::sccp::is_externally_mutable`] considers
+/// externally mutable — fully namespace-qualified, aliased via `global`/
+/// `variable`/`upvar`/traced *within this function* ([`crate::var_observability::
+/// analyse_var_observability`]), named by `extra_global_escaping` (the
+/// whole-module `global`-declaration scan for the *top-level* unit — see
+/// [`crate::var_observability::scan_module_global_names`]), or traced
+/// *anywhere in the module* (`module_traces`) — is forced `Overdefined` here,
+/// reusing the exact predicate [`crate::sccp::sccp_with_extra_escaping`] and
+/// [`crate::optimiser::propagation`]'s O102 load-forwarding already apply to
+/// their own (separate) lattices, rather than re-deriving a third,
+/// potentially-divergent notion of "externally mutable" for this one. A
+/// `set`-only view of such a name's literal types is not sound: a callee's
+/// `global NAME; set NAME …`, a top-level name no procedure declares
+/// `global` itself but another's `global NAME` can still reach, or a write
+/// trace's callback, can all change what the name actually holds — reporting
+/// a shimmer purely from the visible literals could be a false positive (or
+/// miss the real one). `extra_global_escaping` is empty and `module_traces`
+/// is `None` for the module-context-free callers ([`Self`] unit tests,
+/// isolated single-function rebuilds with no module to scan).
 #[must_use]
 pub fn propagate_types<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
@@ -720,13 +727,27 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
     sccp: &SccpResult,
     registry: &CommandRegistry,
     known_classes: &HashSet<String, S>,
+    extra_global_escaping: &HashSet<String, S>,
     module_traces: Option<&crate::var_observability::ModuleVariableTraces>,
 ) -> HashMap<ValueKey, TypeLattice> {
     let preds = cfg.predecessors();
     let order = crate::sccp::cfg_order(cfg);
+    let mut escaping =
+        crate::var_observability::analyse_var_observability(cfg).escaping_var_names();
+    if !extra_global_escaping.is_empty() {
+        escaping.extend(extra_global_escaping.iter().cloned());
+    }
     // Constructor heads written `[Foo new]` inside this function resolve
     // relative names against the function's own namespace.
     let namespace = function_namespace(&cfg.name);
+    let ctx = StatementTypingCtx {
+        ssa,
+        registry,
+        known_classes,
+        namespace: &namespace,
+        escaping: &escaping,
+        module_traces,
+    };
 
     let mut types: HashMap<ValueKey, TypeLattice> = HashMap::new();
 
@@ -801,58 +822,90 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
             }
 
             // Statements.
-            for ssa_stmt in &ssa_block.statements {
-                let stmt = &ssa_stmt.statement;
-                // A barrier widens every def to OVERDEFINED (it may have
-                // mutated them arbitrarily); a scope-alias declaration
-                // (`global`/`variable`/`upvar`/`namespace upvar`) likewise
-                // widens its defs — the imported variable's intrep is
-                // external and unknown.'s
-                // barrier + `alias_cmds` arms.  Every def of one statement
-                // gets the same inferred type, so compute it once.
-                let inferred = match stmt {
-                    Statement::Barrier { .. } => TypeLattice::overdefined(),
-                    Statement::Call {
-                        command,
-                        args,
-                        defs,
-                        ..
-                    } if !defs.is_empty() && is_scope_alias_call(registry, command, args) => {
-                        TypeLattice::overdefined()
-                    }
-                    _ => evaluate_type_def(
-                        stmt,
-                        &ssa_stmt.uses,
-                        &types,
-                        registry,
-                        known_classes,
-                        &namespace,
-                        ssa,
-                    ),
-                };
-                for (&var, &ver) in &ssa_stmt.defs {
-                    let key = (var, ver);
-                    let old = types
-                        .get(&key)
-                        .cloned()
-                        .unwrap_or_else(TypeLattice::unknown);
-                    let def_type = if module_traces.is_some_and(|t| t.is_traced(ssa.var_name(var)))
-                    {
-                        TypeLattice::overdefined()
-                    } else {
-                        inferred.clone()
-                    };
-                    let merged = type_join(&old, &def_type);
-                    if merged != old {
-                        types.insert(key, merged);
-                        changed = true;
-                    }
-                }
+            if type_infer_process_statements(&mut types, ssa_block, &ctx) {
+                changed = true;
             }
         }
     }
 
     types
+}
+
+/// Shared, read-only context for [`type_infer_process_statements`].
+struct StatementTypingCtx<'a, S: std::hash::BuildHasher> {
+    ssa: &'a SsaFunction,
+    registry: &'a CommandRegistry,
+    known_classes: &'a HashSet<String, S>,
+    namespace: &'a str,
+    /// Names [`crate::sccp::is_externally_mutable`] should treat as
+    /// unconditionally aliased/escaping (per-function `analyse_var_observability`
+    /// union'd with the caller's whole-module `extra_global_escaping`).
+    escaping: &'a HashSet<String>,
+    module_traces: Option<&'a crate::var_observability::ModuleVariableTraces>,
+}
+
+/// Evaluate each statement's defs for one block, forcing every def of a name
+/// [`crate::sccp::is_externally_mutable`] considers externally mutable to
+/// `Overdefined` regardless of what its own literal/expression would
+/// otherwise infer. Returns `true` if any lattice value changed. Extracted
+/// from [`propagate_types`], mirroring [`crate::sccp::sccp_process_statements`]'s
+/// shape for the (separate) constant-folding lattice.
+fn type_infer_process_statements<S: std::hash::BuildHasher>(
+    types: &mut HashMap<ValueKey, TypeLattice>,
+    ssa_block: &crate::ssa::SsaBlock,
+    ctx: &StatementTypingCtx<'_, S>,
+) -> bool {
+    let mut changed = false;
+    for ssa_stmt in &ssa_block.statements {
+        let stmt = &ssa_stmt.statement;
+        // A barrier widens every def to OVERDEFINED (it may have mutated
+        // them arbitrarily); a scope-alias declaration (`global`/`variable`/
+        // `upvar`/`namespace upvar`) likewise widens its defs — the
+        // imported variable's intrep is external and unknown. Every def of
+        // one statement gets the same inferred type, so compute it once.
+        let inferred = match stmt {
+            Statement::Barrier { .. } => TypeLattice::overdefined(),
+            Statement::Call {
+                command,
+                args,
+                defs,
+                ..
+            } if !defs.is_empty() && is_scope_alias_call(ctx.registry, command, args) => {
+                TypeLattice::overdefined()
+            }
+            _ => evaluate_type_def(
+                stmt,
+                &ssa_stmt.uses,
+                types,
+                ctx.registry,
+                ctx.known_classes,
+                ctx.namespace,
+                ctx.ssa,
+            ),
+        };
+        for (&var, &ver) in &ssa_stmt.defs {
+            let key = (var, ver);
+            let old = types
+                .get(&key)
+                .cloned()
+                .unwrap_or_else(TypeLattice::unknown);
+            let def_type = if crate::sccp::is_externally_mutable(
+                ctx.ssa.var_name(var),
+                ctx.escaping,
+                ctx.module_traces,
+            ) {
+                TypeLattice::overdefined()
+            } else {
+                inferred.clone()
+            };
+            let merged = type_join(&old, &def_type);
+            if merged != old {
+                types.insert(key, merged);
+                changed = true;
+            }
+        }
+    }
+    changed
 }
 
 /// Infer a function's overall return type by joining the result types
@@ -1023,7 +1076,15 @@ mod tests {
             },
         );
         let x = ssa.var_symbol("x").unwrap();
-        let types = propagate_types(&f, &ssa, &sccp, &registry(), &HashSet::new(), None);
+        let types = propagate_types(
+            &f,
+            &ssa,
+            &sccp,
+            &registry(),
+            &HashSet::new(),
+            &HashSet::new(),
+            None,
+        );
         assert_eq!(types.get(&(x, 1)), Some(&TypeLattice::of(TclType::Int)));
     }
 
@@ -1193,7 +1254,15 @@ mod tests {
         let mut sccp = empty_sccp(&cfg, &["entry", "exit"]);
         sccp.executable_edges.insert((entry, exit));
 
-        let types = propagate_types(&cfg, &ssa, &sccp, &registry(), &HashSet::new(), None);
+        let types = propagate_types(
+            &cfg,
+            &ssa,
+            &sccp,
+            &registry(),
+            &HashSet::new(),
+            &HashSet::new(),
+            None,
+        );
         // x@1 (entry) should be Int.
         assert_eq!(types.get(&(x, 1)), Some(&TypeLattice::of(TclType::Int)));
         // x@2 (phi in exit) should propagate Int from entry.
