@@ -146,7 +146,7 @@ pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRe
     // `crate::lowering::populate_variable_trace_facts`'s whole-module
     // fact via the same shared query, so this carries no hardcoded
     // knowledge of `trace`'s subcommand grammar.
-    for i in variable_trace_write_indices(registry, command, args) {
+    for i in variable_trace_write_indices(registry, canon, args) {
         mark(state, args, i, EscapeFlag::TRACED);
     }
 
@@ -443,6 +443,22 @@ mod tests {
         // only) must mark the target the same as the modern `trace add
         // variable` form — no per-form gap in the registry-driven query.
         let c = cu("proc ::p {} { trace variable t w cb\nset t 1 }");
+        let fu = c.function("::p").unwrap();
+        let reg = registry();
+        let obs = analyse_var_observability(&fu.cfg, &reg);
+        assert!(obs.is_traced_at(fu.cfg.entry, 2, "t"));
+        assert!(obs.escaping_var_names().contains("t"));
+    }
+
+    #[test]
+    fn trace_through_interp_alias_marks_observable() {
+        // `interp alias {} tracer {} trace` means `tracer add variable ...`
+        // is really a `trace add variable ...` call — `stmt_gen` must key
+        // off the canonical (alias-resolved) command name when locating the
+        // trace-target argument, not the source-surface `tracer` spelling.
+        let c = cu(
+            "interp alias {} tracer {} trace\nproc ::p {} { tracer add variable t write cb\nset t 1 }",
+        );
         let fu = c.function("::p").unwrap();
         let reg = registry();
         let obs = analyse_var_observability(&fu.cfg, &reg);

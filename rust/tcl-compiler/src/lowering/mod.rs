@@ -2602,9 +2602,13 @@ fn walk_for_trace(script: &Script, module: &mut Module, registry: &CommandRegist
     use crate::ir::Statement;
     for stmt in &script.statements {
         match stmt {
-            Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. }
-                if command.trim_start_matches("::") == "trace" =>
+            // Canonical (alias-resolved) name, so `interp alias exampleTrace trace`
+            // still lands in `traced_commands`/`traced_variables` instead of being
+            // silently missed because the call site spells it `exampleTrace ...`.
+            Statement::Call { args, .. } | Statement::Barrier { args, .. }
+                if stmt.canonical_command_or_source().trim_start_matches("::") == "trace" =>
             {
+                let command = stmt.canonical_command_or_source();
                 let is_add = args.first().is_some_and(|w| {
                     registry
                         .get(command)
@@ -3842,6 +3846,32 @@ mod tests {
         let m = lower_to_ir("trace info variable x", &reg());
         assert!(m.traced_variables.is_empty());
         assert!(!m.has_dynamic_variable_trace);
+    }
+
+    #[test]
+    fn trace_add_variable_through_interp_alias_recorded() {
+        // `interp alias {} tracer {} trace` means `tracer add variable ...`
+        // is really a `trace add variable ...` call — the whole-module scan
+        // must key off the canonical (alias-resolved) command name, not the
+        // source-surface `tracer` spelling, or this trace target is missed.
+        let m = lower_to_ir(
+            "interp alias {} tracer {} trace\ntracer add variable x write h",
+            &reg(),
+        );
+        assert!(m.traced_variables.contains("x"), "{:?}", m.traced_variables);
+    }
+
+    #[test]
+    fn trace_add_execution_through_interp_alias_recorded() {
+        // Same alias-resolution requirement for the execution-trace channel:
+        // `walk_for_trace` gates entry into both `traced_commands` and
+        // `populate_variable_trace_facts` on one shared canonical-name check.
+        let m = lower_to_ir(
+            "interp alias {} tracer {} trace\ntracer add execution foo enter h",
+            &reg(),
+        );
+        assert!(m.traced_commands.contains("foo"), "{:?}", m.traced_commands);
+        assert!(!m.has_dynamic_trace);
     }
 
     #[test]
