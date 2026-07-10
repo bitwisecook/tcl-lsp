@@ -111,3 +111,19 @@ fn lt_operator_flags_w003_in_86() {
     let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl8.6\nexpr {$a lt $b}\n");
     assert!(codes(&diags).contains("W003"));
 }
+
+#[test]
+fn ge_operator_no_w003_in_91() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl9.1\nexpr {$a ge $b}\n");
+    assert!(!codes(&diags).contains("W003"));
+}
+
+#[test]
+fn ge_operator_flags_w003_in_86() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl8.6\nexpr {$a ge $b}\n");
+    assert!(codes(&diags).contains("W003"));
+}

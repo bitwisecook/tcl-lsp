@@ -41,7 +41,22 @@ KNOWN_DIALECTS = frozenset({
 ### Dialect base versions
 
 Each non-standard dialect is based on a specific Tcl runtime version.
-`DIALECT_BASE_VERSION` in `dialects.py` maps each dialect to its base:
+`DIALECT_BASE_VERSION` in `dialects.py` maps each dialect to its base.
+
+**Rust port note**: `dialects.py` and `dialects_since()` below are the
+retired Python implementation's names, kept here because the *table* of
+base versions is still the source of truth. The Rust workspace has no
+`dialects_since()` — per-command dialect gating uses the `DialectSet`
+bitflags (`TCL85_PLUS` / `TCL86_PLUS` / `TCL90_PLUS`, `rust/tcl-registry/src/dialects.rs`)
+directly on `CommandSpec.dialects`, and deliberately does **not** fold the
+vendor dialects into those flags (most standard-library commands they
+don't ship are missing because of their own restricted surface, not
+version). For version-gated *expr grammar* features specifically — TIP 201
+(`in`/`ni`) and TIP 461 (`lt`/`le`/`gt`/`ge`), the W003 diagnostic — where
+every dialect here really does inherit a real embedded Tcl core's
+operators wholesale, use `DialectSet::expr_grammar_base_version(name)`
+instead, which encodes exactly this table (including `f5-irules`'s
+runtime-vs-signature split below).
 
 | Dialect | Base version | Runtime |
 |---------|-------------|---------|

@@ -889,6 +889,46 @@ impl DialectSet {
             .filter_map(|&bit| bit.canonical_name())
             .collect()
     }
+
+    /// Resolve `name` to the Tcl core-grammar version its `expr` evaluator
+    /// behaves like, for version-gated *language grammar* features — e.g.
+    /// TIP 201 (`in`/`ni`, 8.5+) and TIP 461 (`lt`/`le`/`gt`/`ge`, 9.0+).
+    ///
+    /// Distinct from [`Self::parse`] + `TCL85_PLUS`/`TCL90_PLUS`, which model
+    /// per-*command* dialect gating and deliberately keep vendor dialects
+    /// (the EDA tools, F5 iApps/tmsh) as their own bits rather than folding
+    /// them into a Tcl version — most standard-library commands they don't
+    /// ship are missing because of their own restricted command surface, not
+    /// because of version. Expr grammar is different: every dialect here is
+    /// either plain Tcl or a vendor shell embedding a real Tcl core, so it
+    /// inherits that embedded core's operators wholesale. `f5-irules` is the
+    /// one case where the two deliberately disagree: it advertises an
+    /// 8.6-shaped command *signature* but its `expr` evaluator is a genuine
+    /// embedded Tcl 8.4.6, so version-*dependent behaviour* (this included)
+    /// follows 8.4, not 8.6.
+    ///
+    /// Source: the per-dialect base-Tcl-version table in
+    /// `docs/design/compiler/dialects-events.md`. Returns `None` for
+    /// `f5-bigip` (a custom config parser, not Tcl at all) and for any name
+    /// this table has no documented base version for (`tk`, `bpf`) — callers
+    /// should treat `None` as "can't reason about this dialect's grammar
+    /// version," not "assume plain Tcl."
+    #[must_use]
+    pub fn expr_grammar_base_version(name: &str) -> Option<Self> {
+        Some(match name {
+            "tcl8.4" | "f5-irules" => Self::TCL84,
+            "tcl8.5"
+            | "f5-iapps"
+            | "f5-tmsh"
+            | "xilinx-eda-tcl"
+            | "intel-quartus-eda-tcl"
+            | "mentor-eda-tcl" => Self::TCL85,
+            "tcl8.6" | "synopsys-eda-tcl" | "cadence-eda-tcl" | "expect" => Self::TCL86,
+            "tcl9.0" => Self::TCL90,
+            "tcl9.1" => Self::TCL91,
+            _ => return None,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -966,6 +1006,37 @@ mod tests {
         );
         assert_eq!(DialectSet::TCL84.member_names(), vec!["tcl8.4"]);
         assert!(DialectSet::empty().member_names().is_empty());
+    }
+
+    #[test]
+    fn expr_grammar_base_version_matches_documented_runtime_bases() {
+        let base = DialectSet::expr_grammar_base_version;
+        // Plain Tcl versions map to themselves.
+        assert_eq!(base("tcl8.4"), Some(DialectSet::TCL84));
+        assert_eq!(base("tcl9.1"), Some(DialectSet::TCL91));
+        // iRules' *runtime* base (8.4.6) wins over its 8.6-shaped command
+        // signature — version-dependent behaviour follows the runtime.
+        assert_eq!(base("f5-irules"), Some(DialectSet::TCL84));
+        // EDA / F5 vendor shells inherit their documented embedded core —
+        // unlike `DialectSet::TCL85_PLUS`, which deliberately excludes them.
+        for d in [
+            "f5-iapps",
+            "f5-tmsh",
+            "xilinx-eda-tcl",
+            "intel-quartus-eda-tcl",
+            "mentor-eda-tcl",
+        ] {
+            assert_eq!(base(d), Some(DialectSet::TCL85), "{d}");
+        }
+        for d in ["synopsys-eda-tcl", "cadence-eda-tcl", "expect"] {
+            assert_eq!(base(d), Some(DialectSet::TCL86), "{d}");
+        }
+        // Not Tcl at all / no documented base version: stay `None` rather
+        // than guessing.
+        assert_eq!(base("f5-bigip"), None);
+        assert_eq!(base("tk"), None);
+        assert_eq!(base("bpf"), None);
+        assert_eq!(base("nonsense"), None);
     }
 
     #[test]

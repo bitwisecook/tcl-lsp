@@ -166,6 +166,55 @@ fn test_w100_offers_brace_wrap() {
 }
 
 #[test]
+fn test_w003_offers_lsearch_fix_for_in() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl8.4\nexpr {2 in {1 2 3}}\n");
+    let w003 = with_code(&diags, "W003");
+    assert_eq!(w003.len(), 1, "{diags:?}");
+    let actions = lsp.code_actions(&uri, range((1, 0), (1, 19)), json!(w003));
+    assert!(
+        new_texts(&actions)
+            .iter()
+            .any(|nt| nt == "([lsearch -exact {1 2 3} 2] >= 0)"),
+        "{actions:?}"
+    );
+}
+
+#[test]
+fn test_w003_offers_string_compare_fix_for_lt() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl8.4\nif {$x lt $y} { puts hi }\n");
+    let w003 = with_code(&diags, "W003");
+    assert_eq!(w003.len(), 1, "{diags:?}");
+    let actions = lsp.code_actions(&uri, range((1, 0), (1, 26)), json!(w003));
+    assert!(
+        new_texts(&actions)
+            .iter()
+            .any(|nt| nt == "([string compare $x $y] < 0)"),
+        "{actions:?}"
+    );
+}
+
+#[test]
+fn test_w003_no_fix_when_operator_nested_in_larger_expression() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl8.4\nif {$a in $b && $c} { puts hi }\n",
+    );
+    let w003 = with_code(&diags, "W003");
+    assert_eq!(w003.len(), 1, "{diags:?}");
+    let actions = lsp.code_actions(&uri, range((1, 0), (1, 32)), json!(w003));
+    assert!(
+        new_texts(&actions).iter().all(|nt| !nt.contains("lsearch")),
+        "a nested occurrence must not offer the lsearch rewrite: {actions:?}"
+    );
+}
+
+#[test]
 fn test_w302_adds_result_capture_actions() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
