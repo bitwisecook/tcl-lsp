@@ -187,6 +187,108 @@ fn string_match_nocase_has_no_arity_error() {
     assert!(!has_code(&diags, "E003"));
 }
 
+// -- TestE001MissingDispatchWord ------------------------------------------
+// End-to-end coverage for E001 ("missing subcommand" / TclOO "missing
+// method"): tight command-head-only highlighting, the `history`
+// bare-call carve-out (issue: bare `history` defaults to `history info`
+// per history(n), so it must not be flagged), and the TclOO object-
+// dispatch generalisation (`$obj` with no method word at all).
+
+#[test]
+fn bare_string_is_e001_with_tight_command_head_span() {
+    // The diagnostic must highlight only the command word itself — there is
+    // no subcommand to include, so the span should not creep onto the
+    // trailing newline or beyond the four characters of `string`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "string\n");
+    let e001: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("E001"))
+        .collect();
+    assert_eq!(e001.len(), 1, "expected exactly one E001: {diags:?}");
+    let range = &e001[0]["range"];
+    assert_eq!(range["start"]["line"], 0);
+    assert_eq!(range["start"]["character"], 0);
+    assert_eq!(range["end"]["line"], 0);
+    assert_eq!(
+        range["end"]["character"], 6,
+        "span must cover only 'string'"
+    );
+    assert_eq!(
+        e001[0].get("severity").and_then(Value::as_i64),
+        Some(1) // Error
+    );
+}
+
+#[test]
+fn bare_history_has_no_e001() {
+    // FP regression (history(n)): `history` alone is a well-defined call
+    // (equivalent to `history info`), not a missing-subcommand error, even
+    // though `history` is a `WithSubcommands` registry command like `string`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "history\n");
+    assert!(
+        !has_code(&diags, "E001"),
+        "bare `history` must not be E001: {diags:?}"
+    );
+}
+
+#[test]
+fn history_with_subcommand_is_still_clean() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "history clear\n");
+    assert!(!has_code(&diags, "E001"));
+    assert!(!has_code(&diags, "W001"));
+}
+
+#[test]
+fn history_unknown_subcommand_is_still_w001_not_e001() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "history bogus\n");
+    assert!(has_code(&diags, "W001"));
+    assert!(!has_code(&diags, "E001"));
+}
+
+#[test]
+fn bare_tcloo_object_dispatch_is_e001() {
+    // `set o [Dog new]; $o` — TclOO's per-object dispatcher requires a
+    // method word before it attempts any method lookup.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create Dog { method bark {} { return woof } }\nset o [Dog new]\n$o\n";
+    let diags = lsp.open_ready(&uri, src);
+    let e001: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("E001"))
+        .collect();
+    assert_eq!(e001.len(), 1, "expected exactly one E001: {diags:?}");
+    assert_eq!(message(e001[0]), "'o' requires a method");
+    assert_eq!(on_line(&diags, "E001"), BTreeSet::from([2]));
+}
+
+#[test]
+fn tcloo_object_dispatch_with_method_is_not_e001() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create Dog { method bark {} { return woof } }\nset o [Dog new]\n$o bark\n";
+    assert!(!has_code(&lsp.open_ready(&uri, src), "E001"));
+}
+
+#[test]
+fn bare_snit_instance_dispatch_is_not_e001() {
+    // snit's generated dispatcher proc is a different mechanism the
+    // analyser does not model precisely enough to assume it shares
+    // TclOO's unconditional "wrong # args" behaviour on a bare call.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "snit::type Dog { method bark {} { return woof } }\nDog t\n$t\n";
+    assert!(!has_code(&lsp.open_ready(&uri, src), "E001"));
+}
+
 // -- TestSameFileCallArity ------------------------------------------------
 // End-to-end arity checks generalised beyond the builtin registry to
 // same-file proc / `interp alias` / `rename` calls. Previously, calling a

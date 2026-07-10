@@ -20,14 +20,17 @@
 //! cross-function post-pass).
 //!
 //! Resolves `$var`-as-command call sites collected during the walk: a
-//! non-literal command word that cannot be proved safe (W307), and an
+//! non-literal command word that cannot be proved safe (W307), an
 //! unknown method invoked on an object whose class is known (W308), using
 //! MRO-aware method resolution over the class hierarchy with the usual
 //! suppression paths (inherited `unknown` handler, external superclass,
-//! `oo::objdefine` per-instance methods). Tracks the object types produced
-//! by constructors and factory procedures so a later `$obj badMethod`
-//! resolves against the right class, and resolves partially-interpolated
-//! command heads that fold to a finite known-command set (W123 suppression).
+//! `oo::objdefine` per-instance methods), and a dispatch with no method
+//! word at all on a known `TclOO` object (E001 — see
+//! [`Analyser::e001_for_bare_object_dispatch`]). Tracks the object types
+//! produced by constructors and factory procedures so a later `$obj
+//! badMethod` resolves against the right class, and resolves
+//! partially-interpolated command heads that fold to a finite
+//! known-command set (W123 suppression).
 
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
@@ -213,6 +216,10 @@ impl Analyser {
     /// `oo::objdefine`d, or any candidate class is a snit metaclass (whose
     /// delegation the analyser can't model).  W308 fires only when not found
     /// and at least one candidate class is locally known.
+    ///
+    /// A dispatch with no method word at all (`$obj` alone) is a different,
+    /// unconditional failure — see [`Self::e001_for_bare_object_dispatch`] —
+    /// so it is routed there before any method-name-shaped logic runs.
     fn w308_for_object_var(
         &self,
         site: &crate::analyser::state::VarCommandSite,
@@ -220,9 +227,10 @@ impl Analyser {
         hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
         objdefined_vars: &HashSet<String>,
     ) -> Option<super::types::Diagnostic> {
-        let (Some(method_name), Some(hierarchy)) = (&site.method_name, hierarchy) else {
-            return None;
+        let Some(method_name) = site.method_name.as_ref() else {
+            return self.e001_for_bare_object_dispatch(site, class_names);
         };
+        let hierarchy = hierarchy?;
         let mut found = false;
         let mut has_local_class = false;
         for cls in class_names {
@@ -321,6 +329,63 @@ impl Analyser {
             });
         }
         None
+    }
+
+    /// **E001** (`TclOO` form) — `$obj` invoked with no method word at all.
+    ///
+    /// `TclOO`'s per-object command dispatcher requires a method name
+    /// before it even attempts method resolution: `set o [C new]; $o`
+    /// fails at run time with `wrong # args: should be "o method ?arg
+    /// ...?"` regardless of whether the class declares an `unknown`
+    /// handler, since the argument-count check runs before any method
+    /// lookup — `unknown` is itself only reachable as the *result* of a
+    /// failed lookup, and there is no name here to look up (confirmed
+    /// against tclsh 9.0.4). This is the object-dispatch analogue of the
+    /// registry ensemble's "missing subcommand" E001
+    /// ([`Analyser::emit_arity_diagnostics`]) — same failure shape (a
+    /// dispatcher invoked with no dispatch word), a different mechanism.
+    ///
+    /// Fires only when every candidate class is both locally known
+    /// (`self.result.all_classes` — an external/unindexed class can't be
+    /// vouched for) and a genuine `TclOO` metaclass
+    /// (`DefinerFamily::TclOo` — `oo::class`, `oo::abstract`,
+    /// `oo::configurable`, `oo::singleton`, …, resolved via the class's
+    /// recorded `metaclass` and the registry's `definition_body`, never
+    /// a hardcoded name). snit's generated dispatcher proc and `[incr
+    /// Tcl]` are different mechanisms this analyser does not model
+    /// precisely enough to make the same guarantee, so both abstain
+    /// here — the same carve-out the with-method path already applies
+    /// to snit (FP-OBJ-05).
+    fn e001_for_bare_object_dispatch(
+        &self,
+        site: &crate::analyser::state::VarCommandSite,
+        class_names: &HashSet<String>,
+    ) -> Option<super::types::Diagnostic> {
+        if site.argc != 0 || class_names.is_empty() {
+            return None;
+        }
+        let all_tcloo = class_names.iter().all(|cls| {
+            self.result.all_classes.get(cls).is_some_and(|cd| {
+                self.registry
+                    .as_ref()
+                    .and_then(|r| r.get(&cd.metaclass))
+                    .is_some_and(|s| {
+                        s.definition_body.is_some_and(|g| {
+                            g.family == tcl_registry::definer::DefinerFamily::TclOo
+                        })
+                    })
+            })
+        });
+        if !all_tcloo {
+            return None;
+        }
+        Some(super::types::Diagnostic {
+            code: DiagCode::E001,
+            span: site.cmd_span,
+            message: format!("'{}' requires a method", site.var_name),
+            severity: Severity::Error,
+            fixes: Vec::new(),
+        })
     }
 
     /// Check a resolved `$obj method …` dispatch's argument count
