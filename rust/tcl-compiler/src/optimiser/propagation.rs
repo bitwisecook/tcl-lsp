@@ -909,10 +909,7 @@ fn resolve_return_constant(
             Some(Terminator::Return { value, expr, .. }) => {
                 fold_return_under_lattice(fu, *bn, value.as_deref(), expr.as_ref(), result)?
             }
-            None => {
-                let mut visited = std::collections::HashSet::new();
-                resolve_fallthrough_value(fu, *bn, result, &preds, &mut visited)?
-            }
+            None => resolve_fallthrough_value(fu, *bn, result, &preds)?,
             Some(_) => continue, // Goto / Branch — not an exit point
         };
         match &found {
@@ -925,16 +922,26 @@ fn resolve_return_constant(
 }
 
 /// Resolve the value Tcl's implicit-return rule leaves behind when control
-/// falls through block `bn` — either the function's synthesised exit sink
-/// (a reachable block with no terminator), or an empty structural join
-/// point reached while walking back toward one (e.g. the shared
-/// continuation after an `if` with no `else`, when the `if` is the last
-/// statement in the body). An empty block runs no statement of its own, so
-/// its value comes from whichever executable predecessor(s) fall through
-/// into it — they must all agree, exactly like multiple `return`
-/// terminators must. `visited` bounds the walk against a cyclic
-/// predecessor chain (a loop back-edge into a fall-through join is
-/// unresolvable — bail, never mis-fold).
+/// falls through block `bn` — the function's synthesised exit sink (a
+/// reachable block with no terminator).
+///
+/// Trusts ONLY the narrow, unambiguous shape: `bn` has exactly one
+/// executable predecessor, and that predecessor's OWN last statement is a
+/// recognised value-producing tail (see [`fold_tail_statement_under_lattice`]).
+/// Deliberately does NOT walk through an empty predecessor to whatever
+/// precedes *it*: an empty block reached via a control-flow edge is not
+/// "no Tcl command ran here" — it is frequently the empty **body** of a
+/// real command (`if {$c} {}`, or the implicit `""` an `if` with no
+/// `else` produces when the condition is false), whose own result is the
+/// empty string, not whatever ran before the branch. Block shape alone
+/// can't soundly distinguish that from a genuine structural join, so any
+/// empty predecessor — or more than one live predecessor at all — bails
+/// to `None` rather than risk inheriting a stale prior value. (A more
+/// permissive, recursive version of this function shipped briefly and
+/// mis-folded `proc f {c} { set x 1; if {$c} {} }`'s `[f 0]` to `1`
+/// instead of the correct `""` — confirmed against tclsh 9.0.4 — by
+/// walking straight through the empty `if`-body block back to the
+/// preceding `set x 1`.)
 fn resolve_fallthrough_value(
     fu: &FunctionUnit,
     bn: crate::cfg::BlockId,
@@ -943,28 +950,19 @@ fn resolve_fallthrough_value(
         crate::cfg::BlockId,
         std::collections::HashSet<crate::cfg::BlockId>,
     >,
-    visited: &mut std::collections::HashSet<crate::cfg::BlockId>,
 ) -> Option<ConstValue> {
-    if !visited.insert(bn) {
-        return None; // cycle
+    let mut executable_preds = preds
+        .get(&bn)
+        .into_iter()
+        .flatten()
+        .filter(|p| result.executable_blocks.contains(p));
+    let pred = executable_preds.next()?;
+    if executable_preds.next().is_some() {
+        return None; // more than one live predecessor — ambiguous, bail
     }
-    let block = fu.cfg.blocks.get(&bn)?;
-    if let Some(last) = block.statements.last() {
-        return fold_tail_statement_under_lattice(fu, bn, last, result);
-    }
-    let mut found: Option<ConstValue> = None;
-    for pred in preds.get(&bn).into_iter().flatten() {
-        if !result.executable_blocks.contains(pred) {
-            continue;
-        }
-        let v = resolve_fallthrough_value(fu, *pred, result, preds, visited)?;
-        match &found {
-            None => found = Some(v),
-            Some(prev) if *prev == v => {}
-            Some(_) => return None, // disagreeing predecessors
-        }
-    }
-    found
+    let block = fu.cfg.blocks.get(pred)?;
+    let last = block.statements.last()?;
+    fold_tail_statement_under_lattice(fu, *pred, last, result)
 }
 
 /// Resolve the value Tcl's "result of the last executed command" rule
@@ -2930,6 +2928,35 @@ mod tests {
     }
 
     #[test]
+    fn o103_does_not_fold_through_empty_if_body() {
+        // FP guard / miscompile-guard (reported in code review): a trailing
+        // `if {$c} {}` with an empty body (and no `else`) is itself a real
+        // Tcl command whose result is `""` — whether the condition is true
+        // (the empty body's own result) or false (no branch ran, no
+        // `else`). tclsh 9.0.4 ground truth: `f 0` and `f 1` both return
+        // `""`, NOT `1` from the preceding `set x 1`. An earlier, more
+        // permissive fall-through resolver walked straight through the
+        // empty `if`-body block back to `set x 1` and wrongly folded `[f
+        // 0]` to `1` — treating "0 statements" as "no command ran here"
+        // rather than "this command's own result is empty". The fold must
+        // decline entirely rather than inherit a stale prior value.
+        use tcl_registry::CommandRegistry;
+        let registry = CommandRegistry::build_default();
+        let src = "proc f {c} { set x 1\nif {$c} {} }\nputs [f 0]\n";
+        let cu =
+            CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
+        let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations
+                .iter()
+                .all(|o| o.code != DiagCode::O103 || o.hint_only),
+            "empty if-body fall-through must not produce an applicable fold, got {:?}",
+            ctx.optimisations,
+        );
+    }
+
+    #[test]
     fn o103_folds_variadic_args_proc_ignoring_trailing_args() {
         // TP: a proc with a trailing `args` parameter folds on its fixed
         // parameter when the call supplies MORE arguments than the proc has
@@ -3014,6 +3041,27 @@ mod tests {
             opts.iter()
                 .any(|o| o.code == DiagCode::O103 && o.replacement == "42" && !o.hint_only),
             "unrelated proc must still fold despite an unrelated rename, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn o103_does_not_fold_call_to_proc_renamed_over_via_namespace_relative_rename() {
+        // FP guard / miscompile-guard (reported in code review): `rename
+        // triple double` inside `proc ::ns::doit` resolves both bare names
+        // relative to `::ns` (the proc's own namespace) — it renames
+        // `::ns::triple` onto `::ns::double`, NOT the (nonexistent)
+        // top-level `::triple`/`::double`. tclsh 9.0.4 ground truth: after
+        // `::ns::doit` runs, `::ns::double 21` executes `triple`'s body
+        // (21*3 == 63), not `double`'s original body (21*2 == 42). An
+        // earlier version of `collect_proc_rebindings` always rooted a bare
+        // rename argument at the GLOBAL namespace (`::double`/`::triple`),
+        // so it never marked `::ns::double`/`::ns::triple` as rebound and
+        // O103 could fold `[::ns::double 21]` to the wrong `42`.
+        let src = "namespace eval ::ns {\n    proc double {n} { expr {$n * 2} }\n    proc triple {n} { expr {$n * 3} }\n}\nproc ::ns::doit {} { rename triple double }\n::ns::doit\nputs [::ns::double 21]\n";
+        let opts = run_pass_with_command_mutations(src);
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O103 || o.hint_only),
+            "call to a proc renamed over via a namespace-relative rename must not fold, got {opts:?}",
         );
     }
 
