@@ -347,10 +347,9 @@ word as one argument; no re-parsing)"
         Some(self.source[start..end].trim())
     }
 
-    /// **W300.** Emit "source with a variable path" when `source`'s
-    /// file argument is a `$var` substitution — the path (and therefore
-    /// the code executed) is dynamic.  Skips a leading `-encoding ENC`
-    /// option pair.
+    /// **W300.** Warn when `source`'s file argument is a `$var` or
+    /// `[cmd]` substitution — the path (and therefore the code executed)
+    /// is dynamic.  Skips a leading `-encoding ENC` option pair.
     pub(in crate::analyser) fn emit_w300_source_variable(
         &mut self,
         cmd_name: &str,
@@ -367,12 +366,17 @@ word as one argument; no re-parsing)"
         let Some(tok) = arg_tokens.get(file_idx) else {
             return;
         };
-        if matches!(tok.kind, tcl_lexer::TokenType::Var) {
+        // A `$var` path or a `[cmd]`-computed path is equally dynamic — both
+        // execute whatever file the value resolves to.
+        if matches!(
+            tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        ) {
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: DiagCode::W300,
                 span: tok.span,
-                message: "source with a variable path executes arbitrary Tcl code. \
-Ensure the path is not influenced by untrusted input."
+                message: "source with a dynamic path (variable or command substitution) \
+executes arbitrary Tcl code. Ensure the path is not influenced by untrusted input."
                     .to_string(),
                 severity: Severity::Warning,
                 fixes: Vec::new(),
@@ -663,13 +667,18 @@ Ensure the command is not influenced by untrusted input."
                 severity,
                 fixes: Vec::new(),
             });
-        } else if matches!(tok.kind, tcl_lexer::TokenType::Var) {
+        } else if matches!(
+            tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        ) {
+            // A `$var` or `[cmd]`-computed first argument is equally dynamic —
+            // either may resolve to a `|`-prefixed pipeline.
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: DiagCode::W103,
                 span: tok.span,
-                message: "open with a variable argument: if the value starts with \
-\"|\", it will execute a command pipeline. Validate input or use explicit \
-I/O commands."
+                message: "open with a dynamic argument (variable or command substitution): \
+if the value starts with \"|\", it will execute a command pipeline. Validate input \
+or use explicit I/O commands."
                     .to_string(),
                 severity: Severity::Warning,
                 fixes: Vec::new(),
@@ -716,11 +725,15 @@ matching time on crafted input."
 
     /// **W306.** Warn when a `regexp` / `regsub` *pattern* — a
     /// literal-expected position — contains a *live* substitution Tcl
-    /// expands before the regex engine sees it.  A bare `$var` pattern is
-    /// the canonical parameterised-pattern idiom and is exempt (there is
-    /// no braced equivalent); a quoted `"$var"` / `"[cmd]"` or an unbraced
-    /// `[cmd]` is the foot-gun.  `\[` / `\$` in a quoted pattern are
-    /// literal regex characters, not substitutions.
+    /// expands before the regex engine sees it.  A pattern that is exactly
+    /// one variable substitution — bare `$var` / `${var}` **or** quoted
+    /// `"$var"` (the quotes group nothing, so it is byte-for-byte identical
+    /// to the bare form) — is the canonical parameterised-pattern idiom and
+    /// is exempt: no literal was "expected" there, and the `{…}` rewrite
+    /// would change it to match the literal text `$var`.  A quoted `"[cmd]"`
+    /// or an unbraced `[cmd]` computes the pattern dynamically and is the
+    /// foot-gun.  `\[` / `\$` in a quoted pattern are literal regex
+    /// characters, not substitutions.
     pub(in crate::analyser) fn emit_w306_literal_expected(
         &mut self,
         cmd_name: &str,
@@ -756,6 +769,18 @@ matching time on crafted input."
         // Bare `$var` / `${var}` is the canonical idiom — a `Var` word has
         // no surrounding literal text, so it is exactly that form.
         if tok.kind == tcl_lexer::TokenType::Var {
+            return;
+        }
+        // A *quoted* word that is exactly one pure `$var` / `${var}`
+        // substitution (`"$pat"`) is byte-for-byte identical at runtime to the
+        // bare `$var` exempted above — the quotes group nothing — so it is the
+        // same parameterised-pattern idiom, not a foot-gun. `"[cmd]"` (a
+        // command substitution) is *not* exempt.
+        let inner = text
+            .strip_prefix('"')
+            .and_then(|s| s.strip_suffix('"'))
+            .unwrap_or(text);
+        if crate::value_shapes::is_pure_var_ref(inner) {
             return;
         }
         let is_quoted = self.source.as_bytes().get(start) == Some(&b'"');

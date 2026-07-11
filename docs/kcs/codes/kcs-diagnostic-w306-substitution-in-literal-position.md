@@ -36,16 +36,26 @@ reports **`W306`** on the pattern argument.
 
 ## Not flagged
 
-A bare single ``$var`` or ``${var}`` as the entire pattern is the canonical
-Tcl idiom for a parameterised regex and is **not** flagged:
+A pattern that is *exactly one* variable reference — whether bare
+(``$var`` / ``${var}``) or wrapped in double quotes (``"$var"`` /
+``"${var}"``) — is the canonical Tcl idiom for a parameterised regex and
+is **not** flagged:
 
 ```tcl
-regexp $pattern $string         ;# OK — single bare $var
-regexp ${ns::pattern} $string   ;# OK — single bare ${var}
+regexp $pattern $string          ;# OK — single bare $var
+regexp ${ns::pattern} $string    ;# OK — single bare ${var}
+regexp "$pattern" $string        ;# OK — quotes group nothing here
 ```
 
-There is no equivalent ``{...}``-braced form for these (bracing would
-suppress the substitution), so flagging them would be a false positive.
+The quoted form ``"$pattern"`` is byte-for-byte identical at runtime to
+the bare ``$pattern`` (the quotes surround a single substitution and group
+no literal text), so it is the same idiom, not a foot-gun.  There is no
+equivalent ``{...}``-braced form for these (bracing would suppress the
+substitution), so flagging them would be a false positive.
+
+The moment literal text is concatenated with the substitution
+(``"prefix$pat"``) a literal *was* expected in that word, and the warning
+fires again.
 
 ## Still flagged: bare ``[cmd]`` patterns
 
@@ -63,8 +73,9 @@ When the pattern is meant to be a literal, brace it:
 regexp {^hello$} $string
 ```
 
-When the pattern is genuinely a parameter, use a single bare ``$var``
-without surrounding double quotes.
+When the pattern is genuinely a parameter, use a single ``$var``
+reference (bare or as the sole content of a quoted word) rather than
+concatenating it with literal pattern text.
 
 ## How to suppress
 

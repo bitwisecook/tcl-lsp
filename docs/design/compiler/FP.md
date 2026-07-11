@@ -8597,6 +8597,14 @@ already a VAR/CMD intrep, check the *raw source slice* for a live
 (unescaped) `[`/`$`.  Escaped forms are exempt; live substitutions
 (including `${var}` and `[cmd]`) still fire.
 
+A second carve-out (added later): a quoted pattern that is *exactly one
+pure variable reference* — `"$pat"` / `"${pat}"` — is byte-for-byte
+identical at runtime to the bare `$pat` parameterised-pattern idiom
+(the quotes group nothing), so it is exempt too, mirroring the bare
+`$var` exemption. The moment the reference is concatenated with any
+literal text (`"prefix$pat"`) or is a command substitution (`"[cmd]"`)
+a literal *was* expected, and W306 still fires.
+
 #### tclsh ground truth
 
 ```
@@ -8610,10 +8618,16 @@ substitution occurred.
 
 #### Tests
 
-- `tests/test_fp_sty.py::test_FP_STY_02_escaped_bracket_no_w306` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_02_escaped_dollar_no_w306` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_02_live_dollar_in_quoted_pattern_still_fires` (TP)
-- `tests/test_fp_sty.py::test_FP_STY_02_live_cmdsub_in_quoted_pattern_still_fires` (TP)
+- `analyser/diagnostics/fp/sty.rs::fp_sty_02_escaped_bracket_no_w306` (FP)
+- `analyser/diagnostics/fp/sty.rs::fp_sty_02_escaped_dollar_no_w306` (FP)
+- `analyser/diagnostics/fp/sty.rs::fp_sty_02_pure_dollar_in_quoted_pattern_no_w306` (FP)
+- `analyser/diagnostics/fp/sty.rs::fp_sty_02_concatenated_dollar_in_quoted_pattern_still_fires` (TP)
+- `analyser/diagnostics/fp/sty.rs::fp_sty_02_live_cmdsub_in_quoted_pattern_still_fires` (TP)
+- `analyser/diagnostics/tests.rs::w306_literal_expected_in_regexp_pattern`
+  (FP escaped `\[`/`\$`; FP quoted pure `"$pat"`/`"${pat}"`; TP quoted
+  `"[cmd]"`; TP concatenated `"prefix$pat"`; TP bare `[cmd]`)
+- `tests/fp_depth.rs::pure_dollar_in_quoted_pattern_no_w306` (FP)
+- `tests/fp_depth.rs::concatenated_dollar_in_quoted_pattern_still_w306` (TP)
 
 ---
 

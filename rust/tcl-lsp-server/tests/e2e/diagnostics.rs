@@ -1438,6 +1438,19 @@ fn live_var_in_quoted_pattern_still_fires() {
     ));
 }
 
+#[test]
+fn quoted_pure_var_pattern_no_w306() {
+    // `"$pattern"` is byte-for-byte identical at runtime to the bare
+    // `$pattern` parameterised-pattern idiom (the quotes group nothing) — the
+    // canonical form, not a foot-gun. No W306.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    assert!(!has_code(
+        &lsp.open_ready(&uri, "regexp -- \"$pattern\" $text\n"),
+        "W306"
+    ));
+}
+
 // -- TestControlFlowRBSFamilyE2E -----------------------------------------
 // W210 read-before-set, control-flow modelling family (PR #634).
 

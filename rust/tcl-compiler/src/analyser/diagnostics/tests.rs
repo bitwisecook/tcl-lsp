@@ -6982,6 +6982,8 @@ fn w300_source_with_variable_path() {
     assert_eq!(sec_codes("source $path\n", "W300"), 1);
     // `-encoding ENC` is skipped to find the file argument.
     assert_eq!(sec_codes("source -encoding utf-8 $path\n", "W300"), 1);
+    // A command-substituted path is just as dynamic as a `$var` one.
+    assert_eq!(sec_codes("source [locate_lib]\n", "W300"), 1);
     // A literal path is fine.
     assert_eq!(sec_codes("source ./lib.tcl\n", "W300"), 0);
 }
@@ -7105,6 +7107,8 @@ fn w103_open_pipeline() {
     assert_eq!(code_sevs("open \"|cat file\"\n", "W103"), vec!["Hint"]);
     // Bare `$var` argument → WARNING (may resolve to a pipeline).
     assert_eq!(code_sevs("open $f\n", "W103"), vec!["Warning"]);
+    // A command-substituted argument is just as dynamic as a `$var` one.
+    assert_eq!(code_sevs("open [pick_target]\n", "W103"), vec!["Warning"]);
     // A literal filename is fine.
     assert_eq!(sec_codes("open \"file.txt\"\n", "W103"), 0);
 }
@@ -7264,10 +7268,16 @@ fn w306_literal_expected_in_regexp_pattern() {
             .iter()
             .any(|d| d.code == DiagCode::W306)
     }
-    // Quoted `"$var"` / `"[cmd]"` patterns fire (Tcl substitutes them
-    // before the regex engine sees the value).
-    assert!(has_w306("regexp \"$pat\" $s\n"));
+    // A quoted `"$var"` / `"${var}"` pattern is byte-for-byte identical at
+    // runtime to the bare `$var` idiom — the quotes group nothing — so it is
+    // the canonical parameterised-pattern form, not a foot-gun: exempt.
+    assert!(!has_w306("regexp \"$pat\" $s\n"));
+    assert!(!has_w306("regexp \"${pat}\" $s\n"));
+    // A quoted `"[cmd]"` computes the pattern dynamically — the foot-gun: fires.
     assert!(has_w306("regexp \"[clock seconds]\" $s\n"));
+    // A quoted var *concatenated* with literal text (`"prefix$pat"`) is no
+    // longer a single pure reference — a literal *was* expected there: fires.
+    assert!(has_w306("regexp \"prefix$pat\" $s\n"));
     // A bare `$var` is the canonical parameterised-pattern idiom — exempt.
     assert!(!has_w306("regexp $pat $s\n"));
     // A braced pattern suppresses substitution — exempt.

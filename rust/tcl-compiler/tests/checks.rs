@@ -986,8 +986,20 @@ mod literal_expected {
     }
 
     #[test]
-    fn quoted_pattern_with_var_warns() {
-        let ds = of_code("regexp -- \"$pattern\" $text", D, "W306");
+    fn quoted_pure_var_pattern_no_w306() {
+        // `"$pattern"` is byte-for-byte identical at runtime to the bare
+        // `$pattern` parameterised-pattern idiom (the quotes group nothing), so
+        // it is the same canonical form, not a foot-gun — no W306.
+        assert!(!fires("regexp -- \"$pattern\" $text", D, "W306"));
+        assert!(!fires("regexp -- \"${pattern}\" $text", D, "W306"));
+    }
+
+    #[test]
+    fn quoted_concatenated_var_pattern_warns() {
+        // A live `$suffix` concatenated with literal text (`"pre$suffix"`) is no
+        // longer a pure reference — a literal WAS expected — so W306 fires and
+        // advises braces.
+        let ds = of_code("regexp -- \"pre$suffix\" $text", D, "W306");
         assert_eq!(ds.len(), 1);
         assert!(ds[0].0.to_lowercase().contains("quotes"));
     }
