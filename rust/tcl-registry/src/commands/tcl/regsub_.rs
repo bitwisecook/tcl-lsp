@@ -177,6 +177,7 @@ const OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regsub",
+        byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::new(3, 4),
         return_type: Some(TclType::Int),

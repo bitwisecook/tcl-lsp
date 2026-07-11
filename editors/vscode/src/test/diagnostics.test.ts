@@ -458,6 +458,30 @@ suite("Diagnostics", () => {
     );
   });
 
+  test("S110 does not fire for a byte-array-transparent string op", async () => {
+    // The fixture case-folds `$packet` on line 2 (S110) and slices it with
+    // `string range` on line 3. `string range` keeps the byte-array
+    // representation, so it must NOT add a second S110 — only the case-fold
+    // corrupts. Guards the ByteArrayEffect::Transparent classification.
+    const uri = getDocUri("byteArrayCorruption.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.some((d) => codeOf(d) === "S110"),
+    });
+    const s110 = diagnostics.filter((d) => codeOf(d) === "S110");
+    assert.strictEqual(
+      s110.length,
+      1,
+      `expected exactly one S110 (the case-fold on line 2), got ${JSON.stringify(
+        s110.map((d) => ({ line: d.range.start.line, msg: d.message })),
+      )}`,
+    );
+    // The single S110 is the `string toupper` on line index 1, not the
+    // `string range` on line index 2.
+    assert.strictEqual(s110[0].range.start.line, 1, "S110 must anchor on the case-fold line");
+  });
+
   test("S102 fires for loop-carried oscillation, anchored inside the loop, and is silent under a write trace", async () => {
     // Both scenarios live in one fixture (like optimisation-o101.tcl): the
     // top `accumulate` proc genuinely oscillates x between int and string

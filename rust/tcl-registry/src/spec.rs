@@ -480,6 +480,14 @@ pub struct CommandSpec {
     /// byte-array payload command.
     pub byte_array_payload: Option<BytePayloadSpec>,
 
+    /// How this whole command transforms a byte-array (binary) operand it
+    /// derives its result from — drives the S110 byte-array-corruption check
+    /// for commands like `format` / `join` / `concat` / `split` / `subst` /
+    /// `regsub`. `string`'s per-subcommand effects live on the
+    /// [`SubCommand::byte_array_effect`] instead. Default
+    /// [`ByteArrayEffect::None`]. See [`crate::byte_array_effect`].
+    pub byte_array_effect: crate::byte_array_effect::ByteArrayEffect,
+
     /// Definition-body grammar — `Some` when this command is a class/type
     /// *definer* whose `ArgRole::Body` argument is a definition script (a
     /// `TclOO` metaclass `create` body, the bare `oo::define` script form, a
@@ -592,6 +600,7 @@ impl CommandSpec {
         xc_operation: None,
         deprecated_replacement: None,
         byte_array_payload: None,
+        byte_array_effect: crate::byte_array_effect::ByteArrayEffect::None,
         definition_body: None,
         object_class: None,
         defines_symbol: None,
@@ -985,6 +994,13 @@ pub struct SubCommand {
     /// semantics; default `Plain`.
     pub body_kind: BodyKind,
 
+    /// How this subcommand transforms a byte-array (binary) operand — drives
+    /// the S110 byte-array-corruption check for `string`'s value subcommands
+    /// (`range` / `map` / `tolower` / …).  See
+    /// [`CommandSpec::byte_array_effect`] and [`crate::byte_array_effect`];
+    /// default [`ByteArrayEffect::None`].
+    pub byte_array_effect: crate::byte_array_effect::ByteArrayEffect,
+
     /// Implicit-args count for proc-call arity relaxation.  See
     /// [`CommandSpec::body_arg_implicit_args`].
     pub body_arg_implicit_args: u8,
@@ -1110,6 +1126,7 @@ impl SubCommand {
         creates_scope_alias: false,
         inferred_storage_type: None,
         body_kind: BodyKind::Plain,
+        byte_array_effect: crate::byte_array_effect::ByteArrayEffect::None,
         body_arg_implicit_args: 0,
         taint_transform: None,
         taint_double_encode_colour: None,

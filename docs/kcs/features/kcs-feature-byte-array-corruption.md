@@ -102,16 +102,31 @@ to the operation, so no write-back is needed.
   `# tcl-lsp: disable=S110` at the top of the file (see
   [Suppressing diagnostics](../kcs-howto-suppress-diagnostics.md)).
 
+## What is and is not corruption
+
+`string range`, `string index`, `string reverse`, `string trim`, `string
+trimleft`, and `string trimright` keep the byte-array representation (verified
+against tclsh 8.6 and 9.0), so slicing or trimming a payload and writing it back
+is byte-exact and does **not** raise S110. Only operations that build a
+character string (`string map`/`replace`/`insert`/`cat`/`repeat`, `format`,
+`join`, interpolation, `append`, …) or case-fold the bytes (`string
+toupper`/`tolower`/`totitle`, `encoding convertto`) corrupt binary data. Which
+operation does which is registry data — the
+[`ByteArrayEffect`](../../design/compiler/byte-array-corruption.md) on each
+command / subcommand — not a hardcoded list in the compiler.
+
 ## File-path anchors
 
-- `compiler/shimmer.py` — `_find_byte_array_corruption`, `_payload_replace_data_index`
-- `compiler/registry/runtime.py` — `byte_array_payload_commands`, `byte_array_payload_layouts`
-- `compiler/registry/models.py` — `BytePayloadSpec`
-- `dialects/f5/irules/*__payload.py` — `byte_array_payload=True` or `=BytePayloadSpec(...)`
+- `rust/tcl-compiler/src/shimmer/byte_array.rs` — `find_byte_array_warnings`,
+  `byte_array_effect`, `payload_replace_data_index`
+- `rust/tcl-registry/src/byte_array_effect.rs` — `ByteArrayEffect`
+- `rust/tcl-registry/src/commands/tcl/string_.rs` — per-subcommand
+  `byte_array_effect`
+- `rust/tcl-registry/src/commands/irules/*__payload*.rs` — `byte_array_payload`
 
 ## Test anchors
 
-- `tests/test_shimmer.py::TestByteArrayCorruption`
-- `tests/test_fp_sh.py::test_FP_SH_09_*`, `::test_FP_SH_10_*`, `::test_FP_SH_11_*`
-- `tests/lsp_e2e/test_irules_e2e.py::TestIrulesByteArrayCorruption`
-- `docs/design/compiler/FP.md` — FP-SH-09, FP-SH-10
+- `rust/tcl-compiler/src/shimmer/byte_array.rs` — `mod tests`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` — FP-SH-19
+- `rust/tcl-lsp-server/tests/e2e/irules.rs` — `payload_string_range_transparent_silent`
+- `docs/design/compiler/byte-array-corruption.md` — the effect taxonomy

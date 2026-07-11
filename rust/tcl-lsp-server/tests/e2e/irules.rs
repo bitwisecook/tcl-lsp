@@ -1107,6 +1107,27 @@ fn clean_payload_writeback_silent() {
 }
 
 #[test]
+fn payload_string_range_transparent_silent() {
+    // `string range` keeps the byte-array representation (verified vs tclsh
+    // 8.6/9.0), so slicing a payload and writing it back is byte-exact — the
+    // canonical idiom must NOT fire S110.
+    let mut lsp = Lsp::irules();
+    let diags = deep_diags(
+        &mut lsp,
+        "when HTTP_REQUEST_DATA {\n\
+        \x20   set original_data [HTTP::payload]\n\
+        \x20   set slice [string range $original_data 0 99]\n\
+        \x20   HTTP::payload replace 0 100 $slice\n\
+        }\n",
+    );
+    assert!(
+        !irules_codes(&diags).contains("S110"),
+        "string range on a payload must not fire S110: {:?}",
+        irules_codes(&diags)
+    );
+}
+
+#[test]
 fn binary_scan_fix_silent() {
     let mut lsp = Lsp::irules();
     let diags = deep_diags(

@@ -26,6 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "split",
+        byte_array_effect: ByteArrayEffect::Coerces,
         const_fold: Some(crate::const_fold::fold_split),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::CSE_CANDIDATE,
         arity: Arity::new(1, 2),

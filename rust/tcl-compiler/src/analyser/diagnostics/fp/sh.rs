@@ -1286,3 +1286,46 @@ proc f {n} {
         "FP-SH-18: a uniformly-numeric loop must not fire S102; got {got:?}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// FP-SH-19 — byte-array-transparent `string` ops on a payload getter
+// ---------------------------------------------------------------------------
+
+/// FP-SH-19: `string range`/`index`/`reverse`/`trim*` keep the byte-array
+/// representation (verified against tclsh 8.6 and 9.0), so the canonical
+/// `string range $payload …` → `*::payload replace` idiom is byte-exact and
+/// must NOT fire S110. Registry-driven via `ByteArrayEffect::Transparent`.
+#[test]
+fn fp_sh_19_transparent_string_ops_on_payload_silent() {
+    for op in [
+        "string range $p 0 5",
+        "string index $p 3",
+        "string reverse $p",
+        "string trim $p",
+        "string trimleft $p",
+        "string trimright $p",
+    ] {
+        let src = format!(
+            "when CLIENT_DATA {{\n  set p [TCP::payload]\n  set q [{op}]\n  \
+             TCP::payload replace 0 100 $q\n}}\n"
+        );
+        assert!(
+            !fires(&src, "f5-irules", "S110"),
+            "FP-SH-19: transparent op '{op}' must not fire S110; got {:?}",
+            codes(&src, "f5-irules"),
+        );
+    }
+}
+
+/// FP-SH-19 TP control: the coercing `string map` form DOES corrupt the byte
+/// array (it builds a character string), so it must still fire S110.
+#[test]
+fn fp_sh_19_coercing_string_map_on_payload_still_fires() {
+    let src = "when CLIENT_DATA {\n  set p [TCP::payload]\n  set q [string map {a b} $p]\n  \
+               TCP::payload replace 0 100 $q\n}\n";
+    assert!(
+        fires(src, "f5-irules", "S110"),
+        "FP-SH-19 TP: string map on a payload must fire S110; got {:?}",
+        codes(src, "f5-irules"),
+    );
+}

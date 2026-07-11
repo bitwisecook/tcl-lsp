@@ -32,15 +32,26 @@ Applying each operation to the pure high-byte array `80 c3 ff fe` (no ASCII
 letters, so any change to a preserved byte is real corruption), then
 re-binarifying the result — identical on Tcl 8.6.14 and 9.0.3:
 
-| Operation | Result bytes | Category |
+| Operation | Result rep | Category |
 |---|---|---|
-| `string toupper` | `80 c3 78 de` | **intrinsic** (case fold) |
-| `string tolower` | `80 e3 ff fe` | **intrinsic** (case fold) |
-| `string totitle` | `80 e3 ff fe` | **intrinsic** (case fold) |
+| `string toupper` | `80 c3 78 de` (bytes changed) | **intrinsic** (case fold) |
+| `string tolower` | `80 e3 ff fe` (bytes changed) | **intrinsic** (case fold) |
+| `string totitle` | `80 e3 ff fe` (bytes changed) | **intrinsic** (case fold) |
 | `encoding convertto utf-8` | `c2 80 c3 83 c3 bf c3 be` | **intrinsic** (re-encode) |
-| `string reverse` / `range` / `map` / `trim` | `80 c3 ff fe` | round-trip |
-| `format %s` / `regsub` / `subst` | `80 c3 ff fe` | round-trip |
-| interpolation `"$x"` / `append` | `80 c3 ff fe` | round-trip |
+| `string range` / `index` / `reverse` / `trim` / `trimleft` / `trimright` | keeps the byte-array intrep | **transparent** |
+| `string map` / `replace` / `insert` / `cat` / `repeat` | character string | round-trip (coerce) |
+| `format %s` / `join` / `concat` / `split` / `regsub` / `subst` | character string | round-trip (coerce) |
+| interpolation `"$x"` / `append` | character string | round-trip (coerce) |
+
+The **transparent** row is the crucial precision distinction. `string range`,
+`index`, `reverse`, `trim`, `trimleft`, and `trimright` return a value that
+still carries the byte-array internal representation on both tclsh 8.6 and 9.0
+(confirmed with `tcl::unsupported::representation` and a round-trip through a
+`-translation binary` sink), so `string range $payload …` written back with
+`*::payload replace` is byte-exact and must **not** raise S110. `string cat`
+and `string repeat` keep the intrep only in their single-operand no-op form;
+their concatenating forms coerce (and differ across versions), so they are
+classified as coercing to stay sound.
 
 On Tcl 9 the round-trip back through `binary scan` of a case-folded value
 *raises* (`expected byte sequence but character … was 'Ŷ' (U+000178)`); on
@@ -53,8 +64,8 @@ This is the canonical iRules payload-rewrite bug
 
 ## How the check maps to the taxonomy
 
-`compiler/shimmer.py::_find_byte_array_corruption` runs a small forward
-dataflow over the SSA graph, tracking a two-state provenance per value:
+`tcl_compiler::shimmer::byte_array::find_byte_array_warnings` runs a small
+forward dataflow over the SSA graph, tracking a two-state provenance per value:
 
 - **BINARY** — currently a byte array (safe at a byte sink). Sources:
   `binary format` / `binary decode` / `encoding convertto` return types (read
@@ -62,12 +73,22 @@ dataflow over the SSA graph, tracking a two-state provenance per value:
   getters (registry flag `byte_array_payload`, dialect-gated).
 - **DAMAGED** — a binary-sourced value since coerced to a character string.
 
+Which operation does which is **registry data**, not a hardcoded command list
+in the compiler: every value-transforming command / subcommand carries a
+[`ByteArrayEffect`](../../../rust/tcl-registry/src/byte_array_effect.rs) —
+`Transparent`, `Coerces`, or `CaseFolds` — on its `CommandSpec` (whole commands
+like `format` / `join`) or `SubCommand` (`string`'s subcommands). The S110 pass
+reads that classification through `byte_array_effect(registry, cmd, args)` and
+never matches a command by name. A `Transparent` op propagates the operand's
+provenance unchanged (a binary operand stays binary), which is what makes
+`string range $payload` byte-exact instead of a false positive.
+
 It emits S110 in two places, matching the two damage mechanisms:
 
-- **Intrinsic** (`_CASE_FOLD_STRING_SUBS` and `encoding convertto`): warn at the
-  transform — the bytes are already corrupt.
-- **Round-trip** (`_STRING_VALUE_SUBS`, `_STRING_COERCING_COMMANDS`,
-  interpolation, `append`, `expr`): mark the value DAMAGED and warn only when it
+- **Intrinsic** (`ByteArrayEffect::CaseFolds` and `encoding convertto`): warn at
+  the transform — the bytes are already corrupt.
+- **Round-trip** (`ByteArrayEffect::Coerces`, interpolation, `append`, `expr`):
+  mark the value DAMAGED and warn only when it
   reaches a `<proto>::payload replace` sink. A `binary scan $v …` between the
   coercion and the sink re-binarifies `v` *in place* and clears DAMAGED (the
   documented fix). `binary format … $v` does **not** clear it — it returns a new

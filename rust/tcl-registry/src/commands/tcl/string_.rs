@@ -856,6 +856,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "cat",
+        byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::any(),
         detail: "Concatenate strings.",
         synopsis: "string cat ?string1? ?string2 ...?",
@@ -944,6 +945,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "index",
+        byte_array_effect: ByteArrayEffect::Transparent,
         arity: Arity::exact(2),
         detail: "Return character at index.",
         synopsis: "string index string charIndex",
@@ -961,6 +963,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "insert",
+        byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::exact(3),
         detail: "Insert string at index.",
         synopsis: "string insert string index insertString",
@@ -1038,6 +1041,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "map",
+        byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::at_least(2),
         detail: "Map substrings via key-value pairs.",
         synopsis: "string map ?-nocase? mapping string",
@@ -1084,6 +1088,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "range",
+        byte_array_effect: ByteArrayEffect::Transparent,
         arity: Arity::exact(3),
         detail: "Return substring by index range.",
         synopsis: "string range string first last",
@@ -1110,6 +1115,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "repeat",
+        byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::exact(2),
         detail: "Repeat string N times.",
         synopsis: "string repeat string count",
@@ -1127,6 +1133,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "replace",
+        byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::new(3, 4),
         detail: "Replace range with new string.",
         synopsis: "string replace string first last ?newString?",
@@ -1153,6 +1160,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "reverse",
+        byte_array_effect: ByteArrayEffect::Transparent,
         arity: Arity::exact(1),
         detail: "Reverse character order.",
         synopsis: "string reverse string",
@@ -1165,6 +1173,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "tolower",
+        byte_array_effect: ByteArrayEffect::CaseFolds,
         arity: Arity::new(1, 3),
         detail: "Convert to lower case.",
         synopsis: "string tolower string ?first? ?last?",
@@ -1191,6 +1200,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "totitle",
+        byte_array_effect: ByteArrayEffect::CaseFolds,
         arity: Arity::new(1, 3),
         detail: "Convert to title case.",
         synopsis: "string totitle string ?first? ?last?",
@@ -1217,6 +1227,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "toupper",
+        byte_array_effect: ByteArrayEffect::CaseFolds,
         arity: Arity::new(1, 3),
         detail: "Convert to upper case.",
         synopsis: "string toupper string ?first? ?last?",
@@ -1243,6 +1254,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "trim",
+        byte_array_effect: ByteArrayEffect::Transparent,
         arity: Arity::new(1, 2),
         detail: "Trim leading and trailing characters.",
         synopsis: "string trim string ?chars?",
@@ -1253,6 +1265,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "trimleft",
+        byte_array_effect: ByteArrayEffect::Transparent,
         arity: Arity::new(1, 2),
         detail: "Trim leading characters.",
         synopsis: "string trimleft string ?chars?",
@@ -1263,6 +1276,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "trimright",
+        byte_array_effect: ByteArrayEffect::Transparent,
         arity: Arity::new(1, 2),
         detail: "Trim trailing characters.",
         synopsis: "string trimright string ?chars?",
