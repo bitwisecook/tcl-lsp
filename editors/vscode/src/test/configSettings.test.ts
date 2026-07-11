@@ -1069,12 +1069,23 @@ suite("Configuration Settings", () => {
     await waitForDeepDiagnostics(docUri, { since: sinceOpen });
     const before = vscode.languages.getDiagnostics(docUri);
     const o1xxBefore = before.filter((d) => isO1xx(codeOf(d)));
+    // The re-trigger edit below appends to the live buffer and is never
+    // saved; snapshot the original text so it can be restored in `finally`
+    // regardless of whether the test body completes or throws, rather than
+    // leaving diagnostics.tcl's editor buffer permanently dirtied for every
+    // later test that reuses the same fixture.
+    const originalText = vscode.window.activeTextEditor!.document.getText();
 
     const config = vscode.workspace.getConfiguration("tclLsp.optimiser");
     try {
       await config.update("enabled", false, undefined);
+      // 20s, matching waitForDeepDiagnostics's default: under the full
+      // suite's background load (workspace warm-up, the #844 progressive
+      // diagnostics race, …) this round-trip routinely needs more than the
+      // 5s generic default.
       await waitForEffectiveConfig(docUri, (c) => c.optimiser_enabled === false, {
         label: "optimiser disabled",
+        timeout: 20000,
       });
 
       // Re-trigger analysis with a noop edit; snapshot the log
@@ -1094,9 +1105,11 @@ suite("Configuration Settings", () => {
         );
       }
     } finally {
+      await setTestContent(vscode.window.activeTextEditor!, originalText);
       await config.update("enabled", undefined, undefined);
       await waitForEffectiveConfig(docUri, (c) => c.optimiser_enabled === true, {
         label: "optimiser re-enabled",
+        timeout: 20000,
       });
     }
   });

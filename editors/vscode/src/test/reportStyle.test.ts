@@ -31,24 +31,33 @@ suite("Report style scoped commands (#806)", () => {
     typeof d.code === "object" ? String(d.code.value) : String(d.code);
 
   test("scoped report commands do not draw W123, but a typo does", async () => {
-    await activate(docUri);
-    // Wait until the `toop` typo (line 7) has been flagged.
-    const diagnostics = await waitForDiagnostics(docUri, {
-      predicate: (diags) => diags.some((d) => codeOf(d) === "W123" && d.range.start.line === 7),
-    });
+    // W123 defaults to false (opt-in, see configSettings.test.ts's
+    // "diagnostics.W123 defaults to false" test) -- without this the wait
+    // below never sees the typo flagged and the assertion is vacuous.
+    const w123config = vscode.workspace.getConfiguration("tclLsp.diagnostics");
+    await w123config.update("W123", true, vscode.ConfigurationTarget.Global);
+    try {
+      await activate(docUri);
+      // Wait until the `toop` typo (line 7) has been flagged.
+      const diagnostics = await waitForDiagnostics(docUri, {
+        predicate: (diags) => diags.some((d) => codeOf(d) === "W123" && d.range.start.line === 7),
+      });
 
-    const w123 = diagnostics.filter((d) => codeOf(d) === "W123");
-    // The typo on line 7 is flagged.
-    assert.ok(
-      w123.some((d) => d.range.start.line === 7),
-      `Expected W123 on the \`toop\` typo (line 7), got: ${w123.map((d) => d.range.start.line)}`,
-    );
-    // The valid scoped commands on lines 2–6 are NOT flagged.
-    for (const line of [2, 3, 4, 5, 6]) {
+      const w123 = diagnostics.filter((d) => codeOf(d) === "W123");
+      // The typo on line 7 is flagged.
       assert.ok(
-        !w123.some((d) => d.range.start.line === line),
-        `Line ${line} carries a valid scoped command and must not draw W123`,
+        w123.some((d) => d.range.start.line === 7),
+        `Expected W123 on the \`toop\` typo (line 7), got: ${w123.map((d) => d.range.start.line)}`,
       );
+      // The valid scoped commands on lines 2–6 are NOT flagged.
+      for (const line of [2, 3, 4, 5, 6]) {
+        assert.ok(
+          !w123.some((d) => d.range.start.line === line),
+          `Line ${line} carries a valid scoped command and must not draw W123`,
+        );
+      }
+    } finally {
+      await w123config.update("W123", undefined, vscode.ConfigurationTarget.Global);
     }
   });
 

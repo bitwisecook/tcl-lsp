@@ -46,6 +46,16 @@ export function sleep(ms: number): Promise<void> {
 const _serverLog: string[] = [];
 const _SERVER_LOG_MAX = 2000;
 let _serverLogSubscribed = false;
+// Total lines ever pushed, monotonic and never trimmed -- unlike
+// `_serverLog.length`, which pins at `_SERVER_LOG_MAX` once the ring buffer
+// fills (every push beyond the cap is immediately followed by a splice that
+// drops the same number of old entries off the front). A `since` value
+// captured via `getServerLogSize()` after that point equals `_serverLog.length`
+// exactly, so `for (i = since; i < _serverLog.length; i++)` never runs even
+// as fresh lines keep arriving -- every `since`-anchored wait taken out this
+// deep into a long suite run would silently never match anything and burn
+// its full timeout every time.
+let _serverLogTotalPushed = 0;
 
 async function _ensureServerLogSubscribed(): Promise<void> {
   if (_serverLogSubscribed) return;
@@ -56,6 +66,7 @@ async function _ensureServerLogSubscribed(): Promise<void> {
   client.onNotification("window/logMessage", (params: { message?: string }) => {
     if (typeof params?.message !== "string") return;
     _serverLog.push(params.message);
+    _serverLogTotalPushed++;
     if (_serverLog.length > _SERVER_LOG_MAX) {
       _serverLog.splice(0, _serverLog.length - _SERVER_LOG_MAX);
     }
@@ -109,19 +120,34 @@ export function getServerLog(): string[] {
 }
 
 /**
- * Number of server log lines captured so far.  Capture this **before**
- * triggering an action and pass the value as ``waitForServerLog``'s
- * ``since`` option so the wait only matches lines emitted by the
- * action, not stale lines from earlier tests.
+ * Total number of server log lines captured so far (monotonic -- never
+ * decreases, even once the ring buffer starts trimming old entries).
+ * Capture this **before** triggering an action and pass the value as
+ * ``waitForServerLog``'s ``since`` option so the wait only matches lines
+ * emitted by the action, not stale lines from earlier tests.
  */
 export function getServerLogSize(): number {
-  return _serverLog.length;
+  return _serverLogTotalPushed;
 }
 
 /**
- * Wait until at least one server log line at index ``opts.since`` or
- * later matches *predicate*, or the timeout expires.  Returns the
- * matching line, or ``null`` on timeout.
+ * Translate an absolute ``since`` sequence number (from
+ * ``getServerLogSize()``) into a start index into the current
+ * ``_serverLog`` array, which only holds the most recent
+ * ``_SERVER_LOG_MAX`` lines. A ``since`` older than every retained line
+ * (already trimmed off the front) clamps to the oldest retained line --
+ * everything still in the buffer is at or after that point anyway.
+ */
+function _sinceToIndex(since: number): number {
+  const oldestKept = _serverLogTotalPushed - _serverLog.length;
+  return Math.max(0, since - oldestKept);
+}
+
+/**
+ * Wait until at least one server log line at or after ``opts.since``
+ * (an absolute sequence number from ``getServerLogSize()``) matches
+ * *predicate*, or the timeout expires.  Returns the matching line, or
+ * ``null`` on timeout.
  *
  * The default ``since`` is ``0``, which keeps the legacy behaviour of
  * searching the entire captured buffer.  Tests waiting for an event
@@ -136,12 +162,12 @@ export async function waitForServerLog(
   const since = opts?.since ?? 0;
   const start = Date.now();
   while (Date.now() - start < timeout) {
-    for (let i = since; i < _serverLog.length; i++) {
+    for (let i = _sinceToIndex(since); i < _serverLog.length; i++) {
       if (predicate(_serverLog[i])) return _serverLog[i];
     }
     await sleep(50);
   }
-  for (let i = since; i < _serverLog.length; i++) {
+  for (let i = _sinceToIndex(since); i < _serverLog.length; i++) {
     if (predicate(_serverLog[i])) return _serverLog[i];
   }
   return null;

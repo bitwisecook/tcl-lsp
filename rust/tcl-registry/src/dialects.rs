@@ -404,7 +404,15 @@ pub fn detect_dialect_directive(source: &str) -> Option<&'static str> {
             continue;
         };
         let rest = rest.trim_start();
-        if rest.len() < KEY.len() || !rest[..KEY.len()].eq_ignore_ascii_case(KEY) {
+        // `rest.get(..KEY.len())` (unlike `rest[..KEY.len()]`) returns `None`
+        // rather than panicking when `KEY.len()` falls inside a multi-byte
+        // char instead of on a boundary — a real case: a leading comment
+        // with a non-ASCII byte (an em dash, a curly quote, …) before byte
+        // offset 12 used to crash the server on `textDocument/didOpen`.
+        let Some(prefix) = rest.get(..KEY.len()) else {
+            continue;
+        };
+        if !prefix.eq_ignore_ascii_case(KEY) {
             continue;
         }
         let candidate = rest[KEY.len()..]
@@ -418,7 +426,7 @@ pub fn detect_dialect_directive(source: &str) -> Option<&'static str> {
 
 #[cfg(test)]
 mod detect_tests {
-    use super::detect_dialect;
+    use super::{detect_dialect, detect_dialect_directive};
 
     const DEF: &str = "tcl9.0";
 
@@ -427,6 +435,22 @@ mod detect_tests {
         assert_eq!(
             detect_dialect("# tcl-dialect: tcl8.5\nputs hi\n", None, DEF),
             "tcl8.5"
+        );
+    }
+
+    #[test]
+    fn multibyte_comment_before_directive_key_does_not_panic() {
+        // A leading comment with a non-ASCII byte (an em dash here) landing
+        // inside the `tcl-dialect:` key's byte length used to panic on the
+        // `rest[..KEY.len()]` slice instead of just not matching.
+        assert_eq!(
+            detect_dialect_directive("# Issue #806 — report::defstyle\nputs hi\n"),
+            None
+        );
+        // The directive itself still resolves once past any such comment.
+        assert_eq!(
+            detect_dialect_directive("# Issue #806 — report::defstyle\n# tcl-dialect: tcl8.5\n"),
+            Some("tcl8.5")
         );
     }
 
