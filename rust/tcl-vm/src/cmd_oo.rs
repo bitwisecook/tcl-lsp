@@ -42,8 +42,10 @@
 //! convention); [`display`] renders the `::`-qualified form used in results and
 //! messages.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+
 use std::rc::Rc;
+use tcl_syntax::mro::{MroError, tcloo_linearise};
 
 use tcl_bytecode::FunctionAsm;
 use tcl_runtime_api::{Code, Completion};
@@ -557,57 +559,55 @@ fn oo_new(
 // ---------------------------------------------------------------------------
 
 impl OoState {
-    /// Depth-first linearisation of a class (mixins, self, supers), with a
-    /// path-based cycle guard so a diamond revisits a shared base (kept once by
-    /// the caller's keep-last dedup) but a true cycle terminates.
-    fn class_linear(&self, class_key: &str, out: &mut Vec<Step>, path: &mut Vec<String>) {
-        if path.iter().any(|p| p == class_key) {
-            return;
+    /// Build the `(supers, mixins)` maps `tcloo_linearise` consumes from the
+    /// live class registry, injecting `oo::object` as the implicit root of any
+    /// class with no declared superclass (mirroring `TclOO`, where every class
+    /// ultimately derives from `oo::object`).
+    fn linearise_maps(&self) -> (HashMap<String, Vec<String>>, HashMap<String, Vec<String>>) {
+        let mut supers = HashMap::with_capacity(self.classes.len());
+        let mut mixins = HashMap::with_capacity(self.classes.len());
+        for (name, c) in &self.classes {
+            let mut sup = c.supers.clone();
+            if sup.is_empty() && name != "oo::object" {
+                sup.push("oo::object".to_string());
+            }
+            supers.insert(name.clone(), sup);
+            mixins.insert(name.clone(), c.mixins.clone());
         }
-        let Some(cls) = self.classes.get(class_key) else {
-            return;
+        (supers, mixins)
+    }
+
+    /// The class-side linearisation, delegated to the compiler's faithful
+    /// `TclOO` algorithm ([`tcloo_linearise`]: the two-pass mixin/super split with
+    /// late-placement dedup from `tclOOCall.c`, correct for nested mixins and
+    /// diamonds where the old per-class DFS was not). Used for constructor /
+    /// destructor chains and `info class properties -all`.
+    fn class_linear_of(&self, class_key: &str) -> Vec<Step> {
+        let (supers, mixins) = self.linearise_maps();
+        class_steps(tcloo_linearise(class_key, &supers, &mixins), class_key)
+    }
+
+    /// The full method-search precedence for an object: its per-object mixins
+    /// (each linearised as a class), then the object's own methods, then its
+    /// class MRO — keep-last deduped so a shared class defers to its
+    /// most-derived position.
+    fn object_precedence(&self, obj_key: &str) -> Vec<Step> {
+        let Some(obj) = self.objects.get(obj_key) else {
+            return Vec::new();
         };
-        path.push(class_key.to_string());
-        for mx in &cls.mixins {
-            self.class_linear(mx, out, path);
+        let (supers, mixins) = self.linearise_maps();
+        let mut out: Vec<Step> = Vec::new();
+        for mx in &obj.mixins {
+            out.extend(class_steps(tcloo_linearise(mx, &supers, &mixins), mx));
         }
         out.push(Step {
-            provider: class_key.to_string(),
-            is_object: false,
+            provider: obj_key.to_string(),
+            is_object: true,
         });
-        for s in &cls.supers {
-            self.class_linear(s, out, path);
-        }
-        // Every class ultimately derives from `oo::object`.
-        if cls.supers.is_empty() && class_key != "oo::object" {
-            self.class_linear("oo::object", out, path);
-        }
-        path.pop();
-    }
-
-    /// The class-side linearisation (keep-last deduped), used for constructor /
-    /// destructor chains.
-    fn class_linear_of(&self, class_key: &str) -> Vec<Step> {
-        let mut out = Vec::new();
-        self.class_linear(class_key, &mut out, &mut Vec::new());
-        keep_last(&out)
-    }
-
-    /// The full method-search precedence for an object: object mixins → the
-    /// object itself → the class MRO, keep-last deduped.
-    fn object_precedence(&self, obj_key: &str) -> Vec<Step> {
-        let mut out = Vec::new();
-        let mut path = Vec::new();
-        if let Some(obj) = self.objects.get(obj_key) {
-            for mx in &obj.mixins {
-                self.class_linear(mx, &mut out, &mut path);
-            }
-            out.push(Step {
-                provider: obj_key.to_string(),
-                is_object: true,
-            });
-            self.class_linear(&obj.class, &mut out, &mut path);
-        }
+        out.extend(class_steps(
+            tcloo_linearise(&obj.class, &supers, &mixins),
+            &obj.class,
+        ));
         keep_last(&out)
     }
 
@@ -676,6 +676,25 @@ impl OoState {
             }
         }
         names
+    }
+}
+
+/// Map a [`tcloo_linearise`] result into class-facet [`Step`]s, degrading to the
+/// class itself when linearisation fails (a superclass cycle involving it, or a
+/// pathological depth `tcloo_linearise` refuses to expand).
+fn class_steps(chain: Result<Vec<String>, MroError>, fallback: &str) -> Vec<Step> {
+    match chain {
+        Ok(classes) => classes
+            .into_iter()
+            .map(|c| Step {
+                provider: c,
+                is_object: false,
+            })
+            .collect(),
+        Err(_) => vec![Step {
+            provider: fallback.to_string(),
+            is_object: false,
+        }],
     }
 }
 
