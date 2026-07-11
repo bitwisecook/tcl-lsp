@@ -7,7 +7,7 @@
 | **Severity** | high |
 | **Subsystem** | Bytecode VM |
 | **Location** | `rust/tcl-vm/src/exec.rs:2224` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: medium) |
 
 ## Finding

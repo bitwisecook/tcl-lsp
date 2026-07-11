@@ -401,9 +401,11 @@ pub(crate) fn to_bool(o: *mut TclObj) -> Result<bool, ExprError> {
     match bignum::compare(o, zero.ptr()) {
         Some(ord) => Ok(!ord.is_eq()),
         None => {
-            let mut m = b"expected boolean value but got \"".to_vec();
-            m.extend_from_slice(&bytes);
-            m.push(b'"');
+            // The `got <here>` tail matches C: a multi-token well-formed list
+            // reads as `a list`, anything else is quoted (truncated to 50 bytes),
+            // so `expr {"a b" ? 1 : 0}` reports `… but got a list`, not `"a b"`.
+            let mut m = b"expected boolean value but got ".to_vec();
+            m.extend_from_slice(tcl_syntax::list::describe_bad_value(s).as_bytes());
             Err(ExprError::from_bytes(m))
         }
     }

@@ -194,6 +194,14 @@ pub enum Op {
     FOREACH_START,
     FOREACH_STEP,
     FOREACH_END,
+    /// `lmapCollect` — pop the top of stack and append it to the *collecting*
+    /// `foreach`/`lmap` loop's VM-side accumulator (`ForeachState.accum`). Emitted
+    /// on the body's fall-through path only (a `break`/`continue` redirect skips
+    /// it), so the accumulator survives break/continue with the operand stack at a
+    /// statement boundary. The paired `FOREACH_END` pushes `list(accum)` as the
+    /// loop result. No C-Tcl analogue — C compiles `lmap` from `INST_FOREACH` +
+    /// an accumulator temp; the VM keeps the accumulator in the loop state instead.
+    LMAP_COLLECT,
     /// `dictFirst <slot>` — begin iterating a dict (top of stack), storing the
     /// iterator state in local `<slot>`; pushes value, key, and a done flag
     /// (done on top). The C-Tcl compiled `dict for` / `dict map` primitive.
@@ -367,6 +375,7 @@ impl Op {
             Self::FOREACH_START => "foreach_start",
             Self::FOREACH_STEP => "foreach_step",
             Self::FOREACH_END => "foreach_end",
+            Self::LMAP_COLLECT => "lmap_collect",
             Self::DICT_FIRST => "dictFirst",
             Self::DICT_NEXT => "dictNext",
             Self::DICT_UPDATE_START => "dictUpdateStart",
@@ -634,6 +643,7 @@ impl Op {
                 | Self::PUSH_RETURN_CODE
                 | Self::FOREACH_STEP
                 | Self::FOREACH_END
+                | Self::LMAP_COLLECT
                 | Self::DICT_EXPAND
                 | Self::NOP
                 | Self::UMINUS
@@ -893,6 +903,12 @@ pub struct Instruction {
     /// stack before the opcode. Not rendered in disassembly (keeps identity
     /// stable).
     pub foreach_vars: Option<Vec<Vec<String>>>,
+    /// `FOREACH_START` only: this is a *collecting* loop (`lmap`), so the VM
+    /// initialises a per-loop accumulator that `LMAP_COLLECT` appends to and the
+    /// paired `FOREACH_END` materialises as `list(accum)`. Carried out-of-band
+    /// alongside `foreach_vars` so the 5-byte operand form and disassembly stay
+    /// byte-stable. `false` for a plain `foreach` and every other opcode.
+    pub foreach_collect: bool,
     /// Target variable names for `DICT_UPDATE_START`/`DICT_UPDATE_END` only — the
     /// analogue of C Tcl's `DictUpdateInfo.varIndices`. One name per key in the
     /// key list on the stack; the VM stores/reads each named local. Carried
@@ -924,6 +940,7 @@ impl Instruction {
             source_cmd_text: String::new(),
             source_span: None,
             foreach_vars: None,
+            foreach_collect: false,
             dict_vars: None,
             push_verbatim: false,
         }
@@ -1032,7 +1049,11 @@ impl LocalVarTable {
 }
 
 /// Complete assembly for one CFG function.
-#[derive(Debug, Clone)]
+///
+/// `Default` yields an empty function (no instructions) — used as the placeholder
+/// asm for a scanner-driven activation like the VM's `subst` frame, which never
+/// executes bytecode.
+#[derive(Debug, Clone, Default)]
 pub struct FunctionAsm {
     /// Function name.
     pub name: String,

@@ -248,6 +248,14 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         },
         "script" => ok(Value::string(vm.current_script())),
         "nameofexecutable" => ok(Value::empty()),
+        // TclOO introspection — dispatched into the object system.
+        "object" => crate::cmd_oo::info_object(vm, rest),
+        "class" => crate::cmd_oo::info_class(vm, rest),
+        // `info coroutine` — the running coroutine's name, or "" at top level.
+        "coroutine" => match rest {
+            [] => ok(crate::cmd_coro::current_coroutine(vm)),
+            _ => err("wrong # args: should be \"info coroutine\""),
+        },
         other => err(format!("unknown or ambiguous subcommand \"{other}\"")),
     }
 }

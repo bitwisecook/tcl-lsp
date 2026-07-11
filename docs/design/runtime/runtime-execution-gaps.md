@@ -57,7 +57,9 @@ no in the bytecode VM + WASM path*.
 
 Owns `tcl-compiler::codegen::wasm`, `runtime/rust`, and a new `tcl-wasm` bin.
 The eval-fallback emitter and `tcl compwasm` wiring have landed (binary/WAT
-output, `wasmtime`-validated). **Scale of the gap:** the Rust emitter is ~1.5 K
+output, `wasmtime`-validated); leaf commands now propagate their **completion
+code** (`tcl_eval_code` + the emitter's completion dispatch, `RUST_ISSUE_010`),
+so `error`/`return` unwind and a `break`/`continue` re-enters the compiled loop. **Scale of the gap:** the Rust emitter is ~1.5 K
 LOC across 4 files (`codegen/wasm/{backend,encoding,ir,mod}.rs`); the Python
 package it must reach parity with is **~20.6 K LOC across 49 modules**
 (`compiler/codegen/wasm/`), including a per-command emitter for each of
@@ -101,13 +103,15 @@ dict/array/`lsort`, `try`/control, `namespace which -variable`).
 
 ### 2a. Opcode coverage — 98 / 39 / 54 of 191 (`tclvm-opcode-status.md`)
 
-- **39 enum-only** (`[~]` — emittable but not executed): the highest-leverage
-  bucket. Notably exception handling (`beginCatch4`, `endCatch`, `pushResult`,
-  `pushReturnCode`, `pushReturnOpts`), `{*}` expansion (`expandStart`,
-  `expandStkTop`, `invokeExpanded`), the dict family (`dictGet`, `dictSet`,
-  `dictUnset`, `dictIncrImm`, `dictAppend`, `dictLappend`, `dictExists`),
-  `upvar`/`nsupvar`/`variable`, `tailcall`, `lsetList`/`lsetFlat`, and several
-  string ops (`strmap`, `strclass`, `strreplace`, `numericType`).
+- **enum-only** (`[~]` — emittable but not executed): the highest-leverage
+  bucket. `{*}` expansion (`expandStart`, `expandStkTop`, `invokeExpanded`),
+  `tailcall`, and several string ops (`strmap`, `strclass`, `strreplace`,
+  `numericType`). The dict family (`dictGet`, `dictSet`, `dictUnset`,
+  `dictIncrImm`, `dictAppend`, `dictLappend`, `dictExists`),
+  `upvar`/`nsupvar`/`variable`, `lsetList`/`lsetFlat`, and the exception-range
+  markers (`beginCatch4`, `endCatch`, `pushResult`, `pushReturnOpts`) are now
+  dispatched in `exec.rs`; the exact live count is auto-recomputed in
+  `tclvm-opcode-status.md`.
 - **54 missing** (`[ ]` — not yet in the `tcl-bytecode` `Op` enum): the OO family
   (`tclooSelf`/`tclooClass`/`tclooNext`/…), coroutine (`yield`, `coroName`,
   `yieldToInvoke`), dict iteration (`dictFirst`, `dictNext`,

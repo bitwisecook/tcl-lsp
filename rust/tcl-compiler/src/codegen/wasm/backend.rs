@@ -21,13 +21,18 @@
 //!
 //! The current tier is **eval-fallback**: every leaf command is boxed as a Tcl
 //! string in the module's data section and evaluated by the runtime at run time
-//! (`tcl_eval`); control flow is **structured** WASM (`if`/`else`; `block`/`loop`
-//! with `br`/`br_if` for loops + `break`/`continue`/`return`). This produces a
-//! *structurally valid* module (validated with `wasmtime compile`) against the
-//! `"tcl"` import ABI the WASM runtime provides (values are i32 `*mut TclObj`
-//! pointers into shared linear memory). It does not yet *run* — the Rust
-//! runtime's wasm32 export surface is still a stub
-//! (`runtime/rust/capi.rs`).
+//! (`tcl_eval_code`, which reports the command's completion code); control flow
+//! is **structured** WASM (`if`/`else`; `block`/`loop` with `br`/`br_if` for
+//! loops + `break`/`continue`/`return`), and the code a leaf command returns is
+//! honoured — an `error`/`return` unwinds, a `break`/`continue` re-enters the
+//! loop (`RUST_ISSUE_010`). This produces a *structurally valid* module
+//! (validated with `wasmtime compile`) against the `"tcl"` import ABI the WASM
+//! runtime provides (values are i32 `*mut TclObj` pointers into shared linear
+//! memory). The runtime side of that ABI is the leak-tested eval surface in
+//! `runtime/rust/src/codegen_abi.rs` (`tcl_eval_code`, `tcl_expr_bool`, the
+//! obj new/release helpers); an emitted module runs against it through the
+//! shared-memory dynamic link (`__memory_base` relocation), which the standalone
+//! `wasm_execute` test exercises with a stub provider.
 
 use super::encoding::{leb128_signed, leb128_unsigned};
 use super::ir::{ValType, WasmData, WasmFunction, WasmInstruction, WasmModule, WasmOp};
@@ -37,6 +42,17 @@ use crate::ir::{Module, Procedure};
 
 /// Block type byte for a structured op (`block`/`loop`/`if`) yielding no value.
 const BLOCK_VOID: u8 = 0x40;
+
+/// The completion-code scratch local (index 0). Every emitted function declares
+/// exactly one `i32` local so [`WasmEmitter::emit_completion_dispatch`] can stash
+/// the code a leaf command returns and test it more than once.
+const CODE_LOCAL: u64 = 0;
+
+/// Tcl completion codes the dispatch tests (`TCL_BREAK` / `TCL_CONTINUE`); the
+/// others (`TCL_ERROR` = 1, `TCL_RETURN` = 2, or a `return -code N`) are handled
+/// as "any non-`OK` code" (see [`WasmEmitter::emit_completion_dispatch`]).
+const TCL_BREAK: i64 = 3;
+const TCL_CONTINUE: i64 = 4;
 
 /// Default linear-memory base for the emitted module's constant pool: the
 /// **reserved region** the whole-program runtime leaves free.
@@ -55,10 +71,12 @@ pub const RESERVED_DATA_BASE: i64 = 0x10_0000;
 struct Imports {
     /// `(ptr, len) -> obj` — box a data-section string as a `TclObj`.
     obj_new_string: u32,
-    /// `(script_obj) -> result_obj` — the eval fallback.
-    eval: u32,
-    /// `(obj) -> ()` — drop a result reference.
-    obj_release: u32,
+    /// `(script_obj) -> i32` — evaluate a leaf command and return its **completion
+    /// code** (`0` ok … `4` continue, or a `return -code N`); the result stays the
+    /// interp's own. The emitted control flow branches on the code so abrupt
+    /// completion propagates (`RUST_ISSUE_010`). Adopts (frees) its argument, so
+    /// there is no result reference for the emitter to release.
+    eval_code: u32,
     /// `(expr_obj) -> i32` — evaluate a condition to a boolean.
     expr_bool: u32,
 }
@@ -166,6 +184,65 @@ impl WasmEmitter {
         self.call(self.imports.obj_new_string);
     }
 
+    fn local_get(&mut self, idx: u64) {
+        self.body.push(WasmInstruction::with_operands(
+            WasmOp::LocalGet,
+            leb128_unsigned(idx),
+        ));
+    }
+
+    fn local_set(&mut self, idx: u64) {
+        self.body.push(WasmInstruction::with_operands(
+            WasmOp::LocalSet,
+            leb128_unsigned(idx),
+        ));
+    }
+
+    /// Honour the completion code a leaf command's [`tcl_eval_code`] left on the
+    /// stack — the AOT realisation of the tree-walker's "stop the script on the
+    /// first non-`OK` command" loop (`eval_script_mode`), so abrupt completion
+    /// propagates through compiled `if`/`while`/`for` instead of being swallowed
+    /// (`RUST_ISSUE_010`).
+    ///
+    /// Inside a loop, `break` (3) / `continue` (4) re-enter that loop's structural
+    /// scopes (identical to a literal `break`/`continue`, so a *dynamic* one — a
+    /// called command that completes `break` — behaves the same). Any other
+    /// non-`OK` code (error, return, a `return -code N`, or a break/continue with
+    /// no enclosing loop) unwinds the function with `return`. `OK` (0) falls
+    /// through to the next statement.
+    fn emit_completion_dispatch(&mut self) {
+        // Stash the code; the dispatch reads it up to three times.
+        self.local_set(CODE_LOCAL);
+
+        // In a loop, codes 3/4 are a structural break/continue of *this* loop.
+        if let Some(frame) = self.loops.last() {
+            let break_block = frame.break_block;
+            let continue_block = frame.continue_block;
+            self.emit_code_eq_branch(TCL_BREAK, break_block);
+            self.emit_code_eq_branch(TCL_CONTINUE, continue_block);
+        }
+
+        // Any remaining non-`OK` code (error/return/other, or break/continue with
+        // no enclosing loop) unwinds the function.
+        self.local_get(CODE_LOCAL);
+        self.open_frame(WasmOp::If); // if (code != 0)
+        self.push(WasmOp::Return);
+        self.close_frame();
+    }
+
+    /// `if (code == want) br <target>` — a guarded structural branch the
+    /// completion dispatch uses for `break`/`continue`. The `if` frame is opened
+    /// so the `br` depth is computed with it in place (crossing it, plus any
+    /// enclosing `if`s, back to the loop scope).
+    fn emit_code_eq_branch(&mut self, want: i64, target: u32) {
+        self.local_get(CODE_LOCAL);
+        self.push_i32(want);
+        self.push(WasmOp::I32Eq);
+        self.open_frame(WasmOp::If);
+        self.br(target);
+        self.close_frame();
+    }
+
     /// Close the function the walk just finished — emit its terminal `end`, take
     /// its instruction stream, and reset the per-function state for the next one.
     /// The constant pool (`data`/`data_offset`) is module-global and persists
@@ -183,9 +260,11 @@ impl WasmEmitter {
             name: name.to_string(),
             params: Vec::new(),
             results: Vec::new(),
-            locals: Vec::new(),
+            // One i32 scratch local (index [`CODE_LOCAL`]) for the completion-code
+            // dispatch; declared uniformly (harmless when a body has no commands).
+            locals: vec![ValType::I32],
             body: std::mem::take(&mut self.body),
-            local_names: Vec::new(),
+            local_names: vec!["$code".to_string()],
             exported: true,
             source_range: None,
             kind: kind.to_string(),
@@ -195,10 +274,12 @@ impl WasmEmitter {
 
 impl Emit for WasmEmitter {
     fn emit_command(&mut self, source_text: &str) {
-        // result = tcl_eval(box(text)); release(result)  (top-level result discarded)
+        // code = tcl_eval_code(box(text)); then honour an abrupt completion code
+        // (error/return unwinds, break/continue re-enters the loop) instead of
+        // swallowing it — the top-level result stays the interp's own result.
         self.box_text(source_text);
-        self.call(self.imports.eval);
-        self.call(self.imports.obj_release);
+        self.call(self.imports.eval_code);
+        self.emit_completion_dispatch();
     }
 
     fn begin_if(&mut self, cond_text: &str) {
@@ -355,8 +436,7 @@ fn codegen(
             &[ValType::I32, ValType::I32],
             &[ValType::I32],
         ),
-        eval: add_tcl_import(&mut wasm, "tcl_eval", &[ValType::I32], &[ValType::I32]),
-        obj_release: add_tcl_import(&mut wasm, "tcl_obj_release", &[ValType::I32], &[]),
+        eval_code: add_tcl_import(&mut wasm, "tcl_eval_code", &[ValType::I32], &[ValType::I32]),
         expr_bool: add_tcl_import(&mut wasm, "tcl_expr_bool", &[ValType::I32], &[ValType::I32]),
     };
 

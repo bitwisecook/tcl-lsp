@@ -72,6 +72,10 @@ tcl-platform = { path = "../../rust/tcl-platform" }
 # `cmd-core` feature provides the `RegexEngine` adapter the command layer uses;
 # the C-ABI shim in `src/regex_capi.rs` re-exports the same engine to C.
 tcl-regex = { path = "../../rust/tcl-regex", features = ["cmd-core"] }
+# Pure-Rust DEFLATE for `zlib`: `flate2` on its `miniz_oxide` backend (no C
+# `libz`). Wasm32-clean — the `rust_backend` feature keeps the whole codec in
+# safe Rust, so the cdylib still builds for wasm32 (a C zlib would not).
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 
 # The std-backed `NativeHost` — the full-capability `Host` for native builds.
 # It calls `std::fs`/`std::env`/`std::process`/`std::time`, so it is **not**

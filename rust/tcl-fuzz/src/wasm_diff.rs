@@ -32,10 +32,14 @@
 //!
 //! The embedded host satisfies the eval-fallback ABI: `tcl_obj_new_string`
 //! interns a command/condition string read from the module's linear memory,
-//! `tcl_eval` runs it via `Vm::eval_source` (side effects — `puts` — flow to the
-//! captured sink; the discarded result handle is a dummy), `tcl_expr_bool`
-//! evaluates it via `Vm::eval_expr`, and `tcl_obj_release` is a no-op. State
-//! (variables, procs) persists across calls in the one `Vm`.
+//! `tcl_eval_code` runs it via `Vm::eval_source` (side effects — `puts` — flow to
+//! the captured sink) and returns the command's **completion code**, and
+//! `tcl_expr_bool` evaluates a condition via `Vm::eval_expr`. State (variables,
+//! procs) persists across calls in the one `Vm`. Returning the real code lets the
+//! emitted control flow honour an `error`/`return`/`break`/`continue` a leaf
+//! command completes with — the same code the direct `tcl-vm` run acts on — so
+//! this arm now covers abrupt-completion propagation (`RUST_ISSUE_010`), not just
+//! branch/iteration shape.
 //!
 //! This is the in-process upgrade of the runnability arm (`wasm.rs`): it embeds
 //! `wasmtime` rather than shelling out, so it can back the host with a live
@@ -185,8 +189,7 @@ fn run_wasm(engine: &Engine, src: &str) -> Result<WasmRun, String> {
         .map_err(|e| format!("link mem: {e}"))?;
     linker
         .func_wrap("tcl", "tcl_obj_new_string", host_obj_new_string)
-        .and_then(|l| l.func_wrap("tcl", "tcl_eval", host_eval))
-        .and_then(|l| l.func_wrap("tcl", "tcl_obj_release", host_obj_release))
+        .and_then(|l| l.func_wrap("tcl", "tcl_eval_code", host_eval_code))
         .and_then(|l| l.func_wrap("tcl", "tcl_expr_bool", host_expr_bool))
         .map_err(|e| format!("link funcs: {e}"))?;
 
@@ -239,23 +242,32 @@ fn handle_str(st: &HostState, h: i32) -> String {
         .unwrap_or_default()
 }
 
-/// `tcl_eval(handle)` — run the command in the persistent interpreter; the
-/// (discarded) result is a fresh dummy handle.
-fn host_eval(caller: Caller<'_, HostState>, h: i32) -> i32 {
+/// `tcl_eval_code(handle) -> i32` — run the command in the persistent interpreter
+/// and return its completion code (`0` ok … `4` continue, or a `return -code N`),
+/// so the emitted control flow can honour an abrupt completion. An ordinary error
+/// latches `errored` (the run mismatches on error status); a propagating
+/// `break`/`continue`/`return` escaping a command substitution is not an error.
+fn host_eval_code(caller: Caller<'_, HostState>, h: i32) -> i32 {
     let mut caller = caller;
     let cmd = handle_str(caller.data(), h);
     let st = caller.data_mut();
     match st.vm.eval_source(&cmd) {
-        Ok(comp) if comp.code != Code::Error => {}
-        _ => st.errored = true,
+        Ok(comp) => {
+            if comp.code == Code::Error {
+                st.errored = true;
+            }
+            i32::try_from(comp.code.as_int()).unwrap_or(1)
+        }
+        Err(e) => match e.code {
+            // A non-`Error` code carried out of a substitution propagates as-is.
+            Some(c) if c != Code::Error => i32::try_from(c.as_int()).unwrap_or(1),
+            _ => {
+                st.errored = true;
+                1
+            }
+        },
     }
-    let dummy = st.handles.len();
-    st.handles.push(String::new());
-    i32::try_from(dummy).unwrap_or(-1)
 }
-
-/// `tcl_obj_release(handle)` — handles live for the run; nothing to free.
-fn host_obj_release(_caller: Caller<'_, HostState>, _h: i32) {}
 
 /// `tcl_expr_bool(handle)` — evaluate the condition; `1` true, `0` false.
 fn host_expr_bool(caller: Caller<'_, HostState>, h: i32) -> i32 {
@@ -354,6 +366,52 @@ mod tests {
     fn while_with_break_matches() {
         let e = engine();
         let src = "set i 0\nwhile {1} { incr i\n if {$i >= 2} { break }\n puts $i }\n";
+        assert_eq!(check(&e, src), DiffVerdict::Match);
+    }
+
+    // --- completion-code propagation (RUST_ISSUE_010) ---------------------
+    // Each of these terminates and matches *because* a leaf command's abrupt
+    // completion code is honoured by the emitted control flow. Under the prior
+    // "swallow the code" behaviour they would `WasmHang` (the `while {1}` never
+    // exits) or `Divergence` (dead code runs) — so they lock in the fix.
+
+    #[test]
+    fn error_in_loop_unwinds_not_hangs() {
+        let e = engine();
+        // `error` inside `while {1}`: the compiled loop must stop and propagate,
+        // not iterate forever. Both sides end errored → Match (a swallow hangs).
+        let src = "set i 0\nwhile {1} { incr i\n if {$i == 3} { error boom }\n puts $i }\n";
+        assert_eq!(check(&e, src), DiffVerdict::Match);
+    }
+
+    #[test]
+    fn return_in_loop_stops_the_script() {
+        let e = engine();
+        // Top-level `return` from inside `while {1}` unwinds `::top`; the output
+        // is compared (neither side errors), so a swallow would hang or diverge.
+        let src = "set i 0\nwhile {1} { incr i\n if {$i == 3} { return }\n puts $i }\n";
+        assert_eq!(check(&e, src), DiffVerdict::Match);
+    }
+
+    #[test]
+    fn dynamic_break_exits_the_loop() {
+        let e = engine();
+        // A `break` reached through a *called command* (`eval break`, not a
+        // literal `break`, so it flows through `tcl_eval_code` as a `break`
+        // completion — and `eval` is not a break boundary) must still exit the
+        // enclosing compiled loop.
+        let src = "set i 0\nwhile {1} { incr i\n puts $i\n eval break }\n";
+        assert_eq!(check(&e, src), DiffVerdict::Match);
+    }
+
+    #[test]
+    fn dynamic_continue_skips_the_iteration() {
+        let e = engine();
+        // A `continue` completion from a called command (`eval continue`) re-enters
+        // the loop step, so the guarded `puts` is skipped for that iteration only
+        // — output must match direct execution (a swallow would run the skipped
+        // `puts`, and `eval` is not a continue boundary so it genuinely propagates).
+        let src = "for {set i 0} {$i < 4} {incr i} { if {$i == 1} { eval continue }\n puts $i }\n";
         assert_eq!(check(&e, src), DiffVerdict::Match);
     }
 }

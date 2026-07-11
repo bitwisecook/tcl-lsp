@@ -45,6 +45,7 @@ pub mod expr;
 pub mod format;
 pub mod glob;
 pub mod list;
+pub mod mro;
 pub mod naming;
 pub mod number;
 pub mod scan;

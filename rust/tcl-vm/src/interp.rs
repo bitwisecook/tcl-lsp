@@ -132,7 +132,7 @@ proc unknown {cmd args} {
     return -code error -errorcode [list TCL LOOKUP COMMAND $cmd] \
         "invalid command name \"$cmd\""
 }
-if {![info exists ::auto_path]} { set ::auto_path [list [info library]] }
+if {![info exists ::auto_path]} { set ::auto_path {}; catch {lappend ::auto_path [info library]} }
 "#;
 
 /// Build an `OK` completion (empty options dict).
@@ -327,6 +327,65 @@ pub struct Vm {
     /// it accumulates across the short-lived activations a command-driven loop
     /// (`$while {1} {…}`) spins through.
     limit_tick: u32,
+    /// The `TclOO` object system's runtime state — the class/object registries,
+    /// the active method-call stack (for `self`/`my`/`next`), and the current
+    /// definition target (`oo::define`/`oo::objdefine`). See [`crate::cmd_oo`].
+    pub(crate) oo: crate::cmd_oo::OoState,
+    /// The coroutine subsystem: live coroutines, the active-driver stack (for
+    /// `[info coroutine]` + the yield-boundary check), and the pending
+    /// `yield`/`yieldto` request. See [`crate::cmd_coro`].
+    pub(crate) coro: crate::cmd_coro::CoroSystem,
+    /// Count of nested [`Vm::drive`](Self) invocations — the host re-entry
+    /// counter. A `yield` is legal only at the depth its coroutine's driver
+    /// started at; a deeper depth means a `catch`/`uplevel`/`eval`/`lsort
+    /// -command`/OO-method re-entry sits between, so the suspend is rejected
+    /// (`cannot yield: C stack busy`).
+    pub(crate) activation_depth: usize,
+    /// A script an `eval`/`uplevel`-style builtin wants run on the *explicit*
+    /// stack (so a `yield` in it stays yieldable): the compiled body + its
+    /// `errorInfo` body label. Set by the builtin and drained by `dispatch_words`
+    /// into a [`Tick::PushScript`](crate::exec) (or run via a nested drive on the
+    /// `invoke_command` fallback path), mirroring how `coro.pending` becomes a
+    /// `Tick::Suspend`.
+    pub(crate) pending_eval: Option<(Rc<FunctionAsm>, Option<&'static str>)>,
+    /// A `catch` body an about-to-run `catch` wants evaluated on the *explicit*
+    /// stack (so a `yield` in it stays yieldable). Unlike `pending_eval`, the
+    /// body's completion is **absorbed** (not propagated): a catch frame runs it
+    /// and its epilogue records the result/options and yields the status code.
+    /// Set by `cmd_catch`, drained by `dispatch_words` into a
+    /// [`Tick::PushCatch`](crate::exec) (or run via a nested drive on the
+    /// `invoke_command` fallback).
+    pub(crate) pending_catch: Option<crate::exec::CatchReq>,
+    /// A `subst` an about-to-run `subst` command wants performed on the *explicit*
+    /// stack (so a `yield` in a `[…]` stays yieldable). Set by `cmd_subst`, drained
+    /// by `dispatch_words` into a [`Tick::PushSubst`](crate::exec) (or run via a
+    /// nested drive on the `invoke_command` fallback). See [`Frame::subst`].
+    pub(crate) pending_subst: Option<crate::exec::SubstReq>,
+    /// The event loop's pending timer/idle events (`after`/`vwait`/`update`).
+    /// The scheduler half of the coroutine subsystem. See [`crate::cmd_event`].
+    pub(crate) events: crate::cmd_event::EventQueue,
+    /// The `thread` package's per-interpreter state — disabled until the
+    /// embedder calls [`Vm::enable_threads`]. See [`crate::cmd_thread`].
+    pub(crate) thread: crate::cmd_thread::ThreadSystem,
+}
+
+/// A suspended coroutine's saved per-flow execution context: the call/namespace
+/// stack tails **above** the shared global entry, plus the scalar error/script
+/// state and the OO execution stacks. Exchanged with the live context by
+/// [`Vm::swap_flow`]. `default()` is a fresh flow rooted at the global level (an
+/// about-to-start coroutine, before it has pushed any frame).
+#[derive(Default)]
+pub(crate) struct ParkedFlow {
+    frames: Vec<CallFrame>,
+    ns_stack: Vec<String>,
+    ns_script_frames: Vec<usize>,
+    recursion_depth: usize,
+    error_info: Option<String>,
+    error_logged: bool,
+    error_line: u32,
+    invoked_name: Option<String>,
+    script_stack: Vec<String>,
+    oo: crate::cmd_oo::OoExec,
 }
 
 /// `interp limit` configuration for one interpreter — the `commands` and `time`
@@ -434,6 +493,14 @@ impl Vm {
             // deterministic; Tcl auto-seeds from the clock, but reproducibility
             // is more useful for the VM and every test seeds explicitly.
             rand_seed: 1,
+            oo: crate::cmd_oo::OoState::default(),
+            coro: crate::cmd_coro::CoroSystem::default(),
+            activation_depth: 0,
+            pending_eval: None,
+            pending_catch: None,
+            pending_subst: None,
+            events: crate::cmd_event::EventQueue::default(),
+            thread: crate::cmd_thread::ThreadSystem::default(),
         };
         register_builtins(&mut vm);
         vm.bootstrap_globals();
@@ -481,7 +548,9 @@ impl Vm {
             ("pointerSize", "8"),
             ("pathSeparator", ":"),
             ("engine", "Tcl"),
-            ("threaded", "1"),
+            // Honest default: a bare VM has no thread package. `enable_threads`
+            // (the embedder opting in, e.g. `tcl-vm-cli`) flips this to `1`.
+            ("threaded", "0"),
             ("user", ""),
         ];
         for (k, v) in plat {
@@ -516,6 +585,10 @@ impl Vm {
         ] {
             let _ = self.write_array_raw("tcl_platform", k, Value::string(v.as_str()));
         }
+        // `std::env` is unsupported on wasm32-unknown-unknown (a bare wasm host
+        // has no process environment; the std shim panics). The VM runs there —
+        // e.g. the pure-data coroutine VM on wasm — with an empty `env` array.
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         for (k, v) in std::env::vars() {
             let _ = self.write_array_raw("env", &k, Value::string(v));
         }
@@ -529,7 +602,10 @@ impl Vm {
         // init derives it from `$env(TCL_LIBRARY)` (set when the caller points
         // the VM at a real library tree). Library scripts (tcltest) read it at
         // load time, so default it to "" rather than leaving it unset.
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         let tcl_library = std::env::var("TCL_LIBRARY").unwrap_or_default();
+        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+        let tcl_library = String::new();
         self.write_scalar_raw("tcl_library", Value::string(tcl_library));
     }
 
@@ -732,6 +808,7 @@ impl Vm {
             Command::Alias(_) => "alias",
             Command::ChildInterp(_) => "interp",
             Command::Ensemble(_) => "ensemble",
+            Command::Object(_) => "object",
         })
     }
 
@@ -804,6 +881,30 @@ impl Vm {
             self.bgerror_handler = prefix.clone();
         }
         self.bgerror_handler.clone()
+    }
+
+    /// The effective background-error handler command prefix for the event loop,
+    /// or `""` when none is callable (so a handler error is not routed through
+    /// the `unknown` fallback). Used by [`crate::cmd_event`].
+    ///
+    /// Prefers the configured `interp bgerror` prefix when its head command
+    /// exists; otherwise falls back to a user-defined `bgerror` proc — C's
+    /// default handler `::tcl::Bgerror` (an init.tcl library proc the VM does not
+    /// load) merely formats the error and dispatches to `bgerror`.
+    pub(crate) fn bgerror_handler_prefix(&self) -> String {
+        let prefix = self.bgerror_handler.to_str();
+        let head = tcl_syntax::list::split_list_lenient(&prefix)
+            .into_iter()
+            .next()
+            .unwrap_or_default()
+            .to_string();
+        if !head.is_empty() && self.lookup_command(&head).is_some() {
+            return prefix.to_string();
+        }
+        if self.lookup_command("bgerror").is_some() {
+            return "bgerror".to_string();
+        }
+        String::new()
     }
 
     /// Whether this interp's `time` limit has elapsed. The stored time value is
@@ -1470,7 +1571,7 @@ impl Vm {
     /// `commands` map key — a qualified name without the leading `::`), mirroring
     /// [`lookup_command`](Self::lookup_command)'s order: an absolute `::name`
     /// directly, else `cxt::name`, else the global `name`. `None` if unresolved.
-    fn resolve_command_fqn(&self, cxt: &str, name: &str) -> Option<String> {
+    pub(crate) fn resolve_command_fqn(&self, cxt: &str, name: &str) -> Option<String> {
         if let Some(abs) = name.strip_prefix("::") {
             return self.commands.contains_key(abs).then(|| abs.to_string());
         }
@@ -1948,9 +2049,61 @@ impl Vm {
 
     pub(crate) fn pop_call_frame(&mut self) {
         if self.frames.len() > 1 {
+            self.fire_frame_unset_traces();
             self.frames.pop();
             self.recursion_depth = self.recursion_depth.saturating_sub(1);
         }
+    }
+
+    /// Fire `unset` variable traces on the current frame's genuine locals just
+    /// before the frame is destroyed — C Tcl unsets a call frame's locals when
+    /// the frame is deleted, firing their unset traces (coroutine-4.1/4.2, and
+    /// the general proc-return case). Links are skipped: they alias a variable
+    /// owned by another frame, whose trace fires when *that* frame goes. The
+    /// fired traces are then dropped, since their variables no longer exist.
+    /// Guarded on `var_traces` being non-empty, so it is free in the common case.
+    fn fire_frame_unset_traces(&mut self) {
+        if self.var_traces.is_empty() {
+            return;
+        }
+        let Some(frame) = self.frames.last() else {
+            return;
+        };
+        let level = frame.level;
+        // Genuine locals (scalars/arrays), sorted for a deterministic order.
+        let mut names: Vec<String> = frame
+            .locals
+            .iter()
+            .filter(|(_, l)| matches!(l, Local::Scalar(_) | Local::Array(_)))
+            .map(|(n, _)| n.clone())
+            .collect();
+        names.sort();
+        for nm in &names {
+            // The frame is still on the stack, so the name resolves to this
+            // level; C ignores errors from unset traces, as does `fire_var_traces`.
+            let _ = self.fire_var_traces(nm, "unset");
+        }
+        // Drop every trace scoped to this frame level — those variables are gone.
+        let prefix = format!("{level}\u{0}");
+        self.var_traces.retain(|k, _| !k.starts_with(&prefix));
+    }
+
+    /// Fire `unset` traces on a suspended coroutine's parked locals as the
+    /// coroutine is torn down: its frozen frames are about to vanish, so swap the
+    /// parked flow in, unwind it frame by frame (each `pop_call_frame` fires that
+    /// frame's unset traces), then swap the caller's flow back (`parked` is left
+    /// emptied for the caller to drop). Matches C Tcl unsetting a deleted
+    /// coroutine's variables (coroutine-4.3). Free when no traces are registered.
+    pub(crate) fn fire_parked_unset_traces(&mut self, parked: &mut ParkedFlow) {
+        if self.var_traces.is_empty() {
+            return;
+        }
+        self.swap_flow(parked);
+        while self.frames.len() > 1 {
+            self.pop_call_frame();
+            self.pop_ns();
+        }
+        self.swap_flow(parked);
     }
 
     /// Push a non-proc call frame for a `namespace eval`/`inscope` body running
@@ -2046,6 +2199,37 @@ impl Vm {
             Ok(c) => c,
             Err(e) => err(e.message),
         }
+    }
+
+    /// Exchange the live per-flow execution context with `p` — the coroutine
+    /// context switch (`cmd_coro::resume`). Its own inverse: two calls restore
+    /// the original. The **shared** global frame (`frames[0]`) and global
+    /// namespace (`ns_stack[0]`) stay in place — only the supra-global tails move
+    /// — so globals, `uplevel #0`, and `::x` stay coherent across flows and each
+    /// coroutine roots at frame level 1. Everything else (error trace, script
+    /// stack, OO call/def stacks) swaps wholesale. Registries, channels, commands,
+    /// etc. are shared and untouched (they are not part of a flow).
+    ///
+    /// Modelled on [`Self::eval_at_level`]'s split-off/restore of `frames` +
+    /// `ns_stack` + `recursion_depth`.
+    pub(crate) fn swap_flow(&mut self, p: &mut ParkedFlow) {
+        // frames / ns_stack: exchange the tail above the shared global entry.
+        let mut ftail = self.frames.split_off(1);
+        std::mem::swap(&mut ftail, &mut p.frames);
+        self.frames.append(&mut ftail);
+        let ns_cut = 1.min(self.ns_stack.len());
+        let mut nstail = self.ns_stack.split_off(ns_cut);
+        std::mem::swap(&mut nstail, &mut p.ns_stack);
+        self.ns_stack.append(&mut nstail);
+        // Scalars / stacks: plain exchange.
+        std::mem::swap(&mut self.ns_script_frames, &mut p.ns_script_frames);
+        std::mem::swap(&mut self.recursion_depth, &mut p.recursion_depth);
+        std::mem::swap(&mut self.error_info, &mut p.error_info);
+        std::mem::swap(&mut self.error_logged, &mut p.error_logged);
+        std::mem::swap(&mut self.error_line, &mut p.error_line);
+        std::mem::swap(&mut self.invoked_name, &mut p.invoked_name);
+        std::mem::swap(&mut self.script_stack, &mut p.script_stack);
+        self.oo.swap_exec(&mut p.oo);
     }
 
     /// The unqualified names of commands (or, with `procs_only`, just user
@@ -2600,7 +2784,7 @@ impl Vm {
     }
 
     /// Write an array element with no trace firing.
-    fn write_array_raw(
+    pub(crate) fn write_array_raw(
         &mut self,
         name: &str,
         key: &str,
@@ -2934,6 +3118,29 @@ impl Vm {
             self.clear_error_logged();
         }
         Ok(comp)
+    }
+
+    /// Compile `src` to its top-level activation (module cached exactly like
+    /// [`eval_source`](Self::eval_source)) and register the module's procs,
+    /// *without* running it. `EVAL_STK` pushes the returned activation onto the
+    /// explicit stack (a transparent [script frame](crate::exec::Frame)) so a
+    /// `yield` inside the evaluated script stays yieldable — the yieldable
+    /// counterpart of the nested drive `eval_source` performs.
+    pub(crate) fn compile_source_cached(&mut self, src: &str) -> Result<Rc<FunctionAsm>, TclError> {
+        let module = if let Some(m) = self.eval_cache.get(src) {
+            Rc::clone(m)
+        } else {
+            let Some(c) = self.compiler.as_ref() else {
+                return Err(TclError::new(
+                    "eval / command substitution requires a CompileService",
+                ));
+            };
+            let m = Rc::new(c.compile(src).map_err(|e| TclError::new(e.0))?);
+            self.eval_cache.insert(src.to_string(), Rc::clone(&m));
+            m
+        };
+        self.merge_procs(&module.procedures);
+        Ok(Rc::new(module.top_level.clone()))
     }
 }
 

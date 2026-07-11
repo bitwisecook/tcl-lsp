@@ -32,9 +32,18 @@
 //! string in the module's data section and hands it to the runtime to interpret:
 //!
 //! ```text
-//! command   :  result = tcl_eval(tcl_obj_new_string(off, len)); tcl_obj_release(result)
+//! command   :  code = tcl_eval_code(tcl_obj_new_string(off, len)); …dispatch on code…
 //! condition :  if (tcl_expr_bool(tcl_obj_new_string(off, len)))  …
 //! ```
+//!
+//! The emitted control flow inspects the completion `code` a leaf command
+//! returns and honours it — an `error` / `return` unwinds the function, a
+//! `break` / `continue` re-enters the enclosing loop's structural scopes — so
+//! abrupt completion propagates like the tree-walker's command loop
+//! (`RUST_ISSUE_010`). [`tcl_eval`] (returning the result object) is retained
+//! for a host that wants the *value* of an evaluated script (the whole-program
+//! bootstrap reads a query result through it), but the AOT command emitter uses
+//! [`tcl_eval_code`].
 //!
 //! ## Ownership contract (leak-balanced; the alloc/free counters prove it)
 //!
@@ -43,10 +52,13 @@
 //!
 //! - [`tcl_obj_new_string`] returns a **fresh `rc 0`** object (the codebase's
 //!   `Tcl_New*` convention).
-//! - [`tcl_eval`] and [`tcl_expr_bool`] **adopt and free** their object argument
-//!   (the boxed script / expression — the emitter never releases it separately).
+//! - [`tcl_eval`], [`tcl_eval_code`], and [`tcl_expr_bool`] **adopt and free**
+//!   their object argument (the boxed script / expression — the emitter never
+//!   releases it separately).
 //! - [`tcl_eval`] returns a **new owned (`+1`) reference** to the result; the
-//!   emitter balances it with one [`tcl_obj_release`].
+//!   emitter balances it with one [`tcl_obj_release`]. [`tcl_eval_code`] returns
+//!   only the completion code (an `i32`), leaving the result as the interp's own
+//!   (borrowed) result — nothing to release.
 //!
 //! ## The current interp
 //!
@@ -176,6 +188,39 @@ pub unsafe extern "C" fn tcl_eval(script: *mut TclObj) -> *mut TclObj {
     result
 }
 
+/// `tcl_eval_code(script) -> i32` — evaluate `script` against the current interp
+/// and return its **completion code** (`0` ok, `1` error, `2` return, `3` break,
+/// `4` continue, or a `return -code N` value), leaving the result as the interp's
+/// own result. This is the AOT command emitter's eval: the emitted control flow
+/// branches on the returned code so an `error` / `return` inside a compiled
+/// `if`/`while`/`for` body unwinds, and a `break` / `continue` re-enters the
+/// enclosing loop — faithful abrupt-completion propagation (`RUST_ISSUE_010`).
+///
+/// **Adopts (frees)** the `rc 0` `script`. Unlike [`tcl_eval`] it returns no
+/// owned reference (the result stays the interp's borrowed result), so there is
+/// nothing for the emitter to release. With no current interp set, nothing runs
+/// and it reports `0` (ok) — leak-safe, matching [`tcl_eval`]'s misuse path.
+///
+/// # Safety
+/// `script` must be a live `rc 0` object from [`tcl_obj_new_string`]; the current
+/// interp (if set) must be live.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_eval_code(script: *mut TclObj) -> i32 {
+    // Copy the script text out, then free the adopted script object.
+    let src = obj_bytes(script);
+    drop_fresh(script);
+
+    let interp = current_interp();
+    if interp.is_null() {
+        return 0; // Misuse (no current interp): nothing ran — report ok.
+    }
+    // SAFETY: `interp` is the live current interp; `eval_str` takes `&mut`.
+    let code = unsafe { (*interp).eval_str(&src) };
+    // Every completion code (0..=4 or a `return -code N`) is an `i32`; the
+    // `unwrap_or` is unreachable (kept so a future wider code degrades to error).
+    i32::try_from(code.as_int()).unwrap_or(1)
+}
+
 /// `tcl_obj_release(obj)` — release one owned reference (the result of
 /// [`tcl_eval`]). Frees at `rc 0`. Null-safe.
 ///
@@ -303,8 +348,39 @@ mod tests {
         });
     }
 
+    /// `tcl_eval_code` reports the completion code of the evaluated script (so
+    /// the AOT control flow can honour it) and stays leak-balanced — the result
+    /// stays the interp's own, with no owned reference to release.
+    #[test]
+    fn eval_code_reports_completion_and_side_effects() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+
+            // Ok (0): a plain command, and its side effect persisted.
+            assert_eq!(tcl_eval_code(box_str(b"set x 7")), 0);
+            let read = tcl_eval(box_str(b"set x"));
+            assert_eq!(obj_bytes(read), b"7");
+            tcl_obj_release(read);
+
+            // Error (1), return (2), break (3), continue (4).
+            assert_eq!(tcl_eval_code(box_str(b"error boom")), 1);
+            assert_eq!(tcl_eval_code(box_str(b"return 9")), 2);
+            assert_eq!(tcl_eval_code(box_str(b"break")), 3);
+            assert_eq!(tcl_eval_code(box_str(b"continue")), 4);
+            // `return -code error` (default -level 1) is a *deferred* return: it
+            // completes with `return` (2) and the `-code` is applied only at a
+            // proc/source boundary. `-level 0` applies the code immediately.
+            assert_eq!(tcl_eval_code(box_str(b"return -code error boom")), 2);
+            assert_eq!(tcl_eval_code(box_str(b"return -level 0 -code 42 x")), 42);
+
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
     /// With no current interp set, the ABI stays leak-safe (an owned empty result
-    /// the caller releases; conditions are false).
+    /// the caller releases; conditions are false; `tcl_eval_code` reports ok).
     #[test]
     fn no_current_interp_is_leak_safe() {
         leak_free(|| unsafe {
@@ -313,6 +389,7 @@ mod tests {
             assert_eq!(obj_bytes(result), b"");
             tcl_obj_release(result);
             assert_eq!(tcl_expr_bool(box_str(b"1 < 2")), 0);
+            assert_eq!(tcl_eval_code(box_str(b"error boom")), 0);
         });
     }
 }

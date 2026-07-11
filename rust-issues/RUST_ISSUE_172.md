@@ -7,7 +7,7 @@
 | **Severity** | low |
 | **Subsystem** | eBPF pipeline |
 | **Location** | `rust/bpf-tcl-ir/src/lower.rs:478` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: medium) |
 
 ## Finding

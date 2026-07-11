@@ -28,13 +28,15 @@
 //! runtime's exported memory:
 //!
 //! 1. **`tcl` = the real runtime** — exports `memory` + the codegen ABI
-//!    (`tcl_obj_new_string`/`tcl_eval`/`tcl_obj_release`/`tcl_expr_bool`,
-//!    `tcl_runtime_*_interp`) and the C ABI (`Tcl_GetStringFromObj`). Built with
-//!    `--global-base=0x200000` so its data/heap sit above a reserved gap
-//!    `[0x100000, 0x200000)` (its 1 MiB shadow stack stays at `[0, 0x100000)`).
+//!    (`tcl_obj_new_string`/`tcl_eval`/`tcl_eval_code`/`tcl_obj_release`/
+//!    `tcl_expr_bool`, `tcl_runtime_*_interp`) and the C ABI
+//!    (`Tcl_GetStringFromObj`). Built with `--global-base=0x200000` so its
+//!    data/heap sit above a reserved gap `[0x100000, 0x200000)` (its 1 MiB shadow
+//!    stack stays at `[0, 0x100000)`).
 //! 2. **`user` = the emitted module** — its `::top` boxes `set x 42` and
-//!    `tcl_eval`s it. Its constant pool is relocated to [`RESERVED_DATA_BASE`]
-//!    (`0x100000`) so it lands in the gap, not under the runtime's stack.
+//!    `tcl_eval_code`s it (honouring the command's completion code). Its constant
+//!    pool is relocated to [`RESERVED_DATA_BASE`] (`0x100000`) so it lands in the
+//!    gap, not under the runtime's stack.
 //! 3. **bootstrap** (the WASI command) — creates an interp, makes it current,
 //!    calls `user::top`, then `tcl_eval`s a `query` against the *same* interp,
 //!    reads the result string with `Tcl_GetStringFromObj`, and writes it to

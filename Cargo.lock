@@ -4372,6 +4372,9 @@ version = "0.1.0"
 name = "tcl-vm"
 version = "0.1.0"
 dependencies = [
+ "num-bigint",
+ "num-integer",
+ "num-traits",
  "tcl-bytecode",
  "tcl-cmd-core",
  "tcl-compiler",

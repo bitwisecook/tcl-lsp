@@ -1,0 +1,54 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# The bytecode VM as the primary WebAssembly compile target (RUST_ISSUE_008):
+# the VM + compiler statically linked into a `wasm32-unknown-unknown` cdylib that
+# runs Tcl (including coroutines) with NO host imports and NO WASI. Unlike the
+# tree-walker C-ABI wasm emitter (which produces a bare module importing `tcl_*`
+# over a shared runtime.wasm), this artifact is self-contained: `eval` takes a
+# script over linear memory, compiles it in-module, and runs it.
+#
+# Standalone (its own [workspace]) and EXCLUDED from the root workspace: the
+# C-ABI export shims require raw-pointer `unsafe`, which the workspace
+# `unsafe_code = "forbid"` lint bans, and it targets wasm32 with a cdylib
+# profile. Built via `make tcl-vm-wasm`; not part of `cargo test --workspace`.
+[package]
+name = "tcl-vm-wasm"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/bitwisecook/tcl-lsp"
+description = "The Tcl bytecode VM as a self-contained wasm32 cdylib runner"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+tcl-vm = { path = "../tcl-vm" }
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-bytecode = { path = "../tcl-bytecode" }
+
+# A self-contained wasm module: abort on panic (no unwinding across the C-ABI
+# boundary) and optimise for size.
+[profile.release]
+panic = "abort"
+opt-level = "s"
+
+[workspace]

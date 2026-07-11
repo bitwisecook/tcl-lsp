@@ -50,6 +50,14 @@ struct ForeachState {
     iter_max: usize,
     /// Instruction index of the loop body (just after `FOREACH_START`).
     body_idx: usize,
+    /// This is a collecting loop (`lmap`): `LMAP_COLLECT` appends each
+    /// fall-through iteration's result to `accum`, and `FOREACH_END` pushes
+    /// `list(accum)` as the loop result. `false` for a plain `foreach`.
+    collect: bool,
+    /// Collected per-iteration results for a collecting loop (the `lmap`
+    /// accumulator). Lives here rather than on the operand stack so it survives a
+    /// `break`/`continue` that leaves the stack at a statement boundary.
+    accum: Vec<Value>,
 }
 
 /// Iterator state for a compiled `dict for` / `dict map` loop, keyed by the
@@ -61,8 +69,11 @@ struct DictIterState {
     pos: usize,
 }
 
-/// One activation record: a bytecode function in mid-execution.
-struct Frame {
+/// One activation record: a bytecode function in mid-execution. `pub(crate)` so
+/// a suspended coroutine can own its frozen activation stack (`Vec<Frame>`); the
+/// fields stay private to `exec` (a coroutine only stores/moves whole frames and
+/// pushes its resume value via [`Frame::push_operand`]).
+pub(crate) struct Frame {
     asm: Rc<FunctionAsm>,
     off2idx: Rc<HashMap<i32, usize>>,
     /// `FOREACH_START` index → paired `FOREACH_STEP` index (the implicit jump).
@@ -82,10 +93,67 @@ struct Frame {
     /// Whether this activation owns a `Vm` call-frame (a proc body) that must be
     /// popped, and whose boundary absorbs `Return`.
     is_proc: bool,
+    /// A *transparent* script activation (`eval`/`uplevel`/`catch`/`subst` body
+    /// run on the explicit stack so a `yield` inside it stays yieldable). It owns
+    /// no `Vm` call-frame; on completion its result is delivered to the parent
+    /// exactly as an inline command's would be — an `ok` result is pushed to the
+    /// parent's operand stack, and a `break`/`continue` is offered to the parent's
+    /// enclosing loop rather than unwinding through it. Mutually exclusive with
+    /// `is_proc`.
+    is_script: bool,
+    /// For a script activation, the `errorInfo` body label the uncompiled command
+    /// would add on error (`("eval" body line N)` / `("uplevel" body line N)`).
+    /// `None` for a command-substitution `EVAL_STK`, which adds no body frame.
+    body_label: Option<&'static str>,
+    /// Set on a **catch** activation: the body runs on the explicit stack (like a
+    /// script frame) but its completion — of *any* code — is absorbed by the catch
+    /// epilogue (`Vm::finish_catch`) rather than propagated. Carries the optional
+    /// result / options variable names to bind.
+    catch: Option<Box<CatchCtx>>,
+    /// Set on a **subst** activation: a scanner-driven frame (no bytecode) that
+    /// scans a `subst` template, running each top-level `[…]` as a yieldable child
+    /// script frame and folding its completion back in by subst rules. Resumable
+    /// once per bracket, so a `yield` inside a bracket freezes the whole scan with
+    /// the coroutine (`RUST_ISSUE_008`).
+    subst: Option<Box<crate::subst::SubstState>>,
+}
+
+/// A `catch`'s bind targets, carried on its activation until it completes.
+pub(crate) struct CatchCtx {
+    resvar: Option<Value>,
+    optvar: Option<Value>,
+}
+
+/// A `catch` body deferred to the explicit stack: the compiled body plus the
+/// variable names to bind once it completes. Mirrors `pending_eval`'s tuple, but
+/// its completion is absorbed (see [`Frame::catch`]).
+pub(crate) struct CatchReq {
+    pub(crate) asm: Rc<FunctionAsm>,
+    pub(crate) resvar: Option<Value>,
+    pub(crate) optvar: Option<Value>,
+}
+
+/// A `subst` deferred to the explicit stack: the template plus its three
+/// substitution switches. Parked in `Vm.pending_subst` by `cmd_subst` and drained
+/// into a subst activation (see [`Frame::subst`]), so a `yield` inside a `[…]`
+/// stays yieldable.
+pub(crate) struct SubstReq {
+    pub(crate) template: String,
+    pub(crate) backslashes: bool,
+    pub(crate) commands: bool,
+    pub(crate) variables: bool,
+}
+
+/// The outcome of folding a subst `[…]` bracket completion into its subst frame
+/// (see [`Vm::fold_subst_bracket`]): either resume the scan (re-tick the frame)
+/// or drop the frame and keep unwinding with this completion.
+enum SubstFold {
+    Resume,
+    Unwind(Completion<Value>),
 }
 
 impl Frame {
-    fn new(asm: Rc<FunctionAsm>, is_proc: bool) -> Self {
+    pub(crate) fn new(asm: Rc<FunctionAsm>, is_proc: bool) -> Self {
         let off2idx = Rc::new(build_off2idx(&asm));
         let foreach_pairs = Rc::new(pair_foreach(&asm));
         Self {
@@ -99,7 +167,56 @@ impl Frame {
             expand_markers: Vec::new(),
             last_result: Value::empty(),
             is_proc,
+            is_script: false,
+            body_label: None,
+            catch: None,
+            subst: None,
         }
+    }
+
+    /// A transparent script activation (see [`Frame::is_script`]) for a body run
+    /// yieldably on the explicit stack (`EVAL_STK`, and the `eval`/`uplevel`
+    /// builtins routed through it). `label` is the `errorInfo` body-frame label
+    /// (`Some("eval")`/`Some("uplevel")`), or `None` for a command substitution.
+    pub(crate) fn new_script(asm: Rc<FunctionAsm>, label: Option<&'static str>) -> Self {
+        let mut f = Self::new(asm, false);
+        f.is_script = true;
+        f.body_label = label;
+        f
+    }
+
+    /// A **catch** activation: the body runs on the explicit stack (yieldable),
+    /// but its completion is absorbed by the catch epilogue rather than delivered
+    /// to the parent (see [`Frame::catch`]).
+    pub(crate) fn new_catch(req: CatchReq) -> Self {
+        let mut f = Self::new(req.asm, false);
+        f.catch = Some(Box::new(CatchCtx {
+            resvar: req.resvar,
+            optvar: req.optvar,
+        }));
+        f
+    }
+
+    /// A **subst** activation: a scanner-driven frame (empty placeholder asm — it
+    /// never executes bytecode) carrying the resumable scan state. `tick` runs the
+    /// scanner instead of the bytecode dispatch when `subst` is set.
+    pub(crate) fn new_subst(req: SubstReq) -> Self {
+        let mut f = Self::new(Rc::new(FunctionAsm::default()), false);
+        f.subst = Some(Box::new(crate::subst::SubstState::new(
+            req.template,
+            req.backslashes,
+            req.commands,
+            req.variables,
+        )));
+        f
+    }
+
+    /// Push `v` onto this frame's operand stack. Used by a coroutine `resume` to
+    /// deliver the resume value as the result of the `yield` that suspended here
+    /// — exactly where the normal builtin-return path (`f.stack.push`) would have
+    /// put the command's result, so the following instruction is oblivious.
+    pub(crate) fn push_operand(&mut self, v: Value) {
+        self.stack.push(v);
     }
 }
 
@@ -130,10 +247,58 @@ enum Tick {
     Return(Completion<Value>),
     /// Call a proc — push a new activation + call-frame.
     Call { proc: Rc<ProcDef>, argv: Vec<Value> },
+    /// Run a compiled script on the explicit stack — push a *transparent* script
+    /// activation ([`Frame::new_script`]). Used by `EVAL_STK` (and the
+    /// `eval`/`uplevel` builtins routed through it) so a `yield` inside the body
+    /// stays yieldable instead of re-entering the evaluator on the native stack.
+    /// `label` is the `errorInfo` body-frame label (`None` for command subst).
+    PushScript {
+        asm: Rc<FunctionAsm>,
+        label: Option<&'static str>,
+    },
+    /// Run a `catch` body on the explicit stack (yieldable) via a catch
+    /// activation ([`Frame::new_catch`]); its completion is absorbed by the catch
+    /// epilogue. Drained from `Vm.pending_catch`, mirroring `PushScript`.
+    PushCatch(CatchReq),
+    /// Run a `subst` on the explicit stack (yieldable) via a subst activation
+    /// ([`Frame::new_subst`]); its `[…]` bodies run as child script frames and are
+    /// folded back by subst rules. Drained from `Vm.pending_subst`.
+    PushSubst(SubstReq),
     /// `tailcall cmd ?arg …?` — the current proc finishes and `cmd args` runs in
     /// its place (in the caller's activation), its result becoming the proc's.
     /// `words` is `[cmd, arg, …]` (the `tailcall` prefix word already dropped).
     Tailcall(Vec<Value>),
+    /// `yield`/`yieldto` — suspend the running coroutine, freezing the whole
+    /// activation stack. Only reachable in [`DriveMode::CoroDriver`]; the driver
+    /// returns [`RunExit::Yielded`] leaving `acts` intact (pc already past the
+    /// suspend point).
+    Suspend(YieldReq),
+}
+
+/// A coroutine suspend request, produced by the `yield`/`yieldto` builtins and
+/// carried out of [`Vm::drive`](Vm) to the coroutine's `resume`.
+pub(crate) enum YieldReq {
+    /// `yield ?value?` — `value` is what the resumer receives.
+    Yield(Value),
+    /// `yieldto cmd ?arg …?` — the resume runs `cmd args` in the resumer's
+    /// context (a tail-call-flavoured handoff).
+    YieldTo(Vec<Value>),
+}
+
+/// How [`Vm::drive`](Vm) treats a [`Tick::Suspend`]: `Plain` is an ordinary
+/// activation (a top-level yield is an error); `CoroDriver` is a coroutine's
+/// `resume`, which suspends on yield.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DriveMode {
+    Plain,
+    CoroDriver,
+}
+
+/// How a [`Vm::drive`](Vm) invocation ended: the activation stack emptied
+/// (`Done`), or a coroutine suspended (`Yielded`, `acts` left frozen).
+pub(crate) enum RunExit {
+    Done(Completion<Value>),
+    Yielded(YieldReq),
 }
 
 fn build_off2idx(asm: &FunctionAsm) -> HashMap<i32, usize> {
@@ -493,7 +658,15 @@ fn proc_usage(proc: &ProcDef) -> String {
     // name containing spaces shows as `{a b c}` and an empty name as `{}`
     // (proc-3.6/3.7). A trailing `args` becomes the raw `?arg ...?` suffix — not
     // a list element, so its space isn't braced.
-    let mut elems: Vec<Value> = vec![Value::string(simple)];
+    //
+    // A multi-word `usage_name` (`apply lambdaExpr`, a method's `<obj> <method>`)
+    // is already several leading words, not one name — split it so each is its
+    // own (unbraced) list element rather than one `{apply lambdaExpr}` blob.
+    let mut elems: Vec<Value> = if proc.usage_name.is_some() {
+        simple.split(' ').map(Value::string).collect()
+    } else {
+        vec![Value::string(simple)]
+    };
     let mut suffix = "";
     for p in &proc.params {
         if p.name == "args" {
@@ -521,20 +694,54 @@ impl Vm {
         self.run_activation(Frame::new(Rc::new(asm.clone()), false))
     }
 
-    /// Drive the NRE trampoline from an initial activation to completion. The
-    /// initial frame's `is_proc` decides whether the outermost body is a proc
+    /// Run one activation stack to completion (the ordinary, non-coroutine path).
+    /// The initial frame's `is_proc` decides whether the outermost body is a proc
     /// call (so `unwind` pops a call-frame + namespace and absorbs `return`):
     /// `false` for a module top-level ([`run_function`](Self::run_function)),
     /// `true` for [`invoke_command`](Self::invoke_command) running a proc body.
     fn run_activation(&mut self, initial: Frame) -> Completion<Value> {
         let mut acts: Vec<Frame> = vec![initial];
+        match self.drive(&mut acts, DriveMode::Plain) {
+            RunExit::Done(c) => c,
+            // A `yield` reached at top level (outside a coroutine driver) is
+            // rejected by the `yield` builtin before it sets `coro.pending`, so
+            // `Plain` mode never observes a suspend.
+            RunExit::Yielded(_) => unreachable!("Plain-mode drive cannot suspend"),
+        }
+    }
+
+    /// Drive the NRE trampoline over `acts` until it empties (`RunExit::Done`) or,
+    /// in [`DriveMode::CoroDriver`], a `yield`/`yieldto` suspends the coroutine
+    /// (`RunExit::Yielded`, `acts` left frozen). Both `run_activation` and a
+    /// coroutine's `resume` funnel through here so the trampoline logic
+    /// (`enter_proc`/`unwind`/`run_tailcall`/inline-loop redirection) is shared.
+    ///
+    /// `activation_depth` counts nested `drive` invocations — the host re-entry
+    /// counter `yield` consults to reject a suspend across a `catch`/`uplevel`/
+    /// `eval`/OO-method boundary (`cannot yield: C stack busy`).
+    fn drive(&mut self, acts: &mut Vec<Frame>, mode: DriveMode) -> RunExit {
+        self.activation_depth += 1;
+        let exit = self.drive_loop(acts, mode);
+        self.activation_depth -= 1;
+        exit
+    }
+
+    /// Drive a coroutine's activation stack until it suspends (`yield`) or
+    /// completes — the `resume` entry point (`cmd_coro`). Runs in
+    /// [`DriveMode::CoroDriver`] so a `Tick::Suspend` freezes `acts` and returns
+    /// `RunExit::Yielded` instead of erroring.
+    pub(crate) fn drive_coro(&mut self, acts: &mut Vec<Frame>) -> RunExit {
+        self.drive(acts, DriveMode::CoroDriver)
+    }
+
+    fn drive_loop(&mut self, acts: &mut Vec<Frame>, mode: DriveMode) -> RunExit {
         loop {
             // Enforce `interp limit $i time` for unbounded bytecode loops: the
             // counter is Vm-scoped so it survives the short activations a
             // command-driven loop re-enters (see `limit_check_tick`).
             if let Some(c) = self.limit_check_tick() {
-                if let Some(done) = self.unwind(&mut acts, c) {
-                    return done;
+                if let Some(done) = self.unwind(acts, c) {
+                    return RunExit::Done(done);
                 }
                 continue;
             }
@@ -547,11 +754,14 @@ impl Vm {
                 Tick::Call { proc, argv } => match self.enter_proc(&proc, &argv) {
                     Ok(()) => acts.push(Frame::new(Rc::clone(&proc.body), true)),
                     Err(c) => {
-                        if let Some(done) = self.unwind(&mut acts, c) {
-                            return done;
+                        if let Some(done) = self.unwind(acts, c) {
+                            return RunExit::Done(done);
                         }
                     }
                 },
+                Tick::PushScript { asm, label } => acts.push(Frame::new_script(asm, label)),
+                Tick::PushCatch(req) => acts.push(Frame::new_catch(req)),
+                Tick::PushSubst(req) => acts.push(Frame::new_subst(req)),
                 Tick::Return(c) => {
                     // A `break`/`continue` *returned by a command* (`if {…} $z`,
                     // `eval break`) inside an inline loop body: jump to the
@@ -563,15 +773,28 @@ impl Vm {
                     {
                         continue;
                     }
-                    if let Some(done) = self.unwind(&mut acts, c) {
-                        return done;
+                    if let Some(done) = self.unwind(acts, c) {
+                        return RunExit::Done(done);
                     }
                 }
                 Tick::Tailcall(words) => {
-                    if let Some(done) = self.run_tailcall(&mut acts, &words) {
-                        return done;
+                    if let Some(done) = self.run_tailcall(acts, &words) {
+                        return RunExit::Done(done);
                     }
                 }
+                Tick::Suspend(req) => match mode {
+                    // Freeze `acts` in place (pc already past the yield) and hand
+                    // the request back to `resume`.
+                    DriveMode::CoroDriver => return RunExit::Yielded(req),
+                    // Defensive: the `yield` builtin's boundary check rejects a
+                    // top-level suspend before it reaches here.
+                    DriveMode::Plain => {
+                        let c = err("cannot yield: C stack busy");
+                        if let Some(done) = self.unwind(acts, c) {
+                            return RunExit::Done(done);
+                        }
+                    }
+                },
             }
         }
     }
@@ -648,54 +871,68 @@ impl Vm {
         mut c: Completion<Value>,
     ) -> Option<Completion<Value>> {
         loop {
-            let act = acts.pop().expect("unwinding a non-empty stack");
+            let mut act = acts.pop().expect("unwinding a non-empty stack");
             // An error unwinding through an inlined command body (`eval {…}`)
             // adds the body frames the uncompiled command would, before this
             // activation's own proc frame (innermost first) — the compiled
             // analogue of C's `CmdFrame` trace.
             if c.code == Code::Error {
                 self.apply_error_regions(&act);
-            }
-            if act.is_proc {
-                // An error unwinding out of a proc body adds a
-                // `(procedure "name" line N)` frame before the frame is popped,
-                // then the call site (the command that invoked the proc) logs
-                // its own `invoked from within "…"` frame.
-                if c.code == Code::Error
-                    && let Some(name) = self.current_proc_name()
-                {
-                    // The `(procedure … line N)` frame reports the body-relative
-                    // line of the failing command. A runtime-compiled proc body
-                    // (the common case) carries body-relative instruction lines
-                    // with `body_base_line == 0`, so the line is used as-is; a proc
-                    // compiled inside a module carries absolute lines, so subtract
-                    // its definition line (`absolute − base + 1`).
-                    let base = act.asm.body_base_line;
-                    let n = if base == 0 {
-                        self.error_line().max(1)
-                    } else {
-                        self.error_line()
-                            .saturating_sub(base)
-                            .saturating_add(1)
-                            .max(1)
-                    };
-                    self.append_proc_frame(&name, n);
-                }
-                self.pop_call_frame();
-                self.pop_ns();
-                if c.code == Code::Return {
-                    c = ok(c.result);
-                }
-                if c.code == Code::Error {
-                    let call_site = acts.last().and_then(|parent| {
+                // A transparent `eval`/`uplevel` body adds its `("eval" body line
+                // N)` frame as the error unwinds out of it — the compiled-stack
+                // analogue of the post-`eval_source` `append_body_frame` the
+                // builtins used to do (eval-2.5) — then logs the `eval`/`uplevel`
+                // command's own `invoked from within "eval …"` call-site frame
+                // (the enclosing instruction that pushed this body), as the
+                // nested-drive builtins' propagated error did.
+                if let Some(label) = act.body_label {
+                    self.append_body_frame(label);
+                    if let Some((cmd, line)) = acts.last().and_then(|parent| {
                         parent
                             .asm
                             .instructions
                             .get(parent.pc.saturating_sub(1))
                             .map(|i| (i.source_cmd_text.clone(), i.source_line))
-                    });
-                    if let Some((cmd, line)) = call_site {
+                    }) {
                         self.log_command_info(&cmd, "", line);
+                    }
+                }
+            }
+            if act.is_proc {
+                self.unwind_proc_frame(&act, acts, &mut c);
+            }
+            // A `catch` activation absorbs the body's completion of *any* code:
+            // its epilogue binds the result / options variables and yields the
+            // status code as an integer, delivered to the parent as this `catch`
+            // command's result (`exit` stays uncatchable — `finish_catch` passes
+            // it straight through).
+            if let Some(ctx) = act.catch.take() {
+                let fc = self.finish_catch(c, ctx.resvar.as_ref(), ctx.optvar.as_ref());
+                match acts.last_mut() {
+                    None => return Some(fc),
+                    Some(parent) => {
+                        if fc.code.is_ok() {
+                            parent.stack.push(fc.result);
+                            return None;
+                        }
+                        // A rare `set`-into-the-result-var failure (or an
+                        // uncatchable `exit`) keeps unwinding.
+                        c = fc;
+                        continue;
+                    }
+                }
+            }
+            // A subst activation's `[…]` child (`act`) just completed: fold its
+            // result into the enclosing subst frame's scan by subst rules (see
+            // [`Vm::fold_subst_bracket`]). `Resume` re-ticks the subst frame;
+            // `Unwind` drops it and keeps unwinding (a `break`'s output / an error).
+            if acts.last().is_some_and(|p| p.subst.is_some()) {
+                let parent = acts.last_mut().expect("subst parent present");
+                match Self::fold_subst_bracket(parent, c) {
+                    SubstFold::Resume => return None,
+                    SubstFold::Unwind(nc) => {
+                        c = nc;
+                        continue;
                     }
                 }
             }
@@ -706,8 +943,105 @@ impl Vm {
                         parent.stack.push(c.result);
                         return None;
                     }
-                    // Error / Break / Continue / unabsorbed Return keep unwinding.
+                    // A transparent script activation (`eval`/`uplevel`/… body run
+                    // on the explicit stack) delivers `break`/`continue` to the
+                    // enclosing frame's loop, exactly as an inline `[break]` in
+                    // that frame would — it does not unwind through the frame.
+                    if act.is_script
+                        && matches!(c.code, Code::Break | Code::Continue)
+                        && Self::catch_loop_completion(parent, c.code)
+                    {
+                        return None;
+                    }
+                    // Error / uncaught Break|Continue / unabsorbed Return keep unwinding.
                 }
+            }
+        }
+    }
+
+    /// Unwind one proc activation `act`: on error add its `(procedure "name" line
+    /// N)` errorInfo frame, pop the call-frame + namespace, apply
+    /// `TclUpdateReturnInfo` (a proc boundary decrements a carried `-code`/`-level`
+    /// return — `RUST_ISSUE_170`), and on error log the caller's `invoked from
+    /// within "…"` frame. Mutates `c` in place. Split out of [`Vm::unwind`].
+    fn unwind_proc_frame(&mut self, act: &Frame, acts: &[Frame], c: &mut Completion<Value>) {
+        // The `(procedure … line N)` frame reports the body-relative line of the
+        // failing command. A runtime-compiled proc body (the common case) carries
+        // body-relative instruction lines with `body_base_line == 0`, so the line
+        // is used as-is; a proc compiled inside a module carries absolute lines, so
+        // subtract its definition line (`absolute − base + 1`).
+        if c.code == Code::Error
+            && let Some(name) = self.current_proc_name()
+        {
+            let base = act.asm.body_base_line;
+            let n = if base == 0 {
+                self.error_line().max(1)
+            } else {
+                self.error_line()
+                    .saturating_sub(base)
+                    .saturating_add(1)
+                    .max(1)
+            };
+            self.append_proc_frame(&name, n);
+        }
+        self.pop_call_frame();
+        self.pop_ns();
+        if c.code == Code::Return {
+            // While the carried return level stays positive the TCL_RETURN keeps
+            // unwinding one proc level at a time; when it reaches 0 the carried
+            // `-code` takes effect. `Code::from_int` (not the local
+            // `code_from_int`): `return -code N` for a non-standard N must surface
+            // `Code::Other(N)`, not collapse to `Ok` (coroutine-2.4).
+            let level = crate::command::opt_get(&c.options, "-level")
+                .and_then(|v| v.as_int().ok())
+                .unwrap_or(1);
+            if level > 1 {
+                c.options = crate::command::with_return_level(&c.options, level - 1);
+            } else {
+                let code = crate::command::opt_get(&c.options, "-code")
+                    .and_then(|v| v.as_int().ok())
+                    .and_then(|n| i32::try_from(n).ok())
+                    .map_or(Code::Ok, Code::from_int);
+                c.options = crate::command::with_return_level(&c.options, 0);
+                c.code = code;
+            }
+        }
+        if c.code == Code::Error
+            && let Some((cmd, line)) = acts.last().and_then(|parent| {
+                parent
+                    .asm
+                    .instructions
+                    .get(parent.pc.saturating_sub(1))
+                    .map(|i| (i.source_cmd_text.clone(), i.source_line))
+            })
+        {
+            self.log_command_info(&cmd, "", line);
+        }
+    }
+
+    /// Fold a subst `[…]` bracket body's completion into the parent subst frame's
+    /// scan, per C's per-bracket `subst` rules (subst-8.x/10.x): `Ok`/`Return`/any
+    /// other code appends the value and `continue` drops it (both `Resume` the
+    /// scan — the caller re-ticks the subst frame); a `break` finalises the result
+    /// with the output accumulated so far and an error propagates (both `Unwind`,
+    /// dropping the subst frame). The scan state is cleared on `Unwind` so the
+    /// dropped frame delivers its `ok`/error result normally.
+    fn fold_subst_bracket(parent: &mut Frame, c: Completion<Value>) -> SubstFold {
+        match c.code {
+            Code::Ok | Code::Return | Code::Other(_) => {
+                let v = c.result.to_str();
+                parent.subst.as_mut().expect("subst state").out.push_str(&v);
+                SubstFold::Resume
+            }
+            Code::Continue => SubstFold::Resume,
+            Code::Break => {
+                let out = std::mem::take(&mut parent.subst.as_mut().expect("subst state").out);
+                parent.subst = None;
+                SubstFold::Unwind(ok(Value::string(out)))
+            }
+            Code::Error => {
+                parent.subst = None;
+                SubstFold::Unwind(c)
             }
         }
     }
@@ -752,9 +1086,35 @@ impl Vm {
         Ok(())
     }
 
+    /// One scan step of a subst activation: append the next literal / `$…` run and
+    /// either finish (`Return` with the accumulated output), pause for a top-level
+    /// `[…]` (compile it and push a yieldable child script frame), or fail. The
+    /// bracket's completion is folded back into the scan state by the subst rules
+    /// in [`Vm::unwind`].
+    fn tick_subst(&mut self, f: &mut Frame) -> Tick {
+        let step = {
+            let st = f.subst.as_mut().expect("subst frame carries scan state");
+            crate::subst::subst_scan_step(self, st)
+        };
+        match step {
+            crate::subst::SubstStep::Done(out) => Tick::Return(ok(Value::string(out))),
+            crate::subst::SubstStep::Error(msg) => Tick::Return(err(msg)),
+            crate::subst::SubstStep::Bracket(inner) => match self.compile_source_cached(&inner) {
+                Ok(asm) => Tick::PushScript { asm, label: None },
+                Err(e) => Tick::Return(err(e.message)),
+            },
+        }
+    }
+
     /// Execute a single instruction of the top activation.
     #[allow(clippy::too_many_lines)] // One match over every opcode; the VM's central dispatch is clearer whole.
     fn tick(&mut self, f: &mut Frame) -> Tick {
+        // A subst activation is scanner-driven, not bytecode-driven: run the next
+        // scan step (native literal/`$` runs, pausing at each top-level `[…]`)
+        // instead of the instruction dispatch below.
+        if f.subst.is_some() {
+            return self.tick_subst(f);
+        }
         let asm = Rc::clone(&f.asm);
         if f.pc >= asm.instructions.len() {
             return Tick::Return(ok(f
@@ -870,7 +1230,12 @@ impl Vm {
                 }
                 f.stack.push(Value::string(s));
             }
-            Op::NOP | Op::START_CMD => {}
+            // `START_CMD`/`NOP` are inert; so are the `catch` exception-range
+            // markers (the VM unwinds errors through its activation stack rather
+            // than bytecode exception ranges — the inline `dict for`/`dict map`/
+            // try codegen emits them for C-faithful reference bytecode,
+            // RUST_ISSUE_029/061).
+            Op::NOP | Op::START_CMD | Op::BEGIN_CATCH4 | Op::END_CATCH => {}
 
             // -- variables (stack form, by name) --
             Op::LOAD_STK => {
@@ -1343,6 +1708,8 @@ impl Vm {
                     iter_num: 0,
                     iter_max,
                     body_idx,
+                    collect: instr.foreach_collect,
+                    accum: Vec::new(),
                 });
                 if let Some(&step) = f.foreach_pairs.get(&start_idx) {
                     f.pc = step;
@@ -1378,8 +1745,26 @@ impl Vm {
                     f.pc = body;
                 }
             }
+            Op::LMAP_COLLECT => {
+                // Append this fall-through iteration's result to the collecting
+                // loop's accumulator. A `break`/`continue` redirect jumps past this
+                // opcode (to `FOREACH_END` / `FOREACH_STEP`), so a skipped iteration
+                // contributes nothing — matching C `lmap`.
+                let v = pop(f);
+                if let Some(st) = f.foreach_stack.last_mut() {
+                    st.accum.push(v);
+                }
+            }
             Op::FOREACH_END => {
-                f.foreach_stack.pop();
+                let st = f.foreach_stack.pop();
+                // A collecting loop (`lmap`) yields `list(accum)`; a plain
+                // `foreach` yields nothing (its `""` result is pushed by the
+                // loop-end block).
+                if let Some(st) = st
+                    && st.collect
+                {
+                    f.stack.push(Value::list(st.accum));
+                }
             }
 
             // Compiled `dict for` / `dict map` iteration primitives. `dictFirst
@@ -1773,7 +2158,10 @@ impl Vm {
             }
 
             // -- return --
-            Op::RETURN_IMM | Op::RETURN_STK => {
+            // `SYNTAX` shares `RETURN_IMM`'s shape (a code immediate, result +
+            // options on the stack): the inline `if {…}` codegen emits it to
+            // raise a compile-time expression error at runtime (RUST_ISSUE_061).
+            Op::RETURN_IMM | Op::RETURN_STK | Op::SYNTAX => {
                 let (result, options) = if f.stack.len() >= 2 {
                     let opts = pop(f);
                     let res = pop(f);
@@ -1781,10 +2169,10 @@ impl Vm {
                 } else {
                     (pop(f), Value::empty())
                 };
-                let code = if instr.op == Op::RETURN_IMM {
-                    code_from_int(imm0(instr))
-                } else {
+                let code = if instr.op == Op::RETURN_STK {
                     Code::Ok
+                } else {
+                    code_from_int(imm0(instr))
                 };
                 let final_code = if code == Code::Ok { Code::Return } else { code };
                 return Tick::Return(Completion::new(final_code, result, options));
@@ -1935,11 +2323,19 @@ impl Vm {
                 let key = pop(f).to_str().to_string();
                 let cur = self.get_var(&name).unwrap_or_else(Value::empty);
                 let updated = dict_update_single(&cur, &key, |old| {
+                    // Add over the `i128` bignum stand-in (as `incr`/`expr` do) so
+                    // a sum past `i64` promotes rather than silently wrapping
+                    // (`RUST_ISSUE_095`).
                     let base = match old {
-                        Some(v) => v.as_int().map_err(|e| err(e.message))?,
+                        Some(v) => v.as_i128().ok_or_else(|| {
+                            err(format!("expected integer but got \"{}\"", v.to_str()))
+                        })?,
                         None => 0,
                     };
-                    Ok(Value::int(base.wrapping_add(amount)))
+                    let sum = base
+                        .checked_add(i128::from(amount))
+                        .ok_or_else(|| err("integer value too large to represent"))?;
+                    Ok(crate::expr::int_value(sum))
                 });
                 match updated {
                     Ok(result) => {
@@ -2221,6 +2617,28 @@ impl Vm {
                     .unwrap_or_else(|| f.last_result.clone())));
             }
 
+            // Push the current result / a normal return-options dict — the
+            // operands an inline catch epilogue consults.
+            Op::PUSH_RESULT => f.stack.push(f.last_result.clone()),
+            Op::PUSH_RETURN_OPTS => {
+                f.stack.push(crate::command::options_dict(Code::Ok, 0, &[]));
+            }
+            // Evaluate a popped script string and push its result — value-position
+            // multi-command substitution `[a; b]` (RUST_ISSUE_061). A non-OK
+            // completion unwinds like any other command error.
+            Op::EVAL_STK => {
+                // Run the script on the *explicit* stack (a transparent script
+                // frame) rather than a nested drive, so a `yield` inside it stays
+                // yieldable (RUST_ISSUE_008). Its result/`break`/`continue`/error
+                // is delivered to this frame by `unwind` exactly as the old inline
+                // push/`Tick::Return` did.
+                let script = pop(f).to_str().to_string();
+                match self.compile_source_cached(&script) {
+                    Ok(asm) => return Tick::PushScript { asm, label: None },
+                    Err(e) => return Tick::Return(err(e.message)),
+                }
+            }
+
             other => {
                 return Tick::Return(err(format!(
                     "opcode {} not implemented in tcl-vm",
@@ -2250,6 +2668,29 @@ impl Vm {
             Some(Command::Builtin(bf)) => {
                 self.set_invoked_name(&name);
                 let res = bf(self, &words[1..]);
+                // A `yield`/`yieldto` sets `coro.pending` (after its own boundary
+                // check); convert it into a suspend `Tick` that freezes the whole
+                // activation stack. The builtin's placeholder result is dropped —
+                // the resume value replaces it on the operand stack.
+                if let Some(req) = self.coro.pending.take() {
+                    return Ok(Some(Tick::Suspend(req)));
+                }
+                // An `eval`/`uplevel`-style builtin defers its body to the
+                // explicit stack (yieldable): drain it into a `PushScript`, whose
+                // frame result replaces this builtin's placeholder (as for yield).
+                if let Some((asm, label)) = self.pending_eval.take() {
+                    return Ok(Some(Tick::PushScript { asm, label }));
+                }
+                // A `catch` defers its body the same way, but into a catch frame
+                // whose completion the epilogue absorbs (see `Frame::catch`).
+                if let Some(req) = self.pending_catch.take() {
+                    return Ok(Some(Tick::PushCatch(req)));
+                }
+                // A `subst` defers to a scanner-driven subst frame, whose `[…]`
+                // bodies run yieldably as child frames (see `Frame::subst`).
+                if let Some(req) = self.pending_subst.take() {
+                    return Ok(Some(Tick::PushSubst(req)));
+                }
                 if res.code.is_ok() {
                     f.stack.push(res.result);
                     Ok(None)
@@ -2299,6 +2740,15 @@ impl Vm {
                     Err(res)
                 }
             }
+            Some(Command::Object(key)) => {
+                let res = crate::cmd_oo::oo_dispatch(self, &key, &name, &words[1..]);
+                if res.code.is_ok() {
+                    f.stack.push(res.result);
+                    Ok(None)
+                } else {
+                    Err(res)
+                }
+            }
             // Tcl's `unknown` fallback: an unresolved command name is handed to
             // the user-defined `unknown` proc as `unknown name arg…` (the basis
             // for auto-loading, ensembles, and the iRule command mocks). Only
@@ -2324,7 +2774,29 @@ impl Vm {
         match self.lookup_command(name) {
             Some(Command::Builtin(bf)) => {
                 self.set_invoked_name(name);
-                bf(self, argv)
+                let res = bf(self, argv);
+                // An `eval`/`uplevel`-style builtin deferred its body to
+                // `pending_eval`. This call site is on the native Rust stack (no
+                // trampoline to push onto), so run the body via a nested drive —
+                // a `yield` inside cannot cross it, exactly like every other
+                // `invoke_command` re-entry.
+                if let Some((asm, label)) = self.pending_eval.take() {
+                    return self.run_activation(Frame::new_script(asm, label));
+                }
+                // A `catch` deferred its body: run it via a nested drive (a `yield`
+                // inside cannot cross this native re-entry), then absorb its
+                // completion with the catch epilogue.
+                if let Some(req) = self.pending_catch.take() {
+                    let comp = self.run_activation(Frame::new_script(req.asm, None));
+                    return self.finish_catch(comp, req.resvar.as_ref(), req.optvar.as_ref());
+                }
+                // A `subst` deferred: run the scanner-driven subst frame via a
+                // nested drive (its `[…]` bodies can't yield across this native
+                // re-entry), returning its accumulated result.
+                if let Some(req) = self.pending_subst.take() {
+                    return self.run_activation(Frame::new_subst(req));
+                }
+                res
             }
             Some(Command::Proc(p)) => match self.enter_proc(&p, argv) {
                 Ok(()) => self.run_activation(Frame::new(Rc::clone(&p.body), true)),
@@ -2345,6 +2817,7 @@ impl Vm {
             }
             Some(Command::ChildInterp(child)) => self.dispatch_child(&child, argv),
             Some(Command::Ensemble(e)) => self.dispatch_ensemble(name, &e, argv),
+            Some(Command::Object(key)) => crate::cmd_oo::oo_dispatch(self, &key, name, argv),
             // `unknown` fallback (see `dispatch_words`): `unknown name arg…`.
             None if name != "unknown" && self.lookup_command("unknown").is_some() => {
                 let mut full = Vec::with_capacity(argv.len() + 1);
@@ -2354,6 +2827,36 @@ impl Vm {
             }
             None => err(format!("invalid command name \"{name}\"")),
         }
+    }
+
+    /// Run a `TclOO` method body: enter the proc activation, link the object's
+    /// instance variables into the fresh frame, push the OO call context, run
+    /// the body to completion, then pop the context. This is the OO analogue of
+    /// [`invoke_command`](Self::invoke_command)'s `Proc` arm plus the
+    /// instance-variable linking the runtime's `run_proc` does.
+    ///
+    /// `link_vars` are `(local, storage-fqn)` pairs: each links a method-local
+    /// name to the object namespace's variable of that FQN (namespace variables
+    /// live in the global frame keyed by their qualified name, so the link is at
+    /// level 0). The `frame` carries the resolved method chain that `self`/`my`/
+    /// `next` consult while the body runs.
+    pub(crate) fn oo_run_method(
+        &mut self,
+        proc: &ProcDef,
+        argv: &[Value],
+        link_vars: &[(String, String)],
+        frame: crate::cmd_oo::OoFrame,
+    ) -> Completion<Value> {
+        if let Err(c) = self.enter_proc(proc, argv) {
+            return c;
+        }
+        for (local, storage) in link_vars {
+            self.add_link(local, 0, storage);
+        }
+        self.oo.call_stack.push(frame);
+        let result = self.run_activation(Frame::new(Rc::clone(&proc.body), true));
+        self.oo.call_stack.pop();
+        result
     }
 
     /// Run a `tailcall` in the place of the proc that issued it. The proc's

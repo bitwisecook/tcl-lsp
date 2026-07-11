@@ -234,6 +234,18 @@ fn m_int(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(v) => v,
         Err(c) => return c,
     };
+    // An integer operand is returned exactly — never round-tripped through `f64`,
+    // which would lose precision above 2^53 (`int(9007199254740993)` must stay
+    // `9007199254740993`, not become `…992`). A bignum-magnitude integer within
+    // the VM's `i128` stand-in is likewise preserved. Only a non-integer goes
+    // through the float path, where `int()` truncates toward zero
+    // (RUST_ISSUE_096, matching the `abs`/`round`/`wide` siblings).
+    if let Ok(n) = x.as_int() {
+        return ok(crate::expr::int_value(i128::from(n)));
+    }
+    if let Some(b) = x.as_i128() {
+        return ok(crate::expr::int_value(b));
+    }
     match num_arg(x) {
         Ok(f) => ok(Value::int(f.trunc() as i64)),
         Err(m) => err(m),

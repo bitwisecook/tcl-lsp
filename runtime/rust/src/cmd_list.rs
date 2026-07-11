@@ -60,6 +60,8 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"lreplace", lreplace);
     interp.register_builtin(b"lset", lset);
     interp.register_builtin(b"ledit", ledit);
+    interp.register_builtin(b"lpop", lpop);
+    interp.register_builtin(b"lremove", lremove);
     interp.register_builtin(b"lsearch", lsearch);
     interp.register_builtin(b"lsort", lsort);
 }
@@ -76,15 +78,6 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
 /// Set the result to a list built from element objects (each retained).
 fn set_list(interp: &mut Interp, elems: &[*mut TclObj]) {
     interp.set_result(list::new_list_obj(elems));
-}
-
-/// Parse a Tcl integer (for `lrepeat` / `string repeat` counts): decimal or a
-/// `0x`/`0o`/`0b` radix, with an optional sign — the full Tcl integer grammar,
-/// not decimal-only, so `string repeat x 0x3` yields `xxx` as real Tcl does
-/// (RUST_ISSUE_028). Delegates to the shared radix-aware core.
-fn parse_isize(b: &[u8]) -> Option<isize> {
-    let v = tcl_cmd_core::sort::parse_wide(b)?;
-    isize::try_from(v).ok()
 }
 
 /// Resolve a Tcl list index spec against a container of `len` elements via the
@@ -147,10 +140,10 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // store, no trace, no re-rendering. An unset variable is created as an empty
     // list.
     if values.is_empty() {
-        let cur = match &elem {
-            Some(k) => interp.var_get_elem(&base, k),
-            None => interp.var_get(&base),
-        };
+        // `lappend` fires a read trace on the variable it reads (restored in Tcl
+        // 8.4 after 8.0 dropped it), but swallows a trace error, unlike `append`
+        // (append-7.2/7.3/7.4, bug 3057639).
+        let cur = interp.lappend_read(&base, elem.as_deref());
         return match cur {
             Some(o) => match list::list_elements(o) {
                 Ok(_) => {
@@ -161,23 +154,18 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             },
             None => {
                 let empty = list::new_list_obj(&[]); // rc 0
-                let stored = match &elem {
-                    Some(k) => interp.var_set_elem(&base, k, empty),
-                    None => interp.var_set(&base, empty),
-                };
-                match stored {
-                    Ok(()) => {
-                        interp.set_result(empty);
-                        Code::Ok
-                    }
-                    Err(e) => {
-                        drop_fresh(empty);
-                        crate::builtins::var_error(interp, &name, e)
-                    }
+                match interp.store_var_result(&base, elem.as_deref(), empty) {
+                    Ok(()) => Code::Ok,
+                    Err(e) => crate::builtins::var_error(interp, &name, e),
                 }
             }
         };
     }
+
+    // `lappend` reads the current value (to append to it), firing the read trace
+    // first — before the write, matching C's get-then-set order — and swallowing
+    // a trace error (a missing element is then created; bug 3057639, append-9.0).
+    let cur = interp.lappend_read(&base, elem.as_deref());
 
     // A `lappend` with values writes; reject a constant before the update.
     if let Some(c) = interp.const_write_check(&name) {
@@ -188,30 +176,18 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // place when the current value is an unshared list (returning that same
     // object), else builds a fresh list. Byte-exact (elements are never
     // stringified).
-    let cur = match &elem {
-        Some(k) => interp.var_get_elem(&base, k),
-        None => interp.var_get(&base),
-    };
     let result = match tcl_cmd_core::var::lappend_value(interp, cur, values) {
         Ok(v) => v,
         Err(e) => return interp.set_error(e.message().as_bytes()),
     };
 
     // Always store back: rebinds the variable (a refcount-neutral re-set when
-    // appended in place) and fires the write trace once.
-    let stored = match &elem {
-        Some(k) => interp.var_set_elem(&base, k, result),
-        None => interp.var_set(&base, result),
-    };
-    match stored {
-        Ok(()) => {
-            interp.set_result(result);
-            Code::Ok
-        }
-        Err(e) => {
-            drop_fresh(result);
-            crate::builtins::var_error(interp, &name, e)
-        }
+    // appended in place) and fires the write trace once. `store_var_result`
+    // holds a protective reference across the store so a write trace that unsets
+    // the variable can't free a fresh `result` before it becomes the result.
+    match interp.store_var_result(&base, elem.as_deref(), result) {
+        Ok(()) => Code::Ok,
+        Err(e) => crate::builtins::var_error(interp, &name, e),
     }
 }
 
@@ -321,23 +297,18 @@ fn bad_list(interp: &mut Interp, e: crate::parse::ListError) -> Code {
 // -- lrepeat / linsert / lreplace / lsearch / lsort ------------------------
 
 /// `lrepeat count ?value ...?` — `count` copies of the value sequence.
+///
+/// Delegates to the shared, radix-aware [`list_core::lrepeat`] so the count
+/// accepts the full Tcl integer grammar (`0x3` → `a a a`), the negative-count
+/// error reports the *actual* count (`lrepeat -3 a` → `bad count "-3"…`, not a
+/// hard-coded `"-1"`), and the result-capacity multiply is `saturating_mul`
+/// rather than an overflowing `count * values.len()` (RUST_ISSUE_094 / 169).
 fn lrepeat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"lrepeat count ?value ...?");
     }
-    let Some(count) = parse_isize(&obj_bytes(argv[1])) else {
-        return not_integer(interp, &obj_bytes(argv[1]));
-    };
-    if count < 0 {
-        return interp.set_error(b"bad count \"-1\": must be integer >= 0");
-    }
-    let values = &argv[2..];
-    let mut out: Vec<*mut TclObj> = Vec::with_capacity(count as usize * values.len());
-    for _ in 0..count {
-        out.extend_from_slice(values);
-    }
-    set_list(interp, &out);
-    Code::Ok
+    let r = list_core::lrepeat(interp, &argv[1], &argv[2..]);
+    adapt(interp, r)
 }
 
 /// `linsert list index ?element ...?` — insert before `index` (`end` appends).
@@ -514,7 +485,9 @@ fn ledit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return bad_index(interp, &obj_bytes(argv[3]));
     };
     let lo = first.max(0).min(len as isize) as usize;
-    let hi = ((last + 1).max(0) as usize).clamp(lo, len);
+    // `last.saturating_add(1)` — an `end`-relative or explicit index at
+    // `isize::MAX` must not overflow the `+ 1` before the clamp (RUST_ISSUE_169).
+    let hi = (last.saturating_add(1).max(0) as usize).clamp(lo, len);
     let mut out: Vec<*mut TclObj> = Vec::with_capacity(len + argv.len());
     out.extend_from_slice(&elems[..lo]);
     out.extend_from_slice(&argv[4..]);
@@ -535,6 +508,101 @@ fn ledit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.set_error(&m);
     }
     interp.set_result(newlist);
+    Code::Ok
+}
+
+/// `lpop varName ?index?` — remove and return the element at `index` (default
+/// the last), storing the shortened list back into the variable. A radix or
+/// `end`-relative index resolves via the shared index core (RUST_ISSUE_007).
+fn lpop(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 2 {
+        return wrong_args(interp, b"lpop varName ?index?");
+    }
+    let name = obj_bytes(argv[1]);
+    let (base, elem) = crate::frame::split_array_ref(&name);
+    let cur = match &elem {
+        Some(k) => interp.var_get_elem(&base, k),
+        None => interp.var_get(&base),
+    };
+    let Some(listobj) = cur else {
+        let msg = interp.read_miss_msg(&base, elem.as_deref());
+        return interp.set_error(&msg);
+    };
+    let elems = match list::list_elements(listobj) {
+        Ok(v) => v,
+        Err(e) => return bad_list(interp, e),
+    };
+    let len = elems.len();
+    let (idx, spec_desc): (isize, Vec<u8>) = if argv.len() == 2 {
+        (len as isize - 1, b"end".to_vec())
+    } else if argv.len() == 3 {
+        let spec = obj_bytes(argv[2]);
+        match index_spec(&spec, len) {
+            Some(i) => (i, spec),
+            None => return bad_index(interp, &spec),
+        }
+    } else {
+        // A nested index path drills into sub-lists (rare); not specialised here.
+        return interp.set_error(b"lpop with a nested index path is not supported");
+    };
+    if idx < 0 || idx as usize >= len {
+        let mut m = b"index \"".to_vec();
+        m.extend_from_slice(&spec_desc);
+        m.extend_from_slice(b"\" out of range");
+        return interp.set_error(&m);
+    }
+    let idx = idx as usize;
+    let removed = elems[idx];
+    let out: Vec<*mut TclObj> = elems
+        .iter()
+        .enumerate()
+        .filter_map(|(i, e)| (i != idx).then_some(*e))
+        .collect();
+    let newlist = list::new_list_obj(&out); // retains survivors
+                                            // Retain `removed` (via the result) *before* the store releases the old
+                                            // list, so it survives to be returned.
+    interp.set_result(removed);
+    let stored = match &elem {
+        Some(k) => interp.var_set_elem(&base, k, newlist),
+        None => interp.var_set(&base, newlist),
+    };
+    if stored.is_err() {
+        drop_fresh(newlist);
+        let mut m = b"can't set \"".to_vec();
+        m.extend_from_slice(&name);
+        m.extend_from_slice(b"\": variable is array");
+        return interp.set_error(&m);
+    }
+    Code::Ok
+}
+
+/// `lremove list ?index ...?` — return `list` with the elements at the given
+/// indices removed. Indices resolve (radix + `end`-relative), duplicates
+/// collapse, and out-of-range indices are ignored (RUST_ISSUE_007).
+fn lremove(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 2 {
+        return wrong_args(interp, b"lremove list ?index ...?");
+    }
+    let elems = match list::list_elements(argv[1]) {
+        Ok(v) => v,
+        Err(e) => return bad_list(interp, e),
+    };
+    let len = elems.len();
+    let mut remove = vec![false; len];
+    for &iv in &argv[2..] {
+        let spec = obj_bytes(iv);
+        match index_spec(&spec, len) {
+            Some(i) if i >= 0 && (i as usize) < len => remove[i as usize] = true,
+            Some(_) => {} // out of range — ignored, as C's lremove does
+            None => return bad_index(interp, &spec),
+        }
+    }
+    let out: Vec<*mut TclObj> = elems
+        .iter()
+        .enumerate()
+        .filter_map(|(i, e)| (!remove[i]).then_some(*e))
+        .collect();
+    set_list(interp, &out);
     Code::Ok
 }
 
@@ -628,13 +696,6 @@ fn lsort_cmd_compare(
             Err(interp.set_error(&m))
         }
     }
-}
-
-fn not_integer(interp: &mut Interp, bytes: &[u8]) -> Code {
-    let mut m = b"expected integer but got \"".to_vec();
-    m.extend_from_slice(bytes);
-    m.push(b'"');
-    interp.set_error(&m)
 }
 
 fn bad_index(interp: &mut Interp, spec: &[u8]) -> Code {
@@ -1134,6 +1195,57 @@ mod tests {
             ok(b"set l {1 2}; set m 0; trace add variable l write {incr ::m;#}; lappend l 3; set m"),
             b"1"
         );
+    }
+
+    /// A write trace that mutates or unsets the variable during `lappend`
+    /// (append-7.x): the result is the variable's *post-trace* value (empty when
+    /// unset, the trace's new value otherwise), matching C — and the fresh list
+    /// object is not freed mid-command (the `run` helper's leak / double-free
+    /// counters guard against the use-after-free this used to be).
+    #[test]
+    fn lappend_write_trace_unset_and_rewrite() {
+        // The write trace unsets the variable: result is empty, var gone.
+        assert_eq!(
+            ok(b"proc foo args {global x; unset x}\ntrace add variable x write foo\nlappend x 1"),
+            b""
+        );
+        assert_eq!(
+            ok(b"proc foo args {global x; unset x}\ntrace add variable x write foo\nlappend x 1; info exists x"),
+            b"0"
+        );
+        // The write trace rewrites the variable: result reflects the new value.
+        assert_eq!(
+            ok(b"proc foo args {global y; set y ZZZ}\ntrace add variable y write foo\nlappend y 1"),
+            b"ZZZ"
+        );
+    }
+
+    /// `lappend` fires a read trace (its side effects run) but swallows a trace
+    /// error, creating a missing element instead of failing (append-7.2/9.0,
+    /// bug 3057639) — where `set`/`append`-read would propagate the error.
+    #[test]
+    fn lappend_read_trace_fires_but_swallows_error() {
+        // Side effects run: the read trace observes `name {} read`.
+        assert_eq!(
+            ok(b"set ::r {}\nproc foo args {append ::r $args}\ntrace add variable v read foo\nlappend v a\nset ::r"),
+            b"v {} read"
+        );
+        // A read trace that errors does not fail lappend; it appends to empty.
+        assert_eq!(
+            ok(b"set v 1\ntrace add variable v read {error boom}\nlappend v a"),
+            b"a"
+        );
+        // A succeeding read trace lets lappend see the real current value.
+        assert_eq!(
+            ok(b"set v 1\nproc foo args {}\ntrace add variable v read foo\nlappend v a"),
+            b"1 a"
+        );
+        // bug 3057639: a read trace erroring on a missing element still creates it.
+        let (c, m) = run(
+            b"array set a {}\nproc nn {var key val} {upvar 1 $var l\n if {![info exists l($key)]} {return -code error x}}\ntrace add variable a read nn\nlappend a(key) hi",
+        );
+        assert_eq!(c, Code::Ok);
+        assert_eq!(&m, b"hi");
     }
 
     #[test]

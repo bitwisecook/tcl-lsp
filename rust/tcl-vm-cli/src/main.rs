@@ -37,6 +37,7 @@
 //! overflow.
 
 use std::io::{IsTerminal, Read, Write};
+use std::sync::{Arc, Mutex};
 
 use tcl_compiler::cfg_builder::build_cfg_codegen as build_cfg;
 use tcl_compiler::codegen::codegen_module;
@@ -134,6 +135,15 @@ fn usage() {
 fn new_vm() -> Vm {
     let mut vm = Vm::with_output(Box::new(Stdout));
     vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
+    // Enable the real `thread` package: a Send factory each worker calls to
+    // build its own compiler, and a thread-safe shared stdout for `puts`.
+    vm.enable_threads(
+        Arc::new(|| {
+            Box::new(Svc(CommandRegistry::build_default()))
+                as Box<dyn CompileService<Module = tcl_bytecode::ModuleAsm>>
+        }),
+        Arc::new(Mutex::new(Box::new(Stdout) as Box<dyn Write + Send>)),
+    );
     // Install the on-demand autoloader so library procs (word.tcl, …) resolve.
     let _ = vm.init_auto_load();
     vm

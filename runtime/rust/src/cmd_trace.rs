@@ -447,6 +447,16 @@ fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool)
     let command = obj_bytes(argv[5]);
     if is_add {
         let (base, elem) = split_array_ref(&name);
+        // Tracing an array element vivifies the array as an (undefined) array, so
+        // a later read of a missing element reports "no such element in array"
+        // rather than "no such variable", and whole-array semantics apply
+        // (trace-1.4/1.8/5.x). Tracing an element of an existing *scalar* errors.
+        if elem.is_some() && interp.ensure_array(&base).is_err() {
+            let mut m = b"can't trace \"".to_vec();
+            m.extend_from_slice(&name);
+            m.extend_from_slice(b"\": variable isn't array");
+            return interp.set_error(&m);
+        }
         let frame_level = interp.local_trace_level(&base);
         let ns = interp.trace_var_ns(&base);
         interp.traces.borrow_mut().traces.push(VarTrace {
@@ -542,6 +552,35 @@ mod tests {
             ok(i, b"set v 3");
             assert_eq!(ok(i, b"set log"), b"write write");
             i.eval_str(b"unset -nocomplain v log");
+        });
+    }
+
+    /// Adding a trace to an array element vivifies the array (undefined), so a
+    /// later read reports the element-aware miss and array/element existence
+    /// match C (trace-1.4); tracing an element of an existing scalar errors.
+    #[test]
+    fn trace_array_element_vivifies_array() {
+        leak_free(|i| {
+            ok(i, b"proc foo args {}");
+            ok(i, b"trace add variable x(2) read foo");
+            assert_eq!(ok(i, b"array exists x"), b"1");
+            assert_eq!(ok(i, b"info exists x"), b"1");
+            assert_eq!(ok(i, b"info exists x(2)"), b"0");
+            assert_eq!(i.eval_str(b"set x(2)"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't read \"x(2)\": no such element in array"
+            );
+            i.eval_str(b"unset -nocomplain x");
+        });
+        leak_free(|i| {
+            ok(i, b"set y foo");
+            assert_eq!(i.eval_str(b"trace add variable y(2) read foo"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't trace \"y(2)\": variable isn't array"
+            );
+            i.eval_str(b"unset -nocomplain y");
         });
     }
 

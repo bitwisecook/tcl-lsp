@@ -28,7 +28,21 @@
 
 use std::path::PathBuf;
 
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
+
+/// The WebAssembly backend `tcl compwasm` emits (`RUST_ISSUE_008`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
+pub enum WasmBackend {
+    /// The self-contained bytecode-VM runner (`vm.wasm`): the VM + compiler
+    /// statically linked, running any script (coroutines included) with no host
+    /// imports and no WASI. The primary target.
+    #[default]
+    Vm,
+    /// The legacy eval-fallback emitter: a bare module importing the tree-walker
+    /// runtime C-ABI (`tcl_*`) over a shared `runtime.wasm`. Kept for its WAT
+    /// disassembly view.
+    TreeWalker,
+}
 
 /// Unified Tcl toolchain CLI.
 #[derive(Debug, Parser)]
@@ -105,7 +119,13 @@ pub enum Command {
     Compwasm {
         #[command(flatten)]
         input: InputArgs,
-        /// Also write the textual WAT form to this path.
+        /// Which wasm backend to emit. `vm` (default) is the self-contained
+        /// bytecode-VM runner (`vm.wasm` — runs any script incl. coroutines, no
+        /// imports/WASI); `tree-walker` is the legacy eval-fallback module that
+        /// imports the runtime ABI.
+        #[arg(long, value_enum, default_value_t = WasmBackend::Vm)]
+        backend: WasmBackend,
+        /// Also write the textual WAT form to this path (`tree-walker` only).
         #[arg(long = "wat-output", value_name = "FILE")]
         wat_output: Option<PathBuf>,
     },

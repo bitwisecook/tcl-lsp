@@ -60,3 +60,38 @@ fn rejects_unknown_command() {
     let e = compile_module("when SOCKET_FILTER { frobnicate 1 2\n accept }\n").unwrap_err();
     assert_eq!(e.code, BpfDiag::UnknownCommand);
 }
+
+/// Concurrency primitives (coroutines, the `thread` package, the event loop)
+/// cannot exist on eBPF — a program is a single bounded run to a verdict — so
+/// they are rejected as `OutOfSubset` with a concurrency-specific message,
+/// distinct from the generic "unknown command".
+#[test]
+fn rejects_concurrency_primitives() {
+    for body in [
+        "coroutine c mygen",
+        "yield 1",
+        "yieldto foo",
+        "coroinject c foo",
+        "coroprobe c bar",
+        "thread::create {}",
+        "thread::send $id {}",
+        "tsv::set arr k 1",
+        "tpool::create",
+    ] {
+        let src = format!("when SOCKET_FILTER {{ {body}\n accept }}\n");
+        let Err(e) = compile_module(&src) else {
+            panic!("expected `{body}` to be rejected");
+        };
+        assert_eq!(
+            e.code,
+            BpfDiag::OutOfSubset,
+            "`{body}` should be OutOfSubset, not {:?}",
+            e.code
+        );
+        assert!(
+            e.msg.contains("concurrency is not supported"),
+            "`{body}` message: {}",
+            e.msg
+        );
+    }
+}

@@ -263,6 +263,112 @@ pub fn subst_command(
     Ok(out)
 }
 
+/// Resumable state for a **yieldable** `subst` command activation
+/// (`RUST_ISSUE_008`): the template, the scan cursor, the output accumulated so
+/// far, and the three substitution switches. It lives on the `subst` frame (see
+/// `crate::exec`), so it freezes with a suspended coroutine and resumes after
+/// each `[…]` completes. Backslash / `$…` runs never yield, so they are scanned
+/// natively; only a top-level `[…]` pauses the scan.
+pub(crate) struct SubstState {
+    pub(crate) template: String,
+    pub(crate) cursor: usize,
+    pub(crate) out: String,
+    pub(crate) backslashes: bool,
+    pub(crate) commands: bool,
+    pub(crate) variables: bool,
+}
+
+impl SubstState {
+    pub(crate) fn new(
+        template: String,
+        backslashes: bool,
+        commands: bool,
+        variables: bool,
+    ) -> Self {
+        Self {
+            template,
+            cursor: 0,
+            out: String::new(),
+            backslashes,
+            commands,
+            variables,
+        }
+    }
+}
+
+/// One step of the resumable `subst` scan.
+pub(crate) enum SubstStep {
+    /// The scan finished (end of template, or a `break` from a `$…` array index):
+    /// the accumulated output is the `subst` result.
+    Done(String),
+    /// A top-level `[inner]` command substitution: compile + run `inner` on the
+    /// explicit stack (yieldably). The cursor is left just past the `]`, so
+    /// re-entry resumes after the bracket; the bracket's completion is folded back
+    /// into `out` by the subst rules in `crate::exec`'s `unwind`.
+    Bracket(String),
+    /// A scan error (missing close-bracket, or a variable read / index error).
+    Error(String),
+}
+
+/// Advance the resumable scan from `st.cursor`, appending literal / backslash /
+/// `$…` runs (which never yield) into `st.out`, until it reaches a top-level `[`
+/// (→ `Bracket`, cursor past the `]`), the end / a `break` (→ `Done`), or an
+/// error. This is the resumable analogue of [`subst_command`]'s loop — the
+/// literal/backslash/`$` arms match it exactly; only the `[…]` arm differs (it
+/// pauses instead of calling `eval_source`).
+pub(crate) fn subst_scan_step(vm: &mut Vm, st: &mut SubstState) -> SubstStep {
+    // Clone the (immutable) template so the scan can borrow it while `st.out`
+    // is mutated; restored to `st` before any pause/return.
+    let template = st.template.clone();
+    let b = template.as_bytes();
+    let n = b.len();
+    let mut i = st.cursor;
+    let mut out = std::mem::take(&mut st.out);
+    while i < n {
+        match b[i] {
+            b'\\' if st.backslashes => {
+                let len = backslash_escape_len(b, i);
+                out.push_str(&tcl_syntax::backslash::decode(&template[i..i + len]));
+                i += len;
+            }
+            b'[' if st.commands => {
+                let Some(end) = command_end(b, i) else {
+                    st.out = out;
+                    st.cursor = i;
+                    return SubstStep::Error("missing close-bracket".to_owned());
+                };
+                let inner = template[i + 1..end].to_owned();
+                st.out = out;
+                st.cursor = end + 1;
+                return SubstStep::Bracket(inner);
+            }
+            b'$' if st.variables && i + 1 < n => match subst_var(vm, &template, i) {
+                Ok(VarFlow::Append(text, next)) => {
+                    out.push_str(&text);
+                    i = next;
+                }
+                Ok(VarFlow::Skip(next)) => i = next,
+                Ok(VarFlow::Break) => return SubstStep::Done(out),
+                Ok(VarFlow::Literal) => {
+                    out.push('$');
+                    i += 1;
+                }
+                Err(e) => {
+                    st.out = out;
+                    st.cursor = i;
+                    return SubstStep::Error(e.message);
+                }
+            },
+            _ => {
+                let ch = template[i..].chars().next().unwrap_or('\u{fffd}');
+                out.push(ch);
+                i += ch.len_utf8();
+            }
+        }
+    }
+    SubstStep::Done(out)
+}
+
 /// The outcome of substituting a top-level `$`-reference.
 enum VarFlow {
     /// Append this text and resume at the byte offset.

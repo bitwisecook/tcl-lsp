@@ -6111,7 +6111,18 @@ impl LanguageServer for Backend {
                 .remove_document(uri.as_str());
             drop(docs);
         }
-        self.schedule_diagnostics(uri, dialect_for_diags).await;
+        // Opening a document is a config-context boundary, not an edit. A closed
+        // URI keeps its `DiagSlot` (only the live document + index entry are
+        // dropped on close), so `slot.latest_inputs` can carry the toggle values
+        // captured when the file was last analysed — a stale
+        // `features.diagnostics` / dialect / `optimiser.enabled` / disabled-code
+        // set if any of those changed while the file was closed. The
+        // reuse-cached-inputs fast path is valid only on the edit path
+        // (`did_change`), where config genuinely has not changed. Force a fresh
+        // input resolve so the open reads the *current* toggles; otherwise
+        // reopening a file after the diagnostics master switch was turned off
+        // republishes its pre-toggle squiggles from the stale inputs (#104).
+        self.reschedule_diagnostics(uri, dialect_for_diags).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
@@ -6330,6 +6341,34 @@ impl LanguageServer for Backend {
         // lock, so a racing `did_open` can never have a stale closed publish land
         // on a freshly reopened buffer (`RUST_ISSUE_098`).
         self.publish_closed_file_diagnostics(uri).await;
+        // #865 sync guarantee: the VS Code e2e harness (`waitForDeepDiagnostics`)
+        // keys on the `[timing] deep diagnostics (uri=…)` marker to know the
+        // close's republish settled before it asserts the retained badge. That
+        // marker is emitted *inside* the currency-gated publish, so a close run
+        // legitimately superseded by a racing config / watched-file refresh —
+        // which bumps the per-URI closed generation — or one that settles an
+        // empty file emits none, and the harness times out even though the badge
+        // settled correctly (the source of the `test-ext` flakiness). Emit an
+        // unconditional completion marker here, ordered after the republish above
+        // has delivered its publish, so the signal is reliable regardless of the
+        // internal delivery outcome. Notifications are ordered on the client, so
+        // any publish sent above is applied before this marker is observed; the
+        // count is read back from the pull cache the publish primed. A duplicate
+        // of the in-pipeline marker on the common (current) path is harmless —
+        // the harness matches on presence, never a count.
+        let uri_str = uri.to_string();
+        let diag_count = self
+            .pull_diag_cache
+            .lock()
+            .await
+            .get(uri)
+            .map_or(0, |entry| entry.diagnostics.len());
+        self.client
+            .log_message(
+                MessageType::LOG,
+                format!("[timing] deep diagnostics 0ms (uri={uri_str}, diags={diag_count})"),
+            )
+            .await;
     }
 
     async fn did_change_workspace_folders(&self, params: DidChangeWorkspaceFoldersParams) {
@@ -13922,6 +13961,92 @@ mod tests {
         assert!(
             !backend.pull_diag_cache.lock().await.contains_key(&uri),
             "a closed URI with no on-disk source should drop its pull-cache entry",
+        );
+    }
+
+    /// #104 regression: reopening a document after the diagnostics master
+    /// switch (`tclLsp.features.diagnostics`) was turned off *while the file
+    /// was closed* must analyse under the current (off) switch and clear the
+    /// squiggles — not republish the file's pre-toggle diagnostics.
+    ///
+    /// Root cause: `did_close` retains the URI's [`DiagSlot`] (only the live
+    /// document and index entry are dropped), so `slot.latest_inputs` keeps the
+    /// `diagnostics_enabled = true` captured on the pre-close analysis. `did_open`
+    /// used to take the reuse-cached-inputs fast path (`schedule_diagnostics`,
+    /// `force_refresh = false`), so the reopen's worker drained under those stale
+    /// on-switch inputs and republished the diagnostics even though the master
+    /// switch was now off (the `test-ext` `#104` flake, which only lined up under
+    /// full-suite load). Opening a document is a config-context boundary, so it
+    /// now force-refreshes the inputs; the slot's post-reopen
+    /// `diagnostics_enabled` reflecting the *current* toggle proves it.
+    ///
+    /// Asserted on the slot's captured inputs (set synchronously by
+    /// `schedule_diagnostics_impl` before the worker spawns) rather than a
+    /// published set, since the test client's socket is detached.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn reopen_after_master_switch_off_reresolves_diagnostics_inputs() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///reopen-master-off.tcl").unwrap();
+        let open = |version| DidOpenTextDocumentParams {
+            text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                uri: uri.clone(),
+                language_id: "tcl".to_owned(),
+                version,
+                text: "set y 1\n".to_owned(),
+            },
+        };
+        let captured_switch = || async {
+            backend
+                .diag_slots
+                .lock()
+                .await
+                .get(&uri)
+                .and_then(|s| s.latest_inputs.as_ref())
+                .map(|i| i.toggles.diagnostics_enabled)
+        };
+
+        // 1. Open with the master switch on (the default): the slot captures
+        //    `diagnostics_enabled = true`.
+        backend.did_open(open(1)).await;
+        assert_eq!(
+            captured_switch().await,
+            Some(true),
+            "sanity: the initial open captures the master switch as on",
+        );
+
+        // 2. Close the tab — the DiagSlot (with its now-stale inputs) is
+        //    retained, so the file keeps a badge (#865). The switch is still on
+        //    at close time, so the retained inputs are `true`.
+        backend
+            .did_close(DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+            })
+            .await;
+        assert_eq!(
+            captured_switch().await,
+            Some(true),
+            "did_close retains the DiagSlot with its (now-stale) on-switch inputs",
+        );
+
+        // 3. Turn the diagnostics master switch off while the file is closed —
+        //    the toggle store changes, but nothing re-resolves the closed URI's
+        //    retained slot inputs.
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "diagnostics": false })
+                .as_object()
+                .unwrap(),
+        );
+
+        // 4. Reopen. The open path must re-resolve the config-sensitive inputs
+        //    rather than reuse the stale on-switch ones, so the worker drains
+        //    under the master switch's *current* (off) state.
+        backend.did_open(open(2)).await;
+        assert_eq!(
+            captured_switch().await,
+            Some(false),
+            "reopening after the master switch went off must re-resolve the \
+             diagnostics inputs to the current (off) toggle, not republish the \
+             file's pre-toggle squiggles from the retained slot (#104)",
         );
     }
 

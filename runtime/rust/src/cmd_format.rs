@@ -42,6 +42,19 @@ fn err(interp: &mut Interp, msg: &[u8]) -> Code {
 /// width of 2e9 formats, 4.29e9 errors).
 const MAX_FORMAT_SIZE: usize = i32::MAX as usize;
 
+/// The integer width a size modifier selects, matching C's `Tcl_AppendFormatToObj`
+/// (`tclStringObj.c`): the default is a 32-bit `int`, `h` a 16-bit `short`, `l`
+/// (and `j`/`q`/`t`/`z`/`I64`) a 64-bit wide, and `ll`/`L` an arbitrary-precision
+/// bignum. The width decides both the signed value of a `%d` and the unsigned bit
+/// pattern of a `%u`/`%o`/`%x`/`%X`/`%b` (RUST_ISSUE_091).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum IntSize {
+    Short,
+    Int,
+    Wide,
+    Big,
+}
+
 struct Spec {
     minus: bool,
     plus: bool,
@@ -51,6 +64,7 @@ struct Spec {
     width: usize,
     has_width: bool,
     precision: Option<usize>,
+    size: IntSize,
 }
 
 fn format_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -64,6 +78,10 @@ fn format_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut argi = 0usize;
     let mut out: Vec<u8> = Vec::new();
     let mut i = 0;
+    // XPG3 `%n$` positional specifiers may not be mixed with plain `%` sequential
+    // ones (C's `Tcl_AppendFormatToObj`); these track which style has been seen.
+    let mut used_xpg = false;
+    let mut used_seq = false;
 
     // Fetch the next sequential / explicit argument as bytes.
     macro_rules! next_arg {
@@ -117,6 +135,7 @@ fn format_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             width: 0,
             has_width: false,
             precision: None,
+            size: IntSize::Int,
         };
         loop {
             match f.get(i) {
@@ -171,12 +190,48 @@ fn format_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
         }
 
-        // Size modifiers — ignored (we scan into i64/f64).
-        while matches!(
-            f.get(i),
-            Some(b'h' | b'l' | b'L' | b'q' | b'j' | b'z' | b't')
-        ) {
-            i += 1;
+        // Size modifier (C's step 5). Exactly one group is consumed, so a stray
+        // second modifier char (`%hhx`) falls through to become the conversion
+        // char and errors, as tclsh does.
+        match f.get(i) {
+            Some(b'h') => {
+                spec.size = IntSize::Short;
+                i += 1;
+            }
+            Some(b'l') => {
+                i += 1;
+                if f.get(i) == Some(&b'l') {
+                    spec.size = IntSize::Big;
+                    i += 1;
+                } else {
+                    spec.size = IntSize::Wide;
+                }
+            }
+            Some(b'q' | b'j') => {
+                spec.size = IntSize::Wide;
+                i += 1;
+            }
+            Some(b't' | b'z') => {
+                // 64-bit `size_t`/`ptrdiff_t` on every platform we target.
+                spec.size = IntSize::Wide;
+                i += 1;
+            }
+            Some(b'L') => {
+                spec.size = IntSize::Big;
+                i += 1;
+            }
+            Some(b'I') => {
+                if f.get(i + 1) == Some(&b'6') && f.get(i + 2) == Some(&b'4') {
+                    spec.size = IntSize::Wide;
+                    i += 3;
+                } else if f.get(i + 1) == Some(&b'3') && f.get(i + 2) == Some(&b'2') {
+                    spec.size = IntSize::Int;
+                    i += 3;
+                } else {
+                    i += 1;
+                }
+            }
+            _ => {}
         }
 
         let Some(&conv) = f.get(i) else {
@@ -184,7 +239,41 @@ fn format_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         };
         i += 1;
 
-        let arg = next_arg!(interp, args, argi, explicit);
+        // Fetch this conversion's argument, enforcing the XPG3 rule: a `%n$`
+        // positional index must be in range and must not be mixed with plain
+        // sequential `%` specifiers (format-11.x), matching C's messages.
+        let arg = match explicit {
+            Some(n) => {
+                if used_seq {
+                    return err(
+                        interp,
+                        b"cannot mix \"%\" and \"%n$\" conversion specifiers",
+                    );
+                }
+                used_xpg = true;
+                match args.get(n) {
+                    Some(&a) => obj_bytes(a),
+                    None => return err(interp, b"\"%n$\" argument index out of range"),
+                }
+            }
+            None => {
+                if used_xpg {
+                    return err(
+                        interp,
+                        b"cannot mix \"%\" and \"%n$\" conversion specifiers",
+                    );
+                }
+                used_seq = true;
+                let n = argi;
+                argi += 1;
+                match args.get(n) {
+                    Some(&a) => obj_bytes(a),
+                    None => {
+                        return err(interp, b"not enough arguments for all format specifiers");
+                    }
+                }
+            }
+        };
         match render(interp, conv, &spec, &arg) {
             Ok(field) => out.extend_from_slice(&field),
             Err(code) => return code,
@@ -198,28 +287,9 @@ fn format_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// Render one conversion into its (already width/justify-applied) bytes.
 fn render(interp: &mut Interp, conv: u8, spec: &Spec, arg: &[u8]) -> Result<Vec<u8>, Code> {
     match conv {
-        b'd' | b'i' | b'u' => {
+        b'd' | b'i' | b'u' | b'o' | b'x' | b'X' | b'b' => {
             let v = parse_i64(arg).ok_or_else(|| bad_int(interp, arg))?;
-            Ok(int_field(spec, v, 10, false, b""))
-        }
-        b'o' => {
-            let v = parse_i64(arg).ok_or_else(|| bad_int(interp, arg))?;
-            let pfx: &[u8] = if spec.alt { b"0" } else { b"" };
-            Ok(int_field(spec, v, 8, false, pfx))
-        }
-        b'x' => {
-            let v = parse_i64(arg).ok_or_else(|| bad_int(interp, arg))?;
-            let pfx: &[u8] = if spec.alt && v != 0 { b"0x" } else { b"" };
-            Ok(int_field(spec, v, 16, false, pfx))
-        }
-        b'X' => {
-            let v = parse_i64(arg).ok_or_else(|| bad_int(interp, arg))?;
-            let pfx: &[u8] = if spec.alt && v != 0 { b"0X" } else { b"" };
-            Ok(int_field(spec, v, 16, true, pfx))
-        }
-        b'b' => {
-            let v = parse_i64(arg).ok_or_else(|| bad_int(interp, arg))?;
-            Ok(int_field(spec, v, 2, false, b""))
+            int_field(interp, spec, v, conv)
         }
         b'c' => {
             let v = parse_i64(arg).ok_or_else(|| bad_int(interp, arg))?;
@@ -266,27 +336,77 @@ fn bad_value_desc(arg: &[u8]) -> String {
     tcl_syntax::list::describe_bad_value(&String::from_utf8_lossy(arg))
 }
 
-/// Assemble an integer field: sign/prefix + precision-padded digits, then
-/// width/justification.
-fn int_field(spec: &Spec, value: i64, radix: u32, upper: bool, prefix: &[u8]) -> Vec<u8> {
-    let negative = value < 0 && radix == 10;
-    let magnitude = if negative {
-        (value as i128).unsigned_abs()
-    } else {
-        value as u64 as u128
+/// Assemble an integer field for `%d`/`%i`/`%u`/`%o`/`%x`/`%X`/`%b`.
+///
+/// The size modifier (`spec.size`) chooses the width the value is reduced to
+/// before conversion, exactly as C's `Tcl_AppendFormatToObj` does: `%d`/`%i`
+/// render the *signed* value at that width, while `%u`/`%o`/`%x`/`%X`/`%b`
+/// render its *unsigned* bit pattern — so `%x -1` is `ffffffff` at the default
+/// 32-bit width and `ffffffffffffffff` with `l`. A sign (`-`/`+`/space) is
+/// carried only by `%d`/`%i` and by any bignum conversion; a negative bignum
+/// under `%u` is the `unsigned bignum format is invalid` error (RUST_ISSUE_091).
+fn int_field(interp: &mut Interp, spec: &Spec, value: i64, conv: u8) -> Result<Vec<u8>, Code> {
+    let (radix, upper) = match conv {
+        b'o' => (8u32, false),
+        b'x' => (16, false),
+        b'X' => (16, true),
+        b'b' => (2, false),
+        _ => (10, false), // d / i / u
     };
+    // The signed value and the unsigned bit pattern at the selected width.
+    let (signed_val, unsigned_bits): (i128, u128) = match spec.size {
+        IntSize::Short => (i128::from(value as i16), u128::from(value as i16 as u16)),
+        IntSize::Int => (i128::from(value as i32), u128::from(value as i32 as u32)),
+        IntSize::Wide => (i128::from(value), u128::from(value as u64)),
+        IntSize::Big => (i128::from(value), i128::from(value).unsigned_abs()),
+    };
+    let signed_conv = matches!(conv, b'd' | b'i');
+    let (negative, magnitude): (bool, u128) = if signed_conv {
+        (signed_val < 0, signed_val.unsigned_abs())
+    } else if spec.size == IntSize::Big {
+        // A negative bignum has no unsigned form; `%o`/`%x`/`%X`/`%b` show its
+        // sign and magnitude, but `%u` is an error.
+        if signed_val < 0 && conv == b'u' {
+            return Err(interp.set_error(b"unsigned bignum format is invalid"));
+        }
+        (signed_val < 0, signed_val.unsigned_abs())
+    } else {
+        (false, unsigned_bits)
+    };
+
     let mut digits = to_radix(magnitude, radix, upper);
     if let Some(p) = spec.precision {
         while digits.len() < p {
             digits.insert(0, b'0');
         }
     }
-    let sign: &[u8] = if negative {
-        b"-"
-    } else if spec.plus {
-        b"+"
-    } else if spec.space {
-        b" "
+    // Only `%d`/`%i` and bignum conversions carry a sign; an unsigned fixed-width
+    // conversion never emits `-`/`+`/space (matching C's `useBig || ch=='d'`).
+    let carries_sign = signed_conv || spec.size == IntSize::Big;
+    let sign: &[u8] = if carries_sign {
+        if negative {
+            b"-"
+        } else if spec.plus {
+            b"+"
+        } else if spec.space {
+            b" "
+        } else {
+            b""
+        }
+    } else {
+        b""
+    };
+    // `#` alternate-form prefix (Tcl 9: `0o`/`0x`/`0X`/`0b`), suppressed when the
+    // value is zero and never applied to decimal conversions.
+    let prefix: &[u8] = if spec.alt && magnitude != 0 {
+        match conv {
+            // Tcl 9 uses a lowercase `0x` prefix even for `%#X` (only the digits
+            // uppercase): `format %#X 12` → `0xC` (`tclStringObj.c`).
+            b'o' => b"0o",
+            b'x' | b'X' => b"0x",
+            b'b' => b"0b",
+            _ => b"",
+        }
     } else {
         b""
     };
@@ -309,9 +429,9 @@ fn int_field(spec: &Spec, value: i64, radix: u32, upper: bool, prefix: &[u8]) ->
         padded.extend_from_slice(prefix);
         padded.extend(std::iter::repeat_n(b'0', pad_n));
         padded.extend_from_slice(&digits);
-        return padded;
+        return Ok(padded);
     }
-    pad(spec, body, true)
+    Ok(pad(spec, body, true))
 }
 
 /// Float field via Rust formatting, then width/justification.
@@ -429,7 +549,7 @@ fn fix_exponent(s: &str) -> String {
 
 /// Apply width + justification to a fully-rendered body. `numeric` controls
 /// nothing here (zero-pad is handled by the callers); spaces always pad.
-fn pad(spec: &Spec, body: Vec<u8>, _numeric: bool) -> Vec<u8> {
+fn pad(spec: &Spec, body: Vec<u8>, numeric: bool) -> Vec<u8> {
     if !spec.has_width || body.len() >= spec.width {
         return body;
     }
@@ -439,7 +559,11 @@ fn pad(spec: &Spec, body: Vec<u8>, _numeric: bool) -> Vec<u8> {
         out.extend_from_slice(&body);
         out.extend(std::iter::repeat_n(b' ', pad_n));
     } else {
-        out.extend(std::iter::repeat_n(b' ', pad_n));
+        // A string/char field with the `0` flag zero-pads on the left, like C's
+        // `format %05s a` → `0000a`. Numeric fields do their own sign/precision-
+        // aware zero-padding before reaching here, so they always space-pad.
+        let fill = if spec.zero && !numeric { b'0' } else { b' ' };
+        out.extend(std::iter::repeat_n(fill, pad_n));
         out.extend_from_slice(&body);
     }
     out

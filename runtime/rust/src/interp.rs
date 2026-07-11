@@ -391,6 +391,15 @@ pub(crate) struct ExceptionState {
     already_logged: bool,
 }
 
+/// A captured slice of [`ExceptionState`] — the `errorInfo`/`errorCode`
+/// accumulation — moved between flows by [`Interp::snapshot_error`] /
+/// [`Interp::restore_error`] (see `coroprobe`).
+pub(crate) struct ErrorSnapshot {
+    info: Option<Vec<u8>>,
+    code: Vec<u8>,
+    code_explicit: bool,
+}
+
 /// A coroutine's saved execution context: the per-flow interpreter state that
 /// is swapped in while the coroutine runs and swapped back out when it yields
 /// (`cmd_coro` / [`Interp::swap_coro_ctx`]). Shared definitions (namespaces,
@@ -683,6 +692,17 @@ pub struct InterpState {
     eval_depth: Cell<usize>,
     /// Count of commands dispatched (`info cmdcount`).
     cmd_count: Cell<u64>,
+    /// The code an `exit` requested, if any. `exit` does **not** terminate the
+    /// host process (that would kill the embedding LSP/analysis server); it
+    /// records the code here, unwinds uncatchably (`catch` re-propagates while it
+    /// is set), and the embedder consumes it via [`Interp::take_exit`].
+    exit_code: Cell<Option<i32>>,
+    /// The last `timerate -calibrate` measurement overhead (µs per iteration),
+    /// C's process-global `static double measureOverhead`. It is the default
+    /// `-overhead` subtracted from a plain `timerate`; zero until calibrated.
+    /// Per-interp here (not process-global) so the per-thread interps of the
+    /// `thread` package do not race on it.
+    measure_overhead: Cell<f64>,
     /// The `interp bgerror` handler command prefix (a Tcl list). Empty means the
     /// default. A background error (e.g. a destructor failing during implicit
     /// teardown) is reported to it: `{*}$handler $message $options`.
@@ -944,6 +964,8 @@ impl Interp {
             arg_locs: RefCell::new(Vec::new()),
             eval_depth: Cell::new(0),
             cmd_count: Cell::new(0),
+            exit_code: Cell::new(None),
+            measure_overhead: Cell::new(0.0),
             bgerror: RefCell::new(Vec::new()),
             bg_queue: RefCell::new(Vec::new()),
             events: RefCell::new(crate::cmd_event::EventQueue::default()),
@@ -1674,6 +1696,36 @@ impl Interp {
         self.frames.borrow().in_proc()
     }
 
+    /// Record the code an `exit` requested. See [`InterpState::exit_code`].
+    pub(crate) fn set_exit(&self, code: i32) {
+        self.exit_code.set(Some(code));
+    }
+
+    /// The `timerate` calibration overhead (µs/iteration).
+    /// See [`InterpState::measure_overhead`].
+    pub(crate) fn measure_overhead(&self) -> f64 {
+        self.measure_overhead.get()
+    }
+
+    /// Update the `timerate` calibration overhead (µs/iteration).
+    pub(crate) fn set_measure_overhead(&self, us: f64) {
+        self.measure_overhead.set(us);
+    }
+
+    /// Whether an `exit` is pending — the unwinding completion propagates
+    /// uncatchably (C Tcl's `Tcl_Exit`), so `catch` re-propagates while it holds.
+    #[must_use]
+    pub fn exit_pending(&self) -> bool {
+        self.exit_code.get().is_some()
+    }
+
+    /// Take the pending `exit` code, if any. An embedder calls this after an
+    /// eval to learn a script asked to exit (and with what code); the runtime
+    /// itself never terminates the process.
+    pub fn take_exit(&self) -> Option<i32> {
+        self.exit_code.take()
+    }
+
     // -- variables (the var resolver; `crate::vars`) --------------------------
     //
     // Every variable op routes through the one classification + link walk
@@ -1794,6 +1846,49 @@ impl Interp {
             return Err(VarError::TraceError);
         }
         Ok(())
+    }
+
+    /// Store `obj` into the `(base, elem)` variable and, on success, publish it
+    /// as the interp result — while holding a **protective reference** across the
+    /// store. `var_set`/`var_set_elem` fire the write trace, and a trace that
+    /// `unset`s the variable drops the store's reference; for a *fresh* `obj`
+    /// (the value `lappend`/`append` just built) that was the only reference, so
+    /// without this bracket the object is freed mid-command and the following
+    /// `set_result` reads freed memory — a use-after-free that a write-traced
+    /// `lappend`/`append` hits (append-7.x, var-traces). On a store error the
+    /// bracket releases the reference (freeing a fresh `obj`, as the old
+    /// `drop_fresh` did) and the error is returned for the caller to render.
+    pub(crate) fn store_var_result(
+        &mut self,
+        base: &[u8],
+        elem: Option<&[u8]>,
+        obj: *mut TclObj,
+    ) -> Result<(), VarError> {
+        // SAFETY: `obj` is a live object the caller just built or read; the
+        // increment/decrement bracket keeps it alive across the trace firing.
+        unsafe { obj::incr_ref_count(obj) };
+        let stored = match elem {
+            Some(k) => self.var_set_elem(base, k, obj),
+            None => self.var_set(base, obj),
+        };
+        if stored.is_ok() {
+            // The result is the variable's value *after* the write trace ran, not
+            // necessarily the value we stored: a trace may have rewritten the
+            // variable (C returns the new value) or unset it (C returns empty).
+            // `var_get*` are trace-free store reads, so this fires no read trace.
+            let final_val = match elem {
+                Some(k) => self.var_get_elem(base, k),
+                None => self.var_get(base),
+            };
+            match final_val {
+                Some(v) => self.set_result(v),
+                None => self.set_result_bytes(b""),
+            }
+        }
+        // SAFETY: balances the protective increment above (the store retained its
+        // own reference on success; `set_result` retained the result's).
+        unsafe { obj::decr_ref_count(obj) };
+        stored
     }
 
     /// Flag the scalar `name` `const` (the `const` command, after its value is
@@ -1963,6 +2058,26 @@ impl Interp {
         m.extend_from_slice(b"\": ");
         m.extend_from_slice(&msg);
         Some(self.set_error(&m))
+    }
+
+    /// Read a variable's current value for `lappend`, firing its read trace but
+    /// **swallowing** any error the trace raises (yielding `None`, as if the
+    /// variable were absent). This is C's `Tcl_ObjGetVar2` *without*
+    /// `TCL_LEAVE_ERR_MSG`: `lappend` fires the read trace (its side effects run
+    /// — append-7.2/7.3) yet a trace that errors on a missing element must not
+    /// fail the append, which instead creates the element (bug 3057639,
+    /// append-9.0). `set`/`append`-read, by contrast, propagate the error via
+    /// [`fire_read_trace`](Self::fire_read_trace).
+    pub(crate) fn lappend_read(&mut self, base: &[u8], elem: Option<&[u8]>) -> Option<*mut TclObj> {
+        if !self.traces.borrow().traces.is_empty() && self.fire_var_trace(base, elem, b"read") {
+            // The read trace errored: discard it and treat the value as absent.
+            self.traces.borrow_mut().pending_err.take();
+            return None;
+        }
+        match elem {
+            Some(k) => self.var_get_elem(base, k),
+            None => self.var_get(base),
+        }
     }
 
     /// `unset name` — returns whether it existed.
@@ -3305,6 +3420,30 @@ impl Interp {
     pub(crate) fn error_info(&self) -> Vec<u8> {
         let info = self.exc.borrow().info.clone();
         info.unwrap_or_else(|| self.result_bytes())
+    }
+
+    /// Capture the error trace state (`errorInfo`/`errorCode` accumulation), so a
+    /// command run in a *different* flow can transplant it into this one. Used by
+    /// `coroprobe`: the probe runs in the coroutine's (swapped-in) exception
+    /// state, but its error must surface in the *caller's* trace once that state
+    /// is swapped back out.
+    pub(crate) fn snapshot_error(&self) -> ErrorSnapshot {
+        let exc = self.exc.borrow();
+        ErrorSnapshot {
+            info: exc.info.clone(),
+            code: exc.code.clone(),
+            code_explicit: exc.code_explicit,
+        }
+    }
+
+    /// Restore an [`ErrorSnapshot`] captured by [`snapshot_error`] into this
+    /// flow's exception state (the trace continues from there — e.g. `coroprobe`
+    /// then appends its own `(injected coroutine probe command)` frame).
+    pub(crate) fn restore_error(&self, snap: ErrorSnapshot) {
+        let mut exc = self.exc.borrow_mut();
+        exc.info = snap.info;
+        exc.code = snap.code;
+        exc.code_explicit = snap.code_explicit;
     }
 
     /// `info frame` (no arg): the depth of the source-location stack.

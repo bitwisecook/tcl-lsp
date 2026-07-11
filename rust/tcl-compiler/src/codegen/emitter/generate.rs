@@ -116,6 +116,13 @@ struct ForeachData {
     end_to_header: HashMap<String, String>,
     /// Body blocks belonging to a complex foreach loop.
     complex_body_blocks: HashSet<String>,
+    /// Body blocks of *collecting* (simple `lmap`) loops — their trailing `POP`
+    /// is stripped and an `LMAP_COLLECT` appended (only simple `lmap` lowers
+    /// inline; a branching `lmap` body stays on the runtime builtin).
+    collect_bodies: HashSet<String>,
+    /// End blocks of collecting loops — their loop-result `""` push is suppressed
+    /// because the paired `FOREACH_END` already pushed `list(accum)`.
+    collect_ends: HashSet<String>,
 }
 
 /// Detect simple and complex foreach loops, allocate their synthetic
@@ -130,6 +137,20 @@ fn setup_foreach(
     // foreach_step/foreach_end after their statements.
     let info: HashMap<String, ForeachInfo> = detect_foreach(cfg);
     let bodies: HashSet<String> = info.values().map(|i| i.body.clone()).collect();
+    // Collecting (`lmap`) loops: gather their body + end blocks so the emitter can
+    // strip the body's trailing `POP` (→ `LMAP_COLLECT`) and suppress the end
+    // block's `""` result push. Only *simple* lmaps reach codegen (a branching
+    // body is barriered to the runtime builtin), so these are simple-loop blocks.
+    let collect_bodies: HashSet<String> = info
+        .values()
+        .filter(|i| i.collect)
+        .map(|i| i.body.clone())
+        .collect();
+    let collect_ends: HashSet<String> = info
+        .values()
+        .filter(|i| i.collect)
+        .map(|i| i.end.clone())
+        .collect();
 
     // Detect complex foreach loops (bodies with Branch terminator).
     // For these, foreach_step/foreach_end are emitted at the foreach_end
@@ -173,6 +194,8 @@ fn setup_foreach(
         complex,
         end_to_header,
         complex_body_blocks,
+        collect_bodies,
+        collect_ends,
     }
 }
 
@@ -216,9 +239,11 @@ fn emit_block_prologue(
         ctx.emit(Op::FOREACH_END, vec![]);
     }
 
-    // Loop-end blocks push "" as the loop command's result.
+    // Loop-end blocks push "" as the loop command's result — except a
+    // *collecting* loop (`lmap`), whose `list(accum)` result is already on the
+    // stack from the paired `FOREACH_END`, so its end block pushes nothing.
     let is_loop_end = starts_with_any(bname, LOOP_END_PREFIXES);
-    if is_loop_end && blk.statements.is_empty() {
+    if is_loop_end && blk.statements.is_empty() && !fe.collect_ends.contains(bname) {
         let target = match &blk.terminator {
             Some(Terminator::Goto { target, .. }) => Some(cfg.block_name(*target).to_owned()),
             _ => None,
@@ -379,6 +404,9 @@ fn emit_foreach_header(
     // Carry the loop-variable groups (C Tcl `ForeachInfo.varLists`) so
     // the VM can bind them; not rendered in disassembly.
     ctx.instructions[fs_idx].foreach_vars = Some(fi.var_groups.clone());
+    // A collecting loop (`lmap`) tells the VM to accumulate each iteration's
+    // result and yield `list(accum)` at `FOREACH_END`.
+    ctx.instructions[fs_idx].foreach_collect = fi.collect;
     ctx.cmd_index += 1;
     true
 }
@@ -405,6 +433,20 @@ fn emit_foreach_body(
     // serialise as null rather than inheriting the last body
     // statement's range.
     ctx.current_span = None;
+    // Collecting loop (`lmap`): strip the body's trailing `POP` so its result
+    // stays on the stack, then append it VM-side via `LMAP_COLLECT` on the
+    // fall-through path (a break/continue redirect jumps past it, contributing
+    // nothing — as C `lmap` does). A result-less body (empty, or ending in a
+    // `NOP`-padded shape) has no trailing `POP`, so push the empty string it
+    // returns. This mirrors `dict map`'s keep-last-result trick.
+    if fe.collect_bodies.contains(bname) {
+        if ctx.instructions.last().map(|i| i.op) == Some(Op::POP) {
+            ctx.instructions.pop();
+        } else {
+            ctx.push_lit("");
+        }
+        ctx.emit(Op::LMAP_COLLECT, vec![]);
+    }
     ctx.emit(Op::FOREACH_STEP, vec![]);
     ctx.emit(Op::FOREACH_END, vec![]);
     true

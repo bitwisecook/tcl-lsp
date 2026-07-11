@@ -53,7 +53,6 @@ pub mod dispatch;
 pub mod handlers;
 pub mod irules_event_checks;
 pub mod item_tree;
-pub mod mro;
 pub mod oo;
 pub mod param_traits;
 pub mod per_item;
@@ -72,9 +71,13 @@ pub use class_lattice::{
     analyse_dispatch, class_values, next_provider,
 };
 pub use item_tree::{FileDecls, Item, ItemId, ItemKind, ItemSig, ItemTree};
-pub use mro::{MroError, build_mro_map, tcloo_linearise};
+// The MRO linearisation lives in `tcl-syntax` so the bytecode VM (which must
+// not depend on the compiler — the `CompileService` injection keeps the wasm
+// core light) can share it. Re-exported here so `tcl_compiler::analyser::…`
+// callers are unchanged.
 pub use snapshot::AnalyserSnapshot;
 pub use state::{Analyser, NonAsciiMode};
+pub use tcl_syntax::mro::{self, MroError, build_mro_map, tcloo_linearise};
 pub use types::{
     AnalysisResult, ClassDef, CodeFix, DefinedSymbol, Diagnostic, MethodDef, ProcArgTrait, ProcDef,
     PropertyDef, Scope, ScopeKind, Severity, StubFlags, UnknownProcInfo, VarDef,

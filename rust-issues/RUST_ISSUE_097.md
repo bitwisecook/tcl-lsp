@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | eBPF pipeline |
 | **Location** | `rust/bpf-tcl-codegen/src/ebpf/emit.rs:301` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

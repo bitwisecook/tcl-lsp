@@ -75,8 +75,91 @@ pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
     Ok(0)
 }
 
-/// `tcl compwasm` — compile source to a WebAssembly binary (eval-fallback tier).
-pub fn run_compwasm(input: &InputArgs, wat_output: Option<&std::path::Path>) -> anyhow::Result<u8> {
+/// `tcl compwasm` — compile source to a WebAssembly binary. The default `vm`
+/// backend emits the self-contained bytecode-VM runner; `tree-walker` emits the
+/// legacy eval-fallback module (`RUST_ISSUE_008`).
+pub fn run_compwasm(
+    input: &InputArgs,
+    backend: crate::cli::WasmBackend,
+    wat_output: Option<&std::path::Path>,
+) -> anyhow::Result<u8> {
+    match backend {
+        crate::cli::WasmBackend::TreeWalker => run_compwasm_tree_walker(input, wat_output),
+        crate::cli::WasmBackend::Vm => run_compwasm_vm(input, wat_output),
+    }
+}
+
+/// The default `vm` backend: emit the self-contained bytecode-VM runner
+/// (`vm.wasm`). The runner is a cargo-built cdylib (bytecode is not serialisable,
+/// so there is no per-script module), so the user's script is compile-checked
+/// here and then fed to the shipped runner at run time via its
+/// `tcl_alloc`/`tcl_eval`/`tcl_dealloc` ABI.
+fn run_compwasm_vm(input: &InputArgs, wat_output: Option<&std::path::Path>) -> anyhow::Result<u8> {
+    if wat_output.is_some() {
+        anyhow::bail!(
+            "--wat-output is only supported with --backend tree-walker (the vm runner is a \
+             cargo-built cdylib, not a WAT-introspectable module)"
+        );
+    }
+    // Compile-check the script so a syntax error is reported now, even though the
+    // generic runner executes it at run time rather than embedding it.
+    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let source = combine_sources(&documents);
+    if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(&source) {
+        anyhow::bail!("{msg}");
+    }
+
+    let runner = locate_vm_wasm().ok_or_else(|| {
+        anyhow::anyhow!(
+            "VM wasm runner not found — build it with `make tcl-vm-wasm` (or point TCL_VM_WASM \
+             at a vm.wasm)"
+        )
+    })?;
+    let bytes =
+        std::fs::read(&runner).map_err(|e| anyhow::anyhow!("reading {}: {e}", runner.display()))?;
+
+    let target = match input.output.as_deref() {
+        None => OutputTarget::File(std::path::PathBuf::from("out.wasm")),
+        Some(path) => OutputTarget::from_arg(Some(path)),
+    };
+    write_binary_output(&target, &bytes)?;
+    let where_to = match &target {
+        OutputTarget::Stdout => "stdout".to_owned(),
+        OutputTarget::File(path) => path.display().to_string(),
+    };
+    eprintln!("wrote VM wasm runner ({} bytes) to {where_to}", bytes.len());
+    eprintln!(
+        "  feed a Tcl script (coroutines included) through it via the tcl_alloc/tcl_eval/tcl_dealloc \
+         ABI — see rust/tcl-vm-wasm/verify.mjs for a host example"
+    );
+    Ok(0)
+}
+
+/// Find the shipped VM wasm runner: an explicit `TCL_VM_WASM`, then the
+/// `make tcl-vm-wasm` output, then the crate's own build artifact.
+fn locate_vm_wasm() -> Option<std::path::PathBuf> {
+    if let Ok(p) = std::env::var("TCL_VM_WASM") {
+        let path = std::path::PathBuf::from(p);
+        if path.is_file() {
+            return Some(path);
+        }
+    }
+    // Relative to this crate's source (a repo checkout): the `make` output dir
+    // and the crate's own `cargo build` artifact.
+    let cli = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let candidates = [
+        cli.join("../../build/tcl-vm-wasm/vm.wasm"),
+        cli.join("../tcl-vm-wasm/target/wasm32-unknown-unknown/release/tcl_vm_wasm.wasm"),
+    ];
+    candidates.into_iter().find(|p| p.is_file())
+}
+
+/// The legacy `tree-walker` backend: the eval-fallback WASM emitter — a bare
+/// module importing the runtime C-ABI (`tcl_*`), with an optional WAT dump.
+fn run_compwasm_tree_walker(
+    input: &InputArgs,
+    wat_output: Option<&std::path::Path>,
+) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let registry = registry_for_dialect(&input.dialect);
     let source = combine_sources(&documents);

@@ -56,15 +56,32 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[1]);
     let values = &argv[2..];
+    // Split an `arr(idx)` reference up front and drive the element/scalar store
+    // helpers, exactly like `set`/`lappend`. `var_set` does *not* itself parse
+    // `(...)`, so passing the raw `x(0)` created a scalar literally named `x(0)`
+    // (and left the real variable in a corrupt half-state) instead of erroring
+    // `variable isn't array` — an `append x(0)` on a scalar `x`.
+    let (base, elem) = crate::frame::split_array_ref(&name);
+    let read_cur = |interp: &mut Interp| match &elem {
+        Some(k) => interp.var_get_elem(&base, k),
+        None => interp.var_get(&base),
+    };
 
     if values.is_empty() {
-        // `append x` with no values just reads the variable.
-        return match interp.var_get(&name) {
+        // `append x` with no values is a pure read and fires a read trace (the
+        // *with-values* form does not, unlike `lappend` — append-7.2/7.3).
+        if let Some(c) = interp.fire_read_trace(&base, elem.as_deref()) {
+            return c;
+        }
+        return match read_cur(interp) {
             Some(o) => {
                 interp.set_result(o);
                 Code::Ok
             }
-            None => no_such_var(interp, &name),
+            None => {
+                let msg = interp.read_miss_msg(&base, elem.as_deref());
+                interp.set_error(&msg)
+            }
         };
     }
 
@@ -76,26 +93,19 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     // Byte-exact concatenation, shared with the VM via `append_bytes`: it grows
     // the current value in place when it's an unshared plain string (returning
-    // that same object) else builds a fresh copy/new value. `var_get` parses
-    // `a(k)`, so array elements are handled.
-    let cur = interp.var_get(&name);
+    // that same object) else builds a fresh copy/new value.
+    let cur = read_cur(interp);
     let result = tcl_cmd_core::var::append_bytes(interp, cur, values);
 
     // Always store back: rebinds the variable to `result` — a refcount-neutral
     // re-set when it was grown in place — and fires the write trace exactly once
     // (the in-place path used to skip the store and so fire no trace, diverging
-    // from C; this fixes that).
-    match interp.var_set(&name, result) {
-        Ok(()) => {
-            interp.set_result(result);
-            Code::Ok
-        }
-        Err(e) => {
-            // `result` is fresh (rc 0) on the copy/new path; on the in-place path
-            // it's the frame-owned object and `drop_fresh` is a no-op.
-            drop_fresh(result);
-            crate::builtins::var_error(interp, &name, e)
-        }
+    // from C; this fixes that). `store_var_result` holds a protective reference
+    // across the store so a write trace that unsets the variable can't free a
+    // fresh `result` before it becomes the result (a use-after-free).
+    match interp.store_var_result(&base, elem.as_deref(), result) {
+        Ok(()) => Code::Ok,
+        Err(e) => crate::builtins::var_error(interp, &name, e),
     }
 }
 
@@ -1363,12 +1373,6 @@ fn bad_nocase_option(interp: &mut Interp, opt: &[u8]) -> Code {
     m.extend_from_slice(b"\": must be -nocase");
     interp.set_error(&m)
 }
-fn no_such_var(interp: &mut Interp, name: &[u8]) -> Code {
-    let mut m = b"can't read \"".to_vec();
-    m.extend_from_slice(name);
-    m.extend_from_slice(b"\": no such variable");
-    interp.set_error(&m)
-}
 fn cant_set(interp: &mut Interp, name: &[u8]) -> Code {
     let mut m = b"can't set \"".to_vec();
     m.extend_from_slice(name);
@@ -1512,6 +1516,39 @@ mod tests {
         assert_eq!(
             ok(b"set i 0; append acc x; append acc y; append acc z"),
             b"xyz"
+        );
+    }
+
+    /// `append` on an `arr(idx)` reference splits it like `set`/`lappend`
+    /// (append-3.2): appending to an element of a *scalar* errors `variable
+    /// isn't array` instead of silently creating a bogus `x(0)`-named scalar and
+    /// corrupting the store; appending to a real / fresh element works. The
+    /// `run` helper's leak + double-free assertions guard the memory safety.
+    #[test]
+    fn append_array_element() {
+        // Element append on a scalar base errors (was: silent corrupt store).
+        let (c, m) = run(b"set x {}; append x(0) 44");
+        assert_eq!(c, Code::Error);
+        assert_eq!(&m, b"can't set \"x(0)\": variable isn't array");
+        // Append onto an existing array element grows it.
+        assert_eq!(ok(b"array set a {p 1}; append a(p) X; set a(p)"), b"1X");
+        // Append onto a fresh element auto-creates the array.
+        assert_eq!(ok(b"append fresh(k) hi; set fresh(k)"), b"hi");
+        // The no-values read of a missing element reports the element-aware miss.
+        let (c, m) = run(b"array set a {p 1}; append a(q)");
+        assert_eq!(c, Code::Error);
+        assert_eq!(&m, b"can't read \"a(q)\": no such element in array");
+    }
+
+    /// A write trace that unsets the variable during `append` (append-7.x): the
+    /// result is empty (the var's post-trace value), and the fresh string object
+    /// is not freed mid-command — the `run` helper's leak / double-free counters
+    /// guard against the former use-after-free.
+    #[test]
+    fn append_write_trace_unset() {
+        assert_eq!(
+            ok(b"proc foo args {global y; unset y}\ntrace add variable y write foo\nappend y abc"),
+            b""
         );
     }
 

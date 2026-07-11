@@ -146,7 +146,7 @@ impl Gen {
             self.proc_call_stmt();
             return;
         }
-        match self.rng.below(10) {
+        match self.rng.below(18) {
             0 => {
                 let v = self.var();
                 let e = self.expr(0);
@@ -184,11 +184,114 @@ impl Gen {
                 let _ = writeln!(self.out, "puts [expr {{{e}}}]");
             }
             8 => self.dict_mutator(),
-            _ => {
+            9 => {
                 let d = self.dict_op();
                 let _ = writeln!(self.out, "puts [{d}]");
             }
+            10 => {
+                let f = self.format_op();
+                let _ = writeln!(self.out, "puts [{f}]");
+            }
+            11 => {
+                let s = self.scan_op();
+                let _ = writeln!(self.out, "puts [{s}]");
+            }
+            12 => self.array_stmt(),
+            13 => {
+                // `apply` a pure lambda to a small integer — result deterministic.
+                let n = self.rng.below(20);
+                let body =
+                    *self
+                        .rng
+                        .pick(&["expr {$_p * 2}", "expr {$_p + 1}", "string length $_p"]);
+                let _ = writeln!(self.out, "puts [apply {{{{_p}} {{{body}}}}} {n}]");
+            }
+            14 => {
+                // `eval` a small assignment script (a list of words is a command).
+                let v = self.var();
+                let n = self.rng.below(20);
+                let _ = writeln!(self.out, "eval [list set {v} {n}]");
+            }
+            15 => {
+                // `subst` a string with an embedded variable read and command.
+                let v = self.var();
+                let _ = writeln!(self.out, "puts [subst {{${v}-[expr {{1+1}}]}}]");
+            }
+            16 => self.scope_stmt(),
+            _ => {
+                let r = self.regex_op();
+                let _ = writeln!(self.out, "puts [{r}]");
+            }
         }
+    }
+
+    /// A scoping statement: a one-shot proc that reaches an enclosing/global
+    /// variable through `global` or `upvar`, then is called. The referenced
+    /// variables (`a`/`b`) are seeded at top level, so the result is
+    /// deterministic (`RUST_ISSUE_064`).
+    fn scope_stmt(&mut self) {
+        if self.rng.chance(1, 2) {
+            // `global`: read module-global scalars from inside a proc.
+            self.out
+                .push_str("proc _gp {} {global a b\n return [list $a $b]}\n");
+            self.out.push_str("puts [_gp]\n");
+        } else {
+            // `upvar`: alias the caller's variable (the global, at call level 1).
+            let v = *self.rng.pick(&["a", "b", "i", "x"]);
+            self.out
+                .push_str("proc _up {vn} {upvar 1 $vn v\n return $v}\n");
+            let _ = writeln!(self.out, "puts [_up {v}]");
+        }
+    }
+
+    /// A `regexp` / `regsub` over a fixed, safe pattern and a word/variable
+    /// subject — deterministic 0/1 (match) or substituted-string output.
+    fn regex_op(&mut self) -> String {
+        let pat = *self.rng.pick(&["[a-z]+", "[0-9]", "o+", "^ba", "a|o"]);
+        let subject = if self.rng.chance(1, 2) {
+            format!("${}", self.var())
+        } else {
+            self.nonempty_word().to_string()
+        };
+        match self.rng.below(3) {
+            0 => format!("regexp {{{pat}}} {subject}"),
+            1 => format!("regexp -all {{{pat}}} {subject}"),
+            // `regsub` with an explicit result var (portable across 8.x/9.x),
+            // printing the substituted string.
+            _ => format!("regsub -all {{{pat}}} {subject} X _rs; set _rs"),
+        }
+    }
+
+    /// An `array` statement: seed a scratch array with a literal, then read it
+    /// back through a deterministic op. Enumeration (`array names`/`get`) is
+    /// wrapped in `lsort` because Tcl's hash-iteration order is unspecified and
+    /// legitimately differs between engines — only a *sorted* view is comparable.
+    fn array_stmt(&mut self) {
+        let k1 = self.nonempty_word();
+        let k2 = self.nonempty_word();
+        let (v1, v2) = (self.rng.below(20), self.rng.below(20));
+        let _ = writeln!(self.out, "array set _arr {{{k1} {v1} {k2} {v2}}}");
+        match self.rng.below(5) {
+            0 => {
+                let _ = writeln!(self.out, "puts [array size _arr]");
+            }
+            1 => {
+                let _ = writeln!(self.out, "puts [array exists _arr]");
+            }
+            2 => {
+                // A read of a key the seed guarantees is present.
+                let _ = writeln!(self.out, "puts [set _arr({k1})]");
+            }
+            3 => {
+                let _ = writeln!(self.out, "puts [lsort [array names _arr]]");
+            }
+            _ => {
+                let _ = writeln!(self.out, "puts [lsort [array get _arr]]");
+            }
+        }
+        // Drop the scratch array so a later re-seed with different keys doesn't
+        // accumulate stale elements (which would desync the two engines' views).
+        self.out.push_str("array unset _arr\n");
     }
 
     fn if_stmt(&mut self, depth: u32) {
@@ -407,23 +510,34 @@ impl Gen {
         s
     }
 
-    /// A `string` ensemble subcommand producing a value.
+    /// A `string` ensemble subcommand producing a value. Every form is
+    /// deterministic (no locale/encoding-sensitive output) so a divergence is a
+    /// real bug (`RUST_ISSUE_064`).
     fn string_op(&mut self) -> String {
-        let w = self.rng.pick(WORDS);
-        match self.rng.below(6) {
+        let w = self.nonempty_word();
+        let w2 = self.nonempty_word();
+        match self.rng.below(14) {
             0 => format!("string length {w}"),
             1 => format!("string toupper {w}"),
             2 => format!("string tolower {w}"),
-            3 => format!("string reverse {w}"),
-            4 => format!("string index {w} {}", self.rng.below(4)),
-            _ => format!("string range {w} 0 {}", self.rng.below(4)),
+            3 => format!("string totitle {w}"),
+            4 => format!("string reverse {w}"),
+            5 => format!("string index {w} {}", self.rng.below(4)),
+            6 => format!("string range {w} 0 {}", self.rng.below(4)),
+            7 => format!("string compare {w} {w2}"),
+            8 => format!("string equal {w} {w2}"),
+            9 => format!("string first {w2} {w}"),
+            10 => format!("string last {w2} {w}"),
+            11 => format!("string repeat {w} {}", self.rng.below(4)),
+            12 => format!("string map {{{w} {w2}}} {w}"),
+            _ => format!("string trim {w}{w2} {w}"),
         }
     }
 
     /// A `list`/`l*` operation producing a value.
     fn list_op(&mut self) -> String {
         let list = self.list_literal();
-        match self.rng.below(6) {
+        match self.rng.below(11) {
             0 => format!("llength {list}"),
             1 => format!("lindex {list} {}", self.rng.below(self.config.max_list_len)),
             2 => format!("lreverse {list}"),
@@ -432,31 +546,103 @@ impl Gen {
                 "lrange {list} 0 {}",
                 self.rng.below(self.config.max_list_len)
             ),
-            _ => format!("lsearch {list} {}", self.rng.pick(WORDS)),
+            5 => format!("lsearch {list} {}", self.nonempty_word()),
+            6 => format!("concat {list} {}", self.list_literal()),
+            7 => format!("join {list} -"),
+            8 => format!(
+                "linsert {list} {} {}",
+                self.rng.below(self.config.max_list_len),
+                self.nonempty_word()
+            ),
+            9 => format!(
+                "lreplace {list} 0 {} {}",
+                self.rng.below(self.config.max_list_len),
+                self.nonempty_word()
+            ),
+            // `lmap` over a bounded literal list, mapping each element with a pure
+            // expression — deterministic element order and values.
+            _ => format!("lmap _e {list} {{string length $_e}}"),
         }
     }
 
-    /// A (possibly nested) integer expression. Division/modulo guard against a
-    /// zero divisor so both engines agree on the (non-error) result.
+    /// A `format` over integer / string conversions only (float conversions are
+    /// left out so shortest-`double` formatting can't introduce spurious
+    /// divergences); every conversion here is byte-deterministic across engines.
+    fn format_op(&mut self) -> String {
+        let n = self.rng.below(256);
+        let w = self.nonempty_word();
+        match self.rng.below(8) {
+            0 => format!("format %d {n}"),
+            1 => format!("format %05d {n}"),
+            2 => format!("format %x {n}"),
+            3 => format!("format %o {n}"),
+            4 => format!("format %-6s|%s {w} {w}"),
+            5 => format!("format %c {}", 65 + self.rng.below(26)),
+            6 => format!("format {{%d-%d}} {n} {}", self.rng.below(256)),
+            _ => format!("format %%{n}"),
+        }
+    }
+
+    /// A `scan` returning its conversion count (a deterministic small integer);
+    /// the scanned-into variables are scratch and not read back.
+    fn scan_op(&mut self) -> String {
+        match self.rng.below(3) {
+            0 => format!("scan {} %d _s0", self.rng.below(256)),
+            1 => format!(
+                "scan {{{} {}}} {{%d %d}} _s0 _s1",
+                self.rng.below(256),
+                self.rng.below(256)
+            ),
+            _ => format!("scan {} %c _s0", self.nonempty_word()),
+        }
+    }
+
+    /// A (possibly nested) expression. Division/modulo guard against a zero
+    /// divisor so both engines agree on the (non-error) result. The leaves mix
+    /// integers, floats, and variable reads; a fraction of interior nodes are
+    /// string-relational (`eq`/`ne`/`in`/`ni`) so those operators are exercised
+    /// (`RUST_ISSUE_064`).
     fn expr(&mut self, depth: u32) -> String {
         if depth >= self.config.max_expr_depth || self.rng.chance(1, 2) {
-            // Leaf: a variable read or a small integer literal.
-            return if self.rng.chance(1, 2) {
-                format!("${}", self.var())
-            } else {
-                self.rng.below(20).to_string()
+            return self.expr_leaf();
+        }
+        // A minority of interior nodes are string/list relational (`eq`/`ne`/
+        // `in`/`ni`), which take word operands rather than nested arithmetic.
+        if self.rng.chance(1, 5) {
+            let op = *self.rng.pick(&["eq", "ne", "in", "ni"]);
+            let left = self.nonempty_word();
+            return match op {
+                // `in`/`ni` test membership in a list literal.
+                "in" | "ni" => format!("{{{left}}} {op} {}", self.list_literal()),
+                _ => format!("{{{left}}} {op} {{{}}}", self.nonempty_word()),
             };
         }
-        let op = *self
-            .rng
-            .pick(&["+", "-", "*", "/", "%", "<", ">", "==", "!=", "&&", "||"]);
+        let op = *self.rng.pick(&[
+            "+", "-", "*", "/", "%", "<", ">", "<=", ">=", "==", "!=", "&&", "||",
+        ]);
         let left = self.expr(depth + 1);
         let right = self.expr(depth + 1);
         match op {
             // Guard divide/modulo so a zero divisor can't make one engine error
             // and the other not — that is a divergence in the *test*, not the VM.
-            "/" | "%" => format!("({left}) {op} (({right}) == 0 ? 1 : ({right}))"),
+            // `int(...)` keeps both operands integral so `%` (which rejects a
+            // floating-point operand) never errors on a generated float leaf.
+            "/" | "%" => {
+                format!("int({left}) {op} (int({right}) == 0 ? 1 : int({right}))")
+            }
             _ => format!("({left}) {op} ({right})"),
+        }
+    }
+
+    /// An expression leaf: a variable read, a small integer, or a simple float
+    /// (shortest-`double` formatting of the *result* is itself under test).
+    fn expr_leaf(&mut self) -> String {
+        match self.rng.below(4) {
+            0 | 1 => format!("${}", self.var()),
+            2 => self.rng.below(20).to_string(),
+            // A terminating decimal so the value is exact in binary where
+            // possible; the engines must still agree on how they print it.
+            _ => format!("{}.{}", self.rng.below(10), self.rng.below(10)),
         }
     }
 }
@@ -527,9 +713,30 @@ mod tests {
             "switch -- ",
             "catch {",
             "try {",
+            // Command families added for RUST_ISSUE_064.
+            "format ",
+            "scan ",
+            "array set ",
+            "apply {",
+            "eval [list",
+            "subst {",
+            "string compare ",
+            "concat ",
+            "lmap ",
+            "global ",
+            "upvar ",
+            "regexp ",
+            "regsub ",
         ] {
             assert!(appears(needle), "production never generated: {needle:?}");
         }
+        // The string/list relational operators reach the expression grammar.
+        assert!(
+            corpus
+                .iter()
+                .any(|s| s.contains(" eq ") || s.contains(" in ")),
+            "string/list relational operators never generated"
+        );
         // A defined proc should sometimes be called back (`puts [p0 ...]`).
         let proc_called = corpus.iter().any(|s| {
             ["p0", "p1", "p2", "helper", "compute"]

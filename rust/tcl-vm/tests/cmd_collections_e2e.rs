@@ -1151,3 +1151,46 @@ fn list_builtins_arity_errors() {
     assert!(!ok);
     assert_eq!(msg, "wrong # args: should be \"lreverse list\"");
 }
+
+// ===========================================================================
+// lmap — inline collecting loop (RUST_ISSUE_008 piece 2)
+// ===========================================================================
+
+/// A straight-line `lmap` body lowers to the inline collecting loop: it strips
+/// the body's trailing `POP`, appends each iteration's result via `LMAP_COLLECT`,
+/// and `FOREACH_END` yields the mapped list. Values pinned against tclsh 9.0.4.
+#[test]
+fn lmap_collects_mapped_values() {
+    // A single-variable map (last statement's result is the mapped value).
+    assert_eq!(run("lmap x {1 2 3} {expr {$x * $x}}").1, "1 4 9");
+    // A multi-word body: only the final result is collected.
+    assert_eq!(
+        run("lmap x {a b c} {set y hi; string cat $x $x}").1,
+        "aa bb cc"
+    );
+}
+
+/// Empty and degenerate lists: an empty value list yields the empty string, and a
+/// result-less (empty) body still collects one empty string per iteration.
+#[test]
+fn lmap_empty_and_resultless_body() {
+    assert_eq!(run("lmap x {} {expr {$x * 2}}").1, "");
+    assert_eq!(run("lmap x {1 2 3} {}").1, "{} {} {}");
+}
+
+/// Multi-variable groups iterate in lock-step; a short final group pads with the
+/// empty string (tclsh 9.0.4), and multiple lists advance together.
+///
+/// (A *nested* `lmap` — an inner loop directly inside the outer body — is
+/// barriered to the runtime builtin on the bytecode path, so it is covered by the
+/// `tcl-vm-cli` corpus rather than here: this helper lowers with the analysis
+/// `lower_to_ir`, where that barrier is inactive.)
+#[test]
+fn lmap_multivar_and_multilist() {
+    assert_eq!(run("lmap {a b} {1 2 3 4} {expr {$a + $b}}").1, "3 7");
+    assert_eq!(run("lmap {a b} {1 2 3} {list $a $b}").1, "{1 2} {3 {}}");
+    assert_eq!(
+        run("lmap a {1 2 3} b {10 20 30} {expr {$a + $b}}").1,
+        "11 22 33"
+    );
+}

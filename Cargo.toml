@@ -122,6 +122,13 @@ exclude = [
     # tree-sitter never enter the workspace graph / cargo-deny / clippy.
     # Gated separately via `make zed-query-check`.
     "rust/zed-query-check",
+    # The bytecode VM built as a wasm32-unknown-unknown cdylib — the VM+compiler
+    # statically linked, exporting an `eval` entry that runs Tcl (incl.
+    # coroutines) with no imports/WASI. This is the primary wasm compile target
+    # (RUST_ISSUE_008). Excluded like the other wasm32 cdylibs: the C-ABI export
+    # shims need `unsafe` (banned by the workspace `unsafe_code = "forbid"`), and
+    # it targets wasm32 with its own profile. Built via `make tcl-vm-wasm`.
+    "rust/tcl-vm-wasm",
 ]
 
 [workspace.package]

@@ -54,7 +54,16 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     interp.set_result(v);
                     Code::Ok
                 }
-                Err(e) => interp.set_error(e.message().as_bytes()),
+                // The shared core reports errors by message only; re-attach C's
+                // `-errorcode` for the dict-parse failures so `catch … optsVar`
+                // sees `TCL VALUE DICTIONARY …` and not `NONE` (dict-4.x).
+                Err(e) => {
+                    let msg = e.message().as_bytes();
+                    match dict_parse_error_code(e.message()) {
+                        Some(code) => interp.error_with_code(msg, code),
+                        None => interp.set_error(msg),
+                    }
+                }
             };
         }
     }
@@ -319,8 +328,16 @@ fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // return what's kept; ERROR / RETURN / other ⇒ propagate.
         match interp.eval_control_body(argv[5]) {
             Code::Ok => {
-                if is_true(&obj_bytes(interp.get_obj_result())) {
-                    kept.push((k, v));
+                // The body result is coerced with the interpreter's canonical
+                // Tcl boolean parser (the one `if`/`while`/`expr` use), so a
+                // numeric false like `0x0`/`0.0` drops the pair and a
+                // non-boolean result raises `expected boolean value` — matching
+                // C's `Tcl_GetBooleanFromObj` rather than a loose string test
+                // (RUST_ISSUE_092).
+                match dict_filter_bool(interp.get_obj_result()) {
+                    Ok(true) => kept.push((k, v)),
+                    Ok(false) => {}
+                    Err(msg) => return interp.set_error(&msg),
                 }
             }
             Code::Continue => {}
@@ -332,10 +349,42 @@ fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-/// A Tcl boolean truth test (false: empty / `0` / `false` / `no` / `off`).
-fn is_true(b: &[u8]) -> bool {
-    let s = String::from_utf8_lossy(b).to_ascii_lowercase();
-    !matches!(s.trim(), "" | "0" | "false" | "no" | "off")
+/// Coerce a `dict filter -filter script` body result to a boolean like C's
+/// `Tcl_GetBooleanFromObj`, returning the C error message bytes on a non-boolean
+/// (`RUST_ISSUE_092`). On the numeric-tower build this is the canonical `expr`
+/// parser (arbitrary-precision non-zero test); the degraded no-`tommath` wasm
+/// build (where `expr` is compiled out) falls back to the boolean keywords plus a
+/// `parse_whole` numeric non-zero test — enough to keep `dict filter` building and
+/// working for the common results in that reduced runtime.
+#[cfg(have_tommath)]
+fn dict_filter_bool(o: *mut TclObj) -> Result<bool, Vec<u8>> {
+    crate::expr::to_bool(o).map_err(|e| e.msg)
+}
+
+#[cfg(not(have_tommath))]
+fn dict_filter_bool(o: *mut TclObj) -> Result<bool, Vec<u8>> {
+    use tcl_syntax::number::{parse_whole, Number};
+    let bytes = obj_bytes(o);
+    let s = core::str::from_utf8(&bytes).unwrap_or("");
+    let trimmed = s.trim();
+    match trimmed.to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => return Ok(true),
+        "0" | "false" | "no" | "off" => return Ok(false),
+        _ => {}
+    }
+    if let Some(n) = parse_whole(trimmed) {
+        match n {
+            Number::Int(v) => return Ok(v != 0),
+            Number::Double(d) => return Ok(d != 0.0),
+            // A bignum is zero iff every magnitude digit is `0`.
+            Number::Big { digits, .. } => return Ok(digits.bytes().any(|b| b != b'0')),
+            // NaN is not a valid Tcl boolean — fall through to the error.
+            Number::Nan { .. } => {}
+        }
+    }
+    let mut m = b"expected boolean value but got ".to_vec();
+    m.extend_from_slice(tcl_syntax::list::describe_bad_value(s).as_bytes());
+    Err(m)
 }
 
 // -- variable-mutating subcommands (copy-on-write) -------------------------
@@ -451,6 +500,12 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// `dict incr dictVarName key ?increment?` — integer-add to the key's value.
+///
+/// Both the stored value and the increment are read through the shared
+/// bignum-aware `int_add` seam (the one scalar `incr` uses), so a radix literal
+/// such as `0x10` is accepted and a sum past `i64::MAX` widens to a bignum
+/// instead of wrapping — matching C's `TclIncrObj` rather than a decimal-only
+/// `wrapping_add` (RUST_ISSUE_093 / 166).
 fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 || argv.len() > 5 {
         return wrong_args(interp, b"dict incr dictVarName key ?increment?");
@@ -461,55 +516,34 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(x) => x,
         Err(c) => return c,
     };
+    // Current value object (borrowed from `target`), or `None` when the key is
+    // absent — the seam then treats it as 0, as C's `dict incr` does.
     let cur = match dict::dict_get(target, &obj_bytes(key)) {
-        Ok(Some(v)) => match parse_i64(&obj_bytes(v)) {
-            Some(n) => n,
-            None => {
-                // Capture the value bytes *before* dropping `target` — `v` is
-                // owned by `target`, so the drop would free it (use-after-free).
-                let bytes = obj_bytes(v);
-                if is_new {
-                    drop_fresh(target);
-                }
-                return not_integer(interp, &bytes);
-            }
-        },
-        _ => 0,
+        Ok(Some(v)) => Some(v),
+        _ => None,
     };
-    let amount = if argv.len() == 5 {
-        match parse_i64(&obj_bytes(argv[4])) {
-            Some(n) => n,
-            None => {
-                if is_new {
-                    drop_fresh(target);
-                }
-                return not_integer(interp, &obj_bytes(argv[4]));
+    let one = obj::new_wide_int_obj(1);
+    let amount = if argv.len() == 5 { argv[4] } else { one };
+    // Coercion order matches C: the current value first, then the increment.
+    let sum = tcl_syntax::value::ValueOps::int_add(interp, cur.as_ref(), &amount);
+    drop_fresh(one); // the transient `1` (used or not) is no longer needed
+    let sum = match sum {
+        Ok(s) => s, // rc 0
+        Err(e) => {
+            if is_new {
+                drop_fresh(target);
             }
+            return interp.set_error(e.message().as_bytes());
         }
-    } else {
-        1
     };
-    let sum = cur.wrapping_add(amount);
-    let val = crate::interp::new_string(sum.to_string().as_bytes());
-    if let Err(e) = dict::dict_set(target, key, val) {
-        drop_fresh(val);
+    if let Err(e) = dict::dict_set(target, key, sum) {
+        drop_fresh(sum);
         if is_new {
             drop_fresh(target);
         }
         return bad_dict(interp, e);
     }
     store_dict(interp, &name, target, is_new)
-}
-
-fn parse_i64(b: &[u8]) -> Option<i64> {
-    core::str::from_utf8(b).ok()?.trim().parse().ok()
-}
-
-fn not_integer(interp: &mut Interp, b: &[u8]) -> Code {
-    let mut m = b"expected integer but got \"".to_vec();
-    m.extend_from_slice(b);
-    m.push(b'"');
-    interp.set_error(&m)
 }
 
 /// `dict set dictVarName key ?key ...? value` — set the value at a (possibly
@@ -558,12 +592,20 @@ fn dict_path_set(
     let (head, rest) = keys.split_first().expect("len >= 2 here");
     // The sub-dict for `head`: an unshared one we can mutate (copy a shared one,
     // create an empty one for a missing segment).
-    let sub = match dict::dict_get(dict, &obj_bytes(*head))? {
-        Some(s) if !obj::is_shared(s) => s,
-        Some(s) => obj::duplicate(s),    // rc 0
-        None => dict::new_dict_obj(&[]), // rc 0
+    let (sub, sub_fresh) = match dict::dict_get(dict, &obj_bytes(*head))? {
+        Some(s) if !obj::is_shared(s) => (s, false),
+        Some(s) => (obj::duplicate(s), true),    // rc 0
+        None => (dict::new_dict_obj(&[]), true), // rc 0
     };
-    dict_path_set(sub, rest, value)?;
+    // A freshly duplicated / created `sub` (rc 0) is only retained by the
+    // `dict_set` re-bind below; if the recursive descent errors first, drop it
+    // here so it is not orphaned (RUST_ISSUE_090).
+    if let Err(e) = dict_path_set(sub, rest, value) {
+        if sub_fresh {
+            drop_fresh(sub);
+        }
+        return Err(e);
+    }
     // Re-bind the (modified) sub-dict into its parent. This is required even when
     // `sub` was mutated in place: it invalidates the parent's string rep so the
     // nested change is visible up the chain.
@@ -626,12 +668,19 @@ fn dict_path_unset(dict: *mut TclObj, keys: &[*mut TclObj]) -> Result<(), PathEr
         return Ok(());
     }
     let (head, rest) = keys.split_first().expect("len >= 2 here");
-    let sub = match dict::dict_get(dict, &obj_bytes(*head)).map_err(PathErr::Bad)? {
-        Some(s) if !obj::is_shared(s) => s,
-        Some(s) => obj::duplicate(s), // rc 0
+    let (sub, sub_fresh) = match dict::dict_get(dict, &obj_bytes(*head)).map_err(PathErr::Bad)? {
+        Some(s) if !obj::is_shared(s) => (s, false),
+        Some(s) => (obj::duplicate(s), true), // rc 0
         None => return Err(PathErr::KeyMissing(obj_bytes(*head))),
     };
-    dict_path_unset(sub, rest)?;
+    // Drop a freshly duplicated `sub` if the recursive descent errors before the
+    // `dict_set` re-bind retains it (RUST_ISSUE_090).
+    if let Err(e) = dict_path_unset(sub, rest) {
+        if sub_fresh {
+            drop_fresh(sub);
+        }
+        return Err(e);
+    }
     dict::dict_set(dict, *head, sub).map_err(PathErr::Bad)
 }
 
@@ -901,6 +950,25 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
     m.extend_from_slice(usage);
     m.push(b'"');
     interp.set_error(&m)
+}
+
+/// The C `-errorcode` for a dict string-parse failure, keyed off the message the
+/// shared `tcl-cmd-core` core produced (which carries no code of its own). The
+/// message set mirrors [`bad_dict`] / C's `SetDictFromAny`.
+fn dict_parse_error_code(msg: &str) -> Option<&'static [u8]> {
+    if msg == "missing value to go with key" {
+        Some(b"TCL VALUE DICTIONARY")
+    } else if msg.starts_with("dict element in braces followed by")
+        || msg.starts_with("dict element in quotes followed by")
+    {
+        Some(b"TCL VALUE DICTIONARY JUNK")
+    } else if msg == "unmatched open brace in dict" {
+        Some(b"TCL VALUE DICTIONARY BRACE")
+    } else if msg == "unmatched open quote in dict" {
+        Some(b"TCL VALUE DICTIONARY QUOTE")
+    } else {
+        None
+    }
 }
 
 /// Map a dict string-parse failure to its C-faithful message + `-errorcode`

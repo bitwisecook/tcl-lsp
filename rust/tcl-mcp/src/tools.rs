@@ -406,12 +406,40 @@ fn optimize(args: &Value) -> Value {
 fn compile_wasm(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let ir = tcl_compiler::lowering::lower_to_ir(source, registry(&dialect));
-    let mut wasm = tcl_compiler::codegen::wasm::wasm_codegen_module(&ir, source);
-    let function_count = wasm.functions.len();
-    let bytes = wasm.to_bytes();
-    let wat = wasm.to_wat();
-    json!({ "wat": wat, "byte_length": bytes.len(), "function_count": function_count })
+    // Default to the bytecode-VM backend (`RUST_ISSUE_008`): it is the primary
+    // wasm compile target and runs coroutines. `tree-walker` selects the legacy
+    // eval-fallback emitter, the only one that yields a per-script WAT module.
+    if arg_str(args, "backend") == "tree-walker" {
+        let ir = tcl_compiler::lowering::lower_to_ir(source, registry(&dialect));
+        let mut wasm = tcl_compiler::codegen::wasm::wasm_codegen_module(&ir, source);
+        let function_count = wasm.functions.len();
+        let bytes = wasm.to_bytes();
+        let wat = wasm.to_wat();
+        json!({
+            "backend": "tree-walker",
+            "wat": wat,
+            "byte_length": bytes.len(),
+            "function_count": function_count,
+        })
+    } else {
+        // The VM backend compiles to bytecode (the artifact the shipped
+        // `vm.wasm` runner executes). Bytecode is not serialisable, so there
+        // is no per-script WAT; the disassembly is its introspectable form.
+        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode(source, registry(&dialect));
+        let cfg = tcl_compiler::cfg_builder::build_cfg_codegen(&ir, false);
+        let module = tcl_compiler::codegen::codegen_module(&cfg, &ir, registry(&dialect));
+        let disassembly = tcl_compiler::codegen::format::format_module_asm(&module);
+        let function_count = 1 + module.procedures.len();
+        json!({
+            "backend": "vm",
+            "disassembly": disassembly,
+            "function_count": function_count,
+            "note": "The VM backend ships a generic vm.wasm runner (built via \
+                     `make tcl-vm-wasm`) that compiles and runs Tcl — coroutines \
+                     included — at run time over its tcl_alloc/tcl_eval/tcl_dealloc \
+                     linear-memory ABI. Pass backend=tree-walker for a per-script WAT module.",
+        })
+    }
 }
 
 /// Run a cursor-addressed refactoring, returning its result dict or `null`.
@@ -1071,6 +1099,11 @@ const DIALECT: Param = (
 );
 const LINE: Param = ("line", "integer", "0-based line of the cursor");
 const CHAR: Param = ("character", "integer", "0-based character of the cursor");
+const BACKEND: Param = (
+    "backend",
+    "string",
+    "wasm backend: vm (default, bytecode VM runner) | tree-walker (eval-fallback WAT)",
+);
 const START_LINE: Param = (
     "start_line",
     "integer",
@@ -1204,8 +1237,10 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "compile_wasm",
-        description: "Compile to a WebAssembly module (eval-fallback tier); returns WAT + counts.",
-        params: &[SRC, DIALECT],
+        description: "Compile to WebAssembly. backend=vm (default) returns the bytecode \
+                      disassembly the shipped vm.wasm runner executes; backend=tree-walker \
+                      returns a per-script WAT module + counts.",
+        params: &[SRC, DIALECT, BACKEND],
         required: &["source"],
         handler: compile_wasm,
     },

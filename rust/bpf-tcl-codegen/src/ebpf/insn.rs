@@ -85,6 +85,9 @@ pub const NEG: u8 = 0x80;
 pub const MOD: u8 = 0x90;
 pub const XOR: u8 = 0xa0;
 pub const MOV: u8 = 0xb0;
+/// Arithmetic (sign-preserving) shift right — Tcl's `>>` on a negative value.
+/// Distinct from the logical `RSH`, which zero-fills.
+pub const ARSH: u8 = 0xc0;
 
 // ── JMP operations (high nibble) ───────────────────────────────────────────
 pub const JA: u8 = 0x00;

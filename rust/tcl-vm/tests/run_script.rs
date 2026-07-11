@@ -792,10 +792,17 @@ fn incr_shared_core() {
     let (ok, msg, _) = run("set y 1\nincr y xyz");
     assert!(!ok);
     assert_eq!(msg, "expected integer but got \"xyz\"");
-    // i64::MAX + 1 overflows the VM's fixed-width integer: error, not wrap.
-    let (ok, msg, _) = run("set big 9223372036854775807\nincr big");
-    assert!(!ok);
-    assert_eq!(msg, "integer value too large to represent");
+    // i64::MAX + 1 promotes to the wider integer tower (as `expr` does and as
+    // tclsh's arbitrary-precision integers do), rather than erroring or wrapping
+    // (RUST_ISSUE_095/011/171).
+    let (ok, val, _) = run("set big 9223372036854775807\nincr big");
+    assert!(ok);
+    assert_eq!(val, "9223372036854775808");
+    // A sum past i128 now promotes to an arbitrary-precision bignum too, matching
+    // tclsh, instead of overflowing (RUST_ISSUE_171). i128::MAX + 1 == 2**127.
+    let (ok, val, _) = run("set huge 170141183460469231731687303715884105727\nincr huge");
+    assert!(ok);
+    assert_eq!(val, "170141183460469231731687303715884105728");
 }
 
 /// `append`/`lappend` routed through the shared cores

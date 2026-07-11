@@ -144,7 +144,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: rust-check check-all prep-pr
 # Tests
 .PHONY: test test-ext test-ext-rust test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all
-.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-audit-option-dialects
+.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-command-backing xtask-audit-option-dialects tcltest-sweep tcltest-sweep-check
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust rust-deny
 .PHONY: build-report-assets lint-report-ts typecheck-report-ts check-report-assets
@@ -517,9 +517,21 @@ xtask-gen-ai-diagnostics: ## Verify ai/shared/diagnostics.json + AI prompt/skill
 	@echo "==> Checking generated AI files are in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-ai-diagnostics --check
 
+xtask-command-backing: ## Verify the WASM runtime backs every core-Tcl registry command (RUST_ISSUE_006 drift + gap gate)
+	@echo "==> Checking WASM command backing coverage is in sync (cargo xtask)"
+	cd $(ROOT) && cargo xtask command-backing --check
+
 xtask-audit-option-dialects: ## Regenerate tmp/option_dialect_audit.json from built tclsh trees (on-demand; needs tmp/tcl*/unix)
 	@echo "==> Auditing OptionSpec dialect gates (cargo xtask)"
 	cd $(ROOT) && cargo xtask audit-option-dialects
+
+tcltest-sweep: ## Regenerate the VM-vs-C tcltest parity scoreboard (runs the suite through the VM + reference tclsh; slow, on-demand)
+	@echo "==> Sweeping the C tcltest suite through the VM + reference tclsh (cargo xtask)"
+	cd $(ROOT) && cargo xtask tcltest-sweep --backend both
+
+tcltest-sweep-check: ## Verify the committed tcltest parity scoreboard is in sync (VM re-run vs cached C baseline; slow, nightly)
+	@echo "==> Checking the tcltest parity scoreboard is in sync (cargo xtask)"
+	cd $(ROOT) && cargo xtask tcltest-sweep --backend vm --check
 
 # Phase targets for parallel prep-pr execution
 _prep-pr-checks: lint-ts typecheck-ts check-editor-settings typecheck-report-ts lint-report-ts check-report-assets
@@ -763,6 +775,12 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on Zed extension and top
 			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
 		echo "==> Checking tcl-explorer-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
 		cd $(EXPLORER_WASM_DIR) && cargo fmt --all --check && \
+			cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
+	fi; \
+	if [ -f "$(ROOT)rust/tcl-vm-wasm/Cargo.toml" ] && \
+			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
+		echo "==> Checking tcl-vm-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
+		cd $(ROOT)rust/tcl-vm-wasm && cargo fmt --all --check && \
 			cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
 	fi
 
@@ -1109,6 +1127,23 @@ explorer-wasm: ## Build the Rust → WASM compiler-explorer core into the tcl GU
 
 explorer-build: explorer-wasm $(MERMAID_JS) ## Build the compiler-explorer GUI bundle (Rust → WASM, offline, no Python)
 	@echo "==> Compiler explorer bundle ready in $(EXPLORER_STATIC) — rebuild the tcl binary to embed it"
+
+TCL_VM_WASM_DIR := $(ROOT)rust/tcl-vm-wasm
+
+.PHONY: tcl-vm-wasm
+tcl-vm-wasm: ## Build the bytecode VM as a self-contained wasm32 cdylib (the primary wasm compile target, RUST_ISSUE_008)
+	@rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown \
+		|| rustup target add wasm32-unknown-unknown
+	@echo "==> Building tcl-vm-wasm (VM + compiler → wasm32-unknown-unknown cdylib, no imports/WASI)"
+	cd $(TCL_VM_WASM_DIR) && cargo build --release --target wasm32-unknown-unknown
+	@mkdir -p $(BUILD_DIR)/tcl-vm-wasm
+	cp $(TCL_VM_WASM_DIR)/target/wasm32-unknown-unknown/release/tcl_vm_wasm.wasm \
+		$(BUILD_DIR)/tcl-vm-wasm/vm.wasm
+	@# Best-effort self-check: run a coroutine script through the module under node.
+	@command -v node >/dev/null 2>&1 \
+		&& node $(TCL_VM_WASM_DIR)/verify.mjs $(BUILD_DIR)/tcl-vm-wasm/vm.wasm \
+		|| echo "    note: node not found — skipping vm.wasm run check"
+	@ls -lh $(BUILD_DIR)/tcl-vm-wasm/vm.wasm
 
 .PHONY: report-wasm
 report-wasm: ## Build the in-browser BIG-IP report generator (Rust → WASM) into rust/bigip-report-gen/wasm/dist/

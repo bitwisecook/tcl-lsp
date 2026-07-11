@@ -7,7 +7,7 @@
 | **Severity** | high |
 | **Subsystem** | Backend parity (WASM/VM/eBPF/registry) |
 | **Location** | `catch` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

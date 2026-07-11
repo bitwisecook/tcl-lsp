@@ -84,6 +84,12 @@ pub enum Command {
     /// A `namespace ensemble` — invoking `cmd sub args…` resolves `sub` against
     /// the ensemble's subcommands and dispatches to the mapped target.
     Ensemble(Rc<EnsembleDef>),
+    /// A `TclOO` object or class (`Foo create obj` / `obj method …`): the name
+    /// keys into the interp's `oo` state (`OoState::objects`/`classes`).
+    /// Invoking it dispatches `method args…` against the object (`oo_dispatch`).
+    /// Analogous to [`Command::ChildInterp`] — a command backed by a Vm-side
+    /// table keyed by the (canonical) name.
+    Object(String),
 }
 
 /// A `namespace ensemble create`d command (`tclEnsemble.c`).
@@ -155,6 +161,10 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_switch::register(vm);
     crate::cmd_trace::register(vm);
     crate::cmd_try::register(vm);
+    crate::cmd_oo::register(vm);
+    crate::cmd_coro::register(vm);
+    crate::cmd_event::register(vm);
+    crate::cmd_thread::register(vm);
 }
 
 /// `exit ?returnCode?` — request process termination with `returnCode`
@@ -269,18 +279,18 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             .collect::<Vec<_>>()
             .join(" ")
     };
-    let c = match vm.eval_source(&script) {
-        Ok(c) => c,
+    // Defer the body to the *explicit* stack so a `yield` inside it stays
+    // yieldable (RUST_ISSUE_008): compile it and hand it to the trampoline via
+    // `pending_eval`, which pushes a transparent script frame whose result
+    // replaces this placeholder. The script frame adds the `("eval" body line N)`
+    // errorInfo frame itself on error (eval-2.5; see `Frame::body_label`).
+    match vm.compile_source_cached(&script) {
+        Ok(asm) => {
+            vm.pending_eval = Some((asm, Some("eval")));
+            ok(Value::empty())
+        }
         Err(e) => err(e.message),
-    };
-    if c.code == Code::Error {
-        // An error unwinding out of an `eval` body adds an `("eval" body
-        // line N)` frame to errorInfo (C's uncompiled eval), before the
-        // enclosing INVOKE logs its `invoked from within "eval {…}"` frame
-        // (eval-2.5).
-        vm.append_body_frame("eval");
     }
-    c
 }
 
 /// Monotonic counter minting unique temporary command names for `apply`.
@@ -291,22 +301,26 @@ fn fresh_apply_name() -> String {
     format!("::tcl::apply::lambda{n}")
 }
 
-/// `apply lambda ?arg ...?` — invoke an anonymous function `{params body ?ns?}`.
-/// Implemented by binding the lambda to a temporary command and evaluating a
-/// call, so parameter binding and `return` semantics match a normal proc.
-fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some((lambda, call_args)) = args.split_first() else {
-        return err("wrong # args: should be \"apply lambdaExpr ?arg ...?\"");
-    };
+/// Parse a lambda expression `{params body ?namespace?}` and define it as a
+/// fresh internal proc, returning that proc's canonical name (`Err` with the
+/// diagnostic on a malformed lambda).
+///
+/// Shared by `apply` and by `coroutine … apply …`. The caller owns the proc's
+/// lifetime: `apply` deletes it right after the call; a coroutine keeps it alive
+/// for the coroutine's life so the lambda body runs on the coroutine's *explicit
+/// activation stack* (a `yield` inside it is then yieldable — the generic
+/// `apply` path evaluates the body through a host-stack re-entry, which a
+/// `yield` cannot cross).
+pub(crate) fn build_lambda_proc(vm: &mut Vm, lambda: &Value) -> Result<String, Completion<Value>> {
     let parts = match lambda.as_list() {
         Ok(p) => p,
-        Err(c) => return err(c.message),
+        Err(c) => return Err(err(c.message)),
     };
     if parts.len() < 2 || parts.len() > 3 {
-        return err(format!(
+        return Err(err(format!(
             "can't interpret \"{}\" as a lambda expression",
             lambda.to_str()
-        ));
+        )));
     }
     let (params_vec, has_args) = match parse_params(&parts[0].to_str()) {
         Ok(p) => p,
@@ -318,12 +332,12 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 &e,
                 &format!("\n    (parsing lambda expression \"{}\")", lambda.to_str()),
             );
-            return err(e);
+            return Err(err(e));
         }
     };
     let body = parts[1].clone();
     let Some(body_asm) = vm.compile_dynamic_body(&body.to_str()) else {
-        return err("apply: could not compile lambda body");
+        return Err(err("apply: could not compile lambda body"));
     };
     // The optional third element is the namespace the body runs in (default
     // global). Strip a leading `::` to the canonical form. A named namespace
@@ -336,7 +350,7 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // The message names the fully-qualified namespace: a relative third
         // element is resolved from the global namespace, so it is reported with a
         // leading `::` (apply-3.3 — `NONEXIST::…` → `::NONEXIST::…`).
-        return err(format!("namespace \"::{namespace}\" not found"));
+        return Err(err(format!("namespace \"::{namespace}\" not found")));
     }
 
     let name = fresh_apply_name();
@@ -349,6 +363,20 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         body_src: body,
         usage_name: Some("apply lambdaExpr".to_string()),
     });
+    Ok(name)
+}
+
+/// `apply lambda ?arg ...?` — invoke an anonymous function `{params body ?ns?}`.
+/// Implemented by binding the lambda to a temporary command and evaluating a
+/// call, so parameter binding and `return` semantics match a normal proc.
+fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some((lambda, call_args)) = args.split_first() else {
+        return err("wrong # args: should be \"apply lambdaExpr ?arg ...?\"");
+    };
+    let name = match build_lambda_proc(vm, lambda) {
+        Ok(n) => n,
+        Err(c) => return c,
+    };
     let mut words = Vec::with_capacity(call_args.len() + 1);
     words.push(Value::string(name.as_str()));
     words.extend_from_slice(call_args);
@@ -387,7 +415,16 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             "can't {verb} \"{old_name}\": command doesn't exist"
         ));
     };
-    if !new_name.is_empty() {
+    // A coroutine's state travels with its command: a delete (`rename $coro {}`)
+    // drops it (no `finally` runs — the frozen continuation is inert data,
+    // matching C Tcl); a rename re-keys it so it keeps working under the new name.
+    let old_fqn = vm.qualify_name(&old_name);
+    let is_coro = crate::cmd_coro::is_coroutine(vm, &old_fqn);
+    if new_name.is_empty() {
+        if is_coro {
+            crate::cmd_coro::on_command_deleted(vm, &old_fqn);
+        }
+    } else {
         // An unqualified target binds in the current namespace; a qualified one
         // is used as given. `register_command` canonicalises the key.
         let key = if new_name.contains("::") {
@@ -395,6 +432,9 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         } else {
             vm.qualify_name(&new_name)
         };
+        if is_coro {
+            crate::cmd_coro::on_command_renamed(vm, &old_fqn, &key);
+        }
         // A proc executes in the namespace it currently lives in, so renaming
         // it across namespaces re-homes its body (C `TclRenameCommand` updates
         // the command's `nsPtr`). `namespace current` inside the body then
@@ -853,10 +893,19 @@ fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
         }
     }
-    match crate::subst::subst_command(vm, &string.to_str(), backslashes, commands, variables) {
-        Ok(s) => ok(Value::string(s)),
-        Err(e) => err(e.message),
-    }
+    // Defer to the *explicit* stack so a `yield` inside a `[…]` stays yieldable
+    // (RUST_ISSUE_008): park the template + switches in `pending_subst`, drained by
+    // the trampoline into a scanner-driven subst frame (mirrors `cmd_catch`'s
+    // `pending_catch`). The frame's accumulated result replaces this builtin's
+    // placeholder; on the native `invoke_command` fallback it runs via a nested
+    // drive (not yieldable, as before).
+    vm.pending_subst = Some(crate::exec::SubstReq {
+        template: string.to_str().to_string(),
+        backslashes,
+        commands,
+        variables,
+    });
+    ok(Value::empty())
 }
 
 /// Match a `subst` option by unique abbreviation (Tcl's `Tcl_GetIndexFromObj`):
@@ -980,7 +1029,7 @@ fn validate_param_name(name: &str) -> Result<(), String> {
 }
 
 /// Parse a proc parameter spec (`"a b {c 1} args"`) into params + `has_args`.
-fn parse_params(spec: &str) -> Result<(Vec<Param>, bool), String> {
+pub(crate) fn parse_params(spec: &str) -> Result<(Vec<Param>, bool), String> {
     let elems = split_list(spec).map_err(|e| e.message().to_string())?;
     let mut params = Vec::with_capacity(elems.len());
     for e in &elems {
@@ -1150,6 +1199,33 @@ fn default_error_code(message: &str) -> &'static str {
     }
 }
 
+/// Rebuild a return-options dict with its `-level` replaced — the proc-boundary
+/// countdown for `return -level N` (`RUST_ISSUE_170`). Every other key (`-code`
+/// and any user options) is preserved; a missing `-level` is appended.
+pub(crate) fn with_return_level(options: &Value, new_level: i64) -> Value {
+    let mut items = Vec::new();
+    let mut have_level = false;
+    if let Ok(list) = options.as_list() {
+        let mut i = 0;
+        while i + 1 < list.len() {
+            if &*list[i].to_str() == "-level" {
+                items.push(Value::string("-level"));
+                items.push(Value::int(new_level));
+                have_level = true;
+            } else {
+                items.push(list[i].clone());
+                items.push(list[i + 1].clone());
+            }
+            i += 2;
+        }
+    }
+    if !have_level {
+        items.push(Value::string("-level"));
+        items.push(Value::int(new_level));
+    }
+    Value::list(items)
+}
+
 /// Look up a key in an options-dict value, returning the following element.
 pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
     let items = options.as_list().ok()?;
@@ -1229,15 +1305,12 @@ fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // `-level 0` makes the requested `-code` take effect *immediately* (the
     // completion IS that code, including `ok` — `return -level 0 -code N` is how
     // `try`/`catch` produce an arbitrary return code). A positive level raises
-    // TCL_RETURN, absorbed at the proc boundary; an explicit non-OK `-code` at
-    // level ≥ 1 takes effect immediately (simplification: skip the countdown).
-    let final_code = if level == 0 {
-        ret_code
-    } else if ret_code == Code::Ok {
-        Code::Return
-    } else {
-        ret_code
-    };
+    // TCL_RETURN carrying `-code`/`-level` in its options; each proc boundary
+    // decrements the level and only applies `-code` once it reaches 0, so
+    // `return -level 2 -code error` is seen as TCL_RETURN one level up, not an
+    // immediate error (`RUST_ISSUE_170`; the countdown lives at the proc boundary
+    // in `exec.rs`).
+    let final_code = if level == 0 { ret_code } else { Code::Return };
     Completion::new(final_code, value, options)
 }
 
@@ -1423,43 +1496,118 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             return err("wrong # args: should be \"catch script ?resultVarName? ?optionVarName?\"");
         }
     };
-    let comp = match vm.eval_source(&script.to_str()) {
-        Ok(c) => c,
-        Err(e) => Completion::new(Code::Error, e.into_value(), Value::empty()),
-    };
-    // `exit` is not catchable (C Tcl's `Tcl_Exit`): if the body requested an
-    // exit, propagate the unwind rather than swallowing it.
-    if vm.exit_pending() {
-        return comp;
+    // Defer the body to the *explicit* stack so a `yield` inside it stays
+    // yieldable (RUST_ISSUE_008): compile it and hand it to the trampoline via
+    // `pending_catch`. A catch frame runs the body and its completion — of any
+    // code — is absorbed by `finish_catch` (which binds the result/options vars
+    // and yields the status code). Mirrors `cmd_eval`'s `pending_eval`, but
+    // catch's completion is caught rather than propagated.
+    match vm.compile_source_cached(&script.to_str()) {
+        Ok(asm) => {
+            vm.pending_catch = Some(crate::exec::CatchReq {
+                asm,
+                resvar: resvar.map(|v| (*v).clone()),
+                optvar: optvar.map(|v| (*v).clone()),
+            });
+            ok(Value::empty())
+        }
+        // A body that fails to *parse* is itself a catchable error: run the
+        // epilogue directly with the parse-error completion (no body to execute).
+        Err(e) => {
+            let comp = Completion::new(Code::Error, Value::string(e.message), Value::empty());
+            vm.finish_catch(comp, resvar, optvar)
+        }
     }
-    if let Some(r) = resvar
-        && let Err(e) = vm.set_var(&r.to_str(), comp.result.clone())
-    {
-        return e;
+}
+
+impl Vm {
+    /// The `catch` epilogue, shared by the explicit-stack catch frame
+    /// ([`crate::exec`]'s `unwind`) and the `invoke_command` / parse-error
+    /// fallbacks: from the body's completion `comp`, bind the result and options
+    /// variables and return the status code as an integer (this `catch` command's
+    /// result). An uncatchable `exit` unwind passes straight through; a failure to
+    /// write a bind variable propagates as this catch's own error.
+    ///
+    /// `take_error_info` consumes the accumulated trace, so the same values feed
+    /// both the options dict and the `$errorInfo`/`$errorCode` globals; a
+    /// non-error completion still clears any in-flight trace so the next error
+    /// starts fresh.
+    pub(crate) fn finish_catch(
+        &mut self,
+        comp: Completion<Value>,
+        resvar: Option<&Value>,
+        optvar: Option<&Value>,
+    ) -> Completion<Value> {
+        if self.exit_pending() {
+            return comp;
+        }
+        let error_meta = if comp.code == Code::Error {
+            let einfo = self.take_error_info().unwrap_or_else(|| {
+                opt_get(&comp.options, "-errorinfo").map_or_else(
+                    || comp.result.to_str().to_string(),
+                    |v| v.to_str().to_string(),
+                )
+            });
+            Some((einfo, resolved_error_code(&comp), self.error_line()))
+        } else {
+            let _ = self.take_error_info();
+            None
+        };
+        if let Some(r) = resvar
+            && let Err(e) = self.set_var(&r.to_str(), comp.result.clone())
+        {
+            return e;
+        }
+        if let Some(o) = optvar {
+            let opts = match &error_meta {
+                Some((einfo, ecode, eline)) => catch_error_options(&comp, ecode, einfo, *eline),
+                None => completion_options(&comp),
+            };
+            if let Err(e) = self.set_var(&o.to_str(), opts) {
+                return e;
+            }
+        }
+        if let Some((einfo, ecode, _)) = &error_meta {
+            self.publish_error(einfo, ecode);
+        }
+        ok(Value::int(comp.code.as_int()))
     }
-    if let Some(o) = optvar
-        && let Err(e) = vm.set_var(&o.to_str(), completion_options(&comp))
-    {
-        return e;
+}
+
+/// The options dict `catch` binds for an error completion. C always attaches
+/// `-errorcode`, `-errorinfo`, and `-errorline` to an error's options — even a
+/// bare builtin error such as `catch {llength} m opts` — so
+/// `dict get $opts -errorcode` never fails (`RUST_ISSUE_013`). The resolved code
+/// and trace already fold in any values a user `error`/`throw`/`return` carried;
+/// any *other* carried option (a custom `-foo`) is preserved verbatim.
+fn catch_error_options(comp: &Completion<Value>, ecode: &Value, einfo: &str, eline: u32) -> Value {
+    let mut items = vec![
+        Value::string("-code"),
+        Value::int(comp.code.as_int()),
+        Value::string("-level"),
+        Value::int(0),
+        Value::string("-errorcode"),
+        ecode.clone(),
+        Value::string("-errorinfo"),
+        Value::string(einfo),
+        Value::string("-errorline"),
+        Value::int(i64::from(eline)),
+    ];
+    if let Ok(carried) = comp.options.as_list() {
+        let mut i = 0;
+        while i + 1 < carried.len() {
+            let k = carried[i].to_str();
+            if !matches!(
+                &*k,
+                "-code" | "-level" | "-errorcode" | "-errorinfo" | "-errorline"
+            ) {
+                items.push(carried[i].clone());
+                items.push(carried[i + 1].clone());
+            }
+            i += 2;
+        }
     }
-    if comp.code == Code::Error {
-        // Prefer the accumulated `errorInfo` source trace (the message plus the
-        // `while executing` / `invoked from within` frames) over the bare
-        // `-errorinfo` the completion carried; fall back when nothing logged.
-        let einfo = vm.take_error_info().unwrap_or_else(|| {
-            opt_get(&comp.options, "-errorinfo").map_or_else(
-                || comp.result.to_str().to_string(),
-                |v| v.to_str().to_string(),
-            )
-        });
-        let ecode = resolved_error_code(&comp);
-        vm.publish_error(&einfo, &ecode);
-    } else {
-        // A non-error completion ends any in-flight trace (e.g. an inner error
-        // that a deeper `catch` already consumed), so the next error is fresh.
-        let _ = vm.take_error_info();
-    }
-    ok(Value::int(comp.code.as_int()))
+    Value::list(items)
 }
 
 /// `unset ?-nocomplain? ?--? name ...` — remove variables / array elements.
@@ -1628,11 +1776,30 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .map(|v| v.to_str().to_string())
         .collect::<Vec<_>>()
         .join(" ");
+    // `uplevel 0` (and `uplevel #<current level>`) runs in the *current* frame —
+    // no frame swap — so defer it to the explicit stack (yieldable), like `eval`
+    // (RUST_ISSUE_008; coroutine-1.7/1.8/1.12). Every other level swaps to a
+    // different frame that must be restored afterwards, which a transparent
+    // script frame cannot carry, so those keep the nested-drive `eval_at_level`.
+    if target == cur {
+        return match vm.compile_source_cached(&script) {
+            Ok(asm) => {
+                vm.pending_eval = Some((asm, Some("uplevel")));
+                ok(Value::empty())
+            }
+            Err(e) => err(e.message),
+        };
+    }
     vm.eval_at_level(target, &script)
 }
 
 /// `variable ?name value ...? name ?value?` — namespace variables (currently global).
-fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+pub(crate) fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    // Inside an `oo::define`/`oo::objdefine` body, `variable` *declares* instance
+    // variables rather than linking a namespace variable (C's `TclOODefineVariablesObjCmd`).
+    if let Some(res) = crate::cmd_oo::maybe_declare_variable(vm, args) {
+        return res;
+    }
     if args.is_empty() {
         return err("wrong # args: should be \"variable ?name value ...? name ?value?\"");
     }

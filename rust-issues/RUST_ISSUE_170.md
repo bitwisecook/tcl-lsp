@@ -7,7 +7,7 @@
 | **Severity** | low |
 | **Subsystem** | Bytecode VM |
 | **Location** | `rust/tcl-vm/src/command.rs:1234` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

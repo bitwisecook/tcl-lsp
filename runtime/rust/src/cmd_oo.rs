@@ -308,6 +308,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"self", self_cmd);
     interp.register_builtin(b"next", next_cmd);
     interp.register_builtin(b"nextto", nextto_cmd);
+    interp.register_builtin(b"classvariable", classvariable_cmd);
     // Root classes (so `superclass`-less classes inherit `object` and
     // `superclass oo::class`/`oo::object` validate). Both are themselves
     // objects (instances of `::oo::class`) and dispatch through `oo_dispatch`
@@ -3066,6 +3067,76 @@ fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         m.push(b'"');
     }
     err(interp, &m)
+}
+
+/// `classvariable name ...` — the method-context command that links each `name`
+/// in the running method's frame to the like-named variable in the *declaring
+/// class's* namespace, so every instance of that class shares it. Distinct from
+/// the object `variable` method (`oo_builtin_method`), which targets the object's
+/// own instance namespace: here the target is the class object's namespace, and
+/// it is resolved per *declaring* class, so a method reached via `next` links to
+/// its own class rather than the leaf object's.
+fn classvariable_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    // Method-context only. C exposes `classvariable` through `::oo::Helpers` on a
+    // method's namespace path; the runtime models the helpers as global builtins
+    // that consult the call stack (as `self`/`my`/`next` do), so outside a method
+    // it reports the same "from inside a method" error those use.
+    let step = interp
+        .oo
+        .borrow()
+        .call_stack
+        .last()
+        .and_then(|f| f.chain.get(f.index).cloned());
+    let Some(step) = step else {
+        return err(
+            interp,
+            b"classvariable may only be called from inside a method",
+        );
+    };
+    // The providing method must belong to a *class*: a per-object method (a plain
+    // object's `objdefine` method, or a class-side `self method`) has no class
+    // namespace to share into (C: "method not defined by a class").
+    if step.is_object {
+        return err(interp, b"method not defined by a class");
+    }
+    if argv.len() < 2 {
+        return wrong_args(interp, b"classvariable name ...");
+    }
+    // The declaring class is itself an object (classes-as-objects); its instance
+    // namespace holds the shared variables.
+    let Some(class_ns) = interp
+        .oo
+        .borrow()
+        .objects
+        .get(&step.provider)
+        .map(|o| o.var_ns)
+    else {
+        return err(interp, b"method not defined by a class");
+    };
+    for &a in &argv[1..] {
+        let name = obj_bytes(a);
+        // C validates the local name as it would any `upvar` target, in this
+        // order: an array-element look-alike first, then a namespace separator.
+        if crate::frame::split_array_ref(&name).1.is_some() {
+            let mut m = b"bad variable name \"".to_vec();
+            m.extend_from_slice(&name);
+            m.extend_from_slice(
+                b"\": can't create a scalar variable that looks like an array element",
+            );
+            return interp.set_error(&m);
+        }
+        if name.windows(2).any(|w| w == b"::") {
+            let mut m = b"bad variable name \"".to_vec();
+            m.extend_from_slice(&name);
+            m.extend_from_slice(
+                b"\": can't create a local variable with a namespace separator in it",
+            );
+            return interp.set_error(&m);
+        }
+        interp.make_variable(class_ns, &name);
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
 }
 
 // -- info object / info class (called from cmd_info) -------------------------
@@ -6794,6 +6865,90 @@ mod tests {
             assert_eq!(
                 i.eval_str(b"oo::class create D {method z {} {my variable a::b}}; [D new] z"),
                 Code::Error,
+            );
+        });
+    }
+
+    #[test]
+    fn classvariable_shares_state_per_declaring_class() {
+        leak_free(|i| {
+            // A class variable is shared across all instances of the class, and
+            // lives in the class object's namespace.
+            ok(
+                i,
+                b"oo::class create Counter {
+                    constructor {} { classvariable count; incr count }
+                    method count {} { classvariable count; return $count }
+                }",
+            );
+            ok(i, b"Counter create a; Counter create b; Counter create c");
+            assert_eq!(ok(i, b"a count"), b"3");
+            assert_eq!(ok(i, b"b count"), b"3");
+            // It really lives in the class's own namespace.
+            assert_eq!(ok(i, b"set [info object namespace Counter]::count"), b"3");
+            // A method reached via `next` links to *its own* declaring class, not
+            // the leaf object's — so Base and Derived keep separate stores.
+            ok(
+                i,
+                b"oo::class create Base {
+                    method tag {v} { classvariable t; set t $v }
+                    method get {} { classvariable t; return $t }
+                }",
+            );
+            ok(
+                i,
+                b"oo::class create Sub {
+                    superclass Base
+                    method tag {v} { classvariable t; set t sub-$v; next $v }
+                }",
+            );
+            ok(i, b"Sub create s; s tag hi");
+            assert_eq!(ok(i, b"set [info object namespace Base]::t"), b"hi");
+            assert_eq!(ok(i, b"set [info object namespace Sub]::t"), b"sub-hi");
+            assert_eq!(ok(i, b"s get"), b"hi");
+        });
+    }
+
+    #[test]
+    fn classvariable_context_and_name_errors() {
+        leak_free(|i| {
+            // Outside a method it is unusable (helpers are call-stack-gated).
+            assert_eq!(i.eval_str(b"classvariable foo"), Code::Error);
+            assert!(contains(
+                &i.result_bytes(),
+                b"classvariable may only be called from inside a method"
+            ));
+            // A per-object / class-side method has no class namespace to share.
+            ok(
+                i,
+                b"oo::object create solo; oo::objdefine solo {method m {} {classvariable x}}",
+            );
+            assert_eq!(i.eval_str(b"solo m"), Code::Error);
+            assert_eq!(i.result_bytes(), b"method not defined by a class");
+            // Name validation mirrors C: array look-alike, then namespace sep.
+            ok(
+                i,
+                b"oo::class create C {
+                    method arr {} { classvariable a(b) }
+                    method ns {} { classvariable ::foo }
+                    method none {} { classvariable }
+                }",
+            );
+            ok(i, b"C create o");
+            assert_eq!(i.eval_str(b"o arr"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"bad variable name \"a(b)\": can't create a scalar variable that looks like an array element"
+            );
+            assert_eq!(i.eval_str(b"o ns"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"bad variable name \"::foo\": can't create a local variable with a namespace separator in it"
+            );
+            assert_eq!(i.eval_str(b"o none"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"wrong # args: should be \"classvariable name ...\""
             );
         });
     }

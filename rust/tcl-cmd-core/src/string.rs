@@ -151,12 +151,34 @@ pub fn case_convert<O: ValueOps>(
             CaseMode::Title => i == first, // titlecase the first char, lowercase the rest
         };
         if uppercase {
-            out.extend(c.to_uppercase());
+            // `string totitle`'s first character uses the Unicode *titlecase*
+            // mapping (`Tcl_UniCharToTitle`), which differs from uppercase only
+            // for the Latin DŽ/LJ/NJ/DZ digraphs (string-17.7); everywhere else
+            // titlecase == uppercase.
+            match titlecase_digraph(c).filter(|_| matches!(mode, CaseMode::Title)) {
+                Some(tc) => out.push(tc),
+                None => out.extend(c.to_uppercase()),
+            }
         } else {
             out.extend(c.to_lowercase());
         }
     }
     Ok(ops.new_string(out))
+}
+
+/// The Unicode titlecase mapping for the characters whose `Titlecase_Mapping`
+/// differs from their `Uppercase_Mapping` — the Latin DŽ/LJ/NJ/DZ digraphs (all
+/// three case forms of each map to the single title form). Every other character
+/// titlecases to its uppercase mapping, so those return `None` (the caller falls
+/// back to [`char::to_uppercase`]).
+fn titlecase_digraph(c: char) -> Option<char> {
+    Some(match c {
+        '\u{01C4}' | '\u{01C5}' | '\u{01C6}' => '\u{01C5}', // DŽ / Dž / dž → Dž
+        '\u{01C7}' | '\u{01C8}' | '\u{01C9}' => '\u{01C8}', // LJ / Lj / lj → Lj
+        '\u{01CA}' | '\u{01CB}' | '\u{01CC}' => '\u{01CB}', // NJ / Nj / nj → Nj
+        '\u{01F1}' | '\u{01F2}' | '\u{01F3}' => '\u{01F2}', // DZ / Dz / dz → Dz
+        _ => return None,
+    })
 }
 
 /// `string replace string first last ?newstring?` — remove the characters in
@@ -358,6 +380,13 @@ fn is_nocase(opt: &str) -> bool {
 /// `string map ?-nocase? charMap string` — replace substrings per the
 /// `key value ...` map, scanning left-to-right and taking the first matching key
 /// at each position (advancing past it), else copying one character.
+/// Full Unicode simple-lowercase fold of a character sequence, used by
+/// `string map -nocase` to compare keys against the source the same way
+/// `string equal -nocase` and `tolower` do.
+fn fold_chars(cs: &[char]) -> Vec<char> {
+    cs.iter().flat_map(|c| c.to_lowercase()).collect()
+}
+
 pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
     let (nocase, pairs, text) = match args {
         [m, s] => (false, m, s),
@@ -383,31 +412,46 @@ pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdE
     }
     let string = ops.as_str(text).to_string();
 
-    // Case-insensitive matching folds ASCII case but advances by the (original)
-    // key byte length, matching the reference implementation.
-    let starts = |rest: &str, from: &str| -> bool {
-        if nocase {
-            rest.chars()
-                .zip(from.chars())
-                .all(|(a, b)| a.eq_ignore_ascii_case(&b))
-                && rest.chars().count() >= from.chars().count()
-        } else {
-            rest.starts_with(from)
-        }
-    };
+    // Case-insensitive matching folds full Unicode case (like `string equal
+    // -nocase` and `tolower`), not just ASCII, and matches/advances by
+    // *character* so a key whose case fold changes byte length stays aligned
+    // with C's `Tcl_UniCharNcasecmp` over `length2` characters (RUST_ISSUE_167).
+    let keys: Vec<(Vec<char>, Vec<char>, &str)> = map
+        .iter()
+        .filter(|(from, _)| !from.is_empty())
+        .map(|(from, to)| {
+            let chars: Vec<char> = from.chars().collect();
+            let folded = if nocase {
+                fold_chars(&chars)
+            } else {
+                Vec::new()
+            };
+            (chars, folded, to.as_str())
+        })
+        .collect();
+    let src: Vec<char> = string.chars().collect();
     let mut out = String::with_capacity(string.len());
-    let mut rest = string.as_str();
-    'outer: while !rest.is_empty() {
-        for (from, to) in &map {
-            if !from.is_empty() && rest.len() >= from.len() && starts(rest, from) {
+    let mut i = 0;
+    'outer: while i < src.len() {
+        for (key, folded_key, to) in &keys {
+            let klen = key.len();
+            if i + klen > src.len() {
+                continue;
+            }
+            let region = &src[i..i + klen];
+            let hit = if nocase {
+                fold_chars(region) == *folded_key
+            } else {
+                region == key.as_slice()
+            };
+            if hit {
                 out.push_str(to);
-                rest = &rest[from.len()..];
+                i += klen;
                 continue 'outer;
             }
         }
-        let ch = rest.chars().next().expect("rest is non-empty");
-        out.push(ch);
-        rest = &rest[ch.len_utf8()..];
+        out.push(src[i]);
+        i += 1;
     }
     Ok(ops.new_string(out))
 }
@@ -701,6 +745,25 @@ mod tests {
         assert_eq!(word_start(&c, 0), 0);
         assert_eq!(word_start(&c, 100), 4); // clamps to last char of "def"
         assert_eq!(word_start(&[], 3), 0); // empty
+    }
+
+    #[test]
+    fn totitle_first_char_uses_titlecase_not_uppercase() {
+        let mut ops = StrOps;
+        let title = |ops: &mut StrOps, s: &str| {
+            case_convert(ops, &[s.to_owned()], CaseMode::Title, "u").unwrap()
+        };
+        // The Latin dz digraph (U+01F3) titlecases to Dž (U+01F2), not the
+        // uppercase DZ (U+01F1) — string-17.7; the rest is lowercased.
+        assert_eq!(title(&mut ops, "\u{01F3}BCabc"), "\u{01F2}bcabc");
+        assert_eq!(title(&mut ops, "\u{01C9}x"), "\u{01C8}x"); // lj → Lj
+        // A non-digraph first char still titlecases to its uppercase.
+        assert_eq!(title(&mut ops, "hELLO"), "Hello");
+        // `toupper` of the digraph is the uppercase form (U+01F1), not titlecase.
+        assert_eq!(
+            case_convert(&mut ops, &["\u{01F3}".to_owned()], CaseMode::Upper, "u").unwrap(),
+            "\u{01F1}"
+        );
     }
 
     #[test]

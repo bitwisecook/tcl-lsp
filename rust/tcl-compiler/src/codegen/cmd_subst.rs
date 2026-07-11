@@ -414,9 +414,17 @@ impl CodegenCtx<'_> {
                 self.load_var(var_name);
                 return;
             }
-            // Bare $varname form (not normalised to ${var})
+            // Bare $varname form (not normalised to ${var}), including a
+            // namespace-qualified name (`$::x`, `$ns::v`): a whole-word variable
+            // reference whose name is alphanumerics/`_` joined only by `::`
+            // separators. `is_bare_var_name` enforces the `::`-pair rule, so a
+            // lone trailing/interior colon (`$action:` = `$action` then literal
+            // `:`) is *not* swallowed into the name (it would `load_var
+            // "action:"`); such interpolated words fall through to `emit_value`.
+            // Loading the qualified form here also fixes `$::x` measuring the
+            // literal `$::x` (the runtime `subst_word` only substitutes `${…}`).
             let rest = &arg[1..];
-            if !rest.is_empty() && rest.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            if tcl_syntax::naming::is_bare_var_name(rest) {
                 self.load_var(rest);
                 return;
             }
@@ -504,10 +512,15 @@ impl CodegenCtx<'_> {
                 self.load_var(var_name);
             } else {
                 // Bare `$name` / `$name(idx)` — load the variable rather than
-                // pushing the unsubstituted literal.
+                // pushing the unsubstituted literal. A namespace-qualified name
+                // (`$::x`, `$ns::v`) counts as bare, but only with `::`-pair
+                // separators (`is_bare_var_name`): a lone colon ends the name, so
+                // `$action:` is `$action` then a literal `:`, not a variable
+                // `action:`. Without the qualified case a `$::x` fell through to
+                // `emit_value` → `push_lit("$::x")`, which the runtime leaves
+                // unsubstituted (only `${…}` is a subst trigger).
                 let rest = &word[1..];
-                let is_bare =
-                    !rest.is_empty() && rest.chars().all(|c| c.is_alphanumeric() || c == '_');
+                let is_bare = tcl_syntax::naming::is_bare_var_name(rest);
                 if is_bare || (!rest.is_empty() && split_array_ref(rest).is_some()) {
                     self.load_var(rest);
                 } else {
@@ -729,6 +742,12 @@ impl CodegenCtx<'_> {
                 Op::STR_CONCAT1,
                 vec![Operand::Imm(bytecode_imm(parts.len()))],
             );
+            return;
+        }
+        // A whole-word command substitution compiles inline (on the explicit
+        // stack) rather than via the runtime `subst_word` fallback, so a
+        // `[yield]`/`[cmd]` inside it stays yieldable in a coroutine.
+        if interpolate && self.try_emit_whole_cmd_subst(value) {
             return;
         }
         // Default: push as literal

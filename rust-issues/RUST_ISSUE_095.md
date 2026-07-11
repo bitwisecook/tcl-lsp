@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Bytecode VM |
 | **Location** | `rust/tcl-vm/src/exec.rs:1942 (and rust/tcl-vm/src/cmd_dict.rs:325)` |
-| **Status** | Open |
+| **Status** | Fixed |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding
