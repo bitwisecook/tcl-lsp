@@ -1797,15 +1797,16 @@ fn propagate_guard(
 /// through that command again (e.g. `uri::encode [uri::encode $x]`).
 /// Emit T106 (double-encode) warnings — one warning per variable.
 fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
-    registry: &CommandRegistry,
     command: &str,
+    call_args: &[String],
     uses: &HashMap<Symbol, u32>,
     taints: &HashMap<ValueKey, TaintLattice, S>,
     span: Span,
     warnings: &mut Vec<TaintWarning>,
-    ssa: &SsaFunction,
+    ctx: TaintCtx<'_>,
 ) {
-    let Some(dup_colour) = registry
+    let Some(dup_colour) = ctx
+        .registry
         .get(command)
         .and_then(|s| s.taint_double_encode_colour)
         .map(reg_colour)
@@ -1814,8 +1815,9 @@ fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
     };
     let label = double_encode_label(dup_colour);
     let mut emitted: FxHashSet<Symbol> = FxHashSet::default();
+    // Named-variable double-encode: `set e [enc $x]; enc $e`.
     for (&sym, &ver) in uses {
-        let name = ssa.var_name(sym);
+        let name = ctx.ssa.var_name(sym);
         if is_seeded_global_v0(name, ver) || emitted.contains(&sym) {
             continue;
         }
@@ -1837,6 +1839,34 @@ fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
                 fixes: Vec::new(),
             });
             emitted.insert(sym);
+        }
+    }
+    // Nested double-encode with no named intermediate: `enc [enc $x]`. The
+    // inner encoder's result colour never lands on a named variable, so scan
+    // each argument *word* — a command substitution whose value already carries
+    // the colour is the same hazard. Emit once for the statement, and skip pure
+    // `$var` words (already covered by the named-variable loop above).
+    if emitted.is_empty() {
+        for arg in call_args {
+            if is_pure_var_ref(arg.trim()) {
+                continue;
+            }
+            let t = word_taint(arg, uses, taints, ctx);
+            if t.is_tainted() && t.colours.intersects(dup_colour) {
+                warnings.push(TaintWarning {
+                    span,
+                    variable: String::new(),
+                    sink_command: command.to_owned(),
+                    code: DiagCode::T106,
+                    message: format!(
+                        "The value passed to {command} is already {label}; passing it \
+                         through {command} again double-encodes it"
+                    ),
+                    replacement: None,
+                    fixes: Vec::new(),
+                });
+                break;
+            }
         }
     }
 }
@@ -2241,15 +2271,27 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
     // T103: tainted data in a regexp/regsub pattern position.
     emit_regexp_pattern_warnings(command, call_args, &env, span, registry, warnings);
 
-    // T106: re-encoding an already-encoded tainted value.
-    emit_double_encode_warnings(
+    // T106: re-encoding an already-encoded tainted value. A minimal ctx (no
+    // interprocedural summaries) is enough — the double-encode colour is added
+    // by the encoder command's own registry classification, which `word_taint`
+    // reads directly.
+    let dbl_ctx = TaintCtx {
         registry,
+        ssa,
+        interproc: None,
+        known_procs: None,
+        caller_qname: Some(ssa.name.as_str()),
+        dialect,
+        taint_summaries: None,
+    };
+    emit_double_encode_warnings(
         command,
+        call_args,
         &ssa_stmt.uses,
         taints,
         span,
         warnings,
-        ssa,
+        dbl_ctx,
     );
 
     let sink_call = SinkCall {
