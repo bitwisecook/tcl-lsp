@@ -90,6 +90,10 @@ struct Class {
     /// reports them).
     readable_properties: BTreeSet<String>,
     writable_properties: BTreeSet<String>,
+    /// Set when the class was created by `oo::configurable` (TIP 558): enables
+    /// the `property` definition command in its body and the `configure`
+    /// instance method on its objects.
+    configurable: bool,
 }
 
 /// The object facet of an entity: its own (per-instance) state.
@@ -261,6 +265,11 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("::oo::configuresupport::objwritableproperties", |v, a| {
         property_slot(v, a, true, true)
     });
+    // TIP 558 configurable layer: the `property` definition command (valid only
+    // inside a configurable class's `oo::define`/`oo::objdefine` body) and the
+    // `private` prefix that forwards to it (and the other def commands).
+    vm.register("property", cmd_property);
+    vm.register("private", cmd_private);
     bootstrap(vm);
 }
 
@@ -331,6 +340,471 @@ fn slot_of_obj(o: &mut Object, writable: bool) -> &mut BTreeSet<String> {
     }
 }
 
+// ---------------------------------------------------------------------------
+// TIP 558 configurable layer: the `property` definition command, `private`
+// prefix, and the `configure` instance method.
+// ---------------------------------------------------------------------------
+
+/// Build an `ERROR` completion carrying an explicit `-errorcode` list (the
+/// `Tcl_GetIndexFromObj` / `TclOO` tags the `ooProp-4.x` tests check).
+fn err_code(message: impl Into<String>, code: &[&str]) -> Completion<Value> {
+    let ec = Value::list(
+        code.iter()
+            .map(|w| Value::string((*w).to_string()))
+            .collect(),
+    );
+    let opts = Value::list(vec![Value::string("-errorcode"), ec]);
+    Completion::new(Code::Error, Value::string(message.into()), opts)
+}
+
+/// Format a sorted name list `Tcl_GetIndexFromObj`-style: `a`, `a or b`, or
+/// `a, b, or c` (with the Oxford comma, unlike `TclOO`'s method-name [`oxford_or`]).
+fn index_or(names: &[String]) -> String {
+    match names {
+        [] => String::new(),
+        [a] => a.clone(),
+        [a, b] => format!("{a} or {b}"),
+        [rest @ .., last] => format!("{}, or {last}", rest.join(", ")),
+    }
+}
+
+/// The readable (`writable == false`) or writable property names visible to
+/// `configure` on `obj_key`: the union of the object's own slots and every
+/// class slot along its MRO (`info object properties -all`), sorted & unique.
+fn configure_props(vm: &Vm, obj_key: &str, writable: bool) -> Vec<String> {
+    let mut names: BTreeSet<String> = BTreeSet::new();
+    for step in vm.oo.object_precedence(obj_key) {
+        if step.is_object {
+            if let Some(o) = vm.oo.objects.get(&step.provider) {
+                names.extend(slot_ref_obj(o, writable).iter().cloned());
+            }
+        } else if let Some(c) = vm.oo.classes.get(&step.provider) {
+            names.extend(slot_ref_class(c, writable).iter().cloned());
+        }
+    }
+    names.into_iter().collect()
+}
+
+/// `property name ?-kind K? ?-get body? ?-set body? …` inside a configurable
+/// class's (or its object's) definition body. Each spec is a property name
+/// followed by its options; options bind to the preceding name.
+fn cmd_property(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    // Only a configurable definition target exposes `property`; anywhere else it
+    // is simply not a command (C keeps it in the configurable define namespace).
+    let Some((is_class, target)) = active_target(vm) else {
+        return err("invalid command name \"property\"");
+    };
+    let allowed = if is_class {
+        // The class must itself have been built by `oo::configurable` (a plain
+        // subclass of a configurable class does *not* inherit the command).
+        vm.oo.classes.get(&target).is_some_and(|c| c.configurable)
+    } else {
+        vm.oo.object_is_configurable(&target)
+    };
+    if !allowed {
+        return err("invalid command name \"property\"");
+    }
+    define_properties(vm, is_class, &target, args)
+}
+
+/// `private <def-command> …` — for `property`, the accessors are already
+/// private; for the other definition commands, force unexported visibility.
+fn cmd_private(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some((verb, rest)) = args.split_first() else {
+        return ok(Value::empty());
+    };
+    match verb.to_str().as_ref() {
+        "property" => cmd_property(vm, rest),
+        "method" => {
+            let mut v = vec![Value::string("-private")];
+            v.extend_from_slice(rest);
+            def_body_cmd(vm, "method", &v)
+        }
+        "variable" => def_body_cmd(vm, "variable", rest),
+        other => def_body_cmd(vm, other, rest),
+    }
+}
+
+/// One resolved property kind.
+#[derive(Clone, Copy)]
+enum PropKind {
+    Readable,
+    Writable,
+    ReadWrite,
+}
+
+/// Parse and apply a `property` argument sequence to `target`.
+fn define_properties(
+    vm: &mut Vm,
+    is_class: bool,
+    target: &str,
+    args: &[Value],
+) -> Completion<Value> {
+    let mut i = 0;
+    while i < args.len() {
+        let name = args[i].to_str().to_string();
+        if let Err(e) = validate_prop_name(&name) {
+            return e;
+        }
+        i += 1;
+        let mut kind = PropKind::ReadWrite;
+        let mut getter: Option<Value> = None;
+        let mut setter: Option<Value> = None;
+        // Options bind to the preceding name; a bare word (property names cannot
+        // begin with `-`) starts the next spec.
+        while i < args.len() && args[i].to_str().starts_with('-') {
+            let opt = args[i].to_str().to_string();
+            i += 1;
+            match match_prop_option(&opt) {
+                Some("-kind") => {
+                    let Some(v) = args.get(i) else {
+                        return err_code(
+                            "missing kind value to go with -kind option",
+                            &["TCL", "WRONGARGS"],
+                        );
+                    };
+                    kind = match parse_prop_kind(&v.to_str()) {
+                        Ok(k) => k,
+                        Err(e) => return e,
+                    };
+                    i += 1;
+                }
+                Some("-get") => {
+                    let Some(v) = args.get(i) else {
+                        return err_code(
+                            "missing body to go with -get option",
+                            &["TCL", "WRONGARGS"],
+                        );
+                    };
+                    getter = Some(v.clone());
+                    i += 1;
+                }
+                Some("-set") => {
+                    let Some(v) = args.get(i) else {
+                        return err_code(
+                            "missing body to go with -set option",
+                            &["TCL", "WRONGARGS"],
+                        );
+                    };
+                    setter = Some(v.clone());
+                    i += 1;
+                }
+                _ => {
+                    return err_code(
+                        format!("bad option \"{opt}\": must be -get, -kind, or -set"),
+                        &["TCL", "LOOKUP", "INDEX", "option", &opt],
+                    );
+                }
+            }
+        }
+        if let Err(e) = apply_property(vm, is_class, target, &name, kind, getter, setter) {
+            return e;
+        }
+    }
+    ok(Value::empty())
+}
+
+/// Validate a property name (must be a plain word, no leading `-`, no namespace
+/// separators or parentheses). Errors are tagged `TCL OO PROPERTY_FORMAT`.
+fn validate_prop_name(name: &str) -> Result<(), Completion<Value>> {
+    let fail = |why: &str| {
+        Err(err_code(
+            format!("bad property name \"{name}\": {why}"),
+            &["TCL", "OO", "PROPERTY_FORMAT"],
+        ))
+    };
+    if name.starts_with('-') {
+        return fail("must not begin with -");
+    }
+    if name.is_empty() || name.chars().any(char::is_whitespace) {
+        return fail("must be a simple word");
+    }
+    if name.contains("::") {
+        return fail("must not contain namespace separators");
+    }
+    if name.contains(['(', ')']) {
+        return fail("must not contain parentheses");
+    }
+    Ok(())
+}
+
+/// Prefix-match a `property` option against `-get`/`-kind`/`-set` (Tcl option
+/// abbreviation). Returns the canonical option, or `None` if unmatched.
+fn match_prop_option(opt: &str) -> Option<&'static str> {
+    let candidates = ["-get", "-kind", "-set"];
+    let mut hit = None;
+    for c in candidates {
+        if c.starts_with(opt) {
+            if hit.is_some() {
+                return None; // ambiguous
+            }
+            hit = Some(c);
+        }
+    }
+    hit
+}
+
+/// Prefix-match a `-kind` value against `readable`/`readwrite`/`writable`.
+fn parse_prop_kind(v: &str) -> Result<PropKind, Completion<Value>> {
+    let candidates = [
+        ("readable", PropKind::Readable),
+        ("readwrite", PropKind::ReadWrite),
+        ("writable", PropKind::Writable),
+    ];
+    let mut hit = None;
+    for (name, kind) in candidates {
+        if name.starts_with(v) && !v.is_empty() {
+            if hit.is_some() {
+                hit = None;
+                break;
+            }
+            hit = Some(kind);
+        }
+    }
+    hit.ok_or_else(|| {
+        err_code(
+            format!("bad kind \"{v}\": must be readable, readwrite, or writable"),
+            &["TCL", "LOOKUP", "INDEX", "kind", v],
+        )
+    })
+}
+
+/// Install property `name` on `target` (fully replacing any prior definition of
+/// the same name): recompute its slot membership from `kind`, and (re)install or
+/// clear its custom `<ReadProp-name>` / `<WriteProp-name>` accessor methods.
+fn apply_property(
+    vm: &mut Vm,
+    is_class: bool,
+    target: &str,
+    name: &str,
+    kind: PropKind,
+    getter: Option<Value>,
+    setter: Option<Value>,
+) -> Result<(), Completion<Value>> {
+    let dashed = format!("-{name}");
+    let (readable, writable) = match kind {
+        PropKind::Readable => (true, false),
+        PropKind::Writable => (false, true),
+        PropKind::ReadWrite => (true, true),
+    };
+    let read_method = format!("<ReadProp-{name}>");
+    let write_method = format!("<WriteProp-{name}>");
+    let get_m = match getter {
+        Some(body) => Some(build_method(vm, "", &body, false)?),
+        None => None,
+    };
+    let set_m = match setter {
+        Some(body) => Some(build_method(vm, "value", &body, false)?),
+        None => None,
+    };
+    let apply = |methods: &mut BTreeMap<String, Method>,
+                 rset: &mut BTreeSet<String>,
+                 wset: &mut BTreeSet<String>| {
+        rset.remove(&dashed);
+        wset.remove(&dashed);
+        if readable {
+            rset.insert(dashed.clone());
+        }
+        if writable {
+            wset.insert(dashed.clone());
+        }
+        match get_m {
+            Some(m) => {
+                methods.insert(read_method.clone(), m);
+            }
+            None => {
+                methods.remove(&read_method);
+            }
+        }
+        match set_m {
+            Some(m) => {
+                methods.insert(write_method.clone(), m);
+            }
+            None => {
+                methods.remove(&write_method);
+            }
+        }
+    };
+    if is_class {
+        if let Some(c) = vm.oo.classes.get_mut(target) {
+            let Class {
+                methods,
+                readable_properties,
+                writable_properties,
+                ..
+            } = c;
+            apply(methods, readable_properties, writable_properties);
+        }
+    } else if let Some(o) = vm.oo.objects.get_mut(target) {
+        let Object {
+            methods,
+            readable_properties,
+            writable_properties,
+            ..
+        } = o;
+        apply(methods, readable_properties, writable_properties);
+    }
+    Ok(())
+}
+
+/// The `configure` instance method of a configurable object. Forms:
+/// `configure` (list every readable property as `-name value`), `configure
+/// -name` (read one), `configure -name value …` (write pairs).
+fn configure_method(vm: &mut Vm, obj_key: &str, args: &[Value]) -> Completion<Value> {
+    match args.len() {
+        0 => {
+            let mut out = Vec::new();
+            for dashed in configure_props(vm, obj_key, false) {
+                let val = match read_property(vm, obj_key, &dashed) {
+                    Ok(v) => v,
+                    Err(e) => return e,
+                };
+                out.push(Value::string(dashed));
+                out.push(val);
+            }
+            ok(Value::list(out))
+        }
+        1 => {
+            let dashed = args[0].to_str().to_string();
+            if let Err(e) = gate_property(vm, obj_key, &dashed, false) {
+                return e;
+            }
+            match read_property(vm, obj_key, &dashed) {
+                Ok(v) => ok(v),
+                Err(e) => e,
+            }
+        }
+        n if n % 2 == 0 => {
+            let mut i = 0;
+            while i < n {
+                let dashed = args[i].to_str().to_string();
+                if let Err(e) = gate_property(vm, obj_key, &dashed, true) {
+                    return e;
+                }
+                if let Err(e) = write_property(vm, obj_key, &dashed, args[i + 1].clone()) {
+                    return e;
+                }
+                i += 2;
+            }
+            ok(Value::empty())
+        }
+        _ => err_code(
+            format!(
+                "wrong # args: should be \"{} configure ?-option value ...?\"",
+                display(obj_key)
+            ),
+            &["TCL", "WRONGARGS"],
+        ),
+    }
+}
+
+/// Check that `dashed` is a valid property for the requested access, producing
+/// the `bad property`/`is write only`/`is read only` errors otherwise.
+fn gate_property(
+    vm: &Vm,
+    obj_key: &str,
+    dashed: &str,
+    for_write: bool,
+) -> Result<(), Completion<Value>> {
+    let wanted = configure_props(vm, obj_key, for_write);
+    if wanted.iter().any(|p| p == dashed) {
+        return Ok(());
+    }
+    // Present but in the opposite slot → a directionality error.
+    let other = configure_props(vm, obj_key, !for_write);
+    if other.iter().any(|p| p == dashed) {
+        let why = if for_write { "read only" } else { "write only" };
+        return Err(err(format!("property \"{dashed}\" is {why}")));
+    }
+    Err(err_code(
+        format!("bad property \"{dashed}\": must be {}", index_or(&wanted)),
+        &["TCL", "LOOKUP", "INDEX", "property", dashed],
+    ))
+}
+
+/// Read property `dashed` from `obj_key`: invoke its `<ReadProp-name>` accessor
+/// if one is defined, else read the backing instance variable directly.
+fn read_property(vm: &mut Vm, obj_key: &str, dashed: &str) -> Result<Value, Completion<Value>> {
+    let name = dashed.strip_prefix('-').unwrap_or(dashed).to_string();
+    let accessor = format!("<ReadProp-{name}>");
+    if method_resolves(vm, obj_key, &accessor) {
+        let comp = oo_invoke(vm, obj_key, &accessor, &[], false, &display(obj_key));
+        return accessor_result(comp, dashed, false);
+    }
+    // Default getter: read the instance variable in the object's namespace.
+    let ns = vm.oo.objects.get(obj_key).map(|o| o.ns.clone());
+    let Some(ns) = ns else {
+        return Err(err(format!(
+            "invalid command name \"{}\"",
+            display(obj_key)
+        )));
+    };
+    match vm.get_var(&format!("{ns}::{name}")) {
+        Some(v) => Ok(v),
+        None => Err(err(format!("can't read \"{name}\": no such variable"))),
+    }
+}
+
+/// Write `value` to property `dashed` on `obj_key`: invoke its `<WriteProp-name>`
+/// accessor if defined, else set the backing instance variable directly.
+fn write_property(
+    vm: &mut Vm,
+    obj_key: &str,
+    dashed: &str,
+    value: Value,
+) -> Result<(), Completion<Value>> {
+    let name = dashed.strip_prefix('-').unwrap_or(dashed).to_string();
+    let accessor = format!("<WriteProp-{name}>");
+    if method_resolves(vm, obj_key, &accessor) {
+        let comp = oo_invoke(vm, obj_key, &accessor, &[value], false, &display(obj_key));
+        accessor_result(comp, dashed, true)?;
+        return Ok(());
+    }
+    let ns = vm.oo.objects.get(obj_key).map(|o| o.ns.clone());
+    let Some(ns) = ns else {
+        return Err(err(format!(
+            "invalid command name \"{}\"",
+            display(obj_key)
+        )));
+    };
+    vm.set_var(&format!("{ns}::{name}"), value)
+}
+
+/// Map a custom accessor's completion into a value (or propagate its error).
+/// A `break`/`continue` from the accessor body becomes the `TclOO` diagnostic
+/// `property {getter,setter} for -name did a {break,continue}`; other non-ok
+/// codes (errors, `return -level N`) propagate unchanged.
+fn accessor_result(
+    comp: Completion<Value>,
+    dashed: &str,
+    is_set: bool,
+) -> Result<Value, Completion<Value>> {
+    match comp.code {
+        Code::Ok => Ok(comp.result),
+        Code::Break | Code::Continue => {
+            let role = if is_set { "setter" } else { "getter" };
+            let verb = if comp.code == Code::Break {
+                "break"
+            } else {
+                "continue"
+            };
+            Err(err(format!("property {role} for {dashed} did a {verb}")))
+        }
+        // A residual `return -level N` (N>1 in the body) or an error propagates
+        // unchanged, so `configure` transparently forwards it to its caller.
+        _ => Err(comp),
+    }
+}
+
+/// Whether `method` resolves on `obj_key` (any provider along its precedence
+/// chain), without invoking it — used to detect custom property accessors.
+fn method_resolves(vm: &Vm, obj_key: &str, method: &str) -> bool {
+    vm.oo
+        .object_precedence(obj_key)
+        .iter()
+        .any(|s| vm.oo.step_method(s, method).is_some())
+}
+
 /// Seed the two root classes `::oo::object` and `::oo::class`. Each is a class,
 /// an object (instance of `::oo::class`), and a command.
 fn bootstrap(vm: &mut Vm) {
@@ -370,6 +844,41 @@ fn bootstrap(vm: &mut Vm) {
     if let Some(c) = vm.oo.classes.get_mut("oo::class") {
         c.supers = vec!["oo::object".to_string()];
     }
+
+    // `oo::configurable` (TIP 558): a metaclass (subclass of `oo::class`, so
+    // `oo::configurable create C {…}` builds a *class*) whose `configurable`
+    // flag propagates to the classes it creates — enabling their `property`
+    // definition command and their instances' `configure` method.
+    vm.oo.classes.insert(
+        "oo::configurable".to_string(),
+        Class {
+            supers: vec!["oo::class".to_string()],
+            ..Class::default()
+        },
+    );
+    let id = vm.oo.counter;
+    vm.oo.counter += 1;
+    vm.oo.objects.insert(
+        "oo::configurable".to_string(),
+        Object {
+            class: "oo::class".to_string(),
+            ns: "oo::configurable".to_string(),
+            creation_id: id,
+            methods: BTreeMap::new(),
+            variables: Vec::new(),
+            mixins: Vec::new(),
+            exported: BTreeSet::new(),
+            unexported: BTreeSet::new(),
+            readable_properties: BTreeSet::new(),
+            writable_properties: BTreeSet::new(),
+            destroyed: false,
+        },
+    );
+    vm.declare_namespace("oo::configurable");
+    vm.register_command(
+        "oo::configurable",
+        Command::Object("oo::configurable".to_string()),
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -441,7 +950,7 @@ fn factory(
             }
             (vm.qualify_name(&n), rest.first())
         };
-        return make_class(vm, &name, body);
+        return make_class(vm, &name, body, class_key);
     }
 
     let (obj_key, obj_ns, ctor_args, ctor_usage) = if anon {
@@ -669,6 +1178,10 @@ impl OoState {
         // `destroy` is always a public built-in; a class also offers the
         // factory built-ins (`new` is unexported on the `::oo::class` root).
         names.insert("destroy".to_string());
+        // A configurable object also exposes the public `configure` method.
+        if self.object_is_configurable(obj_key) {
+            names.insert("configure".to_string());
+        }
         if self.classes.contains_key(obj_key) {
             names.insert("create".to_string());
             if obj_key != "oo::class" {
@@ -744,6 +1257,10 @@ fn oo_invoke(
         // `destroy` with no user override is the built-in destructor path.
         if method == "destroy" {
             return oo_destroy(vm, obj_key);
+        }
+        // `configure` with no user override is TIP 558's property accessor.
+        if method == "configure" && vm.oo.object_is_configurable(obj_key) {
+            return configure_method(vm, obj_key, args);
         }
         return unknown_method(vm, obj_key, method, external);
     }
@@ -1185,19 +1702,42 @@ fn run_define(vm: &mut Vm, args: &[Value], is_class: bool) -> Completion<Value> 
     let level = vm.current_level();
     vm.oo.def_stack.push((dt, level));
     let result = if args.len() == 2 {
-        // Script form: evaluate the body with the def target active.
+        // Script form: evaluate the body with the def target active. An error
+        // unwinding out of it gains the `(in definition script for …)` frame.
         match vm.eval_source(&args[1].to_str()) {
             Ok(c) if c.code == Code::Return => ok(c.result),
+            Ok(c) if c.code == Code::Error => {
+                append_define_frame(vm, is_class, &target, &c.result.to_str());
+                c
+            }
             Ok(c) => c,
-            Err(e) => err(e.message),
+            Err(e) => {
+                append_define_frame(vm, is_class, &target, &e.message);
+                err(e.message)
+            }
         }
     } else {
-        // Single-command form: dispatch `sub args…` as one definition directive.
+        // Single-command form: dispatch `sub args…` as one definition directive
+        // (no definition-script frame — the directive is the command itself).
         let name = args[1].to_str().to_string();
         vm.invoke_command(&name, &args[2..])
     };
     vm.oo.def_stack.pop();
     result
+}
+
+/// Append the `(in definition script for {class,object} "::NAME" line N)` frame
+/// to `errorInfo` as an error unwinds out of an `oo::define`/`oo::objdefine`
+/// *script* body — the context frame C's `TclOODefineObjCmd` adds. `line` is the
+/// body-relative source line of the failing directive (C's `iPtr->errorLine`).
+fn append_define_frame(vm: &mut Vm, is_class: bool, target: &str, msg: &str) {
+    let kind = if is_class { "class" } else { "object" };
+    let line = vm.error_line();
+    let frame = format!(
+        "\n    (in definition script for {kind} \"{}\" line {line})",
+        display(target)
+    );
+    vm.seed_error_info_frame(msg, &frame);
 }
 
 /// The active definition target, iff evaluation is directly at its level.
@@ -1497,6 +2037,27 @@ impl OoState {
                 .class_linear_of(class_key)
                 .iter()
                 .any(|s| s.provider == "oo::class")
+    }
+
+    /// Whether `class_key`'s linearisation includes any `configurable` class —
+    /// i.e. it was built by `oo::configurable` or inherits from such a class
+    /// (TIP 558). Gates the `property` definition command.
+    fn class_is_configurable(&self, class_key: &str) -> bool {
+        self.class_linear_of(class_key).iter().any(|s| {
+            self.classes
+                .get(&s.provider)
+                .is_some_and(|c| c.configurable)
+        })
+    }
+
+    /// Whether object `obj_key` should carry the `configure` method: its class
+    /// (via the MRO) is configurable, or it has per-object property slots.
+    fn object_is_configurable(&self, obj_key: &str) -> bool {
+        self.objects.get(obj_key).is_some_and(|o| {
+            !o.readable_properties.is_empty()
+                || !o.writable_properties.is_empty()
+                || self.class_is_configurable(&o.class)
+        })
     }
 }
 
@@ -1810,23 +2371,44 @@ fn params_value(params: &[Param]) -> Value {
 }
 
 /// Create a class named `class_key` (canonical), optionally running `body` as
-/// its definition script.
-pub(crate) fn make_class(vm: &mut Vm, class_key: &str, body: Option<&Value>) -> Completion<Value> {
+/// its definition script. `metaclass` is the class being instantiated to build
+/// it (`oo::class`, `oo::configurable`, or a user metaclass): it becomes the new
+/// class's object-facet class, and — when it is `oo::configurable` or descends
+/// from it — marks the new class `configurable` (TIP 558).
+pub(crate) fn make_class(
+    vm: &mut Vm,
+    class_key: &str,
+    body: Option<&Value>,
+    metaclass: &str,
+) -> Completion<Value> {
     if vm.lookup_command(class_key).is_some() {
         return err(format!(
             "can't create object \"{}\": command already exists with that name",
             display(class_key)
         ));
     }
+    // A class is configurable when instantiated *from* `oo::configurable` (or a
+    // metaclass descending from it) — an identity test, distinct from the MRO
+    // walk used for `configure` availability (which inherits down subclasses).
+    let configurable = metaclass == "oo::configurable"
+        || vm
+            .oo
+            .class_linear_of(metaclass)
+            .iter()
+            .any(|s| s.provider == "oo::configurable");
     let id = vm.oo.counter;
     vm.oo.counter += 1;
-    vm.oo
-        .classes
-        .insert(class_key.to_string(), Class::default());
+    vm.oo.classes.insert(
+        class_key.to_string(),
+        Class {
+            configurable,
+            ..Class::default()
+        },
+    );
     vm.oo.objects.insert(
         class_key.to_string(),
         Object {
-            class: "oo::class".to_string(),
+            class: metaclass.to_string(),
             ns: class_key.to_string(),
             creation_id: id,
             methods: BTreeMap::new(),
@@ -1848,8 +2430,15 @@ pub(crate) fn make_class(vm: &mut Vm, class_key: &str, body: Option<&Value>) -> 
             .push((DefTarget::Class(class_key.to_string()), level));
         let res = match vm.eval_source(&body.to_str()) {
             Ok(c) if c.code == Code::Return => ok(c.result),
+            Ok(c) if c.code == Code::Error => {
+                append_define_frame(vm, true, class_key, &c.result.to_str());
+                c
+            }
             Ok(c) => c,
-            Err(e) => err(e.message),
+            Err(e) => {
+                append_define_frame(vm, true, class_key, &e.message);
+                err(e.message)
+            }
         };
         vm.oo.def_stack.pop();
         if !res.code.is_ok() && res.code != Code::Return {

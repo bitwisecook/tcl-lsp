@@ -180,6 +180,191 @@ fn tip558_property_all_walks_superclasses() {
     );
 }
 
+// ===========================================================================
+// TIP 558 configurable layer: oo::configurable, property, configure
+// ===========================================================================
+
+#[test]
+fn tip558_configurable_configure_get_set_list() {
+    // tclsh 9.0.4 ooProp-2.1 shape: configure lists readable props as `-name
+    // value` (sorted), gets one, and sets writable ones.
+    assert_eq!(
+        result(
+            "oo::configurable create Point {\n\
+                 property x y\n\
+                 constructor args { my configure -x 0 -y 0 {*}$args }\n\
+             }\n\
+             set p [Point new -x 3]\n\
+             $p configure -y 4\n\
+             list [$p configure -x] [$p configure] [info class properties Point -all]"
+        ),
+        "3 {-x 3 -y 4} {-x -y}"
+    );
+}
+
+#[test]
+fn tip558_configurable_inheritance_and_next() {
+    // ooProp-2.2: a configurable subclass inherits its superclass's properties;
+    // `next` chains constructors so all properties initialise.
+    assert_eq!(
+        result(
+            "oo::configurable create Point {\n\
+                 property x y\n\
+                 constructor args { my configure -x 0 -y 0 {*}$args }\n\
+             }\n\
+             oo::configurable create 3DPoint {\n\
+                 superclass Point\n\
+                 property z\n\
+                 constructor args { next -z 0 {*}$args }\n\
+             }\n\
+             set p [3DPoint new -x 3 -y 4 -z 5]\n\
+             $p configure"
+        ),
+        "-x 3 -y 4 -z 5"
+    );
+}
+
+#[test]
+fn tip558_configurable_per_object_property() {
+    // ooProp-2.3: `oo::objdefine … property` adds a per-instance property.
+    assert_eq!(
+        result(
+            "oo::configurable create Point {\n\
+                 property x y\n\
+                 constructor args { my configure -x 0 -y 0 {*}$args }\n\
+             }\n\
+             set p [Point new -x 3 -y 4]\n\
+             oo::objdefine $p property z\n\
+             $p configure -z 5\n\
+             $p configure"
+        ),
+        "-x 3 -y 4 -z 5"
+    );
+}
+
+#[test]
+fn tip558_configurable_kind_readable_and_writable() {
+    // ooProp-2.7/2.8: `-kind writable` rejects reads; `-kind readable` rejects
+    // writes, with C's exact directionality messages.
+    let (ok, msg, _) = run(
+        "oo::configurable create P { property x -kind writable; constructor {} {my configure -x 0} }\n\
+         [P new] configure -x",
+    );
+    assert!(!ok);
+    assert_eq!(msg, "property \"-x\" is write only");
+    let (ok, msg, _) = run(
+        "oo::configurable create P { property x -kind readable; constructor {} {variable x 1} }\n\
+         [P new] configure -x 9",
+    );
+    assert!(!ok);
+    assert_eq!(msg, "property \"-x\" is read only");
+}
+
+#[test]
+fn tip558_configurable_bad_property() {
+    // ooProp-2.4/2.5: an unknown property lists the valid ones (Oxford comma).
+    let (ok, msg, _) = run("oo::configurable create Point { property x y }\n\
+         [Point new] configure gorp");
+    assert!(!ok);
+    assert_eq!(msg, "bad property \"gorp\": must be -x or -y");
+    let (ok, msg, _) = run("oo::configurable create Point { property x y z }\n\
+         [Point new] configure gorp");
+    assert!(!ok);
+    assert_eq!(msg, "bad property \"gorp\": must be -x, -y, or -z");
+}
+
+#[test]
+fn tip558_configurable_custom_get_set() {
+    // ooProp-3.1: custom `-get`/`-set` bodies run as accessor methods over the
+    // class's declared variable.
+    assert_eq!(
+        result(
+            "oo::configurable create Point {\n\
+                 variable xyz\n\
+                 property x -get { return [lrepeat 3 $xyz] } -set { set xyz [expr {$value * 3}] }\n\
+             }\n\
+             set pt [Point new]\n\
+             $pt configure -x 5\n\
+             $pt configure -x"
+        ),
+        "15 15 15"
+    );
+}
+
+#[test]
+fn tip558_configurable_property_name_validation() {
+    // ooProp-3.3..3.7: property names must be simple, dash-free, unqualified.
+    for (spec, want) in [
+        ("-x", "bad property name \"-x\": must not begin with -"),
+        ("{x y}", "bad property name \"x y\": must be a simple word"),
+        (
+            "::x",
+            "bad property name \"::x\": must not contain namespace separators",
+        ),
+        (
+            "x(",
+            "bad property name \"x(\": must not contain parentheses",
+        ),
+    ] {
+        let (ok, msg, _) = run(&format!(
+            "oo::configurable create P {{ superclass oo::object }}\n\
+             oo::define P {{ property {spec} }}"
+        ));
+        assert!(!ok, "{spec} should error");
+        assert_eq!(msg, want, "for property {spec}");
+    }
+}
+
+#[test]
+fn tip558_configurable_option_abbreviation() {
+    // ooProp-3.14: `-k reada -g {…}` — option and kind abbreviation both resolve.
+    assert_eq!(
+        result(
+            "oo::configurable create Point {\n\
+                 superclass oo::object\n\
+                 property x -k reada -g {return ok}\n\
+             }\n\
+             [Point new] configure -x"
+        ),
+        "ok"
+    );
+}
+
+#[test]
+fn tip558_configurable_not_on_plain_class() {
+    // ooProp T12/T28: `property` is not a command in a non-configurable define
+    // body, but a plain subclass's *instances* still inherit `configure`.
+    let (ok, msg, _) = run("oo::class create NC {}\noo::define NC { property x }");
+    assert!(!ok);
+    assert_eq!(msg, "invalid command name \"property\"");
+    assert_eq!(
+        result(
+            "oo::configurable create P { property x; constructor {} {my configure -x 7} }\n\
+             oo::class create Q { superclass P }\n\
+             [Q new] configure -x"
+        ),
+        "7"
+    );
+}
+
+#[test]
+fn tip558_configurable_define_errorinfo_frame() {
+    // ooProp-4.1: an error in a configurable define body carries the
+    // definition-script context frame and the `TCL OO PROPERTY_FORMAT` code.
+    assert_eq!(
+        result(
+            "oo::configurable create Point {superclass oo::object}\n\
+             list [catch {oo::define Point {property -x}} msg opt] \
+                  [dict get $opt -errorinfo] [dict get $opt -errorcode]"
+        ),
+        "1 {bad property name \"-x\": must not begin with -\n    \
+            while executing\n\"property -x\"\n    \
+            (in definition script for class \"::Point\" line 1)\n    \
+            invoked from within\n\"oo::define Point {property -x}\"} \
+         {TCL OO PROPERTY_FORMAT}"
+    );
+}
+
 #[test]
 fn destroying_a_class_cascades_to_instances_and_subclasses() {
     // tclsh 9.0.4: destroying a class destroys its instances and subclasses too,
