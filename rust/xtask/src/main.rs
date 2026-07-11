@@ -58,6 +58,7 @@ mod gen_jetbrains;
 mod gen_vscode_package;
 mod gen_zed_queries;
 mod kcs_index_links;
+mod tcltest_sweep;
 mod tzdata_bundle;
 mod util;
 mod version;
@@ -160,6 +161,25 @@ enum Command {
         #[arg(long)]
         check: bool,
     },
+
+    /// Run the C tcltest suite through the VM + reference tclsh and regenerate the
+    /// VM-vs-C parity scoreboard (`docs/design/runtime/rust-vm-tier-parity.md`).
+    TcltestSweep {
+        /// Which backend(s) to run: `vm` | `tclsh` | `both`.
+        #[arg(long, default_value = "both")]
+        backend: String,
+        /// Sweep only this single stem and print its result (does not rewrite the
+        /// committed scoreboard).
+        #[arg(long)]
+        stem: Option<String>,
+        /// Per-file timeout in seconds (default 120).
+        #[arg(long)]
+        timeout: Option<u64>,
+        /// Verify the committed scoreboard is in sync instead of rewriting it;
+        /// exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 fn main() -> anyhow::Result<ExitCode> {
@@ -181,5 +201,11 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::GenVscodePackage { check } => gen_vscode_package::run(check),
         Command::GenJetbrainsCatalog { check } => gen_jetbrains::run(check),
         Command::GenAiDiagnostics { check } => gen_ai::run(check),
+        Command::TcltestSweep {
+            backend,
+            stem,
+            timeout,
+            check,
+        } => tcltest_sweep::run(backend.parse()?, stem.as_deref(), timeout, check),
     }
 }

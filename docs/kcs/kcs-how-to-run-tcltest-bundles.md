@@ -1,191 +1,123 @@
-# KCS: How do I run a Tcl 9 tcltest bundle through the WASM runtime?
+# KCS: How do I run the C tcltest suite through the bytecode VM?
 
 > **Audience:** Contributor, Maintainer
 > **Type:** How-To
 
 ## Applies to
 
-tcl-lsp CLI
+tcl-lsp CLI (bytecode VM)
 
 ## Question
 
 How do I run the bundled Tcl 9.0.4 test files (`tmp/tcl9.0.4/tests/*.test`)
-through our compile-to-WASM path and interpret the outcome?
+through the bytecode VM, compare the result to reference C `tclsh`, and read
+the parity scoreboard?
 
 ## Before you start
 
-- The Tcl 9.0.4 source tree must be present at `tmp/tcl9.0.4/`. On the
-  web harness this is fetched automatically by the SessionStart hook;
-  locally run `bash .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0`.
-- The Rust runtime must be built (`cd runtime/rust && cargo build
-  --release`; the WASM target is `wasm32-wasip1`). Many of the fixes that
-  let tcltest's preamble complete live in `cmd_info.rs`, `frame.rs`,
-  `interp.rs`, and the per-command modules (`cmd_*.rs`) under
-  `runtime/rust/src/` — a stale runtime will trap earlier than the bundle
-  expects.
-- `uv sync --extra dev` has been run so the `pytest` / `wasmtime`
-  Python dependencies are in the venv.
+- The Tcl 9.0.4 source tree must be present at `tmp/tcl9.0.4/`. On the web
+  harness this is fetched automatically by the SessionStart hook; locally run
+  the `fetch-tcl-source` skill (`bash
+  .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0`).
+- The reference `tclsh9.0` must be built at `tmp/tcl9-install/bin/tclsh9.0`
+  (the same skill builds it) — it is the C oracle the VM is scored against.
+- `timeout` (coreutils) must be on `PATH`; the sweep runs each file under it so
+  a hang or native-stack overflow can't stall the whole run.
+
+> The retired Python sweep (`scripts/tcltest_sweep/`, `tests/external/
+> run_tcl9_tests.py`, `aggregate.py`, `measure_perf.py`) and its
+> `uv run pytest` workflow have been removed — this is the Rust-native
+> replacement.
 
 ## Answer
 
-### Run one bundle
+### Run one `.test` file through the VM
+
+The `run_test` example sources the real `tcltest.tcl`, then the test file, and
+lets tcltest print its `Total N Passed X Skipped Y Failed Z` summary:
 
 ```
-uv run pytest 'tests/external/run_tcl9_tests.py::TestTcl9_<name>' -v
+TCL_LIBRARY=tmp/tcl9.0.4/library \
+  cargo run -p tcl-vm --example run_test -- tmp/tcl9.0.4/tests/<stem>.test
 ```
 
-`<name>` is the test-file stem listed in `_IN_SCOPE` inside
-`tests/external/run_tcl9_tests.py` (e.g. `llength`, `interp`,
-`concat`). Each class has two tests: `test_compiles` (bundle compiles
-to WASM) and `test_runs` (bundle executes and reports `Failed == 0`).
+`<stem>` is the file stem (e.g. `llength`, `interp`, `coroutine`).
+`TCL_TEST_VERBOSE=1` makes tcltest announce each test as it starts (to pinpoint
+a hang); `TCL_BACKEND_CONSTRAINTS=<overlay.tcl>` sources a skip overlay before
+the file so tests the backend cannot support are skipped. The tree-walk runtime
+analogue is `runtime/rust`'s `run_script --init`.
 
-### Run the whole sweep
-
-The full sweep through pytest's normal runner can hang on a single
-bundle for minutes. Run each bundle with a per-file 30 s timeout
-instead:
+Run the same file through the C oracle to compare:
 
 ```
-bash scripts/tcltest_sweep/run_all.sh
-uv run python scripts/tcltest_sweep/aggregate.py /tmp/tcltest-sweep.ndjson
+TCL_LIBRARY=tmp/tcl9.0.4/library tmp/tcl9-install/bin/tclsh9.0 \
+  tmp/tcl9.0.4/tests/<stem>.test
 ```
 
-The runner writes one JSON record per bundle to
-`/tmp/tcltest-sweep.ndjson`; the aggregator rolls the records up
-into `tests/external/baseline-tcl9.json`. See
-[`scripts/tcltest_sweep/README.md`](../../scripts/tcltest_sweep/README.md)
-for the outcome classification and per-record schema.
+### Run the whole sweep + regenerate the scoreboard
 
-### Bundle shape
+```
+make tcltest-sweep            # == cargo xtask tcltest-sweep --backend both
+```
 
-`tests/external/run_tcl9_tests.py::_bundle` concatenates three
-sources in order:
+This builds the `run_test` example `--release`, runs every stem in the
+capability ladder through both the VM and reference `tclsh` (each under a
+per-file timeout), caches the stable C results in
+`tests/baselines/tcl9-tcltest/c-tclsh.ndjson`, and regenerates the scoreboard
+`docs/design/runtime/rust-vm-tier-parity.md`. Useful flags (`cargo xtask
+tcltest-sweep …`):
 
-1. `tmp/tcl9.0.4/library/tcltest/tcltest.tcl` — the real Tcl 9
-   tcltest preamble (procs, namespace exports, configure defaults).
-2. A short preamble (`_PREAMBLE`) that imports every tcltest command
-   into the global namespace and silences per-test verbose output.
-3. The test file itself (e.g. `tmp/tcl9.0.4/tests/llength.test`).
-
-The whole concatenation is handed to `lower_to_ir` → `build_cfg` →
-`wasm_codegen_module` as a single translation unit, compiled with
-the same pipeline as any user program.
+- `--stem <name>` — sweep one stem and print its result (does not rewrite the
+  committed scoreboard); handy for a before/after on a single file.
+- `--backend vm` — re-run only the VM, reading the C column from the cached
+  baseline (faster; skips `tclsh`).
+- `--timeout <secs>` — per-file budget (default 120).
+- `--check` — verify the committed scoreboard is in sync instead of rewriting
+  it; exits non-zero on drift (the nightly `make tcltest-sweep-check` gate — not
+  a per-commit check, the sweep is minutes long).
 
 ### Outcome categories
 
-The triage-report JSON (see `baseline-tcl9.json`) buckets every
-bundle into one of:
+Each stem's VM result is classified against its C reference:
 
-- **`pass`** — the bundle ran to completion and tcltest reported
-  `Failed == 0`. This is the ship target.
-- **`fail`** — the bundle ran to completion but tcltest reported
-  `Failed > 0`. A real test-level failure — open the `stdout_tail`
-  field to see the first failing test name.
-- **`trap`** — the WASM module raised a trap (unknown command,
-  unreachable, unsupported primitive). The `trap_site` field
-  resolves to a `(file, line, col, command, args)` tuple via the
-  compiled-in diag sidecar.
-- **`no_summary`** — the bundle ran without trapping but never
-  printed the `Total N Passed X Skipped Y Failed Z` summary line.
-  Usually means tcltest's `cleanupTests` was skipped or the bundle
-  exited early.
-- **`timeout`** — the bundle didn't finish inside the 30 s budget.
-  Mostly hit by tests that drive large `foreach` loops through
-  eval-fallback paths.
-
-### Adding a new file to `_IN_SCOPE`
-
-1. Confirm the file is purely Tcl semantics (no threads, sockets,
-   real filesystem writes outside `tmp/`, or C extensions gated by
-   `testConstraint`). Files that need deferred primitives should
-   stay out of `_IN_SCOPE`.
-2. Append a `(stem, subsystem)` tuple to `_IN_SCOPE` in
-   `tests/external/run_tcl9_tests.py`. The subsystem is the
-   inventory label (`list`, `proc`, `interp`, …).
-3. Re-run `make prep-pr` to register the two dynamically-generated
-   test methods with pytest.
-4. Run the bundle once to see whether it passes, fails with test
-   errors, or traps. If it traps, note the trap category in the
-   commit message so the maintainer can decide whether to fix the
-   gap or skip the file.
+- **`MATCH`** — the VM's `(passed, skipped, failed)` equals C's. The ship target.
+- **`gap`** — the file ran to completion but the counts differ (`Failed > 0`, or
+  a passed/skipped mismatch). A real per-test divergence — run the file with
+  `run_test` and diff against `tclsh` to find the first failing case.
+- **`CRASH`** — an uncaught error / no `Total …` summary aborted the file. The
+  highest-leverage bucket: one fix unlocks the whole file (a low-tier `CRASH`
+  often zeroes thousands of higher-tier tests, e.g. a file gated behind
+  `interp create`).
+- **`TIMEOUT`** — the file didn't finish inside the per-file budget.
 
 ## How to tell it worked
 
-The bundle reports a clean `Total N Passed N Skipped 0 Failed 0`
-summary and the pytest test class prints two `PASSED` lines:
+`cargo xtask tcltest-sweep --backend both --stem join` prints:
 
 ```
-TestTcl9_concat::test_compiles PASSED
-TestTcl9_concat::test_runs PASSED
+join: C 10/0/0 | VM 10/0/0 | MATCH
 ```
 
-For the sweep, `/tmp/sweep/aggregate.py` prints a roll-up like:
+A full run rewrites `docs/design/runtime/rust-vm-tier-parity.md` with a
+per-stem `C P/S/F | VM P/S/F | status` table grouped by tier and a
+`Tally: N MATCH · N gap · N crash` header. Commit the scoreboard (and the
+`c-tclsh.ndjson` baseline) when the numbers change.
 
-```
-{ "total": 97, "pass_count": 20, ... }
-```
+## How to triage a gap
 
-and writes `tests/external/baseline-tcl9.json` with per-file
-detail. Check that file into source control when the pass count
-changes.
-
-## Known gaps tripping bundles in flight
-
-These are the recurring trap categories the triage sweep surfaces
-today. None are preamble-level (tcltest.tcl itself initialises
-cleanly); they all fire once individual test cases start running.
-
-- **Top-level vars not visible to nested eval-fallbacks** — fixed
-  for `foreach` iter vars in the `wasm/_emitter/` package; analogous patterns with
-  `lassign`, `try` bindings, or deeply-nested `eval [list set]`
-  still slip through.
-- **`interp create` collision after test-local cleanup fails** —
-  a test creates `interp a`; the file-level `foreach i [interp
-  children] { interp delete $i }` cleanup ran before `a` existed, so
-  the next test's `interp create a` fails. Needs tcltest's
-  `-setup`/`-cleanup` harness to run reliably through our `test`
-  proc, which requires `return -code` and `error` plumbing we
-  haven't finished.
-- **Large bundles compile but time out at exec** — often the
-  bundle spins inside a `foreach` over thousands of elements with
-  each iteration falling back to `tcl_eval`. Either the iter-var
-  sync needs to be cheaper or a Tcl-level optimisation is
-  missing.
-
-### Measuring bundle performance
-
-```
-uv run python scripts/tcltest_sweep/measure_perf.py
-```
-
-Runs a compile / exec timing pass over three representative
-bundles (`llength`, `concat`, `interp`) and writes the result to
-`tests/external/perf-baseline-tcl9.json`. Each bundle is compiled
-and executed three times; the min and median of both numbers are
-reported.
-
-Targets (from the tcltest wave plan):
-
-- Small bundle (`llength`, ~30 tests, ~107 KB after preamble):
-  compile + exec under 10 s end-to-end.
-- Large bundle (`interp`, ~200 tests, ~212 KB after preamble):
-  compile + exec under 60 s end-to-end.
-
-Current headroom on the Claude-Code-on-the-web container is an
-order of magnitude below both targets, so the sweep isn't
-bottlenecked on compiler speed; triage work should focus on
-correctness gaps before chasing perf.
+Use the **scoreboard for "where"** and the **[capability
+ladder](../design/runtime/tcl-test-tiers.md) for "why"**: fix bottom-up (a Tier
+1 parser or Tier 3 trace/encoding bug shows up as scattered failures across many
+higher-tier stems), and prefer a `CRASH` on a low tier — it is the single
+highest-leverage fix.
 
 ## Related
 
 - [KCS index](README.md)
 - [Glossary](../GLOSSARY.md)
-- `tests/external/run_tcl9_tests.py` — the bundle driver.
-- `tests/external/baseline-tcl9.json` — the last recorded sweep
-  roll-up. Regenerate with
-  `scripts/tcltest_sweep/aggregate.py`.
-- `tests/external/perf-baseline-tcl9.json` — compile + exec
-  timings for three representative bundles.
-- `docs/design/runtime/child-interp.md` — the conservative-flush
-  rationale that underpins every fix in the
-  `claude/fix-tcltest-tcl9-*` wave.
+- [`rust-vm-tier-parity.md`](../design/runtime/rust-vm-tier-parity.md) — the live
+  per-stem scoreboard (regenerate with `make tcltest-sweep`).
+- [`tcl-test-tiers.md`](../design/runtime/tcl-test-tiers.md) — the capability
+  ladder (what each tier means, which files belong to it, why the order matters).
+- `rust/tcl-vm/examples/run_test.rs` — the single-file VM driver.
+- `rust/xtask/src/tcltest_sweep.rs` — the sweep + scoreboard generator.

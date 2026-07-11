@@ -144,7 +144,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: rust-check check-all prep-pr
 # Tests
 .PHONY: test test-ext test-ext-rust test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all
-.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-command-backing xtask-audit-option-dialects
+.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-command-backing xtask-audit-option-dialects tcltest-sweep tcltest-sweep-check
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust rust-deny
 .PHONY: build-report-assets lint-report-ts typecheck-report-ts check-report-assets
@@ -520,6 +520,14 @@ xtask-command-backing: ## Verify the WASM runtime backs every core-Tcl registry 
 xtask-audit-option-dialects: ## Regenerate tmp/option_dialect_audit.json from built tclsh trees (on-demand; needs tmp/tcl*/unix)
 	@echo "==> Auditing OptionSpec dialect gates (cargo xtask)"
 	cd $(ROOT) && cargo xtask audit-option-dialects
+
+tcltest-sweep: ## Regenerate the VM-vs-C tcltest parity scoreboard (runs the suite through the VM + reference tclsh; slow, on-demand)
+	@echo "==> Sweeping the C tcltest suite through the VM + reference tclsh (cargo xtask)"
+	cd $(ROOT) && cargo xtask tcltest-sweep --backend both
+
+tcltest-sweep-check: ## Verify the committed tcltest parity scoreboard is in sync (VM re-run vs cached C baseline; slow, nightly)
+	@echo "==> Checking the tcltest parity scoreboard is in sync (cargo xtask)"
+	cd $(ROOT) && cargo xtask tcltest-sweep --backend vm --check
 
 # Phase targets for parallel prep-pr execution
 _prep-pr-checks: lint-ts typecheck-ts check-editor-settings typecheck-report-ts lint-report-ts check-report-assets
