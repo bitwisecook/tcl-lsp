@@ -23,7 +23,10 @@ pub fn spec() -> CommandSpec {
         name: "auto_import",
         dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         traits: Traits::OVERRIDABLE_LIBRARY_PROC,
-        arity: Arity::at_least(1),
+        // `auto_import pattern` — exactly one argument, not `at_least(1)`
+        // (verified against tclsh 9.0.4: `auto_import a b` → `wrong # args:
+        // should be "auto_import pattern"`).
+        arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Import auto-loaded commands into namespace",
             synopsis: &[],

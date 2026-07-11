@@ -699,8 +699,12 @@ impl Analyser {
         self.emit_w121_invalid_subnet_mask(args, arg_tokens);
         self.emit_w108_non_ascii(arg_tokens);
         // W240 / W241 loop-termination + W230 / W232 index-bounds.
-        let loop_diags =
-            super::bounds_checks::loop_termination_diagnostics(cmd_name, args, arg_tokens);
+        let loop_diags = super::bounds_checks::loop_termination_diagnostics(
+            cmd_name,
+            args,
+            arg_tokens,
+            self.registry.as_ref(),
+        );
         self.result.diagnostics.extend(loop_diags);
         let idx_diags = super::bounds_checks::list_index_diagnostics(cmd_name, args, arg_tokens);
         self.result.diagnostics.extend(idx_diags);

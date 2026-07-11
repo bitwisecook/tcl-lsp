@@ -23,7 +23,11 @@ pub fn spec() -> CommandSpec {
         name: "auto_load",
         dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         traits: Traits::OVERRIDABLE_LIBRARY_PROC,
-        arity: Arity::exact(1),
+        // `auto_load cmd ?namespace?` — the optional namespace argument makes
+        // the real arity 1–2, not exactly 1 (verified against tclsh 9.0.4:
+        // `auto_load foo ::ns` → 0, `auto_load a b c` → `wrong # args: should
+        // be "auto_load cmd ?namespace?"`).
+        arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Auto-load a command from the library",
             synopsis: &[],

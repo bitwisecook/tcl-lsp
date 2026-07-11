@@ -1888,7 +1888,7 @@ In a project with an "entry" file that runs the `package require`s and then
 | W231 | Constant list index out of range -- `lset` raises a runtime error | |
 | W232 | Constant string index out of range -- `string index`/`range`/`replace`/`insert` silently no-op | |
 | W240 | Loop condition is constant false -- body never executes | |
-| W241 | Loop is provably infinite -- constant-true condition with no `break`/`return` | |
+| W241 | Loop is provably infinite -- constant-true condition whose body never leaves the loop (`break`/`return`/`error`/`exit`/`throw`/`tailcall`) | |
 | W250 | Instantiating an `oo::abstract` class -- abstract classes have no `new`/`create`; use a concrete subclass | |
 
 ### Warnings -- Variables
@@ -1918,7 +1918,7 @@ In a project with an "entry" file that runs the `package require`s and then
 | W304 | Missing `--` on option-bearing commands before positional input | Insert `--` |
 | W306 | Substitution in literal-expected argument position | |
 | W307 | Non-literal command name (variable or command substitution as command) | |
-| W308 | `subst` without `-nocommands` | |
+| W308 | Unknown TclOO method -- not defined on the receiver's known class or its superclasses | |
 | W309 | `eval`/`uplevel` with `subst` -- double substitution risk | |
 | W310 | Hardcoded credentials (API keys, tokens, passwords) | |
 | W311 | Unsafe channel encoding mismatch (`-encoding binary` with `-translation`) | |

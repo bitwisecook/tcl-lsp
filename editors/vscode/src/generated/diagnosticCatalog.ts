@@ -296,6 +296,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W308",
+    section: "warning",
+    description:
+      "Unknown TclOO method — the method is not defined on the receiver's statically-known class or any of its superclasses.",
+    defaultEnabled: true,
+  },
+  {
     code: "W210",
     section: "variable",
     description: "Variable read before set.",
@@ -412,12 +419,6 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "W307",
     section: "security",
     description: "Non-literal command name — variable or command substitution as command.",
-    defaultEnabled: true,
-  },
-  {
-    code: "W308",
-    section: "security",
-    description: "`subst` without `-nocommands` — risk of unintended command execution.",
     defaultEnabled: true,
   },
   {

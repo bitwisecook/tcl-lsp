@@ -303,6 +303,60 @@ fn string_match_nocase_has_no_arity_error() {
     assert!(!has_code(&diags, "E003"));
 }
 
+// -- E003 tight range + registry arity-data corrections ------------------
+// The too-many-args squiggle covers only the surplus words, and several
+// command arities are corrected to match C Tcl 9.
+
+#[test]
+fn e003_too_many_args_highlights_only_the_surplus_words() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "lreverse {a b c} extra1 extra2\n");
+    let e003 = with_code(&diags, "E003");
+    assert_eq!(e003.len(), 1, "got {diags:?}");
+    // Tight range: only `extra1 extra2` (cols 17..30), not the whole command
+    // from column 0.
+    assert_eq!(diag_range(&e003[0]), ((0, 17), (0, 30)), "got {diags:?}");
+}
+
+#[test]
+fn lmap_even_arg_count_is_e005() {
+    // `lmap` shares `foreach`'s odd/even grammar; an even count is wrong.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "lmap a b c d\n");
+    assert!(has_code(&diags, "E005"), "got {diags:?}");
+    // A valid odd count is silent.
+    let uri2 = unique_uri("tcl");
+    let diags2 = lsp.open_ready(&uri2, "lmap x {1 2} {incr x}\n");
+    assert!(!has_code(&diags2, "E005"), "got {diags2:?}");
+}
+
+#[test]
+fn global_and_variable_zero_args_have_no_arity_error() {
+    let mut lsp = Lsp::tcl();
+    for src in ["global\n", "variable\n"] {
+        let uri = unique_uri("tcl");
+        let diags = lsp.open_ready(&uri, src);
+        assert!(!has_code(&diags, "E002"), "{src:?} → {diags:?}");
+    }
+}
+
+#[test]
+fn while_true_with_throw_or_tailcall_is_not_infinite() {
+    // W241 must not fire when the body leaves the loop via `throw`/`tailcall`.
+    let mut lsp = Lsp::tcl();
+    for src in ["while 1 {throw MYERR boom}\n", "while 1 {tailcall next}\n"] {
+        let uri = unique_uri("tcl");
+        let diags = lsp.open_ready(&uri, src);
+        assert!(!has_code(&diags, "W241"), "{src:?} → {diags:?}");
+    }
+    // Control: a body with no exit is still flagged.
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "while 1 {incr n}\n");
+    assert!(has_code(&diags, "W241"), "got {diags:?}");
+}
+
 // -- TestW004DialectInvalidOption -----------------------------------------
 // End-to-end coverage for W004 (option not available in the active
 // dialect): the abbreviated-subcommand fix, and the shadow-suppression

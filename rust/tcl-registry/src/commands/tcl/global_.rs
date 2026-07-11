@@ -37,7 +37,11 @@ pub fn spec() -> CommandSpec {
             | Traits::CREATES_SCOPE_ALIAS
             | Traits::CREATES_DYNAMIC_BARRIER
             | Traits::FRAME_HASH_BUILTIN,
-        arity: Arity::at_least(1),
+        // `global ?varName ...?` — zero args is a valid no-op (C
+        // `Tcl_GlobalObjCmd` has no `Tcl_WrongNumArgs`; its `for (i=1; …)` loop
+        // simply doesn't run), so `global` on its own must not draw E002.
+        // Verified against tclsh 9.0.4: `catch {global}` → 0.
+        arity: Arity::any(),
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),
         return_type: Some(TclType::String),

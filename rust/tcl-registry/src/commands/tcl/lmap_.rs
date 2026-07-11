@@ -53,7 +53,13 @@ pub fn spec() -> CommandSpec {
             | Traits::NEVER_INLINE_BODY
             | Traits::LOOP_LIST_HEADER,
         dialects: Some(DialectSet::TCL86_PLUS),
-        arity: Arity::at_least(3),
+        // `varList list ?varList list ...? command` — identical grammar to
+        // `foreach`: n varList/list pairs (n >= 1) plus one command body, so a
+        // valid count is odd and >= 3.  An even count is `wrong # args`
+        // (verified against tclsh 9.0.4: `lmap a b c d` → `wrong # args: should
+        // be "lmap varList list ?varList list ...? command"`).  Previously
+        // `at_least(3)`, which missed the odd/even parity `foreach` enforces.
+        arity: Arity::stepped(3, Arity::UNLIMITED, 2),
         arg_role_resolver: Some(lmap_arg_roles),
         // See `foreach`'s identical comment — index 0 is a fixed key read by
         // `shimmer::use_site::foreach_header_expected_type`, not a real

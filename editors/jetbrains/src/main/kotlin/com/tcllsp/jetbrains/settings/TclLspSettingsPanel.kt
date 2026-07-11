@@ -143,6 +143,7 @@ class TclLspSettingsPanel {
     private val diagW240 = JBCheckBox("W240: Loop condition is a constant false")
     private val diagW241 = JBCheckBox("W241: Loop is provably infinite")
     private val diagW250 = JBCheckBox("W250: Instantiating an oo::abstract class")
+    private val diagW308 = JBCheckBox("W308: Unknown TclOO method")
 
     // Diagnostics — Variables
     private val diagW210 = JBCheckBox("W210: Variable read before set")
@@ -166,7 +167,6 @@ class TclLspSettingsPanel {
     private val diagW304 = JBCheckBox("W304: Missing option terminator -- on option-bearing commands")
     private val diagW306 = JBCheckBox("W306: Substitution in literal-expected argument position")
     private val diagW307 = JBCheckBox("W307: Non-literal command name")
-    private val diagW308 = JBCheckBox("W308: subst without -nocommands")
     private val diagW309 = JBCheckBox("W309: eval/uplevel with subst")
     private val diagW313 = JBCheckBox("W313: Destructive file operation with variable path")
 
@@ -373,7 +373,7 @@ class TclLspSettingsPanel {
             diagW120, diagW121, diagW122, diagW124, diagW125, diagW126,
             diagW127, diagW128, diagW135, diagW136, diagW200, diagW201,
             diagW230, diagW231, diagW232, diagW233, diagW240, diagW241,
-            diagW250,
+            diagW250, diagW308,
         ).forEach { diagWarnPanel.add(it) }
         builder.addComponent(diagWarnPanel)
 
@@ -389,8 +389,7 @@ class TclLspSettingsPanel {
         val diagSecPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
             diagW101, diagW102, diagW103, diagW300, diagW301, diagW302,
-            diagW303, diagW304, diagW306, diagW307, diagW308, diagW309,
-            diagW313,
+            diagW303, diagW304, diagW306, diagW307, diagW309, diagW313,
         ).forEach { diagSecPanel.add(it) }
         builder.addComponent(diagSecPanel)
 
@@ -592,6 +591,7 @@ class TclLspSettingsPanel {
             diagW240.isSelected != s.diagnosticW240 ||
             diagW241.isSelected != s.diagnosticW241 ||
             diagW250.isSelected != s.diagnosticW250 ||
+            diagW308.isSelected != s.diagnosticW308 ||
             diagW210.isSelected != s.diagnosticW210 ||
             diagW211.isSelected != s.diagnosticW211 ||
             diagW212.isSelected != s.diagnosticW212 ||
@@ -611,7 +611,6 @@ class TclLspSettingsPanel {
             diagW304.isSelected != s.diagnosticW304 ||
             diagW306.isSelected != s.diagnosticW306 ||
             diagW307.isSelected != s.diagnosticW307 ||
-            diagW308.isSelected != s.diagnosticW308 ||
             diagW309.isSelected != s.diagnosticW309 ||
             diagW313.isSelected != s.diagnosticW313 ||
             diagH300.isSelected != s.diagnosticH300 ||
@@ -824,6 +823,7 @@ class TclLspSettingsPanel {
         s.diagnosticW240 = diagW240.isSelected
         s.diagnosticW241 = diagW241.isSelected
         s.diagnosticW250 = diagW250.isSelected
+        s.diagnosticW308 = diagW308.isSelected
         s.diagnosticW210 = diagW210.isSelected
         s.diagnosticW211 = diagW211.isSelected
         s.diagnosticW212 = diagW212.isSelected
@@ -843,7 +843,6 @@ class TclLspSettingsPanel {
         s.diagnosticW304 = diagW304.isSelected
         s.diagnosticW306 = diagW306.isSelected
         s.diagnosticW307 = diagW307.isSelected
-        s.diagnosticW308 = diagW308.isSelected
         s.diagnosticW309 = diagW309.isSelected
         s.diagnosticW313 = diagW313.isSelected
         s.diagnosticH300 = diagH300.isSelected
@@ -1073,6 +1072,7 @@ class TclLspSettingsPanel {
         diagW240.isSelected = s.diagnosticW240
         diagW241.isSelected = s.diagnosticW241
         diagW250.isSelected = s.diagnosticW250
+        diagW308.isSelected = s.diagnosticW308
         diagW210.isSelected = s.diagnosticW210
         diagW211.isSelected = s.diagnosticW211
         diagW212.isSelected = s.diagnosticW212
@@ -1092,7 +1092,6 @@ class TclLspSettingsPanel {
         diagW304.isSelected = s.diagnosticW304
         diagW306.isSelected = s.diagnosticW306
         diagW307.isSelected = s.diagnosticW307
-        diagW308.isSelected = s.diagnosticW308
         diagW309.isSelected = s.diagnosticW309
         diagW313.isSelected = s.diagnosticW313
         diagH300.isSelected = s.diagnosticH300

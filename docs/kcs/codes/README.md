@@ -101,7 +101,7 @@ for historical reference.
 - [W304 — missing option terminator](kcs-diagnostic-w304-missing-option-terminator.md)
 - [W306 — substitution in literal position](kcs-diagnostic-w306-substitution-in-literal-position.md)
 - [W307 — non-literal command](kcs-diagnostic-w307-non-literal-command.md)
-- [W308 — subst without -nocommands](kcs-diagnostic-w308-subst-without-nocommands.md)
+- [W308 — unknown TclOO method](kcs-diagnostic-w308-unknown-tcloo-method.md)
 - [W309 — eval with subst](kcs-diagnostic-w309-eval-with-subst.md)
 - [W313 — destructive file variable path](kcs-diagnostic-w313-destructive-file-variable-path.md)
 

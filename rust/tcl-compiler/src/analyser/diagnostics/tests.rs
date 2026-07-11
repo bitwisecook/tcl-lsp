@@ -1192,8 +1192,16 @@ fn e003_top_level_call_before_shadowing_proc_fires() {
         "expected E003 on the top-level close before its shadowing proc, got {:?}",
         r.diagnostics
     );
-    // The flagged call is the top-level one (offset 0), not the proc.
-    assert_eq!(e003[0].span.start(), 0, "wrong call flagged");
+    // The flagged call is the top-level one on line 1, not the proc on line 2.
+    // E003 highlights only the surplus arguments, so the span starts at the
+    // first excess word rather than the command name — assert it lands on the
+    // first line.
+    let line2 = src.find('\n').unwrap();
+    assert!(
+        (e003[0].span.start() as usize) < line2,
+        "wrong call flagged: {:?}",
+        &src[e003[0].span.start() as usize..e003[0].span.end() as usize],
+    );
 }
 
 #[test]
@@ -1263,7 +1271,101 @@ fn e003_top_level_call_before_rename_onto_builtin_still_fires() {
         "expected E003 on the top-level close before the rename took effect, got {:?}",
         r.diagnostics
     );
-    assert_eq!(e003[0].span.start(), 0, "wrong call flagged");
+    // Tight E003 span: the surplus argument of the line-1 call, not the
+    // renamed proc on a later line.
+    let line2 = src.find('\n').unwrap();
+    assert!(
+        (e003[0].span.start() as usize) < line2,
+        "wrong call flagged: {:?}",
+        &src[e003[0].span.start() as usize..e003[0].span.end() as usize],
+    );
+}
+
+// E003 tight-range + registry arity-data corrections (verified against
+// tclsh 9.0.4). See `rust/tcl-registry/src/commands/tcl/{lmap,global,
+// variable,auto_load,auto_import}_.rs`.
+
+/// Return the source text E003 highlights, so range tightness can be
+/// asserted against the *problem* words rather than the whole command.
+fn e003_highlighted_text(src: &str) -> String {
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.6");
+    let d = r
+        .diagnostics
+        .iter()
+        .find(|d| d.code == DiagCode::E003)
+        .unwrap_or_else(|| panic!("no E003 in {:?}", r.diagnostics));
+    src[d.span.start() as usize..d.span.end() as usize].to_string()
+}
+
+#[test]
+fn e003_highlights_only_the_surplus_arguments() {
+    // TP + range precision: the squiggle covers exactly the excess words,
+    // not the command name or the valid arguments.
+    assert_eq!(
+        e003_highlighted_text("lreverse {a b c} extra1 extra2\n"),
+        "extra1 extra2",
+        "E003 must highlight only the surplus arguments",
+    );
+    assert_eq!(
+        e003_highlighted_text("string index abc 0 extra\n"),
+        "extra",
+        "E003 on a subcommand must highlight only the surplus word",
+    );
+    // Leading options are skipped: the surplus is measured after them.
+    assert_eq!(
+        e003_highlighted_text("puts -nonewline stdout hello extra\n"),
+        "extra",
+        "E003 must skip leading options when isolating the surplus",
+    );
+}
+
+#[test]
+fn e003_falls_back_to_whole_command_on_expansion() {
+    // A `{*}`-expanded positional makes the first surplus word ambiguous, so
+    // the highlight falls back to the whole command (still a TP).
+    let src = "lreverse {a b c} {*}$extra more\n";
+    let text = e003_highlighted_text(src);
+    assert!(
+        text.starts_with("lreverse"),
+        "expansion case should fall back to the whole command, got {text:?}",
+    );
+}
+
+#[test]
+fn lmap_odd_even_parity_fires_e005() {
+    // FN fix: `lmap` shares `foreach`'s odd/even grammar. An even count is
+    // `wrong # args` (tclsh 9.0.4); a valid odd count is silent.
+    assert!(has_code("lmap a b c d\n", "tcl8.6", "E005"));
+    assert!(!has_code("lmap x {1 2 3} {incr x}\n", "tcl8.6", "E005"));
+    assert!(!has_code(
+        "lmap a {1 2} b {3 4} {expr {$a+$b}}\n",
+        "tcl8.6",
+        "E005",
+    ));
+}
+
+#[test]
+fn global_and_variable_zero_args_are_no_op_not_e002() {
+    // FP fix: bare `global` / `variable` are valid no-ops (C Tcl has no
+    // `Tcl_WrongNumArgs` on either).
+    for src in ["global\n", "variable\n", "global a b c\n"] {
+        assert!(
+            !has_code(src, "tcl8.6", "E002"),
+            "{src:?} must not draw E002",
+        );
+    }
+}
+
+#[test]
+fn auto_load_and_auto_import_arity_bounds() {
+    // auto_load cmd ?namespace? — 1..2 valid, 3 too many.
+    assert!(!has_code("auto_load foo\n", "tcl8.6", "E003"));
+    assert!(!has_code("auto_load foo ::ns\n", "tcl8.6", "E003"));
+    assert!(has_code("auto_load a b c\n", "tcl8.6", "E003"));
+    // auto_import pattern — exactly 1.
+    assert!(!has_code("auto_import xyz*\n", "tcl8.6", "E003"));
+    assert!(has_code("auto_import a b\n", "tcl8.6", "E003"));
 }
 
 // E005 — argument-count *shape* (parity/predicate) mismatches on the

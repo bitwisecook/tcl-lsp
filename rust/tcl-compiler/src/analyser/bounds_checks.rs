@@ -44,17 +44,37 @@ const SIMPLE_CMP_OPS: &[&str] = &["<=", ">=", "<", ">", "==", "!=", "eq", "ne"];
 /// loop-counter modification scan).
 const WRITE_COMMANDS: &[&str] = &["set", "incr", "lset", "append", "lappend"];
 
-/// Command names that can break out of / leave a loop body.
-const EXIT_COMMANDS: &[&str] = &["break", "return", "error", "exit"];
+/// Whether `name` in command position ends the current loop's straight-line
+/// flow — the set consulted by the W241 "provably infinite" check.
+///
+/// `break` exits the loop and `tailcall` replaces the current procedure's
+/// frame (Tcl 8.6+) and never returns to it; neither is a block-terminator, so
+/// they are named explicitly here, mirroring the CFG builder's own
+/// `is_tailcall_command`. Everything that unwinds the enclosing block/proc —
+/// `return` / `error` / `exit` / `throw` — is read from the registry's
+/// [`tcl_registry::Traits::TERMINATES_BLOCK`] trait, so a newly-added
+/// block-terminating command is recognised automatically instead of needing a
+/// second hardcoded list (this is what closes the `throw`/`tailcall` W241
+/// false positive: both leave the loop but neither was in the old literal set).
+fn is_loop_exit_command(name: &str, registry: Option<&tcl_registry::CommandRegistry>) -> bool {
+    let bare = name.trim_start_matches(':');
+    if bare == "break" || bare == "tailcall" {
+        return true;
+    }
+    registry
+        .and_then(|r| r.get(bare))
+        .is_some_and(|spec| spec.traits.contains(tcl_registry::Traits::TERMINATES_BLOCK))
+}
 
 /// W240 (constant-false condition → dead body) / W241 (constant-true
-/// condition with no `break`/`return`/`error`/`exit` → provably
-/// infinite) for `while` / `for`.  `args` / `arg_tokens` exclude the
-/// command name.
+/// condition whose body never leaves the loop → provably infinite) for
+/// `while` / `for`.  The loop-exit set is registry-driven — see
+/// [`is_loop_exit_command`].  `args` / `arg_tokens` exclude the command name.
 pub(crate) fn loop_termination_diagnostics(
     cmd_name: &str,
     args: &[String],
     arg_tokens: &[Token],
+    registry: Option<&tcl_registry::CommandRegistry>,
 ) -> Vec<Diagnostic> {
     // (init, cond, step, body, cond_tok) — init/step empty for `while`.
     let (init_text, cond_text, step_text, body_text, cond_tok) = match cmd_name {
@@ -81,13 +101,13 @@ pub(crate) fn loop_termination_diagnostics(
                 fixes: Vec::new(),
             }];
         }
-        Some(true) if !body_may_exit(body_text) => {
+        Some(true) if !body_may_exit(body_text, registry) => {
             return vec![Diagnostic {
                 code: DiagCode::W241,
                 span: cond_tok.span,
                 message: format!(
-                    "{cmd_name} is provably infinite: condition is constant true and body has no \
-                     break/return/error/exit."
+                    "{cmd_name} is provably infinite: condition is constant true and the body \
+                     never leaves the loop (no break/return/error/exit/throw/tailcall)."
                 ),
                 severity: Severity::Warning,
                 fixes: Vec::new(),
@@ -99,7 +119,8 @@ pub(crate) fn loop_termination_diagnostics(
 
     // `for {init} {cond} {step} body` provably-infinite counter shape.
     if cmd_name == "for"
-        && let Some(reason) = for_is_provably_infinite(init_text, cond_text, step_text, body_text)
+        && let Some(reason) =
+            for_is_provably_infinite(init_text, cond_text, step_text, body_text, registry)
     {
         return vec![Diagnostic {
             code: DiagCode::W241,
@@ -185,14 +206,20 @@ fn loop_modifies_var(var: &str, step: &str, body: &str) -> bool {
 
 /// Prove that a `for {set v INT} {$v OP INT} {incr v INT} body` loop
 /// never terminates (no write to `v` elsewhere); returns the reason.
-fn for_is_provably_infinite(init: &str, cond: &str, step: &str, body: &str) -> Option<String> {
+fn for_is_provably_infinite(
+    init: &str,
+    cond: &str,
+    step: &str,
+    body: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) -> Option<String> {
     let (var_c, op, bound) = parse_simple_for_cond(cond)?;
     let (var_i, start) = parse_init_var_value(init)?;
     let (var_s, delta) = parse_step_incr(step)?;
     if var_c != var_i || var_c != var_s {
         return None;
     }
-    if body_writes_var(body, &var_c) || body_may_exit(body) {
+    if body_writes_var(body, &var_c) || body_may_exit(body, registry) {
         return None;
     }
     let counter = format!("${var_c}");
@@ -1125,14 +1152,15 @@ fn condition_constant(cond: &str) -> Option<bool> {
     c.trim().parse::<f64>().ok().map(|v| v != 0.0)
 }
 
-/// True when `body` contains a `break` / `return` / `error` / `exit`
-/// command (shallow, structural scan).
+/// True when `body` contains, in command position, any command that leaves
+/// the loop (`break` / `tailcall` / a `TERMINATES_BLOCK` command such as
+/// `return` / `error` / `exit` / `throw`) — see [`is_loop_exit_command`].
 ///
 /// Resolved via the segmenter (recursing into nested bodies) so only a
 /// command in *command position* counts — a `break` appearing as a bare
 /// argument no longer triggers a false exit.
-fn body_may_exit(body: &str) -> bool {
-    any_command_recursive(body, &mut |cmd| EXIT_COMMANDS.contains(&cmd.name()))
+fn body_may_exit(body: &str, registry: Option<&tcl_registry::CommandRegistry>) -> bool {
+    any_command_recursive(body, &mut |cmd| is_loop_exit_command(cmd.name(), registry))
 }
 
 #[cfg(test)]
@@ -1162,6 +1190,37 @@ mod tests {
         // A `break` in the body suppresses W241.
         assert!(codes("while 1 {break}\n").is_empty());
         assert!(codes("while 1 {return}\n").is_empty());
+    }
+
+    #[test]
+    fn w241_throw_and_tailcall_leave_the_loop() {
+        // FP fix: `throw` and `tailcall` both terminate the loop after one
+        // iteration (verified against tclsh 9.0.4), so a `while 1` body
+        // containing either is NOT provably infinite. `throw` resolves via the
+        // registry's TERMINATES_BLOCK trait; `tailcall` is named explicitly.
+        assert!(
+            codes("while 1 {throw MYERR boom}\n").is_empty(),
+            "throw must suppress W241",
+        );
+        assert!(
+            codes("while 1 {tailcall foo}\n").is_empty(),
+            "tailcall must suppress W241",
+        );
+        // TP controls: the other block-terminators still suppress, and a body
+        // with no exit at all still fires.
+        assert!(codes("while 1 {error boom}\n").is_empty());
+        assert!(codes("while 1 {exit 1}\n").is_empty());
+        assert_eq!(codes("while 1 {incr n}\n"), vec!["W241"]);
+        // `continue` is NOT an exit — it keeps looping — so W241 still fires.
+        assert_eq!(codes("while 1 {continue}\n"), vec!["W241"]);
+    }
+
+    #[test]
+    fn w241_for_loop_throw_tailcall_suppress() {
+        // Same coverage on the `for` provably-infinite counter shape: a body
+        // that throws / tailcalls is not an infinite loop.
+        assert!(codes("for {set i 0} {$i < 10} {incr i 0} {throw E x}\n").is_empty());
+        assert!(codes("for {set i 5} {$i > 0} {incr i} {tailcall done}\n").is_empty());
     }
 
     #[test]
@@ -1250,10 +1309,18 @@ mod tests {
         assert!(super::body_writes_var("if {$c} {set i 9}", "i")); // nested body
         assert!(!super::body_writes_var("puts \"set i now\"", "i")); // inside a string
         assert!(!super::body_writes_var("incr index", "i")); // word boundary
-        // `break` / `return` likewise count only as commands.
-        assert!(super::body_may_exit("break"));
-        assert!(super::body_may_exit("if {$c} {return}")); // nested
-        assert!(!super::body_may_exit("puts breakfast")); // not a command
+        // `break` / `return` / `throw` / `tailcall` likewise count only as
+        // commands. `return`/`throw` resolve via the registry's
+        // TERMINATES_BLOCK trait; `break`/`tailcall` are recognised without it.
+        let reg = tcl_registry::registry_for_dialect("tcl8.6");
+        assert!(super::body_may_exit("break", Some(reg)));
+        assert!(super::body_may_exit("if {$c} {return}", Some(reg))); // nested
+        assert!(super::body_may_exit("throw MYERR boom", Some(reg))); // now covered
+        assert!(super::body_may_exit("tailcall foo", Some(reg)));
+        assert!(!super::body_may_exit("puts breakfast", Some(reg))); // not a command
+        // `break`/`tailcall` are recognised even without a registry handle.
+        assert!(super::body_may_exit("break", None));
+        assert!(super::body_may_exit("tailcall foo", None));
     }
 
     fn idx_codes(src: &str) -> Vec<String> {

@@ -444,7 +444,7 @@ diagnostic_codes! {
     W304 => "W304", diag(Security, true, "Missing option terminator `--` on option-bearing commands.");
     W306 => "W306", diag(Security, true, "Substitution in literal-expected argument position.");
     W307 => "W307", diag(Security, true, "Non-literal command name — variable or command substitution as command.");
-    W308 => "W308", diag(Security, true, "`subst` without `-nocommands` — risk of unintended command execution.");
+    W308 => "W308", diag(Warning, true, "Unknown TclOO method — the method is not defined on the receiver's statically-known class or any of its superclasses.");
     W309 => "W309", diag(Security, true, "`eval`/`uplevel` with `subst` — double substitution risk.");
     W310 => "W310", diag_internal(Security, true, "Hardcoded credential in a password/auth argument — store secrets outside source.");
     W311 => "W311", diag_internal(Security, true, "Channel set to `-encoding binary` with a non-binary `-translation` — may corrupt data or enable encoding-differential attacks.");
@@ -619,6 +619,27 @@ mod tests {
         assert!(!DiagCode::W121.refined_by_workspace());
         assert!(!DiagCode::E002.refined_by_workspace());
         assert!(!DiagCode::O111.refined_by_workspace());
+    }
+
+    #[test]
+    fn w308_documents_the_tcloo_unknown_method_check() {
+        // W308 is the TclOO unknown-method diagnostic (emitted by
+        // `tcl_compiler::analyser::diagnostics::var_command`). A historical
+        // mislabel described it as a `subst`-without-`-nocommands` *security*
+        // warning — a check no emitter ever produced (that hazard is covered by
+        // W102 / the T100 taint sink gate). Pin the catalogue to the check the
+        // code actually performs so hover, `--disable`, and the editor settings
+        // panels can't drift back.
+        assert_eq!(DiagCode::W308.diag_section(), Some(DiagSection::Warning));
+        let desc = DiagCode::W308.description();
+        assert!(
+            desc.contains("method"),
+            "W308 must describe the unknown-method check, got: {desc}"
+        );
+        assert!(
+            !desc.contains("subst"),
+            "W308 must no longer be labelled the subst check, got: {desc}"
+        );
     }
 
     #[test]
