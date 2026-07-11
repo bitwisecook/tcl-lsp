@@ -65,6 +65,20 @@
 //!   in the sibling [`crate::irules_checks`] module.
 //! - **URI-split / IRULE3103** (`*::uri` getter + manual
 //!   decomposition) — see [`crate::uri_split`].
+//! - **`rename` command-name aliasing** — sink/source classification keys
+//!   off [`Statement::canonical_command_or_source`], and the lowerer feeds a
+//!   static `rename old new` into the same alias table `interp alias`
+//!   already populates, so a call through a renamed name resolves to
+//!   whatever it now denotes (see `crate::alias::detect_rename`).
+//! - **Namespace-scoped proc shadowing a builtin** — a call whose bare or
+//!   canonical name is shadowed, from its own namespace, by a user `proc` of
+//!   the same name is not misclassified as the builtin sink/source; see
+//!   [`shadowed_builtin_names`].
+//! - **Variable-trace-altered taint** — `trace add variable` / `trace
+//!   variable` conservatively forces a traced name to fully tainted
+//!   everywhere in the module, since a runtime handler can rewrite the
+//!   value in ways static analysis can't see; see
+//!   [`apply_module_variable_traces`].
 //!
 //! ## Source / sink / sanitiser facts live in the registry
 //!
@@ -80,8 +94,10 @@
 //! * `tcl_registry::taint::is_sanitiser` covers fixed-numeric-return
 //!   sanitisers (e.g. `string length`, `string is integer`).
 //!
-//! Sinks are still resolved through the [`Traits::TAINT_SINK`] /
-//! [`Traits::EVALUATES_CODE`] flags inside `find_taint_warnings`.
+//! Sink classification itself is registry-driven too: [`classify_sink`]
+//! asks [`tcl_registry::taint::classify_taint_sinks`] (which reads
+//! [`Traits::TAINT_SINK`] / [`Traits::EVALUATES_CODE`] plus each spec's
+//! declared output/log sink code) rather than matching command names.
 
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::{DiagCode, DiagFamily};
@@ -98,7 +114,7 @@ use crate::expr_ast::ExprNode;
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::{CommandTokens, Statement};
 use crate::irules_checks::CodeFix;
-use crate::naming::normalise_var_name;
+use crate::naming::{normalise_qualified_name, normalise_var_name};
 use crate::rendered_properties::{RenderedProperties, RenderedValueProps};
 use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey};
@@ -1529,6 +1545,15 @@ fn destructive_file_subs(registry: &CommandRegistry) -> HashSet<&'static str> {
 /// Variable names referenced (via `$name` / `${name}`) anywhere in `arg`.
 /// A lightweight VAR-token scan covering the path-argument shapes W313
 /// cares about (`$p`, `${p}`, `"$d/$f"`).
+///
+/// Deliberately **not** `crate::var_refs::vars_in_word` — the two disagree on
+/// a variable nested inside another's array index (`$arr($cmd)`): the real
+/// lexer treats the whole thing as one opaque `Var` token, so `vars_in_word`
+/// only ever surfaces `arr`, while this byte-scan (blind to token structure)
+/// finds `cmd` too. Centralising on `vars_in_word` would drop that name from
+/// W313's variable set — a false-negative regression — so this stays a
+/// bespoke scanner; see the `arg_var_names_vs_vars_in_word` test module for
+/// the full comparison.
 fn arg_var_names(arg: &str) -> HashSet<String> {
     arg_var_names_ordered(arg).into_iter().collect()
 }
@@ -1542,6 +1567,16 @@ fn arg_var_names_ordered(arg: &str) -> Vec<String> {
     let bytes = arg.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
+        if bytes[i] == b'\\' {
+            // A backslash escapes the next character (`\$notavar` is the
+            // literal text `$notavar`, not a variable reference) — mirrors
+            // the lexer's `\X` handling for un-braced words. Skipping the
+            // pair keeps an escaped `\$` from being misread as the start of
+            // a substitution.
+            let esc_len = arg[i + 1..].chars().next().map_or(0, char::len_utf8);
+            i += 1 + esc_len;
+            continue;
+        }
         if bytes[i] != b'$' {
             i += 1;
             continue;
@@ -1863,6 +1898,73 @@ fn irule3002_name_position_safe(
     is_pure_var_ref(stripped) && normalise_var_name(stripped) == var_name
 }
 
+/// Conservatively force every taint value touching a module-traced variable
+/// to fully tainted — the "unknown taint" fix for `trace add variable` /
+/// `trace variable`.
+///
+/// `trace add variable x write {handler}` (or a `read` trace) lets a runtime
+/// callback rewrite `x` on every future access in ways static analysis
+/// cannot see: the handler might sanitise a value the analysis considers
+/// tainted (so a warning is arguably unwarranted), or it might inject
+/// attacker-controlled content into a value the source only ever assigns
+/// literals (so a real sink would be silently missed). Rather than model
+/// trace semantics, this takes the safe side of that ambiguity — treat a
+/// traced name as tainted everywhere, so the analysis never launders a
+/// value through an opaque handler it can't inspect. This also incidentally
+/// fixes a sharper, pre-existing bug: `trace add variable x write …` is
+/// itself registered as a *write* to `x` (`ArgRole::VarWrite`, so SSA gives
+/// it a fresh version for soundness elsewhere), and the fallback "propagate
+/// from arguments" rule in [`evaluate_taint_def`] computed that fresh
+/// version's taint from the trace-add call's own *literal* argument words
+/// (`add`, `variable`, `x`, `write`, `{handler}` — none of them a `$`
+/// reference) — always clean, silently dropping any taint `x` carried
+/// *before* the trace was installed.
+///
+/// Uses [`crate::ir::Module::traced_variables`] /
+/// [`crate::ir::Module::has_dynamic_variable_trace`] — the same
+/// flow-insensitive, whole-module over-approximation (the same "traced
+/// anywhere ⇒ traced everywhere, for the module's lifetime" rule already
+/// applied to the optimiser's constant-fold trust gate via
+/// [`crate::compilation_unit::ModuleTraceFacts`]) rather than a bespoke
+/// traced-name scan.
+///
+/// Two passes:
+/// 1. Every `(symbol, version)` already in `taints` for a traced name is
+///    forced to [`TaintLattice::tainted()`] — this is every non-zero SSA
+///    version, since [`propagate_statement_taints`] always inserts an entry
+///    for a def, tainted or not.
+/// 2. A traced global/namespace name read at version 0 with **no** local
+///    def in this function at all (a pure cross-proc read reusing
+///    [`collect_global_reads`]) is seeded tainted too, so a function that
+///    only reads a traced global still sees it as tainted even without the
+///    interprocedural global-write seeding this mirrors.
+#[must_use]
+#[allow(clippy::implicit_hasher)]
+pub fn apply_module_variable_traces(
+    mut taints: HashMap<ValueKey, TaintLattice>,
+    ssa: &SsaFunction,
+    traces: crate::compilation_unit::ModuleTraceFacts<'_>,
+) -> HashMap<ValueKey, TaintLattice> {
+    let is_traced =
+        |name: &str| traces.has_dynamic_variable_trace || traces.traced_variables.contains(name);
+    for (key, lattice) in &mut taints {
+        if is_traced(ssa.var_name(key.0)) {
+            *lattice = TaintLattice::tainted();
+        }
+    }
+    for name in collect_global_reads(ssa) {
+        if is_traced(&name)
+            && let Some(sym) = ssa.var_symbol(&name)
+        {
+            taints
+                .entry((sym, 0))
+                .and_modify(|t| *t = TaintLattice::tainted())
+                .or_insert_with(TaintLattice::tainted);
+        }
+    }
+    taints
+}
+
 /// Find every taint warning across a whole compilation unit.
 ///
 /// Public `*_for_cu` entry point (mirroring
@@ -1880,17 +1982,28 @@ pub fn find_taint_warnings_for_cu(
 ) -> Vec<TaintWarning> {
     let mut out = Vec::new();
     let solved = crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect);
+    let proc_qnames: HashSet<&str> = cu.procedures.keys().map(String::as_str).collect();
+    let module_traces = crate::compilation_unit::ModuleTraceFacts {
+        traced_variables: &cu.ir_module.traced_variables,
+        has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+    };
     // `analysable_body_function_units` (not `analysable_functions`) so a
     // sink inside a TclOO method body — or an `apply` lambda / `namespace
     // eval` body — is still checked; see its doc comment.
     for fu in cu.analysable_body_function_units() {
         let exec = &fu.sccp.executable_blocks;
-        let taints = solved.taints_for(&fu.name, &fu.taints);
+        let taints = apply_module_variable_traces(
+            solved.taints_for(&fu.name, &fu.taints).clone(),
+            &fu.ssa,
+            module_traces,
+        );
+        let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(&fu.name);
+        let shadowed = shadowed_builtin_names(&namespace, proc_qnames.iter().copied(), registry);
         out.extend(find_taint_warnings(
-            &fu.cfg, &fu.ssa, taints, exec, registry, dialect,
+            &fu.cfg, &fu.ssa, &taints, exec, registry, dialect, &shadowed,
         ));
         out.extend(find_setter_constraint_warnings(
-            registry, &fu.cfg, &fu.ssa, taints, exec, dialect,
+            registry, &fu.cfg, &fu.ssa, &taints, exec, dialect,
         ));
         out.extend(crate::uri_split::find_uri_split_suggestions(
             &fu.cfg,
@@ -1901,8 +2014,69 @@ pub fn find_taint_warnings_for_cu(
             dialect,
         ));
         out.extend(find_destructive_file_warnings(
-            &fu.cfg, &fu.ssa, taints, exec, registry,
+            &fu.cfg, &fu.ssa, &taints, exec, registry,
         ));
+    }
+    out
+}
+
+/// Bare registry command names shadowed, for a call inside `namespace`, by a
+/// user proc of the same name.
+///
+/// Tcl resolves an unqualified command name in the *current* namespace,
+/// falling back to the global namespace when not found there — a lookup
+/// that always terminates at global, so a plain top-level `proc puts {args}
+/// {…}` shadows every bare `puts` call in the *whole* module, while `proc
+/// ::myns::puts {args} {…}` shadows it only for calls made from `::myns`
+/// itself. Either way the call dispatches to the user's own proc, not the
+/// output-sink builtin, even though the registry still has a `puts` entry.
+///
+/// Matches the same simplified, current-namespace-or-global qualification
+/// the rest of the compiler already uses for `rename` / `interp alias`
+/// resolution (`crate::alias::resolve_alias`) rather than walking the full
+/// namespace ancestor chain — a proc sitting in an *intermediate* ancestor
+/// namespace (neither the caller's own namespace nor global) is not
+/// recognised as shadowing, matching that existing precedent's own gap.
+///
+/// `proc_qnames` is every procedure's fully-qualified name in the module
+/// (`CompilationUnit::procedures` keys); a name only counts as shadowing
+/// when it sits *directly* in `namespace` or in the global namespace
+/// (`{namespace}::{bare}` / `::{bare}`) — a proc in a nested child namespace
+/// does not shadow its parent's calls, and vice versa.
+#[must_use]
+pub fn shadowed_builtin_names<'a>(
+    namespace: &str,
+    proc_qnames: impl Iterator<Item = &'a str>,
+    registry: &CommandRegistry,
+) -> HashSet<String> {
+    /// `qname`'s bare tail when it sits directly under `ns_prefix` (e.g.
+    /// `"::foo::"` or the global `"::"`) — `None` for a name that's either
+    /// outside `ns_prefix` or in one of ITS OWN nested children.
+    fn direct_member<'a>(qname: &'a str, ns_prefix: &str) -> Option<&'a str> {
+        let bare = qname.strip_prefix(ns_prefix)?;
+        (!bare.is_empty() && !bare.contains("::")).then_some(bare)
+    }
+
+    let ns_norm = normalise_qualified_name(namespace);
+    let own_prefix = if ns_norm == "::" {
+        "::".to_owned()
+    } else {
+        format!("{ns_norm}::")
+    };
+    let is_global = own_prefix == "::";
+
+    let mut out = HashSet::new();
+    for q in proc_qnames {
+        let bare = match direct_member(q, &own_prefix) {
+            Some(bare) => Some(bare),
+            None if is_global => None,
+            None => direct_member(q, "::"),
+        };
+        if let Some(bare) = bare
+            && registry.get(bare).is_some()
+        {
+            out.insert(bare.to_owned());
+        }
     }
     out
 }
@@ -1919,13 +2093,23 @@ pub fn find_taint_warnings_for_cu(
 /// aggregation calls it over the top level and every procedure unit. The
 /// other warning kinds (setter-constraint / uri-split / path-concat /
 /// destructive-file) are not emitted here yet.
-pub fn find_taint_warnings<S: std::hash::BuildHasher, E: std::hash::BuildHasher>(
+///
+/// `shadowed_builtins` (see [`shadowed_builtin_names`]) lists the bare
+/// command names that resolve to a user proc rather than the registry
+/// builtin from this function's namespace — those are skipped by the
+/// registry-driven sink/source/pattern checks below.
+pub fn find_taint_warnings<
+    S: std::hash::BuildHasher,
+    E: std::hash::BuildHasher,
+    H: std::hash::BuildHasher,
+>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice, S>,
     executable_blocks: &HashSet<BlockId, E>,
     registry: &CommandRegistry,
     dialect: Option<&str>,
+    shadowed_builtins: &HashSet<String, H>,
 ) -> Vec<TaintWarning> {
     let mut warnings: Vec<TaintWarning> = Vec::new();
 
@@ -1938,7 +2122,15 @@ pub fn find_taint_warnings<S: std::hash::BuildHasher, E: std::hash::BuildHasher>
         };
 
         for ssa_stmt in &ssa_block.statements {
-            emit_statement_warnings(ssa_stmt, taints, registry, dialect, &mut warnings, ssa);
+            emit_statement_warnings(
+                ssa_stmt,
+                taints,
+                registry,
+                dialect,
+                shadowed_builtins,
+                &mut warnings,
+                ssa,
+            );
         }
         let branch_ctx = BranchTaintCtx {
             ssa_block,
@@ -1960,11 +2152,12 @@ pub fn find_taint_warnings<S: std::hash::BuildHasher, E: std::hash::BuildHasher>
 /// - `Call` / `Barrier` / `AssignValue` with `[cmd ...]`: classify as a
 ///   sink via the registry and emit T100/T101 per tainted use.
 /// - `Call`: additionally emits T102 option-injection warnings.
-fn emit_statement_warnings<S: std::hash::BuildHasher>(
+fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
     ssa_stmt: &SsaStatement,
     taints: &HashMap<ValueKey, TaintLattice, S>,
     registry: &CommandRegistry,
     dialect: Option<&str>,
+    shadowed_builtins: &HashSet<String, H>,
     warnings: &mut Vec<TaintWarning>,
     ssa: &SsaFunction,
 ) {
@@ -2024,6 +2217,16 @@ fn emit_statement_warnings<S: std::hash::BuildHasher>(
         },
         _ => return,
     };
+
+    // A namespace-scoped user proc shadows this bare/canonical name (e.g.
+    // `proc ::myns::puts {...}` shadowing the real `puts` for calls made
+    // from `::myns`) — every check below keys off the registry, which would
+    // otherwise misclassify a call to the user's own (possibly entirely
+    // safe) proc as the builtin sink/source. Whatever the shadowing proc
+    // itself does is covered separately by interprocedural taint analysis.
+    if shadowed_builtins.contains(command) {
+        return;
+    }
 
     // Emission order per statement:
     // T103 (regexp pattern) → T106 (double-encode) → the sink loop
@@ -3414,6 +3617,7 @@ mod tests {
             &sccp.executable_blocks,
             &registry,
             None,
+            &HashSet::new(),
         );
 
         assert!(
@@ -3487,6 +3691,7 @@ mod tests {
             &sccp.executable_blocks,
             &registry,
             None,
+            &HashSet::new(),
         )
     }
 
@@ -3620,6 +3825,7 @@ mod tests {
             &sccp.executable_blocks,
             &registry,
             Some("f5-irules"),
+            &HashSet::new(),
         );
         let t106 = warnings
             .iter()
@@ -3940,6 +4146,7 @@ mod tests {
             &sccp.executable_blocks,
             &registry,
             None,
+            &HashSet::new(),
         );
 
         assert!(
@@ -4033,6 +4240,7 @@ mod tests {
             &sccp.executable_blocks,
             &registry,
             None,
+            &HashSet::new(),
         );
 
         let t102: Vec<_> = warnings
@@ -4200,6 +4408,7 @@ mod tests {
                 &fu.sccp.executable_blocks,
                 &registry,
                 Some("f5-irules"),
+                &HashSet::new(),
             ));
         }
         out
@@ -4448,6 +4657,7 @@ mod tests {
             &fu.sccp.executable_blocks,
             &registry,
             Some("tcl8.6"),
+            &HashSet::new(),
         );
         let t102 = warnings.iter().find(|w| w.code == DiagCode::T102);
         assert!(
@@ -4490,6 +4700,7 @@ mod tests {
             &fu.sccp.executable_blocks,
             &registry,
             Some("tcl8.6"),
+            &HashSet::new(),
         );
         assert!(
             warnings.iter().all(|w| w.code != DiagCode::T102),
@@ -4519,6 +4730,7 @@ mod tests {
             &fu.sccp.executable_blocks,
             &registry,
             Some("tcl8.6"),
+            &HashSet::new(),
         );
         assert!(
             warnings
@@ -4546,6 +4758,7 @@ mod tests {
             &fu.sccp.executable_blocks,
             &registry,
             Some("tcl8.6"),
+            &HashSet::new(),
         );
         let t102 = warnings
             .iter()
@@ -4577,6 +4790,7 @@ mod tests {
             &fu.sccp.executable_blocks,
             &registry,
             Some("tcl8.6"),
+            &HashSet::new(),
         );
         let t102 = warnings
             .iter()
@@ -4606,6 +4820,7 @@ mod tests {
             &fu.sccp.executable_blocks,
             &registry,
             Some("tcl8.6"),
+            &HashSet::new(),
         );
         let t102 = warnings
             .iter()
@@ -4651,6 +4866,7 @@ mod tests {
             &fu.sccp.executable_blocks,
             &registry,
             Some("tcl8.6"),
+            &HashSet::new(),
         );
         let t102 = warnings
             .iter()
@@ -4695,6 +4911,7 @@ mod tests {
             &fu.sccp.executable_blocks,
             &registry,
             Some("tcl8.6"),
+            &HashSet::new(),
         );
         assert!(
             warnings
@@ -4723,6 +4940,7 @@ mod tests {
             &fu.sccp.executable_blocks,
             &registry,
             None,
+            &HashSet::new(),
         );
         assert!(
             warnings
@@ -4957,6 +5175,7 @@ mod tests {
                 &fu.sccp.executable_blocks,
                 &registry,
                 None,
+                &HashSet::new(),
             ));
         }
         assert!(
@@ -5343,5 +5562,547 @@ mod tests {
             text, "$x",
             "expected the tight `$x` argument span, got {text:?} from {hit:?}",
         );
+    }
+
+    /// `arg_var_names` vs. `crate::var_refs::vars_in_word` on the tricky
+    /// shapes the centralisation question
+    /// turns on. The two are **not** interchangeable — each is right where
+    /// the other is wrong — so `arg_var_names` stays a bespoke scanner
+    /// rather than a call to the shared lexer-based helper. Locks in the
+    /// current (now bug-fixed) behaviour of both so a future refactor
+    /// attempt trips these before merging.
+    mod arg_var_names_vs_vars_in_word {
+        use super::*;
+
+        /// TP: a bare `$name` reference — both scanners agree.
+        #[test]
+        fn agree_on_bare_var() {
+            let registry = CommandRegistry::build_default();
+            assert_eq!(arg_var_names("$p"), HashSet::from(["p".to_owned()]));
+            assert_eq!(
+                crate::var_refs::vars_in_word("$p", &registry)
+                    .into_iter()
+                    .collect::<HashSet<_>>(),
+                HashSet::from(["p".to_owned()])
+            );
+        }
+
+        /// TP: `${braced}` next to a bare `$var` in the same word — both
+        /// scanners agree, including across a non-variable separator (`/`).
+        #[test]
+        fn agree_on_braced_and_bare_in_one_word() {
+            let registry = CommandRegistry::build_default();
+            let want = HashSet::from(["dir".to_owned(), "file".to_owned()]);
+            assert_eq!(arg_var_names("${dir}/$file"), want);
+            assert_eq!(
+                crate::var_refs::vars_in_word("${dir}/$file", &registry)
+                    .into_iter()
+                    .collect::<HashSet<_>>(),
+                want
+            );
+        }
+
+        /// TP (command substitution): a `$var` nested inside `[cmd …]` —
+        /// both scanners recurse into the substitution and agree.
+        #[test]
+        fn agree_on_var_inside_command_substitution() {
+            let registry = CommandRegistry::build_default();
+            assert_eq!(arg_var_names("[foo $x]"), HashSet::from(["x".to_owned()]));
+            assert_eq!(
+                crate::var_refs::vars_in_word("[foo $x]", &registry)
+                    .into_iter()
+                    .collect::<HashSet<_>>(),
+                HashSet::from(["x".to_owned()])
+            );
+        }
+
+        /// DISAGREEMENT (documented, not a bug to fix here): a variable
+        /// reference *nested inside another variable's array index*
+        /// (`$arr($cmd)`, the `cmdAH-1.4`/`1.5`-style idiom the segmenter's
+        /// `word_piece` doc also calls out) is a single opaque `Var` token
+        /// to the real lexer — `vars_in_word` only reads the outer array
+        /// name (`arr`) and never recurses into the index the way it
+        /// recurses into `[…]` substitutions. `arg_var_names`'s naive
+        /// byte-scan is blind to token structure, so it happens to find
+        /// *both* names. Replacing `arg_var_names` with `vars_in_word`
+        /// would silently drop `cmd` from a W313 warning's variable set —
+        /// a false-negative regression — so this asymmetry is exactly why
+        /// the hand-rolled scanner is being kept, not centralised.
+        #[test]
+        fn disagree_on_var_nested_in_array_index() {
+            let registry = CommandRegistry::build_default();
+            assert_eq!(
+                arg_var_names("$arr($cmd)"),
+                HashSet::from(["arr".to_owned(), "cmd".to_owned()]),
+                "arg_var_names must keep catching the nested index variable"
+            );
+            assert_eq!(
+                crate::var_refs::vars_in_word("$arr($cmd)", &registry)
+                    .into_iter()
+                    .collect::<HashSet<_>>(),
+                HashSet::from(["arr".to_owned()]),
+                "vars_in_word does not recurse into the array index — documented gap"
+            );
+        }
+
+        /// FP fixed: a backslash-escaped `\$name` is literal text (Tcl
+        /// backslash substitution turns `\$` into a literal `$`, so no
+        /// variable is referenced) — `arg_var_names` used to misparse this
+        /// as a reference to `notavar` because its byte-scan didn't know
+        /// about backslash escaping. Now agrees with `vars_in_word`, which
+        /// already got this right via the real lexer.
+        #[test]
+        fn escaped_dollar_is_not_a_reference() {
+            let registry = CommandRegistry::build_default();
+            assert!(
+                arg_var_names("\\$notavar").is_empty(),
+                "an escaped \\$ must not be read as a variable reference"
+            );
+            assert!(crate::var_refs::vars_in_word("\\$notavar", &registry).is_empty());
+        }
+
+        /// FP fixed, doubled escape: `\\$foo` is an escaped backslash
+        /// (literal `\`) followed by a live, unescaped `$foo` — the
+        /// variable reference still must be found.
+        #[test]
+        fn double_backslash_then_live_var_is_still_found() {
+            assert_eq!(arg_var_names("\\\\$foo"), HashSet::from(["foo".to_owned()]));
+        }
+
+        /// TN: plain literal text with no `$` sigil at all.
+        #[test]
+        fn no_dollar_sigil_is_empty() {
+            assert!(arg_var_names("hello world").is_empty());
+        }
+    }
+
+    /// `interp alias` / `rename` command-name resolution feeding sink
+    /// classification. Sink checks key off
+    /// `Statement::canonical_command_or_source()`, so a call through a
+    /// renamed or aliased name resolves to whatever it now denotes.
+    mod rename_and_alias_taint {
+        use super::*;
+        use crate::compilation_unit::CompilationUnit;
+
+        fn taint_warnings_for(source: &str) -> Vec<TaintWarning> {
+            let registry = CommandRegistry::build_default();
+            let cu = CompilationUnit::build_for(source, &registry, false)
+                .with_interprocedural(&registry, None);
+            find_taint_warnings_for_cu(&cu, &registry, None)
+        }
+
+        /// TP (regression guard): tainted data reaching the real `puts` sink
+        /// through an `interp alias` name. This was silently missed before
+        /// sink classification started reading `canonical_command` — the
+        /// alias table was populated but never consulted here.
+        #[test]
+        fn tainted_data_through_interp_alias_is_flagged() {
+            let w =
+                taint_warnings_for("set u [gets stdin]\ninterp alias {} myputs {} puts\nmyputs $u");
+            assert!(
+                w.iter().any(|d| d.code == DiagCode::T101),
+                "expected T101 through the `myputs` alias, got {w:?}"
+            );
+        }
+
+        /// TP: tainted data reaching the real `puts` sink through a renamed
+        /// command name (`rename puts myputs`) — the scenario this
+        /// investigation was specifically scoped to cover.
+        #[test]
+        fn tainted_data_through_renamed_sink_is_flagged() {
+            let w = taint_warnings_for("set u [gets stdin]\nrename puts myputs\nmyputs $u");
+            assert!(
+                w.iter().any(|d| d.code == DiagCode::T101),
+                "expected T101 through the renamed `myputs`, got {w:?}"
+            );
+        }
+
+        /// TN: `rename someSafeProc puts` shadows the builtin — the bare
+        /// name `puts` now denotes the user's own proc, not the real
+        /// output sink, so a subsequent `puts $tainted` must NOT be flagged.
+        /// Guards the false-positive direction of the same fix (a renamed
+        /// binding can point *away* from a builtin just as easily as onto
+        /// one).
+        #[test]
+        fn rename_shadowing_a_builtin_suppresses_the_sink() {
+            let w = taint_warnings_for(
+                "proc mysafeputs {x} { return }\n\
+                 set u [gets stdin]\n\
+                 rename mysafeputs puts\n\
+                 puts $u",
+            );
+            assert!(
+                w.iter().all(|d| d.code != DiagCode::T101),
+                "puts is shadowed by a user proc after the rename, got {w:?}"
+            );
+        }
+
+        /// TN: a *dynamic* rename (`rename $old puts`) must not be
+        /// approximated — the static `new` name (`puts`) keeps its normal
+        /// registry classification rather than silently losing sink
+        /// coverage to an unresolvable placeholder target.
+        #[test]
+        fn dynamic_rename_does_not_suppress_the_builtin_sink() {
+            let w = taint_warnings_for(
+                "set old somecmd\nset u [gets stdin]\nrename $old puts\nputs $u",
+            );
+            assert!(
+                w.iter().any(|d| d.code == DiagCode::T101),
+                "a dynamic rename must not suppress the real puts sink, got {w:?}"
+            );
+        }
+
+        /// TN control: an *unrelated* rename must not disturb ordinary
+        /// `puts` sink detection.
+        #[test]
+        fn unrelated_rename_does_not_affect_puts_sink() {
+            let w = taint_warnings_for("rename string mystr\nset u [gets stdin]\nputs $u");
+            assert!(
+                w.iter().any(|d| d.code == DiagCode::T101),
+                "expected T101 for a plain puts call, got {w:?}"
+            );
+        }
+
+        /// TN: the deletion form `rename puts {}` creates no new binding —
+        /// nothing to alias — so it must not be mistaken for a rename that
+        /// resolves some other name to `puts`.
+        #[test]
+        fn rename_deletion_form_creates_no_alias() {
+            let w = taint_warnings_for("set u [gets stdin]\nrename puts {}\nputs $u");
+            // `puts` itself was deleted, not aliased — this codebase does not
+            // model command deletion, so the bare name keeps resolving to its
+            // registry default (still flagged) rather than silently going
+            // opaque. What matters here is that the deletion form did not
+            // crash `detect_rename` or install a bogus alias entry.
+            assert!(w.iter().any(|d| d.code == DiagCode::T101), "got {w:?}");
+        }
+    }
+
+    /// Unit tests for the pure [`shadowed_builtin_names`] helper, isolated
+    /// from the end-to-end taint-warning plumbing tested by
+    /// `namespace_shadowed_builtin_taint` below.
+    mod shadowed_builtin_names_tests {
+        use super::*;
+
+        #[test]
+        fn namespace_scoped_proc_shadows_only_its_own_namespace() {
+            let registry = CommandRegistry::build_default();
+            let procs = ["::myns::puts", "::myns::helper"];
+            let shadowed = shadowed_builtin_names("::myns", procs.iter().copied(), &registry);
+            assert_eq!(shadowed, HashSet::from(["puts".to_owned()]));
+            // A different namespace sees no shadow at all.
+            assert!(shadowed_builtin_names("::other", procs.iter().copied(), &registry).is_empty());
+        }
+
+        #[test]
+        fn global_proc_shadows_every_namespace() {
+            let registry = CommandRegistry::build_default();
+            let procs = ["::puts"];
+            for ns in ["::", "::myns", "::a::b"] {
+                assert_eq!(
+                    shadowed_builtin_names(ns, procs.iter().copied(), &registry),
+                    HashSet::from(["puts".to_owned()]),
+                    "namespace {ns} must see the global shadow"
+                );
+            }
+        }
+
+        #[test]
+        fn nested_child_proc_does_not_shadow_its_parent() {
+            let registry = CommandRegistry::build_default();
+            let procs = ["::a::b::puts"];
+            assert!(shadowed_builtin_names("::a", procs.iter().copied(), &registry).is_empty());
+        }
+
+        #[test]
+        fn non_registry_proc_name_is_not_shadowing() {
+            // A proc named after something the registry doesn't know is not a
+            // "shadow" in this sense — there's no builtin sink to suppress.
+            let registry = CommandRegistry::build_default();
+            let procs = ["::myns::totallyMadeUpName"];
+            assert!(shadowed_builtin_names("::myns", procs.iter().copied(), &registry).is_empty());
+        }
+    }
+
+    /// A user proc shadowing a builtin's bare name: `proc ::myns::puts {args}
+    /// {…}` (or a plain top-level `proc puts {…}`) makes a bare `puts` call
+    /// from the shadowing scope dispatch to the user's own proc, not the
+    /// output-sink builtin.
+    mod namespace_shadowed_builtin_taint {
+        use super::*;
+        use crate::compilation_unit::CompilationUnit;
+
+        fn taint_warnings_for(source: &str) -> Vec<TaintWarning> {
+            let registry = CommandRegistry::build_default();
+            let cu = CompilationUnit::build_for(source, &registry, false)
+                .with_interprocedural(&registry, None);
+            find_taint_warnings_for_cu(&cu, &registry, None)
+        }
+
+        /// FP fixed: a namespace-scoped proc of the same name as a builtin
+        /// must suppress the builtin sink classification for bare calls made
+        /// from that namespace — this was the false positive the
+        /// investigation's example (`proc ::myns::puts`) called out.
+        #[test]
+        fn namespace_scoped_proc_shadowing_builtin_suppresses_sink() {
+            let w = taint_warnings_for(
+                "namespace eval ::myns {\n\
+                 \x20 proc puts {x} { return }\n\
+                 \x20 proc run {} {\n\
+                 \x20   set u [gets stdin]\n\
+                 \x20   puts $u\n\
+                 \x20 }\n\
+                 }",
+            );
+            assert!(
+                w.iter().all(|d| d.code != DiagCode::T101),
+                "puts is shadowed by ::myns::puts, must not be a sink, got {w:?}"
+            );
+        }
+
+        /// FP fixed: the same shadowing effect for a plain top-level proc
+        /// redefinition (no namespace involved at all).
+        #[test]
+        fn top_level_proc_shadowing_builtin_suppresses_sink() {
+            let w = taint_warnings_for("proc puts {x} { return }\nset u [gets stdin]\nputs $u");
+            assert!(
+                w.iter().all(|d| d.code != DiagCode::T101),
+                "puts is shadowed by a top-level proc, got {w:?}"
+            );
+        }
+
+        /// FP fixed: a *global*-level shadowing proc suppresses the sink for
+        /// bare calls made from *any* namespace, not just the global one —
+        /// Tcl's unqualified-name lookup always falls back to global.
+        #[test]
+        fn global_proc_shadows_calls_from_other_namespaces_too() {
+            let w = taint_warnings_for(
+                "proc puts {x} { return }\n\
+                 namespace eval ::myns {\n\
+                 \x20 proc run {} {\n\
+                 \x20   set u [gets stdin]\n\
+                 \x20   puts $u\n\
+                 \x20 }\n\
+                 }",
+            );
+            assert!(
+                w.iter().all(|d| d.code != DiagCode::T101),
+                "the global puts proc must shadow calls from ::myns too, got {w:?}"
+            );
+        }
+
+        /// TN control: an unshadowed bare `puts` inside a namespace is still
+        /// the real builtin sink.
+        #[test]
+        fn unshadowed_namespace_call_is_still_a_sink() {
+            let w = taint_warnings_for(
+                "namespace eval ::myns {\n\
+                 \x20 proc run {} {\n\
+                 \x20   set u [gets stdin]\n\
+                 \x20   puts $u\n\
+                 \x20 }\n\
+                 }",
+            );
+            assert!(
+                w.iter().any(|d| d.code == DiagCode::T101),
+                "expected T101 for an unshadowed puts call, got {w:?}"
+            );
+        }
+
+        /// TN control: a shadowing proc in an unrelated namespace must not
+        /// suppress a sink in a *different* namespace.
+        #[test]
+        fn shadow_in_unrelated_namespace_does_not_suppress_sink() {
+            let w = taint_warnings_for(
+                "namespace eval ::other {\n\
+                 \x20 proc puts {x} { return }\n\
+                 }\n\
+                 namespace eval ::myns {\n\
+                 \x20 proc run {} {\n\
+                 \x20   set u [gets stdin]\n\
+                 \x20   puts $u\n\
+                 \x20 }\n\
+                 }",
+            );
+            assert!(
+                w.iter().any(|d| d.code == DiagCode::T101),
+                "::other's shadow must not affect ::myns, got {w:?}"
+            );
+        }
+
+        /// TN control: an explicit fully-qualified `::puts` call bypasses
+        /// namespace resolution entirely, so it must still be flagged even
+        /// when the bare name is locally shadowed.
+        #[test]
+        fn fully_qualified_call_bypasses_the_shadow() {
+            let w = taint_warnings_for(
+                "namespace eval ::myns {\n\
+                 \x20 proc puts {x} { return }\n\
+                 \x20 proc run {} {\n\
+                 \x20   set u [gets stdin]\n\
+                 \x20   ::puts $u\n\
+                 \x20 }\n\
+                 }",
+            );
+            assert!(
+                w.iter()
+                    .any(|d| matches!(d.code, DiagCode::T100 | DiagCode::T101)),
+                "an explicit ::puts must still be classified as a sink, got {w:?}"
+            );
+        }
+    }
+
+    /// `trace add variable` / `trace variable` conservatively forcing a
+    /// traced name to fully tainted (`apply_module_variable_traces`).
+    mod variable_trace_taint {
+        use super::*;
+        use crate::compilation_unit::CompilationUnit;
+
+        fn taint_warnings_for(source: &str) -> Vec<TaintWarning> {
+            let registry = CommandRegistry::build_default();
+            let cu = CompilationUnit::build_for(source, &registry, false)
+                .with_interprocedural(&registry, None);
+            find_taint_warnings_for_cu(&cu, &registry, None)
+        }
+
+        /// FN fixed (the sharper, pre-existing bug): installing a `write`
+        /// trace on an already-tainted variable used to silently clear its
+        /// taint (the trace-add call's own literal argument words — `add`,
+        /// `variable`, `x`, `write`, `{handler}` — were themselves clean, and
+        /// the generic "propagate from arguments" fallback treated the
+        /// trace-add's synthetic write to `x` as deriving from them). The
+        /// pre-existing taint must survive the trace installation.
+        #[test]
+        fn write_trace_does_not_clear_prior_taint() {
+            let w = taint_warnings_for(
+                "set x [gets stdin]\ntrace add variable x write {sanitize}\nputs $x",
+            );
+            assert!(
+                w.iter().any(|d| d.code == DiagCode::T101),
+                "trace installation must not launder x's existing taint, got {w:?}"
+            );
+        }
+
+        /// FN direction: a variable set to a literal (clean) value is
+        /// conservatively treated as tainted once *any* trace (even a
+        /// `read` trace) is attached — the handler could inject
+        /// attacker-controlled content on every future access.
+        #[test]
+        fn traced_literal_value_is_conservatively_tainted() {
+            let w = taint_warnings_for(
+                "set x \"safe-literal\"\ntrace add variable x read {inject}\nputs $x",
+            );
+            assert!(
+                w.iter().any(|d| d.code == DiagCode::T101),
+                "a traced variable must be treated as tainted even from a literal set, got {w:?}"
+            );
+        }
+
+        /// Cross-proc: a trace installed by one proc still taints a read of
+        /// the same global variable in a different function (the module-wide
+        /// `Module::traced_variables` over-approximation, not a per-function
+        /// one).
+        #[test]
+        fn trace_installed_in_another_proc_still_taints_this_read() {
+            let w = taint_warnings_for(
+                "proc install_trace {} { trace add variable ::x write {cb} }\n\
+                 set x [gets stdin]\n\
+                 install_trace\n\
+                 puts $x",
+            );
+            assert!(
+                w.iter().any(|d| d.code == DiagCode::T101),
+                "expected T101 despite the trace living in a different proc, got {w:?}"
+            );
+        }
+
+        /// A dynamic trace target (`trace add variable $name …`) can't be
+        /// resolved to a literal name, so — mirroring
+        /// `Module::has_dynamic_variable_trace` — every name in the module is
+        /// conservatively treated as traced (tainted).
+        #[test]
+        fn dynamic_trace_target_taints_every_name() {
+            let w = taint_warnings_for(
+                "set x \"safe-literal\"\ntrace add variable $somevar write {cb}\nputs $x",
+            );
+            assert!(
+                w.iter().any(|d| d.code == DiagCode::T101),
+                "a dynamic trace target must conservatively taint every name, got {w:?}"
+            );
+        }
+
+        /// TN control: an untraced variable behaves exactly as before — a
+        /// clean literal stays clean.
+        #[test]
+        fn untraced_literal_value_stays_clean() {
+            let w = taint_warnings_for("set x hello\nputs $x");
+            assert!(
+                w.is_empty(),
+                "no trace in scope, expected no warnings: {w:?}"
+            );
+        }
+
+        /// TN control: an untraced tainted variable is unaffected by this
+        /// fix — still flagged exactly as the pre-existing behaviour.
+        #[test]
+        fn untraced_tainted_value_still_flagged() {
+            let w = taint_warnings_for("set x [gets stdin]\nputs $x");
+            assert!(
+                w.iter().any(|d| d.code == DiagCode::T101),
+                "expected T101 for a plain untraced tainted puts call, got {w:?}"
+            );
+        }
+    }
+
+    /// Unit tests for the pure [`apply_module_variable_traces`] helper,
+    /// isolated from the end-to-end plumbing tested by
+    /// `variable_trace_taint` above.
+    mod apply_module_variable_traces_tests {
+        use super::*;
+        use crate::compilation_unit::ModuleTraceFacts;
+
+        #[test]
+        fn forces_existing_entries_for_a_traced_name() {
+            let cu = crate::compilation_unit::CompilationUnit::build_for(
+                "proc p {} { trace add variable t write cb\nset t 1\nputs $t }",
+                &CommandRegistry::build_default(),
+                false,
+            );
+            assert!(cu.ir_module.traced_variables.contains("t"));
+            let traces = ModuleTraceFacts {
+                traced_variables: &cu.ir_module.traced_variables,
+                has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+            };
+
+            let fu = cu.function("::p").unwrap();
+            let patched = apply_module_variable_traces(fu.taints.clone(), &fu.ssa, traces);
+            let sym = fu.ssa.var_symbol("t").expect("t interned");
+            assert!(
+                patched.get(&(sym, 1)).is_some_and(|t| t.is_tainted()),
+                "t#1 must be forced tainted: {patched:?}"
+            );
+        }
+
+        #[test]
+        fn leaves_untraced_names_unchanged() {
+            let registry = CommandRegistry::build_default();
+            let cu = crate::compilation_unit::CompilationUnit::build_for(
+                "proc p {} { set t 1\nputs $t }",
+                &registry,
+                false,
+            );
+            assert!(!cu.ir_module.traced_variables.contains("t"));
+            assert!(!cu.ir_module.has_dynamic_variable_trace);
+            let traces = ModuleTraceFacts {
+                traced_variables: &cu.ir_module.traced_variables,
+                has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+            };
+            let fu = cu.function("::p").unwrap();
+            let patched = apply_module_variable_traces(fu.taints.clone(), &fu.ssa, traces);
+            assert_eq!(
+                patched, fu.taints,
+                "no trace in scope — map must be unchanged"
+            );
+        }
     }
 }

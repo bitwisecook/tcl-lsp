@@ -393,15 +393,39 @@ pub fn push_taint_and_module_checks(
     // per-function `fu.taints` for the warning families so a tainted argument
     // flowing into a callee parameter and then a sink is reported (cross-proc
     // entry-taint).
+    let proc_qnames: std::collections::HashSet<&str> =
+        cu.procedures.keys().map(String::as_str).collect();
+    // `trace add variable` / `trace variable` lets a runtime callback rewrite
+    // a variable's value in ways static analysis can't see; a name traced
+    // anywhere in the module is conservatively treated as tainted everywhere
+    // — see `taint::apply_module_variable_traces`.
+    let module_traces = crate::compilation_unit::ModuleTraceFacts {
+        traced_variables: &cu.ir_module.traced_variables,
+        has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+    };
+    // `analysable_body_function_units` (not `analysable_functions`) so a sink
+    // inside a TclOO method body — or an `apply` lambda / `namespace eval`
+    // body — is still checked; see its doc comment.
     for fu in cu.analysable_body_function_units() {
-        let taints = solved.taints_for(&fu.name, &fu.taints);
+        let taints = crate::taint::apply_module_variable_traces(
+            solved.taints_for(&fu.name, &fu.taints).clone(),
+            &fu.ssa,
+            module_traces,
+        );
+        // A namespace-scoped proc of the same name shadows a builtin for
+        // every call made from that namespace (`proc ::myns::puts {...}`
+        // shadows `puts` inside `::myns`) — see `taint::shadowed_builtin_names`.
+        let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(&fu.name);
+        let shadowed =
+            crate::taint::shadowed_builtin_names(&namespace, proc_qnames.iter().copied(), registry);
         for w in find_taint_warnings(
             &fu.cfg,
             &fu.ssa,
-            taints,
+            &taints,
             &fu.sccp.executable_blocks,
             registry,
             dialect,
+            &shadowed,
         ) {
             out.push(shift(fu, Diagnostic::from_taint(&w)));
         }
@@ -413,7 +437,7 @@ pub fn push_taint_and_module_checks(
                 registry,
                 &fu.cfg,
                 &fu.ssa,
-                taints,
+                &taints,
                 &fu.sccp.executable_blocks,
                 dialect,
             ) {
@@ -435,7 +459,7 @@ pub fn push_taint_and_module_checks(
             &fu.cfg,
             &fu.ssa,
             &fu.rendered_props,
-            taints,
+            &taints,
             &fu.sccp.executable_blocks,
         ) {
             out.push(shift(fu, Diagnostic::from_path_concat(&w)));
@@ -444,7 +468,7 @@ pub fn push_taint_and_module_checks(
         for w in find_destructive_file_warnings(
             &fu.cfg,
             &fu.ssa,
-            taints,
+            &taints,
             &fu.sccp.executable_blocks,
             registry,
         ) {
