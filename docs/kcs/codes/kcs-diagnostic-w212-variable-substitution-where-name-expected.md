@@ -19,6 +19,15 @@ Why does the analyser flag `set $x` as suspicious?
 
 `set $x` sets a variable whose name is the VALUE of `x`, not `x` itself — almost always a mistake.
 
+The check applies to every argument a command reads as a plain variable *name*,
+not just `set`'s first argument. The name positions come from the command
+registry (the `VarWrite` / `VarRead` argument roles), so `incr $x`,
+`info exists $x`, `vwait $x`, `catch {…} $res`, `lassign $l $x`, `scan $s %d $x`,
+`dict with $d …`, and `array set $a …` are all flagged the same way. `upvar` is
+the one nuance: only its *local*-name slots are strict name positions — a
+computed `$remote` in the other-var slot is a legitimate indirect link and is
+not flagged.
+
 ## Symptoms
 
 - A yellow squiggle appears under the substituted variable, with the message "variable substitution where name expected".

@@ -357,6 +357,36 @@ fn while_true_with_throw_or_tailcall_is_not_infinite() {
     assert!(has_code(&diags, "W241"), "got {diags:?}");
 }
 
+#[test]
+fn w212_covers_registry_name_positions_end_to_end() {
+    // `vwait $x` and `catch {…} $res` are name/value confusions the old
+    // hardcoded list missed; the registry roles now supply them.
+    let mut lsp = Lsp::tcl();
+    for src in [
+        "proc p {} { vwait $x }\n",
+        "proc p {} { catch {error e} $res }\n",
+    ] {
+        let uri = unique_uri("tcl");
+        let diags = lsp.open_ready(&uri, src);
+        assert!(has_code(&diags, "W212"), "{src:?} → {diags:?}");
+    }
+}
+
+#[test]
+fn w216_upvar_local_indirect_array_is_silent() {
+    // `upvar 1 remote ${arr}(x)` — the local-name slot is the legitimate
+    // indirect-array idiom, so W216 must not fire (the two name-position lists
+    // had drifted; W216's omitted `upvar`).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "proc p {arr} { upvar 1 remote ${arr}(x) }\n");
+    assert!(!has_code(&diags, "W216"), "got {diags:?}");
+    // Control: the same shape in a value position IS a broken read.
+    let uri2 = unique_uri("tcl");
+    let diags2 = lsp.open_ready(&uri2, "proc p {arr} { puts ${arr}(x) }\n");
+    assert!(has_code(&diags2, "W216"), "got {diags2:?}");
+}
+
 // -- TestW004DialectInvalidOption -----------------------------------------
 // End-to-end coverage for W004 (option not available in the active
 // dialect): the abbreviated-subcommand fix, and the shadow-suppression

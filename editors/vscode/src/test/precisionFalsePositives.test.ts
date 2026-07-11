@@ -342,3 +342,36 @@ suite("Command/variable indirection + numeric shimmer (FP-SH-13/15/18)", () => {
     }
   });
 });
+
+// W212/W216 registry-driven name positions.
+//
+// `upvar 1 remote ${arr}(x)` (line 3) is the legitimate indirect-array idiom
+// in a name position — no W216, no W212. `catch {…} $res` (line 4) is a
+// genuine name/value confusion the old hardcoded list missed — W212, and the
+// marker that analysis ran.
+suite("Variable-name positions (W212/W216)", () => {
+  const docUri = getDocUri("nameVsValuePositions.tcl");
+
+  test("catch result-var substitution fires W212 (registry FN fix)", async () => {
+    await activate(docUri);
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "W212"),
+    });
+    assert.ok(linesWithCode(diags, "W212").includes(4), "catch {…} $res must fire W212 on line 4");
+  });
+
+  test("upvar local ${arr}(x) is the indirect-array idiom — no W216/W212", async () => {
+    await activate(docUri);
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "W212"),
+    });
+    // No W216 anywhere (the upvar local-name slot is the legitimate idiom).
+    assert.strictEqual(
+      linesWithCode(diags, "W216").length,
+      0,
+      "upvar local idiom must not fire W216",
+    );
+    // No W212 on the upvar line (line 3) — only the catch line (4).
+    assert.ok(!linesWithCode(diags, "W212").includes(3), "upvar line must not fire W212");
+  });
+});

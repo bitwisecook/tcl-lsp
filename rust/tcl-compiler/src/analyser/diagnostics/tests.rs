@@ -357,23 +357,93 @@ fn w212_ignores_plain_names() {
 }
 
 #[test]
-fn name_arg_indices_resolvers() {
-    assert_eq!(name_arg_indices("set", &["a".into(), "b".into()]), vec![0]);
+fn w212_covers_registry_name_positions() {
+    // FN fixes: the old hardcoded list missed these name positions, which the
+    // registry's VarWrite/VarRead roles now supply.
+    assert_eq!(w212_count("proc p {} { vwait $x }\n"), 1);
+    assert_eq!(w212_count("proc p {} { catch {error e} $res }\n"), 1);
+    assert_eq!(w212_count("proc p {l} { lassign $l $x }\n"), 1);
+    assert_eq!(w212_count("proc p {s} { scan $s %d $x }\n"), 1);
+    assert_eq!(w212_count("proc p {d} { dict with $d {} }\n"), 1);
+    // TN controls: literal names in the same positions stay silent.
+    assert_eq!(w212_count("proc p {} { vwait x }\n"), 0);
+    assert_eq!(w212_count("proc p {} { catch {error e} res }\n"), 0);
+    assert_eq!(w212_count("proc p {l} { lassign $l a b }\n"), 0);
+    // A dynamic `catch $script` has no result-var position — nothing to flag.
+    assert_eq!(w212_count("proc p {s} { catch $s }\n"), 0);
+}
+
+#[test]
+fn w212_upvar_remote_name_may_be_computed() {
+    // The *remote* (other-var) slot of `upvar` legitimately takes a computed
+    // name, so `$remote` there must NOT fire W212 — only the local slot does.
+    assert_eq!(w212_count("proc p {} { upvar 1 $remote local }\n"), 0);
+    assert_eq!(w212_count("proc p {} { upvar 1 remote $local }\n"), 1);
+}
+
+fn w216_count(src: &str) -> usize {
+    let mut a = crate::analyser::Analyser::new();
+    a.analyse(src, "tcl8.6")
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W216)
+        .count()
+}
+
+#[test]
+fn w216_upvar_local_name_is_indirect_array_idiom() {
+    // FP fix: `${arr}(x)` in `upvar`'s local-name slot is the legitimate
+    // indirect-array idiom (the same carve-out `set`/`vwait` already had). The
+    // two name-position lists had drifted — W216's omitted `upvar`.
+    assert_eq!(w216_count("proc p {arr} { upvar 1 remote ${arr}(x) }\n"), 0);
+    // TP control: `${arr}(x)` in a *value* position is a genuine broken read.
+    assert_eq!(w216_count("proc p {arr} { puts ${arr}(x) }\n"), 1);
+}
+
+#[test]
+fn variable_name_positions_are_registry_driven() {
+    let mut a = Analyser::new();
+    a.registry = Some(tcl_registry::CommandRegistry::build_default());
+    let pos = |cmd: &str, args: &[&str]| {
+        a.variable_name_positions(
+            cmd,
+            &args.iter().map(|s| (*s).to_string()).collect::<Vec<_>>(),
+        )
+    };
+    // Existing name-position commands (regression) — now resolved from the
+    // registry's VarWrite/VarRead roles rather than a hardcoded list.
+    assert_eq!(pos("set", &["a", "b"]), vec![0]);
+    assert_eq!(pos("unset", &["-nocomplain", "a", "b"]), vec![1, 2]);
+    assert_eq!(pos("info", &["exists", "v"]), vec![1]);
+    assert_eq!(pos("info", &["level"]), Vec::<usize>::new());
+    // `upvar` — only the *local* names (every other arg after the level word).
+    assert_eq!(pos("upvar", &["1", "a", "b"]), vec![2]);
+    assert_eq!(pos("upvar", &["a", "b"]), vec![1]); // no level word
+    // FN fixes now covered by the registry roles that the old list omitted.
+    assert_eq!(pos("vwait", &["v"]), vec![0]);
+    assert_eq!(pos("catch", &["{script}", "res"]), vec![1]);
+    assert_eq!(pos("catch", &["{script}", "res", "opts"]), vec![1, 2]);
+    // A dynamic `catch $script` has no result-var position — nothing to flag.
+    assert_eq!(pos("catch", &["$script"]), Vec::<usize>::new());
+}
+
+#[test]
+fn upvar_local_positions_parity() {
+    // Only the local names are strict name positions; the paired remote names
+    // (indices 1, 3, …) are excluded so a computed `$remote` is not flagged.
     assert_eq!(
-        name_arg_indices("unset", &["-nocomplain".into(), "a".into(), "b".into()]),
-        vec![1, 2],
-    );
-    assert_eq!(
-        name_arg_indices("info", &["exists".into(), "v".into()]),
-        vec![1]
-    );
-    assert_eq!(
-        name_arg_indices("info", &["level".into()]),
-        Vec::<usize>::new()
-    );
-    assert_eq!(
-        name_arg_indices("upvar", &["1".into(), "a".into(), "b".into()]),
+        upvar_local_name_positions(&["1".into(), "a".into(), "b".into()]),
         vec![2],
+    );
+    assert_eq!(
+        upvar_local_name_positions(&[
+            "#0".into(),
+            "r1".into(),
+            "l1".into(),
+            "r2".into(),
+            "l2".into(),
+        ]),
+        vec![2, 4],
     );
 }
 
