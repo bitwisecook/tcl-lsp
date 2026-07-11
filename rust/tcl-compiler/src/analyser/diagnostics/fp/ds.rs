@@ -637,7 +637,10 @@ fn fp_ds_11_braced_body_only_read_is_a_frame_shifted_dead_store() {
 fn fp_ds_11_real_dead_store_outside_uplevel_still_fires() {
     // TP: an ordinary dead store in the enclosing proc, next to an uplevel,
     // still fires — recursing the body has not masked enclosing analysis.
-    let src = "proc f {} { set dead 1\n uplevel 1 {set counter 0} }";
+    // `dead` is overwritten before its `return` read, so the first `set` is a
+    // genuine dead store (W220) — and because `dead` is used, there is no
+    // co-located W211 to dedup it against.
+    let src = "proc f {} { set dead 1\n set dead 2\n uplevel 1 {set counter 0}\n return $dead }";
     assert!(
         fires(src, D, "W220"),
         "FP-DS-11 TP: a real dead store beside an uplevel still fires; emitted: {:?}",

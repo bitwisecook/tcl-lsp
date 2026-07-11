@@ -552,6 +552,18 @@ file; this call falls through to the 'unknown' handler."
         }
         let mut entries: Vec<(String, tcl_lexer::Span)> = earliest.into_iter().collect();
         entries.sort_by_key(|(_, span)| span.start());
+        // A variable that is set-but-never-used gets a W211 at its assignment's
+        // name token. The dead-store pass (W220), which ran first, already
+        // anchored a "never read" hint at the *same* token for that single
+        // assignment — a redundant double-emit. W211 ("never used at all") is
+        // the more informative message, so drop the co-located W220. Keyed on
+        // the exact span, so a genuinely distinct dead store of a
+        // multiply-assigned variable is untouched.
+        let w211_spans: std::collections::HashSet<tcl_lexer::Span> =
+            entries.iter().map(|(_, span)| *span).collect();
+        self.result
+            .diagnostics
+            .retain(|d| !(d.code == DiagCode::W220 && w211_spans.contains(&d.span)));
         for (var, span) in entries {
             let mut message = format!("Variable '{var}' is set but never used");
             if let Some(similar) = find_case_mismatch(&var, defined_vars) {

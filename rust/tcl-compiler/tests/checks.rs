@@ -2434,8 +2434,13 @@ mod dead_store_and_unused {
 
     #[test]
     fn genuinely_unused_element_and_scalar_dead_store_fire() {
-        assert_eq!(count("proc f {} { set a(k) 1\n return 0 }", D, "W220"), 1);
+        // `set a(k) 1` on an array that is never read is flagged W211 ("set but
+        // never used"); the co-located dead-store W220 is deduped in favour of
+        // that single, clearer hint.
         assert_eq!(count("proc f {} { set a(k) 1\n return 0 }", D, "W211"), 1);
+        assert_eq!(count("proc f {} { set a(k) 1\n return 0 }", D, "W220"), 0);
+        // A genuine dead store of a *used* scalar still fires a standalone W220
+        // (no W211 to dedup against).
         assert_eq!(
             count("proc f {} { set x 1\n set x 2\n return $x }", D, "W220"),
             1
@@ -2715,7 +2720,11 @@ mod call_by_name_dynamic_name_local {
     use super::*;
 
     /// Each callee uses `$p` as a callee-local dynamic name; the caller's
-    /// `set x 1; f x` leaves `x` unread → the dead store must still fire.
+    /// `set x 1; f x` leaves `x` unread → the dead store must still be flagged.
+    /// `x` is set-once-never-read, so it surfaces as W211 ("set but never
+    /// used"); the co-located dead-store W220 is deduped in favour of that
+    /// single hint. The point of the test — that the callee's dynamic name does
+    /// not *suppress* the caller's detection — holds via the surviving W211.
     #[test]
     fn callee_local_dynamic_name_does_not_suppress_caller_dead_store() {
         for (label, src) in [
@@ -2739,8 +2748,9 @@ mod call_by_name_dynamic_name_local {
                 codes(src, D),
             );
             assert!(
-                fires(src, D, "W220"),
-                "[{label}] callee-local dynamic name must not suppress caller W220; got {:?}",
+                !fires(src, D, "W220"),
+                "[{label}] the caller dead store is covered by W211, so the co-located \
+                 W220 is deduped; got {:?}",
                 codes(src, D),
             );
         }

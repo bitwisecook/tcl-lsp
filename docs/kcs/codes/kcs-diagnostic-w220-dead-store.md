@@ -33,6 +33,13 @@ puts $x
 
 The analyser reports **`W220`** on `set x 1` because the value `1` is never read.
 
+Here `x` *is* read later (by `puts $x`), so only the first, overwritten
+assignment is a dead store. When a variable is never read at all — a single
+`set x 1` with no later use — the analyser reports the more informative
+[`W211`](kcs-diagnostic-w211-variable-set-not-used.md) ("set but never used")
+on that assignment instead, and suppresses the co-located `W220` so the line
+carries a single, clearer hint rather than two.
+
 ## Fix
 
 ```tcl

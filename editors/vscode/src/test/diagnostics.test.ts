@@ -352,6 +352,35 @@ suite("Diagnostics", () => {
     }
   });
 
+  test("a single dead store surfaces W211 only (co-located W220 deduped)", async () => {
+    const uri = getDocUri("deadStoreDedup.tcl");
+    await activate(uri);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (d) =>
+        d.some((x) => (typeof x.code === "object" ? x.code.value : x.code) === "W211"),
+    });
+    const codeOf = (d: vscode.Diagnostic) =>
+      typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
+    // `set x 1` (line 6): exactly one lifecycle hint — W211, not W211 + W220.
+    const onX = diagnostics.filter(
+      (d) => d.range.start.line === 6 && ["W211", "W220"].includes(codeOf(d)),
+    );
+    assert.deepStrictEqual(
+      onX.map(codeOf).sort(),
+      ["W211"],
+      `single dead store must be W211 only; got ${onX.map(codeOf)}`,
+    );
+    // `set y 1` (line 9) is a standalone dead store of a used var → W220, no W211.
+    const onY = diagnostics.filter(
+      (d) => d.range.start.line === 9 && ["W211", "W220"].includes(codeOf(d)),
+    );
+    assert.deepStrictEqual(
+      onY.map(codeOf).sort(),
+      ["W220"],
+      `overwritten dead store must be W220 only; got ${onY.map(codeOf)}`,
+    );
+  });
+
   test("dict-for body nesting keeps reads alive but still catches real dead stores (#833)", async () => {
     const uri = getDocUri("dict-for-nesting.tcl");
     await activate(uri);

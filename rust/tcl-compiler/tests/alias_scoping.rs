@@ -289,8 +289,10 @@ mod alias_escapes_lifecycle {
         // local. A bare `set` inside a proc is frame-local and does NOT escape.
         // tclsh: `proc f {} { set y 5 }; f; puts [info exists ::y]` ⇒ `0`
         // (8.6 and 9.0): `y` never reached the caller, so it is genuinely unused.
+        // The local is flagged W211 ("set but never used"); the co-located
+        // dead-store W220 is deduped in favour of that single, clearer hint.
         assert!(fires("proc f {} { set y 5 }", "W211"));
-        assert!(fires("proc f {} { set y 5 }", "W220"));
+        assert!(!fires("proc f {} { set y 5 }", "W220"));
     }
 
     #[test]

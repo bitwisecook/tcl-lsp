@@ -3305,18 +3305,42 @@ fn memoized_compilation_unit_shift_correctness() {
 
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_on_set_once_never_read() {
-    // ``set x 1`` set once and never read is a dead store: both
-    // W220 (this assignment is dead) and W211 (the variable
-    // is unused) are reported. A single assignment that *is* read fires neither.
+    // ``set x 1`` set once and never read is a dead store *and* an unused
+    // variable. Both checks anchor at the same assignment, so the co-located
+    // W220 is deduped in favour of the more informative W211 — a single hint,
+    // not two.
     let mut a = Analyser::new();
     a.emit_cfg_ssa_diagnostics("proc foo {} { set x 1 }");
+    let lifecycle: Vec<_> = a
+        .result
+        .diagnostics
+        .iter()
+        .filter(|d| matches!(d.code, DiagCode::W211 | DiagCode::W220))
+        .map(|d| d.code)
+        .collect();
+    assert_eq!(
+        lifecycle,
+        vec![DiagCode::W211],
+        "set-once-never-read must yield only W211; got {:?}",
+        a.result.diagnostics,
+    );
+
+    // A dead store of a variable that *is* used elsewhere still fires a
+    // standalone W220 (no W211, so nothing to dedup against).
+    let mut c = Analyser::new();
+    c.emit_cfg_ssa_diagnostics("proc foo {} { set x 1\nset x 2\nreturn $x }");
     assert!(
-        a.result
+        c.result
             .diagnostics
             .iter()
-            .any(|d| d.code == DiagCode::W220),
-        "W220 expected for a dead set-once store; got {:?}",
-        a.result.diagnostics,
+            .any(|d| d.code == DiagCode::W220)
+            && !c
+                .result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W211),
+        "the overwritten `set x 1` fires W220 without W211; got {:?}",
+        c.result.diagnostics,
     );
 
     let mut b = Analyser::new();
@@ -3783,8 +3807,11 @@ fn w211_not_emitted_for_command_output_vars() {
 
 #[test]
 fn w211_fires_once_per_variable_set_twice() {
-    // A variable set twice and never read is one unused variable, reported
-    // once at the earliest definition (W220 still flags each dead store).
+    // A variable set twice and never read is one unused variable, reported once
+    // (W211) at the earliest definition. The dead store at that same earliest
+    // assignment does NOT also fire W220 — the co-located double-emit is
+    // deduped in favour of the more informative W211 — but the *distinct*
+    // second dead store (`set x 2`) still fires its own W220.
     let mut a = Analyser::new();
     let res = a.analyse("proc f {} { set x 1\nset x 2 }", "tcl");
     let w211: Vec<_> = res
@@ -3793,13 +3820,38 @@ fn w211_fires_once_per_variable_set_twice() {
         .filter(|d| d.code == DiagCode::W211)
         .collect();
     assert_eq!(w211.len(), 1, "expected one W211 for x; got {w211:?}");
-    assert!(
-        res.diagnostics
-            .iter()
-            .filter(|d| d.code == DiagCode::W220)
-            .count()
-            == 2,
-        "both dead stores still fire W220; got {:?}",
+    let w220: Vec<_> = res
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W220)
+        .collect();
+    assert_eq!(
+        w220.len(),
+        1,
+        "the co-located W220 is deduped; only the distinct dead store remains; got {:?}",
+        res.diagnostics,
+    );
+    // The surviving W211 and W220 anchor at different assignments.
+    assert_ne!(w211[0].span, w220[0].span, "W211 and W220 must not overlap");
+}
+
+#[test]
+fn w220_deduped_against_w211_on_single_dead_assignment() {
+    // `set x 1` on a never-used variable is one dead assignment: it must emit
+    // exactly one hint (W211 "never used"), not both W211 and a co-located
+    // W220 ("never read"). The W220 is deduped in favour of W211.
+    let mut a = Analyser::new();
+    let res = a.analyse("proc f {} { set x 1 }", "tcl");
+    let codes: Vec<_> = res
+        .diagnostics
+        .iter()
+        .filter(|d| matches!(d.code, DiagCode::W211 | DiagCode::W220))
+        .map(|d| d.code)
+        .collect();
+    assert_eq!(
+        codes,
+        vec![DiagCode::W211],
+        "single dead assignment must yield only W211; got {:?}",
         res.diagnostics,
     );
 }
