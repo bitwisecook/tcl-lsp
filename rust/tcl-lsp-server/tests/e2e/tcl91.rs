@@ -22,6 +22,7 @@
 //! dialect is pinned with a `# tcl-dialect: tcl9.1` directive (server-side source
 //! detection), and behaviour is observed through completion + diagnostics.
 
+use crate::common::codes;
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -32,18 +33,6 @@ use std::collections::BTreeSet;
 /// The set of completion labels from a completion result.
 fn labels(result: &Value) -> BTreeSet<String> {
     completion_labels(result).into_iter().collect()
-}
-
-/// The set of `code` strings carried by `diags`.
-fn codes(diags: &[Value]) -> BTreeSet<String> {
-    diags
-        .iter()
-        .map(|d| match d.get("code") {
-            Some(Value::String(s)) => s.clone(),
-            Some(other) => other.to_string(),
-            None => "None".to_owned(),
-        })
-        .collect()
 }
 
 /// Open a buffer pinned to `dialect` and complete a command-position word.

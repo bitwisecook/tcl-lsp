@@ -248,3 +248,43 @@ fn first_debug_diff<T: std::fmt::Debug>(got: &T, want: &T) -> String {
     }
     format!("len {} vs {}", g.len(), w.len())
 }
+
+use tcl_compiler::analyser::Analyser;
+use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::compiler_checks::run_all_checks;
+use tcl_registry::registry_for_dialect;
+
+/// The merged analyser + compiler-checks diagnostic codes for `src` under
+/// `dialect`, excluding optimisation-only findings — the canonical helper the
+/// `analyser` / `checks` / `fp` test files share (previously copy-pasted).
+pub fn codes(src: &str, dialect: &str) -> Vec<String> {
+    let mut out: Vec<String> = Analyser::new()
+        .analyse(src, dialect)
+        .diagnostics
+        .iter()
+        .map(|d| d.code.to_string())
+        .collect();
+    let registry = registry_for_dialect(dialect);
+    let cu = CompilationUnit::build_for(src, registry, false);
+    let dialect_opt = (!dialect.is_empty()).then_some(dialect);
+    for d in run_all_checks(&cu, registry, dialect_opt) {
+        if d.code.is_optimisation() {
+            continue;
+        }
+        out.push(d.code.to_string());
+    }
+    out
+}
+
+/// True if diagnostic `code` appears in [`codes`] for `src` under `dialect`.
+pub fn fires(src: &str, dialect: &str, code: &str) -> bool {
+    codes(src, dialect).iter().any(|c| c == code)
+}
+
+/// How many times diagnostic `code` appears in [`codes`] for `src`/`dialect`.
+pub fn count(src: &str, dialect: &str, code: &str) -> usize {
+    codes(src, dialect)
+        .iter()
+        .filter(|c| c.as_str() == code)
+        .count()
+}

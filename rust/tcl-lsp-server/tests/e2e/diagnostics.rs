@@ -22,23 +22,11 @@
 //! advertises no pull provider, so these assert on the `publishDiagnostics` the
 //! server pushes after analysis, keyed by version.
 
-use crate::common::{Lsp, unique_uri};
+use crate::common::{Lsp, codes, unique_uri};
 
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::time::Duration;
-
-/// The set of `code` strings carried by `diags` (mirrors Python `_codes`).
-fn codes(diags: &[Value]) -> BTreeSet<String> {
-    diags
-        .iter()
-        .map(|d| match d.get("code") {
-            Some(Value::String(s)) => s.clone(),
-            Some(other) => other.to_string(),
-            None => "None".to_owned(),
-        })
-        .collect()
-}
 
 /// Whether any diagnostic carries `code`.
 fn has_code(diags: &[Value], code: &str) -> bool {

@@ -1155,6 +1155,20 @@ fn auto_reply(msg: &Value, shared: &Arc<Shared>) {
     let _ = stdin.flush();
 }
 
+/// The set of diagnostic `code` values in an LSP `publishDiagnostics` payload —
+/// the canonical helper the diagnostics-oriented e2e tests share (previously
+/// copy-pasted per file).
+pub fn codes(diags: &[Value]) -> std::collections::BTreeSet<String> {
+    diags
+        .iter()
+        .map(|d| match d.get("code") {
+            Some(Value::String(s)) => s.clone(),
+            Some(other) => other.to_string(),
+            None => "None".to_owned(),
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::{BARRIER_TIMEOUT_MARKER, latency_barrier_timeout_note};

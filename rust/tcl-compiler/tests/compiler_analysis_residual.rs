@@ -63,7 +63,6 @@
 //! a deliberate sound over-approximation (it never fires a false W210); those
 //! cases assert the conservative `false` return and say so.
 
-use tcl_compiler::analyser::Analyser;
 use tcl_compiler::auto_path_eval::evaluate_auto_path_expr;
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::inlining::{
@@ -90,32 +89,10 @@ fn reg() -> CommandRegistry {
     CommandRegistry::build_default()
 }
 
-/// Every diagnostic code the analyser + `run_all_checks` surface for `src`
-/// (optimisation codes excluded) — the W210/W211/W220 surface used by the
-/// place-bridge and scan-predicate end-to-end proofs.
-fn codes(src: &str, dialect: &str) -> Vec<String> {
-    use tcl_compiler::compiler_checks::run_all_checks;
-    let mut out: Vec<String> = Analyser::new()
-        .analyse(src, dialect)
-        .diagnostics
-        .iter()
-        .map(|d| d.code.to_string())
-        .collect();
-    let registry = registry_for_dialect(dialect);
-    let cu = CompilationUnit::build_for(src, registry, false);
-    let dialect_opt = (!dialect.is_empty()).then_some(dialect);
-    for d in run_all_checks(&cu, registry, dialect_opt) {
-        if d.code.is_optimisation() {
-            continue;
-        }
-        out.push(d.code.to_string());
-    }
-    out
-}
-
-fn fires(src: &str, dialect: &str, code: &str) -> bool {
-    codes(src, dialect).iter().any(|c| c == code)
-}
+// The merged-pipeline `codes` / `fires` helpers live in the shared `common`
+// module (previously copy-pasted across the analyser test files).
+mod common;
+use common::{codes, fires};
 
 /// `O107` (unreachable dead code) is an optimiser-pass suggestion, not an
 /// analyser/`run_all_checks` diagnostic — union the optimiser output to test

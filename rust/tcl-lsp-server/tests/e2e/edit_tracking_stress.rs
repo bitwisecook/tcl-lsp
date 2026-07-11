@@ -41,6 +41,7 @@
 //! not load-bearing — a deterministic, hostile mix of
 //! insert/delete/replace/newline/astral edits is.
 
+use crate::common::codes;
 use crate::common::helpers::*;
 use crate::common::{Lsp, Rng, unique_uri};
 
@@ -413,18 +414,6 @@ fn toks(tokens: &[SemToken]) -> Vec<(i64, i64, i64, i64, i64)> {
     tokens
         .iter()
         .map(|t| (t.line, t.char, t.length, t.ttype, t.modifiers))
-        .collect()
-}
-
-/// The set of diagnostic `code` strings.
-fn codes(diags: &[Value]) -> std::collections::BTreeSet<String> {
-    diags
-        .iter()
-        .map(|d| match d.get("code") {
-            Some(Value::String(s)) => s.clone(),
-            Some(other) => other.to_string(),
-            None => "None".to_owned(),
-        })
         .collect()
 }
 

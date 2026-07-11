@@ -76,33 +76,10 @@ const D: &str = "tcl8.6";
 /// iRules dialect for the T102 path-prefixed taint cases.
 const IRULES: &str = "f5-irules";
 
-/// Every diagnostic code the user-facing `tcl diag` path surfaces for `src`:
-/// the analyser pass plus `run_all_checks` (shimmer / taint / dead-store),
-/// with optimisation codes excluded. Copied verbatim from
-/// `src/analyser/diagnostics/fp/mod.rs::codes`.
-fn codes(src: &str, dialect: &str) -> Vec<String> {
-    let mut out: Vec<String> = Analyser::new()
-        .analyse(src, dialect)
-        .diagnostics
-        .iter()
-        .map(|d| d.code.to_string())
-        .collect();
-    let registry = registry_for_dialect(dialect);
-    let cu = CompilationUnit::build_for(src, registry, false);
-    let dialect_opt = (!dialect.is_empty()).then_some(dialect);
-    for d in run_all_checks(&cu, registry, dialect_opt) {
-        if d.code.is_optimisation() {
-            continue;
-        }
-        out.push(d.code.to_string());
-    }
-    out
-}
-
-/// True if `code` appears anywhere in the `tcl diag` surface for `src`.
-fn fires(src: &str, dialect: &str, code: &str) -> bool {
-    codes(src, dialect).iter().any(|c| c == code)
-}
+// The merged-pipeline `codes` / `fires` helpers live in the shared `common`
+// module (previously copy-pasted across the analyser test files).
+mod common;
+use common::{codes, fires};
 
 /// Full diagnostic codes INCLUDING the optimiser's suggestions — needed for
 /// O107 (unreachable dead code), which the optimiser emits, not the analyser.

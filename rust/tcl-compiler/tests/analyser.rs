@@ -58,50 +58,14 @@
 //! See the per-section notes below.
 
 use tcl_compiler::analyser::{Analyser, Severity};
-use tcl_compiler::compilation_unit::CompilationUnit;
-use tcl_compiler::compiler_checks::run_all_checks;
-use tcl_registry::registry_for_dialect;
 
 /// Default dialect for reproducers that are not dialect-sensitive.
 const D: &str = "tcl8.6";
 
-/// Every diagnostic code the full pipeline surfaces for `src` under `dialect`,
-/// mirroring the user-facing `tcl diag` path: the analyser pass plus the
-/// `run_all_checks` compiler-checks pass (shimmer / taint / dead-store), with
-/// optimisation codes excluded exactly as `diag` excludes them.
-///
-/// Copied verbatim from `src/analyser/diagnostics/fp/mod.rs::codes`.
-fn codes(src: &str, dialect: &str) -> Vec<String> {
-    let mut out: Vec<String> = Analyser::new()
-        .analyse(src, dialect)
-        .diagnostics
-        .iter()
-        .map(|d| d.code.to_string())
-        .collect();
-    let registry = registry_for_dialect(dialect);
-    let cu = CompilationUnit::build_for(src, registry, false);
-    let dialect_opt = (!dialect.is_empty()).then_some(dialect);
-    for d in run_all_checks(&cu, registry, dialect_opt) {
-        if d.code.is_optimisation() {
-            continue;
-        }
-        out.push(d.code.to_string());
-    }
-    out
-}
-
-/// True if `code` appears anywhere in the full diagnostic set for `src`.
-fn fires(src: &str, dialect: &str, code: &str) -> bool {
-    codes(src, dialect).iter().any(|c| c == code)
-}
-
-/// Count of how many times `code` appears in the merged diagnostic set.
-fn count(src: &str, dialect: &str, code: &str) -> usize {
-    codes(src, dialect)
-        .iter()
-        .filter(|c| c.as_str() == code)
-        .count()
-}
+// The merged-pipeline `codes` / `fires` / `count` helpers live in the shared
+// `common` module (previously copy-pasted across the analyser test files).
+mod common;
+use common::{codes, count, fires};
 
 /// Full `(code, message)` pairs from the *analyser pass only* — used when a
 /// test pins a message substring or message-scoped count (the analyser

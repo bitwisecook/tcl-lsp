@@ -28,10 +28,9 @@
 //! parametrise the same way, so each matrix row is unrolled into its own
 //! `#[test]` for the fire case and the silent case.
 
-use crate::common::{Lsp, unique_uri};
+use crate::common::{Lsp, codes, unique_uri};
 
 use serde_json::Value;
-use std::collections::BTreeSet;
 
 /// One matrix row: a code with a source that MUST raise it and the corrected
 /// source that MUST NOT.
@@ -154,18 +153,6 @@ const MATRIX: &[Case] = &[
         note: "typo'd widget option; `package require Tk` enables the Tk overlay in a plain .tcl buffer",
     },
 ];
-
-/// The set of `code` strings carried by `diags` (mirrors Python `_codes`).
-fn codes(diags: &[Value]) -> BTreeSet<String> {
-    diags
-        .iter()
-        .map(|d| match d.get("code") {
-            Some(Value::String(s)) => s.clone(),
-            Some(other) => other.to_string(),
-            None => "None".to_owned(),
-        })
-        .collect()
-}
 
 /// A diagnostic's `code`, stringified.
 fn code_str(d: &Value) -> String {

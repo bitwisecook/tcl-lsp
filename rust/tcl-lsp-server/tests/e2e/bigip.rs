@@ -34,8 +34,8 @@
 //! basename (`bigip.conf`), so `bigip_uri` fixes the basename while making the
 //! directory unique per call.
 
-use crate::common::Lsp;
 use crate::common::helpers::*;
+use crate::common::{Lsp, codes};
 
 use serde_json::Value;
 use std::collections::BTreeSet;
@@ -80,18 +80,6 @@ ltm rule /Common/r {
     }
 }
 ";
-
-/// The set of `code` strings on a diagnostics array (mirrors `_codes`).
-fn codes(diags: &[Value]) -> BTreeSet<String> {
-    diags
-        .iter()
-        .map(|d| match d.get("code") {
-            Some(Value::String(s)) => s.clone(),
-            Some(other) => other.to_string(),
-            None => "None".to_owned(),
-        })
-        .collect()
-}
 
 /// The symbol `name`s from a (possibly hierarchical) document-symbol result.
 fn symbol_name_list(result: &Value) -> Vec<Option<String>> {
