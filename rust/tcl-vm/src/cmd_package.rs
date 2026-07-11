@@ -81,6 +81,17 @@ fn cmd_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             names.sort();
             ok(Value::list(names.into_iter().map(Value::string).collect()))
         }
+        // The registry tracks a single provided version per package, so
+        // `versions` reports that one (empty list for an unknown package).
+        "versions" => match rest {
+            [name] => ok(Value::list(
+                vm.package_version(&name.to_str())
+                    .map(|v| Value::string(v.to_owned()))
+                    .into_iter()
+                    .collect(),
+            )),
+            _ => err("wrong # args: should be \"package versions package\""),
+        },
         // Accepted no-ops.
         "ifneeded" | "forget" | "unknown" | "prefer" => ok(Value::empty()),
         other => err(format!("unknown or ambiguous subcommand \"{other}\"")),

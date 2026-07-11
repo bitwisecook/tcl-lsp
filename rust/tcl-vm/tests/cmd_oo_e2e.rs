@@ -108,6 +108,28 @@ fn basic_class_and_method() {
 }
 
 #[test]
+fn tcl_oo_package_and_version_vars() {
+    // TclOO is compiled in, so — like C Tcl's core — `package require tcl::oo`
+    // resolves to the provided patchlevel and the `::oo` version variables are
+    // seeded (oo.test's `package require tcl::oo 1.3.1` header + oo-0.9).
+    assert_eq!(result("package require tcl::oo"), "1.3.1");
+    assert_eq!(result("package require tcl::oo 1.0.3"), "1.3.1");
+    assert_eq!(result("package present tcl::oo"), "1.3.1");
+    assert_eq!(result("package versions tcl::oo"), "1.3.1");
+    assert_eq!(result("set ::oo::version"), "1.3");
+    assert_eq!(result("set ::oo::patchlevel"), "1.3.1");
+    // The exact oo-0.9 shape: name present, and the patchlevel is a known version.
+    assert_eq!(
+        result(
+            "list [lsearch -nocase -all -inline [package names] tcl::oo] \
+             [package present tcl::oo] \
+             [expr {$::oo::patchlevel in [package versions tcl::oo]}]"
+        ),
+        "tcl::oo 1.3.1 1"
+    );
+}
+
+#[test]
 fn constructor_and_instance_variables() {
     // tclsh 9.0.4: -> 3 4
     assert_eq!(
