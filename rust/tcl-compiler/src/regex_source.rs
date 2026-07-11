@@ -317,6 +317,36 @@ fn scan_to_close(bytes: &[u8], mut i: usize, open: u8, close: u8) -> usize {
     bytes.len()
 }
 
+/// Index of the first positional (**pattern**) argument of a `regexp` /
+/// `regsub` call, after skipping leading option switches — `-start` consumes
+/// a value word, every other flag is boolean, and `--` terminates the option
+/// scan. `args` **excludes** the command word. Returns `None` when no
+/// positional argument remains (only options were supplied).
+///
+/// The one canonical option-skip for `regexp` / `regsub`, shared by the taint
+/// (T103), security (W306 / W303), regex-source-tracking, and const-string
+/// harvesting paths so they can never drift out of agreement.
+#[must_use]
+pub(crate) fn regexp_pattern_index(args: &[String]) -> Option<usize> {
+    let mut i = 0;
+    while i < args.len() {
+        let a = args[i].as_str();
+        if a == "--" {
+            i += 1;
+            break;
+        }
+        if a.starts_with('-') {
+            i += 1;
+            if a == "-start" && i < args.len() {
+                i += 1;
+            }
+            continue;
+        }
+        break;
+    }
+    (i < args.len()).then_some(i)
+}
+
 /// When `stmt` is a `regexp` / `regsub` call whose (option-skipped) pattern
 /// argument is a bare `$var`, return that variable's name.  Mirrors the
 /// semantic-token layer's option-skip.
@@ -340,17 +370,7 @@ fn regex_pattern_var(stmt: &Statement, registry: &CommandRegistry) -> Option<Str
     }
     // `argv[0]` is the command; skip leading option words to find the pattern.
     let args = toks.argv_texts.get(1..)?;
-    let mut idx = 0;
-    while idx < args.len() && args[idx].starts_with('-') && args[idx] != "--" {
-        if args[idx] == "-start" && idx + 1 < args.len() {
-            idx += 2;
-        } else {
-            idx += 1;
-        }
-    }
-    if idx < args.len() && args[idx] == "--" {
-        idx += 1;
-    }
+    let idx = regexp_pattern_index(args)?;
     let argv_idx = idx + 1; // shift back past the command word
     if toks.argv_kinds.get(argv_idx) != Some(&TokenType::Var) {
         return None;
@@ -389,6 +409,29 @@ mod tests {
         // The `.*abc` literal at the `set` is the regex source.
         let got = spans_text("set my_re \".*abc\"\nregexp $my_re $s\n");
         assert_eq!(got, vec!["\".*abc\"".to_owned()]);
+    }
+
+    #[test]
+    fn regexp_pattern_index_skips_options() {
+        let idx = |a: &[&str]| {
+            let owned: Vec<String> = a.iter().map(|s| (*s).to_owned()).collect();
+            regexp_pattern_index(&owned)
+        };
+        // No options — pattern is arg 0.
+        assert_eq!(idx(&["pat", "s"]), Some(0));
+        // Boolean flags are skipped one word each.
+        assert_eq!(idx(&["-nocase", "-all", "pat", "s"]), Some(2));
+        // `-start` consumes its value word.
+        assert_eq!(idx(&["-start", "5", "pat", "s"]), Some(2));
+        // `--` terminates the option scan; the very next word is the pattern
+        // even if it starts with `-`.
+        assert_eq!(idx(&["-nocase", "--", "-pat", "s"]), Some(2));
+        // Only options, no pattern → None.
+        assert_eq!(idx(&["-nocase"]), None);
+        assert_eq!(idx(&["-start"]), None);
+        // `-start` consumes the following word as its index value, so a lone
+        // `-start pat` leaves no pattern behind → None.
+        assert_eq!(idx(&["-start", "pat"]), None);
     }
 
     #[test]

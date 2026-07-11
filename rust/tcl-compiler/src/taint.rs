@@ -115,6 +115,7 @@ use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::{CommandTokens, Statement};
 use crate::irules_checks::CodeFix;
 use crate::naming::{normalise_qualified_name, normalise_var_name};
+use crate::regex_source::regexp_pattern_index;
 use crate::rendered_properties::{RenderedProperties, RenderedValueProps};
 use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey};
@@ -2318,29 +2319,6 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
     for (code, sink_label) in classify_network_interp_sinks(registry, command, call_args) {
         emit_sink_warnings(&env, span, code, &sink_label, &sink_call, warnings);
     }
-}
-
-/// First positional (pattern) argument index of `regexp` / `regsub`,
-/// after skipping option switches (`-start` consumes a value, `--`
-/// terminates). `args` excludes the command name.
-fn regexp_pattern_index(args: &[String]) -> Option<usize> {
-    let mut i = 0;
-    while i < args.len() {
-        let a = args[i].as_str();
-        if a == "--" {
-            i += 1;
-            break;
-        }
-        if a.starts_with('-') {
-            i += 1;
-            if a == "-start" && i < args.len() {
-                i += 1;
-            }
-            continue;
-        }
-        break;
-    }
-    (i < args.len()).then_some(i)
 }
 
 /// Per-statement read context for the taint-warning emitters: the SSA

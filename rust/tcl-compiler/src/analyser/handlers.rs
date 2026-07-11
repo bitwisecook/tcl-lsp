@@ -2101,23 +2101,12 @@ impl Analyser {
         if !matches!(cmd_name, "regexp" | "regsub") || args.is_empty() {
             return;
         }
-        // Skip leading ``-`` flags (``-nocase``, ``-line``, ``-all``,
-        // ``-indices``, …) until we hit the pattern arg.
-        // ``-start INDEX`` consumes a value word; the others are
-        // boolean.  Matches Tcl's ``regexp(n)`` / ``regsub(n)`` flag
-        // surface.
-        let mut idx = 0;
-        while idx < args.len() && args[idx].starts_with('-') && args[idx] != "--" {
-            if args[idx] == "-start" && idx + 1 < args.len() {
-                idx += 2;
-            } else {
-                idx += 1;
-            }
-        }
-        if idx < args.len() && args[idx] == "--" {
-            idx += 1;
-        }
-        if idx >= args.len() || idx >= arg_tokens.len() {
+        // Skip leading option flags (`-nocase`, `-line`, `-all`, `-indices`,
+        // `-start INDEX`, …) to the pattern arg — the one canonical option-skip.
+        let Some(idx) = crate::regex_source::regexp_pattern_index(args) else {
+            return;
+        };
+        if idx >= arg_tokens.len() {
             return;
         }
         let tok = arg_tokens[idx];

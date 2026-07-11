@@ -33,6 +33,7 @@
 use super::helpers::{has_substitution, is_braced_word};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
+use crate::regex_source::regexp_pattern_index;
 use tcl_core_types::DiagCode;
 
 impl Analyser {
@@ -1157,29 +1158,6 @@ fn w127_closed_hit(
         format!("Invalid value '{value}' for '{display_name}'; expected one of: {allowed_list}"),
         span,
     ))
-}
-
-/// First positional (pattern) argument index of `regexp` / `regsub`,
-/// after skipping option switches (`-start` consumes a value, `--`
-/// terminates).  `args` excludes the command name.
-fn regexp_pattern_index(args: &[String]) -> Option<usize> {
-    let mut i = 0;
-    while i < args.len() {
-        let a = args[i].as_str();
-        if a == "--" {
-            i += 1;
-            break;
-        }
-        if a.starts_with('-') {
-            i += 1;
-            if a == "-start" && i < args.len() {
-                i += 1;
-            }
-            continue;
-        }
-        break;
-    }
-    (i < args.len()).then_some(i)
 }
 
 /// True when the **source** slice `raw` (backslashes intact) carries a
