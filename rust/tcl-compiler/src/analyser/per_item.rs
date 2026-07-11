@@ -910,6 +910,11 @@ mod tests {
     }
 
     #[test]
+    fn quoted_var_substitution_does_not_false_fire_e202() {
+        eq("puts \"$sum\"\n");
+    }
+
+    #[test]
     fn same_file_arity_e003_matches_across_proc_body_call() {
         // A proc-body call to a same-file proc with the wrong argument
         // count — exercises `pending_user_call_arity`'s isolated-body

@@ -305,8 +305,8 @@ pub(crate) fn unterminated_delimiter_diagnostics<S: std::hash::BuildHasher>(
     known: &HashSet<String, S>,
 ) -> Vec<Diagnostic> {
     let mut out = Vec::new();
-    for tok in &cmd.all_tokens {
-        if is_suspicious_quote(tok, cmd, source, region_end) {
+    for (idx, tok) in cmd.all_tokens.iter().enumerate() {
+        if is_suspicious_quote(idx, cmd, source, region_end) {
             out.push(detect_e202(tok, source, known));
         } else if is_suspicious_str(tok, source, region_end) {
             out.push(detect_e203(tok, cmd, source, registry, known));
@@ -345,35 +345,55 @@ fn is_closed_within_region(tok: &Token, source: &str, region_end: usize, closer:
     end == content_start + 1 && end > 0 && bytes.get(end - 1) == Some(&closer)
 }
 
-/// True when `tok` is an `Esc` from an unterminated `"` that swallows the
-/// rest of the region: the token starts at a `"` and never closes before
-/// `region_end`. Not gated on line count or content shape — a single-line
-/// `set x "hello` (no newline at all) is just as unterminated as a
-/// multi-line run, and must be flagged identically; the only thing that
-/// distinguishes "genuinely unterminated" from "closed" is whether a
-/// closing `"` actually appears (see [`is_closed_within_region`]).
+/// True when `cmd.all_tokens[idx]` is an `Esc` from an unterminated `"`
+/// that swallows the rest of the region: the token starts at a `"` and
+/// never closes before `region_end`. Not gated on line count or content
+/// shape — a single-line `set x "hello` (no newline at all) is just as
+/// unterminated as a multi-line run, and must be flagged identically; the
+/// only thing that distinguishes "genuinely unterminated" from "closed" is
+/// whether a closing `"` actually appears (see [`is_closed_within_region`]).
 fn is_suspicious_quote(
-    tok: &Token,
+    idx: usize,
     cmd: &SegmentedCommand,
     source: &str,
     region_end: usize,
 ) -> bool {
+    let tok = &cmd.all_tokens[idx];
     if tok.kind != TokenType::Esc {
         return false;
     }
     if source.as_bytes().get(tok.span.start() as usize) != Some(&b'"') {
         return false;
     }
+    // A quoted word containing a `$var`/`[cmd]` substitution is segmented
+    // into several sibling `Esc`/`Var` fragments, and the fragment right
+    // after the substitution starts with the closing `"` itself — the
+    // *closer*, not a new opener, even though its own first byte matches.
+    // A fragment continuing an already-open quote is never itself an
+    // opener, so it's excluded here rather than independently re-flagged.
+    if idx > 0 && cmd.all_tokens[idx - 1].in_quote {
+        return false;
+    }
     if is_closed_within_region(tok, source, region_end, b'"') {
         return false;
     }
-    // An unterminated quote swallows every byte up to the region boundary,
-    // so it is always the command's last token (barring a trailing
-    // separator/EOL); a quote that closes well short of `region_end` is a
-    // different construct's problem, not this one's.
-    cmd.all_tokens
-        .last()
-        .is_some_and(|last| (last.span.end() as usize) >= region_end.saturating_sub(1))
+    // A multi-fragment quoted word closes the moment the fragment chain
+    // started by this opener steps out of quote state; only a chain that
+    // stays in quote all the way to the region boundary (or the command's
+    // last token) is genuinely unterminated.
+    let mut i = idx;
+    loop {
+        if cmd.all_tokens[i].span.start() as usize >= region_end {
+            return true;
+        }
+        if !cmd.all_tokens[i].in_quote {
+            return false;
+        }
+        if i + 1 >= cmd.all_tokens.len() {
+            return true;
+        }
+        i += 1;
+    }
 }
 
 /// True when `tok` is a `Str` from an unterminated `{` with no closing
@@ -1509,6 +1529,38 @@ mod tests {
         // "properly closed" is still detected purely from the closing
         // delimiter, never from line count.
         assert!(recovery_diags("proc p {} {set x \"\nhello\"}\n", "E202").is_empty());
+    }
+
+    #[test]
+    fn tn_closed_quote_with_substitution_fragments_is_silent() {
+        // A quoted word containing a `$var`/`[cmd]` substitution is
+        // segmented by the lexer into several sibling Esc/Var fragments.
+        // The fragment right after the substitution starts with the
+        // closing `"` itself, which without the continuation check below
+        // looks exactly like a *second* unterminated opener — firing E202
+        // twice for a string that is properly closed.
+        for src in [
+            "puts \"$sum\"\n",
+            "puts \"hello $name world\"\n",
+            "puts \"$a$b\"\n",
+            "puts \"[foo]\"\n",
+        ] {
+            assert!(
+                recovery_diags(src, "E202").is_empty(),
+                "unexpected E202 for {src:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn tp_e202_fires_for_unterminated_quote_with_substitution_fragments() {
+        // The continuation-skip must not create a false negative: a quote
+        // that opens, contains a substitution, and then genuinely never
+        // closes must still be flagged exactly once, at the opener.
+        assert_eq!(
+            recovery_diags("puts \"hello $name", "E202"),
+            vec![("missing \"".to_string(), 0)]
+        );
     }
 
     // --- E200: tight highlighting -------------------------------------
