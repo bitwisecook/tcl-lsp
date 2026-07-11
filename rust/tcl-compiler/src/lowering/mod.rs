@@ -1071,14 +1071,23 @@ impl<'r> Lowerer<'r> {
         // Detect `interp alias {} name {} target ?args?` and static
         // `rename oldName newName` — both feed the same alias table, since
         // calling through a renamed name and calling through an `interp
-        // alias` are indistinguishable for arg-role / body-form resolution
-        // and taint sink dispatch (`interp alias {} myEval {} eval` and
-        // `rename eval myEval` both make `myEval $x` reach the `eval` sink).
+        // alias` are indistinguishable for arg-role / body-form resolution,
+        // taint sink dispatch, and canonical-command typing (`interp alias {}
+        // myEval {} eval` and `rename eval myEval` both make `myEval $x` reach
+        // the `eval` sink). `interp alias` pre-qualifies its name at the global
+        // root, but `rename` binds NEW in the *current* namespace, so qualify
+        // it against `namespace` — an unqualified `rename set myset` inside
+        // `namespace eval ::ns` binds `::ns::myset`, not global `::myset` (and
+        // global `myset` is then invalid). `join_namespace` leaves an
+        // already-`::`-qualified NEW rooted globally, matching how
+        // `resolve_alias` looks the name back up (current namespace, then
+        // global) and `command_binding`'s own namespace-relative candidates.
         let args_owned: Vec<String> = args.to_vec();
         if let Some((qualified, target, prepended)) = detect_interp_alias(cmd_name, &args_owned) {
             self.aliases.insert(qualified, (target, prepended));
-        } else if let Some((qualified, target)) = detect_rename(cmd_name, &args_owned) {
-            self.aliases.insert(qualified, (target, Vec::new()));
+        } else if let Some((old, new)) = detect_rename(cmd_name, &args_owned) {
+            self.aliases
+                .insert(join_namespace(namespace, &new), (old, Vec::new()));
         }
 
         self.record_namespace_directives(cmd_name, args, seg, namespace);

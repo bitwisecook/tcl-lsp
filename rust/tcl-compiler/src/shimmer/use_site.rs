@@ -73,6 +73,13 @@ pub(crate) fn find_use_site_shimmers(
     // Loop-invariance facts for the S101→S100 downgrade — only needed when
     // the function has at least one loop block.
     let loop_facts = LoopFacts::compute(cfg, ssa, &loop_blocks, registry);
+    // Array-base symbols are excluded (FP-SH-13): `normalise_var_name` strips
+    // the `(key)` suffix, so `arr(a)` and `arr(b)` share one symbol / version
+    // chain. Two individually-stable but different elements then look, at a
+    // use site, exactly like one variable holding the wrong intrep — the same
+    // conflation the S102 pass already guards. Reuse its exclusion so S100 /
+    // S101 don't false-positive on independent array elements.
+    let array_syms = super::thunking::array_element_symbols(cfg, ssa);
     let mut out: Vec<ShimmerWarning> = Vec::new();
 
     for block_id in cfg_order(cfg) {
@@ -95,6 +102,7 @@ pub(crate) fn find_use_site_shimmers(
             values,
             loop_facts: &loop_facts,
             ssa,
+            array_syms: &array_syms,
             in_loop,
             already_coerced: &mut already_coerced,
             out: &mut out,
@@ -117,6 +125,9 @@ struct UseSiteCtx<'a> {
     values: &'a HashMap<ValueKey, LatticeValue>,
     loop_facts: &'a LoopFacts,
     ssa: &'a SsaFunction,
+    /// Array-base symbols excluded from shimmer reporting (FP-SH-13) — a
+    /// conflated `arr(a)`/`arr(b)` symbol can hold either element's intrep.
+    array_syms: &'a HashSet<Symbol>,
     in_loop: bool,
     already_coerced: &'a mut HashSet<(String, u32, TclType)>,
     out: &'a mut Vec<ShimmerWarning>,
@@ -349,6 +360,12 @@ fn check_invocation(
         let Some(sym) = ctx.ssa.var_symbol(&var) else {
             continue;
         };
+        // Skip an array base (FP-SH-13): its conflated version chain mixes
+        // independent elements, so a "wrong intrep" here may just be a
+        // different element's type.
+        if ctx.array_syms.contains(&sym) {
+            continue;
+        }
         let Some(&ver) = uses.get(&sym) else { continue };
         if ver == 0 {
             continue;
@@ -526,6 +543,10 @@ fn check_incr_var(ctx: &mut UseSiteCtx<'_>, var: &str, span: Span, uses: &HashMa
     let Some(sym) = ctx.ssa.var_symbol(var) else {
         return;
     };
+    // Skip an array base (FP-SH-13) — see `check_invocation`.
+    if ctx.array_syms.contains(&sym) {
+        return;
+    }
     let Some(&ver) = uses.get(&sym) else { return };
     if ver == 0 {
         return;
@@ -959,6 +980,56 @@ mod tests {
         );
         assert_eq!(w.unwrap().from_type, TclType::String);
         assert_eq!(w.unwrap().to_type, TclType::Int);
+    }
+
+    /// Array elements collapse onto one SSA symbol (the `(key)` suffix is
+    /// stripped before interning), so two individually-stable but different
+    /// elements must not use-site shimmer against each other (FP-SH-13):
+    /// `set arr(n) 5; set arr(label) "text"; incr arr(n)` must not report
+    /// `arr` as "string used with incr" — `arr(n)` is always int.
+    #[test]
+    fn no_use_site_shimmer_for_array_element_conflation() {
+        let cu = CompilationUnit::build_for(
+            "proc f {} { set arr(n) 5\n set arr(label) \"text\"\n incr arr(n) }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        assert!(
+            warnings.is_empty(),
+            "array-element conflation must not use-site shimmer: {warnings:?}"
+        );
+    }
+
+    /// TP control: the identical shape on a plain scalar still fires — the
+    /// array guard must not blanket-silence use-site shimmer.
+    #[test]
+    fn use_site_shimmer_still_fires_for_scalar_control() {
+        let cu =
+            CompilationUnit::build_for("proc f {} { set n hello\n incr n }", &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.command == "incr" && w.variable == "n"),
+            "plain scalar must still use-site shimmer: {warnings:?}"
+        );
     }
 
     /// Variables with Unknown type do not produce false-positive shimmers.

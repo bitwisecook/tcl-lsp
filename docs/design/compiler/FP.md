@@ -4644,10 +4644,15 @@ re-deriving trace recognition — see
 
 ### FP-SH-13 — array-element writes collapse onto one SSA symbol; two stable-but-different elements must not read as one variable oscillating
 
-- **Verdict:** FALSE POSITIVE (S102) — open (documented, not fixed for S100/S101)
-- **Status:** FIXED for S102 (Rust port deep review); S100/S101 share the same
-  underlying array-element conflation and are not in scope for this fix.
-- **Codes:** S102
+- **Verdict:** FALSE POSITIVE (S100/S101/S102) — fixed
+- **Status:** FIXED for all three shimmer codes. Originally fixed for S102 only
+  (Rust port deep review); the same `array_element_symbols` exclusion is now
+  shared by the use-site (S100/S101) and phi-merge (S101) passes, so an
+  independent-element conflation no longer false-positives through *any*
+  shimmer surface. Proper per-element SSA modelling (which would let a
+  genuinely-oscillating single element still fire) remains the larger,
+  out-of-scope alternative.
+- **Codes:** S100, S101, S102
 - **Corpus:** synthetic (a per-element-stable array accumulator, the common
   Tcl idiom `set arr(id) [somefn $arr(id)]`).
 
@@ -4682,21 +4687,30 @@ proc f {} {
 `shimmer::thunking::array_element_symbols` scans every `AssignConst` /
 `AssignExpr` / `AssignValue` / `Incr` statement in the function for a raw
 target name matching `codegen::values::split_array_ref`'s `arr(key)` shape
-(reused, not re-derived) and excludes the resolved base `Symbol` from S102
-entirely — `classify_thunking_phi` bails immediately for any such symbol. The
-guard is conservative in the *unsound* direction only for coverage, not
-correctness: a genuinely oscillating single array element (this reproducer)
-now goes undetected rather than risk flagging unrelated elements — an
-accepted trade-off documented here, not a residual bug. S100/S101 (use-site
-and non-loop phi shimmer) still see the same conflated symbol and are left
-as-is; a full fix needs per-element SSA modelling, out of scope for this
-review.
+(reused, not re-derived) and excludes the resolved base `Symbol` from shimmer
+reporting entirely. It is now `pub(super)`, so all three passes share the one
+exclusion: `classify_thunking_phi` (S102), `check_invocation` / `check_incr_var`
+(S100/S101 use-site) and `classify_phi_shimmer` (S101 phi-merge) each bail for
+an array-base symbol. The guard is conservative in the *unsound* direction only
+for coverage, not correctness: a genuinely oscillating single array element
+(this reproducer) now goes undetected rather than risk flagging unrelated
+elements — an accepted trade-off documented here, not a residual bug. A full
+fix needs per-element SSA modelling (array elements collapse onto one symbol
+via `tcl_syntax::naming::normalise_var_name` stripping the `(key)` suffix
+everywhere), out of scope for this review.
 
 #### Tests
 
-- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_13_array_element_conflation_no_s102` (FP)
-- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_13_scalar_control_still_fires` (TP control)
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_13_array_element_conflation_no_s102` (FP, S102)
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_13_array_element_use_site_no_s100` (FP, S100)
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_13_array_element_loop_use_site_no_s101` (FP, S101)
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_13_array_element_phi_merge_no_s100` (FP, phi merge)
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_13_scalar_control_still_fires` (TP control, S102)
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_13_scalar_use_site_still_fires` (TP control, S100)
 - `rust::tcl_compiler::shimmer::thunking::tests::no_s102_for_array_element_conflation` (FP, unit level)
+- `rust::tcl_compiler::shimmer::use_site::tests::no_use_site_shimmer_for_array_element_conflation` (FP, unit level)
+- `rust::tcl_compiler::shimmer::phi::tests::no_phi_shimmer_for_array_element_conflation` (FP, unit level)
+- `rust::tcl_lsp_server::e2e::diagnostic_matrix::s100_silent_for_array_element_use_site` (FP, e2e)
 
 ---
 
@@ -4785,26 +4799,38 @@ initialiser — not where the developer needs to look.
 
 ---
 
-### FP-SH-15 — tricky command/variable indirection stays conservative (no false positives): rename, interp alias, safe sub-interpreter eval, TclOO instance variables, `args`/parameters
+### FP-SH-15 — tricky command/variable indirection: rename, interp alias, safe sub-interpreter eval, TclOO instance variables, `args`/parameters
 
-- **Verdict:** CONFIRM-CORRECT (conservative — several are also known FALSE NEGATIVE / detection-gap surfaces, documented not fixed)
-- **Status:** covered by regression tests (Rust port deep review); the
-  indirections themselves are not resolved (real detection gaps for `rename`,
-  `interp alias`, and TclOO instance variables — tracked here, not silently
-  assumed safe).
-- **Codes:** S102
+- **Verdict:** three detection gaps now CLOSED (rename, interp alias, TclOO
+  instance variables via `my variable`); the remaining surfaces stay
+  CONFIRM-CORRECT (conservative — safe sub-interpreter eval, positional
+  parameters, unknown-command result).
+- **Status:** FIXED for surfaces 1, 2, and 5. A renamed/aliased builtin now
+  resolves back to its registry spec through the lowerer's `canonical_command`
+  snapshot (threaded into `type_infer` and `ssa::uses_of`); `my variable` is
+  recognised as a namespace-style scope alias by `var_observability`. Surfaces
+  3, 6, and 7 remain intentionally conservative and are pinned by regression
+  tests.
+- **Codes:** S100, S101, S102
 - **Corpus:** synthetic (one reproducer per indirection surface).
 
 #### Reproducers and per-surface reasoning
 
-1. **`rename set myset`** — a command renamed onto a registry builtin is not
-   resolved back to that builtin's spec anywhere `type_infer` looks, so
-   `myset x …` types as an unknown `Call` (OVERDEFINED return) — same
-   conservative outcome as calling any unregistered command
-   (`fp_sh_01_overdefined_silent`). Detection gap, not a false positive.
-2. **`interp alias {} myset {} set`** — the interpreter-level alias table is
-   not consulted by `type_infer` either; same conservative OVERDEFINED
-   outcome and same gap.
+1. **`rename set myset`** *(gap now closed)* — the lowerer records the rename
+   in the same binding snapshot it already keeps for `interp alias` (gated on
+   the target being a registered builtin), so `myset x …` carries
+   `canonical_command = set`. `type_infer` types the store's def from its value
+   word (a canonical-`set` value passthrough, keyed on the `Set` lowering
+   hook), and `ssa::uses_of` scans that value like the un-aliased `set` (so a
+   braced `[expr {$x+1}]` still exposes the `$x` read and the loop-header phi
+   forms). The renamed store now oscillates int↔string exactly as `set` does,
+   firing S102. Genuine thunk — `myset` *is* `set`.
+2. **`interp alias {} myset {} set`** *(gap now closed)* — the alias table was
+   already snapshotted into `canonical_command` (PR #872 for T101); threading
+   that canonical through `type_infer` / `ssa` closes S102 identically to the
+   rename case. Codegen still emits a runtime `invokeStk` for the alias (an
+   alias is not inline-foldable — its binding may change by call time); only
+   the analysis type-lattice and def/use resolve it.
 3. **`$slave eval {...}`** (a safe sub-interpreter) — the braced body is an
    opaque string argument to `eval`, not statically-analysed Tcl source in
    this compilation unit; nothing inside it is visited. No crash, no S102.
@@ -4821,12 +4847,18 @@ initialiser — not where the developer needs to look.
    body now genuinely fires S102 (`tcl diag` on a bare `set local …` inside
    `method run {}`), so the silence on `variable x` is the scope-alias
    protection actually firing, not the method body being skipped.
-5. **`my variable x`** — *not* recognised as a scope-alias declaration at all
-   (the registry spec for `my` carries no `CREATES_SCOPE_ALIAS`/subcommand
-   table); `$x` reads the never-versioned live-in symbol, same as any unbound
-   name. A real detection blind spot for snit/TclOO instance-variable
-   shimmer reached exclusively through `my variable` — tracked here, not
-   fixed.
+5. **`my variable x`** *(blind spot now closed)* — `var_observability::stmt_gen`
+   recognises the `my variable NAME …` compound (`var_scoping::
+   my_variable_declaration_indices`, which — unlike the top-level `variable`
+   *command* — treats every argument after the `variable` subcommand word as a
+   plain instance-variable name, no name/value pairs) and marks each name as a
+   `NAMESPACE` escape. `crate::sccp::is_externally_mutable` then forces every
+   def of the instance variable to OVERDEFINED, exactly as a bare `variable x`
+   *inside* the method body is protected (FP-SH-16). The previously-latent
+   false positive — `my variable x; set x 0; while {…oscillate…}`, where the
+   local `set x 0` used to give the loop a versioned `Known(Int)` entry and
+   fire a spurious S102 — is now silent, while an unaliased sibling local in
+   the same method still fires (the protection is keyed on the declared name).
 6. **A plain positional parameter as the oscillation seed** (`proc f {p} {
    while {1} { set p [expr {$p+1}]; set p [string range $p 0 end] } }`)  — a
    parameter's entry type is unknowable at compile time (the caller may pass
@@ -4841,24 +4873,38 @@ initialiser — not where the developer needs to look.
 
 #### Why the analyser reaches that verdict
 
-None of these seven surfaces are special-cased anywhere in `shimmer/thunking.rs`
-— every one stays silent purely because the *type lattice* degrades to
-OVERDEFINED (unknown command return, live-in version 0, opaque string body) or
-the *SSA symbol* never versions at all (scope-alias `Barrier`, unrecognised
-`my variable`). No new logic was added or needed; these tests exist to pin the
-current, intentional behaviour so a future change to command resolution,
-`interp alias` handling, or `my`'s registry spec doesn't silently introduce a
-false positive through one of these paths.
+The three *closed* gaps resolve the indirection at the boundary and stay generic
+downstream, per AGENTS.md: `rename` / `interp alias` are snapshotted into the
+lowerer's alias map so a renamed/aliased builtin carries `canonical_command`,
+which `type_infer::evaluate_type_def` / `type_infer_process_statements` and
+`ssa::uses_of` consume (value-passthrough typing + value-word read scanning,
+both keyed on the registry's `Set` lowering hook, never a hardcoded name);
+`my variable` is recognised by the shared escaping-set detector
+(`var_observability`) via a `var_scoping` declaration helper, feeding the same
+`is_externally_mutable` predicate SCCP already uses. The four *remaining*
+surfaces stay silent purely because the *type lattice* degrades to OVERDEFINED
+(unknown command return, live-in version 0, opaque string body) — no shimmer
+special-casing. The tests pin both the fixes and the intentional conservatism so
+a future change can't silently regress either.
 
 #### Tests
 
-- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_rename_indirection_no_s102`
-- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_interp_alias_indirection_no_s102`
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_rename_indirection_fires_s102` (gap closed → TP)
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_interp_alias_indirection_fires_s102` (gap closed → TP)
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_alias_onto_non_store_no_s102` (TN control — alias onto a non-store command)
 - `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_safe_sub_interpreter_eval_no_s102`
 - `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_tcloo_instance_variable_no_s102`
-- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_my_variable_idiom_no_s102`
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_my_variable_idiom_no_s102` (now protected via scope-alias recognition)
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_my_variable_locally_initialised_no_s102` (the previously-latent FP, now silent)
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_my_variable_unaliased_sibling_local_still_fires` (TP control)
 - `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_parameter_seeded_oscillation_no_s102`
 - `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_15_unknown_command_result_no_s102`
+- `rust::tcl_compiler::var_observability::tests::my_variable_marks_namespace_alias`
+- `rust::tcl_compiler::alias::tests::detect_rename_basic_move`
+- `rust::tcl_compiler::type_infer::tests::aliased_set_call_types_def_from_value`
+- `rust::tcl_compiler::ssa::tests::set_value_reads_parses_braced_expr`
+- `rust::tcl_lsp_server::e2e::diagnostic_matrix::s102_fires_for_rename_indirection` (e2e)
+- `rust::tcl_lsp_server::e2e::diagnostic_matrix::s102_fires_on_defect` (e2e, interp alias)
 
 ---
 
@@ -4966,6 +5012,89 @@ alone, regardless of how many local versions it has.
 - `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_16_global_alias_locally_initialised_no_s102` (FP, now fixed)
 - `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_16_unaliased_sibling_local_still_fires` (TP control)
 - `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_16_namespace_alias_without_local_init_no_s102` (TN control)
+
+---
+
+### FP-SH-18 — a Numeric loop-body oscillation seeded by an Int entry was masked to OVERDEFINED by `type_join`'s exact-equality Known-vs-Shimmered rule
+
+- **Verdict:** FALSE NEGATIVE (S100/S101/S102) — fixed
+- **Status:** FIXED. Found but not fixed during the original S102 review and
+  flagged as a foundational `types.rs` change with broad blast radius; closed
+  here after validating the numeric refinement against the whole compiler test
+  corpus (a true-LUB, monotone lattice change).
+- **Codes:** S100, S101, S102 (any consumer of `TypeLattice`; W307/W308 also
+  consume it but are unaffected — an object-ness query does not distinguish
+  SHIMMERED from OVERDEFINED).
+- **Corpus:** synthetic.
+
+#### Reproducer (false negative, now fixed)
+
+```tcl
+proc f {n} {
+    set x 0
+    while {$n > 0} {
+        if {$n % 2} {
+            set x [expr {$x + $n}]
+        } else {
+            set x "s$x"
+        }
+        incr n -1
+    }
+    return $x
+}
+```
+
+#### Reproducer (TN control — a uniformly-numeric loop must stay silent)
+
+```tcl
+proc f {n} {
+    set x 0
+    while {$n > 0} {
+        set x [expr {$x + $n}]
+        incr n -1
+    }
+    return $x
+}
+```
+
+#### Per-line reasoning
+
+1. The loop body is self-referential (both arms read `$x`) and produces
+   `Numeric` (`expr {$x + $n}` on the loop-carried `$x`, whose type is not a
+   compile-time constant) on one arm and `String` (`"s$x"`) on the other, so
+   the bottom-of-loop join is `SHIMMERED(Numeric, String)`.
+2. The loop entry is `Known(Int)` (`set x 0`). The loop-header phi therefore
+   joins `Known(Int)` with `SHIMMERED(Numeric, String)`.
+3. Pre-fix, `type_join`'s one-Known-one-Shimmered arm matched the known type
+   against each shimmer side by **exact `TclType` equality**. `Int != Numeric`
+   and `Int != String`, so the join degraded to OVERDEFINED — and
+   `classify_thunking_phi` bails on a non-SHIMMERED header phi, silently
+   masking the genuine per-iteration numeric↔string thunk.
+
+#### Why the analyser reaches that verdict
+
+`types::type_join` now applies a **numeric refinement** before falling to
+OVERDEFINED: a `Known` numeric-family type (`Int`/`Double`/`Boolean`/`Numeric`,
+via `is_numeric_family`) meeting a numeric-family shimmer side is subsumed by
+that side, and the side widens to `Numeric` so the result stays a sound upper
+bound of the `Known` type (`Double ⊔ SHIMMERED(Int, String)` =
+`SHIMMERED(Numeric, String)`, which covers `Double` — `SHIMMERED(Int, …)` would
+not). This is deliberately **not** routed through `numeric_promotion`, whose
+`Some`-if-either-operand-is-`Double` shape would wrongly match a non-numeric
+side (`numeric_promotion(Double, String) → Numeric`) and drop it. A non-numeric
+`Known` type that matches neither side still degrades to OVERDEFINED, so the
+refinement never blanket-keeps a join SHIMMERED (the TN control's uniformly-Int
+`Known ⊔ Known` promotes to `Numeric`, never shimmers).
+
+#### Tests
+
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_18_numeric_shimmer_masked_by_int_entry_fires_s102` (FN, now TP)
+- `rust::tcl_compiler::analyser::diagnostics::fp::sh::fp_sh_18_uniform_numeric_loop_no_s102` (TN control)
+- `rust::tcl_compiler::shimmer::thunking::tests::thunking_detected_for_numeric_shimmer_masked_by_int_entry` (FN, unit level)
+- `rust::tcl_compiler::types::tests::known_int_matches_numeric_shimmer_side` (lattice unit)
+- `rust::tcl_compiler::types::tests::known_double_widens_int_shimmer_side_to_numeric` (soundness/LUB unit)
+- `rust::tcl_compiler::types::tests::known_non_numeric_no_match_still_overdefined` (guard unit)
+- `rust::tcl_lsp_server::e2e::diagnostic_matrix::s102_fires_for_numeric_shimmer_masked_by_int_entry` (e2e)
 
 ---
 

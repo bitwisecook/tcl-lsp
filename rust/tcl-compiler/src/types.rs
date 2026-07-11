@@ -239,10 +239,48 @@ pub fn type_join(a: &TypeLattice, b: &TypeLattice) -> TypeLattice {
         (b, a)
     };
     let kt = known.tcl_type.unwrap();
-    if Some(kt) == shimmer.tcl_type || Some(kt) == shimmer.from_type {
+    let (from, to) = (shimmer.from_type.unwrap(), shimmer.tcl_type.unwrap());
+    // Exact match on either side: the known type is already one of the two the
+    // value shimmers between, so the merge stays that same shimmer.
+    if kt == from || kt == to {
         return shimmer.clone();
     }
+    // Numeric refinement: a `Known` numeric type (Int / Double / Boolean /
+    // Numeric) meeting a *numeric* shimmer side is subsumed by that side —
+    // `expr {$x + 1}` on an unknown-typed `$x` legitimately yields the coarser
+    // `Numeric`, so an `Int` reaching that merge is not a third, conflicting
+    // intrep. The value still oscillates between "numeric" and the other side,
+    // so it must stay SHIMMERED rather than degrade to OVERDEFINED (which
+    // silently masks the shimmer for S100/S101/S102 — a false negative). The
+    // numeric side widens to `Numeric` so the result is a sound upper bound of
+    // the `Known` type: `Double ⊔ SHIMMERED(Int, String)` = `SHIMMERED(Numeric,
+    // String)`, which covers `Double` — `SHIMMERED(Int, …)` would not. Exact
+    // equality is handled above, so widening here never narrows.
+    //
+    // NB: this must NOT be routed through `numeric_promotion`, which returns
+    // `Some` whenever *either* operand is `Double` (so `numeric_promotion(Double,
+    // String)` wrongly yields `Numeric`) — that would drop the genuinely
+    // non-numeric side. The predicate below requires *both* the known type and
+    // the matched side to be numeric-family.
+    if is_numeric_family(kt) {
+        if is_numeric_family(from) {
+            return TypeLattice::shimmered(TclType::Numeric, to);
+        }
+        if is_numeric_family(to) {
+            return TypeLattice::shimmered(from, TclType::Numeric);
+        }
+    }
     TypeLattice::overdefined()
+}
+
+/// True when `t` is a numeric-family intrep — one whose values all coerce to a
+/// number, so it is subsumed by the coarse [`TclType::Numeric`]. `Boolean`
+/// counts (Tcl booleans are `0`/`1` integers).
+fn is_numeric_family(t: TclType) -> bool {
+    matches!(
+        t,
+        TclType::Int | TclType::Double | TclType::Boolean | TclType::Numeric
+    )
 }
 
 /// Numeric promotion for Tcl types.
@@ -336,6 +374,69 @@ mod tests {
         let shimmer = TypeLattice::shimmered(TclType::Int, TclType::List);
         let known = TypeLattice::of(TclType::Dict);
         assert_eq!(type_join(&known, &shimmer).kind, TypeKind::Overdefined);
+    }
+
+    /// A `Known(Int)` meeting `SHIMMERED(Numeric, String)` must stay
+    /// SHIMMERED, not degrade to OVERDEFINED: `Int` is subsumed by the
+    /// `Numeric` side (`expr {$x + 1}` on an unknown `$x` yields `Numeric`),
+    /// so the value still oscillates numeric↔string. Degrading here silently
+    /// masks the shimmer for S100/S101/S102.
+    #[test]
+    fn known_int_matches_numeric_shimmer_side() {
+        let shimmer = TypeLattice::shimmered(TclType::Numeric, TclType::String);
+        let known = TypeLattice::of(TclType::Int);
+        let joined = type_join(&known, &shimmer);
+        assert_eq!(joined.kind, TypeKind::Shimmered);
+        assert_eq!(
+            joined,
+            TypeLattice::shimmered(TclType::Numeric, TclType::String)
+        );
+        // Symmetric.
+        assert_eq!(type_join(&shimmer, &known), joined);
+    }
+
+    /// `Boolean` (an int-family type) also matches a `Numeric` shimmer side.
+    #[test]
+    fn known_boolean_matches_numeric_shimmer_side() {
+        let shimmer = TypeLattice::shimmered(TclType::Numeric, TclType::List);
+        let known = TypeLattice::of(TclType::Boolean);
+        assert_eq!(
+            type_join(&known, &shimmer),
+            TypeLattice::shimmered(TclType::Numeric, TclType::List)
+        );
+    }
+
+    /// A `Known(Double)` meeting `SHIMMERED(Int, String)` must widen the
+    /// numeric side to `Numeric` — `SHIMMERED(Int, String)` would not be a
+    /// sound upper bound of `Double` (it does not cover `Double`). This keeps
+    /// `type_join` a true least-upper-bound.
+    #[test]
+    fn known_double_widens_int_shimmer_side_to_numeric() {
+        let shimmer = TypeLattice::shimmered(TclType::Int, TclType::String);
+        let known = TypeLattice::of(TclType::Double);
+        assert_eq!(
+            type_join(&known, &shimmer),
+            TypeLattice::shimmered(TclType::Numeric, TclType::String)
+        );
+    }
+
+    /// A non-numeric `Known` type that matches neither side of a shimmer still
+    /// degrades to OVERDEFINED — the numeric refinement must not blanket-keep
+    /// every Known/Shimmered join shimmered.
+    #[test]
+    fn known_non_numeric_no_match_still_overdefined() {
+        let shimmer = TypeLattice::shimmered(TclType::Numeric, TclType::List);
+        let known = TypeLattice::of(TclType::Dict);
+        assert_eq!(type_join(&known, &shimmer).kind, TypeKind::Overdefined);
+    }
+
+    /// An exact match on a non-numeric side is unchanged by the refinement:
+    /// `Known(List) ⊔ SHIMMERED(Int, List)` stays `SHIMMERED(Int, List)`.
+    #[test]
+    fn known_exact_non_numeric_side_unchanged() {
+        let shimmer = TypeLattice::shimmered(TclType::Int, TclType::List);
+        let known = TypeLattice::of(TclType::List);
+        assert_eq!(type_join(&known, &shimmer), shimmer);
     }
 
     #[test]

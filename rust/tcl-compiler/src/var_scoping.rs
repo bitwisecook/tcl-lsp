@@ -68,6 +68,31 @@ pub fn variable_declaration_indices(args: &[String]) -> Vec<usize> {
     out
 }
 
+// my variable (TclOO instance-variable binding)
+
+/// Return indices of declared variables in the `TclOO` `my variable name
+/// ?name …?` idiom, given the args of the `my` command (so `args[0]` is the
+/// literal `"variable"` subcommand word).
+///
+/// Unlike the top-level `variable` *command* (which alternates name/value
+/// pairs), the object `variable` *method* of `oo::object` takes plain names
+/// only — every argument after the subcommand word is a declared instance
+/// variable. Substituted (`$`-prefixed) names are skipped, matching the other
+/// declaration helpers. Returns an empty vector when `args[0]` is not
+/// `"variable"`.
+#[must_use]
+pub fn my_variable_declaration_indices(args: &[String]) -> Vec<usize> {
+    if args.first().map(String::as_str) != Some("variable") {
+        return Vec::new();
+    }
+    args.iter()
+        .enumerate()
+        .skip(1)
+        .filter(|(_, a)| !a.is_empty() && !a.starts_with('$'))
+        .map(|(i, _)| i)
+        .collect()
+}
+
 // upvar / namespace upvar
 
 /// Return indices of the *local-alias* tokens in an `upvar`
@@ -179,6 +204,25 @@ mod tests {
     fn variable_decls_reject_substituted_names() {
         let args = v(&["$x", "42", "bar", "99"]);
         assert_eq!(variable_declaration_indices(&args), vec![2]);
+    }
+
+    // -- my variable --
+
+    #[test]
+    fn my_variable_decls_all_names_no_values() {
+        // Unlike the top-level `variable` command, the object `variable`
+        // method takes only names: `my variable x y z` declares x, y, z.
+        let args = v(&["variable", "x", "y", "z"]);
+        assert_eq!(my_variable_declaration_indices(&args), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn my_variable_decls_skip_substituted_and_non_variable_subcommand() {
+        let args = v(&["variable", "x", "$dyn", "y"]);
+        assert_eq!(my_variable_declaration_indices(&args), vec![1, 3]);
+        // A different `my` method (e.g. `my varname x`) is not a declaration.
+        assert!(my_variable_declaration_indices(&v(&["varname", "x"])).is_empty());
+        assert!(my_variable_declaration_indices(&[]).is_empty());
     }
 
     // -- upvar --

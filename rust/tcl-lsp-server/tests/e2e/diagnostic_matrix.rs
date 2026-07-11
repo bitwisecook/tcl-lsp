@@ -111,6 +111,12 @@ const MATRIX: &[Case] = &[
         note: "tainted var as a direct numeric operand of an if-condition (+ is a \
                coercion hazard; eq is a pure string compare and isn't)",
     },
+    Case {
+        code: "S102",
+        fire: "interp alias {} myset {} set\nproc f {n} {\n    myset x 0\n    while {$n} {\n        myset x [expr {$x + 1}]\n        myset x [string range $x 0 end]\n        incr n -1\n    }\n}\n",
+        silent: "interp alias {} myset {} set\nproc f {n} {\n    myset x 0\n    while {$n} {\n        myset x [expr {$x + 1}]\n        incr n -1\n    }\n}\n",
+        note: "an aliased `set` still resolves to the real command, so a loop-carried int/string oscillation through the alias fires S102 (FP-SH-15)",
+    },
 ];
 
 /// The set of `code` strings carried by `diags` (mirrors Python `_codes`).
@@ -233,6 +239,10 @@ fn t101_fires_on_defect() {
 fn t100_fires_on_defect() {
     assert_fires(case_for("T100"));
 }
+#[test]
+fn s102_fires_on_defect() {
+    assert_fires(case_for("S102"));
+}
 
 // -- silent cases --------------------------------------------------------
 
@@ -279,6 +289,10 @@ fn t101_silent_on_corrected_form() {
 #[test]
 fn t100_silent_on_corrected_form() {
     assert_silent(case_for("T100"));
+}
+#[test]
+fn s102_silent_on_corrected_form() {
+    assert_silent(case_for("S102"));
 }
 
 // -- TestOptimisationMatrix ----------------------------------------------
@@ -662,4 +676,60 @@ fn s102_silent_for_non_self_referential_branchy_reset() {
          set x [list 1 2]\n        }\n        incr n -1\n    }\n    return $x\n}\n",
     );
     assert!(!codes(&diags).contains("S102"), "{diags:?}");
+}
+
+#[test]
+fn s102_fires_for_rename_indirection() {
+    // FP-SH-15 detection gap closed: a builtin renamed onto a new name
+    // (`rename set myset`) resolves back to the real `set` spec, so the
+    // loop-carried int/string oscillation through the renamed store fires
+    // S102 — the same as the un-renamed `set` loop.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc f {} {\n    rename set myset\n    myset x 0\n    while {1} {\n        \
+         myset x [expr {$x + 1}]\n        myset x [string range $x 0 end]\n    }\n}\n",
+    );
+    assert!(codes(&diags).contains("S102"), "{diags:?}");
+}
+
+// NB: the `my variable` instance-variable fix (FP-SH-15 case 5) is covered by
+// the compiler-level tests (`analyser::diagnostics::fp::sh::
+// fp_sh_15_my_variable_*`, `var_observability::tests::
+// my_variable_marks_namespace_alias`) rather than here — the LSP
+// whole-document pipeline does not run shimmer analysis over TclOO method
+// bodies, so `tcl diag` (which does) is the authoritative oracle for that
+// surface, matching how FP.md's FP-SH-15 entry verified it.
+
+#[test]
+fn s100_silent_for_array_element_use_site() {
+    // FP-SH-13 extended to the use-site (S100/S101) pass: `arr(n)` is always
+    // int and `arr(label)` always string, but they collapse onto one symbol —
+    // `incr arr(n)` must not read the conflated symbol as string and fire S100.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc f {} {\n    set arr(n) 5\n    set arr(label) \"text\"\n    incr arr(n)\n}\n",
+    );
+    let cs = codes(&diags);
+    assert!(!cs.contains("S100") && !cs.contains("S101"), "{diags:?}");
+}
+
+#[test]
+fn s102_fires_for_numeric_shimmer_masked_by_int_entry() {
+    // FP-SH-18: a numeric/string oscillation seeded by an Int entry. Pre-fix
+    // the loop-header phi joined `Known(Int)` with `SHIMMERED(Numeric, String)`
+    // and degraded to OVERDEFINED (exact-equality), masking the thunk; the
+    // numeric-refinement join keeps it SHIMMERED so S102 fires.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc f {n} {\n    set x 0\n    while {$n > 0} {\n        \
+         if {$n % 2} {\n            set x [expr {$x + $n}]\n        } else {\n            \
+         set x \"s$x\"\n        }\n        incr n -1\n    }\n    return $x\n}\n",
+    );
+    assert!(codes(&diags).contains("S102"), "{diags:?}");
 }
