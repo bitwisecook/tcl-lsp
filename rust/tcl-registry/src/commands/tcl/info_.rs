@@ -36,7 +36,8 @@ const fn sub(name: &'static str, detail: &'static str, synopsis: &'static str) -
     }
 }
 
-/// A `SubSubCommand` gated to a later dialect (e.g. the 9.0/TIP-478 additions).
+/// A `SubSubCommand` gated to a later dialect (e.g. the 9.0 `TclOO`
+/// introspection additions below, TIP 500/524/558).
 const fn sub_since(
     name: &'static str,
     detail: &'static str,
@@ -52,8 +53,8 @@ const fn sub_since(
 }
 
 /// Second-level subcommands of `info object` (the OBJECT INTROSPECTION
-/// operations from the `info` man page). Base set is Tcl 8.6; `creationid` and
-/// `properties` are 9.0 (TIP 478 / TIP 558).
+/// operations from the `info` man page). Base set is Tcl 8.6; `creationid`
+/// is 9.0 (TIP 500) and `properties` is 9.0 (TIP 558).
 const INFO_OBJECT_SUBS: &[SubSubCommand] = &[
     sub(
         "call",
@@ -131,7 +132,7 @@ const INFO_OBJECT_SUBS: &[SubSubCommand] = &[
 
 /// Second-level subcommands of `info class` (the CLASS INTROSPECTION
 /// operations from the `info` man page). Base set is Tcl 8.6;
-/// `definitionnamespace` and `properties` are 9.0 (TIP 478 / TIP 558).
+/// `definitionnamespace` is 9.0 (TIP 524) and `properties` is 9.0 (TIP 558).
 const INFO_CLASS_SUBS: &[SubSubCommand] = &[
     sub(
         "call",

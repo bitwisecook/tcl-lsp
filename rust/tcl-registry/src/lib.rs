@@ -56,6 +56,7 @@ pub mod base_objects;
 pub mod bigip;
 pub mod body_kind;
 pub mod cache;
+pub mod clause_shape;
 pub mod command_snapshot;
 pub mod commands;
 pub mod const_fold;
@@ -91,6 +92,7 @@ pub mod prelude {
     pub use crate::arg_role::{AppendedArity, ArgRole};
     pub use crate::arity::Arity;
     pub use crate::body_kind::BodyKind;
+    pub use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError};
     pub use crate::definer::{DefinerFamily, DefinitionBodyGrammar, MemberKind, MemberSpec};
     pub use crate::dialects::DialectSet;
     pub use crate::events::EventRequires;
@@ -111,7 +113,7 @@ pub mod prelude {
     pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
     pub use crate::taint::{SetterConstraint, TaintColour};
     pub use crate::traits::Traits;
-    pub use crate::types::TclType;
+    pub use crate::types::{TclType, VarWriteTyping};
 }
 
 // Re-export key types at crate root.
@@ -120,13 +122,14 @@ pub use arity::Arity;
 pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::BodyKind;
 pub use cache::registry_for_dialect;
+pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
 pub use dialects::{
     DETECT_SCAN_BYTES, KNOWN_DIALECTS, available_dialects, detect_dialect,
     detect_dialect_directive, detect_dialect_from_source, dialect_from_extension,
 };
 pub use hover::ArgValue;
 pub use patterns::{FormatType, PatternType};
-pub use registry::{CommandRegistry, ResolvedTerminator};
+pub use registry::{CommandRegistry, ResolvedCall, ResolvedTerminator};
 pub use spec::{BytePayloadSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSubCommand};
 pub use special_vars::{
     SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, VarAccess, VarOrigin,
@@ -136,7 +139,7 @@ pub use special_vars::{
 pub use symbol_def::{DefinedSymbolKind, SymbolDef};
 pub use taint::{SetterConstraint, TaintColour};
 pub use traits::Traits;
-pub use types::TclType;
+pub use types::{TclType, VarWriteTyping};
 
 /// Crate version string.
 ///

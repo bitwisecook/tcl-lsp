@@ -4,7 +4,7 @@
 |------|----------|-------------|:-----------:|:--------:|:----:|
 | O100 | constant_folding | Propagate constant variables into expressions and command arguments. |  | ✓ | ✓ |
 | O101 | constant_folding | Fold constant integer expressions. |  | ✓ | ✓ |
-| O102 | constant_folding | Fold constant `[expr {...}]` command substitutions. |  | ✓ | ✓ |
+| O102 | constant_folding | Forward a variable's single reaching literal load to its use sites. |  | ✓ | ✓ |
 | O103 | constant_folding | Fold static procedure calls using interprocedural summaries. |  | ✓ | ✓ |
 | O104 | pattern | Fold static string build chains into a single assignment. |  | ✓ | ✓ |
 | O105 | constant_folding | Propagate constants into variable references and detect redundant computations (GVN/CSE). |  | ✓ | ✓ |

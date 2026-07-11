@@ -449,29 +449,96 @@ can simplify this" suggestion. None swept yet.
   all (unlike `fileevent`/`chan event`'s identical zero-appended-args shape),
   so a bareword callback's own arity was invisible to every diagnostic path.
   See `kcs-diagnostic-e002-too-few-arguments.md` / `-e003-` for the updated
-  user-facing scope list.  **Still open, not fixed in this pass:** `next`/
-  `nextto` call arity (the resolved next-in-MRO method's arity is statically
-  knowable via `ClassHierarchy::next_provider` but nothing checks it — the
-  registry's `next` spec is `Arity::any()`); `dict create`/`dict replace`/
-  `dict update`/`foreach`/`switch`'s even-word-count-beyond-N constraints
-  (`Arity` is a flat `(min, max)` — no parity/predicate hook exists to
-  express "N, or N+2, or N+4, …"); `interp alias {} name {}`'s **query** form
-  is correctly distinguished from its **deletion** form now (**2026-07-10**:
-  the deletion form is tracked via `deleted_commands`, mirroring `rename OLD
-  {}`), but a `rename`/alias re-established immediately after a deletion is
-  still (as with the pre-existing `rename`-vs-proc-redefinition case) treated
-  as permanently deleted rather than timestamp-compared — a known, accepted,
-  very-narrow imprecision shared with the existing `rename` convention;
-  **command-prefix callback arity is gated behind the `xcDiagnostics` toggle**
-  (default **off**, and mislabeled — its doc comment says "Surfaced only on
-  f5-irules documents" but it also silently gates the general-purpose
-  cross-file arity/W123-suppression pass for *every* dialect) — this is an
-  architectural/product-decision item flagged for the team, not changed here;
-  a braced multi-word command-prefix (`-command {cb extra}`) is still
-  documented-and-silently dropped (`command_prefix.rs`'s module doc), which
-  the `apply_callback_arity`'s always-zero `baked` argument confirms is a
-  live, unexercised code path.
-- [ ] **E004** malformed control flow (0) — synthetic.
+  user-facing scope list.
+  **2026-07-10 follow-up — all five items closed in this pass:**
+  1. `next`/`nextto` call arity — wired the existing, already-tested
+     `ClassHierarchy::next_provider` into a new registry-driven queue/flush
+     pair (`Analyser::queue_next_arity_candidate` /
+     `flush_next_arity_diagnostics`), dispatched off a new
+     `Traits::TCLOO_NEXT_CHAIN` bit on `next`/`nextto` (not a name check) and
+     `Analyser::current_method_context` (which class/method body the call
+     textually sits in — reset across a nested `proc`, since `next` only
+     resolves inside the method's own calling frame). Treats the enclosing
+     method's own class as the receiver's MRO — exact for single
+     inheritance; a known, narrow imprecision with mixins/multiple
+     inheritance (documented at the flush site), in the same spirit as this
+     file's other accepted gaps.
+  2. `dict create`/`dict replace`/`dict update`/`foreach`/`switch`'s
+     even/odd-count shapes — `Arity` gained `step` (an arithmetic-progression
+     constraint) and `also_exact` (a single exception count, for `switch`'s
+     shorthand-or-pairs union), both defaulting to "no constraint" so every
+     pre-existing `Arity` call site is unaffected. A new **E005** diagnostic
+     reports an in-range count that doesn't fit the shape. All five commands'
+     derivations verified against a real tclsh 8.6.14. See
+     `kcs-diagnostic-e005-wrong-argument-count-shape.md`.
+  3. `rename`/alias re-established after deletion — `deleted_commands`
+     previously stored one offset per name and any later call was compared
+     only against *that* offset relative to the *call site*.
+     `resolve_indirect_call_target` now compares a deletion's offset against
+     the specific fact's (proc def / rename hop / alias) own establishing
+     offset (`fact_superseded_by_deletion`), so a name re-established after
+     an earlier deletion resolves to the new definition instead of being
+     treated as permanently gone — timestamp-compared, as originally
+     planned. `interp alias`'s query-vs-deletion distinction from the
+     previous pass is untouched.
+  4. `xcDiagnostics` mislabeling / accidental general-purpose gating — split
+     into two independent toggles: `xcDiagnostics` (unchanged — the
+     f5-irules-only XC100-301 translatability lints) and a new
+     `crossFileResolution` (cross-file W120/W123 suppression + cross-file
+     E002/E003/E005 arity, every dialect), both default **off**. A plain Tcl
+     project can now opt into cross-file analysis without also opting into
+     an unrelated F5 migration feature. Existing reschedule/refresh plumbing
+     (`reschedule_all_open_documents` et al.) already covers the new toggle
+     unconditionally, so no extra wiring was needed there. VS Code exposes
+     `tclLsp.features.crossFileResolution`; JetBrains/Neovim/Emacs/Helix/
+     Sublime can already set it via `[features] crossFileResolution = true`
+     in `.tcl-lsp.ini`/`config.ini` (generic `[features]` key parsing), but
+     a dedicated JetBrains settings-panel checkbox is a follow-up (the other
+     editors have no per-setting UI to begin with).
+  5. Braced multi-word command-prefix (`-command {cb extra}`) — no longer
+     silently dropped: `command_prefix.rs` now list-parses a braced prefix
+     via `tcl_syntax::list::find_element` (the canonical `Tcl_SplitList`
+     primitive, already used elsewhere for proc param lists — reused, not
+     reimplemented), records the baked argument count on
+     `SignatureCommandInvocation` via a new dedicated `callback_baked_args`
+     field (kept separate from the legacy direct-call `argc` field, which
+     must stay `None` for a callback head so it doesn't also trip the
+     unrelated cross-file direct-call arity path), and
+     `apply_callback_arity`'s existing `baked + appended` check — already
+     generic — now actually exercises the braced-prefix path for the first
+     time. Also closed a Tk widget-path false positive this surfaced: a
+     `.widget` head (e.g. `-yscrollcommand {.sb set}`) is never a checkable
+     command reference in either prefix shape, reusing the registry's own
+     `tk_checks::is_widget_path` rather than a new ad-hoc check.
+  **2026-07-10 follow-up — two centralization gaps in the above closed:**
+  (1) the `new`/`create` constructor-arity check missed `createWithNamespace`
+  entirely (`ClassName createWithNamespace name ::ns ?args?` — the three
+  keywords' word layout is shared with `oo_class_arg_roles`'s identical
+  class-*definition* shapes) — `PendingCtorArity`'s `is_create: bool` is now
+  `CtorForm::{New,Create,CreateWithNamespace}`, each with its own leading-
+  word bump. (2) `handle_namespace_ensemble`'s `-command` extraction scanned
+  every word for literal equality with `-command`, so another option's value
+  word that happened to read `-command` (e.g. a pathological `-map` value)
+  could be misread as the flag itself — `namespace ensemble create`'s option
+  surface (`-command`/`-map`/`-parameters`/`-prefixes`/`-subcommands`/
+  `-unknown`, verified against this project's own `cmd_namespace.rs` VM
+  implementation) is now registry data (`ENSEMBLE_CREATE_OPTIONS`), walked
+  by declared value arity like every other option-skip in the analyser.
+- [x] **E004** malformed `if` — RESOLVED (0 corpus firings; verified against
+  Tcl 9.0.4's `TclNRIfObjCmd`/`IfConditionCallback` C source and tclsh 8.6
+  rather than a corpus sweep, since real-world malformed `if`s don't occur):
+  cleared a genuine FP — `if else {a}` / `if elseif {a}` are structurally
+  well-formed (the bareword sits in the condition slot, never keyword-matched
+  there; real Tcl fails at expression evaluation instead, a distinct problem).
+  Also fixed a redundant-diagnostic bug (a malformed `if` drew both a generic
+  E002 and E004 for the same defect — `if`'s registry arity floor is now
+  descriptive-only, gated by `Traits::STRUCTURALLY_CHECKED_ARITY`), replaced
+  the generic "Malformed 'if' command" message with Tcl's own precise wording
+  per sub-case, and narrowed every span from the whole statement to the
+  offending word(s). The clause-chain walk itself moved into `tcl-registry`
+  (`commands::tcl::if_::walk_if`, exposed as a `clause_shape_check` hook on
+  `CommandSpec`) so it is shared with the `if_arg_roles` highlighting
+  resolver instead of being re-implemented in the compiler.
 - [ ] **E200** shimmer parse error (0) — synthetic.
 - [ ] **H300** possible paste error (0 corpus) — synthetic.
 

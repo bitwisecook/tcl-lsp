@@ -26,6 +26,15 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Set or query the placement options for a window.",
         synopsis: "place configure window ?option? ?value option value ...?",
+        options: CONFIGURE_OPTIONS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "content",
+        arity: Arity::exact(1),
+        detail: "Return a list of all slaves managed by the placer for the window (9.0+ name for `slaves`).",
+        synopsis: "place content window",
+        dialects: Some(DialectSet::TCL90_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -57,6 +66,99 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     writes: true,
     connection_side: ConnectionSide::None,
 }];
+
+/// Options accepted by the `configure` subcommand. Kept in sync with the
+/// top-level `OPTIONS` fallback below.
+const CONFIGURE_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-x",
+        value: OptionValue::value("location"),
+        detail: "Specifies the x-coordinate of the anchor point in the master window.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-y",
+        value: OptionValue::value("location"),
+        detail: "Specifies the y-coordinate of the anchor point in the master window.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-relx",
+        value: OptionValue::value("location"),
+        detail: "Specifies the x-coordinate as a fraction of the master width (0.0 to 1.0).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-rely",
+        value: OptionValue::value("location"),
+        detail: "Specifies the y-coordinate as a fraction of the master height (0.0 to 1.0).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-width",
+        value: OptionValue::value("size"),
+        detail: "Specifies the width of the slave in screen units.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-height",
+        value: OptionValue::value("size"),
+        detail: "Specifies the height of the slave in screen units.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-relwidth",
+        value: OptionValue::value("size"),
+        detail: "Specifies the width as a fraction of the master width (0.0 to 1.0).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-relheight",
+        value: OptionValue::value("size"),
+        detail: "Specifies the height as a fraction of the master height (0.0 to 1.0).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-anchor",
+        value: OptionValue::enumerated(super::common::ANCHOR, true, "anchor"),
+        detail: "Specifies which point of the slave is positioned at the (x,y) location.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-bordermode",
+        value: OptionValue::value("inside|outside|ignore"),
+        detail: "Determines the degree to which borders within the master are used.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-in",
+        value: OptionValue::value("master"),
+        detail: "Specifies the master window relative to which the slave is placed.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
 
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {

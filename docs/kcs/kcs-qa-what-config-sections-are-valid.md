@@ -106,11 +106,20 @@ the server stop advertising or running that feature. Valid keys:
 `documentHighlight`, `codeLens`, `workspaceFileOps`,
 `pullDiagnostics`, `willSaveWaitUntil`, `progress`,
 `implementation`, `typeDefinition`, `declaration`,
-`linkedEditingRange`.
+`linkedEditingRange`, `crossFileResolution`.
 
 A few of these (notably `pullDiagnostics`) only take effect after a
 server restart because they change which LSP handlers are
 registered.
+
+`crossFileResolution` (default off) resolves diagnostics across the
+whole workspace: it suppresses "unknown command"
+([W120](codes/kcs-diagnostic-w120-missing-package-require.md)/W123)
+for a proc defined in another file, and reports cross-file
+wrong-argument-count errors (E002/E003). It scans every workspace
+file, so it is opt-in for performance. It is independent of
+`[xcDiagnostics]` above — that section is F5 XC Migration-specific
+and has no effect on plain Tcl projects.
 
 ### `[formatting]`
 

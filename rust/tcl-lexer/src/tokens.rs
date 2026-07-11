@@ -64,6 +64,22 @@ pub enum TokenType {
 }
 
 impl TokenType {
+    /// The closing delimiter stripped from this token kind's text (`Str` →
+    /// `}`, `Cmd` → `]`), or `None` for a kind that isn't a bracketed group.
+    /// A group token's raw span may or may not include its closer — see
+    /// the "inner-end convention" this closer feeds into at each call site
+    /// (`segmenter::widen_word_end`, `value_shapes::widened_token_text`).
+    #[must_use]
+    pub const fn group_closer(self) -> Option<char> {
+        match self {
+            Self::Str => Some('}'),
+            Self::Cmd => Some(']'),
+            _ => None,
+        }
+    }
+}
+
+impl TokenType {
     /// Symbolic name of the variant — `"ESC"`, `"STR"`, etc.
     ///
     /// Used by the `PyO3` wrapper to mimic `enum.Enum.name` and by

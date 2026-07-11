@@ -55,6 +55,16 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(3),
         arg_role_resolver: Some(lmap_arg_roles),
+        // See `foreach`'s identical comment — index 0 is a fixed key read by
+        // `shimmer::use_site::foreach_header_expected_type`, not a real
+        // source-position argument index.
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::List),
+                shimmers: true,
+            },
+        )],
         lowering_hook: Some(crate::hooks::LoweringHookId::Lmap),
         return_type: Some(TclType::List),
         hover: Some(HoverSnippet {

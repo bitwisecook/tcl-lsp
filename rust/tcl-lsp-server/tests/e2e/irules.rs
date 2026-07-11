@@ -512,6 +512,32 @@ fn t102_insert_double_dash() {
 }
 
 #[test]
+fn t100_subst_add_nocommands() {
+    let mut lsp = Lsp::irules();
+    let actions = taint_fix(
+        &mut lsp,
+        "subst $tainted\n",
+        "T100",
+        "Tainted variable $tainted flows into subst; possible code injection",
+        (0, 0),
+        (0, 14),
+    );
+    let fixes: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| action_title(a).contains("-nocommands"))
+        .cloned()
+        .collect();
+    assert_eq!(fixes.len(), 1);
+    assert!(
+        ca_new_texts(&json!(fixes))
+            .iter()
+            .any(|s| s.contains("-nocommands"))
+    );
+}
+
+#[test]
 fn braced_variable_wrapped() {
     let mut lsp = Lsp::irules();
     let actions = taint_fix(
@@ -537,7 +563,7 @@ fn braced_variable_wrapped() {
 }
 
 #[test]
-fn no_fix_for_unknown_code() {
+fn t101_wrap_strip_crlf() {
     let mut lsp = Lsp::irules();
     let actions = taint_fix(
         &mut lsp,
@@ -547,14 +573,74 @@ fn no_fix_for_unknown_code() {
         (0, 0),
         (0, 8),
     );
+    let fixes: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| action_title(a).contains("strip CR/LF"))
+        .cloned()
+        .collect();
+    assert_eq!(fixes.len(), 1, "{actions:?}");
+    assert!(
+        ca_new_texts(&json!(fixes))
+            .iter()
+            .any(|s| s.contains("[string map") && s.contains("$raw]")),
+        "{fixes:?}"
+    );
+}
+
+#[test]
+fn irule3003_wrap_strip_crlf() {
+    let mut lsp = Lsp::irules();
+    let actions = taint_fix(
+        &mut lsp,
+        "log local0.info $raw\n",
+        "IRULE3003",
+        "Tainted variable $raw in log output (log); risk of log injection or log forging",
+        (0, 0),
+        (0, 16),
+    );
+    let fixes: Vec<Value> = actions
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|a| action_title(a).contains("strip CR/LF"))
+        .cloned()
+        .collect();
+    assert_eq!(fixes.len(), 1, "{actions:?}");
+    assert!(
+        ca_new_texts(&json!(fixes))
+            .iter()
+            .any(|s| s.contains("[string map") && s.contains("$raw]")),
+        "{fixes:?}"
+    );
+}
+
+#[test]
+fn no_fix_for_unknown_code() {
+    let mut lsp = Lsp::irules();
+    let actions = taint_fix(
+        &mut lsp,
+        "eval $raw\n",
+        "T100",
+        "Tainted variable $raw flows into eval; possible code injection",
+        (0, 0),
+        (0, 8),
+    );
     let matched: Vec<Value> = actions
         .as_array()
         .unwrap_or(&Vec::new())
         .iter()
         .filter(|a| {
-            ["HTML::encode", "URI::encode", "regex::quote", "--"]
-                .iter()
-                .any(|k| action_title(a).contains(k))
+            [
+                "HTML::encode",
+                "URI::encode",
+                "regex::quote",
+                "--",
+                "strip CR/LF",
+            ]
+            .iter()
+            .any(|k| action_title(a).contains(k))
         })
         .cloned()
         .collect();

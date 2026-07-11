@@ -25,6 +25,66 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "namespace subcommand ?arg ...?",
 }];
 
+/// `namespace ensemble create`'s options — verified against this project's
+/// own `namespace ensemble` implementation
+/// (`runtime/rust/src/cmd_namespace.rs`'s `ens_create` /
+/// `apply_ensemble_option`), whose "bad option" error text enumerates
+/// exactly these six. Every one takes a single value word — `create` (and
+/// `configure`'s update form) both parse strict `-option value` pairs, no
+/// bare flags. `-namespace` is deliberately excluded: it's a read-only
+/// property `configure` can report but neither `create` nor `configure`
+/// accepts as a setter (rejected by `apply_ensemble_option`'s `_` arm).
+static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-command",
+        value: OptionValue::value("name"),
+        detail: "Name of the ensemble's dispatch command (default: the namespace's own name).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-map",
+        value: OptionValue::value("dict"),
+        detail: "Maps subcommand names to target command prefixes.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-parameters",
+        value: OptionValue::value("list"),
+        detail: "Parameter names inserted between the ensemble command and the subcommand.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-prefixes",
+        value: OptionValue::value("boolean"),
+        detail: "Whether unambiguous subcommand prefixes are accepted.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-subcommands",
+        value: OptionValue::value("list"),
+        detail: "Explicit list of valid subcommand names.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-unknown",
+        value: OptionValue::value("prefix"),
+        detail: "Command prefix invoked for an unrecognised subcommand.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "children",
@@ -68,6 +128,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace ensemble subcommand ?arg ...?",
         return_type: Some(TclType::String),
         dialects: Some(DialectSet::TCL85_PLUS),
+        // Shared by `create`/`configure` (see `ENSEMBLE_CREATE_OPTIONS`'s
+        // own doc comment) — `ensemble`'s own dispatch (`create` /
+        // `configure` / `exists`) isn't modelled as nested subcommands, so
+        // this covers the whole `namespace ensemble …` surface rather than
+        // just `create`'s.
+        options: ENSEMBLE_CREATE_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {

@@ -45,6 +45,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Clear the selection so that no window owns it.",
         synopsis: "selection clear ?-displayof window? ?-selection selection?",
+        options: CLEAR_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -52,6 +53,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Retrieve the selection and return it as a string.",
         synopsis: "selection get ?-displayof window? ?-selection selection? ?-type type?",
+        options: GET_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -60,6 +62,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Register a handler to provide the selection data.",
         synopsis: "selection handle ?-selection sel? ?-type type? ?-format fmt? window command",
         command_prefix_resolver: Some(selection_handle_command_prefixes),
+        options: HANDLE_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -67,7 +70,114 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Query or set the owner of the selection.",
         synopsis: "selection own ?-command command? ?-selection selection? window",
+        options: OWN_OPTIONS,
         ..SubCommand::DEFAULT
+    },
+];
+
+/// `clear`: display and selection-name selectors only.
+const CLEAR_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-displayof",
+        value: OptionValue::value("window"),
+        detail: "Specifies the display for the selection operation.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-selection",
+        value: OptionValue::value("selection"),
+        detail: "Specifies which named selection to operate on (default: PRIMARY).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
+
+/// `get`: `CLEAR_OPTIONS` plus `-type` for the desired return format.
+const GET_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-displayof",
+        value: OptionValue::value("window"),
+        detail: "Specifies the display for the selection operation.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-selection",
+        value: OptionValue::value("selection"),
+        detail: "Specifies which named selection to operate on (default: PRIMARY).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-type",
+        value: OptionValue::value("type"),
+        detail: "Specifies the form in which the selection is to be returned.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
+
+/// `handle`: no `-displayof` (the window argument implies the display) —
+/// `-selection`, `-type`, and `-format` for the registered handler.
+const HANDLE_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-selection",
+        value: OptionValue::value("selection"),
+        detail: "Specifies which named selection to operate on (default: PRIMARY).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-type",
+        value: OptionValue::value("type"),
+        detail: "Specifies the form in which the selection is to be returned.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-format",
+        value: OptionValue::value("format"),
+        detail: "Specifies the representation format for the selection data.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
+
+/// `own`: `-displayof`/`-selection` for the query form, plus `-command` for
+/// the claim form (window becomes the new owner and runs the script on loss).
+const OWN_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-displayof",
+        value: OptionValue::value("window"),
+        detail: "Specifies the display for the selection operation.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-selection",
+        value: OptionValue::value("selection"),
+        detail: "Specifies which named selection to operate on (default: PRIMARY).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-command",
+        value: OptionValue::script(),
+        detail: "Specifies a Tcl script to run when the selection is claimed by another window.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

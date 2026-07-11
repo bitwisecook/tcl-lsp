@@ -88,7 +88,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "create",
         const_fold: Some(crate::const_fold::fold_dict_create),
-        arity: Arity::any(),
+        // `?key value ...?` — an even count, 0 or more (confirmed against
+        // tclsh 8.6.14: `dict create a` fails "wrong # args").
+        arity: Arity::stepped(0, Arity::UNLIMITED, 2),
         detail: "Create a new dictionary from key/value pairs.",
         synopsis: "dict create ?key value ...?",
         pure: true,
@@ -261,7 +263,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "replace",
-        arity: Arity::at_least(1),
+        // `dictionaryValue ?key value ...?` — an odd count from 1
+        // (confirmed against tclsh 8.6.14: `dict replace $d a` fails
+        // "wrong # args").
+        arity: Arity::stepped(1, Arity::UNLIMITED, 2),
         detail: "Replace keys in a dictionary value.",
         synopsis: "dict replace dictionaryValue ?key value ...?",
         pure: true,
@@ -329,7 +334,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "update",
         dialects: Some(DialectSet::NON_IRULES_OPERATORS),
-        arity: Arity::at_least(4),
+        // `dictionaryVariable key varName ?key varName ...? body` — an
+        // even count from 4 (1 dict var + 2n key/varName pairs, n >= 1,
+        // + 1 body — confirmed against tclsh 8.6.14: `dict update d k v
+        // extra body` (5 args) fails "wrong # args").
+        arity: Arity::stepped(4, Arity::UNLIMITED, 2),
         detail: "Map dictionary keys to variables, execute body, write back.",
         synopsis: "dict update dictionaryVariable key varName ?...? body",
         arg_role_resolver: Some(dict_last_arg_body),
@@ -402,11 +411,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict getd dictionaryValue ?key ...? key default",
         pure: true,
         return_type: Some(TclType::String),
+        // Same dict-argument shape as plain `dict get`'s `SubCommand`: the
+        // key-path lookup forces a dict intrep on `dictionaryValue` exactly
+        // the same way, default value or not — `shimmers: false` here was
+        // an inconsistency, not a documented difference from `dict get`.
         arg_types: &[(
             0,
             ArgTypeHint {
                 expected: Some(TclType::Dict),
-                shimmers: false,
+                shimmers: true,
             },
         )],
         ..SubCommand::DEFAULT
@@ -420,11 +433,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict getdef dictionaryValue ?key ...? key default",
         pure: true,
         return_type: Some(TclType::String),
+        // Same dict-argument shape as plain `dict get`'s `SubCommand`: the
+        // key-path lookup forces a dict intrep on `dictionaryValue` exactly
+        // the same way, default value or not — `shimmers: false` here was
+        // an inconsistency, not a documented difference from `dict get`.
         arg_types: &[(
             0,
             ArgTypeHint {
                 expected: Some(TclType::Dict),
-                shimmers: false,
+                shimmers: true,
             },
         )],
         ..SubCommand::DEFAULT
@@ -438,11 +455,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict getwithdefault dictionaryValue ?key ...? key default",
         pure: true,
         return_type: Some(TclType::String),
+        // Same dict-argument shape as plain `dict get`'s `SubCommand`: the
+        // key-path lookup forces a dict intrep on `dictionaryValue` exactly
+        // the same way, default value or not — `shimmers: false` here was
+        // an inconsistency, not a documented difference from `dict get`.
         arg_types: &[(
             0,
             ArgTypeHint {
                 expected: Some(TclType::Dict),
-                shimmers: false,
+                shimmers: true,
             },
         )],
         ..SubCommand::DEFAULT

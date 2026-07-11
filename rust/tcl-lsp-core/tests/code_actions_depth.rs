@@ -636,6 +636,56 @@ fn context_t106_removes_redundant_encoder_wrapper() {
 }
 
 #[test]
+fn context_t100_subst_offers_nocommands_fix() {
+    // T100 on a `subst` sink offers a mechanical, single-flag fix:
+    // `-nocommands` disables the only hazard the diagnostic names (command
+    // substitution) without touching the call's variable/backslash
+    // substitution behaviour — the exact mitigation `subst`'s own hover
+    // snippet recommends.
+    let src = "set out [subst $tainted]\n";
+    let diags = vec![ContextDiagnostic {
+        code: "T100".to_string(),
+        message: "Tainted variable $tainted flows into subst; possible code injection".to_string(),
+        range: cursor(0, 9),
+    }];
+    let actions = context_diagnostic_actions(src, &diags);
+    let fix = find(&actions, "-nocommands").expect("a T100 subst -nocommands fix");
+    assert_eq!(fix.kind, ActionKind::QuickFix);
+    assert_eq!(fix.edits.len(), 1);
+    assert!(
+        edits_well_formed(fix) && edits_in_bounds(fix, src),
+        "{fix:?}"
+    );
+    assert_eq!(fix.edits[0].new_text, " -nocommands");
+    // Applying the edit at its own range must produce a well-formed
+    // `subst -nocommands $tainted` call.
+    let col = fix.edits[0].range.start_character as usize;
+    let line = src.lines().next().unwrap();
+    let mut patched = line.to_string();
+    patched.insert_str(col, &fix.edits[0].new_text);
+    assert_eq!(patched, "set out [subst -nocommands $tainted]");
+}
+
+#[test]
+fn context_t100_non_subst_sink_offers_no_fix() {
+    // T100 on a non-`subst` sink (`eval`) has no single-flag mitigation, so
+    // no quick fix is offered — matches the diagnostic's own hover advice
+    // (`{*}$cmdList` / direct invocation), neither of which is a mechanical
+    // same-shape rewrite.
+    let src = "eval $tainted\n";
+    let diags = vec![ContextDiagnostic {
+        code: "T100".to_string(),
+        message: "Tainted variable $tainted flows into eval; possible code injection".to_string(),
+        range: cursor(0, 5),
+    }];
+    let actions = context_diagnostic_actions(src, &diags);
+    assert!(
+        find(&actions, "-nocommands").is_none(),
+        "eval sink must not offer the subst-only fix: {actions:?}"
+    );
+}
+
+#[test]
 fn context_irule3001_wraps_tainted_var_with_html_encode() {
     // IRULE3001 (reflected XSS) offers an `[html_encode $var]` wrap, and — since
     // `html_encode` is a user proc, not a built-in — inserts the helper proc at

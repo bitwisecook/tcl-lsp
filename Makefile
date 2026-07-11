@@ -479,7 +479,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # scripts/check/*.py.  These need the Rust toolchain, so CI runs them in the
 # Rust-capable rust-tests job (rust-gate.yml / ci.yml), never in the Python-only
 # ci-fast job.  `xtask-check` is the CI aggregate.
-xtask-check: xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-command-backing ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
+xtask-check: xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
 
 xtask-kcs-index-links: ## Validate docs links + design/KCS index coverage (⇐ scripts/check/kcs_index_links.py)
 	@echo "==> Checking docs links + index coverage (cargo xtask)"
@@ -496,6 +496,10 @@ xtask-gen-editor-catalogs: ## Verify the Zed/VS Code editor catalogs are in sync
 xtask-gen-zed-queries: ## Verify the generated Zed tree-sitter highlight queries are in sync with the registry (drift gate)
 	@echo "==> Checking generated Zed highlight queries are in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-zed-queries --check
+
+xtask-gen-tmlanguage-keywords: ## Verify the VS Code/JetBrains/Sublime TextMate grammar keyword lists are in sync with the registry (drift gate)
+	@echo "==> Checking generated TextMate grammar keyword lists are in sync (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-tmlanguage-keywords --check
 
 xtask-gen-editor-settings: ## Verify the VS Code diagnosticCatalog.ts is in sync with the DiagCode catalogue (drift gate)
 	@echo "==> Checking generated diagnosticCatalog.ts is in sync (cargo xtask)"

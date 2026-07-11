@@ -927,7 +927,7 @@ fn subcommand_version_gates_fire_w002() {
         ("binary decode base64 abc", "tcl8.6", "tcl8.5"),
         ("interp bgerror {}", "tcl8.5", "tcl8.4"),
         ("interp limit {} time", "tcl8.5", "tcl8.4"),
-        ("interp debug {}", "tcl8.5", "tcl8.4"),
+        ("interp debug {}", "tcl8.6", "tcl8.5"),
         ("interp cancel", "tcl8.6", "tcl8.5"),
         ("interp children", "tcl8.6", "tcl8.5"),
         ("clock add 0 1 day", "tcl8.5", "tcl8.4"),
@@ -1227,6 +1227,220 @@ fn e003_proc_body_call_not_order_gated() {
     );
 }
 
+#[test]
+fn e003_static_rename_onto_builtin_name_suppresses_arity() {
+    // `rename OLD NEW` moves OLD's identity onto NEW — `rename myimpl
+    // close` makes `close` a real command backed by `myimpl`'s own
+    // 3-parameter signature, not the registry `close` builtin (max 2), so
+    // a 3-argument call must not fire E003.  Order-gated the same way as a
+    // proc: the rename statement must lexically precede a top-level call.
+    let src = "proc myimpl {a b c} { return $a }\nrename myimpl close\nclose 1 2 3\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::E003),
+        "no E003 expected — close was renamed onto myimpl's 3-arg signature, got {:?}",
+        r.diagnostics
+    );
+}
+
+#[test]
+fn e003_top_level_call_before_rename_onto_builtin_still_fires() {
+    // The mirror image of `e003_top_level_call_before_shadowing_proc_fires`
+    // for a rename target: a top-level call *before* the `rename` runs
+    // still reaches the original builtin at load time.
+    let src = "close 1 2 3\nproc myimpl {a b c} { return $a }\nrename myimpl close\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.6");
+    let e003: Vec<&Diagnostic> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::E003)
+        .collect();
+    assert_eq!(
+        e003.len(),
+        1,
+        "expected E003 on the top-level close before the rename took effect, got {:?}",
+        r.diagnostics
+    );
+    assert_eq!(e003[0].span.start(), 0, "wrong call flagged");
+}
+
+// E005 — argument-count *shape* (parity/predicate) mismatches on the
+// registry's key/value-pair and paired-argument commands (`dict create`,
+// `dict replace`, `dict update`, `foreach`, `switch`). All confirmed
+// against tclsh 8.6.14's "wrong # args" behaviour.
+
+fn arity_shape_codes(src: &str) -> Vec<String> {
+    let mut a = Analyser::new();
+    a.analyse(src, "tcl8.6")
+        .diagnostics
+        .iter()
+        .filter(|d| matches!(d.code, DiagCode::E002 | DiagCode::E003 | DiagCode::E005))
+        .map(|d| d.code.to_string())
+        .collect()
+}
+
+#[test]
+fn dict_create_odd_key_value_tail_fires_e005() {
+    // `dict create ?key value ...?` — an odd tail has an unpaired key with
+    // no value (tclsh 8.6.14: `dict create a` fails "wrong # args").
+    assert_eq!(
+        arity_shape_codes("dict create a\n"),
+        vec!["E005".to_owned()]
+    );
+    assert_eq!(
+        arity_shape_codes("dict create a b c\n"),
+        vec!["E005".to_owned()]
+    );
+}
+
+#[test]
+fn dict_create_even_key_value_tail_is_silent() {
+    // TN: a paired (or empty) tail is the documented shape.
+    assert_eq!(arity_shape_codes("dict create\n"), Vec::<String>::new());
+    assert_eq!(arity_shape_codes("dict create a b\n"), Vec::<String>::new());
+    assert_eq!(
+        arity_shape_codes("dict create a b c d\n"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn dict_replace_even_tail_fires_e005() {
+    // `dict replace dictionaryValue ?key value ...?` — the dict value
+    // itself makes the *total* count odd; an even count leaves a
+    // trailing key with no value (tclsh 8.6.14: `dict replace $d a` fails
+    // "wrong # args").
+    assert_eq!(
+        arity_shape_codes("dict replace $d a\n"),
+        vec!["E005".to_owned()]
+    );
+}
+
+#[test]
+fn dict_replace_odd_tail_is_silent() {
+    assert_eq!(arity_shape_codes("dict replace $d\n"), Vec::<String>::new());
+    assert_eq!(
+        arity_shape_codes("dict replace $d a b\n"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn dict_update_odd_total_fires_e005() {
+    // `dict update dictVar key varName ?key varName ...? body` — total
+    // count is always even (dict var + N pairs + body); an odd total
+    // means an unpaired key or a missing body (tclsh 8.6.14: `dict update
+    // d k v extra body` — 5 words — fails "wrong # args").
+    assert_eq!(
+        arity_shape_codes("dict update d k v extra body\n"),
+        vec!["E005".to_owned()]
+    );
+}
+
+#[test]
+fn dict_update_even_total_is_silent() {
+    assert_eq!(
+        arity_shape_codes("dict update d k v body\n"),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        arity_shape_codes("dict update d k1 v1 k2 v2 body\n"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn foreach_unpaired_varlist_fires_e005() {
+    // `foreach varList list ?varList list ...? body` — total count is
+    // always odd (N varList/list pairs + body); an even total leaves an
+    // unpaired trailing var-list with no source list (tclsh 8.6.14:
+    // `foreach x $l y {puts $x}` — 4 words — fails "wrong # args").
+    assert_eq!(
+        arity_shape_codes("foreach x $l y {puts $x}\n"),
+        vec!["E005".to_owned()]
+    );
+}
+
+#[test]
+fn foreach_paired_varlists_are_silent() {
+    assert_eq!(
+        arity_shape_codes("foreach x $l {puts $x}\n"),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        arity_shape_codes("foreach x $l1 y $l2 {puts \"$x $y\"}\n"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn foreach_expanded_tail_never_false_fires_e005() {
+    // FP guard: `{*}`-expanded args make the true final count unknowable
+    // — the parity check must abstain exactly like E002 does.
+    assert_eq!(
+        arity_shape_codes("foreach x $l {*}$rest\n"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn switch_unpaired_pattern_fires_e005() {
+    // `switch ?options? string pattern body ?pattern body ...?` — a flat
+    // (non-braced) form's total count (subject + patterns/bodies) is
+    // always odd; an even count (here 4: subject + 3 more words) leaves
+    // an unpaired trailing pattern with no body (tclsh 8.6.14: `switch $s
+    // a b c` fails "wrong # args").
+    assert_eq!(
+        arity_shape_codes("switch $s a b c\n"),
+        vec!["E005".to_owned()]
+    );
+}
+
+#[test]
+fn switch_flat_pairs_are_silent() {
+    assert_eq!(
+        arity_shape_codes("switch $s a b c d\n"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn switch_single_braced_body_shorthand_is_silent() {
+    // The `also_exact` union member: a single braced blob after the
+    // subject (exactly 2 total args) is the documented shorthand for any
+    // number of pattern/body pairs — never flagged, however many pairs
+    // the braced blob's *content* logically holds.
+    assert_eq!(
+        arity_shape_codes("switch $s {a b c d e f}\n"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn switch_option_skip_does_not_shift_the_parity_check() {
+    // Leading declared options (skipped before the parity check applies)
+    // must not throw off the count `nargs_min` measures against.
+    assert_eq!(
+        arity_shape_codes("switch -exact -- $s a b c\n"),
+        vec!["E005".to_owned()]
+    );
+    assert_eq!(
+        arity_shape_codes("switch -exact -- $s a b c d\n"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn e005_does_not_double_fire_with_e002_or_e003() {
+    // A genuinely too-few / too-many count is E002/E003's job, not
+    // E005's — the shape check only applies once the count is already
+    // within `[min, max]`.
+    assert_eq!(arity_shape_codes("switch $s\n"), vec!["E002".to_owned()]);
+    assert_eq!(arity_shape_codes("foreach x\n"), vec!["E002".to_owned()]);
+}
+
 // Same-file proc / TclOO forward / `interp alias` / `rename` arity
 // (generalises E002/E003 beyond the builtin registry).
 
@@ -1483,6 +1697,89 @@ fn same_file_static_rename_inherits_original_arity() {
 }
 
 #[test]
+fn same_file_rename_reestablished_after_deletion_checks_new_arity() {
+    // `rename target {}` deletes `target` outright, but a fresh `proc
+    // target` afterwards re-establishes the name with its own (here,
+    // different) arity — confirmed against tclsh 9.0.4: `proc target {a
+    // b} {}; rename target {}; proc target {a b c d} {}; target 1 2 3 4`
+    // succeeds, and `target 1 2` fails "wrong # args" against the *new*
+    // 4-arg signature, not the deleted 2-arg one. Before the timestamp
+    // compare (`fact_superseded_by_deletion`), the single stored
+    // `deleted_commands["::target"]` offset made every later call look
+    // permanently dead, silently dropping this diagnostic (FN).
+    let src = "proc target {a b} {}\nrename target {}\nproc target {a b c d} {}\ntarget 1 2\n";
+    assert_eq!(
+        arity_codes(src, "tcl8.6"),
+        vec!["E002".to_owned()],
+        "target was re-established with 4 params after its deletion"
+    );
+    assert_eq!(
+        arity_codes(
+            "proc target {a b} {}\nrename target {}\nproc target {a b c d} {}\ntarget 1 2 3 4\n",
+            "tcl8.6"
+        ),
+        Vec::<String>::new(),
+        "4 args satisfy the re-established signature"
+    );
+    // Still correctly dead when there is no re-establishment at all.
+    assert_eq!(
+        arity_codes(
+            "proc target {a b} {}\nrename target {}\ntarget 1 2\n",
+            "tcl8.6"
+        ),
+        Vec::<String>::new(),
+        "no re-establishment — target stays permanently deleted (TN)"
+    );
+}
+
+#[test]
+fn same_file_rename_target_reestablished_after_further_rename_checks_new_arity() {
+    // `rename target target_orig` moves `target`'s identity onward (like
+    // `same_file_static_rename_inherits_original_arity`), but a *fresh*
+    // `proc target` written afterwards re-establishes `target` itself as
+    // a brand-new, independent command — it must be checked against its
+    // own arity, not treated as still shadowed by the earlier rename.
+    let src = "proc target {a b} {}\nrename target target_orig\nproc target {x} {}\ntarget 1 2\n";
+    assert_eq!(
+        arity_codes(src, "tcl8.6"),
+        vec!["E003".to_owned()],
+        "the re-established target only takes 1 argument"
+    );
+    assert_eq!(
+        arity_codes(
+            "proc target {a b} {}\nrename target target_orig\nproc target {x} {}\ntarget 1\n",
+            "tcl8.6"
+        ),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn same_file_alias_reestablished_after_deletion_checks_new_target_arity() {
+    // `interp alias {} short {} target` then `interp alias {} short {}
+    // {}` deletes the alias outright (tclsh 9.0.4: `short` then fails
+    // "invalid command name"); a fresh `interp alias {} short {}
+    // target2` afterwards re-establishes `short` against a
+    // differently-aritied target — must be checked against `target2`,
+    // not silently dropped as still-deleted.
+    let src = "\
+proc target {a b} {}
+proc target2 {a b c} {}
+interp alias {} short {} target
+interp alias {} short {} {}
+interp alias {} short {} target2
+short 1 2
+";
+    assert_eq!(
+        arity_codes(src, "tcl8.6"),
+        vec!["E002".to_owned()],
+        "short now aliases target2, which needs 3 arguments"
+    );
+    let ok = src.replace("short 1 2\n", "short 1 2 3\n");
+    assert_eq!(arity_codes(&ok, "tcl8.6"), Vec::<String>::new());
+}
+
+#[test]
 fn same_file_dynamic_rename_or_alias_target_does_not_false_positive() {
     // A dynamically-named rename target can't be resolved statically —
     // must never invent a diagnostic.
@@ -1637,6 +1934,41 @@ interp alias {} bar {}
 proc use {} { bar 1 }
 ";
     assert_eq!(arity_codes(src, "tcl8.6"), Vec::<String>::new());
+}
+
+#[test]
+fn same_file_deleted_alias_call_is_unknown_command() {
+    // Regression: the arity resolver already abstains for a call through a
+    // deleted alias (`same_file_deleted_alias_call_does_not_false_positive`
+    // above), but `command_aliases` itself was never pruned on deletion, so
+    // W123 ("unknown command") still treated the deleted name as known —
+    // the call went through completely unchecked, neither an arity
+    // diagnostic nor an unknown-command one. Confirmed against tclsh 9.0.4:
+    // a call through a deleted alias fails "invalid command name".
+    let mut a = Analyser::new();
+    let src = "interp alias {} bar {} puts\ninterp alias {} bar {}\nbar 1\n";
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "a call through a deleted alias must be flagged unknown; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn same_file_redeclared_alias_after_deletion_is_still_known() {
+    // The inverse of the regression above: a name deleted and then
+    // re-declared later in the file must stay known — the re-declaration
+    // wins, exactly as `command_aliases`'s last-write-wins map already
+    // implies for arity resolution.
+    let mut a = Analyser::new();
+    let src = "interp alias {} bar {} puts\ninterp alias {} bar {}\ninterp alias {} bar {} format\nbar 1\n";
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "a re-declared alias must not be flagged unknown; got {:?}",
+        r.diagnostics,
+    );
 }
 
 #[test]
@@ -1834,6 +2166,220 @@ fn w004_silent_on_regsub_command_in_tcl9() {
     );
 }
 
+// --- Shadow suppression: a same-file proc / alias really is what gets
+// called, so the registry builtin's dialect-restricted option no longer
+// applies. Mirrors the E002/E003 arity suppression exactly (same queue,
+// same resolution order).
+
+#[test]
+fn w004_suppressed_when_shadowed_by_user_proc_before_call() {
+    let mut a = Analyser::new();
+    let src = "proc lsearch {l args} { return $l }\nlsearch -stride 2 {a b c d}\n";
+    let result = a.analyse(src, "tcl8.6");
+    assert!(
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "a user proc shadowing lsearch should suppress the builtin's W004, got {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn w004_still_fires_when_shadowing_proc_defined_after_top_level_call() {
+    // Top-level calls run in source order during load; a proc defined
+    // *after* this call hasn't shadowed it yet, so the builtin (and its
+    // W004) is still in effect — same order-gating as arity.
+    let mut a = Analyser::new();
+    let src = "lsearch -stride 2 {a b c d}\nproc lsearch {l args} { return $l }\n";
+    let result = a.analyse(src, "tcl8.6");
+    assert!(
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "expected W004: the builtin is still in effect before the shadowing proc is defined, got {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn w004_suppressed_when_shadowing_proc_defined_after_call_inside_proc_body() {
+    // Inside a proc body, the whole file has already loaded by the time the
+    // body runs, so a later top-level proc definition still shadows.
+    let mut a = Analyser::new();
+    let src =
+        "proc caller {} { lsearch -stride 2 {a b c d} }\nproc lsearch {l args} { return $l }\n";
+    let result = a.analyse(src, "tcl8.6");
+    assert!(
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "a proc-body call resolves after full-file load, so the later proc \
+definition should still suppress W004, got {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn w004_suppressed_when_shadowed_by_namespaced_proc_called_unqualified() {
+    // The shadowing proc is `::myns::lsearch`; the call inside the same
+    // namespace resolves current-namespace-first, exactly like arity's
+    // namespace resolution — not just a global `::lsearch` check.
+    let mut a = Analyser::new();
+    let src = "namespace eval myns {\n    proc lsearch {l args} { return $l }\n    lsearch -stride 2 {a b c d}\n}\n";
+    let result = a.analyse(src, "tcl8.6");
+    assert!(
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "a namespaced proc shadowing lsearch, called unqualified inside its \
+own namespace, should suppress W004, got {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn w004_suppressed_when_command_aliased_to_user_proc() {
+    let mut a = Analyser::new();
+    let src = "proc mylsearch {l args} { return $l }\ninterp alias {} lsearch {} mylsearch\nlsearch -stride 2 {a b c d}\n";
+    let result = a.analyse(src, "tcl8.6");
+    assert!(
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "lsearch aliased to a user proc should suppress the builtin's W004, got {:?}",
+        result.diagnostics
+    );
+}
+
+// --- Abbreviated-subcommand resolution: W004 now shares the registry's
+// unique-prefix subcommand resolver instead of a hand-rolled exact-name
+// match, so a legal Tcl ensemble abbreviation is still checked.
+
+#[test]
+fn w004_fires_on_abbreviated_chan_configure_inputmode() {
+    // `configure` is `chan`'s only subcommand starting with `conf`, so real
+    // Tcl ensemble dispatch accepts the abbreviation.
+    let mut a = Analyser::new();
+    let result = a.analyse("chan conf $chan -inputmode raw", "tcl8.6");
+    assert!(
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "expected W004 on the abbreviated 'chan conf -inputmode', got {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn w004_abstains_on_dynamic_subcommand() {
+    for snippet in [
+        "chan $sub -inputmode raw $chan",
+        "chan [x] -inputmode raw $chan",
+    ] {
+        let mut a = Analyser::new();
+        let result = a.analyse(snippet, "tcl8.6");
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+            "unexpected W004 for dynamic subcommand {snippet:?}: {:?}",
+            result.diagnostics
+        );
+    }
+}
+
+#[test]
+fn w004_abstains_on_expanded_subcommand_word() {
+    let mut a = Analyser::new();
+    let result = a.analyse("chan {*}$sub -inputmode raw $chan", "tcl8.6");
+    assert!(
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "unexpected W004 for a `{{*}}`-expanded subcommand word: {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn w004_abstains_on_ambiguous_subcommand_prefix() {
+    // `p` is ambiguous between `pending` / `pipe` / `pop` / `push` / `puts`
+    // on `chan` — resolution must abstain rather than guess (and rather
+    // than falling back to `chan`'s own unrelated top-level option table).
+    let mut a = Analyser::new();
+    let result = a.analyse("chan p $chan -inputmode raw", "tcl8.6");
+    assert!(
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "unexpected W004 for an ambiguous subcommand prefix: {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn w004_abstains_on_unknown_subcommand_instead_of_scanning_parent_options() {
+    let mut a = Analyser::new();
+    let result = a.analyse("chan bogus $chan -inputmode raw", "tcl8.6");
+    assert!(
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "unexpected W004 for an unknown chan subcommand: {:?}",
+        result.diagnostics
+    );
+}
+
+// --- Quick fix: "Remove '-option'" deletes the flag and its value word(s).
+
+#[test]
+fn w004_fix_removes_option_and_its_value() {
+    let mut a = Analyser::new();
+    let src = "lsearch -stride 2 {a b c d} b";
+    let result = a.analyse(src, "tcl8.6");
+    let w004: Vec<&Diagnostic> = result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W004)
+        .collect();
+    assert_eq!(w004.len(), 1, "{:?}", result.diagnostics);
+    let fix = w004[0]
+        .fixes
+        .first()
+        .expect("W004 should carry a remove-option fix");
+    assert_eq!(fix.new_text, "");
+    assert!(fix.description.contains("-stride"), "{:?}", fix.description);
+    let mut applied = src.to_string();
+    applied.replace_range(fix.span.start() as usize..fix.span.end() as usize, "");
+    assert_eq!(applied, "lsearch {a b c d} b");
+}
+
+#[test]
+fn w004_fix_removes_option_and_value_at_end_of_command() {
+    let mut a = Analyser::new();
+    let src = "lsearch -stride 2";
+    let result = a.analyse(src, "tcl8.6");
+    let w004: Vec<&Diagnostic> = result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W004)
+        .collect();
+    assert_eq!(w004.len(), 1, "{:?}", result.diagnostics);
+    let fix = w004[0].fixes.first().expect("fix");
+    let mut applied = src.to_string();
+    applied.replace_range(fix.span.start() as usize..fix.span.end() as usize, "");
+    // No following argument to extend through, so one separator remains
+    // before the deleted range — cosmetic only (Tcl treats runs of
+    // whitespace between words identically).
+    assert_eq!(applied.trim_end(), "lsearch");
+}
+
+#[test]
+fn w004_fix_handles_braced_option_token_without_stray_closer() {
+    // A braced flag/value (`{-stride}`) is a legal, if unusual, way to write
+    // the same word; the fix must delete the whole wrapped token — never
+    // leaving a stray `}` behind (kcs-issue-highlight-drops-closing-delimiter).
+    let mut a = Analyser::new();
+    let src = "lsearch {-stride} 2 {a b} x";
+    let result = a.analyse(src, "tcl8.6");
+    let w004: Vec<&Diagnostic> = result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W004)
+        .collect();
+    assert_eq!(w004.len(), 1, "{:?}", result.diagnostics);
+    let fix = w004[0].fixes.first().expect("fix");
+    let mut applied = src.to_string();
+    applied.replace_range(fix.span.start() as usize..fix.span.end() as usize, "");
+    assert_eq!(applied, "lsearch {a b} x");
+    assert_eq!(
+        applied.matches('{').count(),
+        applied.matches('}').count(),
+        "braces must stay balanced: {applied:?}"
+    );
+}
+
 #[test]
 fn w003_fires_on_string_compare_in_tcl84() {
     // `lt` / `le` / `gt` / `ge` are Tcl 9.0+ (TIP 461); on
@@ -1930,6 +2476,343 @@ fn w003_silent_on_in_operator_in_tcl85() {
     );
 }
 
+/// Every W003 diagnostic for `src` analysed under `dialect`, alongside
+/// the exact source substring its span covers — the tight-highlight
+/// assertions below check that text directly rather than trusting
+/// hand-computed byte offsets.
+fn w003_hits(src: &str, dialect: &str) -> Vec<(String, Diagnostic)> {
+    let mut a = Analyser::new();
+    let result = a.analyse(src, dialect);
+    result
+        .diagnostics
+        .into_iter()
+        .filter(|d| d.code == DiagCode::W003)
+        .map(|d| {
+            let text = src[d.span.start() as usize..d.span.end() as usize].to_string();
+            (text, d)
+        })
+        .collect()
+}
+
+#[test]
+fn w003_tight_span_covers_only_the_operator_in_a_braced_if() {
+    // The whole condition is `$x lt $y` (11 chars); the diagnostic must
+    // highlight just the 2-byte `lt`, not the condition or the `if`.
+    let hits = w003_hits("if {$x lt $y} { puts hi }", "tcl8.4");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert_eq!(hits[0].0, "lt");
+}
+
+#[test]
+fn w003_tight_span_covers_only_the_operator_in_bare_expr() {
+    let hits = w003_hits("expr {2 in {1 2 3}}", "tcl8.4");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert_eq!(hits[0].0, "in");
+}
+
+#[test]
+fn w003_distinct_operators_each_get_their_own_tight_span() {
+    // Two *different* gated operators in one expression used to collapse
+    // onto one coarse diagnostic covering the whole condition; each must
+    // now get its own diagnostic at its own span.
+    let hits = w003_hits("if {$a lt $b && $c in $d} { puts hi }", "tcl8.4");
+    let mut texts: Vec<&str> = hits.iter().map(|(t, _)| t.as_str()).collect();
+    texts.sort_unstable();
+    assert_eq!(texts, vec!["in", "lt"], "{hits:?}");
+    // The two spans must not overlap.
+    assert_ne!(hits[0].1.span, hits[1].1.span);
+}
+
+#[test]
+fn w003_repeated_same_operator_gets_a_diagnostic_per_occurrence() {
+    let hits = w003_hits("if {$a in $b && $c in $d} { puts hi }", "tcl8.4");
+    assert_eq!(hits.len(), 2, "{hits:?}");
+    assert_eq!(hits[0].0, "in");
+    assert_eq!(hits[1].0, "in");
+    // Same text, but must anchor at two different source positions.
+    assert_ne!(hits[0].1.span.start(), hits[1].1.span.start());
+}
+
+#[test]
+fn w003_message_cites_the_relevant_tip() {
+    let hits = w003_hits("expr {2 in {1 2 3}}", "tcl8.4");
+    assert_eq!(hits.len(), 1);
+    assert!(
+        hits[0].1.message.contains("TIP 201"),
+        "{}",
+        hits[0].1.message
+    );
+    let hits = w003_hits("if {$x lt $y} { puts hi }", "tcl8.4");
+    assert_eq!(hits.len(), 1);
+    assert!(
+        hits[0].1.message.contains("TIP 461"),
+        "{}",
+        hits[0].1.message
+    );
+}
+
+#[test]
+fn w003_fires_on_all_six_gated_operators_pre_availability() {
+    // `ni`/`le`/`gt`/`ge` were only ever exercised indirectly before
+    // (only `lt` and `in` had a dedicated test); cover the full set.
+    for (src, op) in [
+        ("if {$x ni {a b c}} { puts hi }", "ni"),
+        ("if {$x le $y} { puts hi }", "le"),
+        ("if {$x gt $y} { puts hi }", "gt"),
+        ("if {$x ge $y} { puts hi }", "ge"),
+    ] {
+        let hits = w003_hits(src, "tcl8.4");
+        assert_eq!(hits.len(), 1, "{src}: {hits:?}");
+        assert_eq!(hits[0].0, op, "{src}");
+    }
+}
+
+#[test]
+fn w003_silent_on_ni_le_gt_ge_when_dialect_supports_them() {
+    // `ni` only needs 8.5+; `le`/`gt`/`ge` need 9.0+.
+    assert!(w003_hits("if {$x ni {a b c}} { puts hi }", "tcl8.5").is_empty());
+    for src in [
+        "if {$x le $y} { puts hi }",
+        "if {$x gt $y} { puts hi }",
+        "if {$x ge $y} { puts hi }",
+    ] {
+        assert!(w003_hits(src, "tcl9.0").is_empty(), "{src}");
+        assert!(w003_hits(src, "tcl8.5").len() == 1, "{src}");
+    }
+}
+
+#[test]
+fn w003_fires_on_unbraced_multiword_expr_at_a_tight_span() {
+    // `expr` is the only EXPR-role command that accepts an unbraced,
+    // multi-word expression; the gated keyword is its own Tcl word, so
+    // this exercises the separate `emit_w003_dialect_invalid_expr_words`
+    // path rather than the single-argument one above.
+    let hits = w003_hits("expr $a in $b", "tcl8.4");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert_eq!(hits[0].0, "in");
+    // No fix is offered for this shape (see doc comment on the emitter).
+    assert!(hits[0].1.fixes.is_empty());
+}
+
+#[test]
+fn w003_offers_lsearch_fix_for_in() {
+    let hits = w003_hits("expr {2 in {1 2 3}}", "tcl8.4");
+    assert_eq!(hits.len(), 1);
+    let fixes = &hits[0].1.fixes;
+    assert_eq!(fixes.len(), 1, "{fixes:?}");
+    assert_eq!(fixes[0].new_text, "([lsearch -exact {1 2 3} 2] >= 0)");
+}
+
+#[test]
+fn w003_offers_lsearch_fix_for_ni() {
+    let hits = w003_hits("expr {2 ni {1 2 3}}", "tcl8.4");
+    assert_eq!(hits.len(), 1);
+    let fixes = &hits[0].1.fixes;
+    assert_eq!(fixes.len(), 1, "{fixes:?}");
+    assert_eq!(fixes[0].new_text, "([lsearch -exact {1 2 3} 2] < 0)");
+}
+
+#[test]
+fn w003_offers_string_compare_fix_for_string_relational_ops() {
+    for (src, expect) in [
+        ("if {$x lt $y} { puts hi }", "([string compare $x $y] < 0)"),
+        ("if {$x le $y} { puts hi }", "([string compare $x $y] <= 0)"),
+        ("if {$x gt $y} { puts hi }", "([string compare $x $y] > 0)"),
+        ("if {$x ge $y} { puts hi }", "([string compare $x $y] >= 0)"),
+    ] {
+        let hits = w003_hits(src, "tcl8.4");
+        assert_eq!(hits.len(), 1, "{src}");
+        let fixes = &hits[0].1.fixes;
+        assert_eq!(fixes.len(), 1, "{src}: {fixes:?}");
+        assert_eq!(fixes[0].new_text, expect, "{src}");
+    }
+}
+
+#[test]
+fn w003_fix_span_replaces_exactly_the_gated_application() {
+    let src = "expr {2 in {1 2 3}}";
+    let hits = w003_hits(src, "tcl8.4");
+    let fix = &hits[0].1.fixes[0];
+    assert_eq!(
+        &src[fix.span.start() as usize..fix.span.end() as usize],
+        "2 in {1 2 3}"
+    );
+}
+
+#[test]
+fn w003_no_fix_when_operator_nested_in_a_larger_expression() {
+    // Only `in` is gated here (`&&` is fine everywhere); it is the sole
+    // W003 occurrence, but it is not the *whole* condition — rewriting
+    // just the `in` sub-expression while leaving `&& $c` around it is
+    // exactly the "nested" shape the fix deliberately declines.
+    let hits = w003_hits("if {$a in $b && $c} { puts hi }", "tcl8.4");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert!(hits[0].1.fixes.is_empty());
+}
+
+#[test]
+fn w003_no_fix_when_more_than_one_occurrence() {
+    let hits = w003_hits("if {$a lt $b && $c in $d} { puts hi }", "tcl8.4");
+    assert_eq!(hits.len(), 2);
+    assert!(hits[0].1.fixes.is_empty());
+    assert!(hits[1].1.fixes.is_empty());
+}
+
+#[test]
+fn w003_no_fix_when_operand_is_a_call() {
+    // `max($a, $b)` contains an unprotected space after the comma —
+    // splicing its rendered text bare into `lsearch`'s argument list
+    // would silently mis-word-split, so `is_simple_operand` excludes
+    // `Call` and no fix is offered even though this is the sole,
+    // top-level occurrence.
+    let hits = w003_hits("expr {max($a, $b) in $list}", "tcl8.4");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert!(hits[0].1.fixes.is_empty());
+}
+
+#[test]
+fn w003_silent_on_variable_named_like_a_gated_operator() {
+    // `$in` is a variable reference, not the `in` operator — the
+    // lexical prefilter alone can't tell the two apart, but the real
+    // expr parse must.
+    assert!(w003_hits("if {$in} { puts hi }", "tcl8.4").is_empty());
+    assert!(w003_hits("if {$ni && $lt} { puts hi }", "tcl8.4").is_empty());
+}
+
+#[test]
+fn w003_silent_on_array_element_named_like_a_gated_operator() {
+    assert!(w003_hits("if {$arr(in)} { puts hi }", "tcl8.4").is_empty());
+}
+
+#[test]
+fn w003_silent_on_quoted_string_literal_operator_word() {
+    // `"in"` is a quoted string literal, not the bareword operator.
+    let hits = w003_hits(r#"if {"in" eq $x} { puts hi }"#, "tcl8.4");
+    assert!(hits.is_empty(), "{hits:?}");
+}
+
+#[test]
+fn w003_silent_on_malformed_expression() {
+    // `lt` with no right-hand operand doesn't parse — `parse_expr`
+    // falls back to `Raw`, so W003 must stay silent rather than guess.
+    assert!(w003_hits("if {$x lt} { puts hi }", "tcl8.4").is_empty());
+}
+
+#[test]
+fn w003_dialect_is_file_wide_regardless_of_namespace_or_proc_nesting() {
+    // The active dialect is resolved once per file/analysis, not
+    // per-scope — a gated operator inside a deeply nested proc body
+    // must still be flagged.
+    let src = "namespace eval ::foo {\n  proc bar {} {\n    if {$x in $y} { return 1 }\n  }\n}\n";
+    let hits = w003_hits(src, "tcl8.4");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert_eq!(hits[0].0, "in");
+}
+
+#[test]
+fn w003_fires_inside_a_tcl_oo_method_body() {
+    let src = "oo::class create Foo {\n  method bar {} {\n    if {$x in $y} { return 1 }\n  }\n}\n";
+    let hits = w003_hits(src, "tcl8.4");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert_eq!(hits[0].0, "in");
+}
+
+#[test]
+fn w003_fires_inside_a_sub_interpreter_eval_body() {
+    // `interp eval`'s script argument is a registry BODY role, so it is
+    // walked like any other nested script. Static analysis can't know
+    // the sub-interpreter's own Tcl version, so it reasonably applies
+    // the enclosing file's dialect uniformly.
+    let src = "interp eval $safeInterp {\n  if {$x in $y} { return 1 }\n}\n";
+    let hits = w003_hits(src, "tcl8.4");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+}
+
+#[test]
+fn w003_suppressed_by_an_earlier_proc_shadowing_if() {
+    // A user `proc if {...} {...}` defined *before* the call site
+    // resolves at the call site instead of the builtin `::if` — Tcl's
+    // own name resolution, mirrored by W002's existing shadow rule and
+    // now shared by the EXPR-role dispatch (W100/W110/W003/W114 all at
+    // once, via `dispatch_expr_arguments`'s shadow guard).
+    let src = "proc if {c b} { return 1 }\nif {$x in $y} { puts hi }\n";
+    assert!(
+        w003_hits(src, "tcl8.4").is_empty(),
+        "shadowed 'if' must suppress W003"
+    );
+}
+
+#[test]
+fn w003_not_suppressed_by_a_later_proc_shadowing_if() {
+    // The shadowing proc is defined *after* this call site, so it
+    // cannot have been in effect when Tcl resolved this particular
+    // call — W003 must still fire here.
+    let src = "if {$x in $y} { puts hi }\nproc if {c b} { return 1 }\n";
+    assert_eq!(w003_hits(src, "tcl8.4").len(), 1);
+}
+
+#[test]
+fn w003_correctly_gates_eda_vendor_dialects_by_documented_base_version() {
+    // Regression for the registry fix (`DialectSet::expr_grammar_base_version`):
+    // these vendor dialects are documented as running on top of a real
+    // Tcl 8.5+ core (`docs/design/compiler/dialects-events.md`), so
+    // `in`/`ni` (TIP 201, 8.5+) must NOT be flagged for them — the old
+    // `DialectSet::TCL85_PLUS` check excluded them entirely and
+    // over-fired.
+    for dialect in [
+        "f5-iapps",
+        "xilinx-eda-tcl",
+        "intel-quartus-eda-tcl",
+        "mentor-eda-tcl",
+        "synopsys-eda-tcl",
+        "cadence-eda-tcl",
+        "expect",
+    ] {
+        assert!(
+            w003_hits("expr {2 in {1 2 3}}", dialect).is_empty(),
+            "{dialect} should support TIP 201 'in'"
+        );
+    }
+    // None of them reach Tcl 9.0, so the string-relational operators
+    // are still correctly flagged.
+    for dialect in [
+        "f5-iapps",
+        "xilinx-eda-tcl",
+        "intel-quartus-eda-tcl",
+        "mentor-eda-tcl",
+        "synopsys-eda-tcl",
+        "cadence-eda-tcl",
+        "expect",
+    ] {
+        assert_eq!(
+            w003_hits("if {$x lt $y} { puts hi }", dialect).len(),
+            1,
+            "{dialect} should still gate TIP 461 'lt'"
+        );
+    }
+}
+
+#[test]
+fn w003_f5_irules_stays_gated_on_its_tcl_8_4_runtime() {
+    // iRules advertises an 8.6-shaped command *signature* but its
+    // runtime `expr` evaluator is a genuine embedded Tcl 8.4.6 — both
+    // TIPs must be flagged, unlike the 8.5-base vendor dialects above.
+    assert_eq!(w003_hits("expr {2 in {1 2 3}}", "f5-irules").len(), 1);
+    assert_eq!(w003_hits("if {$x lt $y} { puts hi }", "f5-irules").len(), 1);
+}
+
+#[test]
+fn w003_f5_tmsh_now_gates_tip_461_but_not_tip_201() {
+    // Regression: `f5-tmsh` had no `DialectSet` bit at all, so
+    // `DialectSet::parse` returned `None` and W003 silently never fired
+    // for it — a false negative on its documented Tcl 8.5 base for
+    // `lt`/`le`/`gt`/`ge`. `expr_grammar_base_version` fixes this
+    // without touching `DialectSet::parse`'s existing per-command
+    // dialect-gating semantics.
+    assert!(w003_hits("expr {2 in {1 2 3}}", "f5-tmsh").is_empty());
+    assert_eq!(w003_hits("if {$x lt $y} { puts hi }", "f5-tmsh").len(), 1);
+}
+
 #[test]
 fn emit_variable_usage_diagnostics_is_a_noop() {
     // Hook is intentionally empty — running it must leave
@@ -1995,10 +2878,17 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                 "tcl",
                 &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
                     // Key + build mirror the db's `function_lattice` query,
-                    // including the whole-unit `known_classes` fingerprint.
+                    // including the whole-unit `known_classes` /
+                    // `traced_variables` fingerprints.
                     let key = format!(
-                        "{}\u{0}{:?}\u{0}{:?}\u{0}{:?}\u{0}{:?}",
-                        req.qname, req.body, req.params, req.param_constants, req.known_classes
+                        "{}\u{0}{:?}\u{0}{:?}\u{0}{:?}\u{0}{:?}\u{0}{:?}\u{0}{:?}",
+                        req.qname,
+                        req.body,
+                        req.params,
+                        req.param_constants,
+                        req.known_classes,
+                        req.traced_variables,
+                        req.has_dynamic_variable_trace,
                     );
                     if let Some(fu) = cache.get(&key) {
                         return fu.clone();
@@ -2014,6 +2904,12 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                     let pc = crate::compilation_unit::decode_param_constants(req.param_constants);
                     let known_classes: std::collections::HashSet<String> =
                         req.known_classes.iter().cloned().collect();
+                    let traced_variables: std::collections::BTreeSet<String> =
+                        req.traced_variables.iter().cloned().collect();
+                    let trace_facts = crate::compilation_unit::ModuleTraceFacts {
+                        traced_variables: &traced_variables,
+                        has_dynamic_variable_trace: req.has_dynamic_variable_trace,
+                    };
                     let fu = FunctionUnit::build_with_param_constants_and_classes(
                         req.qname,
                         cfg,
@@ -2021,7 +2917,7 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                         &registry,
                         pc.as_ref(),
                         &known_classes,
-                        Some(req.module_traces),
+                        trace_facts,
                     );
                     cache.insert(key, fu.clone());
                     fu
@@ -3843,6 +4739,58 @@ fn tcloo_constructor_create_arity_accounts_for_mandatory_name() {
 }
 
 #[test]
+fn tcloo_constructor_createwithnamespace_arity_accounts_for_two_mandatory_words() {
+    // `createWithNamespace` consumes two mandatory words (the object name
+    // and the target namespace) ahead of the constructor's own
+    // parameters — same word layout as the sibling class-*definition*
+    // shape `oo::class createWithNamespace Name ::ns body` (see
+    // `oo_class_arg_roles`), just with constructor args standing in for
+    // the definition body. Unlike `new`/`create`, `createWithNamespace` is
+    // unexported by default (confirmed against `runtime/rust/src/cmd_oo.rs`'s
+    // `oo_class_factory`), so the class must `export` it for an external
+    // call to even reach the constructor — see the companion
+    // `..._is_not_checked_when_not_exported` test for the unexported case.
+    let src = |call: &str| {
+        format!(
+            "oo::class create Widget {{ constructor {{a b}} {{ }}; export createWithNamespace }}\n{call}\n"
+        )
+    };
+    assert_eq!(
+        e00x_codes_for(&src("Widget createWithNamespace fido ::ns 1")),
+        vec!["E002".to_owned()]
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget createWithNamespace fido ::ns 1 2")),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget createWithNamespace fido ::ns 1 2 3")),
+        vec!["E003".to_owned()]
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget createWithNamespace fido ::ns")),
+        vec!["E002".to_owned()],
+        "the mandatory object-name and namespace words themselves must be enforced"
+    );
+}
+
+#[test]
+fn tcloo_constructor_createwithnamespace_is_not_checked_when_not_exported() {
+    // `createWithNamespace` is unexported by default (confirmed against
+    // `runtime/rust/src/cmd_oo.rs`'s `oo_class_factory`: `cwn_ok =
+    // !block_unexported || cwn_exp`) — an external call to a class that
+    // never `export`s it raises "unknown method" at run time and never
+    // reaches the constructor, so it must not be arity-checked. This is
+    // the false positive Codex flagged on the companion test above before
+    // the `cd.exports` gate was added.
+    let src = "\
+oo::class create Widget { constructor {a b} { } }
+Widget createWithNamespace fido ::ns 1
+";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
 fn tcloo_constructor_arity_is_inherited_through_superclass() {
     // `Sub` declares no constructor of its own — `Base`'s is inherited
     // (confirmed against tclsh 9.0.4: a subclass with no `constructor`
@@ -3876,6 +4824,37 @@ fn tcloo_no_explicit_constructor_anywhere_is_never_arity_checked() {
     // `oo::class create Foo {}` then `Foo new 1 2 3` succeeds.
     let src = "oo::class create Widget { method bar {} { } }\nWidget new 1 2 3 4 5\n";
     assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_create_mandatory_name_is_checked_even_without_a_constructor() {
+    // Regression: a class with no explicit constructor anywhere in its MRO
+    // used to abstain from arity-checking `create` entirely, not just the
+    // constructor's own (unconstrained) parameters. `create`'s mandatory
+    // leading object-name word is enforced by the dispatcher itself,
+    // independent of the constructor -- confirmed against tclsh 9.0.4:
+    // `oo::class create Foo {}` then `Foo create` (no name) still raises
+    // "wrong # args", even though any number of trailing args succeeds.
+    let src = |call: &str| format!("oo::class create Widget {{ method bar {{}} {{ }} }}\n{call}\n");
+    assert_eq!(
+        e00x_codes_for(&src("Widget create")),
+        vec!["E002".to_owned()],
+        "the mandatory object-name word must still be enforced"
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget create fido")),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget create fido 1 2 3 4 5")),
+        Vec::<String>::new(),
+        "the unconstrained default constructor still accepts any trailing args"
+    );
+    assert_eq!(
+        e00x_codes_for(&src("Widget new")),
+        Vec::<String>::new(),
+        "`new` has no mandatory name word, so it stays unchecked as before"
+    );
 }
 
 #[test]
@@ -4036,6 +5015,130 @@ fn tcloo_constructor_arity_top_level_before_class_definition_abstains() {
     let src = "\
 Widget new 1
 oo::class create Widget { constructor {a b} { } }
+";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+// -- TclOO `next` / `nextto` call-site arity
+
+#[test]
+fn tcloo_next_arity_checked_against_superclass_override() {
+    // `next` inside `Derived::speak` invokes `Base::speak` — a 2-param
+    // method, so `next` itself needs exactly 2 arguments — confirmed
+    // against tclsh 9.0.4.
+    let src = |call: &str| {
+        format!(
+            "oo::class create Base {{ method speak {{a b}} {{ return \"$a$b\" }} }}\n\
+             oo::class create Derived {{\n\
+               superclass Base\n\
+               method speak {{a b}} {{ {call} }}\n\
+             }}\n\
+             [Derived new] speak x y\n"
+        )
+    };
+    assert_eq!(e00x_codes_for(&src("next 1")), vec!["E002".to_owned()]);
+    assert_eq!(e00x_codes_for(&src("next 1 2")), Vec::<String>::new());
+    assert_eq!(e00x_codes_for(&src("next 1 2 3")), vec!["E003".to_owned()]);
+}
+
+#[test]
+fn tcloo_nextto_arity_checked_against_named_target() {
+    // `nextto Root` jumps straight to `Root::speak` (1 param) rather than
+    // walking the MRO from `Derived`, skipping `Mid` — confirmed against
+    // tclsh 9.0.4.
+    let src = |call: &str| {
+        format!(
+            "oo::class create Root {{ method speak {{a}} {{ return $a }} }}\n\
+             oo::class create Mid {{ superclass Root\n method speak {{a b}} {{ return \"$a$b\" }} }}\n\
+             oo::class create Derived {{\n\
+               superclass Mid\n\
+               method speak {{a b}} {{ {call} }}\n\
+             }}\n\
+             [Derived new] speak x y\n"
+        )
+    };
+    assert_eq!(
+        e00x_codes_for(&src("nextto Root 1 2")),
+        vec!["E003".to_owned()]
+    );
+    assert_eq!(e00x_codes_for(&src("nextto Root 1")), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_next_arity_silent_when_no_further_provider() {
+    // `Base` declares no superclass override of `speak` — `next` here
+    // has no provider to resolve arity against (a real `next` in this
+    // position is itself a runtime error, "no next" — not an arity
+    // mismatch this check models). Must not invent E002/E003 either way.
+    let src =
+        "oo::class create Base { method speak {a b} { next 1 2 3 4 5 } }\n[Base new] speak x y\n";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_next_arity_silent_outside_method_body() {
+    // A bareword `next` at top level (or inside an ordinary proc) is not
+    // inside any method's calling frame — confirmed against tclsh 9.0.4:
+    // it fails "next may only be called from inside a method", not an
+    // arity mismatch. `current_method_context` returns `None`, so the
+    // candidate is dropped, not checked against some unrelated method.
+    let src = "\
+oo::class create Base { method speak {a b} { return \"$a$b\" } }
+proc helper {} { next 1 2 3 4 5 }
+helper
+";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_nextto_arity_silent_for_unresolvable_target_class() {
+    // `nextto` naming a class the analyser doesn't locally know (an
+    // external / cross-file / dynamically-loaded class) must abstain
+    // rather than guess.
+    let src = "\
+oo::class create Base { method speak {a b} { next 1 2 } }
+oo::class create Derived {
+    superclass Base
+    method speak {a b} { nextto SomeExternalClass 1 2 3 }
+}
+[Derived new] speak x y
+";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_next_arity_expansion_never_false_fires_too_few() {
+    // `{*}`-expanded args make the true count a lower bound only — must
+    // never false-fire E002, matching every other arity check's
+    // `{*}`-expansion convention.
+    let src = "\
+oo::class create Base { method speak {a b} { return \"$a$b\" } }
+oo::class create Derived {
+    superclass Base
+    method speak {a b} { set rest {1}; next {*}$rest }
+}
+[Derived new] speak x y
+";
+    assert_eq!(e00x_codes_for(src), Vec::<String>::new());
+}
+
+#[test]
+fn tcloo_next_arity_trait_bit_does_not_collide_with_structurally_checked_arity() {
+    // Regression: `Traits::TCLOO_NEXT_CHAIN` once reused the same bit as
+    // `Traits::STRUCTURALLY_CHECKED_ARITY`, so every command carrying the
+    // latter (e.g. `if`) was also seen as carrying the former. An ordinary
+    // `if` inside a TclOO method body would then get queued as a bogus
+    // next/nextto arity candidate and checked against the superclass
+    // override's arity — here `Base::speak` takes 5 params, so a
+    // 2-argument `if $a {puts hi}` would misfire E002 ("too few
+    // arguments") if the collision were still present.
+    let src = "\
+oo::class create Base { method speak {a b c d e} { return $a } }
+oo::class create Derived {
+    superclass Base
+    method speak {a b c d e} { if {$a} { puts hi } }
+}
+[Derived new] speak 1 2 3 4 5
 ";
     assert_eq!(e00x_codes_for(src), Vec::<String>::new());
 }
@@ -5198,6 +6301,7 @@ fn analyse_w123_package_require_gate_suppresses_when_recorded() {
             resolved_qualified_name: None,
             argc: Some(0),
             callback_arity: None,
+            callback_baked_args: 0,
         });
     let registry = tcl_registry::CommandRegistry::build_default();
     a.emit_unresolved_command_diagnostics(&registry);

@@ -6,6 +6,17 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [main, rust]
+  # Manual escape hatch: if a PR's initial `pull_request: opened` webhook
+  # is ever dropped by GitHub (rare, but has happened — no runs show up
+  # for the branch at all, not even a queued/pending one), this lets a
+  # maintainer kick off the same CI graph from the Actions tab instead of
+  # having to push a throwaway commit just to re-send the event.
+  #
+  # NOTE: workflow_dispatch lets you pick any ref, tags included, and every
+  # release/publish job is gated on `startsWith(github.ref, 'refs/tags/v')`.
+  # Dispatching against a `v*` tag therefore re-runs create-release and the
+  # marketplace publishes. Dispatch against a branch unless you mean that.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -90,6 +101,47 @@ jobs:
           cargo clippy --workspace --all-targets -- -D warnings
           make xtask-check
 
+  # Build the native tcl-lsp-server release binary ONCE and share it via
+  # artifact with every job that just needs to *run* it rather than build it
+  # (currently test-ext).  The `--release` profile (opt-level 3, thin LTO, one
+  # codegen unit) is the slow part of test-ext (~3 of its ~6 minutes) — a
+  # dedicated, minimal job that does nothing but build + upload lets test-ext
+  # skip that compile entirely instead of duplicating it inline.  Always runs
+  # (no channel skip): test-ext's own *consumption* step is still
+  # channel-skipped for pre-release tags, same as before.
+  #
+  # Deliberately NOT shared with lsp-e2e: that job builds `tcl-lsp-server` in
+  # cargo's default debug profile (via `CARGO_BIN_EXE_tcl-lsp-server`, resolved
+  # at compile time) and runs fully in parallel with everything else today.
+  # It would still have to compile its own debug e2e test binaries regardless
+  # of which server binary they exec, so depending on this job would only add
+  # this build's wall-clock to lsp-e2e's critical path for no compile-time
+  # saved — a real slowdown in exchange for release-profile-only coverage,
+  # not a speed win, so left alone.
+  build-tcl-lsp-server:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          toolchain: stable
+          cache-key: build-tcl-lsp-server
+
+      - name: Build tcl-lsp-server (release)
+        run: cargo build -p tcl-lsp-server --release
+
+      - name: Upload tcl-lsp-server binary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tcl-lsp-server-release
+          path: target/release/tcl-lsp-server
+          if-no-files-found: error
+          retention-days: 1
+
   # VS Code extension tests: Node.js + xvfb driving the VS Code test host
   # against the native server.  A distinct, heavier stack than the cargo
   # surfaces, so it reports as its own status check and runs concurrently with
@@ -97,8 +149,11 @@ jobs:
   test-ext:
     # For pre-release (odd-minor 2.x) tags the test STEP is skipped (below)
     # while the job still succeeds, so the release graph is not transitively
-    # skipped; those tags are gated by the cargo jobs.
-    needs: [channel]
+    # skipped; those tags are gated by the cargo jobs.  build-tcl-lsp-server
+    # has no channel skip of its own (see its comment), so it always builds —
+    # wasted on a pre-release tag, but that's a rare path, not the everyday
+    # PR/push loop this dependency exists to speed up.
+    needs: [channel, build-tcl-lsp-server]
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -106,9 +161,9 @@ jobs:
           fetch-depth: 1
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-      # `make test-ext` builds the native tcl-lsp-server (rust-server) and drives
-      # the VS Code test host against it — no Python.  Set up the Rust toolchain
-      # (fmt/clippy not needed here) plus the Swatinem cache.
+      # `make test-ext` still needs `cargo` for `xtask-gen-zed-queries` /
+      # `zed-query-check` (generated Zed asset drift), even though the
+      # `tcl-lsp-server` binary itself now comes from build-tcl-lsp-server.
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
         with:
@@ -162,10 +217,26 @@ jobs:
       - name: Compile TypeScript
         run: cd editors/vscode && npx tsc -p ./
 
+      # Replaces the `make rust-server` build `make test-ext` would otherwise
+      # run inline: build-tcl-lsp-server already built this exact binary, so
+      # fetch it instead of compiling a second copy.
+      - name: Download tcl-lsp-server binary
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: tcl-lsp-server-release
+          path: target/release
+
+      - name: Make tcl-lsp-server binary executable
+        run: chmod +x target/release/tcl-lsp-server
+
       - name: Run extension tests
         # Skipped for pre-release (rust-line) tags; the job still succeeds so the
         # release graph stays unbroken.  See the job comment + channel job.
         if: needs.channel.outputs.prerelease != 'true'
+        # Pre-set so `make test-ext` honours it and skips its own
+        # `make rust-server` build (see the Makefile recipe's comment).
+        env:
+          TCL_LSP_SERVER_BIN: ${{ github.workspace }}/target/release/tcl-lsp-server
         run: make test-ext
 
   # Rust product gate.  ci.yml triggers on both `main` and `rust`, so one
@@ -468,7 +539,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu gcc-riscv64-linux-gnu qemu-user
 
+      # Stamp the release version into every user-facing binary. The
+      # tcl-version crate prefers this over `git describe`; without it a tag
+      # build would still be correct, but this avoids depending on the checkout
+      # having tags fetched.
       - name: Cross-compile native binaries (server + mcp + CLIs)
+        env:
+          TCL_LSP_VERSION: ${{ github.ref_name }}
         shell: bash
         run: |
           set -euo pipefail

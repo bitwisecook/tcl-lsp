@@ -34,6 +34,7 @@ use crate::forms::CommandForm;
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
 use crate::traits::Traits;
+use crate::types::VarWriteTyping;
 
 /// Resolved metadata for an iRules event — the result of
 /// [`CommandRegistry::event_info`].
@@ -323,13 +324,13 @@ impl CommandRegistry {
     /// Whether this registry's dialect reads a bare leading-zero integer
     /// (`08`, `010`) as **octal**.
     ///
-    /// Tcl 9.0 dropped the leading-zero octal rule (TIP 472): `08` parses as
+    /// Tcl 9.0 dropped the leading-zero octal rule (TIP 114): `08` parses as
     /// decimal 8 and `010` as decimal 10. Every earlier Tcl (8.4/8.5/8.6) and
     /// every 8.x-derived dialect (f5-irules ≈ 8.4, f5-iapps ≈ 8.5/8.6, the EDA
     /// dialects) keeps the octal rule, where `08`/`09` are *invalid* octal
     /// (treated as a string in `==`/`!=`) and `010` is 8.
     ///
-    /// TIP 472 lands in tcl9.0 and stays in tcl9.1 (and any later 9.x), so the
+    /// TIP 114 lands in tcl9.0 and stays in tcl9.1 (and any later 9.x), so the
     /// decimal rule applies to *every* Tcl 9 dialect, not tcl9.0 alone. The
     /// per-dialect registry built by `registry_for_dialect` records its Tcl
     /// version via [`Self::load_dialect`], so a registry whose `loaded_dialects`
@@ -1047,12 +1048,6 @@ impl CommandRegistry {
     /// command), so a linear scan at the call site is cheaper than
     /// a `HashSet` build.
     ///
-    /// `warn_without_terminator` lifts the
-    /// [`Traits::WARN_WITHOUT_TERMINATOR`] flag from the matched
-    /// command spec and surfaces it on `ResolvedTerminator`, but the
-    /// current W304 emitter does not consume it.  Kept on the resolver
-    /// for future emit logic and so the registry API doesn't need to
-    /// change when consumers start gating on it.
     #[must_use]
     pub fn resolve_option_terminator(
         &self,
@@ -1065,8 +1060,6 @@ impl CommandRegistry {
         } else {
             self.get_for_dialect(name, dialect)?
         };
-
-        let warn_flag = spec.traits.contains(Traits::WARN_WITHOUT_TERMINATOR);
 
         // Subcommand-scoped first. Resolve the subcommand word the same way
         // ensemble dispatch does — accepting a unique prefix abbreviation
@@ -1084,7 +1077,7 @@ impl CommandRegistry {
                 scan_start: 1,
                 subcommand: Some(sub.name),
                 options: sub.options,
-                warn_without_terminator: warn_flag,
+                reserved_trailing_words: 0,
             });
         }
 
@@ -1096,7 +1089,7 @@ impl CommandRegistry {
                 scan_start: 0,
                 subcommand: None,
                 options: spec.options,
-                warn_without_terminator: warn_flag,
+                reserved_trailing_words: spec.reserved_trailing_words,
             });
         }
 
@@ -1196,13 +1189,11 @@ pub struct ResolvedTerminator {
     /// require.  Per-command counts are small; a linear scan is
     /// cheaper than a heap-allocated set on the analyser hot path.
     pub options: &'static [crate::hover::OptionSpec],
-    /// Lifted from [`Traits::WARN_WITHOUT_TERMINATOR`] on the matched
-    /// command spec.  The current W304
-    /// emitter does not consume the flag (it is stored but never read).
-    /// Kept on the
-    /// type so future emit logic can gate on it without an API
-    /// change.
-    pub warn_without_terminator: bool,
+    /// Trailing words (after the command name) that are never scanned as
+    /// option candidates — see [`crate::spec::CommandSpec::reserved_trailing_words`].
+    /// `0` for every subcommand-scoped match (no subcommand currently
+    /// needs the reservation) and for any form without one declared.
+    pub reserved_trailing_words: usize,
 }
 
 /// Outcome of [`CommandRegistry::resolve_call`].
@@ -1239,6 +1230,19 @@ impl ResolvedCall<'_> {
             return s.arity;
         }
         self.spec.arity
+    }
+
+    /// Effective [`VarWriteTyping`] for this resolved call: the matched
+    /// subcommand's when one matched (`binary scan` destructures where the
+    /// bare `binary` does not), otherwise the top-level [`CommandSpec`]'s.
+    ///
+    /// The compiler's type-inference pass consults this to type the
+    /// variables a command writes as a side effect, rather than assuming
+    /// they receive the command's return value (issue #867).
+    #[must_use]
+    pub fn var_write_typing(&self) -> VarWriteTyping {
+        self.sub
+            .map_or(self.spec.var_write_typing, |s| s.var_write_typing)
     }
 }
 
@@ -1352,7 +1356,7 @@ mod tests {
         use crate::dialects::DialectSet;
         // Plain default registry (no Tcl version bit) defaults to octal.
         assert!(CommandRegistry::build_default().leading_zero_is_octal());
-        // tcl9.0 (TIP 472) reads leading zeros as decimal; everything else
+        // tcl9.0 (TIP 114) reads leading zeros as decimal; everything else
         // (8.4/8.5/8.6 and the 8.x-derived F5 dialects) stays octal.
         let octal_cases = [
             DialectSet::TCL84,
@@ -1369,7 +1373,7 @@ mod tests {
         let mut reg90 = CommandRegistry::build_default();
         reg90.load_dialect(DialectSet::TCL90);
         assert!(!reg90.leading_zero_is_octal(), "tcl9.0 should be decimal");
-        // RUST_ISSUE_024: tcl9.1 keeps the TIP 472 decimal rule; a tcl9.1-only
+        // RUST_ISSUE_024: tcl9.1 keeps the TIP 114 decimal rule; a tcl9.1-only
         // registry (loads TCL91, not TCL90) must still read leading zeros as
         // decimal.
         let mut reg91 = CommandRegistry::build_default();
@@ -3156,7 +3160,6 @@ mod tests {
             .expect("regexp declares -- at the form level");
         assert_eq!(profile.scan_start, 0);
         assert!(profile.subcommand.is_none());
-        assert!(profile.warn_without_terminator);
         // ``-start`` takes a value; ``-nocase`` does not.
         // ``-start`` takes a value; ``-nocase`` does not.  The
         // resolver returns the borrowed options slice; callers
@@ -3191,17 +3194,6 @@ mod tests {
         // ``file mtime`` has no ``--`` terminator.
         let profile = reg.resolve_option_terminator("file", &["mtime", "$p"], DialectSet::empty());
         assert!(profile.is_none(), "got {profile:?}");
-    }
-
-    #[test]
-    fn resolve_option_terminator_warn_flag_off_for_non_regexp() {
-        let reg = CommandRegistry::build_default();
-        // ``unset`` declares ``--`` but does not carry the
-        // ``WARN_WITHOUT_TERMINATOR`` trait — only ``regexp`` does.
-        let profile = reg
-            .resolve_option_terminator("unset", &["$x"], DialectSet::empty())
-            .expect("unset declares --");
-        assert!(!profile.warn_without_terminator);
     }
 
     // -- ``is_canonical_list_command`` (W101 safe-idiom driver)

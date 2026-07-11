@@ -106,6 +106,7 @@ class StringCommand(CommandDef):
 | `is_control_flow` | `bool` | `False` | Command is a control-flow statement (break, continue, return) |
 | `needs_start_cmd` | `bool` | `False` | Bytecode control flow: needs a `startCmd` instruction |
 | `creates_scope_alias` | `bool` | `False` | Creates a scope alias (upvar-like binding) |
+| `structurally_checked_arity` | `bool` | `False` | Registry `arity` is a descriptive floor only; a `clause_shape_check` hook owns real arity + shape validation, so the generic E002/E003 floor/ceiling check steps aside (`if`) |
 
 #### Purity and optimisation
 
@@ -120,6 +121,7 @@ class StringCommand(CommandDef):
 |-------|------|---------|---------|
 | `arg_roles` | `dict[int, ArgRole]` | `{}` | Static arg roles: `BODY`, `EXPR`, `VAR_NAME`, `VAR_READ`, `PATTERN`, etc. |
 | `arg_role_resolver` | `ArgRoleResolver \| None` | `None` | Dynamic arg-role resolution for variable-layout commands (if, try, switch) |
+| `clause_shape_check` | `ClauseShapeChecker \| None` | `None` | Validates a clause-chain shape a plain `min..=max` arity can't express (if's `elseif`/`else` chain -- see `tcl_registry::clause_shape`); the compiler dispatches on the hook's presence, not the command name |
 | `arg_types` | `dict[int, ArgTypeHint]` | `{}` | Per-argument type expectations (e.g. `INT`, `LIST`).  Drives shimmer detection |
 | `return_type` | `TclType \| None` | `None` | Return type of the command |
 | `keyword_completions` | `KeywordCompletionProvider \| None` | `None` | Keyword+scaffold completions for structural commands |
@@ -129,9 +131,39 @@ class StringCommand(CommandDef):
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
 | `assigns_variable_at` | `int \| None` | `None` | Arg index of the variable this command writes to (e.g. 0 for `set varName value`) |
+| `var_write_typing` | `VarWriteTyping` | `ReturnValue` | How the type-inference pass types the variable(s) this command *writes*, distinct from `return_type` (which types the value it *returns*).  See below |
 | `safe_on_uninit` | `frozenset[str] \| None` | `None` | Whether the command safely creates an uninitialised variable.  `None` = not safe (W210 fires).  Empty frozenset = safe in all dialects.  Non-empty frozenset = safe only in listed dialects.  Use `dialects_since("tcl8.5")` for version-gated behaviour (e.g. `incr` is safe in 8.5+ but errors in 8.4 and iRules) |
 | `inferred_storage_type` | `StorageType \| None` | `None` | Inferred type for the target variable: `DICT`, `LIST`, or `ARRAY` |
 | `defines_procedure` | `bool` | `False` | Command defines a procedure (proc, method, etc.) |
+
+##### `var_write_typing` — return type vs written-variable type
+
+A variable a command writes is not always typed by the command's
+`return_type`.  `append` / `lappend` store exactly what they return, so the
+return type describes both.  But a *destructuring* writer returns one thing
+while writing another: `lassign` returns the leftover list yet writes list
+*elements*; `scan` / `regexp` / `binary scan` return a match/convert *count*
+yet write parsed pieces; `gets chan line` returns the character count yet
+writes the *line*.  Broadcasting the return type onto those targets is the
+S100 / W126 false-positive source of issue #867 (a `lassign` target wrongly
+typed `List`, a `regexp` capture wrongly typed `Int`).
+
+`VarWriteTyping` (in `tcl_registry::types`) captures the distinction so the
+type-inference pass reads it per command / subcommand rather than keying on
+the command name (it replaced a compiler-side `defs.len() > 1` heuristic that
+mistyped every single-target destructure):
+
+| Variant | Written variable receives | Commands |
+|---------|---------------------------|----------|
+| `ReturnValue` (default) | the command's `return_type` — but only for a **single** written target; a call that writes several variables under this default (`catch`/`try`'s synthetic result/options + body writes) stays *overdefined*, since one return value cannot be the value of several distinct variables | `append`, `lappend`, `ledit`, `lset`, `dict set` |
+| `Fixed(TclType)` | a fixed intrep, independent of the return value | `gets` → `String` (the line), `regsub` → `String` (the substituted result), `lpop` → `List` (the shortened list) |
+| `Destructured` | element-/parse-dependent pieces, typed *overdefined* (unknown) | `lassign`, `scan`, `regexp`, `binary scan` |
+
+The consumer is `tcl_compiler::type_infer::evaluate_type_def`, which resolves
+the call (`ResolvedCall::var_write_typing`, so a subcommand like `binary scan`
+overrides its parent) and maps the variant to the def's lattice type.  The
+`return_type` path is unchanged: a captured result (`set left [lassign …]`)
+still types `left` from `return_type`.
 
 #### iRules event model
 
@@ -195,9 +227,11 @@ class StringCommand(CommandDef):
 
 SubCommand shares many fields with CommandSpec but at the subcommand level.
 Only fields unique to SubCommand or with different semantics are listed;
-shared fields (`arg_roles`, `return_type`, `arg_types`, `pure`, `mutator`,
-`side_effect_hints`, `taint_transform`, `safe_on_uninit`, etc.) have the
-same meaning as on CommandSpec.
+shared fields (`arg_roles`, `return_type`, `var_write_typing`, `arg_types`,
+`pure`, `mutator`, `side_effect_hints`, `taint_transform`, `safe_on_uninit`,
+etc.) have the same meaning as on CommandSpec.  A subcommand's
+`var_write_typing` overrides its parent's when the call resolves to that
+subcommand (`binary scan` destructures where the bare `binary` does not).
 
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|

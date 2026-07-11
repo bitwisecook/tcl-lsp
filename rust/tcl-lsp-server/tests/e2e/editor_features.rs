@@ -159,6 +159,68 @@ fn test_unresolved_call_scoped_to_namespace() {
     assert_eq!(b["command"]["title"], json!("0 references"));
 }
 
+/// Title of the method / member lens anchored on `line` (0-based).  Member
+/// lenses are informational: their eager `command.title` is authoritative
+/// and needs no `codeLens/resolve`.
+fn member_lens_title_on_line(ls: &[Value], line: i64) -> Option<String> {
+    ls.iter()
+        .find(|l| l["range"]["start"]["line"].as_i64() == Some(line))
+        .and_then(|l| l["command"]["title"].as_str())
+        .map(str::to_owned)
+}
+
+#[test]
+fn test_method_lens_counts_external_obj_dispatch_issue_864() {
+    // Regression for issue #864: the lens above `method get` must count the
+    // external `$b get foo` dispatch (`set b [Bar new]`), reading
+    // "1 reference" rather than the "0 references" the old heuristic showed.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create Bar {\n\
+         \x20  variable _options\n\
+         \x20   constructor {args} {\n\
+         \x20        set _options $args\n\
+         \x20   }\n\
+         \n\
+         \x20   method get {key} {\n\
+         \x20       return [dict get $_options $key]\n\
+         \x20   }\n\
+         \n\
+         }\n\
+         set b [Bar new]\n\
+         puts [$b get foo]\n",
+    );
+    let ls = lenses(&mut lsp, &uri);
+    // `method get` is on line 6 (0-based).
+    let title = member_lens_title_on_line(&ls, 6)
+        .unwrap_or_else(|| panic!("no method lens on line 6: {ls:?}"));
+    assert_eq!(title, "1 reference", "{ls:?}");
+    // The lens count must equal Find All References (declaration excluded) on
+    // the `get` method-name token (`    method get` → col 11).
+    let refs = match lsp.references(&uri, 6, 11, false) {
+        Value::Array(a) => a,
+        _ => Vec::new(),
+    };
+    assert_eq!(refs.len(), 1, "peek disagrees with lens: {refs:?}");
+}
+
+#[test]
+fn test_method_lens_zero_when_uncalled() {
+    // TN: an instance method with no dispatch site reads "0 references".
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create Solo {\n    method lonely {} {}\n}\nSolo new\n",
+    );
+    let ls = lenses(&mut lsp, &uri);
+    let title = member_lens_title_on_line(&ls, 1)
+        .unwrap_or_else(|| panic!("no method lens on line 1: {ls:?}"));
+    assert_eq!(title, "0 references", "{ls:?}");
+}
+
 // -- TestDocumentLinks ---------------------------------------------------
 
 #[test]

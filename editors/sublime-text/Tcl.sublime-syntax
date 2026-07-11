@@ -240,14 +240,16 @@ contexts:
 
   # Keywords
   keyword:
-    # Control flow
-    - match: '(?<=^|\s|;|\[)(?:if|else|elseif|for|foreach|while|switch|break|continue|return|catch|try|throw|yield|yieldto|tailcall)(?=\s|$|;)'
+    # Control flow. lmap lives here (not in the built-in-commands list below)
+    # because the registry carries it with the same LANGUAGE_KEYWORD trait as
+    # foreach — it binds loop variables, not just a plain library call (#862).
+    - match: '(?<=^|\s|;|\[)(?:break|catch|continue|else|elseif|finally|for|foreach|foreachLine|if|lfilter|lmap|on|return|switch|tailcall|throw|trap|try|when|while|yield|yieldto)(?=\s|$|;)'
       scope: keyword.control.tcl
     # Definitions
-    - match: '(?<=^|\s|;|\[)(?:proc|namespace|variable|global|upvar|uplevel|package|source|rename|interp|coroutine|apply)(?=\s|$|;)'
+    - match: '(?<=^|\s|;|\[)(?:apply|classvariable|coroutine|global|interp|itcl::class|namespace|oo::abstract|oo::class|oo::configurable|oo::define|oo::objdefine|oo::singleton|package|proc|rename|source|uplevel|upvar|variable)(?=\s|$|;)'
       scope: keyword.other.tcl
     # Built-in commands
-    - match: '(?<=^|\s|;|\[)(?:set|unset|puts|gets|read|open|close|expr|eval|info|array|dict|string|list|lappend|lassign|lindex|linsert|llength|lmap|lrange|lrepeat|lreplace|lreverse|lsearch|lset|lsort|join|split|format|scan|regexp|regsub|append|incr|after|file|glob|cd|pid|exec|socket|fconfigure|fileevent|flush|seek|tell|eof|fblocked|fcopy|chan|encoding|concat|subst|error|exit|time|update|vwait|parray|load|unload)(?=\s|$|;)'
+    - match: '(?<=^|\s|;|\[)(?:after|append|array|auto_execok|auto_import|auto_load|auto_load_index|auto_mkindex|auto_mkindex_old|auto_qualify|auto_reset|bgerror|binary|cd|chan|clock|close|concat|const|coroinject|coroprobe|dict|divmod|encoding|eof|eq|error|eval|exec|exit|expr|fblocked|fconfigure|fcopy|file|fileevent|filename|flush|format|frexp|gets|gettimes|glob|history|http|in|incr|info|join|lappend|lassign|ledit|lgen|lindex|linsert|list|llength|load|lpop|lrange|lremove|lrepeat|lreplace|lreverse|lsearch|lseq|lset|lsort|lstring|memory|modf|ne|ni|noop|oo::copy|oo::object|open|parray|pid|pkg::create|pkg_mkIndex|pkg_mkindex|puts|pwd|re_quote|read|readFile|regex::quote|regex_quote|regexp|regexp::quote|registry|regsub|remquo|scan|seek|set|socket|split|string|subst|tclLog|tclPkgSetup|tclPkgUnknown|tcl_endOfWord|tcl_findLibrary|tcl_startOfNextWord|tcl_startOfPreviousWord|tcl_wordBreakAfter|tcl_wordBreakBefore|tell|time|timer|timerate|trace|unicode|unknown|unload|unset|update|vwait|writeFile|zlib)(?=\s|$|;)'
       scope: support.function.tcl
 
   # Operators

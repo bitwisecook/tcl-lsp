@@ -20,8 +20,10 @@
 //! option-injection taint).
 //! Pairs to `tests/test_fp_inj.py` and the §INJ entries in `docs/design/compiler/FP.md`.
 //!
-//! The T102 cases are iRules-dialect (`HTTP::uri` / `HTTP::path` taint sources),
-//! so they run under the `f5-irules` dialect rather than the default `D`.
+//! Most T102 cases here are iRules-dialect (`HTTP::uri` / `HTTP::path` taint
+//! sources), so they run under the `f5-irules` dialect rather than the
+//! default `D` — except FP-INJ-07, whose `exec` sink is excluded from the
+//! iRules dialect and so runs under `D` with a generic (`gets`) source.
 
 use super::{D, codes, fires};
 
@@ -192,3 +194,103 @@ fn fp_inj_05_eval_string_fires_w101() {
         codes(FP_INJ_05_REPRO, D)
     );
 }
+
+// ---------------------------------------------------------------------------
+// FP-INJ-06 — a `PATH_PREFIXED` proof must not survive an unclassified
+// (shape-changing) command it passes through — `TaintLattice::shape_unproven`.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn fp_inj_06_string_range_strips_path_prefixed_proof() {
+    // FN regression: `string range` has no registry classification, so it
+    // could turn a `/`-anchored path into something starting with `-`
+    // (e.g. path `/-nocase/x`, `string range $p 1 end` => `-nocase/x`).
+    // PATH_PREFIXED must not survive it.
+    let src = "set p [HTTP::path]\nset stripped [string range $p 1 end]\nregexp $stripped test";
+    assert!(
+        fires(src, IRULES, "T102"),
+        "FP-INJ-06: `string range` must strip PATH_PREFIXED, T102 must fire; emitted {:?}",
+        codes(src, IRULES)
+    );
+}
+
+#[test]
+fn fp_inj_06_split_lindex_strips_path_prefixed_proof() {
+    // FN regression, realistic iRules idiom: splitting `HTTP::path` and
+    // indexing a segment can hand back attacker-controlled text with no
+    // `/`-anchoring guarantee at all (path `/-nocase/x` splits to
+    // `{{} -nocase x}`; `lindex $parts 1` is `-nocase`).
+    let src =
+        "set parts [split [HTTP::path] \"/\"]\nset second [lindex $parts 1]\nregexp $second test";
+    assert!(
+        fires(src, IRULES, "T102"),
+        "FP-INJ-06: `split`/`lindex` must strip PATH_PREFIXED, T102 must fire; emitted {:?}",
+        codes(src, IRULES)
+    );
+}
+
+#[test]
+fn fp_inj_06_pure_copy_still_suppresses() {
+    // TN control: a *pure variable copy* (no command substitution at all)
+    // is unaffected — `shape_unproven` only strips the proof for values
+    // that passed through an unclassified command, not this simpler path
+    // (already covered by FP-INJ-03, repeated here as a companion control
+    // for the two repros above).
+    let src = "set uri [HTTP::uri]\nset x $uri\nregexp $x test";
+    assert!(
+        !fires(src, IRULES, "T102"),
+        "FP-INJ-06 control: plain copy must still suppress T102; emitted {:?}",
+        codes(src, IRULES)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-INJ-07 — `exec -encoding <name>` must not mask the option-injection
+// scan for the arguments that follow it — the registry was missing
+// `-encoding` from `exec`'s option list entirely.
+// ---------------------------------------------------------------------------
+
+const FP_INJ_07_REPRO: &str = "\
+proc run {} {
+    set prog [gets stdin]
+    exec -encoding utf-8 $prog
+}
+";
+
+#[test]
+fn fp_inj_07_exec_encoding_does_not_mask_option_scan() {
+    // FN regression: `-encoding` takes a value (the encoding name); before
+    // the registry declared that, `option_scan_region` treated the literal
+    // encoding name as a definite positional and stopped scanning right
+    // there, hiding every tainted argument after it (including the actual
+    // program name) from T102/W304.
+    assert!(
+        fires(FP_INJ_07_REPRO, D, "T102"),
+        "FP-INJ-07: `exec -encoding utf-8 $prog` must fire T102; emitted {:?}",
+        codes(FP_INJ_07_REPRO, D)
+    );
+}
+
+#[test]
+fn fp_inj_07_exec_bare_control_still_warns() {
+    // TP control: the same taint without the `-encoding` option already
+    // fired correctly — pins the baseline this regression test compares
+    // against.
+    let src = "proc run {} {\n    set prog [gets stdin]\n    exec $prog\n}\n";
+    assert!(
+        fires(src, D, "T102"),
+        "FP-INJ-07 control: bare `exec $prog` must fire T102; emitted {:?}",
+        codes(src, D)
+    );
+}
+
+// Note: `switch` lowers to its own dedicated `Statement::Switch` IR node
+// (see `lowering/structured.rs::lower_switch`), not `Call` / `Barrier` /
+// `AssignValue` — so its subject and pattern-list arguments never reach
+// `emit_statement_warnings`'s sink dispatch at all, and T102 (like every
+// other taint-sink code) cannot fire on them regardless of taint or of
+// `reserved_trailing_words`. `reserved_trailing_words` is still correct,
+// general registry data — it fixes the reachable W304 case above (FP-NAB-05)
+// and will also cover T102 the day `switch`'s arguments become taint-visible
+// — but a same-named T102 test here would credit it for behaviour that's
+// actually caused by this separate, pre-existing statement-shape gap.

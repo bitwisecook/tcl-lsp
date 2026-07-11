@@ -48,7 +48,9 @@ pub enum WasmBackend {
 #[derive(Debug, Parser)]
 #[command(
     name = "tcl",
-    version,
+    // Not clap's default (CARGO_PKG_VERSION): the workspace manifest carries
+    // 0.1.0 and is never bumped, because releases are tag-only.
+    version = tcl_version::VERSION,
     about = "Unified Tcl toolchain CLI.",
     disable_help_subcommand = true,
     propagate_version = true

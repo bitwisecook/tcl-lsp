@@ -751,7 +751,7 @@ def print_optimizations(result: dict | None, content: str) -> None:
         print("  (no optimizations available)")
         return
 
-    opts = result.get("optimizations", [])
+    opts = result.get("optimisations", [])
     optimized_source = result.get("source", content)
 
     print(f"=== Optimizations ({len(opts)} items) ===")
@@ -1589,7 +1589,21 @@ examples:
     client = LspClient(server_dir, launch_cmd=launch_cmd)
     try:
         client.start()
-        initialize(client)
+        init_result = initialize(client)
+        # The server is the source of truth for the semantic-tokens legend
+        # (LSP encodes token types/modifiers as indices into the legend the
+        # server declares in its `initialize` response). Overwrite the
+        # hardcoded fallback lists above with the live legend so decoding
+        # never drifts out of sync with the server as it evolves.
+        legend = (
+            init_result.get("capabilities", {})
+            .get("semanticTokensProvider", {})
+            .get("legend", {})
+        )
+        if legend.get("tokenTypes"):
+            SEMANTIC_TOKEN_TYPES[:] = legend["tokenTypes"]
+        if legend.get("tokenModifiers"):
+            SEMANTIC_TOKEN_MODIFIERS[:] = legend["tokenModifiers"]
 
         # Commands that don't require a file
         if args.command == "event-info":

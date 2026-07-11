@@ -32,6 +32,7 @@ name = "tcl"
 path = "src/main.rs"
 
 [dependencies]
+tcl-version = { path = "../tcl-version" }
 tcl-diagram = { path = "../tcl-diagram" }
 clap = { version = "4", features = ["derive", "wrap_help"] }
 clap_complete = "4"

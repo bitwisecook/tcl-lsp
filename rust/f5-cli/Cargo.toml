@@ -32,6 +32,7 @@ name = "f5-query"
 path = "src/main.rs"
 
 [dependencies]
+tcl-version = { path = "../tcl-version" }
 clap = { version = "4", features = ["derive", "wrap_help"] }
 clap_complete = "4"
 anyhow = "1"

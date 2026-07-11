@@ -175,6 +175,123 @@ suite("LSP Command Execution", () => {
     );
   });
 
+  // Regression: a top-level variable reassigned via `global` inside a called
+  // procedure must never be folded as if its initial assignment were a
+  // stable constant (see rust/tcl-lsp-server/tests/e2e/diagnostic_matrix.rs
+  // `top_level_global_reassigned_by_callee_is_not_folded` for the native
+  // e2e counterpart and the tclsh-verified miscompile this fixes).
+  test("tcl-lsp.optimiseDocument does not fold a global reassigned by a callee", async () => {
+    const doc = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: "set g 4\nproc helper {} { global g\nset g 17 }\nhelper\nputs $g\n",
+    });
+    await vscode.window.showTextDocument(doc);
+    const uri = doc.uri.toString();
+    const result = (await execLspCommand("tcl-lsp.optimiseDocument", uri, "full")) as {
+      source: string;
+    } | null;
+    assert.ok(result, "optimiseDocument should return a result");
+    assert.ok(
+      result.source.includes("puts $g"),
+      `must not fold \`puts $g\` to the stale literal 4: ${result.source}`,
+    );
+  });
+
+  // Regression: O103 must not fold a call to a procedure renamed away
+  // elsewhere in the same document.
+  test("tcl-lsp.optimiseDocument does not fold a call to a renamed-away proc", async () => {
+    const doc = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: "proc ::foo {} { return 42 }\nrename ::foo ::bar\nputs [::foo]\n",
+    });
+    await vscode.window.showTextDocument(doc);
+    const uri = doc.uri.toString();
+    const result = (await execLspCommand("tcl-lsp.optimiseDocument", uri, "full")) as {
+      source: string;
+    } | null;
+    assert.ok(result, "optimiseDocument should return a result");
+    assert.ok(
+      result.source.includes("puts [::foo]"),
+      `must not fold a call to a renamed-away proc: ${result.source}`,
+    );
+  });
+
+  // Regression: a literal-body `uplevel #0 {...}` reassigns a variable in
+  // the absolute global frame, which at top level coincides with the
+  // calling scope (see rust/tcl-lsp-server/tests/e2e/diagnostic_matrix.rs
+  // `uplevel_hash0_reassignment_is_not_folded` for the native e2e
+  // counterpart and the tclsh-verified miscompile this fixes).
+  test("tcl-lsp.optimiseDocument does not fold past an uplevel #0 reassignment", async () => {
+    const doc = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: "set n 5\nuplevel #0 { set n 99 }\nputs $n\n",
+    });
+    await vscode.window.showTextDocument(doc);
+    const uri = doc.uri.toString();
+    const result = (await execLspCommand("tcl-lsp.optimiseDocument", uri, "full")) as {
+      source: string;
+    } | null;
+    assert.ok(result, "optimiseDocument should return a result");
+    assert.ok(
+      result.source.includes("puts $n"),
+      `must not fold \`puts $n\` to the stale literal 5: ${result.source}`,
+    );
+  });
+
+  test("tcl-lsp.optimiseDocument does not forward across a variable trace", async () => {
+    // Regression: the optimiser used to rewrite the final `puts $x` to
+    // `puts 5`, silently dropping the `trace add variable ::x read onread`
+    // handler's `puts "trace fired"` side effect (installed indirectly via
+    // a called proc, not lexically between the `set` and the read). tclsh
+    // prints "trace fired" then "5" for this fixture — the read of `$x`
+    // must survive the optimiser as a real runtime variable access so the
+    // trace keeps firing.
+    const traceUri = getDocUri("optimiserTraceSafety.tcl");
+    await activate(traceUri);
+    const uri = traceUri.toString();
+    const result = (await execLspCommand("tcl-lsp.optimiseDocument", uri, "full")) as {
+      optimisations: Array<{ code: string }>;
+      source: string;
+    } | null;
+    assert.ok(result, "optimiseDocument should return a result");
+    assert.ok(
+      result.source.includes("puts $x"),
+      `trace-guarded read must survive the optimiser unchanged, got: ${result.source}`,
+    );
+    assert.ok(
+      !result.optimisations.some((o) => o.code === "O102"),
+      `expected no O102 forward across the trace, got: ${JSON.stringify(result.optimisations)}`,
+    );
+  });
+
+  test("tcl-lsp.optimiseDocument does not eliminate a branch guarded by a cross-procedural trace", async () => {
+    // Regression for O107 (unreachable-code elimination): SCCP used to have
+    // no notion of variable traces, so it proved `if {$x}` constant (`x` is
+    // `1` at every call) and O107 deleted the "unreachable" `else` body's
+    // `puts no` — silently losing the trace-firing read of `$x` through the
+    // DCE path. The trace is installed by a *called* proc (`setup`), not
+    // lexically between the `set` and the `if`, so only the whole-module
+    // trace fact catches it. tclsh prints "trace fired" then "yes" — the
+    // `else` body never runs, but the compiler cannot prove that
+    // statically, so it must survive in the rewritten source.
+    const branchUri = getDocUri("optimiserTraceSafetyBranch.tcl");
+    await activate(branchUri);
+    const uri = branchUri.toString();
+    const result = (await execLspCommand("tcl-lsp.optimiseDocument", uri, "full")) as {
+      optimisations: Array<{ code: string }>;
+      source: string;
+    } | null;
+    assert.ok(result, "optimiseDocument should return a result");
+    assert.ok(
+      result.source.includes("puts no"),
+      `trace-guarded else branch must survive the optimiser unchanged, got: ${result.source}`,
+    );
+    assert.ok(
+      !result.optimisations.some((o) => o.code === "O107"),
+      `expected no O107, got: ${JSON.stringify(result.optimisations)}`,
+    );
+  });
+
   // -- fixAllSafeIssues -------------------------------------------------------
 
   test("tcl-lsp.fixAllSafeIssues returns applied list", async () => {

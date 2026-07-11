@@ -346,6 +346,51 @@ fn test_optimiser_toggle_suppresses_o_codes() {
 }
 
 #[test]
+fn test_hint_only_optimisation_diagnostic_carries_no_apply_payload() {
+    // An O102 rewrite whose use site is a bare `$var` argv word gets a
+    // precise, applicable per-argv span and carries `data.replacement` /
+    // `startOffset` / `endOffset` for a client to auto-apply. A use nested
+    // inside a larger construct (here, `$a` inside `[expr {...}]`) falls
+    // back to a *hint-only* diagnostic spanning the whole consuming
+    // statement — that span plus the bare-literal replacement is not a
+    // safe text splice (it would replace `set v [expr {$a * 2}]` with the
+    // standalone fragment `10`), so the diagnostic must carry no `data`
+    // payload at all: a client that blindly applied `data` on every
+    // diagnostic would otherwise corrupt the statement.
+    // O102 is `constant_folding` category, outside the default `readability`
+    // editor profile — opt into `standard` so it surfaces.
+    let mut lsp = Lsp::with_config(json!({ "optimiser": { "profile": "standard" } }));
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set a 5\nset v [expr {$a * 2}]\nputs $v\n");
+    let hint = diags
+        .iter()
+        .find(|d| code_str(d).as_deref() == Some("O102"))
+        .unwrap_or_else(|| panic!("expected an O102 diagnostic, got {:?}", codes(&diags)));
+    assert!(
+        hint.get("data").is_none(),
+        "hint-only O102 must carry no data payload, got {hint:?}"
+    );
+}
+
+#[test]
+fn test_applicable_optimisation_diagnostic_carries_apply_payload() {
+    // Control for the hint-only case above: a bare `$var` argv-word use
+    // gets a precise, applicable O102 rewrite, which *does* carry a
+    // `data` payload a client can use to apply the fix directly.
+    let mut lsp = Lsp::with_config(json!({ "optimiser": { "profile": "standard" } }));
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set n 7\nputs $n\n");
+    let applicable = diags
+        .iter()
+        .find(|d| code_str(d).as_deref() == Some("O102"))
+        .unwrap_or_else(|| panic!("expected an O102 diagnostic, got {:?}", codes(&diags)));
+    let data = applicable
+        .get("data")
+        .unwrap_or_else(|| panic!("expected a data payload, got {applicable:?}"));
+    assert_eq!(data.get("replacement").and_then(Value::as_str), Some("7"));
+}
+
+#[test]
 fn test_diagnostics_master_switch_clears_all() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");

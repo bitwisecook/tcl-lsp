@@ -25,6 +25,7 @@
 use crate::arg_role::ArgRole;
 use crate::arity::Arity;
 use crate::body_kind::BodyKind;
+use crate::clause_shape::ClauseShapeChecker;
 use crate::dialects::DialectSet;
 use crate::forms::{CommandForm, SubCommandForm};
 use crate::hooks::{
@@ -37,7 +38,7 @@ use crate::side_effects::{SideEffect, StorageType};
 use crate::symbol_def::SymbolDef;
 use crate::taint::{SetterConstraint, TaintColour};
 use crate::traits::Traits;
-use crate::types::TclType;
+use crate::types::{TclType, VarWriteTyping};
 
 /// Dynamic argument role resolver.
 ///
@@ -178,6 +179,14 @@ pub struct CommandSpec {
     /// Dynamic argument role resolver (for variable-layout commands).
     pub arg_role_resolver: Option<ArgRoleResolver>,
 
+    /// Clause-chain shape validator, for a command whose valid argument
+    /// shapes aren't a single `min..=max` [`Arity`] range (`if`'s
+    /// `elseif`/`else` chain). See [`crate::clause_shape`]. A command
+    /// carrying this hook should also set
+    /// [`Traits::STRUCTURALLY_CHECKED_ARITY`] so the generic arity
+    /// floor/ceiling check steps aside in its favour.
+    pub clause_shape_check: Option<ClauseShapeChecker>,
+
     /// Static [`ArgRole::CommandPrefix`] positions and their appended arities
     /// (`lsort` positional forms, `socket -server` handled via options).  Each
     /// tuple is `(arg_index, appended_arity)`; the index carries
@@ -192,6 +201,15 @@ pub struct CommandSpec {
 
     /// Return type of the command.
     pub return_type: Option<TclType>,
+
+    /// How the command types the variable(s) it writes as a side effect —
+    /// distinct from [`Self::return_type`], which types the value `[cmd …]`
+    /// yields.  A destructuring writer (`lassign`, `scan`, `regexp`, `gets`)
+    /// returns one thing and writes another, so the compiler's type inference
+    /// reads this instead of broadcasting the return type onto the written
+    /// variables.  See [`VarWriteTyping`].  Default
+    /// [`VarWriteTyping::ReturnValue`].
+    pub var_write_typing: VarWriteTyping,
 
     /// Per-argument type hints. Each tuple is `(arg_index, hint)`.
     pub arg_types: &'static [(u8, ArgTypeHint)],
@@ -281,6 +299,23 @@ pub struct CommandSpec {
     /// Options declared on the command (for completion and arity adjustment).
     pub options: &'static [OptionSpec],
 
+    /// Number of trailing words (after the command name) that C Tcl's own
+    /// option-scanning loop never treats as option candidates, regardless
+    /// of their syntactic shape — a structural arity fact, not a taint or
+    /// dialect concern. `switch`'s C implementation
+    /// (`TclNRSwitchObjCmd`/`generic/tclCmdMZ.c`) scans for `-flag` words
+    /// only up to `objc - 2`, so the trailing `string` and
+    /// pattern-list-or-first-pattern words are *never* mistaken for
+    /// options even when they're a tainted variable or command
+    /// substitution beginning with `-` — hence `switch $x $caseListVar`
+    /// needs no `--` terminator. Consumed by
+    /// [`crate::registry::CommandRegistry::resolve_option_terminator`]'s
+    /// `reserved_trailing_words` on [`crate::registry::ResolvedTerminator`],
+    /// which both W304 and T102's option-scan-region walk cap their scan
+    /// against. Default `0` (no reservation) keeps every existing spec
+    /// correct.
+    pub reserved_trailing_words: usize,
+
     /// Enumerable positional-argument values, keyed by 0-based
     /// argument index *after* the command name.  Drives command-level
     /// value completion — e.g. iRules `when EVENT timing enable|disable`
@@ -365,6 +400,20 @@ pub struct CommandSpec {
     /// this sink — e.g. `SHELL_ATOM` for `exec`, `LIST_CANONICAL` for
     /// `eval`/`uplevel`. `None` = no suppression colour.
     pub taint_sink_safe_colour: Option<TaintColour>,
+
+    /// Whether a call's own option flags make this command's taint-sink
+    /// classification live for *this* invocation, given its raw argument
+    /// words — checked before any sink code (T100 code-execution,
+    /// `taint_output_sink`, `taint_log_sink`) is assigned. `None` = the
+    /// sink always applies (the common case: `eval`/`uplevel`/`exec`/`expr`
+    /// take no flag that changes their hazard). `Some(f)` calls `f(args)`
+    /// (args excluding the command name); a `false` result suppresses sink
+    /// classification entirely for that call. Exists for commands like
+    /// `subst`, whose `-nocommands` flag (or, from Tcl 9.1, an
+    /// `-backslashes`/`-variables` positive form with no `-commands`)
+    /// disables the only hazard T100 warns about — see
+    /// `tcl_registry::commands::tcl::subst_::subst_evaluates_commands`.
+    pub taint_sink_gate: Option<fn(&[&str]) -> bool>,
 
     /// Option flags whose value carries a secret (e.g. `-password`,
     /// `-headers`) — drives credential-exposure checks. Empty = none.
@@ -490,9 +539,11 @@ impl CommandSpec {
         arity: Arity::any(),
         arg_roles: &[],
         arg_role_resolver: None,
+        clause_shape_check: None,
         command_prefixes: &[],
         command_prefix_resolver: None,
         return_type: None,
+        var_write_typing: VarWriteTyping::ReturnValue,
         arg_types: &[],
         subcommands: &[],
         allow_unknown_subcommands: false,
@@ -514,6 +565,7 @@ impl CommandSpec {
         closed_value_args: &[],
         event_requires: None,
         options: &[],
+        reserved_trailing_words: 0,
         arg_values: &[],
         body_kind: BodyKind::Plain,
         body_arg_implicit_args: 0,
@@ -526,6 +578,7 @@ impl CommandSpec {
         taint_transform: None,
         taint_double_encode_colour: None,
         taint_sink_safe_colour: None,
+        taint_sink_gate: None,
         credential_options: &[],
         sensitive_headers: &[],
         setter_constraints: &[],
@@ -862,6 +915,12 @@ pub struct SubCommand {
     /// Return type.
     pub return_type: Option<TclType>,
 
+    /// How this subcommand types the variable(s) it writes as a side effect,
+    /// overriding the parent command's [`CommandSpec::var_write_typing`] when
+    /// a subcommand matches (`binary scan` destructures; `binary format` does
+    /// not).  See [`VarWriteTyping`].  Default [`VarWriteTyping::ReturnValue`].
+    pub var_write_typing: VarWriteTyping,
+
     /// Per-argument type hints.
     pub arg_types: &'static [(u8, ArgTypeHint)],
 
@@ -1033,6 +1092,7 @@ impl SubCommand {
         command_prefixes: &[],
         command_prefix_resolver: None,
         return_type: None,
+        var_write_typing: VarWriteTyping::ReturnValue,
         arg_types: &[],
         pure: false,
         mutator: false,

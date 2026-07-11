@@ -47,6 +47,10 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),
+        // `lassign` writes list *elements* to its targets — of any intrep —
+        // while returning the *leftover* list.  The elements are not the
+        // return value, so they must not be typed `List` (issue #867).
+        var_write_typing: VarWriteTyping::Destructured,
         hover: Some(HoverSnippet {
             summary: "Assign list elements to variables",
             synopsis: &["lassign list ?varName ...?"],

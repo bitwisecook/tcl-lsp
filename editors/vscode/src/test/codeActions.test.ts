@@ -83,6 +83,33 @@ suite("Code Actions", () => {
     assert.ok(quickFix, "Should provide an option terminator quick fix");
   });
 
+  test("provides quick fix for T102 (tainted data in option position) in a plain .tcl file", async () => {
+    // T102 is dialect-general (not iRules-specific), so its `--`-insertion
+    // fix must reach the code-action response for a plain .tcl document
+    // too — not only under the f5-irules dialect.
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+
+    const t102 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "T102";
+    });
+    assert.ok(t102, "T102 diagnostic should be present");
+
+    const actions = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, t102.range),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title.includes("--"),
+        ),
+      { timeout: 10_000, label: "T102 insert '--' quick fix" },
+    )) as vscode.CodeAction[];
+
+    const quickFix = actions.find((a) => typeof a.title === "string" && a.title.includes("--"));
+    assert.ok(quickFix, "Should provide an insert '--' quick fix for T102");
+  });
+
   test("provides quick fix for W302 (catch result capture)", async () => {
     await activate(docUri);
     const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
@@ -114,6 +141,190 @@ suite("Code Actions", () => {
     );
     assert.ok(resultFix, "Should provide a result capture quick fix");
     assert.ok(resultOptsFix, "Should provide a result+options capture quick fix");
+  });
+
+  test("provides quick fix for E100 (stray close bracket)", async () => {
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+
+    const e100 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "E100";
+    });
+    assert.ok(e100, "E100 diagnostic should be present");
+
+    const actions = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, e100.range),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) =>
+            typeof a.title === "string" && a.title.toLowerCase().includes("insert missing '['"),
+        ),
+      { timeout: 10_000, label: "E100 insert bracket quick fix" },
+    )) as vscode.CodeAction[];
+
+    const quickFix = actions.find(
+      (a) => typeof a.title === "string" && a.title.toLowerCase().includes("insert missing '['"),
+    );
+    assert.ok(quickFix, "Should provide an insert-missing-bracket quick fix");
+
+    // The fixture's `set y string]` recognises `string` as a known
+    // command — the fix must insert `[` right before it, not just
+    // anywhere in the command.
+    const edit = quickFix!.edit;
+    assert.ok(edit, "quick fix should carry a workspace edit");
+    const changes = edit!.get(docUri);
+    assert.strictEqual(changes.length, 1);
+    assert.strictEqual(changes[0].newText, "[");
+  });
+
+  test("provides quick fix for E102 (stray close brace)", async () => {
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+
+    const e102 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "E102";
+    });
+    assert.ok(e102, "E102 diagnostic should be present");
+
+    const actions = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, e102.range),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title.toLowerCase().includes("remove extra '}'"),
+        ),
+      { timeout: 10_000, label: "E102 remove brace quick fix" },
+    )) as vscode.CodeAction[];
+
+    const quickFix = actions.find(
+      (a) => typeof a.title === "string" && a.title.toLowerCase().includes("remove extra '}'"),
+    );
+    assert.ok(quickFix, "Should provide a remove-extra-brace quick fix");
+  });
+
+  test("provides merge-into-body quick fix for E004 extra words", async () => {
+    const e004Uri = getDocUri("diagnostics-e004.tcl");
+    await activate(e004Uri);
+    const diagnostics = await waitForDiagnostics(e004Uri, { minCount: 3 });
+
+    const extraWords = diagnostics.find(
+      (d) => d.message === 'Extra words after "else" clause in "if" command',
+    );
+    assert.ok(extraWords, "extra-words E004 diagnostic should be present");
+
+    const actions = (await pollUntil(
+      () =>
+        vscode.commands.executeCommand(
+          "vscode.executeCodeActionProvider",
+          e004Uri,
+          extraWords.range,
+        ),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title.toLowerCase().includes("merge"),
+        ),
+      { timeout: 10_000, label: "E004 extra-words merge quick fix" },
+    )) as vscode.CodeAction[];
+
+    const mergeFix = actions.find(
+      (a) => typeof a.title === "string" && a.title.toLowerCase().includes("merge"),
+    );
+    assert.ok(mergeFix, "Should provide a merge-into-body quick fix");
+  });
+
+  test("provides remove-clause quick fix for a dangling E004 elseif", async () => {
+    const e004Uri = getDocUri("diagnostics-e004.tcl");
+    await activate(e004Uri);
+    const diagnostics = await waitForDiagnostics(e004Uri, { minCount: 3 });
+
+    const danglingElseif = diagnostics.find(
+      (d) => d.message === 'No script following "2" argument',
+    );
+    assert.ok(danglingElseif, "dangling-elseif E004 diagnostic should be present");
+
+    const actions = (await pollUntil(
+      () =>
+        vscode.commands.executeCommand(
+          "vscode.executeCodeActionProvider",
+          e004Uri,
+          danglingElseif.range,
+        ),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title.toLowerCase().includes("remove"),
+        ),
+      { timeout: 10_000, label: "E004 dangling-clause remove quick fix" },
+    )) as vscode.CodeAction[];
+
+    const removeFix = actions.find(
+      (a) => typeof a.title === "string" && a.title.toLowerCase().includes("remove"),
+    );
+    assert.ok(removeFix, "Should provide a remove-incomplete-clause quick fix");
+  });
+
+  test("offers no quick fix for an E004 whose first clause never completed", async () => {
+    const e004Uri = getDocUri("diagnostics-e004.tcl");
+    await activate(e004Uri);
+    const diagnostics = await waitForDiagnostics(e004Uri, { minCount: 3 });
+
+    const bareCondition = diagnostics.find((d) => d.message === 'No script following "1" argument');
+    assert.ok(bareCondition, "bare-condition E004 diagnostic should be present");
+
+    // No well-formed prefix exists to fall back to, so no quick fix should
+    // ever be offered here — a single read is enough (there is nothing to
+    // wait for; the assertion is that it never appears).
+    const actions = (await vscode.commands.executeCommand(
+      "vscode.executeCodeActionProvider",
+      e004Uri,
+      bareCondition.range,
+    )) as vscode.CodeAction[] | undefined;
+    const quickFixes = (actions ?? []).filter(
+      (a) => a.kind && a.kind.value === vscode.CodeActionKind.QuickFix.value,
+    );
+    assert.strictEqual(
+      quickFixes.length,
+      0,
+      `expected no quick fix, got: ${quickFixes.map((a) => a.title).join("; ")}`,
+    );
+  });
+
+  test("provides quick fix for W004 (dialect-invalid option)", async () => {
+    const w004Uri = getDocUri("diagnostics-w004.tcl");
+    await activate(w004Uri);
+    const diagnostics = await waitForDiagnostics(w004Uri, {
+      predicate: (diags) =>
+        diags.some((d) => {
+          const code = typeof d.code === "object" ? d.code.value : d.code;
+          return code === "W004" && d.message.includes("-stride");
+        }),
+    });
+
+    const w004 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "W004" && d.message.includes("-stride");
+    });
+    assert.ok(w004, "W004 diagnostic for -stride should be present");
+
+    const actions = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", w004Uri, w004.range),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title.includes("-stride"),
+        ),
+      { timeout: 10_000, label: "W004 remove-option quick fix" },
+    )) as vscode.CodeAction[];
+
+    const removeFix = actions.find(
+      (a) => typeof a.title === "string" && a.title.includes("-stride"),
+    );
+    assert.ok(removeFix, "Should provide a 'Remove -stride' quick fix");
+    assert.ok(removeFix.edit, "the quick fix should carry a workspace edit");
   });
 
   test("provides guided collect bootstrap fix for IRULE1005", async () => {
@@ -161,5 +372,83 @@ suite("Code Actions", () => {
         a.title.includes("CLIENT_ACCEPTED"),
     );
     assert.ok(collectFix, "Should provide a collect bootstrap quick fix");
+  });
+
+  test("provides quick fix for T101 (tainted data into puts)", async () => {
+    const t101Uri = getDocUri("taint-t101.tcl");
+    await activate(t101Uri);
+    const diagnostics = await waitForDiagnostics(t101Uri, {
+      predicate: (diags) =>
+        diags.some((d) => {
+          const code = typeof d.code === "object" ? d.code.value : d.code;
+          return code === "T101";
+        }),
+    });
+
+    const t101 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "T101";
+    });
+    assert.ok(t101, "T101 diagnostic should be present");
+    // The diagnostic must highlight only the tainted `$x` argument, not the
+    // whole `puts $x` statement.
+    assert.strictEqual(t101.range.start.character, t101.range.end.character - 2);
+
+    const actions = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", t101Uri, t101.range),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title.includes("strip CR/LF"),
+        ),
+      { timeout: 10_000, label: "T101 sanitise quick fix" },
+    )) as vscode.CodeAction[];
+
+    const sanitiseFix = actions.find(
+      (a) => typeof a.title === "string" && a.title.includes("strip CR/LF"),
+    );
+    assert.ok(sanitiseFix, "Should provide a strip-CR/LF sanitise quick fix");
+  });
+
+  test("provides a noqa suppress quick fix for S100 (shimmer)", async () => {
+    const shimmerUri = getDocUri("shimmerPrecision.tcl");
+    await activate(shimmerUri);
+    const diagnostics = await waitForDiagnostics(shimmerUri, {
+      predicate: (diags) =>
+        diags.some((d) => {
+          const code = typeof d.code === "object" ? d.code.value : d.code;
+          return code === "S100";
+        }),
+    });
+
+    // Line 7 (0-indexed): `    lindex $x 0` inside `proc shimmer_true_case`.
+    const s100 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "S100" && d.range.start.line === 7;
+    });
+    assert.ok(s100, "S100 diagnostic on line 7 should be present");
+
+    const actions = (await pollUntil(
+      () =>
+        vscode.commands.executeCommand("vscode.executeCodeActionProvider", shimmerUri, s100.range),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title === "Suppress S100 with a noqa comment",
+        ),
+      { timeout: 10_000, label: "S100 noqa suppress quick fix" },
+    )) as vscode.CodeAction[];
+
+    const suppressFix = actions.find(
+      (a) => typeof a.title === "string" && a.title === "Suppress S100 with a noqa comment",
+    );
+    assert.ok(suppressFix, "Should provide an S100 noqa suppress quick fix");
+
+    const edit = suppressFix.edit;
+    assert.ok(edit, "Suppress fix should carry a workspace edit");
+    const changes = edit.get(shimmerUri);
+    assert.strictEqual(changes.length, 1, "expected exactly one text edit");
+    // The inserted comment must match the call's 4-space indentation.
+    assert.strictEqual(changes[0].newText, "    # noqa: S100\n");
   });
 });

@@ -24,7 +24,7 @@
 //! `if` are real commands (`info commands`), `$y` is a variable, `42` is a
 //! number, and `#…` in command position is a comment.
 
-use tcl_lsp_core::semantic_tokens::{full, legend_token_types};
+use tcl_lsp_core::semantic_tokens::{full, legend_token_modifiers, legend_token_types};
 use tcl_registry::registry_for_dialect;
 
 #[derive(Debug)]
@@ -33,10 +33,11 @@ struct Tok {
     character: u32,
     length: u32,
     ttype: String,
+    mods: u32,
 }
 
 /// Decode the LSP delta-encoded token stream into absolute (line, char,
-/// length, type-name) tuples.
+/// length, type-name, modifier-bitmask) tuples.
 fn decode(source: &str, dialect: &str) -> Vec<Tok> {
     let registry = registry_for_dialect(dialect);
     let st = full(source, dialect, registry);
@@ -44,7 +45,7 @@ fn decode(source: &str, dialect: &str) -> Vec<Tok> {
     let mut out = Vec::new();
     let (mut line, mut character) = (0u32, 0u32);
     for chunk in st.data.chunks(5) {
-        let (dl, dc, length, ty) = (chunk[0], chunk[1], chunk[2], chunk[3]);
+        let (dl, dc, length, ty, mods) = (chunk[0], chunk[1], chunk[2], chunk[3], chunk[4]);
         if dl > 0 {
             line += dl;
             character = dc;
@@ -56,9 +57,21 @@ fn decode(source: &str, dialect: &str) -> Vec<Tok> {
             character,
             length,
             ttype: legend[ty as usize].to_string(),
+            mods,
         });
     }
     out
+}
+
+/// `true` when a decoded token's modifier bitmask carries `defaultLibrary`
+/// (a registry built-in), resolved against [`legend_token_modifiers`] rather
+/// than a hardcoded bit position.
+fn has_default_library(t: &Tok) -> bool {
+    let bit = legend_token_modifiers()
+        .iter()
+        .position(|&m| m == "defaultLibrary")
+        .expect("legend declares defaultLibrary");
+    t.mods & (1 << bit) != 0
 }
 
 fn types(source: &str, dialect: &str) -> Vec<String> {
@@ -1376,4 +1389,122 @@ fn scoped_report_command_not_highlighted_outside_body() {
         "`enable` is not a scoped op outside a style body"
     );
     let _ = src;
+}
+
+// ---------------------------------------------------------------------------
+// Issue #862 — "set"/"lassign"/"incr"/"lappend"/"append"/"expr" (and every
+// other plain builtin) rendered unstyled for users whose theme had no rule
+// for the `support.function.tcl` scope a `semanticTokenScopes` override
+// mapped `function.defaultLibrary` to — shadowing VS Code's built-in
+// cross-theme default instead of supplementing it (fixed in
+// editors/vscode/package.json; see
+// `vscode_semantic_token_scopes_do_not_shadow_standard_defaults` in
+// src/semantic_tokens.rs for the editor-side guard).  These tests pin the
+// *classification* side: every reported command — and the same commands used
+// inside a TclOO method body or a tcltest `-body` script — must resolve to
+// `function` with the `defaultLibrary` modifier, so the naming
+// infrastructure that drives the fix stays correct generally, not just for
+// the specific commands the report happened to list.
+// ---------------------------------------------------------------------------
+
+/// The reported commands, plus `lset` (the command bitwisecook's own
+/// investigation on the issue checked) and `puts` as a non-regressed control.
+const ISSUE_862_BUILTINS: &[&str] = &[
+    "set", "lassign", "incr", "lappend", "append", "expr", "lset", "puts",
+];
+
+#[test]
+fn issue_862_reported_builtins_are_function_default_library_at_top_level() {
+    let src = "set a 1\n\
+               lassign {1 2 3} x y z\n\
+               incr a\n\
+               lappend mylist 1 2 3\n\
+               append s hello\n\
+               set r [expr {$a + 1}]\n\
+               lset a 0 2\n\
+               puts $r\n";
+    let toks = decode(src, "tcl9.0");
+    for &name in ISSUE_862_BUILTINS {
+        let hit = toks
+            .iter()
+            .find(|t| t.ttype == "function" && tok_text(src, t) == name);
+        let t = hit
+            .unwrap_or_else(|| panic!("`{name}` did not classify as a function token: {toks:?}"));
+        assert!(
+            has_default_library(t),
+            "`{name}` must carry the defaultLibrary modifier: {t:?} in {toks:?}",
+        );
+    }
+}
+
+#[test]
+fn issue_862_reported_builtins_are_function_default_library_in_tcloo_method_body() {
+    // Same builtins, now inside a TclOO method body — the `oo_grammar`
+    // context must not reclassify ordinary commands as members or otherwise
+    // change their kind.
+    let src = "oo::class create Counter {\n\
+               \x20   method bump {} {\n\
+               \x20       set a 1\n\
+               \x20       lassign {1 2 3} x y z\n\
+               \x20       incr a\n\
+               \x20       lappend mylist 1 2 3\n\
+               \x20       append s hello\n\
+               \x20       set r [expr {$a + 1}]\n\
+               \x20       lset a 0 2\n\
+               \x20       puts $r\n\
+               \x20   }\n\
+               }\n";
+    let toks = decode(src, "tcl9.0");
+    for &name in ISSUE_862_BUILTINS {
+        let hit = toks
+            .iter()
+            .find(|t| t.ttype == "function" && tok_text(src, t) == name);
+        let t = hit.unwrap_or_else(|| {
+            panic!(
+                "`{name}` did not classify as a function token inside a TclOO method body: {toks:?}"
+            )
+        });
+        assert!(
+            has_default_library(t),
+            "`{name}` must carry the defaultLibrary modifier inside a TclOO method body: {t:?} in {toks:?}",
+        );
+    }
+}
+
+#[test]
+fn issue_862_reported_builtins_are_function_default_library_in_tcltest_body() {
+    // Same builtins, now inside an imported tcltest `-body` script.
+    let src = "namespace import tcltest::*\n\
+               test mytest-1.1 {desc} -body {\n\
+               \x20   set a 1\n\
+               \x20   lassign {1 2 3} x y z\n\
+               \x20   incr a\n\
+               \x20   lappend mylist 1 2 3\n\
+               \x20   append s hello\n\
+               \x20   set r [expr {$a + 1}]\n\
+               \x20   lset a 0 2\n\
+               \x20   puts $r\n\
+               } -result 1\n";
+    let toks = decode(src, "tcl8.6");
+    for &name in ISSUE_862_BUILTINS {
+        let hit = toks
+            .iter()
+            .find(|t| t.ttype == "function" && tok_text(src, t) == name);
+        let t = hit.unwrap_or_else(|| {
+            panic!("`{name}` did not classify as a function token inside a tcltest -body: {toks:?}")
+        });
+        assert!(
+            has_default_library(t),
+            "`{name}` must carry the defaultLibrary modifier inside a tcltest -body: {t:?} in {toks:?}",
+        );
+    }
+    // The imported `test` command itself is also a registry built-in.
+    let test_tok = toks
+        .iter()
+        .find(|t| t.ttype == "function" && tok_text(src, t) == "test")
+        .expect("`test` did not classify as a function token");
+    assert!(
+        has_default_library(test_tok),
+        "imported `test` must carry the defaultLibrary modifier: {test_tok:?} in {toks:?}",
+    );
 }

@@ -578,6 +578,20 @@ mod interprocedural_taint {
         assert!(!ws.is_empty());
         assert!(ws.iter().any(|w| w.sink_command == "eval"));
     }
+
+    #[test]
+    fn tainted_variadic_args_into_sinking_helper_warns() {
+        // `proc log {args} { puts $args }` packs every trailing actual
+        // argument into the `args` list parameter — a tainted actual must
+        // still be traced (via the interprocedural entry-taint solve's
+        // `args`-packing rule) into the sink inside the callee body.
+        let source = "proc log {args} { puts $args }\nset data [read $fd]\nlog $data\n";
+        let ws = of_code(source, D, "T101");
+        assert!(
+            !ws.is_empty(),
+            "expected T101 for tainted args-packed data, got {ws:?}"
+        );
+    }
 }
 
 // ===========================================================================
@@ -621,6 +635,34 @@ mod dangerous_sinks {
         let ws = of_code("set x [read $fd]\nsubst $x", D, "T100");
         assert!(!ws.is_empty());
     }
+
+    #[test]
+    fn coroprobe_command_prefix_sink() {
+        // `coroprobe coroName command ?arg ...?` evaluates `command` in a
+        // suspended coroutine's frame right now — it carries
+        // `Traits::EVALUATES_CODE` but (unlike `eval`/`exec`/`uplevel`) not
+        // `Traits::TAINT_SINK`, so the registry-driven sink classification
+        // must still route it to T100 via the `EVALUATES_CODE` trait rather
+        // than silently losing it now that sink classification is
+        // registry-driven instead of hardcoded per-trait checks in the
+        // compiler.
+        let ws = of_code(
+            "set cmd [read $fd]\ncoroprobe myCoro $cmd",
+            "tcl9.0",
+            "T100",
+        );
+        assert!(!ws.is_empty(), "expected T100 for coroprobe, got none");
+    }
+
+    #[test]
+    fn coroinject_command_prefix_sink() {
+        let ws = of_code(
+            "set cmd [read $fd]\ncoroinject myCoro $cmd",
+            "tcl9.0",
+            "T100",
+        );
+        assert!(!ws.is_empty(), "expected T100 for coroinject, got none");
+    }
 }
 
 // ===========================================================================
@@ -647,6 +689,23 @@ mod warning_messages {
 // ===========================================================================
 mod output_sinks {
     use super::*;
+
+    #[test]
+    fn puts_tainted_data_span_is_tight_around_argument() {
+        // The diagnostic must underline just the tainted `$x` argument word,
+        // not the whole `puts $x` statement — precise highlighting is what
+        // lets the developer see exactly which value is the problem.
+        let src = "set x [read $fd]\nputs $x";
+        let ws = of_code(src, D, "T101");
+        assert_eq!(ws.len(), 1);
+        let want_start = u32::try_from(src.find("$x").unwrap()).unwrap();
+        let want_end = want_start + 2; // "$x" is 2 bytes.
+        assert_eq!(
+            (ws[0].span.start(), ws[0].span.end()),
+            (want_start, want_end),
+            "expected the span to cover only `$x`, not the whole statement"
+        );
+    }
 
     #[test]
     fn puts_tainted_data() {
@@ -734,6 +793,78 @@ mod output_sinks {
     fn puts_interpolation_propagates() {
         let ws = of_code("set x [read $fd]\nputs \"data: $x\"", D, "T101");
         assert!(!ws.is_empty());
+    }
+
+    #[test]
+    fn puts_nonewline_alone_is_content_not_channel() {
+        // `puts -nonewline $x` has only ONE positional arg after the flag,
+        // so per Tcl semantics `$x` is the content written to stdout, not a
+        // channel — the `-nonewline`-shifted `ArgRole::Channel` position
+        // (declared dynamically since the channel slot moves with the
+        // optional flag) must not exempt it.
+        let ws = of_code("set x [read $fd]\nputs -nonewline $x", D, "T101");
+        assert_eq!(ws.len(), 1);
+        assert_eq!(ws[0].variable, "x");
+    }
+
+    #[test]
+    fn puts_via_interp_alias_still_fires() {
+        // `interp alias {} myputs {} puts` makes `myputs` a genuine
+        // current-interpreter alias for the real `puts` builtin. The sink
+        // classification must resolve the call through the lowerer's
+        // `canonical_command` (populated for a resolved alias) rather than
+        // the literal source spelling `"myputs"`, which isn't itself a
+        // registered command and would otherwise silently miss the sink.
+        let ws = of_code(
+            "interp alias {} myputs {} puts\nset x [read $fd]\nmyputs $x",
+            D,
+            "T101",
+        );
+        assert_eq!(ws.len(), 1, "expected T101 via interp alias, got {ws:?}");
+        assert_eq!(ws[0].variable, "x");
+    }
+
+    #[test]
+    fn puts_inside_tcloo_method_body_still_fires() {
+        // TclOO method bodies are analysable functions like any proc — the
+        // sink check must not be limited to top-level / plain-proc bodies.
+        let ws = of_code(
+            "oo::class create Foo {\n\
+             method bar {} {\n\
+             set x [read $fd]\n\
+             puts $x\n\
+             }\n\
+             }",
+            D,
+            "T101",
+        );
+        assert_eq!(
+            ws.len(),
+            1,
+            "expected T101 inside TclOO method body, got {ws:?}"
+        );
+        assert_eq!(ws[0].variable, "x");
+    }
+
+    #[test]
+    fn puts_inside_namespace_eval_body_still_fires() {
+        // `namespace eval` registers its block as a synthetic body unit
+        // (`Module::body_units`) — a fresh-frame body outside any proc —
+        // which must be covered by the same sink check as the top level.
+        let ws = of_code(
+            "namespace eval ::myns {\n\
+             set x [read $fd]\n\
+             puts $x\n\
+             }",
+            D,
+            "T101",
+        );
+        assert_eq!(
+            ws.len(),
+            1,
+            "expected T101 inside namespace eval body, got {ws:?}"
+        );
+        assert_eq!(ws[0].variable, "x");
     }
 }
 

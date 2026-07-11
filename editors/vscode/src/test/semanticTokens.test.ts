@@ -125,17 +125,30 @@ suite("Semantic Tokens", () => {
     const uri = getDocUri("regexSource.tcl");
     await activate(uri);
 
-    const tokens = (await vscode.commands.executeCommand(
-      "vscode.provideDocumentSemanticTokens",
-      uri,
-    )) as vscode.SemanticTokens;
     const legend = (await vscode.commands.executeCommand(
       "vscode.provideDocumentSemanticTokensLegend",
       uri,
     )) as vscode.SemanticTokensLegend;
-    assert.ok(tokens && legend, "expected semantic tokens and a legend");
+    assert.ok(legend, "expected a legend");
 
-    const decoded = decodeTokens(tokens, legend);
+    // The retag comes from the enriched, `CompilationUnit`-backed tier, which
+    // races a coarse fast path (issue #829) on this request's first arrival —
+    // poll rather than asserting on the first synchronous response, matching
+    // the "highlighting eventually converges" test below for the same shape.
+    let decoded: DecodedToken[] = [];
+    await pollUntil(
+      async () =>
+        (await vscode.commands.executeCommand(
+          "vscode.provideDocumentSemanticTokens",
+          uri,
+        )) as vscode.SemanticTokens,
+      (tokens) => {
+        decoded = decodeTokens(tokens, legend);
+        return decoded.some((t) => t.line === 0 && t.type === "regexpQuantifier");
+      },
+      { timeout: 20_000, interval: 250, label: "enriched regex-source retag" },
+    );
+
     // The `*` in the def-site literal on line 0 is a regex quantifier.
     assert.ok(
       decoded.some((t) => t.line === 0 && t.type === "regexpQuantifier"),

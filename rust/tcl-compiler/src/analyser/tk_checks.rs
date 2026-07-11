@@ -137,7 +137,13 @@ fn is_geometry_command(name: &str) -> bool {
 /// `.`, then a letter/underscore, then letters / digits / `_` / `.`
 /// (`^\.[a-zA-Z_][a-zA-Z0-9_.]*$`); note the bare root `.` does *not*
 /// match (it has no first component).
-fn is_widget_path(path: &str) -> bool {
+///
+/// `pub(crate)`: also the single source of truth for
+/// `signature_scan::command_prefix`'s command-prefix-head guard — a widget
+/// path is a dynamically-bound Tk window command, never a resolvable
+/// user proc, so a callback prefix whose head is one (`-yscrollcommand
+/// {.sb set}`) must not be treated as a checkable command reference.
+pub(crate) fn is_widget_path(path: &str) -> bool {
     let mut chars = path.chars();
     if chars.next() != Some('.') {
         return false;

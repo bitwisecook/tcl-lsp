@@ -110,6 +110,7 @@ pub(super) fn scan(
                 resolved_qualified_name: None,
                 argc: arg_count,
                 callback_arity: None,
+                callback_baked_args: 0,
             });
         // Record command-prefix callback heads (`lsort -command cb`, `trace
         // add … cb`, …) as their own invocations so background-scanned files
@@ -133,6 +134,7 @@ pub(super) fn scan(
             "package" => handlers::handle_package(texts, argv, conditional, &mut ctx.result),
             "source" => handlers::handle_source(texts, argv, &mut ctx.result),
             "interp" => handlers::handle_interp(texts, &mut ctx.result),
+            "rename" => handlers::handle_rename(texts, ns_prefix, &mut ctx.result),
             // Every stock `TclOO` metaclass creates a class via the same
             // `METACLASS create NAME ?BODY?` interface — `oo::configurable`
             // (property-bearing), `oo::abstract`, and `oo::singleton` included,
@@ -203,11 +205,12 @@ fn record_command_prefix_invocations(cmd: &SegmentedCommand, head: &str, ctx: &m
                 range: inv.span,
                 // Signature scan skips scope resolution (walker contract).
                 resolved_qualified_name: None,
-                // Bareword head → 0 baked args; the legacy direct-call arity
-                // path skips (`None`), the callback-arity check reads
-                // `callback_arity`.
+                // The legacy direct-call arity path always skips a callback
+                // head (`None`); the callback-arity check reads
+                // `callback_baked_args` + `callback_arity`.
                 argc: None,
                 callback_arity: Some(inv.appended),
+                callback_baked_args: inv.baked,
             });
     }
 }

@@ -207,9 +207,19 @@ struct Shared {
     /// `codeLens/refresh`. Captured separately from `notifications` (which only
     /// holds id-less messages) so a test can assert the server actually asked
     /// for a refresh, in addition to `auto_reply` answering it so the server
-    /// never blocks. Shares `notify_cv` for the same wait/wake contract.
+    /// never blocks.
     server_requests: Mutex<Vec<Value>>,
+    /// Wakes waiters on `notifications`.
+    ///
+    /// A `Condvar` is bound to exactly one `Mutex` for its lifetime: waiting on
+    /// the same one with two different mutexes is a std-documented misuse that
+    /// panics with "attempted to use a condition variable with two mutexes"
+    /// (detected by the pthread backend on macOS; the futex backend used on
+    /// Linux does not notice, so CI never saw it). `server_requests` therefore
+    /// has its own `requests_cv` rather than sharing this one.
     notify_cv: Condvar,
+    /// Wakes waiters on `server_requests`. See `notify_cv`.
+    requests_cv: Condvar,
     /// The `tclLsp` configuration reply for `workspace/configuration`. Mutable
     /// so `apply_configuration` can change what the server re-pulls.
     tcllsp_config: Mutex<Value>,
@@ -300,6 +310,7 @@ impl Lsp {
             notifications: Mutex::new(Vec::new()),
             server_requests: Mutex::new(Vec::new()),
             notify_cv: Condvar::new(),
+            requests_cv: Condvar::new(),
             tcllsp_config: Mutex::new(config),
             stderr: Mutex::new(String::new()),
         });
@@ -657,6 +668,21 @@ impl Lsp {
     /// harness auto-replies to it regardless (see `auto_reply`), so this only
     /// observes that the server asked, without blocking that reply.
     pub fn await_server_request(&self, method: &str, timeout: Duration, since: usize) -> Value {
+        self.try_await_server_request(method, timeout, since)
+            .unwrap_or_else(|| panic!("no server-initiated {method:?} request within {timeout:?}"))
+    }
+
+    /// Like [`Lsp::await_server_request`] but returns `None` on timeout instead
+    /// of panicking, for callers that treat "no such request arrived" as a
+    /// normal, expected outcome rather than a failure — e.g. converging
+    /// semantic tokens, where the *absence* of a `workspace/semanticTokens/refresh`
+    /// means the first response was already the settled enriched stream.
+    pub fn try_await_server_request(
+        &self,
+        method: &str,
+        timeout: Duration,
+        since: usize,
+    ) -> Option<Value> {
         let deadline = Instant::now() + timeout;
         let mut reqs = self.shared.server_requests.lock().unwrap();
         loop {
@@ -665,14 +691,17 @@ impl Lsp {
                 .skip(since)
                 .find(|n| n.get("method").and_then(Value::as_str) == Some(method))
             {
-                return req.clone();
+                return Some(req.clone());
             }
             let remaining = deadline.saturating_duration_since(Instant::now());
-            assert!(
-                !remaining.is_zero(),
-                "no server-initiated {method:?} request within {timeout:?}"
-            );
-            let (guard, _) = self.shared.notify_cv.wait_timeout(reqs, remaining).unwrap();
+            if remaining.is_zero() {
+                return None;
+            }
+            let (guard, _) = self
+                .shared
+                .requests_cv
+                .wait_timeout(reqs, remaining)
+                .unwrap();
             reqs = guard;
         }
     }
@@ -990,7 +1019,7 @@ fn route(msg: &Value, shared: &Arc<Shared>) {
         // Server-initiated request — record it (so a test can assert the
         // server actually asked), then answer so the server never blocks.
         shared.server_requests.lock().unwrap().push(msg.clone());
-        shared.notify_cv.notify_all();
+        shared.requests_cv.notify_all();
         auto_reply(msg, shared);
     } else {
         // Notification.

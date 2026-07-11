@@ -404,7 +404,15 @@ pub fn detect_dialect_directive(source: &str) -> Option<&'static str> {
             continue;
         };
         let rest = rest.trim_start();
-        if rest.len() < KEY.len() || !rest[..KEY.len()].eq_ignore_ascii_case(KEY) {
+        // `rest.get(..KEY.len())` (unlike `rest[..KEY.len()]`) returns `None`
+        // rather than panicking when `KEY.len()` falls inside a multi-byte
+        // char instead of on a boundary — a real case: a leading comment
+        // with a non-ASCII byte (an em dash, a curly quote, …) before byte
+        // offset 12 used to crash the server on `textDocument/didOpen`.
+        let Some(prefix) = rest.get(..KEY.len()) else {
+            continue;
+        };
+        if !prefix.eq_ignore_ascii_case(KEY) {
             continue;
         }
         let candidate = rest[KEY.len()..]
@@ -418,7 +426,7 @@ pub fn detect_dialect_directive(source: &str) -> Option<&'static str> {
 
 #[cfg(test)]
 mod detect_tests {
-    use super::detect_dialect;
+    use super::{detect_dialect, detect_dialect_directive};
 
     const DEF: &str = "tcl9.0";
 
@@ -427,6 +435,22 @@ mod detect_tests {
         assert_eq!(
             detect_dialect("# tcl-dialect: tcl8.5\nputs hi\n", None, DEF),
             "tcl8.5"
+        );
+    }
+
+    #[test]
+    fn multibyte_comment_before_directive_key_does_not_panic() {
+        // A leading comment with a non-ASCII byte (an em dash here) landing
+        // inside the `tcl-dialect:` key's byte length used to panic on the
+        // `rest[..KEY.len()]` slice instead of just not matching.
+        assert_eq!(
+            detect_dialect_directive("# Issue #806 — report::defstyle\nputs hi\n"),
+            None
+        );
+        // The directive itself still resolves once past any such comment.
+        assert_eq!(
+            detect_dialect_directive("# Issue #806 — report::defstyle\n# tcl-dialect: tcl8.5\n"),
+            Some("tcl8.5")
         );
     }
 
@@ -832,6 +856,103 @@ impl DialectSet {
             _ => return None,
         })
     }
+
+    /// The canonical dialect name for a single-bit set — the inverse of
+    /// [`Self::parse`]. `None` for an empty set, a combinator flag with no
+    /// single dialect name (`ALL_TCL`, `TCL85_PLUS`, …), or a multi-bit set.
+    #[must_use]
+    pub fn canonical_name(self) -> Option<&'static str> {
+        Some(match self {
+            Self::BPF => "bpf",
+            Self::TCL84 => "tcl8.4",
+            Self::TCL85 => "tcl8.5",
+            Self::TCL86 => "tcl8.6",
+            Self::TCL90 => "tcl9.0",
+            Self::TCL91 => "tcl9.1",
+            Self::IRULES => "f5-irules",
+            Self::IAPPS => "f5-iapps",
+            Self::TK => "tk",
+            Self::EXPECT => "expect",
+            Self::SYNOPSYS => "synopsys-eda-tcl",
+            Self::CADENCE => "cadence-eda-tcl",
+            Self::XILINX => "xilinx-eda-tcl",
+            Self::QUARTUS => "intel-quartus-eda-tcl",
+            Self::MENTOR => "mentor-eda-tcl",
+            _ => return None,
+        })
+    }
+
+    /// The canonical dialect names of every single bit set in `self`, in
+    /// declaration order (`TCL84` before `TCL85` before … before `MENTOR`) —
+    /// so a Tcl-version run always lists lowest-to-highest.  Combinator bits
+    /// with no single name (see [`Self::canonical_name`]) contribute nothing;
+    /// every *primitive* dialect this set contains is still listed via its
+    /// own bit.
+    #[must_use]
+    pub fn member_names(self) -> Vec<&'static str> {
+        const PRIMITIVES: &[DialectSet] = &[
+            DialectSet::TCL84,
+            DialectSet::TCL85,
+            DialectSet::TCL86,
+            DialectSet::TCL90,
+            DialectSet::TCL91,
+            DialectSet::IRULES,
+            DialectSet::IAPPS,
+            DialectSet::TK,
+            DialectSet::EXPECT,
+            DialectSet::SYNOPSYS,
+            DialectSet::CADENCE,
+            DialectSet::XILINX,
+            DialectSet::QUARTUS,
+            DialectSet::MENTOR,
+            DialectSet::BPF,
+        ];
+        PRIMITIVES
+            .iter()
+            .filter(|&&bit| self.contains(bit))
+            .filter_map(|&bit| bit.canonical_name())
+            .collect()
+    }
+
+    /// Resolve `name` to the Tcl core-grammar version its `expr` evaluator
+    /// behaves like, for version-gated *language grammar* features — e.g.
+    /// TIP 201 (`in`/`ni`, 8.5+) and TIP 461 (`lt`/`le`/`gt`/`ge`, 9.0+).
+    ///
+    /// Distinct from [`Self::parse`] + `TCL85_PLUS`/`TCL90_PLUS`, which model
+    /// per-*command* dialect gating and deliberately keep vendor dialects
+    /// (the EDA tools, F5 iApps/tmsh) as their own bits rather than folding
+    /// them into a Tcl version — most standard-library commands they don't
+    /// ship are missing because of their own restricted command surface, not
+    /// because of version. Expr grammar is different: every dialect here is
+    /// either plain Tcl or a vendor shell embedding a real Tcl core, so it
+    /// inherits that embedded core's operators wholesale. `f5-irules` is the
+    /// one case where the two deliberately disagree: it advertises an
+    /// 8.6-shaped command *signature* but its `expr` evaluator is a genuine
+    /// embedded Tcl 8.4.6, so version-*dependent behaviour* (this included)
+    /// follows 8.4, not 8.6.
+    ///
+    /// Source: the per-dialect base-Tcl-version table in
+    /// `docs/design/compiler/dialects-events.md`. Returns `None` for
+    /// `f5-bigip` (a custom config parser, not Tcl at all) and for any name
+    /// this table has no documented base version for (`tk`, `bpf`) — callers
+    /// should treat `None` as "can't reason about this dialect's grammar
+    /// version," not "assume plain Tcl."
+    #[must_use]
+    pub fn expr_grammar_base_version(name: &str) -> Option<Self> {
+        Some(match name {
+            "tcl8.4" | "f5-irules" => Self::TCL84,
+            "tcl8.5"
+            | "f5-iapps"
+            | "f5-tmsh"
+            | "xilinx-eda-tcl"
+            | "intel-quartus-eda-tcl"
+            | "mentor-eda-tcl" => Self::TCL85,
+            "tcl8.6" | "synopsys-eda-tcl" | "cadence-eda-tcl" | "expect" => Self::TCL86,
+            "tcl9.0" => Self::TCL90,
+            "tcl9.1" => Self::TCL91,
+            _ => return None,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -858,6 +979,88 @@ mod tests {
         assert_eq!(DialectSet::parse("tcl8.6"), Some(DialectSet::TCL86));
         assert_eq!(DialectSet::parse("f5-irules"), Some(DialectSet::IRULES));
         assert_eq!(DialectSet::parse("unknown"), None);
+    }
+
+    #[test]
+    fn canonical_name_is_the_exact_inverse_of_parse() {
+        // Every name `parse` accepts round-trips through `canonical_name`
+        // back to the identical string, for every primitive dialect.
+        for name in [
+            "bpf",
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "f5-irules",
+            "f5-iapps",
+            "tk",
+            "expect",
+            "synopsys-eda-tcl",
+            "cadence-eda-tcl",
+            "xilinx-eda-tcl",
+            "intel-quartus-eda-tcl",
+            "mentor-eda-tcl",
+        ] {
+            let bit = DialectSet::parse(name).unwrap_or_else(|| panic!("{name} must parse"));
+            assert_eq!(bit.canonical_name(), Some(name));
+        }
+    }
+
+    #[test]
+    fn canonical_name_is_none_for_combinators_and_empty() {
+        assert_eq!(DialectSet::empty().canonical_name(), None);
+        assert_eq!(DialectSet::ALL_TCL.canonical_name(), None);
+        assert_eq!(DialectSet::TCL85_PLUS.canonical_name(), None);
+        assert_eq!(
+            (DialectSet::TCL84 | DialectSet::TCL85).canonical_name(),
+            None
+        );
+    }
+
+    #[test]
+    fn member_names_lists_lowest_tcl_version_first() {
+        assert_eq!(
+            DialectSet::ALL_TCL.member_names(),
+            vec!["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"]
+        );
+        assert_eq!(
+            DialectSet::TCL85_PLUS.member_names(),
+            vec!["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"]
+        );
+        assert_eq!(DialectSet::TCL84.member_names(), vec!["tcl8.4"]);
+        assert!(DialectSet::empty().member_names().is_empty());
+    }
+
+    #[test]
+    fn expr_grammar_base_version_matches_documented_runtime_bases() {
+        let base = DialectSet::expr_grammar_base_version;
+        // Plain Tcl versions map to themselves.
+        assert_eq!(base("tcl8.4"), Some(DialectSet::TCL84));
+        assert_eq!(base("tcl9.1"), Some(DialectSet::TCL91));
+        // iRules' *runtime* base (8.4.6) wins over its 8.6-shaped command
+        // signature — version-dependent behaviour follows the runtime.
+        assert_eq!(base("f5-irules"), Some(DialectSet::TCL84));
+        // EDA / F5 vendor shells inherit their documented embedded core —
+        // unlike `DialectSet::TCL85_PLUS`, which deliberately excludes them.
+        for d in [
+            "f5-iapps",
+            "f5-tmsh",
+            "xilinx-eda-tcl",
+            "intel-quartus-eda-tcl",
+            "mentor-eda-tcl",
+        ] {
+            assert_eq!(base(d), Some(DialectSet::TCL85), "{d}");
+        }
+        for d in ["synopsys-eda-tcl", "cadence-eda-tcl", "expect"] {
+            assert_eq!(base(d), Some(DialectSet::TCL86), "{d}");
+        }
+        // Not Tcl at all / no documented base version: stay `None` rather
+        // than guessing.
+        assert_eq!(base("f5-bigip"), None);
+        assert_eq!(base("tk"), None);
+        assert_eq!(base("bpf"), None);
+        assert_eq!(base("nonsense"), None);
     }
 
     #[test]

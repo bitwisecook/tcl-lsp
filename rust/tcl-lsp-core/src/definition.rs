@@ -140,8 +140,8 @@ pub fn definition(
     // declaration.  Checked before the proc lookup so a method
     // call resolves to the method even when a same-named proc
     // exists.
-    if let Some((inst, method)) = instance_method_at_cursor(source, line, character)
-        && let Some(class_q) = analysis.instance_classes.get(&inst)
+    if let Some((inst, method, is_dollar)) = instance_method_at_cursor(source, line, character)
+        && let Some(class_q) = receiver_instance_class(analysis, &inst, is_dollar)
         && let Some(span) = lookup_method_in_class(analysis, class_q, &method)
     {
         return vec![span_to_range(source, &line_index, span)];
@@ -367,21 +367,27 @@ fn canonicalise_class(analysis: &AnalysisResult, owner: &str, name: &str) -> Str
     .unwrap_or_else(|| name.to_string())
 }
 
-/// Detect a `$obj method ...` / `[$obj method ...]` call where
-/// the cursor sits on the *method-name* token.  Returns
-/// `(instance_var_name, method_name)`.
+/// Detect a `$obj method ...` / `[$obj method ...]` or
+/// `objcmd method ...` call where the cursor sits on the *method-name*
+/// token.  Returns `(receiver_name, method_name, receiver_is_dollar)`:
+/// `receiver_is_dollar` is `true` for a `$var` / `${var}` receiver (a
+/// variable holding an object) and `false` for a bare object-command
+/// receiver (`objcmd`, e.g. one bound by `CLASS create objcmd`).
 ///
-/// The instance variable must be the command-segment head (a
-/// single `$name` / `${name}` token immediately preceding the
-/// method), so the method sits at word-index 1.  Command
-/// segments are delimited by `;`, `[`, `{`, and the line start
-/// — a single-line approximation that covers the common editor
-/// cases.
+/// The receiver must be the command-segment head (a single token
+/// immediately preceding the method), so the method sits at word-index 1.
+/// Command segments are delimited by `;`, `[`, `{`, and the line start —
+/// a single-line approximation that covers the common editor cases.
+///
+/// Whether a bare receiver actually resolves to a class is decided by
+/// [`receiver_instance_class`], which gates bare receivers on
+/// `created_instance_commands` (so a plain variable's bare name — never a
+/// valid dispatch — does not resolve).
 pub(crate) fn instance_method_at_cursor(
     source: &str,
     line: u32,
     character: u32,
-) -> Option<(String, String)> {
+) -> Option<(String, String, bool)> {
     let line_text = source.split('\n').nth(line as usize)?;
     let chars: Vec<char> = line_text.chars().collect();
     let col = utf16_col_to_char_col(line_text, character).min(chars.len());
@@ -411,21 +417,57 @@ pub(crate) fn instance_method_at_cursor(
         }
     }
     // The head must be exactly one whitespace-delimited token
-    // (the instance var), so the method is word-index 1.
+    // (the receiver), so the method is word-index 1.
     let prefix: String = chars[seg_start..wstart].iter().collect();
     let head_tokens: Vec<&str> = prefix.split_whitespace().collect();
     if head_tokens.len() != 1 {
         return None;
     }
     let head = head_tokens[0];
-    let inst = head.strip_prefix('$')?;
-    let inst = inst
-        .strip_prefix('{')
-        .map_or(inst, |r| r.strip_suffix('}').unwrap_or(r));
-    if inst.is_empty() {
-        return None;
+    if let Some(rest) = head.strip_prefix('$') {
+        // `$var` / `${var}` receiver — a variable holding an object.
+        let inst = rest
+            .strip_prefix('{')
+            .map_or(rest, |r| r.strip_suffix('}').unwrap_or(r));
+        if inst.is_empty() {
+            return None;
+        }
+        Some((inst.to_string(), method, true))
+    } else {
+        // Bare `objcmd` receiver — a plain word naming an object command.
+        // Substituted / decorated heads (`[…]`, `{…}`, quoted) are not bare
+        // object commands; `receiver_instance_class` further gates this on
+        // `created_instance_commands`.
+        if head.is_empty() || head.contains(['[', ']', '{', '}', '"', '(', ')', '$']) {
+            return None;
+        }
+        Some((head.to_string(), method, false))
     }
-    Some((inst.to_string(), method))
+}
+
+/// Resolve a method-dispatch receiver at the cursor (as returned by
+/// [`instance_method_at_cursor`]) to its class's qualified name.
+///
+/// A `$var` receiver (`is_dollar`) is any object-holding variable, looked
+/// up in `instance_classes`.  A bare receiver is a valid dispatch only when
+/// it names an object *command* (`CLASS create NAME`) — a plain variable's
+/// bare name (`set v [CLASS new]` then `v method`) is not a command and must
+/// not resolve — so it is additionally gated on `created_instance_commands`.
+///
+/// Shared by the definition / references / rename / hover cursor paths so
+/// they agree on which receivers dispatch (and, via
+/// `method_references_for_class`, so those match the code-lens count).
+pub(crate) fn receiver_instance_class<'a>(
+    analysis: &'a AnalysisResult,
+    receiver: &str,
+    is_dollar: bool,
+) -> Option<&'a String> {
+    let class = analysis.instance_classes.get(receiver)?;
+    if is_dollar || analysis.created_instance_commands.contains(receiver) {
+        Some(class)
+    } else {
+        None
+    }
 }
 
 /// Look up an alias by name.  Accepts the alias's simple or
@@ -1065,16 +1107,65 @@ mod tests {
     }
 
     #[test]
-    fn instance_method_at_cursor_detects_dollar_head() {
-        let src = "$d bark\n";
-        let got = instance_method_at_cursor(src, 0, 4);
-        assert_eq!(got, Some(("d".to_string(), "bark".to_string())));
+    fn definition_resolves_bare_created_instance_command_method() {
+        // Codex #881: `Dog create rex` then `rex bark` — cursor on the bare
+        // `bark` jumps to the method declaration, mirroring `$obj bark`.
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nDog create rex\nrex bark\n";
+        let analysis = analyse(src);
+        // Line 4 `rex bark` — `bark` starts at col 4.
+        let locs = definition(src, 4, 4, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1);
     }
 
     #[test]
-    fn instance_method_at_cursor_rejects_non_dollar_head() {
-        // `foo bark` — head is a bare word, not an instance var.
+    fn definition_bare_var_receiver_without_dollar_does_not_resolve() {
+        // `set d [Dog new]` binds `d` as a variable; a bare `d bark` (no `$`)
+        // is not a valid dispatch, so it must not resolve to the method.
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nd bark\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 4, 2, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn instance_method_at_cursor_detects_dollar_head() {
+        let src = "$d bark\n";
+        let got = instance_method_at_cursor(src, 0, 4);
+        assert_eq!(got, Some(("d".to_string(), "bark".to_string(), true)));
+    }
+
+    #[test]
+    fn instance_method_at_cursor_reports_bare_head_as_non_dollar() {
+        // `foo bark` — a bare-word receiver (an object command); reported
+        // with `is_dollar == false`.  Whether it actually resolves to a
+        // class is decided later by `receiver_instance_class`.
         let src = "foo bark\n";
+        assert_eq!(
+            instance_method_at_cursor(src, 0, 5),
+            Some(("foo".to_string(), "bark".to_string(), false))
+        );
+    }
+
+    #[test]
+    fn instance_method_at_cursor_rejects_substituted_head() {
+        // `[x] bark` — a command-substitution head is not a bare object
+        // command.
+        let src = "[x] bark\n";
         assert_eq!(instance_method_at_cursor(src, 0, 5), None);
+    }
+
+    #[test]
+    fn receiver_instance_class_gates_bare_on_created_commands() {
+        // `set b [Bar new]` binds `b` as a variable; `Bar create rex` binds
+        // `rex` as an object command.  A bare receiver resolves only for the
+        // command (`rex`), not the variable (`b`); a `$`-receiver resolves
+        // for either.
+        let src =
+            "oo::class create Bar {\n    method get {} {}\n}\nset b [Bar new]\nBar create rex\n";
+        let analysis = analyse(src);
+        assert!(receiver_instance_class(&analysis, "rex", false).is_some());
+        assert!(receiver_instance_class(&analysis, "b", false).is_none());
+        assert!(receiver_instance_class(&analysis, "b", true).is_some());
     }
 }

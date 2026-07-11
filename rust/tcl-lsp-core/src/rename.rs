@@ -246,9 +246,10 @@ pub fn prepare_rename(
     // rename UI on `prepare_rename` should still see it as
     // renameable.  Resolve `$obj`'s class and confirm a method
     // of that name exists.
-    if let Some((inst, method)) =
+    if let Some((inst, method, is_dollar)) =
         crate::definition::instance_method_at_cursor(source, line, character)
-        && let Some(class_q) = analysis.instance_classes.get(&inst)
+        && let Some(class_q) =
+            crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
         && let Some(class_def) = analysis.all_classes.get(class_q)
     {
         let member = class_def
@@ -345,10 +346,11 @@ pub fn rename(
     // on the method-name token of an instance-method call and
     // `$obj`'s class is known, rename the method across its
     // declaration + all call sites (intra-class + external).
-    if let Some((inst, method)) =
+    if let Some((inst, method, is_dollar)) =
         crate::definition::instance_method_at_cursor(source, line, character)
         && method == word
-        && let Some(class_q) = analysis.instance_classes.get(&inst)
+        && let Some(class_q) =
+            crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
         && let Some(edits) = rename_method_in_class(
             source,
             dialect,
@@ -446,10 +448,11 @@ pub fn method_rename_target(
     let line_index = LineIndex::new(source);
     let (word, _s, _e) = find_word_span_at_position(source, line, character)?;
     // External `$obj method` — resolve `$obj`'s class.
-    if let Some((inst, method)) =
+    if let Some((inst, method, is_dollar)) =
         crate::definition::instance_method_at_cursor(source, line, character)
         && method == word
-        && let Some(class_q) = analysis.instance_classes.get(&inst)
+        && let Some(class_q) =
+            crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
     {
         return Some((class_q.clone(), method));
     }
@@ -1661,6 +1664,43 @@ mod tests {
         // (`[$d bark]`).
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
         assert!(lines.contains(&4) && lines.contains(&5), "{edits:?}");
+    }
+
+    #[test]
+    fn rename_method_rewrites_bare_created_instance_command_site() {
+        // `Dog create rex` binds `rex` as an object command, so renaming
+        // `bark` must also rewrite the bare `rex bark` dispatch — the same
+        // shared resolver drives the peek, the lens, and the rename.
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nDog create rex\nrex bark\n";
+        let analysis = analyse(src);
+        let edits = rename(src, "tcl", 1, 11, "yip", &analysis, None);
+        for e in &edits {
+            assert_eq!(e.new_text, "yip");
+        }
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(lines.contains(&1), "decl not renamed: {edits:?}");
+        assert!(
+            lines.contains(&4),
+            "bare `rex bark` site not renamed: {edits:?}"
+        );
+    }
+
+    #[test]
+    fn rename_method_from_cursor_on_bare_obj_command_call_site() {
+        // Codex #881 (symmetry): triggering rename with the cursor ON the
+        // `bark` token of a bare `rex bark` dispatch rewrites the declaration
+        // and the call site — not only the declaration-triggered rename.
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nDog create rex\nrex bark\n";
+        let analysis = analyse(src);
+        // Line 4 `rex bark` — cursor on `bark` (col 4).
+        let edits = rename(src, "tcl", 4, 4, "yip", &analysis, None);
+        assert!(edits.len() >= 2, "{edits:?}");
+        for e in &edits {
+            assert_eq!(e.new_text, "yip");
+        }
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(lines.contains(&1), "decl not renamed: {edits:?}");
+        assert!(lines.contains(&4), "call site not renamed: {edits:?}");
     }
 
     #[test]

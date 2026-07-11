@@ -287,11 +287,12 @@ diagnostic_codes! {
     E002 => "E002", diag(Error, true, "Too few arguments for command.");
     E003 => "E003", diag(Error, true, "Too many arguments for command.");
     E004 => "E004", diag_internal(Error, true, "Malformed `if` command — missing clauses or extra words after `else`.");
+    E005 => "E005", diag(Error, true, "Wrong argument-count shape for command — an in-range count that doesn't fit the command's key/value-pair or paired-argument pattern (e.g. an odd `dict create` tail, an unpaired `foreach` list, or a `switch` count matching neither its shorthand nor its pattern/body-pair form).");
     E100 => "E100", diag_internal(Error, true, "Unmatched `]` — missing opening `[`?");
     E101 => "E101", diag_internal(Error, true, "Missing `{` after `switch` — case bodies follow without braces.");
     E102 => "E102", diag_internal(Error, true, "Unmatched `}` — missing opening `{`?");
     E103 => "E103", diag_internal(Error, true, "Missing `}` — a nested body consumed this closing brace.");
-    E200 => "E200", diag(Error, true, "Shimmer parse error — internal representation cannot be determined.");
+    E200 => "E200", diag(Error, true, "Unterminated command — the parser could not tell where it ends (missing `]` / `\"` / `}`).");
     E201 => "E201", diag_internal(Error, true, "Unterminated command substitution — missing close bracket `]`.");
     E202 => "E202", diag_internal(Error, true, "Unterminated double-quoted string — missing closing `\"`.");
     E203 => "E203", diag_internal(Error, true, "Unterminated braced word — missing closing `}`.");
@@ -337,7 +338,7 @@ diagnostic_codes! {
     Irule6001 => "IRULE6001", diag_internal(Irules, true, "`global`/`::`-qualified variable forces CMP compatibility mode, pinning the virtual server to one TMM — use `static::`.");
     O100 => "O100", opt(ConstantFolding, "Propagate constant variables into expressions and command arguments.");
     O101 => "O101", opt(ConstantFolding, "Fold constant integer expressions.");
-    O102 => "O102", opt(ConstantFolding, "Fold constant `[expr {...}]` command substitutions.");
+    O102 => "O102", opt(ConstantFolding, "Forward a variable's single reaching literal load to its use sites.");
     O103 => "O103", opt(ConstantFolding, "Fold static procedure calls using interprocedural summaries.");
     O104 => "O104", opt(Pattern, "Fold static string build chains into a single assignment.");
     O105 => "O105", opt(ConstantFolding, "Propagate constants into variable references and detect redundant computations (GVN/CSE).");
@@ -404,7 +405,7 @@ diagnostic_codes! {
     W120 => "W120", diag(Warning, true, "Command used without a corresponding `package require`.");
     W121 => "W121", diag(Warning, true, "Subnet mask has non-contiguous bits.");
     W122 => "W122", diag(Warning, true, "Mistyped IPv4 address (octet > 255 or leading zero).");
-    W123 => "W123", diag(Hint, false, "Unresolved command — not found in registry, user procs, or `unknown` handler.");
+    W123 => "W123", diag(Hint, true, "Unresolved command — not found in registry, user procs, or `unknown` handler.");
     W124 => "W124", diag(Warning, true, "Invalid IP address literal.");
     W125 => "W125", diag(Warning, true, "Orphaned control-flow keyword used as standalone command.");
     W126 => "W126", diag(Warning, true, "Non-channel value in channel argument position.");

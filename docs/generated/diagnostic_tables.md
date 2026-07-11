@@ -6,11 +6,12 @@
 | E002 | error | Too few arguments for command. | ✓ |
 | E003 | error | Too many arguments for command. | ✓ |
 | E004 | error | Malformed `if` command — missing clauses or extra words after `else`. | ✓ |
+| E005 | error | Wrong argument-count shape for command — an in-range count that doesn't fit the command's key/value-pair or paired-argument pattern (e.g. an odd `dict create` tail, an unpaired `foreach` list, or a `switch` count matching neither its shorthand nor its pattern/body-pair form). | ✓ |
 | E100 | error | Unmatched `]` — missing opening `[`? | ✓ |
 | E101 | error | Missing `{` after `switch` — case bodies follow without braces. | ✓ |
 | E102 | error | Unmatched `}` — missing opening `{`? | ✓ |
 | E103 | error | Missing `}` — a nested body consumed this closing brace. | ✓ |
-| E200 | error | Shimmer parse error — internal representation cannot be determined. | ✓ |
+| E200 | error | Unterminated command — the parser could not tell where it ends (missing `]` / `"` / `}`). | ✓ |
 | E201 | error | Unterminated command substitution — missing close bracket `]`. | ✓ |
 | E202 | error | Unterminated double-quoted string — missing closing `"`. | ✓ |
 | E203 | error | Unterminated braced word — missing closing `}`. | ✓ |
@@ -82,7 +83,7 @@
 | H300 | hint | Possible paste error — repeated assignment to same variable with same value. | ✓ |
 | I230 | hint | Constant branch condition — the alternate branch is provably unreachable. | ✓ |
 | I231 | hint | Constant switch arm condition — the arm is provably unreachable. | ✓ |
-| W123 | hint | Unresolved command — not found in registry, user procs, or `unknown` handler. | ✗ |
+| W123 | hint | Unresolved command — not found in registry, user procs, or `unknown` handler. | ✓ |
 | W242 | hint | Loop termination cannot be proven — counter not provably modified by the loop body or step. | ✗ |
 | S100 | shimmer | Single shimmer outside a loop — object internal representation changed. | ✓ |
 | S101 | shimmer | Shimmer inside a loop body — per-iteration representation conversion cost. | ✓ |
@@ -144,7 +145,7 @@
 |------|----------|-------------|:-----------:|:--------:|:----:|
 | O100 | constant_folding | Propagate constant variables into expressions and command arguments. |  | ✓ | ✓ |
 | O101 | constant_folding | Fold constant integer expressions. |  | ✓ | ✓ |
-| O102 | constant_folding | Fold constant `[expr {...}]` command substitutions. |  | ✓ | ✓ |
+| O102 | constant_folding | Forward a variable's single reaching literal load to its use sites. |  | ✓ | ✓ |
 | O103 | constant_folding | Fold static procedure calls using interprocedural summaries. |  | ✓ | ✓ |
 | O104 | pattern | Fold static string build chains into a single assignment. |  | ✓ | ✓ |
 | O105 | constant_folding | Propagate constants into variable references and detect redundant computations (GVN/CSE). |  | ✓ | ✓ |

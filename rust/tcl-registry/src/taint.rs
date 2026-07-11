@@ -272,8 +272,11 @@ pub fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) ->
 /// support it are ignored.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TaintSinkInfo {
-    /// Dangerous code-execution sink (`eval`, `expr`, `exec`,
-    /// `uplevel`, `subst`) — T100. From [`Traits::TAINT_SINK`].
+    /// Dangerous code-execution sink (`eval`, `expr`, `exec`, `uplevel`,
+    /// `subst`, `coroprobe`/`coroinject`) — T100. From
+    /// [`Traits::TAINT_SINK`] or [`Traits::EVALUATES_CODE`] (the latter
+    /// covers commands that evaluate a runtime command reference without
+    /// being a fixed-sink builtin, e.g. `coroprobe`/`coroinject`).
     pub is_code_sink: bool,
     /// Output-sink diagnostic code (T101 / IRULE3001 / IRULE3002 /
     /// IRULE3004), if the matched subcommand qualifies.
@@ -313,7 +316,9 @@ pub fn classify_taint_sinks(
     }
 
     let mut info = TaintSinkInfo {
-        is_code_sink: spec.traits.contains(Traits::TAINT_SINK),
+        is_code_sink: spec
+            .traits
+            .intersects(Traits::TAINT_SINK | Traits::EVALUATES_CODE),
         ..TaintSinkInfo::default()
     };
 
@@ -565,6 +570,7 @@ mod tests {
         assert!(c.taint_transform.is_none());
         assert!(c.taint_double_encode_colour.is_none());
         assert!(c.taint_sink_safe_colour.is_none());
+        assert!(c.taint_sink_gate.is_none());
         assert!(c.credential_options.is_empty());
         assert!(c.sensitive_headers.is_empty());
         assert!(c.setter_constraints.is_empty());

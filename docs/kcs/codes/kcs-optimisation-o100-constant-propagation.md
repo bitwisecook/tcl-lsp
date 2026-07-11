@@ -35,7 +35,7 @@ expr {10 + 1}
 
 ## Safety conditions
 
-- Skipped when the variable may be modified between assignment and use (e.g. by `upvar`, `trace`, or an intervening command call).
+- Skipped when the variable is aliased (`global`, `variable`, `upvar`) or traced anywhere in its own procedure, or — for a top-level variable specifically — when *any* procedure in the file reassigns it via `global`. A top-level name already lives in the global frame, so a procedure elsewhere can rewrite it between the assignment and a later top-level use even though the top-level code itself never mentions `global`.
 - Skipped when the constant value contains metacharacters that would change meaning in the target context.
 
 ## How to disable

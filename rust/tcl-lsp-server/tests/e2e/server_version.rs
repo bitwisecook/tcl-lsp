@@ -20,8 +20,10 @@
 //!
 //! The smallest real round-trip: boot the live server and read the version it
 //! reports in the `initialize` response's `serverInfo`. Guards against the
-//! banner regressing to a `dev` fallback, and pins the reported version to the
-//! workspace crate version (`CARGO_PKG_VERSION`) the compiled banner comes from.
+//! banner regressing to a `dev` fallback, and pins the reported version to
+//! `tcl_version::VERSION` — the release version resolved from the tag, which is
+//! what the compiled banner carries. The workspace manifest's `0.1.0` is never
+//! bumped, so `CARGO_PKG_VERSION` is deliberately not the source here.
 
 use crate::common::Lsp;
 
@@ -39,12 +41,15 @@ fn initialize_reports_version() {
         !reported.is_empty() && reported != "vdev" && reported != "dev",
         "server fell back to a dev version banner: {reported:?}"
     );
-    // The native binary reports the workspace crate version verbatim.
-    let expected = env!("CARGO_PKG_VERSION");
+    // The native binary reports the tag-resolved release version verbatim.
+    // Both the test and the binary compile against the same `tcl-version` crate,
+    // so this holds for a release build (`2.1.5`) and a working-tree build
+    // (`2.1.5-3-gabc1234`) alike.
+    let expected = tcl_version::VERSION;
     assert_eq!(
         reported, expected,
-        "native server reported version {reported:?}, expected the workspace crate \
-         version {expected:?} (CARGO_PKG_VERSION)"
+        "native server reported version {reported:?}, expected the tag-resolved \
+         release version {expected:?} (tcl_version::VERSION)"
     );
 }
 

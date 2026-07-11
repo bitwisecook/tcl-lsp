@@ -54,6 +54,7 @@ suite("Configuration Settings", () => {
     "callHierarchy",
     "documentLinks",
     "selectionRange",
+    "crossFileResolution",
   ];
 
   for (const key of triStateFeatureKeys) {
@@ -490,6 +491,8 @@ suite("Configuration Settings", () => {
     "E200",
     "W001",
     "W002",
+    "W003",
+    "W004",
     "W100",
     "W101",
     "W102",
@@ -576,8 +579,8 @@ suite("Configuration Settings", () => {
     });
   }
 
-  test("diagnostics.W123 defaults to false (opt-in)", () => {
-    assert.strictEqual(cfg().get<boolean>("diagnostics.W123"), false);
+  test("diagnostics.W123 defaults to true", () => {
+    assert.strictEqual(cfg().get<boolean>("diagnostics.W123"), true);
   });
 
   // Runtime validation
@@ -616,6 +619,19 @@ suite("Configuration Settings", () => {
   // XC diagnostics
   test("xcDiagnostics.enabled defaults to false", () => {
     assert.strictEqual(cfg().get<boolean>("xcDiagnostics.enabled"), false);
+  });
+
+  // Cross-file resolution — distinct from `xcDiagnostics` (F5 XC Migration
+  // translatability lints, f5-irules only): this toggle drives cross-file
+  // W120/W123 suppression and cross-file E002/E003 arity for every dialect.
+  test("features.crossFileResolution is a setting distinct from xcDiagnostics.enabled", () => {
+    const inspected = cfg().inspect<boolean | null>("features.crossFileResolution");
+    assert.ok(inspected, "features.crossFileResolution must be a declared setting");
+    assert.strictEqual(
+      cfg().get<boolean | null>("features.crossFileResolution"),
+      null,
+      "features.crossFileResolution should default to null (resolves to off server-side)",
+    );
   });
 
   // Style
@@ -1067,12 +1083,23 @@ suite("Configuration Settings", () => {
     await waitForDeepDiagnostics(docUri, { since: sinceOpen });
     const before = vscode.languages.getDiagnostics(docUri);
     const o1xxBefore = before.filter((d) => isO1xx(codeOf(d)));
+    // The re-trigger edit below appends to the live buffer and is never
+    // saved; snapshot the original text so it can be restored in `finally`
+    // regardless of whether the test body completes or throws, rather than
+    // leaving diagnostics.tcl's editor buffer permanently dirtied for every
+    // later test that reuses the same fixture.
+    const originalText = vscode.window.activeTextEditor!.document.getText();
 
     const config = vscode.workspace.getConfiguration("tclLsp.optimiser");
     try {
       await config.update("enabled", false, undefined);
+      // 20s, matching waitForDeepDiagnostics's default: under the full
+      // suite's background load (workspace warm-up, the #844 progressive
+      // diagnostics race, …) this round-trip routinely needs more than the
+      // 5s generic default.
       await waitForEffectiveConfig(docUri, (c) => c.optimiser_enabled === false, {
         label: "optimiser disabled",
+        timeout: 20000,
       });
 
       // Re-trigger analysis with a noop edit; snapshot the log
@@ -1092,9 +1119,11 @@ suite("Configuration Settings", () => {
         );
       }
     } finally {
+      await setTestContent(vscode.window.activeTextEditor!, originalText);
       await config.update("enabled", undefined, undefined);
       await waitForEffectiveConfig(docUri, (c) => c.optimiser_enabled === true, {
         label: "optimiser re-enabled",
+        timeout: 20000,
       });
     }
   });

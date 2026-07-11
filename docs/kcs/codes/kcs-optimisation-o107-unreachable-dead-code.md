@@ -36,6 +36,25 @@ return $x
 
 - Skipped when the analyser cannot prove the code is unreachable on all paths.
 - Skipped at top level when removal would change observable script results.
+- A branch guarded by a variable trace or a frame-aliased variable
+  (`upvar`/`global`/`variable`) is never treated as provably
+  unreachable, even when the condition otherwise looks constant — the
+  compiler cannot assume the traced/aliased value at runtime, so both
+  arms stay live and O107 does not fire on either one:
+
+  ```tcl
+  proc setup {} { trace add variable ::x read onread }
+  set x 1
+  setup
+  if {$x} {
+      puts yes
+  } else {
+      puts no
+  }
+  ```
+
+  Here `puts no` survives even though `$x` is `1` at every call —
+  eliding it would silently drop the read that fires the trace.
 
 ## How to disable
 

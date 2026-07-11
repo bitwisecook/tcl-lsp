@@ -205,6 +205,12 @@ proc broken {x {
 string length "a" "b"   ;# E003: too many arguments
 ```
 
+Problems persist for workspace files after you close their editor tab: a file
+that showed diagnostics keeps its **Problems** entry and File Explorer badge,
+recomputed from its on-disk contents, instead of the badge vanishing the moment
+the tab closes. Deleting the file (or removing its workspace folder) clears the
+badge.
+
 ### Special-variable awareness
 
 Interpreter-provided globals — `auto_path`, `env`, `errorInfo`, `tcl_platform`,
@@ -1871,7 +1877,7 @@ In a project with an "entry" file that runs the `package require`s and then
 | W120 | Package-gated command used without `package require` | Insert `package require` |
 | W121 | Subnet mask has non-contiguous bits | Replace with nearest valid mask |
 | W122 | Mistyped IPv4 address (octet > 255 or leading zero) | |
-| W123 | Unknown command — not found in registry, user procs, or `unknown` handler (opt-in) | Replace with suggestion |
+| W123 | Unknown command — not found in registry, user procs, or `unknown` handler | Replace with suggestion |
 | W124 | Invalid IP address literal | |
 | W125 | Orphaned control-flow keyword used as a standalone command | |
 | W126 | Non-channel value in channel argument position | |

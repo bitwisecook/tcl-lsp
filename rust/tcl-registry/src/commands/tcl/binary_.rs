@@ -53,10 +53,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "binary decode format data",
         pure: true,
         return_type: Some(TclType::ByteArray),
+        // `data` is arg 1 (sub-index 1: arg 0 is the `format` keyword, e.g.
+        // `hex`/`base64`). It is text-friendly *encoded* data being
+        // *decoded into* a byte array, so the shimmer-sensitive expectation
+        // is String, not ByteArray — the reverse of `encode` below.
         arg_types: &[(
-            0,
+            1,
             ArgTypeHint {
-                expected: Some(TclType::ByteArray),
+                expected: Some(TclType::String),
                 shimmers: true,
             },
         )],
@@ -71,8 +75,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "binary encode format data",
         pure: true,
         return_type: Some(TclType::String),
+        // `data` is arg 1 (sub-index 1: arg 0 is the `format` keyword).
         arg_types: &[(
-            0,
+            1,
             ArgTypeHint {
                 expected: Some(TclType::ByteArray),
                 shimmers: true,
@@ -104,6 +109,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Parse a binary string.",
         synopsis: "binary scan string formatString ?varName ...?",
         return_type: Some(TclType::Int),
+        // `binary scan` writes format-dependent values (`a` → string, `c`/`s`/
+        // `i` → int, `f` → double, `@` → none) to its targets while returning
+        // the *count* of conversions.  The targets are not the count, so they
+        // must not be typed `Int` (issue #867).
+        var_write_typing: VarWriteTyping::Destructured,
         arg_types: &[
             (
                 0,

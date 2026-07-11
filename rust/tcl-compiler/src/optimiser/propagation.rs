@@ -65,6 +65,7 @@ use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{CommandTokens, Script, Statement};
 use crate::naming::normalise_var_name;
 use tcl_core_types::DiagCode;
+use tcl_registry::CommandRegistry;
 
 use super::helpers::expr_simplify::{NumericCtx, operand_types, try_unwrap_expr_in_expr};
 use super::helpers::literals::{is_safe_word, is_static_var_word};
@@ -95,16 +96,78 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // chains directly and fires independently of the SCCP
     // lattice — a variable whose *sole* reaching def is a
     // literal Assign is forwarded even when other paths make
-    // the lattice Overdefined.
-    run_load_forwarding(ctx, &cu.top_level);
-    for fu in cu.procedures.values() {
-        run_load_forwarding(ctx, fu);
+    // the lattice Overdefined. Being independent of the SCCP lattice, it
+    // must apply the *same* externally-mutable guard SCCP applies itself
+    // (`global`/`variable`/`upvar`/`trace` aliasing, plus — for the
+    // top-level body specifically — any name some other procedure declares
+    // via `global`; see `scan_module_global_names`, and, for every function,
+    // a name traced by some *other* proc, via the registry-driven whole-
+    // module `Module::traced_variables`/`has_dynamic_variable_trace` facts),
+    // or it would forward a stale literal past a call that reassigns or
+    // traces the "sole" def.
+    if let Some(registry) = ctx.registry {
+        let top_level_extra_escaping =
+            crate::var_observability::scan_module_global_names(&cu.ir_module);
+        let trace = crate::sccp::TraceInputs {
+            registry,
+            traced_variables: &cu.ir_module.traced_variables,
+            has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+        };
+        run_load_forwarding(ctx, &cu.top_level, &top_level_extra_escaping, trace);
+        let no_extra_escaping = std::collections::HashSet::new();
+        for fu in cu.procedures.values() {
+            run_load_forwarding(ctx, fu, &no_extra_escaping, trace);
+        }
     }
     // O127 store-to-load forwarding for *computed* single-use
     // assignments (`set x [cmd]` inlined to its sole use site, then the
     // store deleted).  Skips the top-level body.
     for fu in cu.procedures.values() {
         run_store_to_load_forwarding(ctx, fu);
+    }
+}
+
+/// Whether `stmt`, if it appears between a `O127` store-to-load
+/// forwarding candidate's definition and use, must block the forward:
+/// moving the definition's *computed* side-effecting value (a command
+/// substitution) later, past `stmt`, could reorder its observable effects
+/// relative to `stmt`'s own — a barrier (`eval`/`uplevel`/`interp eval`/…),
+/// a frame-crossing `uplevel`/`upvar` body, a call the registry cannot
+/// prove pure (including every call to a proc, since an unregistered name
+/// classifies as an unknown write — see
+/// `side_effects::fallback_unknown_write`), or an assignment whose value
+/// itself runs a command substitution.
+///
+/// Used only by the `O127` store-to-load `intervening_is_safe` gate.
+/// `O102`'s plain-variable load-forwarding ([`run_load_forwarding`]) does
+/// *not* need this: it never moves a side-effecting computation, only a
+/// literal value, and a plain proc-local variable cannot be rewritten by
+/// an intervening call at all without an alias/trace/barrier — each of
+/// which `run_load_forwarding` already checks directly (see its own doc
+/// comment).
+fn statement_may_have_untracked_effects(
+    stmt: &Statement,
+    registry: &tcl_registry::CommandRegistry,
+    dialect: Option<&str>,
+    traced: &std::collections::BTreeSet<String>,
+    has_dynamic_trace: bool,
+) -> bool {
+    use super::helpers::expr_simplify::expr_has_command_subst;
+    use crate::gvn::is_pure_command_with_traces;
+
+    match stmt {
+        Statement::Barrier { .. } | Statement::UpFrame { .. } => true,
+        Statement::AssignValue { value, .. } => value.contains('['),
+        Statement::AssignExpr { expr, .. } => expr_has_command_subst(expr),
+        Statement::Call { command, args, .. } => !is_pure_command_with_traces(
+            registry,
+            command,
+            args,
+            dialect,
+            traced,
+            has_dynamic_trace,
+        ),
+        _ => false,
     }
 }
 
@@ -120,12 +183,58 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 /// consuming statement when no `CommandTokens` are present or the
 /// use is on a non-Call statement (where we still don't have
 /// per-operand spans).
-fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::FunctionUnit) {
+///
+/// Safety gates layer two independent alias/trace facts plus one
+/// intervening-effect scan, each catching cases the other misses. A plain
+/// proc-local variable that is never `global`/`variable`/`upvar`/`trace`
+/// declared anywhere in the module cannot be touched by an intervening
+/// call to *any* other proc — Tcl's frame-based scoping gives a callee no
+/// way to reach a caller's private local without one of those four
+/// mechanisms — so, unlike an earlier revision of this pass, an ordinary
+/// intervening call does *not* gate the forward on its own (see
+/// `o102_still_forwards_top_level_global_no_proc_touches` and
+/// `o102_still_forwards_genuinely_local_proc_variable`, which lock this
+/// precision in):
+///
+/// - `escaping` (this function's own [`analyse_var_observability`] plus
+///   `extra_escaping` — the top-level's
+///   [`crate::var_observability::scan_module_global_names`] result, or an
+///   empty set for an ordinary procedure — plus `trace.traced_variables`,
+///   the registry-driven whole-module [`crate::ir::Module::traced_variables`]
+///   fact) via [`crate::sccp::is_externally_mutable`] — the same guard SCCP
+///   applies to its own lattice, so O102 (independent of the SCCP lattice)
+///   stays consistent with it.
+/// - [`has_intervening_barrier`] — a `Statement::Barrier`/`UpFrame`
+///   (a literal-body `uplevel`/`interp eval`, which *can* reach into an
+///   arbitrary frame) between def and use, checked both same-block
+///   (precisely) and cross-block (conservatively).
+fn run_load_forwarding(
+    ctx: &mut PassContext<'_>,
+    fu: &crate::compilation_unit::FunctionUnit,
+    extra_escaping: &std::collections::HashSet<String>,
+    trace: crate::sccp::TraceInputs<'_>,
+) {
     use crate::def_use::{DefKind, UseKind};
     use crate::ir::Statement;
 
+    // Independent of the SCCP lattice (see the doc comment on the call
+    // site in `run`), this pass must apply the same externally-mutable
+    // guard SCCP applies to its own lattice — a `global`/`variable`/
+    // `upvar`/`trace`-aliased name's "sole reaching def" is not actually
+    // sole: some other call frame can reassign it between the def and a
+    // later use.
+    let mut escaping = crate::var_observability::analyse_var_observability(&fu.cfg, trace.registry)
+        .escaping_var_names();
+    escaping.extend(extra_escaping.iter().cloned());
+    escaping.extend(trace.traced_variables.iter().cloned());
+
     for chain in fu.def_use.chains.values() {
         if chain.definition.kind != DefKind::Statement {
+            continue;
+        }
+        let var_name = chain.key.0.as_str();
+        if crate::sccp::is_externally_mutable(var_name, &escaping, trace.has_dynamic_variable_trace)
+        {
             continue;
         }
         // Find the defining statement — must be an AssignConst
@@ -153,7 +262,6 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
         if !is_value_safe_bare_word(&literal) {
             continue;
         }
-        let var_name = chain.key.0.as_str();
         let message =
             format!("Forward literal load of '{var_name}' from its single reaching definition");
         for use_site in &chain.uses {
@@ -169,58 +277,135 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
             let Some(use_stmt) = use_block.statements.get(use_idx) else {
                 continue;
             };
-            // Prefer a per-argv applicable rewrite when the use
-            // lives inside a `Statement::Call` whose tokens we
-            // tracked. Each matching `$var` / `${var}` word gets
-            // its own O102 with the argv span as target.
-            let mut emitted_applicable = false;
-            if let Statement::Call {
-                tokens: Some(tokens),
-                ..
-            } = use_stmt
-            {
-                for (i, argv_span) in tokens.argv.iter().enumerate() {
-                    let Some(text) = tokens.argv_texts.get(i) else {
-                        continue;
-                    };
-                    // A braced word (`{$x}`) is a literal — Tcl performs no
-                    // substitution inside braces — so `$x` there must not be
-                    // forwarded. `argv_texts` has the braces stripped, so the
-                    // word kind is the only signal.
-                    if tokens.argv_kinds.get(i) == Some(&tcl_lexer::TokenType::Str) {
-                        continue;
-                    }
-                    if !simple_var_ref_matches(text, var_name) {
-                        continue;
-                    }
-                    ctx.report(Optimisation::new(
-                        DiagCode::O102,
-                        message.clone(),
-                        full_word_span(ctx.source, fu.abs_span(*argv_span)),
-                        literal.clone(),
-                    ));
-                    emitted_applicable = true;
-                }
-            }
-            if emitted_applicable {
+            if has_intervening_barrier(fu, &chain.definition.block, idx, &use_site.block, use_idx) {
                 continue;
             }
-            // Fall back to a hint-only diagnostic on the whole
-            // consuming statement when the use wasn't on a
-            // Call, `CommandTokens` weren't captured, or no argv
-            // entry matched as a simple `$var` word (e.g. the
-            // read is inside an interpolated string — the O100
-            // string-interpolation path handles that).
-            let mut opt = Optimisation::new(
-                DiagCode::O102,
-                message.clone(),
-                fu.abs_span(use_stmt.span()),
-                literal.clone(),
-            );
-            opt.hint_only = true;
-            ctx.report(opt);
+            report_load_forward(ctx, fu, use_stmt, var_name, &message, &literal);
         }
     }
+}
+
+/// True when an opaque effect — a `Statement::Barrier` or `Statement::UpFrame`
+/// (the CFG shape for a literal-body `uplevel`/`interp eval`) — could run
+/// between `def_block[def_idx]` and `use_block[use_idx]`, making a "sole
+/// reaching definition" forward unsound: `uplevel 1 {…}` / `uplevel #0 {…}`
+/// evaluates its body in a *different* frame (the caller's, or the absolute
+/// global one) and can reassign any name visible there, exactly like an
+/// opaque call. Independent of [`crate::sccp::is_externally_mutable`] (which
+/// only catches `global`/`variable`/`upvar`/`trace`-*declared* aliasing): a
+/// plain proc-local variable with no alias/trace at all can still be mutated
+/// by a literal `uplevel #0 {…}` body a few lines later.
+///
+/// Same-block case: checked precisely (only the statements strictly between
+/// the two indices). Cross-block case: conservatively checks the remainder of
+/// `def_block`, the prefix of `use_block`, and — since enumerating every path
+/// between two arbitrary blocks is more machinery than this cheap forwarding
+/// pass warrants — every *other* block in the function; a barrier/upframe
+/// anywhere else in the body blocks the forward even if it turns out to sit on
+/// an unrelated branch.
+fn has_intervening_barrier(
+    fu: &crate::compilation_unit::FunctionUnit,
+    def_block: &str,
+    def_idx: usize,
+    use_block: &str,
+    use_idx: usize,
+) -> bool {
+    fn is_barrier(stmt: &Statement) -> bool {
+        matches!(stmt, Statement::Barrier { .. } | Statement::UpFrame { .. })
+    }
+
+    if def_block == use_block {
+        let Some(block) = fu.cfg.block_by_name(def_block) else {
+            return true; // can't verify safety — conservatively block the forward
+        };
+        let (lo, hi) = if def_idx <= use_idx {
+            (def_idx, use_idx)
+        } else {
+            (use_idx, def_idx)
+        };
+        return block.statements[lo.saturating_add(1)..hi.min(block.statements.len())]
+            .iter()
+            .any(is_barrier);
+    }
+    let Some(def_blk) = fu.cfg.block_by_name(def_block) else {
+        return true;
+    };
+    if def_blk.statements[(def_idx + 1).min(def_blk.statements.len())..]
+        .iter()
+        .any(is_barrier)
+    {
+        return true;
+    }
+    let Some(use_blk) = fu.cfg.block_by_name(use_block) else {
+        return true;
+    };
+    if use_blk.statements[..use_idx.min(use_blk.statements.len())]
+        .iter()
+        .any(is_barrier)
+    {
+        return true;
+    }
+    fu.cfg
+        .blocks
+        .values()
+        .any(|b| b.name != def_block && b.name != use_block && b.statements.iter().any(is_barrier))
+}
+
+/// Emit the `O102` rewrite(s) for one use site: a precise, applicable
+/// per-argv rewrite for each bare `$var` / `${var}` word in a
+/// `Statement::Call`'s tracked tokens, or a hint-only fallback covering
+/// the whole consuming statement when no such word is found (the use is
+/// on a non-`Call` statement, `CommandTokens` weren't captured, or the
+/// read is nested inside a larger construct — e.g. an interpolated
+/// string, which the O100 string-interpolation path handles instead).
+fn report_load_forward(
+    ctx: &mut PassContext<'_>,
+    fu: &crate::compilation_unit::FunctionUnit,
+    use_stmt: &Statement,
+    var_name: &str,
+    message: &str,
+    literal: &str,
+) {
+    let mut emitted_applicable = false;
+    if let Statement::Call {
+        tokens: Some(tokens),
+        ..
+    } = use_stmt
+    {
+        for (i, argv_span) in tokens.argv.iter().enumerate() {
+            let Some(text) = tokens.argv_texts.get(i) else {
+                continue;
+            };
+            // A braced word (`{$x}`) is a literal — Tcl performs no
+            // substitution inside braces — so `$x` there must not be
+            // forwarded. `argv_texts` has the braces stripped, so the
+            // word kind is the only signal.
+            if tokens.argv_kinds.get(i) == Some(&tcl_lexer::TokenType::Str) {
+                continue;
+            }
+            if !simple_var_ref_matches(text, var_name) {
+                continue;
+            }
+            ctx.report(Optimisation::new(
+                DiagCode::O102,
+                message.to_owned(),
+                full_word_span(ctx.source, fu.abs_span(*argv_span)),
+                literal.to_owned(),
+            ));
+            emitted_applicable = true;
+        }
+    }
+    if emitted_applicable {
+        return;
+    }
+    let mut opt = Optimisation::new(
+        DiagCode::O102,
+        message.to_owned(),
+        fu.abs_span(use_stmt.span()),
+        literal.to_owned(),
+    );
+    opt.hint_only = true;
+    ctx.report(opt);
 }
 
 /// O127 — store-to-load forwarding for a *computed* single-use
@@ -544,34 +729,18 @@ fn intervening_is_safe(
     use_idx: usize,
     def_read_names: &std::collections::BTreeSet<String>,
 ) -> bool {
-    use super::helpers::expr_simplify::expr_has_command_subst;
-    use crate::gvn::is_pure_command_with_traces;
-
     for idx in (def_idx + 1)..use_idx {
         let Some(stmt) = block.statements.get(idx) else {
             break;
         };
-        match stmt {
-            // A barrier (incl. lowered eval) may mutate any name —
-            // always a kill.  An `UpFrame` (uplevel / upvar reaching a
-            // parent frame) likewise runs an opaque body that can mutate
-            // any name the inlined expression reads, so it is a kill too.
-            Statement::Barrier { .. } | Statement::UpFrame { .. } => return false,
-            Statement::AssignValue { value, .. } if value.contains('[') => return false,
-            Statement::AssignExpr { expr, .. } if expr_has_command_subst(expr) => return false,
-            Statement::Call { command, args, .. }
-                if !is_pure_command_with_traces(
-                    env.registry,
-                    command,
-                    args,
-                    env.ctx.dialect,
-                    env.traced,
-                    env.has_dynamic_trace,
-                ) =>
-            {
-                return false;
-            }
-            _ => {}
+        if statement_may_have_untracked_effects(
+            stmt,
+            env.registry,
+            env.ctx.dialect,
+            env.traced,
+            env.has_dynamic_trace,
+        ) {
+            return false;
         }
         // A redefinition of any read name invalidates the forward.
         if let Some(sb) = ssa_block.statements.get(idx)
@@ -667,7 +836,13 @@ fn run_function(
 ) {
     // Project the per-function SCCP lattice into a name → literal
     // map that survives only when every tracked version of the
-    // variable collapses to the same single constant value.
+    // variable collapses to the same single constant value. No
+    // additional trace/alias filtering is needed here: `sccp()` itself
+    // forces a traced or frame-aliased name's own lattice entry (and
+    // anything derived from it) to `Overdefined`, so a projected literal
+    // is already trace/alias-safe by construction — `run_load_forwarding`
+    // (below) is the one exception that still needs its own check, since it
+    // runs an independent def-use-chain scan that never consults `fu.sccp`.
     let constants = sccp_constants_for(fu);
     let numeric = operand_types(fu);
     walk_script(ctx, cu, script, &constants, Some(&numeric), namespace);
@@ -820,14 +995,46 @@ fn walk_statement(
 /// `return` terminators. Used for the argument-sensitive O103 fold
 /// (`[::math::add 2 4]` → `6`) that the summary's argument-independent
 /// `constant_return` cannot express.
+///
+/// This re-runs SCCP fresh (not `callee.sccp`), so it must feed the same
+/// registry + whole-module trace facts the original build did — otherwise
+/// this specific re-run path would be independently trace-blind (the same
+/// silent-miscompile class `run_function`/`run_load_forwarding` guard
+/// against). `ctx.registry` / `ctx.ir_module` are `None` only in a bare
+/// hand-built `PassContext` (some pass-level unit tests); default to an
+/// empty/false fact then, matching `run_function`'s own
+/// `ctx.ir_module`-absent fallback.
 fn evaluate_proc_with_constants(
+    ctx: &PassContext<'_>,
     callee: &FunctionUnit,
     params: &[String],
     args: &[ConstValue],
     octal: Option<bool>,
 ) -> Option<ConstValue> {
     let seed = seed_params_from_args(params, args)?;
-    let result = crate::sccp::sccp(&callee.cfg, &callee.ssa, Some(&seed), octal, None);
+    let default_registry;
+    let registry: &CommandRegistry = if let Some(r) = ctx.registry {
+        r
+    } else {
+        default_registry = CommandRegistry::build_default();
+        &default_registry
+    };
+    let empty_traced = std::collections::BTreeSet::new();
+    let (traced_variables, has_dynamic_variable_trace) = match ctx.ir_module {
+        Some(m) => (&m.traced_variables, m.has_dynamic_variable_trace),
+        None => (&empty_traced, false),
+    };
+    let result = crate::sccp::sccp(
+        &callee.cfg,
+        &callee.ssa,
+        Some(&seed),
+        octal,
+        crate::sccp::TraceInputs {
+            registry,
+            traced_variables,
+            has_dynamic_variable_trace,
+        },
+    );
     resolve_return_constant(callee, &result, octal)
 }
 
@@ -1120,42 +1327,55 @@ fn const_to_env_value(c: &ConstValue) -> crate::tcl_expr_eval::EnvValue {
 /// Parse the static (constant) argument words of a `[proc arg…]` command
 /// substitution body `inner`, given the number of leading head words to skip
 /// (`1` for a direct call, `2` for `call proc …`). Each argument must be a
-/// bare literal or a `$var` resolvable to a whole-function constant via
-/// `constants`; any quoted / braced / command-substituting word makes the
-/// whole call non-static (returns `None`).
+/// bare literal, a braced literal, a `$var` resolvable to a whole-function
+/// constant via `constants`, or a nested command substitution that itself
+/// folds to a literal; any other quoted / substituting word makes the whole
+/// call non-static (returns `None`).
+///
+/// Shares [`literal_words`]'s proper Tcl-aware tokeniser rather than a naive
+/// `split_whitespace` — the two used to duplicate this exact tokenising
+/// logic, with this one *more conservatively* (and incorrectly, for a
+/// braced multi-word argument) rejecting words `literal_words` already
+/// folds soundly for the O129 builtin cmd-sub path.
 fn parse_static_call_args(
+    ctx: &PassContext<'_>,
     inner: &str,
     skip_words: usize,
     constants: &std::collections::HashMap<String, String>,
 ) -> Option<Vec<ConstValue>> {
-    let mut words = inner.split_whitespace();
-    for _ in 0..skip_words {
-        words.next()?;
-    }
-    let mut out = Vec::new();
-    for w in words {
-        if let Some(name) = simple_var_ref(w) {
-            let dollar = format!("${name}");
-            let norm = normalise_var_name(&dollar);
-            let val = constants.get(norm).or_else(|| constants.get(name))?;
-            out.push(crate::sccp::parse_literal_value(val));
-        } else if !w.contains(['$', '[', ']', '\\', '"', '{', '}', '(', ')']) {
-            out.push(crate::sccp::parse_literal_value(w));
-        } else {
-            return None;
-        }
-    }
-    Some(out)
+    let registry = ctx.registry?;
+    let words = literal_words(
+        inner,
+        constants,
+        registry,
+        &ctx.command_mutations,
+        ctx.dialect,
+    )?;
+    Some(
+        words
+            .into_iter()
+            .skip(skip_words)
+            .map(|w| crate::sccp::parse_literal_value(&w))
+            .collect(),
+    )
 }
 
 /// Resolve a call's head word to a procedure qname that has an
-/// interprocedural summary, walking the enclosing namespace chain for a
-/// bare call:
+/// interprocedural summary, following Tcl's real bareword command
+/// resolution via [`crate::naming::bareword_resolution_candidates`] —
+/// current namespace first, then global, exactly two levels, never every
+/// enclosing ancestor namespace (Tcl's own command lookup does not walk
+/// intermediate namespaces absent an explicit `namespace path`, which this
+/// analysis does not model — a body using it is more conservatively left
+/// unresolved here rather than risk folding to the wrong proc).
 ///
-/// * a `::`-qualified word is taken as-is;
-/// * a word containing `::` (relative-qualified) is rooted at `::`;
-/// * a bare word is tried against each enclosing namespace from the
-///   deepest (`::ns::sub::word`) out to the root (`::word`).
+/// Shared with the analyser's identical same-file resolution chase
+/// (`Analyser::resolve_indirect_call_target`) so the two can't diverge on
+/// the same rule — a relative dotted word (`inner::p`) previously resolved
+/// straight to `::inner::p` here, rooted at global, when real Tcl (and the
+/// analyser side) tries the *current* namespace first
+/// (`{namespace}::inner::p`); two procs of that shape in different
+/// namespaces could fold a call to the wrong one's constant return.
 ///
 /// Returns the first candidate that has a summary, else `None`.
 fn resolve_proc_qname(
@@ -1166,26 +1386,9 @@ fn resolve_proc_qname(
     if command.is_empty() {
         return None;
     }
-    if command.starts_with("::") || command.contains("::") {
-        let qname = if command.starts_with("::") {
-            command.to_owned()
-        } else {
-            format!("::{command}")
-        };
-        return ia.procedures.contains_key(&qname).then_some(qname);
-    }
-    let parts = super::helpers::naming::namespace_parts(namespace);
-    for depth in (0..=parts.len()).rev() {
-        let candidate = if depth > 0 {
-            format!("::{}::{command}", parts[..depth].join("::"))
-        } else {
-            format!("::{command}")
-        };
-        if ia.procedures.contains_key(&candidate) {
-            return Some(candidate);
-        }
-    }
-    None
+    crate::naming::bareword_resolution_candidates(namespace, command)
+        .into_iter()
+        .find(|qname| ia.procedures.contains_key(qname))
 }
 
 /// O103: if `command` resolves to a proc with `can_fold_static_calls`
@@ -1677,8 +1880,9 @@ fn try_o103_proc_fold(
         }
     } else if summary.pure
         && let Some(callee) = cu.procedures.get(&qname)
-        && let Some(args) = parse_static_call_args(inner, 1, constants)
+        && let Some(args) = parse_static_call_args(ctx, inner, 1, constants)
         && let Some(cv) = evaluate_proc_with_constants(
+            ctx,
             callee,
             &summary.params,
             &args,
@@ -2258,7 +2462,7 @@ fn render_propagation_word(value: &str) -> String {
     }
 }
 
-fn sccp_constants_for(fu: &FunctionUnit) -> std::collections::HashMap<String, String> {
+pub(super) fn sccp_constants_for(fu: &FunctionUnit) -> std::collections::HashMap<String, String> {
     use super::helpers::literals::format_constant;
 
     let mut per_var: std::collections::HashMap<crate::ssa::Symbol, Vec<&ConstValue>> =
@@ -2300,8 +2504,17 @@ mod tests {
     }
 
     fn run_pass(source: &str) -> Vec<Optimisation> {
-        let cu = CompilationUnit::build_for(source, &registry(), false);
+        let reg = registry();
+        let cu = CompilationUnit::build_for(source, &reg, false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        // Mirror `optimise_unit_raw`'s production wiring — `run_load_forwarding`
+        // (O102) needs `ctx.registry` for its intervening-call purity scan, and
+        // the trace/alias safety gates need `ctx.ir_module`. Without these two
+        // fields set, a hand-built `PassContext` silently loses O102 coverage
+        // (and O127's pre-existing trace-purity gate), which is exactly the bug
+        // this test helper would otherwise mask.
+        ctx.registry = Some(&reg);
+        ctx.ir_module = Some(&cu.ir_module);
         run(&mut ctx, &cu);
         ctx.optimisations
     }
@@ -2339,6 +2552,87 @@ mod tests {
         assert_eq!(resolve_proc_qname("missing", "::ns", &ia), None);
         // From the root namespace a bare `inner` does *not* reach `::ns::inner`.
         assert_eq!(resolve_proc_qname("inner", "::", &ia), None);
+    }
+
+    #[test]
+    fn resolve_proc_qname_does_not_walk_ancestor_namespaces() {
+        // Real Tcl bareword resolution is exactly two levels — current
+        // namespace, then global — absent an explicit `namespace path`.
+        // `::a::b::c::caller`'s body calling bare `foo` must NOT resolve to
+        // a `::a::foo` defined in a *grandparent* namespace: real tclsh
+        // raises "invalid command name" there, it does not silently walk up
+        // to find `::a::foo`.
+        let module = crate::lowering::lower_to_ir(
+            "namespace eval ::a {\n proc foo {} { return 1 }\n namespace eval b {\n  namespace eval c {\n   proc caller {} { foo }\n  }\n }\n}",
+            &registry(),
+        );
+        let ia = crate::interprocedural::build_interprocedural_analysis(
+            &module,
+            &registry(),
+            None,
+            crate::interprocedural::ObjectTypeMap::none(),
+        );
+        assert!(
+            ia.procedures.contains_key("::a::foo"),
+            "expected ::a::foo in IA, got {:?}",
+            ia.procedures.keys().collect::<Vec<_>>(),
+        );
+        assert_eq!(
+            resolve_proc_qname("foo", "::a::b::c", &ia),
+            None,
+            "a grandparent-namespace proc must not resolve for a bare call",
+        );
+        // Control: the *direct* enclosing namespace still resolves.
+        let module2 = crate::lowering::lower_to_ir(
+            "namespace eval ::a::b::c {\n proc foo {} { return 1 }\n proc caller {} { foo }\n}",
+            &registry(),
+        );
+        let ia2 = crate::interprocedural::build_interprocedural_analysis(
+            &module2,
+            &registry(),
+            None,
+            crate::interprocedural::ObjectTypeMap::none(),
+        );
+        assert_eq!(
+            resolve_proc_qname("foo", "::a::b::c", &ia2).as_deref(),
+            Some("::a::b::c::foo"),
+        );
+    }
+
+    #[test]
+    fn resolve_proc_qname_relative_dotted_word_prefers_current_namespace() {
+        // A relative *dotted* word (`ns2::inner`, containing `::` but not
+        // starting with it) must resolve against the current namespace
+        // first, not be rooted straight at global — the same rule
+        // `bareword_resolution_candidates` documents (confirmed against
+        // tclsh 9.0.4). Two procs of this shape exist here, one nested
+        // under `::ns` and one at the root; a bare `ns2::inner` call from
+        // inside `::ns` must reach the nearer one.
+        let module = crate::lowering::lower_to_ir(
+            "proc ns2::inner {} { return 1 }\n\
+             namespace eval ::ns {\n proc ns2::inner {} { return 2 }\n proc caller {} { ns2::inner }\n}",
+            &registry(),
+        );
+        let ia = crate::interprocedural::build_interprocedural_analysis(
+            &module,
+            &registry(),
+            None,
+            crate::interprocedural::ObjectTypeMap::none(),
+        );
+        assert!(ia.procedures.contains_key("::ns2::inner"));
+        assert!(ia.procedures.contains_key("::ns::ns2::inner"));
+        assert_eq!(
+            resolve_proc_qname("ns2::inner", "::ns", &ia).as_deref(),
+            Some("::ns::ns2::inner"),
+            "a relative dotted call must prefer the current-namespace proc \
+             over the root one",
+        );
+        // Falls back to the root proc when there is no current-namespace
+        // candidate.
+        assert_eq!(
+            resolve_proc_qname("ns2::inner", "::other", &ia).as_deref(),
+            Some("::ns2::inner"),
+        );
     }
 
     /// Run the whole optimiser (raw, unfiltered) so the registry is
@@ -2561,6 +2855,7 @@ mod tests {
         )
         .with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations.iter().all(|o| o.code != DiagCode::O103),
@@ -2583,6 +2878,7 @@ mod tests {
         )
         .with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations
@@ -2812,6 +3108,113 @@ mod tests {
         );
     }
 
+    // Regression: a top-level `global` name reassigned by a proc call must
+    // never be folded as if its "sole reaching def" were stable — confirmed
+    // against tclsh 8.6/9.0 as a real miscompile before this guard existed
+    // (`set tcl_precision 4; proc helper {} {global tcl_precision; set
+    // tcl_precision 17}; helper; puts $tcl_precision` prints `17`, not the
+    // `4` the optimiser used to propose).  See
+    // `crate::var_observability::scan_module_global_names`.
+    #[test]
+    fn o102_does_not_forward_top_level_global_reassigned_by_callee() {
+        let src = "set g 4\nproc helper {} { global g\nset g 17 }\nhelper\nputs $g";
+        let opts = run_pass(src);
+        assert!(
+            opts.iter()
+                .all(|o| !(matches!(o.code, DiagCode::O100 | DiagCode::O102)
+                    && o.replacement == "4")),
+            "must not fold the stale pre-call literal 4, got {opts:?}",
+        );
+    }
+
+    // TN control: an ordinary proc that itself `global`-declares the name it
+    // reassigns is *already* protected via SCCP/O100's per-function escaping
+    // set — O102's independent def-use-chain path must apply the identical
+    // guard rather than bypassing it (this fired incorrectly before O102
+    // consulted `var_observability` at all).
+    #[test]
+    fn o102_does_not_forward_proc_local_global_reassigned_by_callee() {
+        let src = "proc p {} {\n    global g\n    set g 4\n    helper\n    puts $g\n}\nproc helper {} { global g\nset g 17 }\n";
+        let opts = run_pass(src);
+        assert!(
+            opts.iter()
+                .all(|o| !(matches!(o.code, DiagCode::O100 | DiagCode::O102)
+                    && o.replacement == "4")),
+            "must not fold the stale pre-call literal 4, got {opts:?}",
+        );
+    }
+
+    // Precision control: a top-level name that *no* procedure ever
+    // `global`-declares must still fold — the whole-module scan must not
+    // over-widen to every top-level variable.
+    //
+    // Note this now folds via O100, not O102: the intervening call to
+    // `other` is a command O102 cannot prove pure (it has no interprocedural
+    // purity or upvar-reach information — a callee can dynamically alias
+    // any name in the caller's frame via `upvar` with no textual
+    // `global`/`variable` declaration anywhere), so O102's own independent
+    // same-block scan conservatively withholds. SCCP (O100) already proves
+    // `safe_const` a genuine whole-function constant via its own escaping
+    // set (which correctly found no alias/trace anywhere for it), so the
+    // fold still happens end to end.
+    #[test]
+    fn o102_still_forwards_top_level_global_no_proc_touches() {
+        let src = "set safe_const 42\nproc other {} { puts unrelated }\nother\nputs $safe_const";
+        let opts = run_pass(src);
+        assert!(
+            opts.iter().any(|o| matches!(o.code, DiagCode::O100 | DiagCode::O102)
+                && o.replacement == "42"),
+            "expected an untouched top-level constant to still fold, got {opts:?}",
+        );
+    }
+
+    // TN control: a plain proc-local variable (never `global`/`variable`
+    // declared) is genuinely private to that call frame — O102 must still
+    // forward it.
+    #[test]
+    fn o102_still_forwards_genuinely_local_proc_variable() {
+        let src = "proc p {} {\n    set n 7\n    puts $n\n}\n";
+        let opts = run_pass(src);
+        assert!(
+            opts.iter()
+                .any(|o| o.code == DiagCode::O102 && o.replacement == "7"),
+            "expected O102 to still fold a genuinely private proc-local var, got {opts:?}",
+        );
+    }
+
+    // Regression: a literal-body `interp eval {}` (targeting the *current*
+    // interpreter — Tcl's documented meaning of the empty-string path) can
+    // reassign a variable in the calling scope exactly like an opaque call,
+    // even though it carries no `global`/`variable`/`upvar`/`trace`
+    // declaration for it. Confirmed against tclsh 8.6/9.0: `set n 5; interp
+    // eval {} {set n 99}; puts $n` prints `99`, not the stale `5`.
+    #[test]
+    fn o102_does_not_forward_past_interp_eval_barrier() {
+        let src = "set n 5\ninterp eval {} { set n 99 }\nputs $n\n";
+        let opts = run_pass(src);
+        assert!(
+            opts.iter()
+                .all(|o| !(o.code == DiagCode::O102 && o.replacement == "5")),
+            "must not forward the stale literal 5 past `interp eval {{}}`, got {opts:?}",
+        );
+    }
+
+    // Regression: a literal-body `uplevel #0 {…}` evaluates in the absolute
+    // global frame — at top level that coincides with the calling scope, so
+    // it can reassign a variable there too, with no alias declaration of its
+    // own. Confirmed against tclsh 8.6/9.0: `set n 5; uplevel #0 {set n
+    // 99}; puts $n` prints `99`.
+    #[test]
+    fn o102_does_not_forward_past_uplevel_hash0_upframe() {
+        let src = "set n 5\nuplevel #0 { set n 99 }\nputs $n\n";
+        let opts = run_pass(src);
+        assert!(
+            opts.iter()
+                .all(|o| !(o.code == DiagCode::O102 && o.replacement == "5")),
+            "must not forward the stale literal 5 past `uplevel #0`, got {opts:?}",
+        );
+    }
+
     #[test]
     fn o102_operand_span_fires_applicable_on_call_argv() {
         // `set n 7; puts $n` — the O102 emitted on the puts use
@@ -2992,12 +3395,68 @@ mod tests {
         )
         .with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations
                 .iter()
                 .any(|o| o.code == DiagCode::O103 && o.replacement == "1" && !o.hint_only),
             "expected applicable O103 folding [::not_const 1] to 1, got {:?}",
+            ctx.optimisations,
+        );
+    }
+
+    #[test]
+    fn o103_folds_arg_sensitive_passthrough_with_braced_multiword_literal() {
+        // Precision: `parse_static_call_args` now shares `literal_words`'s
+        // proper Tcl-aware tokeniser instead of a naive `split_whitespace`,
+        // so a braced multi-word call argument (`{a b}` — one clean literal
+        // argument in real Tcl, previously misread as two whitespace-split
+        // words and conservatively rejected) folds too.
+        use tcl_registry::CommandRegistry;
+        let registry = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "proc ::passthrough {x} { return $x }\nputs [::passthrough {a b}]",
+            &registry,
+            false,
+        )
+        .with_interprocedural(&registry, None);
+        let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations
+                .iter()
+                .any(|o| o.code == DiagCode::O103 && o.replacement == "{a b}" && !o.hint_only),
+            "expected applicable O103 folding [::passthrough {{a b}}] to {{a b}}, got {:?}",
+            ctx.optimisations,
+        );
+    }
+
+    #[test]
+    fn o103_folds_variadic_args_proc_returning_args_directly() {
+        // TP: `args` is seeded as a canonical Tcl list (see
+        // `seed_params_from_args`), not skipped outright — `proc ::foo {a
+        // args} { return $args }` called as `[::foo 1 2]` binds `a=1`,
+        // `args={2}` (a one-element list, which renders bare as `2` with
+        // no braces needed), so `return $args` folds to `2`. Confirmed
+        // against tclsh 8.6: `puts [::foo 1 2]` prints `2`.
+        use tcl_registry::CommandRegistry;
+        let registry = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "proc ::foo {a args} { return $args }\nputs [::foo 1 2]",
+            &registry,
+            false,
+        )
+        .with_interprocedural(&registry, None);
+        let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations
+                .iter()
+                .any(|o| o.code == DiagCode::O103 && o.replacement == "2" && !o.hint_only),
+            "expected applicable O103 folding [::foo 1 2] to 2 (args seeded as a list), got {:?}",
             ctx.optimisations,
         );
     }
@@ -3014,6 +3473,7 @@ mod tests {
         let cu =
             CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations
@@ -3039,6 +3499,7 @@ mod tests {
         let cu =
             CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations
@@ -3061,6 +3522,7 @@ mod tests {
         let cu =
             CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations
@@ -3143,6 +3605,7 @@ mod tests {
         let cu =
             CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         assert!(
             ctx.optimisations
@@ -3165,6 +3628,7 @@ mod tests {
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
         ctx.command_mutations =
             crate::command_binding::scan_module_command_mutations(&cu.ir_module, &registry);
         run(&mut ctx, &cu);

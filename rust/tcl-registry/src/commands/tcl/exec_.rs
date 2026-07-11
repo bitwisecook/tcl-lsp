@@ -51,6 +51,14 @@ pub fn spec() -> CommandSpec {
         options: const {
             &[
                 OptionSpec {
+                    name: "-encoding",
+                    value: OptionValue::value("encodingName"),
+                    detail: "",
+                    dialects: None,
+                    aliases: &[],
+                    min_version: None,
+                },
+                OptionSpec {
                     name: "-ignorestderr",
                     value: OptionValue::flag(),
                     detail: "",

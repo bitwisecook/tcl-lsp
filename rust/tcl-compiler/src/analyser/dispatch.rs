@@ -32,7 +32,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use tcl_registry::prelude::{DialectSet, OptionSpec};
 use tcl_registry::scoped::ScopedCommand;
-use tcl_registry::{ArgRole, Arity, CommandRegistry};
+use tcl_registry::{ArgRole, Arity, CommandRegistry, Traits};
 
 /// Signature for a simple Tcl command.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,6 +42,14 @@ pub struct CommandSig {
     /// Static arg-index → role map (0-based, after the command
     /// name). Args not listed default to ``ArgRole::Value``.
     pub arg_roles: HashMap<u8, ArgRole>,
+    /// Behavioural trait flags, copied from the resolved
+    /// [`tcl_registry::CommandSpec::traits`]. Consulted by
+    /// [`crate::analyser::diagnostics::validity`]'s arity check to skip
+    /// the generic E002/E003 floor/ceiling diagnostic for a command
+    /// carrying [`Traits::STRUCTURALLY_CHECKED_ARITY`] (its own
+    /// dedicated structural diagnostic owns arity instead).
+    pub traits: Traits,
+
     /// Declared option / switch names valid in the active dialect.
     /// Leading arguments matching one of these are skipped before
     /// counting positional args for the E002 / E003 arity check.
@@ -175,6 +183,7 @@ pub fn signature_for_command(
                 CommandSig {
                     arity: sub.arity,
                     arg_roles,
+                    traits: sub.traits,
                     leading_options,
                     leading_option_specs,
                 },
@@ -201,6 +210,7 @@ pub fn signature_for_command(
     Some(CommandSignature::Simple(CommandSig {
         arity: spec.arity,
         arg_roles,
+        traits: spec.traits,
         leading_options,
         leading_option_specs,
     }))
@@ -229,6 +239,7 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
                 CommandSig {
                     arity: sub.arity,
                     arg_roles,
+                    traits: sub.traits,
                     // Scoped ensemble operations declare no option flags.
                     leading_options: BTreeSet::new(),
                     leading_option_specs: Vec::new(),
@@ -244,6 +255,9 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
     CommandSignature::Simple(CommandSig {
         arity: scoped.arity,
         arg_roles: HashMap::new(),
+        // `ScopedCommand` itself carries no `traits` — only its
+        // (reused-`SubCommand`) ensemble operations do.
+        traits: Traits::empty(),
         leading_options: BTreeSet::new(),
         leading_option_specs: Vec::new(),
     })

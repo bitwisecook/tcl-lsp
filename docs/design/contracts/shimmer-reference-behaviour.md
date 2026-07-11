@@ -40,20 +40,56 @@ BOOLEAN → INT promotion is **not** flagged because it matches Tcl 9.0's O(1) c
 
 ## Reference validation status
 
-C source analysis completed against Tcl 9.0.3. The detector's `TYPE_HINTS` registry correctly maps Tcl commands to their underlying `Tcl_Get*FromObj` calls.
+C source analysis completed against Tcl 9.0.3. The `arg_types` shimmer hints
+carried on each `CommandRegistry` `CommandSpec`/`SubCommand` (see
+`rust/tcl-registry/src/commands/**`) correctly map Tcl commands to their
+underlying `Tcl_Get*FromObj` calls — command-level shimmer knowledge lives
+there as data (`ArgTypeHint { expected, shimmers }`), never hard-coded in the
+compiler.
+
+## Detection scope
+
+Shimmer analysis (`rust/tcl-compiler/src/shimmer/`) runs over every
+analysable function unit in a compilation unit — top-level code, `proc`
+bodies, TclOO method bodies (`cu.methods`), and synthetic body units such as
+`namespace eval` bodies and `apply` lambdas (`cu.body_units`) — not just
+top-level procs. Command resolution follows `interp alias` through
+`canonical_command`, so an alias to a shimmering builtin (e.g. `interp alias
+{} myindex {} ::lindex`) is detected the same as calling the builtin
+directly. A use is treated as unstably-typed (no shimmer flagged) when the
+variable carries a live write-trace, either in the same function
+(`var_observability::analyse_var_observability`) or anywhere else in the
+module (`ModuleVariableTraces`) — a traced variable's type cannot be
+statically trusted, since the trace callback may rewrite it.
+
+Diagnostic spans are tightened to the offending argument (or substitution)
+rather than the whole statement — see `shimmer::use_site::InvocationSite`
+and `value_shapes::parse_command_substitution_with_spans`. The one
+documented exception is `expr {...}` bodies: `ExprNode` offsets have no
+absolute-position anchor without a larger IR change, so shimmer inside an
+expression string still spans the whole statement.
+
+Two narrower residual gaps remain in the interp-alias handling (see the
+doc comment on `shimmer::use_site::check_invocation`): an alias that
+prepends fixed arguments (`interp alias {} foo {} ::bar prefix`) does not
+index-shift the checked argument, and a read-modify-write shimmering
+argument that is a bare variable name rather than a `$`-prefixed read
+(e.g. `interp alias {} myincr {} ::incr; myincr x`) is not seen through an
+alias, since `incr`'s own canonical name bypasses this path via the
+dedicated `Statement::Incr` node.
 
 ## Fixture scenarios
 
-See `tests/fixtures/shimmer/` for script-based cases that exercise:
+The Python-era `tests/fixtures/shimmer/` corpus was retired along with the
+Python implementation. Coverage today lives in:
 
-- string → list conversion (`string_scalar_to_list_once.tcl`, `string_list_roundtrip.tcl`),
-- numeric/string coercion in expression loops (`numeric_string_loop_thrash.tcl`),
-- list/string oscillation pressure in loops (`list_string_loop_toggle.tcl`),
-- dict/list oscillation (`dict_list_oscillation.tcl`),
-- boolean/int promotion — no false positive (`boolean_int_promotion.tcl`),
-- namespace-scoped shimmer variants (`namespace_scalar_vs_list.tcl`, `namespace_array_vs_list.tcl`).
+- Unit tests co-located with each shimmer module (`rust/tcl-compiler/src/shimmer/*.rs`) and in `rust/tcl-compiler/tests/checks.rs`.
+- TP/FP/TN/FN regression fixtures in `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` (the `FP-SH-NN` series).
+- Native `lsp_e2e` coverage in `rust/tcl-lsp-server/tests/e2e/diagnostics.rs` and `rust/tcl-lsp-server/tests/e2e/code_actions.rs` (the noqa suppress quick fix).
+- VS Code integration coverage in `editors/vscode/src/test/shimmerPrecision.test.ts` against `editors/vscode/testFixture/shimmerPrecision.tcl`.
 
 ## Cross-links
 
-- Tests: `tests/test_shimmer.py`.
-- Implementation: `compiler/shimmer.py`.
+- Implementation: `rust/tcl-compiler/src/shimmer/` (`hints.rs`, `use_site.rs`, `thunking.rs`, `byte_array.rs`, `phi.rs`, `graph.rs`, `span.rs`).
+- Registry data: `rust/tcl-registry/src/commands/**` (`arg_types` on each `CommandSpec`/`SubCommand`).
+- Suppression: `rust/tcl-compiler/src/analyser/utils.rs` (`parse_noqa_line_suppressions`, `apply_preceding_noqa`), consumed by `lift_compiler_diagnostics` in `rust/tcl-lsp-server/src/lib.rs`.

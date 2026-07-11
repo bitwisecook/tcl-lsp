@@ -835,7 +835,7 @@ Rust: `rust/tcl-compiler/src/analyser/*`, `compiler_checks.rs`, `irules_checks.r
 | E001 | Missing subcommand (bare `string`) | compiler_checks.py:716 | — | ❌ | Deferred (diagnostics.rs:3541 comment). Arity E002/E003 ported; empty/missing-subcommand not. |
 | E002 | Too few arguments | compiler_checks.py:929 | diagnostics.rs:3826 | ✅ | Registry-signature driven both. |
 | E003 | Too many arguments | compiler_checks.py:930 | diagnostics.rs:3841 | ✅ | |
-| E004 | Parse/internal error | compiler_checks.py:69 | state.rs:3073 | ✅ | |
+| E004 | Malformed `if` clause shape | compiler_checks.py:69 | validity.rs:`emit_e004_clause_shape_diagnostic` (registry `commands::tcl::if_::walk_if` hook) | ✅ | Rust exceeds parity: precise per-clause messages/spans, no leading-else FP, no redundant E002 |
 | E100 | Syntax | checks/_syntax.py:18 | syntax_checks.rs:691 | ✅ | |
 | E101 | Unclosed bracket / missing open brace | _analyser/_utils.py:134 | recovery.rs:310 | ✅ | Same insert-`{` CodeFix. |
 | E102 | Syntax | checks/_syntax.py:117 | syntax_checks.rs:756 | ✅ | |
@@ -963,7 +963,7 @@ Rust: `rust/tcl-compiler/src/analyser/*`, `compiler_checks.rs`, `irules_checks.r
 | Per-item incremental | — (none) | per_item.rs, item_tree.rs, state.rs | ➕ | Rust-ahead: offset-stable item identity + per-body memoisation, fuzzer-gated byte-identical to `analyse`. |
 | MRO algorithm | mro.py:38 `_tcloo_dfs` (two-pass DFS + late placement) | mro.rs:91 | ✅ | **Not C3** — both implement TclOO's `tclOOCall.c` two-pass DFS (correct for TclOO). |
 | Class hierarchy (CHA) | class_hierarchy.py | class_hierarchy.rs | ➕ | Parity + Rust defensive backfill/re-linearise. Non-deterministic `errors` order only (benign). |
-| TclOO construct coverage | _analyser/_oo.py (full) | analyser/oo.rs, handlers.rs | ❗ | Rust gaps: `oo::class` accepts only `create` (drops `new`/`createWithNamespace`); `initialise` body not walked; `property -get/-set` accessor bodies not walked. |
+| TclOO construct coverage | _analyser/_oo.py (full) | analyser/oo.rs, handlers.rs | ✅ | Stale-note fix: the three gaps previously listed here (`oo::class` dropping `new`/`createWithNamespace`; `initialise` body not walked; `property -get/-set` accessor bodies not walked) are all covered — see `oo_class_create_with_namespace_is_recognised`, `oo_initialise_body_is_walked`, `oo_property_accessor_bodies_are_walked` in `oo.rs`. |
 | snit support | _oo.py:492-790 + class_names.py | — | ❌ | **Largest OO gap** — no snit handling in the Rust analyser. |
 | Signature discovery | analyser/signature_scan.py | signature_scan/* | ✅ | Full parity (proc/namespace/import/package/source/interp-alias/oo::class/itcl::class, conditional recursion, tcllib factory resolver). |
 | proc lookup / reference matching | analyser/proc_lookup.py | signature_help.rs:322 | ✅ | Identical 3-way name predicate. |

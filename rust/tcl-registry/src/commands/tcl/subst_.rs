@@ -108,6 +108,43 @@ fn fold_subst(args: &[&str]) -> Option<String> {
     Some((*s).to_owned())
 }
 
+/// Whether a `subst` call — given its argument words, excluding the
+/// command name — performs *command* substitution, the only hazard T100
+/// warns about for this command (variable and backslash substitution alone
+/// cannot execute anything). Drives `CommandSpec::taint_sink_gate`, so
+/// `subst -nocommands $tainted` — the exact mitigation this command's own
+/// hover snippet recommends — no longer trips the code-injection sink it
+/// was written to avoid.
+///
+/// The legacy negative options (`-nobackslashes`/`-nocommands`/
+/// `-novariables`) default every substitution *on*, each disabling one;
+/// `-nocommands` anywhere disables command substitution outright. Tcl
+/// 9.1's positive options (`-backslashes`/`-commands`/`-variables`) invert
+/// that: default every substitution *off*, each enabling one, so command
+/// substitution then runs only when `-commands` is itself present. Tcl
+/// rejects mixing the two families in one call, so seeing any positive
+/// flag switches this scan to positive mode; option scanning stops at the
+/// first non-flag word (the `string` operand).
+fn subst_evaluates_commands(args: &[&str]) -> bool {
+    let mut positive_mode = false;
+    let mut nocommands = false;
+    let mut commands = false;
+    for &a in args {
+        match a {
+            "-commands" => {
+                commands = true;
+                positive_mode = true;
+            }
+            "-backslashes" | "-variables" => positive_mode = true,
+            "-nocommands" => nocommands = true,
+            "--" => break,
+            _ if a.starts_with('-') => {}
+            _ => break,
+        }
+    }
+    if positive_mode { commands } else { !nocommands }
+}
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "subst",
@@ -129,13 +166,59 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        taint_sink_gate: Some(subst_evaluates_commands),
         ..CommandSpec::DEFAULT
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::fold_subst;
+    use super::{fold_subst, subst_evaluates_commands};
+
+    #[test]
+    fn subst_evaluates_commands_default_is_true() {
+        assert!(subst_evaluates_commands(&["$tainted"]));
+    }
+
+    #[test]
+    fn subst_evaluates_commands_legacy_nocommands_disables() {
+        assert!(!subst_evaluates_commands(&["-nocommands", "$tainted"]));
+        // Order-independent, and other legacy negatives don't interfere.
+        assert!(!subst_evaluates_commands(&[
+            "-novariables",
+            "-nocommands",
+            "$tainted"
+        ]));
+    }
+
+    #[test]
+    fn subst_evaluates_commands_legacy_other_negatives_leave_commands_on() {
+        assert!(subst_evaluates_commands(&["-novariables", "$tainted"]));
+        assert!(subst_evaluates_commands(&["-nobackslashes", "$tainted"]));
+    }
+
+    #[test]
+    fn subst_evaluates_commands_positive_form_requires_explicit_commands() {
+        // Tcl 9.1 positive form: everything defaults off, so
+        // `-variables` alone never runs command substitution.
+        assert!(!subst_evaluates_commands(&["-variables", "$tainted"]));
+        assert!(!subst_evaluates_commands(&["-backslashes", "$tainted"]));
+        assert!(subst_evaluates_commands(&["-commands", "$tainted"]));
+        assert!(subst_evaluates_commands(&[
+            "-variables",
+            "-commands",
+            "$tainted"
+        ]));
+    }
+
+    #[test]
+    fn subst_evaluates_commands_stops_scanning_at_the_string_operand() {
+        // Only flags *before* the string operand matter — a `-nocommands`-
+        // shaped word after it (an arity-error call shape) is the string
+        // argument's own trailing content, not a switch, and must not
+        // suppress the sink.
+        assert!(subst_evaluates_commands(&["$x", "-nocommands"]));
+    }
 
     #[test]
     fn subst_folds_only_substitution_free_strings() {

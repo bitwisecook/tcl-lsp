@@ -28,7 +28,11 @@ require.extensions[".md"] = (mod: NodeJS.Module, filename: string) => {
 };
 
 export async function run(): Promise<void> {
-  const failureMarker = path.resolve(__dirname, "../../", ".vscode-test", "mocha-failures.json");
+  // Written unconditionally when mocha's run() callback fires (pass or fail)
+  // so runTest.ts's exit-timeout watchdog can tell "mocha finished cleanly,
+  // the process just didn't exit" apart from "mocha never finished" (a hang).
+  // Only the latter may be swallowed as success.
+  const resultMarker = path.resolve(__dirname, "../../", ".vscode-test", "mocha-result.json");
   const mocha = new Mocha({
     ui: "tdd",
     color: true,
@@ -78,9 +82,9 @@ export async function run(): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const runner = mocha.run((failures) => {
       restoreFixtureSettings();
+      fs.mkdirSync(path.dirname(resultMarker), { recursive: true });
+      fs.writeFileSync(resultMarker, JSON.stringify({ failures }) + "\n", "utf8");
       if (failures > 0) {
-        fs.mkdirSync(path.dirname(failureMarker), { recursive: true });
-        fs.writeFileSync(failureMarker, JSON.stringify({ failures }) + "\n", "utf8");
         reject(new Error(`${failures} test(s) failed.`));
       } else {
         resolve();

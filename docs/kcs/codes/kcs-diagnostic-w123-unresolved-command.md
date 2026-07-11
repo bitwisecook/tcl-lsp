@@ -9,7 +9,7 @@ all-editors, diagnostic, lowering
 
 ## Profiles
 
-opt-in (`tclLsp.diagnostics.W123`, default false)
+default (on in the default profile)
 
 ## Question
 

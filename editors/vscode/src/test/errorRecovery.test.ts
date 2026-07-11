@@ -141,14 +141,19 @@ suite("Error Recovery (contract)", () => {
   });
 
   test("C2: a command after an unterminated braced expression is analysed", async () => {
-    // `if {$x > 5` is an unterminated braced *expression*; recovery must let the
-    // following command be analysed — a bare `set` still raises its arity error.
+    // `if {$x > 5` is an unterminated braced *expression*; recovery must let
+    // the swallowed tail still be analysed as code. The unclosed brace runs
+    // to EOF, so `if`'s own single (swallowed) argument is itself an
+    // arity/shape defect: E002 (a plain arity floor) or the more precise
+    // E004 (`if`'s dedicated clause-shape check, which subsumes E002 for
+    // `if`) — either is acceptable here, since this suite asserts
+    // observable recovery behaviour, not a specific diagnostic code.
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
     const diags = await setContentAndWait(editor, docUri, "if {$x > 5\nset\n");
     assert.ok(
-      diags.some((d) => codeOf(d) === "E002"),
-      `tail \`set\` after \`if {\` should arity-error; got [${diags.map(codeOf)}]`,
+      diags.some((d) => codeOf(d) === "E002" || codeOf(d) === "E004"),
+      `tail after \`if {\` should still be analysed and arity/shape-error; got [${diags.map(codeOf)}]`,
     );
   });
 
@@ -246,5 +251,196 @@ suite("Error Recovery (contract)", () => {
 
     diags = await setContentAndWait(editor, docUri, "set x [foo bar]\nputs hi\n");
     assert.ok(!hasRecoveryError(diags), `fix did not clear: [${diags.map(codeOf)}]`);
+  });
+});
+
+suite("Error Recovery (known-command generality)", () => {
+  // A break just before a call to a command the document itself defines (a
+  // proc, a TclOO class, an `interp alias`) must recover exactly as well as
+  // a break before a call to a builtin — previously the "does the next line
+  // start with a known command?" recovery signal only ever consulted the
+  // static registry, so real-world files (almost all of which call their
+  // own procs) silently lost the rest of the document to analysis whenever
+  // no *builtin* call happened to follow the break.
+  const docUri = getDocUri("errorRecovery.tcl");
+
+  test("a call to a user-defined proc recovers the tail like a builtin", async () => {
+    await activate(docUri);
+    const editor = vscode.window.activeTextEditor!;
+    const diags = await setContentAndWait(
+      editor,
+      docUri,
+      "proc my_helper {x} {puts $x}\n\nset q {\n  aaa\nmy_helper\n",
+    );
+    assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
+    assert.ok(
+      diags.some((d) => codeOf(d) === "E002"),
+      `swallowed \`my_helper\` call should still arity-error, proving the tail \
+       is analysed as code rather than dropped: [${diags.map(codeOf)}]`,
+    );
+  });
+
+  test("a call to a user-defined TclOO class recovers the tail", async () => {
+    await activate(docUri);
+    const editor = vscode.window.activeTextEditor!;
+    await setContentAndWait(
+      editor,
+      docUri,
+      "oo::class create Widget {\n  method draw {} {}\n}\n\nset q {\n    aaa\nproc recovered_after_class {} {}\n",
+    );
+    const names = await symbolsFor(docUri);
+    assert.ok(
+      names.includes("recovered_after_class"),
+      `tail proc not recovered past a user-class recovery signal; symbols=[${names}]`,
+    );
+  });
+
+  test("a namespace-qualified proc call recovers the tail", async () => {
+    await activate(docUri);
+    const editor = vscode.window.activeTextEditor!;
+    await setContentAndWait(
+      editor,
+      docUri,
+      "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\n  aaa\nmyns::helper 1\nproc recovered_after_ns {} {}\n",
+    );
+    const names = await symbolsFor(docUri);
+    assert.ok(
+      names.includes("recovered_after_ns"),
+      `tail proc not recovered past a namespace-qualified call; symbols=[${names}]`,
+    );
+  });
+
+  // The known-command signal extends past this file's own procs/classes/
+  // aliases to two more layers: a `rename OLD NEW` target (this file), a
+  // proc defined in a *different* workspace file the on-disk scan indexes
+  // without ever being opened (`workspaceSiblingHelper.tcl`), and a command
+  // a `package require`d library provides (`mypkglib/pkgIndex.tcl`, scanned
+  // the same way the pre-existing `rbclib` auto-load fixture is). Each is
+  // proven live the same way as the `my_helper` case above: a bare `string`
+  // chained onto the same line has no subcommand, which always draws its
+  // own E001 ("requires a subcommand") once analysed — independent of
+  // whatever recognised the target head.
+
+  test("a renamed command recovers the tail", async () => {
+    await activate(docUri);
+    const editor = vscode.window.activeTextEditor!;
+    const diags = await setContentAndWait(
+      editor,
+      docUri,
+      "rename puts my_puts\n\nset q {\n  aaa\nmy_puts hi; string\n",
+    );
+    assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
+    assert.ok(
+      diags.some((d) => codeOf(d) === "E001"),
+      `renamed-command tail call should be live code (chained bare \`string\` \
+       has no subcommand): [${diags.map(codeOf)}]`,
+    );
+  });
+
+  test("a proc defined in a different workspace file recovers the tail", async () => {
+    await activate(docUri);
+    const editor = vscode.window.activeTextEditor!;
+    await setTestContent(editor, "set q {\n  aaa\nworkspace_helper 1; string\n");
+    const diags = await waitForDiagnostics(docUri, {
+      timeout: 15_000,
+      predicate: (ds) => ds.some((d) => codeOf(d) === "E001"),
+    });
+    assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
+    assert.ok(
+      diags.some((d) => codeOf(d) === "E001"),
+      `a call to a sibling-file proc should be live code (chained bare \`string\` \
+       has no subcommand): [${diags.map(codeOf)}]`,
+    );
+  });
+
+  test("a command from a package-required library recovers the tail", async () => {
+    await activate(docUri);
+    const editor = vscode.window.activeTextEditor!;
+    await setTestContent(editor, "package require mypkg\nset q {\n  aaa\nmypkg_helper 1; string\n");
+    const diags = await waitForDiagnostics(docUri, {
+      timeout: 15_000,
+      predicate: (ds) => ds.some((d) => codeOf(d) === "E001"),
+    });
+    assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
+    assert.ok(
+      diags.some((d) => codeOf(d) === "E001"),
+      `a call to a package-provided command should be live code (chained bare \
+       \`string\` has no subcommand): [${diags.map(codeOf)}]`,
+    );
+  });
+});
+
+suite("Error Recovery (short-form unterminated quote / brace)", () => {
+  // A delimiter left open with content on the *same* line as the opener
+  // (the overwhelmingly common real-world typo) must be flagged exactly
+  // like a long multi-line run. Previously both detectors required the run
+  // to already span multiple lines, so `set x "hello` / `set x {hello`
+  // (content then EOF, or content then a single line break) went
+  // completely unflagged — not even the generic fallback fired.
+  const docUri = getDocUri("errorRecovery.tcl");
+
+  test("a same-line unterminated quote with no newline is flagged", async () => {
+    await activate(docUri);
+    const editor = vscode.window.activeTextEditor!;
+    const diags = await setContentAndWait(editor, docUri, 'set x "hello');
+    assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
+  });
+
+  test("a same-line unterminated brace with no newline is flagged", async () => {
+    await activate(docUri);
+    const editor = vscode.window.activeTextEditor!;
+    const diags = await setContentAndWait(editor, docUri, "set x {hello");
+    assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
+  });
+
+  test("content before a single line break still flags an unterminated quote", async () => {
+    await activate(docUri);
+    const editor = vscode.window.activeTextEditor!;
+    const diags = await setContentAndWait(editor, docUri, 'set x "hello\nworld\n');
+    assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
+  });
+
+  test("content before a single line break still flags an unterminated brace", async () => {
+    await activate(docUri);
+    const editor = vscode.window.activeTextEditor!;
+    const diags = await setContentAndWait(editor, docUri, "set x {hello\nworld\n");
+    assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
+  });
+
+  test("well-formed empty and short delimiters stay silent", async () => {
+    await activate(docUri);
+    const editor = vscode.window.activeTextEditor!;
+    for (const src of ['set x ""\n', "set x {}\n", 'set x "hello"\n', "set x {hello}\n"]) {
+      const diags = await setContentAndWait(editor, docUri, src);
+      assert.ok(
+        !hasRecoveryError(diags),
+        `well-formed ${JSON.stringify(src)} flagged a recovery error: [${diags.map(codeOf)}]`,
+      );
+    }
+  });
+});
+
+suite("Error Recovery (E200 tight highlighting)", () => {
+  const docUri = getDocUri("errorRecovery.tcl");
+
+  test("the generic fallback does not span the whole document", async () => {
+    await activate(docUri);
+    const editor = vscode.window.activeTextEditor!;
+    // The outer class body's `{` never closes; its content contains a
+    // stray `}` from the balanced `method bar {}` parameter list, which
+    // routes detection to the generic fallback rather than the precise
+    // E203 path.
+    const src = "oo::class create Foo {\n  method bar {} {\n    puts hi\n";
+    const diags = await setContentAndWait(editor, docUri, src);
+    assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
+    const nLines = src.split("\n").length;
+    for (const d of diags.filter(isRecoveryError)) {
+      assert.ok(
+        d.range.end.line < nLines - 1,
+        `recovery diagnostic spans to (or past) the document's last line — \
+         expected a tight anchor near the unclosed delimiter, not a \
+         whole-document underline: ${JSON.stringify(d.range)}`,
+      );
+    }
   });
 });

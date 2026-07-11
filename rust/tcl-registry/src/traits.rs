@@ -108,8 +108,6 @@ bitflags! {
         // Safety
         /// Inherently dangerous command.
         const UNSAFE                    = 1 << 29;
-        /// Warn about option injection without `--` terminator.
-        const WARN_WITHOUT_TERMINATOR   = 1 << 30;
         /// Password option command.
         const PASSWORD_OPTION           = 1 << 31;
 
@@ -239,6 +237,16 @@ bitflags! {
         /// collector.
         const WASM_EMITS_NOTHING        = 1 << 52;
 
+        /// The registry's simple `min..=max` [`crate::Arity`] is a coarse
+        /// floor/ceiling only — this command's real grammar is a clause
+        /// chain validated by [`crate::spec::CommandSpec::clause_shape_check`]
+        /// (`if`'s `elseif`/`else` chain). The generic arity floor/ceiling
+        /// diagnostic (E002/E003) skips a command carrying this trait so its
+        /// dedicated structural diagnostic owns arity together with clause
+        /// shape — one precise diagnostic per malformed call instead of a
+        /// redundant generic one alongside it.
+        const STRUCTURALLY_CHECKED_ARITY = 1 << 54;
+
         /// The command concatenates its *entire* argument list into a single
         /// expression (`expr` — `expr $a + $b` evaluates the one expression
         /// `$a + $b`). This differs from commands whose expression is a single
@@ -250,5 +258,49 @@ bitflags! {
         /// the `Expr` arg-role so widening it does not perturb the analyser
         /// passes (expr re-lexing, W110) that consume the role.
         const EXPR_CONCATENATES_ARGS    = 1 << 53;
+
+        /// (Subcommand) installs or removes an active variable trace on a
+        /// named target — `trace add|remove|variable|vdelete` (not
+        /// `info`/`vinfo`, which only *query* trace state). A variable
+        /// carrying an active trace can run arbitrary handler code on
+        /// read/write/unset, and a write handler can rewrite the value
+        /// being stored — so no compiler pass may treat a read of this
+        /// variable as equivalent to its last literal assignment, or elide
+        /// an assignment to it as dead. Single source of truth for the
+        /// module-wide traced-variable fact consumed by the propagation
+        /// optimiser (`O102` load-forwarding) and dead-store elimination.
+        const ESTABLISHES_VARIABLE_TRACE = 1 << 56;
+
+        /// `TclOO` `next` / `nextto` — invokes the next implementation of the
+        /// *currently executing* method along the receiver's MRO. Its
+        /// callee's arity is resolvable only from the enclosing method's
+        /// call-site context (which class/method body the call textually
+        /// sits in), never from a fixed registry range, so both commands
+        /// keep [`crate::Arity::any`] / [`crate::Arity::at_least`] and the
+        /// analyser queues a context-aware candidate for any command
+        /// carrying this trait instead
+        /// (`Analyser::queue_next_arity_candidate`). Set on `next` and
+        /// `nextto`; `nextto`'s explicit target-class first word is
+        /// distinguished structurally via an [`crate::arg_role::ArgRole::Name`]
+        /// at argument index 0, not by command name.
+        const TCLOO_NEXT_CHAIN           = 1 << 55;
     }
 }
+
+/// Clause/block words that behave as [`Traits::LANGUAGE_KEYWORD`] tokens but
+/// have no standalone `CommandSpec` — they are never independently invocable
+/// (`else` only means anything as an `if` clause), so they cannot carry a
+/// registry entry of their own the way `if`/`foreach`/`proc` do.
+///
+/// Single source of truth for every consumer that needs "the real Tcl
+/// keywords a `CommandSpec`-driven scan alone would miss": the LSP's
+/// semantic-token classifier
+/// (`tcl_lsp_core::semantic_tokens::LANGUAGE_KEYWORD_SUB_KEYWORDS`, which
+/// unions in its own further residue — the `TclOO` method-body helpers
+/// `callback`/`mymethod`/`link`, which are context-sensitive rather than
+/// unconditional keywords) and the static TextMate-grammar generator
+/// (`xtask`'s `gen_tmlanguage_keywords`, which unions in the iRules-only
+/// `when`). Keeping this list here instead of duplicating it in both means a
+/// new clause word is added once and both consumers pick it up.
+pub const CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC: &[&str] =
+    &["else", "elseif", "on", "trap", "finally"];

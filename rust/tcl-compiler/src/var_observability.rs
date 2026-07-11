@@ -46,12 +46,15 @@
 use std::collections::HashMap;
 
 use bitflags::bitflags;
+use tcl_registry::CommandRegistry;
 
 use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
+use crate::lowering::variable_trace_write_indices;
 use crate::naming::normalise_var_name;
 use crate::var_scoping::{
-    global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
+    global_declaration_indices, my_variable_declaration_indices, upvar_local_declaration_indices,
+    variable_declaration_indices,
 };
 
 bitflags! {
@@ -101,19 +104,6 @@ impl EscapeFlag {
 /// `upvar` recognition logic).
 pub(crate) type State = HashMap<String, EscapeFlag>;
 
-/// Variable named by a `trace` command, or `None`.  Recognises both the
-/// `trace add variable NAME …` (8.5+) and the 8.4 `trace variable NAME …`
-/// spellings, for any operation.
-fn trace_target(args: &[String]) -> Option<&str> {
-    if args.len() >= 3 && args[0] == "add" && args[1] == "variable" {
-        return Some(&args[2]);
-    }
-    if args.len() >= 2 && args[0] == "variable" {
-        return Some(&args[1]);
-    }
-    None
-}
-
 /// Union `flag` into `state[name]` (after normalising `name`).
 fn mark(state: &mut State, args: &[String], idx: usize, flag: EscapeFlag) {
     if let Some(a) = args.get(idx) {
@@ -129,7 +119,7 @@ fn mark(state: &mut State, args: &[String], idx: usize, flag: EscapeFlag) {
 /// `pub(crate)`: reused by [`crate::cfg_builder::global_write_info`] for its
 /// own flow-insensitive whole-body scan — the recognition logic for
 /// `global` / `variable` / `upvar` / `trace` lives here once.
-pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State) {
+pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
     let (Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. }) = stmt
     else {
         return;
@@ -147,15 +137,33 @@ pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State) {
                 mark(state, args, i, EscapeFlag::NAMESPACE);
             }
         }
-        "trace" => {
-            if let Some(t) = trace_target(args) {
-                let nm = normalise_var_name(t);
-                if !nm.is_empty() {
-                    *state.entry(nm.to_owned()).or_default() |= EscapeFlag::TRACED;
-                }
+        // `my variable NAME …` (TclOO) binds each instance variable into the
+        // method's local scope — a namespace-style scope alias, exactly like a
+        // bare `variable`, but reached through the `my` dispatch so the base
+        // command word is `my` and the declared names follow a `variable`
+        // subcommand word. An instance variable's intrep is externally
+        // determined (the constructor / other methods can set it to anything),
+        // so a use-site / merge / loop-oscillation check must treat it as
+        // escaping — the same protection FP-SH-02 / FP-SH-16 give a bare
+        // `variable`. (Traces are handled below by the registry-driven
+        // `variable_trace_write_indices`, not a hardcoded `"trace"` arm.)
+        "my" => {
+            for i in my_variable_declaration_indices(args) {
+                mark(state, args, i, EscapeFlag::NAMESPACE);
             }
         }
         _ => {}
+    }
+
+    // Variable-trace targets, registry-driven: any subcommand carrying
+    // `Traits::ESTABLISHES_VARIABLE_TRACE` (`trace add|remove|variable|
+    // vdelete` — not the read-only `info`/`vinfo` forms) marks its
+    // `ArgRole::VarWrite` target(s) TRACED. Mirrors
+    // `crate::lowering::populate_variable_trace_facts`'s whole-module
+    // fact via the same shared query, so this carries no hardcoded
+    // knowledge of `trace`'s subcommand grammar.
+    for i in variable_trace_write_indices(registry, canon, args) {
+        mark(state, args, i, EscapeFlag::TRACED);
     }
 
     // `upvar` / `namespace upvar` are recognised structurally on the
@@ -199,6 +207,7 @@ pub struct VarObservability<'a> {
     block_entry: HashMap<BlockId, State>,
     ordered_blocks: Vec<BlockId>,
     cfg: &'a CfgFunction,
+    registry: &'a CommandRegistry,
 }
 
 impl VarObservability<'_> {
@@ -206,7 +215,7 @@ impl VarObservability<'_> {
         let mut state = self.block_entry.get(&block).cloned().unwrap_or_default();
         if let Some(blk) = self.cfg.blocks.get(&block) {
             for stmt in blk.statements.iter().take(stmt_idx) {
-                stmt_gen(stmt, &mut state);
+                stmt_gen(stmt, &mut state, self.registry);
             }
         }
         state
@@ -243,12 +252,43 @@ impl VarObservability<'_> {
             collect_escaping(&state, &mut names);
             if let Some(blk) = self.cfg.blocks.get(block) {
                 for stmt in &blk.statements {
-                    stmt_gen(stmt, &mut state);
+                    stmt_gen(stmt, &mut state, self.registry);
                     collect_escaping(&state, &mut names);
                 }
             }
         }
         names
+    }
+
+    /// Whole-function union: every name that is ever under a `trace` at any
+    /// point in the body — [`Self::escaping_var_names`] narrowed to the
+    /// `TRACED` flag alone (excluding a plain `global` / `variable` /
+    /// `upvar` alias with no trace). The flow-insensitive view: a trace
+    /// added partway through the function is treated as covering the whole
+    /// function, the same conservative widening [`Self::escaping_var_names`]
+    /// already applies for SCCP.
+    #[must_use]
+    pub fn traced_var_names(&self) -> std::collections::HashSet<String> {
+        let mut names = std::collections::HashSet::new();
+        for block in &self.ordered_blocks {
+            let mut state = self.block_entry.get(block).cloned().unwrap_or_default();
+            collect_traced(&state, &mut names);
+            if let Some(blk) = self.cfg.blocks.get(block) {
+                for stmt in &blk.statements {
+                    stmt_gen(stmt, &mut state, self.registry);
+                    collect_traced(&state, &mut names);
+                }
+            }
+        }
+        names
+    }
+}
+
+fn collect_traced(state: &State, names: &mut std::collections::HashSet<String>) {
+    for (name, flag) in state {
+        if flag.is_traced() {
+            names.insert(name.clone());
+        }
     }
 }
 
@@ -260,9 +300,82 @@ fn collect_escaping(state: &State, names: &mut std::collections::HashSet<String>
     }
 }
 
-/// Compute the flow-sensitive alias/observability lattice for `cfg`.
+/// Whole-module scan: every (normalised) variable name declared via a
+/// literal `global NAME …` statement anywhere in the module — the
+/// top-level script, every procedure, every `TclOO` method body, and every
+/// synthetic body unit (`apply` lambda / `namespace eval` body).
+///
+/// The per-function escaping-set computed by [`analyse_var_observability`]
+/// (and consulted by [`crate::sccp::sccp`]) answers "is this name aliased
+/// *within this function's own body*" — sound for an ordinary procedure,
+/// whose local frame is genuinely private unless *that body itself*
+/// declares `global`/`variable`/`upvar`. It is unsound for the *top-level*
+/// script: top-level names already live in the global frame (there is no
+/// separate local frame for them to shadow), so a name the top-level body
+/// never mentions via `global` can still be reassigned mid-run by any
+/// *other* procedure's own `global NAME; set NAME …` — an ordinary call,
+/// with nothing textually resembling an alias, from the top level's point
+/// of view.  (Reproduced against tclsh 8.6/9.0: `set n 1; proc p {} {global
+/// n; set n 2}; p; puts $n` prints `2`; before this scan fed into SCCP as
+/// `extra_escaping`, the optimiser proposed folding the final `puts` to the
+/// stale literal `1`.)
+///
+/// This whole-module union is fed into the *top-level* unit's SCCP build
+/// (see `CompilationUnit::build_for_with_config`) as `extra_escaping` to
+/// close that gap; per-procedure/method scoping needs no such widening —
+/// each already protects its own declared aliases flow-sensitively.
 #[must_use]
-pub fn analyse_var_observability(cfg: &CfgFunction) -> VarObservability<'_> {
+pub fn scan_module_global_names(
+    ir_module: &crate::ir::Module,
+) -> std::collections::HashSet<String> {
+    use crate::ir::{Script, Statement, for_each_statement};
+    use crate::var_scoping::global_declaration_indices;
+
+    let mut names = std::collections::HashSet::new();
+    let mut visit = |script: &Script| {
+        for_each_statement(script, &mut |stmt| {
+            let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
+                return;
+            };
+            let canon = stmt.canonical_command_or_source();
+            if canon.strip_prefix("::").unwrap_or(canon) != "global" {
+                return;
+            }
+            for i in global_declaration_indices(args) {
+                if let Some(a) = args.get(i) {
+                    let name = normalise_var_name(a);
+                    if !name.is_empty() {
+                        names.insert(name.to_owned());
+                    }
+                }
+            }
+        });
+    };
+    visit(&ir_module.top_level);
+    for proc in ir_module.procedures.values() {
+        visit(&proc.body);
+    }
+    for method in ir_module.methods.values() {
+        visit(&method.body);
+    }
+    for body in ir_module.body_units.values() {
+        visit(&body.body);
+    }
+    names
+}
+
+/// Compute the flow-sensitive alias/observability lattice for `cfg`.
+///
+/// `registry` resolves the variable-trace grammar (`Traits::
+/// ESTABLISHES_VARIABLE_TRACE` + `ArgRole::VarWrite`), so the same
+/// dialect the caller lowered `cfg` under must be passed — a mismatched
+/// registry could silently miss (or misidentify) a trace-target
+/// position.
+#[must_use]
+pub fn analyse_var_observability<'a>(
+    cfg: &'a CfgFunction,
+    registry: &'a CommandRegistry,
+) -> VarObservability<'a> {
     let mut preds: HashMap<BlockId, Vec<BlockId>> =
         cfg.blocks.keys().map(|id| (*id, Vec::new())).collect();
     for (&id, blk) in &cfg.blocks {
@@ -299,7 +412,7 @@ pub fn analyse_var_observability(cfg: &CfgFunction) -> VarObservability<'_> {
             let mut exit_state = entry;
             if let Some(blk) = cfg.blocks.get(&id) {
                 for stmt in &blk.statements {
-                    stmt_gen(stmt, &mut exit_state);
+                    stmt_gen(stmt, &mut exit_state, registry);
                 }
             }
             if exit_state != block_exit[&id] {
@@ -313,132 +426,8 @@ pub fn analyse_var_observability(cfg: &CfgFunction) -> VarObservability<'_> {
         block_entry,
         ordered_blocks: order,
         cfg,
+        registry,
     }
-}
-
-/// Module-wide (flow-insensitive, call-order-independent) summary of every
-/// `trace add variable` / `trace variable` target across the whole module —
-/// top level, every proc, every method — the [`crate::command_binding::
-/// ModuleCommandMutations`] pattern applied to variable traces instead of
-/// command bindings.
-///
-/// [`analyse_var_observability`]'s flow-sensitive `TRACED` flag only
-/// recognises a trace that is added *and read in the same function body*: a
-/// trace installed by one proc and observed through a variable read in a
-/// *different* proc — reached via a call whose relative order isn't
-/// statically known — is invisible to it. That gap is real and unsound:
-///
-/// ```tcl
-/// proc install_trace {} { trace add variable ::x write {apply {a {set ::x 99}}} }
-/// set x 5
-/// install_trace
-/// set x 6
-/// puts [expr {$x + 1}]     ;# tclsh: 100 (the trace fires on `set x 6`).
-/// ```
-///
-/// Rather than a full interprocedural call-order fixpoint, this takes the
-/// same sound over-approximation `ModuleCommandMutations` does: a name traced
-/// *anywhere* in the module is treated as traced *everywhere*, for the
-/// lifetime of the module (a later `trace remove` does not "untrace" it here
-/// — the fact is flow-insensitive by design, so it only ever prevents an
-/// unsound fold, never causes one).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
-pub struct ModuleVariableTraces {
-    /// Literal variable names traced anywhere in the module.
-    names: std::collections::BTreeSet<String>,
-    /// A body traces a dynamically-computed target (`trace add variable
-    /// $name write …`) — resolution of *any* name is opaque, mirroring
-    /// [`crate::command_binding::ModuleCommandMutations`]'s `dynamic` flag.
-    dynamic: bool,
-}
-
-impl ModuleVariableTraces {
-    /// True when `name` is traced somewhere in the module (or the module
-    /// traces a dynamically-computed target, which could be any name).
-    #[must_use]
-    pub fn is_traced(&self, name: &str) -> bool {
-        self.dynamic || self.names.contains(canonical_outer_name(name))
-    }
-}
-
-/// Canonicalise a variable name for module-wide outer-scope matching: strip
-/// a `$`/`${…}`/array-index wrapper (via [`normalise_var_name`]), then a
-/// single leading `::` — the top-level scope *is* the global namespace, so
-/// `trace add variable ::x …` and a bare top-level `set x …` name the same
-/// variable, and must canonicalise to the same string for [`ModuleVariableTraces::is_traced`]
-/// to recognise them as one. A deeper `::ns::x` is left with its remaining
-/// `::` intact: a bare local can never collide with it, and any *direct*
-/// reference to `::ns::x` elsewhere is already unconditionally treated as
-/// externally mutable by SCCP's own `starts_with("::")` rule, so this lookup
-/// is never reached for that spelling.
-fn canonical_outer_name(name: &str) -> &str {
-    let n = normalise_var_name(name);
-    n.strip_prefix("::").unwrap_or(n)
-}
-
-/// Scan `module` for every `trace add variable` / `trace variable` target —
-/// top level, every proc, every method — recursing into nested control-flow
-/// bodies via [`crate::ir_helpers::nested_bodies`].
-#[must_use]
-pub fn scan_module_variable_traces(module: &crate::ir::Module) -> ModuleVariableTraces {
-    let mut names = std::collections::BTreeSet::new();
-    let mut dynamic = false;
-
-    let mut visit = |script: &crate::ir::Script| {
-        walk_trace_targets(script, &mut names, &mut dynamic);
-    };
-    visit(&module.top_level);
-    for proc in module.procedures.values() {
-        visit(&proc.body);
-    }
-    for method in module.methods.values() {
-        visit(&method.body);
-    }
-
-    ModuleVariableTraces { names, dynamic }
-}
-
-fn walk_trace_targets(
-    script: &crate::ir::Script,
-    names: &mut std::collections::BTreeSet<String>,
-    dynamic: &mut bool,
-) {
-    for stmt in &script.statements {
-        record_trace_target(stmt, names, dynamic);
-        for body in crate::ir_helpers::nested_bodies(stmt) {
-            walk_trace_targets(body, names, dynamic);
-        }
-    }
-}
-
-/// Record `stmt`'s trace target (if any) into `names`, or set `dynamic` when
-/// the target is not a literal name. Mirrors [`stmt_gen`]'s `"trace"` arm,
-/// but module-wide rather than keyed into a per-block flag state.
-fn record_trace_target(
-    stmt: &Statement,
-    names: &mut std::collections::BTreeSet<String>,
-    dynamic: &mut bool,
-) {
-    let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
-        return;
-    };
-    let canon = stmt.canonical_command_or_source();
-    if canon.strip_prefix("::").unwrap_or(canon) != "trace" {
-        return;
-    }
-    let Some(target) = trace_target(args) else {
-        return;
-    };
-    if target.starts_with('$') {
-        *dynamic = true;
-        return;
-    }
-    let name = canonical_outer_name(target);
-    if name.is_empty() {
-        *dynamic = true;
-        return;
-    }
-    names.insert(name.to_owned());
 }
 
 #[cfg(test)]
@@ -447,8 +436,12 @@ mod tests {
     use crate::compilation_unit::CompilationUnit;
     use tcl_registry::CommandRegistry;
 
+    fn registry() -> CommandRegistry {
+        CommandRegistry::build_default()
+    }
+
     fn cu(src: &str) -> CompilationUnit {
-        CompilationUnit::build_for(src, &CommandRegistry::build_default(), false)
+        CompilationUnit::build_for(src, &registry(), false)
     }
 
     #[test]
@@ -457,7 +450,8 @@ mod tests {
         // only from the `global` onward.
         let c = cu("proc ::p {} { set x 1\nglobal g\nset g 2 }");
         let fu = c.function("::p").unwrap();
-        let obs = analyse_var_observability(&fu.cfg);
+        let reg = registry();
+        let obs = analyse_var_observability(&fu.cfg, &reg);
         let entry = fu.cfg.entry;
         // x is never aliased.
         assert!(!obs.is_escaping_at(entry, 3, "x"));
@@ -471,7 +465,8 @@ mod tests {
     fn variable_marks_namespace_alias() {
         let c = cu("proc ::p {} { variable v\nset v 1 }");
         let fu = c.function("::p").unwrap();
-        let obs = analyse_var_observability(&fu.cfg);
+        let reg = registry();
+        let obs = analyse_var_observability(&fu.cfg, &reg);
         assert!(
             obs.flag_at(fu.cfg.entry, 2, "v")
                 .contains(EscapeFlag::NAMESPACE)
@@ -480,19 +475,97 @@ mod tests {
     }
 
     #[test]
+    fn my_variable_marks_namespace_alias() {
+        // `my variable x` (TclOO) binds an instance variable into the method
+        // scope — a namespace-style escape, exactly like a bare `variable`.
+        let c = cu("proc ::p {} { my variable x\nset x 1 }");
+        let fu = c.function("::p").unwrap();
+        let reg = registry();
+        let obs = analyse_var_observability(&fu.cfg, &reg);
+        assert!(
+            obs.flag_at(fu.cfg.entry, 2, "x")
+                .contains(EscapeFlag::NAMESPACE),
+            "my variable x should mark x as a namespace alias"
+        );
+        assert!(obs.escaping_var_names().contains("x"));
+    }
+
+    #[test]
     fn trace_marks_observable() {
         let c = cu("proc ::p {} { trace add variable t write cb\nset t 1 }");
         let fu = c.function("::p").unwrap();
-        let obs = analyse_var_observability(&fu.cfg);
+        let reg = registry();
+        let obs = analyse_var_observability(&fu.cfg, &reg);
+        assert!(obs.is_traced_at(fu.cfg.entry, 2, "t"));
+        assert!(obs.escaping_var_names().contains("t"));
+        assert!(obs.traced_var_names().contains("t"));
+    }
+
+    /// [`VarObservability::traced_var_names`] narrows `escaping_var_names`
+    /// to the `TRACED` flag alone — a plain alias with no trace (`global g`)
+    /// must not appear in it, even though it does appear in the broader
+    /// `escaping_var_names` set.
+    #[test]
+    fn traced_var_names_excludes_untraced_aliases() {
+        let c = cu("proc ::p {} { global g\nset g 1\ntrace add variable t write cb\nset t 1 }");
+        let fu = c.function("::p").unwrap();
+        let reg = registry();
+        let obs = analyse_var_observability(&fu.cfg, &reg);
+        assert!(obs.escaping_var_names().contains("g"));
+        assert!(obs.escaping_var_names().contains("t"));
+        assert!(
+            !obs.traced_var_names().contains("g"),
+            "an untraced global alias must not appear in traced_var_names"
+        );
+        assert!(obs.traced_var_names().contains("t"));
+    }
+
+    #[test]
+    fn legacy_trace_variable_form_marks_observable() {
+        // The deprecated `trace variable name ops command` spelling (8.4-8.6
+        // only) must mark the target the same as the modern `trace add
+        // variable` form — no per-form gap in the registry-driven query.
+        let c = cu("proc ::p {} { trace variable t w cb\nset t 1 }");
+        let fu = c.function("::p").unwrap();
+        let reg = registry();
+        let obs = analyse_var_observability(&fu.cfg, &reg);
         assert!(obs.is_traced_at(fu.cfg.entry, 2, "t"));
         assert!(obs.escaping_var_names().contains("t"));
     }
 
     #[test]
+    fn trace_through_interp_alias_marks_observable() {
+        // `interp alias {} tracer {} trace` means `tracer add variable ...`
+        // is really a `trace add variable ...` call — `stmt_gen` must key
+        // off the canonical (alias-resolved) command name when locating the
+        // trace-target argument, not the source-surface `tracer` spelling.
+        let c = cu(
+            "interp alias {} tracer {} trace\nproc ::p {} { tracer add variable t write cb\nset t 1 }",
+        );
+        let fu = c.function("::p").unwrap();
+        let reg = registry();
+        let obs = analyse_var_observability(&fu.cfg, &reg);
+        assert!(obs.is_traced_at(fu.cfg.entry, 2, "t"));
+        assert!(obs.escaping_var_names().contains("t"));
+    }
+
+    #[test]
+    fn trace_add_execution_does_not_mark_a_variable() {
+        // `trace add execution` targets a *command* name, not a variable —
+        // must not spuriously flag its target as a TRACED variable.
+        let c = cu("proc ::p {} { trace add execution foo enter cb\nset foo 1 }");
+        let fu = c.function("::p").unwrap();
+        let reg = registry();
+        let obs = analyse_var_observability(&fu.cfg, &reg);
+        assert!(!obs.is_traced_at(fu.cfg.entry, 2, "foo"));
+    }
+
+    #[test]
     fn upvar_level_zero_is_global_other_is_caller() {
+        let reg = registry();
         let c0 = cu("proc ::p {} { upvar #0 g loc }");
         let f0 = c0.function("::p").unwrap();
-        let o0 = analyse_var_observability(&f0.cfg);
+        let o0 = analyse_var_observability(&f0.cfg, &reg);
         assert!(
             o0.flag_at(f0.cfg.entry, 1, "loc")
                 .contains(EscapeFlag::GLOBAL)
@@ -500,7 +573,7 @@ mod tests {
 
         let c1 = cu("proc ::p {} { upvar 1 caller loc }");
         let f1 = c1.function("::p").unwrap();
-        let o1 = analyse_var_observability(&f1.cfg);
+        let o1 = analyse_var_observability(&f1.cfg, &reg);
         let f = o1.flag_at(f1.cfg.entry, 1, "loc");
         assert!(f.contains(EscapeFlag::UPVAR));
         assert!(f.aliased());
@@ -514,87 +587,52 @@ mod tests {
     fn private_local_has_no_flags() {
         let c = cu("proc ::p {} { set x 1\nset y $x }");
         let fu = c.function("::p").unwrap();
-        let obs = analyse_var_observability(&fu.cfg);
+        let reg = registry();
+        let obs = analyse_var_observability(&fu.cfg, &reg);
         assert!(obs.escaping_var_names().is_empty());
         assert!(EscapeFlag::empty().is_empty());
     }
-
-    fn module(src: &str) -> crate::ir::Module {
-        crate::lowering::lower_to_ir(src, &CommandRegistry::build_default())
+    #[test]
+    fn scan_module_global_names_finds_proc_body_global() {
+        let c = cu("proc ::p {} { global n\nset n 2 }");
+        let names = scan_module_global_names(&c.ir_module);
+        assert!(names.contains("n"), "{names:?}");
     }
 
     #[test]
-    fn empty_module_traces_nothing() {
-        let m = module("");
-        assert_eq!(
-            scan_module_variable_traces(&m),
-            ModuleVariableTraces::default()
-        );
+    fn scan_module_global_names_ignores_local_and_namespace_vars() {
+        let c = cu("proc ::p {} { set x 1\nvariable v\nset v 2 }");
+        let names = scan_module_global_names(&c.ir_module);
+        assert!(names.is_empty(), "{names:?}");
     }
 
     #[test]
-    fn top_level_trace_recorded() {
-        let m = module("trace add variable ::x write cb");
-        let t = scan_module_variable_traces(&m);
-        assert!(t.is_traced("::x"));
-        assert!(t.is_traced("x"));
-        assert!(!t.is_traced("y"));
+    fn scan_module_global_names_finds_declaration_nested_in_if() {
+        // A `global` declaration buried inside a conditional body must still
+        // be found — the scan is flow-insensitive (any occurrence counts).
+        let c = cu("proc ::p {} { if {1} { global n\nset n 2 } }");
+        let names = scan_module_global_names(&c.ir_module);
+        assert!(names.contains("n"), "{names:?}");
     }
 
     #[test]
-    fn trace_inside_helper_proc_recorded_module_wide() {
-        // The F4b repro: the trace is installed by a *different* proc than
-        // the one reading the variable — a module-wide, not per-function,
-        // fact.
-        let m = module("proc install_trace {} { trace add variable ::x write cb }\nset x 5");
-        let t = scan_module_variable_traces(&m);
-        assert!(t.is_traced("x"));
+    fn scan_module_global_names_finds_declaration_in_method_body() {
+        let c = cu("oo::class create C {\n method m {} { global n\nset n 2 }\n}");
+        let names = scan_module_global_names(&c.ir_module);
+        assert!(names.contains("n"), "{names:?}");
     }
 
     #[test]
-    fn legacy_8_4_trace_variable_spelling_recorded() {
-        let m = module("proc p {} { trace variable v w cb }");
-        let t = scan_module_variable_traces(&m);
-        assert!(t.is_traced("v"));
-    }
-
-    #[test]
-    fn trace_inside_nested_control_flow_recorded() {
-        let m = module("proc p {} { if {$c} { trace add variable v write cb } }");
-        let t = scan_module_variable_traces(&m);
-        assert!(t.is_traced("v"));
-    }
-
-    #[test]
-    fn unrelated_name_not_traced() {
-        let m = module("proc p {} { trace add variable v write cb }");
-        let t = scan_module_variable_traces(&m);
-        assert!(!t.is_traced("other"));
-    }
-
-    #[test]
-    fn dynamic_trace_target_forces_every_name_traced() {
-        let m = module("proc p {name} { trace add variable $name write cb }");
-        let t = scan_module_variable_traces(&m);
-        assert!(t.is_traced("anything"));
-        assert!(t.is_traced("x"));
-    }
-
-    #[test]
-    fn trace_removed_later_still_counted_flow_insensitively() {
-        // By design (module doc): the fact is flow-insensitive, so a later
-        // `trace remove` does not "untrace" the name — this only ever
-        // prevents an unsound fold, never causes one.
-        let m =
-            module("proc p {} { trace add variable v write cb\ntrace remove variable v write cb }");
-        let t = scan_module_variable_traces(&m);
-        assert!(t.is_traced("v"));
-    }
-
-    #[test]
-    fn method_body_trace_recorded() {
-        let m = module("oo::class create C {\n method m {} { trace add variable v write cb }\n}");
-        let t = scan_module_variable_traces(&m);
-        assert!(t.is_traced("v"));
+    fn scan_module_global_names_finds_declaration_inside_static_uplevel_body() {
+        // FN guard (P1, code review): a `global` declaration hidden inside a
+        // static-body `uplevel #0 { ... }` lowers to `Statement::UpFrame`,
+        // not a plain nested block — `for_each_statement` must still descend
+        // into it. Confirmed against tclsh 8.6: `set g 4; proc helper {}
+        // { uplevel #0 { global g; set g 17 } }; helper; puts $g` prints
+        // `17`, so missing this name here would let SCCP/O102 fold the
+        // final read to the stale literal `4`.
+        let c = cu("proc ::helper {} { uplevel #0 { global n\nset n 2 } }");
+        let names = scan_module_global_names(&c.ir_module);
+        assert!(names.contains("n"), "{names:?}");
     }
 }

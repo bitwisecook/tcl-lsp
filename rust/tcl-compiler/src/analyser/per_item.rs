@@ -214,11 +214,19 @@ impl Analyser {
         }
         self.registry = Some(registry);
         self.line_offsets = Some(super::state::compute_line_offsets(source));
+        // Same recovery known-command universe as `Analyser::analyse` — see
+        // `recovery_known_commands` — so per-item analysis matches the
+        // full-file walk byte-for-byte (the corpus `per_item == analyse`
+        // test gates this).
+        self.recovery_known_commands = super::utils::recovery_known_commands(
+            source,
+            self.registry.as_ref().expect("registry just stashed"),
+            &self.extra_commands,
+        );
         let known: HashSet<&str> = self
-            .registry
-            .as_ref()
-            .expect("registry just stashed")
-            .command_names()
+            .recovery_known_commands
+            .iter()
+            .map(String::as_str)
             .collect();
         crate::segmenter::segment_commands_with_recovery_and_config(
             source,
@@ -430,6 +438,7 @@ impl Analyser {
         self.pending_user_call_arity
             .extend(frag.pending_user_call_arity);
         self.pending_ctor_arity.extend(frag.pending_ctor_arity);
+        self.pending_next_arity.extend(frag.pending_next_arity);
         self.var_command_sites.extend(frag.var_sites);
         self.cmd_command_sites.extend(frag.cmd_sites);
         // Replay the body's qualified global reads against the shell's real
@@ -457,12 +466,12 @@ impl Analyser {
                 self.record_var_read(&name, shift(span, delta), &[]);
             }
         }
-        // Re-defer the body's would-be-W002 sites with rebased spans; the tail
-        // re-applies the shadow check against the merged `all_procs`.
-        for (qname, mut diag) in frag.disabled_commands {
-            diag.span = shift(diag.span, delta);
-            self.pending_disabled_commands.push((qname, diag));
-        }
+        // Re-defer the body's would-be-W002 sites (already rebased by
+        // `rebase_fragment`); the tail re-applies the shadow check against
+        // the merged `all_procs` / `command_aliases` / `renamed_commands` /
+        // `all_classes` / `ensemble_namespaces`.
+        self.pending_disabled_commands
+            .extend(frag.disabled_commands);
         // Re-defer the body's source-dependent W304 sites, rebasing the token,
         // fix, and diagnostic spans to absolute; the tail classifies each `$var`
         // against the full file source.
@@ -494,17 +503,22 @@ pub struct BodyFragment {
     pending_arity: Vec<(String, String, bool, super::types::Diagnostic)>,
     pending_user_call_arity: Vec<super::types::PendingUserCallArity>,
     pending_ctor_arity: Vec<super::types::PendingCtorArity>,
+    pending_next_arity: Vec<super::types::PendingNextArity>,
     var_sites: Vec<super::state::VarCommandSite>,
     cmd_sites: Vec<super::state::CmdCommandSite>,
     /// Qualified (`::`/`static::`) reads that missed the isolated body's empty
     /// enclosing global scope; replayed on the shell's real globals at graft.
     global_reads: Vec<(String, tcl_lexer::Span)>,
-    /// W002 (disabled-in-dialect command) sites whose user-proc-shadowing
-    /// suppression depends on the file's full `all_procs` (a cross-item fact the
-    /// isolated body lacks): `(qualified call name, deferred diagnostic)`.  The
-    /// graft rebases the diagnostic span and re-defers it; the tail re-checks the
-    /// shadow against the merged `all_procs`.
-    disabled_commands: Vec<(String, super::types::Diagnostic)>,
+    /// W002 (disabled-in-dialect command) sites — always deferred (see
+    /// [`super::state::Analyser::pending_disabled_commands`]), so this is
+    /// simply the isolated body's own queue: `(command name, call-site
+    /// namespace, enforce_order, deferred diagnostic)`, the same shape as
+    /// [`Self::pending_arity`]. `rebase_fragment` rebases the diagnostic span
+    /// in place; the graft re-defers it onto the shell's queue and the tail
+    /// re-checks the shadow against the merged `all_procs` /
+    /// `command_aliases` / `renamed_commands` / `all_classes` /
+    /// `ensemble_namespaces`.
+    disabled_commands: Vec<(String, String, bool, super::types::Diagnostic)>,
     /// Deferred W304 (missing `--`) sites whose `$var` classification needs the
     /// whole-file most-recent-`set` resolution (invisible to an isolated body).
     /// The graft rebases the token + fix + diagnostic spans; the tail classifies
@@ -610,6 +624,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         pending_arity: a.pending_arity,
         pending_user_call_arity: a.pending_user_call_arity,
         pending_ctor_arity: a.pending_ctor_arity,
+        pending_next_arity: a.pending_next_arity,
         var_sites: a.var_command_sites,
         cmd_sites: a.cmd_command_sites,
         global_reads: a.capture_global_reads.unwrap_or_default(),
@@ -775,12 +790,18 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     for (_, _, _, diag) in &mut frag.pending_arity {
         rebase_diag(diag, d);
     }
+    for (_, _, _, diag) in &mut frag.disabled_commands {
+        rebase_diag(diag, d);
+    }
     for cand in &mut frag.pending_user_call_arity {
         cand.call_off += d;
         cand.full_span = shift(cand.full_span, d);
     }
     for cand in &mut frag.pending_ctor_arity {
         cand.call_off += d;
+        cand.full_span = shift(cand.full_span, d);
+    }
+    for cand in &mut frag.pending_next_arity {
         cand.full_span = shift(cand.full_span, d);
     }
     for s in &mut frag.var_sites {
@@ -892,6 +913,11 @@ mod tests {
     #[test]
     fn two_top_level_procs() {
         eq("proc a {} { set x 1 }\nproc b {} { puts hi }\n");
+    }
+
+    #[test]
+    fn quoted_var_substitution_does_not_false_fire_e202() {
+        eq("puts \"$sum\"\n");
     }
 
     #[test]

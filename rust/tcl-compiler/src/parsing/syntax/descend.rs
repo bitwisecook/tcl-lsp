@@ -49,17 +49,24 @@ use super::red::{SyntaxNode, SyntaxTree, build_line_starts};
 
 /// Whether `token`'s closing delimiter is present in the source `sm` maps.
 ///
-/// The closer sits one byte past the `token_text` bytes of inner content
-/// after the opener.  Deriving it from the *length* (not the token's end
-/// offset) is what classifies an empty `{}` / `[]` correctly — the lexer
-/// reports `end` *on* the closer there, which `end + 1` would overshoot.
+/// The closer sits `content_offset` bytes past the opener, plus the
+/// `token_text` bytes of inner content — not a hardcoded one byte:
+/// `content_offset` is normally `1` for a real `[…]` / `{…}` token (it
+/// skips the opener), but a synthetic token built by error recovery
+/// (e.g. `Analyser::recover_stray_close_bracket`'s virtual `Cmd` token,
+/// which has no real opener in the source at all) sets it to `0`.
+/// Deriving the closer position from the content *length* (not the
+/// token's end offset) is what classifies an empty `{}` / `[]`
+/// correctly — the lexer reports `end` *on* the closer there, which
+/// `end + 1` would overshoot.
 fn terminated(sm: &SourceMap<'_>, token: Token) -> bool {
     let closer = match token.kind {
         TokenType::Str => b'}',
         TokenType::Cmd => b']',
         _ => return false,
     };
-    let idx = token.span.start() as usize + 1 + sm.token_text(token).len();
+    let idx =
+        token.span.start() as usize + token.content_offset as usize + sm.token_text(token).len();
     sm.source().as_bytes().get(idx) == Some(&closer)
 }
 
@@ -100,20 +107,23 @@ impl Descended {
 
 /// Descend an absolutely-positioned `Str` / `Cmd` (or recovery) token.
 ///
-/// For an opaque `{…}` / `[…]` token the child is anchored one byte past
-/// the opener; any other token (an `Esc` recovery body) is anchored at
-/// its own position and is always *recovered*.  `sm` maps the region
-/// containing `token` (used to resolve its position, inner text, and
-/// whether the delimiter is terminated); `config` is the dialect the
-/// inner text is re-lexed under.
+/// For an opaque `{…}` / `[…]` token the child is anchored
+/// `content_offset` bytes past the opener — normally one byte, but a
+/// synthetic recovery token may set `content_offset` to `0` when its
+/// span already starts at the content (see `terminated`'s doc); any
+/// other token (an `Esc` recovery body) is anchored at its own position
+/// and is always *recovered*.  `sm` maps the region containing `token`
+/// (used to resolve its position, inner text, and whether the delimiter
+/// is terminated); `config` is the dialect the inner text is re-lexed
+/// under.
 #[must_use]
 pub fn descend_token(sm: &SourceMap<'_>, token: Token, config: LexerConfig) -> Descended {
     let (start, _end) = sm.range_positions(token.span);
     let (b_off, b_line, b_col, term) = if matches!(token.kind, TokenType::Str | TokenType::Cmd) {
         (
-            start.offset + 1,
+            start.offset + u32::from(token.content_offset),
             start.line,
-            start.character.get() + 1,
+            start.character.get() + u32::from(token.content_offset),
             terminated(sm, token),
         )
     } else {

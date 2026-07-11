@@ -20,6 +20,131 @@
 
 use crate::prelude::*;
 
+/// Result of one pass over an `if` invocation's argument words: the
+/// per-word [`ArgRole`] assignments [`if_arg_roles`] returns, and — for
+/// the compiler's E004 diagnostic — the first structural defect, if any.
+/// Walking the grammar exactly once for both consumers is what keeps
+/// them from drifting apart the way two independent re-implementations
+/// eventually would.
+struct IfWalk {
+    roles: Vec<(u8, ArgRole)>,
+    error: Option<ClauseShapeError>,
+}
+
+/// Walk an `if` invocation's argument words against the grammar C Tcl's
+/// `Tcl_IfObjCmd` accepts: `expr ?then? body (elseif expr ?then? body)*
+/// (else body)?`. Verified word-for-word against `TclNRIfObjCmd` /
+/// `IfConditionCallback` in Tcl 9.0.4's `generic/tclCmdIL.c`, and
+/// cross-checked against tclsh 8.6 (the same algorithm, unchanged since
+/// at least Tcl 8.4).
+///
+/// Two properties fall out of mirroring the real grammar rather than
+/// keyword-matching every position:
+///
+/// - A condition slot (`args[0]`, or the word right after `elseif`) is
+///   *never* keyword-matched — `if else {a}` and `if elseif {a}` are
+///   structurally well-formed `if`s whose single condition happens to be
+///   the bareword `else` / `elseif`; real Tcl evaluates it as a boolean
+///   expression and fails there (an invalid-bareword error), not as a
+///   malformed `if`. Only `then` (right after a fresh condition) and
+///   `elseif` / `else` (once a clause is complete) are ever
+///   keyword-matched, matching `IfConditionCallback` exactly.
+/// - Once a clause completes, at most one more bare word is accepted as
+///   the implicit-else body; anything past it is `ExtraWords`, matching
+///   Tcl's `wrong # args: extra words after "else" clause` — whether or
+///   not an explicit `else` keyword introduced that body.
+fn walk_if(args: &[&str]) -> IfWalk {
+    let mut roles = Vec::new();
+    let n = args.len();
+
+    let push_role = |roles: &mut Vec<(u8, ArgRole)>, index: usize, role: ArgRole| {
+        if let Ok(idx) = u8::try_from(index) {
+            roles.push((idx, role));
+        }
+    };
+
+    if n == 0 {
+        return IfWalk {
+            roles,
+            error: Some(ClauseShapeError::MissingExpr { after: None }),
+        };
+    }
+
+    // Mandatory first condition — position 0, never keyword-matched.
+    let mut i: usize = 0;
+    push_role(&mut roles, i, ArgRole::Expr);
+    i += 1;
+    if i < n && args[i] == "then" {
+        push_role(&mut roles, i, ArgRole::Keyword);
+        i += 1;
+    }
+    if i >= n {
+        return IfWalk {
+            roles,
+            error: Some(ClauseShapeError::MissingBody { after: i - 1 }),
+        };
+    }
+    push_role(&mut roles, i, ArgRole::Body);
+    i += 1;
+
+    loop {
+        if i >= n {
+            return IfWalk { roles, error: None };
+        }
+        if args[i] == "elseif" {
+            let kw_idx = i;
+            push_role(&mut roles, i, ArgRole::Keyword);
+            i += 1;
+            if i >= n {
+                return IfWalk {
+                    roles,
+                    error: Some(ClauseShapeError::MissingExpr {
+                        after: Some(kw_idx),
+                    }),
+                };
+            }
+            // The elseif's condition — position-only, never keyword-matched
+            // (see the `if elseif else {a}` case in the doc comment above).
+            push_role(&mut roles, i, ArgRole::Expr);
+            i += 1;
+            if i < n && args[i] == "then" {
+                push_role(&mut roles, i, ArgRole::Keyword);
+                i += 1;
+            }
+            if i >= n {
+                return IfWalk {
+                    roles,
+                    error: Some(ClauseShapeError::MissingBody { after: i - 1 }),
+                };
+            }
+            push_role(&mut roles, i, ArgRole::Body);
+            i += 1;
+            continue;
+        }
+        if args[i] == "else" {
+            let kw_idx = i;
+            push_role(&mut roles, i, ArgRole::Keyword);
+            i += 1;
+            if i >= n {
+                return IfWalk {
+                    roles,
+                    error: Some(ClauseShapeError::MissingBody { after: kw_idx }),
+                };
+            }
+            push_role(&mut roles, i, ArgRole::Body);
+            i += 1;
+            let error = (i < n).then_some(ClauseShapeError::ExtraWords { first_extra: i });
+            return IfWalk { roles, error };
+        }
+        // Implicit else: the first bare word is the body; anything past it
+        // is unreachable in real Tcl and a structural error here.
+        push_role(&mut roles, i, ArgRole::Body);
+        i += 1;
+        let error = (i < n).then_some(ClauseShapeError::ExtraWords { first_extra: i });
+        return IfWalk { roles, error };
+    }
+}
+
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Unknown,
     reads: true,
@@ -39,68 +164,22 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// `Expr` (conditions) or `Body` (scripts). The structural keyword
 /// words themselves (`then`/`elseif`/`else`) carry `ArgRole::Keyword`
 /// so the semantic-token layer highlights them as keywords rather
-/// than strings.
+/// than strings. Delegates to [`walk_if`] — the same grammar walk
+/// that drives [`check_if_shape`], so highlighting and the E004
+/// diagnostic can never disagree about where a clause starts.
 fn if_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let mut roles = Vec::new();
-    let mut i: usize = 0;
-    let n = args.len();
+    walk_if(args).roles
+}
 
-    let push_role = |roles: &mut Vec<(u8, ArgRole)>, index: usize, role: ArgRole| {
-        if let Ok(idx) = u8::try_from(index) {
-            roles.push((idx, role));
-        }
-    };
-
-    // First condition
-    if i < n {
-        push_role(&mut roles, i, ArgRole::Expr);
-        i += 1;
-    }
-    // Optional 'then'
-    if i < n && args[i] == "then" {
-        push_role(&mut roles, i, ArgRole::Keyword);
-        i += 1;
-    }
-    // First body
-    if i < n {
-        push_role(&mut roles, i, ArgRole::Body);
-        i += 1;
-    }
-
-    while i < n {
-        let kw = args[i];
-        if kw == "elseif" {
-            push_role(&mut roles, i, ArgRole::Keyword);
-            i += 1;
-            if i < n {
-                push_role(&mut roles, i, ArgRole::Expr);
-                i += 1;
-            }
-            if i < n && args[i] == "then" {
-                push_role(&mut roles, i, ArgRole::Keyword);
-                i += 1;
-            }
-            if i < n {
-                push_role(&mut roles, i, ArgRole::Body);
-                i += 1;
-            }
-            continue;
-        }
-        if kw == "else" {
-            push_role(&mut roles, i, ArgRole::Keyword);
-            if i + 1 < n {
-                push_role(&mut roles, i + 1, ArgRole::Body);
-            }
-            break;
-        }
-        // Implicit else: trailing word with no keyword
-        if i == n - 1 {
-            push_role(&mut roles, i, ArgRole::Body);
-            break;
-        }
-        i += 1;
-    }
-    roles
+/// Validate an `if` invocation's structural shape.
+///
+/// Runs the same clause-chain walk [`if_arg_roles`] uses for
+/// highlighting and returns the first defect [`walk_if`] finds, or
+/// `None` for any shape C Tcl accepts — including a bare leading
+/// `else` / `elseif` (`if else {a}`): see [`walk_if`]'s doc comment for
+/// why that is structurally well-formed rather than a malformed `if`.
+fn check_if_shape(args: &[&str]) -> Option<ClauseShapeError> {
+    walk_if(args).error
 }
 
 /// Command spec for `if`.
@@ -112,9 +191,14 @@ pub fn spec() -> CommandSpec {
             | Traits::CONTROL_FLOW
             | Traits::LANGUAGE_KEYWORD
             | Traits::HAS_BOOLEAN_COND
-            | Traits::NEVER_INLINE_BODY,
+            | Traits::NEVER_INLINE_BODY
+            | Traits::STRUCTURALLY_CHECKED_ARITY,
+        // The floor here is purely descriptive (hover / hint text): the real
+        // minimum is enforced by `clause_shape_check`, which also covers the
+        // `elseif`/`else` chain shape a plain range can't express.
         arity: Arity::at_least(2),
         arg_role_resolver: Some(if_arg_roles),
+        clause_shape_check: Some(check_if_shape),
         lowering_hook: Some(crate::hooks::LoweringHookId::If),
         return_type: Some(TclType::String),
         arg_types: &[(
@@ -138,5 +222,216 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every case here was cross-checked against tclsh 8.6 and against
+    /// Tcl 9.0.4's `TclNRIfObjCmd` / `IfConditionCallback` source
+    /// (`generic/tclCmdIL.c`), which implement the identical structural
+    /// walk.  TN cases (well-formed shapes) and FN-shaped cases
+    /// (structurally valid shapes that fail for an unrelated reason at
+    /// runtime — an invalid-bareword condition) are `None`; TP cases
+    /// (genuinely malformed shapes) are `Some`.
+    fn shape(src: &str) -> Option<ClauseShapeError> {
+        let words: Vec<&str> = src.split_whitespace().collect();
+        check_if_shape(&words)
+    }
+
+    #[test]
+    fn empty_args_is_missing_expr_with_no_word() {
+        assert_eq!(
+            shape(""),
+            Some(ClauseShapeError::MissingExpr { after: None })
+        );
+    }
+
+    #[test]
+    fn condition_only_is_missing_body_after_condition() {
+        // `if {1}`
+        assert_eq!(shape("1"), Some(ClauseShapeError::MissingBody { after: 0 }));
+    }
+
+    #[test]
+    fn condition_then_is_missing_body_after_then() {
+        // `if {1} then`
+        assert_eq!(
+            shape("1 then"),
+            Some(ClauseShapeError::MissingBody { after: 1 })
+        );
+    }
+
+    #[test]
+    fn condition_body_is_well_formed() {
+        assert_eq!(shape("1 a"), None);
+    }
+
+    #[test]
+    fn condition_then_body_is_well_formed() {
+        assert_eq!(shape("1 then a"), None);
+    }
+
+    #[test]
+    fn implicit_else_single_body_is_well_formed() {
+        // `if {1} {a} {b}`
+        assert_eq!(shape("1 a b"), None);
+    }
+
+    #[test]
+    fn implicit_else_extra_words_is_extra_words_at_first_extra() {
+        // `if {1} {a} {b} {c}` — "c" (index 3) is the first extra word.
+        assert_eq!(
+            shape("1 a b c"),
+            Some(ClauseShapeError::ExtraWords { first_extra: 3 })
+        );
+    }
+
+    #[test]
+    fn implicit_else_many_extra_words_still_anchors_first_extra() {
+        // `if {1} {a} {b} {c} {d}`
+        assert_eq!(
+            shape("1 a b c d"),
+            Some(ClauseShapeError::ExtraWords { first_extra: 3 })
+        );
+    }
+
+    #[test]
+    fn explicit_else_body_is_well_formed() {
+        assert_eq!(shape("1 a else b"), None);
+    }
+
+    #[test]
+    fn else_without_body_is_missing_body_after_else() {
+        // `if {1} {a} else`
+        assert_eq!(
+            shape("1 a else"),
+            Some(ClauseShapeError::MissingBody { after: 2 })
+        );
+    }
+
+    #[test]
+    fn else_body_extra_words_is_extra_words_at_first_extra() {
+        // `if {1} {a} else {b} {c}`
+        assert_eq!(
+            shape("1 a else b c"),
+            Some(ClauseShapeError::ExtraWords { first_extra: 4 })
+        );
+    }
+
+    #[test]
+    fn elseif_chain_no_else_is_well_formed() {
+        assert_eq!(shape("a x elseif b y"), None);
+    }
+
+    #[test]
+    fn elseif_chain_with_else_is_well_formed() {
+        assert_eq!(shape("a x elseif b y else z"), None);
+    }
+
+    #[test]
+    fn elseif_without_expr_is_missing_expr_after_elseif() {
+        // `if {1} {a} elseif`
+        assert_eq!(
+            shape("1 a elseif"),
+            Some(ClauseShapeError::MissingExpr { after: Some(2) })
+        );
+    }
+
+    #[test]
+    fn elseif_condition_without_body_is_missing_body_after_condition() {
+        // `if {1} {a} elseif {2}`
+        assert_eq!(
+            shape("1 a elseif 2"),
+            Some(ClauseShapeError::MissingBody { after: 3 })
+        );
+    }
+
+    #[test]
+    fn elseif_then_without_body_is_missing_body_after_then() {
+        // `if {1} {a} elseif {2} then`
+        assert_eq!(
+            shape("1 a elseif 2 then"),
+            Some(ClauseShapeError::MissingBody { after: 4 })
+        );
+    }
+
+    #[test]
+    fn elseif_chain_then_implicit_else_is_well_formed() {
+        // `if {1} {a} elseif {2} {b} {c}` — an elseif clause followed by
+        // a bare implicit-else body is well-formed (verified against
+        // tclsh 8.6: runs body "a", not a wrong-#args error).
+        assert_eq!(shape("1 a elseif 2 b c"), None);
+    }
+
+    #[test]
+    fn elseif_chain_then_implicit_else_extra_words() {
+        // `if {1} {a} elseif {2} {b} {c} {d}` — "d" (index 6) is the
+        // first word to trail the implicit-else body.
+        assert_eq!(
+            shape("1 a elseif 2 b c d"),
+            Some(ClauseShapeError::ExtraWords { first_extra: 6 })
+        );
+    }
+
+    // -- Leading `else`/`elseif`: the condition slot is never
+    // keyword-matched, so these are structurally well-formed (the
+    // bareword condition fails at expression-evaluation time instead —
+    // a distinct, unrelated problem this check does not own).
+
+    #[test]
+    fn leading_else_is_well_formed_condition_bareword() {
+        // `if else {a}` — "else" is just the (ill-typed) condition text.
+        assert_eq!(shape("else a"), None);
+    }
+
+    #[test]
+    fn leading_elseif_is_well_formed_condition_bareword() {
+        // `if elseif {a}`
+        assert_eq!(shape("elseif a"), None);
+    }
+
+    #[test]
+    fn else_as_elseif_condition_is_well_formed() {
+        // `if {1} {a} elseif else {b}` — "else" sits in the *elseif's
+        // condition* slot, never keyword-matched there either.
+        assert_eq!(shape("1 a elseif else b"), None);
+    }
+
+    #[test]
+    fn then_as_implicit_else_body_with_trailing_word_is_extra_words() {
+        // `if {1} {a} then {b}` — "then" is only ever keyword-matched
+        // right after a *fresh* condition; here it is the implicit-else
+        // body candidate, and "b" (index 3) is the extra word.
+        assert_eq!(
+            shape("1 a then b"),
+            Some(ClauseShapeError::ExtraWords { first_extra: 3 })
+        );
+    }
+
+    #[test]
+    fn else_as_implicit_else_body_is_well_formed() {
+        // `if {1} {a} else then` — "then" here is just the else-branch
+        // body text, not a keyword.
+        assert_eq!(shape("1 a else then"), None);
+    }
+
+    #[test]
+    fn if_arg_roles_matches_walk_if_roles() {
+        // `if_arg_roles` must be a pure delegation to `walk_if` — assert
+        // it, so the two can never drift back apart.
+        for src in [
+            "1 a",
+            "1 then a",
+            "1 a else b",
+            "a x elseif b y else z",
+            "1 a b c",
+            "else a",
+        ] {
+            let words: Vec<&str> = src.split_whitespace().collect();
+            assert_eq!(if_arg_roles(&words), walk_if(&words).roles, "src={src:?}");
+        }
     }
 }

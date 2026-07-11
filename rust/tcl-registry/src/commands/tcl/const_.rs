@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `const` — define a constant variable (Tcl 9 / TIP 590).
+//! `const` — define a constant variable (Tcl 9 / TIP 677).
 
 use crate::prelude::*;
 

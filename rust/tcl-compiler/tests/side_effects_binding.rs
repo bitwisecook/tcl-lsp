@@ -816,10 +816,31 @@ fn end_point(cfg: &tcl_compiler::cfg::Function) -> (tcl_compiler::cfg::BlockId, 
     last.expect("no non-empty block")
 }
 
-/// Source spelling / canonical name of a statement. Falls back to the source
-/// spelling when no canonical name was resolved.
+/// The literal source-surface command word of a statement — deliberately
+/// NOT `canonical_command_or_source()`. These helpers locate a statement by
+/// what the test source literally wrote (e.g. the bare `b` call after
+/// `rename a b`), so they can query the flow-sensitive binding lattice at
+/// that exact point; resolving through the canonical/alias target first
+/// would make a renamed or aliased call unfindable by its own written name.
 fn stmt_command(stmt: &Statement) -> &str {
-    stmt.canonical_command_or_source()
+    match stmt {
+        Statement::Call { command, .. } | Statement::Barrier { command, .. } => command.as_str(),
+        _ => "",
+    }
+}
+
+/// Source-surface command spelling of a statement — never the resolved
+/// canonical name. `Statement::canonical_command_or_source()` now also
+/// resolves through a static `rename` (`tcl_compiler::alias::detect_rename`),
+/// not just `interp alias`, so a test that locates a statement *by its
+/// literal source text* (e.g. "the bare `b` call after `rename a b`") must
+/// not use it — `canonical_command_or_source()` would return `"a"` there,
+/// not `"b"`.
+fn stmt_source_command(stmt: &Statement) -> &str {
+    match stmt {
+        Statement::Call { command, .. } | Statement::Barrier { command, .. } => command.as_str(),
+        _ => "",
+    }
 }
 
 /// Binding of `query` at the first statement whose command (canonical-or-source)
@@ -842,12 +863,14 @@ fn binding_at_command(
     panic!("no statement with command {canonical:?}");
 }
 
-/// Index of the first statement in the entry block whose command equals `name`.
+/// Index of the first statement in the entry block whose *source-surface*
+/// command equals `name` (not the alias/rename-resolved canonical name —
+/// see [`stmt_source_command`]).
 fn stmt_idx_in_entry(cfg: &tcl_compiler::cfg::Function, name: &str) -> usize {
     let blk = cfg.blocks.get(&cfg.entry).expect("entry block");
     blk.statements
         .iter()
-        .position(|s| stmt_command(s) == name)
+        .position(|s| stmt_source_command(s) == name)
         .unwrap_or_else(|| panic!("no statement {name:?} in entry block"))
 }
 

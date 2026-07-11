@@ -878,9 +878,6 @@
           "object": [
             "entity.name.type.bigip"
           ],
-          "operator": [
-            "keyword.operator.format.tcl"
-          ],
           "regexp": [
             "string.regexp.tcl"
           ],
@@ -892,12 +889,6 @@
           ],
           "event": [
             "entity.name.tag.event.tcl"
-          ],
-          "namespace": [
-            "entity.name.namespace.tcl"
-          ],
-          "decorator": [
-            "entity.other.attribute-name.option.tcl"
           ],
           "regexpGroup": [
             "keyword.operator.regexp.group.tcl"
@@ -949,9 +940,6 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
-          ],
-          "function.defaultLibrary": [
-            "support.function.tcl"
           ]
         }
       },
@@ -961,9 +949,6 @@
           "object": [
             "entity.name.type.bigip"
           ],
-          "operator": [
-            "keyword.operator.format.tcl"
-          ],
           "regexp": [
             "string.regexp.tcl"
           ],
@@ -975,12 +960,6 @@
           ],
           "event": [
             "entity.name.tag.event.tcl"
-          ],
-          "namespace": [
-            "entity.name.namespace.tcl"
-          ],
-          "decorator": [
-            "entity.other.attribute-name.option.tcl"
           ],
           "regexpGroup": [
             "keyword.operator.regexp.group.tcl"
@@ -1032,9 +1011,6 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
-          ],
-          "function.defaultLibrary": [
-            "support.function.tcl"
           ]
         }
       },
@@ -1044,9 +1020,6 @@
           "object": [
             "entity.name.type.bigip"
           ],
-          "operator": [
-            "keyword.operator.format.tcl"
-          ],
           "regexp": [
             "string.regexp.tcl"
           ],
@@ -1058,12 +1031,6 @@
           ],
           "event": [
             "entity.name.tag.event.tcl"
-          ],
-          "namespace": [
-            "entity.name.namespace.tcl"
-          ],
-          "decorator": [
-            "entity.other.attribute-name.option.tcl"
           ],
           "regexpGroup": [
             "keyword.operator.regexp.group.tcl"
@@ -1115,18 +1082,12 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
-          ],
-          "function.defaultLibrary": [
-            "support.function.tcl"
           ]
         }
       },
       {
         "language": "tcl-apl",
         "scopes": {
-          "operator": [
-            "keyword.operator.format.tcl"
-          ],
           "escape": [
             "constant.character.escape.apl"
           ],
@@ -1168,9 +1129,6 @@
       {
         "language": "tcl-bigip",
         "scopes": {
-          "operator": [
-            "keyword.operator.format.tcl"
-          ],
           "regexp": [
             "string.regexp.tcl"
           ],
@@ -1182,12 +1140,6 @@
           ],
           "event": [
             "entity.name.tag.event.tcl"
-          ],
-          "namespace": [
-            "entity.name.namespace.tcl"
-          ],
-          "decorator": [
-            "entity.other.attribute-name.option.tcl"
           ],
           "object": [
             "entity.name.type.bigip"
@@ -1278,18 +1230,12 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
-          ],
-          "function.defaultLibrary": [
-            "support.function.tcl"
           ]
         }
       },
       {
         "language": "tcl8.4",
         "scopes": {
-          "operator": [
-            "keyword.operator.format.tcl"
-          ],
           "regexp": [
             "string.regexp.tcl"
           ],
@@ -1301,12 +1247,6 @@
           ],
           "event": [
             "entity.name.tag.event.tcl"
-          ],
-          "namespace": [
-            "entity.name.namespace.tcl"
-          ],
-          "decorator": [
-            "entity.other.attribute-name.option.tcl"
           ],
           "regexpGroup": [
             "keyword.operator.regexp.group.tcl"
@@ -1358,18 +1298,12 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
-          ],
-          "function.defaultLibrary": [
-            "support.function.tcl"
           ]
         }
       },
       {
         "language": "tcl8.5",
         "scopes": {
-          "operator": [
-            "keyword.operator.format.tcl"
-          ],
           "regexp": [
             "string.regexp.tcl"
           ],
@@ -1381,12 +1315,6 @@
           ],
           "event": [
             "entity.name.tag.event.tcl"
-          ],
-          "namespace": [
-            "entity.name.namespace.tcl"
-          ],
-          "decorator": [
-            "entity.other.attribute-name.option.tcl"
           ],
           "regexpGroup": [
             "keyword.operator.regexp.group.tcl"
@@ -1438,18 +1366,12 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
-          ],
-          "function.defaultLibrary": [
-            "support.function.tcl"
           ]
         }
       },
       {
         "language": "tcl9.0",
         "scopes": {
-          "operator": [
-            "keyword.operator.format.tcl"
-          ],
           "regexp": [
             "string.regexp.tcl"
           ],
@@ -1461,12 +1383,6 @@
           ],
           "event": [
             "entity.name.tag.event.tcl"
-          ],
-          "namespace": [
-            "entity.name.namespace.tcl"
-          ],
-          "decorator": [
-            "entity.other.attribute-name.option.tcl"
           ],
           "regexpGroup": [
             "keyword.operator.regexp.group.tcl"
@@ -1518,18 +1434,12 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
-          ],
-          "function.defaultLibrary": [
-            "support.function.tcl"
           ]
         }
       },
       {
         "language": "tcl9.1",
         "scopes": {
-          "operator": [
-            "keyword.operator.format.tcl"
-          ],
           "regexp": [
             "string.regexp.tcl"
           ],
@@ -1541,12 +1451,6 @@
           ],
           "event": [
             "entity.name.tag.event.tcl"
-          ],
-          "namespace": [
-            "entity.name.namespace.tcl"
-          ],
-          "decorator": [
-            "entity.other.attribute-name.option.tcl"
           ],
           "regexpGroup": [
             "keyword.operator.regexp.group.tcl"
@@ -1598,18 +1502,12 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
-          ],
-          "function.defaultLibrary": [
-            "support.function.tcl"
           ]
         }
       },
       {
         "language": "tcl-synopsys",
         "scopes": {
-          "operator": [
-            "keyword.operator.format.tcl"
-          ],
           "regexp": [
             "string.regexp.tcl"
           ],
@@ -1621,12 +1519,6 @@
           ],
           "event": [
             "entity.name.tag.event.tcl"
-          ],
-          "namespace": [
-            "entity.name.namespace.tcl"
-          ],
-          "decorator": [
-            "entity.other.attribute-name.option.tcl"
           ],
           "regexpGroup": [
             "keyword.operator.regexp.group.tcl"
@@ -1678,18 +1570,12 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
-          ],
-          "function.defaultLibrary": [
-            "support.function.tcl"
           ]
         }
       },
       {
         "language": "tcl-cadence",
         "scopes": {
-          "operator": [
-            "keyword.operator.format.tcl"
-          ],
           "regexp": [
             "string.regexp.tcl"
           ],
@@ -1701,12 +1587,6 @@
           ],
           "event": [
             "entity.name.tag.event.tcl"
-          ],
-          "namespace": [
-            "entity.name.namespace.tcl"
-          ],
-          "decorator": [
-            "entity.other.attribute-name.option.tcl"
           ],
           "regexpGroup": [
             "keyword.operator.regexp.group.tcl"
@@ -1758,18 +1638,12 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
-          ],
-          "function.defaultLibrary": [
-            "support.function.tcl"
           ]
         }
       },
       {
         "language": "tcl-xilinx",
         "scopes": {
-          "operator": [
-            "keyword.operator.format.tcl"
-          ],
           "regexp": [
             "string.regexp.tcl"
           ],
@@ -1781,12 +1655,6 @@
           ],
           "event": [
             "entity.name.tag.event.tcl"
-          ],
-          "namespace": [
-            "entity.name.namespace.tcl"
-          ],
-          "decorator": [
-            "entity.other.attribute-name.option.tcl"
           ],
           "regexpGroup": [
             "keyword.operator.regexp.group.tcl"
@@ -1838,18 +1706,12 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
-          ],
-          "function.defaultLibrary": [
-            "support.function.tcl"
           ]
         }
       },
       {
         "language": "tcl-quartus",
         "scopes": {
-          "operator": [
-            "keyword.operator.format.tcl"
-          ],
           "regexp": [
             "string.regexp.tcl"
           ],
@@ -1861,12 +1723,6 @@
           ],
           "event": [
             "entity.name.tag.event.tcl"
-          ],
-          "namespace": [
-            "entity.name.namespace.tcl"
-          ],
-          "decorator": [
-            "entity.other.attribute-name.option.tcl"
           ],
           "regexpGroup": [
             "keyword.operator.regexp.group.tcl"
@@ -1918,18 +1774,12 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
-          ],
-          "function.defaultLibrary": [
-            "support.function.tcl"
           ]
         }
       },
       {
         "language": "tcl-mentor",
         "scopes": {
-          "operator": [
-            "keyword.operator.format.tcl"
-          ],
           "regexp": [
             "string.regexp.tcl"
           ],
@@ -1941,12 +1791,6 @@
           ],
           "event": [
             "entity.name.tag.event.tcl"
-          ],
-          "namespace": [
-            "entity.name.namespace.tcl"
-          ],
-          "decorator": [
-            "entity.other.attribute-name.option.tcl"
           ],
           "regexpGroup": [
             "keyword.operator.regexp.group.tcl"
@@ -1998,18 +1842,12 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
-          ],
-          "function.defaultLibrary": [
-            "support.function.tcl"
           ]
         }
       },
       {
         "language": "tcl-expect",
         "scopes": {
-          "operator": [
-            "keyword.operator.format.tcl"
-          ],
           "regexp": [
             "string.regexp.tcl"
           ],
@@ -2021,12 +1859,6 @@
           ],
           "event": [
             "entity.name.tag.event.tcl"
-          ],
-          "namespace": [
-            "entity.name.namespace.tcl"
-          ],
-          "decorator": [
-            "entity.other.attribute-name.option.tcl"
           ],
           "regexpGroup": [
             "keyword.operator.regexp.group.tcl"
@@ -2078,9 +1910,6 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
-          ],
-          "function.defaultLibrary": [
-            "support.function.tcl"
           ]
         }
       }
@@ -3475,6 +3304,16 @@
             "default": null,
             "description": "Override linked editing range. When null, inherits from editor.linkedEditing.",
             "order": 26
+          },
+          "tclLsp.features.crossFileResolution": {
+            "scope": "resource",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Resolve diagnostics across the whole workspace: suppress \"unknown command\" (W120/W123) for a proc defined in another file, and report wrong-argument-count errors (E002/E003) for cross-file calls. Off by default (scans every workspace file); set true to enable. Independent of XC Migration diagnostics below.",
+            "order": 27
           }
         }
       },
@@ -3768,12 +3607,19 @@
             "markdownDescription": "**E003:** Too many arguments for command.",
             "order": 2
           },
+          "tclLsp.diagnostics.E005": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**E005:** Wrong argument-count shape for command — an in-range count that doesn't fit the command's key/value-pair or paired-argument pattern (e.g. an odd `dict create` tail, an unpaired `foreach` list, or a `switch` count matching neither its shorthand nor its pattern/body-pair form).",
+            "order": 3
+          },
           "tclLsp.diagnostics.E200": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**E200:** Shimmer parse error — internal representation cannot be determined.",
-            "order": 3
+            "markdownDescription": "**E200:** Unterminated command — the parser could not tell where it ends (missing `]` / `\"` / `}`).",
+            "order": 4
           }
         }
       },
@@ -4263,7 +4109,7 @@
           "tclLsp.diagnostics.W123": {
             "scope": "resource",
             "type": "boolean",
-            "default": false,
+            "default": true,
             "markdownDescription": "**W123:** Unresolved command — not found in registry, user procs, or `unknown` handler.",
             "order": 3
           },
@@ -4691,7 +4537,7 @@
               "null"
             ],
             "default": null,
-            "markdownDescription": "**O102:** Fold constant `[expr {...}]` command substitutions. (`null` = inherit from profile)",
+            "markdownDescription": "**O102:** Forward a variable's single reaching literal load to its use sites. (`null` = inherit from profile)",
             "order": 4
           },
           "tclLsp.optimiser.O103": {

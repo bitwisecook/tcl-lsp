@@ -73,6 +73,13 @@ pub(crate) fn find_use_site_shimmers(
     // Loop-invariance facts for the S101→S100 downgrade — only needed when
     // the function has at least one loop block.
     let loop_facts = LoopFacts::compute(cfg, ssa, &loop_blocks, registry);
+    // Array-base symbols are excluded (FP-SH-13): `normalise_var_name` strips
+    // the `(key)` suffix, so `arr(a)` and `arr(b)` share one symbol / version
+    // chain. Two individually-stable but different elements then look, at a
+    // use site, exactly like one variable holding the wrong intrep — the same
+    // conflation the S102 pass already guards. Reuse its exclusion so S100 /
+    // S101 don't false-positive on independent array elements.
+    let array_syms = super::thunking::array_element_symbols(cfg, ssa);
     let mut out: Vec<ShimmerWarning> = Vec::new();
 
     for block_id in cfg_order(cfg) {
@@ -95,6 +102,7 @@ pub(crate) fn find_use_site_shimmers(
             values,
             loop_facts: &loop_facts,
             ssa,
+            array_syms: &array_syms,
             in_loop,
             already_coerced: &mut already_coerced,
             out: &mut out,
@@ -117,6 +125,9 @@ struct UseSiteCtx<'a> {
     values: &'a HashMap<ValueKey, LatticeValue>,
     loop_facts: &'a LoopFacts,
     ssa: &'a SsaFunction,
+    /// Array-base symbols excluded from shimmer reporting (FP-SH-13) — a
+    /// conflated `arr(a)`/`arr(b)` symbol can hold either element's intrep.
+    array_syms: &'a HashSet<Symbol>,
     in_loop: bool,
     already_coerced: &'a mut HashSet<(String, u32, TclType)>,
     out: &'a mut Vec<ShimmerWarning>,
@@ -240,20 +251,103 @@ fn value_is_int_literal_string(value: Option<&LatticeValue>) -> bool {
     }
 }
 
+/// Expected intrep for every list/dict argument of a synthetic loop-header
+/// call: the CFG builder lowers `foreach` / `lmap` / `dict for` / `dict map`
+/// to a `Statement::Call` whose `command` is that keyword (or, for the dict
+/// forms, the two-word compound `"dict for"` / `"dict map"`) and whose
+/// `args` are *only* the list/dict arguments — one per iterator group, in
+/// order (see `cfg_builder::cfg_lower::lower_foreach`; identified by
+/// `Statement::Call::foreach_groups` being `Some`, not by the command name).
+///
+/// Every iterator group's argument expects the *same* intrep, so this reads
+/// the registry once and the caller applies the result uniformly — unlike a
+/// real call's `arg_types`, which is keyed per source-position index and
+/// so can't reach a multi-group loop's later arguments at all.
+///
+/// `dict for` / `dict map` are two-word compound names (AGENTS.md's
+/// compound-command pattern — a base command with a subcommand argument,
+/// like `namespace upvar`): split at the space and dispatch through the
+/// `dict` subcommand table via [`arg_shimmer_type`]'s existing subcommand
+/// path, requesting sub-index 1 (both subcommands declare their dict
+/// argument there).
+fn foreach_header_expected_type(registry: &CommandRegistry, command: &str) -> Option<TclType> {
+    if let Some((base, sub)) = command.split_once(' ') {
+        // `arg_shimmer_type`'s subcommand path computes `sub_idx =
+        // arg_index - 1`; requesting `arg_index = 2` reads sub-index 1.
+        arg_shimmer_type(registry, base, &[sub], 2)
+    } else {
+        arg_shimmer_type(registry, command, &[], 0)
+    }
+}
+
+/// Grouped, per-call arguments for [`check_invocation`] — keeps that
+/// function's own parameter list short (the `ctx` + `uses` thread-through
+/// state are the only params that vary independently of "which invocation").
+#[derive(Clone, Copy)]
+struct InvocationSite<'a> {
+    /// Source spelling, for the warning's `command` field and message.
+    command: &'a str,
+    /// Registry lookup key — the *canonical* command name when the call is
+    /// an `interp alias` target (`interp alias {} myindex {} ::lindex;
+    /// myindex $x 0` resolves `lookup_command = "::lindex"`), so an aliased
+    /// call to a shimmering builtin is still recognised, matching
+    /// [`Statement::Call::canonical_command`]'s documented "diagnostics
+    /// read better with the spelling the user wrote" rationale.
+    lookup_command: &'a str,
+    /// Argument words.
+    args: &'a [String],
+    /// Per-argument absolute spans, index-aligned with `args`, when
+    /// available (see `fallback_span`).
+    arg_spans: &'a [Span],
+    /// True for the synthetic loop-header shape [`foreach_header_expected_type`]
+    /// covers (`foreach` / `lmap` / `dict for` / `dict map`) — every
+    /// argument shares one expected type instead of a per-index one.
+    is_foreach_header: bool,
+    /// Span used for any argument index `arg_spans` doesn't cover — a
+    /// synthetic call built without per-word token spans (some test
+    /// fixtures) or a substitution word count `arg_spans` didn't fully
+    /// resolve.
+    fallback_span: Span,
+}
+
 /// Check one command invocation's arguments for an intrep mismatch
 /// against the variables' known types. Used for both a top-level
 /// [`Statement::Call`] and a `[cmd …]` substitution lifted out of a
 /// [`Statement::AssignValue`] value (`set b [lindex $x 0]`).
+///
+/// Two narrower residual gaps remain, both strictly better than today's "no
+/// alias detection at all":
+/// - Argument *indices* are unadjusted, so an alias that prepends fixed
+///   arguments (`interp alias {} foo {} ::bar prefix`) can index-shift the
+///   wrong argument.
+/// - A read-modify-write shimmering argument that is a **bare variable
+///   name**, not a `$`-prefixed read (`incr`/`append`/`lappend`'s target) is
+///   never seen here even when aliased: `is_pure_var_ref` below only matches
+///   `$`-style reads, and `incr`'s own canonical name bypasses this function
+///   entirely via the dedicated [`Statement::Incr`] node (see
+///   [`check_incr_var`]) — a form `lower_command` only builds for the literal
+///   command name, not an alias target.
 fn check_invocation(
     ctx: &mut UseSiteCtx<'_>,
-    command: &str,
-    args: &[String],
-    span: Span,
+    site: &InvocationSite<'_>,
     uses: &HashMap<Symbol, u32>,
 ) {
+    let InvocationSite {
+        command,
+        lookup_command,
+        args,
+        arg_spans,
+        is_foreach_header,
+        fallback_span,
+    } = *site;
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
     for (i, word) in args.iter().enumerate() {
-        let Some(expected) = arg_shimmer_type(ctx.registry, command, &arg_refs, i) else {
+        let expected = if is_foreach_header {
+            foreach_header_expected_type(ctx.registry, lookup_command)
+        } else {
+            arg_shimmer_type(ctx.registry, lookup_command, &arg_refs, i)
+        };
+        let Some(expected) = expected else {
             continue;
         };
         // Only flag pure variable references — complex words may produce
@@ -266,6 +360,12 @@ fn check_invocation(
         let Some(sym) = ctx.ssa.var_symbol(&var) else {
             continue;
         };
+        // Skip an array base (FP-SH-13): its conflated version chain mixes
+        // independent elements, so a "wrong intrep" here may just be a
+        // different element's type.
+        if ctx.array_syms.contains(&sym) {
+            continue;
+        }
         let Some(&ver) = uses.get(&sym) else { continue };
         if ver == 0 {
             continue;
@@ -304,6 +404,7 @@ fn check_invocation(
         } else {
             DiagCode::S100
         };
+        let span = arg_spans.get(i).copied().unwrap_or(fallback_span);
         ctx.out.push(ShimmerWarning {
             span,
             variable: var.clone(),
@@ -326,18 +427,92 @@ fn check_invocation(
 
 fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Symbol, u32>) {
     match stmt {
-        Statement::Call { command, args, .. } => {
-            check_invocation(ctx, command, args, stmt.span(), uses);
+        Statement::Call {
+            command,
+            args,
+            tokens,
+            foreach_groups,
+            ..
+        } => {
+            let lookup = stmt.canonical_command_or_source();
+            // `tokens.argv[0]` is the command word; `argv[1..]` are the
+            // per-argument spans, index-aligned with `args` (both are the
+            // literal source words — alias resolution never reorders or
+            // reparents them, see `check_invocation`'s doc comment).
+            let arg_spans: Vec<Span> = tokens
+                .as_ref()
+                .map(|t| t.argv.iter().skip(1).copied().collect())
+                .unwrap_or_default();
+            check_invocation(
+                ctx,
+                &InvocationSite {
+                    command,
+                    lookup_command: lookup,
+                    args,
+                    arg_spans: &arg_spans,
+                    is_foreach_header: foreach_groups.is_some(),
+                    fallback_span: stmt.span(),
+                },
+                uses,
+            );
         }
 
         // A command substitution lifted into an assignment value
         // (`set b [lindex $x 0]`) reads its arguments just like a direct
-        // call.
-        Statement::AssignValue { value, .. } => {
-            if let Some((command, args)) =
+        // call. The substitution's own command word is re-parsed from raw
+        // text (no lowering pass resolves it), so no `interp alias`
+        // resolution is available here — the lookup key is the source
+        // spelling itself.
+        Statement::AssignValue { value, tokens, .. } => {
+            // The value word's own absolute span (`argv`'s last entry —
+            // `set name value` is always two args) anchors the re-lexed
+            // substitution's relative spans; falls back to the
+            // whole-statement span when tokens aren't available (some test
+            // fixtures build `AssignValue` without them).
+            let value_base = tokens
+                .as_ref()
+                .and_then(|t| t.argv.last())
+                .map(|sp| sp.start());
+            if let (Some(base), Some((command, args_with_spans))) = (
+                value_base,
+                crate::value_shapes::parse_command_substitution_with_spans(value),
+            ) {
+                let args: Vec<String> = args_with_spans.iter().map(|(a, _)| a.clone()).collect();
+                let arg_spans: Vec<Span> = args_with_spans
+                    .iter()
+                    .map(|(_, rel)| Span::new(base + rel.start(), base + rel.end()))
+                    .collect();
+                check_invocation(
+                    ctx,
+                    &InvocationSite {
+                        command: &command,
+                        lookup_command: &command,
+                        args: &args,
+                        arg_spans: &arg_spans,
+                        is_foreach_header: false,
+                        fallback_span: stmt.span(),
+                    },
+                    uses,
+                );
+            } else if let Some((command, args)) =
                 crate::value_shapes::parse_command_substitution(value.trim())
             {
-                check_invocation(ctx, &command, &args, stmt.span(), uses);
+                // Fallback for shapes the span-aware lexer-based parser
+                // rejects (no `tokens`, or an embedded `;`/newline second
+                // command) but the older bracket-counting parser still
+                // accepts — whole-statement span, same as before this fix.
+                check_invocation(
+                    ctx,
+                    &InvocationSite {
+                        command: &command,
+                        lookup_command: &command,
+                        args: &args,
+                        arg_spans: &[],
+                        is_foreach_header: false,
+                        fallback_span: stmt.span(),
+                    },
+                    uses,
+                );
             }
         }
 
@@ -368,6 +543,10 @@ fn check_incr_var(ctx: &mut UseSiteCtx<'_>, var: &str, span: Span, uses: &HashMa
     let Some(sym) = ctx.ssa.var_symbol(var) else {
         return;
     };
+    // Skip an array base (FP-SH-13) — see `check_invocation`.
+    if ctx.array_syms.contains(&sym) {
+        return;
+    }
     let Some(&ver) = uses.get(&sym) else { return };
     if ver == 0 {
         return;
@@ -512,6 +691,95 @@ mod tests {
         assert_eq!(w.unwrap().to_type, TclType::List);
     }
 
+    /// The warning's span is tight around the offending `$x` argument, not
+    /// the whole `lindex $x 0` invocation — the developer's eye should land
+    /// on the variable, not have to scan the whole call.
+    #[test]
+    fn shimmer_span_is_tight_around_call_argument() {
+        let src = "set x 5\nlindex $x 0";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        let w = warnings
+            .iter()
+            .find(|w| w.command == "lindex")
+            .unwrap_or_else(|| panic!("expected lindex shimmer, got: {warnings:?}"));
+        let text = &src[w.span.start() as usize..w.span.end() as usize];
+        assert_eq!(
+            text, "$x",
+            "span should cover only the '$x' argument, got {text:?} from {w:?}"
+        );
+    }
+
+    /// Same tightness property through the `[cmd …]`-in-`AssignValue` path
+    /// (`set b [lindex $x 0]`) — the span still lands on `$x`, not the
+    /// whole `set b […]` statement.
+    #[test]
+    fn shimmer_span_is_tight_around_assign_value_substitution_argument() {
+        let src = "set x 5\nset b [lindex $x 0]";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        let w = warnings
+            .iter()
+            .find(|w| w.command == "lindex")
+            .unwrap_or_else(|| panic!("expected lindex shimmer, got: {warnings:?}"));
+        let text = &src[w.span.start() as usize..w.span.end() as usize];
+        assert_eq!(
+            text, "$x",
+            "span should cover only the '$x' argument, got {text:?} from {w:?}"
+        );
+    }
+
+    /// Two shimmering arguments of the *same* call each get their *own*
+    /// tight span — proves the per-index span lookup, not just "arg 0's
+    /// span reused everywhere". `linsert list index element`: `list_var`
+    /// (String, arg 0) expects List; `index_var` (String, arg 1) expects
+    /// Int.
+    #[test]
+    fn shimmer_span_is_tight_per_argument_not_reused_across_args() {
+        let src = "set list_var hello\n\
+                    set index_var world\n\
+                    linsert $list_var $index_var x";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        let list_w = warnings
+            .iter()
+            .find(|w| w.command == "linsert" && w.variable == "list_var")
+            .unwrap_or_else(|| panic!("expected linsert shimmer for list_var, got: {warnings:?}"));
+        let list_text = &src[list_w.span.start() as usize..list_w.span.end() as usize];
+        assert_eq!(list_text, "$list_var", "got {list_w:?}");
+
+        let index_w = warnings
+            .iter()
+            .find(|w| w.command == "linsert" && w.variable == "index_var")
+            .unwrap_or_else(|| panic!("expected linsert shimmer for index_var, got: {warnings:?}"));
+        let index_text = &src[index_w.span.start() as usize..index_w.span.end() as usize];
+        assert_eq!(index_text, "$index_var", "got {index_w:?}");
+    }
+
     /// A `foreach` element variable is typed String (list elements
     /// stringify); using it as a list intrep inside the loop body via a
     /// `[lindex $x 0]` command substitution re-thunks each iteration —
@@ -539,6 +807,120 @@ mod tests {
         assert_eq!(w.code, DiagCode::S101);
         assert_eq!(w.from_type, TclType::String);
         assert_eq!(w.to_type, TclType::List);
+    }
+
+    /// TP: `foreach`'s own list argument shimmers when the variable holds a
+    /// non-list intrep — the CFG builder lowers the header to a synthetic
+    /// `Statement::Call` (`command="foreach", args=[list_arg]`) that never
+    /// reaches the per-index `arg_types` path, so this is the
+    /// `foreach_header_expected_type` path specifically.
+    #[test]
+    fn shimmer_detected_for_foreach_header_list_argument() {
+        let src = "proc f {} {\n    set l hello\n    foreach x $l { puts $x }\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        let w = warnings
+            .iter()
+            .find(|w| w.command == "foreach" && w.variable == "l")
+            .unwrap_or_else(|| panic!("expected foreach header shimmer, got: {warnings:?}"));
+        assert_eq!(w.from_type, TclType::String);
+        assert_eq!(w.to_type, TclType::List);
+    }
+
+    /// TN control: a genuine list variable in `foreach` must not shimmer.
+    #[test]
+    fn no_shimmer_for_foreach_header_with_real_list() {
+        let src = "proc f {} {\n    set l [list 1 2 3]\n    foreach x $l { puts $x }\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        assert!(
+            warnings.iter().all(|w| w.command != "foreach"),
+            "unexpected foreach header shimmer for a real list: {warnings:?}"
+        );
+    }
+
+    /// TP: `lmap`'s list argument shares the same synthetic header shape.
+    #[test]
+    fn shimmer_detected_for_lmap_header_list_argument() {
+        let src = "proc f {} {\n    set l hello\n    lmap x $l { set x $x }\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        let w = warnings
+            .iter()
+            .find(|w| w.command == "lmap" && w.variable == "l")
+            .unwrap_or_else(|| panic!("expected lmap header shimmer, got: {warnings:?}"));
+        assert_eq!(w.from_type, TclType::String);
+        assert_eq!(w.to_type, TclType::List);
+    }
+
+    /// TP: `dict for`'s dict argument shimmers to Dict — the compound
+    /// two-word command name (`"dict for"`) routes through the `dict`
+    /// subcommand table via `foreach_header_expected_type`'s split.
+    #[test]
+    fn shimmer_detected_for_dict_for_header_argument() {
+        let src = "proc f {} {\n    set d hello\n    dict for {k v} $d { puts $k }\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        let w = warnings
+            .iter()
+            .find(|w| w.command == "dict for" && w.variable == "d")
+            .unwrap_or_else(|| panic!("expected dict-for header shimmer, got: {warnings:?}"));
+        assert_eq!(w.from_type, TclType::String);
+        assert_eq!(w.to_type, TclType::Dict);
+    }
+
+    /// TP: `dict map` shares `dict for`'s compound-name dispatch.
+    #[test]
+    fn shimmer_detected_for_dict_map_header_argument() {
+        let src = "proc f {} {\n    set d hello\n    dict map {k v} $d { set v $v }\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        let w = warnings
+            .iter()
+            .find(|w| w.command == "dict map" && w.variable == "d")
+            .unwrap_or_else(|| panic!("expected dict-map header shimmer, got: {warnings:?}"));
+        assert_eq!(w.from_type, TclType::String);
+        assert_eq!(w.to_type, TclType::Dict);
     }
 
     /// A loop-invariant variable (defined outside the loop) coerced to a
@@ -600,6 +982,56 @@ mod tests {
         assert_eq!(w.unwrap().to_type, TclType::Int);
     }
 
+    /// Array elements collapse onto one SSA symbol (the `(key)` suffix is
+    /// stripped before interning), so two individually-stable but different
+    /// elements must not use-site shimmer against each other (FP-SH-13):
+    /// `set arr(n) 5; set arr(label) "text"; incr arr(n)` must not report
+    /// `arr` as "string used with incr" — `arr(n)` is always int.
+    #[test]
+    fn no_use_site_shimmer_for_array_element_conflation() {
+        let cu = CompilationUnit::build_for(
+            "proc f {} { set arr(n) 5\n set arr(label) \"text\"\n incr arr(n) }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        assert!(
+            warnings.is_empty(),
+            "array-element conflation must not use-site shimmer: {warnings:?}"
+        );
+    }
+
+    /// TP control: the identical shape on a plain scalar still fires — the
+    /// array guard must not blanket-silence use-site shimmer.
+    #[test]
+    fn use_site_shimmer_still_fires_for_scalar_control() {
+        let cu =
+            CompilationUnit::build_for("proc f {} { set n hello\n incr n }", &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.command == "incr" && w.variable == "n"),
+            "plain scalar must still use-site shimmer: {warnings:?}"
+        );
+    }
+
     /// Variables with Unknown type do not produce false-positive shimmers.
     #[test]
     fn no_shimmer_for_unknown_type() {
@@ -619,6 +1051,62 @@ mod tests {
         assert!(
             lindex_shimmers.is_empty(),
             "unexpected shimmer for Unknown type: {lindex_shimmers:?}"
+        );
+    }
+
+    /// TP: a call through an `interp alias` to a shimmering builtin is still
+    /// detected — the registry lookup keys off the resolved
+    /// `canonical_command`, not the alias's source spelling.
+    #[test]
+    fn shimmer_detected_through_interp_alias_to_lindex() {
+        let cu = CompilationUnit::build_for(
+            "interp alias {} myindex {} ::lindex\nset x hello\nmyindex $x 0",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        let w = warnings.iter().find(|w| w.variable == "x");
+        assert!(
+            w.is_some(),
+            "expected shimmer through interp alias, got: {warnings:?}"
+        );
+        let w = w.unwrap();
+        assert_eq!(w.from_type, TclType::String);
+        assert_eq!(w.to_type, TclType::List);
+        // The message keeps the alias spelling the user wrote, not the
+        // resolved canonical target.
+        assert_eq!(w.command, "myindex");
+    }
+
+    /// TN control: an alias to a *non*-shimmering command (`puts`) must not
+    /// spuriously fire just because the alias itself resolved.
+    #[test]
+    fn no_shimmer_through_interp_alias_to_non_shimmering_command() {
+        let cu = CompilationUnit::build_for(
+            "interp alias {} say {} ::puts\nset x hello\nsay $x",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        assert!(
+            warnings.iter().all(|w| w.variable != "x"),
+            "unexpected shimmer through non-shimmering alias: {warnings:?}"
         );
     }
 }

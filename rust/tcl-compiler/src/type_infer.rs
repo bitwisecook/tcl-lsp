@@ -43,7 +43,8 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use tcl_registry::{CommandRegistry, TclType, Traits};
+use tcl_registry::dialects::DialectSet;
+use tcl_registry::{CommandRegistry, TclType, Traits, VarWriteTyping};
 
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
@@ -560,6 +561,60 @@ fn container_retrieval_object_type(
     Some(TypeLattice::object_of(class))
 }
 
+/// Infer the intrep a `set`-style value *word* stores.
+///
+/// The shared body of the [`Statement::AssignValue`] typing and the
+/// value-passthrough typing of a canonically-`set` [`Statement::Call`] (an
+/// aliased or renamed `set`).  A pure `$var` reference inherits the source
+/// version's type, a `[cmd …]` command substitution takes the command's
+/// declared return type (or an object-collection retrieval), an
+/// interpolated / otherwise-complex word is `String`, and a bare literal is
+/// classified by its Tcl intrep.
+fn value_word_type<S: std::hash::BuildHasher>(
+    value: &str,
+    uses: &HashMap<Symbol, u32>,
+    types: &HashMap<ValueKey, TypeLattice>,
+    registry: &CommandRegistry,
+    known_classes: &HashSet<String, S>,
+    namespace: &str,
+    ssa: &SsaFunction,
+) -> TypeLattice {
+    let stripped = value.trim();
+    // Pure variable reference: inherit source type.
+    if is_pure_var_ref(stripped) {
+        let name = normalise_var_name(stripped);
+        if let Some(&ver) = ssa.var_symbol(name).and_then(|s| uses.get(&s))
+            && ver > 0
+        {
+            return ssa
+                .var_symbol(name)
+                .and_then(|s| types.get(&(s, ver)))
+                .cloned()
+                .unwrap_or_else(TypeLattice::unknown);
+        }
+        return TypeLattice::unknown();
+    }
+    // Command substitution: [cmd ...].
+    if stripped.starts_with('[')
+        && stripped.ends_with(']')
+        && let Some((cmd, args)) = parse_command_substitution(stripped)
+    {
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        // A `dict get $coll k` / `lindex $coll i` on an object-homogeneous
+        // collection yields an `OBJECT(element_class)` — resolved before
+        // the command's declared (`String`/`Overdefined`) return type.
+        if let Some(t) = container_retrieval_object_type(&cmd, &arg_refs, uses, types, ssa) {
+            return t;
+        }
+        return return_type_for_command(registry, &cmd, &arg_refs, known_classes, namespace);
+    }
+    // String interpolation or complex value.
+    if value.contains('$') || value.contains('[') {
+        return TypeLattice::of(TclType::String);
+    }
+    literal_type(value)
+}
+
 /// Infer the type produced by `stmt` under the current `types` map.
 #[must_use]
 fn evaluate_type_def<S: std::hash::BuildHasher>(
@@ -590,64 +645,57 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
         }
 
         Statement::AssignValue { value, .. } => {
-            let stripped = value.trim();
-            // Pure variable reference: inherit source type.
-            if is_pure_var_ref(stripped) {
-                let name = normalise_var_name(stripped);
-                if let Some(&ver) = ssa.var_symbol(name).and_then(|s| uses.get(&s))
-                    && ver > 0
-                {
-                    return ssa
-                        .var_symbol(name)
-                        .and_then(|s| types.get(&(s, ver)))
-                        .cloned()
-                        .unwrap_or_else(TypeLattice::unknown);
-                }
-                return TypeLattice::unknown();
-            }
-            // Command substitution: [cmd ...].
-            if stripped.starts_with('[')
-                && stripped.ends_with(']')
-                && let Some((cmd, args)) = parse_command_substitution(stripped)
-            {
-                let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-                // A `dict get $coll k` / `lindex $coll i` on an object-homogeneous
-                // collection yields an `OBJECT(element_class)` — resolved before
-                // the command's declared (`String`/`Overdefined`) return type.
-                if let Some(t) = container_retrieval_object_type(&cmd, &arg_refs, uses, types, ssa)
-                {
-                    return t;
-                }
-                return return_type_for_command(
-                    registry,
-                    &cmd,
-                    &arg_refs,
-                    known_classes,
-                    namespace,
-                );
-            }
-            // String interpolation or complex value.
-            if value.contains('$') || value.contains('[') {
-                return TypeLattice::of(TclType::String);
-            }
-            literal_type(value)
+            value_word_type(value, uses, types, registry, known_classes, namespace, ssa)
         }
 
         Statement::Incr { .. } => TypeLattice::of(TclType::Int),
 
         Statement::Call {
             command,
+            canonical_command,
             args,
             defs,
             ..
         } if !defs.is_empty() => {
+            // Resolve the source spelling through the lowerer's
+            // `canonical_command` snapshot (an `interp alias` / `rename`
+            // target) so a renamed or aliased builtin — `rename set myset` /
+            // `interp alias {} myset {} set` — is typed by the *real* command's
+            // registry spec, not left as an unknown `Call` (OVERDEFINED).
+            let canon = canonical_command.as_deref().unwrap_or(command);
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+            // A canonically-`set` store keeps its runtime `Call` shape for
+            // codegen — an aliased / renamed command is not inline-foldable,
+            // its binding may change by call time — but for the type lattice
+            // its single def takes the *value word's* intrep verbatim, exactly
+            // as the un-aliased [`Statement::AssignValue`] path does. Keyed off
+            // the canonical command's `Set` lowering hook (the registry's own
+            // "this is a value-passthrough store" fact), never the source
+            // spelling. The two-arg / single-def guard restricts this to the
+            // `set VAR VALUE` setter shape (no `interp alias` prepended args
+            // shifting the value word out of `args[1]`, and not the one-arg
+            // getter, which has no def).
+            if defs.len() == 1
+                && arg_refs.len() == 2
+                && registry.get(canon).and_then(|s| s.lowering_hook)
+                    == Some(tcl_registry::hooks::LoweringHookId::Set)
+            {
+                return value_word_type(
+                    arg_refs[1],
+                    uses,
+                    types,
+                    registry,
+                    known_classes,
+                    namespace,
+                    ssa,
+                );
+            }
             // A `dict set/append/lappend VAR …` or `lappend VAR …` that stores
             // object handles types VAR as a collection *of* that class, so a
             // later `[dict get $VAR k] method …` retrieval resolves the element.
             // `dict set VAR ?key…? value` takes a single trailing value; the
             // `*append`/`lappend` forms take every word after the key/var.
-            if let Some((container, target, value_args)) = match (command.as_str(), &arg_refs[..]) {
+            if let Some((container, target, value_args)) = match (canon, &arg_refs[..]) {
                 ("dict", ["set", target, rest @ ..]) if !rest.is_empty() => {
                     Some((TclType::Dict, *target, &rest[rest.len() - 1..]))
                 }
@@ -673,7 +721,46 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
                     namespace,
                 );
             }
-            return_type_for_command(registry, command, &arg_refs, known_classes, namespace)
+            // How a command types the variable(s) it *writes* is a distinct
+            // fact from the value it *returns*.  A destructuring writer
+            // (`lassign`, `scan`, `regexp`, `binary scan`) returns a leftover
+            // list or a match/convert count while writing element-wise pieces;
+            // `gets` returns the character count while writing a text line;
+            // `lpop` returns the popped element while leaving a shortened list.
+            // The registry declares this per command / subcommand
+            // (`VarWriteTyping`), so the compiler never keys on the command
+            // name.  The former `defs.len() > 1` heuristic guessed it from the
+            // write count and mistyped every single-target destructure — a
+            // `lassign $l x` target wrongly typed `List`, a `regexp … capture`
+            // wrongly typed `Int` (issue #867).  Resolved through `canon`, not
+            // the source spelling, so an aliased / renamed destructuring writer
+            // (`rename lassign mylassign`) still resolves to the real command's
+            // `VarWriteTyping` — the same canonical-command indirection the
+            // value-passthrough store above and the collection-element typing
+            // use (FP-SH-15).
+            let typing = registry
+                .resolve_call(canon, &arg_refs, DialectSet::empty())
+                .map_or(VarWriteTyping::ReturnValue, |r| r.var_write_typing());
+            match typing {
+                // The default typing stores the command's *return value* in the
+                // target — meaningful only for a single-target writer (`append`,
+                // `lappend`). A call that writes *several* variables under the
+                // default (no override) is not a single-value writer: the
+                // synthetic `catch {body} resultVar optionsVar` / `try …` calls
+                // carry the body's writes plus the result / options vars as defs
+                // while `catch` / `try` return an Int status code, none of which
+                // is that status. Broadcasting the return type onto all of them
+                // would mistype every such variable, so stay conservative — the
+                // old `defs.len() > 1` fallback, now scoped to the default arm
+                // rather than a blanket heuristic (a registry `Destructured` /
+                // `Fixed` override still applies at any def count).
+                VarWriteTyping::ReturnValue if defs.len() > 1 => TypeLattice::overdefined(),
+                VarWriteTyping::ReturnValue => {
+                    return_type_for_command(registry, canon, &arg_refs, known_classes, namespace)
+                }
+                VarWriteTyping::Fixed(t) => TypeLattice::of(t),
+                VarWriteTyping::Destructured => TypeLattice::overdefined(),
+            }
         }
 
         // `ExprEval`, `Barrier`, and structured statements that survive as
@@ -688,6 +775,27 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
 ///
 /// Returns a map from `(variable_name, ssa_version)` to inferred
 /// `TypeLattice`. Values absent from the map are implicitly `Unknown`.
+///
+/// Every def of a name [`crate::sccp::is_externally_mutable`] considers
+/// externally mutable — fully namespace-qualified, aliased via `global`/
+/// `variable`/`upvar`/traced *within this function* ([`crate::var_observability::
+/// analyse_var_observability`]), named by `extra_global_escaping` (the
+/// whole-module `global`-declaration scan for the *top-level* unit — see
+/// [`crate::var_observability::scan_module_global_names`]), or traced
+/// *anywhere in the module* (`trace_facts`) — is forced `Overdefined` here,
+/// reusing the exact predicate [`crate::sccp::sccp_with_extra_escaping`] and
+/// [`crate::optimiser::propagation`]'s O102 load-forwarding already apply to
+/// their own (separate) lattices, rather than re-deriving a third,
+/// potentially-divergent notion of "externally mutable" for this one. A
+/// `set`-only view of such a name's literal types is not sound: a callee's
+/// `global NAME; set NAME …`, a top-level name no procedure declares
+/// `global` itself but another's `global NAME` can still reach, or a write
+/// trace's callback, can all change what the name actually holds — reporting
+/// a shimmer purely from the visible literals could be a false positive (or
+/// miss the real one). `extra_global_escaping` is empty and `trace_facts` is
+/// [`crate::compilation_unit::ModuleTraceFacts::none()`] for the
+/// module-context-free callers ([`Self`] unit tests, isolated single-function
+/// rebuilds with no module to scan).
 #[must_use]
 pub fn propagate_types<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
@@ -695,12 +803,28 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
     sccp: &SccpResult,
     registry: &CommandRegistry,
     known_classes: &HashSet<String, S>,
+    extra_global_escaping: &HashSet<String, S>,
+    trace_facts: crate::compilation_unit::ModuleTraceFacts<'_>,
 ) -> HashMap<ValueKey, TypeLattice> {
     let preds = cfg.predecessors();
     let order = crate::sccp::cfg_order(cfg);
+    let mut escaping =
+        crate::var_observability::analyse_var_observability(cfg, registry).escaping_var_names();
+    if !extra_global_escaping.is_empty() {
+        escaping.extend(extra_global_escaping.iter().cloned());
+    }
+    escaping.extend(trace_facts.traced_variables.iter().cloned());
     // Constructor heads written `[Foo new]` inside this function resolve
     // relative names against the function's own namespace.
     let namespace = function_namespace(&cfg.name);
+    let ctx = StatementTypingCtx {
+        ssa,
+        registry,
+        known_classes,
+        namespace: &namespace,
+        escaping: &escaping,
+        has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace,
+    };
 
     let mut types: HashMap<ValueKey, TypeLattice> = HashMap::new();
 
@@ -775,52 +899,98 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
             }
 
             // Statements.
-            for ssa_stmt in &ssa_block.statements {
-                let stmt = &ssa_stmt.statement;
-                // A barrier widens every def to OVERDEFINED (it may have
-                // mutated them arbitrarily); a scope-alias declaration
-                // (`global`/`variable`/`upvar`/`namespace upvar`) likewise
-                // widens its defs — the imported variable's intrep is
-                // external and unknown.'s
-                // barrier + `alias_cmds` arms.  Every def of one statement
-                // gets the same inferred type, so compute it once.
-                let inferred = match stmt {
-                    Statement::Barrier { .. } => TypeLattice::overdefined(),
-                    Statement::Call {
-                        command,
-                        args,
-                        defs,
-                        ..
-                    } if !defs.is_empty() && is_scope_alias_call(registry, command, args) => {
-                        TypeLattice::overdefined()
-                    }
-                    _ => evaluate_type_def(
-                        stmt,
-                        &ssa_stmt.uses,
-                        &types,
-                        registry,
-                        known_classes,
-                        &namespace,
-                        ssa,
-                    ),
-                };
-                for (&var, &ver) in &ssa_stmt.defs {
-                    let key = (var, ver);
-                    let old = types
-                        .get(&key)
-                        .cloned()
-                        .unwrap_or_else(TypeLattice::unknown);
-                    let merged = type_join(&old, &inferred);
-                    if merged != old {
-                        types.insert(key, merged);
-                        changed = true;
-                    }
-                }
+            if type_infer_process_statements(&mut types, ssa_block, &ctx) {
+                changed = true;
             }
         }
     }
 
     types
+}
+
+/// Shared, read-only context for [`type_infer_process_statements`].
+struct StatementTypingCtx<'a, S: std::hash::BuildHasher> {
+    ssa: &'a SsaFunction,
+    registry: &'a CommandRegistry,
+    known_classes: &'a HashSet<String, S>,
+    namespace: &'a str,
+    /// Names [`crate::sccp::is_externally_mutable`] should treat as
+    /// unconditionally aliased/escaping (per-function `analyse_var_observability`
+    /// union'd with the caller's whole-module `extra_global_escaping` and
+    /// `trace_facts.traced_variables`).
+    escaping: &'a HashSet<String>,
+    has_dynamic_variable_trace: bool,
+}
+
+/// Evaluate each statement's defs for one block, forcing every def of a name
+/// [`crate::sccp::is_externally_mutable`] considers externally mutable to
+/// `Overdefined` regardless of what its own literal/expression would
+/// otherwise infer. Returns `true` if any lattice value changed. Extracted
+/// from [`propagate_types`], mirroring [`crate::sccp::sccp_process_statements`]'s
+/// shape for the (separate) constant-folding lattice.
+fn type_infer_process_statements<S: std::hash::BuildHasher>(
+    types: &mut HashMap<ValueKey, TypeLattice>,
+    ssa_block: &crate::ssa::SsaBlock,
+    ctx: &StatementTypingCtx<'_, S>,
+) -> bool {
+    let mut changed = false;
+    for ssa_stmt in &ssa_block.statements {
+        let stmt = &ssa_stmt.statement;
+        // A barrier widens every def to OVERDEFINED (it may have mutated
+        // them arbitrarily); a scope-alias declaration (`global`/`variable`/
+        // `upvar`/`namespace upvar`) likewise widens its defs — the
+        // imported variable's intrep is external and unknown. Every def of
+        // one statement gets the same inferred type, so compute it once.
+        let inferred = match stmt {
+            Statement::Barrier { .. } => TypeLattice::overdefined(),
+            Statement::Call {
+                command,
+                canonical_command,
+                args,
+                defs,
+                ..
+            } if !defs.is_empty()
+                && is_scope_alias_call(
+                    ctx.registry,
+                    canonical_command.as_deref().unwrap_or(command),
+                    args,
+                ) =>
+            {
+                TypeLattice::overdefined()
+            }
+            _ => evaluate_type_def(
+                stmt,
+                &ssa_stmt.uses,
+                types,
+                ctx.registry,
+                ctx.known_classes,
+                ctx.namespace,
+                ctx.ssa,
+            ),
+        };
+        for (&var, &ver) in &ssa_stmt.defs {
+            let key = (var, ver);
+            let old = types
+                .get(&key)
+                .cloned()
+                .unwrap_or_else(TypeLattice::unknown);
+            let def_type = if crate::sccp::is_externally_mutable(
+                ctx.ssa.var_name(var),
+                ctx.escaping,
+                ctx.has_dynamic_variable_trace,
+            ) {
+                TypeLattice::overdefined()
+            } else {
+                inferred.clone()
+            };
+            let merged = type_join(&old, &def_type);
+            if merged != old {
+                types.insert(key, merged);
+                changed = true;
+            }
+        }
+    }
+    changed
 }
 
 /// Infer a function's overall return type by joining the result types
@@ -991,7 +1161,15 @@ mod tests {
             },
         );
         let x = ssa.var_symbol("x").unwrap();
-        let types = propagate_types(&f, &ssa, &sccp, &registry(), &HashSet::new());
+        let types = propagate_types(
+            &f,
+            &ssa,
+            &sccp,
+            &registry(),
+            &HashSet::new(),
+            &HashSet::new(),
+            crate::compilation_unit::ModuleTraceFacts::none(),
+        );
         assert_eq!(types.get(&(x, 1)), Some(&TypeLattice::of(TclType::Int)));
     }
 
@@ -1015,6 +1193,213 @@ mod tests {
             &ssa,
         );
         assert_eq!(t, TypeLattice::of(TclType::Int));
+    }
+
+    #[test]
+    fn lassign_destructure_defs_are_overdefined_not_command_return_type() {
+        // TP: `lassign $pipe a b` writes destructured list *elements*;
+        // `lassign`'s own `return_type` (List — the *leftover* elements) must
+        // not be broadcast onto the targets. Pre-fix, both `a` and `b` were
+        // typed LIST, so a later channel-position use (`puts $a ...`) would
+        // falsely fire W126 ("has type LIST, not CHANNEL") — see FP-STY-04.
+        // The typing now comes from the registry's `VarWriteTyping` for
+        // `lassign` (`Destructured`), not a def-count heuristic.
+        let stmt = Statement::Call {
+            span: Span::new(0, 0),
+            command: "lassign".to_owned(),
+            canonical_command: None,
+            args: vec!["$pipe".to_owned(), "a".to_owned(), "b".to_owned()],
+            defs: vec!["a".to_owned(), "b".to_owned()],
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        };
+        let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
+        let t = evaluate_type_def(
+            &stmt,
+            &HashMap::new(),
+            &HashMap::new(),
+            &registry(),
+            &HashSet::new(),
+            "::",
+            &ssa,
+        );
+        assert_eq!(t, TypeLattice::overdefined());
+    }
+
+    #[test]
+    fn lassign_single_destructure_def_is_overdefined_not_list() {
+        // Issue #867 core regression: a *single*-target `lassign $l x` was the
+        // case the old `defs.len() > 1` heuristic missed — one write fell
+        // through to `lassign`'s `List` return type, so `x` was typed LIST and
+        // `expr {$x + 1}` fired a bogus S100. The registry's `Destructured`
+        // typing widens it to OVERDEFINED regardless of target count.
+        let stmt = Statement::Call {
+            span: Span::new(0, 0),
+            command: "lassign".to_owned(),
+            canonical_command: None,
+            args: vec!["$point".to_owned(), "x".to_owned()],
+            defs: vec!["x".to_owned()],
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        };
+        let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
+        let t = evaluate_type_def(
+            &stmt,
+            &HashMap::new(),
+            &HashMap::new(),
+            &registry(),
+            &HashSet::new(),
+            "::",
+            &ssa,
+        );
+        assert_eq!(t, TypeLattice::overdefined());
+    }
+
+    #[test]
+    fn single_def_command_still_uses_its_declared_return_type() {
+        // TN control: a command that writes exactly one variable (`append`)
+        // legitimately shares its return value with that variable — its
+        // `VarWriteTyping` is the default `ReturnValue`, so it must keep taking
+        // the declared return type (`String`), not widen to OVERDEFINED.
+        let stmt = Statement::Call {
+            span: Span::new(0, 0),
+            command: "append".to_owned(),
+            canonical_command: None,
+            args: vec!["result".to_owned(), "x".to_owned()],
+            defs: vec!["result".to_owned()],
+            reads: Vec::new(),
+            reads_own_defs: true,
+            safe_on_uninit: true,
+            tokens: None,
+            foreach_groups: None,
+        };
+        let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
+        let t = evaluate_type_def(
+            &stmt,
+            &HashMap::new(),
+            &HashMap::new(),
+            &registry(),
+            &HashSet::new(),
+            "::",
+            &ssa,
+        );
+        assert_eq!(t, TypeLattice::of(TclType::String));
+    }
+
+    #[test]
+    fn unannotated_multi_def_call_stays_overdefined_not_return_type() {
+        // Regression (PR #885 review): a call that writes SEVERAL variables
+        // under the default `ReturnValue` typing must not broadcast its
+        // return type onto all of them. The synthetic `catch {body} resultVar
+        // optionsVar` call `emit_opaque_catch` builds carries the body's
+        // writes plus the result/options vars as defs, while `catch` returns
+        // an Int status code and declares no `VarWriteTyping` override — typing
+        // `msg`/`result`/`opts` as that Int would wrongly fire S100/W126. The
+        // default arm's multi-def guard keeps them OVERDEFINED.
+        let stmt = Statement::Call {
+            span: Span::new(0, 0),
+            command: "catch".to_owned(),
+            canonical_command: None,
+            args: vec![
+                "{set msg hello}".to_owned(),
+                "result".to_owned(),
+                "opts".to_owned(),
+            ],
+            defs: vec!["msg".to_owned(), "result".to_owned(), "opts".to_owned()],
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        };
+        let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
+        let t = evaluate_type_def(
+            &stmt,
+            &HashMap::new(),
+            &HashMap::new(),
+            &registry(),
+            &HashSet::new(),
+            "::",
+            &ssa,
+        );
+        assert_eq!(t, TypeLattice::overdefined());
+    }
+
+    /// End-to-end lattice checks for the registry-driven `VarWriteTyping`:
+    /// each destructuring writer types its side-effect target correctly,
+    /// distinct from its return type (issue #867).
+    #[test]
+    fn var_write_typing_shapes_destructure_target_types() {
+        use crate::compilation_unit::CompilationUnit;
+
+        // Helper: does any version of `name` carry a KNOWN type `t`?
+        fn any_known(fu: &crate::compilation_unit::FunctionUnit, name: &str, t: TclType) -> bool {
+            fu.types.iter().any(|((sym, _), lat)| {
+                fu.ssa.var_name(*sym) == name
+                    && lat.kind == TypeKind::Known
+                    && lat.tcl_type == Some(t)
+            })
+        }
+        // Helper: is every version of `name` non-Known (OVERDEFINED/UNKNOWN)?
+        fn none_known(fu: &crate::compilation_unit::FunctionUnit, name: &str) -> bool {
+            fu.types
+                .iter()
+                .filter(|((sym, _), _)| fu.ssa.var_name(*sym) == name)
+                .all(|(_, lat)| lat.kind != TypeKind::Known)
+        }
+
+        // `lassign` element target — OVERDEFINED, never List.
+        let cu = CompilationUnit::build_for("set p [list 1 2 3]\nlassign $p x", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        assert!(
+            none_known(fu, "x"),
+            "lassign target must not carry a Known type: {:?}",
+            fu.types
+        );
+
+        // `regexp` capture — OVERDEFINED, never Int (the match count).
+        let cu = CompilationUnit::build_for("regexp {(.)} abc c", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        assert!(none_known(fu, "c"), "regexp capture must not be Known Int");
+
+        // `scan` target — OVERDEFINED (format-dependent), never Int.
+        let cu = CompilationUnit::build_for("scan hello %s word", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        assert!(none_known(fu, "word"), "scan target must not be Known Int");
+
+        // `binary scan` target (subcommand-level typing) — OVERDEFINED.
+        let cu = CompilationUnit::build_for("binary scan $d a3 chars", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        assert!(
+            none_known(fu, "chars"),
+            "binary scan target must not be Known Int"
+        );
+
+        // `gets chan line` — Fixed(String): the target is the read line, a
+        // String, not the character count the two-arg form returns.
+        let cu = CompilationUnit::build_for("gets $ch line", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        assert!(
+            any_known(fu, "line", TclType::String),
+            "gets target must be Known String: {:?}",
+            fu.types
+        );
+
+        // `lpop listVar` — Fixed(List): the variable is left holding the
+        // shortened list, not the popped element (String) it returns.
+        let cu = CompilationUnit::build_for("set l [list 1 2 3]\nlpop l", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        assert!(
+            any_known(fu, "l", TclType::List),
+            "lpop target must be Known List, not the element return type: {:?}",
+            fu.types
+        );
     }
 
     #[test]
@@ -1098,7 +1483,15 @@ mod tests {
         let mut sccp = empty_sccp(&cfg, &["entry", "exit"]);
         sccp.executable_edges.insert((entry, exit));
 
-        let types = propagate_types(&cfg, &ssa, &sccp, &registry(), &HashSet::new());
+        let types = propagate_types(
+            &cfg,
+            &ssa,
+            &sccp,
+            &registry(),
+            &HashSet::new(),
+            &HashSet::new(),
+            crate::compilation_unit::ModuleTraceFacts::none(),
+        );
         // x@1 (entry) should be Int.
         assert_eq!(types.get(&(x, 1)), Some(&TypeLattice::of(TclType::Int)));
         // x@2 (phi in exit) should propagate Int from entry.
@@ -1120,6 +1513,33 @@ mod tests {
         });
         assert!(x_is_int, "expected x to be Int");
         assert!(y_is_int, "expected y to inherit Int type from x");
+    }
+
+    /// An aliased `set` (`interp alias {} myset {} set`) keeps its runtime
+    /// `Call` shape, but its single def takes the *value word's* intrep — the
+    /// canonical-command value-passthrough. `myset x 5` types x as Int, exactly
+    /// as `set x 5` would, so the renamed/aliased store is no longer an opaque
+    /// OVERDEFINED `Call`.
+    #[test]
+    fn aliased_set_call_types_def_from_value() {
+        use crate::compilation_unit::CompilationUnit;
+        let cu = CompilationUnit::build_for(
+            "interp alias {} myset {} set\nproc ::g {} { myset x 5\n return $x }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::g").unwrap();
+        let x_is_int = fu.types.iter().any(|((name, _), t)| {
+            fu.ssa.var_name(*name) == "x" && t.tcl_type == Some(TclType::Int)
+        });
+        assert!(
+            x_is_int,
+            "aliased `myset x 5` should type x as Int (value passthrough): {:?}",
+            fu.types
+                .iter()
+                .map(|((n, v), t)| (fu.ssa.var_name(*n), *v, t.to_string()))
+                .collect::<Vec<_>>()
+        );
     }
 
     /// `AssignValue` with a command substitution uses the command's return type.
@@ -1324,6 +1744,11 @@ mod tests {
             "namespace",
             &["upvar".into(), "ns".into(), "x".into(), "y".into()]
         ));
+        assert!(is_scope_alias_call(
+            &reg,
+            "my",
+            &["variable".into(), "count".into()]
+        ));
         // A plain command (and `namespace eval`) is not a scope alias.
         assert!(!is_scope_alias_call(&reg, "set", &["x".into(), "1".into()]));
         assert!(!is_scope_alias_call(
@@ -1331,6 +1756,9 @@ mod tests {
             "namespace",
             &["eval".into(), "ns".into(), "body".into()]
         ));
+        // `my`'s other subcommands (an arbitrary method name) are not scope
+        // aliases — only the reserved `variable` word is.
+        assert!(!is_scope_alias_call(&reg, "my", &["touch".into()]));
     }
 
     #[test]

@@ -397,22 +397,22 @@ pub fn bigip_code_actions(source: &str, range: LspRange, uri: &str) -> Vec<CodeA
 }
 
 /// Lift the quick-fixes carried by **compiler-check** diagnostics whose span
-/// overlaps `range` into `CodeAction`s.
+/// overlaps `range` into `CodeAction`s, plus the synthetic shimmer-family
+/// "Suppress" action (see [`build_shimmer_noqa_suppress_action`]).
 ///
 /// The analyser-driven [`code_actions`] above only sees
 /// `AnalysisResult.diagnostics`.  The iRules control-flow warnings
 /// (IRULE5002 — unguarded `drop`/`reject`/`discard`; IRULE5004 — `DNS::return`
 /// without a following `return`) are produced by a *separate* pass
 /// (`tcl_compiler::irules_checks::find_unguarded_drop_warnings`, surfaced
-/// through `run_all_checks`) and carry their own insertion `CodeFix`es.  Among
-/// every compiler-check family, those are the only ones that attach a fix
+/// through `run_all_checks`) and carry their own insertion `CodeFix`es
 /// (`compiler_checks::Diagnostic::from_irules_check` is the sole constructor
-/// that populates `fixes`), so lifting *all* check fixes here is exactly the
-/// IRULE5002/5004 surfacing with no risk of double-offering an analyser fix.
+/// that populates `fixes`), so lifting them here carries no risk of
+/// double-offering an analyser fix.
 ///
 /// The caller passes the
 /// `run_all_checks` output (e.g. `CompilerDiagnostics::checks`); for a
-/// non-iRules dialect that list carries no fixes, so this returns empty.
+/// non-iRules dialect that list carries no `fixes`-bearing diagnostics.
 ///
 /// `disabled` is the resolved per-check toggle set
 /// (`tclLsp.diagnostics.<CODE> = false`).  A check whose code is disabled has
@@ -430,7 +430,7 @@ pub fn check_diagnostic_actions<S: std::hash::BuildHasher>(
     let line_index = LineIndex::new(source);
     let mut actions = Vec::new();
     for diag in checks {
-        if diag.fixes.is_empty() || disabled.contains(diag.code.as_str()) {
+        if disabled.contains(diag.code.as_str()) {
             continue;
         }
         let diag_start = line_index.position_at_utf16(diag.span.start(), source);
@@ -469,8 +469,70 @@ pub fn check_diagnostic_actions<S: std::hash::BuildHasher>(
                 data_group_definition: None,
             });
         }
+        if is_shimmer_family(diag.code)
+            && let Some(action) = build_shimmer_noqa_suppress_action(source, diag, &line_index)
+        {
+            actions.push(action);
+        }
     }
     actions
+}
+
+/// True for the shimmer diagnostic family (S100/S101/S102 — performance
+/// intrep-conversion; S110 — byte-array-corruption correctness), the set
+/// [`build_shimmer_noqa_suppress_action`] offers a suppression fix for.
+fn is_shimmer_family(code: DiagCode) -> bool {
+    matches!(
+        code,
+        DiagCode::S100 | DiagCode::S101 | DiagCode::S102 | DiagCode::S110
+    )
+}
+
+/// Build a `# noqa: <CODE>` suppression quick-fix for a shimmer-family
+/// diagnostic.
+///
+/// Unlike the semantic fixes above (a mechanical rewrite the analyser is
+/// confident preserves behaviour), there is no generally-safe *automatic*
+/// rewrite for a shimmer: the KCS-documented fix is to use a separate
+/// variable for the numeric/string use, which requires picking a name and
+/// judging the surrounding code — not something to apply unattended. The
+/// mechanical, always-safe action every diagnostic family in this project
+/// supports is the inline suppression directive (see
+/// `docs/kcs/kcs-howto-suppress-diagnostics.md`): `# noqa: CODE` on the line
+/// **before** the command. This inserts that line, indented to match the
+/// command's own line, immediately above it.
+///
+/// Returns `None` when the diagnostic's start offset doesn't resolve to a
+/// source line (defensive; `LineIndex` is built from the same `source`).
+fn build_shimmer_noqa_suppress_action(
+    source: &str,
+    diag: &tcl_compiler::compiler_checks::Diagnostic,
+    line_index: &LineIndex,
+) -> Option<CodeAction> {
+    let line = line_index.line_at(diag.span.start());
+    let line_start = line_index.line_start(line);
+    let line_text = source.get(line_start as usize..)?.lines().next()?;
+    let indent: String = line_text
+        .chars()
+        .take_while(|c| *c == ' ' || *c == '\t')
+        .collect();
+    let pos = line_index.position_at_utf16(line_start, source);
+    let insertion = LspRange {
+        start_line: pos.line,
+        start_character: pos.character.get(),
+        end_line: pos.line,
+        end_character: pos.character.get(),
+    };
+    Some(CodeAction {
+        title: format!("Suppress {} with a noqa comment", diag.code.as_str()),
+        edits: vec![crate::rename::TextEdit {
+            range: insertion,
+            new_text: format!("{indent}# noqa: {}\n", diag.code.as_str()),
+        }],
+        kind: ActionKind::QuickFix,
+        command: None,
+        data_group_definition: None,
+    })
 }
 
 /// Build the `Add '-nocomplain'` quick-fix for a W213
@@ -1624,6 +1686,12 @@ const HTML_ENCODE_PROC: &str =
     "proc html_encode {str} { string map {& &amp; < &lt; > &gt; \\\" &quot; ' &#39;} $str }";
 const REGEX_QUOTE_PROC: &str =
     "proc regex::quote {str} { regsub -all {[][{}()*+?.\\\\^$|]} $str {\\\\&} }";
+/// `string map` mapping that strips CR/LF — the fix the T101 / IRULE3003 KCS
+/// docs recommend for an output/log sink (`puts $x` / `log ... $x`): a
+/// `string map` element beginning with `"` is itself list-parsed with
+/// backslash escapes honoured, so `"\n"` / `"\r"` really do map the newline /
+/// carriage-return characters to empty, not the two-character sequences.
+const CRLF_STRIP_MAP: &str = "string map {\"\\n\" \"\" \"\\r\" \"\"}";
 
 /// Quick-fixes for context-supplied diagnostics (iRules taint encode-wrap +
 /// double-encode removal).
@@ -1801,6 +1869,106 @@ fn find_var_ref(line: &str, var: &str) -> Option<(usize, usize, String)> {
     None
 }
 
+/// T106: remove a redundant `[ENCODER $var]` wrapper → `$var`.
+fn t106_remove_redundant_encoder(line: &str, d: &ContextDiagnostic, var: &str) -> Vec<CodeAction> {
+    let Some((vstart, vend, matched)) = find_var_ref(line, var) else {
+        return Vec::new();
+    };
+    let chars: Vec<char> = line.chars().collect();
+    // Scan left for the enclosing `[`, right for `]`.
+    let mut lb = vstart;
+    while lb > 0 && chars[lb - 1] != '[' {
+        lb -= 1;
+    }
+    let mut rb = vend;
+    while rb < chars.len() && chars[rb] != ']' {
+        rb += 1;
+    }
+    if lb == 0 || rb >= chars.len() {
+        return Vec::new();
+    }
+    let start = char_col_to_utf16_local(line, lb - 1);
+    let end = char_col_to_utf16_local(line, rb + 1);
+    vec![CodeAction {
+        title: "Remove redundant encoder".to_string(),
+        edits: vec![crate::rename::TextEdit {
+            range: LspRange {
+                start_line: d.range.start_line,
+                start_character: start,
+                end_line: d.range.start_line,
+                end_character: end,
+            },
+            new_text: matched,
+        }],
+        kind: ActionKind::QuickFix,
+        command: None,
+        data_group_definition: None,
+    }]
+}
+
+/// T101 (`puts`) / IRULE3003 (`log`): wrap with a CR/LF-stripping `string
+/// map` — the fix the KCS docs for both codes recommend, since neither sink
+/// is HTML/URI-context-specific (unlike IRULE3001's response body or
+/// IRULE3002's header value) so an HTML/URL encoder would be the wrong
+/// mitigation to suggest here.
+fn strip_crlf_before_output(line: &str, d: &ContextDiagnostic, var: &str) -> Vec<CodeAction> {
+    let Some((vstart, vend, matched)) = find_var_ref(line, var) else {
+        return Vec::new();
+    };
+    let start = char_col_to_utf16_local(line, vstart);
+    let end = char_col_to_utf16_local(line, vend);
+    vec![CodeAction {
+        title: format!("Sanitise ${var} (strip CR/LF) before output"),
+        edits: vec![crate::rename::TextEdit {
+            range: LspRange {
+                start_line: d.range.start_line,
+                start_character: start,
+                end_line: d.range.start_line,
+                end_character: end,
+            },
+            new_text: format!("[{CRLF_STRIP_MAP} {matched}]"),
+        }],
+        kind: ActionKind::QuickFix,
+        command: None,
+        data_group_definition: None,
+    }]
+}
+
+/// Build the "add `-nocommands`" T100 quick-fix for a `subst` sink:
+/// inserts `-nocommands` right after the standalone `subst` word on
+/// `line`, or no action when the line doesn't contain one (defensive —
+/// the caller already matched the diagnostic message, so this should
+/// always find it).
+fn subst_nocommands_fix(line: &str, line_no: u32) -> Vec<CodeAction> {
+    let bytes = line.as_bytes();
+    let Some(start) = line.find("subst") else {
+        return Vec::new();
+    };
+    let word_start_ok = start == 0 || !bytes[start - 1].is_ascii_alphanumeric();
+    let after = start + "subst".len();
+    let word_end_ok = bytes.get(after).is_none_or(|c| !c.is_ascii_alphanumeric());
+    if !word_start_ok || !word_end_ok {
+        return Vec::new();
+    }
+    let insert_char_col = line[..after].chars().count();
+    let insert_col = char_col_to_utf16_local(line, insert_char_col);
+    vec![CodeAction {
+        title: "Add -nocommands to disable command substitution".to_string(),
+        edits: vec![crate::rename::TextEdit {
+            range: LspRange {
+                start_line: line_no,
+                start_character: insert_col,
+                end_line: line_no,
+                end_character: insert_col,
+            },
+            new_text: " -nocommands".to_string(),
+        }],
+        kind: ActionKind::QuickFix,
+        command: None,
+        data_group_definition: None,
+    }]
+}
+
 fn taint_quickfix(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
     let line_no = d.range.start_line as usize;
     let Some(line) = source.split('\n').nth(line_no) else {
@@ -1810,41 +1978,21 @@ fn taint_quickfix(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
         return Vec::new();
     };
 
-    // T106: remove a redundant `[ENCODER $var]` wrapper → `$var`.
     if d.code == "T106" {
-        let Some((vstart, vend, matched)) = find_var_ref(line, &var) else {
-            return Vec::new();
-        };
-        let chars: Vec<char> = line.chars().collect();
-        // Scan left for the enclosing `[`, right for `]`.
-        let mut lb = vstart;
-        while lb > 0 && chars[lb - 1] != '[' {
-            lb -= 1;
-        }
-        let mut rb = vend;
-        while rb < chars.len() && chars[rb] != ']' {
-            rb += 1;
-        }
-        if lb == 0 || rb >= chars.len() {
-            return Vec::new();
-        }
-        let start = char_col_to_utf16_local(line, lb - 1);
-        let end = char_col_to_utf16_local(line, rb + 1);
-        return vec![CodeAction {
-            title: "Remove redundant encoder".to_string(),
-            edits: vec![crate::rename::TextEdit {
-                range: LspRange {
-                    start_line: d.range.start_line,
-                    start_character: start,
-                    end_line: d.range.start_line,
-                    end_character: end,
-                },
-                new_text: matched,
-            }],
-            kind: ActionKind::QuickFix,
-            command: None,
-            data_group_definition: None,
-        }];
+        return t106_remove_redundant_encoder(line, d, &var);
+    }
+    if d.code == "T101" || d.code == "IRULE3003" {
+        return strip_crlf_before_output(line, d, &var);
+    }
+
+    // T100 on a `subst` sink: `-nocommands` disables the only hazard the
+    // diagnostic names (command substitution) without changing the call's
+    // variable/backslash substitution behaviour — exactly the mitigation
+    // `subst`'s own hover snippet recommends. Other T100 sinks (`eval`,
+    // `uplevel`, `exec`, a braced `expr` operand) have no equivalent
+    // single-flag fix, so this only fires for the `subst` sink label.
+    if d.code == "T100" && d.message.contains(" into subst;") {
+        return subst_nocommands_fix(line, d.range.start_line);
     }
 
     let (encoder, proc_template): (&str, Option<&str>) = match d.code.as_str() {
@@ -2401,6 +2549,103 @@ mod tests {
                 .iter()
                 .any(|a| a.title == "Add 'event disable all' + 'return'"),
             "disabled IRULE5002 must not offer a quick-fix, got {actions:?}",
+        );
+    }
+
+    // check_diagnostic_actions: shimmer-family noqa-suppress action
+
+    /// A shimmering `incr` on a String variable fires S100 with no
+    /// `CodeFix` attached (there is no generally-safe automatic rewrite —
+    /// see `build_shimmer_noqa_suppress_action`'s doc comment), so the
+    /// provider must synthesise the suppress action itself rather than
+    /// only lifting `diag.fixes`.
+    #[test]
+    fn check_actions_surface_shimmer_noqa_suppress_action() {
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        use tcl_compiler::compiler_checks::run_all_checks;
+
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let src = "set x hello\nincr x\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let checks = run_all_checks(&cu, &registry, None);
+        let s100 = checks
+            .iter()
+            .find(|d| d.code == DiagCode::S100)
+            .unwrap_or_else(|| panic!("expected an S100 check, got {checks:?}"));
+        assert!(
+            s100.fixes.is_empty(),
+            "S100 should carry no diag-level CodeFix — this test exercises the synthetic path"
+        );
+
+        let none_disabled = std::collections::HashSet::new();
+        let actions =
+            check_diagnostic_actions(src, whole_document_range(src), &checks, &none_disabled);
+        let suppress = actions
+            .iter()
+            .find(|a| a.title == "Suppress S100 with a noqa comment");
+        assert!(
+            suppress.is_some(),
+            "expected an S100 noqa-suppress action, got {actions:?}"
+        );
+        let suppress = suppress.unwrap();
+        assert_eq!(suppress.kind, ActionKind::QuickFix);
+        assert_eq!(suppress.edits.len(), 1);
+        assert_eq!(suppress.edits[0].new_text, "# noqa: S100\n");
+        // Insertion (zero-width range) at the start of the `incr x` line —
+        // one line above where the current baseline text puts `incr x`.
+        assert_eq!(suppress.edits[0].range.start_line, 1);
+        assert_eq!(suppress.edits[0].range.start_character, 0);
+        assert_eq!(
+            suppress.edits[0].range.start_line,
+            suppress.edits[0].range.end_line
+        );
+        assert_eq!(
+            suppress.edits[0].range.start_character,
+            suppress.edits[0].range.end_character,
+        );
+    }
+
+    /// The suppress action's inserted line is indented to match the
+    /// command's own indentation, not flush to column 0.
+    #[test]
+    fn check_actions_shimmer_noqa_suppress_matches_indentation() {
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        use tcl_compiler::compiler_checks::run_all_checks;
+
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let src = "proc f {} {\n    set x hello\n    incr x\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let checks = run_all_checks(&cu, &registry, None);
+        assert!(checks.iter().any(|d| d.code == DiagCode::S100));
+
+        let none_disabled = std::collections::HashSet::new();
+        let actions =
+            check_diagnostic_actions(src, whole_document_range(src), &checks, &none_disabled);
+        let suppress = actions
+            .iter()
+            .find(|a| a.title == "Suppress S100 with a noqa comment")
+            .unwrap_or_else(|| panic!("expected suppress action, got {actions:?}"));
+        assert_eq!(suppress.edits[0].new_text, "    # noqa: S100\n");
+    }
+
+    /// A disabled shimmer code must not offer the suppress action either —
+    /// same "don't re-surface a hidden warning" rule as `IRULE5002` above.
+    #[test]
+    fn check_actions_shimmer_noqa_suppress_honours_disabled_codes() {
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        use tcl_compiler::compiler_checks::run_all_checks;
+
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let src = "set x hello\nincr x\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let checks = run_all_checks(&cu, &registry, None);
+
+        let mut disabled = std::collections::HashSet::new();
+        disabled.insert("S100".to_string());
+        let actions = check_diagnostic_actions(src, whole_document_range(src), &checks, &disabled);
+        assert!(
+            !actions.iter().any(|a| a.title.starts_with("Suppress S100")),
+            "disabled S100 must not offer a suppress action, got {actions:?}",
         );
     }
 

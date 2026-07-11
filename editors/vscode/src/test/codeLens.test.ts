@@ -111,6 +111,53 @@ suite("Code Lens", () => {
     );
   });
 
+  // Regression for issue #864: the reference-count lens above a TclOO method
+  // must count external `$obj method` dispatch, not just intra-class calls.
+  // `puts [$b get foo]` (with `set b [Bar new]`) is one reference to `get`.
+  test("method lens counts external \\$obj method dispatch", async () => {
+    const refsUri = getDocUri("codeLensMethodRefs.tcl");
+    await activate(refsUri);
+    // Method / member lenses are informational: the server attaches their
+    // count eagerly as `command.title` (no separate resolve round-trip), so
+    // poll until the lenses on the member lines under test carry a title.
+    const lenses = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeLensProvider", refsUri, 100),
+      (r) => {
+        const ls = r as vscode.CodeLens[] | undefined;
+        if (!ls) return false;
+        const titledLines = new Set(
+          ls
+            .filter((l) => l.command && typeof l.command.title === "string")
+            .map((l) => l.range.start.line),
+        );
+        // `method get` on line 6, `method unused` on line 10.
+        return [6, 10].every((line) => titledLines.has(line));
+      },
+      { timeout: 10_000, label: "resolved method code lenses" },
+    )) as vscode.CodeLens[] | undefined;
+    assert.ok(lenses, "codeLens result should not be null");
+
+    const titleByLine = new Map<number, string>();
+    for (const lens of lenses) {
+      if (lens.command && typeof lens.command.title === "string") {
+        titleByLine.set(lens.range.start.line, lens.command.title);
+      }
+    }
+
+    // Line 6: `method get` — dispatched once via `puts [$b get foo]`.
+    assert.strictEqual(
+      titleByLine.get(6),
+      "1 reference",
+      `TclOO method with an external \$obj dispatch: got "${titleByLine.get(6)}"`,
+    );
+    // Line 10: `method unused` — never dispatched.
+    assert.strictEqual(
+      titleByLine.get(10),
+      "0 references",
+      `uncalled TclOO method: got "${titleByLine.get(10)}"`,
+    );
+  });
+
   // Regression for issue #724: the reference-count lens must be *clickable* —
   // its resolved command must invoke `tcl-lsp.showReferences` with the URI,
   // anchor position, and reference locations. A bare title with no command is

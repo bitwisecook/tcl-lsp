@@ -116,6 +116,33 @@ fn sort_optimisations(opts: &mut [Optimisation]) {
     });
 }
 
+/// Build a [`PassContext`] wired the way every production entry point below
+/// needs it: `registry` (place-bridge / purity resolution), `ir_module`
+/// (the whole-module trace facts — `traced_commands` / `has_dynamic_trace`
+/// / `traced_variables` / `has_dynamic_variable_trace` — without this the
+/// O127 store-to-load-forwarding trace-purity gate and the O102
+/// load-forwarding variable-trace gate silently see an empty/false default
+/// and never actually block on a real trace), and `command_mutations` (the
+/// whole-module builtin-fold trust gate, O129/O116/O118 — without this a
+/// renamed/redefined builtin, e.g. `rename string {}; [string length …]`,
+/// still gets const-folded with its original semantics, a silent
+/// miscompile). One choke point so a future entry point can't forget any
+/// of the three the way `optimise_unit`'s production path once forgot
+/// `ir_module`.
+fn build_pass_context<'a>(
+    cu: &'a CompilationUnit,
+    registry: &'a CommandRegistry,
+    dialect: Option<&'a str>,
+) -> PassContext<'a> {
+    let ia = cu.interproc.clone().unwrap_or_default();
+    let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
+    ctx.registry = Some(registry);
+    ctx.ir_module = Some(&cu.ir_module);
+    ctx.command_mutations =
+        crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
+    ctx
+}
+
 /// Phase 1 of [`optimise_unit`]: run every pass over the built unit and return
 /// the **canonicalised raw** optimisation set (before overlap selection /
 /// const-dead-store coupling / group renumbering — that whole-module tail is
@@ -134,19 +161,7 @@ pub fn optimise_unit_raw(
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<Optimisation> {
-    let ia = cu.interproc.clone().unwrap_or_default();
-    let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
-    ctx.registry = Some(registry);
-    // The whole-module builtin-fold trust gate (O129/O116/O118).
-    // Without this the production path leaves `command_mutations` at its default,
-    // whose `trusts()` returns `true` for everything, so renamed/redefined
-    // builtins (`rename string {}; [string length …]`) get const-folded — a
-    // silent miscompile. The test-only `optimise_raw` already wired this; the
-    // shipping `optimise_unit` did not.  (For the per-procedure memo this is the
-    // whole-module mutation set, threaded in via the single-proc unit's
-    // `ir_module`.)
-    ctx.command_mutations =
-        crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
+    let mut ctx = build_pass_context(cu, registry, dialect);
     run_passes(&mut ctx, cu, &PassId::all());
 
     // Determinism chokepoint.  Several passes iterate `HashMap`s
@@ -721,11 +736,7 @@ pub fn find_dead_stores(
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<DeadStore> {
-    let ia = cu.interproc.clone().unwrap_or_default();
-    let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
-    ctx.registry = Some(registry);
-    ctx.command_mutations =
-        crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
+    let mut ctx = build_pass_context(cu, registry, dialect);
     run_passes(&mut ctx, cu, &PassId::all());
     ctx.dead_stores
 }
@@ -743,11 +754,7 @@ pub fn optimise_by_pass(
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<(PassId, Vec<Optimisation>)> {
-    let ia = cu.interproc.clone().unwrap_or_default();
-    let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
-    ctx.registry = Some(registry);
-    ctx.command_mutations =
-        crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
+    let mut ctx = build_pass_context(cu, registry, dialect);
     let mut by_pass = Vec::new();
     for pass in PassId::all() {
         let before = ctx.optimisations.len();
@@ -767,9 +774,14 @@ pub fn optimise_raw(
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<Optimisation> {
-    // Split the raw CU build to avoid recomputing on
-    // `with_interprocedural` — done in two lines for clarity.
-    let cu = CompilationUnit::build_for_with_config(
+    // Split the raw CU build to avoid `with_interprocedural`'s taint
+    // re-run (irrelevant for `optimise_raw`'s test callers) — but `cu.interproc`
+    // is still populated (`try_fold_static_proc_call` / `try_o103_proc_fold`
+    // in `propagation` read it directly, the same field `optimise_unit_raw`'s
+    // production callers populate via `with_interprocedural`), so an O103
+    // interprocedural fold behaves identically whether exercised through this
+    // helper or the real pipeline.
+    let mut cu = CompilationUnit::build_for_with_config(
         source,
         registry,
         false,
@@ -782,11 +794,8 @@ pub fn optimise_raw(
         dialect,
         crate::interprocedural::ObjectTypeMap(&object_types),
     );
-    let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
-    ctx.registry = Some(registry);
-    // The whole-module builtin-fold trust gate (O129).
-    ctx.command_mutations =
-        crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
+    cu.interproc = Some(ia);
+    let mut ctx = build_pass_context(&cu, registry, dialect);
     run_passes(&mut ctx, &cu, &PassId::all());
     ctx.optimisations
 }
@@ -1146,6 +1155,74 @@ mod tests {
         let raw = optimise_raw("if {1} { set x 1 } else { set y 2 }", &registry(), None);
         // Presence alone is the contract.
         let _ = raw;
+    }
+
+    #[test]
+    fn tcloo_method_bodies_get_zero_o100_family_optimisations() {
+        // Coverage gap, not a bug: `branch_folding::run` walks
+        // `cu.analysable_functions()` and `propagation::run` walks
+        // `cu.top_level` + `cu.procedures` directly — neither visits
+        // `cu.methods`. So today the O100/O101/O102/O103
+        // constant-propagation and branch-folding family never fires inside
+        // a TclOO method body, even for a body this trivially foldable.
+        // Contrast with O109 (dead-store elimination, `elimination.rs`),
+        // which explicitly iterates `cu.methods` with its own
+        // instance-variable escaping rules. This test locks in the
+        // *current* behaviour so a future change that starts analysing
+        // method bodies is a deliberate, reviewed decision — not an
+        // accidental regression noticed only via a diff in generated
+        // diagnostics.
+        let src = "oo::class create Counter {\n    \
+                   method bump {} {\n        set n 5\n        return $n\n    }\n}\n";
+        let opts = optimise(src, &registry());
+        assert!(
+            opts.iter().all(|o| !matches!(
+                o.code,
+                DiagCode::O100 | DiagCode::O101 | DiagCode::O102 | DiagCode::O103
+            )),
+            "TclOO method bodies are not yet analysed by the O100 family, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn interp_eval_barrier_body_never_gets_o100_family_diagnostics() {
+        // True negative, by design rather than by soundness gap: a literal
+        // `interp eval {} {…}` body lowers its whole argument list to a
+        // single opaque `Statement::Barrier` (`command`/`args`/`tokens`
+        // only — see `ir.rs::Statement::Barrier`), never a nested `Script`.
+        // There is nothing for any pass's recursive statement walk to
+        // descend into, so an obviously-foldable expression written
+        // *inside* that literal body (`expr {1+1}`) never gets an O101
+        // constant-expr-fold diagnostic — `interp eval`'s body text is
+        // opaque to every static-analysis pass, exactly like a bare
+        // `eval`/`uplevel`/`unknown` body with a non-trivial target. This
+        // locks in that "no diagnostic" here is the *expected* shape, not
+        // an unnoticed hole.
+        let src = "interp eval {} { set x [expr {1+1}] }\n";
+        let opts = optimise(src, &registry());
+        assert!(
+            opts.iter().all(|o| !matches!(
+                o.code,
+                DiagCode::O100 | DiagCode::O101 | DiagCode::O102 | DiagCode::O103
+            )),
+            "content inside an `interp eval` barrier body must not be analysed, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn same_pattern_in_a_plain_proc_does_fold_as_control() {
+        // Precision control for the coverage-gap test above: the identical
+        // `set n 5; return $n` shape, in a plain (non-TclOO) proc, does
+        // fold (SCCP proves `n` constant and O100 rewrites the `return`
+        // directly) — proving the gap above is specific to method bodies
+        // rather than the pattern being unfoldable everywhere.
+        let src = "proc bump {} {\n    set n 5\n    return $n\n}\n";
+        let opts = optimise(src, &registry());
+        assert!(
+            opts.iter()
+                .any(|o| o.code == DiagCode::O100 && o.replacement == "return 5"),
+            "control: same set/return pattern in a plain proc should fold, got {opts:?}",
+        );
     }
 
     #[test]

@@ -186,6 +186,36 @@ fn fp_sty_04_lassign_destructure_channels_no_w126() {
     );
 }
 
+#[test]
+fn tp_sty_04_puts_non_channel_literal_still_fires_w126() {
+    // TP control for FP-STY-04: `puts` now declares its `channelId`
+    // argument's position (via a dynamic `arg_role_resolver`, since the
+    // optional leading `-nonewline` shifts it), so a value that provably
+    // isn't a channel in that slot must still fire W126 — the fix above
+    // only silences the *destructured, type-unknown* case, not a
+    // genuinely wrong literal.
+    let src = "puts \"not_a_channel\" hello";
+    assert!(
+        fires(src, D, "W126"),
+        "TP: a non-channel literal in puts's channelId position must fire W126; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn tn_sty_04_puts_single_arg_is_content_not_channel() {
+    // TN control: `puts hello` has only ONE positional arg — per Tcl
+    // semantics that's the content string (written to stdout), not a
+    // channel — so no Channel-role position applies and W126 must stay
+    // silent (there is nothing to misclassify as a channel).
+    let src = "puts hello";
+    assert!(
+        !fires(src, D, "W126"),
+        "TN: puts's sole positional arg is content, not a channel; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
 // ---------------------------------------------------------------------------
 // FP-STY-05 — W302 catch fire-and-forget (bare + subcommand-aware)
 // ---------------------------------------------------------------------------
@@ -939,5 +969,202 @@ fn fp_sty_16_path_with_command_sub_still_fires() {
         fires(src, D, "W201"),
         "FP-STY-16 TP: path concat with command-sub segment must still fire W201; emitted: {:?}",
         codes(src, D)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-STY-17 — W001 same-file shadow suppression (proc / class / alias /
+// ensemble / stub redefining a registry ensemble command)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn fp_sty_17_proc_shadow_no_w001() {
+    // FP-STY-17: a same-file `proc string {...}` completely replaces the
+    // builtin ensemble at the call site — `string reverse hello` resolves to
+    // the user proc, not the registry's `string` subcommand set, so it must
+    // NOT fire W001, exactly as the sibling E002/E003 arity check already
+    // abstains for a shadowed builtin.
+    let src = "proc string {op args} { return \"shadowed:$op\" }\nstring reverse hello\n";
+    assert!(
+        !fires(src, D, "W001"),
+        "FP-STY-17: proc-shadowed ensemble call must NOT fire W001; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_sty_17_alias_shadow_no_w001() {
+    // FP-STY-17: `interp alias {} info {} myInfo` points `info` at an alias
+    // target — a call through it must not be checked against the registry
+    // `info` ensemble's subcommand set.
+    let src = "proc myInfo {op args} { return $op }\ninterp alias {} info {} myInfo\ninfo bogus\n";
+    assert!(
+        !fires(src, D, "W001"),
+        "FP-STY-17: alias-shadowed ensemble call must NOT fire W001; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_sty_17_class_shadow_no_w001() {
+    // FP-STY-17: `oo::class create array {...}` makes `array` the class's own
+    // object command (dispatching `new`/`create`, not the registry `array`
+    // ensemble's subcommand set) — `array create obj` must not fire W001
+    // even though `create` is not a real `array` subcommand.
+    let src = "oo::class create array {\n    constructor {} {}\n}\narray create obj\n";
+    assert!(
+        !fires(src, D, "W001"),
+        "FP-STY-17: class-shadowed ensemble call must NOT fire W001; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_sty_17_stub_shadow_no_w001() {
+    // FP-STY-17: an inline `# tcl-lsp: stub` declaration is a document-global
+    // promise that the command exists (e.g. injected by a test harness or a
+    // package the analyser doesn't see the source of) — it must suppress
+    // W001 exactly like it suppresses the arity checks.
+    let src = "# tcl-lsp: stub string\nstring reverse hello\n";
+    assert!(
+        !fires(src, D, "W001"),
+        "FP-STY-17: stub-shadowed ensemble call must NOT fire W001; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_sty_17_unshadowed_command_still_fires() {
+    // TP control: shadowing `string` must not blind the analyser to a
+    // genuine unknown subcommand on a *different*, unshadowed ensemble in
+    // the same file.
+    let src = "proc string {op args} { return $op }\ninfo bogus\n";
+    assert!(
+        fires(src, D, "W001"),
+        "FP-STY-17 TP: an unshadowed ensemble must still fire W001; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_sty_17_call_before_shadow_definition_still_fires() {
+    // TP control: Tcl executes top-level commands in source order during
+    // load, so a call *before* the shadowing proc's definition still reaches
+    // the real builtin and still errors — confirmed against tclsh 8.6.14:
+    // `catch {string mach x y} e` before `proc string {...}` still raises
+    // "unknown or ambiguous subcommand". W001 must still fire here.
+    let src = "string mach hello world\nproc string {op args} { return $op }\n";
+    assert!(
+        fires(src, D, "W001"),
+        "FP-STY-17 TP: a call before the shadowing definition must still fire W001; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_sty_17_proc_body_call_shadowed_by_later_def_no_w001() {
+    // FP-STY-17: unlike a top-level call, a call inside a proc body runs
+    // only after the whole script has loaded — a `proc string {...}`
+    // appearing *after* the caller's own definition still shadows it, so no
+    // W001.
+    let src =
+        "proc caller {} {\n    string reverse hello\n}\nproc string {op args} { return $op }\n";
+    assert!(
+        !fires(src, D, "W001"),
+        "FP-STY-17: a proc-body call shadowed by a later definition must NOT fire W001; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-STY-18 — W001 `{*}`-expanded subcommand position (`cmd {*}{subcmd args…}`)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn fp_sty_18_expanded_literal_subcommand_no_w001() {
+    // FP-STY-18: `{*}{create a b}` splices the *elements* `create`, `a`, `b`
+    // into the argument list — confirmed against tclsh 8.6.14: `dict
+    // {*}{create a b}` evaluates `dict create a b`. The raw source text
+    // `"create a b"` must never be compared against the subcommand set.
+    let src = "dict {*}{create a b}";
+    assert!(
+        !fires(src, D, "W001"),
+        "FP-STY-18: {{*}}-expanded literal subcommand must NOT fire W001; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_sty_18_genuine_unknown_subcommand_without_expansion_still_fires() {
+    // TP control: the same subcommand set, unexpanded, still fires on a
+    // genuine unknown subcommand.
+    assert!(
+        fires("dict bogus a b", D, "W001"),
+        "FP-STY-18 TP: a genuine unknown subcommand must still fire W001; emitted: {:?}",
+        codes("dict bogus a b", D)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-STY-19 — missing Tk 9.0 subcommands (`wm iconbadge`, `grid`/`pack`/
+// `place content`)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn fp_sty_19_wm_iconbadge_not_unknown() {
+    // FP-STY-19: `wm iconbadge` is a genuine Tk 9.0+ subcommand (wm.n) that
+    // was missing from the registry entirely, so it drew a spurious
+    // "Unknown subcommand" under every dialect (Tk subcommands are checked
+    // regardless of the active Tcl dialect). Under tcl9.0 it is fully known.
+    assert!(
+        !fires("wm iconbadge .win 5", "tcl9.0", "W001"),
+        "FP-STY-19: wm iconbadge must NOT fire W001 under tcl9.0; emitted: {:?}",
+        codes("wm iconbadge .win 5", "tcl9.0")
+    );
+    // Under tcl8.6 it is a genuine subcommand that doesn't exist before 9.0
+    // — the correct diagnostic is W002 (disabled in this dialect profile),
+    // never W001, mirroring the `package files` / tcl8.6 precedent.
+    assert!(
+        !fires("wm iconbadge .win 5", D, "W001"),
+        "FP-STY-19: wm iconbadge must NOT fire W001 under tcl8.6; emitted: {:?}",
+        codes("wm iconbadge .win 5", D)
+    );
+    assert!(
+        fires("wm iconbadge .win 5", D, "W002"),
+        "FP-STY-19: wm iconbadge under tcl8.6 must fire W002 (disabled in dialect); emitted: {:?}",
+        codes("wm iconbadge .win 5", D)
+    );
+}
+
+#[test]
+fn fp_sty_19_grid_pack_place_content_not_unknown() {
+    // FP-STY-19: Tk 9.0 renamed `slaves` to `content` (grid.n/pack.n/
+    // place.n) as the canonical spelling; it was missing from the registry
+    // entirely for all three geometry managers.
+    for src in [
+        "grid content .frame",
+        "pack content .frame",
+        "place content .frame",
+    ] {
+        assert!(
+            !fires(src, "tcl9.0", "W001"),
+            "FP-STY-19: {src:?} must NOT fire W001 under tcl9.0; emitted: {:?}",
+            codes(src, "tcl9.0")
+        );
+    }
+}
+
+#[test]
+fn fp_sty_19_genuine_unknown_wm_and_geometry_subcommands_still_fire() {
+    // TP control: real typos on the same commands still fire.
+    assert!(
+        fires("wm bogus .win", "tcl9.0", "W001"),
+        "FP-STY-19 TP: wm bogus must still fire W001; emitted: {:?}",
+        codes("wm bogus .win", "tcl9.0")
+    );
+    assert!(
+        fires("grid bogus .frame", "tcl9.0", "W001"),
+        "FP-STY-19 TP: grid bogus must still fire W001; emitted: {:?}",
+        codes("grid bogus .frame", "tcl9.0")
     );
 }

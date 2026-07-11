@@ -33,6 +33,19 @@ string length $x
 
 The analyser reports **`S100`** because `x` is used as both an integer and a string.
 
+## When it does not fire
+
+A variable filled by a *destructuring* command — `lassign`, `scan`, `regexp`,
+`regsub`, or `binary scan` — is **not** flagged. These commands write list
+elements or parsed pieces whose internal type the analyser cannot know, so it
+makes no claim about them and no shimmer is reported:
+
+```tcl
+set point [list 1 2 3]
+lassign $point x y z
+set offset [expr {$x + $y + $z}]   ;# no S100 — x/y/z are elements, not lists
+```
+
 ## Fix
 
 Use separate variables for numeric and string use:
@@ -45,7 +58,9 @@ expr {$x_num + 1}; string length $x
 
 ## How to suppress
 
-Add `# noqa: S100` at the end of the offending line.
+Add `# noqa: S100` on the line **above** the offending command, or apply
+the "Suppress S100 with a noqa comment" quick fix offered on the
+diagnostic.
 
 ## Related
 

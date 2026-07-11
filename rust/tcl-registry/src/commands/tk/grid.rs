@@ -40,6 +40,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Query or set column properties of the grid.",
         synopsis: "grid columnconfigure master index ?-option value ...?",
+        options: ROWCOLUMN_CONFIGURE_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -47,6 +48,15 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Set or query the grid options for one or more slaves.",
         synopsis: "grid configure slave ?slave ...? ?option value ...?",
+        options: CONFIGURE_OPTIONS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "content",
+        arity: Arity::at_least(1),
+        detail: "Return a list of all slaves in the grid for the master (9.0+ name for `slaves`).",
+        synopsis: "grid content master ?-option value?",
+        dialects: Some(DialectSet::TCL90_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -89,6 +99,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Query or set row properties of the grid.",
         synopsis: "grid rowconfigure master index ?-option value ...?",
+        options: ROWCOLUMN_CONFIGURE_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -103,7 +114,157 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Return a list of all slaves in the grid for the master.",
         synopsis: "grid slaves master ?-option value?",
+        options: SLAVES_OPTIONS,
         ..SubCommand::DEFAULT
+    },
+];
+
+/// `configure` (and the default `grid slave ?slave ...? ?option value ...?`
+/// form): the widget-placement options. Distinct from the
+/// `columnconfigure`/`rowconfigure` layout options below. Per
+/// <https://www.tcl-lang.org/man/tcl8.6/TkCmd/grid.htm>.
+const CONFIGURE_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-row",
+        value: OptionValue::value("n"),
+        detail: "Insert the slave so that it occupies the nth row in the grid.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-column",
+        value: OptionValue::value("n"),
+        detail: "Insert the slave so that it occupies the nth column in the grid.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-rowspan",
+        value: OptionValue::value("n"),
+        detail: "Insert the slave so that it occupies n rows in the grid.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-columnspan",
+        value: OptionValue::value("n"),
+        detail: "Insert the slave so that it occupies n columns in the grid.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-sticky",
+        value: OptionValue::value("nsew"),
+        detail: "Specifies which edges of the cell the slave sticks to (combination of n, s, e, w).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-padx",
+        value: OptionValue::value("amount"),
+        detail: "Specifies external horizontal padding for the slave.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-pady",
+        value: OptionValue::value("amount"),
+        detail: "Specifies external vertical padding for the slave.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-ipadx",
+        value: OptionValue::value("amount"),
+        detail: "Specifies internal horizontal padding for the slave.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-ipady",
+        value: OptionValue::value("amount"),
+        detail: "Specifies internal vertical padding for the slave.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-in",
+        value: OptionValue::value("master"),
+        detail: "Insert the slave into the specified master window.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
+
+/// `columnconfigure` and `rowconfigure`: the per-column/per-row layout
+/// options (relative weight, minimum size, extra pad, and uniform-group
+/// membership). These are a distinct option set from `configure`'s
+/// widget-placement options above — do not conflate the two. Per
+/// <https://www.tcl-lang.org/man/tcl8.6/TkCmd/grid.htm>.
+const ROWCOLUMN_CONFIGURE_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-weight",
+        value: OptionValue::value("int"),
+        detail: "Relative weight for apportioning extra space (columnconfigure/rowconfigure).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-minsize",
+        value: OptionValue::value("amount"),
+        detail: "Minimum size of the column or row (columnconfigure/rowconfigure).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-pad",
+        value: OptionValue::value("amount"),
+        detail: "Extra padding for the largest slave (columnconfigure/rowconfigure).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-uniform",
+        value: OptionValue::value("group"),
+        detail: "Group columns/rows for uniform sizing (columnconfigure/rowconfigure).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
+
+/// `slaves` (aka `content`): filters restricting the returned list to a
+/// single row or column — not the full placement option set used by
+/// `configure`. Per <https://www.tcl-lang.org/man/tcl8.6/TkCmd/grid.htm>.
+const SLAVES_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-row",
+        value: OptionValue::value("n"),
+        detail: "Insert the slave so that it occupies the nth row in the grid.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-column",
+        value: OptionValue::value("n"),
+        detail: "Insert the slave so that it occupies the nth column in the grid.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
     },
 ];
 

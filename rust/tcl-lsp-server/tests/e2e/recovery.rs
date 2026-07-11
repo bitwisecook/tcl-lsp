@@ -270,15 +270,31 @@ fn c2_bare_set_after_break_still_arity_errors() {
 }
 
 #[test]
-fn c2_bare_set_after_unterminated_expr_brace_still_analysed() {
-    // An unterminated braced *expression* (`if {…`) must also recover so the
-    // following command is analysed — a bare `set` still arity-errors.
+fn c2_if_with_unterminated_expr_brace_flags_its_own_malformed_clause() {
+    // Unlike an unterminated *bracket* substitution (`[foo bar`, whose
+    // content is still live Tcl-command syntax the parser keeps
+    // recognising even without a closing `]` — see
+    // `c2_bare_set_after_break_still_arity_errors`), an unterminated
+    // *brace* word has no such inherent structure: the lexer can't know in
+    // advance it will be handed to `if` as a script argument, so with no
+    // closing `}` the whole remainder of the file — condition *and*
+    // `set\n` — is swallowed as one opaque, unparsed span (confirmed via
+    // `tcl explore --show structuralIndex`: 1 unterminated brace, 0
+    // command boundaries beyond EOF, the entire tail folded into a single
+    // "inert" span). So `set` is genuinely never re-tokenised as its own
+    // command here — this does *not* exercise the same tail-recovery path
+    // the bracket sibling test does. What *is* still true, and is what
+    // this test actually verifies: `if`'s own single swallowed argument
+    // (condition only, no body) is itself an arity/shape defect — E002 (a
+    // plain arity floor) or the more precise E004 (`if`'s dedicated
+    // clause-shape check, which subsumes E002 for `if` — see
+    // `tcl-compiler`'s `no_duplicate_e002_alongside_e004`).
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "if {$x > 5\nset\n");
     assert!(
-        codes(&diags).contains("E002"),
-        "tail `set` after `if {{` should arity-error; got {:?}",
+        codes(&diags).contains("E002") || codes(&diags).contains("E004"),
+        "if's own malformed (condition-only) clause should still arity/shape-error; got {:?}",
         codes(&diags)
     );
 }
@@ -531,6 +547,431 @@ fn c5_rapid_toggling_stays_consistent() {
             !has_recovery_error(&diags),
             "v{version} clean; got {:?}",
             codes(&diags)
+        );
+    }
+}
+
+// --------------------------------------------------------------------------- //
+// Known-command generality — a break just before a call to a command the
+// *document itself* defines (a proc, a TclOO class, an `interp alias`) must
+// recover exactly as well as a break before a call to a builtin. Before this
+// fix, the "does the next line start with a known command?" recovery signal
+// only ever consulted the static registry, so real-world files — almost all
+// of which call their own procs — silently lost the rest of the document to
+// analysis whenever no *builtin* call happened to follow the break.
+// --------------------------------------------------------------------------- //
+
+#[test]
+fn user_defined_proc_recovers_the_tail_like_a_builtin() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc my_helper {x} {puts $x}\n\nset q {\n  aaa\nmy_helper\n",
+    );
+    assert!(
+        has_recovery_error(&diags),
+        "unterminated {{ should flag; got {:?}",
+        codes(&diags)
+    );
+    // The swallowed `my_helper` call (no args, but `my_helper` needs one) must
+    // still be analysed as code — proof the tail isn't silently dropped just
+    // because nothing *builtin* follows the break.
+    assert!(
+        diags.iter().any(|d| code_str(d) == "E002"),
+        "tail `my_helper` call should arity-error; got {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn user_defined_class_recovers_the_tail() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create Widget {\n  method draw {} {}\n}\n\nset q {\n    aaa\nproc recovered_after_class {} {}\n",
+    );
+    let names = symbol_name_list(&lsp.document_symbols(&uri));
+    assert!(
+        names.iter().any(|n| n == "recovered_after_class"),
+        "tail proc not recovered past a user-class recovery signal; symbols={names:?}"
+    );
+}
+
+#[test]
+fn namespace_qualified_proc_call_recovers_the_tail() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\n  aaa\nmyns::helper 1\nproc recovered_after_ns {} {}\n",
+    );
+    let names = symbol_name_list(&lsp.document_symbols(&uri));
+    assert!(
+        names.iter().any(|n| n == "recovered_after_ns"),
+        "tail proc not recovered past a namespace-qualified call; symbols={names:?}"
+    );
+}
+
+#[test]
+fn absolute_namespace_qualified_proc_call_recovers_the_tail() {
+    // `signature_scan::qualify` always records a namespaced proc as
+    // `::ns::name`; a recovery-point call written in the equally-valid
+    // absolute form (`::myns::helper`, leading `::`) must be recognised
+    // just as readily as the bare `myns::helper` form covered above.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\n  aaa\n::myns::helper\nproc recovered_after_absolute_ns {} {}\n",
+    );
+    assert!(
+        has_recovery_error(&diags),
+        "unterminated {{ should flag; got {:?}",
+        codes(&diags)
+    );
+    // The swallowed `::myns::helper` call (no args, but `helper` needs one)
+    // must still be analysed as code — proof the tail isn't dropped.
+    assert!(
+        diags.iter().any(|d| code_str(d) == "E002"),
+        "tail `::myns::helper` call should arity-error; got {:?}",
+        codes(&diags)
+    );
+    let names = symbol_name_list(&lsp.document_symbols(&uri));
+    assert!(
+        names.iter().any(|n| n == "recovered_after_absolute_ns"),
+        "tail proc not recovered past an absolute namespace-qualified call; symbols={names:?}"
+    );
+}
+
+// --------------------------------------------------------------------------- //
+// Full name-resolution hierarchy — the known-command signal recovery consults
+// extends past the registry + this-file's own procs/classes/aliases to two
+// more layers: a `rename OLD NEW` target (this file), a proc defined in a
+// *different* indexed workspace file, and a command a `package require`d
+// library provides. Each layer gets a positive case (the swallowed call's own
+// line is proven live — a `string` call chained onto the same line has no
+// subcommand, which always draws its own E001 ("requires a subcommand") once
+// analysed, independent of whatever recognised the target head) and a
+// negative case (a name from none of these sources must still fall back
+// honestly — no E001, since a line that stays swallowed opaque text is never
+// analysed at all).
+// --------------------------------------------------------------------------- //
+
+#[test]
+fn renamed_command_recovers_the_tail() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "rename puts my_puts\n\nset q {\n  aaa\nmy_puts hi; string\n",
+    );
+    assert!(
+        has_recovery_error(&diags),
+        "unterminated {{ should flag; got {:?}",
+        codes(&diags)
+    );
+    assert!(
+        diags.iter().any(|d| code_str(d) == "E001"),
+        "the renamed-command call's line should be live code (proven by the \
+         chained bare `string`'s own \
+         missing-subcommand error); got {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn undefined_name_after_rename_statement_falls_back_honestly() {
+    // The file *does* define a rename, but the swallowed call targets a
+    // different, undefined name — no false positive from having a rename
+    // statement merely present anywhere in the document.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "rename puts my_puts\n\nset q {\n  aaa\nnot_my_puts hi; string\n",
+    );
+    assert!(has_recovery_error(&diags), "got {:?}", codes(&diags));
+    assert!(
+        !diags.iter().any(|d| code_str(d) == "E001"),
+        "an undefined name unrelated to the rename must not be mis-recovered; \
+         got {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn sibling_workspace_file_proc_recovers_the_tail() {
+    let mut lsp = Lsp::tcl();
+    // Indexed first — `open_ready` blocks until this document's
+    // `workspace_state.update` fires, so its proc is in the workspace index
+    // before the broken document below is even opened.
+    let sibling = unique_uri("tcl");
+    lsp.open_ready(&sibling, "proc workspace_helper {x} {return $x}\n");
+
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set q {\n  aaa\nworkspace_helper 1; string\n");
+    assert!(
+        has_recovery_error(&diags),
+        "unterminated {{ should flag; got {:?}",
+        codes(&diags)
+    );
+    assert!(
+        diags.iter().any(|d| code_str(d) == "E001"),
+        "a call to a sibling-file proc should be live code (proven by the \
+         chained bare `string`'s own \
+         missing-subcommand error); got {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn absolute_sibling_workspace_file_proc_call_recovers_the_tail() {
+    // Mirrors `absolute_namespace_qualified_proc_call_recovers_the_tail`
+    // (the in-file case, above) one layer out: a workspace-indexed proc
+    // referenced in absolute syntax (`::workspace_helper`, leading `::`)
+    // must be recognised just as readily as the bare form.
+    let mut lsp = Lsp::tcl();
+    let sibling = unique_uri("tcl");
+    lsp.open_ready(&sibling, "proc workspace_helper {x} {return $x}\n");
+
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set q {\n  aaa\n::workspace_helper 1; string\n");
+    assert!(
+        has_recovery_error(&diags),
+        "unterminated {{ should flag; got {:?}",
+        codes(&diags)
+    );
+    assert!(
+        diags.iter().any(|d| code_str(d) == "E001"),
+        "an absolute call to a sibling-file proc should be live code (proven \
+         by the chained bare `string`'s own missing-subcommand error); got \
+         {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn undefined_name_with_workspace_sibling_present_falls_back_honestly() {
+    // A sibling file is indexed (so the workspace lookup isn't a no-op), but
+    // the swallowed call targets a name no sibling defines.
+    let mut lsp = Lsp::tcl();
+    let sibling = unique_uri("tcl");
+    lsp.open_ready(&sibling, "proc workspace_helper {x} {return $x}\n");
+
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set q {\n  aaa\nnot_workspace_helper 1; string\n");
+    assert!(has_recovery_error(&diags), "got {:?}", codes(&diags));
+    assert!(
+        !diags.iter().any(|d| code_str(d) == "E001"),
+        "an undefined name must not be mis-recovered just because *some* \
+         workspace sibling is indexed; got {:?}",
+        codes(&diags)
+    );
+}
+
+/// Per-call counter so repeat runs of the package-fixture tests don't collide
+/// on the temp dir (mirrors `diagnostics.rs`'s `RBC_LIB_N`).
+static PKG_LIB_N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Write a `pkgIndex.tcl` + implementation file declaring `mypkg`, providing
+/// `mypkg_helper`, under a fresh temp dir; returns the dir (whose *parent* is
+/// the `libraryPaths` root — `PackageResolver::scan_path` descends one level,
+/// mirroring the `rbc/tclIndex` fixture in `diagnostics.rs`).
+fn write_mypkg_fixture() -> std::path::PathBuf {
+    use std::sync::atomic::Ordering;
+    let libdir = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-mypkg-{}-{}",
+        std::process::id(),
+        PKG_LIB_N.fetch_add(1, Ordering::Relaxed)
+    ));
+    let pkgdir = libdir.join("mypkg");
+    std::fs::create_dir_all(&pkgdir).expect("mk mypkg lib dir");
+    std::fs::write(
+        pkgdir.join("impl.tcl"),
+        "proc mypkg_helper {x} {return $x}\n",
+    )
+    .expect("write impl.tcl");
+    std::fs::write(
+        pkgdir.join("pkgIndex.tcl"),
+        "package ifneeded mypkg 1.0 [list source [file join $dir impl.tcl]]\n",
+    )
+    .expect("write pkgIndex.tcl");
+    libdir
+}
+
+#[test]
+fn package_required_library_command_recovers_the_tail() {
+    let libdir = write_mypkg_fixture();
+    let mut lsp = Lsp::with_config(json!({
+        "libraryPaths": [ libdir.to_string_lossy() ],
+    }));
+    let uri = unique_uri("tcl");
+    lsp.open_document(
+        &uri,
+        "package require mypkg\nset q {\n  aaa\nmypkg_helper 1; string\n",
+    );
+
+    // The package database is (re)built asynchronously at startup; poll the
+    // deterministic pull path until recovery reflects it or the deadline
+    // (mirrors `autoload_library_command_not_unknown_issue_832`).
+    let mut diags = lsp.pull_diagnostics(&uri);
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    while !diags.iter().any(|d| code_str(d) == "E001") && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+        diags = lsp.pull_diagnostics(&uri);
+    }
+    assert!(
+        has_recovery_error(&diags),
+        "unterminated {{ should flag; got {:?}",
+        codes(&diags)
+    );
+    assert!(
+        diags.iter().any(|d| code_str(d) == "E001"),
+        "a call to a package-provided command should be live code (proven by \
+         the chained bare `string`'s own \
+         missing-subcommand error); got {:?}",
+        codes(&diags)
+    );
+
+    let _ = std::fs::remove_dir_all(&libdir);
+}
+
+#[test]
+fn undefined_name_with_package_required_falls_back_honestly() {
+    // The package is required and resolvable, but the swallowed call targets
+    // a name `mypkg` does not provide.
+    let libdir = write_mypkg_fixture();
+    let mut lsp = Lsp::with_config(json!({
+        "libraryPaths": [ libdir.to_string_lossy() ],
+    }));
+    let uri = unique_uri("tcl");
+    lsp.open_document(
+        &uri,
+        "package require mypkg\nset q {\n  aaa\nnot_mypkg_helper 1; string\n",
+    );
+
+    // Give the (irrelevant, but concurrently loading) package database the
+    // same settling window as the positive case before asserting the
+    // steady-state result.
+    std::thread::sleep(Duration::from_millis(500));
+    let diags = lsp.pull_diagnostics(&uri);
+    assert!(has_recovery_error(&diags), "got {:?}", codes(&diags));
+    assert!(
+        !diags.iter().any(|d| code_str(d) == "E001"),
+        "an undefined name must not be mis-recovered just because *some* \
+         required package is resolvable; got {:?}",
+        codes(&diags)
+    );
+
+    let _ = std::fs::remove_dir_all(&libdir);
+}
+
+// --------------------------------------------------------------------------- //
+// Short-form unterminated quote / brace — a delimiter left open with content
+// on the *same* line as the opener (the overwhelmingly common real-world
+// typo) must be flagged exactly like a long multi-line run. Before this fix,
+// both detectors required the run to already span multiple lines, so
+// `set x "hello` / `set x {hello` (content then EOF, or content then a
+// single line break) went completely unflagged — not even the generic
+// fallback fired.
+// --------------------------------------------------------------------------- //
+
+#[test]
+fn short_unterminated_quote_with_no_newline_is_flagged() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x \"hello");
+    assert!(
+        has_recovery_error(&diags),
+        "a same-line unterminated quote must be flagged; got {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn short_unterminated_brace_with_no_newline_is_flagged() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x {hello");
+    assert!(
+        has_recovery_error(&diags),
+        "a same-line unterminated brace must be flagged; got {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn unterminated_quote_with_content_before_one_line_break_is_flagged() {
+    // Content on the opening line, then a single break before EOF — one
+    // newline short of the old (removed) multi-line threshold.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x \"hello\nworld\n");
+    assert!(has_recovery_error(&diags), "got {:?}", codes(&diags));
+}
+
+#[test]
+fn unterminated_brace_with_content_before_one_line_break_is_flagged() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x {hello\nworld\n");
+    assert!(has_recovery_error(&diags), "got {:?}", codes(&diags));
+}
+
+#[test]
+fn well_formed_empty_and_short_delimiters_stay_silent() {
+    // Regression guard alongside the short-form fixes above: an empty `""`
+    // / `{}` and an ordinary short closed string/brace must never be
+    // (mis)flagged now that the line-count gate is gone.
+    for src in [
+        "set x \"\"\n",
+        "set x {}\n",
+        "set x \"hello\"\n",
+        "set x {hello}\n",
+    ] {
+        let mut lsp = Lsp::tcl();
+        let uri = unique_uri("tcl");
+        let diags = lsp.open_ready(&uri, src);
+        assert!(
+            !has_recovery_error(&diags),
+            "well-formed {src:?} flagged a recovery error: {:?}",
+            codes(&diags)
+        );
+    }
+}
+
+// --------------------------------------------------------------------------- //
+// E200 tight highlighting — the generic fallback (fires only when neither the
+// E201/E202/E203 detectors nor E103's stolen-brace detector can pin the
+// precise delimiter) must still anchor its range at the actual unclosed
+// delimiter, not spread across the whole (possibly multi-line) partial
+// command through EOF.
+// --------------------------------------------------------------------------- //
+
+#[test]
+fn generic_fallback_does_not_span_the_whole_document() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    // The outer class body's `{` never closes; its content contains a stray
+    // `}` from the balanced `method bar {}` parameter list, which routes
+    // detection to the generic fallback rather than the precise E203 path.
+    let src = "oo::class create Foo {\n  method bar {} {\n    puts hi\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        has_recovery_error(&diags),
+        "unterminated class body should flag; got {:?}",
+        codes(&diags)
+    );
+    let n_lines = i64::try_from(src.matches('\n').count() + 1).unwrap();
+    for d in diags.iter().filter(|d| is_recovery_error(d)) {
+        let end_line = d["range"]["end"]["line"].as_i64().unwrap_or(-1);
+        assert!(
+            end_line < n_lines - 1,
+            "recovery diagnostic spans to (or past) the document's last line \
+             — expected a tight anchor near the unclosed delimiter, not a \
+             whole-document underline: {d:?}"
         );
     }
 }

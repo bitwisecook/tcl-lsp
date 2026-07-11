@@ -159,6 +159,7 @@ impl Analyser {
                 cmd_ref,
                 &self.source,
                 self.registry.as_ref(),
+                || self.user_command_tail_names(),
             );
             self.result.diagnostics.extend(stray);
             // E201 (unterminated `[`) inside a body — `proc p {} { set y
@@ -171,7 +172,7 @@ impl Analyser {
             let e201 = super::syntax_checks::unterminated_bracket_diagnostics(
                 cmd_ref,
                 &self.source,
-                self.registry.as_ref(),
+                &self.recovery_known_commands,
             );
             self.result.diagnostics.extend(e201);
             // E202 (unterminated `"`) / E203 (unterminated `{`) inside a
@@ -294,6 +295,7 @@ impl Analyser {
                     resolved_qualified_name: Some(resolved),
                     argc: arg_count,
                     callback_arity: None,
+                    callback_baked_args: 0,
                 },
             );
 
@@ -316,6 +318,7 @@ impl Analyser {
                         // cross-file-checked here; skip conservatively.
                         argc: None,
                         callback_arity: None,
+                        callback_baked_args: 0,
                     },
                 );
             }
@@ -384,7 +387,7 @@ impl Analyser {
             // commands aren't skipped — none of those handlers
             // process EXPR args themselves (they own *body*
             // recursion only), so this can't double-fire.
-            self.dispatch_expr_arguments(cmd_name, args, arg_tokens);
+            self.dispatch_expr_arguments(cmd_name, args, arg_tokens, cmd_tok);
 
             // Dispatch-site diagnostic emitters (W302 / W001 / E004 / W101
             // / W304 / W004 / E002-E003).  Extracted from this function so
@@ -621,7 +624,10 @@ impl Analyser {
     /// - **W001** (unknown subcommand on a `SubcommandSig` command) —
     ///   before `handle_namespace_eval_command` so `namespace foo` is
     ///   flagged.
-    /// - **E004** (malformed `if`).
+    /// - **E004** (malformed `if`) — dispatched generically off the
+    ///   resolved spec's `clause_shape_check` hook, not off `cmd_name`,
+    ///   so `if` is the trigger today only because it is the one
+    ///   command carrying that hook.
     /// - **W101** (`eval` with substituted args) — before body-walk
     ///   dispatch so the `ArgRole::Body` recursion into the `eval`
     ///   body still runs.
@@ -643,10 +649,22 @@ impl Analyser {
         if cmd_name == "catch" {
             self.emit_w302_catch_no_result_var(args, cmd_tok, arg_tokens, arg_single);
         }
-        self.emit_w001_unknown_subcommand(cmd_name, args, cmd_tok, arg_tokens);
-        self.emit_w002_disabled_command(cmd_name, cmd_tok);
-        if cmd_name == "if" {
-            self.emit_e004_malformed_if(args, cmd_tok, arg_tokens);
+        self.emit_w001_unknown_subcommand(
+            cmd_name,
+            args,
+            cmd_tok,
+            arg_tokens,
+            arg_expand_in,
+            scope_path,
+        );
+        self.emit_w002_disabled_command(cmd_name, cmd_tok, scope_path);
+        if let Some(checker) = self
+            .registry
+            .as_ref()
+            .and_then(|r| r.get(cmd_name))
+            .and_then(|spec| spec.clause_shape_check)
+        {
+            self.emit_e004_clause_shape_diagnostic(cmd_name, checker, args, cmd_tok, arg_tokens);
         }
         self.emit_w101_eval_string_concat(cmd_name, args, arg_tokens, arg_single);
         // W102 / W103 / W300 / W301 / W309 / W312 security-injection
@@ -695,7 +713,13 @@ impl Analyser {
         self.emit_w127_closed_option_values(cmd_name, args, arg_tokens, cmd_tok);
         self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
         self.emit_w217_unset_option_only(cmd_name, args, arg_tokens);
-        self.emit_w004_dialect_invalid_option(cmd_name, args, arg_tokens);
+        self.emit_w004_dialect_invalid_option(
+            cmd_name,
+            args,
+            arg_tokens,
+            arg_expand_in.get(1..).unwrap_or(&[]),
+            scope_path,
+        );
         // W135 / W136 — command/option needs a newer package version than the
         // resolved `package require` floor (buffered, decided post-walk).
         self.record_version_gate_sites(cmd_name, args, arg_tokens, cmd_tok);
@@ -710,10 +734,28 @@ impl Analyser {
     }
 
     /// Generic EXPR-argument walk via the command registry's
-    /// `ArgRole::Expr`.  Currently invokes the W110 emitter on each
-    /// EXPR-role argument.  For `expr`, multi-arg invocations are
-    /// joined with spaces before the W110 walk.
-    fn dispatch_expr_arguments(&mut self, cmd_name: &str, args: &[String], arg_tokens: &[Token]) {
+    /// `ArgRole::Expr`.  Invokes the W100 / W110 / W003 / W114
+    /// emitters on each EXPR-role argument.  For `expr`, multi-arg
+    /// invocations are joined with spaces before the W110 walk.
+    fn dispatch_expr_arguments(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        cmd_tok: Token,
+    ) {
+        // An earlier unconditional user `proc` of the same name shadows
+        // the builtin at this call site (Tcl resolves the proc, not
+        // `::expr`/`::if`/`::while`/`::for` etc.) — same rule W002 uses
+        // for an ordinary disabled-command shadow. Vanishingly rare for
+        // these particular control-flow keywords in practice, but cheap
+        // to guard once here for every EXPR-role emitter at once, rather
+        // than duplicating the check per diagnostic.
+        let qualified = crate::naming::normalise_qualified_name(cmd_name);
+        if super::utils::proc_shadows_call(&self.result.all_procs, &qualified, cmd_tok.span.start())
+        {
+            return;
+        }
         let Some(registry) = self.registry.as_ref() else {
             return;
         };
@@ -735,13 +777,16 @@ impl Analyser {
 
         // Special-case ``expr ...``: when the user wrote multiple
         // arguments (``expr $a == "x"`` instead of the more common
-        // ``expr {$a eq "x"}``), anchor W110 / W003 at the full
-        // argument token range and parse the joined arguments — the
+        // ``expr {$a eq "x"}``), anchor W110 at the full argument
+        // token range and parse the joined arguments — the
         // *substituted* word values, with quote delimiters already
         // stripped by Tcl's word splitting.  So ``expr $a == "x"`` parses
         // as ``$a == x`` where ``x`` is a bareword, not an ``ExprString``,
         // and W110 (string ``==``) does NOT fire — matching what `expr`
-        // actually receives at runtime.
+        // actually receives at runtime.  W003 gets its own emitter for
+        // this shape (`emit_w003_dialect_invalid_expr_words`): a gated
+        // operator here is always its own standalone word, already at
+        // a tight span, with no offset remapping needed.
         if cmd_name == "expr" && args.len() > 1 && !arg_tokens.is_empty() {
             let span = tcl_lexer::Span::new(
                 arg_tokens[0].span.start(),
@@ -749,14 +794,24 @@ impl Analyser {
             );
             let expr_text = args.join(" ");
             self.emit_w110_string_eq_ne(&expr_text, span);
-            self.emit_w003_dialect_invalid_expr_operator(&expr_text, span);
+            self.emit_w003_dialect_invalid_expr_words(args, arg_tokens, &expr_text);
             return;
         }
 
         for idx in indices {
             if let (Some(text), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) {
                 self.emit_w110_string_eq_ne(text, tok.span);
-                self.emit_w003_dialect_invalid_expr_operator(text, tok.span);
+                // W003 anchors on the argument's inner content (delimiters
+                // stripped via `content_offset`), not the raw token span —
+                // it re-slices `self.source` directly so its operator
+                // offsets always land on real bytes, byte-for-byte, even
+                // when `text` itself has been reconstructed/canonicalised
+                // by the segmenter (e.g. a quoted `"$x lt $y"` argument).
+                let content_span = tcl_lexer::Span::new(
+                    tok.span.start() + u32::from(tok.content_offset),
+                    tok.span.end(),
+                );
+                self.emit_w003_dialect_invalid_expr_operator(content_span);
                 self.emit_w114_redundant_nested_expr(text, tok.span);
             }
         }
@@ -973,11 +1028,13 @@ impl Analyser {
                     name: inv.head,
                     range: inv.span,
                     resolved_qualified_name: Some(resolved),
-                    // Bareword head → 0 baked args; the legacy direct-call
-                    // arity path skips (`None`), the callback-arity check reads
-                    // `callback_arity`.
+                    // The legacy direct-call arity path always skips a
+                    // callback head (`None`); the callback-arity check reads
+                    // `callback_baked_args` (0 for a bareword head, N for a
+                    // braced multi-word prefix) + `callback_arity`.
                     argc: None,
                     callback_arity: Some(inv.appended),
+                    callback_baked_args: inv.baked,
                 },
             );
         }
@@ -1257,7 +1314,7 @@ impl Analyser {
             cmd_tok,
             scope_path,
         });
-        self.dispatch_expr_arguments(&cmd_name, args, arg_tokens);
+        self.dispatch_expr_arguments(&cmd_name, args, arg_tokens, cmd_tok);
         // W216 (broken brace-form array access, `${arr}(idx)` / `${arr($i)}`)
         // must reach substitution commands too: `set v [puts ${arr}(name)]`
         // hides the offending word inside a `[…]`, which the main `walk_body`
@@ -1372,6 +1429,7 @@ impl Analyser {
                     resolved_qualified_name: Some(resolved),
                     argc,
                     callback_arity,
+                    callback_baked_args: 0,
                 },
             );
         }
@@ -1416,6 +1474,7 @@ impl Analyser {
                     // Nested `[cmd ...]` head, no recorded argument list — arity skip.
                     argc: None,
                     callback_arity: None,
+                    callback_baked_args: 0,
                 },
             );
         }

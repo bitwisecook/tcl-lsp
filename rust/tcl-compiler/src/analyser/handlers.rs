@@ -960,6 +960,14 @@ impl Analyser {
     /// reason (an unresolved name) rather than the right one (a
     /// dynamically-defined ensemble the analyser can't see the
     /// subcommand map of).
+    ///
+    /// `namespace ensemble create`'s options are registry data
+    /// (`ENSEMBLE_CREATE_OPTIONS` in `tcl-registry`'s `namespace_`
+    /// module), not a hardcoded name list — walking by each option's
+    /// declared value arity (rather than a bare `opt == "-command"` scan
+    /// over every word) is what keeps another option's *value* word
+    /// (`-map`'s dict, `-subcommands`' list, …) from ever being misread as
+    /// `-command`'s own flag or value.
     pub fn handle_namespace_ensemble(
         &mut self,
         cmd_name: &str,
@@ -977,17 +985,35 @@ impl Analyser {
             self.ensemble_namespaces.insert(ns.clone());
         }
         let ns_prefix = ns.trim_start_matches(':');
-        for (i, opt) in args.iter().enumerate().skip(2) {
-            let Some(value) = (opt == "-command").then(|| args.get(i + 1)).flatten() else {
+
+        let dialect = tcl_registry::prelude::DialectSet::parse(&self.dialect);
+        let option_specs: Vec<&tcl_registry::hover::OptionSpec> = self
+            .registry
+            .as_ref()
+            .and_then(|r| r.get("namespace"))
+            .and_then(|spec| spec.subcommand("ensemble").map(|sub| (spec.dialects, sub)))
+            .map(|(parent_dialects, sub)| sub.option_specs(dialect, parent_dialects))
+            .unwrap_or_default();
+
+        let opts = &args[2..];
+        let mut i = 0usize;
+        while i < opts.len() {
+            let Some(spec) = option_specs.iter().find(|o| o.matches(opts[i].as_str())) else {
+                i += 1;
                 continue;
             };
-            // A dynamic value (`$var` / `[cmd]`) can't be resolved
-            // statically — leave it unrecorded, same convention as every
-            // other literal-only command-name extraction in this module.
-            if value.is_empty() || value.starts_with('$') || value.starts_with('[') {
-                continue;
+            if spec.name == "-command"
+                && let Some(value) = opts.get(i + 1)
+            {
+                // A dynamic value (`$var` / `[cmd]`) can't be resolved
+                // statically — leave it unrecorded, same convention as
+                // every other literal-only command-name extraction in
+                // this module.
+                if !(value.is_empty() || value.starts_with('$') || value.starts_with('[')) {
+                    self.ensemble_namespaces.insert(qualify(ns_prefix, value));
+                }
             }
-            self.ensemble_namespaces.insert(qualify(ns_prefix, value));
+            i += 1 + spec.value_word_count(opts, i);
         }
     }
 
@@ -2194,20 +2220,19 @@ impl Analyser {
         }
     }
 
-    /// Resolve a command name to the `ProcDef` that implements
-    /// it, walking the scope chain from `scope_path` outwards.
+    /// Resolve a command name to the `ProcDef` that implements it, following
+    /// Tcl's real bareword command resolution via
+    /// [`crate::naming::bareword_resolution_candidates`] — the current
+    /// namespace (computed by [`Self::command_resolution_namespace`]) first,
+    /// then global, exactly two levels, never every enclosing ancestor
+    /// namespace on the scope chain (Tcl's own command lookup does not walk
+    /// intermediate namespaces absent an explicit `namespace path`).
     ///
-    /// Candidate name build-up:
+    /// Shared with the optimiser's identical same-file resolution
+    /// (`resolve_proc_qname`) and the disabled-command / arity suppression
+    /// checks' resolution (`UserResolutionFacts::resolves_to_user`) so the
+    /// three can't diverge on the same rule.
     ///
-    /// - Absolute name (`::foo`) → look up directly.
-    /// - Qualified relative (`a::b`) → prepend `::` and look up.
-    /// - Bare name → walk up the scope chain; for every
-    ///   ``namespace`` scope on the chain, prepend its name and
-    ///   try; finally fall back to global ``::name``.
-    ///
-    /// All candidate names are run through
-    /// [`crate::naming::normalise_qualified_name`] so the lookup
-    /// keys match the canonical form ``result.all_procs`` uses.
     /// Returns the first matching ``ProcDef`` (by reference into
     /// ``result.all_procs``), or `None` if no candidate is known.
     #[must_use]
@@ -2216,54 +2241,13 @@ impl Analyser {
         cmd_name: &str,
         scope_path: &[usize],
     ) -> Option<&super::types::ProcDef> {
-        use std::collections::HashSet;
         if cmd_name.is_empty() {
             return None;
         }
-
-        let mut candidates: Vec<String> = Vec::new();
-        let mut seen: HashSet<String> = HashSet::new();
-        let mut add_candidate = |raw: &str| {
-            let qname = crate::naming::normalise_qualified_name(raw);
-            if qname.is_empty() || seen.contains(&qname) {
-                return;
-            }
-            seen.insert(qname.clone());
-            candidates.push(qname);
-        };
-
-        if cmd_name.starts_with("::") {
-            add_candidate(cmd_name);
-        } else if cmd_name.contains("::") {
-            add_candidate(&format!("::{cmd_name}"));
-        } else {
-            // Walk the scope chain — every namespace scope on the
-            // chain contributes a candidate ``<ns_name>::<cmd>``.
-            // The walk is longest-first (current scope before its
-            // ancestors).
-            let mut cursor: &super::types::Scope = &self.result.global_scope;
-            let mut walked: Vec<&super::types::Scope> = vec![cursor];
-            for &idx in scope_path {
-                let Some(child) = cursor.children.get(idx) else {
-                    break;
-                };
-                walked.push(child);
-                cursor = child;
-            }
-            for scope in walked.iter().rev() {
-                if scope.kind == super::types::ScopeKind::Namespace {
-                    add_candidate(&format!("{}::{cmd_name}", scope.name));
-                }
-            }
-            add_candidate(&format!("::{cmd_name}"));
-        }
-
-        for qname in &candidates {
-            if let Some(proc) = self.result.all_procs.get(qname) {
-                return Some(proc);
-            }
-        }
-        None
+        let ns = self.command_resolution_namespace(scope_path);
+        crate::naming::bareword_resolution_candidates(&ns, cmd_name)
+            .into_iter()
+            .find_map(|qname| self.result.all_procs.get(&qname))
     }
 
     /// Static element count for a `{*}`-expanded word.
@@ -3136,6 +3120,8 @@ mod tests {
     fn handle_namespace_ensemble_command_option_recorded() {
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
+        // `-command` recognition is registry-driven (`ENSEMBLE_CREATE_OPTIONS`).
+        a.registry = Some(tcl_registry::CommandRegistry::build_default());
         a.result
             .global_scope
             .children
@@ -3158,6 +3144,8 @@ mod tests {
     fn handle_namespace_ensemble_command_option_qualifies_relative_name() {
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
+        // `-command` recognition is registry-driven (`ENSEMBLE_CREATE_OPTIONS`).
+        a.registry = Some(tcl_registry::CommandRegistry::build_default());
         a.result
             .global_scope
             .children
@@ -3196,6 +3184,45 @@ mod tests {
         assert_eq!(
             a.ensemble_namespaces,
             std::collections::HashSet::from(["::myns".to_string()])
+        );
+    }
+
+    #[test]
+    fn handle_namespace_ensemble_other_options_value_word_is_not_mistaken_for_command_flag() {
+        // Regression: before the registry-driven option walk, the scan
+        // checked *every* word for literal equality with `-command`,
+        // including another option's own value word — `-map`'s value
+        // here is (pathologically, but syntactically legally) the string
+        // `-command`. A word-by-word scan misreads that value as the
+        // `-command` flag itself and steals the *next* word (the real
+        // `-command`'s own flag) as if it were a namespace name. Walking
+        // by each option's declared value arity instead correctly skips
+        // `-map`'s whole value before ever looking for `-command` again,
+        // so only the genuine `-command ::real::target` is recorded.
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.registry = Some(tcl_registry::CommandRegistry::build_default());
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "myns"));
+        a.handle_namespace_ensemble(
+            "namespace",
+            &[
+                "ensemble".to_string(),
+                "create".to_string(),
+                "-map".to_string(),
+                "-command".to_string(),
+                "-command".to_string(),
+                "::real::target".to_string(),
+            ],
+            &[0],
+        );
+        assert_eq!(
+            a.ensemble_namespaces,
+            std::collections::HashSet::from(["::myns".to_string(), "::real::target".to_string()]),
+            "only the genuine -command flag's value must be recorded, \
+             not -map's value word that happens to read \"-command\""
         );
     }
 
@@ -3711,6 +3738,78 @@ mod tests {
         let resolved = a.resolve_proc_call("a::b", &[]);
         assert!(resolved.is_some());
         assert_eq!(resolved.unwrap().qualified_name, "::a::b");
+    }
+
+    #[test]
+    fn resolve_proc_call_relative_dotted_name_prefers_current_namespace() {
+        // A relative dotted word (`ns2::inner`, containing `::` but not
+        // starting with it) must resolve against the current namespace
+        // first, not be rooted straight at global (confirmed against tclsh
+        // 9.0.4 — see `bareword_resolution_candidates`).
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        for qname in ["::ns2::inner", "::ns::ns2::inner"] {
+            a.result.all_procs.insert(
+                qname.to_string(),
+                super::ProcDef {
+                    name: "inner".to_string(),
+                    qualified_name: qname.to_string(),
+                    params: Vec::new(),
+                    name_span: span(0, 0),
+                    body_span: span(0, 0),
+                    doc: String::new(),
+                    param_traits: std::collections::HashMap::new(),
+                },
+            );
+        }
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "ns"));
+        let resolved = a.resolve_proc_call("ns2::inner", &[0]);
+        assert_eq!(
+            resolved.unwrap().qualified_name,
+            "::ns::ns2::inner",
+            "must prefer the current-namespace proc over the root one",
+        );
+        // Falls back to the root proc when there is no current-namespace
+        // candidate.
+        let resolved = a.resolve_proc_call("ns2::inner", &[]);
+        assert_eq!(resolved.unwrap().qualified_name, "::ns2::inner");
+    }
+
+    #[test]
+    fn resolve_proc_call_does_not_walk_ancestor_namespaces() {
+        // Real Tcl bareword resolution is exactly two levels — current
+        // namespace, then global — absent an explicit `namespace path`. A
+        // proc defined in a *grandparent* namespace must not resolve for a
+        // bare call from a nested `::a::b::c` scope.
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        let mut ns_a = Scope::new(ScopeKind::Namespace, "a");
+        let mut ns_b = Scope::new(ScopeKind::Namespace, "b");
+        ns_b.children.push(Scope::new(ScopeKind::Namespace, "c"));
+        ns_a.children.push(ns_b);
+        a.result.global_scope.children.push(ns_a);
+        // scope_path [0] = ::a — define `foo` there.
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[0],
+        );
+        // Resolving from ::a::b::c (scope_path [0, 0, 0]) must NOT reach
+        // the grandparent's ::a::foo.
+        assert!(
+            a.resolve_proc_call("foo", &[0, 0, 0]).is_none(),
+            "a grandparent-namespace proc must not resolve for a bare call",
+        );
+        // Control: resolving directly from ::a still finds it.
+        assert!(a.resolve_proc_call("foo", &[0]).is_some());
     }
 
     #[test]

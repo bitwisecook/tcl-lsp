@@ -117,7 +117,8 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-stride",
         value: OptionValue::value("length"),
         detail: "Treat the list as groups of this many elements and sort by group.",
-        // Added to `lsort` in Tcl 8.6 (TIP 351).
+        // Added to `lsort` in Tcl 8.6 (TIP 326 — TIP 351 is `lsearch`'s
+        // later, 9.0+ `-stride`, not this one).
         dialects: Some(DialectSet::TCL86_PLUS),
         aliases: &[],
         min_version: None,

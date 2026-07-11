@@ -934,4 +934,30 @@ mod tests {
             "global-rooted candidate"
         );
     }
+
+    // Regression: `proc max {...}` must not be distrusted. `max`/`min` read
+    // like `tcl::mathop` operator words, but real Tcl never registered them
+    // there (verified against tclsh 8.6/9.0 — `info commands
+    // ::tcl::mathop::*` never lists them); they exist only as unrelated
+    // `expr` math functions. A now-fixed registry bug once carried bare
+    // `max`/`min` `CommandSpec` entries as if they were `tcl::mathop`
+    // members, which made `default_binding` treat them as pre-existing
+    // builtins — so a completely ordinary `proc max {...}` looked like it
+    // was "renaming a builtin", silently blocking O103 from folding calls to
+    // it (caught by `tests/optimiser.rs::interprocedural_constant_folding`).
+    #[test]
+    fn module_mutations_do_not_distrust_proc_named_like_mathop_word() {
+        let reg = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "proc max {a b} {\n    if {$a > $b} { return $a } else { return $b }\n}\nset v [max 3 7]\n",
+            &reg,
+            false,
+        );
+        let m = scan_module_command_mutations(&cu.ir_module, &reg);
+        assert!(
+            m.trusts("max"),
+            "a plain proc sharing a name with an (incorrectly bare-registered) \
+             tcl::mathop-lookalike must not be distrusted"
+        );
+    }
 }

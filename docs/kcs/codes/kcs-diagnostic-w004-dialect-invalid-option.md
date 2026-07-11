@@ -39,7 +39,9 @@ The analyser reports **`W004`** on the `-stride` token.
 lsort $l
 ```
 
-Replace the command call with an equivalent that is valid in the active dialect, or change the dialect setting to a version that supports the option.
+Replace the command call with an equivalent that is valid in the active dialect, or change the dialect setting to a version that supports the option. A quick fix titled "Remove '-option'" is offered wherever the flag appears — it deletes the flag and its value, matching the fix above.
+
+The check also resolves a unique-prefix subcommand abbreviation the same way real Tcl ensemble dispatch does, so `chan conf -inputmode raw` (`conf` ⇒ `configure`) is flagged exactly like the spelled-out form. It does not fire when the command name resolves to a same-file proc, `TclOO` class, `interp alias`, or ensemble instead of the registry built-in — the call really dispatches to that definition, so the built-in's dialect restriction no longer applies (e.g. a proc named `lsearch` that accepts its own `-stride` argument).
 
 ## How to suppress
 

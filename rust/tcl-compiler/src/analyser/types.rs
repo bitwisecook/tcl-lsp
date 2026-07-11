@@ -140,11 +140,60 @@ pub struct PendingUserCallArity {
     pub positional_any_expand: bool,
 }
 
+/// Which `TclOO` instantiation form introduced a [`PendingCtorArity`] —
+/// `oo::class` (and every other `IS_OO_METACLASS` command) inherits all
+/// three from its own metaclass protocol, and an ordinary class inherits
+/// them from `oo::class` in turn, so `ClassName new/create/createWithNamespace
+/// ?args?` all reach the same constructor. Each form has a different count
+/// of mandatory leading words that are *not* part of the constructor's own
+/// argument list — confirmed against tclsh 9.0.4 and matching
+/// `oo_class_arg_roles`'s identical word layout for the sibling
+/// class-*definition* shapes (`oo::class create Name body` / `new body` /
+/// `createWithNamespace Name ::ns body`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CtorForm {
+    /// `ClassName new ?args?` — every word after `new` is a constructor arg.
+    New,
+    /// `ClassName create name ?args?` — the mandatory object-name word is
+    /// not part of the constructor's own arguments.
+    Create,
+    /// `ClassName createWithNamespace name ::ns ?args?` — the mandatory
+    /// object-name and namespace words are not part of the constructor's
+    /// own arguments.
+    CreateWithNamespace,
+}
+
+impl CtorForm {
+    /// Count of mandatory leading words to fold into the constructor's
+    /// arity bound before comparing it against the call site — see
+    /// [`Self`]'s own doc comment.
+    #[must_use]
+    pub fn extra_leading_words(self) -> u16 {
+        match self {
+            CtorForm::New => 0,
+            CtorForm::Create => 1,
+            CtorForm::CreateWithNamespace => 2,
+        }
+    }
+
+    /// The keyword as written at the call site, for the diagnostic's
+    /// display name.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            CtorForm::New => "new",
+            CtorForm::Create => "create",
+            CtorForm::CreateWithNamespace => "createWithNamespace",
+        }
+    }
+}
+
 /// A queued `TclOO` constructor-call arity candidate — `ClassName new
-/// ?args?` / `ClassName create name ?args?` — mirroring
-/// [`PendingUserCallArity`]'s architecture exactly: queued unconditionally
-/// whenever a call's first word is literally `new`/`create` (regardless of
-/// whether the head even resolves to a class), and resolved post-walk
+/// ?args?` / `ClassName create name ?args?` / `ClassName createWithNamespace
+/// name ::ns ?args?` — mirroring [`PendingUserCallArity`]'s architecture
+/// exactly: queued unconditionally whenever a call's first word is
+/// literally one of those three keywords (regardless of whether the head
+/// even resolves to a class), and resolved post-walk
 /// ([`super::state::Analyser::flush_ctor_arity_diagnostics`]) once
 /// `all_classes` — and thus the class hierarchy a constructor may be
 /// inherited through — is fully populated.  A candidate that doesn't
@@ -162,16 +211,58 @@ pub struct PendingCtorArity {
     /// — a top-level `Dog new` must have `Dog`'s definition lexically
     /// precede it; a call inside a proc/method body is not order-gated.
     pub enforce_order: bool,
-    /// `true` for `create` (whose first word after the keyword is a
-    /// mandatory object name, not part of the constructor's own
-    /// arguments), `false` for `new`.
-    pub is_create: bool,
+    /// Which of `new`/`create`/`createWithNamespace` this call used.
+    pub form: CtorForm,
     /// Offset of the class-name token, for the top-level order gate.
     pub call_off: u32,
     /// Full diagnostic span (class-name head through the last argument).
     pub full_span: Span,
-    /// Lower-bound positional count of the words *after* `new`/`create`
-    /// (for `create`, this includes the mandatory object-name word).
+    /// Lower-bound positional count of the words *after* the keyword (for
+    /// `create`/`createWithNamespace`, this includes their mandatory
+    /// leading words).
+    pub nargs_min: usize,
+    /// Whether any positional word is `{*}`-expanded — same convention as
+    /// [`PendingUserCallArity::positional_any_expand`].
+    pub positional_any_expand: bool,
+}
+
+/// A queued `TclOO` `next` / `nextto` call-site arity candidate.
+///
+/// Unlike [`PendingUserCallArity`] / [`PendingCtorArity`] (queued
+/// unconditionally and resolved by *name*), this is queued only when the
+/// call site is lexically inside a method body — the callee is never
+/// named at the call site at all; it is derived entirely from *where*
+/// the call sits (`Analyser::current_method_context`). Resolved post-walk
+/// ([`super::state::Analyser::flush_next_arity_diagnostics`]) once
+/// `all_classes` is fully populated, via
+/// [`super::class_hierarchy::ClassHierarchy::next_provider`]. A candidate
+/// whose enclosing method has no further provider along the MRO (`next`
+/// past the end of the chain, or a `nextto` target that isn't a locally
+/// known class) is silently dropped — see the same abstention convention
+/// documented on [`PendingCtorArity`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingNextArity {
+    /// Qualified name of the class whose method body the call sits in —
+    /// always the class that *textually declares* this method, since a
+    /// method's `Method` scope is only ever created while walking that
+    /// class's own body.
+    pub class_qualified: String,
+    /// Simple name of the enclosing method (`next`/`nextto` always
+    /// re-invoke the *same* method name, never a different one).
+    pub method_name: String,
+    /// `nextto`'s explicit target class as written at the call site
+    /// (`None` for bare `next`, which starts the MRO search one past
+    /// `class_qualified`).
+    pub target_class: Option<String>,
+    /// Call-site resolution namespace, for resolving `target_class`.
+    pub ns: String,
+    /// Command name as written (`"next"` / `"nextto"`) — the
+    /// diagnostic's display name.
+    pub display_name: String,
+    /// Full diagnostic span (command head through the last argument).
+    pub full_span: Span,
+    /// Lower-bound positional argument count, *excluding* `nextto`'s own
+    /// target-class word.
     pub nargs_min: usize,
     /// Whether any positional word is `{*}`-expanded — same convention as
     /// [`PendingUserCallArity::positional_any_expand`].

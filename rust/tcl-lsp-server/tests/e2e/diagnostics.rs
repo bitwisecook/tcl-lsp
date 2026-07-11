@@ -73,6 +73,15 @@ fn message(d: &Value) -> &str {
     d.get("message").and_then(Value::as_str).unwrap_or("")
 }
 
+/// Diagnostics from `diags` carrying `code`.
+fn with_code(diags: &[Value], code: &str) -> Vec<Value> {
+    diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some(code))
+        .cloned()
+        .collect()
+}
+
 // -- TestPushDiagnostics -------------------------------------------------
 
 #[test]
@@ -100,6 +109,113 @@ fn arity_error_is_e002_with_error_severity() {
         .collect();
     assert!(!e002.is_empty());
     assert_eq!(e002[0].get("severity").and_then(Value::as_i64), Some(1)); // Error
+}
+
+// -- E004 malformed `if` — end-to-end. Each message/range is
+// cross-checked against tclsh 8.6 and Tcl 9.0.4's `Tcl_IfObjCmd` source
+// in the unit-level truth table (`tcl-registry`'s
+// `commands::tcl::if_::tests`, `tcl-compiler`'s `analyser::state::tests`
+// `tp_*` / `fp_*` / `tn_*` cases); this layer only asserts the
+// diagnostic survives the full LSP round trip (server → JSON-RPC →
+// `publishDiagnostics`) with the right code, message, and — critically
+// — a *tight* range, not the whole statement.
+
+/// A diagnostic's `range` as `((start_line, start_char), (end_line, end_char))`.
+fn diag_range(d: &Value) -> ((i64, i64), (i64, i64)) {
+    let get = |path: &[&str]| -> i64 {
+        let mut v = d.get("range").expect("diagnostic has a range");
+        for p in path {
+            v = v.get(p).unwrap_or(&Value::Null);
+        }
+        v.as_i64().unwrap_or(-1)
+    };
+    (
+        (get(&["start", "line"]), get(&["start", "character"])),
+        (get(&["end", "line"]), get(&["end", "character"])),
+    )
+}
+
+#[test]
+fn e004_bare_if_names_the_invoked_command_and_anchors_on_it() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "if\n");
+    let e004 = with_code(&diags, "E004");
+    assert_eq!(e004.len(), 1, "got {diags:?}");
+    assert_eq!(message(&e004[0]), "No expression after \"if\" argument");
+    assert_eq!(diag_range(&e004[0]), ((0, 0), (0, 2)));
+}
+
+#[test]
+fn e004_condition_without_body_anchors_on_the_condition_word() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "if {1}\n");
+    let e004 = with_code(&diags, "E004");
+    assert_eq!(e004.len(), 1, "got {diags:?}");
+    assert_eq!(message(&e004[0]), "No script following \"1\" argument");
+    assert_eq!(diag_range(&e004[0]), ((0, 3), (0, 6)));
+}
+
+#[test]
+fn e004_extra_words_anchors_only_the_extra_word_not_the_whole_statement() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "if {1} {a} {b} {c}\n");
+    let e004 = with_code(&diags, "E004");
+    assert_eq!(e004.len(), 1, "got {diags:?}");
+    assert_eq!(
+        message(&e004[0]),
+        "Extra words after \"else\" clause in \"if\" command"
+    );
+    // Just "{c}" (columns 15..18) — not the whole `if ... {c}` statement.
+    assert_eq!(diag_range(&e004[0]), ((0, 15), (0, 18)));
+}
+
+#[test]
+fn e004_leading_else_bareword_condition_is_not_flagged() {
+    // `if else {a}` — "else" is a well-formed (if ill-typed) condition,
+    // not a malformed `if`; see the FP fix in
+    // `tcl-compiler`'s `analyser::state::tests::fp_leading_else_is_not_malformed`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "if else {a}\n");
+    assert!(with_code(&diags, "E004").is_empty(), "got {diags:?}");
+}
+
+#[test]
+fn e004_qualified_double_colon_if_is_checked() {
+    // `::if` names the same global command as `if` — the E004 dispatch
+    // is generic on the resolved spec's hook, not on the literal
+    // `cmd_name == "if"` text, so registry `::`-stripping picks this up
+    // for free.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "::if {1} {a} {b} {c}\n");
+    assert_eq!(with_code(&diags, "E004").len(), 1, "got {diags:?}");
+}
+
+#[test]
+fn e004_well_formed_elseif_chain_has_no_e004() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "if {$a} {\n  puts a\n} elseif {$b} {\n  puts b\n} else {\n  puts c\n}\n",
+    );
+    assert!(with_code(&diags, "E004").is_empty(), "got {diags:?}");
+}
+
+#[test]
+fn e004_no_duplicate_e002_for_the_same_malformed_if() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "if {1}\n");
+    assert_eq!(with_code(&diags, "E004").len(), 1, "got {diags:?}");
+    assert!(
+        with_code(&diags, "E002").is_empty(),
+        "E004 must not carry a redundant generic E002 alongside it: {diags:?}"
+    );
 }
 
 #[test]
@@ -187,6 +303,67 @@ fn string_match_nocase_has_no_arity_error() {
     assert!(!has_code(&diags, "E003"));
 }
 
+// -- TestW004DialectInvalidOption -----------------------------------------
+// End-to-end coverage for W004 (option not available in the active
+// dialect): the abbreviated-subcommand fix, and the shadow-suppression
+// fix for a same-file proc that redefines a builtin.
+
+#[test]
+fn lsearch_stride_on_tcl86_is_w004() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl8.6\nlsearch -stride 2 {a b} x\n");
+    assert!(has_code(&diags, "W004"));
+}
+
+#[test]
+fn chan_configure_inputmode_on_tcl86_is_w004() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl8.6\nchan configure $chan -inputmode raw\n",
+    );
+    assert!(has_code(&diags, "W004"));
+}
+
+#[test]
+fn abbreviated_chan_conf_inputmode_on_tcl86_is_still_w004() {
+    // `conf` uniquely abbreviates `configure` — real Tcl ensemble dispatch
+    // accepts it, so the option check must resolve it too rather than
+    // silently skipping the whole option scan.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl8.6\nchan conf $chan -inputmode raw\n",
+    );
+    assert!(has_code(&diags, "W004"));
+}
+
+#[test]
+fn lsearch_stride_on_tcl90_has_no_w004() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl9.0\nlsearch -stride 2 {a b} x\n");
+    assert!(!has_code(&diags, "W004"));
+}
+
+#[test]
+fn user_proc_shadowing_lsearch_suppresses_w004() {
+    // `lsearch` really dispatches to the user's own proc here, so the
+    // builtin's dialect-restricted `-stride` no longer applies.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src =
+        "# tcl-dialect: tcl8.6\nproc lsearch {l args} { return $l }\nlsearch -stride 2 {a b}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "W004"),
+        "a user proc shadowing lsearch should suppress W004: {diags:?}"
+    );
+}
+
 // -- TestE001MissingDispatchWord ------------------------------------------
 // End-to-end coverage for E001 ("missing subcommand" / TclOO "missing
 // method"): tight command-head-only highlighting, the `history`
@@ -253,6 +430,223 @@ fn history_unknown_subcommand_is_still_w001_not_e001() {
     assert!(!has_code(&diags, "E001"));
 }
 
+// -- W002 (disabled-in-dialect command), end to end -----------------------
+
+/// The `(character, character)` span of the first diagnostic carrying `code`
+/// on `line`, or `None` if there isn't one.
+fn range_on_line(diags: &[Value], code: &str, line: i64) -> Option<(i64, i64)> {
+    diags.iter().find_map(|d| {
+        if code_str(d).as_deref() != Some(code) {
+            return None;
+        }
+        let range = d.get("range")?;
+        let start = range.get("start")?;
+        if start.get("line")?.as_i64()? != line {
+            return None;
+        }
+        let end = range.get("end")?;
+        Some((
+            start.get("character")?.as_i64()?,
+            end.get("character")?.as_i64()?,
+        ))
+    })
+}
+
+#[test]
+fn disabled_command_is_w002_with_a_tight_span() {
+    // `dict` is Tcl 8.5+; under `tcl8.4` the call is disabled, and the
+    // squiggle must cover exactly the 4-character `dict` token — not the
+    // whole line — so the editor highlights only the offending name.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl8.4\ndict create a 1\n");
+    let w002: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("W002"))
+        .collect();
+    assert_eq!(w002.len(), 1, "expected exactly one W002: {diags:?}");
+    assert_eq!(
+        message(w002[0]),
+        "'dict' is disabled in the active dialect profile \
+         (available in: tcl8.5, tcl8.6, tcl9.0, tcl9.1)"
+    );
+    assert_eq!(
+        range_on_line(&diags, "W002", 1),
+        Some((0, 4)),
+        "the span must cover exactly 'dict' on line 1: {diags:?}"
+    );
+}
+
+#[test]
+fn disabled_command_enabled_in_active_dialect_is_clean() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl9.0\ndict create a 1\n");
+    assert!(
+        !has_code(&diags, "W002"),
+        "dict is native in 9.0: {diags:?}"
+    );
+}
+
+#[test]
+fn disabled_subcommand_is_w002_with_a_command_plus_subcommand_span() {
+    // `package files` is Tcl 9.0+; the squiggle covers `package files`
+    // (command head through the subcommand word), not the whole call.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "package files mypackage\n");
+    assert!(
+        !has_code(&diags, "W001"),
+        "must not report as unknown: {diags:?}"
+    );
+    assert_eq!(
+        range_on_line(&diags, "W002", 0),
+        Some((0, 13)),
+        "the span must cover 'package files' (13 chars): {diags:?}"
+    );
+}
+
+#[test]
+fn disabled_command_shadowed_by_namespace_scoped_proc_is_clean() {
+    // A namespace-scoped `proc dict` shadows the disabled builtin for
+    // unqualified calls resolved inside that namespace — Tcl's real
+    // current-namespace-then-global resolution rule, not merely "was `dict`
+    // defined anywhere in the file".
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "# tcl-dialect: tcl8.4\nnamespace eval ::ns {\n    proc dict {args} { return $args }\n    dict foo bar\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "W002"),
+        "a namespace-scoped shadowing proc must suppress W002: {diags:?}"
+    );
+}
+
+#[test]
+fn disabled_command_shadowed_by_forward_declared_proc_body_is_clean() {
+    // The shadowing proc is declared *after* the call site textually, but
+    // the call only runs (inside another proc's body) once the whole file
+    // has loaded — so the later definition is already in effect.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "# tcl-dialect: tcl8.4\nproc use_dict {} {\n    dict create a 1\n}\nproc dict {args} { return $args }\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "W002"),
+        "a forward-declared proc-body shadow must suppress W002: {diags:?}"
+    );
+}
+
+#[test]
+fn disabled_command_top_level_call_before_shadowing_proc_still_fires() {
+    // The mirror image: a *top-level* call before its shadowing proc's
+    // definition still reaches the disabled builtin at load time.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "# tcl-dialect: tcl8.4\ndict create a 1\nproc dict {args} { return $args }\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        has_code(&diags, "W002"),
+        "a top-level call before its shadowing proc must still fire W002: {diags:?}"
+    );
+}
+
+#[test]
+fn disabled_command_shadowed_by_interp_alias_is_clean() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "# tcl-dialect: tcl8.4\ninterp alias {} dict {} list\ndict create a 1\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "W002"),
+        "an interp alias establishing the name must suppress W002: {diags:?}"
+    );
+}
+
+#[test]
+fn disabled_command_shadowed_by_rename_is_clean() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "# tcl-dialect: tcl8.4\nproc myimpl {args} { return $args }\nrename myimpl dict\ndict create a 1\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "W002"),
+        "a rename establishing the name must suppress W002: {diags:?}"
+    );
+}
+
+#[test]
+fn disabled_subcommand_form_shadowed_by_ensemble_head_proc_is_clean() {
+    // A user `proc package` overrides the *whole* ensemble command — the
+    // call never reaches the registry `package files` subcommand check.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc package {args} { return $args }\npackage files mypackage\n",
+    );
+    assert!(
+        !has_code(&diags, "W002"),
+        "a shadowed ensemble head must suppress the subcommand-form W002: {diags:?}"
+    );
+}
+
+#[test]
+fn w001_span_covers_only_the_subcommand_word() {
+    // The squiggle must sit tightly on the offending word alone — not the
+    // command name too. `string bogus $x`: "string " is 7 characters, so
+    // "bogus" spans [7, 12).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "string bogus $x\n");
+    let w001: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("W001"))
+        .collect();
+    assert_eq!(w001.len(), 1, "expected exactly one W001: {diags:?}");
+    let range = &w001[0]["range"];
+    assert_eq!(range["start"]["line"], 0);
+    assert_eq!(
+        range["start"]["character"], 7,
+        "span must start at 'bogus', not 'string'"
+    );
+    assert_eq!(range["end"]["line"], 0);
+    assert_eq!(
+        range["end"]["character"], 12,
+        "span must cover only 'bogus'"
+    );
+}
+
+#[test]
+fn proc_shadowing_ensemble_command_suppresses_w001() {
+    // FP regression (FP-STY-17): a same-file `proc string {...}` replaces
+    // the builtin `string` ensemble at the call site, end to end.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc string {op args} { return $op }\nstring reverse hello\n",
+    );
+    assert!(
+        !has_code(&diags, "W001"),
+        "proc-shadowed ensemble call must not fire W001: {diags:?}"
+    );
+}
+
+#[test]
+fn unshadowed_ensemble_command_still_fires_w001_alongside_a_shadowed_one() {
+    // TP control paired with the FP above: shadowing `string` must not
+    // blind the server to a genuine unknown subcommand on a different
+    // ensemble in the same file.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "proc string {op args} { return $op }\ninfo bogus\n");
+    assert!(
+        has_code(&diags, "W001"),
+        "unshadowed ensemble must still fire W001: {diags:?}"
+    );
+}
+
 #[test]
 fn bare_tcloo_object_dispatch_is_e001() {
     // `set o [Dog new]; $o` — TclOO's per-object dispatcher requires a
@@ -287,6 +681,36 @@ fn bare_snit_instance_dispatch_is_not_e001() {
     let uri = unique_uri("tcl");
     let src = "snit::type Dog { method bark {} { return woof } }\nDog t\n$t\n";
     assert!(!has_code(&lsp.open_ready(&uri, src), "E001"));
+}
+
+// -- TestT101OutputSinkSpan ------------------------------------------------
+// T101 (tainted data into `puts`) end-to-end: the diagnostic must highlight
+// only the tainted argument word, not the whole `puts $x` statement.
+
+#[test]
+fn puts_tainted_data_has_tight_argument_span() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set x [gets stdin]\nputs $x\n";
+    let diags = lsp.open_ready(&uri, src);
+    let t101: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("T101"))
+        .collect();
+    assert_eq!(t101.len(), 1, "expected exactly one T101: {diags:?}");
+    let range = &t101[0]["range"];
+    // Line 1 (0-based) is `puts $x`; `$x` starts at character 5, ends at 7 —
+    // not the whole 7-character statement starting at character 0.
+    assert_eq!(range["start"]["line"], 1);
+    assert_eq!(
+        range["start"]["character"], 5,
+        "span must start at `$x`, not the `puts` command word: {diags:?}"
+    );
+    assert_eq!(range["end"]["line"], 1);
+    assert_eq!(
+        range["end"]["character"], 7,
+        "span must cover only `$x`: {diags:?}"
+    );
 }
 
 // -- TestSameFileCallArity ------------------------------------------------
@@ -464,6 +888,52 @@ fn same_file_tcloo_no_explicit_constructor_is_never_checked() {
 }
 
 #[test]
+fn same_file_tcloo_next_call_arity_is_checked() {
+    // `next` re-invokes the current method's next-in-MRO implementation —
+    // a gap this review closed; previously `next` drew no arity
+    // diagnostic at all regardless of the resolved superclass method's
+    // own signature.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Base { method speak {a b} { return \"$a$b\" } }\n\
+         oo::class create Derived { superclass Base\n method speak {a b} { next 1 } }\n\
+         [Derived new] speak x y\n",
+    );
+    assert!(
+        has_code(&diags, "E002"),
+        "expected E002 for a 1-arg `next` against a 2-arg superclass method; got {diags:?}"
+    );
+    let uri2 = unique_uri("tcl");
+    let diags_ok = lsp.open_ready(
+        &uri2,
+        "oo::class create Base { method speak {a b} { return \"$a$b\" } }\n\
+         oo::class create Derived { superclass Base\n method speak {a b} { next 1 2 } }\n\
+         [Derived new] speak x y\n",
+    );
+    assert!(!has_code(&diags_ok, "E002"));
+    assert!(!has_code(&diags_ok, "E003"));
+}
+
+#[test]
+fn same_file_tcloo_nextto_call_arity_checks_named_target() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Root { method speak {a} { return $a } }\n\
+         oo::class create Mid { superclass Root\n method speak {a b} { return \"$a$b\" } }\n\
+         oo::class create Derived { superclass Mid\n method speak {a b} { nextto Root 1 2 } }\n\
+         [Derived new] speak x y\n",
+    );
+    assert!(
+        has_code(&diags, "E003"),
+        "expected E003 for a 2-arg `nextto Root` against Root's 1-arg speak; got {diags:?}"
+    );
+}
+
+#[test]
 fn same_file_apply_lambda_call_arity_is_checked() {
     // A direct `apply {{params} body} ?args?` call — another gap this
     // review closed.
@@ -478,6 +948,56 @@ fn same_file_apply_lambda_call_arity_is_checked() {
     let diags_ok = lsp.open_ready(&uri2, "apply {{a b} {return [expr {$a+$b}]}} 1 2\n");
     assert!(!has_code(&diags_ok, "E002"));
     assert!(!has_code(&diags_ok, "E003"));
+}
+
+#[test]
+fn dict_create_odd_key_value_tail_is_checked() {
+    // `dict create ?key value ...?` needs an even tail — a gap this
+    // review closed; previously an odd (unpaired) tail drew no
+    // diagnostic at all.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "dict create a\n");
+    assert!(
+        has_code(&diags, "E005"),
+        "expected E005 for an odd dict create tail; got {diags:?}"
+    );
+    let uri2 = unique_uri("tcl");
+    let diags_ok = lsp.open_ready(&uri2, "dict create a b\n");
+    assert!(!has_code(&diags_ok, "E005"));
+}
+
+#[test]
+fn foreach_unpaired_varlist_is_checked() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "foreach x $l y {puts $x}\n");
+    assert!(
+        has_code(&diags, "E005"),
+        "expected E005 for an unpaired foreach var-list; got {diags:?}"
+    );
+    let uri2 = unique_uri("tcl");
+    let diags_ok = lsp.open_ready(&uri2, "foreach x $l {puts $x}\n");
+    assert!(!has_code(&diags_ok, "E005"));
+}
+
+#[test]
+fn switch_flat_unpaired_pattern_is_checked() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "switch $s a b c\n");
+    assert!(
+        has_code(&diags, "E005"),
+        "expected E005 for an unpaired switch pattern; got {diags:?}"
+    );
+    // Both valid shapes stay silent: the flat paired form and the
+    // single-braced-body shorthand.
+    let uri2 = unique_uri("tcl");
+    let diags_ok = lsp.open_ready(&uri2, "switch $s a b c d\n");
+    assert!(!has_code(&diags_ok, "E005"));
+    let uri3 = unique_uri("tcl");
+    let diags_braced = lsp.open_ready(&uri3, "switch $s {a b c d e f}\n");
+    assert!(!has_code(&diags_braced, "E005"));
 }
 
 // -- TestDiagnosticCanaries ----------------------------------------------
@@ -1432,4 +1952,365 @@ fn large_file_publishes_fast_tier_before_deep_tier() {
         "the deep tier must be a strict superset of the fast tier (no fast-tier \
          diagnostic is ever removed by the deep pass): fast={fast:?} deep={deep:?}",
     );
+}
+
+// -- E100 / E102 stray-closer diagnostics --------------------------------
+//
+// A bare `]` / `}` has no special meaning to Tcl outside `[...]` / `{...}`,
+// so these are "probably a typo" heuristics, not hard parse errors. The
+// range must be tight around the offending character — end-to-end coverage
+// for issue-class bugs found in review: the highlighted range excluding the
+// stray character itself, a fix-less diagnostic spanning the whole command
+// instead of just the character, and a bad repair corrupting an unrelated
+// "Unknown command" diagnostic elsewhere in the file.
+
+fn range_of(diags: &[Value], code: &str) -> (i64, i64, i64, i64) {
+    let d = diags
+        .iter()
+        .find(|d| code_str(d).as_deref() == Some(code))
+        .unwrap_or_else(|| panic!("no {code} in {diags:?}"));
+    let r = &d["range"];
+    (
+        r["start"]["line"].as_i64().unwrap(),
+        r["start"]["character"].as_i64().unwrap(),
+        r["end"]["line"].as_i64().unwrap(),
+        r["end"]["character"].as_i64().unwrap(),
+    )
+}
+
+#[test]
+fn e100_range_is_tight_around_bracket_without_a_fix() {
+    // `set x blah]` — no known command / arity overflow, so no fix is
+    // available; the highlighted range must be just the `]` (char 10..11),
+    // not the whole command from `set`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x blah]\n");
+    assert_eq!(range_of(&diags, "E100"), (0, 10, 0, 11));
+}
+
+#[test]
+fn e100_range_includes_the_bracket_with_a_fix() {
+    // `puts string]` — `string` is a known command right before the `]`;
+    // the range must still run through (and include) the `]` itself.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "puts string]\n");
+    let (l0, c0, l1, c1) = range_of(&diags, "E100");
+    assert_eq!((l0, l1), (0, 0));
+    assert_eq!(c1, 12, "range end must include the ']' at char 11");
+    assert!(c0 < c1);
+}
+
+#[test]
+fn e102_range_is_tight_around_embedded_brace() {
+    // A `}` embedded in a bareword (not the whole token) must still be
+    // flagged, with a range covering only the `}` character.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x foo}bar\n");
+    assert_eq!(range_of(&diags, "E102"), (0, 9, 0, 10));
+}
+
+#[test]
+fn e100_repair_does_not_corrupt_unrelated_command_name() {
+    // Regression: a stray `]` after a call to an already-declared user
+    // proc used to get "repaired" into a virtual command-substitution
+    // token with a byte-offset bug, corrupting the recorded invocation
+    // and firing a phantom "Unknown command" (W123) on a garbled
+    // substring of the proc name — with no E100 fix to explain it either.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc myHelper {a b} {return $a}\nset y myHelper arg1 arg2]\n",
+    );
+    assert!(has_code(&diags, "E100"));
+    assert!(
+        !has_code(&diags, "W123"),
+        "no phantom unknown-command diagnostic expected: {:?}",
+        diags
+            .iter()
+            .map(|d| (code_str(d), message(d).to_string()))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn e100_escaped_bracket_under_arity_overflow_is_silent() {
+    // A genuinely escaped trailing `]` (`\]`) combined with an arity
+    // overflow on the enclosing command must not fire E100 at all, and
+    // must not trigger a repair that corrupts anything downstream.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set y bar baz\\]\n");
+    assert!(!has_code(&diags, "E100"), "{:?}", codes(&diags));
+    assert!(!has_code(&diags, "W123"), "{:?}", codes(&diags));
+}
+
+#[test]
+fn e101_recovery_does_not_swallow_a_call_to_a_known_proc() {
+    // Regression: only registry builtins were excluded from looking
+    // like an orphaned switch case, so a genuine call to an
+    // already-declared user proc with a single braced argument right
+    // after the case list — `renderReport { prose text }` — was
+    // swallowed as an extra case, corrupting the switch's argv and
+    // running the braced prose through command analysis as if it were
+    // Tcl (a phantom "Unknown command" on ordinary text).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc renderReport {body} {\n    puts $body\n}\n\nproc foo {x} {\n    switch $x\n    a {\n        return 1\n    }\n    renderReport {\n        Some unrelated braced-argument call, not a switch case.\n    }\n}\n",
+    );
+    assert!(has_code(&diags, "E101"), "{:?}", codes(&diags));
+    assert!(
+        !has_code(&diags, "W123"),
+        "the renderReport call must not be parsed as switch-case body text: {:?}",
+        diags
+            .iter()
+            .map(|d| (code_str(d), message(d).to_string()))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn e103_abstains_when_missing_brace_swallows_more_than_one_statement() {
+    // Regression: the "stolen close brace" heuristic used to fire on
+    // whichever `}` was LAST in the swallowed text, even when that
+    // text spanned more than one top-level statement (here a sibling
+    // `proc` swallowed along with the `if` that actually stole the
+    // brace). Applying that fix parsed clean but silently nested the
+    // sibling proc inside the unclosed one instead of closing it
+    // where the missing brace belongs — a structural corruption, not
+    // just an imprecise diagnostic. Pure brace-counting can't safely
+    // pick a location once more than one statement is swallowed, so
+    // this must fall back to the generic (fix-less) E200 instead of
+    // guessing wrong.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc foo {} {\n    if {1} {\n        puts hi\n    }\nproc bar {} {\n    return 1\n}\n",
+    );
+    assert!(!has_code(&diags, "E103"), "{:?}", codes(&diags));
+    assert!(has_code(&diags, "E200"), "{:?}", codes(&diags));
+}
+
+#[test]
+fn shimmer_incr_on_string_is_s100_info_with_tight_range() {
+    // The range must cover only the `$x` argument — not the whole `incr x`
+    // call and not the `[lindex $x 0]` substitution around it.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x hello\nlindex $x 0\n");
+    let s100: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("S100"))
+        .collect();
+    assert_eq!(s100.len(), 1, "expected exactly one S100: {diags:?}");
+    let range = &s100[0]["range"];
+    assert_eq!(range["start"]["line"], 1);
+    assert_eq!(range["start"]["character"], 7, "must start at '$x'");
+    assert_eq!(range["end"]["line"], 1);
+    assert_eq!(range["end"]["character"], 9, "must end after '$x'");
+    assert_eq!(
+        s100[0].get("severity").and_then(Value::as_i64),
+        Some(3), // Information
+        "S100 is informational: {:?}",
+        s100[0]
+    );
+}
+
+#[test]
+fn clean_list_used_with_lindex_has_no_s100() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x [list 1 2 3]\nlindex $x 0\n");
+    assert!(!has_code(&diags, "S100"), "unexpected S100: {diags:?}");
+}
+
+#[test]
+fn shimmer_fires_inside_tcloo_method_body() {
+    // TclOO method bodies previously got zero shimmer coverage (the
+    // compiler-checks aggregator only walked the top level and procedures).
+    // Exactly one, not two: `tcl-lsp-db::proc_taint_solve` (the live server's
+    // memoised path) has its own top-up loop for methods/body units,
+    // independent of `compiler_checks.rs`'s direct path — a regression where
+    // both the top-up loop *and* the main loop covered methods/body units
+    // would double-emit every shimmer diagnostic inside one.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src =
+        "oo::class create C {\n    method m {} {\n        set x hello\n        incr x\n    }\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    let s100: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("S100"))
+        .collect();
+    assert_eq!(
+        s100.len(),
+        1,
+        "expected exactly one S100 inside a TclOO method body: {diags:?}"
+    );
+}
+
+#[test]
+fn shimmer_fires_inside_namespace_eval_body() {
+    // Same double-count guard as `shimmer_fires_inside_tcloo_method_body`,
+    // for the other synthetic body-unit kind.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval ns {\n    set x hello\n    incr x\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    let s100: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("S100"))
+        .collect();
+    assert_eq!(
+        s100.len(),
+        1,
+        "expected exactly one S100 inside a namespace eval body: {diags:?}"
+    );
+}
+
+#[test]
+fn no_shimmer_for_tcloo_instance_variable_linked_via_my_variable() {
+    // (FP guard) `my variable count` links an object-instance variable whose
+    // true intrep depends on another method's last write, not the nominal
+    // return type of `my`. Before the registry fix (`oo_my.rs`'s `variable`
+    // subcommand), this spuriously claimed a String->Int shimmer.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create Counter {\n    method bump {} {\n        my variable count\n        incr count\n    }\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !diags.iter().any(|d| {
+            matches!(code_str(d).as_deref(), Some("S100" | "S101"))
+                && d.get("message")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .contains("'count'")
+        }),
+        "'my variable'-linked instance var must not spuriously shimmer: {diags:?}"
+    );
+}
+
+/// (Regression guard) `my` dispatches to an arbitrary `TclOO` method name — the
+/// registry only recognises `variable` (for the scope-alias trait) and must
+/// keep `allow_unknown_subcommands` set, or every other `my <method>` call
+/// (the overwhelmingly common form) would falsely draw W001.
+#[test]
+fn my_arbitrary_method_call_does_not_draw_w001() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create Counter {\n    method bump {} {\n        my touch\n    }\n    method touch {} {}\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(!has_code(&diags, "W001"), "unexpected W001: {diags:?}");
+}
+
+#[test]
+fn shimmer_fires_through_interp_alias() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "interp alias {} myindex {} ::lindex\nset x hello\nmyindex $x 0\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        has_code(&diags, "S100"),
+        "expected S100 through an interp alias to a shimmering builtin: {diags:?}"
+    );
+}
+
+#[test]
+fn shimmer_noqa_suppresses_s100() {
+    // `# noqa: S100` on the line before the shimmering command must
+    // suppress it through the live publishDiagnostics pipeline.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x hello\n# noqa: S100\nlindex $x 0\n");
+    assert!(
+        !has_code(&diags, "S100"),
+        "S100 must be suppressed by a preceding '# noqa: S100': {diags:?}"
+    );
+}
+
+#[test]
+fn shimmer_noqa_for_unrelated_code_does_not_suppress_s100() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x hello\n# noqa: W100\nlindex $x 0\n");
+    assert!(
+        has_code(&diags, "S100"),
+        "S100 must still fire when the preceding noqa names an unrelated code: {diags:?}"
+    );
+}
+
+// -- W003 (dialect-gated expr operators) ---------------------------------
+
+#[test]
+fn w003_tight_span_covers_only_the_operator() {
+    // The diagnostic must highlight just the 2-byte `lt`, not the whole
+    // `{$a lt $b}` condition or the enclosing `if`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl8.4\nif {$a lt $b} { puts hi }\n");
+    let w003: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("W003"))
+        .collect();
+    assert_eq!(w003.len(), 1, "{diags:?}");
+    let range = &w003[0]["range"];
+    assert_eq!(range["start"]["line"], 1);
+    assert_eq!(range["start"]["character"], 7);
+    assert_eq!(range["end"]["line"], 1);
+    assert_eq!(range["end"]["character"], 9, "span must cover only 'lt'");
+}
+
+#[test]
+fn w003_repeated_operators_get_distinct_ranges_over_the_wire() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl8.4\nif {$a in $b && $c in $d} { puts hi }\n",
+    );
+    let w003: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("W003"))
+        .collect();
+    assert_eq!(w003.len(), 2, "{diags:?}");
+    assert_ne!(w003[0]["range"], w003[1]["range"]);
+}
+
+#[test]
+fn w003_message_cites_the_relevant_tip() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl8.4\nexpr {2 in {1 2 3}}\n");
+    let w003: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("W003"))
+        .collect();
+    assert_eq!(w003.len(), 1, "{diags:?}");
+    assert!(message(w003[0]).contains("TIP 201"), "{}", message(w003[0]));
+}
+
+#[test]
+fn w003_eda_vendor_dialect_does_not_over_fire_on_in() {
+    // Regression: `xilinx-eda-tcl` is documented as running on top of a
+    // real Tcl 8.5 core, so TIP 201's `in` must not be flagged there.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: xilinx-eda-tcl\nexpr {2 in {1 2 3}}\n");
+    assert!(!has_code(&diags, "W003"), "{diags:?}");
+}
+
+#[test]
+fn w003_f5_tmsh_flags_string_relational_operators() {
+    // Regression: `f5-tmsh` used to have no `DialectSet` bit at all, so
+    // W003 silently never fired for it.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# tcl-dialect: f5-tmsh\nif {$a lt $b} { puts hi }\n");
+    assert!(has_code(&diags, "W003"), "{diags:?}");
 }

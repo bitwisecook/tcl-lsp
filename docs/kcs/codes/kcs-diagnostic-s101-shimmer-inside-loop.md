@@ -44,7 +44,9 @@ foreach item $list {
 
 ## How to suppress
 
-Add `# noqa: S101` at the end of the offending line.
+Add `# noqa: S101` on the line **above** the offending command, or apply
+the "Suppress S101 with a noqa comment" quick fix offered on the
+diagnostic.
 
 ## Related
 

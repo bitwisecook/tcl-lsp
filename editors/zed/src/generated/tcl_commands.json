@@ -140,14 +140,6 @@
       "summary": "list membership"
     },
     {
-      "name": "::tcl::mathop::max",
-      "summary": "maximum of arguments"
-    },
-    {
-      "name": "::tcl::mathop::min",
-      "summary": "minimum of arguments"
-    },
-    {
       "name": "::tcl::mathop::ne",
       "summary": "string inequality"
     },
@@ -2238,6 +2230,7 @@
         "bbox",
         "columnconfigure",
         "configure",
+        "content",
         "forget",
         "info",
         "location",
@@ -5639,10 +5632,6 @@
       "summary": "Calculate the cotangent of the angle (in degrees) Angle (in degrees)."
     },
     {
-      "name": "max",
-      "summary": "maximum of arguments"
-    },
-    {
       "name": "md4::HMACFinal",
       "summary": "Finalise an incremental HMAC-MD4 and return the result."
     },
@@ -5840,10 +5829,6 @@
       "pure": true
     },
     {
-      "name": "min",
-      "summary": "minimum of arguments"
-    },
-    {
       "name": "mkdoc::run",
       "summary": "The command reads the specified infile, extracts the embedded documentation, and then executes the contents of th"
     },
@@ -5930,7 +5915,10 @@
     },
     {
       "name": "my",
-      "summary": "invoke a method on the current object"
+      "summary": "invoke a method on the current object",
+      "subcommands": [
+        "variable"
+      ]
     },
     {
       "name": "nameserv::bind",
@@ -6308,6 +6296,7 @@
       "summary": "Geometry manager that packs slaves around the edges of a cavity.",
       "subcommands": [
         "configure",
+        "content",
         "forget",
         "info",
         "propagate",
@@ -6580,6 +6569,7 @@
       "summary": "Geometry manager for fixed or rubber-sheet placement.",
       "subcommands": [
         "configure",
+        "content",
         "forget",
         "info",
         "slaves"
@@ -7790,14 +7780,6 @@
     {
       "name": "tcl::mathop::in",
       "summary": "list membership"
-    },
-    {
-      "name": "tcl::mathop::max",
-      "summary": "maximum of arguments"
-    },
-    {
-      "name": "tcl::mathop::min",
-      "summary": "minimum of arguments"
     },
     {
       "name": "tcl::mathop::ne",
@@ -9736,6 +9718,7 @@
         "geometry",
         "grid",
         "group",
+        "iconbadge",
         "iconbitmap",
         "iconify",
         "iconmask",

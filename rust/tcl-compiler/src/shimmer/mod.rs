@@ -260,7 +260,17 @@ mod tests {
     fn find_shimmer_warnings_empty_function() {
         let f = Function::new("::top", "entry");
         let ssa = crate::ssa::build_ssa(&f, &registry());
-        let sccp = crate::sccp::sccp(&f, &ssa, None, None, None);
+        let sccp = crate::sccp::sccp(
+            &f,
+            &ssa,
+            None,
+            None,
+            crate::sccp::TraceInputs {
+                registry: &registry(),
+                traced_variables: &std::collections::BTreeSet::new(),
+                has_dynamic_variable_trace: false,
+            },
+        );
         let types: HashMap<ValueKey, TypeLattice> = HashMap::new();
         assert!(
             find_shimmer_warnings(
@@ -269,7 +279,7 @@ mod tests {
                 &types,
                 &sccp.executable_blocks,
                 &registry(),
-                &sccp.values
+                &sccp.values,
             )
             .is_empty()
         );

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `lpop` — get and remove an element from a list variable (Tcl 9.0+, TIP 323).
+//! `lpop` — get and remove an element from a list variable (Tcl 9.0+, TIP 523).
 
 use crate::prelude::*;
 
@@ -43,6 +43,10 @@ pub fn spec() -> CommandSpec {
             },
         )],
         return_type: Some(TclType::String),
+        // `lpop` returns the *removed element* but leaves the variable holding
+        // the shortened *list*.  Type the write as the list it always becomes,
+        // not the popped element's return type (issue #867).
+        var_write_typing: VarWriteTyping::Fixed(TclType::List),
         inferred_storage_type: Some(StorageType::List),
         hover: Some(HoverSnippet {
             summary: "Get and remove an element in a list variable.",

@@ -95,7 +95,13 @@ pub fn spec() -> CommandSpec {
             | Traits::LANGUAGE_KEYWORD
             | Traits::NEVER_INLINE_BODY
             | Traits::HAS_SWITCH_BODY,
-        arity: Arity::at_least(2),
+        // `string pattern body ?pattern body ...?` (an odd count from 3)
+        // — OR the single-braced-body shorthand, `string {pattern body
+        // ...}` (exactly 2) — confirmed against tclsh 8.6.14: `switch $s
+        // a b c` (3 args, an unpaired trailing pattern) fails "wrong #
+        // args", but `switch $s {a b}` (2 args, the braced form) and
+        // `switch $s a b c d` (4, two full pairs) both succeed.
+        arity: Arity::stepped(3, Arity::UNLIMITED, 2).with_also_exact(2),
         arg_role_resolver: Some(switch_arg_roles),
         lowering_hook: Some(crate::hooks::LoweringHookId::Switch),
         return_type: Some(TclType::String),
@@ -172,6 +178,11 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        // `TclNRSwitchObjCmd` (generic/tclCmdMZ.c) only scans for `-flag`
+        // words up to `objc - 2`: the trailing `string` and
+        // pattern-list-or-first-pattern words are never mistaken for
+        // options, even when dynamic/tainted and starting with `-`.
+        reserved_trailing_words: 2,
         ..CommandSpec::DEFAULT
     }
 }

@@ -24,6 +24,11 @@
 //!   is a command argument, not a top-level expression context).
 //! * #727 — go-to-definition of a `TclOO` method/constructor parameter must
 //!   resolve to the parameter *name*, not the whole method body.
+//! * #865 — a workspace file that was opened (and showed problems) must keep its
+//!   Problems / File-Explorer badge after its editor tab closes: the server
+//!   republishes the on-disk file's diagnostics rather than clearing them.
+//! * #867 — `lassign $point x y z` writes list *elements*, so the targets must
+//!   not inherit `lassign`'s `List` return type and fire S100 in `[expr]`.
 //!
 //! Driven over real JSON-RPC against the `tower-lsp` service.
 
@@ -144,6 +149,13 @@ async fn did_open(
     writer.write_all(frame(&msg).as_bytes()).await.unwrap();
 }
 
+async fn did_close(writer: &mut tokio::io::WriteHalf<tokio::io::DuplexStream>, uri: &str) {
+    let msg = format!(
+        r#"{{"jsonrpc":"2.0","method":"textDocument/didClose","params":{{"textDocument":{{"uri":"{uri}"}}}}}}"#,
+    );
+    writer.write_all(frame(&msg).as_bytes()).await.unwrap();
+}
+
 /// The published diagnostics frame for `uri` (or empty string if none seen).
 async fn published_codes(
     reader: &mut BufReader<tokio::io::ReadHalf<tokio::io::DuplexStream>>,
@@ -179,6 +191,47 @@ async fn after_integer_ms_is_not_flagged_w001_e2e() {
 }
 
 #[tokio::test]
+async fn closed_on_disk_file_retains_diagnostics_badge_e2e() {
+    // #865: opening a file surfaces its problems; closing the editor tab must NOT
+    // wipe them — the file is still on disk and part of the workspace, so the
+    // server republishes its on-disk diagnostics so the File-Explorer badge and
+    // Problems entry survive the close.
+    let dir = std::env::temp_dir().join(format!("tcl-lsp-865-e2e-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("retain.tcl");
+    // `y` is set but never read → W211.
+    let src = "proc foo {} { set y 1 }\n";
+    std::fs::write(&path, src).unwrap();
+    // A canonical file URI so the client's didOpen/didClose and the server's
+    // on-disk re-read agree on the same path.
+    let uri = format!("file://{}", path.display());
+
+    let (mut reader, mut writer, server) = start_session().await;
+    did_open(&mut writer, &uri, src).await;
+    let opened = published_codes(&mut reader, &uri).await;
+    assert!(
+        opened.contains("W211"),
+        "the open file should surface W211 first: {opened}",
+    );
+
+    // Close the tab; the file stays on disk.
+    did_close(&mut writer, &uri).await;
+    let after_close = published_codes(&mut reader, &uri).await;
+    assert!(
+        after_close.contains("publishDiagnostics") && after_close.contains("W211"),
+        "#865: a closed on-disk file must retain its W211 badge, not be cleared: {after_close:?}",
+    );
+
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[tokio::test]
 async fn nested_expr_in_command_sub_is_not_flagged_w114_e2e() {
     let (mut reader, mut writer, server) = start_session().await;
     did_open(
@@ -191,6 +244,61 @@ async fn nested_expr_in_command_sub_is_not_flagged_w114_e2e() {
     assert!(
         !diags.contains("W114"),
         "nested [expr] inside a command sub must not raise W114 (#726): {diags}",
+    );
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}
+
+#[tokio::test]
+async fn lassign_targets_not_flagged_s100_shimmer_e2e() {
+    // Issue #867, verbatim reproducer: `lassign` destructures a list into
+    // per-element locals whose intrep is not the `List` the command returns.
+    // Pre-fix the targets were typed LIST, so the arithmetic on the last line
+    // fired S100 "variable has list intrep used in arithmetic expression".
+    let (mut reader, mut writer, server) = start_session().await;
+    did_open(
+        &mut writer,
+        "file:///lassign.tcl",
+        "set point [list 1 2 3]\n\
+         lassign $point x y z\n\
+         set offset [expr {$x + $y + $z}]\n",
+    )
+    .await;
+    let diags = published_codes(&mut reader, "file:///lassign.tcl").await;
+    assert!(
+        !diags.contains("S100"),
+        "lassign targets are list elements, not lists — no S100 shimmer (#867): {diags}",
+    );
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}
+
+#[tokio::test]
+async fn regexp_capture_not_flagged_s100_shimmer_e2e() {
+    // Sibling of #867: a `regexp` capture holds a matched substring, not the
+    // Int match count the command returns.  Comparing it as a string must not
+    // fire S100 "numeric variable used in string comparison".
+    let (mut reader, mut writer, server) = start_session().await;
+    did_open(
+        &mut writer,
+        "file:///regexp.tcl",
+        "set s \"abc\"\n\
+         regexp {(.)} $s letter\n\
+         if {$letter eq \"a\"} { puts yes }\n",
+    )
+    .await;
+    let diags = published_codes(&mut reader, "file:///regexp.tcl").await;
+    assert!(
+        !diags.contains("S100"),
+        "regexp capture is a string, not the Int count — no S100 (#867): {diags}",
     );
     writer
         .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())

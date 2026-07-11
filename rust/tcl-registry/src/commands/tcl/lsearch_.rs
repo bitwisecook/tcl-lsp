@@ -25,9 +25,10 @@ const FORMS: &[FormSpec] = &[FormSpec {
 }];
 
 /// Option table for `lsearch`.  Most flags exist since Tcl 8.4;
-/// `-stride` was added to `lsearch` in Tcl 9.0 (NOT 8.6 — the 8.6 / TIP 351
-/// `-stride` is `lsort`'s; tclsh8.6 rejects `lsearch -stride`), and is
-/// dialect-gated so W004 fires on `lsearch -stride` in pre-9.0 dialects.
+/// `-stride` was added to `lsearch` in Tcl 9.0 (TIP 351 — NOT 8.6; the 8.6
+/// `lsort -stride` is the separate, earlier TIP 326, and tclsh8.6 rejects
+/// `lsearch -stride`), and is dialect-gated so W004 fires on
+/// `lsearch -stride` in pre-9.0 dialects.
 static OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-all",
@@ -166,8 +167,8 @@ static OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         min_version: None,
     },
-    // `lsearch -stride` is Tcl 9.0-only (tclsh8.6 rejects it with "bad option
-    // -stride"; the 8.6 / TIP 351 `-stride` belongs to `lsort`).
+    // `lsearch -stride` is Tcl 9.0-only, TIP 351 (tclsh8.6 rejects it with
+    // "bad option -stride"; the 8.6 `lsort -stride` is the separate TIP 326).
     OptionSpec {
         name: "-stride",
         value: OptionValue::value("strideLength"),

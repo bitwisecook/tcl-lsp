@@ -797,14 +797,20 @@ KCS tag: `tail-call`.
 Compile-time evaluation of expressions whose inputs are all known
 constants, so the runtime sees the result directly instead of the
 computation. Covers constant propagation (`O100`), integer expression
-folding (`O101`), constant command-substitution folding (`O102`),
-redundant-nested-`[expr]` removal (`O115`), list folding (`O116`,
-`O118`), and string-compare simplification (`O117`). Implemented in
-`tcl_compiler::optimiser::propagation`.
+folding (`O101`), a variable's single reaching literal load forwarded
+to its use sites (`O102`), redundant-nested-`[expr]` removal (`O115`),
+list folding (`O116`, `O118`), and string-compare simplification
+(`O117`). Implemented in `tcl_compiler::optimiser::propagation`.
+
+`O102` forwards a variable's literal value into its use sites — a
+pure-literal `[expr {...}]}` substitution with no propagated variable
+is `O101`'s own fold instead. The two commonly co-fire: propagating a
+literal into an `[expr {...}]}` operand (`O102`) frequently exposes an
+`O101` fold of the resulting expression, as below.
 
 ```mermaid
 flowchart LR
-    IN["set x [expr {2 + 3}]"] -->|"O101/O102: fold"| OUT["set x 5"]
+    IN["set a 5\nset x [expr {$a + 3}]"] -->|"O102: forward, then O101: fold"| OUT["set x 8"]
 
     style IN fill:#e1f5fe
     style OUT fill:#e8f5e9

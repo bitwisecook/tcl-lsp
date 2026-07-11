@@ -227,11 +227,10 @@ pub(crate) fn command_span(tokens: &[Token], sm: &SourceMap<'_>) -> Span {
 /// cannot be derived from the token *type*, and `cmd.range` consumers (W105
 /// unbraced-body detection, segmenter tiling) rely on the inner-end for them.
 fn widen_word_end(tok: Token, sm: &SourceMap<'_>) -> u32 {
-    let closer = match tok.kind {
-        TokenType::Str => b'}',
-        TokenType::Cmd => b']',
-        _ => return tok.span.end(),
+    let Some(closer) = tok.kind.group_closer() else {
+        return tok.span.end();
     };
+    let closer = closer as u8;
     let end = tok.span.end();
     if sm.token_text(tok).is_empty() {
         // Empty `{}` / `[]`: span already covers the closer — don't widen.
@@ -537,17 +536,26 @@ where
 /// are exactly [`segment_commands_local`] (the caller then
 /// keeps its own scan-to-next stream).
 ///
+/// `known` is the "known command" name universe the E201 heuristics
+/// consult (see `analyser::utils::recovery_known_commands`) — the active
+/// registry's names plus every proc/class/alias the document itself
+/// defines, so a break just before a call to a user-defined proc recovers
+/// as readily as one before a builtin.
+///
 /// The E204-E206 lexer-warning
 /// codes are emitted separately by the analyser.
 #[must_use]
-pub fn segment_with_recovery(
+pub fn segment_with_recovery<S>(
     source: &str,
     config: LexerConfig,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    known: &std::collections::HashSet<String, S>,
 ) -> (
     Vec<SegmentedCommand>,
     Vec<crate::analyser::types::Diagnostic>,
-) {
+)
+where
+    S: std::hash::BuildHasher,
+{
     // Cap the re-lex iterations to bound work on pathological input.
     const MAX_GHOST_RECOVERY_PASSES: usize = 32;
 
@@ -573,9 +581,9 @@ pub fn segment_with_recovery(
     for _ in 0..MAX_GHOST_RECOVERY_PASSES {
         let mut new_ghost = false;
         for cmd in &current {
-            for diag in crate::analyser::syntax_checks::unterminated_bracket_diagnostics(
-                cmd, source, registry,
-            ) {
+            for diag in
+                crate::analyser::syntax_checks::unterminated_bracket_diagnostics(cmd, source, known)
+            {
                 let bracket_off = diag.span.start();
                 // A heuristic case carries a `]`-insertion fix whose offset
                 // is the ghost offset; a bare fallback has no fix and stays
@@ -807,8 +815,10 @@ mod tests {
         // known command re-lexes into a clean two-command stream and
         // yields an E201 diagnostic.
         let reg = tcl_registry::CommandRegistry::build_default();
+        let known: std::collections::HashSet<String> =
+            reg.command_names().map(str::to_owned).collect();
         let cfg = LexerConfig::default();
-        let (rec, diags) = segment_with_recovery("set x [foo bar\nputs done\n", cfg, Some(&reg));
+        let (rec, diags) = segment_with_recovery("set x [foo bar\nputs done\n", cfg, &known);
         assert_eq!(rec.len(), 2);
         assert_eq!(rec[0].texts, vec!["set", "x", "[foo bar]"]);
         assert_eq!(rec[1].texts, vec!["puts", "done"]);
@@ -819,9 +829,11 @@ mod tests {
     #[test]
     fn recovery_is_a_noop_on_clean_input() {
         let reg = tcl_registry::CommandRegistry::build_default();
+        let known: std::collections::HashSet<String> =
+            reg.command_names().map(str::to_owned).collect();
         let cfg = LexerConfig::default();
         let src = "set ok [foo]\nputs hi\n";
-        let (rec, diags) = segment_with_recovery(src, cfg, Some(&reg));
+        let (rec, diags) = segment_with_recovery(src, cfg, &known);
         let plain = segment_commands(src);
         // No recoverable imbalance → byte-identical words, no diagnostics.
         let words =

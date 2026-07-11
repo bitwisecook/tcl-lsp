@@ -32,7 +32,9 @@ suite("Report style scoped commands (#806)", () => {
 
   test("scoped report commands do not draw W123, but a typo does", async () => {
     await activate(docUri);
-    // Wait until the `toop` typo (line 7) has been flagged.
+    // Wait until the `toop` typo (line 7) has been flagged. W123 fires by
+    // default (see configSettings.test.ts's "diagnostics.W123 defaults to
+    // true" test), so no per-test enable is needed.
     const diagnostics = await waitForDiagnostics(docUri, {
       predicate: (diags) => diags.some((d) => codeOf(d) === "W123" && d.range.start.line === 7),
     });

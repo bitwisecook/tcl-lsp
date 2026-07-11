@@ -216,3 +216,39 @@ suite("TextMate grammar: keywords inside unknown-command braces (#749)", () => {
     assert.ok(scopes.includes("keyword.control.tcl"), scopes.join(", "));
   });
 });
+
+// Regression cover for issue #862: `lmap` carries the registry's
+// LANGUAGE_KEYWORD trait (it binds loop variables, like `foreach`), but the
+// grammar used to list it among the plain "common built-in commands"
+// (support.function.tcl) — so it visibly flipped colour between the
+// TextMate-only fallback and the LSP's semantic-token overlay. It now lives
+// in the same keyword.control.tcl alternation as foreach/for/while.
+suite("TextMate grammar: lmap is a control keyword, not a plain builtin (#862)", () => {
+  let grammar: vsctm.IGrammar;
+
+  suiteSetup(async () => {
+    const registry = makeRegistry();
+    const loaded = await registry.loadGrammar("source.tcl");
+    assert.ok(loaded, "source.tcl grammar should load");
+    grammar = loaded;
+  });
+
+  function scopesForWord(line: string, word: string): string[] | undefined {
+    const result = grammar.tokenizeLine(line, vsctm.INITIAL);
+    const tok = result.tokens.find((t) => line.slice(t.startIndex, t.endIndex).trim() === word);
+    return tok?.scopes;
+  }
+
+  test("lmap scopes the same as foreach", () => {
+    const lmapScopes = scopesForWord("lmap x {1 2 3} {expr {$x * 2}}", "lmap");
+    assert.ok(lmapScopes, "found the 'lmap' token");
+    assert.ok(lmapScopes.includes("keyword.control.tcl"), lmapScopes.join(", "));
+    assert.ok(!lmapScopes.includes("support.function.tcl"), lmapScopes.join(", "));
+  });
+
+  test("plain builtins next to lmap stay support.function.tcl", () => {
+    const scopes = scopesForWord("lappend result 1", "lappend");
+    assert.ok(scopes, "found the 'lappend' token");
+    assert.ok(scopes.includes("support.function.tcl"), scopes.join(", "));
+  });
+});

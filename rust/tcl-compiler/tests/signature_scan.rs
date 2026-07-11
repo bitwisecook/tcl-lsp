@@ -170,6 +170,34 @@ fn alias_with_prepended_args() {
 }
 
 // ---------------------------------------------------------------------------
+// rename
+// ---------------------------------------------------------------------------
+
+#[test]
+fn simple_rename() {
+    let r = run("rename puts my_puts");
+    assert!(r.renames.contains_key("::my_puts"));
+    let rn = &r.renames["::my_puts"];
+    assert_eq!(rn.target, "puts");
+    assert_eq!(rn.qualified_name, "::my_puts");
+}
+
+#[test]
+fn rename_in_namespace_eval_is_namespace_relative() {
+    // Unlike `interp alias` (always global), a bare NEW name is qualified
+    // against the enclosing namespace — the same rule `proc` follows.
+    let r = run("namespace eval math { rename + plus }");
+    assert!(r.renames.contains_key("::math::plus"));
+}
+
+#[test]
+fn rename_to_empty_string_deletes_and_is_not_recorded() {
+    // `rename OLD {}` deletes OLD; no new name is introduced.
+    let r = run("rename puts {}");
+    assert!(r.renames.is_empty());
+}
+
+// ---------------------------------------------------------------------------
 // oo::class
 // ---------------------------------------------------------------------------
 

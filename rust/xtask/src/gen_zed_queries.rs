@@ -11,7 +11,11 @@
 //! `(#any-of? …)` command lists: the registry already knows every command, its
 //! dialect availability, and how it is classified (`CONTROL_FLOW`,
 //! `LANGUAGE_KEYWORD`, otherwise a builtin), so we project those buckets into
-//! one query per language.
+//! one query per language — excluding the `tclUnixTest.c` debug-build
+//! commands and `tcl::`-internal-namespace noise
+//! ([`util::is_internal_or_test_harness_noise`]) that are real registry
+//! entries but not "common" by any definition (see
+//! [`crate::gen_tmlanguage_keywords`], which shares this filter).
 //!
 //! The structural rules (comments, strings, numbers, variables, operators,
 //! punctuation) and the grammar's *dedicated-node* keywords (`if`, `while`,
@@ -44,7 +48,7 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::traits::Traits;
 
-use crate::util::repo_root;
+use crate::util::{self, repo_root};
 
 /// A language directory we emit a query for, and the dialect surface it covers.
 struct Target {
@@ -149,13 +153,10 @@ fn classify(reg: &CommandRegistry, dialects: DialectSet) -> Buckets {
     let mut b = Buckets::default();
 
     for name in reg.command_names() {
-        if name == "disabled_in_irules" || GRAMMAR_NODE_WORDS.contains(&name) {
+        if name == util::DISABLED_SENTINEL || GRAMMAR_NODE_WORDS.contains(&name) {
             continue;
         }
-        if !name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ':')
-        {
+        if !util::is_safe_command_name(name) || util::is_internal_or_test_harness_noise(name) {
             continue;
         }
         let Some(spec) = reg.get(name) else { continue };
@@ -380,7 +381,7 @@ mod tests {
         let reg = registry_for(DialectSet::TK_AND_TCL);
         let b = classify(&reg, DialectSet::TK_AND_TCL);
         assert!(
-            b.builtin.len() > 150,
+            b.builtin.len() > 100,
             "expected the registry builtin surface to dwarf the ~30-entry hand list, got {}",
             b.builtin.len()
         );
@@ -512,5 +513,12 @@ mod tests {
             !has(&tcl, "HTTP::uri"),
             "tcl query wrongly includes iRules `HTTP::uri`"
         );
+        // Test-harness / internal-namespace noise (shared filter with
+        // `gen_tmlanguage_keywords`, see `util::is_internal_or_test_harness_noise`,
+        // whose own test module covers the substring-vs-prefix distinction in
+        // detail) must not leak into the query the same way it used to.
+        for c in ["testalarm", "testchannel", "tcl::process"] {
+            assert!(!has(&tcl, c), "tcl query wrongly includes noise `{c}`");
+        }
     }
 }

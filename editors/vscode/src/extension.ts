@@ -286,6 +286,13 @@ const FEATURE_EDITOR_DEFAULTS: Record<string, () => boolean> = {
   codeLens: () => workspace.getConfiguration("editor").get<boolean>("codeLens", true),
   linkedEditingRange: () =>
     workspace.getConfiguration("editor").get<boolean>("linkedEditing", false),
+  // Opt-in, off unless the user explicitly enables them — same rationale as
+  // the inlay-hint families above. Without an entry here, an unset (null)
+  // value falls through resolveFeatureToggle's "no resolver -> true" default,
+  // which silently turns on workspace-wide cross-file scanning / XC100-301
+  // translatability lints for every user who has never touched the setting.
+  xcDiagnostics: () => false,
+  crossFileResolution: () => false,
 };
 
 /**

@@ -111,6 +111,54 @@ fn dynamic_callback_head_is_not_recorded() {
     );
 }
 
+/// A braced multi-word prefix (`{cb extra}`) — previously silently dropped
+/// entirely, per the module doc's former "out of scope" note — must now be
+/// recorded exactly like a bareword head, with the head's own span (not the
+/// whole braced literal) and its trailing words counted as baked arguments.
+#[test]
+fn braced_multi_word_prefix_records_head_span_and_baked_count() {
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    let src =
+        "proc myCompare {a b extra} { expr {$a - $b} }\nlsort -command {myCompare 99} $items\n";
+    let r = a.analyse(src, "tcl9.0");
+    let inv = r
+        .command_invocations
+        .iter()
+        .find(|i| i.name == "myCompare" && i.callback_arity.is_some())
+        .expect("a braced multi-word prefix must record its head as an invocation");
+    assert_eq!(
+        inv.callback_baked_args, 1,
+        "the `99` word after the head must be counted as one baked argument"
+    );
+    // The head span must cover only `myCompare`, not the braces or `99` —
+    // confirmed by slicing the source at the recorded range.
+    let head_text = &src[inv.range.start() as usize..inv.range.end() as usize];
+    assert_eq!(
+        head_text, "myCompare",
+        "the recorded span must cover exactly the head word, got {head_text:?}"
+    );
+}
+
+/// FP guard: a dynamic head inside the braces (`{$cb extra}`) is not a
+/// literal command reference and must not be recorded — mirrors the
+/// bareword `$cb` guard (`dynamic_callback_head_is_not_recorded`). The
+/// braced word is taken verbatim (no substitution), so `$cb` there is
+/// genuinely a dynamic-looking first element, not just visually similar.
+#[test]
+fn braced_multi_word_prefix_dynamic_head_is_not_recorded() {
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    let r = a.analyse(
+        "proc f {cb l} { return [lsort -command {$cb 99} $l] }\n",
+        "tcl9.0",
+    );
+    assert!(
+        !r.command_invocations
+            .iter()
+            .any(|i| i.callback_arity.is_some()),
+        "a dynamic braced-prefix head must not be recorded as a command-prefix invocation"
+    );
+}
+
 /// The deferred core-Tcl callback surfaces are wired through the same generic
 /// substrate — no per-command code — so a registry-declared prefix on
 /// `namespace unknown` / `package unknown` / `regsub -command` /

@@ -30,7 +30,7 @@ dialect restrictions like `dialect:irule` or `dialect:tcl` when the
 code only fires for one dialect. Multiple profiles may apply.>
 
 <If the code is opt-in, name the exact setting here, for example
-`tclLsp.diagnostics.W123` with default `false`, and give one
+`tclLsp.diagnostics.W242` with default `false`, and give one
 sentence on why it is off by default.>
 
 ## Question

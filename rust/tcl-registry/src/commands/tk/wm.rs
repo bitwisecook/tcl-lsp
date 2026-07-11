@@ -126,6 +126,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        name: "iconbadge",
+        arity: Arity::exact(2),
+        detail: "Set a badge (a short overlay label) on the window's taskbar/dock icon.",
+        synopsis: "wm iconbadge window badge",
+        dialects: Some(DialectSet::TCL90_PLUS),
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
         name: "iconbitmap",
         arity: Arity::new(1, 2),
         detail: "Set or query the bitmap for when the window is iconified.",

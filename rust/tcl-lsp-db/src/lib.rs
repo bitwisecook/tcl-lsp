@@ -39,14 +39,15 @@ use std::sync::{Arc, Mutex};
 use tcl_compiler::cfg_builder::build_cfg_function_with_upvars;
 use tcl_compiler::cfg_builder::global_write_info::GlobalWriteInfo;
 use tcl_compiler::cfg_builder::upvar_info::UpvarInfo;
-use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit, LatticeRequest};
+use tcl_compiler::compilation_unit::{
+    CompilationUnit, FunctionUnit, LatticeRequest, ModuleTraceFacts,
+};
 use tcl_compiler::compiler_checks::{DiagCode, Diagnostic as CompilerCheck};
 use tcl_compiler::interprocedural::{InterproceduralAnalysis, ProcSummary};
 use tcl_compiler::ir::Script;
 use tcl_compiler::optimiser::Optimisation;
 use tcl_compiler::ssa::ValueKey;
 use tcl_compiler::taint::TaintLattice;
-use tcl_compiler::var_observability::ModuleVariableTraces;
 // The compiler's per-proc return-taint summary (the colour-aware transfer
 // function the interprocedural fixpoint converges) — aliased to avoid clashing
 // with this crate's `ProcTaintSummary` (the *interproc-analysis* projection in
@@ -539,8 +540,9 @@ fn apply_callback_arity<S: std::hash::BuildHasher>(
         if candidates.is_empty() {
             continue;
         }
-        // Baked args already present in the prefix (0 for a bareword head).
-        let baked = inv.argc.unwrap_or(0);
+        // Baked args already present in the prefix (0 for a bareword head,
+        // N for a braced multi-word prefix like `-command {cb a b}`).
+        let baked = inv.callback_baked_args;
         let lo = baked + appended.min() as usize;
         let hi = appended.max().map(|m| baked + m as usize);
         if let Some(diag) = cross_file_arity_diagnostic(&inv.name, inv.range, (lo, hi), candidates)
@@ -684,13 +686,12 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
 }
 
 /// Interned module-wide context (`upvar_procs` + `proc_params` +
-/// `global_write_procs` from `prepare_cfg_context`, plus the module-wide
-/// variable-trace fact from `scan_module_variable_traces`) that a
-/// procedure body's CFG + SCCP lattice is built under. Interned once per
-/// build and shared by every [`FnLatticeKey`] so a procedure's key stays
-/// small and the per-build interning cost is `O(procs)`, not `O(procs²)`.
-/// The entry vecs are sorted by name before interning so an equal context
-/// (regardless of hash-map iteration order) yields the same id.
+/// `global_write_procs` from `prepare_cfg_context`) that a procedure body's
+/// CFG is built under. Interned once per build and shared by every
+/// [`FnLatticeKey`] so a procedure's key stays small and the per-build
+/// interning cost is `O(procs)`, not `O(procs²)`. The entry vecs are sorted
+/// by name before interning so an equal context (regardless of hash-map
+/// iteration order) yields the same id.
 #[salsa::interned]
 pub struct CfgContext<'db> {
     #[returns(ref)]
@@ -699,8 +700,6 @@ pub struct CfgContext<'db> {
     pub proc_params: Vec<(String, Vec<String>)>,
     #[returns(ref)]
     pub global_write_ctx: Vec<(String, GlobalWriteInfo)>,
-    #[returns(ref)]
-    pub module_traces: ModuleVariableTraces,
 }
 
 /// Interned identity of one procedure's **offset-0** baseline lattice
@@ -738,6 +737,20 @@ pub struct FnLatticeKey<'db> {
     /// type-propagation pass in [`function_lattice`].
     #[returns(ref)]
     pub known_classes: Vec<String>,
+    /// Literal variable-trace target names (sorted) from
+    /// [`tcl_compiler::ir::Module::traced_variables`] — a whole-module fact
+    /// identical for every procedure, folded into the key exactly like
+    /// `known_classes`: SCCP's trace-safety gate (see
+    /// [`tcl_compiler::sccp::sccp`]) treats a name in this set as never a
+    /// compile-time constant, so a trace installed anywhere in the module can
+    /// change any procedure's cached lattice.
+    #[returns(ref)]
+    pub traced_variables: Vec<String>,
+    /// [`tcl_compiler::ir::Module::has_dynamic_variable_trace`] — `true` when
+    /// a variable-trace install/remove call targets a non-literal name
+    /// anywhere in the module. Folded into the key alongside
+    /// `traced_variables`.
+    pub has_dynamic_variable_trace: bool,
 }
 
 /// Memoised offset-0 baseline lattice (CFG → SSA → def-use → SCCP → type →
@@ -774,6 +787,11 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
     let param_constants =
         tcl_compiler::compilation_unit::decode_param_constants(key.param_constants(db));
     let known_classes: HashSet<String> = key.known_classes(db).iter().cloned().collect();
+    let traced_variables: BTreeSet<String> = key.traced_variables(db).iter().cloned().collect();
+    let trace_facts = ModuleTraceFacts {
+        traced_variables: &traced_variables,
+        has_dynamic_variable_trace: key.has_dynamic_variable_trace(db),
+    };
     Arc::new(FunctionUnit::build_with_param_constants_and_classes(
         key.qname(db),
         cfg,
@@ -781,7 +799,7 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
         &registry,
         param_constants.as_ref(),
         &known_classes,
-        Some(context.module_traces(db)),
+        trace_facts,
     ))
 }
 
@@ -913,13 +931,7 @@ fn build_unit_with_keys<'db>(
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect();
             global_write.sort_by(|a, b| a.0.cmp(&b.0));
-            CfgContext::new(
-                db,
-                upvar,
-                proc_params,
-                global_write,
-                req.module_traces.clone(),
-            )
+            CfgContext::new(db, upvar, proc_params, global_write)
         });
         let key = FnLatticeKey::new(
             db,
@@ -930,6 +942,8 @@ fn build_unit_with_keys<'db>(
             req.dialect.to_owned(),
             req.param_constants.to_vec(),
             req.known_classes.to_vec(),
+            req.traced_variables.to_vec(),
+            req.has_dynamic_variable_trace,
         );
         lattice_keys.insert(req.qname.to_owned(), key);
         (*function_lattice(db, key)).clone()
@@ -1474,6 +1488,23 @@ pub fn proc_taint_solve<'db>(
         }
     }
 
+    // The intrep-shimmer family alone, extended to `TclOO` method bodies and
+    // synthetic body units (`apply` lambdas, `namespace eval` bodies). The
+    // main per-function loop above still iterates the proc-only
+    // `analysable_functions`, unlike `compiler_checks::run_all_checks_with_solved_and_patterns`'s
+    // direct path (which iterates the wider `all_body_function_units` and so
+    // needs no separate top-up — see `analysable_methods_and_body_units`'s
+    // own doc comment for why adding it there too would double-count), so
+    // this memoised path needs its own top-up loop to reach the same
+    // methods/body units. These never get an offset-0 `FnLatticeKey`, so
+    // they carry absolute spans already and need no rebase, same as the
+    // `None` arm above.
+    for fu in cu.analysable_methods_and_body_units() {
+        for d in tcl_compiler::compiler_checks::shimmer_family_checks(fu, &registry, dialect_opt) {
+            fn_checks.push(d);
+        }
+    }
+
     let optimisations = solve_optimisations(db, &cu, &lattice_keys, &registry, dialect_opt);
     Arc::new(CheckSolve {
         taints,
@@ -1719,8 +1750,16 @@ pub fn function_optimisations<'db>(
         redefined_methods: HashSet::new(),
         namespace_imports: Vec::new(),
         namespace_exports: Vec::new(),
+        // Always empty/false here — the caller (`memoised_module_optimisations`)
+        // falls back to the whole-module `optimise_unit` whenever the real
+        // module carries any trace fact, so this per-proc offset-0 unit is
+        // only ever built for a module with none. See that fallback's
+        // comment for why threading these through the salsa `OptDepsKey`
+        // instead was not the chosen fix.
         traced_commands: BTreeSet::new(),
         has_dynamic_trace: false,
+        traced_variables: BTreeSet::new(),
+        has_dynamic_variable_trace: false,
     };
     let empty_cfg = tcl_compiler::cfg::Function::new("::", "entry");
     let top_fu = FunctionUnit::build("::", empty_cfg.clone(), &[], &registry);
@@ -1747,6 +1786,27 @@ pub fn function_optimisations<'db>(
         &registry,
         dialect_opt,
     ))
+}
+
+/// Whether `module` carries any whole-module trace fact (execution *or*
+/// variable — `Module::traced_commands` / `has_dynamic_trace` /
+/// `traced_variables` / `has_dynamic_variable_trace`).
+///
+/// The single-proc offset-0 `Module` [`function_optimisations`] builds has
+/// no way to reconstruct these — its `OptDepsKey` threads `proc_names` /
+/// `callees` / `redefined`, but not trace state, so a memoised per-proc
+/// unit would silently see "nothing is traced" regardless of the real
+/// module content. [`solve_optimisations`] falls back to the whole-module
+/// build whenever this is `true`, exactly like its `mutations` /
+/// `has_arg_sensitive_target` fallbacks — traces are rare enough in
+/// practice that this costs little, and it is far lower-risk than
+/// widening the salsa dependency key to thread four more whole-module
+/// facts through the per-proc cache.
+fn module_has_trace_facts(module: &tcl_compiler::ir::Module) -> bool {
+    !module.traced_commands.is_empty()
+        || module.has_dynamic_trace
+        || !module.traced_variables.is_empty()
+        || module.has_dynamic_variable_trace
 }
 
 /// Assemble a document's optimisations from the per-procedure memo (Task 4).
@@ -1790,6 +1850,7 @@ fn solve_optimisations<'db>(
         || mutations != tcl_compiler::command_binding::ModuleCommandMutations::default()
         || has_arg_sensitive_target
         || !every_proc_keyed
+        || module_has_trace_facts(&cu.ir_module)
     {
         return tcl_compiler::optimiser::optimise_unit(cu, registry, dialect_opt);
     }
@@ -1870,8 +1931,17 @@ fn solve_optimisations<'db>(
             redefined_methods: HashSet::new(),
             namespace_imports: Vec::new(),
             namespace_exports: Vec::new(),
-            traced_commands: BTreeSet::new(),
-            has_dynamic_trace: false,
+            // Copied from the real whole-module facts (unlike the per-proc
+            // offset-0 unit above, this top-level-only unit is built
+            // straight from `cu`, so there is no salsa-caching reason to
+            // default these — and the `has_trace_facts` fallback above
+            // means this path only runs at all when the module has none,
+            // but copy the real values rather than asserting that by
+            // omission).
+            traced_commands: cu.ir_module.traced_commands.clone(),
+            has_dynamic_trace: cu.ir_module.has_dynamic_trace,
+            traced_variables: cu.ir_module.traced_variables.clone(),
+            has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
         },
         cfg_module: tcl_compiler::cfg::CfgModule {
             top_level: cu.cfg_module.top_level.clone(),
@@ -4235,6 +4305,59 @@ mod tests {
         assert!(
             !d.iter().any(|(c, _)| c == "E002" || c == "E003"),
             "an `args`-catchall callback must draw no arity error; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_braced_prefix_bakes_extra_args_too_few() {
+        // `-command {cb 99}` bakes 1 extra arg ahead of `lsort`'s own
+        // appended 2, for 3 total; `cb` needs 4 → E002.  Before this fix,
+        // a braced multi-word prefix was silently dropped entirely (never
+        // even recorded as an invocation), so this drew nothing at all.
+        let d = callback_arity_codes(
+            "proc cb {a b c d} { return 0 }\nlsort -command {cb 99} {3 1 2}\n",
+        );
+        assert!(
+            d.iter().any(|(c, m)| c == "E002" && m.contains("cb")),
+            "a braced prefix's baked arg must count toward the total; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_braced_prefix_bakes_extra_args_exact_match_is_silent() {
+        // Same shape, but `cb` needs exactly 3 (1 baked + 2 appended) — TN.
+        let d =
+            callback_arity_codes("proc cb {a b c} { return 0 }\nlsort -command {cb 99} {3 1 2}\n");
+        assert!(
+            !d.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "1 baked + 2 appended matching cb's 3 params must be silent; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_braced_prefix_bakes_extra_args_too_many() {
+        // `-command {cb 99 88}` bakes 2 + appended 2 = 4, but `cb` takes
+        // only 3 → E003.
+        let d = callback_arity_codes(
+            "proc cb {a b c} { return 0 }\nlsort -command {cb 99 88} {3 1 2}\n",
+        );
+        assert!(
+            d.iter().any(|(c, m)| c == "E003" && m.contains("cb")),
+            "2 baked + 2 appended against a 3-param cb must draw E003; got {d:?}"
+        );
+    }
+
+    #[test]
+    fn callback_arity_braced_prefix_dynamic_head_is_never_checked() {
+        // FP guard: `{$cb 99}` — a dynamic head inside the braces — can't be
+        // resolved to a proc; must never be flagged (and must not panic on
+        // the list-parse).
+        let d = callback_arity_codes(
+            "proc cb {a b c d} { return 0 }\nset cb cb\nlsort -command {$cb 99} {3 1 2}\n",
+        );
+        assert!(
+            !d.iter().any(|(c, _)| c == "E002" || c == "E003"),
+            "a dynamic braced-prefix head must never be arity-checked; got {d:?}"
         );
     }
 

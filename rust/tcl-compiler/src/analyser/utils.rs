@@ -23,7 +23,7 @@
 //! `signature_scan::params` so the analyser can keep its imports
 //! flat.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::Token;
 use tcl_registry::{CommandRegistry, Traits};
@@ -184,6 +184,115 @@ pub fn scan_stub_command_names(source: &str) -> HashSet<String> {
     names
 }
 
+/// Build the "known command" name universe consulted by unclosed-delimiter
+/// recovery: the segmenter's scan-to-next heuristic
+/// ([`crate::segmenter::segment_commands_with_recovery_and_config`]) and the
+/// E100/E201/E202/E203 recovery diagnostics (`syntax_checks`) both use "does
+/// the next line start with a known command?" as their strongest signal that
+/// a missing delimiter belongs right before it.
+///
+/// Restricting "known" to the active dialect's [`CommandRegistry`]
+/// under-recognises real code: almost every non-trivial Tcl file calls its
+/// own `proc`s, so a break just before a call to one of them falls back to
+/// the imprecise generic diagnostic (or, worse, the recovery point is never
+/// found at all and the rest of the document goes unanalysed). This unions
+/// the registry names with every proc / class / command-alias /
+/// rename-target name the document itself defines — qualified and
+/// unqualified tail — using the same fast, non-lowering scan
+/// [`crate::signature_scan::extract_signatures`] already uses for
+/// background-indexed files, so recovery recognises a document's own procs
+/// as readily as a builtin.
+///
+/// `extra` is unioned in unconditionally alongside the registry — the same
+/// user-declared / LSP-layer-resolved name set [`super::state::Analyser::extra_commands`]
+/// already carries for the W123 unresolved-command check (`tclLsp.extraCommands`,
+/// widened one layer up in `tcl-lsp-server` with workspace- and package-resolved
+/// names on the recovery path — see `widen_recovery_extra_commands` there). It is
+/// a plain in-memory set by the time it reaches here, so folding it in costs
+/// nothing extra beyond the registry union already does.
+///
+/// Gated on [`tcl_lexer::script_is_complete`]: the in-file signature scan only
+/// ever runs on a document with an unclosed delimiter, so a complete script
+/// skips that extra scan entirely — zero added cost on the overwhelmingly
+/// common well-formed edit.
+#[must_use]
+pub fn recovery_known_commands<S: std::hash::BuildHasher>(
+    source: &str,
+    registry: &CommandRegistry,
+    extra: &HashSet<String, S>,
+) -> HashSet<String> {
+    let mut names: HashSet<String> = registry.command_names().map(str::to_owned).collect();
+    names.extend(extra.iter().cloned());
+    if tcl_lexer::script_is_complete(source) {
+        return names;
+    }
+    let sig = crate::signature_scan::extract_signatures(source, registry);
+    for qname in sig
+        .procs
+        .keys()
+        .chain(sig.classes.keys())
+        .chain(sig.command_aliases.keys())
+        .chain(sig.renames.keys())
+    {
+        insert_qualified_and_tail(&mut names, qname);
+    }
+    names
+}
+
+/// True when an earlier *unconditional* user `proc` named `qualified_name`
+/// lexically precedes `call_start` — Tcl resolves a proc over a same-named
+/// builtin/keyword at that call site, so the diagnostic that would fire
+/// against the builtin/keyword must be suppressed. Shared by W002's inline
+/// disabled-command shadow check and the EXPR-role emitters'
+/// (W100/W110/W003/W114) control-flow-keyword shadow check — both are the
+/// exact same position comparison against [`ProcDef::name_span`], just
+/// triggered from different call sites. W002's *per-item* flush path needs
+/// the fuller `UserResolutionFacts::resolves_to_user` instead (it also
+/// covers aliases/renames/classes/ensembles and namespace-qualified procs),
+/// so this simpler check isn't a fit there.
+#[must_use]
+pub fn proc_shadows_call<S: std::hash::BuildHasher>(
+    all_procs: &HashMap<String, super::types::ProcDef, S>,
+    qualified_name: &str,
+    call_start: u32,
+) -> bool {
+    all_procs
+        .get(qualified_name)
+        .is_some_and(|def| def.name_span.start() < call_start)
+}
+
+/// Insert `qname` (e.g. `::ns::foo`) — as-is, with the leading `::`
+/// stripped, and as its unqualified tail (`foo`) — into `names`. Mirrors the
+/// tail-matching the W123 unresolved-command pass already uses for the same
+/// proc/class/alias collections (`build_w123_known_names`), plus the
+/// original fully-qualified form: `signature_scan::qualify` always prepends
+/// `::`, and a recovery-point call can be written either way
+/// (`::ns::foo` or `ns::foo`), so both must be recognised.
+///
+/// `pub` (not just `pub(super)`) because `tcl-lsp-server` reuses this exact
+/// three-form insertion when widening the recovery known-command set with
+/// workspace-indexed and package-resolved names one layer up — those names
+/// carry the same `::`-qualified shape and need the same recognition rules,
+/// so this is the single place that logic lives rather than a second,
+/// independently-maintained copy.
+pub fn insert_qualified_and_tail<S: std::hash::BuildHasher>(
+    names: &mut HashSet<String, S>,
+    qname: &str,
+) {
+    if !qname.is_empty() {
+        names.insert(qname.to_string());
+    }
+    let absolute = qname.trim_start_matches("::");
+    if !absolute.is_empty() {
+        names.insert(absolute.to_string());
+    }
+    if let Some((_, tail)) = qname.rsplit_once("::")
+        && !tail.is_empty()
+    {
+        names.insert(tail.to_string());
+    }
+}
+
 /// Match a ``# tcl-lsp: <marker>`` line, where `marker` is
 /// e.g. ``"stubs-begin"`` / ``"stubs-end"``.  Case-insensitive
 /// on the keyword run; whitespace flexible.
@@ -313,7 +422,14 @@ fn strip_tcl_lsp_prefix(body: &str) -> &str {
     let s = body.trim_start();
     let lower_prefix = "tcl-lsp";
     let kw_end = lower_prefix.len();
-    if s.len() < kw_end || !s[..kw_end].eq_ignore_ascii_case(lower_prefix) {
+    // `s.get(..kw_end)` (unlike `s[..kw_end]`) returns `None` rather than
+    // panicking when `kw_end` falls inside a multi-byte char instead of on a
+    // boundary — a real case: a non-ASCII byte in the comment before that
+    // offset used to crash the server while scanning a stubs block.
+    let Some(prefix) = s.get(..kw_end) else {
+        return s;
+    };
+    if !prefix.eq_ignore_ascii_case(lower_prefix) {
         return s;
     }
     let rest = s[kw_end..].trim_start();
@@ -334,7 +450,10 @@ const VALID_STUB_ROLES: &[&str] = &[
 fn parse_command_stub(line: &str, range: tcl_lexer::Span) -> Option<super::types::StubCommandDef> {
     let s = line.trim_start();
     let stub_kw = "stub";
-    if s.len() < stub_kw.len() || !s[..stub_kw.len()].eq_ignore_ascii_case(stub_kw) {
+    if !s
+        .get(..stub_kw.len())
+        .is_some_and(|p| p.eq_ignore_ascii_case(stub_kw))
+    {
         return None;
     }
     let after = s[stub_kw.len()..].trim_start();
@@ -436,21 +555,26 @@ fn parse_stub_flags(flags_str: &str) -> super::types::StubFlags {
 fn parse_expr_stub(line: &str) -> Option<(&'static str, &str, u32)> {
     let s = line.trim_start();
     let stub_kw = "stub";
-    if s.len() < stub_kw.len() || !s[..stub_kw.len()].eq_ignore_ascii_case(stub_kw) {
+    if !s
+        .get(..stub_kw.len())
+        .is_some_and(|p| p.eq_ignore_ascii_case(stub_kw))
+    {
         return None;
     }
     let after = s[stub_kw.len()..].trim_start();
     let kind: &'static str;
     let default_arity: u32;
     let rest;
-    if after.len() >= "expr-func".len()
-        && after[.."expr-func".len()].eq_ignore_ascii_case("expr-func")
+    if after
+        .get(.."expr-func".len())
+        .is_some_and(|p| p.eq_ignore_ascii_case("expr-func"))
     {
         kind = "function";
         default_arity = 1;
         rest = after["expr-func".len()..].trim_start();
-    } else if after.len() >= "expr-op".len()
-        && after[.."expr-op".len()].eq_ignore_ascii_case("expr-op")
+    } else if after
+        .get(.."expr-op".len())
+        .is_some_and(|p| p.eq_ignore_ascii_case("expr-op"))
     {
         kind = "operator";
         default_arity = 2;
@@ -1124,6 +1248,19 @@ proc foo {} {}
     }
 
     #[test]
+    fn multibyte_comment_before_keyword_length_does_not_panic() {
+        // A non-ASCII byte (an em dash here) landing inside the
+        // `tcl-lsp` / `stub` / `expr-func` / `expr-op` keyword's byte
+        // length used to panic on a raw `s[..len]` slice instead of
+        // just not matching. Each string below is crafted so the em
+        // dash straddles the exact byte offset the check compares.
+        assert!(cmd_stub("# st—b my_cmd {arg}").is_none());
+        assert!(cmd_stub("# abcde—z not a stub").is_none());
+        assert!(expr_stub("# st—b my_cmd {arg}").is_none());
+        assert!(expr_stub("# tcl-lsp: stub expr-fun—c sizeof 1").is_none());
+    }
+
+    #[test]
     fn parse_command_stub_empty_args() {
         let stub = cmd_stub("# tcl-lsp: stub no_args {} -pure").unwrap();
         assert!(stub.args.is_empty());
@@ -1259,5 +1396,120 @@ proc foo {} {}
         let (cmds, _) = scan_source_for_stubs(src);
         assert_eq!(cmds.len(), 1);
         assert_eq!(cmds[0].name, "good");
+    }
+
+    fn registry() -> CommandRegistry {
+        CommandRegistry::build_default()
+    }
+
+    #[test]
+    fn recovery_known_commands_includes_registry_names() {
+        let known = recovery_known_commands("set x [foo\n", &registry(), &HashSet::new());
+        assert!(known.contains("set"));
+        assert!(known.contains("puts"));
+    }
+
+    #[test]
+    fn recovery_known_commands_includes_extra_even_for_a_complete_script() {
+        // `extra` (the LSP-layer-widened `extraCommands` set) is unioned in
+        // unconditionally, same as the registry — unlike the in-file
+        // signature scan it is not gated on `script_is_complete`, since it
+        // costs nothing extra to fold in a set the caller already built.
+        let extra: HashSet<String> = ["workspace_helper".to_string()].into_iter().collect();
+        let known = recovery_known_commands("set x 1\n", &registry(), &extra);
+        assert!(known.contains("workspace_helper"));
+    }
+
+    #[test]
+    fn recovery_known_commands_skips_the_scan_for_a_complete_script() {
+        // The extra signature scan only runs on an incomplete script — a
+        // well-formed document (however many procs it defines) never pays
+        // for it, and its user-defined names are simply absent (recovery
+        // never runs on complete input anyway).
+        let known = recovery_known_commands(
+            "proc my_helper {} {}\nmy_helper\n",
+            &registry(),
+            &HashSet::new(),
+        );
+        assert!(!known.contains("my_helper"));
+        assert!(known.contains("proc")); // registry names are always present
+    }
+
+    #[test]
+    fn recovery_known_commands_adds_user_proc_qualified_and_tail() {
+        let src = "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\nunclosed\n";
+        let known = recovery_known_commands(src, &registry(), &HashSet::new());
+        assert!(
+            known.contains("myns::helper"),
+            "expected the qualified name: {known:?}"
+        );
+        assert!(
+            known.contains("helper"),
+            "expected the unqualified tail: {known:?}"
+        );
+    }
+
+    #[test]
+    fn recovery_known_commands_adds_the_leading_colon_colon_form_too() {
+        // `signature_scan::qualify` always records `::myns::helper`; a
+        // recovery-point call can equally be written that way (absolute
+        // Tcl syntax), so the leading-`::` form must be recognised
+        // alongside the stripped/tail forms asserted above.
+        let src = "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\nunclosed\n";
+        let known = recovery_known_commands(src, &registry(), &HashSet::new());
+        assert!(
+            known.contains("::myns::helper"),
+            "expected the fully-qualified leading-:: form: {known:?}"
+        );
+    }
+
+    #[test]
+    fn recovery_known_commands_adds_user_class_and_alias() {
+        let src =
+            "oo::class create Widget {}\ninterp alias {} greet {} puts hi\n\nset q {\nunclosed\n";
+        let known = recovery_known_commands(src, &registry(), &HashSet::new());
+        assert!(known.contains("Widget"), "{known:?}");
+        assert!(known.contains("greet"), "{known:?}");
+    }
+
+    #[test]
+    fn recovery_known_commands_adds_rename_target() {
+        let src = "rename puts my_puts\n\nset q {\nunclosed\n";
+        let known = recovery_known_commands(src, &registry(), &HashSet::new());
+        assert!(
+            known.contains("my_puts"),
+            "expected the rename target: {known:?}"
+        );
+    }
+
+    #[test]
+    fn recovery_known_commands_adds_namespaced_rename_target() {
+        let src = "namespace eval myns {\n  rename puts loud_puts\n}\n\nset q {\nunclosed\n";
+        let known = recovery_known_commands(src, &registry(), &HashSet::new());
+        assert!(
+            known.contains("myns::loud_puts"),
+            "expected the qualified rename target: {known:?}"
+        );
+        assert!(
+            known.contains("loud_puts"),
+            "expected the unqualified tail: {known:?}"
+        );
+    }
+
+    #[test]
+    fn recovery_known_commands_rename_to_empty_deletes_not_defines() {
+        // `rename OLD {}` deletes OLD; it must not introduce an empty-string
+        // "command name".
+        let src = "rename puts {}\n\nset q {\nunclosed\n";
+        let known = recovery_known_commands(src, &registry(), &HashSet::new());
+        assert!(!known.contains(""));
+    }
+
+    #[test]
+    fn recovery_known_commands_does_not_invent_undefined_names() {
+        let src = "set q {\nunclosed\n";
+        let known = recovery_known_commands(src, &registry(), &HashSet::new());
+        assert!(!known.contains("not_a_real_proc"));
+        assert!(!known.contains("unclosed")); // plain data, not a definition
     }
 }

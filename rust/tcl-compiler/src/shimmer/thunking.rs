@@ -49,6 +49,8 @@ use crate::sccp::cfg_order;
 use crate::ssa::{Phi, SsaFunction, Symbol, ValueKey, Version};
 use crate::types::{TypeKind, TypeLattice};
 
+use crate::codegen::values::split_array_ref;
+
 use super::graph::{build_successors, loop_body_blocks};
 use super::span::{def_range_map, phi_span};
 use super::{ThunkingWarning, type_name};
@@ -200,6 +202,127 @@ pub(super) fn per_loop_body_types(
     out
 }
 
+/// Symbols ever written through array-element syntax (`arr(key)`) anywhere
+/// in the function.
+///
+/// [`crate::naming::normalise_var_name`] strips the `(key)` suffix before
+/// SSA interning, so every element of an array collapses onto ONE `Symbol`
+/// / version chain — `arr(a)` and `arr(b)` are independent runtime slots
+/// that never actually shimmer against each other, but once conflated onto
+/// one symbol, two elements individually holding stable-but-different
+/// types look exactly like a genuine same-slot oscillation. Excluding any
+/// symbol proven to be an array base avoids reporting a thunk across
+/// unrelated elements; reuses the same array-reference recognition
+/// [`crate::codegen::values::split_array_ref`] already provides for
+/// codegen, rather than re-deriving the `(...)` pattern here.
+///
+/// `pub(super)` so the sibling use-site (S100/S101) and phi-merge (S101) passes
+/// share the *same* exclusion: every element of an array collapses onto one
+/// symbol for all three passes, so any one of them can conflate two
+/// stable-but-different elements into a spurious shimmer (FP-SH-13).
+pub(super) fn array_element_symbols(cfg: &CfgFunction, ssa: &SsaFunction) -> HashSet<Symbol> {
+    let mut out = HashSet::new();
+    for block in cfg.blocks.values() {
+        for stmt in &block.statements {
+            let raw = match stmt {
+                Statement::AssignConst { name, .. }
+                | Statement::AssignExpr { name, .. }
+                | Statement::AssignValue { name, .. }
+                | Statement::Incr { name, .. } => name.as_str(),
+                _ => continue,
+            };
+            let Some((base, _key)) = split_array_ref(raw) else {
+                continue;
+            };
+            if let Some(sym) = ssa.var_symbol(base) {
+                out.insert(sym);
+            }
+        }
+    }
+    out
+}
+
+/// True when some statement inside `loop_block_set` both reads and writes a
+/// version of `sym` — a loop-carried self-reference (`set x [expr {$x+1}]`),
+/// as opposed to a variable that is simply reset from independent literals
+/// each pass (`set x "value"` / `set x [list 1 2]`, neither of which reads
+/// `$x`). Only a self-referential variable can genuinely pay a per-iteration
+/// re-conversion cost from a prior pass's value; a reset-only variable's
+/// differing per-branch types are fresh objects with no shared state to
+/// reinterpret, so they must not count as evidence of thunking.
+fn loop_self_referential(ssa: &SsaFunction, loop_block_set: &HashSet<String>, sym: Symbol) -> bool {
+    let name_to_id = ssa_name_to_id(ssa);
+    loop_block_set.iter().any(|lbn| {
+        name_to_id
+            .get(lbn.as_str())
+            .and_then(|id| ssa.blocks.get(id))
+            .is_some_and(|block| {
+                block
+                    .statements
+                    .iter()
+                    .any(|s| s.defs.contains_key(&sym) && s.uses.contains_key(&sym))
+            })
+    })
+}
+
+/// Best-effort in-loop span for a `(Symbol, TclType)` pair: the earliest def
+/// of `sym` typed exactly `t` among `loop_block_set`'s own statements
+/// (destructure-foreach blocks excluded, matching [`per_loop_body_types`]'s
+/// exclusion). Lets the S102 warning anchor on the actual loop-body
+/// statement that produced the surprising type, rather than on whichever
+/// incoming def happens to sort earliest in the source — which for an
+/// ordinary `while`/`for`/`foreach` is always the pre-loop initialiser, not
+/// the oscillating code the developer needs to look at. `None` when no
+/// in-loop def produced that type (the oscillation was detected purely from
+/// the header phi's own direct incoming edges).
+fn per_loop_type_span(
+    ctx: &ThunkCtx<'_>,
+    loop_block_set: &HashSet<String>,
+    sym: Symbol,
+    target: TclType,
+) -> Option<Span> {
+    let name_to_id = ssa_name_to_id(ctx.ssa);
+    let mut best: Option<Span> = None;
+    for lbn in loop_block_set {
+        if ctx.destructure.contains(lbn) {
+            continue;
+        }
+        let Some(lssa) = name_to_id
+            .get(lbn.as_str())
+            .and_then(|id| ctx.ssa.blocks.get(id))
+        else {
+            continue;
+        };
+        for s in &lssa.statements {
+            let Some(&ver) = s.defs.get(&sym) else {
+                continue;
+            };
+            if ctx
+                .empty_by_name
+                .get(&sym)
+                .is_some_and(|set| set.contains(&ver))
+            {
+                continue;
+            }
+            let matches_target = ctx
+                .types
+                .get(&(sym, ver))
+                .is_some_and(|t| t.kind == TypeKind::Known && t.tcl_type == Some(target));
+            if !matches_target {
+                continue;
+            }
+            let Some(&sp) = ctx.def_map.get(&(sym, ver)) else {
+                continue;
+            };
+            best = Some(match best {
+                Some(b) if (b.start(), b.end()) <= (sp.start(), sp.end()) => b,
+                _ => sp,
+            });
+        }
+    }
+    best
+}
+
 /// Identify the loop-header blocks of `cfg` by name.
 ///
 /// A loop header is on a cycle and has both an entry edge (predecessor
@@ -237,18 +360,29 @@ struct ThunkCtx<'a> {
     empty_by_name: &'a HashMap<Symbol, HashSet<Version>>,
     loop_blocks: &'a HashSet<String>,
     def_map: &'a HashMap<ValueKey, Span>,
+    destructure: &'a HashSet<String>,
+    /// Symbols proven to be an array base ([`array_element_symbols`]) —
+    /// excluded from S102 entirely, since their conflated version chain
+    /// mixes independent elements under one phi.
+    array_syms: &'a HashSet<Symbol>,
 }
 
 /// Decide whether a loop-header phi genuinely thunks (oscillates between
 /// two intreps each iteration), returning the warning when it does.
 ///
 /// `per_loop` is the body-type map for *this* loop only, so sibling loops
-/// do not pollute the oscillation check.
+/// do not pollute the oscillation check. `this_loop` is the same loop's raw
+/// block-name set, needed (alongside `per_loop`) to anchor the warning's
+/// span on an in-loop statement.
 fn classify_thunking_phi(
     ctx: &ThunkCtx<'_>,
     phi: &Phi,
+    this_loop: &HashSet<String>,
     per_loop: &HashMap<Symbol, HashSet<TclType>>,
 ) -> Option<ThunkingWarning> {
+    if ctx.array_syms.contains(&phi.name) {
+        return None;
+    }
     let lattice = ctx.types.get(&(phi.name, phi.version))?;
     if lattice.kind != TypeKind::Shimmered {
         return None;
@@ -264,7 +398,19 @@ fn classify_thunking_phi(
     // the phi re-shimmers each pass) or to produce ≥2 conflicting
     // types itself.  Classify the phi's incomings (entry vs body) and
     // require oscillation.
+    //
+    // A self-referential variable (some loop statement both reads and
+    // writes it — [`loop_self_referential`]) can carry oscillation through
+    // an intermediate merge: `if {$n % 2} {set x [expr {$x+1}]} else {set x
+    // [string range $x 0 end]}` reaches the header via a bottom-of-loop join
+    // that is itself SHIMMERED, not KNOWN. For that case only, unpack the
+    // join's own two constituent types as body evidence directly — a
+    // non-self-referential variable (`set x "value"` / `set x [list 1 2]`,
+    // neither reading `$x`) stays excluded: it creates a fresh, unrelated
+    // value each pass, so two different per-branch types cost nothing extra
+    // to "oscillate" between.
     let empty_vers = ctx.empty_by_name.get(&phi.name);
+    let self_referential = loop_self_referential(ctx.ssa, this_loop, phi.name);
     let mut entry_types: HashSet<TclType> = HashSet::new();
     let mut body_types: HashSet<TclType> = HashSet::new();
     let mut has_body_incoming = false;
@@ -282,6 +428,10 @@ fn classify_thunking_phi(
                 if let Some(t) = inc_type.tcl_type {
                     body_types.insert(t);
                 }
+            } else if self_referential && inc_type.kind == TypeKind::Shimmered {
+                has_body_incoming = true;
+                body_types.extend(inc_type.from_type);
+                body_types.extend(inc_type.tcl_type);
             }
         } else if inc_type.kind == TypeKind::Known
             && !is_empty
@@ -303,7 +453,17 @@ fn classify_thunking_phi(
         return None;
     }
 
-    let span = phi_span(phi, ctx.ssa, ctx.def_map);
+    // Anchor on the loop-body statement that actually produced one of the
+    // two oscillating types, rather than on whichever incoming def sorts
+    // earliest in the source — for an ordinary `while`/`for`/`foreach` that
+    // is always the pre-loop initialiser, not the code the developer needs
+    // to look at. Falls back to the old whole-phi heuristic only when
+    // neither type traces to an in-loop def (e.g. the oscillation came
+    // purely from the header's own two direct incoming edges).
+    let span = [type_b, type_a]
+        .into_iter()
+        .find_map(|t| per_loop_type_span(ctx, this_loop, phi.name, t))
+        .unwrap_or_else(|| phi_span(phi, ctx.ssa, ctx.def_map));
     let related: Vec<_> = phi
         .incoming
         .iter()
@@ -354,6 +514,7 @@ pub(crate) fn find_thunking_warnings(
     let preds = build_predecessors(&succs);
     let empty_by_name = empty_value_versions(ssa);
     let destructure = destructure_foreach_blocks(cfg);
+    let array_syms = array_element_symbols(cfg, ssa);
 
     let ctx = ThunkCtx {
         cfg,
@@ -362,6 +523,8 @@ pub(crate) fn find_thunking_warnings(
         empty_by_name: &empty_by_name,
         loop_blocks: &loop_blocks,
         def_map: &def_map,
+        destructure: &destructure,
+        array_syms: &array_syms,
     };
 
     for block_id in cfg_order(cfg) {
@@ -389,7 +552,7 @@ pub(crate) fn find_thunking_warnings(
         );
 
         for phi in &ssa_block.phis {
-            if let Some(warning) = classify_thunking_phi(&ctx, phi, &per_loop) {
+            if let Some(warning) = classify_thunking_phi(&ctx, phi, &this_loop, &per_loop) {
                 out.push(warning);
             }
         }
@@ -489,6 +652,154 @@ mod tests {
         assert!(
             has_thunking,
             "expected S102 thunking for 'x' with a two-type loop body, got: {w:?}"
+        );
+    }
+
+    /// The warning's primary span must anchor inside the loop body (on the
+    /// statement that actually produces the surprising type), not on the
+    /// pre-loop initialiser — the "earliest incoming def" heuristic always
+    /// picked the initialiser (the textually-first def), which is almost
+    /// never where the developer needs to look.
+    #[test]
+    fn span_anchors_inside_loop_not_pre_loop_initialiser() {
+        let src = "proc f {} { set x 0\n while {1} { set x [expr {$x + 1}]\n \
+                    set x [string range $x 0 end] } }";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        assert_eq!(w.len(), 1, "expected exactly one S102 warning: {w:?}");
+        let while_pos = u32::try_from(src.find("while").unwrap()).unwrap();
+        assert!(
+            w[0].span.start() > while_pos,
+            "S102 span should anchor inside the loop body (after offset {while_pos}), got {:?}",
+            w[0].span
+        );
+    }
+
+    /// A variable that reads its own prior value in one loop-body branch and
+    /// is reset to an unrelated type in the other (`if {...} {set x [string
+    /// range $x 0 end]} else {set x [list 1 2]}`) genuinely oscillates: the
+    /// direct loop-internal predecessor into the header phi is itself a
+    /// SHIMMERED merge (not a single KNOWN type, since it is the join of the
+    /// two branches), which the self-reference check must still recognise as
+    /// body evidence.
+    #[test]
+    fn thunking_detected_for_self_referential_branchy_oscillation() {
+        let cu = CompilationUnit::build_for(
+            "proc f {n} { set x \"seed\"\n while {$n} { \
+             if {$n % 2} { set x [string range $x 0 end] } else { set x [list 1 2] }\n \
+             incr n -1 }\n return $x }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        assert!(
+            w.iter().any(|tw| tw.variable == "x"),
+            "expected S102 for the self-referential branchy oscillation, got: {w:?}"
+        );
+    }
+
+    /// Control for the above: when NEITHER branch reads `$x` (both assign
+    /// unrelated fresh literals), the variable is not self-referential — it
+    /// creates a new, unrelated value each pass with nothing to reinterpret,
+    /// so it must NOT be reported as thunking even though the header phi is
+    /// still SHIMMERED and the direct predecessor is still a merge.
+    #[test]
+    fn no_s102_for_non_self_referential_branchy_reset() {
+        let cu = CompilationUnit::build_for(
+            "proc f {n} { set x \"seed\"\n while {$n} { \
+             if {$n % 2} { set x \"value\" } else { set x [list 1 2] }\n \
+             incr n -1 }\n return $x }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        assert!(
+            w.is_empty(),
+            "non-self-referential branchy reset must not thunk: {w:?}"
+        );
+    }
+
+    /// Array-element writes collapse onto one SSA symbol per array (the
+    /// `(key)` suffix is stripped before interning) — two elements that are
+    /// each individually type-stable but differ from each other must not be
+    /// reported as one variable oscillating: they are independent runtime
+    /// slots, not the same value shimmering back and forth.
+    #[test]
+    fn no_s102_for_array_element_conflation() {
+        let cu = CompilationUnit::build_for(
+            "proc f {} { set arr(x) 0\n while {1} { \
+             set arr(x) [expr {$arr(x) + 1}]\n set arr(x) [string range $arr(x) 0 end] } }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        assert!(
+            w.is_empty(),
+            "array-element writes must not be conflated into an S102 report: {w:?}"
+        );
+    }
+
+    /// A `trace add variable … write …` callback can rewrite a variable's
+    /// value (and therefore its intrep) immediately after any assignment —
+    /// so a `set`-only view of a traced variable's literal types must not
+    /// report S102: [`crate::type_infer::propagate_types`] forces every def
+    /// of a traced name to OVERDEFINED via the shared
+    /// [`crate::var_observability::ModuleVariableTraces`] fact, the same one
+    /// [`crate::sccp::sccp`] already consumes for its own lattice.
+    #[test]
+    fn no_s102_for_traced_variable() {
+        let cu = CompilationUnit::build_for(
+            "proc f {} { trace add variable x write {apply {{n1 n2 op} {}}}\n set x 0\n \
+             while {1} { set x [expr {$x + 1}]\n set x [string range $x 0 end] } }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        assert!(w.is_empty(), "traced variable must not thunk: {w:?}");
+    }
+
+    /// A self-referential loop whose body-exit is `SHIMMERED(Numeric, String)`
+    /// merging with an `Int` loop entry: pre-fix `type_join` degraded
+    /// `Known(Int) ⊔ SHIMMERED(Numeric, String)` to OVERDEFINED (exact-equality
+    /// match), silently masking the genuine thunk. The numeric-refinement join
+    /// keeps the header phi SHIMMERED, so S102 now fires.
+    #[test]
+    fn thunking_detected_for_numeric_shimmer_masked_by_int_entry() {
+        let cu = CompilationUnit::build_for(
+            "proc f {n} { set x 0\n \
+             while {$n > 0} { if {$n % 2} { set x [expr {$x + $n}] } else { set x \"s$x\" }\n \
+             incr n -1 }\n return $x }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        assert!(
+            w.iter().any(|tw| tw.variable == "x"),
+            "numeric/string oscillation seeded by an Int entry must fire S102: {w:?}"
+        );
+    }
+
+    /// TP control for the above: the identical loop shape, untraced, must
+    /// still fire — proves the trace check isn't blanket-silencing S102.
+    #[test]
+    fn thunking_still_fires_for_untraced_control() {
+        let cu = CompilationUnit::build_for(
+            "proc f {} { set x 0\n \
+             while {1} { set x [expr {$x + 1}]\n set x [string range $x 0 end] } }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        assert!(
+            w.iter().any(|tw| tw.variable == "x"),
+            "untraced control must still fire S102: {w:?}"
         );
     }
 }

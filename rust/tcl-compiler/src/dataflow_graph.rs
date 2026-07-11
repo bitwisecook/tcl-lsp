@@ -561,7 +561,18 @@ mod tests {
         ssa.blocks.insert(entry_id, entry);
 
         let du = build_def_use_chains(&ssa, Some(&cfg));
-        let sccp_result = sccp(&cfg, &ssa, None, None, None);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let sccp_result = sccp(
+            &cfg,
+            &ssa,
+            None,
+            None,
+            crate::sccp::TraceInputs {
+                registry: &registry,
+                traced_variables: &BTreeSet::new(),
+                has_dynamic_variable_trace: false,
+            },
+        );
         let g = extract_function_dataflow::<std::collections::hash_map::RandomState>(
             "::top",
             &ssa,

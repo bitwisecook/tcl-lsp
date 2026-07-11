@@ -43,10 +43,9 @@
 //! them would produce misleading rewrites of user-visible source
 //! text.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use tcl_core_types::DiagCode;
 
-use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::Terminator;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::expr_ast::{BinOp, ExprNode};
@@ -58,7 +57,7 @@ use super::helpers::expr_simplify::{
     try_eq_ne_string_compare_simplify_expr, try_fold_expr, try_strength_reduce_expr_typed,
     try_strlen_simplify_expr, try_unwrap_expr_in_expr,
 };
-use super::helpers::literals::format_constant;
+use super::propagation::sccp_constants_for;
 use super::{Optimisation, PassContext};
 
 /// Run the branch-folding pass — both
@@ -124,6 +123,12 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // instcombine) and the O115 redundant-`expr` unwrap still apply to a
     // branch condition with no propagable constants; this does not gate on a
     // non-empty constant map. Substitution is simply a no-op in that case.
+    // No trace/alias filtering needed: `constants` is a pure projection of
+    // `fu.sccp.values`, and `sccp()` itself already forces a traced or
+    // frame-aliased variable's own lattice entry to `Overdefined` —
+    // `run_load_forwarding` (O102) is the one pass that still needs its own
+    // check, since it runs an independent def-use-chain scan that never
+    // consults `fu.sccp` at all.
     let constants = sccp_constants_for(fu);
     // Numeric-type context so identity rewrites (`$x + 0` → `$x`, etc.) on a
     // branch condition fire only when the dropped operand is provably numeric.
@@ -289,34 +294,15 @@ fn is_switch_dispatch_cond(cond: &ExprNode) -> bool {
     )
 }
 
-fn sccp_constants_for(fu: &FunctionUnit) -> HashMap<String, String> {
-    let mut per_var: HashMap<crate::ssa::Symbol, Vec<&ConstValue>> = HashMap::new();
-    let mut dirty: HashSet<crate::ssa::Symbol> = HashSet::new();
-    for ((sym, _ver), lv) in &fu.sccp.values {
-        if dirty.contains(sym) {
-            continue;
-        }
-        if let LatticeValue::Const(cv) = lv {
-            per_var.entry(*sym).or_default().push(cv);
-        } else {
-            dirty.insert(*sym);
-            per_var.remove(sym);
-        }
-    }
-    let mut out = HashMap::new();
-    for (sym, cvs) in per_var {
-        let first = cvs[0];
-        if !cvs.iter().all(|cv| *cv == first) {
-            continue;
-        }
-        if let Some(text) = format_constant(first) {
-            out.insert(fu.ssa.var_name(sym).to_owned(), text);
-        }
-    }
-    out
-}
-
 fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
+    // No trace/alias filtering needed: `fu.sccp.constant_branches` is
+    // derived entirely from `sccp()`'s own lattice `values`, and `sccp()`
+    // itself already forces a traced or frame-aliased variable's lattice
+    // entry to `Overdefined` — a branch reading one never resolves to a
+    // constant decision in the first place, so it never lands in
+    // `constant_branches` to begin with. O102 `run_load_forwarding` is the
+    // one pass that still needs its own check, since it runs an independent
+    // def-use-chain scan that never consults `fu.sccp` at all.
     for cb in &fu.sccp.constant_branches {
         let Some(block) = fu.cfg.block_by_name(&cb.block) else {
             continue;
@@ -510,6 +496,8 @@ mod tests {
                 namespace_exports: Vec::new(),
                 traced_commands: std::collections::BTreeSet::new(),
                 has_dynamic_trace: false,
+                traced_variables: std::collections::BTreeSet::new(),
+                has_dynamic_variable_trace: false,
             },
             cfg_module: crate::cfg::CfgModule {
                 top_level: fu.cfg.clone(),

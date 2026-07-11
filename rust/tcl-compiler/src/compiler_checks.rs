@@ -146,7 +146,7 @@ impl Diagnostic {
             },
             message: w.message.clone(),
             replacement: w.replacement.clone(),
-            fixes: Vec::new(),
+            fixes: w.fixes.clone(),
         }
     }
 
@@ -265,12 +265,19 @@ pub fn run_all_checks_with_solved_and_patterns(
     let mut out: Vec<Diagnostic> = Vec::new();
 
     // Per-function non-taint checks (SCCP constant branches, GVN redundancies,
-    // shimmer / thunking / byte-array), computed on each procedure and rebased to
-    // its offset.  Factored into [`function_nontaint_checks`] so the LSP db can
-    // memoise it per procedure on the offset-0 `FnLatticeKey` (SRV-INCREMENTAL
-    // 2a): an unedited procedure's checks are a cache hit instead of recomputed
-    // over the whole unit every edit.
-    for fu in cu.analysable_functions() {
+    // shimmer / thunking / byte-array), computed on each procedure — **and**,
+    // via `analysable_body_function_units`, every `TclOO` method body and
+    // synthetic body unit (`apply` lambda, `namespace eval` body) too, so the
+    // shimmer family `function_nontaint_checks` folds in reaches those places
+    // as well (no separate widening loop needed here: unlike
+    // `tcl-lsp-db::proc_taint_solve`'s memoised path below, which still
+    // iterates the proc-only `analysable_functions` and so keeps its own
+    // explicit `shimmer_family_checks` pass over methods/body units) —
+    // rebased to its offset. Factored into [`function_nontaint_checks`] so
+    // the LSP db can memoise it per procedure on the offset-0 `FnLatticeKey`
+    // (SRV-INCREMENTAL 2a): an unedited procedure's checks are a cache hit
+    // instead of recomputed over the whole unit every edit.
+    for fu in cu.analysable_body_function_units() {
         for d in function_nontaint_checks(fu, registry, dialect) {
             out.push(shift(fu, d));
         }
@@ -316,6 +323,29 @@ pub fn function_nontaint_checks(
     for r in find_loop_invariants(registry, &fu.cfg, &fu.ssa, dialect) {
         out.push(Diagnostic::from_redundant(&r));
     }
+    out.extend(shimmer_family_checks(fu, registry, dialect));
+    out
+}
+
+/// The intrep-shimmer diagnostic family alone for one function body: use-site
+/// / expression / phi shimmer (S100/S101), loop-oscillation thunking (S102),
+/// and byte-array corruption (S110).
+///
+/// Split out of [`function_nontaint_checks`] so it can also run over `TclOO`
+/// method bodies and synthetic body units (`apply` lambdas, `namespace eval`
+/// bodies) — [`CompilationUnit.methods`](crate::compilation_unit::CompilationUnit::methods)
+/// and `.body_units` are excluded from the SCCP/GVN half (`cu.analysable_functions()`
+/// only walks the top level and procedures), so without this split every
+/// shimmer diagnostic was silently unreachable inside a method or a
+/// `namespace eval` body. The S110 `*::payload` byte-command set is
+/// dialect-gated (empty outside iRules).
+#[must_use]
+pub fn shimmer_family_checks(
+    fu: &FunctionUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<Diagnostic> {
+    let mut out: Vec<Diagnostic> = Vec::new();
     for w in find_shimmer_warnings(
         &fu.cfg,
         &fu.ssa,
@@ -363,15 +393,39 @@ pub fn push_taint_and_module_checks(
     // per-function `fu.taints` for the warning families so a tainted argument
     // flowing into a callee parameter and then a sink is reported (cross-proc
     // entry-taint).
-    for fu in cu.analysable_functions() {
-        let taints = solved.taints_for(&fu.name, &fu.taints);
+    let proc_qnames: std::collections::HashSet<&str> =
+        cu.procedures.keys().map(String::as_str).collect();
+    // `trace add variable` / `trace variable` lets a runtime callback rewrite
+    // a variable's value in ways static analysis can't see; a name traced
+    // anywhere in the module is conservatively treated as tainted everywhere
+    // — see `taint::apply_module_variable_traces`.
+    let module_traces = crate::compilation_unit::ModuleTraceFacts {
+        traced_variables: &cu.ir_module.traced_variables,
+        has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+    };
+    // `analysable_body_function_units` (not `analysable_functions`) so a sink
+    // inside a TclOO method body — or an `apply` lambda / `namespace eval`
+    // body — is still checked; see its doc comment.
+    for fu in cu.analysable_body_function_units() {
+        let taints = crate::taint::apply_module_variable_traces(
+            solved.taints_for(&fu.name, &fu.taints).clone(),
+            &fu.ssa,
+            module_traces,
+        );
+        // A namespace-scoped proc of the same name shadows a builtin for
+        // every call made from that namespace (`proc ::myns::puts {...}`
+        // shadows `puts` inside `::myns`) — see `taint::shadowed_builtin_names`.
+        let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(&fu.name);
+        let shadowed =
+            crate::taint::shadowed_builtin_names(&namespace, proc_qnames.iter().copied(), registry);
         for w in find_taint_warnings(
             &fu.cfg,
             &fu.ssa,
-            taints,
+            &taints,
             &fu.sccp.executable_blocks,
             registry,
             dialect,
+            &shadowed,
         ) {
             out.push(shift(fu, Diagnostic::from_taint(&w)));
         }
@@ -383,7 +437,7 @@ pub fn push_taint_and_module_checks(
                 registry,
                 &fu.cfg,
                 &fu.ssa,
-                taints,
+                &taints,
                 &fu.sccp.executable_blocks,
                 dialect,
             ) {
@@ -405,7 +459,7 @@ pub fn push_taint_and_module_checks(
             &fu.cfg,
             &fu.ssa,
             &fu.rendered_props,
-            taints,
+            &taints,
             &fu.sccp.executable_blocks,
         ) {
             out.push(shift(fu, Diagnostic::from_path_concat(&w)));
@@ -414,7 +468,7 @@ pub fn push_taint_and_module_checks(
         for w in find_destructive_file_warnings(
             &fu.cfg,
             &fu.ssa,
-            taints,
+            &taints,
             &fu.sccp.executable_blocks,
             registry,
         ) {
@@ -498,10 +552,77 @@ mod tests {
         r
     }
 
+    /// Regression: `function_nontaint_checks` (called per unit from the
+    /// `analysable_body_function_units` loop, which already reaches `TclOO`
+    /// method bodies) folds in `shimmer_family_checks` itself — a second,
+    /// separate loop explicitly re-walking methods/body-units for shimmer
+    /// would double-emit every S100/S101/S102/S110 inside one. Exactly this
+    /// double-count was introduced transiently when two independent fixes
+    /// (this shimmer-coverage widening and #872's taint-coverage widening)
+    /// were rebased together: #872 widened the base loop from
+    /// `analysable_functions` to `analysable_body_function_units`, which
+    /// made the shimmer-only top-up loop redundant.
+    #[test]
+    fn shimmer_not_double_counted_in_tcloo_method_body() {
+        let src = "oo::class create C {\n    method m {} {\n        set x hello\n        incr x\n    }\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let diags = run_all_checks(&cu, &registry(), None);
+        let s100: Vec<_> = diags.iter().filter(|d| d.code.as_str() == "S100").collect();
+        assert_eq!(s100.len(), 1, "expected exactly one S100, got {s100:?}");
+    }
+
+    /// Same double-count guard for a `namespace eval` body (the other
+    /// synthetic body-unit kind `analysable_body_function_units` reaches).
+    #[test]
+    fn shimmer_not_double_counted_in_namespace_eval_body() {
+        let src = "namespace eval ns {\n    set x hello\n    incr x\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let diags = run_all_checks(&cu, &registry(), None);
+        let s100: Vec<_> = diags.iter().filter(|d| d.code.as_str() == "S100").collect();
+        assert_eq!(s100.len(), 1, "expected exactly one S100, got {s100:?}");
+    }
+
     #[test]
     fn run_all_checks_on_empty_source_is_empty() {
         let cu = CompilationUnit::build_for("", &registry(), false);
         assert!(run_all_checks(&cu, &registry(), None).is_empty());
+    }
+
+    /// (FP guard) `my variable count` links an object-instance variable whose
+    /// true intrep depends on another method's last write, not the nominal
+    /// return type of `my`. Before the registry fix (`oo_my.rs`'s `variable`
+    /// subcommand), this spuriously claimed a String->Int shimmer on `incr`.
+    #[test]
+    fn no_shimmer_for_tcloo_instance_variable_linked_via_my_variable() {
+        let src = "oo::class create Counter {\n    method bump {} {\n        my variable count\n        incr count\n    }\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let diags = run_all_checks(&cu, &registry(), None);
+        let shimmer: Vec<_> = diags
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "S100" | "S101"))
+            .collect();
+        assert!(
+            shimmer.is_empty(),
+            "'my variable'-linked instance var must not spuriously shimmer: {shimmer:?}"
+        );
+    }
+
+    /// (TN control) The same method body, minus `my variable`, still fires
+    /// S100/S101 — proves the guard above is keyed on the scope-alias link,
+    /// not a blanket regression of `incr`-on-String detection inside methods.
+    #[test]
+    fn shimmer_still_fires_in_tcloo_method_without_my_variable() {
+        let src = "oo::class create Counter {\n    method bump {} {\n        set count hello\n        incr count\n    }\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let diags = run_all_checks(&cu, &registry(), None);
+        let shimmer: Vec<_> = diags
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "S100" | "S101"))
+            .collect();
+        assert!(
+            !shimmer.is_empty(),
+            "expected a shimmer for the untraced-and-unlinked case: {diags:?}"
+        );
     }
 
     #[test]

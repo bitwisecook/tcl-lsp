@@ -26,6 +26,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Return the actual attributes of a font on the display.",
         synopsis: "font actual font ?-displayof window? ?option? ?--? ?char?",
+        options: ACTUAL_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -33,6 +34,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Query or modify the desired attributes of a named font.",
         synopsis: "font configure fontname ?option? ?value option value ...?",
+        options: ATTRIBUTE_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -40,6 +42,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Create a new named font with the given options.",
         synopsis: "font create ?fontname? ?option value ...?",
+        options: ATTRIBUTE_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -54,6 +57,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 2),
         detail: "Return a list of all font families available on the display.",
         synopsis: "font families ?-displayof window?",
+        options: DISPLAYOF_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -61,6 +65,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Measure the width of the text string when rendered in the given font.",
         synopsis: "font measure font ?-displayof window? text",
+        options: DISPLAYOF_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -68,6 +73,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Return metric information for the given font.",
         synopsis: "font metrics font ?-displayof window? ?option?",
+        options: DISPLAYOF_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -139,6 +145,136 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-displayof",
         value: OptionValue::value("window"),
         detail: "Specifies the display for the font query.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
+
+/// `families` and `measure`: per the Tk manual (`font families ?-displayof
+/// window?`, `font measure font ?-displayof window? text`) these two take
+/// only the display selector — no font-attribute options.
+const DISPLAYOF_OPTIONS: &[OptionSpec] = &[OptionSpec {
+    name: "-displayof",
+    value: OptionValue::value("window"),
+    detail: "Specifies the display for the font query.",
+    dialects: None,
+    aliases: &[],
+    min_version: None,
+}];
+
+/// `configure` and `create`: per the manual (`font configure fontname
+/// ?option? ?value option value ...?`, `font create ?fontname? ?option value
+/// ...?`) these take the six font-attribute options as option/value pairs —
+/// no `-displayof` (there is no display argument to either form).
+const ATTRIBUTE_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-family",
+        value: OptionValue::value("name"),
+        detail: "Font family name (e.g. Courier, Times, Helvetica).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-size",
+        value: OptionValue::value("size"),
+        detail: "Desired size of the font in points (positive) or pixels (negative).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-weight",
+        value: OptionValue::value("normal|bold"),
+        detail: "Weight of the font: normal or bold.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-slant",
+        value: OptionValue::value("roman|italic"),
+        detail: "Slant of the font: roman or italic.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-underline",
+        value: OptionValue::value("boolean"),
+        detail: "Whether to draw an underline beneath the text.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-overstrike",
+        value: OptionValue::value("boolean"),
+        detail: "Whether to draw a horizontal line through the text.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
+
+/// `actual`: per the manual (`font actual font ?-displayof window? ?option?
+/// ?--? ?char?`) this takes `-displayof` plus the same six font-attribute
+/// options, used here as the `option` argument to select a single resolved
+/// attribute to return.
+const ACTUAL_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-displayof",
+        value: OptionValue::value("window"),
+        detail: "Specifies the display for the font query.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-family",
+        value: OptionValue::value("name"),
+        detail: "Font family name (e.g. Courier, Times, Helvetica).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-size",
+        value: OptionValue::value("size"),
+        detail: "Desired size of the font in points (positive) or pixels (negative).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-weight",
+        value: OptionValue::value("normal|bold"),
+        detail: "Weight of the font: normal or bold.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-slant",
+        value: OptionValue::value("roman|italic"),
+        detail: "Slant of the font: roman or italic.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-underline",
+        value: OptionValue::value("boolean"),
+        detail: "Whether to draw an underline beneath the text.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-overstrike",
+        value: OptionValue::value("boolean"),
+        detail: "Whether to draw a horizontal line through the text.",
         dialects: None,
         aliases: &[],
         min_version: None,

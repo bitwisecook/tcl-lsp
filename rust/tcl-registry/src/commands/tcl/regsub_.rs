@@ -180,6 +180,12 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::new(3, 4),
         return_type: Some(TclType::Int),
+        // The `varName` form writes the substituted *string* to its target
+        // while returning the replacement *count*.  The result is always a
+        // string (not a format-/element-dependent piece like `scan`/`lassign`),
+        // so type it `String` — that keeps real string-in-arithmetic shimmer
+        // diagnostics while avoiding the old bogus `Int` (issue #867).
+        var_write_typing: VarWriteTyping::Fixed(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
             reads: false,

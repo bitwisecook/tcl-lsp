@@ -173,10 +173,23 @@ impl Analyser {
             .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_string()))
             .filter(|s| !s.is_empty())
             .collect();
+        // An alias whose most recent action (by offset) in the file is a
+        // deletion (`interp alias {} name {}`) is no longer a callable
+        // command — `command_aliases` itself is never pruned on deletion
+        // (a later re-declaration of the same name must still win, and this
+        // whole-file set has no per-call-site position to gate against), so
+        // check `deleted_commands` here directly. This mirrors the same-file
+        // arity resolver's `fact_in_effect` convention for deleted aliases,
+        // just at file-end granularity rather than per call site.
         let alias_names: HashSet<String> = self
             .result
             .command_aliases
             .keys()
+            .filter(|qn| {
+                self.deleted_commands
+                    .get(qn.as_str())
+                    .is_none_or(|&del_off| self.alias_offsets.get(qn.as_str()) > Some(&del_off))
+            })
             .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_string()))
             .filter(|s| !s.is_empty())
             .collect();

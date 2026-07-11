@@ -235,6 +235,15 @@ pub struct Analyser {
     /// outside an active analysis run; handlers that need the
     /// registry must check `self.registry.is_some()`.
     pub registry: Option<tcl_registry::CommandRegistry>,
+    /// The "known command" universe for unclosed-delimiter recovery: the
+    /// active registry's names plus every proc / class / command-alias the
+    /// document itself defines. Populated alongside `registry` at the top
+    /// of every entry point via
+    /// [`super::utils::recovery_known_commands`] so the segmenter's
+    /// scan-to-next recovery and the E100/E201/E202/E203 diagnostics agree
+    /// on what counts as a "real command" starting a new line. Empty
+    /// outside an active analysis run.
+    pub recovery_known_commands: HashSet<String>,
     /// When `true`, the proc handler runs the deep-recursive
     /// pass of [`super::param_traits::infer_param_traits_deep`]
     /// after the shallow pass and unions the results via
@@ -261,23 +270,28 @@ pub struct Analyser {
     /// per command) cost ``O(log N)`` instead of ``O(N)`` per
     /// call.  ``None`` outside an active analysis run.
     pub line_offsets: Option<Vec<usize>>,
-    /// Candidate E002 / E003 arity diagnostics collected during the
-    /// command walk, as `(command name, call-site namespace,
-    /// enforce_order, diagnostic)`.  Emitted in a post-walk pass
+    /// Candidate E002 / E003 arity diagnostics, W004
+    /// (dialect-invalid-option) diagnostics, **and** W001 (unknown
+    /// subcommand) diagnostics collected during the command walk, as
+    /// `(command name, call-site namespace, enforce_order, diagnostic)`.
+    /// All three are "this registry builtin's rule was violated" candidates
+    /// with the identical suppression condition, so they share one queue.
+    /// Emitted in a post-walk pass
     /// ([`Self::flush_arity_diagnostics`]) so a command that resolves
     /// to a user-defined proc / class / alias / ensemble / stub —
     /// which may be defined *after* its call site — suppresses the
-    /// builtin-arity check.  The namespace is captured so suppression
-    /// is scoped to the command the call actually resolves to (current
-    /// namespace → global), not to every same-tail-named definition
-    /// anywhere in the file.  `enforce_order` is `true` for top-level
-    /// calls (module body, `namespace eval` bodies, conditionals) which
-    /// execute in source order during load: a shadowing proc only
-    /// silences such a call when its definition lexically precedes it.
-    /// Proc-body calls (`enforce_order == false`) resolve after load,
-    /// so any same-named definition shadows regardless of order.
-    /// The arity check runs over the fully-resolved IR rather than
-    /// inline during the walk.
+    /// builtin check (the call dispatches to that definition at run
+    /// time, not to the registry builtin the candidate describes).  The
+    /// namespace is captured so suppression is scoped to the command the
+    /// call actually resolves to (current namespace → global), not to
+    /// every same-tail-named definition anywhere in the file.
+    /// `enforce_order` is `true` for top-level calls (module body,
+    /// `namespace eval` bodies, conditionals) which execute in source
+    /// order during load: a shadowing proc only silences such a call
+    /// when its definition lexically precedes it.  Proc-body calls
+    /// (`enforce_order == false`) resolve after load, so any same-named
+    /// definition shadows regardless of order.  The arity check runs
+    /// over the fully-resolved IR rather than inline during the walk.
     pub pending_arity: Vec<(String, String, bool, super::types::Diagnostic)>,
     /// Same-file user-call arity candidates — see
     /// [`super::types::PendingUserCallArity`]. Queued for *every* call
@@ -291,6 +305,11 @@ pub struct Analyser {
     /// resolved in the same post-walk pass as [`Self::pending_arity`]
     /// ([`Self::flush_ctor_arity_diagnostics`]).
     pub pending_ctor_arity: Vec<super::types::PendingCtorArity>,
+    /// `TclOO` `next` / `nextto` call-site arity candidates — see
+    /// [`super::types::PendingNextArity`]. Queued whenever such a call
+    /// sits inside a method body and resolved in the same post-walk pass
+    /// as [`Self::pending_arity`] ([`Self::flush_next_arity_diagnostics`]).
+    pub pending_next_arity: Vec<super::types::PendingNextArity>,
     /// W108 non-ASCII detection mode (`tclLsp.style.nonAscii`).
     /// [`NonAsciiMode::Default`] resolves per dialect at emit time
     /// (strict for F5 iRules/iApps, confusables otherwise).
@@ -337,17 +356,23 @@ pub struct Analyser {
     /// def — one of the divergences the per-item path must reproduce.  `None` on
     /// the whole-file `analyse` path (reads resolve against the populated scope).
     pub(super) capture_global_reads: Option<Vec<(String, tcl_lexer::Span)>>,
-    /// Deferred W002 (disabled-in-dialect command) diagnostics whose
-    /// user-proc-shadowing suppression is a **cross-item** fact (the file's full
-    /// `all_procs`).  On the per-item path an isolated body has only its own
-    /// procs, so a would-be-W002 site that the body can't prove shadowed is
-    /// captured here (qualified call name + the built diagnostic) instead of
-    /// emitted; [`Self::graft_proc_body`] rebases the span and
-    /// [`Self::flush_disabled_command_diagnostics`] re-applies the shadow check
-    /// against the merged `all_procs` in the tail.  Empty on the whole-file
-    /// `analyse` path (W002 is emitted inline there), so the tail flush is a
-    /// no-op — byte-identical.
-    pub(super) pending_disabled_commands: Vec<(String, super::types::Diagnostic)>,
+    /// Deferred W002 (disabled-in-dialect command) diagnostics — both the
+    /// whole-command form ([`Self::emit_w002_disabled_command`]) and the
+    /// subcommand form embedded in
+    /// [`Self::emit_w001_unknown_subcommand`]. Always deferred (never emitted
+    /// inline) because the user-definition-shadowing suppression check needs
+    /// the fully-merged, whole-file facts (`all_procs`, `command_aliases`,
+    /// `renamed_commands`, `all_classes`, `ensemble_namespaces`) — on the
+    /// per-item path an isolated body only has its own, so a would-be-W002
+    /// site that the body can't prove shadowed is captured here as `(command
+    /// name, call-site namespace, enforce_order, diagnostic)` — the same
+    /// shape as [`Self::pending_arity`] — and [`Self::graft_proc_body`]
+    /// rebases the span via [`super::per_item::rebase_fragment`].
+    /// [`Self::flush_disabled_command_diagnostics`] resolves every candidate
+    /// (both paths alike) against the merged facts in the tail, using the
+    /// same current-namespace-then-global resolution and top-level order gate
+    /// as [`Self::flush_arity_diagnostics`].
+    pub(super) pending_disabled_commands: Vec<(String, String, bool, super::types::Diagnostic)>,
     /// Deferred W304 (missing `--` option terminator) diagnostics whose
     /// severity/message depend on resolving a `$var` against the **most recent
     /// literal `set` in the whole file** ([`last_literal_set_value_for_var`],
@@ -482,12 +507,14 @@ impl Analyser {
             objdefined_vars: HashSet::new(),
             unresolved_commands_emitted: false,
             registry: None,
+            recovery_known_commands: HashSet::new(),
             deep_param_traits: false,
             stub_overlay: None,
             line_offsets: None,
             pending_arity: Vec::new(),
             pending_user_call_arity: Vec::new(),
             pending_ctor_arity: Vec::new(),
+            pending_next_arity: Vec::new(),
             non_ascii_mode: NonAsciiMode::Default,
             structure_only: false,
             defer_proc_bodies: false,
@@ -641,11 +668,20 @@ impl Analyser {
         // ``apply_preceding_noqa`` (which runs per command and
         // would otherwise be ``O(N)`` per call).
         self.line_offsets = Some(compute_line_offsets(source));
+        // The recovery known-command universe (registry + this document's
+        // own procs/classes/aliases) — see `recovery_known_commands`. Stored
+        // on `self` so the per-command E100/E201/E202/E203 detectors below
+        // (and `apply_ghost_recovery`) consult the same set the segmenter
+        // scan-to-next recovery uses here.
+        self.recovery_known_commands = super::utils::recovery_known_commands(
+            source,
+            self.registry.as_ref().expect("registry just stashed"),
+            &self.extra_commands,
+        );
         let known_commands: HashSet<&str> = self
-            .registry
-            .as_ref()
-            .expect("registry just stashed")
-            .command_names()
+            .recovery_known_commands
+            .iter()
+            .map(String::as_str)
             .collect();
         let mut commands = crate::segmenter::segment_commands_with_recovery_and_config(
             source,
@@ -786,7 +822,7 @@ impl Analyser {
         let (clean, e201) = crate::segmenter::segment_with_recovery(
             source,
             self.lexer_config(),
-            self.registry.as_ref(),
+            &self.recovery_known_commands,
         );
         if e201.is_empty() {
             return false;
@@ -813,13 +849,14 @@ impl Analyser {
             cmd,
             &self.source,
             self.registry.as_ref(),
+            || self.user_command_tail_names(),
         );
         self.result.diagnostics.extend(stray);
         if !ghost_recovery_applied {
             let e201 = super::syntax_checks::unterminated_bracket_diagnostics(
                 cmd,
                 &self.source,
-                self.registry.as_ref(),
+                &self.recovery_known_commands,
             );
             self.result.diagnostics.extend(e201);
         }
@@ -844,6 +881,7 @@ impl Analyser {
             &self.source,
             region_end,
             self.registry.as_ref(),
+            &self.recovery_known_commands,
         );
         let mut emitted = false;
         for d in diags {
@@ -953,6 +991,11 @@ impl Analyser {
             registry.load_dialect(d);
         }
         self.registry = Some(registry);
+        self.recovery_known_commands = super::utils::recovery_known_commands(
+            source,
+            self.registry.as_ref().expect("registry just stashed"),
+            &self.extra_commands,
+        );
         self.line_offsets = Some(compute_line_offsets(source));
 
         let mut snapshots: Vec<super::snapshot::AnalyserSnapshot> =
@@ -1023,6 +1066,11 @@ impl Analyser {
             registry.load_dialect(d);
         }
         self.registry = Some(registry);
+        self.recovery_known_commands = super::utils::recovery_known_commands(
+            source,
+            self.registry.as_ref().expect("registry just stashed"),
+            &self.extra_commands,
+        );
         self.line_offsets = Some(compute_line_offsets(source));
 
         // Stub-directive pre-scan + overlay, matching ``analyse`` so command
@@ -1249,6 +1297,7 @@ impl Analyser {
         self.flush_w304_diagnostics();
         self.flush_arity_diagnostics();
         self.flush_ctor_arity_diagnostics();
+        self.flush_next_arity_diagnostics();
         self.emit_missing_package_require_diagnostics(&diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);
@@ -1321,6 +1370,7 @@ impl Analyser {
     /// ``analyse_commands``).
     pub(super) fn clear_run_state(&mut self) {
         self.registry = None;
+        self.recovery_known_commands.clear();
         self.line_offsets = None;
         self.defer_proc_bodies = false;
         self.deferred_bodies.clear();
@@ -3198,7 +3248,11 @@ mod tests {
     }
 
     #[test]
-    fn analyse_w001_anchors_at_cmd_plus_subcommand_range() {
+    fn analyse_w001_anchors_at_subcommand_token_only() {
+        // The squiggle sits tightly on the offending word alone — not the
+        // command name too — matching the "did you mean" fix's replacement
+        // range and the KCS doc's documented "squiggle under the subcommand
+        // token" behaviour.
         let mut a = Analyser::new();
         let src = "string bogus $x\n";
         let r = a.analyse(src, "tcl");
@@ -3210,7 +3264,7 @@ mod tests {
         assert_eq!(w001.len(), 1);
         let span = w001[0].span;
         let text = &src[span.start() as usize..span.end() as usize];
-        assert_eq!(text, "string bogus", "got {text:?}");
+        assert_eq!(text, "bogus", "got {text:?}");
     }
 
     #[test]
@@ -3276,175 +3330,406 @@ mod tests {
         }
     }
 
+    #[test]
+    fn analyse_w001_diagnostic_span_matches_fix_span() {
+        // The squiggle and the "did you mean" quick-fix must target the
+        // identical range — otherwise accepting the fix visibly leaves part
+        // of the squiggled text unchanged.
+        let mut a = Analyser::new();
+        let src = "string lenght $x\n";
+        let r = a.analyse(src, "tcl");
+        let w001: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W001)
+            .collect();
+        assert_eq!(w001.len(), 1, "got {:?}", r.diagnostics);
+        let fix = w001[0]
+            .fixes
+            .first()
+            .expect("expected a 'did you mean' fix");
+        assert_eq!(w001[0].span, fix.span, "got {:?}", w001[0]);
+    }
+
+    #[test]
+    fn analyse_w001_no_diagnostic_at_all_when_shadowed_by_proc() {
+        // A same-file `proc string {...}` must suppress W001 (and its
+        // subcommand-level W002 sibling) completely — not just avoid the
+        // specific message text. See FP-STY-17 in docs/design/compiler/FP.md.
+        let mut a = Analyser::new();
+        let src = "proc string {op args} { return $op }\nstring reverse hello\n";
+        let r = a.analyse(src, "tcl");
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| matches!(d.code, DiagCode::W001 | DiagCode::W002)),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_w001_shadow_suppression_is_scoped_to_the_shadowed_name() {
+        // Shadowing `string` must not suppress W001 for a genuinely unknown
+        // subcommand on a different, unshadowed ensemble in the same file.
+        let mut a = Analyser::new();
+        let src = "proc string {op args} { return $op }\ninfo bogus\n";
+        let r = a.analyse(src, "tcl");
+        let w001: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W001)
+            .collect();
+        assert_eq!(w001.len(), 1, "got {:?}", r.diagnostics);
+        assert!(w001[0].message.contains("'info'"), "got {:?}", w001[0]);
+    }
+
+    #[test]
+    fn analyse_no_w001_for_expanded_literal_subcommand() {
+        // `{*}{create a b}` splices the elements `create`, `a`, `b` into the
+        // argument list (confirmed against tclsh 8.6.14) — the raw source
+        // text "create a b" must never be compared against the subcommand
+        // set. See FP-STY-18 in docs/design/compiler/FP.md.
+        let mut a = Analyser::new();
+        let r = a.analyse("dict {*}{create a b}\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W001),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_w001_still_fires_for_unexpanded_unknown_subcommand() {
+        // TP control for the `{*}`-expansion skip: the identical subcommand
+        // set, without expansion, still fires on a genuine typo.
+        let mut a = Analyser::new();
+        let r = a.analyse("dict bogus a b\n", "tcl");
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == DiagCode::W001),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
     // -- E004 malformed-if emitter
     //
     // Fires ``Severity::Error`` when an ``if`` invocation's structural
     // shape doesn't match
-    // ``if COND BODY ?elseif COND BODY ...? ?else BODY?``.
-    // Detection is analyser-side rather than via IR-walk.
+    // ``if COND BODY ?elseif COND BODY ...? ?else BODY?``.  Detection
+    // reads `tcl_registry::commands::tcl::if_::check_if_shape` via the
+    // spec's `clause_shape_check` hook — the grammar itself is not
+    // reimplemented here (see `emit_e004_clause_shape_diagnostic`).
+    // Every case is cross-checked against tclsh 8.6 and Tcl 9.0.4's
+    // `TclNRIfObjCmd` source; see the truth table in
+    // `tcl-registry/src/commands/tcl/if_.rs`'s own tests for the
+    // grammar-level cases this integration layer doesn't repeat.
+
+    fn e004_diags(src: &str) -> Vec<crate::analyser::types::Diagnostic> {
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        r.diagnostics
+            .into_iter()
+            .filter(|d| d.code == DiagCode::E004)
+            .collect()
+    }
+
+    fn span_text(src: &str, span: tcl_lexer::Span) -> &str {
+        &src[span.start() as usize..span.end() as usize]
+    }
+
+    // -- TP: genuinely malformed shapes, with the precise message and a
+    // tight span (not the whole `if` statement).
 
     #[test]
-    fn analyse_emits_e004_for_extra_words_after_else() {
-        // ``if {1} { a } else { b } extra`` — extra words follow the
-        // ``else`` clause.
-        let mut a = Analyser::new();
-        let r = a.analyse("if {1} { a } else { b } extra\n", "tcl");
-        let e004: Vec<_> = r
-            .diagnostics
-            .iter()
-            .filter(|d| d.code == DiagCode::E004)
-            .collect();
-        assert_eq!(e004.len(), 1, "got {:?}", r.diagnostics);
-        assert!(
-            e004[0].message.contains("Extra words after \"else\""),
-            "got {:?}",
-            e004[0].message
+    fn tp_bare_if_names_the_invoked_command_in_the_message() {
+        // ``if`` alone — no expression at all.  Message and span both
+        // name "if" itself (real Tcl: `no expression after "if"
+        // argument`), and this must be the *only* diagnostic for the
+        // line — no redundant generic arity error alongside it (see
+        // `no_duplicate_e002_alongside_e004`).
+        let src = "if\n";
+        let e004 = e004_diags(src);
+        assert_eq!(e004.len(), 1, "got {e004:?}");
+        assert_eq!(e004[0].message, "No expression after \"if\" argument");
+        assert_eq!(span_text(src, e004[0].span), "if");
+    }
+
+    #[test]
+    fn tp_condition_without_body_names_the_condition_text() {
+        // ``if {1}`` — real Tcl: `no script following "1" argument`.
+        let src = "if {1}\n";
+        let e004 = e004_diags(src);
+        assert_eq!(e004.len(), 1, "got {e004:?}");
+        assert_eq!(e004[0].message, "No script following \"1\" argument");
+        assert_eq!(span_text(src, e004[0].span), "{1}");
+    }
+
+    #[test]
+    fn tp_then_keyword_without_body_names_then() {
+        // ``if {1} then`` — real Tcl: `no script following "then"
+        // argument`.
+        let src = "if {1} then\n";
+        let e004 = e004_diags(src);
+        assert_eq!(e004.len(), 1, "got {e004:?}");
+        assert_eq!(e004[0].message, "No script following \"then\" argument");
+        assert_eq!(span_text(src, e004[0].span), "then");
+    }
+
+    #[test]
+    fn tp_bare_else_without_body_names_else() {
+        // ``if {1} { a } else`` — real Tcl: `no script following
+        // "else" argument`.
+        let src = "if {1} { a } else\n";
+        let e004 = e004_diags(src);
+        assert_eq!(e004.len(), 1, "got {e004:?}");
+        assert_eq!(e004[0].message, "No script following \"else\" argument");
+        assert_eq!(span_text(src, e004[0].span), "else");
+    }
+
+    #[test]
+    fn tp_elseif_without_expr_names_elseif() {
+        // ``if {1} { a } elseif`` — real Tcl: `no expression after
+        // "elseif" argument`.
+        let src = "if {1} { a } elseif\n";
+        let e004 = e004_diags(src);
+        assert_eq!(e004.len(), 1, "got {e004:?}");
+        assert_eq!(e004[0].message, "No expression after \"elseif\" argument");
+        assert_eq!(span_text(src, e004[0].span), "elseif");
+    }
+
+    #[test]
+    fn tp_elseif_condition_without_body_names_the_condition_text() {
+        // ``if {1} { a } elseif {2}`` — real Tcl: `no script
+        // following "2" argument`.
+        let src = "if {1} { a } elseif {2}\n";
+        let e004 = e004_diags(src);
+        assert_eq!(e004.len(), 1, "got {e004:?}");
+        assert_eq!(e004[0].message, "No script following \"2\" argument");
+        assert_eq!(span_text(src, e004[0].span), "{2}");
+    }
+
+    #[test]
+    fn tp_extra_words_after_explicit_else_anchors_only_the_extra_words() {
+        // ``if {1} { a } else { b } extra`` — the span covers just
+        // "extra", not the whole statement.
+        let src = "if {1} { a } else { b } extra\n";
+        let e004 = e004_diags(src);
+        assert_eq!(e004.len(), 1, "got {e004:?}");
+        assert_eq!(
+            e004[0].message,
+            "Extra words after \"else\" clause in \"if\" command"
         );
+        assert_eq!(span_text(src, e004[0].span), "extra");
         assert!(matches!(e004[0].severity, crate::analyser::Severity::Error));
     }
 
     #[test]
-    fn analyse_emits_e004_for_bare_else_without_body() {
-        // ``if {1} { a } else`` — bare ``else`` keyword with no
-        // body.
-        let mut a = Analyser::new();
-        let r = a.analyse("if {1} { a } else\n", "tcl");
-        let e004: Vec<_> = r
-            .diagnostics
-            .iter()
-            .filter(|d| d.code == DiagCode::E004)
-            .collect();
-        assert_eq!(e004.len(), 1, "got {:?}", r.diagnostics);
-        assert!(
-            e004[0].message.contains("Malformed 'if'"),
-            "got {:?}",
-            e004[0].message
-        );
+    fn tp_extra_words_after_implicit_else_anchors_only_the_extra_word() {
+        // ``if {1} { a } { b } { c }`` — implicit else (no ``else``
+        // keyword); "c" is the first extra word.
+        let src = "if {1} { a } { b } { c }\n";
+        let e004 = e004_diags(src);
+        assert_eq!(e004.len(), 1, "got {e004:?}");
+        assert_eq!(span_text(src, e004[0].span), "{ c }");
     }
 
     #[test]
-    fn analyse_emits_e004_for_condition_without_body() {
-        // ``if {1}`` — condition with no body following.
-        let mut a = Analyser::new();
-        let r = a.analyse("if {1}\n", "tcl");
-        let e004: Vec<_> = r
-            .diagnostics
-            .iter()
-            .filter(|d| d.code == DiagCode::E004)
-            .collect();
-        assert_eq!(e004.len(), 1, "got {:?}", r.diagnostics);
-        assert!(
-            e004[0].message.contains("Malformed 'if'"),
-            "got {:?}",
-            e004[0].message
-        );
+    fn tp_qualified_double_colon_if_is_checked_too() {
+        // ``::if`` names the same global command as ``if`` — registry
+        // name resolution strips the leading ``::`` for every command,
+        // so the dispatch-generic hook lookup picks this up without any
+        // `if`-specific handling in the compiler.
+        let src = "::if {1} { a } { b } { c }\n";
+        let e004 = e004_diags(src);
+        assert_eq!(e004.len(), 1, "got {e004:?}");
+    }
+
+    // -- FP fixed: a leading `else`/`elseif` is a well-formed `if` whose
+    // condition happens to be that bareword — not a malformed `if`.
+    // Verified against tclsh 8.6: both raise `invalid bareword "else"` /
+    // `"elseif"` at *expression*-evaluation time, never a `wrong # args`
+    // structural error.
+
+    #[test]
+    fn fp_leading_else_is_not_malformed() {
+        let r_diags = e004_diags("if else { x }\n");
+        assert!(r_diags.is_empty(), "got {r_diags:?}");
     }
 
     #[test]
-    fn analyse_emits_e004_for_then_keyword_without_body() {
-        // ``if {1} then`` — condition + ``then`` keyword without
-        // body.
-        let mut a = Analyser::new();
-        let r = a.analyse("if {1} then\n", "tcl");
-        let e004: Vec<_> = r
-            .diagnostics
-            .iter()
-            .filter(|d| d.code == DiagCode::E004)
-            .collect();
-        assert_eq!(e004.len(), 1, "got {:?}", r.diagnostics);
-        assert!(
-            e004[0].message.contains("Malformed 'if'"),
-            "got {:?}",
-            e004[0].message
-        );
+    fn fp_leading_elseif_is_not_malformed() {
+        let r_diags = e004_diags("if elseif { x }\n");
+        assert!(r_diags.is_empty(), "got {r_diags:?}");
     }
 
     #[test]
-    fn analyse_emits_e004_for_if_with_only_else() {
-        // ``if else { x }`` — no condition+body clause before the
-        // else, so the malformed-if check fires.
-        let mut a = Analyser::new();
-        let r = a.analyse("if else { x }\n", "tcl");
-        let e004: Vec<_> = r
-            .diagnostics
-            .iter()
-            .filter(|d| d.code == DiagCode::E004)
-            .collect();
-        assert_eq!(e004.len(), 1, "got {:?}", r.diagnostics);
-        assert!(
-            e004[0].message.contains("Malformed 'if'"),
-            "got {:?}",
-            e004[0].message
-        );
+    fn fp_else_in_elseif_condition_slot_is_not_malformed() {
+        // ``if {1} { a } elseif else { b }`` — "else" sits in the
+        // *elseif's* condition slot, never keyword-matched there
+        // either (verified against tclsh 8.6: runs body "a", not a
+        // wrong-#args error).
+        let r_diags = e004_diags("if {1} { a } elseif else { b }\n");
+        assert!(r_diags.is_empty(), "got {r_diags:?}");
+    }
+
+    // -- TN: well-formed shapes never flagged.
+
+    #[test]
+    fn tn_single_clause_if() {
+        assert!(e004_diags("if {1} { a }\n").is_empty());
     }
 
     #[test]
-    fn analyse_no_e004_for_valid_if() {
-        // ``if {1} { a }`` — single-clause without else.  No E004.
-        let mut a = Analyser::new();
-        let r = a.analyse("if {1} { a }\n", "tcl");
-        assert!(
-            !r.diagnostics.iter().any(|d| d.code == DiagCode::E004),
-            "got {:?}",
-            r.diagnostics
-        );
+    fn tn_if_else() {
+        assert!(e004_diags("if {1} { a } else { b }\n").is_empty());
     }
 
     #[test]
-    fn analyse_no_e004_for_valid_if_else() {
-        // ``if {1} { a } else { b }`` — well-formed.  No E004.
-        let mut a = Analyser::new();
-        let r = a.analyse("if {1} { a } else { b }\n", "tcl");
-        assert!(
-            !r.diagnostics.iter().any(|d| d.code == DiagCode::E004),
-            "got {:?}",
-            r.diagnostics
-        );
+    fn tn_if_elseif_else_chain() {
+        assert!(e004_diags("if {$a} { x } elseif {$b} { y } else { z }\n").is_empty());
     }
 
     #[test]
-    fn analyse_no_e004_for_valid_if_elseif_chain() {
-        // ``if {a} { x } elseif {b} { y } else { z }`` — full
-        // shape.  No E004.
-        let mut a = Analyser::new();
-        let r = a.analyse("if {$a} { x } elseif {$b} { y } else { z }\n", "tcl");
-        assert!(
-            !r.diagnostics.iter().any(|d| d.code == DiagCode::E004),
-            "got {:?}",
-            r.diagnostics
-        );
+    fn tn_if_with_then_keyword() {
+        assert!(e004_diags("if {1} then { a }\n").is_empty());
     }
 
     #[test]
-    fn analyse_no_e004_for_if_with_then_keyword() {
-        // ``if {1} then { a }`` — explicit ``then`` keyword is
-        // accepted by Tcl.  No E004.
-        let mut a = Analyser::new();
-        let r = a.analyse("if {1} then { a }\n", "tcl");
-        assert!(
-            !r.diagnostics.iter().any(|d| d.code == DiagCode::E004),
-            "got {:?}",
-            r.diagnostics
-        );
+    fn tn_implicit_else_single_body() {
+        // ``if {1} { a } { b }`` — one implicit-else body, no keyword.
+        assert!(e004_diags("if {1} { a } { b }\n").is_empty());
     }
 
     #[test]
-    fn analyse_e004_anchors_at_full_command_range() {
-        // Span runs from the ``if`` keyword through the last arg
-        // token's end.
-        let mut a = Analyser::new();
-        let src = "if {1} { a } else { b } extra\n";
-        let r = a.analyse(src, "tcl");
-        let e004: Vec<_> = r
-            .diagnostics
-            .iter()
-            .filter(|d| d.code == DiagCode::E004)
-            .collect();
-        assert_eq!(e004.len(), 1);
-        let span = e004[0].span;
-        let text = &src[span.start() as usize..span.end() as usize];
-        assert!(text.starts_with("if"), "span starts at {text:?}");
-        assert!(text.contains("extra"), "span text {text:?}");
+    fn tn_inside_tcloo_method_body() {
+        // `if` structural checking is generic body-walking — it must
+        // fire the same way inside a TclOO method body as at top level.
+        let src = "oo::class create C {\n  method m {} {\n    if {1} { a } { b } { c }\n  }\n}\n";
+        let e004 = e004_diags(src);
+        assert_eq!(e004.len(), 1, "got {e004:?}");
+    }
+
+    // -- FN (documented, intentional scope boundary): a renamed `if` is
+    // not checked. `if`'s registry `clause_shape_check` hook is looked
+    // up by resolving `cmd_name` as written — namespace-qualification
+    // (`::if`) resolves through it (see
+    // `tp_qualified_double_colon_if_is_checked_too`), but a `rename if
+    // myif` target does not, since that requires chasing the same
+    // same-file rename/alias graph the arity checker's
+    // `resolve_indirect_call_target` uses — a distinct, heavier
+    // mechanism not wired up to this dispatch-site check. Real Tcl
+    // *does* validate a renamed `if`'s shape (the C source's own doc
+    // comment: `Tcl_IfObjCmd` runs for "if" or "the name to which if was
+    // renamed"), so this is a genuine, narrow gap — not a false
+    // negative this test is happy about, just one it pins so a future
+    // fix shows up as an intentional behaviour change.
+    #[test]
+    fn fn_renamed_if_is_not_currently_checked() {
+        let src = "rename if myif\nmyif {1} { a } { b } { c }\n";
+        let e004 = e004_diags(src);
+        assert!(e004.is_empty(), "got {e004:?}");
+    }
+
+    // -- Redundant-diagnostic fix: `if`'s registry `arity` floor no
+    // longer produces a second, generic E002 alongside the precise
+    // E004 for the same defect.
+
+    #[test]
+    fn no_duplicate_e002_alongside_e004() {
+        for src in ["if\n", "if {1}\n"] {
+            let mut a = Analyser::new();
+            let r = a.analyse(src, "tcl");
+            assert!(
+                !r.diagnostics.iter().any(|d| d.code == DiagCode::E002),
+                "src={src:?} got {:?}",
+                r.diagnostics
+            );
+            assert!(
+                r.diagnostics.iter().any(|d| d.code == DiagCode::E004),
+                "src={src:?} got {:?}",
+                r.diagnostics
+            );
+        }
+    }
+
+    // -- Code fixes.
+
+    fn apply_fix(src: &str, fix: &crate::analyser::types::CodeFix) -> String {
+        let mut fixed = src.to_string();
+        fixed.replace_range(
+            fix.span.start() as usize..fix.span.end() as usize,
+            &fix.new_text,
+        );
+        fixed
+    }
+
+    #[test]
+    fn fix_merges_extra_words_into_the_final_body() {
+        let src = "if {1} { a } { b } { c }";
+        let e004 = e004_diags(src);
+        assert_eq!(e004.len(), 1, "got {e004:?}");
+        assert_eq!(e004[0].fixes.len(), 1, "got {:?}", e004[0].fixes);
+        let fixed = apply_fix(src, &e004[0].fixes[0]);
+        assert_eq!(fixed, "if {1} { a } {{ b } { c }}");
+        // The fixed source must itself be shape-well-formed.
+        assert!(e004_diags(&fixed).is_empty(), "fixed={fixed:?}");
+    }
+
+    #[test]
+    fn fix_merges_extra_words_after_explicit_else() {
+        let src = "if {1} { a } else { b } extra";
+        let e004 = e004_diags(src);
+        assert_eq!(e004[0].fixes.len(), 1, "got {:?}", e004[0].fixes);
+        let fixed = apply_fix(src, &e004[0].fixes[0]);
+        assert_eq!(fixed, "if {1} { a } else {{ b } extra}");
+        assert!(e004_diags(&fixed).is_empty(), "fixed={fixed:?}");
+    }
+
+    #[test]
+    fn fix_removes_dangling_elseif_clause() {
+        let src = "if {1} { a } elseif";
+        let e004 = e004_diags(src);
+        assert_eq!(e004[0].fixes.len(), 1, "got {:?}", e004[0].fixes);
+        assert_eq!(e004[0].fixes[0].new_text, "");
+        let fixed = apply_fix(src, &e004[0].fixes[0]);
+        assert_eq!(fixed, "if {1} { a } ");
+        assert!(e004_diags(&fixed).is_empty(), "fixed={fixed:?}");
+    }
+
+    #[test]
+    fn fix_removes_dangling_else_with_no_body() {
+        let src = "if {1} { a } else";
+        let e004 = e004_diags(src);
+        assert_eq!(e004[0].fixes.len(), 1, "got {:?}", e004[0].fixes);
+        let fixed = apply_fix(src, &e004[0].fixes[0]);
+        assert_eq!(fixed, "if {1} { a } ");
+        assert!(e004_diags(&fixed).is_empty(), "fixed={fixed:?}");
+    }
+
+    #[test]
+    fn fix_removes_dangling_elseif_condition_without_body() {
+        let src = "if {1} { a } elseif {2}";
+        let e004 = e004_diags(src);
+        assert_eq!(e004[0].fixes.len(), 1, "got {:?}", e004[0].fixes);
+        let fixed = apply_fix(src, &e004[0].fixes[0]);
+        assert_eq!(fixed, "if {1} { a } ");
+        assert!(e004_diags(&fixed).is_empty(), "fixed={fixed:?}");
+    }
+
+    #[test]
+    fn no_fix_offered_when_the_first_clause_never_completed() {
+        // ``if`` / ``if {1}`` — there is no well-formed prefix to fall
+        // back to, so no fix is offered (never a guessed body).
+        for src in ["if", "if {1}", "if {1} then"] {
+            let e004 = e004_diags(src);
+            assert_eq!(e004.len(), 1, "src={src:?}");
+            assert!(
+                e004[0].fixes.is_empty(),
+                "src={src:?} got {:?}",
+                e004[0].fixes
+            );
+        }
     }
 
     // -- W304 missing-option-terminator emitter
@@ -3480,8 +3765,7 @@ mod tests {
     #[test]
     fn analyse_no_w304_for_regexp_safe_literal_pattern() {
         // Pattern starts with `(` — non-dynamic, doesn't start with
-        // `-`, so the OFF gate suppresses regardless of the
-        // command's WARN_WITHOUT_TERMINATOR trait.
+        // `-`, so the OFF gate suppresses regardless of command.
         let diags = w304_diags("regexp {(a+)+$} $text\n");
         assert!(diags.is_empty(), "got {diags:?}");
     }

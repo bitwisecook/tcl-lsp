@@ -35,7 +35,7 @@ use super::ctx::{FactoryCandidate, ProcBodyInfo, ScanCtx};
 use super::params::parse_param_list;
 use super::types::{
     SignatureAutoPathEntry, SignatureClass, SignatureCommandAlias, SignatureNamespaceImport,
-    SignaturePackageRequire, SignatureProc, SignatureScanResult, SignatureSource,
+    SignaturePackageRequire, SignatureProc, SignatureRename, SignatureScanResult, SignatureSource,
 };
 
 /// Fully qualify `name` within `ns_prefix` following Tcl scoping.
@@ -306,6 +306,32 @@ pub(super) fn handle_interp(texts: &[String], result: &mut SignatureScanResult) 
             qualified_name: qualified,
             target,
             extras,
+        },
+    );
+}
+
+/// Handler for `rename OLD NEW`.
+///
+/// `NEW` becomes a callable command name subject to ordinary namespace
+/// resolution (like `proc`, unlike `interp alias`'s always-global
+/// aliasName), so it is qualified against `ns_prefix`. `rename OLD {}`
+/// deletes `OLD` rather than introducing a new name, so an empty `NEW`
+/// is skipped.
+pub(super) fn handle_rename(texts: &[String], ns_prefix: &str, result: &mut SignatureScanResult) {
+    if texts.len() < 3 {
+        return;
+    }
+    let old_name = texts[1].clone();
+    let new_name = &texts[2];
+    if new_name.is_empty() {
+        return;
+    }
+    let qualified = qualify(ns_prefix, new_name);
+    result.renames.insert(
+        qualified.clone(),
+        SignatureRename {
+            qualified_name: qualified,
+            target: old_name,
         },
     );
 }
@@ -816,6 +842,61 @@ mod tests {
         let mut result = SignatureScanResult::default();
         handle_interp(&texts, &mut result);
         assert!(result.command_aliases.is_empty());
+    }
+
+    #[test]
+    fn handle_rename_records_qualified_target() {
+        let texts = vec![
+            "rename".to_string(),
+            "puts".to_string(),
+            "my_puts".to_string(),
+        ];
+        let mut result = SignatureScanResult::default();
+        handle_rename(&texts, "", &mut result);
+        assert_eq!(result.renames.len(), 1);
+        let rename = result.renames.get("::my_puts").expect("inserted");
+        assert_eq!(rename.target, "puts");
+        assert_eq!(rename.qualified_name, "::my_puts");
+    }
+
+    #[test]
+    fn handle_rename_qualifies_against_ns_prefix() {
+        let texts = vec![
+            "rename".to_string(),
+            "puts".to_string(),
+            "loud_puts".to_string(),
+        ];
+        let mut result = SignatureScanResult::default();
+        handle_rename(&texts, "myns", &mut result);
+        assert!(result.renames.contains_key("::myns::loud_puts"));
+    }
+
+    #[test]
+    fn handle_rename_absolute_new_name_ignores_ns_prefix() {
+        let texts = vec![
+            "rename".to_string(),
+            "puts".to_string(),
+            "::top_puts".to_string(),
+        ];
+        let mut result = SignatureScanResult::default();
+        handle_rename(&texts, "myns", &mut result);
+        assert!(result.renames.contains_key("::top_puts"));
+    }
+
+    #[test]
+    fn handle_rename_to_empty_string_deletes_and_is_skipped() {
+        let texts = vec!["rename".to_string(), "puts".to_string(), String::new()];
+        let mut result = SignatureScanResult::default();
+        handle_rename(&texts, "", &mut result);
+        assert!(result.renames.is_empty());
+    }
+
+    #[test]
+    fn handle_rename_too_few_args_is_a_no_op() {
+        let texts = vec!["rename".to_string(), "puts".to_string()];
+        let mut result = SignatureScanResult::default();
+        handle_rename(&texts, "", &mut result);
+        assert!(result.renames.is_empty());
     }
 
     #[test]

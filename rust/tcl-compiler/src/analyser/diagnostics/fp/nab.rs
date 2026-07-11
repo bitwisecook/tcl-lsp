@@ -175,6 +175,34 @@ fn fp_nab_05_braced_switch_form_should_not_fire_w304() {
 }
 
 #[test]
+fn fp_nab_05_dynamic_two_arg_switch_form_should_not_fire_w304() {
+    // FN regression: the exemption used to require the trailing word be a
+    // braced `Str` literal, missing the equally-safe dynamic 2-arg form —
+    // C Tcl's own `TclNRSwitchObjCmd` never scans either trailing word as
+    // an option once only `string` + pattern-list remain (`objc - 2`
+    // bound), regardless of whether the pattern list is a literal or a
+    // variable/command substitution.
+    let src = "proc f {x} { set cases {a {puts A} b {puts B}}; switch $x $cases }";
+    assert!(
+        !fires(src, D, "W304"),
+        "FP-NAB-05: dynamic 2-arg switch form must NOT fire W304; {:?}",
+        diags(src, D)
+    );
+}
+
+#[test]
+fn fp_nab_05_three_trailing_args_still_fires_w304() {
+    // TP control: only the *last two* trailing words are reserved: a third
+    // leading dynamic word is still a genuine option-scanning candidate.
+    let src = "proc f {a} { switch $a subject {puts hit} }";
+    assert!(
+        fires(src, D, "W304"),
+        "FP-NAB-05: a 3rd trailing dynamic word must still fire W304; {:?}",
+        diags(src, D)
+    );
+}
+
+#[test]
 fn fp_nab_05_w304_lexical_does_not_cross_proc_boundary() {
     // FP: W304 'currently resolves to ...' must not attribute an outer set to a
     // shadowing proc parameter.
@@ -307,6 +335,159 @@ fn tk_command_option_body_is_analysed() {
         !fires(neg, "tk", "W100"),
         "-text value must not be analysed as a script; {:?}",
         diags(neg, "tk")
+    );
+}
+
+// FP-NAB-13 — W002 disabled-in-dialect suppression must honour the same
+// same-file resolution rules as the builtin-arity suppression check
+// (namespace-scoped shadowing, load-order for top-level vs proc-body calls,
+// `interp alias`, static `rename`, and — for the subcommand form — a
+// shadowed ensemble head), while a genuinely disabled command with no
+// same-file definition anywhere must still fire.
+
+// TN — no shadow anywhere: the plain disabled-command case must still fire.
+#[test]
+fn fp_nab_13_no_shadow_still_fires_w002() {
+    assert!(
+        fires("dict create a 1", "tcl8.4", "W002"),
+        "FP-NAB-13 TN: a genuinely disabled command with no shadow must fire W002; {:?}",
+        diags("dict create a 1", "tcl8.4")
+    );
+}
+
+// FP — a namespace-scoped proc shadows the disabled builtin for unqualified
+// calls resolved inside that namespace (current-namespace-then-global, the
+// same rule the builtin-arity check already honoured).
+#[test]
+fn fp_nab_13_namespace_scoped_proc_shadow_silent() {
+    let src = "namespace eval ::ns {\n    proc dict {args} { return $args }\n    dict foo bar\n}\n";
+    assert!(
+        !fires(src, "tcl8.4", "W002"),
+        "FP-NAB-13: a namespace-scoped shadowing proc must suppress W002; {:?}",
+        diags(src, "tcl8.4")
+    );
+}
+
+// FP — a forward-declared proc (defined *after* the call, but inside a proc
+// body that only runs once the whole file has loaded) shadows the disabled
+// builtin. Proc-body calls are not order-gated.
+#[test]
+fn fp_nab_13_forward_declared_proc_body_shadow_silent() {
+    let src = "proc use_dict {} {\n    dict create a 1\n}\nproc dict {args} { return $args }\n";
+    assert!(
+        !fires(src, "tcl8.4", "W002"),
+        "FP-NAB-13: a proc-body call to a forward-declared shadowing proc must suppress W002; {:?}",
+        diags(src, "tcl8.4")
+    );
+}
+
+// FN guard — the same forward-declared proc, called at the *top level*
+// before its own definition, must still fire: top-level commands run in
+// source order during load, so the builtin is what actually runs there.
+#[test]
+fn fp_nab_13_top_level_call_before_shadow_still_fires() {
+    let src = "dict create a 1\nproc dict {args} { return $args }\n";
+    assert!(
+        fires(src, "tcl8.4", "W002"),
+        "FP-NAB-13 FN guard: a top-level call before its shadowing proc's \
+         definition must still fire W002; {:?}",
+        diags(src, "tcl8.4")
+    );
+}
+
+// FP — `interp alias` establishing the disabled name shadows it exactly like
+// a proc would.
+#[test]
+fn fp_nab_13_interp_alias_shadow_silent() {
+    let src = "interp alias {} dict {} list\ndict create a 1\n";
+    assert!(
+        !fires(src, "tcl8.4", "W002"),
+        "FP-NAB-13: an interp alias establishing the name must suppress W002; {:?}",
+        diags(src, "tcl8.4")
+    );
+}
+
+// FP — a static `rename` that moves an existing proc onto the disabled name
+// shadows it exactly like a direct `proc` definition would.
+#[test]
+fn fp_nab_13_rename_shadow_silent() {
+    let src = "proc myimpl {args} { return $args }\nrename myimpl dict\ndict create a 1\n";
+    assert!(
+        !fires(src, "tcl8.4", "W002"),
+        "FP-NAB-13: a rename establishing the name must suppress W002; {:?}",
+        diags(src, "tcl8.4")
+    );
+}
+
+// FP — the subcommand-level W002 form (a version-gated *subcommand*, e.g.
+// `package files`) is likewise suppressed when the whole ensemble command's
+// own name is shadowed by a user proc — the call never reaches the registry
+// ensemble at all.
+#[test]
+fn fp_nab_13_subcommand_form_shadowed_ensemble_head_silent() {
+    let src = "proc package {args} { return $args }\npackage files mypackage\n";
+    assert!(
+        !fires(src, "tcl8.6", "W002"),
+        "FP-NAB-13: a shadowed ensemble head must suppress the subcommand-form W002; {:?}",
+        diags(src, "tcl8.6")
+    );
+}
+
+// TN — the subcommand form's shadow check is specific to the *base* command
+// name; an unrelated proc elsewhere must not spuriously suppress it.
+#[test]
+fn fp_nab_13_subcommand_form_unrelated_proc_still_fires() {
+    let src = "proc unrelated {} {}\npackage files mypackage\n";
+    assert!(
+        fires(src, "tcl8.6", "W002"),
+        "FP-NAB-13 TN: an unrelated proc must not suppress the subcommand-form W002; {:?}",
+        diags(src, "tcl8.6")
+    );
+}
+
+// FP — an inline `# tcl-lsp: stub` declaration establishes the disabled name
+// as a document-global command, unqualified.
+#[test]
+fn fp_nab_13_stub_declaration_shadow_silent() {
+    let src = "# tcl-lsp: stubs-begin\n\
+               # tcl-lsp: stub dict {args:var} -loop\n\
+               # tcl-lsp: stubs-end\n\
+               dict create a 1\n";
+    assert!(
+        !fires(src, "tcl8.4", "W002"),
+        "FP-NAB-13: an inline stub declaration must suppress W002; {:?}",
+        diags(src, "tcl8.4")
+    );
+}
+
+// FP — a `TclOO` class bound to the disabled name is a real command exactly
+// like a proc would be (the class-create form binds the factory command
+// under that name). `oo::class` itself needs Tcl 8.6+, so this uses
+// `lremove` (Tcl 9.0+) under `tcl8.6` rather than `dict` under `tcl8.4`.
+#[test]
+fn fp_nab_13_tcloo_class_shadow_silent() {
+    let src = "oo::class create lremove {\n    constructor {} {}\n}\nlremove create\n";
+    assert!(
+        !fires(src, "tcl8.6", "W002"),
+        "FP-NAB-13: a TclOO class bound to the name must suppress W002; {:?}",
+        diags(src, "tcl8.6")
+    );
+}
+
+// The message enrichment: the "(available in: …)" suffix is read straight
+// from the registry's own dialect gate, so it lists exactly the dialects the
+// command supports — never a hardcoded per-command string.
+#[test]
+fn fp_nab_13_message_names_available_dialects() {
+    let ds = diags("dict create a 1", "tcl8.4");
+    let msg = ds
+        .iter()
+        .find(|(c, _)| c == "W002")
+        .map(|(_, m)| m.as_str())
+        .unwrap_or_default();
+    assert!(
+        msg.contains("available in: tcl8.5, tcl8.6, tcl9.0, tcl9.1"),
+        "W002 message should name the dialects dict is available in; got {msg:?}"
     );
 }
 

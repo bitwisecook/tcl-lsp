@@ -235,9 +235,10 @@ pub fn hover_with_dialect(
     // instance's class is known, render the method summary.
     // Checked before the proc lookup so a method call wins over
     // a same-named proc.
-    if let Some((inst, method)) =
+    if let Some((inst, method, is_dollar)) =
         crate::definition::instance_method_at_cursor(source, line, character)
-        && let Some(class_q) = analysis.instance_classes.get(&inst)
+        && let Some(class_q) =
+            crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
         && let Some(text) = obj_method_hover_text(analysis, class_q, &method)
     {
         return Some(Hover::markdown(text));
@@ -278,7 +279,7 @@ pub fn hover_with_dialect(
     // `cmd subcommand` lookups when the cursor sits on the
     // subcommand word.
     if let Some(registry) = registry {
-        if let Some(text) = option_hover_text(source, line, character, registry, &word) {
+        if let Some(text) = option_hover_text(source, line, character, registry, &word, dialect) {
             return Some(Hover::markdown(text));
         }
         if let Some(text) =
@@ -658,6 +659,7 @@ fn option_hover_text(
     character: u32,
     registry: &CommandRegistry,
     _cursor_word: &str,
+    dialect: tcl_registry::dialects::DialectSet,
 ) -> Option<String> {
     use std::fmt::Write;
     let line_text = source.split('\n').nth(line as usize)?;
@@ -678,17 +680,37 @@ fn option_hover_text(
         return None;
     }
     let option: String = chars[start..end].iter().collect();
-    // The surrounding command is the first whitespace-delimited token.
+    // The surrounding command (and, if present, its subcommand) are the
+    // whitespace-delimited tokens before the option run.
     let prefix: String = chars[..start].iter().collect();
-    let cmd_name = prefix.split_whitespace().next()?;
+    let mut words = prefix.split_whitespace();
+    let cmd_name = words.next()?;
     let spec = registry.get(cmd_name)?;
-    let opt = spec.options.iter().find(|o| o.name == option)?;
-    let mut out = format!("**`{}`** — option of `{cmd_name}`\n", opt.name);
+    // Resolve the subcommand-scoped option table (`chan configure
+    // -inputmode`) before falling back to the command's own top-level
+    // table — an ensemble's real options live on the subcommand, and only
+    // that table is dialect-correct for a subcommand-specific option.
+    let (options, parent_dialects, owner) = match words
+        .next()
+        .and_then(|sub_name| spec.resolve_subcommand_for_dialect(sub_name, dialect))
+    {
+        Some(sub) => (
+            sub.options,
+            sub.dialects.or(spec.dialects),
+            format!("{cmd_name} {}", sub.name),
+        ),
+        None => (spec.options, spec.dialects, cmd_name.to_owned()),
+    };
+    let opt = options.iter().find(|o| o.matches(option.as_str()))?;
+    let mut out = format!("**`{}`** — option of `{owner}`\n", opt.name);
     if !opt.detail.is_empty() {
         let _ = write!(out, "\n{}\n", opt.detail);
     }
     if opt.takes_value() && !opt.value_hint().is_empty() {
         let _ = write!(out, "\nTakes a `{}` value.\n", opt.value_hint());
+    }
+    if !opt.supports_dialect(Some(dialect), parent_dialects) {
+        let _ = write!(out, "\n_Not available in the active dialect._\n");
     }
     Some(out)
 }
@@ -3823,6 +3845,49 @@ mod tests {
         let registry = tcl_registry::CommandRegistry::build_default();
         let src = "string bogusSubcommand\n";
         assert!(subcommand_hover_text(src, 0, 12, &registry, "bogusSubcommand", ALL).is_none());
+    }
+
+    #[test]
+    fn option_hover_resolves_subcommand_scoped_option() {
+        use tcl_registry::dialects::DialectSet;
+        // `-inputmode` lives only on `chan`'s `configure` SubCommand table —
+        // absent from `chan`'s own top-level option table entirely — so
+        // hover must resolve the typed subcommand to find it at all.
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let src = "chan configure $chan -inputmode raw\n";
+        let t = option_hover_text(src, 0, 30, &registry, "inputmode", DialectSet::TCL90)
+            .expect("hover should resolve the configure-scoped option");
+        assert!(t.contains("`-inputmode`"), "{t}");
+        assert!(t.contains("chan configure"), "{t}");
+    }
+
+    #[test]
+    fn option_hover_notes_dialect_unavailability() {
+        use tcl_registry::dialects::DialectSet;
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let src = "chan configure $chan -inputmode raw\n";
+        let old = option_hover_text(src, 0, 30, &registry, "inputmode", DialectSet::TCL86)
+            .expect("hover should still resolve the option under an older dialect");
+        assert!(old.contains("Not available in the active dialect"), "{old}");
+        let new = option_hover_text(src, 0, 30, &registry, "inputmode", DialectSet::TCL90)
+            .expect("hover should resolve under tcl9.0");
+        assert!(
+            !new.contains("Not available in the active dialect"),
+            "{new}"
+        );
+    }
+
+    #[test]
+    fn option_hover_falls_back_to_top_level_options_for_simple_command() {
+        use tcl_registry::dialects::DialectSet;
+        // `lsearch` has no subcommands at all — hover must still resolve its
+        // own top-level option table (the pre-existing, non-ensemble path).
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let src = "lsearch -exact {a b} x\n";
+        let t = option_hover_text(src, 0, 14, &registry, "exact", DialectSet::TCL86)
+            .expect("hover should resolve a simple command's own option");
+        assert!(t.contains("`-exact`"), "{t}");
+        assert!(t.contains("of `lsearch`"), "{t}");
     }
 
     #[test]

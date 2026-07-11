@@ -143,6 +143,50 @@ mod tests {
     }
 
     #[test]
+    fn arg_shimmer_type_binary_decode_data_is_arg1_not_format_keyword() {
+        // `binary decode format data` — sub arg 1 (overall arg 2) is `data`
+        // and expects String (text-friendly encoded input); sub arg 0 (the
+        // `format` keyword, e.g. "hex") must NOT carry the hint.
+        let r = registry();
+        assert_eq!(
+            arg_shimmer_type(&r, "binary", &["decode", "hex", "$data"], 2),
+            Some(TclType::String)
+        );
+        assert_eq!(
+            arg_shimmer_type(&r, "binary", &["decode", "hex", "$data"], 1),
+            None,
+            "the 'format' keyword slot must not carry the shimmer hint"
+        );
+    }
+
+    #[test]
+    fn arg_shimmer_type_binary_encode_data_is_arg1_expects_bytearray() {
+        // `binary encode format data` — `data` is the raw bytes being
+        // encoded, so it expects ByteArray (the reverse of `decode`).
+        let r = registry();
+        assert_eq!(
+            arg_shimmer_type(&r, "binary", &["encode", "hex", "$data"], 2),
+            Some(TclType::ByteArray)
+        );
+    }
+
+    #[test]
+    fn arg_shimmer_type_dict_getd_family_matches_dict_get() {
+        // `dict getd`/`getdef`/`getwithdefault` (Tcl 9.0 TIP 342 synonyms of
+        // `dict get` with a default) must carry the same Dict shimmer hint
+        // as plain `dict get` — they were previously inconsistently
+        // `shimmers: false`.
+        let r = registry();
+        for sub in ["getd", "getdef", "getwithdefault", "get"] {
+            assert_eq!(
+                arg_shimmer_type(&r, "dict", &[sub, "$d", "k", "default"], 1),
+                Some(TclType::Dict),
+                "dict {sub} should shimmer its dict argument like dict get",
+            );
+        }
+    }
+
+    #[test]
     fn is_numeric_compatible_same_type() {
         assert!(is_numeric_compatible(TclType::Int, TclType::Int));
         assert!(is_numeric_compatible(TclType::String, TclType::String));

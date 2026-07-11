@@ -35,7 +35,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "nextto class ?arg ...?",
         }],
-        traits: Traits::LANGUAGE_KEYWORD,
+        // The leading `class` word is a symbolic name, structurally marking
+        // this form as carrying an explicit MRO-search-start class — how
+        // the analyser's `queue_next_arity_candidate` tells `nextto` apart
+        // from bare `next` without matching on the command name.
+        arg_roles: &[(0, ArgRole::Name)],
+        traits: Traits::LANGUAGE_KEYWORD.union(Traits::TCLOO_NEXT_CHAIN),
         ..CommandSpec::DEFAULT
     }
 }

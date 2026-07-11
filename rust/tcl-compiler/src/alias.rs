@@ -24,7 +24,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::naming::normalise_qualified_name;
+use crate::naming::{is_dynamic_word, normalise_qualified_name};
 
 /// Alias store: qualified name → (target command, prepended args).
 pub type CommandAliasMap = HashMap<String, (String, Vec<String>)>;
@@ -53,6 +53,16 @@ pub fn detect_interp_alias(
     let prepended: Vec<String> = args[5..].to_vec();
 
     if !matches!(src_path.as_str(), "" | "{}") || !matches!(target_path.as_str(), "" | "{}") {
+        return None;
+    }
+    // A dynamic target (`interp alias {} myEval {} $target`) cannot be
+    // resolved to a static command name; recording it verbatim would map
+    // `myEval` to the literal, never-registered string `"$target"`,
+    // silently dropping arg-role/body/sink treatment for `myEval` calls
+    // instead of just leaving them unaliased. A dynamic alias name
+    // (`interp alias {} $name {} eval`) is safe to skip too — the
+    // resulting key can never match a real call's literal command word.
+    if is_dynamic_word(alias_name) || is_dynamic_word(target_cmd) {
         return None;
     }
 
@@ -96,6 +106,38 @@ pub fn detect_interp_alias_delete(cmd_name: &str, args: &[String]) -> Option<Str
         return None;
     }
     Some(normalise_qualified_name(alias_name))
+}
+
+/// Detect a static `rename oldName newName` **move** — both names literal
+/// text, `newName` non-empty (an empty `newName` *deletes* `oldName` rather
+/// than renaming it, per Tcl semantics, and creates no new alias), and neither
+/// dynamically substituted.
+///
+/// Returns `(old_name, new_name)` — **both raw**, unlike [`detect_interp_alias`]
+/// which pre-qualifies its alias name at the global root. `rename` binds
+/// `newName` in the *current* namespace (`rename set myset` inside
+/// `namespace eval ::ns` creates `::ns::myset`, not global `::myset`), so the
+/// caller qualifies `new` against the namespace the `rename` runs in;
+/// qualifying here would wrongly root every renamed name globally. For every
+/// purpose the alias map serves (arg-role / body-form resolution, taint sink
+/// dispatch, canonical-command typing), a `rename` is then indistinguishable
+/// from an `interp alias {} newName {} oldName` — calling through the new name
+/// really does invoke the old command.
+#[must_use]
+pub fn detect_rename(cmd_name: &str, args: &[String]) -> Option<(String, String)> {
+    if cmd_name != "rename" || args.len() != 2 {
+        return None;
+    }
+    let (old, new) = (&args[0], &args[1]);
+    // `rename $old newName` / `rename oldName [x]` — a dynamic component means
+    // the true target isn't known statically; recording it verbatim would map
+    // `newName` to a literal, never-registered string like `"$old"`, silently
+    // dropping arg-role/body/sink treatment for `newName` calls instead of just
+    // leaving them unaliased. An empty `new` is a deletion, not a rename.
+    if old.is_empty() || new.is_empty() || is_dynamic_word(old) || is_dynamic_word(new) {
+        return None;
+    }
+    Some((old.clone(), new.clone()))
 }
 
 /// Look up a command alias, namespace-aware.
@@ -172,6 +214,90 @@ mod tests {
     fn detect_non_alias() {
         let args: Vec<String> = vec!["eval".into(), "{}".into(), "puts hello".into()];
         assert!(detect_interp_alias("interp", &args).is_none());
+    }
+
+    #[test]
+    fn detect_interp_alias_rejects_dynamic_target() {
+        // `interp alias {} myEval {} $target` — the true target isn't
+        // known statically; must not map `myEval` to the literal string
+        // `"$target"` (which would silently drop arg-role/sink treatment
+        // for `myEval` calls instead of just leaving them unaliased).
+        let args: Vec<String> = vec![
+            "alias".into(),
+            "{}".into(),
+            "myEval".into(),
+            "{}".into(),
+            "$target".into(),
+        ];
+        assert!(detect_interp_alias("interp", &args).is_none());
+    }
+
+    #[test]
+    fn detect_interp_alias_rejects_dynamic_name() {
+        let args: Vec<String> = vec![
+            "alias".into(),
+            "{}".into(),
+            "$name".into(),
+            "{}".into(),
+            "eval".into(),
+        ];
+        assert!(detect_interp_alias("interp", &args).is_none());
+    }
+
+    #[test]
+    fn detect_rename_basic() {
+        // Returns `(old, new)` raw — the caller namespace-qualifies `new`.
+        let args: Vec<String> = vec!["eval".into(), "myEval".into()];
+        let result = detect_rename("rename", &args);
+        assert_eq!(result, Some(("eval".to_string(), "myEval".to_string())));
+    }
+
+    #[test]
+    fn detect_rename_wrong_command() {
+        let args: Vec<String> = vec!["eval".into(), "myEval".into()];
+        assert!(detect_rename("puts", &args).is_none());
+    }
+
+    #[test]
+    fn detect_rename_rejects_dynamic_old_name() {
+        // `rename $old eval` — the true source isn't known statically;
+        // must not map `eval` to the literal string `"$old"` (which would
+        // silently drop arg-role/sink treatment for genuine `eval` calls
+        // later in the same script instead of just leaving them
+        // unaliased).
+        let args: Vec<String> = vec!["$old".into(), "eval".into()];
+        assert!(detect_rename("rename", &args).is_none());
+    }
+
+    #[test]
+    fn detect_rename_rejects_dynamic_new_name() {
+        let args: Vec<String> = vec!["eval".into(), "myEval[x]".into()];
+        assert!(detect_rename("rename", &args).is_none());
+    }
+
+    #[test]
+    fn detect_rename_deletion_form_is_not_an_alias() {
+        // `rename oldName {}` *deletes* oldName — not a rename.
+        let args: Vec<String> = vec!["eval".into(), String::new()];
+        assert!(detect_rename("rename", &args).is_none());
+    }
+
+    #[test]
+    fn detect_rename_wrong_arity() {
+        assert!(detect_rename("rename", &["eval".to_string()]).is_none());
+        assert!(detect_rename("rename", &[]).is_none());
+    }
+
+    #[test]
+    fn detect_rename_qualified_new_name() {
+        // A `::`-qualified NEW is returned verbatim; the caller
+        // (`join_namespace`) leaves it rooted globally.
+        let args: Vec<String> = vec!["eval".into(), "::ns::myEval".into()];
+        let result = detect_rename("rename", &args);
+        assert_eq!(
+            result,
+            Some(("eval".to_string(), "::ns::myEval".to_string()))
+        );
     }
 
     #[test]

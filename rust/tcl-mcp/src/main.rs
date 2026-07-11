@@ -57,7 +57,8 @@ impl ServerHandler for TclMcp {
             );
         // Keep a stable server identity so existing MCP clients see no change.
         "tcl-lsp".clone_into(&mut info.server_info.name);
-        env!("CARGO_PKG_VERSION").clone_into(&mut info.server_info.version);
+        // The release version from the tag, not the manifest's 0.1.0.
+        tcl_version::VERSION.clone_into(&mut info.server_info.version);
         info
     }
 

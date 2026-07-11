@@ -896,6 +896,7 @@ fn check_statement<S: std::hash::BuildHasher>(
             code: DiagCode::Irule3103,
             message: split_message(ctx.families, &uri_cmd, &sep),
             replacement: None,
+            fixes: Vec::new(),
         });
         return;
     }
@@ -914,6 +915,7 @@ fn check_statement<S: std::hash::BuildHasher>(
                     code: DiagCode::Irule3103,
                     message: comparison_message(ctx.families, &uri_cmd, "string match", component),
                     replacement: None,
+                    fixes: Vec::new(),
                 });
             }
         } else if sub_cmd == "string first" && pattern.chars().any(|c| QUERY_CHARS.contains(&c)) {
@@ -924,6 +926,7 @@ fn check_statement<S: std::hash::BuildHasher>(
                 code: DiagCode::Irule3103,
                 message: string_first_message(ctx.families, &uri_cmd, &pattern),
                 replacement: None,
+                fixes: Vec::new(),
             });
         }
     }
@@ -940,6 +943,7 @@ fn check_statement<S: std::hash::BuildHasher>(
                 code: DiagCode::Irule3103,
                 message: expr_hit_message(ctx.families, &uri_cmd, &op_name, &component),
                 replacement: None,
+                fixes: Vec::new(),
             });
         }
     }
@@ -971,6 +975,7 @@ fn check_branch_terminator(
             code: DiagCode::Irule3103,
             message: expr_hit_message(ctx.families, &uri_cmd, &op_name, &component),
             replacement: None,
+            fixes: Vec::new(),
         });
     }
 }

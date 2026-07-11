@@ -150,6 +150,20 @@ mod tests {
     }
 
     #[test]
+    fn rename_recorded_qualified_and_namespaced() {
+        let r = run("rename puts my_puts\nnamespace eval ns { rename set my_set }");
+        assert!(r.renames.contains_key("::my_puts"));
+        assert_eq!(r.renames["::my_puts"].target, "puts");
+        assert!(r.renames.contains_key("::ns::my_set"));
+    }
+
+    #[test]
+    fn rename_to_empty_deletes_not_recorded() {
+        let r = run("rename puts {}");
+        assert!(r.renames.is_empty());
+    }
+
+    #[test]
     fn tcllib_factory_wrapper_emits_synthetic_proc() {
         let src = "
             proc DEFC {name args body} {

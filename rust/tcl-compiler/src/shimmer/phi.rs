@@ -58,11 +58,20 @@ struct PhiCtx<'a> {
     loop_blocks: &'a HashSet<String>,
     loop_body_types: &'a HashMap<Symbol, HashSet<TclType>>,
     def_map: &'a HashMap<ValueKey, tcl_lexer::Span>,
+    /// Array-base symbols excluded from shimmer reporting (FP-SH-13) — a
+    /// conflated `arr(a)`/`arr(b)` phi merges independent elements.
+    array_syms: &'a HashSet<Symbol>,
 }
 
 /// Decide whether one phi node is a genuine merge-point shimmer, returning
 /// the warning when it is (the per-phi body of [`find_phi_shimmers`]).
 fn classify_phi_shimmer(ctx: &PhiCtx<'_>, phi: &Phi, in_loop: bool) -> Option<ShimmerWarning> {
+    // Skip an array base (FP-SH-13): the `(key)` suffix is stripped before
+    // interning, so a phi over `arr` merges whatever different elements were
+    // last written — not one variable's own two intreps.
+    if ctx.array_syms.contains(&phi.name) {
+        return None;
+    }
     let lattice = ctx.types.get(&(phi.name, phi.version))?;
     if lattice.kind != TypeKind::Shimmered {
         return None;
@@ -172,6 +181,7 @@ pub(crate) fn find_phi_shimmers(
     // per-loop S102 thunking pass), built from the whole loop-block set.
     let loop_body_types =
         per_loop_body_types("", &loop_blocks, &destructure, ssa, types, &empty_by_name);
+    let array_syms = super::thunking::array_element_symbols(cfg, ssa);
     let ctx = PhiCtx {
         cfg,
         ssa,
@@ -180,6 +190,7 @@ pub(crate) fn find_phi_shimmers(
         loop_blocks: &loop_blocks,
         loop_body_types: &loop_body_types,
         def_map: &def_map,
+        array_syms: &array_syms,
     };
     let mut out = Vec::new();
 
@@ -257,6 +268,43 @@ mod tests {
         let cu = CompilationUnit::build_for("", &registry(), false);
         let fu = cu.function("::top").unwrap();
         let _ = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+    }
+
+    /// Array elements collapse onto one SSA symbol, so a phi over `arr` merges
+    /// whatever different elements each branch last wrote — not one variable's
+    /// own two intreps (FP-SH-13). `if {$c} {set arr(n) 5} else {set arr(s)
+    /// "hi"}` must not phi-shimmer `arr`.
+    #[test]
+    fn no_phi_shimmer_for_array_element_conflation() {
+        let cu = CompilationUnit::build_for(
+            "proc f {c} { if {$c} { set arr(n) 5 } else { set arr(s) \"hi\" }\n \
+             return [string length $arr(n)] }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let warnings = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        assert!(
+            !warnings.iter().any(|w| w.variable == "arr"),
+            "array-element conflation must not phi-shimmer: {warnings:?}"
+        );
+    }
+
+    /// TP control: a plain scalar Int/String merge still phi-shimmers — the
+    /// array guard must not blanket-silence the phi pass.
+    #[test]
+    fn phi_shimmer_still_fires_for_scalar_control() {
+        let cu = CompilationUnit::build_for(
+            "set cond [gets stdin]\nif {$cond} { set y 1 } else { set y \"hi\" }\nputs $y",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        assert!(
+            warnings.iter().any(|w| w.variable == "y"),
+            "plain scalar merge must still phi-shimmer: {warnings:?}"
+        );
     }
 
     /// An if/else that assigns Int on one branch and String on the other
