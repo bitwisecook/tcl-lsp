@@ -26,7 +26,7 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 **VM P/S/F**. Grouped by the capability ladder
 ([`tcl-test-tiers.md`](tcl-test-tiers.md)).
 
-**Tally: 29 MATCH · 63 gap · 7 crash · 2 timeout** of 101 stems.
+**Tally: 30 MATCH · 62 gap · 7 crash · 2 timeout** of 101 stems.
 
 ## Tier 1 — Parsing
 
@@ -141,9 +141,9 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 
 | stem | C P/S/F | VM P/S/F | status |
 |---|---|---|---|
-| oo | 372/16/0 | 72/16/300 | gap |
+| oo | 372/16/0 | 78/16/294 | gap |
 | ooNext2 | 57/5/0 | 15/5/42 | gap |
-| ooProp | 55/0/0 | 11/0/44 | gap |
+| ooProp | 55/0/0 | 55/0/0 | MATCH |
 | ooUtil | 33/0/0 | 2/0/31 | gap |
 
 ## Tier 7 — Packages & loading
