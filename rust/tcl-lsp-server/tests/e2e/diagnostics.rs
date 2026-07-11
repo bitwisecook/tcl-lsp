@@ -2252,6 +2252,41 @@ fn clean_list_used_with_lindex_has_no_s100() {
 }
 
 #[test]
+fn w214_unused_param_anchors_on_the_param_name() {
+    // The squiggle must cover only the offending parameter's *name* (`unused`),
+    // not the whole `proc` definition, so it aligns with go-to-definition/rename.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "proc f {unused x} { puts $x }\n");
+    let w214: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("W214"))
+        .collect();
+    assert_eq!(w214.len(), 1, "expected exactly one W214: {diags:?}");
+    assert_eq!(
+        diag_range(w214[0]),
+        ((0, 8), (0, 14)),
+        "W214 must span only `unused`"
+    );
+}
+
+#[test]
+fn w214_two_unused_params_get_separate_tight_ranges() {
+    // Two unused params must yield two squiggles, each on its own name — not two
+    // diagnostics stacked on the whole proc definition.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "proc g {aa bb} { return 0 }\n");
+    let ranges: Vec<((i64, i64), (i64, i64))> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("W214"))
+        .map(diag_range)
+        .collect();
+    assert!(ranges.contains(&((0, 8), (0, 10))), "aa range: {ranges:?}");
+    assert!(ranges.contains(&((0, 11), (0, 13))), "bb range: {ranges:?}");
+}
+
+#[test]
 fn ordering_compare_on_strings_has_no_s100() {
     // `$s < "banana"` compares two strings — Tcl stays on the string path and
     // never coerces `$s` to a number, so its intrep is untouched (verified on

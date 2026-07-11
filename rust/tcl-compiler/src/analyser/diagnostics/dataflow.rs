@@ -40,6 +40,7 @@ use super::helpers::{
 };
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
+use crate::analyser::utils::param_name_spans;
 use crate::expr_ast::{ExprNode, UnaryOp};
 
 /// The read-only name/guard/suppression context for the `return`-value
@@ -652,13 +653,68 @@ file; this call falls through to the 'unknown' handler."
         }
     }
 
+    /// Absolute source spans of each formal parameter's *name*, in
+    /// declaration order and index-aligned with `ir_proc.params`.
+    ///
+    /// The parameter-list word is the first word after the proc-name token
+    /// (recovered from the recorded [`crate::analyser::types::ProcDef::name_span`]);
+    /// its name spans are delegated to [`param_name_spans`] — the same helper
+    /// go-to-definition/rename use, so W214's range matches them exactly.
+    /// Returns an empty vec when the proc isn't in `all_procs` or the word
+    /// can't be isolated, so the caller falls back to the whole-def span.
+    fn param_name_spans_for(&self, ir_proc: &crate::ir::Procedure) -> Vec<tcl_lexer::Span> {
+        let Some(pdef) = self.result.all_procs.get(&ir_proc.qualified_name) else {
+            return Vec::new();
+        };
+        let bytes = self.source.as_bytes();
+        // Skip whitespace between the proc name and the parameter-list word.
+        let mut i = pdef.name_span.end() as usize;
+        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        let start = i;
+        let end = if bytes.get(i) == Some(&b'{') {
+            // Braced list — advance to the matching close brace.
+            let mut level = 0u32;
+            let mut j = i;
+            while j < bytes.len() {
+                match bytes[j] {
+                    b'{' => level += 1,
+                    b'}' => {
+                        level -= 1;
+                        if level == 0 {
+                            j += 1;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                j += 1;
+            }
+            j
+        } else {
+            // Bare single-word parameter list — to the next whitespace.
+            let mut j = i;
+            while j < bytes.len() && !bytes[j].is_ascii_whitespace() {
+                j += 1;
+            }
+            j
+        };
+        let Some(raw) = self.source.get(start..end) else {
+            return Vec::new();
+        };
+        param_name_spans(raw, u32::try_from(start).unwrap_or(u32::MAX))
+    }
+
     /// W214 — unused-parameter hint.
     ///
     /// For every parameter
     /// declared in `ir_proc.params`, check whether any def-use
     /// chain for the parameter (any SSA version) has live uses.
     /// When all chains are dead, the parameter is unused —
-    /// emit a Hint at the proc's span.
+    /// emit a Hint at the parameter's *name* span (falling back to the
+    /// proc's span when the name can't be located), so each unused param
+    /// gets its own tight squiggle instead of stacking on the whole proc.
     pub(super) fn emit_unused_param_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
@@ -671,8 +727,8 @@ file; this call falls through to the 'unknown' handler."
         if ir_proc.body.statements.is_empty() {
             return;
         }
-        let mut unused: Vec<String> = Vec::new();
-        for param in &ir_proc.params {
+        let mut unused: Vec<(usize, String)> = Vec::new();
+        for (idx, param) in ir_proc.params.iter().enumerate() {
             // Tcl's variadic ``args`` parameter is conventionally
             // declared even when unused (as a "consume the rest"
             // marker).  Skip it from W214.
@@ -708,11 +764,15 @@ file; this call falls through to the 'unknown' handler."
             {
                 continue;
             }
-            unused.push(param.clone());
+            unused.push((idx, param.clone()));
         }
         if unused.is_empty() {
             return;
         }
+        // Per-parameter name spans (index-aligned with `ir_proc.params`); an
+        // empty result means we couldn't isolate the list and fall back to the
+        // whole-definition span below.
+        let param_spans = self.param_name_spans_for(ir_proc);
         // Dispatch-protocol suppression: when ≥3 peer procs in this
         // namespace share this proc's leading-param signature AND an
         // arity-compatible variable-command dispatcher exists, the leading
@@ -734,7 +794,7 @@ file; this call falls through to the 'unknown' handler."
         } else {
             HashSet::new()
         };
-        for param in unused {
+        for (idx, param) in unused {
             if protocol_params.contains(&param) {
                 continue;
             }
@@ -744,7 +804,7 @@ file; this call falls through to the 'unknown' handler."
             );
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: DiagCode::W214,
-                span: ir_proc.span,
+                span: param_spans.get(idx).copied().unwrap_or(ir_proc.span),
                 message,
                 severity: Severity::Hint,
                 fixes: Vec::new(),
