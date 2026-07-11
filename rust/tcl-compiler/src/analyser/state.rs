@@ -305,6 +305,11 @@ pub struct Analyser {
     /// resolved in the same post-walk pass as [`Self::pending_arity`]
     /// ([`Self::flush_ctor_arity_diagnostics`]).
     pub pending_ctor_arity: Vec<super::types::PendingCtorArity>,
+    /// `TclOO` `next` / `nextto` call-site arity candidates — see
+    /// [`super::types::PendingNextArity`]. Queued whenever such a call
+    /// sits inside a method body and resolved in the same post-walk pass
+    /// as [`Self::pending_arity`] ([`Self::flush_next_arity_diagnostics`]).
+    pub pending_next_arity: Vec<super::types::PendingNextArity>,
     /// W108 non-ASCII detection mode (`tclLsp.style.nonAscii`).
     /// [`NonAsciiMode::Default`] resolves per dialect at emit time
     /// (strict for F5 iRules/iApps, confusables otherwise).
@@ -509,6 +514,7 @@ impl Analyser {
             pending_arity: Vec::new(),
             pending_user_call_arity: Vec::new(),
             pending_ctor_arity: Vec::new(),
+            pending_next_arity: Vec::new(),
             non_ascii_mode: NonAsciiMode::Default,
             structure_only: false,
             defer_proc_bodies: false,
@@ -1291,6 +1297,7 @@ impl Analyser {
         self.flush_w304_diagnostics();
         self.flush_arity_diagnostics();
         self.flush_ctor_arity_diagnostics();
+        self.flush_next_arity_diagnostics();
         self.emit_missing_package_require_diagnostics(&diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);

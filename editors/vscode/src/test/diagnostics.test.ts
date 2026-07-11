@@ -720,30 +720,23 @@ suite("Diagnostics", () => {
   // (W123) — while the genuine unknown still is. `xcDiagnostics` stays off.
   test("auto_path library commands are not unknown (issue #832)", async () => {
     const uri = getDocUri("autoloadLibrary.tcl");
-    // W123 defaults to false (opt-in, see configSettings.test.ts's
-    // "diagnostics.W123 defaults to false" test) -- without this the whole
-    // assertion is vacuous: nothing is ever flagged, on lines 0/1 or 2.
-    const w123config = vscode.workspace.getConfiguration("tclLsp.diagnostics");
-    await w123config.update("W123", true, vscode.ConfigurationTarget.Global);
-    try {
-      await activate(uri);
-      const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
-      const w123On = (diags: vscode.Diagnostic[], line: number) =>
-        diags.some((d) => codeOf(d) === "W123" && d.range.start.line === line);
-      // Settle on the loaded-database state: the genuine unknown (line 2) is
-      // flagged AND the library calls (lines 0-1) are not — the exact fixed shape.
-      const diagnostics = await waitForDiagnostics(uri, {
-        predicate: (diags) => w123On(diags, 2) && !w123On(diags, 0) && !w123On(diags, 1),
-      });
-      assert.ok(!w123On(diagnostics, 0), "Rbc_ActiveLegend (auto-loaded) must not be W123");
-      assert.ok(!w123On(diagnostics, 1), "Rbc_ZoomStack (auto-loaded) must not be W123");
-      assert.ok(
-        w123On(diagnostics, 2),
-        "the genuinely-unknown command must still be W123 (check stays live)",
-      );
-    } finally {
-      await w123config.update("W123", undefined, vscode.ConfigurationTarget.Global);
-    }
+    // W123 fires by default (see configSettings.test.ts's "diagnostics.W123
+    // defaults to true" test), so no per-test enable is needed.
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const w123On = (diags: vscode.Diagnostic[], line: number) =>
+      diags.some((d) => codeOf(d) === "W123" && d.range.start.line === line);
+    // Settle on the loaded-database state: the genuine unknown (line 2) is
+    // flagged AND the library calls (lines 0-1) are not — the exact fixed shape.
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => w123On(diags, 2) && !w123On(diags, 0) && !w123On(diags, 1),
+    });
+    assert.ok(!w123On(diagnostics, 0), "Rbc_ActiveLegend (auto-loaded) must not be W123");
+    assert.ok(!w123On(diagnostics, 1), "Rbc_ZoomStack (auto-loaded) must not be W123");
+    assert.ok(
+      w123On(diagnostics, 2),
+      "the genuinely-unknown command must still be W123 (check stays live)",
+    );
   });
 
   // Regression: the missing-open-brace recovery only excluded registry

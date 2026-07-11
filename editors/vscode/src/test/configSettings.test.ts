@@ -54,6 +54,7 @@ suite("Configuration Settings", () => {
     "callHierarchy",
     "documentLinks",
     "selectionRange",
+    "crossFileResolution",
   ];
 
   for (const key of triStateFeatureKeys) {
@@ -578,8 +579,8 @@ suite("Configuration Settings", () => {
     });
   }
 
-  test("diagnostics.W123 defaults to false (opt-in)", () => {
-    assert.strictEqual(cfg().get<boolean>("diagnostics.W123"), false);
+  test("diagnostics.W123 defaults to true", () => {
+    assert.strictEqual(cfg().get<boolean>("diagnostics.W123"), true);
   });
 
   // Runtime validation
@@ -618,6 +619,19 @@ suite("Configuration Settings", () => {
   // XC diagnostics
   test("xcDiagnostics.enabled defaults to false", () => {
     assert.strictEqual(cfg().get<boolean>("xcDiagnostics.enabled"), false);
+  });
+
+  // Cross-file resolution — distinct from `xcDiagnostics` (F5 XC Migration
+  // translatability lints, f5-irules only): this toggle drives cross-file
+  // W120/W123 suppression and cross-file E002/E003 arity for every dialect.
+  test("features.crossFileResolution is a setting distinct from xcDiagnostics.enabled", () => {
+    const inspected = cfg().inspect<boolean | null>("features.crossFileResolution");
+    assert.ok(inspected, "features.crossFileResolution must be a declared setting");
+    assert.strictEqual(
+      cfg().get<boolean | null>("features.crossFileResolution"),
+      null,
+      "features.crossFileResolution should default to null (resolves to off server-side)",
+    );
   });
 
   // Style

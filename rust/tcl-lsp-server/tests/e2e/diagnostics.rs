@@ -888,6 +888,52 @@ fn same_file_tcloo_no_explicit_constructor_is_never_checked() {
 }
 
 #[test]
+fn same_file_tcloo_next_call_arity_is_checked() {
+    // `next` re-invokes the current method's next-in-MRO implementation —
+    // a gap this review closed; previously `next` drew no arity
+    // diagnostic at all regardless of the resolved superclass method's
+    // own signature.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Base { method speak {a b} { return \"$a$b\" } }\n\
+         oo::class create Derived { superclass Base\n method speak {a b} { next 1 } }\n\
+         [Derived new] speak x y\n",
+    );
+    assert!(
+        has_code(&diags, "E002"),
+        "expected E002 for a 1-arg `next` against a 2-arg superclass method; got {diags:?}"
+    );
+    let uri2 = unique_uri("tcl");
+    let diags_ok = lsp.open_ready(
+        &uri2,
+        "oo::class create Base { method speak {a b} { return \"$a$b\" } }\n\
+         oo::class create Derived { superclass Base\n method speak {a b} { next 1 2 } }\n\
+         [Derived new] speak x y\n",
+    );
+    assert!(!has_code(&diags_ok, "E002"));
+    assert!(!has_code(&diags_ok, "E003"));
+}
+
+#[test]
+fn same_file_tcloo_nextto_call_arity_checks_named_target() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Root { method speak {a} { return $a } }\n\
+         oo::class create Mid { superclass Root\n method speak {a b} { return \"$a$b\" } }\n\
+         oo::class create Derived { superclass Mid\n method speak {a b} { nextto Root 1 2 } }\n\
+         [Derived new] speak x y\n",
+    );
+    assert!(
+        has_code(&diags, "E003"),
+        "expected E003 for a 2-arg `nextto Root` against Root's 1-arg speak; got {diags:?}"
+    );
+}
+
+#[test]
 fn same_file_apply_lambda_call_arity_is_checked() {
     // A direct `apply {{params} body} ?args?` call — another gap this
     // review closed.
@@ -902,6 +948,56 @@ fn same_file_apply_lambda_call_arity_is_checked() {
     let diags_ok = lsp.open_ready(&uri2, "apply {{a b} {return [expr {$a+$b}]}} 1 2\n");
     assert!(!has_code(&diags_ok, "E002"));
     assert!(!has_code(&diags_ok, "E003"));
+}
+
+#[test]
+fn dict_create_odd_key_value_tail_is_checked() {
+    // `dict create ?key value ...?` needs an even tail — a gap this
+    // review closed; previously an odd (unpaired) tail drew no
+    // diagnostic at all.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "dict create a\n");
+    assert!(
+        has_code(&diags, "E005"),
+        "expected E005 for an odd dict create tail; got {diags:?}"
+    );
+    let uri2 = unique_uri("tcl");
+    let diags_ok = lsp.open_ready(&uri2, "dict create a b\n");
+    assert!(!has_code(&diags_ok, "E005"));
+}
+
+#[test]
+fn foreach_unpaired_varlist_is_checked() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "foreach x $l y {puts $x}\n");
+    assert!(
+        has_code(&diags, "E005"),
+        "expected E005 for an unpaired foreach var-list; got {diags:?}"
+    );
+    let uri2 = unique_uri("tcl");
+    let diags_ok = lsp.open_ready(&uri2, "foreach x $l {puts $x}\n");
+    assert!(!has_code(&diags_ok, "E005"));
+}
+
+#[test]
+fn switch_flat_unpaired_pattern_is_checked() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "switch $s a b c\n");
+    assert!(
+        has_code(&diags, "E005"),
+        "expected E005 for an unpaired switch pattern; got {diags:?}"
+    );
+    // Both valid shapes stay silent: the flat paired form and the
+    // single-braced-body shorthand.
+    let uri2 = unique_uri("tcl");
+    let diags_ok = lsp.open_ready(&uri2, "switch $s a b c d\n");
+    assert!(!has_code(&diags_ok, "E005"));
+    let uri3 = unique_uri("tcl");
+    let diags_braced = lsp.open_ready(&uri3, "switch $s {a b c d e f}\n");
+    assert!(!has_code(&diags_braced, "E005"));
 }
 
 // -- TestDiagnosticCanaries ----------------------------------------------

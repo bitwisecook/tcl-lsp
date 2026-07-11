@@ -108,14 +108,39 @@ fn widened_word_span(tok: tcl_lexer::Token, source: &str) -> tcl_lexer::Span {
     tcl_lexer::Span::new(tok.span.start(), widen_token_end(tok, source))
 }
 
+/// Describe [`Arity`]'s [`Arity::step`] / [`Arity::also_exact`] shape in
+/// prose for the E005 message — `"0, 2, 4, …"` for a plain progression,
+/// `"2, or 3, 5, 7, …"` when `also_exact` adds an exception (`switch`'s
+/// shorthand-or-pairs union). Only called when `step != 0` (a caller with
+/// no parity constraint never reaches the E005 branch).
+fn describe_step_shape(arity: Arity) -> String {
+    let min = u32::from(arity.min);
+    let step = u32::from(arity.step);
+    let progression = format!("{min}, {}, {}, …", min + step, min + step * 2);
+    match arity.also_exact {
+        Some(exact) => format!("{exact}, or {progression}"),
+        None => progression,
+    }
+}
+
 /// Compare a resolved [`Arity`] against an observed positional-argument
-/// count and build the E002 / E003 diagnostic, or `None` when the count
-/// fits. Shared by the registry-command arity path
+/// count and build the E002 / E003 / E005 diagnostic, or `None` when the
+/// count fits. Shared by the registry-command arity path
 /// ([`Analyser::check_simple_arity`]), the same-file proc / `TclOO`
 /// method / `interp alias` / `rename` arity path
 /// ([`Analyser::flush_arity_diagnostics`]), and the `TclOO` method-call
 /// arity check ([`super::var_command`]), so all three diagnostics carry
 /// identical wording.
+///
+/// **E005** fires when `nargs_min` is within `[min, max]` (so neither
+/// E002 nor E003 applies) but doesn't land on [`Arity::step`]'s
+/// progression or match [`Arity::also_exact`] — a count that's
+/// individually "enough" but doesn't fit the command's key/value-pair /
+/// paired-argument shape (`dict create a` — one word, not a key/value
+/// pair; `foreach a b c d` — an unpaired trailing var-list). Same
+/// `{*}`-expansion abstention as E002: an expanded tail's true final
+/// count is unknowable, so a merely-in-range lower bound proves nothing
+/// about its parity either.
 pub(super) fn arity_verdict(
     display_name: &str,
     arity: Arity,
@@ -125,6 +150,16 @@ pub(super) fn arity_verdict(
 ) -> Option<crate::analyser::types::Diagnostic> {
     let min = usize::from(arity.min);
     let max = usize::from(arity.max);
+    // `also_exact` is valid regardless of `min`/`max`/`step` — checked
+    // first so it exempts the shorthand count from every branch below,
+    // not just E005 (`switch $s {p1 b1 p2 b2}`'s 2-arg form must not
+    // trip E002 just because `switch`'s own `min` is 3).
+    if arity
+        .also_exact
+        .is_some_and(|exact| usize::from(exact) == nargs_min)
+    {
+        return None;
+    }
     if !positional_any_expand && nargs_min < min {
         Some(crate::analyser::types::Diagnostic {
             code: DiagCode::E002,
@@ -141,6 +176,20 @@ pub(super) fn arity_verdict(
             span,
             message: format!(
                 "Too many arguments for '{display_name}': expected at most {max}, got {nargs_min}"
+            ),
+            severity: Severity::Error,
+            fixes: Vec::new(),
+        })
+    } else if !positional_any_expand
+        && arity.step != 0
+        && !(nargs_min - min).is_multiple_of(usize::from(arity.step))
+    {
+        Some(crate::analyser::types::Diagnostic {
+            code: DiagCode::E005,
+            span,
+            message: format!(
+                "Wrong argument-count shape for '{display_name}': expected {}, got {nargs_min}",
+                describe_step_shape(arity)
             ),
             severity: Severity::Error,
             fixes: Vec::new(),
@@ -738,25 +787,18 @@ impl Analyser {
 
         // `TclOO` constructor-call arity (`ClassName new ?args?` /
         // `ClassName create name ?args?` / `ClassName createWithNamespace
-        // name ::ns ?args?`) — queued unconditionally whenever the first
-        // word is literally one of those three keywords, independent of
-        // whether `cmd_name` resolves to anything at all; a call whose head
-        // isn't a locally-known class is silently dropped at flush time.
-        if matches!(
-            args.first().map(String::as_str),
-            Some("new" | "create" | "createWithNamespace")
-        ) {
-            self.queue_ctor_arity_candidate(
-                cmd_name,
-                &ArityWords {
-                    args,
-                    arg_tokens,
-                    arg_expand,
-                    cmd_tok,
-                },
-                scope_path,
-            );
-        }
+        // name ::ns ?args?`) and `next`/`nextto` call-site arity — see
+        // [`Self::queue_tcloo_arity_candidates`].
+        self.queue_tcloo_arity_candidates(
+            cmd_name,
+            &ArityWords {
+                args,
+                arg_tokens,
+                arg_expand,
+                cmd_tok,
+            },
+            scope_path,
+        );
 
         // `apply {{params} body} ?arg ...?` — a direct call to an inline
         // lambda. Unlike the two candidates above, the lambda's own arity
@@ -1283,6 +1325,118 @@ impl Analyser {
         self.result.diagnostics.extend(diags);
     }
 
+    /// Idempotent: drains `pending_next_arity`, so a second call is a no-op.
+    ///
+    /// Resolves each queued `next` / `nextto` candidate against
+    /// `all_classes` (fully populated post-walk) via
+    /// [`super::class_hierarchy::ClassHierarchy::next_provider`], treating
+    /// the enclosing method's own class as the receiver's MRO — the same
+    /// "same instance" simplification [`super::var_command::Analyser::method_arity_diagnostic`]
+    /// already makes for `$obj method` dispatch. This is exact for single
+    /// inheritance (confirmed against tclsh 9.0.4: a linear chain's MRO
+    /// tail from any ancestor onward is identical regardless of which
+    /// subclass views it); with mixins or multiple inheritance a
+    /// subclass's C3-style linearisation can reorder ancestors, so a
+    /// `next` inherited unchanged into such a subclass could in principle
+    /// resolve to a different provider there than this check assumes — a
+    /// known, narrow imprecision in the same spirit as this module's other
+    /// documented gaps, not a soundness hole for the common case.
+    ///
+    /// A `nextto` target that isn't a locally-known class, or a `next`
+    /// past the end of the MRO chain (a real `next` there is itself a
+    /// runtime error — Tcl raises "no next" — not an arity mismatch), is
+    /// silently dropped. A forwarded method (`forward` — see
+    /// [`super::var_command::Analyser::method_arity_diagnostic`]'s own hop
+    /// chase) is not resolved further here; forwarding to `next`/`nextto`
+    /// is vanishingly rare and left unchecked rather than duplicating that
+    /// hop logic.
+    pub fn flush_next_arity_diagnostics(&mut self) {
+        if self.pending_next_arity.is_empty() {
+            return;
+        }
+        let pending = std::mem::take(&mut self.pending_next_arity);
+        let mut diags: Vec<super::types::Diagnostic> = Vec::new();
+        {
+            let hierarchy = self.result.class_hierarchy();
+            for cand in &pending {
+                let start_from = match &cand.target_class {
+                    Some(name) => {
+                        let candidates = qualify_candidates(&cand.ns, name);
+                        let Some(qn) = candidates
+                            .into_iter()
+                            .find(|c| self.result.all_classes.contains_key(c.as_str()))
+                        else {
+                            continue; // dynamic / cross-file / unresolvable target class
+                        };
+                        Some(qn)
+                    }
+                    None => None,
+                };
+                let Some(provider) = hierarchy.next_provider(
+                    &cand.class_qualified,
+                    &cand.method_name,
+                    &cand.class_qualified,
+                    start_from.as_deref(),
+                ) else {
+                    continue;
+                };
+                let Some(method_def) = self.result.all_classes.get(provider).and_then(|cd| {
+                    cd.methods
+                        .get(&cand.method_name)
+                        .or_else(|| cd.class_methods.get(&cand.method_name))
+                }) else {
+                    continue;
+                };
+                if method_def.kind == "forward" {
+                    continue;
+                }
+                let arity = crate::signature_scan::arity::arity_of(&method_def.params);
+                if let Some(diag) = arity_verdict(
+                    &cand.display_name,
+                    arity,
+                    cand.nargs_min,
+                    cand.positional_any_expand,
+                    cand.full_span,
+                ) {
+                    diags.push(diag);
+                }
+            }
+        }
+        self.result.diagnostics.extend(diags);
+    }
+
+    /// Queue the `TclOO`-specific arity candidates a call may trigger,
+    /// alongside the ordinary same-file/registry checks
+    /// [`Self::emit_arity_diagnostics`] always runs: a constructor call
+    /// (`ClassName new ?args?` / `ClassName create name ?args?` /
+    /// `ClassName createWithNamespace name ::ns ?args?`, queued
+    /// unconditionally whenever the first word is literally one of those
+    /// three keywords) and a `next`/`nextto` call (queued whenever the
+    /// registry marks the command [`tcl_registry::Traits::TCLOO_NEXT_CHAIN`]).
+    /// Both are resolved post-walk, once `all_classes` is fully
+    /// populated — see [`Self::flush_ctor_arity_diagnostics`] /
+    /// [`Self::flush_next_arity_diagnostics`]. Split out purely to keep
+    /// `emit_arity_diagnostics` under the line-count lint.
+    fn queue_tcloo_arity_candidates(
+        &mut self,
+        cmd_name: &str,
+        words: &ArityWords<'_>,
+        scope_path: &[usize],
+    ) {
+        if matches!(
+            words.args.first().map(String::as_str),
+            Some("new" | "create" | "createWithNamespace")
+        ) {
+            self.queue_ctor_arity_candidate(cmd_name, words, scope_path);
+        }
+        if self.registry.as_ref().is_some_and(|r| {
+            r.get(cmd_name)
+                .is_some_and(|sig| sig.traits.contains(tcl_registry::Traits::TCLOO_NEXT_CHAIN))
+        }) {
+            self.queue_next_arity_candidate(cmd_name, words, scope_path);
+        }
+    }
+
     /// Queue a same-file user-call arity candidate for every command
     /// invocation, independent of whether it also resolves to a
     /// registry signature — [`Self::flush_arity_diagnostics`] resolves
@@ -1378,6 +1532,69 @@ impl Analyser {
             });
     }
 
+    /// Queue a `TclOO` `next` / `nextto` call-site arity candidate.
+    ///
+    /// The callee is never named at the call site — it's derived from
+    /// *where* the call sits ([`Analyser::current_method_context`]).
+    /// Silently drops the candidate when the call isn't lexically inside
+    /// a method body: a `next`/`nextto` there is a runtime error in Tcl
+    /// itself ("next may only be called from inside a method"), not an
+    /// arity mismatch, and no other diagnostic here models that shape.
+    ///
+    /// `nextto`'s explicit target-class word (marked [`ArgRole::Name`] at
+    /// index 0 in the registry — see `tcl-registry/src/commands/tcl/nextto.rs`)
+    /// is read directly off `words.args`, structurally, never by
+    /// comparing `cmd_name` against the literal string `"nextto"`.
+    fn queue_next_arity_candidate(
+        &mut self,
+        cmd_name: &str,
+        words: &ArityWords<'_>,
+        scope_path: &[usize],
+    ) {
+        use tcl_registry::ArgRole;
+        let Some((class_qualified, method_name)) = self.current_method_context(scope_path) else {
+            return;
+        };
+        let ArityWords {
+            args,
+            arg_tokens,
+            arg_expand,
+            cmd_tok,
+        } = *words;
+        let has_target_class = self
+            .registry
+            .as_ref()
+            .and_then(|r| r.get(cmd_name))
+            .is_some_and(|sig| {
+                sig.arg_roles
+                    .iter()
+                    .any(|&(i, role)| i == 0 && role == ArgRole::Name)
+            });
+        let target_class = has_target_class.then(|| args.first().cloned()).flatten();
+        // A `nextto` with no target word at all has nothing to resolve —
+        // the registry's own `Arity::at_least(1)` already reports it.
+        if has_target_class && target_class.is_none() {
+            return;
+        }
+        let start = usize::from(has_target_class);
+        let (nargs_min, positional_any_expand) = count_positionals(args, arg_expand, start);
+        let full_span = match arg_tokens.last() {
+            Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
+            None => cmd_tok.span,
+        };
+        self.pending_next_arity
+            .push(super::types::PendingNextArity {
+                class_qualified,
+                method_name,
+                target_class,
+                ns: self.command_resolution_namespace(scope_path),
+                display_name: cmd_name.to_string(),
+                full_span,
+                nargs_min,
+                positional_any_expand,
+            });
+    }
+
     /// Whether a fact (a proc definition, `rename`, or `interp alias`)
     /// established at `established_off` is observably in effect by the
     /// time `cand`'s call executes: unconditionally true inside a
@@ -1389,6 +1606,37 @@ impl Analyser {
     /// effect there yet).
     fn fact_in_effect(cand: &PendingUserCallArity, established_off: u32) -> bool {
         !cand.enforce_order || established_off < cand.call_off
+    }
+
+    /// Whether `name`'s most recent recorded deletion supersedes a
+    /// specific fact (a proc definition, a `rename` target, or an
+    /// `interp alias` target) that was itself established at
+    /// `fact_off`.
+    ///
+    /// `deleted_commands` holds only the *last* deletion offset seen for
+    /// `name` during the walk (a later `HashMap` insert overwrites an
+    /// earlier one) — but since the walk visits top-level statements in
+    /// source order, "last inserted" and "highest offset" coincide, so
+    /// that single stored offset is always the most recent deletion.
+    /// Comparing it against `fact_off` (not just against the call site,
+    /// as [`Self::fact_in_effect`] alone would) is what makes a
+    /// re-establishment after a deletion resolve correctly: a name
+    /// deleted at offset 7 and then given a fresh `proc`/`rename`/`interp
+    /// alias` at offset 50 is live again for any call after 50, because
+    /// the deletion (7) predates the fact (50) — only a deletion whose
+    /// offset falls *between* the fact and the call still shadows it
+    /// (confirmed against tclsh 9.0.4: `proc p {} {}`, `rename p {}`,
+    /// `proc p {a b} {}`, `p 1 2` succeeds — the second `proc` overrides
+    /// the deletion).
+    fn fact_superseded_by_deletion(
+        &self,
+        name: &str,
+        fact_off: u32,
+        cand: &PendingUserCallArity,
+    ) -> bool {
+        self.deleted_commands
+            .get(name)
+            .is_some_and(|&del_off| del_off > fact_off && Self::fact_in_effect(cand, del_off))
     }
 
     /// Chase `cand.cmd_name` (as it resolves at `cand.ns`) through
@@ -1404,8 +1652,10 @@ impl Analyser {
     /// `rename_offsets` / `alias_offsets` for the other two) — a
     /// candidate whose defining statement hasn't executed yet at a
     /// top-level call site is not a match. A name `rename`d away
-    /// (`deleted_commands`) is skipped as a proc match once the rename
-    /// is in effect — it no longer denotes that proc at run time (see
+    /// (`deleted_commands`) is skipped as a proc match only when the
+    /// deletion postdates *that specific fact's* own offset (see
+    /// [`Self::fact_superseded_by_deletion`]) — a fact re-established
+    /// after its deletion is live again (see
     /// [`crate::analyser::handlers::Analyser::handle_rename`]).
     /// `interp alias`'s prepended arguments shift the eventual arity
     /// down (real partial application, confirmed against tclsh 9.0.4);
@@ -1441,28 +1691,51 @@ impl Analyser {
         for _ in 0..MAX_HOPS {
             let candidates = qualify_candidates(&cand.ns, &cur);
             for c in &candidates {
-                if !via_rename_hop
-                    && self
-                        .deleted_commands
-                        .get(c.as_str())
-                        .is_some_and(|&off| Self::fact_in_effect(cand, off))
-                {
+                let Some(def) = self.result.all_procs.get(c) else {
+                    continue;
+                };
+                let Some(&proc_off) = proc_offsets.get(c.as_str()) else {
+                    continue;
+                };
+                if cand.enforce_order && proc_off >= cand.call_off {
                     continue;
                 }
-                if let Some(def) = self.result.all_procs.get(c)
-                    && (!cand.enforce_order
-                        || proc_offsets
-                            .get(c.as_str())
-                            .is_some_and(|&off| off < cand.call_off))
-                {
-                    let arity = crate::signature_scan::arity::arity_of(&def.params);
-                    return Some(shift_arity(arity, prepended_total));
+                // A deletion recorded for `c` only shadows *this* proc
+                // definition when it postdates `proc_off` — a re-`proc`
+                // after a `rename c {}` supersedes the deletion (see
+                // `fact_superseded_by_deletion`). Skipped entirely while
+                // chasing a rename hop backward: `OLD` being deleted is
+                // precisely what freed it up to serve as this rename's
+                // source, never a reason to reject it.
+                if !via_rename_hop && self.fact_superseded_by_deletion(c, proc_off, cand) {
+                    continue;
                 }
+                let arity = crate::signature_scan::arity::arity_of(&def.params);
+                return Some(shift_arity(arity, prepended_total));
             }
             if let Some(old) = candidates.iter().find_map(|c| {
                 let old = self.renamed_commands.get(c)?;
                 let off = *self.rename_offsets.get(c)?;
-                Self::fact_in_effect(cand, off).then_some(old)
+                if !Self::fact_in_effect(cand, off) {
+                    return None;
+                }
+                // The rename that established `c` (the target name) can
+                // itself be superseded by a later deletion of `c` — but
+                // only when `c` wasn't just reached via a rename hop
+                // (`via_rename_hop`): a chain like `rename a b; rename b
+                // c` records `b` as "deleted" by the *second* rename as a
+                // pure side effect of moving it onward, not because the
+                // first rename's `b -> a` mapping stopped holding — that
+                // deletion is exactly what freed `b` up to serve as this
+                // hop's source, same convention as the proc branch above.
+                // An unrelated, later `rename c {}` on the name we have
+                // NOT yet hopped through must still shadow it, though
+                // (`same_file_call_to_renamed_away_name_does_not_false_positive`'s
+                // shape one level up the chain).
+                if !via_rename_hop && self.fact_superseded_by_deletion(c, off, cand) {
+                    return None;
+                }
+                Some(old)
             }) {
                 cur.clone_from(old);
                 hopped = true;
@@ -1470,23 +1743,24 @@ impl Analyser {
                 continue;
             }
             if let Some((target, prepended)) = candidates.iter().find_map(|c| {
-                // `interp alias srcPath srcCmd {}` (or a `rename c {}`)
-                // deletes an alias exactly like it deletes a proc — same
-                // blanket "any in-effect deletion wins" convention as the
-                // proc branch above (`via_rename_hop` doesn't apply here;
-                // an alias is re-resolved by name on every call, never
+                // An alias is re-resolved by name on every call (never
                 // chased back through a rename the way a proc's original
-                // definition is).
-                if self
-                    .deleted_commands
-                    .get(c.as_str())
-                    .is_some_and(|&off| Self::fact_in_effect(cand, off))
-                {
-                    return None;
-                }
+                // definition is), so its own establishing offset — not a
+                // blanket per-name check — decides whether a later
+                // deletion of `c` shadows it. Exempted when `c` was just
+                // reached via a rename hop, for the same reason as the
+                // rename branch above: `rename a b` then chasing `b` back
+                // to alias `a` must not be defeated by `b`'s own deletion
+                // record (a side effect of that very rename).
                 let alias = self.command_aliases.get(c)?;
                 let off = *self.alias_offsets.get(c)?;
-                Self::fact_in_effect(cand, off).then_some(alias)
+                if !Self::fact_in_effect(cand, off) {
+                    return None;
+                }
+                if !via_rename_hop && self.fact_superseded_by_deletion(c, off, cand) {
+                    return None;
+                }
+                Some(alias)
             }) {
                 prepended_total = prepended_total
                     .saturating_add(u16::try_from(prepended.len()).unwrap_or(u16::MAX));

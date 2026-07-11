@@ -27,17 +27,27 @@
 //! feeding find-references, call-hierarchy, call-graph, code-lens, W123, and
 //! the callback-arity check off one substrate.
 //!
-//! Only a **literal bareword** head is recorded (a single `Esc` token, not
-//! quoted, not a `$var`/`[cmd]` substitution) — mirroring the highlight guard
-//! in `tcl_lsp_core::semantic_tokens`.  A dynamic head can't be resolved to a
-//! proc and recording it would false-fire W123; a braced multi-word prefix
-//! (`{cmd extra}`) is out of scope (it fails the single-`Esc` geometry, as it
-//! does for highlighting) and left as a documented follow-up.
+//! Two prefix shapes are recognised:
+//!
+//! - A **literal bareword** head (a single `Esc` token, not quoted, not a
+//!   `$var`/`[cmd]` substitution) — mirroring the highlight guard in
+//!   `tcl_lsp_core::semantic_tokens`. Bakes 0 extra arguments.
+//! - A **braced multi-word prefix** (`{cmd extra1 extra2}`, a single `Str`
+//!   token) — the canonical Tcl idiom for a callback that already carries
+//!   fixed leading arguments. List-parsed via [`tcl_syntax::list::find_element`]
+//!   (the same grammar primitive `Tcl_SplitList` uses); the first element is
+//!   the callback head and every further element is a *baked* argument the
+//!   callback-arity check (`tcl_lsp_db::apply_callback_arity`) adds to the
+//!   command's own appended count.
+//!
+//! A dynamic head (`$var`/`[cmd]`, in either shape) can't be resolved to a
+//! proc and recording it would false-fire W123, so it stays unrecorded.
 //!
 //! [`ArgRole::CommandPrefix`]: tcl_registry::arg_role::ArgRole::CommandPrefix
 
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::{AppendedArity, CommandRegistry};
+use tcl_syntax::list::find_element;
 
 /// A command-prefix callback head extracted from a call site.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,6 +58,10 @@ pub(crate) struct CommandPrefixInvocation {
     pub span: Span,
     /// How many args the calling command appends when it invokes the callback.
     pub appended: AppendedArity,
+    /// Baked-in arguments already present in the prefix literal ahead of the
+    /// `appended` ones — `0` for a bareword head, `N` for the further
+    /// elements of a braced multi-word prefix (`{cmd a b}` bakes 2).
+    pub baked: usize,
 }
 
 /// Extract the command-prefix callback heads of a call.
@@ -69,11 +83,14 @@ pub(crate) fn command_prefix_invocations(
         let (Some(&tok), Some(text)) = (arg_tokens.get(idx), arg_texts.get(idx)) else {
             continue;
         };
-        if is_literal_bareword_head(tok, text, arg_single.get(idx).copied().unwrap_or(false)) {
+        if let Some((head, span, baked)) =
+            extract_prefix_head(tok, text, arg_single.get(idx).copied().unwrap_or(false))
+        {
             out.push(CommandPrefixInvocation {
-                head: text.clone(),
-                span: tok.span,
+                head,
+                span,
                 appended,
+                baked,
             });
         }
     }
@@ -106,29 +123,94 @@ pub(crate) fn instance_method_command_prefix_invocations(
         else {
             continue;
         };
-        if is_literal_bareword_head(
+        if let Some((head, span, baked)) = extract_prefix_head(
             tok,
             text,
             method_arg_single.get(idx).copied().unwrap_or(false),
         ) {
             out.push(CommandPrefixInvocation {
-                head: text.clone(),
-                span: tok.span,
+                head,
+                span,
                 appended,
+                baked,
             });
         }
     }
     out
 }
 
-/// Whether `tok`/`text` is a literal bareword command head — a single `Esc`
-/// token, unquoted, with no leading `$`/`[` substitution.  Mirrors the
-/// highlight retag guard so recording and highlighting agree exactly.
-fn is_literal_bareword_head(tok: Token, text: &str, single_token: bool) -> bool {
-    single_token
-        && tok.kind == TokenType::Esc
-        && !tok.in_quote
-        && !text.is_empty()
-        && !text.starts_with('$')
-        && !text.starts_with('[')
+/// Whether `text` cannot be a resolvable command-prefix head: empty, a
+/// `$var` / `[cmd]` substitution, or a Tcl/Tk widget path (`.sb`) — a
+/// dynamically-bound window command, never a user proc (confirmed
+/// against real Tk usage: `-yscrollcommand {.sb set}` invokes the `.sb`
+/// widget's own command, which the analyser cannot resolve or
+/// arity-check like an ordinary proc). Shared by both the bareword and
+/// braced-list extraction paths below, so neither shape re-introduces
+/// the widget-path false positive the pre-command-prefix `script()`
+/// recursion had.
+fn looks_unresolvable(text: &str) -> bool {
+    text.is_empty()
+        || text.starts_with('$')
+        || text.starts_with('[')
+        || crate::analyser::tk_checks::is_widget_path(text)
+}
+
+/// Extract `(head, head_span, baked_arg_count)` from a command-prefix
+/// argument, or `None` when it isn't a literal, resolvable command
+/// reference.
+///
+/// Two shapes are recognised (see the module docs): a literal bareword head
+/// — a single `Esc` token, unquoted, with no leading `$`/`[` substitution
+/// and not a widget path, mirroring the highlight retag guard so recording
+/// and highlighting agree exactly — bakes 0; a braced multi-word prefix —
+/// a single `Str` token — is list-parsed via [`find_element`], with the
+/// first element as the head (subject to the same guard) and every further
+/// element counted as a baked argument. A malformed list (unmatched
+/// brace/quote, typically mid-edit) or an empty list abstains rather than
+/// guessing.
+fn extract_prefix_head(
+    tok: Token,
+    text: &str,
+    single_token: bool,
+) -> Option<(String, Span, usize)> {
+    if !single_token {
+        return None;
+    }
+    if tok.kind == TokenType::Esc && !tok.in_quote && !looks_unresolvable(text) {
+        return Some((text.to_string(), tok.span, 0));
+    }
+    if tok.kind == TokenType::Str {
+        let head_el = find_element(text, 0).ok().flatten()?;
+        let head = text.get(head_el.value.clone())?;
+        if looks_unresolvable(head) {
+            return None;
+        }
+        // `tok.span.start()` sits *on* the opening `{`, not the first
+        // content byte (the "inner-end" word-token convention — see
+        // `docs/kcs/kcs-issue-highlight-drops-closing-delimiter.md`); the
+        // content itself starts `content_offset` bytes later, which is
+        // where `text`'s own byte 0 (and thus `head_el`'s offsets) align.
+        let content_start = tok.span.start() + u32::from(tok.content_offset);
+        let head_span = Span::new(
+            content_start + u32::try_from(head_el.value.start).ok()?,
+            content_start + u32::try_from(head_el.value.end).ok()?,
+        );
+        let mut baked = 0usize;
+        let mut pos = head_el.next;
+        loop {
+            match find_element(text, pos) {
+                Ok(Some(el)) => {
+                    baked += 1;
+                    pos = el.next;
+                }
+                Ok(None) => break,
+                // A malformed tail (unmatched brace/quote, typically
+                // mid-edit) makes the true baked count unknowable — abstain
+                // rather than silently under-counting it.
+                Err(_) => return None,
+            }
+        }
+        return Some((head.to_string(), head_span, baked));
+    }
+    None
 }

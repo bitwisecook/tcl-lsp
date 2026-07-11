@@ -26,7 +26,7 @@ Source: `server/features/diagnostics.py`,
   - W100: Unbraced expr body
   - W101: Wrong number of arguments
   - W102: `subst` on variable input — code injection risk
-  - W123: Unknown command (opt-in, default=False)
+  - W123: Unknown command (default on; `tclLsp.diagnostics.W123 = false` to disable)
   - W103: Variable read before set
   - W104: Unused variable
   - W200+: iRules event/command warnings

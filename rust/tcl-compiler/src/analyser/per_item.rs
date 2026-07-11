@@ -438,6 +438,7 @@ impl Analyser {
         self.pending_user_call_arity
             .extend(frag.pending_user_call_arity);
         self.pending_ctor_arity.extend(frag.pending_ctor_arity);
+        self.pending_next_arity.extend(frag.pending_next_arity);
         self.var_command_sites.extend(frag.var_sites);
         self.cmd_command_sites.extend(frag.cmd_sites);
         // Replay the body's qualified global reads against the shell's real
@@ -502,6 +503,7 @@ pub struct BodyFragment {
     pending_arity: Vec<(String, String, bool, super::types::Diagnostic)>,
     pending_user_call_arity: Vec<super::types::PendingUserCallArity>,
     pending_ctor_arity: Vec<super::types::PendingCtorArity>,
+    pending_next_arity: Vec<super::types::PendingNextArity>,
     var_sites: Vec<super::state::VarCommandSite>,
     cmd_sites: Vec<super::state::CmdCommandSite>,
     /// Qualified (`::`/`static::`) reads that missed the isolated body's empty
@@ -622,6 +624,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         pending_arity: a.pending_arity,
         pending_user_call_arity: a.pending_user_call_arity,
         pending_ctor_arity: a.pending_ctor_arity,
+        pending_next_arity: a.pending_next_arity,
         var_sites: a.var_command_sites,
         cmd_sites: a.cmd_command_sites,
         global_reads: a.capture_global_reads.unwrap_or_default(),
@@ -796,6 +799,9 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     }
     for cand in &mut frag.pending_ctor_arity {
         cand.call_off += d;
+        cand.full_span = shift(cand.full_span, d);
+    }
+    for cand in &mut frag.pending_next_arity {
         cand.full_span = shift(cand.full_span, d);
     }
     for s in &mut frag.var_sites {

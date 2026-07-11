@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "next",
-        traits: Traits::LANGUAGE_KEYWORD,
+        traits: Traits::LANGUAGE_KEYWORD.union(Traits::TCLOO_NEXT_CHAIN),
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::any(),
         return_type: Some(TclType::String),

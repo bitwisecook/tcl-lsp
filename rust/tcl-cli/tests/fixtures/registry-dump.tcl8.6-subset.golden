@@ -2729,7 +2729,7 @@
   "switch": {
     "arity": {
       "max": null,
-      "min": 2
+      "min": 3
     },
     "dialects": null,
     "excludedEvents": [],

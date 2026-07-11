@@ -440,6 +440,48 @@ impl Analyser {
         false
     }
 
+    /// The `(class_qualified, method_name)` of the innermost `TclOO`
+    /// method body enclosing `scope_path`, or `None` when the call site
+    /// isn't textually inside one.
+    ///
+    /// Drives `next` / `nextto` arity resolution
+    /// (`Analyser::queue_next_arity_candidate`): a method scope's `name`
+    /// is always `"{class_qualified}::{method}"` (see
+    /// `Analyser::walk_method_body`), split here on the *last* `::` —
+    /// safe because a method's own simple name never itself contains
+    /// `::`.
+    ///
+    /// A nested `proc` / lambda body between the method scope and
+    /// `scope_path` resets the result to `None`: `next` only resolves
+    /// inside the calling frame of the method invocation itself — a
+    /// bareword `proc` defined and called from inside a method body runs
+    /// in its own, unrelated frame (confirmed against tclsh 9.0.4:
+    /// calling `next` from inside such a nested `proc` fails "next may
+    /// only be called from inside a method"), so it must not inherit the
+    /// enclosing method's context.
+    #[must_use]
+    pub(super) fn current_method_context(&self, scope_path: &[usize]) -> Option<(String, String)> {
+        let mut cursor = &self.result.global_scope;
+        let mut found: Option<(String, String)> = None;
+        for &idx in scope_path {
+            let Some(child) = cursor.children.get(idx) else {
+                break;
+            };
+            match child.kind {
+                ScopeKind::Method => {
+                    found = child
+                        .name
+                        .rsplit_once("::")
+                        .map(|(cls, method)| (cls.to_string(), method.to_string()));
+                }
+                ScopeKind::Proc => found = None,
+                ScopeKind::Global | ScopeKind::Namespace | ScopeKind::Uplevel => {}
+            }
+            cursor = child;
+        }
+        found
+    }
+
     /// Record a variable read for go-to-definition / find-references.
     ///
     /// Looks for the variable in the scope at `scope_path`; falls

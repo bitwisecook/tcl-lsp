@@ -53,6 +53,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "E005",
+    section: "error",
+    description:
+      "Wrong argument-count shape for command — an in-range count that doesn't fit the command's key/value-pair or paired-argument pattern (e.g. an odd `dict create` tail, an unpaired `foreach` list, or a `switch` count matching neither its shorthand nor its pattern/body-pair form).",
+    defaultEnabled: true,
+  },
+  {
     code: "E200",
     section: "error",
     description:
@@ -447,7 +454,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "W123",
     section: "hint",
     description: "Unresolved command — not found in registry, user procs, or `unknown` handler.",
-    defaultEnabled: false,
+    defaultEnabled: true,
   },
   {
     code: "W242",
