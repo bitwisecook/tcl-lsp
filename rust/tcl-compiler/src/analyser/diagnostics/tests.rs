@@ -889,6 +889,35 @@ fn e003_fires_on_file_link_over_arity() {
 }
 
 #[test]
+fn e003_namespace_which_extra_positional_fires() {
+    // `namespace which ?-command? ?-variable? name` — exactly one trailing
+    // `name`, the flags declared as options. Verified vs tclsh 9.0: a second
+    // positional (`foo bar`) errors, but the flag forms are fine.
+    fn e003(src: &str) -> bool {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::E003)
+    }
+    // FN fix: a bare second positional is now flagged.
+    assert!(
+        e003("namespace which foo bar"),
+        "extra positional must fire E003"
+    );
+    // Valid forms stay silent — the flags are skipped before counting.
+    assert!(!e003("namespace which foo"), "one name is valid");
+    assert!(
+        !e003("namespace which -command foo"),
+        "-command name is valid"
+    );
+    assert!(
+        !e003("namespace which -variable foo"),
+        "-variable name is valid"
+    );
+}
+
+#[test]
 fn e003_silent_for_subcommand_leading_options() {
     // Per-subcommand options (`file link -symbolic` / `-hard`,
     // `string match -nocase`) must be skipped before counting
