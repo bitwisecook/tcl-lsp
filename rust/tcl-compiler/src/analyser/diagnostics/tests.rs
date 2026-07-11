@@ -4401,6 +4401,23 @@ fn emit_cfg_ssa_diagnostics_w213_unset_on_possibly_undef() {
     assert!(w213s[0].message.contains("'xs'"));
     assert!(w213s[0].message.contains("unset -nocomplain"));
     assert_eq!(w213s[0].severity, Severity::Warning);
+    // The squiggle narrows to the offending variable word `xs`, not the whole
+    // `unset xs` command.
+    let src = "proc foo {} { unset xs }";
+    let span = w213s[0].span;
+    assert_eq!(&src[span.start() as usize..span.end() as usize], "xs");
+    // A quick fix is attached that inserts `-nocomplain` right after `unset`.
+    assert_eq!(w213s[0].fixes.len(), 1, "W213 must carry one fix");
+    let fix = &w213s[0].fixes[0];
+    assert_eq!(fix.new_text, " -nocomplain");
+    assert_eq!(fix.span.start(), fix.span.end(), "insertion is zero-width");
+    // Splicing the fix produces `unset -nocomplain xs`.
+    let at = fix.span.start() as usize;
+    let spliced = format!("{}{}{}", &src[..at], fix.new_text, &src[at..]);
+    assert!(
+        spliced.contains("unset -nocomplain xs"),
+        "spliced: {spliced}"
+    );
 }
 
 #[test]

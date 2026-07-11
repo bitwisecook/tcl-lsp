@@ -1072,7 +1072,12 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             }
             // ``unset`` without ``-nocomplain`` → W213.
-            if let Some(Statement::Call { command, args, .. }) = stmt_opt
+            if let Some(Statement::Call {
+                command,
+                args,
+                tokens,
+                ..
+            }) = stmt_opt
                 && command == "unset"
                 && !args.iter().any(|a| a == "-nocomplain")
             {
@@ -1080,12 +1085,18 @@ file; this call falls through to the 'unknown' handler."
                     "Variable '{var}' may not exist; \
                          use 'unset -nocomplain' to suppress the error",
                 );
+                // Narrow the squiggle to the offending variable word (so
+                // `unset a b c` flags only the missing name), and attach a
+                // quick fix that inserts `-nocomplain` right after `unset` —
+                // the same fix the LSP layer synthesises, now carried on the
+                // diagnostic itself so every editor surfaces it uniformly.
+                let (diag_span, fixes) = w213_span_and_fix(fu, tokens.as_ref(), var, span);
                 self.result.diagnostics.push(super::types::Diagnostic {
                     code: DiagCode::W213,
-                    span,
+                    span: diag_span,
                     message,
                     severity: Severity::Warning,
-                    fixes: Vec::new(),
+                    fixes,
                 });
                 continue;
             }
@@ -2249,6 +2260,44 @@ fn namespace_of(qualified_name: &str) -> String {
         Some((ns, _)) if !ns.is_empty() => ns.to_string(),
         _ => "::".to_string(),
     }
+}
+
+/// Compute W213's diagnostic span and quick fix for an `unset` of a
+/// possibly-missing `var`.
+///
+/// The span narrows to the offending variable's own word (so `unset a b c`
+/// squiggles just the missing name), falling back to the whole-command `span`
+/// when the tokens aren't available or the name can't be located. The fix
+/// inserts ` -nocomplain` immediately after the `unset` command word — a
+/// zero-width insertion — turning `unset x` into `unset -nocomplain x`.
+fn w213_span_and_fix(
+    fu: &crate::compilation_unit::FunctionUnit,
+    tokens: Option<&crate::ir::CommandTokens>,
+    var: &str,
+    span: tcl_lexer::Span,
+) -> (tcl_lexer::Span, Vec<super::types::CodeFix>) {
+    let Some(toks) = tokens else {
+        return (span, Vec::new());
+    };
+    // Narrow to the argument word whose text is this variable (argv[0] is the
+    // `unset` command word, so the names start at index 1).
+    let diag_span = toks
+        .argv_texts
+        .iter()
+        .zip(&toks.argv)
+        .skip(1)
+        .find(|(text, _)| text.as_str() == var)
+        .map_or(span, |(_, &word)| fu.abs_span(word));
+    // Insert ` -nocomplain` right after the `unset` word.
+    let fixes = toks.argv.first().map_or_else(Vec::new, |&cmd_word| {
+        let at = fu.abs_span(cmd_word).end();
+        vec![super::types::CodeFix {
+            span: tcl_lexer::Span::new(at, at),
+            new_text: " -nocomplain".to_string(),
+            description: "Add '-nocomplain' to unset".to_string(),
+        }]
+    });
+    (diag_span, fixes)
 }
 
 /// Implicit / interpreter-provided variables that are always defined and

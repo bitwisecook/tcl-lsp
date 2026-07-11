@@ -2252,6 +2252,25 @@ fn clean_list_used_with_lindex_has_no_s100() {
 }
 
 #[test]
+fn w213_unset_narrows_to_variable_and_carries_fix() {
+    // `unset xs` on a possibly-undefined var → W213 squiggled on `xs` (col
+    // 20..22 of the proc body), carrying the `-nocomplain` insert fix.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "proc foo {} { unset xs }\n");
+    let w213: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("W213"))
+        .collect();
+    assert_eq!(w213.len(), 1, "expected one W213: {diags:?}");
+    assert_eq!(
+        diag_range(w213[0]),
+        ((0, 20), (0, 22)),
+        "W213 must span only `xs`"
+    );
+}
+
+#[test]
 fn w214_unused_param_anchors_on_the_param_name() {
     // The squiggle must cover only the offending parameter's *name* (`unused`),
     // not the whole `proc` definition, so it aligns with go-to-definition/rename.

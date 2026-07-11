@@ -536,7 +536,8 @@ fn code_actions_unset_possibly_undef_offers_nocomplain() {
         // The RBS pass didn't flag it on this build; nothing to assert.
         return;
     }
-    // The W213 diag spans the `unset` token on line 0.
+    // The W213 diag is on line 0 (narrowed to the `xs` variable word); the
+    // whole-line request range still overlaps it and the `unset` keyword.
     let (l, _c) = pos_of(src, "unset", 1);
     let actions = code_actions(src, whole_line(l), Some(&analysis));
     let nocomplain = actions
