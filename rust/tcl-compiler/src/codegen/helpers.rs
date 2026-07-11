@@ -245,11 +245,22 @@ pub fn parse_subst_template(template: &str) -> Option<Vec<SubstPart>> {
             } else {
                 // Bare variable: $varname, optionally with an array index
                 // `$arr(index)` whose index may itself contain substitutions.
+                // A `:` is a name character only as part of a `::` namespace
+                // separator (matching the lexer, `Tcl_ParseVarName`): a lone
+                // colon ends the name, so `$action:` is `$action` then a literal
+                // `:`, not a variable `action:`. Once a `::` starts, the whole
+                // colon run is consumed (`$a:::b` names `a:::b`).
                 let start = i;
-                while i < n
-                    && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_' || bytes[i] == b':')
-                {
-                    i += 1;
+                while i < n {
+                    if bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_' {
+                        i += 1;
+                    } else if bytes[i] == b':' && i + 1 < n && bytes[i + 1] == b':' {
+                        while i < n && bytes[i] == b':' {
+                            i += 1;
+                        }
+                    } else {
+                        break;
+                    }
                 }
                 if i == start {
                     return None;
@@ -720,6 +731,35 @@ mod tests {
     #[test]
     fn subst_template_bare_dollar() {
         assert!(parse_subst_template("$").is_none());
+    }
+
+    #[test]
+    fn subst_template_lone_colon_ends_var_name() {
+        // A single `:` ends the variable name (it is a name char only in a `::`
+        // pair): `$action:` is `$action` then a literal `:`, not a variable
+        // `action:`. Regression for the whole-word command-substitution inline
+        // path reading `can't read "action:"` (tcl-irule-test's orchestrator).
+        assert_eq!(
+            parse_subst_template("$action:"),
+            Some(vec![
+                SubstPart::Var("action".into()),
+                SubstPart::Lit(":".into()),
+            ])
+        );
+    }
+
+    #[test]
+    fn subst_template_namespace_qualified_var() {
+        // `::` separators (and a `::`-run) stay part of the name, matching the
+        // lexer / `Tcl_ParseVarName`.
+        assert_eq!(
+            parse_subst_template("$ns::v"),
+            Some(vec![SubstPart::Var("ns::v".into())])
+        );
+        assert_eq!(
+            parse_subst_template("$::g"),
+            Some(vec![SubstPart::Var("::g".into())])
+        );
     }
 
     #[test]

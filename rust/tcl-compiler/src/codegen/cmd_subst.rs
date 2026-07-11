@@ -415,18 +415,16 @@ impl CodegenCtx<'_> {
                 return;
             }
             // Bare $varname form (not normalised to ${var}), including a
-            // namespace-qualified name (`$::x`, `$ns::v`): the `:` is a
-            // name character here, matching `is_var_name`/`parse_subst_template`
-            // (and `load_var`, which loads a qualified name via `LOAD_STK`).
-            // Without `:` a qualified `$::x` fell through to `push_lit("$::x")`,
-            // and the runtime `subst_word` leaves a bare `$name` (only `${…}`)
-            // untouched — so `[string length $::x]` measured the literal `$::x`.
+            // namespace-qualified name (`$::x`, `$ns::v`): a whole-word variable
+            // reference whose name is alphanumerics/`_` joined only by `::`
+            // separators. `is_bare_var_name` enforces the `::`-pair rule, so a
+            // lone trailing/interior colon (`$action:` = `$action` then literal
+            // `:`) is *not* swallowed into the name (it would `load_var
+            // "action:"`); such interpolated words fall through to `emit_value`.
+            // Loading the qualified form here also fixes `$::x` measuring the
+            // literal `$::x` (the runtime `subst_word` only substitutes `${…}`).
             let rest = &arg[1..];
-            if !rest.is_empty()
-                && rest
-                    .chars()
-                    .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
-            {
+            if tcl_syntax::naming::is_bare_var_name(rest) {
                 self.load_var(rest);
                 return;
             }
@@ -515,15 +513,14 @@ impl CodegenCtx<'_> {
             } else {
                 // Bare `$name` / `$name(idx)` — load the variable rather than
                 // pushing the unsubstituted literal. A namespace-qualified name
-                // (`$::x`, `$ns::v`) counts as bare here (`:` is a name char,
-                // as in `is_var_name`/`load_var`); without it a qualified `$::x`
-                // fell through to `emit_value` → `push_lit("$::x")`, which the
-                // runtime leaves unsubstituted (only `${…}` is a subst trigger).
+                // (`$::x`, `$ns::v`) counts as bare, but only with `::`-pair
+                // separators (`is_bare_var_name`): a lone colon ends the name, so
+                // `$action:` is `$action` then a literal `:`, not a variable
+                // `action:`. Without the qualified case a `$::x` fell through to
+                // `emit_value` → `push_lit("$::x")`, which the runtime leaves
+                // unsubstituted (only `${…}` is a subst trigger).
                 let rest = &word[1..];
-                let is_bare = !rest.is_empty()
-                    && rest
-                        .chars()
-                        .all(|c| c.is_alphanumeric() || c == '_' || c == ':');
+                let is_bare = tcl_syntax::naming::is_bare_var_name(rest);
                 if is_bare || (!rest.is_empty() && split_array_ref(rest).is_some()) {
                     self.load_var(rest);
                 } else {
