@@ -120,17 +120,14 @@ Use braces: {{ \u{2026} }}"
             )
         };
         let new_text = format!("{{{body_text}}}");
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W105,
-            span: body_tok.span,
-            message,
-            severity,
-            fixes: vec![super::types::CodeFix {
-                span: body_tok.span,
-                new_text,
-                description: "Wrap code block in braces".to_string(),
-            }],
-        });
+        self.result.diagnostics.push(
+            super::types::Diagnostic::new(DiagCode::W105, body_tok.span, message, severity)
+                .with_fixes(vec![super::types::CodeFix {
+                    span: body_tok.span,
+                    new_text,
+                    description: "Wrap code block in braces".to_string(),
+                }]),
+        );
     }
 
     /// W100: an expression argument (`expr` / `if` / `while`
@@ -274,17 +271,15 @@ Use braces: {{ \u{2026} }}"
         } else {
             text
         };
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W100,
-            span,
-            message,
-            severity,
-            fixes: vec![super::types::CodeFix {
-                span,
-                new_text: format!("{{{fix_inner}}}"),
-                description: "Wrap expression in braces".to_string(),
-            }],
-        });
+        self.result.diagnostics.push(
+            super::types::Diagnostic::new(DiagCode::W100, span, message, severity).with_fixes(
+                vec![super::types::CodeFix {
+                    span,
+                    new_text: format!("{{{fix_inner}}}"),
+                    description: "Wrap expression in braces".to_string(),
+                }],
+            ),
+        );
     }
 
     /// W311: a channel configured with `-encoding binary` *and*
@@ -324,17 +319,16 @@ Use braces: {{ \u{2026} }}"
                 .or(binary_tok)
                 .or_else(|| arg_tokens.first());
             if let Some(tok) = target {
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W311,
-                    span: tok.span,
-                    message: "Channel configured with -encoding binary and a non-binary \
+                self.result.diagnostics.push(super::types::Diagnostic::new(
+                    DiagCode::W311,
+                    tok.span,
+                    "Channel configured with -encoding binary and a non-binary \
                               -translation. Binary encoding implies no translation; the \
                               conflicting -translation may silently corrupt data or enable \
                               encoding-differential attacks."
                         .to_string(),
-                    severity: super::types::Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                    super::types::Severity::Warning,
+                ));
             }
         }
     }
@@ -382,16 +376,15 @@ Use braces: {{ \u{2026} }}"
                 && (fmt[i] == b'u' || fmt[i] == b's')
             {
                 let modifier = fmt[i] as char;
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W200,
-                    span: fmt_tok.span,
-                    message: format!(
+                self.result.diagnostics.push(super::types::Diagnostic::new(
+                    DiagCode::W200,
+                    fmt_tok.span,
+                    format!(
                         "signed/unsigned modifier '{modifier}' on binary format specifier \
                          requires Tcl 8.5+"
                     ),
-                    severity: super::types::Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                    super::types::Severity::Warning,
+                ));
                 i += 1;
             }
             if i < fmt.len() && fmt[i] == b'*' {
@@ -441,13 +434,12 @@ Use braces: {{ \u{2026} }}"
                     use std::fmt::Write as _;
                     let _ = write!(message, " Did you mean '{s}'?");
                 }
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W121,
-                    span: tok.span,
+                self.result.diagnostics.push(super::types::Diagnostic::new(
+                    DiagCode::W121,
+                    tok.span,
                     message,
-                    severity: super::types::Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                    super::types::Severity::Warning,
+                ));
             }
         }
     }
@@ -555,17 +547,11 @@ Use braces: {{ \u{2026} }}"
                         }]
                     })
                     .unwrap_or_default();
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W108,
-                    span,
-                    message: format!(
+                self.result.diagnostics.push(super::types::Diagnostic::new(DiagCode::W108, span, format!(
                         "Non-ASCII character U+{:04X} '{ch}' \u{2014} outside the standard ASCII \
                          printable/whitespace set",
                         ch as u32
-                    ),
-                    severity: super::types::Severity::Warning,
-                    fixes,
-                });
+                    ), super::types::Severity::Warning).with_fixes(fixes));
             }
             if flagged_here {
                 seen.insert(tok.span.start());
@@ -607,16 +593,18 @@ Use braces: {{ \u{2026} }}"
                     .w104_lappend_fix(args, arg_tokens, arg_expand, cmd_tok)
                     .into_iter()
                     .collect();
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W104,
-                    span: tok.span,
-                    message: "append with space-separated values looks like list \
+                self.result.diagnostics.push(
+                    super::types::Diagnostic::new(
+                        DiagCode::W104,
+                        tok.span,
+                        "append with space-separated values looks like list \
                               construction. Use [lappend] instead to safely handle values \
                               containing spaces, braces, or backslashes."
-                        .to_string(),
-                    severity: super::types::Severity::Hint,
-                    fixes,
-                });
+                            .to_string(),
+                        super::types::Severity::Hint,
+                    )
+                    .with_fixes(fixes),
+                );
                 return;
             }
         }
@@ -772,13 +760,12 @@ Use braces: {{ \u{2026} }}"
         } else {
             super::types::Severity::Warning
         };
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W106,
+        self.result.diagnostics.push(super::types::Diagnostic::new(
+            DiagCode::W106,
             span,
             message,
             severity,
-            fixes: Vec::new(),
-        });
+        ));
     }
 
     /// Argument indices (0-based, command-name excluded) that `cmd` reads as a
@@ -888,16 +875,15 @@ Use braces: {{ \u{2026} }}"
                 .copied()
                 .unwrap_or(bare)
             };
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W212,
-                span: tok.span,
-                message: format!(
+            self.result.diagnostics.push(super::types::Diagnostic::new(
+                DiagCode::W212,
+                tok.span,
+                format!(
                     "'{display_cmd}' expects a variable name, got substitution (${bare}). \
                      Did you mean '{suggestion}'?"
                 ),
-                severity: super::types::Severity::Warning,
-                fixes: Vec::new(),
-            });
+                super::types::Severity::Warning,
+            ));
         }
     }
 
@@ -965,17 +951,19 @@ Use braces: {{ \u{2026} }}"
 (the brace form is documented to apply no further substitution to its \
 content); use `{corrected}` to access the array element with index substitution"
                         );
-                        self.result.diagnostics.push(super::types::Diagnostic {
-                            code: DiagCode::W216,
-                            span,
-                            message,
-                            severity: Severity::Warning,
-                            fixes: vec![super::types::CodeFix {
+                        self.result.diagnostics.push(
+                            super::types::Diagnostic::new(
+                                DiagCode::W216,
+                                span,
+                                message,
+                                Severity::Warning,
+                            )
+                            .with_fixes(vec![super::types::CodeFix {
                                 span,
                                 new_text: corrected.clone(),
                                 description: format!("Replace with `{corrected}`"),
-                            }],
-                        });
+                            }]),
+                        );
                     }
                 }
                 continue;
@@ -1009,17 +997,14 @@ content); use `{corrected}` to access the array element with index substitution"
                 "`${{{text}}}({inner})` is parsed as scalar `${{{text}}}` followed by \
 literal text `({inner})`; did you mean `{corrected}` for array element access?"
             );
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W216,
-                span,
-                message,
-                severity: Severity::Warning,
-                fixes: vec![super::types::CodeFix {
-                    span,
-                    new_text: corrected.clone(),
-                    description: format!("Replace with `{corrected}`"),
-                }],
-            });
+            self.result.diagnostics.push(
+                super::types::Diagnostic::new(DiagCode::W216, span, message, Severity::Warning)
+                    .with_fixes(vec![super::types::CodeFix {
+                        span,
+                        new_text: corrected.clone(),
+                        description: format!("Replace with `{corrected}`"),
+                    }]),
+            );
         }
     }
 
@@ -1054,13 +1039,15 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
         let fixes = w114_unwrap_fix(slice, open, close, nested_span)
             .into_iter()
             .collect();
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W114,
-            span: nested_span,
-            message: "Redundant nested [expr] \u{2014} already in expression context".to_string(),
-            severity: super::types::Severity::Warning,
-            fixes,
-        });
+        self.result.diagnostics.push(
+            super::types::Diagnostic::new(
+                DiagCode::W114,
+                nested_span,
+                "Redundant nested [expr] \u{2014} already in expression context".to_string(),
+                super::types::Severity::Warning,
+            )
+            .with_fixes(fixes),
+        );
     }
 
     /// **W110.** Emit "use `eq`/`ne` instead of `==`/`!=` for
@@ -1136,13 +1123,10 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
 comparison in expressions to avoid ambiguous \
 numeric/string coercion."
         );
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W110,
-            span,
-            message,
-            severity: Severity::Hint,
-            fixes,
-        });
+        self.result.diagnostics.push(
+            super::types::Diagnostic::new(DiagCode::W110, span, message, Severity::Hint)
+                .with_fixes(fixes),
+        );
     }
 
     /// Map a W110 operator offset (within the emitter's `expr_text`) to

@@ -189,16 +189,15 @@ impl Analyser {
                 .iter()
                 .find(|s: &&SubCommand| s.name == site.subcommand)
             else {
-                self.result.diagnostics.push(Diagnostic {
-                    code: DiagCode::W001,
-                    span: site.subcommand_span,
-                    message: format!(
+                self.result.diagnostics.push(Diagnostic::new(
+                    DiagCode::W001,
+                    site.subcommand_span,
+                    format!(
                         "Unknown subcommand '{}' for widget '{class}'",
                         site.subcommand
                     ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                    Severity::Warning,
+                ));
                 continue;
             };
             if site.has_expand {

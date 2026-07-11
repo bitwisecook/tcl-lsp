@@ -710,16 +710,15 @@ impl Analyser {
                 .as_ref()
                 .is_none_or(|r| r.get(cmd_name).is_none())
         {
-            self.result.diagnostics.push(Diagnostic {
-                code: DiagCode::W125,
-                span: cmd_tok.span,
-                message: format!(
+            self.result.diagnostics.push(Diagnostic::new(
+                DiagCode::W125,
+                cmd_tok.span,
+                format!(
                     "\"{cmd_name}\" used as standalone command — should be part of \
                      \"{parent}\" (check for misplaced newline)"
                 ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+                Severity::Warning,
+            ));
         }
 
         if resolves_to_proc
@@ -732,19 +731,19 @@ impl Analyser {
             } else {
                 format!(" {}", args.join(" "))
             };
-            self.result.diagnostics.push(Diagnostic {
-                code: DiagCode::Irule5005,
-                span: cmd_tok.span,
-                message: format!(
-                    "iRules procs must be invoked with 'call': call {cmd_name}{suffix}"
-                ),
-                severity: Severity::Error,
-                fixes: vec![CodeFix {
+            self.result.diagnostics.push(
+                Diagnostic::new(
+                    DiagCode::Irule5005,
+                    cmd_tok.span,
+                    format!("iRules procs must be invoked with 'call': call {cmd_name}{suffix}"),
+                    Severity::Error,
+                )
+                .with_fixes(vec![CodeFix {
                     span: cmd_tok.span,
                     new_text: format!("call {cmd_name}"),
                     description: format!("Use 'call {cmd_name}'"),
-                }],
-            });
+                }]),
+            );
         }
     }
 

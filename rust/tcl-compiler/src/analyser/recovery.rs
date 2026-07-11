@@ -366,17 +366,19 @@ impl Analyser {
             // would shift the insertion one byte past the
             // intended location.
             let insert_span = tcl_lexer::Span::new(diag_span.end(), diag_span.end());
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::E101,
-                span: diag_span,
-                message: "Missing '{' after switch — body cases follow without braces".to_string(),
-                severity: super::types::Severity::Error,
-                fixes: vec![super::types::CodeFix {
+            self.result.diagnostics.push(
+                super::types::Diagnostic::new(
+                    DiagCode::E101,
+                    diag_span,
+                    "Missing '{' after switch — body cases follow without braces".to_string(),
+                    super::types::Severity::Error,
+                )
+                .with_fixes(vec![super::types::CodeFix {
                     span: insert_span,
                     new_text: " {".to_string(),
                     description: "Insert missing '{'".to_string(),
-                }],
-            });
+                }]),
+            );
         }
 
         case_count
@@ -504,17 +506,19 @@ impl Analyser {
         let insert_span = tcl_lexer::Span::new(abs_insert, abs_insert);
 
         if !self.disabled_diagnostics.contains("E103") {
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::E103,
-                span: stolen_span,
-                message: "Missing '}' — a nested body consumed this closing brace".to_string(),
-                severity: super::types::Severity::Error,
-                fixes: vec![super::types::CodeFix {
+            self.result.diagnostics.push(
+                super::types::Diagnostic::new(
+                    DiagCode::E103,
+                    stolen_span,
+                    "Missing '}' — a nested body consumed this closing brace".to_string(),
+                    super::types::Severity::Error,
+                )
+                .with_fixes(vec![super::types::CodeFix {
                     span: insert_span,
                     new_text: format!("{indent}}}\n"),
                     description: "Insert missing '}'".to_string(),
-                }],
-            });
+                }]),
+            );
         }
         true
     }
@@ -556,13 +560,12 @@ impl Analyser {
         // matching the E201/E202/E203 convention, so the squiggle sits on
         // the actual problem instead of underlining unrelated source.
         let anchor = last_delim_tok.map_or(cmd.span.start(), |t| t.span.start());
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::E200,
-            span: Span::new(anchor, anchor),
-            message: suffix.to_string(),
-            severity: super::types::Severity::Error,
-            fixes: Vec::new(),
-        });
+        self.result.diagnostics.push(super::types::Diagnostic::new(
+            DiagCode::E200,
+            Span::new(anchor, anchor),
+            suffix.to_string(),
+            super::types::Severity::Error,
+        ));
     }
 
     /// Constant-folded view of [`Self::builtin_command_names`].

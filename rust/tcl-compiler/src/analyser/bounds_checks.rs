@@ -89,25 +89,23 @@ pub(crate) fn loop_termination_diagnostics(
 
     match condition_constant(cond_text) {
         Some(false) => {
-            return vec![Diagnostic {
-                code: DiagCode::W240,
-                span: cond_tok.span,
-                message: format!("{cmd_name} condition is constant false; body never executes."),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            }];
+            return vec![Diagnostic::new(
+                DiagCode::W240,
+                cond_tok.span,
+                format!("{cmd_name} condition is constant false; body never executes."),
+                Severity::Warning,
+            )];
         }
         Some(true) if !body_may_exit(body_text, registry) => {
-            return vec![Diagnostic {
-                code: DiagCode::W241,
-                span: cond_tok.span,
-                message: format!(
+            return vec![Diagnostic::new(
+                DiagCode::W241,
+                cond_tok.span,
+                format!(
                     "{cmd_name} is provably infinite: condition is constant true and the body \
                      never leaves the loop (no break/return/error/exit/throw/tailcall)."
                 ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            }];
+                Severity::Warning,
+            )];
         }
         Some(true) => return Vec::new(),
         None => {}
@@ -118,13 +116,12 @@ pub(crate) fn loop_termination_diagnostics(
         && let Some(reason) =
             for_is_provably_infinite(init_text, cond_text, step_text, body_text, registry)
     {
-        return vec![Diagnostic {
-            code: DiagCode::W241,
-            span: cond_tok.span,
-            message: format!("for loop is provably infinite: {reason}"),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        }];
+        return vec![Diagnostic::new(
+            DiagCode::W241,
+            cond_tok.span,
+            format!("for loop is provably infinite: {reason}"),
+            Severity::Warning,
+        )];
     }
 
     // W242 (default-off): a counter variable appears in the condition but
@@ -135,16 +132,15 @@ pub(crate) fn loop_termination_diagnostics(
     if let Some(var) = extract_counter_name(cond_text)
         && !loop_modifies_var(&var, step_text, body_text, registry)
     {
-        return vec![Diagnostic {
-            code: DiagCode::W242,
-            span: cond_tok.span,
-            message: format!(
+        return vec![Diagnostic::new(
+            DiagCode::W242,
+            cond_tok.span,
+            format!(
                 "{cmd_name} termination cannot be proven: variable '{var}' in the \
                      condition is never modified by the step or body."
             ),
-            severity: Severity::Hint,
-            fixes: Vec::new(),
-        }];
+            Severity::Hint,
+        )];
     }
     Vec::new()
 }
@@ -570,17 +566,16 @@ pub(crate) fn list_index_diagnostics(
     } else {
         "lreplace touches no element (first > last after clamping)".to_string()
     };
-    vec![Diagnostic {
-        code: DiagCode::W230,
-        span: tcl_lexer::Span::new(lo_token.span.start(), hi_token.span.end()),
-        message: format!(
+    vec![Diagnostic::new(
+        DiagCode::W230,
+        tcl_lexer::Span::new(lo_token.span.start(), hi_token.span.end()),
+        format!(
             "{verb}: first='{lo_text}' resolves to {lo_index}, last='{hi_text}' resolves \
              to {hi_index} (list has {length} element{}).",
             if length == 1 { "" } else { "s" }
         ),
-        severity: Severity::Warning,
-        fixes: Vec::new(),
-    }]
+        Severity::Warning,
+    )]
 }
 
 /// The per-index `lindex` arm of W230.
@@ -599,17 +594,16 @@ fn lindex_diagnostics(args: &[String], arg_tokens: &[Token], length: i64) -> Vec
         if (0..length).contains(&resolved) {
             continue;
         }
-        out.push(Diagnostic {
-            code: DiagCode::W230,
-            span: idx_tok.span,
-            message: format!(
+        out.push(Diagnostic::new(
+            DiagCode::W230,
+            idx_tok.span,
+            format!(
                 "Index '{}' {}; lindex silently returns empty string.",
                 idx_text.trim(),
                 describe_index(resolved, length)
             ),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        });
+            Severity::Warning,
+        ));
     }
     out
 }
@@ -653,16 +647,15 @@ pub(crate) fn lset_index_diagnostics(
         if let Some(n) = parse_strict_int(stripped)
             && n < 0
         {
-            out.push(Diagnostic {
-                code: DiagCode::W231,
-                span: idx_tok.span,
-                message: format!(
+            out.push(Diagnostic::new(
+                DiagCode::W231,
+                idx_tok.span,
+                format!(
                     "lset index '{stripped}' is negative; \
                          raises 'index out of range' at runtime."
                 ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+                Severity::Warning,
+            ));
             continue;
         }
         // `lset` accepts the append slot (`index == length`); only
@@ -672,17 +665,16 @@ pub(crate) fn lset_index_diagnostics(
                 continue;
             };
             if resolved < 0 || resolved > length {
-                out.push(Diagnostic {
-                    code: DiagCode::W231,
-                    span: idx_tok.span,
-                    message: format!(
+                out.push(Diagnostic::new(
+                    DiagCode::W231,
+                    idx_tok.span,
+                    format!(
                         "lset index '{stripped}' {}; \
                          raises 'index out of range' at runtime.",
                         describe_index(resolved, length)
                     ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                    Severity::Warning,
+                ));
             }
         }
     }
@@ -957,15 +949,12 @@ fn string_single_index(
     if let Some(n) = parse_strict_int(stripped)
         && n < 0
     {
-        return vec![Diagnostic {
-            code: DiagCode::W232,
-            span: idx_tok.span,
-            message: format!(
-                "string {sub}: index '{stripped}' is negative; result is empty or a no-op."
-            ),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        }];
+        return vec![Diagnostic::new(
+            DiagCode::W232,
+            idx_tok.span,
+            format!("string {sub}: index '{stripped}' is negative; result is empty or a no-op."),
+            Severity::Warning,
+        )];
     }
     // `string insert` clamps other overshoots; only `string index`
     // flags an in-bounds miss.
@@ -974,16 +963,15 @@ fn string_single_index(
         && let Some(resolved) = resolve_index(stripped, len)
         && !(0..len).contains(&resolved)
     {
-        return vec![Diagnostic {
-            code: DiagCode::W232,
-            span: idx_tok.span,
-            message: format!(
+        return vec![Diagnostic::new(
+            DiagCode::W232,
+            idx_tok.span,
+            format!(
                 "string index: '{stripped}' {}; returns empty string.",
                 describe_index_string(resolved, len)
             ),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        }];
+            Severity::Warning,
+        )];
     }
     Vec::new()
 }
@@ -1019,16 +1007,15 @@ fn string_pair_index(
     ) && f < 0
         && l < 0
     {
-        return vec![Diagnostic {
-            code: DiagCode::W232,
+        return vec![Diagnostic::new(
+            DiagCode::W232,
             span,
-            message: format!(
+            format!(
                 "string {sub}: both indices are negative ('{first_text}', '{last_text}'); \
                      {verb}."
             ),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        }];
+            Severity::Warning,
+        )];
     }
     let Some(len) = str_len else {
         return Vec::new();
@@ -1042,17 +1029,16 @@ fn string_pair_index(
     if !pair_slice_empty(first_val, last_val, len) {
         return Vec::new();
     }
-    vec![Diagnostic {
-        code: DiagCode::W232,
+    vec![Diagnostic::new(
+        DiagCode::W232,
         span,
-        message: format!(
+        format!(
             "string {sub}: {verb}: first='{first_text}' resolves to {first_val}, \
              last='{last_text}' resolves to {last_val} (string has {len} character{}).",
             if len == 1 { "" } else { "s" }
         ),
-        severity: Severity::Warning,
-        fixes: Vec::new(),
-    }]
+        Severity::Warning,
+    )]
 }
 
 /// Human-readable description of a resolved out-of-range string index.

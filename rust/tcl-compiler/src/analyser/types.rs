@@ -102,6 +102,36 @@ pub struct Diagnostic {
     pub fixes: Vec<CodeFix>,
 }
 
+impl Diagnostic {
+    /// A diagnostic anchored at `span` carrying `code`, `message`, and
+    /// `severity`, with no suggested fix — the common case. Chain
+    /// [`Self::with_fix`] / [`Self::with_fixes`] to attach quick-fixes.
+    #[must_use]
+    pub fn new(code: DiagCode, span: Span, message: impl Into<String>, severity: Severity) -> Self {
+        Self {
+            code,
+            span,
+            message: message.into(),
+            severity,
+            fixes: Vec::new(),
+        }
+    }
+
+    /// Attach one suggested [`CodeFix`], keeping any already present.
+    #[must_use]
+    pub fn with_fix(mut self, fix: CodeFix) -> Self {
+        self.fixes.push(fix);
+        self
+    }
+
+    /// Attach the suggested [`CodeFix`] list, replacing any already set.
+    #[must_use]
+    pub fn with_fixes(mut self, fixes: Vec<CodeFix>) -> Self {
+        self.fixes = fixes;
+        self
+    }
+}
+
 /// One same-file user-call arity candidate, buffered during the command
 /// walk for post-walk resolution against same-file procs / `TclOO`
 /// forwards / `interp alias` / static `rename` targets — the set the

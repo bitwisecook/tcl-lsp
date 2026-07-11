@@ -375,13 +375,8 @@ impl Analyser {
                 });
             }
         }
-        super::types::Diagnostic {
-            code: DiagCode::W308,
-            span,
-            message,
-            severity: Severity::Warning,
-            fixes,
-        }
+        super::types::Diagnostic::new(DiagCode::W308, span, message, Severity::Warning)
+            .with_fixes(fixes)
     }
 
     /// **E001** (`TclOO` form) — `$obj` invoked with no method word at all.
@@ -425,13 +420,12 @@ impl Analyser {
         if !all_tcloo {
             return None;
         }
-        Some(super::types::Diagnostic {
-            code: DiagCode::E001,
-            span: site.cmd_span,
-            message: format!("'{}' requires a method", site.var_name),
-            severity: Severity::Error,
-            fixes: Vec::new(),
-        })
+        Some(super::types::Diagnostic::new(
+            DiagCode::E001,
+            site.cmd_span,
+            format!("'{}' requires a method", site.var_name),
+            Severity::Error,
+        ))
     }
 
     /// Check a resolved `$obj method …` dispatch's argument count
@@ -954,13 +948,12 @@ impl Analyser {
 
             // **W307 path.**  Variable not a known Object.
             if !self.w307_site_suppressed(site, &w307_ctx) {
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W307,
-                    span: site.cmd_span,
-                    message: "Non-literal command name — cannot statically analyze".to_string(),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                self.result.diagnostics.push(super::types::Diagnostic::new(
+                    DiagCode::W307,
+                    site.cmd_span,
+                    "Non-literal command name — cannot statically analyze".to_string(),
+                    Severity::Warning,
+                ));
             }
         }
         // Restore the sites list — snapshot/restore expects it
@@ -1040,13 +1033,12 @@ impl Analyser {
                     self.oo_self_method_returns_literal(site.cmd_span.start(), method)
                 });
                 if returns_literal {
-                    self.result.diagnostics.push(super::types::Diagnostic {
-                        code: DiagCode::W307,
-                        span: site.cmd_span,
-                        message: "Non-literal command name — cannot statically analyze".to_string(),
-                        severity: Severity::Warning,
-                        fixes: Vec::new(),
-                    });
+                    self.result.diagnostics.push(super::types::Diagnostic::new(
+                        DiagCode::W307,
+                        site.cmd_span,
+                        "Non-literal command name — cannot statically analyze".to_string(),
+                        Severity::Warning,
+                    ));
                 }
                 continue;
             }
@@ -1116,13 +1108,12 @@ impl Analyser {
 
             // Type is unknown — emit W307 (only the emit-half
             // for the residual unknown-type case).
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W307,
-                span: site.cmd_span,
-                message: "Non-literal command name — cannot statically analyze".to_string(),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+            self.result.diagnostics.push(super::types::Diagnostic::new(
+                DiagCode::W307,
+                site.cmd_span,
+                "Non-literal command name — cannot statically analyze".to_string(),
+                Severity::Warning,
+            ));
         }
         self.cmd_command_sites = cmd_sites;
     }
@@ -1164,15 +1155,12 @@ impl Analyser {
             |sub: Option<&String>| matches!(sub.map(String::as_str), Some("new" | "create"));
         let mut diags: Vec<super::types::Diagnostic> = Vec::new();
         let mut flag = |span: tcl_lexer::Span, class: &str| {
-            diags.push(super::types::Diagnostic {
-                code: DiagCode::W250,
+            diags.push(super::types::Diagnostic::new(
+                DiagCode::W250,
                 span,
-                message: format!(
-                    "Instantiating abstract class '{class}' — use a concrete subclass"
-                ),
-                severity: super::types::Severity::Warning,
-                fixes: Vec::new(),
-            });
+                format!("Instantiating abstract class '{class}' — use a concrete subclass"),
+                super::types::Severity::Warning,
+            ));
         };
         let units = std::iter::once(&cu.top_level)
             .chain(cu.procedures.values())

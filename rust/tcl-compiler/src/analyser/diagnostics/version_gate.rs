@@ -197,13 +197,7 @@ impl Analyser {
                     ),
                 ),
             };
-            new_diags.push(Diagnostic {
-                code,
-                span: site.span,
-                message,
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+            new_diags.push(Diagnostic::new(code, site.span, message, Severity::Warning));
         }
         self.result.diagnostics.extend(new_diags);
     }

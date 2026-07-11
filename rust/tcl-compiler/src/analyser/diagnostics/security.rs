@@ -153,15 +153,14 @@ impl Analyser {
             return;
         }
         let span = cmd_tok.span;
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W302,
+        self.result.diagnostics.push(super::types::Diagnostic::new(
+            DiagCode::W302,
             span,
-            message: "catch without a result variable silently swallows errors. \
+            "catch without a result variable silently swallows errors. \
 Consider capturing the result: catch {\u{2026}} result"
                 .to_string(),
-            severity: Severity::Hint,
-            fixes: Vec::new(),
-        });
+            Severity::Hint,
+        ));
     }
 
     /// **W101.** Emit "eval with string concatenation" warning
@@ -260,16 +259,18 @@ Consider capturing the result: catch {\u{2026}} result"
         // Only offered when the substituted word is itself the quoted string
         // (`eval_list_fix` returns empty otherwise).
         let fixes = self.eval_list_fix(anchor);
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W101,
-            span: anchor.span,
-            message: format!(
-                "{cmd_name} with substituted arguments risks code injection. \
+        self.result.diagnostics.push(
+            super::types::Diagnostic::new(
+                DiagCode::W101,
+                anchor.span,
+                format!(
+                    "{cmd_name} with substituted arguments risks code injection. \
 Prefer direct invocation or {{*}}$cmdList to preserve argument boundaries."
-            ),
-            severity: Severity::Warning,
-            fixes,
-        });
+                ),
+                Severity::Warning,
+            )
+            .with_fixes(fixes),
+        );
     }
 
     /// Build the `eval [list …]` rewrite fix for a W101 diagnostic whose
@@ -486,16 +487,15 @@ word as one argument; no re-parsing)"
             if self.resolve_var_token_literal(tok).is_some() {
                 return;
             }
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W300,
-                span: tok.span,
-                message: format!(
+            self.result.diagnostics.push(super::types::Diagnostic::new(
+                DiagCode::W300,
+                tok.span,
+                format!(
                     "{cmd_name} with a dynamic path (variable or command substitution) \
 executes arbitrary Tcl code. Ensure the path is not influenced by untrusted input."
                 ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+                Severity::Warning,
+            ));
         }
     }
 
@@ -522,17 +522,16 @@ executes arbitrary Tcl code. Ensure the path is not influenced by untrusted inpu
                 continue;
             };
             if self.inner_head_performs_substitution(inner) {
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W309,
-                    span: tok.span,
-                    message: format!(
+                self.result.diagnostics.push(super::types::Diagnostic::new(
+                    DiagCode::W309,
+                    tok.span,
+                    format!(
                         "{cmd_name} with [subst] creates double substitution: \
 subst expands $var and [cmd], then {cmd_name} re-parses the result as Tcl. \
 This is a code-injection risk. Use [format] or [string map] for safe templating."
                     ),
-                    severity: Severity::Error,
-                    fixes: Vec::new(),
-                });
+                    Severity::Error,
+                ));
                 break;
             }
         }
@@ -568,16 +567,15 @@ This is a code-injection risk. Use [format] or [string map] for safe templating.
         if remaining.len() > 1 {
             // Multiple args = concat behaviour = danger.
             if self.args_have_substitution(arg_tokens, arg_single) {
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W301,
-                    span: remaining_toks[0].span,
-                    message: format!(
+                self.result.diagnostics.push(super::types::Diagnostic::new(
+                    DiagCode::W301,
+                    remaining_toks[0].span,
+                    format!(
                         "{cmd_name} with multiple arguments concatenates them into \
 a script (like eval). Use a single braced body or {{*}}$cmdList to avoid injection."
                     ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                    Severity::Warning,
+                ));
             }
         } else if let Some(tok) = remaining_toks.first() {
             // Single arg — unbraced + substituted (and not [list …]).
@@ -597,16 +595,15 @@ a script (like eval). Use a single braced body or {{*}}$cmdList to avoid injecti
                 return;
             }
             if self.args_have_substitution(arg_tokens, arg_single) {
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W301,
-                    span: tok.span,
-                    message: format!(
+                self.result.diagnostics.push(super::types::Diagnostic::new(
+                    DiagCode::W301,
+                    tok.span,
+                    format!(
                         "{cmd_name} with an unbraced script argument may cause \
 double substitution. Use braces: {cmd_name} 1 {{...}}"
                     ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                    Severity::Warning,
+                ));
             }
         }
     }
@@ -643,16 +640,15 @@ double substitution. Use braces: {cmd_name} 1 {{...}}"
         // concatenates them, like `eval`.
         if concatenates && script_args.len() > 1 {
             if self.args_have_substitution(arg_tokens, arg_single) {
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W312,
-                    span: script_toks[0].span,
-                    message: format!(
+                self.result.diagnostics.push(super::types::Diagnostic::new(
+                    DiagCode::W312,
+                    script_toks[0].span,
+                    format!(
                         "{cmd_name} {sub_name} with multiple arguments concatenates \
 them into a script (like eval). Use a single braced body to avoid injection."
                     ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                    Severity::Warning,
+                ));
             }
             return;
         }
@@ -662,16 +658,15 @@ them into a script (like eval). Use a single braced body to avoid injection."
             return;
         }
         if self.args_have_substitution(arg_tokens, arg_single) {
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W312,
-                span: tok.span,
-                message: format!(
+            self.result.diagnostics.push(super::types::Diagnostic::new(
+                DiagCode::W312,
+                tok.span,
+                format!(
                     "{cmd_name} {sub_name} with an unbraced script argument may \
 cause code injection. Use braces: {cmd_name} {sub_name} $child {{...}}"
                 ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+                Severity::Warning,
+            ));
         }
     }
 
@@ -773,13 +768,12 @@ cause code injection. Use braces: {cmd_name} {sub_name} $child {{...}}"
 scope, or use [format] / [string map] for safe templating.",
             mitigations.join(" ")
         );
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W102,
-            span: tok.span,
+        self.result.diagnostics.push(super::types::Diagnostic::new(
+            DiagCode::W102,
+            tok.span,
             message,
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        });
+            Severity::Warning,
+        ));
     }
 
     /// **W103.** Emit "open with a pipeline" when `open`'s first
@@ -832,13 +826,12 @@ Ensure the command is not influenced by untrusted input."
                     ),
                 )
             };
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W103,
-                span: tok.span,
+            self.result.diagnostics.push(super::types::Diagnostic::new(
+                DiagCode::W103,
+                tok.span,
                 message,
                 severity,
-                fixes: Vec::new(),
-            });
+            ));
         } else if matches!(
             tok.kind,
             tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
@@ -851,32 +844,30 @@ Ensure the command is not influenced by untrusted input."
             // argument stays a Warning (it may resolve to a `|`-pipeline).
             if let Some(literal) = self.resolve_var_token_literal(tok) {
                 if literal.starts_with('|') {
-                    self.result.diagnostics.push(super::types::Diagnostic {
-                        code: DiagCode::W103,
-                        span: tok.span,
-                        message: format!(
+                    self.result.diagnostics.push(super::types::Diagnostic::new(
+                        DiagCode::W103,
+                        tok.span,
+                        format!(
                             "{cmd_name} with a pipeline (\"|\") executes an external command. \
 Ensure the command is not influenced by untrusted input."
                         ),
-                        severity: Severity::Hint,
-                        fixes: Vec::new(),
-                    });
+                        Severity::Hint,
+                    ));
                 }
                 return;
             }
             // A `$var` or `[cmd]`-computed first argument is equally dynamic —
             // either may resolve to a `|`-prefixed pipeline.
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W103,
-                span: tok.span,
-                message: format!(
+            self.result.diagnostics.push(super::types::Diagnostic::new(
+                DiagCode::W103,
+                tok.span,
+                format!(
                     "{cmd_name} with a dynamic argument (variable or command substitution): \
 if the value starts with \"|\", it will execute a command pipeline. Validate input \
 or use explicit I/O commands."
                 ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+                Severity::Warning,
+            ));
         }
     }
 
@@ -908,16 +899,15 @@ or use explicit I/O commands."
         // `(a|a)+`.
         for (pattern, tok) in patterns {
             if has_redos_shape(&pattern) {
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W303,
-                    span: tok.span,
-                    message: "Regular expression may be vulnerable to catastrophic \
+                self.result.diagnostics.push(super::types::Diagnostic::new(
+                    DiagCode::W303,
+                    tok.span,
+                    "Regular expression may be vulnerable to catastrophic \
 backtracking (ReDoS). Nested quantifiers like (a+)+ can cause exponential \
 matching time on crafted input."
                         .to_string(),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                    Severity::Warning,
+                ));
             }
         }
     }
@@ -989,15 +979,12 @@ matching time on crafted input."
         } else {
             ". Use braces '{...}' to prevent substitution."
         };
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W306,
-            span: tok.span,
-            message: format!(
-                "Literal expected in {cmd_name} pattern \u{2014} found {found}{advice}"
-            ),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        });
+        self.result.diagnostics.push(super::types::Diagnostic::new(
+            DiagCode::W306,
+            tok.span,
+            format!("Literal expected in {cmd_name} pattern \u{2014} found {found}{advice}"),
+            Severity::Warning,
+        ));
     }
 
     /// **W127.** A literal at a closed-value argument index is not in the
@@ -1062,13 +1049,15 @@ matching time on crafted input."
             }
         }
         for hit in hits {
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W127,
-                span: hit.span,
-                message: hit.message,
-                severity: Severity::Warning,
-                fixes: hit.fixes,
-            });
+            self.result.diagnostics.push(
+                super::types::Diagnostic::new(
+                    DiagCode::W127,
+                    hit.span,
+                    hit.message,
+                    Severity::Warning,
+                )
+                .with_fixes(hit.fixes),
+            );
         }
     }
 
@@ -1135,13 +1124,15 @@ matching time on crafted input."
             }
         }
         for hit in hits {
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W127,
-                span: hit.span,
-                message: hit.message,
-                severity: Severity::Warning,
-                fixes: hit.fixes,
-            });
+            self.result.diagnostics.push(
+                super::types::Diagnostic::new(
+                    DiagCode::W127,
+                    hit.span,
+                    hit.message,
+                    Severity::Warning,
+                )
+                .with_fixes(hit.fixes),
+            );
         }
     }
 
@@ -1186,16 +1177,15 @@ matching time on crafted input."
                 continue;
             };
             if is_literal_credential_value(value, val_tok) {
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W310,
-                    span: val_tok.span,
-                    message: format!(
+                self.result.diagnostics.push(super::types::Diagnostic::new(
+                    DiagCode::W310,
+                    val_tok.span,
+                    format!(
                         "Hardcoded credential in {text} argument. Store secrets in \
 environment variables or a vault, not in source code."
                     ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                    Severity::Warning,
+                ));
                 return; // one diagnostic per command
             }
         }
@@ -1222,16 +1212,15 @@ environment variables or a vault, not in source code."
                         (args.get(cred_arg), arg_tokens.get(cred_arg))
                     && is_literal_credential_value(value, val_tok)
                 {
-                    self.result.diagnostics.push(super::types::Diagnostic {
-                        code: DiagCode::W310,
-                        span: val_tok.span,
-                        message: format!(
+                    self.result.diagnostics.push(super::types::Diagnostic::new(
+                        DiagCode::W310,
+                        val_tok.span,
+                        format!(
                             "Hardcoded credential in {header_name} header value. \
 Store secrets in environment variables or a vault, not in source code."
                         ),
-                        severity: Severity::Warning,
-                        fixes: Vec::new(),
-                    });
+                        Severity::Warning,
+                    ));
                 }
             }
         }

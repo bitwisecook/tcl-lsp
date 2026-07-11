@@ -507,13 +507,12 @@ impl Analyser {
                 format!(" ({})", self.dialect)
             };
             let message = format!("Procedure '{raw_name}' shadows built-in command{dialect_label}");
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W113,
-                span: name_span,
+            self.result.diagnostics.push(super::types::Diagnostic::new(
+                DiagCode::W113,
+                name_span,
                 message,
-                severity: super::types::Severity::Warning,
-                fixes: Vec::new(),
-            });
+                super::types::Severity::Warning,
+            ));
         }
     }
 
@@ -538,14 +537,8 @@ impl Analyser {
                 continue;
             }
             let span = param_spans.get(i).copied().unwrap_or(fallback_tok.span);
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W218,
-                span,
-                message: "`args` here is an ordinary parameter — it only has its special                           collect-the-rest meaning as the final parameter. Move it last, or                           rename it if a plain parameter is intended."
-                    .to_string(),
-                severity: super::types::Severity::Warning,
-                fixes: Vec::new(),
-            });
+            self.result.diagnostics.push(super::types::Diagnostic::new(DiagCode::W218, span, "`args` here is an ordinary parameter — it only has its special                           collect-the-rest meaning as the final parameter. Move it last, or                           rename it if a plain parameter is intended."
+                    .to_string(), super::types::Severity::Warning));
         }
     }
 

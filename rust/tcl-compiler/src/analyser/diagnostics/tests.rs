@@ -790,13 +790,7 @@ fn body_references_param_namespace_qualified() {
 }
 
 fn diag(code: DiagCode, span: Span, msg: &str) -> Diagnostic {
-    Diagnostic {
-        code,
-        span,
-        message: msg.to_string(),
-        severity: Severity::Warning,
-        fixes: Vec::new(),
-    }
+    Diagnostic::new(code, span, msg.to_string(), Severity::Warning)
 }
 
 #[test]

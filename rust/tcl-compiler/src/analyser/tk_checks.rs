@@ -165,15 +165,12 @@ impl Analyser {
             // always exists, so it is never flagged.
             let parent = parent_widget_path(path);
             if !parent.is_empty() && parent != "." && !self.tk_created_widgets.contains(parent) {
-                self.tk_pending_diags.push(Diagnostic {
-                    code: DiagCode::Tk1002,
-                    span: cmd_tok.span,
-                    message: format!(
-                        "Widget path '{path}' references non-existent parent '{parent}'."
-                    ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                self.tk_pending_diags.push(Diagnostic::new(
+                    DiagCode::Tk1002,
+                    cmd_tok.span,
+                    format!("Widget path '{path}' references non-existent parent '{parent}'."),
+                    Severity::Warning,
+                ));
             }
 
             // TK1003: unknown option for the widget command.
@@ -261,13 +258,9 @@ impl Analyser {
                     description: format!("Replace with '{best}'"),
                 });
             }
-            self.tk_pending_diags.push(Diagnostic {
-                code: DiagCode::Tk1003,
-                span,
-                message,
-                severity: Severity::Hint,
-                fixes,
-            });
+            self.tk_pending_diags.push(
+                Diagnostic::new(DiagCode::Tk1003, span, message, Severity::Hint).with_fixes(fixes),
+            );
         }
     }
 
@@ -298,16 +291,15 @@ impl Analyser {
         for (parent, usage) in geometry {
             if usage.managers.contains("pack") && usage.managers.contains("grid") {
                 for (_manager, span) in usage.sites {
-                    self.result.diagnostics.push(Diagnostic {
-                        code: DiagCode::Tk1001,
+                    self.result.diagnostics.push(Diagnostic::new(
+                        DiagCode::Tk1001,
                         span,
-                        message: format!(
+                        format!(
                             "Geometry manager conflict: cannot mix 'pack' and 'grid' \
                              in the same parent '{parent}'."
                         ),
-                        severity: Severity::Warning,
-                        fixes: Vec::new(),
-                    });
+                        Severity::Warning,
+                    ));
                 }
             }
         }
