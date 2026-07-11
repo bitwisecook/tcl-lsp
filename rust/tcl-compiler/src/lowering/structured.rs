@@ -699,9 +699,15 @@ impl Lowerer<'_> {
         let mut default_span = None;
 
         for (pair_idx, pair) in pairs.iter().enumerate() {
+            // A braced multi-line pattern collapses its `\<newline>`
+            // continuations to a single space, like every other braced word
+            // (`switch "a b" { {a\<nl>b} … }` must match). A no-op for the
+            // common single-line pattern (and for `default` / `-`).
+            let pattern =
+                tcl_syntax::backslash::collapse_brace_continuations_str(&pair.pattern).into_owned();
             if pair.body_text == "-" {
                 arms.push(SwitchArm {
-                    pattern: pair.pattern.clone(),
+                    pattern,
                     pattern_span: pair.pattern_span,
                     body: None,
                     body_span: None,
@@ -734,12 +740,12 @@ impl Lowerer<'_> {
                 crate::ir::Script::new()
             };
 
-            if pair.pattern == "default" && pair_idx == pairs.len() - 1 {
+            if pattern == "default" && pair_idx == pairs.len() - 1 {
                 default_body = Some(body);
                 default_span = pair.body_span;
             } else {
                 arms.push(SwitchArm {
-                    pattern: pair.pattern.clone(),
+                    pattern,
                     pattern_span: pair.pattern_span,
                     body: Some(body),
                     body_span: pair.body_span,

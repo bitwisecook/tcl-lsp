@@ -197,10 +197,17 @@ fn qualify_proc_name(namespace: &str, proc_name: &str) -> String {
     normalise_qualified_name(&format!("{namespace}::{proc_name}"))
 }
 
-/// Parse a Tcl parameter list into parameter names.
+/// Parse a Tcl parameter / variable list into its names.
+///
+/// The list is a braced word, so a `\<newline>` line continuation collapses to
+/// a single space first (the one substitution braces permit) — without it a
+/// multi-line var-list (`foreach {a b\<nl>  c} …`, a wrapped `proc` param list)
+/// would keep the `\` glued to the preceding name (`b\`) and bind the wrong
+/// variable.
 fn parse_param_names(param_str: &str) -> Vec<String> {
+    let collapsed = tcl_syntax::backslash::collapse_brace_continuations_str(param_str);
     let mut params = Vec::new();
-    let text = param_str.trim();
+    let text = collapsed.trim();
     let bytes = text.as_bytes();
     let mut i = 0;
 

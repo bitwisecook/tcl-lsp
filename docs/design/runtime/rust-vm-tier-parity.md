@@ -26,14 +26,14 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 **VM P/S/F**. Grouped by the capability ladder
 ([`tcl-test-tiers.md`](tcl-test-tiers.md)).
 
-**Tally: 28 MATCH · 58 gap · 13 crash · 2 timeout** of 101 stems.
+**Tally: 29 MATCH · 59 gap · 11 crash · 2 timeout** of 101 stems.
 
 ## Tier 1 — Parsing
 
 | stem | C P/S/F | VM P/S/F | status |
 |---|---|---|---|
 | parse | 90/181/0 | 68/181/22 | gap |
-| parseOld | 158/0/0 | 149/0/9 | gap |
+| parseOld | 158/0/0 | 151/0/7 | gap |
 | parseExpr | 67/219/0 | 3/219/64 | gap |
 | word | 55/0/0 | 55/0/0 | MATCH |
 | subst | 62/1/0 | 54/1/8 | gap |
@@ -73,7 +73,7 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 | resolver | 0/10/0 | 0/10/0 | MATCH |
 | trace | 273/17/0 | 121/17/152 | gap |
 | rename | 11/8/0 | 10/8/1 | gap |
-| info | 282/5/0 | 105/6/176 | gap |
+| info | 282/5/0 | 106/6/175 | gap |
 | cmdInfo | 0/12/0 | 0/12/0 | MATCH |
 | indexObj | 0/65/0 | 0/65/0 | MATCH |
 | chan | 42/0/0 | 0/0/42 | gap |
@@ -86,7 +86,7 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 | abstractlist | 0/123/0 | 0/123/0 | MATCH |
 | assocd | 0/11/0 | 0/11/0 | MATCH |
 | concat | 9/0/0 | 9/0/0 | MATCH |
-| dict | 367/6/0 | ERROR | CRASH |
+| dict | 367/6/0 | 324/6/43 | gap |
 | dstring | 0/46/0 | 0/46/0 | MATCH |
 | format | 269/0/0 | 239/0/30 | gap |
 | join | 10/0/0 | 10/0/0 | MATCH |
@@ -99,10 +99,10 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 | lmap | 66/0/0 | 55/0/11 | gap |
 | lpop | 17/2/0 | 17/2/0 | MATCH |
 | lrange | 1764/2/0 | 1760/2/4 | gap |
-| lrepeat | 11/1/0 | 4/1/7 | gap |
+| lrepeat | 11/1/0 | 11/1/0 | MATCH |
 | lreplace | 3579/0/0 | 3579/0/0 | MATCH |
 | lsearch | 165/0/0 | 165/0/0 | MATCH |
-| lseq | 131/5/0 | 86/6/44 | gap |
+| lseq | 131/5/0 | 90/6/40 | gap |
 | lset | 0/89/0 | 0/89/0 | MATCH |
 | range | ERROR | ERROR | CRASH |
 | reg | 34/1107/0 | 32/1107/2 | gap |
@@ -123,7 +123,7 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 | error | 309/8/0 | 301/8/8 | gap |
 | expr | 2137/31/0 | TIMEOUT | TIMEOUT |
 | expr-old | 430/31/0 | 394/31/36 | gap |
-| for | 64/24/0 | 57/24/7 | gap |
+| for | 64/24/0 | 58/24/6 | gap |
 | for-old | 9/0/0 | 8/0/1 | gap |
 | foreach | 43/0/0 | 37/0/6 | gap |
 | if | 73/0/0 | 71/0/2 | gap |
@@ -150,13 +150,13 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 
 | stem | C P/S/F | VM P/S/F | status |
 |---|---|---|---|
-| source | 23/0/0 | ERROR | CRASH |
+| source | 23/0/0 | 10/0/13 | gap |
 
 ## Tier 8 — Interpreters
 
 | stem | C P/S/F | VM P/S/F | status |
 |---|---|---|---|
-| interp | 341/14/0 | 172/15/168 | gap |
+| interp | 341/14/0 | 173/15/167 | gap |
 | safe | 147/8/0 | 3/8/144 | gap |
 | safe-stock | 11/0/0 | 0/0/11 | gap |
 | safe-stock86 | ERROR | ERROR | CRASH |

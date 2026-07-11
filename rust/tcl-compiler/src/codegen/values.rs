@@ -53,16 +53,24 @@ impl CodegenCtx<'_> {
     }
 
     /// Push a *verbatim* literal — a braced / constant word that the VM must
-    /// push exactly as-is, suppressing runtime word substitution. The literal
-    /// bytes are identical to [`push_lit`]; only the out-of-band
-    /// `push_verbatim` flag differs, so disassembly stays byte-stable.
+    /// push exactly as-is, suppressing runtime word substitution. Apart from the
+    /// brace-word `\<newline>` continuation collapse below, the literal bytes
+    /// match [`push_lit`]; only the out-of-band `push_verbatim` flag differs, so
+    /// disassembly stays byte-stable.
     pub fn push_lit_verbatim(&mut self, value: &str) {
-        let idx = self.literals.intern(value);
+        // A braced word's value collapses `\<newline>` continuations even inside
+        // braces (the one substitution braces permit); every other backslash
+        // stays verbatim. Only a braced word — or a bare constant, for which
+        // this is a borrow-only no-op — reaches this verbatim path (a bare word
+        // separates on the continuation; a quoted word is `backslash_subst`-
+        // decoded through `push_lit`), so collapsing here is safe.
+        let value = tcl_syntax::backslash::collapse_brace_continuations_str(value);
+        let idx = self.literals.intern(&value);
         let op = if idx < 256 { Op::PUSH1 } else { Op::PUSH4 };
         let pos = self.emit_comment(
             op,
             vec![Operand::Imm(bytecode_imm(idx))],
-            &format!("\"{}\"", esc(value, 40)),
+            &format!("\"{}\"", esc(&value, 40)),
         );
         self.instructions[pos].push_verbatim = true;
     }
