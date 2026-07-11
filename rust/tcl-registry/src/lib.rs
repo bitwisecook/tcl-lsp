@@ -108,7 +108,8 @@ pub mod prelude {
         VersionedConstFoldFn, WasmCodegenHookId,
     };
     pub use crate::hover::{
-        ArgValue, FormKind, FormSpec, HoverSnippet, OptionArg, OptionArity, OptionSpec, OptionValue,
+        ArgValue, FormKind, FormSpec, HoverSnippet, OptionArg, OptionArity, OptionSpec,
+        OptionValue, first_positional_index,
     };
     pub use crate::patterns::{FormatType, PatternType};
     pub use crate::scoped::{ScopedCommand, ScopedCommandEnv};
@@ -136,7 +137,7 @@ pub use dialects::{
     DETECT_SCAN_BYTES, KNOWN_DIALECTS, available_dialects, detect_dialect,
     detect_dialect_directive, detect_dialect_from_source, dialect_from_extension,
 };
-pub use hover::ArgValue;
+pub use hover::{ArgValue, first_positional_index};
 pub use patterns::{FormatType, PatternType};
 pub use registry::{CommandRegistry, ResolvedCall, ResolvedTerminator};
 pub use spec::{

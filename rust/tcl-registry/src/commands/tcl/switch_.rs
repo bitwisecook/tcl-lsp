@@ -32,32 +32,76 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "switch ?options? string pattern body ?pattern body ...?",
 }];
 
-/// Options that consume a following value argument.
-const SWITCH_VALUE_OPTIONS: &[&str] = &["-matchvar", "-indexvar"];
+/// `switch` switches. `-matchvar`/`-indexvar` consume a following `varName`;
+/// the rest are boolean flags. Single source of truth for both `spec()` and
+/// [`switch_arg_roles`] — the value-arity lives here, not in a parallel list.
+const SWITCH_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-exact",
+        value: OptionValue::flag(),
+        detail: "Exact string compare mode.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-glob",
+        value: OptionValue::flag(),
+        detail: "Glob pattern mode.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-regexp",
+        value: OptionValue::flag(),
+        detail: "Regular expression mode.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-nocase",
+        value: OptionValue::flag(),
+        detail: "Case-insensitive matching.",
+        dialects: Some(DialectSet::TCL85_PLUS),
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-matchvar",
+        value: OptionValue::value("varName"),
+        detail: "Store match in variable (regexp mode).",
+        dialects: Some(DialectSet::TCL85_PLUS),
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-indexvar",
+        value: OptionValue::value("varName"),
+        detail: "Store match indices in variable (regexp mode).",
+        dialects: Some(DialectSet::TCL85_PLUS),
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "--",
+        value: OptionValue::flag(),
+        detail: "End of options.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
 
 /// Dynamic arg role resolver for `switch`.
 ///
 /// Skips option flags (including value-consuming options like
-/// `-matchvar`/`-indexvar`), then identifies pattern/body pairs
-/// or a single braced-list body.
+/// `-matchvar`/`-indexvar`, whose arity comes from [`SWITCH_OPTIONS`]), then
+/// identifies pattern/body pairs or a single braced-list body.
 fn switch_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let mut i: usize = 0;
-    // Skip option flags.
-    while i < args.len() {
-        let a = args[i];
-        if a == "--" {
-            i += 1;
-            break;
-        }
-        if !a.starts_with('-') {
-            break;
-        }
-        if SWITCH_VALUE_OPTIONS.contains(&a) {
-            i += 2;
-        } else {
-            i += 1;
-        }
-    }
+    // Skip leading switches via the shared, arity-aware scanner.
+    let mut i = first_positional_index(SWITCH_OPTIONS, args, 0);
     // Skip switch value.
     if i < args.len() {
         i += 1;
@@ -105,66 +149,7 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver: Some(switch_arg_roles),
         lowering_hook: Some(crate::hooks::LoweringHookId::Switch),
         return_type: Some(TclType::String),
-        options: const {
-            &[
-                OptionSpec {
-                    name: "-exact",
-                    value: OptionValue::flag(),
-                    detail: "Exact string compare mode.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-glob",
-                    value: OptionValue::flag(),
-                    detail: "Glob pattern mode.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-regexp",
-                    value: OptionValue::flag(),
-                    detail: "Regular expression mode.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-nocase",
-                    value: OptionValue::flag(),
-                    detail: "Case-insensitive matching.",
-                    dialects: Some(DialectSet::TCL85_PLUS),
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-matchvar",
-                    value: OptionValue::value("varName"),
-                    detail: "Store match in variable (regexp mode).",
-                    dialects: Some(DialectSet::TCL85_PLUS),
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "-indexvar",
-                    value: OptionValue::value("varName"),
-                    detail: "Store match indices in variable (regexp mode).",
-                    dialects: Some(DialectSet::TCL85_PLUS),
-                    aliases: &[],
-                    min_version: None,
-                },
-                OptionSpec {
-                    name: "--",
-                    value: OptionValue::flag(),
-                    detail: "End of options.",
-                    dialects: None,
-                    aliases: &[],
-                    min_version: None,
-                },
-            ]
-        },
+        options: SWITCH_OPTIONS,
         hover: Some(HoverSnippet {
             summary: "Pattern-based branching on a subject string.",
             synopsis: &[

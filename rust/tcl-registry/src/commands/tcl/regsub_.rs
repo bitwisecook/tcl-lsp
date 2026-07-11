@@ -33,22 +33,9 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// static slot cannot place it).  Omitting `varName` (Tcl 8.7+/9 returns the
 /// substituted string instead) simply yields no `VarWrite` index.
 fn regsub_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let mut i = 0;
-    while i < args.len() {
-        let a = args[i];
-        if a == "--" {
-            i += 1;
-            break;
-        }
-        if a.starts_with('-') {
-            i += 1;
-            if a == "-start" && i < args.len() {
-                i += 1;
-            }
-            continue;
-        }
-        break;
-    }
+    // Leading switches (`-start` consumes a value; `--` terminates) are skipped
+    // via the shared, arity-aware scanner driven by `OPTIONS`.
+    let i = first_positional_index(OPTIONS, args, 0);
     // exp (i), string (i+1), subSpec (i+2), varName (i+3).
     let var_idx = i + 3;
     (var_idx < args.len())
@@ -73,19 +60,21 @@ fn regsub_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
             i += 1;
             break;
         }
-        if a.starts_with('-') {
-            // `-command` and its unambiguous abbreviations (`-c`..`-comman`);
-            // no other regsub switch begins with `-c`.
-            if a.len() >= 2 && "-command".starts_with(a) {
-                has_command = true;
-            }
-            i += 1;
-            if a == "-start" && i < args.len() {
-                i += 1;
-            }
-            continue;
+        if !a.starts_with('-') {
+            break;
         }
-        break;
+        // `-command` and its unambiguous abbreviations (`-c`..`-comman`); no
+        // other regsub switch begins with `-c`. Checked on the *option* word
+        // before advancing, so a following value word is never misread.
+        if a.len() >= 2 && "-command".starts_with(a) {
+            has_command = true;
+        }
+        // Skip the switch and the value word(s) it consumes — arity sourced
+        // from the registry `OPTIONS` (no re-hardcoded `-start`).
+        i += 1 + OPTIONS
+            .iter()
+            .find(|o| o.matches(a))
+            .map_or(0, |o| o.value_word_count(args, i));
     }
     let sub_idx = i + 2;
     if has_command && sub_idx < args.len() {

@@ -457,6 +457,50 @@ impl OptionSpec {
     }
 }
 
+/// Index of the first positional argument in `args`, scanning from `scan_start`.
+///
+/// Skips the leading option words of a command whose options are `options`:
+///
+/// * a `--` terminator is consumed and scanning stops (the next word is the
+///   first positional);
+/// * a recognised option (canonical name or alias, via [`OptionSpec::matches`])
+///   is skipped along with the value word(s) it consumes at that position —
+///   arity-aware via [`OptionSpec::value_word_count`], so a value that itself
+///   looks like a flag (`-start -3`) is not re-scanned;
+/// * an unrecognised `-word` is treated as a value-less flag (skip one word),
+///   matching the leading-option-skip convention shared by the analyser and
+///   semantic-token loops;
+/// * the first word that does not start with `-` ends the scan.
+///
+/// This is the single source of the "where do a command's leading options end"
+/// logic — every `arg_role_resolver` and pattern-position loop routes through
+/// it rather than re-hardcoding which options take a value. Returns `args.len()`
+/// when every word is an option (no positional present).
+#[must_use]
+pub fn first_positional_index<S: AsRef<str>>(
+    options: &[OptionSpec],
+    args: &[S],
+    scan_start: usize,
+) -> usize {
+    let mut i = scan_start;
+    while i < args.len() {
+        let word = args[i].as_ref();
+        if !word.starts_with('-') {
+            break;
+        }
+        if word == "--" {
+            i += 1;
+            break;
+        }
+        let value_words = options
+            .iter()
+            .find(|o| o.matches(word))
+            .map_or(0, |o| o.value_word_count(args, i));
+        i += 1 + value_words;
+    }
+    i
+}
+
 /// Completion / hover metadata for a single enumerable
 /// positional-argument value.
 ///
@@ -549,5 +593,76 @@ mod tests {
             min_version: None,
         };
         assert!(opt.supports_dialect(None, Some(DialectSet::TCL90)));
+    }
+
+    /// A `regexp`/`regsub`-shaped option table: `-start` takes an index value,
+    /// the rest are boolean flags, and `--` terminates.
+    const REGEXP_LIKE: &[OptionSpec] = &[
+        OptionSpec {
+            name: "-nocase",
+            ..OptionSpec::DEFAULT
+        },
+        OptionSpec {
+            name: "-all",
+            ..OptionSpec::DEFAULT
+        },
+        OptionSpec {
+            name: "-start",
+            value: OptionValue::value("index"),
+            ..OptionSpec::DEFAULT
+        },
+        OptionSpec {
+            name: "--",
+            ..OptionSpec::DEFAULT
+        },
+    ];
+
+    #[test]
+    fn first_positional_index_skips_flags_and_value_words() {
+        // No options → arg 0 is the first positional.
+        assert_eq!(first_positional_index(REGEXP_LIKE, &["exp", "str"], 0), 0);
+        // Boolean flags skip one word each.
+        assert_eq!(
+            first_positional_index(REGEXP_LIKE, &["-nocase", "-all", "exp", "str"], 0),
+            2
+        );
+        // `-start` consumes its value word — the value is *not* counted as the
+        // pattern (the ISSUE_022 regression: name-only skips got this wrong).
+        assert_eq!(
+            first_positional_index(REGEXP_LIKE, &["-start", "3", "exp", "str"], 0),
+            2
+        );
+        // Mixed flags plus a value-taking option.
+        assert_eq!(
+            first_positional_index(REGEXP_LIKE, &["-nocase", "-start", "3", "exp"], 0),
+            3
+        );
+    }
+
+    #[test]
+    fn first_positional_index_handles_terminator_and_edges() {
+        // `--` is consumed; the next word is the first positional even if it
+        // looks like a flag.
+        assert_eq!(
+            first_positional_index(REGEXP_LIKE, &["-nocase", "--", "-weird", "str"], 0),
+            2
+        );
+        // A `-start`-looking value after `--` is a positional, not an option.
+        assert_eq!(first_positional_index(REGEXP_LIKE, &["--", "-start"], 0), 1);
+        // Unrecognised `-word` is treated as a value-less flag.
+        assert_eq!(
+            first_positional_index(REGEXP_LIKE, &["-mystery", "exp"], 0),
+            1
+        );
+        // Every word an option → returns the length (no positional).
+        assert_eq!(
+            first_positional_index(REGEXP_LIKE, &["-nocase", "-all"], 0),
+            2
+        );
+        // `scan_start` skips a leading subcommand word.
+        assert_eq!(
+            first_positional_index(REGEXP_LIKE, &["sub", "-nocase", "exp"], 1),
+            2
+        );
     }
 }

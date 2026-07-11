@@ -1716,25 +1716,17 @@ fn insert_regex_overrides(
     head: &str,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    if !registry
-        .get(head)
-        .and_then(|s| s.pattern_type)
-        .is_some_and(|p| p == tcl_registry::patterns::PatternType::Regex)
-    {
+    let Some(spec) = registry.get(head) else {
+        return;
+    };
+    if spec.pattern_type != Some(tcl_registry::patterns::PatternType::Regex) {
         return;
     }
     let args = &seg.texts[1..];
-    let mut idx = 0;
-    while idx < args.len() && args[idx].starts_with('-') && args[idx] != "--" {
-        if args[idx] == "-start" && idx + 1 < args.len() {
-            idx += 2;
-        } else {
-            idx += 1;
-        }
-    }
-    if idx < args.len() && args[idx] == "--" {
-        idx += 1;
-    }
+    // Skip the command's leading switches (`-start` consumes a value; `--`
+    // terminates) via the shared, arity-aware scanner keyed on the registry's
+    // own option table — no re-hardcoded `-start`.
+    let idx = tcl_registry::first_positional_index(spec.options, args, 0);
     // `args[idx]` is the pattern; its whole-word span is `seg.argv[idx + 1]`
     // (argv[0] is the command head).  Sub-tokenise only the *literal*
     // fragments of the word as regex: in `"abc$var.*"` the `abc` / `.*`
