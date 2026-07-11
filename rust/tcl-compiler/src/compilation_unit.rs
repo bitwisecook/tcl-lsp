@@ -216,6 +216,30 @@ pub struct ModuleTraceFacts<'a> {
     pub has_dynamic_variable_trace: bool,
 }
 
+/// The analysis inputs threaded into a [`FunctionUnit`] build beyond the
+/// unit's own `name` / `cfg`, grouped into one parameter so the deep-build
+/// entry point stays under clippy's `too_many_arguments` ceiling — mirroring
+/// [`ModuleTraceFacts`]'s "one bundled whole-unit context" shape — and so the
+/// SSA / SCCP / type / taint passes read a single context rather than eight
+/// positional arguments.
+#[derive(Clone, Copy)]
+struct FunctionBuildInputs<'a> {
+    /// Formal parameter names (seed `[info exists]` folds and param constants).
+    params: &'a [String],
+    /// The analysis dialect's command registry.
+    registry: &'a CommandRegistry,
+    /// Known per-parameter constant folds, when the caller has them.
+    param_constants: Option<
+        &'a std::collections::HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue>,
+    >,
+    /// Classes in scope, for `OBJECT` typing of `new` / `create` calls.
+    known_classes: &'a HashSet<String>,
+    /// Extra names SCCP must treat as escaping (a top-level module fact).
+    extra_global_escaping: &'a HashSet<String>,
+    /// Whole-module variable-trace facts.
+    trace_facts: ModuleTraceFacts<'a>,
+}
+
 impl ModuleTraceFacts<'_> {
     /// No `Module` in hand (a standalone per-function build) — behaviourally
     /// identical to "nothing is traced".
@@ -308,78 +332,46 @@ impl FunctionUnit {
         known_classes: &HashSet<String>,
         trace_facts: ModuleTraceFacts<'_>,
     ) -> Self {
+        let no_extra_escaping = HashSet::new();
         Self::build_full(
             name,
             cfg,
-            params,
-            registry,
-            param_constants,
-            known_classes,
-            &HashSet::new(),
-            trace_facts,
+            FunctionBuildInputs {
+                params,
+                registry,
+                param_constants,
+                known_classes,
+                extra_global_escaping: &no_extra_escaping,
+                trace_facts,
+            },
         )
     }
 
-    /// Like [`Self::build_with_param_constants_and_classes`] but additionally
-    /// widens SCCP's escaping-set with `extra_global_escaping` — see
-    /// [`crate::sccp::sccp_with_extra_escaping`]. Only the *top-level* unit
-    /// build needs this (top-level names already live in the global frame,
-    /// so a name never `global`-declared in the top-level body itself can
-    /// still be reassigned by another procedure's own `global NAME` — see
-    /// [`crate::var_observability::scan_module_global_names`]); every other
-    /// caller goes through [`Self::build_with_param_constants_and_classes`]
-    /// with an implicit empty set and sees identical behaviour to before
-    /// this existed.
+    /// Shared body behind every `FunctionUnit` build. Takes its analysis inputs
+    /// as one [`FunctionBuildInputs`] bundle beyond `name` / `cfg`.
+    ///
+    /// The top-level unit build passes a non-empty `extra_global_escaping` —
+    /// see [`crate::sccp::sccp_with_extra_escaping`]. It widens SCCP's
+    /// escaping-set because top-level names already live in the global frame,
+    /// so a name never `global`-declared in the top-level body itself can still
+    /// be reassigned by another procedure's own `global NAME` (see
+    /// [`crate::var_observability::scan_module_global_names`]). Every
+    /// per-procedure build passes an empty set via
+    /// [`Self::build_with_param_constants_and_classes`].
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
-    pub fn build_with_param_constants_classes_and_escaping(
+    fn build_full(
         name: impl Into<String>,
         cfg: CfgFunction,
-        params: &[String],
-        registry: &CommandRegistry,
-        param_constants: Option<
-            &std::collections::HashMap<
-                (String, crate::ssa::Version),
-                crate::analyses::LatticeValue,
-            >,
-        >,
-        known_classes: &HashSet<String>,
-        extra_global_escaping: &HashSet<String>,
-        trace_facts: ModuleTraceFacts<'_>,
+        inputs: FunctionBuildInputs<'_>,
     ) -> Self {
-        Self::build_full(
-            name,
-            cfg,
+        let FunctionBuildInputs {
             params,
             registry,
             param_constants,
             known_classes,
             extra_global_escaping,
             trace_facts,
-        )
-    }
-
-    /// Shared body behind [`Self::build_with_param_constants_and_classes`] and
-    /// [`Self::build_with_param_constants_classes_and_escaping`] — the two
-    /// differ only in whether SCCP's escaping-set is widened with a
-    /// whole-module fact.
-    #[must_use]
-    #[allow(clippy::too_many_arguments)]
-    fn build_full(
-        name: impl Into<String>,
-        cfg: CfgFunction,
-        params: &[String],
-        registry: &CommandRegistry,
-        param_constants: Option<
-            &std::collections::HashMap<
-                (String, crate::ssa::Version),
-                crate::analyses::LatticeValue,
-            >,
-        >,
-        known_classes: &HashSet<String>,
-        extra_global_escaping: &HashSet<String>,
-        trace_facts: ModuleTraceFacts<'_>,
-    ) -> Self {
+        } = inputs;
         // Complexity guard (block-count half): a pathologically large body
         // would cost seconds of SSA + dataflow for near-zero findings, so skip
         // the deep analysis and flag the unit. The body-byte half is applied by
@@ -757,15 +749,17 @@ impl CompilationUnit {
         };
         let traced_variable_names: Vec<String> =
             ir_module.traced_variables.iter().cloned().collect();
-        let top_level = FunctionUnit::build_with_param_constants_classes_and_escaping(
+        let top_level = FunctionUnit::build_full(
             "::top",
             cfg_module.top_level.clone(),
-            &[],
-            registry,
-            None,
-            &known_class_set,
-            &top_level_extra_escaping,
-            trace_facts,
+            FunctionBuildInputs {
+                params: &[],
+                registry,
+                param_constants: None,
+                known_classes: &known_class_set,
+                extra_global_escaping: &top_level_extra_escaping,
+                trace_facts,
+            },
         );
         // Module-wide upvar/param context — the CFG-determining context a
         // procedure body is rebuilt under.  Computed once and shared by every

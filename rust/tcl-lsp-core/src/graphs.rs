@@ -527,6 +527,23 @@ pub fn call_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Va
 
 // dataflow graph
 
+/// Shared, per-module context for [`collect_taint_warnings`] — identical for
+/// every function unit in the graph, so it is built once and threaded as a
+/// single argument (keeping the collector under clippy's argument ceiling).
+#[derive(Clone, Copy)]
+struct TaintWarnCtx<'a> {
+    /// The analysis dialect's command registry.
+    registry: &'a CommandRegistry,
+    /// The dialect string (drives iRules-only warning families + octal reads).
+    dialect: &'a str,
+    /// Namespace-scoped proc names that shadow builtins for their namespace.
+    shadow_proc_qnames: &'a std::collections::HashSet<&'a str>,
+    /// Whole-module variable-trace facts.
+    module_traces: tcl_compiler::compilation_unit::ModuleTraceFacts<'a>,
+    /// Byte-offset → line/column index for the source.
+    line_index: &'a LineIndex,
+}
+
 /// Aggregate every taint warning kind for one function unit into the
 /// dataflow JSON shape. Runs five families in a
 /// fixed order: sink injection, setter-constraint,
@@ -535,20 +552,22 @@ pub fn call_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Va
 /// yields a `variable` + `sink_command` (the path-concat warning is a
 /// `TaintWarning` with `sink_command="set"`; the Rust `PathConcatWarning`
 /// carries no command field, so we supply the same constant).
-#[allow(clippy::too_many_arguments)]
 fn collect_taint_warnings(
     fu: &FunctionUnit,
     taints: &std::collections::HashMap<
         tcl_compiler::ssa::ValueKey,
         tcl_compiler::taint::TaintLattice,
     >,
-    registry: &CommandRegistry,
-    dialect: &str,
-    shadow_proc_qnames: &std::collections::HashSet<&str>,
-    module_traces: tcl_compiler::compilation_unit::ModuleTraceFacts<'_>,
-    line_index: &LineIndex,
+    ctx: TaintWarnCtx<'_>,
     out: &mut Vec<Value>,
 ) {
+    let TaintWarnCtx {
+        registry,
+        dialect,
+        shadow_proc_qnames,
+        module_traces,
+        line_index,
+    } = ctx;
     let mut push = |code: &str, span: Span, message: &str, variable: &str, sink: &str| {
         out.push(json!({
             "code": code,
@@ -741,15 +760,18 @@ pub fn dataflow_graph(source: &str, registry: &CommandRegistry, dialect: &str) -
         traced_variables: &cu.ir_module.traced_variables,
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
     };
+    let taint_ctx = TaintWarnCtx {
+        registry,
+        dialect,
+        shadow_proc_qnames: &shadow_proc_qnames,
+        module_traces,
+        line_index: &line_index,
+    };
     let mut taint_warnings: Vec<Value> = Vec::new();
     collect_taint_warnings(
         &cu.top_level,
         solved.taints_for(&cu.top_level.name, &cu.top_level.taints),
-        registry,
-        dialect,
-        &shadow_proc_qnames,
-        module_traces,
-        &line_index,
+        taint_ctx,
         &mut taint_warnings,
     );
     for qname in &proc_names {
@@ -757,11 +779,7 @@ pub fn dataflow_graph(source: &str, registry: &CommandRegistry, dialect: &str) -
         collect_taint_warnings(
             fu,
             solved.taints_for(&fu.name, &fu.taints),
-            registry,
-            dialect,
-            &shadow_proc_qnames,
-            module_traces,
-            &line_index,
+            taint_ctx,
             &mut taint_warnings,
         );
     }
