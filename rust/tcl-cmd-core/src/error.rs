@@ -74,6 +74,33 @@ impl CmdError {
     }
 }
 
+/// Join `items` into a Tcl `must be …` alternation clause: `""`, `"a"`,
+/// `"a or b"` / `"a, or b"`, or `"a, b, or c"`.
+///
+/// `serial_comma` selects the dialect. C's ensemble `must be` formatter puts a
+/// comma before `or` even for two items (`a, or b`); `Tcl_GetIndexFromObj`
+/// omits it (`a or b`). For zero, one, or three-or-more items the two agree.
+/// This is the single source both spellings share — callers pass the flag
+/// rather than re-implementing (and re-diverging on) the join.
+#[must_use]
+pub fn join_or<S: AsRef<str>>(items: &[S], serial_comma: bool) -> String {
+    match items {
+        [] => String::new(),
+        [a] => a.as_ref().to_owned(),
+        [a, b] if !serial_comma => format!("{} or {}", a.as_ref(), b.as_ref()),
+        [head @ .., last] => {
+            let mut out = String::new();
+            for item in head {
+                out.push_str(item.as_ref());
+                out.push_str(", ");
+            }
+            out.push_str("or ");
+            out.push_str(last.as_ref());
+            out
+        }
+    }
+}
+
 impl core::fmt::Display for CmdError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(&self.message)
@@ -119,5 +146,23 @@ mod tests {
             r#"wrong # args: should be "x""#
         );
         assert_eq!(CmdError::new("z").into_message(), "z");
+    }
+
+    #[test]
+    fn join_or_matches_both_conventions() {
+        // Empty / single / three-plus agree regardless of the flag.
+        for serial in [true, false] {
+            assert_eq!(join_or::<&str>(&[], serial), "");
+            assert_eq!(join_or(&["a"], serial), "a");
+            assert_eq!(join_or(&["a", "b", "c"], serial), "a, b, or c");
+        }
+        // The two-item case is where the conventions diverge.
+        assert_eq!(join_or(&["a", "b"], true), "a, or b"); // ensemble spelling
+        assert_eq!(join_or(&["a", "b"], false), "a or b"); // Tcl_GetIndexFromObj
+        // Works over owned strings too (the ensemble/prefix callers).
+        assert_eq!(
+            join_or(&["x".to_string(), "y".to_string()], true),
+            "x, or y"
+        );
     }
 }

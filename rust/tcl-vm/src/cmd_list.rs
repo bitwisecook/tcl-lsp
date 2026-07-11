@@ -273,9 +273,7 @@ fn lpop_remove(
     let (first, rest) = indices.split_first().expect("lpop has at least one index");
     let spec = first.to_str();
     let Some(idx) = crate::command::resolve_index(&spec, items.len()) else {
-        return Err(err(format!(
-            "bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?"
-        )));
+        return Err(crate::command::bad_index(&spec));
     };
     if idx < 0 || usize::try_from(idx).is_ok_and(|i| i >= items.len()) {
         return Err(err(format!("index \"{spec}\" out of range")));

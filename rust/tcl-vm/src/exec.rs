@@ -481,11 +481,7 @@ fn imm_index_value(v: &Value, len: usize) -> isize {
 /// compiled path rejects `linsert a b` like the command does (linsert-2.2).
 fn checked_index_value(v: &Value, len: usize) -> Result<isize, Completion<Value>> {
     let s = v.to_str();
-    crate::command::resolve_index(&s, len).ok_or_else(|| {
-        err(format!(
-            "bad index \"{s}\": must be integer?[+-]integer? or end?[+-]integer?"
-        ))
-    })
+    crate::command::resolve_index(&s, len).ok_or_else(|| crate::command::bad_index(&s))
 }
 
 /// List element at signed index, or empty when out of range.
@@ -519,9 +515,7 @@ pub(crate) fn lset_descend(
     let len = elems.len();
     let spec_str = spec.to_str();
     let Some(idx) = crate::command::resolve_index(&spec_str, len) else {
-        return Err(err(format!(
-            "bad index \"{spec_str}\": must be integer?[+-]integer? or end?[+-]integer?"
-        )));
+        return Err(crate::command::bad_index(&spec_str));
     };
     if idx < 0 || usize::try_from(idx).unwrap_or(usize::MAX) > len {
         return Err(err(format!("index \"{spec_str}\" out of range")));
@@ -2482,11 +2476,7 @@ impl Vm {
                 let string = pop(f).to_str().to_string();
                 let chars: Vec<char> = string.chars().collect();
                 let len = chars.len();
-                let bad = |spec: &str| {
-                    err(format!(
-                        "bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?"
-                    ))
-                };
+                let bad = crate::command::bad_index;
                 let first_s = first.to_str();
                 let last_s = last.to_str();
                 let Some(from) = crate::command::resolve_index(&first_s, len) else {

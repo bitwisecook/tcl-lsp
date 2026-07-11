@@ -1015,6 +1015,14 @@ pub(crate) fn resolve_index(spec: &str, len: usize) -> Option<isize> {
     tcl_cmd_core::index::resolve_opt(spec, len).and_then(|i| isize::try_from(i).ok())
 }
 
+/// The canonical `bad index "<spec>": …` failure, sharing its wording with the
+/// [`tcl_cmd_core::index::bad_index`] single source so the VM's inline index
+/// opcodes and the `l*`/`string` commands can't drift from the message the
+/// index parser itself produces.
+pub(crate) fn bad_index(spec: &str) -> Completion<Value> {
+    err(tcl_cmd_core::index::bad_index(spec).into_message())
+}
+
 /// A formal parameter name must be a scalar: not an array element (`a(1)`) and
 /// not namespace-qualified (`a::b`). Scans left-to-right like C's `TclCreateProc`
 /// — the first `(` with a trailing `)` is an array element, the first `::` is a

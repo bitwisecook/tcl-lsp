@@ -100,6 +100,14 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         min_version: None,
     },
+    OptionSpec {
+        name: "-profile",
+        value: OptionValue::value("profile"),
+        detail: "Encoding error profile: strict/tcl8/replace (Tcl 9.0+).",
+        dialects: Some(DialectSet::TCL90_PLUS),
+        aliases: &[],
+        min_version: None,
+    },
 ];
 
 pub fn spec() -> CommandSpec {

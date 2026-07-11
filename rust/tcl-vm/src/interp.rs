@@ -43,17 +43,6 @@ use crate::value::Value;
 /// A deeper nesting is a catchable error, not a native stack overflow.
 pub(crate) const RECURSION_LIMIT: usize = 1000;
 
-/// Render a subcommand list as C's ensemble `must be …` clause — note the
-/// ensemble formatter puts a comma before `or` even for two items
-/// (`x1, or x2`), unlike `Tcl_GetIndexFromObj`.
-fn oxford_or(items: &[String]) -> String {
-    match items {
-        [] => String::new(),
-        [a] => a.clone(),
-        [head @ .., last] => format!("{}, or {last}", head.join(", ")),
-    }
-}
-
 /// Parse an `interp recursionlimit` integer the way C's `Tcl_GetIntFromObj`
 /// reports: a decimal that overflows `i64` is "too large to represent", a
 /// non-numeric value is "expected integer but got …".
@@ -83,7 +72,10 @@ fn resolve_limit_opt<'a>(arg: &str, opts: &'a [&'a str]) -> Result<&'a str, Stri
         _ if opts.contains(&arg) => Ok(opts[opts.iter().position(|o| *o == arg).unwrap()]),
         _ => Err(format!(
             "bad option \"{arg}\": must be {}",
-            oxford_or(&opts.iter().map(|o| (*o).to_string()).collect::<Vec<_>>())
+            tcl_cmd_core::error::join_or(
+                &opts.iter().map(|o| (*o).to_string()).collect::<Vec<_>>(),
+                true
+            )
         )),
     }
 }
@@ -1436,7 +1428,7 @@ impl Vm {
             }
             None => err(format!(
                 "unknown or ambiguous subcommand \"{sub}\": must be {}",
-                oxford_or(&subs)
+                tcl_cmd_core::error::join_or(&subs, true)
             )),
         }
     }

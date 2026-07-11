@@ -904,4 +904,39 @@ mod tests {
         keys.dedup();
         assert_eq!(keys.len(), total, "probe table has duplicate keys");
     }
+
+    /// Drift guard: every probed `(command, subcommand, option)` must be a real
+    /// registry [`tcl_registry::hover::OptionSpec`]. This ties the audit's
+    /// option set to the registry single source of truth — a probe cannot name
+    /// an option the registry does not declare, and a renamed or removed option
+    /// fails here rather than silently producing a stale `supported_in`. The
+    /// audit runs every probe against every built Tcl version, so the existence
+    /// check is deliberately dialect-agnostic (`None`).
+    #[test]
+    fn probe_options_exist_in_registry() {
+        use tcl_registry::CommandRegistry;
+        let reg = CommandRegistry::build_default();
+        let missing: Vec<String> = PROBES
+            .iter()
+            .filter(|&&(cmd, sub, opt, _)| {
+                let Some(spec) = reg.get(cmd) else {
+                    return true;
+                };
+                match sub {
+                    None => spec.find_option(opt, None, None).is_none(),
+                    Some(s) => !spec.resolve_subcommand(s).is_some_and(|sc| {
+                        sc.option_specs(None, spec.dialects)
+                            .iter()
+                            .any(|o| o.matches(opt))
+                    }),
+                }
+            })
+            .map(|&(cmd, sub, opt, _)| label(cmd, sub, opt))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "probe options absent from the registry OptionSpec (the audit has \
+             drifted from the single source of truth): {missing:?}"
+        );
+    }
 }
