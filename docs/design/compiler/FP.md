@@ -984,6 +984,51 @@ all-optional-tail proc draws no arity error; a tail also claimed by a non-proc
 
 ---
 
+### FP-NAB-14 — W300 / W103 on a `$var` that provably holds a literal path
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by
+  `analyser/diagnostics/tests.rs::{w300_source_with_variable_path, w103_open_pipeline}`
+- **Codes:** W300 (`source` dynamic path), W103 (`open` dynamic argument)
+
+#### Reproducer
+
+```tcl
+set p "./lib.tcl"
+source $p           ;# was W300 — but $p is a known literal path
+set f "data.txt"
+open $f              ;# was W103 Warning — but $f is a known literal filename
+```
+
+#### Per-line reasoning
+
+Both checks fire on a `$var` argument because the value *could* be
+attacker-influenced. But `source ./lib.tcl` and `open "data.txt"` written
+inline are already silent, so the identical value reached through a
+provably-constant local `set` is no more dangerous — flagging it is a
+false positive on a very common config-loading idiom.
+
+The gate reuses `last_literal_set_value_for_var` (the same conservative
+resolver W304 uses): it returns a value **only** when the most recent
+reaching assignment's value token is a genuine literal (`Esc`/`Str`,
+never `$x`/`[cmd]`), so a parameter, a dynamic value, a `[cmd]`-computed
+path, or a later dynamic reassignment all keep the warning. Because only
+compile-time literals resolve, the suppressed value is provably not
+attacker-controlled — no true positive is lost.
+
+For W103 the resolved literal is treated exactly like that literal
+written inline: a `|`-prefixed literal downgrades to the pipeline Hint (a
+known command), any other literal is silent.
+
+#### Tests
+
+- `analyser/diagnostics/tests.rs::w300_source_with_variable_path`
+  (FP literal path silent; TP dynamic-reassign + proc-param still fire)
+- `analyser/diagnostics/tests.rs::w103_open_pipeline`
+  (FP literal filename silent; literal `|…` → Hint; proc-param → Warning)
+
+---
+
 ## RBS — read-before-set (W210/W213/W214)
 
 W210 (read-before-set), W213 (`unset` on possibly-unset var, derives from RBS),

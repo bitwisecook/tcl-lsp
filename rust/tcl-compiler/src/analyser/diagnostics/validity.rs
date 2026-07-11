@@ -2498,7 +2498,7 @@ before this value so it is treated as data, not an option."
     /// token-text usage and avoids edge-case mismatches that a
     /// raw `self.source[..]` slice would introduce.  Returns
     /// `None` when the extracted text is empty.
-    fn var_name_from_token(&self, tok: tcl_lexer::Token) -> Option<String> {
+    pub(super) fn var_name_from_token(&self, tok: tcl_lexer::Token) -> Option<String> {
         let sm = tcl_lexer::SourceMap::new(&self.source);
         let text = sm.token_text(tok);
         if text.is_empty() {
@@ -3039,7 +3039,7 @@ fn first_positional_without_terminator(
 /// nearest preceding `set` is a fully-literal three-arg form.
 /// Returns `None` when the latest assignment is dynamic / multi-
 /// token (the runtime value cannot be proven statically).
-fn last_literal_set_value_for_var(
+pub(super) fn last_literal_set_value_for_var(
     source: &str,
     var_name: &str,
     before_offset: u32,

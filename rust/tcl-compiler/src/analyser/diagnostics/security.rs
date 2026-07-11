@@ -351,6 +351,31 @@ word as one argument; no re-parsing)"
     /// **W300.** Warn when `source`'s file argument is a `$var` or
     /// `[cmd]` substitution — the path (and therefore the code executed)
     /// is dynamic.  Skips a leading `-encoding ENC` option pair.
+    /// When `tok` is a `$var` reference whose value provably resolves to a
+    /// compile-time *literal* — a local `set var LITERAL` reaching this use,
+    /// per [`super::validity::last_literal_set_value_for_var`] — return that
+    /// literal. A parameter, a dynamic value, a `[cmd]` substitution, or a
+    /// cross-scope name yields `None`.
+    ///
+    /// The resolver only accepts a genuine literal value token (`Esc` / `Str`,
+    /// never `$x` / `[cmd]`), so the returned string is provably not
+    /// attacker-influenced. That is exactly what the `source` (W300) and `open`
+    /// (W103) sink checks need to drop their false positives: a value that is a
+    /// known constant is no more dangerous than writing that constant inline.
+    fn resolve_var_token_literal(&self, tok: tcl_lexer::Token) -> Option<String> {
+        if tok.kind != tcl_lexer::TokenType::Var {
+            return None;
+        }
+        let name = self.var_name_from_token(tok)?;
+        super::validity::last_literal_set_value_for_var(
+            &self.source,
+            &name,
+            tok.span.start(),
+            self.lexer_config(),
+        )
+        .map(|(literal, _, _)| literal)
+    }
+
     pub(in crate::analyser) fn emit_w300_source_variable(
         &mut self,
         cmd_name: &str,
@@ -364,7 +389,7 @@ word as one argument; no re-parsing)"
         if args[0] == "-encoding" && args.len() >= 3 {
             file_idx = 2;
         }
-        let Some(tok) = arg_tokens.get(file_idx) else {
+        let Some(&tok) = arg_tokens.get(file_idx) else {
             return;
         };
         // A `$var` path or a `[cmd]`-computed path is equally dynamic — both
@@ -373,6 +398,12 @@ word as one argument; no re-parsing)"
             tok.kind,
             tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
         ) {
+            // …unless the `$var` provably holds a compile-time literal path, in
+            // which case it is a known file — the same as `source ./lib.tcl`,
+            // which is silent — so flagging it is a false positive.
+            if self.resolve_var_token_literal(tok).is_some() {
+                return;
+            }
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: DiagCode::W300,
                 span: tok.span,
@@ -672,6 +703,26 @@ Ensure the command is not influenced by untrusted input."
             tok.kind,
             tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
         ) {
+            // A `$var` proven to hold a compile-time literal is treated exactly
+            // like that literal written inline: a `|`-prefixed literal is the
+            // pipeline Hint (a known command, not untrusted), any other literal
+            // is a benign filename (silent). Only a genuine literal suppresses
+            // the Warning — a parameter, a dynamic value, or a `[cmd]`-computed
+            // argument stays a Warning (it may resolve to a `|`-pipeline).
+            if let Some(literal) = self.resolve_var_token_literal(tok) {
+                if literal.starts_with('|') {
+                    self.result.diagnostics.push(super::types::Diagnostic {
+                        code: DiagCode::W103,
+                        span: tok.span,
+                        message: "open with a pipeline (\"|\") executes an external command. \
+Ensure the command is not influenced by untrusted input."
+                            .to_string(),
+                        severity: Severity::Hint,
+                        fixes: Vec::new(),
+                    });
+                }
+                return;
+            }
             // A `$var` or `[cmd]`-computed first argument is equally dynamic —
             // either may resolve to a `|`-prefixed pipeline.
             self.result.diagnostics.push(super::types::Diagnostic {

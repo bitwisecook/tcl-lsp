@@ -2252,6 +2252,26 @@ fn clean_list_used_with_lindex_has_no_s100() {
 }
 
 #[test]
+fn w300_w103_silent_when_var_provably_literal() {
+    // A `$var` proven to hold a compile-time literal path/filename is a known
+    // constant — no more dangerous than writing it inline — so W300/W103 are
+    // suppressed. A bare parameter stays flagged (the TP control).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let silent = lsp.open_ready(
+        &uri,
+        "set p \"./lib.tcl\"\nsource $p\nset f \"data.txt\"\nopen $f\n",
+    );
+    assert!(!has_code(&silent, "W300"), "W300 FP: {silent:?}");
+    assert!(!has_code(&silent, "W103"), "W103 FP: {silent:?}");
+
+    let uri2 = unique_uri("tcl");
+    let fires = lsp.open_ready(&uri2, "proc f {p} { source $p }\nproc g {f} { open $f }\n");
+    assert!(has_code(&fires, "W300"), "W300 TP (param): {fires:?}");
+    assert!(has_code(&fires, "W103"), "W103 TP (param): {fires:?}");
+}
+
+#[test]
 fn w213_unset_narrows_to_variable_and_carries_fix() {
     // `unset xs` on a possibly-undefined var → W213 squiggled on `xs` (col
     // 20..22 of the proc body), carrying the `-nocomplain` insert fix.

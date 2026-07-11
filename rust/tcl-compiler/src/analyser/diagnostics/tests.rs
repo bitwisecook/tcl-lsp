@@ -7032,6 +7032,16 @@ fn w300_source_with_variable_path() {
     assert_eq!(sec_codes("source [locate_lib]\n", "W300"), 1);
     // A literal path is fine.
     assert_eq!(sec_codes("source ./lib.tcl\n", "W300"), 0);
+    // FP gate: a `$var` that provably holds a compile-time literal path is a
+    // known file — the same as the literal form above — so it is silent.
+    assert_eq!(sec_codes("set p \"./lib.tcl\"\nsource $p\n", "W300"), 0);
+    // But a `$var` reassigned dynamically before the use is still flagged.
+    assert_eq!(
+        sec_codes("set p \"./lib.tcl\"\nset p [get_path]\nsource $p\n", "W300"),
+        1
+    );
+    // A proc parameter is not a compile-time literal — still flagged.
+    assert_eq!(sec_codes("proc f {p} { source $p }\n", "W300"), 1);
 }
 
 #[test]
@@ -7157,6 +7167,16 @@ fn w103_open_pipeline() {
     assert_eq!(code_sevs("open [pick_target]\n", "W103"), vec!["Warning"]);
     // A literal filename is fine.
     assert_eq!(sec_codes("open \"file.txt\"\n", "W103"), 0);
+    // FP gate: a `$var` proven to hold a compile-time literal is treated like
+    // that literal inline — a benign filename is silent, a `|`-prefixed literal
+    // is the pipeline Hint.
+    assert_eq!(sec_codes("set f \"data.txt\"\nopen $f\n", "W103"), 0);
+    assert_eq!(code_sevs("set f \"|ls\"\nopen $f\n", "W103"), vec!["Hint"]);
+    // A proc parameter is not a literal — still a Warning.
+    assert_eq!(
+        code_sevs("proc g {f} { open $f }\n", "W103"),
+        vec!["Warning"]
+    );
 }
 
 #[test]
