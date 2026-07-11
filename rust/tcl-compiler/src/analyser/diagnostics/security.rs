@@ -159,7 +159,11 @@ Consider capturing the result: catch {\u{2026}} result"
         // a brace pair within a quoted string — Tcl treats braces
         // as literal inside ``"…"``) is not detected.  Real W101
         // shapes don't hit that pattern; documented for posterity.
-        let has_substitution = arg_tokens.iter().enumerate().any(|(i, tok)| {
+        // Anchor at the *first argument that actually carries the
+        // substitution*, not `arg_tokens[0]`: `eval "safeprefix" $x` puts the
+        // hazard in `$x`, so highlighting the safe literal prefix would point
+        // the developer at the wrong word.
+        let Some(sub_idx) = arg_tokens.iter().enumerate().position(|(i, tok)| {
             if matches!(
                 tok.kind,
                 tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
@@ -170,20 +174,21 @@ Consider capturing the result: catch {\u{2026}} result"
                 return false;
             }
             self.word_span_contains_substitution(tok.span)
-        });
-        if !has_substitution {
+        }) else {
             return;
-        }
-        let first = arg_tokens[0];
+        };
+        let anchor = arg_tokens[sub_idx];
         // Quick-fix the common single-line `eval "cmd $a …"` shape: rewrite
         // the quoted string to `eval [list cmd $a …]`.  `[list]` builds a
         // properly-quoted list so each substituted word is passed as exactly
         // one argument and never re-parsed.  Skip when the string spans
         // lines or carries backslash escapes (list re-quoting could differ).
-        let fixes = self.eval_list_fix(first);
+        // Only offered when the substituted word is itself the quoted string
+        // (`eval_list_fix` returns empty otherwise).
+        let fixes = self.eval_list_fix(anchor);
         self.result.diagnostics.push(super::types::Diagnostic {
             code: DiagCode::W101,
-            span: first.span,
+            span: anchor.span,
             message: "eval with substituted arguments risks code injection. \
 Prefer direct invocation or {*}$cmdList to preserve argument boundaries."
                 .to_string(),

@@ -373,6 +373,18 @@ fn w212_covers_registry_name_positions_end_to_end() {
 }
 
 #[test]
+fn w101_anchors_at_the_substituted_argument() {
+    // `eval "safeprefix" $x` — the hazard is `$x` (col 18..20), not the safe
+    // literal prefix. The squiggle must point at the substituted word.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "eval \"safeprefix\" $x\n");
+    let w101 = with_code(&diags, "W101");
+    assert_eq!(w101.len(), 1, "got {diags:?}");
+    assert_eq!(diag_range(&w101[0]), ((0, 18), (0, 20)), "got {diags:?}");
+}
+
+#[test]
 fn w216_upvar_local_indirect_array_is_silent() {
     // `upvar 1 remote ${arr}(x)` — the local-name slot is the legitimate
     // indirect-array idiom, so W216 must not fire (the two name-position lists

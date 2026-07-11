@@ -7222,6 +7222,33 @@ fn w306_literal_expected_in_regexp_pattern() {
 }
 
 #[test]
+fn w101_anchors_at_the_substituted_argument() {
+    fn w101_span_text(src: &str) -> String {
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let d = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::W101)
+            .unwrap_or_else(|| panic!("no W101 in {:?}", r.diagnostics));
+        src[d.span.start() as usize..d.span.end() as usize].to_string()
+    }
+    // The substitution is in the *second* argument — anchor on `$x`, not on
+    // the safe literal prefix `"safeprefix"`.
+    assert_eq!(w101_span_text("eval \"safeprefix\" $x\n"), "$x");
+    // The common single-quoted-string shape still anchors on that string
+    // (the substitution is inside it), starting at column 0.
+    let mut a = Analyser::new();
+    let r = a.analyse("eval \"cmd $a\"\n", "tcl8.6");
+    let d = r
+        .diagnostics
+        .iter()
+        .find(|d| d.code == DiagCode::W101)
+        .unwrap();
+    assert_eq!(d.span.start(), 5, "should anchor on the quoted string arg");
+}
+
+#[test]
 fn w304_does_not_cross_proc_param_shadow() {
     // The outer `set path -force` must NOT be attributed to the inner
     // `$path` use — the proc param `path` shadows it.  W304 may still
