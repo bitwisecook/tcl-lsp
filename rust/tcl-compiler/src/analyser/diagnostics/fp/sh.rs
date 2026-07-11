@@ -1329,3 +1329,36 @@ fn fp_sh_19_coercing_string_map_on_payload_still_fires() {
         codes(src, "f5-irules"),
     );
 }
+
+// ---------------------------------------------------------------------------
+// FP-SH-20 — ordering comparisons on non-numeric operands do not shimmer
+// ---------------------------------------------------------------------------
+
+/// FP-SH-20: `<`/`<=`/`>`/`>=` compare numerically only when an operand is
+/// provably numeric. `expr {$s < "banana"}` on a String var takes Tcl's string
+/// path and leaves the intrep untouched (verified on tclsh 8.6/9.0 — the
+/// operand stays `pure string`), so no S100/S101.
+#[test]
+fn fp_sh_20_ordering_compare_non_numeric_silent() {
+    for op in ["<", "<=", ">", ">="] {
+        let src = format!("set s [string trim hello]\nset y [expr {{$s {op} \"banana\"}}]\n");
+        assert!(
+            !fires(&src, D, "S100") && !fires(&src, D, "S101"),
+            "FP-SH-20: `$s {op} \"banana\"` must not shimmer; got {:?}",
+            codes(&src, D),
+        );
+    }
+}
+
+/// FP-SH-20 TP control: once a numeric literal forces the numeric path
+/// (`$s <= 5`), the String operand's intrep is genuinely coerced to int, so
+/// S100 must still fire.
+#[test]
+fn fp_sh_20_ordering_compare_numeric_literal_still_fires() {
+    let src = "set s [string trim hello]\nset y [expr {$s <= 5}]\n";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-20 TP: `$s <= 5` must fire S100; got {:?}",
+        codes(src, D),
+    );
+}

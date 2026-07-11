@@ -2252,6 +2252,29 @@ fn clean_list_used_with_lindex_has_no_s100() {
 }
 
 #[test]
+fn ordering_compare_on_strings_has_no_s100() {
+    // `$s < "banana"` compares two strings — Tcl stays on the string path and
+    // never coerces `$s` to a number, so its intrep is untouched (verified on
+    // tclsh 8.6/9.0). No S100 (was a false positive before the ordering ops
+    // were gated the same way as `==`/`!=`).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set s [string trim hello]\nexpr {$s < \"banana\"}\n");
+    assert!(!has_code(&diags, "S100"), "unexpected S100: {diags:?}");
+    assert!(!has_code(&diags, "S101"), "unexpected S101: {diags:?}");
+}
+
+#[test]
+fn ordering_compare_string_vs_numeric_literal_fires_s100() {
+    // TP control: `$s <= 5` forces the numeric path, coercing the String
+    // operand to int — a genuine shimmer, so S100 fires.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set s [string trim hello]\nexpr {$s <= 5}\n");
+    assert!(has_code(&diags, "S100"), "expected S100: {diags:?}");
+}
+
+#[test]
 fn shimmer_fires_inside_tcloo_method_body() {
     // TclOO method bodies previously got zero shimmer coverage (the
     // compiler-checks aggregator only walked the top level and procedures).

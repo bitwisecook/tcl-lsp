@@ -153,9 +153,10 @@ fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode) {
             collect_expr_shimmers(ctx, right);
 
             match op {
-                // Arithmetic, bitwise, logical, and *ordering* comparison
-                // operators are always a numeric context (Tcl `<`/`<=`/`>`/`>=`
-                // compare numerically when possible).
+                // Arithmetic, bitwise, and logical operators are an
+                // unconditional numeric context: Tcl coerces every operand to a
+                // number, so a String/List/Dict/ByteArray intrep is always
+                // clobbered.
                 BinOp::Add
                 | BinOp::Sub
                 | BinOp::Mul
@@ -168,19 +169,20 @@ fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode) {
                 | BinOp::BitOr
                 | BinOp::BitXor
                 | BinOp::And
-                | BinOp::Or
-                | BinOp::Lt
-                | BinOp::Le
-                | BinOp::Gt
-                | BinOp::Ge => {
+                | BinOp::Or => {
                     check_numeric_operand(ctx, left, *op);
                     check_numeric_operand(ctx, right, *op);
                 }
 
-                // `==` / `!=` take the numeric-coercion path only when at least
-                // one operand is provably numeric (else Tcl falls back to a
-                // string compare and no shimmer occurs).
-                BinOp::Eq | BinOp::Ne => {
+                // Comparisons — both ordering (`<`/`<=`/`>`/`>=`) and equality
+                // (`==`/`!=`) — take the numeric-coercion path only when at
+                // least one operand is provably numeric. Otherwise Tcl compares
+                // the operands' *string* representations and no intrep is lost:
+                // verified on tclsh 8.6/9.0, `expr {$s < $t}` with non-numeric
+                // strings leaves both as `pure string`, and a list operand keeps
+                // its `list` intrep (only a string rep is materialised
+                // alongside). Flagging those is a false positive.
+                BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge | BinOp::Eq | BinOp::Ne => {
                     if operand_looks_numeric(left, ctx.uses, ctx.types, ctx.ssa)
                         || operand_looks_numeric(right, ctx.uses, ctx.types, ctx.ssa)
                     {
@@ -507,6 +509,63 @@ mod tests {
         assert!(
             !w2.iter().any(|sw| sw.variable == "s"),
             "string == string must not shimmer: {w2:?}"
+        );
+    }
+
+    /// Ordering comparisons (`<`/`<=`/`>`/`>=`) coerce to numbers only when an
+    /// operand is provably numeric — mirroring `==`/`!=`. A String or List
+    /// operand compared against a *non-numeric* value stays on Tcl's string
+    /// path and keeps its intrep (verified on tclsh 8.6/9.0), so no shimmer.
+    #[test]
+    fn expr_shimmer_ordering_op_only_when_numeric() {
+        // FP: `$s < "banana"` — both string, string compare, no intrep loss.
+        let cu = CompilationUnit::build_for(
+            "set s [string trim hello]\nset y [expr {$s < \"banana\"}]",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        assert!(
+            !w.iter().any(|sw| sw.variable == "s"),
+            "string < non-numeric string must not shimmer: {w:?}"
+        );
+
+        // FP: a List-typed operand keeps its `list` intrep in `$lst > $s`.
+        let cu_l = CompilationUnit::build_for(
+            "set lst [list a b c]\nset s [string trim hi]\nset y [expr {$lst > $s}]",
+            &registry(),
+            false,
+        );
+        let fu_l = cu_l.function("::top").unwrap();
+        let w_l = find_expr_shimmers(
+            &fu_l.cfg,
+            &fu_l.ssa,
+            &fu_l.types,
+            &fu_l.sccp.executable_blocks,
+        );
+        assert!(
+            !w_l.iter().any(|sw| sw.variable == "lst"),
+            "list operand in an ordering compare must not shimmer: {w_l:?}"
+        );
+
+        // TP: `$s <= 5` — the numeric literal forces the numeric path, so the
+        // String operand's intrep is genuinely coerced to int.
+        let cu_tp = CompilationUnit::build_for(
+            "set s [string trim hello]\nset y [expr {$s <= 5}]",
+            &registry(),
+            false,
+        );
+        let fu_tp = cu_tp.function("::top").unwrap();
+        let w_tp = find_expr_shimmers(
+            &fu_tp.cfg,
+            &fu_tp.ssa,
+            &fu_tp.types,
+            &fu_tp.sccp.executable_blocks,
+        );
+        assert!(
+            w_tp.iter().any(|sw| sw.variable == "s"),
+            "string <= numeric literal must shimmer: {w_tp:?}"
         );
     }
 

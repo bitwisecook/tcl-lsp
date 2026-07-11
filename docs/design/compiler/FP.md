@@ -5150,6 +5150,58 @@ subcommand, never a command-name branch.  See
 [`command-registry.md`](command-registry.md#var_write_typing--return-type-vs-written-variable-type).
 
 
+### FP-SH-20 — ordering comparisons on non-numeric operands do not shimmer
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by
+  `analyser/diagnostics/fp/sh.rs::fp_sh_20_*` and the unit test
+  `shimmer/expr.rs::expr_shimmer_ordering_op_only_when_numeric`
+- **Codes:** S100 / S101 (expr-operator shimmer)
+
+#### Reproducer
+
+```tcl
+set s [string trim hello]
+set y [expr {$s < "banana"}]     ;# both strings — string compare, no shimmer
+set lst [list a b c]
+set z [expr {$lst > $s}]         ;# list keeps its list intrep
+```
+
+#### Per-line reasoning
+
+The expr-shimmer pass classified `<` / `<=` / `>` / `>=` as an
+*unconditional* numeric context, so any String/List/Dict/ByteArray operand
+fired S100/S101.  But Tcl's comparison operators — ordering **and** equality
+— only coerce to numbers when *both* operands parse as numbers; otherwise
+they compare the operands' string representations.  A non-numeric operand
+therefore never has its intrep clobbered, so the warning is a false positive.
+
+The fix moves `Lt`/`Le`/`Gt`/`Ge` into the same `operand_looks_numeric`
+gate already used for `==` / `!=`: fire only when at least one operand is
+provably numeric (the case where the numeric path — and the coercion — is
+actually taken).
+
+#### tclsh ground truth (8.6 and 9.0)
+
+```
+% set a apple; set b banana
+% tcl::unsupported::representation $a       ;# pure string
+% expr {$a < $b}                            ;# 1
+% tcl::unsupported::representation $a        ;# STILL pure string — no shimmer
+% set lst [list a b c]
+% expr {$lst > $b}                          ;# list intrep preserved (string rep only materialised)
+% set n 10
+% expr {$n < 5}                             ;# 0 — n shimmers pure string -> int (TP)
+```
+
+#### Tests
+
+- `analyser/diagnostics/fp/sh.rs::fp_sh_20_ordering_compare_non_numeric_silent` (FP)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_20_ordering_compare_numeric_literal_still_fires` (TP)
+- `shimmer/expr.rs::expr_shimmer_ordering_op_only_when_numeric` (FP + TP)
+
+---
+
 ## OBJ — object dispatch (W307/W308) + snit modelling
 
 W307 catches stray non-literal command words (`$x foo`); W308 validates
