@@ -1008,8 +1008,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ]
         },
         // First sub-arg (index 0 after `is`) is the character
-        // class — complete it from the fixed class set.
+        // class — complete it from the fixed class set, which is
+        // exhaustive (a non-member is a runtime `bad class` error → W127).
+        // C Tcl accepts a unique prefix (`boo` → `boolean`).
         arg_values: &[(0, IS_CLASSES)],
+        closed_value_args: &[0],
+        arg_values_accept_prefix: true,
         ..SubCommand::DEFAULT
     },
     SubCommand {

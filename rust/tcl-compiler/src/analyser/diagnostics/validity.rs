@@ -3108,28 +3108,92 @@ fn last_literal_set_value_for_var(
     None
 }
 
-/// Return `true` if `text` contains any of the dialect-gated
-/// expression operator keywords (`lt`, `le`, `gt`, `ge`, `in`, `ni`)
-/// as a whole word — i.e. surrounded by non-identifier bytes or
-/// the text boundary.  Used as a fast prefilter to skip the
-/// expression parse for expressions that obviously can't trigger
-/// W003.
+/// A version-gated `expr` operator: its text, whether it is word-shaped, the
+/// minimum Tcl version it needs, and the TIP citation for the W003 message.
 ///
-/// Whitespace-aware: tabs, newlines, and any other non-identifier
-/// byte (parentheses, operators, comparison glyphs, etc.) count
-/// as word boundaries.  Matches Tcl expr's tolerance for
-/// arbitrary whitespace between tokens.
+/// Single source for the three W003 steps — the prefilter
+/// ([`contains_gated_word`]), the per-token gate check ([`gated_operator_name`]),
+/// and the message ([`w003_tip_citation`]) — which were previously three
+/// separate hardcoded matches that had drifted (the symbolic `**` was in none
+/// of them, so `expr {2 ** 3}` under tcl8.4 was a false negative).
+struct GatedExprOp {
+    /// The operator text as the expr lexer emits it (`in`, `**`).
+    op: &'static str,
+    /// Word-shaped (`in`/`lt`) operators need identifier-boundary matching in
+    /// the prefilter; symbolic ones (`**`) match on any occurrence.
+    word_shaped: bool,
+    /// `true` = needs Tcl 8.5+ (gated under `pre_85`); `false` = needs Tcl 9.0+
+    /// (gated under `pre_90`).
+    needs_85: bool,
+    /// The TIP citation surfaced in the W003 message.
+    tip: &'static str,
+}
+
+/// The version-gated `expr` operators (`in`/`ni`/`**` from 8.5; the string
+/// comparison words `lt`/`le`/`gt`/`ge` from 9.0).
+const GATED_EXPR_OPS: &[GatedExprOp] = &[
+    GatedExprOp {
+        op: "in",
+        word_shaped: true,
+        needs_85: true,
+        tip: "Tcl 8.5+ (TIP 201)",
+    },
+    GatedExprOp {
+        op: "ni",
+        word_shaped: true,
+        needs_85: true,
+        tip: "Tcl 8.5+ (TIP 201)",
+    },
+    GatedExprOp {
+        op: "**",
+        word_shaped: false,
+        needs_85: true,
+        tip: "Tcl 8.5+ (TIP 123)",
+    },
+    GatedExprOp {
+        op: "lt",
+        word_shaped: true,
+        needs_85: false,
+        tip: "Tcl 9.0+ (TIP 461)",
+    },
+    GatedExprOp {
+        op: "le",
+        word_shaped: true,
+        needs_85: false,
+        tip: "Tcl 9.0+ (TIP 461)",
+    },
+    GatedExprOp {
+        op: "gt",
+        word_shaped: true,
+        needs_85: false,
+        tip: "Tcl 9.0+ (TIP 461)",
+    },
+    GatedExprOp {
+        op: "ge",
+        word_shaped: true,
+        needs_85: false,
+        tip: "Tcl 9.0+ (TIP 461)",
+    },
+];
+
+/// Return `true` if `text` contains any dialect-gated expression operator (a
+/// word-shaped one as a whole word, or a symbolic one such as `**` anywhere).
+/// Used as a fast prefilter to skip the expression parse for expressions that
+/// obviously can't trigger W003. Word-boundary matching is whitespace-aware:
+/// any non-identifier byte (parentheses, operators, …) counts as a boundary,
+/// matching Tcl expr's tolerance for arbitrary whitespace between tokens.
 pub(super) fn contains_gated_word(text: &str) -> bool {
-    const GATED: &[&[u8]] = &[b"lt", b"le", b"gt", b"ge", b"in", b"ni"];
     let bytes = text.as_bytes();
-    for needle in GATED {
+    for g in GATED_EXPR_OPS {
+        let needle = g.op.as_bytes();
         let n = needle.len();
         let mut i = 0;
         while i + n <= bytes.len() {
-            if &bytes[i..i + n] == *needle {
-                let before_ok = i == 0 || !is_ident_continue(bytes[i - 1]);
-                let after_ok = i + n == bytes.len() || !is_ident_continue(bytes[i + n]);
-                if before_ok && after_ok {
+            if &bytes[i..i + n] == needle {
+                let word_ok = !g.word_shaped
+                    || ((i == 0 || !is_ident_continue(bytes[i - 1]))
+                        && (i + n == bytes.len() || !is_ident_continue(bytes[i + n])));
+                if word_ok {
                     return true;
                 }
             }
@@ -3144,23 +3208,18 @@ pub(super) fn contains_gated_word(text: &str) -> bool {
 /// of the six dialect-gated keywords, or the relevant TIP is actually
 /// available (`pre_85`/`pre_90` both false for it).
 fn gated_operator_name(word: &str, pre_85: bool, pre_90: bool) -> Option<&'static str> {
-    Some(match word {
-        "in" if pre_85 => "in",
-        "ni" if pre_85 => "ni",
-        "lt" if pre_90 => "lt",
-        "le" if pre_90 => "le",
-        "gt" if pre_90 => "gt",
-        "ge" if pre_90 => "ge",
-        _ => return None,
-    })
+    GATED_EXPR_OPS
+        .iter()
+        .find(|g| g.op == word && if g.needs_85 { pre_85 } else { pre_90 })
+        .map(|g| g.op)
 }
 
 /// The TIP citation to surface in the W003 message for `op_name`.
 fn w003_tip_citation(op_name: &str) -> &'static str {
-    match op_name {
-        "in" | "ni" => "Tcl 8.5+ (TIP 201)",
-        _ => "Tcl 9.0+ (TIP 461)",
-    }
+    GATED_EXPR_OPS
+        .iter()
+        .find(|g| g.op == op_name)
+        .map_or("Tcl 9.0+ (TIP 461)", |g| g.tip)
 }
 
 /// Whether `node` is safe to splice as a bare Tcl word into a

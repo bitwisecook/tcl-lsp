@@ -373,6 +373,18 @@ fn w212_covers_registry_name_positions_end_to_end() {
 }
 
 #[test]
+fn w126_anchors_at_the_channel_argument() {
+    // `puts notachan hello` — the non-channel literal `notachan` (cols 5..13)
+    // is the problem, not the whole command.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "puts notachan hello\n");
+    let w126 = with_code(&diags, "W126");
+    assert_eq!(w126.len(), 1, "got {diags:?}");
+    assert_eq!(diag_range(&w126[0]), ((0, 5), (0, 13)), "got {diags:?}");
+}
+
+#[test]
 fn w101_anchors_at_the_substituted_argument() {
     // `eval "safeprefix" $x` — the hazard is `$x` (col 18..20), not the safe
     // literal prefix. The squiggle must point at the substituted word.

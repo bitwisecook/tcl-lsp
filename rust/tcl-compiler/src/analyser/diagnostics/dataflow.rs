@@ -1600,6 +1600,7 @@ file; this call falls through to the 'unknown' handler."
                     command,
                     args,
                     span,
+                    tokens,
                     ..
                 } = &ssa_stmt.statement
                 else {
@@ -1616,6 +1617,14 @@ file; this call falls through to the 'unknown' handler."
                         continue;
                     }
                     let arg_text = &args[idx];
+                    // Tight range: the channel argument word (`argv[0]` is the
+                    // command name, so `args[idx]` is `argv[idx + 1]`), not the
+                    // whole command. Falls back to the command span when the
+                    // per-word tokens are unavailable.
+                    let arg_span = tokens
+                        .as_ref()
+                        .and_then(|t| t.argv.get(idx + 1))
+                        .map_or_else(|| fu.abs_span(*span), |&s| fu.abs_span(s));
                     // Extract bare var name from ``$var`` / ``${var}``.
                     let var_name: Option<&str> =
                         if arg_text.starts_with("${") && arg_text.ends_with('}') {
@@ -1653,7 +1662,7 @@ file; this call falls through to the 'unknown' handler."
                         );
                         self.result.diagnostics.push(super::types::Diagnostic {
                             code: DiagCode::W126,
-                            span: fu.abs_span(*span),
+                            span: arg_span,
                             message,
                             severity: Severity::Warning,
                             fixes: Vec::new(),
@@ -1677,7 +1686,7 @@ file; this call falls through to the 'unknown' handler."
                         );
                         self.result.diagnostics.push(super::types::Diagnostic {
                             code: DiagCode::W126,
-                            span: fu.abs_span(*span),
+                            span: arg_span,
                             message,
                             severity: Severity::Warning,
                             fixes: Vec::new(),

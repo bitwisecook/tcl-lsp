@@ -793,43 +793,48 @@ matching time on crafted input."
             let Some(spec) = registry.get(cmd_name) else {
                 return;
             };
-            if spec.closed_value_args.is_empty() {
-                return;
-            }
-            let option_names: std::collections::HashSet<&str> =
+            let span_at = |i: usize| arg_tokens.get(i).map_or(cmd_tok.span, |t| t.span);
+            // Top-level closed value args (exact match).
+            let opt_names: std::collections::HashSet<&str> =
                 spec.options.iter().map(|o| o.name).collect();
-            let mut closed: Vec<u8> = spec.closed_value_args.to_vec();
-            closed.sort_unstable();
-            for idx in closed {
+            for &idx in spec.closed_value_args {
                 let i = idx as usize;
-                let Some(value) = args.get(i) else {
-                    continue;
-                };
-                if value.contains('$')
-                    || value.contains('[')
-                    || option_names.contains(value.as_str())
+                let Some(value) = args.get(i) else { continue };
+                let allowed: Vec<&str> =
+                    spec.arg_values_at(idx).iter().map(|av| av.value).collect();
+                if let Some(hit) =
+                    w127_closed_hit(value, span_at(i), &allowed, false, &opt_names, cmd_name)
                 {
-                    continue;
+                    hits.push(hit);
                 }
-                let allowed = spec.arg_values_at(idx);
-                if allowed.iter().any(|av| av.value == value) {
-                    continue;
+            }
+            // Subcommand-level closed value args: the subcommand word occupies
+            // arg 0, so the command-level index is one past the subcommand
+            // relative index. `string is <class>` marks its class (`&[0]`),
+            // matched by unique prefix (`arg_values_accept_prefix`).
+            if let Some(sub) = args.first().and_then(|s| spec.resolve_subcommand(s)) {
+                let sub_opt_names: std::collections::HashSet<&str> =
+                    sub.options.iter().map(|o| o.name).collect();
+                let display = format!("{cmd_name} {}", args[0]);
+                for &sub_idx in sub.closed_value_args {
+                    let i = sub_idx as usize + 1;
+                    let Some(value) = args.get(i) else { continue };
+                    let allowed: Vec<&str> = sub
+                        .arg_values_at(sub_idx)
+                        .iter()
+                        .map(|av| av.value)
+                        .collect();
+                    if let Some(hit) = w127_closed_hit(
+                        value,
+                        span_at(i),
+                        &allowed,
+                        sub.arg_values_accept_prefix,
+                        &sub_opt_names,
+                        &display,
+                    ) {
+                        hits.push(hit);
+                    }
                 }
-                if allowed.is_empty() {
-                    continue;
-                }
-                let allowed_list = allowed
-                    .iter()
-                    .map(|av| av.value)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                let span = arg_tokens.get(i).map_or(cmd_tok.span, |t| t.span);
-                hits.push((
-                    format!(
-                        "Invalid value '{value}' for '{cmd_name}'; expected one of: {allowed_list}"
-                    ),
-                    span,
-                ));
             }
         }
         for (message, span) in hits {
@@ -1095,6 +1100,38 @@ fn catch_body_is_fire_and_forget(body: &str) -> bool {
         Some(first_arg) => fire_and_forget_subcommand(bare, first_arg),
         None => false,
     }
+}
+
+/// One W127 closed-value check: return a `(message, span)` hit when the literal
+/// value at command-level index `cmd_idx` is not among `allowed` — an exact
+/// match, or (when `accept_prefix`) a unique prefix, mirroring C Tcl's
+/// abbreviation rule for `string is <class>`. Dynamic values (`$`/`[`) and
+/// declared option flags are skipped, and an empty allowed set never fires.
+fn w127_closed_hit(
+    value: &str,
+    span: tcl_lexer::Span,
+    allowed: &[&str],
+    accept_prefix: bool,
+    opt_names: &std::collections::HashSet<&str>,
+    display_name: &str,
+) -> Option<(String, tcl_lexer::Span)> {
+    if allowed.is_empty() || value.contains('$') || value.contains('[') || opt_names.contains(value)
+    {
+        return None;
+    }
+    let valid = if accept_prefix {
+        !value.is_empty() && allowed.iter().any(|a| a.starts_with(value))
+    } else {
+        allowed.contains(&value)
+    };
+    if valid {
+        return None;
+    }
+    let allowed_list = allowed.join(", ");
+    Some((
+        format!("Invalid value '{value}' for '{display_name}'; expected one of: {allowed_list}"),
+        span,
+    ))
 }
 
 /// First positional (pattern) argument index of `regexp` / `regsub`,

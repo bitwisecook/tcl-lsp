@@ -613,6 +613,37 @@ fn w127_fires_on_invalid_option_enum_value() {
     );
 }
 
+#[test]
+fn w127_fires_on_invalid_subcommand_closed_value() {
+    fn has_w127(src: &str) -> bool {
+        Analyser::new()
+            .analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W127)
+    }
+    // FN fix: `string is <class>` carries an exhaustive class set on the `is`
+    // subcommand; a non-member is a runtime `bad class` error.
+    assert!(has_w127("string is booleanx 1\n"));
+    assert!(has_w127("string is xyz 1\n"));
+    // C Tcl accepts a unique prefix — must NOT fire.
+    assert!(!has_w127("string is boolean 1\n"));
+    assert!(!has_w127("string is boo 1\n"));
+    assert!(!has_w127("string is b 1\n"));
+    assert!(!has_w127("string is dig 1\n"));
+    // Dynamic class is skipped.
+    assert!(!has_w127("string is $c 1\n"));
+    // The message names the subcommand.
+    let d = Analyser::new().analyse("string is booleanx 1\n", "tcl8.6");
+    assert!(
+        d.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W127 && d.message.contains("string is")),
+        "message must name `string is`; got {:?}",
+        d.diagnostics,
+    );
+}
+
 // E002 / E003 arity
 
 #[test]
@@ -2591,6 +2622,32 @@ fn w003_fires_on_in_operator_in_tcl84() {
         result.diagnostics.iter().any(|d| d.code == DiagCode::W003),
         "expected W003 on tcl8.4 'in' operator, got {:?}",
         result.diagnostics
+    );
+}
+
+#[test]
+fn w003_fires_on_exponentiation_operator_in_tcl84() {
+    // FN fix: `**` (exponentiation) is Tcl 8.5+ (TIP 123) — a symbolic
+    // operator the word-shaped gated set used to miss entirely.
+    let has_w003 = |src: &str, d: &str| {
+        Analyser::new()
+            .analyse(src, d)
+            .diagnostics
+            .iter()
+            .any(|x| x.code == DiagCode::W003)
+    };
+    assert!(has_w003("expr {2 ** 3}", "tcl8.4"));
+    // Available from 8.5 onward — silent.
+    assert!(!has_w003("expr {2 ** 3}", "tcl8.6"));
+    assert!(!has_w003("expr {2 ** 3}", "tcl9.0"));
+    // Message cites the operator and its TIP.
+    let d = Analyser::new().analyse("expr {2 ** 3}", "tcl8.4");
+    assert!(
+        d.diagnostics.iter().any(|x| x.code == DiagCode::W003
+            && x.message.contains("'**'")
+            && x.message.contains("TIP 123")),
+        "message must cite `**` + TIP 123; got {:?}",
+        d.diagnostics,
     );
 }
 
