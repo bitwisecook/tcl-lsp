@@ -30,6 +30,7 @@ use tcl_registry::CommandRegistry;
 
 use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
+use crate::codegen::helpers::split_list_values;
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey};
@@ -962,7 +963,7 @@ pub fn evaluate_def<S: std::hash::BuildHasher>(
                         && let Some(LatticeValue::Const(ConstValue::String(s))) =
                             try_fold_cmd_subst(arg, &stmt_ssa.uses, values, ssa, octal)
                     {
-                        return Some(s.split_ascii_whitespace().map(str::to_owned).collect());
+                        return Some(split_list_values(&s));
                     }
                     None
                 });
@@ -1244,7 +1245,10 @@ pub fn extract_foreach_elements(list_text: &str) -> Option<Vec<String>> {
     } else {
         stripped
     };
-    Some(inner.split_ascii_whitespace().map(str::to_owned).collect())
+    // List-aware split (Tcl_SplitList semantics): a nested-brace list like
+    // `{a {b c} d}` yields the three elements `a`, `b c`, `d` — not the four
+    // whitespace runs `a`, `{b`, `c}`, `d` a naive split would produce.
+    Some(split_list_values(inner))
 }
 
 /// Resolve `$var` / `${var}` to a `Vec<String>` of list elements
@@ -1282,9 +1286,10 @@ where
     let sym = ssa.var_symbol(name)?;
     let ver = uses.get(&sym).copied()?;
     match values.get(&(sym, ver))? {
-        LatticeValue::Const(ConstValue::String(s)) => {
-            Some(s.split_ascii_whitespace().map(str::to_owned).collect())
-        }
+        // The lattice value is the variable's runtime string; splitting it as a
+        // `foreach` list uses Tcl list semantics (nested-brace aware), not a
+        // whitespace split.
+        LatticeValue::Const(ConstValue::String(s)) => Some(split_list_values(s)),
         _ => None,
     }
 }
@@ -2214,6 +2219,23 @@ mod tests {
     fn extract_foreach_elements_rejects_substitutions() {
         assert_eq!(extract_foreach_elements("$lst"), None);
         assert_eq!(extract_foreach_elements("[list a b c]"), None);
+    }
+
+    #[test]
+    fn extract_foreach_elements_splits_nested_braces_as_tcl_list() {
+        // `{a {b c} d}` is a three-element Tcl list — `a`, `b c`, `d` — not the
+        // four whitespace runs `a`, `{b`, `c}`, `d`. A naive `split_ascii_whitespace`
+        // corrupted the CONSTSET; the list-aware split fixes it.
+        assert_eq!(
+            extract_foreach_elements("{a {b c} d}"),
+            Some(vec!["a".into(), "b c".into(), "d".into()])
+        );
+        // Backslash-escaped whitespace groups an element too: `{a\ b c}` is two
+        // elements `a b` and `c`.
+        assert_eq!(
+            extract_foreach_elements("{a\\ b c}"),
+            Some(vec!["a b".into(), "c".into()])
+        );
     }
 
     #[test]

@@ -61,7 +61,13 @@ pub fn split_list_simple(text: &str) -> Vec<String> {
 /// Thin wrapper over the shared grammar
 /// [`tcl_syntax::list::split_list_lenient`], whose literal/decoded policy (brace
 /// verbatim, else `backslash_subst`) is exactly this.
-fn split_list_values(text: &str) -> Vec<String> {
+///
+/// Shared with SCCP's `foreach`/`lmap` constant-folding
+/// ([`crate::sccp::extract_foreach_elements`] and friends): iterating a literal
+/// list must split it with Tcl list semantics — `{a {b c} d}` is three
+/// elements (`a`, `b c`, `d`), not four whitespace runs — so the loop variable
+/// folds to the right CONSTSET.
+pub(crate) fn split_list_values(text: &str) -> Vec<String> {
     tcl_syntax::list::split_list_lenient(text)
         .into_iter()
         .map(std::borrow::Cow::into_owned)
