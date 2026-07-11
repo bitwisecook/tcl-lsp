@@ -59,7 +59,7 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 
 | stem | C P/S/F | VM P/S/F | status |
 |---|---|---|---|
-| var | 200/21/0 | 127/21/73 | gap |
+| var | 200/21/0 | 128/21/72 | gap |
 | set | 63/1/0 | 63/1/0 | MATCH |
 | set-old | 153/0/0 | 91/0/62 | gap |
 | append | 49/3/0 | 45/3/4 | gap |
@@ -141,9 +141,9 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 
 | stem | C P/S/F | VM P/S/F | status |
 |---|---|---|---|
-| oo | 372/16/0 | 49/16/323 | gap |
-| ooNext2 | 57/5/0 | 2/5/55 | gap |
-| ooProp | 55/0/0 | 0/0/55 | gap |
+| oo | 372/16/0 | 72/16/300 | gap |
+| ooNext2 | 57/5/0 | 15/5/42 | gap |
+| ooProp | 55/0/0 | 11/0/44 | gap |
 | ooUtil | 33/0/0 | 2/0/31 | gap |
 
 ## Tier 7 — Packages & loading

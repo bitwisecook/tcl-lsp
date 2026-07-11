@@ -82,6 +82,12 @@ struct Class {
     /// `export`/`unexport` overrides applied to instance methods.
     exported: BTreeSet<String>,
     unexported: BTreeSet<String>,
+    /// TIP 558 property slots — the readable/writable property names declared
+    /// on this class via `::oo::configuresupport::{readable,writable}properties`
+    /// (a `BTreeSet` keeps them sorted and unique, as `info class properties`
+    /// reports them).
+    readable_properties: BTreeSet<String>,
+    writable_properties: BTreeSet<String>,
 }
 
 /// The object facet of an entity: its own (per-instance) state.
@@ -100,6 +106,10 @@ struct Object {
     mixins: Vec<String>,
     exported: BTreeSet<String>,
     unexported: BTreeSet<String>,
+    /// TIP 558 per-object property slots
+    /// (`::oo::configuresupport::obj{readable,writable}properties`).
+    readable_properties: BTreeSet<String>,
+    writable_properties: BTreeSet<String>,
     /// Set once the destructor chain has started (re-entrancy guard).
     destroyed: bool,
 }
@@ -234,7 +244,89 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("next", cmd_next);
     vm.register("nextto", cmd_nextto);
     vm.register("my", cmd_my);
+    // TIP 558 property slots — the low-level readable/writable property setters
+    // used inside `oo::define` / `oo::objdefine` bodies. `(obj, writable)`:
+    // `obj` targets the per-object slot (`obj*properties`), else the class slot.
+    vm.register("::oo::configuresupport::readableproperties", |v, a| {
+        property_slot(v, a, false, false)
+    });
+    vm.register("::oo::configuresupport::writableproperties", |v, a| {
+        property_slot(v, a, false, true)
+    });
+    vm.register("::oo::configuresupport::objreadableproperties", |v, a| {
+        property_slot(v, a, true, false)
+    });
+    vm.register("::oo::configuresupport::objwritableproperties", |v, a| {
+        property_slot(v, a, true, true)
+    });
     bootstrap(vm);
+}
+
+/// A TIP 558 property slot (`::oo::configuresupport::{obj,}{readable,writable}properties`).
+///
+/// Callable only inside an `oo::define`/`oo::objdefine` body; applies a slot
+/// operation to the target's readable or writable property set. Supported ops
+/// are `-set` (replace, also the default for bare names), `-append`, `-remove`,
+/// and `-clear`; every op keeps the set sorted and duplicate-free.
+fn property_slot(vm: &mut Vm, args: &[Value], obj: bool, writable: bool) -> Completion<Value> {
+    let Some((is_class, target)) = active_target(vm) else {
+        return err("this command can only be called from within the body of a definition");
+    };
+    let (op, names): (String, &[Value]) = match args.split_first() {
+        Some((first, rest)) if first.to_str().starts_with('-') => {
+            (first.to_str().to_string(), rest)
+        }
+        _ => ("-set".to_owned(), args),
+    };
+    let new_names: Vec<String> = names.iter().map(|v| v.to_str().to_string()).collect();
+
+    // Resolve the target set: the per-object slot writes the object facet, the
+    // class slot writes the class facet (a class is also an object).
+    let set = if obj || !is_class {
+        vm.oo
+            .objects
+            .get_mut(&target)
+            .map(|o| slot_of_obj(o, writable))
+    } else {
+        vm.oo
+            .classes
+            .get_mut(&target)
+            .map(|c| slot_of_class(c, writable))
+    };
+    let Some(set) = set else {
+        return err(format!("{} does not refer to an object", display(&target)));
+    };
+    match op.as_str() {
+        "-set" => {
+            set.clear();
+            set.extend(new_names);
+        }
+        "-append" => set.extend(new_names),
+        "-remove" => {
+            for n in &new_names {
+                set.remove(n);
+            }
+        }
+        "-clear" => set.clear(),
+        other => return err(format!("unsupported slot operation \"{other}\"")),
+    }
+    ok(Value::empty())
+}
+
+fn slot_of_class(c: &mut Class, writable: bool) -> &mut BTreeSet<String> {
+    if writable {
+        &mut c.writable_properties
+    } else {
+        &mut c.readable_properties
+    }
+}
+
+fn slot_of_obj(o: &mut Object, writable: bool) -> &mut BTreeSet<String> {
+    if writable {
+        &mut o.writable_properties
+    } else {
+        &mut o.readable_properties
+    }
 }
 
 /// Seed the two root classes `::oo::object` and `::oo::class`. Each is a class,
@@ -264,6 +356,8 @@ fn bootstrap(vm: &mut Vm) {
                 mixins: Vec::new(),
                 exported: BTreeSet::new(),
                 unexported: BTreeSet::new(),
+                readable_properties: BTreeSet::new(),
+                writable_properties: BTreeSet::new(),
                 destroyed: false,
             },
         );
@@ -414,6 +508,8 @@ fn oo_new(
             mixins: Vec::new(),
             exported: BTreeSet::new(),
             unexported: BTreeSet::new(),
+            readable_properties: BTreeSet::new(),
+            writable_properties: BTreeSet::new(),
             destroyed: false,
         },
     );
@@ -963,6 +1059,30 @@ fn oo_destroy(vm: &mut Vm, obj_key: &str) -> Completion<Value> {
         Some(o) => o.destroyed = true,
         None => return ok(Value::empty()),
     }
+    // Destroying a class cascades to everything derived from it: its direct
+    // instances and its direct subclasses (each recursion in turn reaches their
+    // instances / subclasses), matching TclOO. The `destroyed` guard above makes
+    // this safe against cycles.
+    if vm.oo.classes.contains_key(obj_key) {
+        let derived: Vec<String> = vm
+            .oo
+            .objects
+            .iter()
+            .filter(|(k, o)| {
+                k.as_str() != obj_key
+                    && (o.class == obj_key
+                        || vm
+                            .oo
+                            .classes
+                            .get(*k)
+                            .is_some_and(|c| c.supers.iter().any(|s| s == obj_key)))
+            })
+            .map(|(k, _)| k.clone())
+            .collect();
+        for d in derived {
+            let _ = oo_destroy(vm, &d);
+        }
+    }
     let class = vm.oo.objects.get(obj_key).map(|o| o.class.clone());
     let mut result = ok(Value::empty());
     if let Some(class) = class {
@@ -1438,10 +1558,36 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             ok(Value::list(names.into_iter().map(Value::string).collect()))
         }
+        "properties" => info_object_properties(vm, &obj, extra),
         _ => err(format!(
-            "unknown or ambiguous subcommand \"{sub}\": must be class, creationid, isa, methods, mixins, namespace, variables or vars"
+            "unknown or ambiguous subcommand \"{sub}\": must be class, creationid, isa, methods, mixins, namespace, properties, variables or vars"
         )),
     }
+}
+
+/// `info object properties object ?-all? ?-readable|-writable?` (TIP 558).
+///
+/// Reports the readable (default) or writable properties declared directly on
+/// the object; `-all` unions in the object's full precedence (its mixins, then
+/// its class MRO). Sorted and duplicate-free.
+fn info_object_properties(vm: &mut Vm, obj: &str, extra: &[Value]) -> Completion<Value> {
+    let all = extra.iter().any(|v| v.to_str().as_ref() == "-all");
+    let writable = extra.iter().any(|v| v.to_str().as_ref() == "-writable");
+    let mut names: BTreeSet<String> = BTreeSet::new();
+    if all {
+        for step in vm.oo.object_precedence(obj) {
+            if step.is_object {
+                if let Some(o) = vm.oo.objects.get(&step.provider) {
+                    names.extend(slot_ref_obj(o, writable).iter().cloned());
+                }
+            } else if let Some(c) = vm.oo.classes.get(&step.provider) {
+                names.extend(slot_ref_class(c, writable).iter().cloned());
+            }
+        }
+    } else if let Some(o) = vm.oo.objects.get(obj) {
+        names.extend(slot_ref_obj(o, writable).iter().cloned());
+    }
+    ok(Value::list(names.into_iter().map(Value::string).collect()))
 }
 
 /// `info object isa category object ?arg?`.
@@ -1563,9 +1709,47 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .map(Value::string)
                 .collect(),
         )),
+        "properties" => info_class_properties(vm, &cls, extra),
         _ => err(format!(
-            "unknown or ambiguous subcommand \"{sub}\": must be constructor, destructor, instances, methods, mixins, subclasses, superclasses or variables"
+            "unknown or ambiguous subcommand \"{sub}\": must be constructor, destructor, instances, methods, mixins, properties, subclasses, superclasses or variables"
         )),
+    }
+}
+
+/// `info class properties class ?-all? ?-readable|-writable?` (TIP 558).
+///
+/// Reports the readable (default) or writable property names declared on the
+/// class; `-all` unions in every class up the MRO (mixins + superclasses). The
+/// result is sorted and duplicate-free.
+fn info_class_properties(vm: &mut Vm, cls: &str, extra: &[Value]) -> Completion<Value> {
+    let all = extra.iter().any(|v| v.to_str().as_ref() == "-all");
+    let writable = extra.iter().any(|v| v.to_str().as_ref() == "-writable");
+    let mut names: BTreeSet<String> = BTreeSet::new();
+    if all {
+        for step in vm.oo.class_linear_of(cls) {
+            if let Some(c) = vm.oo.classes.get(&step.provider) {
+                names.extend(slot_ref_class(c, writable).iter().cloned());
+            }
+        }
+    } else if let Some(c) = vm.oo.classes.get(cls) {
+        names.extend(slot_ref_class(c, writable).iter().cloned());
+    }
+    ok(Value::list(names.into_iter().map(Value::string).collect()))
+}
+
+fn slot_ref_class(c: &Class, writable: bool) -> &BTreeSet<String> {
+    if writable {
+        &c.writable_properties
+    } else {
+        &c.readable_properties
+    }
+}
+
+fn slot_ref_obj(o: &Object, writable: bool) -> &BTreeSet<String> {
+    if writable {
+        &o.writable_properties
+    } else {
+        &o.readable_properties
     }
 }
 
@@ -1631,6 +1815,8 @@ pub(crate) fn make_class(vm: &mut Vm, class_key: &str, body: Option<&Value>) -> 
             mixins: Vec::new(),
             exported: BTreeSet::new(),
             unexported: BTreeSet::new(),
+            readable_properties: BTreeSet::new(),
+            writable_properties: BTreeSet::new(),
             destroyed: false,
         },
     );

@@ -130,6 +130,85 @@ fn tcl_oo_package_and_version_vars() {
 }
 
 #[test]
+fn tip558_core_property_slots() {
+    // tclsh 9.0.4 ooProp-1.1: `-set` replaces; results are sorted + unique.
+    assert_eq!(
+        result(
+            "oo::class create c {}\n\
+             set r {}\n\
+             lappend r [info class properties c] [info class properties c -writable]\n\
+             oo::define c ::oo::configuresupport::readableproperties -set a b c\n\
+             lappend r [info class properties c]\n\
+             oo::define c ::oo::configuresupport::readableproperties -set f e d\n\
+             lappend r [info class properties c]\n\
+             oo::define c ::oo::configuresupport::readableproperties -set a a a\n\
+             lappend r [info class properties c]\n\
+             set r"
+        ),
+        "{} {} {a b c} {d e f} a"
+    );
+}
+
+#[test]
+fn tip558_property_slot_ops_and_writable() {
+    // `-append` / `-remove` / `-clear`, plus the writable slot is independent.
+    assert_eq!(
+        result(
+            "oo::class create c {}\n\
+             oo::define c ::oo::configuresupport::readableproperties -set a b\n\
+             oo::define c ::oo::configuresupport::readableproperties -append c\n\
+             oo::define c ::oo::configuresupport::readableproperties -remove b\n\
+             oo::define c ::oo::configuresupport::writableproperties -set w\n\
+             list [info class properties c] [info class properties c -writable]"
+        ),
+        "{a c} w"
+    );
+}
+
+#[test]
+fn tip558_property_all_walks_superclasses() {
+    // `-all` unions the readable properties up the class MRO.
+    assert_eq!(
+        result(
+            "oo::class create base {}\n\
+             oo::define base ::oo::configuresupport::readableproperties -set p q\n\
+             oo::class create derived {superclass base}\n\
+             oo::define derived ::oo::configuresupport::readableproperties -set r\n\
+             list [info class properties derived] [info class properties derived -all]"
+        ),
+        "r {p q r}"
+    );
+}
+
+#[test]
+fn destroying_a_class_cascades_to_instances_and_subclasses() {
+    // tclsh 9.0.4: destroying a class destroys its instances and subclasses too,
+    // so the names are free to reuse (the pattern every oo* -cleanup relies on).
+    assert_eq!(
+        result(
+            "oo::class create parent {}\n\
+             oo::class create child {superclass parent}\n\
+             set inst [parent new]\n\
+             parent destroy\n\
+             list [info commands ::child] [info commands $inst] [info commands ::parent]"
+        ),
+        "{} {} {}"
+    );
+    // And the freed names can be recreated (the cross-test cleanup case every
+    // oo* test file's -setup/-cleanup relies on).
+    assert_eq!(
+        result(
+            "oo::class create parent {}\n\
+             oo::class create child {superclass parent}\n\
+             parent destroy\n\
+             oo::class create child {superclass oo::object}\n\
+             info commands ::child"
+        ),
+        "::child"
+    );
+}
+
+#[test]
 fn constructor_and_instance_variables() {
     // tclsh 9.0.4: -> 3 4
     assert_eq!(
