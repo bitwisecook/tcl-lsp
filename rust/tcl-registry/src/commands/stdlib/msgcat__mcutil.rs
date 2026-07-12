@@ -32,6 +32,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         required_package: Some("msgcat"),
+        is_namespace_exported: true,
         ..CommandSpec::DEFAULT
     }
 }

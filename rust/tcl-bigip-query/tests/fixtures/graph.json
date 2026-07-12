@@ -3,19 +3,19 @@
     "query": ".ltm.rule[].refs",
     "mode": "json",
     "kind": "ok",
-    "output": "[\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/route_by_host\",\n    \"fields\": {\n      \"pools\": [],\n      \"persists\": [],\n      \"data-groups\": [\n        \"/Common/allowed_hosts\"\n      ]\n    }\n  },\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/ip_blocklist\",\n    \"fields\": {\n      \"pools\": [],\n      \"persists\": [],\n      \"data-groups\": [\n        \"/Common/blocked_ips\"\n      ]\n    }\n  },\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/uri_rewrite\",\n    \"fields\": {\n      \"pools\": [],\n      \"persists\": [],\n      \"data-groups\": [\n        \"/Common/uri_redirect_map\"\n      ]\n    }\n  },\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/ssl_info\",\n    \"fields\": {\n      \"pools\": [],\n      \"persists\": [],\n      \"data-groups\": []\n    }\n  },\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/bad_references\",\n    \"fields\": {\n      \"pools\": [],\n      \"persists\": [],\n      \"data-groups\": []\n    }\n  }\n]\n"
+    "output": "[\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/route_by_host\",\n    \"fields\": {\n      \"pools\": [\n        \"/Common/api_pool\",\n        \"/Common/web_pool\"\n      ],\n      \"persists\": [],\n      \"data-groups\": [\n        \"/Common/allowed_hosts\"\n      ]\n    }\n  },\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/ip_blocklist\",\n    \"fields\": {\n      \"pools\": [],\n      \"persists\": [],\n      \"data-groups\": [\n        \"/Common/blocked_ips\"\n      ]\n    }\n  },\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/uri_rewrite\",\n    \"fields\": {\n      \"pools\": [],\n      \"persists\": [],\n      \"data-groups\": [\n        \"/Common/uri_redirect_map\"\n      ]\n    }\n  },\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/ssl_info\",\n    \"fields\": {\n      \"pools\": [],\n      \"persists\": [],\n      \"data-groups\": []\n    }\n  },\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/bad_references\",\n    \"fields\": {\n      \"pools\": [],\n      \"persists\": [],\n      \"data-groups\": []\n    }\n  }\n]\n"
   },
   {
     "query": ".ltm.rule[].refs.pools",
     "mode": "raw",
     "kind": "ok",
-    "output": ""
+    "output": "/Common/api_pool\n/Common/web_pool\n"
   },
   {
     "query": ".ltm.rule[] | .refs.pools",
     "mode": "raw",
     "kind": "ok",
-    "output": ""
+    "output": "/Common/api_pool\n/Common/web_pool\n"
   },
   {
     "query": ".ltm.rule[].refs.persists",
@@ -39,13 +39,13 @@
     "query": ".ltm.rule[] | {name, pools: .refs.pools}",
     "mode": "json",
     "kind": "ok",
-    "output": "[\n  {\n    \"name\": \"route_by_host\",\n    \"pools\": []\n  },\n  {\n    \"name\": \"ip_blocklist\",\n    \"pools\": []\n  },\n  {\n    \"name\": \"uri_rewrite\",\n    \"pools\": []\n  },\n  {\n    \"name\": \"ssl_info\",\n    \"pools\": []\n  },\n  {\n    \"name\": \"bad_references\",\n    \"pools\": []\n  }\n]\n"
+    "output": "[\n  {\n    \"name\": \"route_by_host\",\n    \"pools\": [\n      \"/Common/api_pool\",\n      \"/Common/web_pool\"\n    ]\n  },\n  {\n    \"name\": \"ip_blocklist\",\n    \"pools\": []\n  },\n  {\n    \"name\": \"uri_rewrite\",\n    \"pools\": []\n  },\n  {\n    \"name\": \"ssl_info\",\n    \"pools\": []\n  },\n  {\n    \"name\": \"bad_references\",\n    \"pools\": []\n  }\n]\n"
   },
   {
     "query": ".ltm.rule[\"/Common/route_by_host\"].refs",
     "mode": "json",
     "kind": "ok",
-    "output": "[\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/route_by_host\",\n    \"fields\": {\n      \"pools\": [],\n      \"persists\": [],\n      \"data-groups\": [\n        \"/Common/allowed_hosts\"\n      ]\n    }\n  }\n]\n"
+    "output": "[\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/route_by_host\",\n    \"fields\": {\n      \"pools\": [\n        \"/Common/api_pool\",\n        \"/Common/web_pool\"\n      ],\n      \"persists\": [],\n      \"data-groups\": [\n        \"/Common/allowed_hosts\"\n      ]\n    }\n  }\n]\n"
   },
   {
     "query": ".ltm.rule[\"/Common/route_by_host\"].refs.data-groups",
@@ -81,7 +81,7 @@
     "query": ".ltm.rule[] | refs(.)",
     "mode": "raw",
     "kind": "ok",
-    "output": "/Common/allowed_hosts\n/Common/blocked_ips\n/Common/uri_redirect_map\n"
+    "output": "/Common/allowed_hosts\n/Common/api_pool\n/Common/web_pool\n/Common/blocked_ips\n/Common/uri_redirect_map\n"
   },
   {
     "query": ".ltm.pool[] | refs(.)",
@@ -111,7 +111,7 @@
     "query": ".ltm.pool[] | referenced_by(.)",
     "mode": "raw",
     "kind": "ok",
-    "output": "/Common/ssl_only_vs\n/Common/www_vs\n/Common/api_vs\n"
+    "output": "/Common/route_by_host\n/Common/ssl_only_vs\n/Common/www_vs\n/Common/route_by_host\n/Common/api_vs\n"
   },
   {
     "query": ".ltm.virtual[] | referenced_by(.)",
@@ -135,7 +135,7 @@
     "query": "referenced_by(.ltm.pool[])",
     "mode": "raw",
     "kind": "ok",
-    "output": "/Common/ssl_only_vs\n/Common/www_vs\n/Common/api_vs\n"
+    "output": "/Common/route_by_host\n/Common/ssl_only_vs\n/Common/www_vs\n/Common/route_by_host\n/Common/api_vs\n"
   },
   {
     "query": ".ltm.pool[] | select(referenced_by(.) | count == 0) | .name",
@@ -147,13 +147,13 @@
     "query": "references_to(\"/Common/web_pool\")",
     "mode": "raw",
     "kind": "ok",
-    "output": "/Common/ssl_only_vs\n/Common/www_vs\n"
+    "output": "/Common/route_by_host\n/Common/ssl_only_vs\n/Common/www_vs\n"
   },
   {
     "query": "references_to(\"/Common/api_pool\")",
     "mode": "raw",
     "kind": "ok",
-    "output": "/Common/api_vs\n"
+    "output": "/Common/route_by_host\n/Common/api_vs\n"
   },
   {
     "query": "references_to(\"/Common/route_by_host\")",
@@ -177,7 +177,7 @@
     "query": "count(references_to(\"/Common/web_pool\"))",
     "mode": "json",
     "kind": "ok",
-    "output": "[\n  2\n]\n"
+    "output": "[\n  3\n]\n"
   },
   {
     "query": "check_partition_visibility()",

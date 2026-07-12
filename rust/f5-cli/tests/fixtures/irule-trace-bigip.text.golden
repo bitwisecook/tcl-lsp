@@ -8,6 +8,8 @@ event HTTP_REQUEST: 2 matching rule(s)
     pool
     reject
     ✓ data-group: /Common/allowed_hosts
+    ✓ pool: /Common/api_pool
+    ✓ pool: /Common/web_pool
   /Common/bad_references — 4 command(s)
     if
     drop

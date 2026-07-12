@@ -6,7 +6,46 @@
         "name": "route_by_host",
         "source": "when HTTP_REQUEST {\n        if { [class match [HTTP::host] equals allowed_hosts] } {\n            switch -glob [HTTP::uri] {\n                \"/api/*\" {\n                    pool /Common/api_pool\n                }\n                default {\n                    pool /Common/web_pool\n                }\n            }\n        } else {\n            reject\n        }\n    }"
       },
-      "pools": [],
+      "pools": [
+        {
+          "fullPath": "/Common/api_pool",
+          "monitor": "/Common/my_http_monitor",
+          "loadBalancingMode": "least-connections-member",
+          "members": [
+            {
+              "name": "/Common/web2:8080",
+              "address": "10.0.1.11",
+              "port": null,
+              "monitor": null
+            },
+            {
+              "name": "/Common/web3:8080",
+              "address": "10.0.1.12",
+              "port": null,
+              "monitor": null
+            }
+          ]
+        },
+        {
+          "fullPath": "/Common/web_pool",
+          "monitor": "/Common/my_http_monitor",
+          "loadBalancingMode": "round-robin",
+          "members": [
+            {
+              "name": "/Common/web1:80",
+              "address": "10.0.1.10",
+              "port": null,
+              "monitor": null
+            },
+            {
+              "name": "/Common/web2:80",
+              "address": "10.0.1.11",
+              "port": null,
+              "monitor": null
+            }
+          ]
+        }
+      ],
       "dataGroups": [
         {
           "fullPath": "/Common/allowed_hosts",
@@ -29,7 +68,9 @@
       "unresolved": {},
       "sourceSlices": {
         "/Common/route_by_host": "ltm rule /Common/route_by_host {\n    when HTTP_REQUEST {\n        if { [class match [HTTP::host] equals allowed_hosts] } {\n            switch -glob [HTTP::uri] {\n                \"/api/*\" {\n                    pool /Common/api_pool\n                }\n                default {\n                    pool /Common/web_pool\n                }\n            }\n        } else {\n            reject\n        }\n    }\n}\n",
-        "/Common/allowed_hosts": "ltm data-group internal /Common/allowed_hosts {\n    records {\n        www.example.com { }\n        api.example.com { }\n        admin.example.com { }\n    }\n    type string\n}\n"
+        "/Common/allowed_hosts": "ltm data-group internal /Common/allowed_hosts {\n    records {\n        www.example.com { }\n        api.example.com { }\n        admin.example.com { }\n    }\n    type string\n}\n",
+        "/Common/api_pool": "ltm pool /Common/api_pool {\n    members {\n        /Common/web2:8080 {\n            address 10.0.1.11\n        }\n        /Common/web3:8080 {\n            address 10.0.1.12\n        }\n    }\n    monitor /Common/my_http_monitor\n    load-balancing-mode least-connections-member\n}\n",
+        "/Common/web_pool": "ltm pool /Common/web_pool {\n    members {\n        /Common/web1:80 {\n            address 10.0.1.10\n        }\n        /Common/web2:80 {\n            address 10.0.1.11\n        }\n    }\n    monitor /Common/my_http_monitor\n    load-balancing-mode round-robin\n}\n"
       }
     },
     {

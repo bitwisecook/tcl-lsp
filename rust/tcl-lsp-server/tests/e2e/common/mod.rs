@@ -272,10 +272,53 @@ impl Lsp {
 
     /// Spawn + initialise a server whose `tclLsp` configuration reply is
     /// `config`.
+    /// Start a server whose `workspace/configuration` reply is `config`, and
+    /// **block until that config has actually been applied**.
+    ///
+    /// The barrier is load-bearing, not belt-and-braces.  The server pulls the
+    /// config from inside its `initialized` handler, which runs *concurrently*
+    /// with any `didOpen` the client has already queued (see the comment on
+    /// `Backend::initialized`).  Without this wait, a document opened right
+    /// after construction races the pull and is routinely analysed under the
+    /// *default* config — e.g. a test that opts into `optimiser.profile =
+    /// standard` and then asserts on an O102 diagnostic gets an empty
+    /// diagnostic set, because O102 is outside the default `readability`
+    /// profile.  The server does converge (its `initialized` tail reschedules
+    /// every open document), so the corrected publish arrives later — but a
+    /// test that sampled the first publish has already failed by then.  That
+    /// was a real, reproducible flake in `vscode_parity`'s two optimisation
+    /// -payload tests.
+    ///
+    /// Settling here rather than in each test fixes the whole class: every
+    /// `with_config` caller is now guaranteed that its config is in effect
+    /// before it opens anything.
     pub fn with_config(config: Value) -> Self {
         let mut lsp = Self::spawn(config);
         lsp.initialize();
+        // Settle on exactly what this client will reply to
+        // `workspace/configuration` with, read back from the shared slot.
+        let requested = lsp.shared.tcllsp_config.lock().unwrap().clone();
+        lsp.settle_config(&requested);
         lsp
+    }
+
+    /// Poll `getEffectiveConfig` until every key of `requested` is reflected in
+    /// the server's applied config.
+    fn settle_config(&mut self, requested: &Value) {
+        let deadline = Instant::now() + DEFAULT_TIMEOUT;
+        loop {
+            let effective = self.effective_config("");
+            if config_reflected(requested, &effective) {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "requested config was not applied within {DEFAULT_TIMEOUT:?}\n  \
+                 requested: {requested}\n  effective: {effective}{}",
+                latency_barrier_timeout_note()
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
     }
 
     fn spawn(config: Value) -> Self {
@@ -951,6 +994,58 @@ impl Lsp {
             latency_barrier_timeout_note()
         );
     }
+}
+
+/// Whether every key of the `tclLsp` config `requested` is reflected in the
+/// `getEffectiveConfig` reply `effective`.
+///
+/// The two shapes differ (`optimiser.profile` is reported as a flat
+/// `optimiser_profile`), so the mapping is explicit. An unmapped key **panics**
+/// rather than being skipped: silently ignoring it would silently restore the
+/// unsynchronised behaviour this barrier exists to remove, and the next author
+/// to add a config key to a test would get a flake instead of an error.
+fn config_reflected(requested: &Value, effective: &Value) -> bool {
+    let Some(req) = requested.as_object() else {
+        return true;
+    };
+    req.iter().all(|(key, want)| match key.as_str() {
+        // Nested feature toggles: each requested toggle must match.
+        "features" => want.as_object().is_none_or(|feats| {
+            feats.iter().all(|(feat, on)| {
+                effective
+                    .get("features")
+                    .and_then(|f| f.get(feat))
+                    .is_some_and(|got| got == on)
+            })
+        }),
+        // Nested optimiser settings, reported flat.
+        "optimiser" => want.as_object().is_none_or(|opt| {
+            opt.iter().all(|(k, v)| {
+                let flat = match k.as_str() {
+                    "enabled" => "optimiser_enabled",
+                    "profile" => "optimiser_profile",
+                    // A per-code override (`optimiser.O109 = false`) lands in
+                    // the disabled set, which is reported — but matching it
+                    // properly means replicating the profile→disabled
+                    // derivation, so refuse rather than pretend to check it.
+                    other => panic!(
+                        "config_reflected: no settle mapping for `optimiser.{other}` \
+                         — add one (see getEffectiveConfig) so the config is a real barrier"
+                    ),
+                };
+                effective.get(flat).is_some_and(|got| got == v)
+            })
+        }),
+        "libraryPaths" => effective
+            .get("library_paths")
+            .is_some_and(|got| got == want),
+        "dialect" => effective.get("dialect").is_some_and(|got| got == want),
+        "lineLength" => effective.get("line_length").is_some_and(|got| got == want),
+        other => panic!(
+            "config_reflected: no settle mapping for `{other}` — add one (see \
+             getEffectiveConfig) so `Lsp::with_config` remains a real barrier"
+        ),
+    })
 }
 
 impl Drop for Lsp {

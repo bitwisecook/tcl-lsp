@@ -3,12 +3,12 @@
 # Direction: forward
 # Sources: file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf
 # Searches: 1 matched object(s)
-# Related: 17 object(s)
+# Related: 19 object(s)
 #   ltm_data_group_internal: 3
 #   ltm_monitor_http: 1
-#   ltm_node: 2
+#   ltm_node: 3
 #   ltm_persistence_cookie: 1
-#   ltm_pool: 1
+#   ltm_pool: 2
 #   ltm_profile_client_ssl: 1
 #   ltm_profile_http: 1
 #   ltm_profile_one_connect: 1
@@ -39,3 +39,5 @@
   [ltm_monitor_http] /Common/my_http_monitor  (depth 2)
   [ltm_node] /Common/web1  (depth 2)
   [ltm_node] /Common/web2  (depth 2)
+  [ltm_pool] /Common/api_pool  (depth 2)
+  [ltm_node] /Common/web3  (depth 3)

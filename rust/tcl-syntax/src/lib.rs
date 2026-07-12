@@ -41,6 +41,7 @@
 
 pub mod backslash;
 pub mod boolean;
+pub mod case_list;
 pub mod expr;
 pub mod format;
 pub mod glob;

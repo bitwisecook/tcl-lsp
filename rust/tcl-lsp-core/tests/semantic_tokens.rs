@@ -974,17 +974,19 @@ fn non_loop_command_first_arg_stays_string() {
 // ---------------------------------------------------------------------------
 // Parameter-list highlighting — proc / method / constructor / apply-lambda
 // parameters, and the registry `LoopVarList` role for `dict map` (peer of
-// `dict for`).  Each parameter / loop name reads as a variable declaration.
+// `dict for`).  A *parameter* carries the standard LSP `parameter` type (#898
+// §4), so a theme can tell an argument from an ordinary local; a *loop*
+// variable stays a plain variable declaration.
 // ---------------------------------------------------------------------------
 
 #[test]
-fn proc_parameters_are_variables() {
+fn proc_parameters_are_parameters() {
     let src = "proc greet {name age} { return $name }\n";
     for name in ["name", "age"] {
         assert_eq!(
             kind_of_word(src, "tcl8.6", name).as_deref(),
-            Some("variable"),
-            "proc parameter `{name}` must be a variable: {:?}",
+            Some("parameter"),
+            "proc parameter `{name}` must be a parameter: {:?}",
             decode(src, "tcl8.6"),
         );
     }
@@ -997,8 +999,8 @@ fn proc_parameter_default_pair_splits_name_and_value() {
     for name in ["a", "b", "args"] {
         assert_eq!(
             kind_of_word(src, "tcl8.6", name).as_deref(),
-            Some("variable"),
-            "`{name}` must be a parameter variable: {:?}",
+            Some("parameter"),
+            "`{name}` must be a parameter: {:?}",
             decode(src, "tcl8.6"),
         );
     }
@@ -1011,33 +1013,33 @@ fn proc_parameter_default_pair_splits_name_and_value() {
 }
 
 #[test]
-fn apply_lambda_parameters_are_variables() {
+fn apply_lambda_parameters_are_parameters() {
     let src = "apply {{alpha beta} { return $alpha }} 1 2\n";
     for name in ["alpha", "beta"] {
         assert_eq!(
             kind_of_word(src, "tcl8.6", name).as_deref(),
-            Some("variable"),
-            "apply lambda parameter `{name}` must be a variable: {:?}",
+            Some("parameter"),
+            "apply lambda parameter `{name}` must be a parameter: {:?}",
             decode(src, "tcl8.6"),
         );
     }
 }
 
 #[test]
-fn tcloo_method_and_constructor_parameters_are_variables() {
+fn tcloo_method_and_constructor_parameters_are_parameters() {
     let src = "oo::class create C {\n    method greet {who} { return $who }\n    constructor {aa bb} { set x $aa }\n}\n";
     for name in ["who", "aa", "bb"] {
         assert_eq!(
             kind_of_word(src, "tcl8.6", name).as_deref(),
-            Some("variable"),
-            "TclOO parameter `{name}` must be a variable: {:?}",
+            Some("parameter"),
+            "TclOO parameter `{name}` must be a parameter: {:?}",
             decode(src, "tcl8.6"),
         );
     }
 }
 
 #[test]
-fn snit_macro_arglist_parameters_are_variables() {
+fn snit_macro_arglist_parameters_are_parameters() {
     // `snit::macro name arglist body` — the arglist word (registry arg-role
     // `ParamList`) holds the macro's formal parameters, so its names read as
     // variables and the body highlights, exactly like a proc.
@@ -1045,8 +1047,8 @@ fn snit_macro_arglist_parameters_are_variables() {
     for name in ["alpha", "beta"] {
         assert_eq!(
             kind_of_word(src, "tcl8.6", name).as_deref(),
-            Some("variable"),
-            "snit::macro parameter `{name}` must be a variable: {:?}",
+            Some("parameter"),
+            "snit::macro parameter `{name}` must be a parameter: {:?}",
             decode(src, "tcl8.6"),
         );
     }
@@ -1163,11 +1165,11 @@ fn snit_type_members_highlight() {
         "snit `variable` name must be a variable: {:?}",
         decode(src, "tcl8.6"),
     );
-    // Method parameter.
+    // Method parameter — the standard LSP `parameter` type (#898 §4).
     assert_eq!(
         kind_of_word(src, "tcl8.6", "volume").as_deref(),
-        Some("variable"),
-        "snit method parameter must be a variable: {:?}",
+        Some("parameter"),
+        "snit method parameter must be a parameter: {:?}",
         decode(src, "tcl8.6"),
     );
     // snit-specific member keyword.
@@ -1247,14 +1249,15 @@ fn itcl_class_members_highlight() {
             decode(src, "tcl8.6"),
         );
     }
-    // Instance variable declaration + method parameter are variables.
+    // The instance variable declaration is a variable; the method's parameter
+    // carries the standard LSP `parameter` type (#898 §4).
     assert_eq!(
         kind_of_word(src, "tcl8.6", "contents").as_deref(),
         Some("variable")
     );
     assert_eq!(
         kind_of_word(src, "tcl8.6", "value").as_deref(),
-        Some("variable")
+        Some("parameter")
     );
 }
 
@@ -1275,10 +1278,12 @@ fn itcl_access_modifier_wraps_inner_member() {
             decode(src, "tcl8.6"),
         );
     }
-    // The wrapped method's parameter and the wrapped variable's name resolve.
+    // The wrapped method's parameter and the wrapped variable's name both
+    // resolve — the parameter as `parameter` (#898 §4), the variable as a
+    // variable.
     assert_eq!(
         kind_of_word(src, "tcl8.6", "ww").as_deref(),
-        Some("variable")
+        Some("parameter")
     );
     assert_eq!(
         kind_of_word(src, "tcl8.6", "secret").as_deref(),
@@ -1334,8 +1339,8 @@ fn itcl_body_external_definition_highlights() {
     for p in ["ww", "hh"] {
         assert_eq!(
             kind_of_word(src, "tcl8.6", p).as_deref(),
-            Some("variable"),
-            "itcl::body param `{p}` must be a variable: {:?}",
+            Some("parameter"),
+            "itcl::body param `{p}` must be a parameter: {:?}",
             decode(src, "tcl8.6"),
         );
     }
@@ -1506,5 +1511,43 @@ fn issue_862_reported_builtins_are_function_default_library_in_tcltest_body() {
     assert!(
         has_default_library(test_tok),
         "imported `test` must carry the defaultLibrary modifier: {test_tok:?} in {toks:?}",
+    );
+}
+
+/// A `ltm rule { … }` body inside a BIG-IP config is iRules code, and must be
+/// tokenised as such — including the object-reference overlay a standalone
+/// `.irul` gets, so `pool /Common/api_pool` reads as an `object`.
+#[test]
+fn bigip_conf_embedded_rule_body_is_tokenised_as_irules() {
+    let mut registry = tcl_registry::CommandRegistry::build_default();
+    registry.load_dialect(tcl_registry::dialects::DialectSet::parse("f5-irules").unwrap());
+    let src =
+        "ltm rule /Common/r {\n    when HTTP_REQUEST {\n        pool /Common/api_pool\n    }\n}\n";
+    let toks = tcl_lsp_core::semantic_tokens::bigip_conf_full(src, &registry);
+    let types = tcl_lsp_core::semantic_tokens::legend_token_types();
+    let mut seen = Vec::new();
+    let (mut line, mut col) = (0u32, 0u32);
+    for c in toks.data.chunks(5) {
+        line += c[0];
+        col = if c[0] == 0 { col + c[1] } else { c[1] };
+        let text: String = src
+            .lines()
+            .nth(line as usize)
+            .and_then(|l| l.get(col as usize..(col + c[2]) as usize))
+            .unwrap_or_default()
+            .to_owned();
+        seen.push((text, types[c[3] as usize]));
+    }
+    assert!(
+        seen.contains(&("when".to_owned(), "keyword")),
+        "the rule body must be Tcl: {seen:?}"
+    );
+    assert!(
+        seen.contains(&("HTTP_REQUEST".to_owned(), "event")),
+        "the rule body must be iRules: {seen:?}"
+    );
+    assert!(
+        seen.contains(&("/Common/api_pool".to_owned(), "object")),
+        "an object reference in an embedded rule must read as an object: {seen:?}"
     );
 }

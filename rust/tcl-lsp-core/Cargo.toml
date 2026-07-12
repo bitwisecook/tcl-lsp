@@ -33,6 +33,8 @@ tcl-syntax = { path = "../tcl-syntax" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-irules = { path = "../tcl-irules" }
+# APL (iApp presentation) lexer, for the bespoke `tcl-apl` token path.
+tcl-bigip = { path = "../tcl-bigip" }
 regex = "1"
 rustc-hash = { workspace = true }
 serde_json = "1"

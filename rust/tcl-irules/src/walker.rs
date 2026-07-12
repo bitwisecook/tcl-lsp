@@ -180,6 +180,25 @@ fn walk(
             }
         }
 
+        // A clause-list word (`switch … {pat body …}`) is **not** an
+        // `ArgRole::Body`, so the recursion above never reached inside it: an
+        // object referenced only from a `switch` arm — `switch [HTTP::uri] {
+        // "/api/*" { pool /Common/api_pool } }`, an entirely ordinary iRule —
+        // was invisible to this walker.  For highlighting that meant the pool
+        // name read as a plain string; for the *reference graph* it meant a live
+        // pool looked unreferenced, which is what `bigip-cleanup` decides
+        // deletions from.  The clause-list shape is registry data
+        // (`CommandSpec::case_list`), the same entry the token walker reads.
+        if let Some(spec) = registry.get(cmd.name()).and_then(|s| s.case_list)
+            && let Some(tok) = case_list_word(&cmd, &args, spec)
+            && !inner_is_empty(full, &tok)
+        {
+            for body in case_list_body_tokens(full, &tok, spec) {
+                let mut child = scope.child();
+                recurse_token(full, &body, rule_module, registry, &mut child, out);
+            }
+        }
+
         // `[…]` command substitutions anywhere else in the command.
         for tok in &cmd.all_tokens {
             if !matches!(tok.kind, TokenType::Cmd) {
@@ -194,6 +213,65 @@ fn walk(
             recurse_token(full, tok, rule_module, registry, &mut child, out);
         }
     }
+}
+
+/// The clause-list word of `cmd` (`switch … {pat body …}`), per the registry's
+/// [`CaseListSpec`]: skip the command's options (and any that take a value),
+/// then its subject words; the clause list is the final braced word.
+fn case_list_word(
+    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    args: &[&str],
+    spec: &tcl_registry::CaseListSpec,
+) -> Option<Token> {
+    let mut i = 0usize;
+    while i < args.len() && args[i].starts_with('-') {
+        if args[i] == "--" {
+            i += 1;
+            break;
+        }
+        if spec.value_options.contains(&args[i]) {
+            i += 1;
+        }
+        i += 1;
+    }
+    let case_idx = i + usize::from(spec.subject_args);
+    if case_idx != args.len().checked_sub(1)? {
+        return None;
+    }
+    let tok = *cmd.argv.get(case_idx + 1)?;
+    matches!(tok.kind, TokenType::Str).then_some(tok)
+}
+
+/// The **body** elements of a clause list — the scripts to recurse.
+///
+/// The clause split is `tcl-syntax`'s, shared with the semantic-token walker: if
+/// the two disagreed about where a clause body is, they would disagree about
+/// what the code says.
+fn case_list_body_tokens(full: &str, tok: &Token, spec: &tcl_registry::CaseListSpec) -> Vec<Token> {
+    let (cstart, cend) = content_range(full, tok);
+    let Some(inner) = full.get(cstart..cend) else {
+        return Vec::new();
+    };
+    let shape = tcl_syntax::case_list::CaseListShape {
+        clause_flags: spec.clause_flags,
+        clause_value_flags: spec.clause_value_flags,
+    };
+    tcl_syntax::case_list::split_case_list(inner, &shape)
+        .into_iter()
+        .filter_map(|c| c.body)
+        // Only a braced body is a script.
+        .filter(|b| b.braced)
+        .map(|b| {
+            Token::with_content_offset(
+                TokenType::Str,
+                tcl_lexer::Span::new(
+                    u32::try_from(cstart + b.start).unwrap_or(0),
+                    u32::try_from(cstart + b.end).unwrap_or(0),
+                ),
+                1,
+            )
+        })
+        .collect()
 }
 
 /// The content byte range of a token (offset past its opening delimiter).
@@ -388,5 +466,47 @@ mod tests {
         let names: Vec<String> = refs(source).iter().map(|r| r.name.clone()).collect();
         assert!(names.contains(&"/Common/app_pool".to_owned()));
         assert!(names.contains(&"/Common/fallback_pool".to_owned()));
+    }
+}
+
+#[cfg(test)]
+mod case_list_tests {
+    use super::extract_irules_object_references;
+    use tcl_registry::CommandRegistry;
+    use tcl_registry::dialects::DialectSet;
+
+    fn reg() -> CommandRegistry {
+        let mut r = CommandRegistry::build_default();
+        r.load_dialect(DialectSet::parse("f5-irules").expect("the iRules dialect"));
+        r
+    }
+
+    /// An object referenced only from a `switch` arm must still be found.
+    ///
+    /// A `switch` case list is not an `ArgRole::Body`, so the walker never
+    /// descended into it: a pool used only inside a `switch` arm — an entirely
+    /// ordinary iRule — looked **unreferenced**.  For highlighting that meant the
+    /// name read as a plain string; for the reference graph it meant
+    /// `bigip-cleanup` would have seen a live pool as an orphan.
+    #[test]
+    fn objects_referenced_from_a_switch_arm_are_found() {
+        let registry = reg();
+        let src = "when HTTP_REQUEST {\n\
+                   \x20   pool /Common/top\n\
+                   \x20   switch -glob [HTTP::uri] {\n\
+                   \x20       \"/api/*\" { pool /Common/in_switch }\n\
+                   \x20       default  { pool /Common/fallback }\n\
+                   \x20   }\n\
+                   }\n";
+        let names: Vec<String> = extract_irules_object_references(src, None, &registry)
+            .into_iter()
+            .map(|r| r.name)
+            .collect();
+        for want in ["/Common/top", "/Common/in_switch", "/Common/fallback"] {
+            assert!(
+                names.iter().any(|n| n == want),
+                "`{want}` must be a resolved reference; got {names:?}"
+            );
+        }
     }
 }

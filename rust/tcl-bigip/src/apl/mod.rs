@@ -24,6 +24,7 @@ pub mod iapp_diagnostics;
 pub mod iapp_vars;
 pub mod model;
 pub mod parser;
+pub mod tokens;
 
 pub use canonical::model_to_canonical;
 pub use iapp_diagnostics::{validate_iapp_implementation, validate_iapp_presentation};
@@ -32,3 +33,4 @@ pub use model::{
     AplField, AplInclude, AplModel, AplSection, AplTable, apl_name_to_tcl_var, tcl_var_to_apl_name,
 };
 pub use parser::parse_apl;
+pub use tokens::{AplToken, AplTokenKind, embedded_tcl_regions, tokenise_apl};

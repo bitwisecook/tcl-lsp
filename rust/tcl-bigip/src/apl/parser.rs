@@ -90,13 +90,25 @@ fn byte_to_cp(source: &str, byte: usize) -> usize {
         .map_or(0, |s| s.chars().count())
 }
 
-/// Convert a byte offset to `(line, character)` in code points.
+/// Convert a byte offset to an LSP `(line, character)`.
+///
+/// `character` is a **UTF-16 code-unit** offset, per the LSP position encoding —
+/// what [`crate::range::Position`] documents and what every other position in
+/// this crate uses.  It used to count *code points*, which is right only for the
+/// Basic Multilingual Plane: a single astral character (an emoji in an APL
+/// `display` string) counts as one code point but two UTF-16 units, so every
+/// diagnostic after it on that line was reported one column short.
 fn offset_to_line_char(source: &str, byte: usize) -> (u32, u32) {
     let prefix = source.get(..byte.min(source.len())).unwrap_or(source);
     let line = u32::try_from(prefix.matches('\n').count()).unwrap_or(u32::MAX);
     let line_start = prefix.rfind('\n').map_or(0, |i| i + 1);
-    let character = u32::try_from(source[line_start..byte.min(source.len())].chars().count())
-        .unwrap_or(u32::MAX);
+    let character = u32::try_from(
+        source[line_start..byte.min(source.len())]
+            .chars()
+            .map(char::len_utf16)
+            .sum::<usize>(),
+    )
+    .unwrap_or(u32::MAX);
     (line, character)
 }
 

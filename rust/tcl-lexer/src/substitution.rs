@@ -447,3 +447,198 @@ mod tests {
         assert_eq!(subst(r"\n café"), "\n café");
     }
 }
+
+/// The byte index one past the backslash escape starting at `text[i] == '\'`.
+///
+/// The *span* of an escape, for consumers that highlight it rather than
+/// evaluate it.  Widths match [`backslash_subst`] exactly — `\xNN` (1–2 hex),
+/// `\uNNNN` (1–4 hex), `\UNNNNNNNN` (1–8 hex), `\NNN` (1–3 octal), else the
+/// backslash plus one full character.
+///
+/// It lives beside the evaluator because it *is* the same rule.  Three separate
+/// hand-rolled copies had drifted — one consumed unbounded hex digits, one never
+/// recognised `\U`, one assumed every escape was two bytes — so `\x41` was
+/// tokenised as an escape `\x` plus a string `41`.  The digits belong to the
+/// escape.
+///
+/// The escaped character may be multi-byte (`\é`, `\你`, `\€`), so the fallback
+/// advances by its real UTF-8 width: a fixed `+2` would slice inside the
+/// character.
+#[must_use]
+pub fn backslash_escape_end(text: &str, i: usize) -> usize {
+    let b = text.as_bytes();
+    debug_assert_eq!(b.get(i), Some(&b'\\'), "caller must point at a backslash");
+
+    let hex_run = |start: usize, max: usize| {
+        let mut j = start;
+        while j < b.len() && j < start + max && b[j].is_ascii_hexdigit() {
+            j += 1;
+        }
+        // `\x` with no hex digit at all is a literal `x`, not a hex escape.
+        (j > start).then_some(j)
+    };
+    match b.get(i + 1) {
+        None => i + 1,
+        Some(b'x') => hex_run(i + 2, 2).unwrap_or(i + 2),
+        Some(b'u') => hex_run(i + 2, 4).unwrap_or(i + 2),
+        Some(b'U') => hex_run(i + 2, 8).unwrap_or(i + 2),
+        Some(b'0'..=b'7') => {
+            let mut j = i + 2;
+            while j < b.len() && j < i + 4 && matches!(b[j], b'0'..=b'7') {
+                j += 1;
+            }
+            j
+        }
+        Some(_) => i + 1 + text[i + 1..].chars().next().map_or(1, char::len_utf8),
+    }
+}
+
+#[cfg(test)]
+mod escape_end_tests {
+    use super::backslash_escape_end;
+
+    #[test]
+    fn widths_match_the_evaluator() {
+        for (src, want) in [
+            (r"\n", r"\n"),
+            (r"\\", r"\\"),
+            (r"\x41", r"\x41"),
+            (r"\x4", r"\x4"),
+            // Capped at two hex digits — the third is string content.
+            (r"\x414", r"\x41"),
+            (r"\é", r"\é"),
+            (r"\U0001F600", r"\U0001F600"),
+            // Octal, capped at three digits.
+            (r"\101", r"\101"),
+            (r"\1012", r"\101"),
+            // `\x` with no hex digit is a literal `x`.
+            (r"\xz", r"\x"),
+        ] {
+            assert_eq!(&src[..backslash_escape_end(src, 0)], want, "for {src:?}");
+        }
+    }
+
+    #[test]
+    fn multibyte_escaped_char_is_not_sliced() {
+        for src in [r"\é", r"\你", r"\€"] {
+            let end = backslash_escape_end(src, 0);
+            assert!(src.is_char_boundary(end), "sliced inside a char: {src:?}");
+            assert_eq!(end, src.len());
+        }
+    }
+}
+
+/// One piece of a string split around its backslash escapes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EscapeSegment {
+    /// Byte offset of the first byte, relative to the text passed in.
+    pub start: usize,
+    /// Byte offset one past the last byte.
+    pub end: usize,
+    /// Whether this piece is a backslash escape (rather than a literal run).
+    pub is_escape: bool,
+}
+
+/// Split `text` into alternating literal runs and backslash escapes.
+///
+/// Every highlighter that colours a Tcl string has to do this — the Tcl token
+/// walker, the APL lexer, the BIG-IP config lexer — and each had grown its own
+/// copy. They drifted: one consumed unbounded hex digits, one never recognised
+/// `\U`, one assumed every escape was two bytes, so `\x41` was tokenised as an
+/// escape `\x` plus a string `41`. One rule, one implementation, beside the
+/// [`backslash_subst`] evaluator that defines it.
+///
+/// Segments are contiguous and cover `text` exactly; a text with no backslash
+/// yields a single literal segment (or none, when empty). Widths come from
+/// [`backslash_escape_end`].
+#[must_use]
+pub fn split_backslash_escapes(text: &str) -> Vec<EscapeSegment> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut run = 0usize;
+    let mut i = 0usize;
+
+    while i < bytes.len() {
+        // A trailing lone backslash is literal — there is nothing to escape.
+        if bytes[i] != b'\\' || i + 1 >= bytes.len() {
+            i += 1;
+            continue;
+        }
+        let end = backslash_escape_end(text, i);
+        if run < i {
+            out.push(EscapeSegment {
+                start: run,
+                end: i,
+                is_escape: false,
+            });
+        }
+        out.push(EscapeSegment {
+            start: i,
+            end,
+            is_escape: true,
+        });
+        i = end;
+        run = end;
+    }
+    if run < bytes.len() {
+        out.push(EscapeSegment {
+            start: run,
+            end: bytes.len(),
+            is_escape: false,
+        });
+    }
+    out
+}
+
+#[cfg(test)]
+mod split_escape_tests {
+    use super::{EscapeSegment, split_backslash_escapes};
+
+    fn pieces(text: &str) -> Vec<(&str, bool)> {
+        split_backslash_escapes(text)
+            .into_iter()
+            .map(|s| (&text[s.start..s.end], s.is_escape))
+            .collect()
+    }
+
+    #[test]
+    fn splits_around_escapes_of_every_width() {
+        assert_eq!(
+            pieces(r"a\x41b\U0001F600c\101d"),
+            vec![
+                ("a", false),
+                (r"\x41", true),
+                ("b", false),
+                (r"\U0001F600", true),
+                ("c", false),
+                (r"\101", true),
+                ("d", false),
+            ]
+        );
+    }
+
+    #[test]
+    fn no_backslash_is_one_literal_run() {
+        assert_eq!(pieces("plain"), vec![("plain", false)]);
+        assert!(split_backslash_escapes("").is_empty());
+    }
+
+    #[test]
+    fn a_trailing_lone_backslash_is_literal() {
+        assert_eq!(pieces(r"ab\"), vec![(r"ab\", false)]);
+    }
+
+    /// Segments must tile the input exactly — no gaps, no overlaps.
+    #[test]
+    fn segments_cover_the_text_exactly() {
+        for text in [r"a\nb", r"\x41", "plain", r"\\", r"a\é b", ""] {
+            let segs: Vec<EscapeSegment> = split_backslash_escapes(text);
+            let mut at = 0usize;
+            for s in &segs {
+                assert_eq!(s.start, at, "gap/overlap in {text:?}: {segs:?}");
+                at = s.end;
+            }
+            assert_eq!(at, text.len(), "does not reach the end of {text:?}");
+        }
+    }
+}

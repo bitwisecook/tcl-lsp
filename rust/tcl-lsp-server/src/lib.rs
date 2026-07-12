@@ -248,6 +248,14 @@ const DIAGNOSTICS_FAST_TIER_BUDGET: std::time::Duration = std::time::Duration::f
 /// multi-thousand-line documents #844 targets.
 const DIAGNOSTICS_FAST_TIER_MIN_LINES: usize = 500;
 
+/// The iRules dialect key.  A BIG-IP config's `ltm rule { … }` bodies are iRules
+/// code, so they are tokenised against this registry rather than the config's
+/// own `f5-bigip` one.
+const IRULES_DIALECT: &str = "f5-irules";
+
+/// The iApps dialect key — an APL presentation's embedded `[ … ]` Tcl.
+const IAPPS_DIALECT: &str = "f5-iapps";
+
 /// Ceiling on how many project files the background workspace warm (#844 Gap 3)
 /// analyses concurrently.  The warm pre-populates the memoised per-file analysis
 /// across the blocking pool so a cold workspace's first enriched
@@ -3091,11 +3099,58 @@ impl Backend {
     /// far longer than a single file's own analysis. That cost has always
     /// existed; what this fast path changes is that it can no longer block a
     /// token response — it only delays how soon the *refresh* follows.
+    /// Viewport tokens for a document that is **not Tcl** — an APL presentation
+    /// or a BIG-IP config — or `None` when the document *is* Tcl and belongs on
+    /// the normal pipeline.
+    ///
+    /// Each carries *embedded* Tcl — a `ltm rule { … }` body, an APL `[ … ]`
+    /// bracket expression — so each takes the registry for the dialect that code
+    /// is written in.  Fetched lazily, so an ordinary Tcl document pays for
+    /// neither.
+    async fn non_tcl_range_tokens(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        range: CoreLspRange,
+    ) -> Option<core_semantic_tokens::SemanticTokens> {
+        if is_apl_source(uri, &doc.language_id) {
+            let registry = self.registry_for_dialect(IAPPS_DIALECT).await;
+            return Some(core_semantic_tokens::apl_range(&doc.text, range, &registry));
+        }
+        if Self::is_bigip_dialect(&doc.dialect) {
+            let registry = self.registry_for_dialect(IRULES_DIALECT).await;
+            return Some(core_semantic_tokens::bigip_conf_range(
+                &doc.text, range, &registry,
+            ));
+        }
+        None
+    }
+
     async fn semantic_tokens_core_data(
         &self,
         uri: &Uri,
         doc: &DocumentState,
     ) -> jsonrpc::Result<Vec<u32>> {
+        // APL (iApp presentation) and BIG-IP config are not Tcl — each has its
+        // own declarative grammar and its own token set, so both bypass the Tcl
+        // pipeline (segmenter / compilation unit / analyser) entirely.  Without
+        // these branches the Tcl tokenizer reads each braced block as one
+        // literal word and emits whole *lines* as `string` tokens, which
+        // mis-colours the file rather than merely under-colouring it.  Both
+        // lexers are cheap and pure — line-oriented — so neither needs salsa
+        // memoisation.
+        if is_apl_source(uri, &doc.language_id) {
+            // The iApps registry: an APL `[ … ]` bracket expression is iApp Tcl.
+            let registry = self.registry_for_dialect(IAPPS_DIALECT).await;
+            return Ok(core_semantic_tokens::apl_full(&doc.text, &registry).data);
+        }
+        if Self::is_bigip_dialect(&doc.dialect) {
+            // The iRules registry, not the BIG-IP one: a `ltm rule { … }` body is
+            // iRules code embedded in the config, and is walked as such.
+            let registry = self.registry_for_dialect(IRULES_DIALECT).await;
+            return Ok(core_semantic_tokens::bigip_conf_full(&doc.text, &registry).data);
+        }
+
         let Some(mut enriched) = self.db_semantic_tokens(uri).await else {
             let registry = self.registry_for_dialect(&doc.dialect).await;
             let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
@@ -4427,6 +4482,16 @@ impl Backend {
         };
         let features = self.feature_toggles.lock().await.resolved_map();
         let optimiser_enabled = *self.optimiser_enabled.lock().await;
+        // The optimiser *profile* and the editor `libraryPaths` are as much a
+        // part of "what config is in effect" as the master switch, and a caller
+        // tracing a surprising diagnostic needs them.  They are also the settle
+        // signal the e2e harness polls to know a pulled config has been
+        // *applied*: `initialized` pulls the config concurrently with any
+        // `didOpen` the client already queued, so without an observable
+        // post-apply signal a test cannot know whether its document was
+        // analysed before or after its config landed.
+        let optimiser_profile = self.optimiser_profile.lock().await.name();
+        let library_paths = self.editor_library_paths.lock().await.clone();
         let line_length = *self.line_length.lock().await;
         // Report the *per-folder* analyser settings (the same resolver the
         // feature/diagnostics paths use), not the process-global ones: in a
@@ -4452,6 +4517,8 @@ impl Backend {
             "dialect": dialect,
             "features": features,
             "optimiser_enabled": optimiser_enabled,
+            "optimiser_profile": optimiser_profile,
+            "library_paths": library_paths,
             "line_length": line_length,
             "non_ascii_mode": non_ascii_mode_str(mode),
             "disabled_diagnostics": disabled_sorted,
@@ -7743,6 +7810,15 @@ impl LanguageServer for Backend {
             end_line: params.range.end.line,
             end_character: params.range.end.character,
         };
+        if let Some(tokens) = self
+            .non_tcl_range_tokens(&params.text_document.uri, &doc, core_range)
+            .await
+        {
+            return Ok(Some(SemanticTokensRangeResult::Tokens(LspSemanticTokens {
+                result_id: None,
+                data: lift_semantic_token_data(&tokens.data),
+            })));
+        }
         let registry = self.registry_for_dialect(&doc.dialect).await;
         // Race the memoised unit + analysis against the same fast-path budget
         // `semantic_tokens_full` uses. On a warm/small document they land well

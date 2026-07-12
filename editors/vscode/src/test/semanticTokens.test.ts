@@ -485,7 +485,7 @@ suite("Semantic Tokens", () => {
 
   // Procedure / apply-lambda parameters and `dict map` loop variables read as
   // variable declarations.
-  test("parameters and dict-map loop vars highlight as variables", async () => {
+  test("parameters highlight as parameters; dict-map loop vars as variables", async () => {
     const uri = getDocUri("paramLists.tcl");
     const doc = await activate(uri);
 
@@ -503,10 +503,20 @@ suite("Semantic Tokens", () => {
     const textOf = (t: DecodedToken): string =>
       doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
     const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
-    for (const name of ["name", "age", "alpha", "beta", "mk", "mv"]) {
+    const parameterWords = new Set(decoded.filter((t) => t.type === "parameter").map(textOf));
+    // A proc / apply-lambda *parameter* carries the standard LSP `parameter`
+    // type (#898 §4), so a theme can tell an argument from an ordinary local.
+    for (const name of ["name", "age", "alpha", "beta"]) {
+      assert.ok(
+        parameterWords.has(name),
+        `expected '${name}' as a parameter declaration, got ${JSON.stringify([...parameterWords])}`,
+      );
+    }
+    // A `dict map` loop variable is not a parameter — it stays a variable.
+    for (const name of ["mk", "mv"]) {
       assert.ok(
         variableWords.has(name),
-        `expected '${name}' as a variable declaration, got ${JSON.stringify([...variableWords])}`,
+        `expected loop var '${name}' as a variable declaration, got ${JSON.stringify([...variableWords])}`,
       );
     }
   });
@@ -559,7 +569,16 @@ suite("Semantic Tokens", () => {
       doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
     // Declarations + a method parameter are variables.
     const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
-    for (const name of ["barks", "count", "volume", "args"]) {
+    const parameterWords = new Set(decoded.filter((t) => t.type === "parameter").map(textOf));
+    // Method / constructor parameters carry the standard LSP `parameter` type
+    // (#898 §4); declared instance variables stay variables.
+    for (const name of ["volume", "args"]) {
+      assert.ok(
+        parameterWords.has(name),
+        `expected snit '${name}' as a parameter, got ${JSON.stringify([...parameterWords])}`,
+      );
+    }
+    for (const name of ["barks", "count"]) {
       assert.ok(
         variableWords.has(name),
         `expected snit '${name}' as a variable, got ${JSON.stringify([...variableWords])}`,
@@ -594,7 +613,16 @@ suite("Semantic Tokens", () => {
       doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
     // Declarations (incl. a `private variable`) + a method parameter.
     const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
-    for (const name of ["barks", "total", "volume", "secret", "args"]) {
+    const parameterWords = new Set(decoded.filter((t) => t.type === "parameter").map(textOf));
+    // Method parameters (including those behind an access-modifier wrapper)
+    // carry the standard LSP `parameter` type (#898 §4).
+    for (const name of ["volume", "args"]) {
+      assert.ok(
+        parameterWords.has(name),
+        `expected itcl '${name}' as a parameter, got ${JSON.stringify([...parameterWords])}`,
+      );
+    }
+    for (const name of ["barks", "total", "secret"]) {
       assert.ok(
         variableWords.has(name),
         `expected itcl '${name}' as a variable, got ${JSON.stringify([...variableWords])}`,

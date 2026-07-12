@@ -20,6 +20,20 @@
           "command": "class",
           "resolved": true,
           "resolvedPath": "/Common/allowed_hosts"
+        },
+        {
+          "kind": "pool",
+          "name": "/Common/api_pool",
+          "command": "pool",
+          "resolved": true,
+          "resolvedPath": "/Common/api_pool"
+        },
+        {
+          "kind": "pool",
+          "name": "/Common/web_pool",
+          "command": "pool",
+          "resolved": true,
+          "resolvedPath": "/Common/web_pool"
         }
       ]
     },
