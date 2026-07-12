@@ -77,9 +77,19 @@ intellijPlatform {
     pluginVerification {
         freeArgs = listOf("-offline")
         ides {
+            // Verify against the sinceBuild floor and a spread of newer
+            // majors. The 2026.1 entry is load-bearing: 2026.1 is where the
+            // deprecated LspServer/LspServerManager/LspServerDescriptor API was
+            // superseded by LspClient*, and where `sendRequestSync` moved up to
+            // the LspClient super-interface. Without a >=2026.1 target the
+            // verifier cannot catch the `LspServer.sendRequestSync$default`
+            // class of binary incompatibility (see the jetbrains-plugin-compat
+            // skill). Keep the newest verified stable major here as JetBrains
+            // ships it.
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2024.1")
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.1.7.1")
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.2.6.2")
+            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2026.1.4")
         }
     }
 

@@ -297,7 +297,18 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
                     return@executeOnPooledThread
                 }
 
-                val result = server.sendRequestSync { lsp4j ->
+                // Pass the timeout explicitly. Omitting it makes Kotlin emit a
+                // call to the synthetic `LspServer.sendRequestSync$default`
+                // bridge, which is bound to the exact class that declared the
+                // method when we compiled (2024.1). In 2026.1+ `sendRequestSync`
+                // moved up to the `LspClient` super-interface, so that bridge no
+                // longer resolves as `LspServer.sendRequestSync$default` and the
+                // plugin fails verification / throws NoSuchMethodError at runtime.
+                // The default value is a compile-time const (10_000 ms) that
+                // inlines, so behaviour is unchanged and there is no runtime
+                // reference to the constant. Do not "simplify" this back to the
+                // no-timeout form. See the jetbrains-plugin-compat skill.
+                val result = server.sendRequestSync(LspServer.DEFAULT_REQUEST_TIMEOUT_MS) { lsp4j ->
                     lsp4j.workspaceService.executeCommand(
                         org.eclipse.lsp4j.ExecuteCommandParams(
                             "tcl-lsp.compilerExplorer",
