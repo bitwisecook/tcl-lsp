@@ -156,7 +156,12 @@ enum LexClass {
     Var,
     /// `=>`.
     Arrow,
-    /// A structural delimiter: `{`, `}`, `(`, `)`, `;`, `,`.
+    /// A structural delimiter: `{`, `}`, `(`, `)`, `;`, `,`, `[`, `]`.
+    ///
+    /// The brackets matter: they open and close an embedded-Tcl region, so
+    /// lexing them separately guarantees no APL word ever straddles the
+    /// boundary — which is what lets the embedded spans be filtered out by
+    /// simple containment.
     Punct,
 }
 
@@ -255,19 +260,19 @@ pub fn tokenise_apl(source: &str) -> Vec<AplToken> {
     let mut line_start = 0usize;
 
     for line in source.split('\n') {
-        // A line overlapping an embedded `[ … ]` region is Tcl, not APL — leave
-        // it to the caller's Tcl walk rather than mis-typing it as APL.
-        let (ls, le) = (line_start, line_start + line.len());
-        let embedded_here = embedded
-            .iter()
-            .any(|&(s, e)| ls < e as usize && le > s as usize);
-        if !embedded_here {
-            tokenise_line(source, line, line_start, &mut out);
-        }
+        tokenise_line(source, line, line_start, &mut out);
         // `+ 1` for the '\n' that `split` consumed.  A trailing '\r' (CRLF) is
         // whitespace to the lexer, so it never lands inside a token.
         line_start += line.len() + 1;
     }
+
+    // Drop only the tokens that land *inside* an embedded Tcl span — not the
+    // whole line.  APL embeds Tcl inline (`optional ( [expr {$on}] ) {`), so
+    // suppressing the line would silently lose every APL keyword, field name and
+    // attribute sitting beside the brackets.  The brackets are their own lexemes
+    // (see [`LexClass::Punct`]), so no token can straddle a boundary and this
+    // containment test is exact.
+    out.retain(|t| !embedded.iter().any(|&(s, e)| t.start >= s && t.end <= e));
 
     debug_assert!(
         out.windows(2).all(|w| w[0].end <= w[1].start),
@@ -487,14 +492,17 @@ fn lex_line(line: &str, base: usize) -> Vec<Lexeme> {
                 i += 2;
                 LexClass::Arrow
             }
-            b'{' | b'}' | b'(' | b')' | b';' | b',' => {
+            b'{' | b'}' | b'(' | b')' | b';' | b',' | b'[' | b']' => {
                 i += 1;
                 LexClass::Punct
             }
             _ => {
                 while i < bytes.len()
                     && !bytes[i].is_ascii_whitespace()
-                    && !matches!(bytes[i], b'{' | b'}' | b'(' | b')' | b';' | b',' | b'"')
+                    && !matches!(
+                        bytes[i],
+                        b'{' | b'}' | b'(' | b')' | b';' | b',' | b'"' | b'[' | b']'
+                    )
                 {
                     i += 1;
                 }
@@ -516,51 +524,13 @@ fn lex_line(line: &str, base: usize) -> Vec<Lexeme> {
 /// so the escapes carry their own type without overlapping the string.
 fn push_string(source: &str, start: usize, end: usize, out: &mut Vec<AplToken>) {
     let text = &source[start..end];
-    let bytes = text.as_bytes();
-    let mut frag = 0usize;
-    let mut i = 0usize;
-
-    while i < bytes.len() {
-        if bytes[i] != b'\\' || i + 1 >= bytes.len() {
-            i += 1;
-            continue;
-        }
-        // The escape's extent: \ooo, \xHH…, \uHHHH, or a single char.
-        let mut esc_end = i + 2;
-        match bytes[i + 1] {
-            b'0'..=b'7' => {
-                while esc_end < bytes.len()
-                    && esc_end < i + 4
-                    && bytes[esc_end].is_ascii_digit()
-                    && bytes[esc_end] < b'8'
-                {
-                    esc_end += 1;
-                }
-            }
-            b'x' => {
-                while esc_end < bytes.len() && bytes[esc_end].is_ascii_hexdigit() {
-                    esc_end += 1;
-                }
-            }
-            b'u' => {
-                while esc_end < bytes.len() && esc_end < i + 6 && bytes[esc_end].is_ascii_hexdigit()
-                {
-                    esc_end += 1;
-                }
-            }
-            _ => {}
-        }
-
-        if frag < i {
-            push(out, start + frag, start + i, AplTokenKind::Str);
-        }
-        push(out, start + i, start + esc_end, AplTokenKind::Escape);
-        i = esc_end;
-        frag = esc_end;
-    }
-
-    if frag < bytes.len() {
-        push(out, start + frag, start + bytes.len(), AplTokenKind::Str);
+    for seg in tcl_lexer::split_backslash_escapes(text) {
+        let kind = if seg.is_escape {
+            AplTokenKind::Escape
+        } else {
+            AplTokenKind::Str
+        };
+        push(out, start + seg.start, start + seg.end, kind);
     }
 }
 
@@ -797,6 +767,38 @@ mod tests {
             "the APL lexer must not tokenise embedded Tcl: {t:?}"
         );
         assert_no_overlap(src);
+    }
+
+    /// APL embeds Tcl *inline* (`optional ( [expr {$on}] ) {`).  Suppressing the
+    /// whole line lost every APL keyword, field name and attribute beside the
+    /// brackets — so suppression is per *token*, and the brackets are their own
+    /// lexemes so nothing can straddle the boundary.
+    #[test]
+    fn inline_embedded_tcl_keeps_the_apl_around_it() {
+        let src = "section basic {\n    optional ( [expr {1}] ) {\n        string addr required\n    }\n}\n";
+        let t = toks(src);
+        assert!(t.contains(&("optional", AplTokenKind::Optional)), "{t:?}");
+        assert!(t.contains(&("section", AplTokenKind::SectionKw)), "{t:?}");
+        assert!(t.contains(&("addr", AplTokenKind::FieldName)), "{t:?}");
+        // The bracket *contents* are Tcl and are left to the Tcl walker.
+        assert!(
+            !t.iter().any(|(text, _)| *text == "expr"),
+            "embedded Tcl must not be APL-lexed: {t:?}"
+        );
+        assert_no_overlap(src);
+    }
+
+    /// Tcl escape widths are not uniform: `\x` used to consume *unbounded* hex
+    /// digits here and `\U` was not recognised at all.
+    #[test]
+    fn escape_widths_follow_tcl() {
+        let t = toks("display \"a\\x41b\\U0001F600c\\101d\"\n");
+        for esc in ["\\x41", "\\U0001F600", "\\101"] {
+            assert!(
+                t.contains(&(esc, AplTokenKind::Escape)),
+                "`{esc}` must be one escape token: {t:?}"
+            );
+        }
     }
 
     #[test]

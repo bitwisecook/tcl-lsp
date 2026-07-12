@@ -3905,106 +3905,87 @@ fn collect_case_list(
     let Some((cstart, inner)) = subspec_content(full_source, tok) else {
         return;
     };
-    // Flatten every element of the case list.  A Tcl `switch` case list is a
-    // *list*, not a script: `;` and `#` are ordinary pattern elements, not a
-    // command separator / comment.  Split it with the list grammar
-    // (`find_element`) rather than the command segmenter, then rebuild each
-    // element into a `Token` following the lexer's inner-end + `content_offset`
-    // convention (`span.end()` sits at the closing `}`/`"`; `content_offset`
-    // strips the opener) so the downstream pattern/body helpers work unchanged.
-    let mut words: Vec<(Token, String)> = Vec::new();
-    let mut scan = 0usize;
-    while let Ok(Some(el)) = tcl_syntax::list::find_element(inner, scan) {
-        let bytes = inner.as_bytes();
-        let (kind, content_offset, span_start) =
-            if el.value.start > 0 && bytes[el.value.start - 1] == b'{' {
-                (TokenType::Str, 1u8, el.value.start - 1)
-            } else if el.value.start > 0 && bytes[el.value.start - 1] == b'"' {
-                (TokenType::Esc, 1u8, el.value.start - 1)
-            } else {
-                (TokenType::Esc, 0u8, el.value.start)
-            };
-        let word_tok = Token::with_content_offset(
+
+    // The clause split is `tcl-syntax`'s, shared with the iRules
+    // object-reference walker: if the two disagreed about where a clause body
+    // is, they would disagree about what the code says.  It also handles
+    // Expect's clause-leading flags (`-re`, `-timeout 5`), which strict
+    // pattern/body alternation would let shift every following element by one.
+    let shape = tcl_syntax::case_list::CaseListShape {
+        clause_flags: spec.clause_flags,
+        clause_value_flags: spec.clause_value_flags,
+    };
+
+    // Rebuild each element as a `Token` following the lexer's inner-end +
+    // `content_offset` convention (`span.end()` sits at the closing `}`/`"`;
+    // `content_offset` strips the opener) so the downstream helpers work
+    // unchanged.
+    let as_token = |e: tcl_syntax::case_list::Element| {
+        let (kind, content_offset) = if e.braced {
+            (TokenType::Str, 1u8)
+        } else if inner.as_bytes().get(e.start) == Some(&b'"') {
+            (TokenType::Esc, 1u8)
+        } else {
+            (TokenType::Esc, 0u8)
+        };
+        Token::with_content_offset(
             kind,
             tcl_lexer::Span::new(
-                u32::try_from(cstart + span_start).unwrap_or(0),
-                u32::try_from(cstart + el.value.end).unwrap_or(0),
+                u32::try_from(cstart + e.start).unwrap_or(0),
+                u32::try_from(cstart + e.end).unwrap_or(0),
             ),
             content_offset,
-        );
-        let text = inner.get(el.value.clone()).unwrap_or_default().to_owned();
-        words.push((word_tok, text));
-        if el.next <= scan {
-            break;
-        }
-        scan = el.next;
-    }
-    // Walk clause by clause rather than assuming strict pattern/body alternation:
-    // Expect lets each clause carry leading flags (`-re`, `-nocase`,
-    // `-timeout 5`), which would otherwise shift every following element by one
-    // and turn patterns into bodies and bodies into patterns.  `switch` declares
-    // no clause flags, so its walk is unchanged.
-    let mut i = 0usize;
-    while i < words.len() {
-        // Leading clause flags.
+        )
+    };
+
+    for clause in tcl_syntax::case_list::split_case_list(inner, &shape) {
         let mut clause_regexp = regexp;
-        while i < words.len() {
-            let (flag_tok, text) = &words[i];
-            if !spec.clause_flags.contains(&text.as_str()) {
-                break;
-            }
-            if spec.clause_regex_flag == Some(text.as_str()) {
+        for f in &clause.flags {
+            let text = inner.get(f.start..f.end).unwrap_or_default();
+            if spec.clause_regex_flag == Some(text) {
                 clause_regexp = true;
             }
-            push_token(
-                line_index,
-                full_source,
-                *flag_tok,
-                TokenKind::Decorator,
-                0,
-                entries,
-            );
-            i += 1;
-            // A flag that takes a value (`-timeout 5`) consumes the next word.
-            if spec.clause_value_flags.contains(&text.as_str())
-                && let Some((vtok, _)) = words.get(i)
-            {
-                if let Some(kind) = classify_arg_token(*vtok, full_source) {
-                    push_token(line_index, full_source, *vtok, kind, 0, entries);
-                }
-                i += 1;
+            let ftok = as_token(*f);
+            // A flag word is a decorator; its *value* word (`-timeout 5`) takes
+            // its own literal classification.
+            let kind = if spec.clause_flags.contains(&text) {
+                Some(TokenKind::Decorator)
+            } else {
+                classify_arg_token(ftok, full_source)
+            };
+            if let Some(kind) = kind {
+                push_token(line_index, full_source, ftok, kind, 0, entries);
             }
         }
-        let Some((pat_tok, text)) = words.get(i) else {
-            break;
-        };
-        push_case_pattern(
-            line_index,
-            full_source,
-            *pat_tok,
-            text,
-            spec,
-            clause_regexp,
-            entries,
-        );
-        i += 1;
+
+        if let Some(p) = clause.pattern {
+            let text = inner.get(p.start..p.end).unwrap_or_default();
+            push_case_pattern(
+                line_index,
+                full_source,
+                as_token(p),
+                text.trim_start_matches('{'),
+                spec,
+                clause_regexp,
+                entries,
+            );
+        }
 
         // Body element — recurse as a script.
-        let Some((body_tok, _)) = words.get(i) else {
-            break;
-        };
-        if let Some((bstart, body)) = subspec_content(full_source, *body_tok) {
-            collect_script(
-                ctx,
-                body,
-                u32::try_from(bstart).unwrap_or(0),
-                entries,
-                depth + 1,
-            );
-        } else if let Some(kind) = classify_arg_token(*body_tok, full_source) {
-            push_token(line_index, full_source, *body_tok, kind, 0, entries);
+        if let Some(b) = clause.body {
+            let btok = as_token(b);
+            if let Some((bstart, body)) = subspec_content(full_source, btok) {
+                collect_script(
+                    ctx,
+                    body,
+                    u32::try_from(bstart).unwrap_or(0),
+                    entries,
+                    depth + 1,
+                );
+            } else if let Some(kind) = classify_arg_token(btok, full_source) {
+                push_token(line_index, full_source, btok, kind, 0, entries);
+            }
         }
-        i += 1;
     }
 }
 
@@ -5296,46 +5277,6 @@ fn push_object_token(
     }
 }
 
-/// The byte index one past the backslash escape starting at `text[i] == '\\'`
-/// (caller guarantees `i + 1` is in bounds).
-///
-/// Tcl's backslash substitution is not uniformly two characters: `\xhh` takes
-/// up to 2 hex digits, `\uhhhh` up to 4, `\Uhhhhhhhh` up to 8, and `\ooo` up to
-/// 3 **octal** digits.  Treating every escape as `\` + one character split
-/// `\x41` into an `Escape` of `\x` and a `String` of `41` — the digits are part
-/// of the escape, so the token was simply wrong (and `\101` came out as `\1` +
-/// `01`).  Widths match the ARE escape scanner in this same file
-/// ([`scan_are_escape`]) and Tcl's `Tcl_UtfBackslash`.
-///
-/// The escaped character may be multi-byte (`\é`, `\你`, `\€`), so the fallback
-/// advances by its real UTF-8 width — a fixed `+2` would slice inside the char
-/// and panic the whole request.
-fn escape_end(text: &str, i: usize) -> usize {
-    let b = text.as_bytes();
-    let hex_run = |start: usize, max: usize| {
-        let mut j = start;
-        while j < b.len() && j < start + max && b[j].is_ascii_hexdigit() {
-            j += 1;
-        }
-        // `\x` with no hex digit at all is a literal `x`, not a hex escape.
-        (j > start).then_some(j)
-    };
-    match b.get(i + 1) {
-        Some(b'x') => hex_run(i + 2, 2).unwrap_or(i + 2),
-        Some(b'u') => hex_run(i + 2, 4).unwrap_or(i + 2),
-        Some(b'U') => hex_run(i + 2, 8).unwrap_or(i + 2),
-        // `\ooo` — one to three octal digits.
-        Some(c) if (b'0'..=b'7').contains(c) => {
-            let mut j = i + 2;
-            while j < b.len() && j < i + 4 && matches!(b[j], b'0'..=b'7') {
-                j += 1;
-            }
-            j
-        }
-        _ => i + 1 + text[i + 1..].chars().next().map_or(1, char::len_utf8),
-    }
-}
-
 /// Sub-tokenise a string / bareword token's backslash escapes (`\n`, `\t`,
 /// `\\`, `\x41`, `é`, `\101`, …): literal runs become `String`, each
 /// escape becomes `Escape`.
@@ -5354,79 +5295,55 @@ fn push_escape_subtokens(
     if !text.contains('\\') || text.contains('\n') {
         return false;
     }
-    let bytes = text.as_bytes();
-    let mut i = 0;
-    let mut run_start = 0;
-    let mut emitted = false;
-    while i < bytes.len() {
-        if bytes[i] == b'\\' && i + 1 < bytes.len() {
-            if i > run_start {
-                push_subtoken(
-                    source,
-                    line_index,
-                    cstart + run_start,
-                    &text[run_start..i],
-                    TokenKind::String,
-                    entries,
-                );
-            }
-            let esc_end = escape_end(text, i);
-            let esc = &text[i..esc_end];
-            push_subtoken(
-                source,
-                line_index,
-                cstart + i,
-                esc,
-                TokenKind::Escape,
-                entries,
-            );
-            emitted = true;
-            i = esc_end;
-            run_start = i;
+    // The split is `tcl-lexer`'s, beside the evaluator that defines the escape
+    // widths — every highlighter that colours a Tcl string needs the same rule,
+    // and three private copies of it had already drifted apart.
+    let segments = tcl_lexer::split_backslash_escapes(text);
+    if !segments.iter().any(|s| s.is_escape) {
+        return false;
+    }
+    for seg in segments {
+        let kind = if seg.is_escape {
+            TokenKind::Escape
         } else {
-            i += 1;
-        }
-    }
-    if emitted && run_start < bytes.len() {
+            TokenKind::String
+        };
         push_subtoken(
             source,
             line_index,
-            cstart + run_start,
-            &text[run_start..],
+            cstart + seg.start,
+            &text[seg.start..seg.end],
+            kind,
+            entries,
+        );
+    }
+    // `subspec_content` yields the word's *content*, so this path — unlike
+    // `push_token` — must emit both delimiters itself: `"with \"esc\" inside"`
+    // left its opening and closing `"` unstyled (#898 §1).  Entries are sorted by
+    // position before encoding, so appending them out of order here is fine.
+    let start = tok.span.start() as usize;
+    push_subtoken(
+        source,
+        line_index,
+        start,
+        &source[start..cstart],
+        TokenKind::String,
+        entries,
+    );
+    let content_end = cstart + text.len();
+    if closing_delimiter(source, tok.span.start())
+        .is_some_and(|c| source.as_bytes().get(content_end) == Some(&c))
+    {
+        push_subtoken(
+            source,
+            line_index,
+            content_end,
+            &source[content_end..=content_end],
             TokenKind::String,
             entries,
         );
     }
-    if emitted {
-        // `subspec_content` yields the word's *content* — so this path, unlike
-        // `push_token`, drops **both** delimiters: `"with \"esc\" inside"` left
-        // its opening and closing `"` unstyled (#898 §1).  Emit them as their
-        // own `String` runs; the entries are sorted by position before encoding,
-        // so appending them out of order here is fine.
-        let start = tok.span.start() as usize;
-        push_subtoken(
-            source,
-            line_index,
-            start,
-            &source[start..cstart],
-            TokenKind::String,
-            entries,
-        );
-        let content_end = cstart + bytes.len();
-        if closing_delimiter(source, tok.span.start())
-            .is_some_and(|c| source.as_bytes().get(content_end) == Some(&c))
-        {
-            push_subtoken(
-                source,
-                line_index,
-                content_end,
-                &source[content_end..=content_end],
-                TokenKind::String,
-                entries,
-            );
-        }
-    }
-    emitted
+    true
 }
 
 /// Classify a non-head token by its lexer-assigned kind.

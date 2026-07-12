@@ -244,71 +244,34 @@ fn case_list_word(
 
 /// The **body** elements of a clause list — the scripts to recurse.
 ///
-/// Walks clause by clause (leading flags, pattern, body) rather than assuming
-/// strict alternation, because Expect lets a clause carry `-re` / `-timeout 5`
-/// flags that would otherwise shift every following element by one.  The list
-/// grammar (`find_element`) is shared with the token walker; only this
-/// mechanical split is restated here, since the two consumers want different
-/// things out of it — tokens there, referenced objects here.
+/// The clause split is `tcl-syntax`'s, shared with the semantic-token walker: if
+/// the two disagreed about where a clause body is, they would disagree about
+/// what the code says.
 fn case_list_body_tokens(full: &str, tok: &Token, spec: &tcl_registry::CaseListSpec) -> Vec<Token> {
     let (cstart, cend) = content_range(full, tok);
     let Some(inner) = full.get(cstart..cend) else {
         return Vec::new();
     };
-    // Split the list into (element-span, text) pairs.
-    let mut elems: Vec<(usize, usize, &str)> = Vec::new();
-    let mut scan = 0usize;
-    while let Ok(Some(el)) = tcl_syntax::list::find_element(inner, scan) {
-        let braced = el.value.start > 0 && inner.as_bytes()[el.value.start - 1] == b'{';
-        let start = if braced {
-            el.value.start - 1
-        } else {
-            el.value.start
-        };
-        elems.push((
-            start,
-            el.value.end,
-            inner.get(el.value.clone()).unwrap_or_default(),
-        ));
-        if el.next <= scan {
-            break;
-        }
-        scan = el.next;
-    }
-
-    let mut out = Vec::new();
-    let mut i = 0usize;
-    while i < elems.len() {
-        // Leading clause flags (Expect only; `switch` declares none).
-        while i < elems.len() && spec.clause_flags.contains(&elems[i].2) {
-            let takes_value = spec.clause_value_flags.contains(&elems[i].2);
-            i += 1;
-            if takes_value {
-                i += 1;
-            }
-        }
-        // The pattern, then the body.
-        if i >= elems.len() {
-            break;
-        }
-        i += 1;
-        let Some(&(bstart, bend, _)) = elems.get(i) else {
-            break;
-        };
+    let shape = tcl_syntax::case_list::CaseListShape {
+        clause_flags: spec.clause_flags,
+        clause_value_flags: spec.clause_value_flags,
+    };
+    tcl_syntax::case_list::split_case_list(inner, &shape)
+        .into_iter()
+        .filter_map(|c| c.body)
         // Only a braced body is a script.
-        if inner.as_bytes().get(bstart) == Some(&b'{') {
-            out.push(Token::with_content_offset(
+        .filter(|b| b.braced)
+        .map(|b| {
+            Token::with_content_offset(
                 TokenType::Str,
                 tcl_lexer::Span::new(
-                    u32::try_from(cstart + bstart).unwrap_or(0),
-                    u32::try_from(cstart + bend).unwrap_or(0),
+                    u32::try_from(cstart + b.start).unwrap_or(0),
+                    u32::try_from(cstart + b.end).unwrap_or(0),
                 ),
                 1,
-            ));
-        }
-        i += 1;
-    }
-    out
+            )
+        })
+        .collect()
 }
 
 /// The content byte range of a token (offset past its opening delimiter).

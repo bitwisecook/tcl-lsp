@@ -144,15 +144,6 @@ impl ObjectClassSpec {
     }
 }
 
-/// Unified command metadata — the single source of truth.
-///
-/// Every consumer (compiler, analyser, codegen, LSP, formatter, diagram
-/// extractor, taint analyser) reads this struct. No command-specific
-/// knowledge is hardcoded elsewhere.
-///
-/// Fields use `&'static` references where possible — command specs are
-/// compile-time constants that live in the binary's `.rodata` section.
-/// Use `..CommandSpec::DEFAULT` to fill unset fields with sensible
 /// The shape of a `{pattern body …}` clause list (see
 /// [`CommandSpec::case_list`]).
 ///
@@ -198,7 +189,12 @@ impl CaseListSpec {
     pub const EXPECT: Self = Self {
         subject_args: 0,
         regex_option: None,
-        value_options: &[],
+        // `-timeout` / `-i` also appear as *command-level* options ahead of the
+        // list (`expect -timeout 5 { … }`, `expect -i $spawn { … }`).  Leaving
+        // this empty stopped the option scan on the value word, so the braced
+        // list was never recognised as a clause list and its bodies were never
+        // recursed.
+        value_options: &["-timeout", "-i"],
         clause_flags: &["-re", "-gl", "-ex", "-nocase", "-timeout", "-i", "--"],
         clause_regex_flag: Some("-re"),
         clause_value_flags: &["-timeout", "-i"],
@@ -206,6 +202,15 @@ impl CaseListSpec {
     };
 }
 
+/// Unified command metadata — the single source of truth.
+///
+/// Every consumer (compiler, analyser, codegen, LSP, formatter, diagram
+/// extractor, taint analyser) reads this struct. No command-specific
+/// knowledge is hardcoded elsewhere.
+///
+/// Fields use `&'static` references where possible — command specs are
+/// compile-time constants that live in the binary's `.rodata` section.
+/// Use `..CommandSpec::DEFAULT` to fill unset fields with sensible
 /// defaults.
 #[derive(Debug, Clone)]
 // The remaining plain-bool fields are orthogonal config flags on a

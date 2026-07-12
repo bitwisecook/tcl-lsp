@@ -277,18 +277,7 @@ pub fn tokenise_bigip_conf(source: &str) -> Vec<BigipToken> {
     for line in source.split('\n') {
         let depth = i32::try_from(stack.len()).unwrap_or(1) - 1;
         let inherited = stack.last().copied().flatten();
-        // A line wholly inside an embedded iRule body is Tcl — emit nothing for
-        // it here and let the caller walk it with the Tcl tokenizer.  Brace
-        // depth is still tracked (below) from its lexemes, so the stanza's own
-        // closing `}` still lands at the right level.
-        let in_rule = rule_bodies
-            .iter()
-            .any(|&(s, e)| line_start >= s as usize && line_start + line.len() <= e as usize);
-        let (lexemes, opened) = if in_rule {
-            (lex_line(line, line_start), None)
-        } else {
-            tokenise_line(source, line, line_start, depth, inherited, &mut out)
-        };
+        let (lexemes, opened) = tokenise_line(source, line, line_start, depth, inherited, &mut out);
         // The first `{` on the line opens the block the line's key described;
         // any further `{` is a nested record, which inherits nothing.
         let mut first_open = true;
@@ -305,6 +294,16 @@ pub fn tokenise_bigip_conf(source: &str) -> Vec<BigipToken> {
         }
         line_start += line.len() + 1;
     }
+
+    // Drop the tokens that land *inside* an embedded iRule body — per token, not
+    // per line.  A body need not own whole lines: `ltm rule /Common/r { when X {
+    // pool /Common/p } }` puts config text and iRules code on one line, and a
+    // whole-line test then config-lexed the code *while* the caller also walked
+    // it as Tcl, producing overlapping tokens (`'when':keyword` over
+    // `'when':property`) — the one thing these lexers exist to prevent.  Braces
+    // are their own lexemes, so no token can straddle a body boundary and this
+    // containment test is exact.
+    out.retain(|t| !rule_bodies.iter().any(|&(s, e)| t.start >= s && t.end <= e));
 
     debug_assert!(
         out.windows(2).all(|w| w[0].end <= w[1].start),
@@ -590,25 +589,13 @@ fn emit_path(source: &str, lx: Lexeme, tail: BigipTokenKind, out: &mut Vec<Bigip
 /// Emit a quoted string as `Str` fragments split around its escapes.
 fn push_string(source: &str, start: usize, end: usize, out: &mut Vec<BigipToken>) {
     let text = &source[start..end];
-    let bytes = text.as_bytes();
-    let mut frag = 0usize;
-    let mut i = 0usize;
-
-    while i < bytes.len() {
-        if bytes[i] != b'\\' || i + 1 >= bytes.len() {
-            i += 1;
-            continue;
-        }
-        let esc_end = i + 2;
-        if frag < i {
-            push(out, start + frag, start + i, BigipTokenKind::Str);
-        }
-        push(out, start + i, start + esc_end, BigipTokenKind::Escape);
-        i = esc_end;
-        frag = esc_end;
-    }
-    if frag < bytes.len() {
-        push(out, start + frag, start + bytes.len(), BigipTokenKind::Str);
+    for seg in tcl_lexer::split_backslash_escapes(text) {
+        let kind = if seg.is_escape {
+            BigipTokenKind::Escape
+        } else {
+            BigipTokenKind::Str
+        };
+        push(out, start + seg.start, start + seg.end, kind);
     }
 }
 
@@ -926,6 +913,46 @@ mod tests {
         );
         assert!(t.contains(&("http", K::Monitor)), "{t:?}");
         assert_no_overlap(src);
+    }
+
+    /// A rule body need not own whole lines.  `ltm rule /Common/r { when X { pool
+    /// /Common/p } }` puts config text and iRules code on one line; a whole-line
+    /// suppression test then config-lexed the code *while* the caller also walked
+    /// it as Tcl, yielding overlapping tokens (`'when':keyword` over
+    /// `'when':property`).  Suppression is per *token*, so this cannot recur.
+    #[test]
+    fn partial_line_rule_bodies_are_not_config_lexed() {
+        for src in [
+            // Body content sharing the closing-brace line.
+            "ltm rule /Common/r {\n    when HTTP_REQUEST { pool /Common/p } }\n",
+            // Whole stanza on one line.
+            "ltm rule /Common/r { when HTTP_REQUEST { pool /Common/p } }\n",
+        ] {
+            assert_no_overlap(src);
+            let t = toks(src);
+            // The header still tokenises …
+            assert!(t.contains(&("rule", K::Keyword)), "{src:?} -> {t:?}");
+            // … and nothing inside the body does.
+            for word in ["when", "HTTP_REQUEST", "pool"] {
+                assert!(
+                    !t.iter().any(|(text, _)| *text == word),
+                    "`{word}` is rule-body Tcl and must not be config-lexed: {t:?}"
+                );
+            }
+        }
+    }
+
+    /// Tcl escape widths are not uniform: this lexer used to assume every escape
+    /// was two bytes, so `\x41` came out as an escape `\x` plus a string `41`.
+    #[test]
+    fn escape_widths_follow_tcl() {
+        let t = toks("ltm x /C/m {\n    recv \"a\\x41b\\U0001F600c\\101d\"\n}\n");
+        for esc in ["\\x41", "\\U0001F600", "\\101"] {
+            assert!(
+                t.contains(&(esc, K::Escape)),
+                "`{esc}` must be one escape token: {t:?}"
+            );
+        }
     }
 
     #[test]

@@ -69,7 +69,9 @@ pub use structural_index::{
     BraceIndex, BracketIndex, ExprParenIndex, ParenBalance, command_boundaries, reparse_window,
     script_is_complete,
 };
-pub use substitution::backslash_subst;
+pub use substitution::{
+    EscapeSegment, backslash_escape_end, backslash_subst, split_backslash_escapes,
+};
 pub use tokens::{ByteCol, SourcePosition, Token, TokenType, Utf16Col, Utf16Position};
 
 /// Crate version string.
