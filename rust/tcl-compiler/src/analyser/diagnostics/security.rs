@@ -1197,7 +1197,13 @@ fn w127_closed_hit(
         return None;
     }
     let valid = if accept_prefix {
-        !value.is_empty() && allowed.iter().any(|a| a.starts_with(value))
+        // C Tcl's abbreviation rule (`Tcl_GetIndexFromObj`): an exact match
+        // always wins; otherwise the value must be a *unique* prefix — an
+        // abbreviation matching exactly one allowed value. An ambiguous prefix
+        // (matching two or more, e.g. `a` → alnum/alpha/ascii) is a runtime
+        // error, so it must NOT be treated as valid.
+        allowed.contains(&value)
+            || (!value.is_empty() && allowed.iter().filter(|a| a.starts_with(value)).count() == 1)
     } else {
         allowed.contains(&value)
     };

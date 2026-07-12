@@ -631,6 +631,12 @@ fn w127_fires_on_invalid_subcommand_closed_value() {
     assert!(!has_w127("string is boo 1\n"));
     assert!(!has_w127("string is b 1\n"));
     assert!(!has_w127("string is dig 1\n"));
+    // FN fix: an *ambiguous* prefix — one matching two or more classes — is a
+    // runtime error in C Tcl (only a *unique* prefix abbreviates), so W127 must
+    // fire, not silently accept it.
+    assert!(has_w127("string is a 1\n")); // alnum / alpha / ascii
+    assert!(has_w127("string is d 1\n")); // digit / double
+    assert!(has_w127("string is w 1\n")); // wideinteger / wordchar
     // Dynamic class is skipped.
     assert!(!has_w127("string is $c 1\n"));
     // The message names the subcommand.
