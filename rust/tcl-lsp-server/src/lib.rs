@@ -1938,21 +1938,90 @@ pub struct Backend {
     /// would hold only per-warm. A `std::sync::Mutex`: locked only briefly (swap +
     /// abort) from the sync `spawn_workspace_warm`, never across an await.
     warm_task: std::sync::Mutex<Option<tokio::task::AbortHandle>>,
-    /// Serialises the document-sync notification handlers (`did_open` /
+    /// Sequences the document-sync notification handlers (`did_open` /
     /// `did_change` / `did_close`) so their buffer mutations apply in the exact
-    /// order the client sent them.
-    ///
-    /// `tower_lsp_server` drives incoming messages through
-    /// `buffer_unordered(max_concurrency)` — several handler futures run
-    /// concurrently and complete in any order — so two rapid incremental
-    /// `didChange`s could otherwise acquire `documents` out of stream order and
-    /// splice their (position-relative) edits against the wrong base text,
-    /// corrupting the buffer under load. Every mutating handler acquires this
-    /// lock as its **first** await; because `buffer_unordered` first-polls the
-    /// handler futures in stream order and tokio's `Mutex` grants FIFO, the
-    /// lock is acquired — and thus edits are applied — in the order received.
-    /// Request handlers do not take it, so read concurrency is unaffected.
-    edit_serialize: Mutex<()>,
+    /// order the client sent them. See [`EditOrder`].
+    edit_order: EditOrder,
+}
+
+/// Applies document-sync notifications in arrival order.
+///
+/// `tower_lsp_server` drives incoming messages through
+/// `buffer_unordered(max_concurrency)`, which *first-polls* the handler futures
+/// in stream order but lets their **awaits** resume in whatever order the
+/// runtime schedules. Sequencing on a `Mutex` taken as the first await is
+/// therefore not enough: handlers were measured entering `did_change` as
+/// 14,15,16,17 and acquiring the lock as 14,16,15,17. An incremental
+/// `didChange` is a *range* edit computed against the previous version, so
+/// applying one out of order splices it into text it was never computed against
+/// and corrupts the buffer permanently — every later feature then reads a
+/// document the client never had.
+///
+/// The ticket is drawn synchronously, before the handler's first `await` — the
+/// last point at which arrival order is still known — and each handler then
+/// waits for its turn. Request handlers draw no ticket; they only wait for the
+/// edits already received ([`EditOrder::settled`]), so read concurrency is
+/// unaffected.
+#[derive(Debug, Default)]
+struct EditOrder {
+    next_ticket: std::sync::atomic::AtomicU64,
+    now_serving: std::sync::atomic::AtomicU64,
+    advanced: tokio::sync::Notify,
+}
+
+impl EditOrder {
+    /// Draw the next ticket. **Must** be called before the handler's first
+    /// `await`, while the future is still being first-polled in stream order.
+    fn take_ticket(&self) -> u64 {
+        self.next_ticket
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel)
+    }
+
+    /// Wait for `ticket`'s turn. The guard releases it on drop — including on an
+    /// early return or a dropped (cancelled) handler future, so a turn is never
+    /// lost.
+    async fn wait_turn(&self, ticket: u64) -> EditTurn<'_> {
+        loop {
+            let advanced = self.advanced.notified();
+            tokio::pin!(advanced);
+            // Register before re-reading, so a turn granted between the check and
+            // the await cannot be missed.
+            advanced.as_mut().enable();
+            if self.now_serving.load(std::sync::atomic::Ordering::Acquire) == ticket {
+                return EditTurn { order: self };
+            }
+            advanced.await;
+        }
+    }
+
+    /// Wait until every edit that had drawn a ticket *before this call* has been
+    /// applied. Edits arriving later do not hold the caller up.
+    async fn settled(&self) {
+        let target = self.next_ticket.load(std::sync::atomic::Ordering::Acquire);
+        loop {
+            let advanced = self.advanced.notified();
+            tokio::pin!(advanced);
+            advanced.as_mut().enable();
+            if self.now_serving.load(std::sync::atomic::Ordering::Acquire) >= target {
+                return;
+            }
+            advanced.await;
+        }
+    }
+}
+
+/// A held turn in the [`EditOrder`] sequence; hands it on when dropped.
+struct EditTurn<'a> {
+    order: &'a EditOrder,
+}
+
+impl Drop for EditTurn<'_> {
+    fn drop(&mut self) {
+        self.order
+            .now_serving
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        self.order.advanced.notify_waiters();
+    }
 }
 
 /// Resolved `tclLsp.features.*` toggle state.
@@ -2229,7 +2298,7 @@ impl Backend {
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             warm_task: std::sync::Mutex::new(None),
-            edit_serialize: Mutex::new(()),
+            edit_order: EditOrder::default(),
         }
     }
 
@@ -2809,7 +2878,27 @@ impl Backend {
         Some(mapped)
     }
 
+    /// Barrier: block until every document-sync notification the client sent
+    /// *before* the calling request has been applied to the document store.
+    ///
+    /// `tower-lsp-server` drives requests and notifications through one
+    /// `buffer_unordered` pool (`transport.rs`), so without this a request
+    /// handler can run to completion while an earlier `didChange` is still in
+    /// flight and answer from a buffer several edits stale — semantic tokens
+    /// whose lines/lengths describe text the client has already replaced, and
+    /// positions (hover, completion, definition) resolved against the wrong
+    /// offsets. LSP requires a request to observe every notification that
+    /// preceded it.
+    ///
+    /// Waits only for the edits that had already arrived ([`EditOrder::settled`]),
+    /// so a later edit does not hold this reader up and readers never serialise
+    /// against one another.
+    async fn edits_settled(&self) {
+        self.edit_order.settled().await;
+    }
+
     async fn read_document(&self, url: &Uri) -> Option<DocumentState> {
+        self.edits_settled().await;
         if let Some(doc) = self.documents.lock().await.get(url).cloned() {
             return Some(doc);
         }
@@ -6076,10 +6165,10 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        // Apply document-sync mutations in stream order (see `edit_serialize`).
-        // Must be the first await so FIFO lock acquisition tracks the order
-        // `buffer_unordered` first-polls these handler futures.
-        let _edit_order = self.edit_serialize.lock().await;
+        // Apply document-sync mutations in arrival order (see `EditOrder`). The
+        // ticket must be drawn before the first await.
+        let ticket = self.edit_order.take_ticket();
+        let _turn = self.edit_order.wait_turn(ticket).await;
         let dialect = self
             .dialect_for_open(
                 &params.text_document.uri,
@@ -6131,12 +6220,11 @@ impl LanguageServer for Backend {
         // current text. Apply them in order. (The re-analysis below is
         // still whole-document and is not bounded to `reparse_window`,
         // though the primitives exist in `tcl-lexer`.)
-        // Apply document-sync mutations in stream order (see `edit_serialize`).
-        // Must be the first await so FIFO lock acquisition tracks the order
-        // `buffer_unordered` first-polls these handler futures — otherwise two
-        // rapid incremental edits can splice out of order and corrupt the
-        // buffer under load.
-        let _edit_order = self.edit_serialize.lock().await;
+        // Apply document-sync mutations in arrival order (see `EditOrder`) —
+        // otherwise two rapid incremental edits splice out of order and corrupt
+        // the buffer. The ticket must be drawn before the first await.
+        let ticket = self.edit_order.take_ticket();
+        let _turn = self.edit_order.wait_turn(ticket).await;
         let uri = params.text_document.uri.clone();
         if params.content_changes.is_empty() {
             return;
@@ -6196,8 +6284,12 @@ impl LanguageServer for Backend {
         // only the source hint is edit-sensitive, so this is the sole case that
         // can change.  When it does, commit the new dialect and re-analyse.
         if language_id == "tcl" {
-            let text = match self.read_document(&uri).await {
-                Some(doc) => doc.text,
+            // Read the open buffer directly: `read_document` waits for this
+            // handler's own turn to finish (see `edits_settled`), so routing
+            // through it here would self-deadlock. The document is open — a
+            // closed one returned above.
+            let text = match self.documents.lock().await.get(&uri) {
+                Some(entry) => entry.text.clone(),
                 None => return,
             };
             let new_dialect = self.dialect_for_open(&uri, &language_id, &text).await;
@@ -6298,9 +6390,11 @@ impl LanguageServer for Backend {
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
-        // Apply document-sync mutations in stream order (see `edit_serialize`).
-        // First await so a close can't be reordered ahead of an in-flight edit.
-        let _edit_order = self.edit_serialize.lock().await;
+        // Apply document-sync mutations in arrival order (see `EditOrder`) so a
+        // close can't be reordered ahead of an in-flight edit. The ticket must be
+        // drawn before the first await.
+        let ticket = self.edit_order.take_ticket();
+        let _turn = self.edit_order.wait_turn(ticket).await;
         let uri = &params.text_document.uri;
         {
             // Remove the live document + its index entry while holding
@@ -13809,7 +13903,7 @@ mod tests {
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             warm_task: std::sync::Mutex::new(None),
-            edit_serialize: Mutex::new(()),
+            edit_order: EditOrder::default(),
         }
     }
 
@@ -16426,6 +16520,52 @@ mod tests {
     }
 
     /// Register a document in the store and the workspace index.
+    /// A request that reads a document must not observe a buffer that is missing
+    /// an already-received edit.
+    ///
+    /// `tower-lsp-server` drives requests and notifications through one
+    /// `buffer_unordered` pool, so a request handler can be polled while an
+    /// earlier `didChange` is still in flight. `read_document` must therefore
+    /// wait for the outstanding edit rather than racing ahead and answering from
+    /// the pre-edit text (which yielded semantic tokens whose lines/lengths
+    /// described text the client had already replaced).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn read_document_waits_for_an_in_flight_edit() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///ordering.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+
+        // Stand in for a `didChange` that has arrived and taken its turn, but has
+        // not yet spliced the buffer.
+        let ticket = backend.edit_order.take_ticket();
+        let edit_in_flight = backend.edit_order.wait_turn(ticket).await;
+
+        let mut reader = tokio::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move { backend.read_document(&uri).await.map(|d| d.text) }
+        });
+
+        // While the edit is in flight the read must not resolve.
+        let elapsed = std::time::Duration::from_millis(300);
+        if let Ok(done) = tokio::time::timeout(elapsed, &mut reader).await {
+            panic!("read_document returned {done:?} while an edit was still in flight");
+        }
+
+        // Land the edit, then release the ordering lock: the read must now
+        // resolve against the *settled* buffer, never the pre-edit text.
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new("set x 2\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        drop(edit_in_flight);
+        let text = tokio::time::timeout(std::time::Duration::from_secs(5), reader)
+            .await
+            .expect("read_document must resolve once the edit lands")
+            .expect("reader task panicked");
+        assert_eq!(text.as_deref(), Some("set x 2\n"));
+    }
+
     async fn register(backend: &Backend, uri: &Uri, src: &str) {
         backend.documents.lock().await.insert(
             uri.clone(),
