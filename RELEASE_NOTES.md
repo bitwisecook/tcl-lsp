@@ -93,6 +93,16 @@ result; see **Breaking Changes**.
 
 ## Bug Fixes
 
+- **The server's buffer could permanently diverge from the editor's during fast
+  typing.** Incremental edits were applied in whatever order the runtime
+  scheduled them rather than the order they arrived, and because each edit is a
+  range computed against the previous version, one applied out of turn was
+  spliced into text it was never computed against. The buffer then stayed wrong
+  until the file was closed and reopened: semantic tokens landed on the wrong
+  lines and lengths, and hover, completion, and go-to-definition resolved at the
+  wrong offsets. Separately, a request could be answered from a buffer that was
+  still missing an edit the editor had already sent. Edits are now applied in
+  arrival order, and a request always observes every edit that preceded it.
 - **Crashes on multi-byte characters.** Unchecked string slicing in the
   analyser and the dialect-directive detector panicked when a UTF-8 character
   boundary fell on a slice offset — an em dash or a curly quote in a comment
