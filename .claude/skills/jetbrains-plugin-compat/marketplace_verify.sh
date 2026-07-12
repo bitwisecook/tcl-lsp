@@ -77,7 +77,15 @@ resolve_update() {
   [ -n "$update" ] && { echo "$update"; return; }
   local tmp; tmp="$(mktemp)"
   local q="/api/plugins/${PLUGIN_ID}/updates?size=50"
-  [ -n "$channel" ] && q="${q}&channel=${channel}"
+  # The public Stable channel is the *default/empty* Marketplace channel (this
+  # repo publishes stable as `channels = listOf("default")`). Querying
+  # `&channel=stable` (or `default`) targets a nonexistent named channel and
+  # returns nothing, so normalise those to no channel filter. Only a real named
+  # channel like `eap` gets the query parameter.
+  case "$channel" in
+    ""|stable|default) : ;;
+    *) q="${q}&channel=${channel}" ;;
+  esac
   local code; code="$(api GET "$q" "$tmp")"
   [ "$code" = "200" ] || { rm -f "$tmp"; die "updates list failed (HTTP $code)"; }
   python3 - "$tmp" "$version" <<'PY'
@@ -190,9 +198,16 @@ main() {
         local u; u="$(resolve_update "$channel" "$version" "$update")"
         print_results "$u" "${channel:-${version:-explicit}}" "$full" || rc=1
       else
-        # No selector: health-check both channels' latest builds.
+        # No selector: health-check both channels' latest builds. A channel we
+        # cannot resolve (bad token, API error, no updates) must FAIL the gate,
+        # not be silently skipped — otherwise the command could print OK having
+        # verified nothing.
         for ch in stable eap; do
-          local u; u="$(resolve_update "$ch" "" "")" || continue
+          local u
+          if ! u="$(resolve_update "$ch" "" "")"; then
+            echo "!! could not resolve latest '$ch' update — failing the gate" >&2
+            rc=1; continue
+          fi
           print_results "$u" "$ch latest" "$full" || rc=1
           echo
         done
