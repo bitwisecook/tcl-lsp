@@ -117,6 +117,12 @@ const MATRIX: &[Case] = &[
         silent: "interp alias {} myset {} set\nproc f {n} {\n    myset x 0\n    while {$n} {\n        myset x [expr {$x + 1}]\n        incr n -1\n    }\n}\n",
         note: "an aliased `set` still resolves to the real command, so a loop-carried int/string oscillation through the alias fires S102 (FP-SH-15)",
     },
+    Case {
+        code: "E005",
+        fire: "lmap a b c d\n",
+        silent: "lmap x {1 2} {incr x}\n",
+        note: "lmap shares foreach's odd/even grammar — an even arg count is wrong # args (registry `stepped` arity, verified vs tclsh 9.0.4)",
+    },
 ];
 
 /// The set of `code` strings carried by `diags` (mirrors Python `_codes`).

@@ -20,8 +20,10 @@ Why does the analyser flag a `while` or `for` as provably infinite?
 The analyser can see enough of the loop shape to prove it will never
 terminate. It reports **`W241`** in these cases:
 
-- A `while {1}` / `while {true}` whose body has no
-  `break` / `return` / `error` / `exit`.
+- A `while {1}` / `while {true}` whose body never leaves the loop —
+  no `break`, and nothing that terminates the enclosing block or frame
+  (`return` / `error` / `exit` / `throw` / `tailcall`). A `continue`
+  does *not* count: it restarts the loop, so the loop is still infinite.
 - A `for {set v INT} {$v OP INT} {incr v INT}` where the
   counter cannot reach the bound:
   - `incr v 0` — the counter never changes.

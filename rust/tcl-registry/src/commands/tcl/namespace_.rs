@@ -85,6 +85,29 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
     },
 ];
 
+/// `namespace which ?-command? ?-variable? name` — the two leading flags select
+/// what to resolve `name` as. They are bare (value-less) flags; declaring them
+/// lets the arity check skip them so `exact(1)` counts only the trailing `name`
+/// (catching `namespace which foo bar`), and lights up their completion/hover.
+static WHICH_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-command",
+        value: OptionValue::flag(),
+        detail: "Resolve name as a command (the default).",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+    OptionSpec {
+        name: "-variable",
+        value: OptionValue::flag(),
+        detail: "Resolve name as a variable.",
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    },
+];
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "children",
@@ -265,9 +288,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "which",
-        arity: Arity::at_least(1),
+        // Exactly one trailing `name`; the two leading flags are declared in
+        // `WHICH_OPTIONS`, so the arity check skips them before counting.
+        // Verified against tclsh 9.0: 0 args and >1 positional both error.
+        arity: Arity::exact(1),
         detail: "Looks up name as either a command or variable.",
         synopsis: "namespace which ?-command? ?-variable? name",
+        options: WHICH_OPTIONS,
         pure: true,
         return_type: Some(TclType::String),
         ..SubCommand::DEFAULT

@@ -959,7 +959,7 @@
   "global": {
     "arity": {
       "max": null,
-      "min": 1
+      "min": 0
     },
     "dialects": null,
     "excludedEvents": [],
@@ -3307,7 +3307,7 @@
   "variable": {
     "arity": {
       "max": null,
-      "min": 1
+      "min": 0
     },
     "dialects": null,
     "excludedEvents": [],

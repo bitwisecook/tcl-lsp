@@ -55,6 +55,7 @@
 | W240 | warning | Loop condition is a constant false — body never executes. | ✓ |
 | W241 | warning | Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step. | ✓ |
 | W250 | warning | Instantiating an `oo::abstract` class — abstract classes cannot be created directly; use a concrete subclass. | ✓ |
+| W308 | warning | Unknown TclOO method — the method is not defined on the receiver's statically-known class or any of its superclasses. | ✓ |
 | W210 | variable | Variable read before set. | ✓ |
 | W211 | variable | Variable set but never used. | ✓ |
 | W212 | variable | Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.). | ✓ |
@@ -74,7 +75,6 @@
 | W304 | security | Missing option terminator `--` on option-bearing commands. | ✓ |
 | W306 | security | Substitution in literal-expected argument position. | ✓ |
 | W307 | security | Non-literal command name — variable or command substitution as command. | ✓ |
-| W308 | security | `subst` without `-nocommands` — risk of unintended command execution. | ✓ |
 | W309 | security | `eval`/`uplevel` with `subst` — double substitution risk. | ✓ |
 | W310 | security | Hardcoded credential in a password/auth argument — store secrets outside source. | ✓ |
 | W311 | security | Channel set to `-encoding binary` with a non-binary `-translation` — may corrupt data or enable encoding-differential attacks. | ✓ |

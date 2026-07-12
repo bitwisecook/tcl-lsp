@@ -3912,6 +3912,13 @@
             "default": true,
             "markdownDescription": "**W250:** Instantiating an `oo::abstract` class — abstract classes cannot be created directly; use a concrete subclass.",
             "order": 36
+          },
+          "tclLsp.diagnostics.W308": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W308:** Unknown TclOO method — the method is not defined on the receiver's statically-known class or any of its superclasses.",
+            "order": 37
           }
         }
       },
@@ -4058,26 +4065,19 @@
             "markdownDescription": "**W307:** Non-literal command name — variable or command substitution as command.",
             "order": 9
           },
-          "tclLsp.diagnostics.W308": {
-            "scope": "resource",
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "**W308:** `subst` without `-nocommands` — risk of unintended command execution.",
-            "order": 10
-          },
           "tclLsp.diagnostics.W309": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W309:** `eval`/`uplevel` with `subst` — double substitution risk.",
-            "order": 11
+            "order": 10
           },
           "tclLsp.diagnostics.W313": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W313:** Destructive file operation with variable path — path-traversal risk.",
-            "order": 12
+            "order": 11
           }
         }
       },

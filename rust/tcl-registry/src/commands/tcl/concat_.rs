@@ -27,6 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "concat",
+        byte_array_effect: ByteArrayEffect::Coerces,
         const_fold: Some(crate::const_fold::fold_concat),
         codegen_hook: Some(CodegenHookId::Concat),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::PRODUCES_CANONICAL_LIST,

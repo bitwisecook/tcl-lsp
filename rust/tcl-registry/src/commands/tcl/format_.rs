@@ -565,6 +565,7 @@ fn fmt_general(v: f64, prec: usize, upper: bool) -> String {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "format",
+        byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::BYTE_COMPILED | Traits::PURE | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),

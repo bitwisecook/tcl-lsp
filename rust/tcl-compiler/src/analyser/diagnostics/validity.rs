@@ -60,6 +60,29 @@ struct ArityWords<'a> {
 /// [`Analyser::check_simple_arity`]'s original inline formula exactly;
 /// shared here so [`Analyser::queue_user_call_arity_candidate`] doesn't
 /// reimplement it.
+/// The tight E003 highlight: the span covering the run of *surplus*
+/// positional arguments, from the first argument past the command's `max`
+/// up to the last argument. `positional_start` is the index of the first
+/// positional word (after any leading option flags), `max` the command's
+/// maximum positional count. Returns `None` — so [`arity_verdict`] falls
+/// back to the whole-command span — when the positional region contains a
+/// `{*}` expansion (which makes "the first surplus word" ambiguous) or the
+/// index arithmetic can't land on a real token.
+fn excess_positional_span(
+    arg_tokens: &[tcl_lexer::Token],
+    arg_expand: &[bool],
+    positional_start: usize,
+    max: usize,
+) -> Option<tcl_lexer::Span> {
+    if (positional_start..arg_tokens.len()).any(|i| arg_expand.get(i).copied().unwrap_or(false)) {
+        return None;
+    }
+    let first_excess = positional_start.checked_add(max)?;
+    let first = arg_tokens.get(first_excess)?;
+    let last = arg_tokens.last()?;
+    Some(tcl_lexer::Span::new(first.span.start(), last.span.end()))
+}
+
 fn count_positionals(args: &[String], arg_expand: &[bool], start: usize) -> (usize, bool) {
     let expanded = |i: usize| arg_expand.get(i).copied().unwrap_or(false);
     let start = start.min(args.len());
@@ -147,6 +170,7 @@ pub(super) fn arity_verdict(
     nargs_min: usize,
     positional_any_expand: bool,
     span: tcl_lexer::Span,
+    excess_span: Option<tcl_lexer::Span>,
 ) -> Option<crate::analyser::types::Diagnostic> {
     let min = usize::from(arity.min);
     let max = usize::from(arity.max);
@@ -173,7 +197,11 @@ pub(super) fn arity_verdict(
     } else if !arity.is_unlimited() && nargs_min > max {
         Some(crate::analyser::types::Diagnostic {
             code: DiagCode::E003,
-            span,
+            // Highlight only the surplus arguments when the caller could
+            // isolate them (the whole command otherwise). E002/E005 keep the
+            // whole-command anchor: a too-few or wrong-shape count has no
+            // specific surplus word to point at.
+            span: excess_span.unwrap_or(span),
             message: format!(
                 "Too many arguments for '{display_name}': expected at most {max}, got {nargs_min}"
             ),
@@ -1005,12 +1033,19 @@ impl Analyser {
         // A class / alias / ensemble / stub match suppresses regardless
         // of definition order; a *proc* match additionally honours
         // `enforce_order` (in-order/reachability gate).
+        let excess_span = excess_positional_span(
+            arg_tokens,
+            arg_expand,
+            positional_start,
+            usize::from(sig.arity.max),
+        );
         if let Some(diag) = arity_verdict(
             display_name,
             sig.arity,
             nargs_min,
             positional_any_expand,
             full_span,
+            excess_span,
         ) {
             self.pending_arity
                 .push((resolution_name.to_string(), ns, enforce_order, diag));
@@ -1060,9 +1095,17 @@ impl Analyser {
             Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
             None => cmd_tok.span,
         };
-        if let Some(diag) =
-            arity_verdict("apply", arity, nargs_min, positional_any_expand, full_span)
-        {
+        // Positional args (and so the surplus run) start after the lambda
+        // literal at index 1.
+        let excess_span = excess_positional_span(arg_tokens, arg_expand, 1, usize::from(arity.max));
+        if let Some(diag) = arity_verdict(
+            "apply",
+            arity,
+            nargs_min,
+            positional_any_expand,
+            full_span,
+            excess_span,
+        ) {
             let ns = self.command_resolution_namespace(scope_path);
             let enforce_order = !self.scope_path_in_proc_body(scope_path);
             self.pending_arity
@@ -1179,6 +1222,7 @@ impl Analyser {
                 cand.nargs_min,
                 cand.positional_any_expand,
                 cand.full_span,
+                None,
             ) {
                 self.result.diagnostics.push(diag);
             }
@@ -1276,6 +1320,7 @@ impl Analyser {
                             cand.nargs_min,
                             cand.positional_any_expand,
                             cand.full_span,
+                            None,
                         ) {
                             diags.push(diag);
                         }
@@ -1317,6 +1362,7 @@ impl Analyser {
                     cand.nargs_min,
                     cand.positional_any_expand,
                     cand.full_span,
+                    None,
                 ) {
                     diags.push(diag);
                 }
@@ -1397,6 +1443,7 @@ impl Analyser {
                     cand.nargs_min,
                     cand.positional_any_expand,
                     cand.full_span,
+                    None,
                 ) {
                     diags.push(diag);
                 }
@@ -2451,7 +2498,7 @@ before this value so it is treated as data, not an option."
     /// token-text usage and avoids edge-case mismatches that a
     /// raw `self.source[..]` slice would introduce.  Returns
     /// `None` when the extracted text is empty.
-    fn var_name_from_token(&self, tok: tcl_lexer::Token) -> Option<String> {
+    pub(super) fn var_name_from_token(&self, tok: tcl_lexer::Token) -> Option<String> {
         let sm = tcl_lexer::SourceMap::new(&self.source);
         let text = sm.token_text(tok);
         if text.is_empty() {
@@ -2992,7 +3039,7 @@ fn first_positional_without_terminator(
 /// nearest preceding `set` is a fully-literal three-arg form.
 /// Returns `None` when the latest assignment is dynamic / multi-
 /// token (the runtime value cannot be proven statically).
-fn last_literal_set_value_for_var(
+pub(super) fn last_literal_set_value_for_var(
     source: &str,
     var_name: &str,
     before_offset: u32,
@@ -3061,28 +3108,92 @@ fn last_literal_set_value_for_var(
     None
 }
 
-/// Return `true` if `text` contains any of the dialect-gated
-/// expression operator keywords (`lt`, `le`, `gt`, `ge`, `in`, `ni`)
-/// as a whole word — i.e. surrounded by non-identifier bytes or
-/// the text boundary.  Used as a fast prefilter to skip the
-/// expression parse for expressions that obviously can't trigger
-/// W003.
+/// A version-gated `expr` operator: its text, whether it is word-shaped, the
+/// minimum Tcl version it needs, and the TIP citation for the W003 message.
 ///
-/// Whitespace-aware: tabs, newlines, and any other non-identifier
-/// byte (parentheses, operators, comparison glyphs, etc.) count
-/// as word boundaries.  Matches Tcl expr's tolerance for
-/// arbitrary whitespace between tokens.
+/// Single source for the three W003 steps — the prefilter
+/// ([`contains_gated_word`]), the per-token gate check ([`gated_operator_name`]),
+/// and the message ([`w003_tip_citation`]) — which were previously three
+/// separate hardcoded matches that had drifted (the symbolic `**` was in none
+/// of them, so `expr {2 ** 3}` under tcl8.4 was a false negative).
+struct GatedExprOp {
+    /// The operator text as the expr lexer emits it (`in`, `**`).
+    op: &'static str,
+    /// Word-shaped (`in`/`lt`) operators need identifier-boundary matching in
+    /// the prefilter; symbolic ones (`**`) match on any occurrence.
+    word_shaped: bool,
+    /// `true` = needs Tcl 8.5+ (gated under `pre_85`); `false` = needs Tcl 9.0+
+    /// (gated under `pre_90`).
+    needs_85: bool,
+    /// The TIP citation surfaced in the W003 message.
+    tip: &'static str,
+}
+
+/// The version-gated `expr` operators (`in`/`ni`/`**` from 8.5; the string
+/// comparison words `lt`/`le`/`gt`/`ge` from 9.0).
+const GATED_EXPR_OPS: &[GatedExprOp] = &[
+    GatedExprOp {
+        op: "in",
+        word_shaped: true,
+        needs_85: true,
+        tip: "Tcl 8.5+ (TIP 201)",
+    },
+    GatedExprOp {
+        op: "ni",
+        word_shaped: true,
+        needs_85: true,
+        tip: "Tcl 8.5+ (TIP 201)",
+    },
+    GatedExprOp {
+        op: "**",
+        word_shaped: false,
+        needs_85: true,
+        tip: "Tcl 8.5+ (TIP 123)",
+    },
+    GatedExprOp {
+        op: "lt",
+        word_shaped: true,
+        needs_85: false,
+        tip: "Tcl 9.0+ (TIP 461)",
+    },
+    GatedExprOp {
+        op: "le",
+        word_shaped: true,
+        needs_85: false,
+        tip: "Tcl 9.0+ (TIP 461)",
+    },
+    GatedExprOp {
+        op: "gt",
+        word_shaped: true,
+        needs_85: false,
+        tip: "Tcl 9.0+ (TIP 461)",
+    },
+    GatedExprOp {
+        op: "ge",
+        word_shaped: true,
+        needs_85: false,
+        tip: "Tcl 9.0+ (TIP 461)",
+    },
+];
+
+/// Return `true` if `text` contains any dialect-gated expression operator (a
+/// word-shaped one as a whole word, or a symbolic one such as `**` anywhere).
+/// Used as a fast prefilter to skip the expression parse for expressions that
+/// obviously can't trigger W003. Word-boundary matching is whitespace-aware:
+/// any non-identifier byte (parentheses, operators, …) counts as a boundary,
+/// matching Tcl expr's tolerance for arbitrary whitespace between tokens.
 pub(super) fn contains_gated_word(text: &str) -> bool {
-    const GATED: &[&[u8]] = &[b"lt", b"le", b"gt", b"ge", b"in", b"ni"];
     let bytes = text.as_bytes();
-    for needle in GATED {
+    for g in GATED_EXPR_OPS {
+        let needle = g.op.as_bytes();
         let n = needle.len();
         let mut i = 0;
         while i + n <= bytes.len() {
-            if &bytes[i..i + n] == *needle {
-                let before_ok = i == 0 || !is_ident_continue(bytes[i - 1]);
-                let after_ok = i + n == bytes.len() || !is_ident_continue(bytes[i + n]);
-                if before_ok && after_ok {
+            if &bytes[i..i + n] == needle {
+                let word_ok = !g.word_shaped
+                    || ((i == 0 || !is_ident_continue(bytes[i - 1]))
+                        && (i + n == bytes.len() || !is_ident_continue(bytes[i + n])));
+                if word_ok {
                     return true;
                 }
             }
@@ -3097,23 +3208,18 @@ pub(super) fn contains_gated_word(text: &str) -> bool {
 /// of the six dialect-gated keywords, or the relevant TIP is actually
 /// available (`pre_85`/`pre_90` both false for it).
 fn gated_operator_name(word: &str, pre_85: bool, pre_90: bool) -> Option<&'static str> {
-    Some(match word {
-        "in" if pre_85 => "in",
-        "ni" if pre_85 => "ni",
-        "lt" if pre_90 => "lt",
-        "le" if pre_90 => "le",
-        "gt" if pre_90 => "gt",
-        "ge" if pre_90 => "ge",
-        _ => return None,
-    })
+    GATED_EXPR_OPS
+        .iter()
+        .find(|g| g.op == word && if g.needs_85 { pre_85 } else { pre_90 })
+        .map(|g| g.op)
 }
 
 /// The TIP citation to surface in the W003 message for `op_name`.
 fn w003_tip_citation(op_name: &str) -> &'static str {
-    match op_name {
-        "in" | "ni" => "Tcl 8.5+ (TIP 201)",
-        _ => "Tcl 9.0+ (TIP 461)",
-    }
+    GATED_EXPR_OPS
+        .iter()
+        .find(|g| g.op == op_name)
+        .map_or("Tcl 9.0+ (TIP 461)", |g| g.tip)
 }
 
 /// Whether `node` is safe to splice as a bare Tcl word into a

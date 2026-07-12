@@ -944,13 +944,29 @@ mod sty_depth {
     }
 
     #[test]
-    fn live_dollar_in_quoted_pattern_still_w306() {
-        // TP control: an unescaped `$pat` in a *quoted* regex pattern is a live
-        // substitution → W306 fires. Proves the braced carve-out is shape-gated.
+    fn pure_dollar_in_quoted_pattern_no_w306() {
+        // FP carve-out: a *quoted* pattern that is exactly one pure variable
+        // reference (`"$pat"`) is byte-for-byte identical at runtime to the bare
+        // `$pat` parameterised-pattern idiom — the quotes group nothing — so it
+        // is the canonical form, not a foot-gun. No W306.
         let src = "regexp \"$pat\" $s\n";
         assert!(
+            !fires(src, D, "W306"),
+            "a quoted pure `$pat` pattern must NOT fire W306; emitted {:?}",
+            codes(src, D)
+        );
+    }
+
+    #[test]
+    fn concatenated_dollar_in_quoted_pattern_still_w306() {
+        // TP control: once a live `$pat` is *concatenated* with literal text
+        // (`"prefix$pat"`) the word is no longer a pure reference — a literal
+        // pattern *was* expected there — so W306 still fires. Proves the
+        // pure-var carve-out is shape-gated, not a blanket quoted-`$` exemption.
+        let src = "regexp \"prefix$pat\" $s\n";
+        assert!(
             fires(src, D, "W306"),
-            "live $pat in a quoted regexp pattern must fire W306; emitted {:?}",
+            "a concatenated `$pat` in a quoted regexp pattern must fire W306; emitted {:?}",
             codes(src, D)
         );
     }

@@ -357,23 +357,93 @@ fn w212_ignores_plain_names() {
 }
 
 #[test]
-fn name_arg_indices_resolvers() {
-    assert_eq!(name_arg_indices("set", &["a".into(), "b".into()]), vec![0]);
+fn w212_covers_registry_name_positions() {
+    // FN fixes: the old hardcoded list missed these name positions, which the
+    // registry's VarWrite/VarRead roles now supply.
+    assert_eq!(w212_count("proc p {} { vwait $x }\n"), 1);
+    assert_eq!(w212_count("proc p {} { catch {error e} $res }\n"), 1);
+    assert_eq!(w212_count("proc p {l} { lassign $l $x }\n"), 1);
+    assert_eq!(w212_count("proc p {s} { scan $s %d $x }\n"), 1);
+    assert_eq!(w212_count("proc p {d} { dict with $d {} }\n"), 1);
+    // TN controls: literal names in the same positions stay silent.
+    assert_eq!(w212_count("proc p {} { vwait x }\n"), 0);
+    assert_eq!(w212_count("proc p {} { catch {error e} res }\n"), 0);
+    assert_eq!(w212_count("proc p {l} { lassign $l a b }\n"), 0);
+    // A dynamic `catch $script` has no result-var position — nothing to flag.
+    assert_eq!(w212_count("proc p {s} { catch $s }\n"), 0);
+}
+
+#[test]
+fn w212_upvar_remote_name_may_be_computed() {
+    // The *remote* (other-var) slot of `upvar` legitimately takes a computed
+    // name, so `$remote` there must NOT fire W212 — only the local slot does.
+    assert_eq!(w212_count("proc p {} { upvar 1 $remote local }\n"), 0);
+    assert_eq!(w212_count("proc p {} { upvar 1 remote $local }\n"), 1);
+}
+
+fn w216_count(src: &str) -> usize {
+    let mut a = crate::analyser::Analyser::new();
+    a.analyse(src, "tcl8.6")
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W216)
+        .count()
+}
+
+#[test]
+fn w216_upvar_local_name_is_indirect_array_idiom() {
+    // FP fix: `${arr}(x)` in `upvar`'s local-name slot is the legitimate
+    // indirect-array idiom (the same carve-out `set`/`vwait` already had). The
+    // two name-position lists had drifted — W216's omitted `upvar`.
+    assert_eq!(w216_count("proc p {arr} { upvar 1 remote ${arr}(x) }\n"), 0);
+    // TP control: `${arr}(x)` in a *value* position is a genuine broken read.
+    assert_eq!(w216_count("proc p {arr} { puts ${arr}(x) }\n"), 1);
+}
+
+#[test]
+fn variable_name_positions_are_registry_driven() {
+    let mut a = Analyser::new();
+    a.registry = Some(tcl_registry::CommandRegistry::build_default());
+    let pos = |cmd: &str, args: &[&str]| {
+        a.variable_name_positions(
+            cmd,
+            &args.iter().map(|s| (*s).to_string()).collect::<Vec<_>>(),
+        )
+    };
+    // Existing name-position commands (regression) — now resolved from the
+    // registry's VarWrite/VarRead roles rather than a hardcoded list.
+    assert_eq!(pos("set", &["a", "b"]), vec![0]);
+    assert_eq!(pos("unset", &["-nocomplain", "a", "b"]), vec![1, 2]);
+    assert_eq!(pos("info", &["exists", "v"]), vec![1]);
+    assert_eq!(pos("info", &["level"]), Vec::<usize>::new());
+    // `upvar` — only the *local* names (every other arg after the level word).
+    assert_eq!(pos("upvar", &["1", "a", "b"]), vec![2]);
+    assert_eq!(pos("upvar", &["a", "b"]), vec![1]); // no level word
+    // FN fixes now covered by the registry roles that the old list omitted.
+    assert_eq!(pos("vwait", &["v"]), vec![0]);
+    assert_eq!(pos("catch", &["{script}", "res"]), vec![1]);
+    assert_eq!(pos("catch", &["{script}", "res", "opts"]), vec![1, 2]);
+    // A dynamic `catch $script` has no result-var position — nothing to flag.
+    assert_eq!(pos("catch", &["$script"]), Vec::<usize>::new());
+}
+
+#[test]
+fn upvar_local_positions_parity() {
+    // Only the local names are strict name positions; the paired remote names
+    // (indices 1, 3, …) are excluded so a computed `$remote` is not flagged.
     assert_eq!(
-        name_arg_indices("unset", &["-nocomplain".into(), "a".into(), "b".into()]),
-        vec![1, 2],
-    );
-    assert_eq!(
-        name_arg_indices("info", &["exists".into(), "v".into()]),
-        vec![1]
-    );
-    assert_eq!(
-        name_arg_indices("info", &["level".into()]),
-        Vec::<usize>::new()
-    );
-    assert_eq!(
-        name_arg_indices("upvar", &["1".into(), "a".into(), "b".into()]),
+        upvar_local_name_positions(&["1".into(), "a".into(), "b".into()]),
         vec![2],
+    );
+    assert_eq!(
+        upvar_local_name_positions(&[
+            "#0".into(),
+            "r1".into(),
+            "l1".into(),
+            "r2".into(),
+            "l2".into(),
+        ]),
+        vec![2, 4],
     );
 }
 
@@ -540,6 +610,43 @@ fn w127_fires_on_invalid_option_enum_value() {
         !dynamic.diagnostics.iter().any(|d| d.code == DiagCode::W127),
         "dynamic `-relief $r` must be skipped; got {:?}",
         dynamic.diagnostics
+    );
+}
+
+#[test]
+fn w127_fires_on_invalid_subcommand_closed_value() {
+    fn has_w127(src: &str) -> bool {
+        Analyser::new()
+            .analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W127)
+    }
+    // FN fix: `string is <class>` carries an exhaustive class set on the `is`
+    // subcommand; a non-member is a runtime `bad class` error.
+    assert!(has_w127("string is booleanx 1\n"));
+    assert!(has_w127("string is xyz 1\n"));
+    // C Tcl accepts a unique prefix — must NOT fire.
+    assert!(!has_w127("string is boolean 1\n"));
+    assert!(!has_w127("string is boo 1\n"));
+    assert!(!has_w127("string is b 1\n"));
+    assert!(!has_w127("string is dig 1\n"));
+    // FN fix: an *ambiguous* prefix — one matching two or more classes — is a
+    // runtime error in C Tcl (only a *unique* prefix abbreviates), so W127 must
+    // fire, not silently accept it.
+    assert!(has_w127("string is a 1\n")); // alnum / alpha / ascii
+    assert!(has_w127("string is d 1\n")); // digit / double
+    assert!(has_w127("string is w 1\n")); // wideinteger / wordchar
+    // Dynamic class is skipped.
+    assert!(!has_w127("string is $c 1\n"));
+    // The message names the subcommand.
+    let d = Analyser::new().analyse("string is booleanx 1\n", "tcl8.6");
+    assert!(
+        d.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W127 && d.message.contains("string is")),
+        "message must name `string is`; got {:?}",
+        d.diagnostics,
     );
 }
 
@@ -784,6 +891,35 @@ fn e003_fires_on_file_link_over_arity() {
         result.diagnostics.iter().any(|d| d.code == DiagCode::E003),
         "expected E003 for `file link $a $b $c`, got {:?}",
         result.diagnostics
+    );
+}
+
+#[test]
+fn e003_namespace_which_extra_positional_fires() {
+    // `namespace which ?-command? ?-variable? name` — exactly one trailing
+    // `name`, the flags declared as options. Verified vs tclsh 9.0: a second
+    // positional (`foo bar`) errors, but the flag forms are fine.
+    fn e003(src: &str) -> bool {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::E003)
+    }
+    // FN fix: a bare second positional is now flagged.
+    assert!(
+        e003("namespace which foo bar"),
+        "extra positional must fire E003"
+    );
+    // Valid forms stay silent — the flags are skipped before counting.
+    assert!(!e003("namespace which foo"), "one name is valid");
+    assert!(
+        !e003("namespace which -command foo"),
+        "-command name is valid"
+    );
+    assert!(
+        !e003("namespace which -variable foo"),
+        "-variable name is valid"
     );
 }
 
@@ -1192,8 +1328,16 @@ fn e003_top_level_call_before_shadowing_proc_fires() {
         "expected E003 on the top-level close before its shadowing proc, got {:?}",
         r.diagnostics
     );
-    // The flagged call is the top-level one (offset 0), not the proc.
-    assert_eq!(e003[0].span.start(), 0, "wrong call flagged");
+    // The flagged call is the top-level one on line 1, not the proc on line 2.
+    // E003 highlights only the surplus arguments, so the span starts at the
+    // first excess word rather than the command name — assert it lands on the
+    // first line.
+    let line2 = src.find('\n').unwrap();
+    assert!(
+        (e003[0].span.start() as usize) < line2,
+        "wrong call flagged: {:?}",
+        &src[e003[0].span.start() as usize..e003[0].span.end() as usize],
+    );
 }
 
 #[test]
@@ -1263,7 +1407,101 @@ fn e003_top_level_call_before_rename_onto_builtin_still_fires() {
         "expected E003 on the top-level close before the rename took effect, got {:?}",
         r.diagnostics
     );
-    assert_eq!(e003[0].span.start(), 0, "wrong call flagged");
+    // Tight E003 span: the surplus argument of the line-1 call, not the
+    // renamed proc on a later line.
+    let line2 = src.find('\n').unwrap();
+    assert!(
+        (e003[0].span.start() as usize) < line2,
+        "wrong call flagged: {:?}",
+        &src[e003[0].span.start() as usize..e003[0].span.end() as usize],
+    );
+}
+
+// E003 tight-range + registry arity-data corrections (verified against
+// tclsh 9.0.4). See `rust/tcl-registry/src/commands/tcl/{lmap,global,
+// variable,auto_load,auto_import}_.rs`.
+
+/// Return the source text E003 highlights, so range tightness can be
+/// asserted against the *problem* words rather than the whole command.
+fn e003_highlighted_text(src: &str) -> String {
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.6");
+    let d = r
+        .diagnostics
+        .iter()
+        .find(|d| d.code == DiagCode::E003)
+        .unwrap_or_else(|| panic!("no E003 in {:?}", r.diagnostics));
+    src[d.span.start() as usize..d.span.end() as usize].to_string()
+}
+
+#[test]
+fn e003_highlights_only_the_surplus_arguments() {
+    // TP + range precision: the squiggle covers exactly the excess words,
+    // not the command name or the valid arguments.
+    assert_eq!(
+        e003_highlighted_text("lreverse {a b c} extra1 extra2\n"),
+        "extra1 extra2",
+        "E003 must highlight only the surplus arguments",
+    );
+    assert_eq!(
+        e003_highlighted_text("string index abc 0 extra\n"),
+        "extra",
+        "E003 on a subcommand must highlight only the surplus word",
+    );
+    // Leading options are skipped: the surplus is measured after them.
+    assert_eq!(
+        e003_highlighted_text("puts -nonewline stdout hello extra\n"),
+        "extra",
+        "E003 must skip leading options when isolating the surplus",
+    );
+}
+
+#[test]
+fn e003_falls_back_to_whole_command_on_expansion() {
+    // A `{*}`-expanded positional makes the first surplus word ambiguous, so
+    // the highlight falls back to the whole command (still a TP).
+    let src = "lreverse {a b c} {*}$extra more\n";
+    let text = e003_highlighted_text(src);
+    assert!(
+        text.starts_with("lreverse"),
+        "expansion case should fall back to the whole command, got {text:?}",
+    );
+}
+
+#[test]
+fn lmap_odd_even_parity_fires_e005() {
+    // FN fix: `lmap` shares `foreach`'s odd/even grammar. An even count is
+    // `wrong # args` (tclsh 9.0.4); a valid odd count is silent.
+    assert!(has_code("lmap a b c d\n", "tcl8.6", "E005"));
+    assert!(!has_code("lmap x {1 2 3} {incr x}\n", "tcl8.6", "E005"));
+    assert!(!has_code(
+        "lmap a {1 2} b {3 4} {expr {$a+$b}}\n",
+        "tcl8.6",
+        "E005",
+    ));
+}
+
+#[test]
+fn global_and_variable_zero_args_are_no_op_not_e002() {
+    // FP fix: bare `global` / `variable` are valid no-ops (C Tcl has no
+    // `Tcl_WrongNumArgs` on either).
+    for src in ["global\n", "variable\n", "global a b c\n"] {
+        assert!(
+            !has_code(src, "tcl8.6", "E002"),
+            "{src:?} must not draw E002",
+        );
+    }
+}
+
+#[test]
+fn auto_load_and_auto_import_arity_bounds() {
+    // auto_load cmd ?namespace? — 1..2 valid, 3 too many.
+    assert!(!has_code("auto_load foo\n", "tcl8.6", "E003"));
+    assert!(!has_code("auto_load foo ::ns\n", "tcl8.6", "E003"));
+    assert!(has_code("auto_load a b c\n", "tcl8.6", "E003"));
+    // auto_import pattern — exactly 1.
+    assert!(!has_code("auto_import xyz*\n", "tcl8.6", "E003"));
+    assert!(has_code("auto_import a b\n", "tcl8.6", "E003"));
 }
 
 // E005 — argument-count *shape* (parity/predicate) mismatches on the
@@ -2423,6 +2661,32 @@ fn w003_fires_on_in_operator_in_tcl84() {
 }
 
 #[test]
+fn w003_fires_on_exponentiation_operator_in_tcl84() {
+    // FN fix: `**` (exponentiation) is Tcl 8.5+ (TIP 123) — a symbolic
+    // operator the word-shaped gated set used to miss entirely.
+    let has_w003 = |src: &str, d: &str| {
+        Analyser::new()
+            .analyse(src, d)
+            .diagnostics
+            .iter()
+            .any(|x| x.code == DiagCode::W003)
+    };
+    assert!(has_w003("expr {2 ** 3}", "tcl8.4"));
+    // Available from 8.5 onward — silent.
+    assert!(!has_w003("expr {2 ** 3}", "tcl8.6"));
+    assert!(!has_w003("expr {2 ** 3}", "tcl9.0"));
+    // Message cites the operator and its TIP.
+    let d = Analyser::new().analyse("expr {2 ** 3}", "tcl8.4");
+    assert!(
+        d.diagnostics.iter().any(|x| x.code == DiagCode::W003
+            && x.message.contains("'**'")
+            && x.message.contains("TIP 123")),
+        "message must cite `**` + TIP 123; got {:?}",
+        d.diagnostics,
+    );
+}
+
+#[test]
 fn w003_fires_on_tab_separated_operator() {
     // The prefilter must tolerate any
     // whitespace, not just literal spaces.  `if {$x\tlt\t$y}` is
@@ -3047,18 +3311,42 @@ fn memoized_compilation_unit_shift_correctness() {
 
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_on_set_once_never_read() {
-    // ``set x 1`` set once and never read is a dead store: both
-    // W220 (this assignment is dead) and W211 (the variable
-    // is unused) are reported. A single assignment that *is* read fires neither.
+    // ``set x 1`` set once and never read is a dead store *and* an unused
+    // variable. Both checks anchor at the same assignment, so the co-located
+    // W220 is deduped in favour of the more informative W211 — a single hint,
+    // not two.
     let mut a = Analyser::new();
     a.emit_cfg_ssa_diagnostics("proc foo {} { set x 1 }");
+    let lifecycle: Vec<_> = a
+        .result
+        .diagnostics
+        .iter()
+        .filter(|d| matches!(d.code, DiagCode::W211 | DiagCode::W220))
+        .map(|d| d.code)
+        .collect();
+    assert_eq!(
+        lifecycle,
+        vec![DiagCode::W211],
+        "set-once-never-read must yield only W211; got {:?}",
+        a.result.diagnostics,
+    );
+
+    // A dead store of a variable that *is* used elsewhere still fires a
+    // standalone W220 (no W211, so nothing to dedup against).
+    let mut c = Analyser::new();
+    c.emit_cfg_ssa_diagnostics("proc foo {} { set x 1\nset x 2\nreturn $x }");
     assert!(
-        a.result
+        c.result
             .diagnostics
             .iter()
-            .any(|d| d.code == DiagCode::W220),
-        "W220 expected for a dead set-once store; got {:?}",
-        a.result.diagnostics,
+            .any(|d| d.code == DiagCode::W220)
+            && !c
+                .result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W211),
+        "the overwritten `set x 1` fires W220 without W211; got {:?}",
+        c.result.diagnostics,
     );
 
     let mut b = Analyser::new();
@@ -3525,8 +3813,11 @@ fn w211_not_emitted_for_command_output_vars() {
 
 #[test]
 fn w211_fires_once_per_variable_set_twice() {
-    // A variable set twice and never read is one unused variable, reported
-    // once at the earliest definition (W220 still flags each dead store).
+    // A variable set twice and never read is one unused variable, reported once
+    // (W211) at the earliest definition. The dead store at that same earliest
+    // assignment does NOT also fire W220 — the co-located double-emit is
+    // deduped in favour of the more informative W211 — but the *distinct*
+    // second dead store (`set x 2`) still fires its own W220.
     let mut a = Analyser::new();
     let res = a.analyse("proc f {} { set x 1\nset x 2 }", "tcl");
     let w211: Vec<_> = res
@@ -3535,13 +3826,38 @@ fn w211_fires_once_per_variable_set_twice() {
         .filter(|d| d.code == DiagCode::W211)
         .collect();
     assert_eq!(w211.len(), 1, "expected one W211 for x; got {w211:?}");
-    assert!(
-        res.diagnostics
-            .iter()
-            .filter(|d| d.code == DiagCode::W220)
-            .count()
-            == 2,
-        "both dead stores still fire W220; got {:?}",
+    let w220: Vec<_> = res
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W220)
+        .collect();
+    assert_eq!(
+        w220.len(),
+        1,
+        "the co-located W220 is deduped; only the distinct dead store remains; got {:?}",
+        res.diagnostics,
+    );
+    // The surviving W211 and W220 anchor at different assignments.
+    assert_ne!(w211[0].span, w220[0].span, "W211 and W220 must not overlap");
+}
+
+#[test]
+fn w220_deduped_against_w211_on_single_dead_assignment() {
+    // `set x 1` on a never-used variable is one dead assignment: it must emit
+    // exactly one hint (W211 "never used"), not both W211 and a co-located
+    // W220 ("never read"). The W220 is deduped in favour of W211.
+    let mut a = Analyser::new();
+    let res = a.analyse("proc f {} { set x 1 }", "tcl");
+    let codes: Vec<_> = res
+        .diagnostics
+        .iter()
+        .filter(|d| matches!(d.code, DiagCode::W211 | DiagCode::W220))
+        .map(|d| d.code)
+        .collect();
+    assert_eq!(
+        codes,
+        vec![DiagCode::W211],
+        "single dead assignment must yield only W211; got {:?}",
         res.diagnostics,
     );
 }
@@ -4143,6 +4459,23 @@ fn emit_cfg_ssa_diagnostics_w213_unset_on_possibly_undef() {
     assert!(w213s[0].message.contains("'xs'"));
     assert!(w213s[0].message.contains("unset -nocomplain"));
     assert_eq!(w213s[0].severity, Severity::Warning);
+    // The squiggle narrows to the offending variable word `xs`, not the whole
+    // `unset xs` command.
+    let src = "proc foo {} { unset xs }";
+    let span = w213s[0].span;
+    assert_eq!(&src[span.start() as usize..span.end() as usize], "xs");
+    // A quick fix is attached that inserts `-nocomplain` right after `unset`.
+    assert_eq!(w213s[0].fixes.len(), 1, "W213 must carry one fix");
+    let fix = &w213s[0].fixes[0];
+    assert_eq!(fix.new_text, " -nocomplain");
+    assert_eq!(fix.span.start(), fix.span.end(), "insertion is zero-width");
+    // Splicing the fix produces `unset -nocomplain xs`.
+    let at = fix.span.start() as usize;
+    let spliced = format!("{}{}{}", &src[..at], fix.new_text, &src[at..]);
+    assert!(
+        spliced.contains("unset -nocomplain xs"),
+        "spliced: {spliced}"
+    );
 }
 
 #[test]
@@ -6753,8 +7086,20 @@ fn w300_source_with_variable_path() {
     assert_eq!(sec_codes("source $path\n", "W300"), 1);
     // `-encoding ENC` is skipped to find the file argument.
     assert_eq!(sec_codes("source -encoding utf-8 $path\n", "W300"), 1);
+    // A command-substituted path is just as dynamic as a `$var` one.
+    assert_eq!(sec_codes("source [locate_lib]\n", "W300"), 1);
     // A literal path is fine.
     assert_eq!(sec_codes("source ./lib.tcl\n", "W300"), 0);
+    // FP gate: a `$var` that provably holds a compile-time literal path is a
+    // known file — the same as the literal form above — so it is silent.
+    assert_eq!(sec_codes("set p \"./lib.tcl\"\nsource $p\n", "W300"), 0);
+    // But a `$var` reassigned dynamically before the use is still flagged.
+    assert_eq!(
+        sec_codes("set p \"./lib.tcl\"\nset p [get_path]\nsource $p\n", "W300"),
+        1
+    );
+    // A proc parameter is not a compile-time literal — still flagged.
+    assert_eq!(sec_codes("proc f {p} { source $p }\n", "W300"), 1);
 }
 
 #[test]
@@ -6876,8 +7221,20 @@ fn w103_open_pipeline() {
     assert_eq!(code_sevs("open \"|cat file\"\n", "W103"), vec!["Hint"]);
     // Bare `$var` argument → WARNING (may resolve to a pipeline).
     assert_eq!(code_sevs("open $f\n", "W103"), vec!["Warning"]);
+    // A command-substituted argument is just as dynamic as a `$var` one.
+    assert_eq!(code_sevs("open [pick_target]\n", "W103"), vec!["Warning"]);
     // A literal filename is fine.
     assert_eq!(sec_codes("open \"file.txt\"\n", "W103"), 0);
+    // FP gate: a `$var` proven to hold a compile-time literal is treated like
+    // that literal inline — a benign filename is silent, a `|`-prefixed literal
+    // is the pipeline Hint.
+    assert_eq!(sec_codes("set f \"data.txt\"\nopen $f\n", "W103"), 0);
+    assert_eq!(code_sevs("set f \"|ls\"\nopen $f\n", "W103"), vec!["Hint"]);
+    // A proc parameter is not a literal — still a Warning.
+    assert_eq!(
+        code_sevs("proc g {f} { open $f }\n", "W103"),
+        vec!["Warning"]
+    );
 }
 
 #[test]
@@ -7035,10 +7392,16 @@ fn w306_literal_expected_in_regexp_pattern() {
             .iter()
             .any(|d| d.code == DiagCode::W306)
     }
-    // Quoted `"$var"` / `"[cmd]"` patterns fire (Tcl substitutes them
-    // before the regex engine sees the value).
-    assert!(has_w306("regexp \"$pat\" $s\n"));
+    // A quoted `"$var"` / `"${var}"` pattern is byte-for-byte identical at
+    // runtime to the bare `$var` idiom — the quotes group nothing — so it is
+    // the canonical parameterised-pattern form, not a foot-gun: exempt.
+    assert!(!has_w306("regexp \"$pat\" $s\n"));
+    assert!(!has_w306("regexp \"${pat}\" $s\n"));
+    // A quoted `"[cmd]"` computes the pattern dynamically — the foot-gun: fires.
     assert!(has_w306("regexp \"[clock seconds]\" $s\n"));
+    // A quoted var *concatenated* with literal text (`"prefix$pat"`) is no
+    // longer a single pure reference — a literal *was* expected there: fires.
+    assert!(has_w306("regexp \"prefix$pat\" $s\n"));
     // A bare `$var` is the canonical parameterised-pattern idiom — exempt.
     assert!(!has_w306("regexp $pat $s\n"));
     // A braced pattern suppresses substitution — exempt.
@@ -7047,6 +7410,33 @@ fn w306_literal_expected_in_regexp_pattern() {
     assert!(!has_w306("regexp \"\\[abc\\]+\" $s\n"));
     // A bare `[cmd]` pattern is the foot-gun (parsed as command sub) — fires.
     assert!(has_w306("regexp [join $parts] $s\n"));
+}
+
+#[test]
+fn w101_anchors_at_the_substituted_argument() {
+    fn w101_span_text(src: &str) -> String {
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let d = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::W101)
+            .unwrap_or_else(|| panic!("no W101 in {:?}", r.diagnostics));
+        src[d.span.start() as usize..d.span.end() as usize].to_string()
+    }
+    // The substitution is in the *second* argument — anchor on `$x`, not on
+    // the safe literal prefix `"safeprefix"`.
+    assert_eq!(w101_span_text("eval \"safeprefix\" $x\n"), "$x");
+    // The common single-quoted-string shape still anchors on that string
+    // (the substitution is inside it), starting at column 0.
+    let mut a = Analyser::new();
+    let r = a.analyse("eval \"cmd $a\"\n", "tcl8.6");
+    let d = r
+        .diagnostics
+        .iter()
+        .find(|d| d.code == DiagCode::W101)
+        .unwrap();
+    assert_eq!(d.span.start(), 5, "should anchor on the quoted string arg");
 }
 
 #[test]

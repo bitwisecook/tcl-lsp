@@ -148,6 +148,7 @@ fn subst_evaluates_commands(args: &[&str]) -> bool {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "subst",
+        byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::TAINT_SINK | Traits::IS_UNESCAPE | Traits::PERFORMS_SUBSTITUTION,
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),

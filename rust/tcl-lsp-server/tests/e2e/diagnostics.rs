@@ -303,6 +303,114 @@ fn string_match_nocase_has_no_arity_error() {
     assert!(!has_code(&diags, "E003"));
 }
 
+// -- E003 tight range + registry arity-data corrections ------------------
+// The too-many-args squiggle covers only the surplus words, and several
+// command arities are corrected to match C Tcl 9.
+
+#[test]
+fn e003_too_many_args_highlights_only_the_surplus_words() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "lreverse {a b c} extra1 extra2\n");
+    let e003 = with_code(&diags, "E003");
+    assert_eq!(e003.len(), 1, "got {diags:?}");
+    // Tight range: only `extra1 extra2` (cols 17..30), not the whole command
+    // from column 0.
+    assert_eq!(diag_range(&e003[0]), ((0, 17), (0, 30)), "got {diags:?}");
+}
+
+#[test]
+fn lmap_even_arg_count_is_e005() {
+    // `lmap` shares `foreach`'s odd/even grammar; an even count is wrong.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "lmap a b c d\n");
+    assert!(has_code(&diags, "E005"), "got {diags:?}");
+    // A valid odd count is silent.
+    let uri2 = unique_uri("tcl");
+    let diags2 = lsp.open_ready(&uri2, "lmap x {1 2} {incr x}\n");
+    assert!(!has_code(&diags2, "E005"), "got {diags2:?}");
+}
+
+#[test]
+fn global_and_variable_zero_args_have_no_arity_error() {
+    let mut lsp = Lsp::tcl();
+    for src in ["global\n", "variable\n"] {
+        let uri = unique_uri("tcl");
+        let diags = lsp.open_ready(&uri, src);
+        assert!(!has_code(&diags, "E002"), "{src:?} → {diags:?}");
+    }
+}
+
+#[test]
+fn while_true_with_throw_or_tailcall_is_not_infinite() {
+    // W241 must not fire when the body leaves the loop via `throw`/`tailcall`.
+    let mut lsp = Lsp::tcl();
+    for src in ["while 1 {throw MYERR boom}\n", "while 1 {tailcall next}\n"] {
+        let uri = unique_uri("tcl");
+        let diags = lsp.open_ready(&uri, src);
+        assert!(!has_code(&diags, "W241"), "{src:?} → {diags:?}");
+    }
+    // Control: a body with no exit is still flagged.
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "while 1 {incr n}\n");
+    assert!(has_code(&diags, "W241"), "got {diags:?}");
+}
+
+#[test]
+fn w212_covers_registry_name_positions_end_to_end() {
+    // `vwait $x` and `catch {…} $res` are name/value confusions the old
+    // hardcoded list missed; the registry roles now supply them.
+    let mut lsp = Lsp::tcl();
+    for src in [
+        "proc p {} { vwait $x }\n",
+        "proc p {} { catch {error e} $res }\n",
+    ] {
+        let uri = unique_uri("tcl");
+        let diags = lsp.open_ready(&uri, src);
+        assert!(has_code(&diags, "W212"), "{src:?} → {diags:?}");
+    }
+}
+
+#[test]
+fn w126_anchors_at_the_channel_argument() {
+    // `puts notachan hello` — the non-channel literal `notachan` (cols 5..13)
+    // is the problem, not the whole command.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "puts notachan hello\n");
+    let w126 = with_code(&diags, "W126");
+    assert_eq!(w126.len(), 1, "got {diags:?}");
+    assert_eq!(diag_range(&w126[0]), ((0, 5), (0, 13)), "got {diags:?}");
+}
+
+#[test]
+fn w101_anchors_at_the_substituted_argument() {
+    // `eval "safeprefix" $x` — the hazard is `$x` (col 18..20), not the safe
+    // literal prefix. The squiggle must point at the substituted word.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "eval \"safeprefix\" $x\n");
+    let w101 = with_code(&diags, "W101");
+    assert_eq!(w101.len(), 1, "got {diags:?}");
+    assert_eq!(diag_range(&w101[0]), ((0, 18), (0, 20)), "got {diags:?}");
+}
+
+#[test]
+fn w216_upvar_local_indirect_array_is_silent() {
+    // `upvar 1 remote ${arr}(x)` — the local-name slot is the legitimate
+    // indirect-array idiom, so W216 must not fire (the two name-position lists
+    // had drifted; W216's omitted `upvar`).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "proc p {arr} { upvar 1 remote ${arr}(x) }\n");
+    assert!(!has_code(&diags, "W216"), "got {diags:?}");
+    // Control: the same shape in a value position IS a broken read.
+    let uri2 = unique_uri("tcl");
+    let diags2 = lsp.open_ready(&uri2, "proc p {arr} { puts ${arr}(x) }\n");
+    assert!(has_code(&diags2, "W216"), "got {diags2:?}");
+}
+
 // -- TestW004DialectInvalidOption -----------------------------------------
 // End-to-end coverage for W004 (option not available in the active
 // dialect): the abbreviated-subcommand fix, and the shadow-suppression
@@ -1330,6 +1438,19 @@ fn live_var_in_quoted_pattern_still_fires() {
     ));
 }
 
+#[test]
+fn quoted_pure_var_pattern_no_w306() {
+    // `"$pattern"` is byte-for-byte identical at runtime to the bare
+    // `$pattern` parameterised-pattern idiom (the quotes group nothing) — the
+    // canonical form, not a foot-gun. No W306.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    assert!(!has_code(
+        &lsp.open_ready(&uri, "regexp -- \"$pattern\" $text\n"),
+        "W306"
+    ));
+}
+
 // -- TestControlFlowRBSFamilyE2E -----------------------------------------
 // W210 read-before-set, control-flow modelling family (PR #634).
 
@@ -2128,6 +2249,103 @@ fn clean_list_used_with_lindex_has_no_s100() {
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "set x [list 1 2 3]\nlindex $x 0\n");
     assert!(!has_code(&diags, "S100"), "unexpected S100: {diags:?}");
+}
+
+#[test]
+fn w300_w103_silent_when_var_provably_literal() {
+    // A `$var` proven to hold a compile-time literal path/filename is a known
+    // constant — no more dangerous than writing it inline — so W300/W103 are
+    // suppressed. A bare parameter stays flagged (the TP control).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let silent = lsp.open_ready(
+        &uri,
+        "set p \"./lib.tcl\"\nsource $p\nset f \"data.txt\"\nopen $f\n",
+    );
+    assert!(!has_code(&silent, "W300"), "W300 FP: {silent:?}");
+    assert!(!has_code(&silent, "W103"), "W103 FP: {silent:?}");
+
+    let uri2 = unique_uri("tcl");
+    let fires = lsp.open_ready(&uri2, "proc f {p} { source $p }\nproc g {f} { open $f }\n");
+    assert!(has_code(&fires, "W300"), "W300 TP (param): {fires:?}");
+    assert!(has_code(&fires, "W103"), "W103 TP (param): {fires:?}");
+}
+
+#[test]
+fn w213_unset_narrows_to_variable_and_carries_fix() {
+    // `unset xs` on a possibly-undefined var → W213 squiggled on `xs` (col
+    // 20..22 of the proc body), carrying the `-nocomplain` insert fix.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "proc foo {} { unset xs }\n");
+    let w213: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("W213"))
+        .collect();
+    assert_eq!(w213.len(), 1, "expected one W213: {diags:?}");
+    assert_eq!(
+        diag_range(w213[0]),
+        ((0, 20), (0, 22)),
+        "W213 must span only `xs`"
+    );
+}
+
+#[test]
+fn w214_unused_param_anchors_on_the_param_name() {
+    // The squiggle must cover only the offending parameter's *name* (`unused`),
+    // not the whole `proc` definition, so it aligns with go-to-definition/rename.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "proc f {unused x} { puts $x }\n");
+    let w214: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("W214"))
+        .collect();
+    assert_eq!(w214.len(), 1, "expected exactly one W214: {diags:?}");
+    assert_eq!(
+        diag_range(w214[0]),
+        ((0, 8), (0, 14)),
+        "W214 must span only `unused`"
+    );
+}
+
+#[test]
+fn w214_two_unused_params_get_separate_tight_ranges() {
+    // Two unused params must yield two squiggles, each on its own name — not two
+    // diagnostics stacked on the whole proc definition.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "proc g {aa bb} { return 0 }\n");
+    let ranges: Vec<((i64, i64), (i64, i64))> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("W214"))
+        .map(diag_range)
+        .collect();
+    assert!(ranges.contains(&((0, 8), (0, 10))), "aa range: {ranges:?}");
+    assert!(ranges.contains(&((0, 11), (0, 13))), "bb range: {ranges:?}");
+}
+
+#[test]
+fn ordering_compare_on_strings_has_no_s100() {
+    // `$s < "banana"` compares two strings — Tcl stays on the string path and
+    // never coerces `$s` to a number, so its intrep is untouched (verified on
+    // tclsh 8.6/9.0). No S100 (was a false positive before the ordering ops
+    // were gated the same way as `==`/`!=`).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set s [string trim hello]\nexpr {$s < \"banana\"}\n");
+    assert!(!has_code(&diags, "S100"), "unexpected S100: {diags:?}");
+    assert!(!has_code(&diags, "S101"), "unexpected S101: {diags:?}");
+}
+
+#[test]
+fn ordering_compare_string_vs_numeric_literal_fires_s100() {
+    // TP control: `$s <= 5` forces the numeric path, coercing the String
+    // operand to int — a genuine shimmer, so S100 fires.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set s [string trim hello]\nexpr {$s <= 5}\n");
+    assert!(has_code(&diags, "S100"), "expected S100: {diags:?}");
 }
 
 #[test]

@@ -2537,6 +2537,22 @@ mod t106_double_encoding {
     }
 
     #[test]
+    fn double_encode_nested_no_intermediate_fires() {
+        // FN fix: `URI::encode [URI::encode $raw]` — the inner encoder's result
+        // never lands on a named variable, so the argument-word scan catches
+        // it where the named-uses loop could not.
+        let source = "set raw [read $fd]\nset double [URI::encode [URI::encode $raw]]";
+        assert!(!of_code(source, IR, "T106").is_empty());
+    }
+
+    #[test]
+    fn single_encode_nested_no_fire() {
+        // A single nested encode does not double-encode.
+        let source = "set raw [read $fd]\nset once [URI::encode $raw]";
+        assert!(of_code(source, IR, "T106").is_empty());
+    }
+
+    #[test]
     fn untainted_no_fire() {
         // Literal data through an encoder does not fire T106.
         let source = "set x [HTML::encode \"hello\"]\nset y [HTML::encode $x]";

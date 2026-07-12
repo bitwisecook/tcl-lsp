@@ -40,6 +40,7 @@ use super::helpers::{
 };
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
+use crate::analyser::utils::param_name_spans;
 use crate::expr_ast::{ExprNode, UnaryOp};
 
 /// The read-only name/guard/suppression context for the `return`-value
@@ -551,6 +552,18 @@ file; this call falls through to the 'unknown' handler."
         }
         let mut entries: Vec<(String, tcl_lexer::Span)> = earliest.into_iter().collect();
         entries.sort_by_key(|(_, span)| span.start());
+        // A variable that is set-but-never-used gets a W211 at its assignment's
+        // name token. The dead-store pass (W220), which ran first, already
+        // anchored a "never read" hint at the *same* token for that single
+        // assignment — a redundant double-emit. W211 ("never used at all") is
+        // the more informative message, so drop the co-located W220. Keyed on
+        // the exact span, so a genuinely distinct dead store of a
+        // multiply-assigned variable is untouched.
+        let w211_spans: std::collections::HashSet<tcl_lexer::Span> =
+            entries.iter().map(|(_, span)| *span).collect();
+        self.result
+            .diagnostics
+            .retain(|d| !(d.code == DiagCode::W220 && w211_spans.contains(&d.span)));
         for (var, span) in entries {
             let mut message = format!("Variable '{var}' is set but never used");
             if let Some(similar) = find_case_mismatch(&var, defined_vars) {
@@ -652,13 +665,68 @@ file; this call falls through to the 'unknown' handler."
         }
     }
 
+    /// Absolute source spans of each formal parameter's *name*, in
+    /// declaration order and index-aligned with `ir_proc.params`.
+    ///
+    /// The parameter-list word is the first word after the proc-name token
+    /// (recovered from the recorded [`crate::analyser::types::ProcDef::name_span`]);
+    /// its name spans are delegated to [`param_name_spans`] — the same helper
+    /// go-to-definition/rename use, so W214's range matches them exactly.
+    /// Returns an empty vec when the proc isn't in `all_procs` or the word
+    /// can't be isolated, so the caller falls back to the whole-def span.
+    fn param_name_spans_for(&self, ir_proc: &crate::ir::Procedure) -> Vec<tcl_lexer::Span> {
+        let Some(pdef) = self.result.all_procs.get(&ir_proc.qualified_name) else {
+            return Vec::new();
+        };
+        let bytes = self.source.as_bytes();
+        // Skip whitespace between the proc name and the parameter-list word.
+        let mut i = pdef.name_span.end() as usize;
+        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        let start = i;
+        let end = if bytes.get(i) == Some(&b'{') {
+            // Braced list — advance to the matching close brace.
+            let mut level = 0u32;
+            let mut j = i;
+            while j < bytes.len() {
+                match bytes[j] {
+                    b'{' => level += 1,
+                    b'}' => {
+                        level -= 1;
+                        if level == 0 {
+                            j += 1;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                j += 1;
+            }
+            j
+        } else {
+            // Bare single-word parameter list — to the next whitespace.
+            let mut j = i;
+            while j < bytes.len() && !bytes[j].is_ascii_whitespace() {
+                j += 1;
+            }
+            j
+        };
+        let Some(raw) = self.source.get(start..end) else {
+            return Vec::new();
+        };
+        param_name_spans(raw, u32::try_from(start).unwrap_or(u32::MAX))
+    }
+
     /// W214 — unused-parameter hint.
     ///
     /// For every parameter
     /// declared in `ir_proc.params`, check whether any def-use
     /// chain for the parameter (any SSA version) has live uses.
     /// When all chains are dead, the parameter is unused —
-    /// emit a Hint at the proc's span.
+    /// emit a Hint at the parameter's *name* span (falling back to the
+    /// proc's span when the name can't be located), so each unused param
+    /// gets its own tight squiggle instead of stacking on the whole proc.
     pub(super) fn emit_unused_param_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
@@ -671,8 +739,8 @@ file; this call falls through to the 'unknown' handler."
         if ir_proc.body.statements.is_empty() {
             return;
         }
-        let mut unused: Vec<String> = Vec::new();
-        for param in &ir_proc.params {
+        let mut unused: Vec<(usize, String)> = Vec::new();
+        for (idx, param) in ir_proc.params.iter().enumerate() {
             // Tcl's variadic ``args`` parameter is conventionally
             // declared even when unused (as a "consume the rest"
             // marker).  Skip it from W214.
@@ -708,11 +776,15 @@ file; this call falls through to the 'unknown' handler."
             {
                 continue;
             }
-            unused.push(param.clone());
+            unused.push((idx, param.clone()));
         }
         if unused.is_empty() {
             return;
         }
+        // Per-parameter name spans (index-aligned with `ir_proc.params`); an
+        // empty result means we couldn't isolate the list and fall back to the
+        // whole-definition span below.
+        let param_spans = self.param_name_spans_for(ir_proc);
         // Dispatch-protocol suppression: when ≥3 peer procs in this
         // namespace share this proc's leading-param signature AND an
         // arity-compatible variable-command dispatcher exists, the leading
@@ -734,7 +806,7 @@ file; this call falls through to the 'unknown' handler."
         } else {
             HashSet::new()
         };
-        for param in unused {
+        for (idx, param) in unused {
             if protocol_params.contains(&param) {
                 continue;
             }
@@ -744,7 +816,7 @@ file; this call falls through to the 'unknown' handler."
             );
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: DiagCode::W214,
-                span: ir_proc.span,
+                span: param_spans.get(idx).copied().unwrap_or(ir_proc.span),
                 message,
                 severity: Severity::Hint,
                 fixes: Vec::new(),
@@ -1012,7 +1084,12 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             }
             // ``unset`` without ``-nocomplain`` → W213.
-            if let Some(Statement::Call { command, args, .. }) = stmt_opt
+            if let Some(Statement::Call {
+                command,
+                args,
+                tokens,
+                ..
+            }) = stmt_opt
                 && command == "unset"
                 && !args.iter().any(|a| a == "-nocomplain")
             {
@@ -1020,12 +1097,18 @@ file; this call falls through to the 'unknown' handler."
                     "Variable '{var}' may not exist; \
                          use 'unset -nocomplain' to suppress the error",
                 );
+                // Narrow the squiggle to the offending variable word (so
+                // `unset a b c` flags only the missing name), and attach a
+                // quick fix that inserts `-nocomplain` right after `unset` —
+                // the same fix the LSP layer synthesises, now carried on the
+                // diagnostic itself so every editor surfaces it uniformly.
+                let (diag_span, fixes) = w213_span_and_fix(fu, tokens.as_ref(), var, span);
                 self.result.diagnostics.push(super::types::Diagnostic {
                     code: DiagCode::W213,
-                    span,
+                    span: diag_span,
                     message,
                     severity: Severity::Warning,
-                    fixes: Vec::new(),
+                    fixes,
                 });
                 continue;
             }
@@ -1600,6 +1683,7 @@ file; this call falls through to the 'unknown' handler."
                     command,
                     args,
                     span,
+                    tokens,
                     ..
                 } = &ssa_stmt.statement
                 else {
@@ -1616,6 +1700,14 @@ file; this call falls through to the 'unknown' handler."
                         continue;
                     }
                     let arg_text = &args[idx];
+                    // Tight range: the channel argument word (`argv[0]` is the
+                    // command name, so `args[idx]` is `argv[idx + 1]`), not the
+                    // whole command. Falls back to the command span when the
+                    // per-word tokens are unavailable.
+                    let arg_span = tokens
+                        .as_ref()
+                        .and_then(|t| t.argv.get(idx + 1))
+                        .map_or_else(|| fu.abs_span(*span), |&s| fu.abs_span(s));
                     // Extract bare var name from ``$var`` / ``${var}``.
                     let var_name: Option<&str> =
                         if arg_text.starts_with("${") && arg_text.ends_with('}') {
@@ -1653,7 +1745,7 @@ file; this call falls through to the 'unknown' handler."
                         );
                         self.result.diagnostics.push(super::types::Diagnostic {
                             code: DiagCode::W126,
-                            span: fu.abs_span(*span),
+                            span: arg_span,
                             message,
                             severity: Severity::Warning,
                             fixes: Vec::new(),
@@ -1677,7 +1769,7 @@ file; this call falls through to the 'unknown' handler."
                         );
                         self.result.diagnostics.push(super::types::Diagnostic {
                             code: DiagCode::W126,
-                            span: fu.abs_span(*span),
+                            span: arg_span,
                             message,
                             severity: Severity::Warning,
                             fixes: Vec::new(),
@@ -2180,6 +2272,44 @@ fn namespace_of(qualified_name: &str) -> String {
         Some((ns, _)) if !ns.is_empty() => ns.to_string(),
         _ => "::".to_string(),
     }
+}
+
+/// Compute W213's diagnostic span and quick fix for an `unset` of a
+/// possibly-missing `var`.
+///
+/// The span narrows to the offending variable's own word (so `unset a b c`
+/// squiggles just the missing name), falling back to the whole-command `span`
+/// when the tokens aren't available or the name can't be located. The fix
+/// inserts ` -nocomplain` immediately after the `unset` command word — a
+/// zero-width insertion — turning `unset x` into `unset -nocomplain x`.
+fn w213_span_and_fix(
+    fu: &crate::compilation_unit::FunctionUnit,
+    tokens: Option<&crate::ir::CommandTokens>,
+    var: &str,
+    span: tcl_lexer::Span,
+) -> (tcl_lexer::Span, Vec<super::types::CodeFix>) {
+    let Some(toks) = tokens else {
+        return (span, Vec::new());
+    };
+    // Narrow to the argument word whose text is this variable (argv[0] is the
+    // `unset` command word, so the names start at index 1).
+    let diag_span = toks
+        .argv_texts
+        .iter()
+        .zip(&toks.argv)
+        .skip(1)
+        .find(|(text, _)| text.as_str() == var)
+        .map_or(span, |(_, &word)| fu.abs_span(word));
+    // Insert ` -nocomplain` right after the `unset` word.
+    let fixes = toks.argv.first().map_or_else(Vec::new, |&cmd_word| {
+        let at = fu.abs_span(cmd_word).end();
+        vec![super::types::CodeFix {
+            span: tcl_lexer::Span::new(at, at),
+            new_text: " -nocomplain".to_string(),
+            description: "Add '-nocomplain' to unset".to_string(),
+        }]
+    });
+    (diag_span, fixes)
 }
 
 /// Implicit / interpreter-provided variables that are always defined and

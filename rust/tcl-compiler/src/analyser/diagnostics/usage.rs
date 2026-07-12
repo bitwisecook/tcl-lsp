@@ -663,6 +663,42 @@ Use braces: {{ \u{2026} }}"
         });
     }
 
+    /// Argument indices (0-based, command-name excluded) that `cmd` reads as a
+    /// plain variable *name* — the positions where a `$`-substitution is a
+    /// name/value confusion (W212) and the braced `${arr}(idx)` idiom is
+    /// legitimate rather than a typo (W216).
+    ///
+    /// Registry-driven via the `VarWrite` / `VarRead` argument roles, so every
+    /// command that declares them (`set`, `incr`, `append`, `lappend`, `unset`,
+    /// `info exists`, `vwait`, `catch`, `scan`, `regexp`/`regsub` captures,
+    /// `dict with`/`update`, `array set`, `lassign`, …) is covered without a
+    /// hand-maintained list — the two previous lists (`name_arg_indices` and
+    /// `w216_varname_word_indices`) had drifted, each missing what the other
+    /// had. The one structural exception is `upvar`: its frame-linking
+    /// semantics are modelled by the dedicated var-escape machinery rather than
+    /// a generic `VarWrite` role (the registry deliberately omits its roles),
+    /// and only its *local*-name slots are name positions — a computed
+    /// `$remote` in an other-var slot is a legitimate indirect link.
+    pub(in crate::analyser) fn variable_name_positions(
+        &self,
+        cmd: &str,
+        args: &[String],
+    ) -> Vec<usize> {
+        use tcl_registry::arg_role::ArgRole::{VarRead, VarWrite};
+        if cmd == "upvar" {
+            return upvar_local_name_positions(args);
+        }
+        let Some(registry) = self.registry.as_ref() else {
+            return Vec::new();
+        };
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let mut idx = registry.arg_indices_for_role(cmd, &arg_strs, VarWrite);
+        idx.extend(registry.arg_indices_for_role(cmd, &arg_strs, VarRead));
+        idx.sort_unstable();
+        idx.dedup();
+        idx
+    }
+
     /// W212: a command argument that must be a variable
     /// *name* (`set $x 1`, `incr $x`, `info exists $x`, `upvar 1 a $b`)
     /// instead uses a `$`-substitution.  `args` / `arg_tokens` exclude
@@ -674,7 +710,7 @@ Use braces: {{ \u{2026} }}"
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        for idx in name_arg_indices(cmd_name, args) {
+        for idx in self.variable_name_positions(cmd_name, args) {
             let (Some(tok), Some(text)) = (arg_tokens.get(idx), args.get(idx)) else {
                 continue;
             };
@@ -695,11 +731,20 @@ Use braces: {{ \u{2026} }}"
                 .trim_start_matches('$')
                 .trim_start_matches('{')
                 .trim_end_matches('}');
-            let display_cmd = if cmd_name == "info" && !args.is_empty() {
-                format!("info {}", args[0])
-            } else {
-                cmd_name.to_string()
-            };
+            // Name the subcommand too for a subcommand-dispatched command
+            // (`info exists`, `dict with`, `array set`), so the message reads
+            // "'dict with' expects…". Registry-driven — no command name here.
+            let display_cmd = self
+                .registry
+                .as_ref()
+                .filter(|_| idx >= 1)
+                .and_then(|reg| reg.get(cmd_name))
+                .filter(|spec| !spec.subcommands.is_empty())
+                .and_then(|spec| {
+                    args.first()
+                        .filter(|sub| spec.resolve_subcommand(sub).is_some())
+                })
+                .map_or_else(|| cmd_name.to_string(), |sub| format!("{cmd_name} {sub}"));
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: DiagCode::W212,
                 span: tok.span,
@@ -744,7 +789,7 @@ Use braces: {{ \u{2026} }}"
         let cmd_name = cmd.texts[0].as_str();
         let args = &cmd.texts[1..];
         let mut varname_word_starts: FxHashSet<u32> = FxHashSet::default();
-        for ai in w216_varname_word_indices(cmd_name, args) {
+        for ai in self.variable_name_positions(cmd_name, args) {
             let wi = ai + 1;
             if let Some(tok) = cmd.argv.get(wi) {
                 varname_word_starts.insert(tok.span.start());
@@ -982,46 +1027,6 @@ fn build_w216_replacement(name: &str, inner: &str) -> String {
     }
 }
 
-/// Indices into *args* (0-based, word index `i + 1`) that `cmd_name` reads as
-/// a **variable name** — where the braced indirect-array idiom
-/// `${name}(idx)` is correct rather than a typo.
-fn w216_varname_word_indices(cmd_name: &str, args: &[String]) -> Vec<usize> {
-    match cmd_name {
-        "set" | "incr" | "append" | "lappend" | "vwait" => {
-            if args.is_empty() {
-                Vec::new()
-            } else {
-                vec![0]
-            }
-        }
-        "unset" => {
-            // unset ?-nocomplain? ?--? varName ?varName ...?
-            let mut start = 0;
-            for (i, a) in args.iter().enumerate() {
-                if a == "--" {
-                    start = i + 1;
-                    break;
-                }
-                if a.starts_with('-') {
-                    start = i + 1;
-                    continue;
-                }
-                start = i;
-                break;
-            }
-            (start..args.len()).collect()
-        }
-        "info" => {
-            if args.len() >= 2 && args[0] == "exists" {
-                vec![1]
-            } else {
-                Vec::new()
-            }
-        }
-        _ => Vec::new(),
-    }
-}
-
 /// Find the offset of the `)` matching the `(` at `paren_start`.  Skips
 /// balanced `{...}`, double-quoted strings, and backslash escapes.  Returns
 /// `None` on malformed input.
@@ -1218,63 +1223,29 @@ pub(super) fn is_safe_literal_expr(text: &str, dialect: &str) -> bool {
     })
 }
 
-/// Resolve which argument indices (into `args`, command-name excluded)
-/// must be plain variable *names* for `cmd_name`.
-pub(super) fn name_arg_indices(cmd_name: &str, args: &[String]) -> Vec<usize> {
-    match cmd_name {
-        // First argument is the variable name.
-        "set" | "incr" | "append" | "lappend" => {
-            if args.is_empty() {
-                vec![]
-            } else {
-                vec![0]
-            }
-        }
-        // `unset ?-nocomplain? ?--? var ?var …?` — names start after the
-        // leading option flags.
-        "unset" => {
-            let mut start = 0;
-            for (i, a) in args.iter().enumerate() {
-                if a == "--" {
-                    start = i + 1;
-                    break;
-                }
-                if a.starts_with('-') {
-                    start = i + 1;
-                    continue;
-                }
-                start = i;
-                break;
-            }
-            (start..args.len()).collect()
-        }
-        // Only the `exists` subcommand of `info` takes a name.
-        "info" => {
-            if args.len() >= 2 && args[0] == "exists" {
-                vec![1]
-            } else {
-                vec![]
-            }
-        }
-        // `upvar ?level? other local ?other local …?` — the *local*
-        // names are every other arg after an optional level word.
-        "upvar" => {
-            if args.is_empty() {
-                return vec![];
-            }
-            let head = &args[0];
-            let is_level = head.starts_with('#')
-                || (!head.is_empty()
-                    && head
-                        .trim_start_matches('-')
-                        .bytes()
-                        .all(|b| b.is_ascii_digit())
-                    && head.trim_start_matches('-').bytes().next().is_some());
-            let start = usize::from(is_level);
-            (start + 1..args.len()).step_by(2).collect()
-        }
-        _ => vec![],
+/// The *local*-name argument indices (into `args`, command-name excluded) of an
+/// `upvar ?level? otherVar localVar ?otherVar localVar …?` call — every other
+/// argument after the optional leading level word.
+///
+/// `upvar` is resolved structurally rather than through the registry's
+/// `VarWrite` role: its frame-linking semantics are modelled by the dedicated
+/// var-escape machinery, and only the *local* names are strict name positions
+/// (the paired *other* names may legitimately be a computed `$remote`). See
+/// `Analyser::variable_name_positions`.
+pub(super) fn upvar_local_name_positions(args: &[String]) -> Vec<usize> {
+    if args.is_empty() {
+        return vec![];
     }
+    let head = &args[0];
+    let is_level = head.starts_with('#')
+        || (!head.is_empty()
+            && head
+                .trim_start_matches('-')
+                .bytes()
+                .all(|b| b.is_ascii_digit())
+            && head.trim_start_matches('-').bytes().next().is_some());
+    let start = usize::from(is_level);
+    (start + 1..args.len()).step_by(2).collect()
 }
 
 /// Find the first `[`-`expr`-whitespace sequence in `slice` (the

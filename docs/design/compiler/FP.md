@@ -984,6 +984,51 @@ all-optional-tail proc draws no arity error; a tail also claimed by a non-proc
 
 ---
 
+### FP-NAB-14 — W300 / W103 on a `$var` that provably holds a literal path
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by
+  `analyser/diagnostics/tests.rs::{w300_source_with_variable_path, w103_open_pipeline}`
+- **Codes:** W300 (`source` dynamic path), W103 (`open` dynamic argument)
+
+#### Reproducer
+
+```tcl
+set p "./lib.tcl"
+source $p           ;# was W300 — but $p is a known literal path
+set f "data.txt"
+open $f              ;# was W103 Warning — but $f is a known literal filename
+```
+
+#### Per-line reasoning
+
+Both checks fire on a `$var` argument because the value *could* be
+attacker-influenced. But `source ./lib.tcl` and `open "data.txt"` written
+inline are already silent, so the identical value reached through a
+provably-constant local `set` is no more dangerous — flagging it is a
+false positive on a very common config-loading idiom.
+
+The gate reuses `last_literal_set_value_for_var` (the same conservative
+resolver W304 uses): it returns a value **only** when the most recent
+reaching assignment's value token is a genuine literal (`Esc`/`Str`,
+never `$x`/`[cmd]`), so a parameter, a dynamic value, a `[cmd]`-computed
+path, or a later dynamic reassignment all keep the warning. Because only
+compile-time literals resolve, the suppressed value is provably not
+attacker-controlled — no true positive is lost.
+
+For W103 the resolved literal is treated exactly like that literal
+written inline: a `|`-prefixed literal downgrades to the pipeline Hint (a
+known command), any other literal is silent.
+
+#### Tests
+
+- `analyser/diagnostics/tests.rs::w300_source_with_variable_path`
+  (FP literal path silent; TP dynamic-reassign + proc-param still fire)
+- `analyser/diagnostics/tests.rs::w103_open_pipeline`
+  (FP literal filename silent; literal `|…` → Hint; proc-param → Warning)
+
+---
+
 ## RBS — read-before-set (W210/W213/W214)
 
 W210 (read-before-set), W213 (`unset` on possibly-unset var, derives from RBS),
@@ -5150,6 +5195,58 @@ subcommand, never a command-name branch.  See
 [`command-registry.md`](command-registry.md#var_write_typing--return-type-vs-written-variable-type).
 
 
+### FP-SH-20 — ordering comparisons on non-numeric operands do not shimmer
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by
+  `analyser/diagnostics/fp/sh.rs::fp_sh_20_*` and the unit test
+  `shimmer/expr.rs::expr_shimmer_ordering_op_only_when_numeric`
+- **Codes:** S100 / S101 (expr-operator shimmer)
+
+#### Reproducer
+
+```tcl
+set s [string trim hello]
+set y [expr {$s < "banana"}]     ;# both strings — string compare, no shimmer
+set lst [list a b c]
+set z [expr {$lst > $s}]         ;# list keeps its list intrep
+```
+
+#### Per-line reasoning
+
+The expr-shimmer pass classified `<` / `<=` / `>` / `>=` as an
+*unconditional* numeric context, so any String/List/Dict/ByteArray operand
+fired S100/S101.  But Tcl's comparison operators — ordering **and** equality
+— only coerce to numbers when *both* operands parse as numbers; otherwise
+they compare the operands' string representations.  A non-numeric operand
+therefore never has its intrep clobbered, so the warning is a false positive.
+
+The fix moves `Lt`/`Le`/`Gt`/`Ge` into the same `operand_looks_numeric`
+gate already used for `==` / `!=`: fire only when at least one operand is
+provably numeric (the case where the numeric path — and the coercion — is
+actually taken).
+
+#### tclsh ground truth (8.6 and 9.0)
+
+```
+% set a apple; set b banana
+% tcl::unsupported::representation $a       ;# pure string
+% expr {$a < $b}                            ;# 1
+% tcl::unsupported::representation $a        ;# STILL pure string — no shimmer
+% set lst [list a b c]
+% expr {$lst > $b}                          ;# list intrep preserved (string rep only materialised)
+% set n 10
+% expr {$n < 5}                             ;# 0 — n shimmers pure string -> int (TP)
+```
+
+#### Tests
+
+- `analyser/diagnostics/fp/sh.rs::fp_sh_20_ordering_compare_non_numeric_silent` (FP)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_20_ordering_compare_numeric_literal_still_fires` (TP)
+- `shimmer/expr.rs::expr_shimmer_ordering_op_only_when_numeric` (FP + TP)
+
+---
+
 ## OBJ — object dispatch (W307/W308) + snit modelling
 
 W307 catches stray non-literal command words (`$x foo`); W308 validates
@@ -8597,6 +8694,14 @@ already a VAR/CMD intrep, check the *raw source slice* for a live
 (unescaped) `[`/`$`.  Escaped forms are exempt; live substitutions
 (including `${var}` and `[cmd]`) still fire.
 
+A second carve-out (added later): a quoted pattern that is *exactly one
+pure variable reference* — `"$pat"` / `"${pat}"` — is byte-for-byte
+identical at runtime to the bare `$pat` parameterised-pattern idiom
+(the quotes group nothing), so it is exempt too, mirroring the bare
+`$var` exemption. The moment the reference is concatenated with any
+literal text (`"prefix$pat"`) or is a command substitution (`"[cmd]"`)
+a literal *was* expected, and W306 still fires.
+
 #### tclsh ground truth
 
 ```
@@ -8610,10 +8715,16 @@ substitution occurred.
 
 #### Tests
 
-- `tests/test_fp_sty.py::test_FP_STY_02_escaped_bracket_no_w306` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_02_escaped_dollar_no_w306` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_02_live_dollar_in_quoted_pattern_still_fires` (TP)
-- `tests/test_fp_sty.py::test_FP_STY_02_live_cmdsub_in_quoted_pattern_still_fires` (TP)
+- `analyser/diagnostics/fp/sty.rs::fp_sty_02_escaped_bracket_no_w306` (FP)
+- `analyser/diagnostics/fp/sty.rs::fp_sty_02_escaped_dollar_no_w306` (FP)
+- `analyser/diagnostics/fp/sty.rs::fp_sty_02_pure_dollar_in_quoted_pattern_no_w306` (FP)
+- `analyser/diagnostics/fp/sty.rs::fp_sty_02_concatenated_dollar_in_quoted_pattern_still_fires` (TP)
+- `analyser/diagnostics/fp/sty.rs::fp_sty_02_live_cmdsub_in_quoted_pattern_still_fires` (TP)
+- `analyser/diagnostics/tests.rs::w306_literal_expected_in_regexp_pattern`
+  (FP escaped `\[`/`\$`; FP quoted pure `"$pat"`/`"${pat}"`; TP quoted
+  `"[cmd]"`; TP concatenated `"prefix$pat"`; TP bare `[cmd]`)
+- `tests/fp_depth.rs::pure_dollar_in_quoted_pattern_no_w306` (FP)
+- `tests/fp_depth.rs::concatenated_dollar_in_quoted_pattern_still_w306` (TP)
 
 ---
 

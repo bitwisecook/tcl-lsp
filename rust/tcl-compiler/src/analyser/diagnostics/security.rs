@@ -33,6 +33,7 @@
 use super::helpers::{has_substitution, is_braced_word};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
+use crate::regex_source::regexp_pattern_index;
 use tcl_core_types::DiagCode;
 
 impl Analyser {
@@ -159,7 +160,11 @@ Consider capturing the result: catch {\u{2026}} result"
         // a brace pair within a quoted string — Tcl treats braces
         // as literal inside ``"…"``) is not detected.  Real W101
         // shapes don't hit that pattern; documented for posterity.
-        let has_substitution = arg_tokens.iter().enumerate().any(|(i, tok)| {
+        // Anchor at the *first argument that actually carries the
+        // substitution*, not `arg_tokens[0]`: `eval "safeprefix" $x` puts the
+        // hazard in `$x`, so highlighting the safe literal prefix would point
+        // the developer at the wrong word.
+        let Some(sub_idx) = arg_tokens.iter().enumerate().position(|(i, tok)| {
             if matches!(
                 tok.kind,
                 tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
@@ -170,20 +175,21 @@ Consider capturing the result: catch {\u{2026}} result"
                 return false;
             }
             self.word_span_contains_substitution(tok.span)
-        });
-        if !has_substitution {
+        }) else {
             return;
-        }
-        let first = arg_tokens[0];
+        };
+        let anchor = arg_tokens[sub_idx];
         // Quick-fix the common single-line `eval "cmd $a …"` shape: rewrite
         // the quoted string to `eval [list cmd $a …]`.  `[list]` builds a
         // properly-quoted list so each substituted word is passed as exactly
         // one argument and never re-parsed.  Skip when the string spans
         // lines or carries backslash escapes (list re-quoting could differ).
-        let fixes = self.eval_list_fix(first);
+        // Only offered when the substituted word is itself the quoted string
+        // (`eval_list_fix` returns empty otherwise).
+        let fixes = self.eval_list_fix(anchor);
         self.result.diagnostics.push(super::types::Diagnostic {
             code: DiagCode::W101,
-            span: first.span,
+            span: anchor.span,
             message: "eval with substituted arguments risks code injection. \
 Prefer direct invocation or {*}$cmdList to preserve argument boundaries."
                 .to_string(),
@@ -342,10 +348,34 @@ word as one argument; no re-parsing)"
         Some(self.source[start..end].trim())
     }
 
-    /// **W300.** Emit "source with a variable path" when `source`'s
-    /// file argument is a `$var` substitution — the path (and therefore
-    /// the code executed) is dynamic.  Skips a leading `-encoding ENC`
-    /// option pair.
+    /// **W300.** Warn when `source`'s file argument is a `$var` or
+    /// `[cmd]` substitution — the path (and therefore the code executed)
+    /// is dynamic.  Skips a leading `-encoding ENC` option pair.
+    /// When `tok` is a `$var` reference whose value provably resolves to a
+    /// compile-time *literal* — a local `set var LITERAL` reaching this use,
+    /// per [`super::validity::last_literal_set_value_for_var`] — return that
+    /// literal. A parameter, a dynamic value, a `[cmd]` substitution, or a
+    /// cross-scope name yields `None`.
+    ///
+    /// The resolver only accepts a genuine literal value token (`Esc` / `Str`,
+    /// never `$x` / `[cmd]`), so the returned string is provably not
+    /// attacker-influenced. That is exactly what the `source` (W300) and `open`
+    /// (W103) sink checks need to drop their false positives: a value that is a
+    /// known constant is no more dangerous than writing that constant inline.
+    fn resolve_var_token_literal(&self, tok: tcl_lexer::Token) -> Option<String> {
+        if tok.kind != tcl_lexer::TokenType::Var {
+            return None;
+        }
+        let name = self.var_name_from_token(tok)?;
+        super::validity::last_literal_set_value_for_var(
+            &self.source,
+            &name,
+            tok.span.start(),
+            self.lexer_config(),
+        )
+        .map(|(literal, _, _)| literal)
+    }
+
     pub(in crate::analyser) fn emit_w300_source_variable(
         &mut self,
         cmd_name: &str,
@@ -359,15 +389,26 @@ word as one argument; no re-parsing)"
         if args[0] == "-encoding" && args.len() >= 3 {
             file_idx = 2;
         }
-        let Some(tok) = arg_tokens.get(file_idx) else {
+        let Some(&tok) = arg_tokens.get(file_idx) else {
             return;
         };
-        if matches!(tok.kind, tcl_lexer::TokenType::Var) {
+        // A `$var` path or a `[cmd]`-computed path is equally dynamic — both
+        // execute whatever file the value resolves to.
+        if matches!(
+            tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        ) {
+            // …unless the `$var` provably holds a compile-time literal path, in
+            // which case it is a known file — the same as `source ./lib.tcl`,
+            // which is silent — so flagging it is a false positive.
+            if self.resolve_var_token_literal(tok).is_some() {
+                return;
+            }
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: DiagCode::W300,
                 span: tok.span,
-                message: "source with a variable path executes arbitrary Tcl code. \
-Ensure the path is not influenced by untrusted input."
+                message: "source with a dynamic path (variable or command substitution) \
+executes arbitrary Tcl code. Ensure the path is not influenced by untrusted input."
                     .to_string(),
                 severity: Severity::Warning,
                 fixes: Vec::new(),
@@ -658,13 +699,38 @@ Ensure the command is not influenced by untrusted input."
                 severity,
                 fixes: Vec::new(),
             });
-        } else if matches!(tok.kind, tcl_lexer::TokenType::Var) {
+        } else if matches!(
+            tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        ) {
+            // A `$var` proven to hold a compile-time literal is treated exactly
+            // like that literal written inline: a `|`-prefixed literal is the
+            // pipeline Hint (a known command, not untrusted), any other literal
+            // is a benign filename (silent). Only a genuine literal suppresses
+            // the Warning — a parameter, a dynamic value, or a `[cmd]`-computed
+            // argument stays a Warning (it may resolve to a `|`-pipeline).
+            if let Some(literal) = self.resolve_var_token_literal(tok) {
+                if literal.starts_with('|') {
+                    self.result.diagnostics.push(super::types::Diagnostic {
+                        code: DiagCode::W103,
+                        span: tok.span,
+                        message: "open with a pipeline (\"|\") executes an external command. \
+Ensure the command is not influenced by untrusted input."
+                            .to_string(),
+                        severity: Severity::Hint,
+                        fixes: Vec::new(),
+                    });
+                }
+                return;
+            }
+            // A `$var` or `[cmd]`-computed first argument is equally dynamic —
+            // either may resolve to a `|`-prefixed pipeline.
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: DiagCode::W103,
                 span: tok.span,
-                message: "open with a variable argument: if the value starts with \
-\"|\", it will execute a command pipeline. Validate input or use explicit \
-I/O commands."
+                message: "open with a dynamic argument (variable or command substitution): \
+if the value starts with \"|\", it will execute a command pipeline. Validate input \
+or use explicit I/O commands."
                     .to_string(),
                 severity: Severity::Warning,
                 fixes: Vec::new(),
@@ -711,11 +777,15 @@ matching time on crafted input."
 
     /// **W306.** Warn when a `regexp` / `regsub` *pattern* — a
     /// literal-expected position — contains a *live* substitution Tcl
-    /// expands before the regex engine sees it.  A bare `$var` pattern is
-    /// the canonical parameterised-pattern idiom and is exempt (there is
-    /// no braced equivalent); a quoted `"$var"` / `"[cmd]"` or an unbraced
-    /// `[cmd]` is the foot-gun.  `\[` / `\$` in a quoted pattern are
-    /// literal regex characters, not substitutions.
+    /// expands before the regex engine sees it.  A pattern that is exactly
+    /// one variable substitution — bare `$var` / `${var}` **or** quoted
+    /// `"$var"` (the quotes group nothing, so it is byte-for-byte identical
+    /// to the bare form) — is the canonical parameterised-pattern idiom and
+    /// is exempt: no literal was "expected" there, and the `{…}` rewrite
+    /// would change it to match the literal text `$var`.  A quoted `"[cmd]"`
+    /// or an unbraced `[cmd]` computes the pattern dynamically and is the
+    /// foot-gun.  `\[` / `\$` in a quoted pattern are literal regex
+    /// characters, not substitutions.
     pub(in crate::analyser) fn emit_w306_literal_expected(
         &mut self,
         cmd_name: &str,
@@ -753,6 +823,18 @@ matching time on crafted input."
         if tok.kind == tcl_lexer::TokenType::Var {
             return;
         }
+        // A *quoted* word that is exactly one pure `$var` / `${var}`
+        // substitution (`"$pat"`) is byte-for-byte identical at runtime to the
+        // bare `$var` exempted above — the quotes group nothing — so it is the
+        // same parameterised-pattern idiom, not a foot-gun. `"[cmd]"` (a
+        // command substitution) is *not* exempt.
+        let inner = text
+            .strip_prefix('"')
+            .and_then(|s| s.strip_suffix('"'))
+            .unwrap_or(text);
+        if crate::value_shapes::is_pure_var_ref(inner) {
+            return;
+        }
         let is_quoted = self.source.as_bytes().get(start) == Some(&b'"');
         let found = if text.contains('$') { "'$'" } else { "'['" };
         let advice = if is_quoted {
@@ -788,43 +870,48 @@ matching time on crafted input."
             let Some(spec) = registry.get(cmd_name) else {
                 return;
             };
-            if spec.closed_value_args.is_empty() {
-                return;
-            }
-            let option_names: std::collections::HashSet<&str> =
+            let span_at = |i: usize| arg_tokens.get(i).map_or(cmd_tok.span, |t| t.span);
+            // Top-level closed value args (exact match).
+            let opt_names: std::collections::HashSet<&str> =
                 spec.options.iter().map(|o| o.name).collect();
-            let mut closed: Vec<u8> = spec.closed_value_args.to_vec();
-            closed.sort_unstable();
-            for idx in closed {
+            for &idx in spec.closed_value_args {
                 let i = idx as usize;
-                let Some(value) = args.get(i) else {
-                    continue;
-                };
-                if value.contains('$')
-                    || value.contains('[')
-                    || option_names.contains(value.as_str())
+                let Some(value) = args.get(i) else { continue };
+                let allowed: Vec<&str> =
+                    spec.arg_values_at(idx).iter().map(|av| av.value).collect();
+                if let Some(hit) =
+                    w127_closed_hit(value, span_at(i), &allowed, false, &opt_names, cmd_name)
                 {
-                    continue;
+                    hits.push(hit);
                 }
-                let allowed = spec.arg_values_at(idx);
-                if allowed.iter().any(|av| av.value == value) {
-                    continue;
+            }
+            // Subcommand-level closed value args: the subcommand word occupies
+            // arg 0, so the command-level index is one past the subcommand
+            // relative index. `string is <class>` marks its class (`&[0]`),
+            // matched by unique prefix (`arg_values_accept_prefix`).
+            if let Some(sub) = args.first().and_then(|s| spec.resolve_subcommand(s)) {
+                let sub_opt_names: std::collections::HashSet<&str> =
+                    sub.options.iter().map(|o| o.name).collect();
+                let display = format!("{cmd_name} {}", args[0]);
+                for &sub_idx in sub.closed_value_args {
+                    let i = sub_idx as usize + 1;
+                    let Some(value) = args.get(i) else { continue };
+                    let allowed: Vec<&str> = sub
+                        .arg_values_at(sub_idx)
+                        .iter()
+                        .map(|av| av.value)
+                        .collect();
+                    if let Some(hit) = w127_closed_hit(
+                        value,
+                        span_at(i),
+                        &allowed,
+                        sub.arg_values_accept_prefix,
+                        &sub_opt_names,
+                        &display,
+                    ) {
+                        hits.push(hit);
+                    }
                 }
-                if allowed.is_empty() {
-                    continue;
-                }
-                let allowed_list = allowed
-                    .iter()
-                    .map(|av| av.value)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                let span = arg_tokens.get(i).map_or(cmd_tok.span, |t| t.span);
-                hits.push((
-                    format!(
-                        "Invalid value '{value}' for '{cmd_name}'; expected one of: {allowed_list}"
-                    ),
-                    span,
-                ));
             }
         }
         for (message, span) in hits {
@@ -1092,27 +1179,42 @@ fn catch_body_is_fire_and_forget(body: &str) -> bool {
     }
 }
 
-/// First positional (pattern) argument index of `regexp` / `regsub`,
-/// after skipping option switches (`-start` consumes a value, `--`
-/// terminates).  `args` excludes the command name.
-fn regexp_pattern_index(args: &[String]) -> Option<usize> {
-    let mut i = 0;
-    while i < args.len() {
-        let a = args[i].as_str();
-        if a == "--" {
-            i += 1;
-            break;
-        }
-        if a.starts_with('-') {
-            i += 1;
-            if a == "-start" && i < args.len() {
-                i += 1;
-            }
-            continue;
-        }
-        break;
+/// One W127 closed-value check: return a `(message, span)` hit when the literal
+/// value at command-level index `cmd_idx` is not among `allowed` — an exact
+/// match, or (when `accept_prefix`) a unique prefix, mirroring C Tcl's
+/// abbreviation rule for `string is <class>`. Dynamic values (`$`/`[`) and
+/// declared option flags are skipped, and an empty allowed set never fires.
+fn w127_closed_hit(
+    value: &str,
+    span: tcl_lexer::Span,
+    allowed: &[&str],
+    accept_prefix: bool,
+    opt_names: &std::collections::HashSet<&str>,
+    display_name: &str,
+) -> Option<(String, tcl_lexer::Span)> {
+    if allowed.is_empty() || value.contains('$') || value.contains('[') || opt_names.contains(value)
+    {
+        return None;
     }
-    (i < args.len()).then_some(i)
+    let valid = if accept_prefix {
+        // C Tcl's abbreviation rule (`Tcl_GetIndexFromObj`): an exact match
+        // always wins; otherwise the value must be a *unique* prefix — an
+        // abbreviation matching exactly one allowed value. An ambiguous prefix
+        // (matching two or more, e.g. `a` → alnum/alpha/ascii) is a runtime
+        // error, so it must NOT be treated as valid.
+        allowed.contains(&value)
+            || (!value.is_empty() && allowed.iter().filter(|a| a.starts_with(value)).count() == 1)
+    } else {
+        allowed.contains(&value)
+    };
+    if valid {
+        return None;
+    }
+    let allowed_list = allowed.join(", ");
+    Some((
+        format!("Invalid value '{value}' for '{display_name}'; expected one of: {allowed_list}"),
+        span,
+    ))
 }
 
 /// True when the **source** slice `raw` (backslashes intact) carries a

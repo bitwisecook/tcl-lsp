@@ -23,7 +23,7 @@
 //! runtime-provided name (W123), after the cross-function walk has recorded
 //! every invocation. [`Analyser::emit_missing_package_require_diagnostics`]
 //! flags use of a command that a package provides without a matching
-//! `package require` (W129) and offers an insertion fix at the computed
+//! `package require` (W120) and offers an insertion fix at the computed
 //! offset.
 
 use std::collections::{HashMap, HashSet};

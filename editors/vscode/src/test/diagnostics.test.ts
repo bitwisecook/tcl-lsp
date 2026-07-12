@@ -352,6 +352,35 @@ suite("Diagnostics", () => {
     }
   });
 
+  test("a single dead store surfaces W211 only (co-located W220 deduped)", async () => {
+    const uri = getDocUri("deadStoreDedup.tcl");
+    await activate(uri);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (d) =>
+        d.some((x) => (typeof x.code === "object" ? x.code.value : x.code) === "W211"),
+    });
+    const codeOf = (d: vscode.Diagnostic) =>
+      typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
+    // `set x 1` (line 6): exactly one lifecycle hint — W211, not W211 + W220.
+    const onX = diagnostics.filter(
+      (d) => d.range.start.line === 6 && ["W211", "W220"].includes(codeOf(d)),
+    );
+    assert.deepStrictEqual(
+      onX.map(codeOf).sort(),
+      ["W211"],
+      `single dead store must be W211 only; got ${onX.map(codeOf)}`,
+    );
+    // `set y 1` (line 9) is a standalone dead store of a used var → W220, no W211.
+    const onY = diagnostics.filter(
+      (d) => d.range.start.line === 9 && ["W211", "W220"].includes(codeOf(d)),
+    );
+    assert.deepStrictEqual(
+      onY.map(codeOf).sort(),
+      ["W220"],
+      `overwritten dead store must be W220 only; got ${onY.map(codeOf)}`,
+    );
+  });
+
   test("dict-for body nesting keeps reads alive but still catches real dead stores (#833)", async () => {
     const uri = getDocUri("dict-for-nesting.tcl");
     await activate(uri);
@@ -456,6 +485,30 @@ suite("Diagnostics", () => {
       /[Bb]yte-array corruption/.test(s110.message),
       `S110 message should describe the corruption, got: ${s110.message}`,
     );
+  });
+
+  test("S110 does not fire for a byte-array-transparent string op", async () => {
+    // The fixture case-folds `$packet` on line 2 (S110) and slices it with
+    // `string range` on line 3. `string range` keeps the byte-array
+    // representation, so it must NOT add a second S110 — only the case-fold
+    // corrupts. Guards the ByteArrayEffect::Transparent classification.
+    const uri = getDocUri("byteArrayCorruption.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.some((d) => codeOf(d) === "S110"),
+    });
+    const s110 = diagnostics.filter((d) => codeOf(d) === "S110");
+    assert.strictEqual(
+      s110.length,
+      1,
+      `expected exactly one S110 (the case-fold on line 2), got ${JSON.stringify(
+        s110.map((d) => ({ line: d.range.start.line, msg: d.message })),
+      )}`,
+    );
+    // The single S110 is the `string toupper` on line index 1, not the
+    // `string range` on line index 2.
+    assert.strictEqual(s110[0].range.start.line, 1, "S110 must anchor on the case-fold line");
   });
 
   test("S102 fires for loop-carried oscillation, anchored inside the loop, and is silent under a write trace", async () => {

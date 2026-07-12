@@ -480,6 +480,14 @@ pub struct CommandSpec {
     /// byte-array payload command.
     pub byte_array_payload: Option<BytePayloadSpec>,
 
+    /// How this whole command transforms a byte-array (binary) operand it
+    /// derives its result from — drives the S110 byte-array-corruption check
+    /// for commands like `format` / `join` / `concat` / `split` / `subst` /
+    /// `regsub`. `string`'s per-subcommand effects live on the
+    /// [`SubCommand::byte_array_effect`] instead. Default
+    /// [`ByteArrayEffect::None`]. See [`crate::byte_array_effect`].
+    pub byte_array_effect: crate::byte_array_effect::ByteArrayEffect,
+
     /// Definition-body grammar — `Some` when this command is a class/type
     /// *definer* whose `ArgRole::Body` argument is a definition script (a
     /// `TclOO` metaclass `create` body, the bare `oo::define` script form, a
@@ -592,6 +600,7 @@ impl CommandSpec {
         xc_operation: None,
         deprecated_replacement: None,
         byte_array_payload: None,
+        byte_array_effect: crate::byte_array_effect::ByteArrayEffect::None,
         definition_body: None,
         object_class: None,
         defines_symbol: None,
@@ -985,6 +994,26 @@ pub struct SubCommand {
     /// semantics; default `Plain`.
     pub body_kind: BodyKind,
 
+    /// How this subcommand transforms a byte-array (binary) operand — drives
+    /// the S110 byte-array-corruption check for `string`'s value subcommands
+    /// (`range` / `map` / `tolower` / …).  See
+    /// [`CommandSpec::byte_array_effect`] and [`crate::byte_array_effect`];
+    /// default [`ByteArrayEffect::None`].
+    pub byte_array_effect: crate::byte_array_effect::ByteArrayEffect,
+
+    /// Subcommand-relative argument indices (0-based, *after* the subcommand
+    /// word) whose [`Self::arg_values`] are an **exhaustive** legal set — the
+    /// subcommand-level twin of [`CommandSpec::closed_value_args`], for W127.
+    /// `string is <class>` marks its class arg (`&[0]`). Default empty.
+    pub closed_value_args: &'static [u8],
+
+    /// Whether a [`Self::closed_value_args`] literal is accepted as a *unique
+    /// prefix* of an allowed value rather than an exact match — C Tcl's
+    /// abbreviation rule for `string is <class>` (`boo` → `boolean`). W127
+    /// then fires only for a value that is not a prefix of any allowed value
+    /// (`booleanx`). Default `false` (exact match, as the top-level path uses).
+    pub arg_values_accept_prefix: bool,
+
     /// Implicit-args count for proc-call arity relaxation.  See
     /// [`CommandSpec::body_arg_implicit_args`].
     pub body_arg_implicit_args: u8,
@@ -1110,6 +1139,9 @@ impl SubCommand {
         creates_scope_alias: false,
         inferred_storage_type: None,
         body_kind: BodyKind::Plain,
+        byte_array_effect: crate::byte_array_effect::ByteArrayEffect::None,
+        closed_value_args: &[],
+        arg_values_accept_prefix: false,
         body_arg_implicit_args: 0,
         taint_transform: None,
         taint_double_encode_colour: None,

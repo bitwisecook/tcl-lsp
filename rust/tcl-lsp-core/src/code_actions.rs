@@ -30,10 +30,10 @@
 //!   W302 (`catch` without result variable), the provider
 //!   offers two quick-fixes that splice a trailing ` result`
 //!   or ` result opts` after the body's closing brace.
-//! * `unset -nocomplain` action — when the analyser emits
-//!   W213 (unset on possibly-undefined variable), the provider
-//!   offers an `Add '-nocomplain' to unset` quick-fix that
-//!   splices the flag right after the `unset` keyword.
+//! * `unset -nocomplain` action — W213 (unset on possibly-undefined
+//!   variable) carries an `Add '-nocomplain' to unset` insert `CodeFix`
+//!   (the analyser knows the exact keyword span); the provider lifts it via
+//!   the generic `diag.fixes` path, like W120 below.
 //! * `Add 'package require <pkg>'` action — the analyser emits
 //!   W120 (package-gated command without `package require`)
 //!   carrying an insert `CodeFix`; the provider lifts it via
@@ -260,17 +260,11 @@ pub fn code_actions(
                 });
             }
         }
-        // Synthetic W213 quick-fix.
-        // W213 fires on `unset $var` when the variable may not
-        // exist; the canonical Tcl idiom is `unset -nocomplain
-        // $var`, so offer that as a one-click fix.  The diag
-        // span starts at `unset`; we splice ` -nocomplain`
-        // immediately after the keyword (offset +5).
-        if diag.code == DiagCode::W213
-            && let Some(action) = build_unset_nocomplain_action(source, diag, &line_index)
-        {
-            actions.push(action);
-        }
+        // W213's `Add '-nocomplain' to unset` quick-fix is carried on the
+        // diagnostic itself (the analyser knows the exact `unset` keyword span
+        // and narrows the diagnostic to the offending variable word), so it is
+        // surfaced by the generic `diag.fixes` loop below rather than
+        // re-derived here from the span.
         for fix in &diag.fixes {
             let fix_start = line_index.position_at_utf16(fix.span.start(), source);
             let fix_end = line_index.position_at_utf16(fix.span.end(), source);
@@ -528,40 +522,6 @@ fn build_shimmer_noqa_suppress_action(
         edits: vec![crate::rename::TextEdit {
             range: insertion,
             new_text: format!("{indent}# noqa: {}\n", diag.code.as_str()),
-        }],
-        kind: ActionKind::QuickFix,
-        command: None,
-        data_group_definition: None,
-    })
-}
-
-/// Build the `Add '-nocomplain'` quick-fix for a W213
-/// diagnostic.  Validates that the diag span starts with the
-/// `unset` keyword (defends against the diag shape changing
-/// in future analyser revisions) before emitting an
-/// insertion edit at offset +5 of the span start.
-fn build_unset_nocomplain_action(
-    source: &str,
-    diag: &tcl_compiler::analyser::Diagnostic,
-    line_index: &LineIndex,
-) -> Option<CodeAction> {
-    let start = diag.span.start() as usize;
-    if source.get(start..start + 5).is_none_or(|s| s != "unset") {
-        return None;
-    }
-    let insert_offset = diag.span.start().checked_add(5)?;
-    let pos = line_index.position_at_utf16(insert_offset, source);
-    let insertion = LspRange {
-        start_line: pos.line,
-        start_character: pos.character.get(),
-        end_line: pos.line,
-        end_character: pos.character.get(),
-    };
-    Some(CodeAction {
-        title: "Add '-nocomplain' to unset".to_string(),
-        edits: vec![crate::rename::TextEdit {
-            range: insertion,
-            new_text: " -nocomplain".to_string(),
         }],
         kind: ActionKind::QuickFix,
         command: None,

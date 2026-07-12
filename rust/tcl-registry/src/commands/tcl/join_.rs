@@ -26,6 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "join",
+        byte_array_effect: ByteArrayEffect::Coerces,
         const_fold: Some(crate::const_fold::fold_join),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::CSE_CANDIDATE,
         arity: Arity::new(1, 2),

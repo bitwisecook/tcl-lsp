@@ -96,13 +96,28 @@ fn fp_sty_02_escaped_dollar_no_w306() {
 }
 
 #[test]
-fn fp_sty_02_live_dollar_in_quoted_pattern_still_fires() {
-    // TP control: an UNescaped `$pat` in a quoted regex pattern IS a live
-    // substitution and must still fire W306.
+fn fp_sty_02_pure_dollar_in_quoted_pattern_no_w306() {
+    // FP carve-out: a quoted pattern that is exactly one pure variable
+    // reference (`"$pat"`) is byte-for-byte identical at runtime to the bare
+    // `$pat` parameterised-pattern idiom — the quotes group nothing — so it is
+    // the canonical form, not a foot-gun. Must NOT fire W306.
     let src = "regexp \"$pat\" $s";
     assert!(
+        !fires(src, D, "W306"),
+        "FP-STY-02: quoted pure `$pat` pattern must NOT fire W306; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_sty_02_concatenated_dollar_in_quoted_pattern_still_fires() {
+    // TP control: once `$pat` is concatenated with literal text (`"pre$pat"`)
+    // the word is no longer a pure reference — a literal pattern WAS expected —
+    // so W306 still fires. Proves the carve-out is shape-gated.
+    let src = "regexp \"pre$pat\" $s";
+    assert!(
         fires(src, D, "W306"),
-        "FP-STY-02 TP: live $pat in quoted regexp pattern must fire W306; emitted: {:?}",
+        "FP-STY-02 TP: concatenated $pat in quoted regexp pattern must fire W306; emitted: {:?}",
         codes(src, D)
     );
 }
