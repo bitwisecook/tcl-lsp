@@ -300,19 +300,25 @@ suite("Diagnostics", () => {
   test("clean file produces no diagnostics", async () => {
     const cleanUri = getDocUri("simple.tcl");
 
-    // Disable optimiser so info-level suggestions (O1xx) don't count.
+    // Disable optimiser so info-level suggestions (O1xx) don't count.  This
+    // must be written at the *workspace* target: the test fixture's
+    // `.vscode/settings.json` pins `tclLsp.optimiser.enabled` to `true`, and
+    // workspace settings outrank user (Global) ones — so a Global write could
+    // never take effect here, and the wait below could only ever succeed by
+    // accident, when an earlier test in the run had happened to delete the
+    // workspace key on its way out.  `index.ts` restores the fixture file's
+    // bytes after the run, as it does for the other config tests.
     const config = vscode.workspace.getConfiguration("tclLsp.optimiser");
-    await config.update("enabled", false, vscode.ConfigurationTarget.Global);
+    await config.update("enabled", false, vscode.ConfigurationTarget.Workspace);
 
     try {
       // Wait on the server's resolved config (message passing) rather than a
       // fixed sleep, so the optimiser.enabled=false round-trip is observed to
       // have applied before analysing.  Kept inside the `try` so a wait
-      // timeout still restores the global setting in `finally`.  20s,
-      // matching waitForDeepDiagnostics's default: under the full suite's
-      // background load (workspace warm-up, the #844 progressive
-      // diagnostics race, …) this round-trip routinely needs more than the
-      // 5s generic default.
+      // timeout still restores the setting in `finally`.  20s, matching
+      // waitForDeepDiagnostics's default: under the full suite's background
+      // load (workspace warm-up, the #844 progressive diagnostics race, …)
+      // this round-trip routinely needs more than the 5s generic default.
       await waitForEffectiveConfig(cleanUri, (cfg) => cfg.optimiser_enabled === false, {
         label: "optimiser.enabled = false",
         timeout: 20000,
@@ -332,7 +338,11 @@ suite("Diagnostics", () => {
         `Expected no diagnostics for simple.tcl, got ${diagnostics.length}: ${diagnostics.map((d) => d.code).join(", ")}`,
       );
     } finally {
-      await config.update("enabled", undefined, vscode.ConfigurationTarget.Global);
+      await config.update("enabled", undefined, vscode.ConfigurationTarget.Workspace);
+      await waitForEffectiveConfig(cleanUri, (cfg) => cfg.optimiser_enabled === true, {
+        label: "optimiser.enabled restored",
+        timeout: 20000,
+      });
     }
   });
 

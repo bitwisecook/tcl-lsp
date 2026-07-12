@@ -365,6 +365,80 @@ export async function activate(docUri: vscode.Uri): Promise<vscode.TextDocument>
 }
 
 /**
+ * Open *docUri* through the **workbench** (the ``vscode.open`` command) rather
+ * than ``workspace.openTextDocument``, then hand off to [`activate`].
+ *
+ * Use this — and only this — when a test needs the document to actually *close*
+ * later.  ``workspace.openTextDocument`` (which ``activate`` calls, and which
+ * ``window.showTextDocument(uri)`` calls internally) makes VS Code's main
+ * thread take a model reference on the extension host's behalf and park it in a
+ * ``BoundModelReferenceCollection``.  That collection releases a reference only
+ * after **three minutes**, or once 60 of them have piled up (it then drops the
+ * oldest ten), or on a delete/rename of the file — *never* when the editor tab
+ * closes.  While the reference is held the underlying text model cannot be
+ * disposed, so ``workspace.onDidCloseTextDocument`` does not fire, so
+ * vscode-languageclient never sends ``textDocument/didClose``: a test that
+ * closes the tab and waits for the server to react waits for something that
+ * (within any usable budget) never happens.
+ *
+ * Opening through the workbench takes no such reference — the editor is the
+ * model's only holder, exactly as when a user clicks the file in the Explorer.
+ * The subsequent ``openTextDocument`` inside ``activate`` then resolves against
+ * the already-registered document instead of asking the main thread to open
+ * (and pin) it, so the document is still unpinned when the tab closes.
+ */
+export async function activateViaWorkbench(docUri: vscode.Uri): Promise<vscode.TextDocument> {
+  await vscode.commands.executeCommand("vscode.open", docUri);
+  // The main thread registers the new model with the extension host over a
+  // separate channel from the command's own reply, so the document is not
+  // guaranteed to be visible here the instant `vscode.open` resolves.  Wait
+  // until it is: `activate`'s `openTextDocument` must find it already present,
+  // or it will fall back to the pinning path this function exists to avoid.
+  await pollUntil(
+    () => vscode.workspace.textDocuments.some((d) => d.uri.toString() === docUri.toString()),
+    (registered) => registered,
+    { label: `${docUri.toString()} registered with the extension host` },
+  );
+  return activate(docUri);
+}
+
+/**
+ * Resolve once VS Code closes the *document* for *docUri* — the event that
+ * drives vscode-languageclient's ``textDocument/didClose``.
+ *
+ * Closing an editor tab is **not** the same thing: the document survives its
+ * last editor whenever something still holds a reference to the underlying
+ * model (see [`activateViaWorkbench`]).  A test that closes tabs and expects
+ * the server to see a close must wait on this, not on the close command
+ * resolving — and must have opened the document via [`activateViaWorkbench`],
+ * or the wait will (correctly) time out.
+ *
+ * Register **before** issuing the close so the event cannot be missed.
+ */
+export function documentClosed(docUri: vscode.Uri, opts?: { timeout?: number }): Promise<void> {
+  const timeout = opts?.timeout ?? 20_000;
+  const uri = docUri.toString();
+  return new Promise<void>((resolve, reject) => {
+    const disposable = vscode.workspace.onDidCloseTextDocument((doc) => {
+      if (doc.uri.toString() !== uri) return;
+      disposable.dispose();
+      clearTimeout(timer);
+      resolve();
+    });
+    const timer = setTimeout(() => {
+      disposable.dispose();
+      reject(
+        new Error(
+          `Timeout waiting for onDidCloseTextDocument on ${uri} — the document is ` +
+            `still open despite its editor closing, so the server never received a ` +
+            `textDocument/didClose (was it opened with activateViaWorkbench?)`,
+        ),
+      );
+    }, timeout);
+  });
+}
+
+/**
  * Poll for diagnostics on the given URI until ``minCount`` are available
  * or ``predicate`` returns truthy, whichever comes first.  Combines event
  * listening with periodic polling for robustness.
