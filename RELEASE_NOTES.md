@@ -1,4 +1,4 @@
-# v2.1.6
+# v2.1.7
 
 **2.x alpha — pre-release channel.**
 
@@ -10,161 +10,123 @@ GitHub release. The stable **1.x** line stays the default for everyone who has
 not opted into pre-releases, and a `2.1.x` build never becomes the "latest"
 GitHub release or the default Marketplace download.
 
-This release is dominated by a deep, family-by-family review of the diagnostic
-engine — every `E`, `W`, `S`, `T`, and `O` code was audited for false
-positives, false negatives, highlight precision, and quick-fix coverage — plus
-a rebuilt, parallelised language-server pipeline. Several defaults change as a
-result; see **Breaking Changes**.
+This release is a correctness audit of **semantic highlighting**. Every token
+the server emits was diffed against the retired 1.x implementation over ~30k
+lines of real Tcl — the Tcl 8.6 and 9.0 core libraries, plus `ruff`, `zesty`,
+`ticklecharts` and `tomato` — and every difference was chased to a cause. The
+result restores everything the Rust rewrite had dropped, fixes a long list of
+things *both* implementations got wrong, and brings back first-class
+highlighting for BIG-IP configs and iApp APL presentations.
+
+One fix reaches beyond highlighting: an object referenced only from a `switch`
+arm was invisible to the BIG-IP reference graph, which `f5 grep`, `f5 irule
+trace`, `f5 query rename` and the `bigip-cleanup` skill all read. See **Bug
+Fixes**.
 
 ## New Features
 
-- **Progressive, parallelised language-server pipeline.** A flicker-safe fast
-  tier of diagnostics publishes ahead of the deep pass and is then replaced by
-  the full set for the same document version. The three independent whole-file
-  passes — the analyser walk, the compiler/optimiser checks, and cross-file
-  resolution — now run concurrently, and workspace warm-up fans out so a cold
-  workspace's first project-wide request hits a warm cache. Settled diagnostics
-  are byte-identical to before; only the delivery is faster.
-- **Diagnostics persist for closed files.** A file that reported problems keeps
-  its **Problems** entry and File Explorer badge after its editor tab is closed,
-  recomputed from the file on disk and refreshed when it changes.
-- **New `E005` diagnostic — wrong argument-count shape.** Catches an in-range
-  argument count that does not fit a command's paired-argument pattern: an odd
-  `dict create` / `dict replace` / `dict update` tail, an unpaired `foreach`
-  list, or a `switch` whose count matches neither its shorthand nor its
-  pattern/body-pair form.
-- **A new crop of quick fixes.** `S100` gains a numeric-comparison fix and a
-  "suppress with a `noqa` comment" action; `T101` and `T102` (option injection),
-  `W003` (per-operator), and `W004` all gain fixes of their own.
-- **The release version is stamped into every user-facing binary.**
-  `tcl --version`, `f5-query --version`, the language server's `initialize`
-  response, and the MCP server's `server_info` now report the real release
-  instead of `0.1.0`. A development build reports a `git describe` string, so it
-  can never claim to be a release.
-- **Editor keyword lists are generated from the command registry.** The
-  TextMate grammars for VS Code, JetBrains, and Sublime are now generated and
-  drift-gated, which substantially widens the set of commands recognised as
-  built-ins — `zlib`, `timerate`, `lseq`, `lpop`, `lremove`, `const`,
-  `coroprobe`, `binary`, `clock`, `trace`, and many more.
-- **TclOO, coroutines, threads, and bignums in the bytecode VM.** The VM behind
-  the `tcl` CLI gains `oo::class` / `oo::define` / `my` / `next` / `self`, TIP
-  558 `oo::configurable` properties, `coroutine` / `yield` / `yieldto`, an
-  `after` / `vwait` / `update` event loop, a shared-nothing `thread` / `tsv` /
-  `tpool` package, and arbitrary-precision integers in `expr` and `incr` instead
-  of wrapping at the machine word.
+- **BIG-IP config highlighting is back, and works for the first time.** A
+  `bigip.conf` / `.scf` now gets a real token stream — partitions, pools,
+  monitors, profiles, VLANs, interfaces, IP addresses, ports, route domains,
+  FQDNs, usernames and encrypted values — instead of every line being painted
+  as one flat string. `samples/bigip/bigip.conf` previously *crashed* the 1.x
+  server outright and produced 272 whole-line strings under 2.1.6; it now
+  yields 374 correctly-typed, non-overlapping tokens.
+- **Embedded iRules inside a BIG-IP config are highlighted as Tcl.** A
+  `ltm rule /Common/x { when HTTP_REQUEST { … } }` body is code, not config, and
+  is now walked with the iRules dialect — object references included, so
+  `pool /Common/api_pool` inside a config reads exactly as it does in a
+  standalone `.irul`.
+- **APL (iApp presentation) highlighting is back.** All ten `apl*` token types —
+  sections, field types, field names, attributes, validators, directives,
+  `define` names, the `optional` guard — and the `[ … ]` bracket expressions
+  that embed Tcl are now walked as Tcl, as the feature has always documented.
+- **Expect scripts highlight.** `expect { pat body … }` — the central construct
+  of every Expect script — was rendering as flat per-line strings, its clause
+  bodies never recursed. Patterns, `-re` regex mode, the `timeout` / `eof` /
+  `full_buffer` keywords and every clause body now highlight, and
+  `expect_before` / `expect_after` / `expect_user` / `expect_background` /
+  `expect_tty` come with them.
+- **TclOO reads as objects, not strings.** Method names carry the standard LSP
+  `method` type at their declaration *and* at their call sites (`my m`,
+  `$obj m`); class names carry `class`; `superclass` / `mixin` / `export` /
+  `filter` / `forward` arguments are typed as the class or method they name.
+  Proc, method and constructor parameters carry the standard `parameter` type
+  again, so a theme can tell an argument from an ordinary local.
 
 ## Improvements
 
-- **Far fewer false positives.** `W001` no longer fires on same-file shadows or
-  `{*}`-expanded calls; `W002`'s dialect false positives are gone; `S100` and
-  `S101` no longer flag ordering comparisons on non-numeric strings and lists;
-  `S110` no longer reports byte-array-transparent `string range` / `index` /
-  `reverse` / `trim*` as corruption; `W300` and `W103` stay quiet for a variable
-  that provably holds a compile-time literal path; `W241` recognises `throw` and
-  `tailcall` as loop exits; and `E001` no longer misfires on `history` or TclOO
-  dispatch.
-- **More real problems caught.** `T106` detects nested double-encoding;
-  `W300`/`W103` flag command-substitution paths such as `source [f]`; `W003`
-  gates `expr` operators from the registry, so a symbolic `**` under Tcl 8.4 is
-  reported; and the taint codes `T100`–`T102` gained TclOO, namespace, and
-  `interp alias` resolution with registry-driven sink classification in place of
-  hardcoded sink lists.
-- **Tighter highlighting.** Squiggles for `W101`, `W126`, `W212`/`W216`, `W214`,
-  `W213`, `W003`, `T100`–`T102`, `S100`/`S102`, and `E200` now narrow to the
-  offending token instead of underlining the whole command.
-- **Wider arity checking.** TclOO constructor calls, direct `apply` lambdas,
-  `after` callbacks, `next`/`nextto`, braced multi-word command prefixes, and
-  `namespace ensemble create -command` are all arity-checked now, and an
-  `interp alias` deletion followed by a re-declaration is tracked so a call is
-  never checked against a stale target.
-- **Better recovery from unclosed delimiters.** `E100` and `E200`–`E203`
-  recovery now recognises user-defined commands — the document's own procs,
-  TclOO classes, aliases, `rename` targets, procs from other indexed workspace
-  files, and `package require`d library commands — so a file that calls its own
-  procs no longer loses the rest of the document to analysis after a break.
-- **Closer parity with C Tcl.** Braced words collapse line continuations
-  correctly; `format` handles size modifiers, `%#X`, and `%0Ns` padding;
-  `string totitle` genuinely titlecases; `string map -nocase` folds full
-  Unicode; `catch` binds a complete error-options dict; `return -level N`
-  performs the C countdown; and `expr int()` preserves precision above 2^53.
-- **Correct TclOO method reference counts** in the code lens, and
-  destructuring-writer variables are typed from the registry rather than from a
-  return type.
+- **The token vocabulary is coherent and enforced.** 57 types — 16 standard LSP
+  plus six closed families (regex, `format`/`scan`, `clock`, `binary`, BIG-IP,
+  APL). Every type each dialect emits is either a standard LSP type or mapped to
+  an editor scope, and two tests now hold that line — including for the narrow
+  dialects (the versioned Tcls, the five EDA tools, Expect), which reach the same
+  sub-tokenisers a plain `.tcl` file does.
+- **Shared lexical rules are now shared.** Tcl's backslash-escape widths and the
+  literal/escape split live once, beside the evaluator that defines them; the
+  `{pattern body …}` clause-list split lives once, shared by the token walker and
+  the iRules object walker. Each had grown private copies that had already
+  drifted apart.
+- **Clause lists are registry data.** `switch` and Expect's `expect` are the same
+  construct, described once in the command registry rather than matched by name
+  in the walker.
 
 ## Bug Fixes
 
-- **The server's buffer could permanently diverge from the editor's during fast
-  typing.** Incremental edits were applied in whatever order the runtime
-  scheduled them rather than the order they arrived, and because each edit is a
-  range computed against the previous version, one applied out of turn was
-  spliced into text it was never computed against. The buffer then stayed wrong
-  until the file was closed and reopened: semantic tokens landed on the wrong
-  lines and lengths, and hover, completion, and go-to-definition resolved at the
-  wrong offsets. Separately, a request could be answered from a buffer that was
-  still missing an edit the editor had already sent. Edits are now applied in
-  arrival order, and a request always observes every edit that preceded it.
-- **Crashes on multi-byte characters.** Unchecked string slicing in the
-  analyser and the dialect-directive detector panicked when a UTF-8 character
-  boundary fell on a slice offset — an em dash or a curly quote in a comment
-  ahead of a keyword was enough to trigger it.
-- **A silent miscompile in constant propagation (`O102`).** Load forwarding had
-  no trace, aliasing, or barrier safety and could forward a literal past a write
-  that changed it. Variable-trace safety is now centralised into the constant
-  propagation pass itself, so a trace installed anywhere in the module forces
-  the value overdefined.
-- **Miscompiles in static proc folding (`O103`).** It ignored reachable
-  fall-through exits, never folded procs relying on Tcl's implicit
-  "result of the last command" rule, folded through an empty `if` body to the
-  wrong value, and folded calls whose target had since been renamed or aliased
-  over.
-- **Optimiser soundness gaps (`O100`, `O101`, `O102`, `O103`, `O107`).**
-  Dialect-blind octal folded `expr {010 + 1}` wrongly under Tcl 8.x and F5
-  iRules; folding proceeded through a renamed or shadowed `expr`; a callee's
-  `global x; set x …` silently vanished from constant propagation across an
-  opaque call; and `uplevel` bodies invalidated aliasing assumptions.
-- **`foreach` and `lmap` list splitting** in constant propagation now uses real
-  Tcl list semantics — `{a {b c} d}` is three elements, not four.
-- **Runtime memory safety.** A use-after-free when a write trace unset the
-  variable during `lappend`/`append` (which surfaced as intermittent heap
-  corruption), `append x(0)` corrupting the variable store instead of erroring,
-  and a leaked intermediate sub-dict on the `dict set`/`unset` error path.
-- A dropped closing quote or brace in command-substitution parsing, and
-  duplicate `S100`/`S101`/`S102`/`S110` diagnostics.
+- **Objects referenced from a `switch` arm were invisible to the BIG-IP
+  reference graph.** A `switch` case list is not a body, so the iRules
+  object-reference walker never descended into one — and a pool used only inside
+  a `switch` arm is an entirely ordinary iRule:
+
+  ```tcl
+  switch -glob [HTTP::uri] {
+      "/api/*" { pool /Common/api_pool }
+      default  { pool /Common/web_pool }
+  }
+  ```
+
+  `f5 grep` missed the iRule routing to a pool, `f5 irule trace` reported no pool
+  references for it, `f5 query rename` counted 2 referrers where there were 3 —
+  and **`bigip-cleanup` would have generated a delete for a live pool.** All
+  three tools now see the full graph.
+- **Quoted and braced literals lost their closing delimiter.** `"hello world"`
+  was highlighted as `"hello world`, `{a b}` as `{a b`, `${var}` as `${var`. An
+  *escaped* string lost both delimiters.
+- **Backslash escape widths were wrong.** `\xhh`, `\uhhhh`, `\Uhhhhhhhh` and
+  octal `\ooo` were all treated as a backslash plus one character, so `\x41` was
+  highlighted as an escape `\x` followed by a string `41`.
+- **Array references with a computed index painted as strings.** `set env($lo)`,
+  `unset UnknownPending($name)` — a pattern used throughout Tcl's own `init.tcl`
+  and `package.tcl`.
+- **A regular expression's closing `)` was typed as a quantifier**, not a group
+  delimiter.
+- **`expr` emitted no token at all for `(`, `)`, `?` and `:`.**
+- **An empty procedure body emitted its closing brace as a function.**
+  `proc p {args} {}` produced a stray `}` token.
+- **A quoted string containing `::` was typed as a namespace**, losing any escape
+  inside it.
+- **`defaultLibrary` was lost** on commands reached through a `namespace import`
+  alias and on a built-in's namespace prefix (`tcl::mathop::`).
+- **APL diagnostics were reported a column short** after any astral character —
+  positions counted code points rather than UTF-16 units.
+- **The JetBrains plugin failed to load on IntelliJ 2026.1+.** Compiled against
+  the 2024.1 floor, it called platform LSP methods whose Kotlin default-argument
+  bridges no longer exist in 2026.1 / 2026.2, so Marketplace verification
+  reported two critical `unresolved method` problems and the plugin broke at
+  runtime on current IDEs.
 
 ## Breaking Changes
 
-- **Built-in command colours change.** The `semanticTokenScopes` overrides for
-  `function.defaultLibrary`, `operator`, `namespace`, and `decorator` have been
-  removed for every dialect. In VS Code these overrides *replace* rather than
-  supplement the built-in cross-theme defaults, so any theme without a
-  `support.function.tcl` rule rendered `set`, `incr`, `lappend`, and `expr` as
-  unstyled plain text. Built-ins now fall back to standard theme defaults, so
-  colours will look different — and, for affected themes, correct for the first
-  time. `lmap` also moves from built-in-command to control-keyword scope.
-- **`W123` (unresolved command) is now on by default.** It was registered
-  default-off, contradicting the design decision that the Rust port ships it
-  default-on. It is a **Hint**, not a warning, so it is unobtrusive, but you
-  will see unresolved-command hints you did not see before. Turn it off with
-  `tclLsp.diagnostics.W123`.
-- **`xcDiagnostics` is split, and both toggles now genuinely default off.** The
-  F5-iRules-only XC100–XC301 translatability lints stay under
-  `tclLsp.features.xcDiagnostics`; general-purpose whole-workspace resolution —
-  suppressing `W120`/`W123` for a proc defined in another file, and reporting
-  `E002`/`E003` for cross-file calls — moves to the new
-  `tclLsp.features.crossFileResolution`. Both are now explicitly off by default:
-  previously an unset value fell through to a catch-all `true`, silently
-  enabling workspace-wide cross-file scanning and the XC lints for anyone who
-  had never touched the setting. If you were relying on that implicit
-  behaviour, opt in explicitly.
-- **`W308` is re-categorised.** The catalogue entry "`subst` without
-  `-nocommands`" (security) is retired. `W308` is now documented as "Unknown
-  TclOO method" (warning), which is what the compiler has always actually
-  emitted. The `tclLsp.diagnostics.W308` setting name is unchanged but now means
-  something different from the old documentation.
-- **`E200` is redefined** from "Shimmer parse error" to "Unterminated command —
-  the parser could not tell where it ends", and `E001` broadens from "missing
-  subcommand" to "missing dispatch word", which also covers `$obj` invoked with
-  no TclOO method.
-- **`scripts/tcltest_sweep/` is removed.** It is replaced by the Rust-native
-  `cargo xtask tcltest-sweep` (`make tcltest-sweep`).
-</content>
+- **New semantic token types.** The legend gains `parameter`, `method`, `class`,
+  the twelve BIG-IP types and the ten `apl*` types. Themes that style tokens by
+  type may want rules for them; all are either standard LSP types (styled out of
+  the box) or already mapped to TextMate scopes by the shipped editor
+  integrations.
+- **`interface` is renamed `bigipInterface`.** The 1.x legend reused the standard
+  LSP `interface` type for a BIG-IP network interface, which shadows its real
+  meaning. A custom theme rule keyed on `interface:tcl-bigip` must be renamed.
+- **Procedure and method parameters are now `parameter`, not `variable`.** A
+  theme that colours `variable` and expects parameters to match will see them
+  change; `parameter` is a standard LSP type and is styled by default.
+- **`switch`'s `default` arm is now a `keyword`**, not a string — matching
+  Expect's `timeout` / `eof`, which likewise match no text.
