@@ -20,7 +20,8 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import {
   getDocUri,
-  activate,
+  activateViaWorkbench,
+  documentClosed,
   waitForDiagnostics,
   waitForDeepDiagnostics,
   getServerLogSize,
@@ -40,7 +41,11 @@ suite("Closed-file diagnostics retention (#865)", () => {
   }
 
   test("problems survive closing the editor tab", async () => {
-    await activate(docUri);
+    // Must be opened through the workbench: an extension-initiated
+    // `openTextDocument` pins the text model for up to three minutes, and a
+    // pinned document never closes — so the close this test is about would
+    // never reach the server. See `activateViaWorkbench`.
+    await activateViaWorkbench(docUri);
     // The fixture's `set y 1` (assigned, never read) guarantees a W211, proving
     // the analyser ran while the file was open.
     const opened = await waitForDiagnostics(docUri, {
@@ -51,14 +56,21 @@ suite("Closed-file diagnostics retention (#865)", () => {
       `open file must surface W211: [${opened.map(codeOf)}]`,
     );
 
-    // Close every editor — VS Code sends textDocument/didClose. Capture the log
-    // offset first so we wait for the *close's* republish, not the open one.
+    // Close every editor. Subscribe to the document-close event *first*: closing
+    // the tab is what VS Code does synchronously, but disposing the document —
+    // the event vscode-languageclient turns into `textDocument/didClose` — is a
+    // separate, later step, and it is that step the server reacts to. Capture
+    // the log offset too, so the wait below matches the *close's* republish
+    // rather than the open's.
+    const closed = documentClosed(docUri);
     const sinceClose = getServerLogSize();
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    await closed;
 
     // The server re-analyses the on-disk file and republishes its diagnostics;
-    // wait for that republish's deep-diagnostics marker, then assert the W211 is
-    // still present rather than cleared.
+    // `did_close` emits an unconditional deep-diagnostics marker once that has
+    // been delivered, so waiting on it is exact rather than best-effort. Then
+    // assert the W211 is still present rather than cleared.
     await waitForDeepDiagnostics(docUri, { since: sinceClose });
     const retained = vscode.languages.getDiagnostics(docUri);
     assert.ok(

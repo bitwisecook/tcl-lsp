@@ -1067,31 +1067,34 @@ suite("Configuration Settings", () => {
   // ── Optimiser enabled toggle behavioral test ─────────────────────
   test("disabling optimiser.enabled suppresses O1xx diagnostics", async () => {
     const docUri = getDocUri("diagnostics.tcl");
-    // Snapshot the server log index before activating so the
-    // ``waitForDeepDiagnostics`` calls below only match this test's
-    // deep-pass log lines, not stale ones from earlier tests.
-    const sinceOpen = getServerLogSize();
     await activate(docUri);
 
     const codeOf = (d: vscode.Diagnostic) =>
       String(typeof d.code === "object" ? d.code.value : d.code);
     const isO1xx = (code: string) => /^O1\d\d$/.test(code);
 
-    // Wait for the server to publish its ``[timing] deep diagnostics``
-    // log line for this URI — that's the direct signal that the deep
-    // pass (where O1xx hints come from) has finished and published.
-    await waitForDeepDiagnostics(docUri, { since: sinceOpen });
-    const before = vscode.languages.getDiagnostics(docUri);
-    const o1xxBefore = before.filter((d) => isO1xx(codeOf(d)));
-    // The re-trigger edit below appends to the live buffer and is never
-    // saved; snapshot the original text so it can be restored in `finally`
-    // regardless of whether the test body completes or throws, rather than
-    // leaving diagnostics.tcl's editor buffer permanently dirtied for every
-    // later test that reuses the same fixture.
+    // The buffer edits below are never saved; snapshot the original text so it
+    // can be restored in `finally` regardless of whether the test body
+    // completes or throws, rather than leaving diagnostics.tcl's editor buffer
+    // permanently dirtied for every later test that reuses the same fixture.
     const originalText = vscode.window.activeTextEditor!.document.getText();
 
     const config = vscode.workspace.getConfiguration("tclLsp.optimiser");
     try {
+      // Both O1xx snapshots are anchored on an *edit*, because an edit is the
+      // only action that is guaranteed to make the server re-analyse and emit a
+      // fresh ``[timing] deep diagnostics`` line.  `activate()` is not: nothing
+      // in this suite ever closes a document (VS Code keeps extension-opened
+      // documents alive long past their tab), so a fixture an earlier test
+      // already opened is still open, and re-showing it sends the server
+      // nothing at all — a wait anchored on it would only ever be satisfied by
+      // some unrelated background re-analysis happening to land inside the
+      // window, which is exactly the race that made this test flaky.
+      const sinceBaseline = getServerLogSize();
+      await setTestContent(vscode.window.activeTextEditor!, originalText + " ");
+      await waitForDeepDiagnostics(docUri, { since: sinceBaseline });
+      const o1xxBefore = vscode.languages.getDiagnostics(docUri).filter((d) => isO1xx(codeOf(d)));
+
       await config.update("enabled", false, undefined);
       // 20s, matching waitForDeepDiagnostics's default: under the full
       // suite's background load (workspace warm-up, the #844 progressive
@@ -1102,14 +1105,13 @@ suite("Configuration Settings", () => {
         timeout: 20000,
       });
 
-      // Re-trigger analysis with a noop edit; snapshot the log
-      // index so the follow-up wait only matches the post-edit run.
+      // Re-trigger analysis under the new setting with another noop edit —
+      // trailing whitespace only, so the two snapshots differ solely by the
+      // optimiser toggle.
       const sinceEdit = getServerLogSize();
-      const editor = vscode.window.activeTextEditor!;
-      await setTestContent(editor, editor.document.getText() + " ");
+      await setTestContent(vscode.window.activeTextEditor!, originalText + "  ");
       await waitForDeepDiagnostics(docUri, { since: sinceEdit });
-      const after = vscode.languages.getDiagnostics(docUri);
-      const o1xxAfter = after.filter((d) => isO1xx(codeOf(d)));
+      const o1xxAfter = vscode.languages.getDiagnostics(docUri).filter((d) => isO1xx(codeOf(d)));
 
       if (o1xxBefore.length > 0) {
         assert.strictEqual(
