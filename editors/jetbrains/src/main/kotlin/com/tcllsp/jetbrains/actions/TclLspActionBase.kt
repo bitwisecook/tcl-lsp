@@ -31,6 +31,7 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import com.intellij.platform.lsp.api.LspServer
 import com.intellij.platform.lsp.api.LspServerManager
 import com.intellij.testFramework.LightVirtualFile
 import com.tcllsp.jetbrains.TclFileType
@@ -109,7 +110,17 @@ abstract class TclLspActionBase : AnAction() {
                 return
             }
 
-            val result = server.sendRequestSync { lsp4j ->
+            // Pass the timeout explicitly. Omitting it makes Kotlin emit a call
+            // to the synthetic `LspServer.sendRequestSync$default` bridge, bound
+            // to the class that declared the method when we compiled (2024.1).
+            // In 2026.1+ `sendRequestSync` moved up to the `LspClient`
+            // super-interface, so that bridge no longer resolves as
+            // `LspServer.sendRequestSync$default` and the plugin fails
+            // verification / throws NoSuchMethodError at runtime. The default is
+            // a compile-time const (10_000 ms) that inlines, so behaviour is
+            // unchanged. Do not "simplify" this back to the no-timeout form.
+            // See the jetbrains-plugin-compat skill.
+            val result = server.sendRequestSync(LspServer.DEFAULT_REQUEST_TIMEOUT_MS) { lsp4j ->
                 lsp4j.workspaceService.executeCommand(
                     ExecuteCommandParams(commandId, args)
                 )

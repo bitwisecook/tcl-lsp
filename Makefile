@@ -159,7 +159,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: smoke-vsix
 # Packaging + publish + release
 .PHONY: build-editors build-editor-vsix verify-vsix install package-vsix publish-vsix
-.PHONY: build-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime build-editor-zed publish-zed publish-all publish-verify publish-flow
+.PHONY: build-editor-jetbrains verify-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime build-editor-zed publish-zed publish-all publish-verify publish-flow
 .PHONY: release release-tag release-sums
 # Rust runtime port
 .PHONY: runtime-rust-test runtime-rust-lint zed-query-check vm-test vm-lint
@@ -1222,6 +1222,16 @@ $(JB_PLUGIN): rust-server
 	@echo ""
 	@echo "Built: $(JB_PLUGIN)"
 	@ls -lh $(JB_PLUGIN)
+
+verify-editor-jetbrains: ## Run the IntelliJ Plugin Verifier over the JetBrains plugin (binary-compat gate)
+	@echo "==> Verifying JetBrains plugin against the configured IDE targets"
+	@# Runs the JetBrains IntelliJ Plugin Verifier (bytecode-level binary
+	@# compatibility analysis) against every IDE in the pluginVerification.ides
+	@# block of build.gradle.kts. This is what catches the moved-API /
+	@# `sendRequestSync$default` class of NoSuchMethodError regressions before
+	@# they ship. Downloads each target IDE on first run (multi-GB, cached).
+	@# See the jetbrains-plugin-compat skill for reading the verdicts.
+	cd $(JB_DIR) && ./gradlew verifyPlugin
 
 publish-jetbrains: build-editor-jetbrains ## Publish JetBrains plugin to JetBrains Marketplace
 	@echo "==> Resolving JetBrains Marketplace credentials"
