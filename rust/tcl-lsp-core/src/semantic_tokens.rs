@@ -67,14 +67,22 @@
 //!   edit list when nothing changed); a stale / unknown previous
 //!   id falls back to a fresh full stream.
 //!
-//! Not handled (a separate document-mode feature, not a
-//! per-argument sub-token slice): BIG-IP **config-file** mode
-//! (`is_bigip_conf`) — partition paths (`/Common/…`), IPv4 /
-//! route-domain / port literals in `.conf` text — and **APL**
-//! embedded-Tcl detection.  These run on whole documents of a
-//! different type, not on Tcl/iRules command arguments.  The
-//! iRules object-reference highlighting (the code-relevant half
-//! of the BIG-IP taxonomy) is handled.
+//! Two **document-mode** grammars are handled here too, because neither is Tcl
+//! and running the Tcl tokenizer over them mis-colours the file rather than
+//! merely under-colouring it (each braced block reads as one literal word, so
+//! whole *lines* come out as `string`):
+//!
+//! * [`bigip_conf_full`] — BIG-IP config (`bigip.conf` / `.scf`): partition
+//!   paths (`/Common/…`), IPv4 / route-domain / port literals, and the object
+//!   taxonomy.  A `ltm rule { … }` stanza's body is iRules code, so it is
+//!   re-walked as Tcl.
+//! * [`apl_full`] — APL (iApp presentation).  Its `[ … ]` bracket expressions
+//!   are embedded Tcl and are likewise re-walked as Tcl.
+//!
+//! Both lexers live in `tcl-bigip` and are non-overlapping by construction; the
+//! iRules object-reference overlay (the code-relevant half of the BIG-IP
+//! taxonomy) applies inside embedded rule bodies exactly as it does in a
+//! standalone `.irul`.
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::types::{ProcArgTrait, ProcDef};
@@ -165,7 +173,80 @@ enum TokenKind {
     /// (`-name fitted`, `-type value`, `-min 0.4`) — highlighted distinctly
     /// from the option switch itself (`Decorator`) and from a plain string.
     OptionValue = 31,
+    // APL (iApp presentation language) — the bespoke `tcl-apl` token set,
+    // emitted only by [`apl_full`].  A `.apl` file is not Tcl, so these never
+    // co-occur with the types above.  Append-only: the indices are wire format.
+    /// APL block keyword: `section`, `text`, `table`, `row`.
+    AplSection = 32,
+    /// APL field-type keyword: `string`, `choice`, `password`, …
+    AplFieldType = 33,
+    /// APL field attribute: `default`, `display`, `required`, `validator`.
+    AplAttribute = 34,
+    /// The name following an APL block keyword.
+    AplSectionName = 35,
+    /// The name following an APL field-type keyword.
+    AplFieldName = 36,
+    /// The APL `define` keyword.
+    AplDefine = 37,
+    /// The name bound by an APL `define`.
+    AplDefineName = 38,
+    /// An APL preprocessor directive: `#include`, `#inline`.
+    AplDirective = 39,
+    /// The APL `optional` guard keyword.
+    AplOptional = 40,
+    /// A known validator name inside an APL `validator "…"` value.
+    AplValidator = 41,
+    // BIG-IP config (`bigip.conf`, `.scf`) — emitted only by [`bigip_conf_full`]
+    // for `tcl-bigip` documents.  (`Object` above is shared: it already types
+    // BIG-IP object references inside *iRules*.)  Append-only: the indices are
+    // wire format.
+    /// A partition name (`/Common/…`).
+    Partition = 42,
+    /// An object name known to be a pool.
+    Pool = 43,
+    /// An object name known to be a monitor.
+    Monitor = 44,
+    /// An object name known to be a profile.
+    Profile = 45,
+    /// An object name known to be a VLAN or trunk.
+    Vlan = 46,
+    /// A BIG-IP network interface name (`1.1`, `mgmt`).  Named `bigipInterface`
+    /// in the legend, **not** `interface`: the retired Python legend reused the
+    /// standard LSP `interface` type for this, which shadows its real meaning.
+    BigipInterface = 47,
+    /// An IPv4 literal, with optional CIDR suffix.
+    IpAddress = 48,
+    /// A TCP/UDP port number.
+    Port = 49,
+    /// A route domain (`%0`).
+    RouteDomain = 50,
+    /// A fully-qualified domain name.
+    Fqdn = 51,
+    /// A user name.
+    Username = 52,
+    /// An encrypted / secret value.
+    Encrypted = 53,
+    /// A procedure / method / constructor parameter, in its declaring parameter
+    /// list.  The standard LSP type, so a theme distinguishes an argument from
+    /// an ordinary local (#898 §4).
+    Parameter = 54,
+    /// A `TclOO` / snit / itcl **method** — its declared name (`method foo {…}`)
+    /// and its call sites (`my foo`, `$obj foo`).  The standard LSP type:
+    /// `v1.11.4` typed these `function`, which was better than `v2.1.6`'s
+    /// `string` but still conflated a method with a free procedure (#898 §2).
+    Method = 55,
+    /// A class name — `oo::class create Shape`, `oo::define Shape`.  Typed
+    /// `string` by *both* v1.11.4 and v2.1.6 (#898 §2).
+    Class = 56,
 }
+
+/// The iRules dialect key — the dialect a BIG-IP config's `ltm rule { … }`
+/// bodies are written in.
+const IRULES_DIALECT: &str = "f5-irules";
+
+/// The iApps dialect key — the dialect an APL presentation's embedded `[ … ]`
+/// Tcl is written in.
+const IAPPS_DIALECT: &str = "f5-iapps";
 
 /// `binary format`/`scan` specifier letters.
 const BINARY_FORMAT_SPECIFIERS: &[u8] = b"aAbBhHcsSiInwWmrRfdxX@t";
@@ -214,6 +295,36 @@ pub fn legend_token_types() -> Vec<&'static str> {
         // type gives them a distinct colour from the option switch and from a
         // plain string in default themes.
         "property",
+        // APL (iApp presentation) — emitted only for `tcl-apl` documents (see
+        // [`apl_full`]).  Index-aligned with the `Apl*` `TokenKind` variants.
+        "aplSection",
+        "aplFieldType",
+        "aplAttribute",
+        "aplSectionName",
+        "aplFieldName",
+        "aplDefine",
+        "aplDefineName",
+        "aplDirective",
+        "aplOptional",
+        "aplValidator",
+        // BIG-IP config — emitted only for `tcl-bigip` documents (see
+        // [`bigip_conf_full`]).  Index-aligned with the `TokenKind` variants.
+        "partition",
+        "pool",
+        "monitor",
+        "profile",
+        "vlan",
+        "bigipInterface",
+        "ipAddress",
+        "port",
+        "routeDomain",
+        "fqdn",
+        "username",
+        "encrypted",
+        // Standard LSP types — VS Code styles them out of the box.
+        "parameter",
+        "method",
+        "class",
     ]
 }
 
@@ -529,6 +640,227 @@ pub fn full(source: &str, dialect: &str, registry: &CommandRegistry) -> Semantic
     full_with_cu(source, dialect, registry, None)
 }
 
+/// Compute semantic tokens for an **APL** (iApp presentation) document.
+///
+/// APL is not Tcl — it is a declarative form-description grammar — so it does
+/// not go through the Tcl segmenter at all.  Running the Tcl tokenizer over it
+/// (which is what happens today for any document the server does not route
+/// here) treats each braced block as one literal word and emits whole *lines*
+/// as `String` tokens, actively mis-colouring the file.
+///
+/// The caller decides a document is APL with the server's `is_apl_source`
+/// (language id `tcl-apl`, or a `*.apl` / `presentation` basename) — the
+/// dialect string cannot be used for this, because `tcl-apl` and the Tcl
+/// `tcl-iapp` *implementation* files both resolve to the `f5-iapps` dialect.
+#[must_use]
+pub fn apl_full(source: &str, registry: &CommandRegistry) -> SemanticTokens {
+    encode_entries(&apl_entries(source, registry))
+}
+
+/// [`apl_full`] restricted to `range`, for viewport (`semanticTokens/range`)
+/// requests.  Same half-open filter as the Tcl [`range`] path.
+#[must_use]
+pub fn apl_range(
+    source: &str,
+    range: crate::definition::LspRange,
+    registry: &CommandRegistry,
+) -> SemanticTokens {
+    encode_entries(&clip_to_range(apl_entries(source, registry), range))
+}
+
+/// Compute semantic tokens for a **BIG-IP config** document (`bigip.conf`,
+/// `.scf`).
+///
+/// Like APL (see [`apl_full`]), BIG-IP config text is not Tcl: it is a
+/// brace-delimited declarative config.  The Tcl tokenizer reads each stanza
+/// body as one literal braced word and emits whole *lines* as `String` tokens
+/// — 272 of `samples/bigip/bigip.conf`'s 302 tokens were exactly that, which
+/// mis-colours the file rather than merely under-colouring it.
+///
+/// The caller decides a document is BIG-IP config with the server's
+/// `is_bigip_conf_name` / the `f5-bigip` dialect.
+#[must_use]
+pub fn bigip_conf_full(source: &str, registry: &CommandRegistry) -> SemanticTokens {
+    encode_entries(&bigip_conf_entries(source, registry))
+}
+
+/// [`bigip_conf_full`] restricted to `range`.
+#[must_use]
+pub fn bigip_conf_range(
+    source: &str,
+    range: crate::definition::LspRange,
+    registry: &CommandRegistry,
+) -> SemanticTokens {
+    encode_entries(&clip_to_range(bigip_conf_entries(source, registry), range))
+}
+
+/// Drop entries whose start falls outside `range` (half-open, per the LSP
+/// `Range` semantics the Tcl [`range`] path uses).
+fn clip_to_range(mut entries: Vec<Entry>, range: crate::definition::LspRange) -> Vec<Entry> {
+    entries.retain(|(line, col, _, _, _)| {
+        let pos = (*line, *col);
+        let start = (range.start_line, range.start_character);
+        let end = (range.end_line, range.end_character);
+        pos >= start && pos < end
+    });
+    entries
+}
+
+/// Map the BIG-IP config lexer's tokens onto legend entries, and walk each
+/// embedded iRule body as **Tcl**.
+///
+/// A `ltm rule /Common/x { … }` stanza's body is iRules code sitting inside a
+/// config file.  Read as config it produced nonsense — `when` / `if` / `switch`
+/// became config *property keys* and `[HTTP::uri]` was not tokenised at all —
+/// so the config lexer leaves those spans empty and they are re-walked here with
+/// the iRules registry.  `registry` must therefore be the **iRules** one.
+fn bigip_conf_entries(source: &str, registry: &CommandRegistry) -> Vec<Entry> {
+    use tcl_bigip::conf_tokens::BigipTokenKind as B;
+
+    let line_index = LineIndex::new(source);
+    let mut entries: Vec<Entry> = Vec::new();
+
+    for (bstart, bend) in tcl_bigip::conf_tokens::embedded_rule_bodies(source) {
+        let (bstart, bend) = (bstart as usize, bend as usize);
+        let Some(body) = source.get(bstart..bend) else {
+            continue;
+        };
+        // The body's tokens come back positioned relative to the body text, so
+        // shift them onto the document: a token on the body's first line also
+        // needs the column the body started at.
+        let origin = line_index.position_at_utf16(u32::try_from(bstart).unwrap_or(0), source);
+        for (line, col, len, kind, mods) in
+            collect_entries(body, IRULES_DIALECT, registry, None, None, None)
+        {
+            let (line, col) = if line == 0 {
+                (origin.line, origin.character.get() + col)
+            } else {
+                (origin.line + line, col)
+            };
+            entries.push((line, col, len, kind, mods));
+        }
+        // The same BIG-IP object-reference overlay a standalone `.irul` gets —
+        // so `pool /Common/api_pool` inside a config's rule body reads as an
+        // `object`, exactly as it would in its own file.  Spans come back
+        // relative to the body, so shift them onto the document; the overlay
+        // itself replaces the generic `string` the walk produced.
+        for span in crate::irules_object_refs::object_ref_spans(body, registry) {
+            let shifted = tcl_lexer::Span::new(
+                span.start() + u32::try_from(bstart).unwrap_or(0),
+                span.end() + u32::try_from(bstart).unwrap_or(0),
+            );
+            push_object_token(source, &line_index, shifted, &mut entries);
+        }
+    }
+    for t in tcl_bigip::conf_tokens::tokenise_bigip_conf(source) {
+        let kind = match t.kind {
+            // BIG-IP-specific types.
+            B::Partition => TokenKind::Partition,
+            B::Pool => TokenKind::Pool,
+            B::Monitor => TokenKind::Monitor,
+            B::Profile => TokenKind::Profile,
+            B::Vlan => TokenKind::Vlan,
+            B::Interface => TokenKind::BigipInterface,
+            B::IpAddress => TokenKind::IpAddress,
+            B::Port => TokenKind::Port,
+            B::RouteDomain => TokenKind::RouteDomain,
+            B::Fqdn => TokenKind::Fqdn,
+            B::Username => TokenKind::Username,
+            B::Encrypted => TokenKind::Encrypted,
+            B::Object => TokenKind::Object,
+            // Shared primitives reuse the standard types.
+            B::Comment => TokenKind::Comment,
+            B::Keyword => TokenKind::Keyword,
+            B::Property => TokenKind::OptionValue,
+            B::Str => TokenKind::String,
+            B::Escape => TokenKind::Escape,
+            B::Number => TokenKind::Number,
+        };
+        let Some(text) = source.get(t.start as usize..t.end as usize) else {
+            continue;
+        };
+        push_span_entries(
+            source,
+            &line_index,
+            t.start as usize,
+            text,
+            kind,
+            0,
+            &mut entries,
+        );
+    }
+    entries.sort_by_key(|(line, col, _, _, _)| (*line, *col));
+    entries
+}
+
+/// Map the APL lexer's tokens onto legend entries, and walk each embedded Tcl
+/// `[ … ]` region as Tcl.
+///
+/// APL embeds Tcl in bracket expressions, and the KCS feature doc is explicit
+/// that they receive full Tcl highlighting.  The APL lexer leaves those spans
+/// empty; they are re-walked here.
+fn apl_entries(source: &str, registry: &CommandRegistry) -> Vec<Entry> {
+    use tcl_bigip::apl::AplTokenKind as A;
+
+    let line_index = LineIndex::new(source);
+    let mut entries: Vec<Entry> = Vec::new();
+
+    for (bstart, bend) in tcl_bigip::apl::embedded_tcl_regions(source) {
+        let (bstart, bend) = (bstart as usize, bend as usize);
+        let Some(body) = source.get(bstart..bend) else {
+            continue;
+        };
+        let origin = line_index.position_at_utf16(u32::try_from(bstart).unwrap_or(0), source);
+        for (line, col, len, kind, mods) in
+            collect_entries(body, IAPPS_DIALECT, registry, None, None, None)
+        {
+            let (line, col) = if line == 0 {
+                (origin.line, origin.character.get() + col)
+            } else {
+                (origin.line + line, col)
+            };
+            entries.push((line, col, len, kind, mods));
+        }
+    }
+    for t in tcl_bigip::apl::tokenise_apl(source) {
+        let kind = match t.kind {
+            // APL-specific types.
+            A::SectionKw => TokenKind::AplSection,
+            A::FieldType => TokenKind::AplFieldType,
+            A::Attribute => TokenKind::AplAttribute,
+            A::SectionName => TokenKind::AplSectionName,
+            A::FieldName => TokenKind::AplFieldName,
+            A::Define => TokenKind::AplDefine,
+            A::DefineName => TokenKind::AplDefineName,
+            A::Directive => TokenKind::AplDirective,
+            A::Optional => TokenKind::AplOptional,
+            A::Validator => TokenKind::AplValidator,
+            // Shared primitives reuse the standard types, so a theme that
+            // styles Tcl strings/comments styles APL's the same way.
+            A::Comment => TokenKind::Comment,
+            A::Str => TokenKind::String,
+            A::Number => TokenKind::Number,
+            A::Variable => TokenKind::Variable,
+            A::Operator => TokenKind::Operator,
+            A::Escape => TokenKind::Escape,
+        };
+        let Some(text) = source.get(t.start as usize..t.end as usize) else {
+            continue;
+        };
+        push_span_entries(
+            source,
+            &line_index,
+            t.start as usize,
+            text,
+            kind,
+            0,
+            &mut entries,
+        );
+    }
+    entries.sort_by_key(|(line, col, _, _, _)| (*line, *col));
+    entries
+}
+
 /// Compute semantic tokens with an optional [`CompilationUnit`] for the same
 /// document.
 ///
@@ -765,16 +1097,15 @@ enum ArgOverride {
     SubcommandKeyword,
     /// The name argument of a `proc` definition → `Function` + `definition`.
     ProcNameDef,
-    /// The braced case-list argument of `switch -regexp … { pat body … }`:
-    /// the pattern elements are sub-tokenised as regexes and the body
-    /// elements recursed as scripts.
-    SwitchRegexpCaseList,
-    /// The braced case-list argument of a plain `switch … { pat body … }`
-    /// (exact / glob mode): the pattern elements are classified as ordinary
-    /// literals and the body elements recursed as scripts.  Without this the
-    /// whole `{ pat body … }` list would be walked as one script, leaving the
-    /// bodies opaque and unhighlighted.
-    SwitchCaseList,
+    /// The braced clause-list argument of a `switch … { pat body … }` or an
+    /// Expect `expect { ?-flags? pat body … }`: pattern elements are classified
+    /// (as regexes when the shape says so) and body elements recursed as
+    /// scripts.  Without this the whole `{ pat body … }` list would be walked as
+    /// one literal word, leaving every body opaque and unhighlighted.  The
+    /// [`CaseListSpec`] is registry data, so the walker names no command; the
+    /// `bool` is whether *this call* put the list in regex mode
+    /// (`switch -regexp`).
+    CaseList(&'static tcl_registry::CaseListSpec, bool),
     /// A structural keyword word at an argument position (`if`'s
     /// `then`/`elseif`/`else`, `try`'s `on`/`trap`/`finally`), carried
     /// by `ArgRole::Keyword` → highlighted as `Keyword` rather than a
@@ -786,9 +1117,18 @@ enum ArgOverride {
     /// iteration, so it is emitted as `Variable` + `declaration`.
     LoopVarList,
     /// A procedure parameter list (`proc p {a b {c 5} args} …`).  Each
-    /// parameter name is emitted as `Variable` + `declaration`; a `{name
-    /// default}` pair emits the name as a variable and classifies its default.
+    /// parameter name is emitted as `Parameter` + `declaration`; a `{name
+    /// default}` pair emits the name as a parameter and classifies its default.
     ParamList,
+    /// The declared name of a definition-body member (`method foo …`,
+    /// `typemethod`, `property`), carried by `ArgRole::Name` → emitted as
+    /// `Method` + `definition` rather than falling through to a plain string.
+    MemberName,
+    /// The class name at a *declaring* definer (`oo::class create Shape`,
+    /// `snit::type Name`, `itcl::class Name`) → `Class` + `definition`.
+    ClassNameDef,
+    /// The class name at a *referencing* definer (`oo::define Shape`) → `Class`.
+    ClassNameRef,
 }
 
 /// The inner content (delimiters stripped via `content_offset`) of a
@@ -816,6 +1156,21 @@ fn subspec_content(source: &str, tok: Token) -> Option<(usize, &str)> {
             .as_bytes()
             .get(tok.span.end() as usize - 1)
             .is_some_and(|&b| b == b'$' || b == b'[')
+    {
+        cend = cstart.min(cend);
+    }
+    // An **empty** delimited word (`{}`, `""`) is the one shape whose
+    // `span.end()` lands *past* its closing delimiter rather than at it, so the
+    // closer would otherwise be handed back as the word's content.  For a body
+    // argument that content is then re-segmented as a script, and the stray `}`
+    // is classified as a command head — `proc p {args} {}` emitted `'}':function`
+    // (#898 §7).  Recognised exactly (span length == content_offset + 1, last
+    // byte is the matching closer), so a non-empty word ending in an *escaped*
+    // quote (`"a\""`) is untouched.
+    if tok.content_offset > 0
+        && (tok.span.end() - tok.span.start()) == u32::from(tok.content_offset) + 1
+        && closing_delimiter(source, tok.span.start())
+            .is_some_and(|c| source.as_bytes().get(cend - 1) == Some(&c))
     {
         cend = cstart.min(cend);
     }
@@ -972,8 +1327,9 @@ fn special_arg_kinds(
     insert_generic_option_overrides(seg, registry, head, &mut overrides);
     insert_enum_value_overrides(seg, registry, head, dialect, &mut overrides);
     insert_oo_define_keyword_overrides(seg, registry, &mut overrides);
+    insert_definer_class_name_override(seg, registry, &mut overrides);
     insert_apply_lambda_override(seg, &mut overrides);
-    insert_switch_case_list_override(seg, &mut overrides);
+    insert_case_list_override(seg, registry, &mut overrides);
     insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, oo_grammar, arg_texts, &mut overrides);
     insert_scoped_subcommand_overrides(seg, scoped_env, head, &mut overrides);
@@ -1040,7 +1396,7 @@ fn insert_loop_var_overrides(
 /// [`ArgRole::ParamList`] marks the braced `{a b {c default}}` word of `proc`,
 /// the iRules `proc`, and snit `method` / `typemethod`; it is tagged
 /// [`ArgOverride::ParamList`] so [`collect_param_list`] emits each parameter
-/// name as a `Variable` declaration (and classifies any default value).
+/// name as a `Parameter` declaration (and classifies any default value).
 fn insert_param_list_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
@@ -1049,10 +1405,21 @@ fn insert_param_list_overrides(
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     for i in registry.arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::ParamList) {
-        // Only a braced literal list carries statically-visible names.
-        if let Some(tok) = seg.argv.get(i + 1)
-            && matches!(tok.kind, TokenType::Str)
-        {
+        // A braced literal list (`{a b}`) or a **bare** single-name list — Tcl
+        // accepts `proc unknown args {…}` / `proc auto_execok name {…}` without
+        // braces, and Tcl's own `init.tcl` / `word.tcl` use it.  That form is an
+        // unquoted `Esc` word, and skipping it left the parameter painted as a
+        // plain string.  A *quoted* list is not a literal name list, so it is
+        // still left alone.
+        let Some(tok) = seg.argv.get(i + 1) else {
+            continue;
+        };
+        let literal_list = match tok.kind {
+            TokenType::Str => true,
+            TokenType::Esc => !tok.in_quote && seg.single_token_word.get(i + 1) == Some(&true),
+            _ => false,
+        };
+        if literal_list {
             overrides
                 .entry(tok.span.start())
                 .or_insert(ArgOverride::ParamList);
@@ -1200,10 +1567,33 @@ fn insert_oo_body_overrides(
     arg_texts: &[&str],
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let head = &seg.texts[0];
     let Some(grammar) = oo_grammar else {
         return;
     };
+    // A member call inside a definition *body*: the member keyword is the
+    // command head (argv 0), so its arguments start at argv 1.
+    insert_oo_member_overrides(seg, grammar, &seg.texts[0].clone(), arg_texts, 0, overrides);
+}
+
+/// Tag the member-call words of a definition-body member — its declared name,
+/// parameter list, body script(s) and declared variables — from the grammar's
+/// argument roles.
+///
+/// `base` is the `argv` index of the *member keyword*, so this serves both
+/// shapes of a member call: inside a definition body the keyword is the command
+/// head (`base = 0`, `method m {} {…}`), while the one-liner definer form puts
+/// it after the class/object target (`base = 2`,
+/// `oo::define C method m {} {…}`).  Sharing one path is what stops the
+/// one-liner form silently losing its name / parameters / body — it used to get
+/// only its keyword marked.
+fn insert_oo_member_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    grammar: &'static DefinitionBodyGrammar,
+    head: &str,
+    arg_texts: &[&str],
+    base: usize,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
     if !crate::oo_body::is_member(grammar, head) {
         return;
     }
@@ -1216,7 +1606,7 @@ fn insert_oo_body_overrides(
         && arg_texts
             .first()
             .is_some_and(|inner| grammar.is_member(inner))
-        && let Some(tok) = seg.argv.get(1)
+        && let Some(tok) = seg.argv.get(base + 1)
     {
         overrides
             .entry(tok.span.start())
@@ -1224,7 +1614,7 @@ fn insert_oo_body_overrides(
     }
     // Script bodies — recurse (only a braced `Str` word carries a script).
     for idx in crate::oo_body::member_body_indices(grammar, head, arg_texts) {
-        if let Some(tok) = seg.argv.get(idx + 1)
+        if let Some(tok) = seg.argv.get(base + idx + 1)
             && matches!(tok.kind, TokenType::Str)
         {
             overrides
@@ -1232,9 +1622,21 @@ fn insert_oo_body_overrides(
                 .or_insert(ArgOverride::BodyScript);
         }
     }
+    // The member's declared name (`method foo …`, `property p …`).  The grammar
+    // has always carried this role; consuming it is what stops a method name
+    // painting as a plain string (#898 §2).
+    for idx in crate::oo_body::member_name_indices(grammar, head, arg_texts) {
+        if let Some(tok) = seg.argv.get(base + idx + 1)
+            && matches!(tok.kind, TokenType::Esc | TokenType::Str)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::MemberName);
+        }
+    }
     // Parameter lists — their names are declarations, like a `proc`'s.
     for idx in crate::oo_body::member_param_indices(grammar, head, arg_texts) {
-        if let Some(tok) = seg.argv.get(idx + 1)
+        if let Some(tok) = seg.argv.get(base + idx + 1)
             && matches!(tok.kind, TokenType::Str)
         {
             overrides
@@ -1242,13 +1644,31 @@ fn insert_oo_body_overrides(
                 .or_insert(ArgOverride::ParamList);
         }
     }
+    // Reference-only members: `superclass A B` names classes, `export m` names
+    // methods.  They declare nothing, but their arguments are not free strings —
+    // they name an entity defined elsewhere, so they take that entity's type.
+    if let Some((ref_kind, indices)) = crate::oo_body::member_ref_indices(grammar, head, arg_texts)
+    {
+        let ov = match ref_kind {
+            tcl_registry::definer::MemberRefKind::Class => ArgOverride::ClassNameRef,
+            tcl_registry::definer::MemberRefKind::Method => ArgOverride::Kind(TokenKind::Method),
+        };
+        for idx in indices {
+            if let Some(tok) = seg.argv.get(base + idx + 1)
+                && matches!(tok.kind, TokenType::Esc | TokenType::Str)
+                && !tok.in_quote
+            {
+                overrides.entry(tok.span.start()).or_insert(ov);
+            }
+        }
+    }
     // Declared variable / component names (`variable a b c`, `typevariable v`,
     // `component c`, `onconfigure -opt valueVar …`).
     for idx in crate::oo_body::member_var_indices(grammar, head, arg_texts) {
-        if let Some(tok) = seg.argv.get(idx + 1)
+        if let Some(tok) = seg.argv.get(base + idx + 1)
             && matches!(tok.kind, TokenType::Esc)
             && !tok.in_quote
-            && is_plain_var_name(&seg.texts[idx + 1])
+            && is_plain_var_name(&seg.texts[base + idx + 1])
         {
             overrides
                 .entry(tok.span.start())
@@ -1811,7 +2231,12 @@ fn insert_object_method_overrides(
 }
 
 /// Highlight a dispatched object method's name word (`seg.argv[1]`) as a
-/// callable [`TokenKind::Function`].
+/// [`TokenKind::Method`].
+///
+/// The *call site* of a method (`$obj add …`, `my Cleanup`, `[Class new] m …`)
+/// is the same entity as its declaration, so it takes the same type — a method
+/// is not a free procedure (#898 §2).  This is the one place a dispatched
+/// method name is typed, so declaration and call site cannot drift apart.
 fn mark_method_word(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     overrides: &mut FxHashMap<u32, ArgOverride>,
@@ -1819,7 +2244,7 @@ fn mark_method_word(
     if let Some(mtok) = seg.argv.get(1) {
         overrides
             .entry(mtok.span.start())
-            .or_insert(ArgOverride::Kind(TokenKind::Function));
+            .or_insert(ArgOverride::Kind(TokenKind::Method));
     }
 }
 
@@ -2029,7 +2454,25 @@ fn definer_class_name<'s>(
     source: &'s str,
     registry: &CommandRegistry,
 ) -> Option<&'s str> {
+    let (name_idx, _) = definer_class_name_idx(head, seg, registry)?;
+    let tok = seg.argv.get(name_idx)?;
+    source.get(tok.span.start() as usize..tok.span.end() as usize)
+}
+
+/// The `argv` index of the class name at a definer head, and whether that
+/// definer *declares* the class (`oo::class create Shape`, `snit::type Name`)
+/// rather than merely referencing it (`oo::define Shape`).
+///
+/// Split out of [`definer_class_name`] so the token walk can type the name —
+/// it was falling through to the default literal classification and painting as
+/// a plain `string` in *both* 1.11.4 and 2.1.6 (#898 §2).
+fn definer_class_name_idx(
+    head: &str,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+) -> Option<(usize, bool)> {
     let bare = head.strip_prefix("::").unwrap_or(head);
+    let declares = bare != "oo::define";
     let name_idx = match bare {
         "oo::class" | "oo::configurable" | "oo::abstract" | "oo::singleton"
             if seg.texts.get(1).map(String::as_str) == Some("create") =>
@@ -2055,8 +2498,28 @@ fn definer_class_name<'s>(
         }
         _ => return None,
     };
-    let tok = seg.argv.get(name_idx)?;
-    source.get(tok.span.start() as usize..tok.span.end() as usize)
+    Some((name_idx, declares))
+}
+
+/// Mark the class name at a definer head so it emits as `Class` rather than a
+/// bare literal (#898 §2).
+fn insert_definer_class_name_override(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let head = &seg.texts[0];
+    let Some((idx, declares)) = definer_class_name_idx(head, seg, registry) else {
+        return;
+    };
+    let Some(tok) = seg.argv.get(idx) else {
+        return;
+    };
+    overrides.entry(tok.span.start()).or_insert(if declares {
+        ArgOverride::ClassNameDef
+    } else {
+        ArgOverride::ClassNameRef
+    });
 }
 
 /// Resolve a class name *as written* at a definer head to a qualified key in
@@ -2281,6 +2744,15 @@ fn insert_oo_define_keyword_overrides(
     if first == "self" && seg.texts.get(3).is_some_and(|w| grammar.is_member(w)) {
         mark_keyword(3);
     }
+    // The one-liner definer form carries a whole member call inline —
+    // `oo::define C method m {a} {…}` / `oo::objdefine $obj method m {} {…}` —
+    // so run the *same* member handling the body form gets, anchored at the
+    // member keyword (argv 2).  Marking only the keyword left the method's name,
+    // parameters and body untouched: the name painted as a plain string and the
+    // body was never recursed.
+    let member_args: Vec<&str> = seg.texts[3..].iter().map(String::as_str).collect();
+    let first = first.clone();
+    insert_oo_member_overrides(seg, grammar, &first, &member_args, 2, overrides);
 }
 
 /// `apply {params body ?ns?} …` — mark the braced lambda literal so its body
@@ -2336,12 +2808,38 @@ fn insert_var_role_overrides(
     // makes it safe to paint whole (scalars, literal array elements, namespaced
     // names), while a substitution-bearing word stays multi-token.
     let mut retag = |i: usize, ov: ArgOverride| {
-        if let Some(tok) = seg.argv.get(i + 1)
-            && seg.single_token_word.get(i + 1) == Some(&true)
-            && matches!(tok.kind, TokenType::Esc)
-            && !tok.in_quote
-        {
-            overrides.entry(tok.span.start()).or_insert(ov);
+        let Some(word) = seg.argv.get(i + 1) else {
+            return;
+        };
+        if seg.single_token_word.get(i + 1) == Some(&true) {
+            if matches!(word.kind, TokenType::Esc) && !word.in_quote {
+                overrides.entry(word.span.start()).or_insert(ov);
+            }
+            return;
+        }
+        // A multi-token word in a variable-name position is an **array element
+        // whose index is a substitution** — `set env($lo)`, `unset
+        // UnknownPending($name)`, `set auto_index([foo])`.  A literal index
+        // (`env(PATH)`) is a single token and took the branch above; this one
+        // stays multi-token, and used to be skipped entirely, so its literal
+        // fragments fell through to the default classification and painted as
+        // `string` (#898 §3) — pervasive in Tcl's own `init.tcl` / `package.tcl`.
+        //
+        // The representative `argv` token spans the whole word (segmenter:
+        // `multi_token_word_argv_spans_full_word`), so paint every *literal*
+        // fragment of it — the array name and the parens — as the variable; the
+        // `$index` / `[cmd]` tokens inside classify themselves.
+        let text = seg.texts.get(i + 1).map_or("", String::as_str);
+        if word.in_quote || !text.contains('(') || !text.ends_with(')') {
+            return;
+        }
+        for t in &seg.all_tokens {
+            if matches!(t.kind, TokenType::Esc)
+                && t.span.start() >= word.span.start()
+                && t.span.end() <= word.span.end()
+            {
+                overrides.entry(t.span.start()).or_insert(ov);
+            }
         }
     };
     // Writes first: a declaration wins over a read reference at the same
@@ -2414,49 +2912,45 @@ fn is_plain_var_name(text: &str) -> bool {
 /// body as a script, rather than walking the whole list as one opaque body
 /// (which would leave the bodies unhighlighted).  `-regexp` mode additionally
 /// sub-tokenises the patterns as regexes.
-fn insert_switch_case_list_override(
+fn insert_case_list_override(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    // Options that consume a following value argument (`-matchvar var`,
-    // `-indexvar var`) — mirror the registry's `switch` arg-role resolver so
-    // the value word is not mistaken for the subject string.
-    const VALUE_OPTIONS: &[&str] = &["-matchvar", "-indexvar"];
-    if seg.texts[0] != "switch" {
+    // The clause-list shape is registry data (`CommandSpec::case_list`), so this
+    // walker names no command: `switch … {pat body …}` and Expect's
+    // `expect {?-flags? pat body …}` are the same construct, and Expect's
+    // `expect_before` / `expect_after` / … come along for free.  Previously this
+    // was `if seg.texts[0] != "switch" { return }` — the hardcode AGENTS.md
+    // calls migration debt — and Expect's clause bodies were never recursed,
+    // so an entire `expect {…}` block rendered as flat per-line `string` tokens.
+    let Some(spec) = registry.get(&seg.texts[0]).and_then(|s| s.case_list) else {
         return;
-    }
+    };
     let mut i = 1;
     let mut is_regexp = false;
     while i < seg.texts.len() && seg.texts[i].starts_with('-') {
-        if seg.texts[i] == "-regexp" {
+        if spec.regex_option == Some(seg.texts[i].as_str()) {
             is_regexp = true;
         }
         if seg.texts[i] == "--" {
             i += 1;
             break;
         }
-        if VALUE_OPTIONS.contains(&seg.texts[i].as_str()) {
+        if spec.value_options.contains(&seg.texts[i].as_str()) {
             i += 1;
         }
         i += 1;
     }
-    // Skip the switch value/string argument; the case list is the last
-    // word (braced-list form only — the inline `pat body …` form has
-    // more than one trailing word).
-    let case_idx = i + 1;
+    // Skip the command's subject words (`switch`'s string; `expect` has none).
+    // The clause list is the final word — the braced-list form only, since the
+    // inline `pat body …` form leaves more than one trailing word.
+    let case_idx = i + usize::from(spec.subject_args);
     if case_idx == seg.texts.len() - 1
-        && seg
-            .argv
-            .get(case_idx)
-            .is_some_and(|t| matches!(t.kind, TokenType::Str))
         && let Some(tok) = seg.argv.get(case_idx)
+        && matches!(tok.kind, TokenType::Str)
     {
-        let ov = if is_regexp {
-            ArgOverride::SwitchRegexpCaseList
-        } else {
-            ArgOverride::SwitchCaseList
-        };
-        overrides.insert(tok.span.start(), ov);
+        overrides.insert(tok.span.start(), ArgOverride::CaseList(spec, is_regexp));
     }
 }
 
@@ -3178,6 +3672,10 @@ fn classify_regex_component(matched: &str) -> TokenKind {
         "^" | "$" => TokenKind::RegexpAnchor,
         "|" => TokenKind::RegexpAlternation,
         "." => TokenKind::RegexpCharClass,
+        // A group's *closer* is as much a group delimiter as its opener — it
+        // used to fall through to the quantifier catch-all below and paint
+        // every `)` in the quantifier colour (#898 §5).
+        ")" => TokenKind::RegexpGroup,
         _ if matched.starts_with('(') => TokenKind::RegexpGroup,
         _ => TokenKind::RegexpQuantifier,
     }
@@ -3351,11 +3849,52 @@ struct ScriptCtx<'a> {
     extra_command: &'a FxHashMap<String, Vec<u32>>,
 }
 
-fn collect_switch_case_list(
+/// Emit one clause-list *pattern* element.
+///
+/// A keyword pattern (`default`; Expect's `timeout` / `eof` / `full_buffer`)
+/// matches no text — it is a keyword, never a regex and never a string.
+/// Otherwise a regex-mode pattern is sub-tokenised as a regex, and an
+/// exact/glob one is classified as an ordinary literal.
+fn push_case_pattern(
+    line_index: &LineIndex,
+    full_source: &str,
+    pat_tok: Token,
+    text: &str,
+    spec: &'static tcl_registry::CaseListSpec,
+    regexp: bool,
+    entries: &mut Vec<Entry>,
+) {
+    if spec.keyword_patterns.contains(&text) {
+        push_token(
+            line_index,
+            full_source,
+            pat_tok,
+            TokenKind::Keyword,
+            0,
+            entries,
+        );
+    } else if regexp {
+        if !push_regex_subtokens(line_index, full_source, pat_tok, entries) {
+            push_token(
+                line_index,
+                full_source,
+                pat_tok,
+                TokenKind::Regexp,
+                0,
+                entries,
+            );
+        }
+    } else if let Some(kind) = classify_arg_token(pat_tok, full_source) {
+        push_token(line_index, full_source, pat_tok, kind, 0, entries);
+    }
+}
+
+fn collect_case_list(
     ctx: ScriptCtx<'_>,
     tok: Token,
     entries: &mut Vec<Entry>,
     depth: u32,
+    spec: &'static tcl_registry::CaseListSpec,
     regexp: bool,
 ) {
     if depth > MAX_TOKEN_RECURSION {
@@ -3400,30 +3939,61 @@ fn collect_switch_case_list(
         }
         scan = el.next;
     }
-    for (idx, (word_tok, text)) in words.iter().enumerate() {
-        if idx % 2 == 0 {
-            // Pattern element.  In `-regexp` mode a non-`default` pattern is
-            // sub-tokenised as a regex; otherwise (exact / glob, or the
-            // `default` keyword) it is classified as an ordinary literal.
-            if regexp
-                && text != "default"
-                && push_regex_subtokens(line_index, full_source, *word_tok, entries)
-            {
-                // emitted as regex sub-tokens
-            } else if regexp && text != "default" {
-                push_token(
-                    line_index,
-                    full_source,
-                    *word_tok,
-                    TokenKind::Regexp,
-                    0,
-                    entries,
-                );
-            } else if let Some(kind) = classify_arg_token(*word_tok, full_source) {
-                push_token(line_index, full_source, *word_tok, kind, 0, entries);
+    // Walk clause by clause rather than assuming strict pattern/body alternation:
+    // Expect lets each clause carry leading flags (`-re`, `-nocase`,
+    // `-timeout 5`), which would otherwise shift every following element by one
+    // and turn patterns into bodies and bodies into patterns.  `switch` declares
+    // no clause flags, so its walk is unchanged.
+    let mut i = 0usize;
+    while i < words.len() {
+        // Leading clause flags.
+        let mut clause_regexp = regexp;
+        while i < words.len() {
+            let (flag_tok, text) = &words[i];
+            if !spec.clause_flags.contains(&text.as_str()) {
+                break;
             }
-        } else if let Some((bstart, body)) = subspec_content(full_source, *word_tok) {
-            // Body element — recurse as a script.
+            if spec.clause_regex_flag == Some(text.as_str()) {
+                clause_regexp = true;
+            }
+            push_token(
+                line_index,
+                full_source,
+                *flag_tok,
+                TokenKind::Decorator,
+                0,
+                entries,
+            );
+            i += 1;
+            // A flag that takes a value (`-timeout 5`) consumes the next word.
+            if spec.clause_value_flags.contains(&text.as_str())
+                && let Some((vtok, _)) = words.get(i)
+            {
+                if let Some(kind) = classify_arg_token(*vtok, full_source) {
+                    push_token(line_index, full_source, *vtok, kind, 0, entries);
+                }
+                i += 1;
+            }
+        }
+        let Some((pat_tok, text)) = words.get(i) else {
+            break;
+        };
+        push_case_pattern(
+            line_index,
+            full_source,
+            *pat_tok,
+            text,
+            spec,
+            clause_regexp,
+            entries,
+        );
+        i += 1;
+
+        // Body element — recurse as a script.
+        let Some((body_tok, _)) = words.get(i) else {
+            break;
+        };
+        if let Some((bstart, body)) = subspec_content(full_source, *body_tok) {
             collect_script(
                 ctx,
                 body,
@@ -3431,9 +4001,10 @@ fn collect_switch_case_list(
                 entries,
                 depth + 1,
             );
-        } else if let Some(kind) = classify_arg_token(*word_tok, full_source) {
-            push_token(line_index, full_source, *word_tok, kind, 0, entries);
+        } else if let Some(kind) = classify_arg_token(*body_tok, full_source) {
+            push_token(line_index, full_source, *body_tok, kind, 0, entries);
         }
+        i += 1;
     }
 }
 
@@ -3556,7 +4127,7 @@ fn collect_param_list(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>) 
                     line_index,
                     elem_abs,
                     elem,
-                    TokenKind::Variable,
+                    TokenKind::Parameter,
                     MOD_DECLARATION,
                     entries,
                 );
@@ -3570,7 +4141,7 @@ fn collect_param_list(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>) 
 }
 
 /// Emit the name + default words of a `{name ?default...?}` parameter pair:
-/// the leading word as a `Variable` declaration, each following word by its
+/// the leading word as a `Parameter` declaration, each following word by its
 /// literal classification (number / string).
 fn emit_param_default_pair(
     source: &str,
@@ -3585,7 +4156,7 @@ fn emit_param_default_pair(
         if let Some(word) = text.get(el.value.clone()) {
             let word_abs = abs + el.value.start;
             let (kind, mods) = if first {
-                (TokenKind::Variable, MOD_DECLARATION)
+                (TokenKind::Parameter, MOD_DECLARATION)
             } else if is_number_literal(word) {
                 (TokenKind::Number, 0)
             } else {
@@ -3683,7 +4254,16 @@ fn emit_command_head(
         // Byte length of the `…::` prefix (head_text bytes == span bytes).
         let prefix_len = u32::try_from(idx + 2).unwrap_or(0);
         let start = head_tok.span.start();
-        // Namespace prefix token.
+        // Namespace prefix token.  It carries `defaultLibrary` when the command
+        // it qualifies is a registry built-in (`tcl::mathop::+`, `tcl::tm::path`)
+        // — the prefix is as much part of the built-in's name as the tail, which
+        // already gets the modifier below, and a theme that dims stdlib names was
+        // dimming only half of one (#898 §11).
+        let builtin_mods = if registry.get(head_text).is_some() {
+            MOD_DEFAULT_LIBRARY
+        } else {
+            0
+        };
         push_token(
             line_index,
             full_source,
@@ -3692,7 +4272,7 @@ fn emit_command_head(
                 ..head_tok
             },
             TokenKind::Namespace,
-            0,
+            builtin_mods,
             entries,
         );
         // Final-segment command token: keyword when the full name is a
@@ -3931,6 +4511,8 @@ fn verbatim_token_kind(ov: ArgOverride) -> Option<(TokenKind, u32)> {
         ArgOverride::CommandRef => Some((TokenKind::Function, 0)),
         ArgOverride::SubcommandKeyword => Some((TokenKind::Keyword, MOD_DEFAULT_LIBRARY)),
         ArgOverride::ProcNameDef => Some((TokenKind::Function, MOD_DEFINITION)),
+        ArgOverride::ClassNameDef => Some((TokenKind::Class, MOD_DEFINITION)),
+        ArgOverride::ClassNameRef => Some((TokenKind::Class, 0)),
         _ => None,
     }
 }
@@ -3989,6 +4571,16 @@ fn emit_arg_token(
         Some(ArgOverride::ParamList) => {
             collect_param_list(ctx, *tok, entries);
         }
+        Some(ArgOverride::MemberName) => {
+            push_token(
+                line_index,
+                full_source,
+                *tok,
+                TokenKind::Method,
+                MOD_DEFINITION,
+                entries,
+            );
+        }
         Some(ArgOverride::BodyScript) => {
             if let Some((cstart, inner)) = subspec_content(full_source, *tok) {
                 // Recurse with the OO-body context computed for this
@@ -4010,11 +4602,8 @@ fn emit_arg_token(
         Some(ArgOverride::ExprScript) => {
             collect_expr(plain_ctx, *tok, entries, depth + 1);
         }
-        Some(ArgOverride::SwitchRegexpCaseList) => {
-            collect_switch_case_list(body_ctx, *tok, entries, depth + 1, true);
-        }
-        Some(ArgOverride::SwitchCaseList) => {
-            collect_switch_case_list(body_ctx, *tok, entries, depth + 1, false);
+        Some(ArgOverride::CaseList(spec, regexp)) => {
+            collect_case_list(body_ctx, *tok, entries, depth + 1, spec, *regexp);
         }
         Some(ArgOverride::KeywordArg) => {
             push_keyword_arg(line_index, full_source, *tok, entries);
@@ -4027,7 +4616,9 @@ fn emit_arg_token(
             | ArgOverride::VarRef
             | ArgOverride::CommandRef
             | ArgOverride::SubcommandKeyword
-            | ArgOverride::ProcNameDef,
+            | ArgOverride::ProcNameDef
+            | ArgOverride::ClassNameDef
+            | ArgOverride::ClassNameRef,
         ) => {}
         None => emit_default_arg_token(plain_ctx, *tok, entries, depth),
     }
@@ -4118,7 +4709,12 @@ fn collect_expr(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth:
                     entries,
                 );
             }
-            E::Operator => {
+            // The grouping / ternary / argument-separator punctuation is as much
+            // an operator as `+` or `&&`, and the expr lexer already tells them
+            // apart — the walk just dropped them into the `_` arm below, so
+            // `expr {($a + $b) * $c}` left its parens unstyled and
+            // `$a > 1 ? "y" : "n"` left its `?` and `:` unstyled (#898 §6).
+            E::Operator | E::ParenOpen | E::ParenClose | E::Comma | E::TernaryQ | E::TernaryC => {
                 push_subtoken(
                     full_source,
                     line_index,
@@ -4700,8 +5296,49 @@ fn push_object_token(
     }
 }
 
+/// The byte index one past the backslash escape starting at `text[i] == '\\'`
+/// (caller guarantees `i + 1` is in bounds).
+///
+/// Tcl's backslash substitution is not uniformly two characters: `\xhh` takes
+/// up to 2 hex digits, `\uhhhh` up to 4, `\Uhhhhhhhh` up to 8, and `\ooo` up to
+/// 3 **octal** digits.  Treating every escape as `\` + one character split
+/// `\x41` into an `Escape` of `\x` and a `String` of `41` — the digits are part
+/// of the escape, so the token was simply wrong (and `\101` came out as `\1` +
+/// `01`).  Widths match the ARE escape scanner in this same file
+/// ([`scan_are_escape`]) and Tcl's `Tcl_UtfBackslash`.
+///
+/// The escaped character may be multi-byte (`\é`, `\你`, `\€`), so the fallback
+/// advances by its real UTF-8 width — a fixed `+2` would slice inside the char
+/// and panic the whole request.
+fn escape_end(text: &str, i: usize) -> usize {
+    let b = text.as_bytes();
+    let hex_run = |start: usize, max: usize| {
+        let mut j = start;
+        while j < b.len() && j < start + max && b[j].is_ascii_hexdigit() {
+            j += 1;
+        }
+        // `\x` with no hex digit at all is a literal `x`, not a hex escape.
+        (j > start).then_some(j)
+    };
+    match b.get(i + 1) {
+        Some(b'x') => hex_run(i + 2, 2).unwrap_or(i + 2),
+        Some(b'u') => hex_run(i + 2, 4).unwrap_or(i + 2),
+        Some(b'U') => hex_run(i + 2, 8).unwrap_or(i + 2),
+        // `\ooo` — one to three octal digits.
+        Some(c) if (b'0'..=b'7').contains(c) => {
+            let mut j = i + 2;
+            while j < b.len() && j < i + 4 && matches!(b[j], b'0'..=b'7') {
+                j += 1;
+            }
+            j
+        }
+        _ => i + 1 + text[i + 1..].chars().next().map_or(1, char::len_utf8),
+    }
+}
+
 /// Sub-tokenise a string / bareword token's backslash escapes (`\n`, `\t`,
-/// `\\`, …): literal runs become `String`, each `\X` becomes `Escape`.
+/// `\\`, `\x41`, `é`, `\101`, …): literal runs become `String`, each
+/// escape becomes `Escape`.
 /// Returns `false` (emitting nothing) when the token carries no backslash, so
 /// the caller falls back to a single `String` token.  Multi-line tokens are
 /// left to the caller.
@@ -4733,13 +5370,7 @@ fn push_escape_subtokens(
                     entries,
                 );
             }
-            // Minimal `\X` (backslash + one full character); richer
-            // `\uHHHH` widths aren't handled. `X` may be multi-byte
-            // (`\é`, `\你`, `\€`), so advance by the escaped char's real
-            // UTF-8 width rather than a fixed 2 bytes — a fixed +2 would
-            // slice inside the char and panic the whole request.
-            let esc_char_len = text[i + 1..].chars().next().map_or(1, char::len_utf8);
-            let esc_end = i + 1 + esc_char_len;
+            let esc_end = escape_end(text, i);
             let esc = &text[i..esc_end];
             push_subtoken(
                 source,
@@ -4765,6 +5396,35 @@ fn push_escape_subtokens(
             TokenKind::String,
             entries,
         );
+    }
+    if emitted {
+        // `subspec_content` yields the word's *content* — so this path, unlike
+        // `push_token`, drops **both** delimiters: `"with \"esc\" inside"` left
+        // its opening and closing `"` unstyled (#898 §1).  Emit them as their
+        // own `String` runs; the entries are sorted by position before encoding,
+        // so appending them out of order here is fine.
+        let start = tok.span.start() as usize;
+        push_subtoken(
+            source,
+            line_index,
+            start,
+            &source[start..cstart],
+            TokenKind::String,
+            entries,
+        );
+        let content_end = cstart + bytes.len();
+        if closing_delimiter(source, tok.span.start())
+            .is_some_and(|c| source.as_bytes().get(content_end) == Some(&c))
+        {
+            push_subtoken(
+                source,
+                line_index,
+                content_end,
+                &source[content_end..=content_end],
+                TokenKind::String,
+                entries,
+            );
+        }
     }
     emitted
 }
@@ -4798,7 +5458,12 @@ fn classify_arg_token(tok: Token, source: &str) -> Option<TokenKind> {
                 .unwrap_or("");
             if is_number_literal(text) {
                 Some(TokenKind::Number)
-            } else if text.contains("::") {
+            } else if text.contains("::") && tok.content_offset == 0 {
+                // Only a *bare* word can be a namespace reference.  A quoted or
+                // braced word is a string literal even when its content happens
+                // to contain `::` — `append cmd "::scan \$field"` was painting
+                // the whole quoted word as a namespace, and in doing so lost the
+                // `\$` escape inside it (#898 §8).
                 Some(TokenKind::Namespace)
             } else {
                 // Bareword argument words classify as String, so `puts
@@ -4939,6 +5604,38 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
 
 /// Push a single token into the entries list, computing
 /// (line, column, length-in-chars, kind).
+/// The closing delimiter a word opened at `start` expects, if it is delimited.
+///
+/// The lexer's span convention (documented on the `switch` case-list rebuild
+/// above) is that a delimited word's `span.end()` sits **at** its closing `}` /
+/// `"`, not past it — so an emitter that takes `start..end` verbatim covers
+/// `opener + content` and silently drops the terminator.  Every delimited-word
+/// emit path therefore has to ask for the closer back.  Issue #898 §1.
+fn closing_delimiter(source: &str, start: u32) -> Option<u8> {
+    let bytes = source.as_bytes();
+    match bytes.get(start as usize)? {
+        b'"' => Some(b'"'),
+        b'{' => Some(b'}'),
+        // `${name}` — a braced *variable*, whose opener is two bytes.
+        b'$' if bytes.get(start as usize + 1) == Some(&b'{') => Some(b'}'),
+        _ => None,
+    }
+}
+
+/// Extend `end` over the word's closing delimiter when the lexer left it
+/// uncovered (see [`closing_delimiter`]).
+///
+/// Deliberately keyed on the *byte at `end`* rather than on the token kind: a
+/// span that already covers its terminator (an empty `""`, whose `end` lands
+/// past the closing quote) has some other byte there and is left alone, so this
+/// is idempotent and cannot double-count.
+fn end_over_terminator(source: &str, start: u32, end: u32) -> u32 {
+    match closing_delimiter(source, start) {
+        Some(closer) if source.as_bytes().get(end as usize) == Some(&closer) => end + 1,
+        _ => end,
+    }
+}
+
 fn push_token(
     line_index: &LineIndex,
     source: &str,
@@ -4966,6 +5663,12 @@ fn push_token(
         && (last == b'$' || last == b'[')
     {
         end = start + u32::from(tok.content_offset);
+    } else {
+        // Cover the word's closing `}` / `"`, which the lexer's span convention
+        // leaves just past `span.end()` (#898 §1).  Not applied to the clamped
+        // fragment above: that one was trimmed *back* precisely because its span
+        // ran into the next token, and re-extending it would overlap.
+        end = end_over_terminator(source, start, end);
     }
     if end <= start {
         return;
@@ -5747,17 +6450,39 @@ mod tests {
         // `unset arr($i)` — the computed subscript stays multi-token: the inner
         // `$i` (col 10) survives as its own variable, and the whole word is not
         // painted (no declaration at the word start, col 6).
+        // `unset arr($i)` — the computed subscript keeps the word multi-token.
+        // The inner `$i` must survive as its own variable, so the word must NOT
+        // be painted whole (that would swallow the substitution)…
         let toks = decode_full("unset arr($i)\n", "tcl", &reg());
         let inner_i = toks
             .iter()
             .any(|(_, col, _, k, _)| *col == 10 && *k == TokenKind::Variable as u32);
         assert!(inner_i, "expected the inner `$i` variable; got {toks:?}");
-        let painted_whole = toks.iter().any(|(_, col, _, k, m)| {
-            *col == 6 && *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
-        });
+        let painted_whole = toks
+            .iter()
+            .any(|(_, col, len, k, _)| *col == 6 && *len == 8 && *k == TokenKind::Variable as u32);
         assert!(
             !painted_whole,
             "computed subscript must not retag the whole word; got {toks:?}"
+        );
+        // …but its *literal* fragments — the array name and the closing paren —
+        // are still part of the variable reference, not free-floating strings.
+        // They used to fall through to the default classification and paint as
+        // `string`, which is what #898 §3 was: `set env($lo)`, `unset
+        // UnknownPending($name)` and friends all over Tcl's own library.
+        let name_frag = toks.iter().any(|(_, col, len, k, m)| {
+            *col == 6 && *len == 4 && *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
+        });
+        assert!(
+            name_frag,
+            "expected the `arr(` fragment as a variable; got {toks:?}"
+        );
+        let close_frag = toks
+            .iter()
+            .any(|(_, col, len, k, _)| *col == 12 && *len == 1 && *k == TokenKind::Variable as u32);
+        assert!(
+            close_frag,
+            "expected the `)` fragment as a variable; got {toks:?}"
         );
     }
 
@@ -6299,7 +7024,7 @@ mod tests {
         // the signal that distinguishes resolution from the built-in.
         let user_method_on_dispatch_line = |toks: &[(u32, u32, u32, u32, u32)]| {
             toks.iter()
-                .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Function as u32 && m == 0)
+                .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Method as u32 && m == 0)
         };
         // Without analysis: `configure` stays an unresolved string — only
         // `dict` (defaultLibrary) is a Function on the line.
@@ -6350,7 +7075,7 @@ mod tests {
         // no `defaultLibrary`) on the `dump` method's line.
         assert!(
             toks.iter()
-                .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Function as u32 && m == 0),
+                .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Method as u32 && m == 0),
             "expected `configure` on the dict-for value var to resolve; got {toks:?}"
         );
     }
@@ -6379,7 +7104,7 @@ mod tests {
         // `my helper` on line 2 resolves the sibling method.
         assert!(
             toks.iter()
-                .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Function as u32 && m == 0),
+                .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Method as u32 && m == 0),
             "expected `my helper` to resolve; got {toks:?}"
         );
     }
@@ -6408,7 +7133,7 @@ mod tests {
         ));
         assert!(
             toks.iter()
-                .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Function as u32 && m == 0),
+                .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Method as u32 && m == 0),
             "expected `$self helper` in a snit method to resolve; got {toks:?}"
         );
     }
@@ -6441,7 +7166,7 @@ mod tests {
         // `$axis draw` on line 5 resolves the component's method.
         assert!(
             toks.iter()
-                .any(|&(l, _, _, k, m)| l == 5 && k == TokenKind::Function as u32 && m == 0),
+                .any(|&(l, _, _, k, m)| l == 5 && k == TokenKind::Method as u32 && m == 0),
             "expected `$axis draw` on an installed component to resolve; got {toks:?}"
         );
     }
@@ -6473,7 +7198,7 @@ mod tests {
         // `$eng run` on line 4 resolves the method.
         assert!(
             toks.iter()
-                .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Function as u32 && m == 0),
+                .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Method as u32 && m == 0),
             "expected `$eng run` on a bare-constructor handle to resolve; got {toks:?}"
         );
     }
@@ -6531,7 +7256,7 @@ mod tests {
         // `configure` resolves (Function) and `-node` is a decorator on line 2.
         assert!(
             toks.iter()
-                .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Function as u32 && m == 0),
+                .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Method as u32 && m == 0),
             "expected `my configure` to resolve; got {toks:?}"
         );
         assert!(
@@ -6563,7 +7288,7 @@ mod tests {
         ));
         assert!(
             toks.iter()
-                .any(|&(l, _, _, k, m)| l == 3 && k == TokenKind::Function as u32 && m == 0),
+                .any(|&(l, _, _, k, m)| l == 3 && k == TokenKind::Method as u32 && m == 0),
             "expected `$o mrun` on a factory return to resolve; got {toks:?}"
         );
     }
@@ -6592,7 +7317,7 @@ mod tests {
         // `configure` on the proc's object parameter (line 1) resolves.
         assert!(
             toks.iter()
-                .any(|&(l, _, _, k, m)| l == 1 && k == TokenKind::Function as u32 && m == 0),
+                .any(|&(l, _, _, k, m)| l == 1 && k == TokenKind::Method as u32 && m == 0),
             "expected `$dev configure` in the proc body to resolve; got {toks:?}"
         );
     }
@@ -6807,9 +7532,8 @@ mod tests {
             });
             // The method resolves iff *its own* token is a callable `Function`.
             let resolved = mcol.is_some_and(|c| {
-                toks.iter().any(|&(l, tc, _, k, _)| {
-                    l == line && tc == c && k == TokenKind::Function as u32
-                })
+                toks.iter()
+                    .any(|&(l, tc, _, k, _)| l == line && tc == c && k == TokenKind::Method as u32)
             });
             let ok = match expect {
                 Resolve => resolved,
@@ -6859,7 +7583,7 @@ mod tests {
         assert!(
             toks.iter().any(|&(l, c, _, k, m)| l == 0
                 && c == 12
-                && k == TokenKind::Function as u32
+                && k == TokenKind::Method as u32
                 && m == 0),
             "cross-file `[::Pin new] configure` should resolve; got {toks:?}"
         );
@@ -6904,7 +7628,7 @@ mod tests {
         ));
         assert!(
             toks.iter()
-                .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Function as u32 && m == 0),
+                .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Method as u32 && m == 0),
             "expected `configure` in the return-nested dict map to resolve; got {toks:?}"
         );
     }
@@ -6931,7 +7655,7 @@ mod tests {
         // `configure` at line 2 resolves to a Function.
         assert!(
             toks.iter()
-                .any(|&(l, _, _, k, _)| l == 2 && k == TokenKind::Function as u32),
+                .any(|&(l, _, _, k, _)| l == 2 && k == TokenKind::Method as u32),
             "expected `configure` as a Function on the $p dispatch; got {toks:?}"
         );
     }
@@ -7930,6 +8654,45 @@ mod tests {
     /// is the alignment guard: add a token type to the legend (e.g. from richer
     /// lexing) without wiring the editor, and this test fails instead of the
     /// token silently rendering as an unstyled default in every theme.
+    /// The BIG-IP config token types: emitted only by `bigip_conf_full` for
+    /// `tcl-bigip` documents (a `bigip.conf` is not Tcl), so the Tcl-family
+    /// blocks are not required to map them — `tcl-bigip` is.  `object` is
+    /// deliberately **not** in this set: it is shared, typing BIG-IP object
+    /// references inside iRules too, so the Tcl blocks must keep mapping it.
+    const BIGIP_ONLY: &[&str] = &[
+        "partition",
+        "pool",
+        "monitor",
+        "profile",
+        "vlan",
+        "bigipInterface",
+        "ipAddress",
+        "port",
+        "routeDomain",
+        "fqdn",
+        "username",
+        "encrypted",
+    ];
+
+    /// Record a failure for every token in `required` that `mapped` (a
+    /// language's `semanticTokenScopes` block) does not handle.
+    fn require_mapped(
+        lang: &str,
+        required: &[&str],
+        mapped: &std::collections::BTreeSet<&str>,
+        failures: &mut Vec<String>,
+    ) {
+        for tok in required {
+            if !mapped.contains(tok) {
+                failures.push(format!(
+                    "language `{lang}` does not handle legend token `{tok}` \
+                     (add it to contributes.semanticTokenScopes in \
+                     editors/vscode/package.json)"
+                ));
+            }
+        }
+    }
+
     #[test]
     fn vscode_semantic_token_scopes_cover_the_server_legend() {
         // Standard LSP `SemanticTokenTypes` VS Code styles out of the box, so
@@ -7969,6 +8732,22 @@ mod tests {
         // covering it covers every token a plain `.tcl` file can emit too.
         const FULL_VOCAB: &[&str] = &["tcl", "tcl-irule", "tcl-iapp", "tcl-bigip"];
 
+        // The `apl*` types are emitted *only* by `apl_full`, for `tcl-apl`
+        // documents (APL is not Tcl). They are therefore not required of the
+        // Tcl-family blocks above — but `tcl-apl` must map every one of them,
+        // which is checked separately below.
+        let apl_types: Vec<&str> = legend_token_types()
+            .into_iter()
+            .filter(|t| t.starts_with("apl"))
+            .collect();
+        assert!(!apl_types.is_empty(), "legend lost its apl* token types");
+        for tok in BIGIP_ONLY {
+            assert!(
+                legend_token_types().contains(tok),
+                "legend lost the BIG-IP token type `{tok}`"
+            );
+        }
+
         let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let pkg = manifest.join("../../editors/vscode/package.json");
         let text = std::fs::read_to_string(&pkg)
@@ -7984,32 +8763,146 @@ mod tests {
         let mut failures = Vec::new();
         let mut checked_blocks = 0;
 
+        let mut checked_apl = false;
+        let mut checked_bigip = false;
+
         for block in blocks {
             let lang = block["language"].as_str().unwrap_or_default();
-            if !FULL_VOCAB.contains(&lang) {
+            let is_full_vocab = FULL_VOCAB.contains(&lang);
+            if !is_full_vocab && lang != "tcl-apl" {
                 continue;
             }
-            checked_blocks += 1;
             let mapped: std::collections::BTreeSet<&str> = block["scopes"]
                 .as_object()
                 .map(|m| m.keys().map(String::as_str).collect())
                 .unwrap_or_default();
 
-            for &tok in &legend {
-                if !STANDARD_LSP_TYPES.contains(&tok) && !mapped.contains(tok) {
-                    failures.push(format!(
-                        "language `{lang}` does not handle legend token `{tok}` \
-                         (add it to contributes.semanticTokenScopes in \
-                         editors/vscode/package.json)"
-                    ));
-                }
+            // `tcl-apl` owns the `apl*` types and nothing else needs them.
+            if lang == "tcl-apl" {
+                checked_apl = true;
+                require_mapped(lang, &apl_types, &mapped, &mut failures);
+                continue;
             }
+
+            checked_blocks += 1;
+            // `tcl-bigip` additionally owns the config-file types.
+            if lang == "tcl-bigip" {
+                checked_bigip = true;
+                require_mapped(lang, BIGIP_ONLY, &mapped, &mut failures);
+            }
+            let shared: Vec<&str> = legend
+                .iter()
+                .copied()
+                .filter(|t| {
+                    !STANDARD_LSP_TYPES.contains(t)
+                        && !apl_types.contains(t)
+                        && !BIGIP_ONLY.contains(t)
+                })
+                .collect();
+            require_mapped(lang, &shared, &mapped, &mut failures);
         }
 
         assert!(
             checked_blocks > 0,
             "found no tcl* semanticTokenScopes blocks to check"
         );
+        assert!(
+            checked_apl,
+            "found no `tcl-apl` semanticTokenScopes block to check the apl* types against"
+        );
+        assert!(
+            checked_bigip,
+            "found no `tcl-bigip` semanticTokenScopes block to check the BIG-IP types against"
+        );
+    }
+
+    /// The *narrow* dialects — the versioned Tcls, the EDA tools, Expect — must
+    /// map the **shared** custom vocabulary too.
+    ///
+    /// A `.exp` / EDA / `tcl8.4` document reaches exactly the same
+    /// regex / format / clock / binary / escape sub-tokenisers a plain `.tcl`
+    /// file does, so a type missing from *their* scope block renders unstyled
+    /// there while looking perfectly fine in `.tcl` — the failure mode this
+    /// whole test family exists to prevent, just one dialect over.
+    #[test]
+    fn vscode_semantic_token_scopes_cover_the_narrow_dialects() {
+        const FULL_VOCAB: &[&str] = &["tcl", "tcl-irule", "tcl-iapp", "tcl-bigip"];
+        const STANDARD_LSP_TYPES: &[&str] = &[
+            "namespace",
+            "type",
+            "class",
+            "enum",
+            "interface",
+            "struct",
+            "typeParameter",
+            "parameter",
+            "variable",
+            "property",
+            "enumMember",
+            "event",
+            "function",
+            "method",
+            "macro",
+            "keyword",
+            "modifier",
+            "comment",
+            "string",
+            "number",
+            "regexp",
+            "operator",
+            "decorator",
+        ];
+
+        // `object` names a BIG-IP object, which only iRules / iApps / BIG-IP
+        // config reach — a plain Tcl or EDA document never emits it.
+        let shared_custom: Vec<&str> = legend_token_types()
+            .into_iter()
+            .filter(|t| {
+                !STANDARD_LSP_TYPES.contains(t)
+                    && !t.starts_with("apl")
+                    && !BIGIP_ONLY.contains(t)
+                    && *t != "object"
+            })
+            .collect();
+        assert!(
+            !shared_custom.is_empty(),
+            "legend lost its shared vocabulary"
+        );
+
+        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let pkg = manifest.join("../../editors/vscode/package.json");
+        let text = std::fs::read_to_string(&pkg)
+            .unwrap_or_else(|e| panic!("reading {}: {e}", pkg.display()));
+        let json: serde_json::Value =
+            serde_json::from_str(&text).expect("package.json is valid JSON");
+        let blocks = json["contributes"]["semanticTokenScopes"]
+            .as_array()
+            .expect("contributes.semanticTokenScopes is an array");
+
+        let mut failures = Vec::new();
+        let mut checked = 0;
+        for block in blocks {
+            let lang = block["language"].as_str().unwrap_or_default();
+            if !lang.starts_with("tcl") || FULL_VOCAB.contains(&lang) || lang == "tcl-apl" {
+                continue;
+            }
+            checked += 1;
+            let mapped: std::collections::BTreeSet<&str> = block["scopes"]
+                .as_object()
+                .map(|m| m.keys().map(String::as_str).collect())
+                .unwrap_or_default();
+            require_mapped(lang, &shared_custom, &mapped, &mut failures);
+        }
+        assert!(
+            checked > 0,
+            "found no narrow tcl* semanticTokenScopes blocks (tcl8.4 / EDA / expect) to check"
+        );
+        assert!(
+            failures.is_empty(),
+            "narrow-dialect scope gaps:\n  {}",
+            failures.join("\n  ")
+        );
+
         assert!(
             failures.is_empty(),
             "semantic-token legend not fully handled:\n  {}",

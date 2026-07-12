@@ -633,6 +633,36 @@ mod tests {
         assert!(!is_sensitive_env("HOME"));
     }
 
+    /// Resolve a system tool to an absolute path via `PATH`, the way a shell
+    /// would.
+    ///
+    /// A [`Profile`]'s program must be absolute, because the sandbox clears the
+    /// child's environment — but *which* absolute path a tool lives at is not
+    /// portable. `true` is `/bin/true` on most Linux distros and
+    /// `/usr/bin/true` on macOS (which has no `/bin/true` at all), so a
+    /// hardcoded path passes on one and fails with a bare `NotFound` on the
+    /// other. `true`, `env` and `sleep` are on `PATH` on every distro we build
+    /// on and on macOS, so resolve them rather than guessing a location.
+    fn tool(name: &str) -> PathBuf {
+        std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
+            .map(|dir| dir.join(name))
+            .find(|p| is_executable_file(p))
+            .unwrap_or_else(|| {
+                panic!("`{name}` is not on PATH; the sandbox tests need it (coreutils)")
+            })
+    }
+
+    #[cfg(unix)]
+    fn is_executable_file(p: &std::path::Path) -> bool {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::metadata(p).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+    }
+
+    #[cfg(not(unix))]
+    fn is_executable_file(p: &std::path::Path) -> bool {
+        p.is_file()
+    }
+
     /// A fixed fake environment, so the scrubbing logic is exercised without
     /// mutating the real process environment.
     fn fake_env(name: &str) -> Option<String> {
@@ -650,7 +680,7 @@ mod tests {
             base_env_passthrough: vec!["TCL_SB_TEST_SAFE".into()],
             ..SandboxPolicy::default()
         };
-        let profile = Profile::new("t", "/bin/true", "/")
+        let profile = Profile::new("t", tool("true"), "/")
             .pass_env("TCL_SB_TEST_SAFE")
             .pass_env("TCL_SB_TEST_TOKEN")
             .set_env("HOME", "/tmp/throwaway");
@@ -679,7 +709,7 @@ mod tests {
             base_env_passthrough: vec![],
             ..SandboxPolicy::default()
         };
-        let profile = Profile::new("t", "/bin/true", "/").pass_env("TCL_SB_TEST_BLOCKME");
+        let profile = Profile::new("t", tool("true"), "/").pass_env("TCL_SB_TEST_BLOCKME");
         let env = effective_env_with(&profile, &policy, fake_env);
         assert!(!env.iter().any(|(k, _)| k == "TCL_SB_TEST_BLOCKME"));
     }
@@ -693,7 +723,7 @@ mod tests {
         };
         // Baseline cannot enforce network denial, so a default-deny profile must
         // be refused.
-        let profile = Profile::new("build", "/bin/true", "/").network(false);
+        let profile = Profile::new("build", tool("true"), "/").network(false);
         let err = run(&profile, &policy).unwrap_err();
         assert!(matches!(err, SandboxError::FailClosed(_)));
     }
@@ -709,7 +739,7 @@ mod tests {
         };
         // Even a profile that *requests* the network must be refused: the
         // operator floor forces it off, and off cannot be guaranteed here.
-        let profile = Profile::new("hook", "/bin/true", "/").network(true);
+        let profile = Profile::new("hook", tool("true"), "/").network(true);
         let err = run(&profile, &policy).unwrap_err();
         match err {
             SandboxError::FailClosed(m) => assert!(
@@ -728,7 +758,7 @@ mod tests {
             deny_network: true,
             ..SandboxPolicy::default()
         };
-        let profile = Profile::new("build", "/bin/true", "/").network(false);
+        let profile = Profile::new("build", tool("true"), "/").network(false);
         assert!(matches!(
             run(&profile, &policy).unwrap_err(),
             SandboxError::FailClosed(_)
@@ -741,7 +771,7 @@ mod tests {
         // The Outcome flag must reflect reality: the baseline never enforces
         // network denial, so a run that is *allowed* the network reports the
         // denial as not enforced (rather than the old misleading `true`).
-        let profile = Profile::new("t", "/bin/true", "/").network(true);
+        let profile = Profile::new("t", tool("true"), "/").network(true);
         let outcome = run(&profile, &SandboxPolicy::default()).unwrap();
         assert!(!outcome.network_enforced);
     }
@@ -749,14 +779,11 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn runs_and_captures_with_scrubbed_env() {
-        if !std::path::Path::new("/usr/bin/env").exists() {
-            return;
-        }
         // `cargo test` runs the test binary with CARGO_* vars in its environment.
         // They are not in the sandbox allow-list, so a scrubbed child must not
         // see them. Only assert when the parent actually has one.
         let leaked = std::env::var_os("CARGO_MANIFEST_DIR").is_some();
-        let profile = Profile::new("t", "/usr/bin/env", "/")
+        let profile = Profile::new("t", tool("env"), "/")
             .set_env("HOME", "/tmp/throwaway-home")
             .timeout(Some(Duration::from_secs(10)));
         let outcome = run(&profile, &SandboxPolicy::default()).unwrap();
@@ -774,7 +801,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn timeout_kills_runaway_child() {
-        let profile = Profile::new("t", "/bin/sleep", "/")
+        let profile = Profile::new("t", tool("sleep"), "/")
             .arg("30")
             .timeout(Some(Duration::from_millis(300)));
         let outcome = run(&profile, &SandboxPolicy::default()).unwrap();

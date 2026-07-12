@@ -31,6 +31,8 @@ authors.workspace = true
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-registry = { path = "../tcl-registry" }
+# The Tcl list grammar, for splitting a `switch`/`expect` clause list.
+tcl-syntax = { path = "../tcl-syntax" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

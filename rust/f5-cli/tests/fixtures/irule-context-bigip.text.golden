@@ -16,6 +16,34 @@ ltm rule /Common/route_by_host {
     }
 }
 
+# ===== referenced pool /Common/api_pool =====
+ltm pool /Common/api_pool {
+    members {
+        /Common/web2:8080 {
+            address 10.0.1.11
+        }
+        /Common/web3:8080 {
+            address 10.0.1.12
+        }
+    }
+    monitor /Common/my_http_monitor
+    load-balancing-mode least-connections-member
+}
+
+# ===== referenced pool /Common/web_pool =====
+ltm pool /Common/web_pool {
+    members {
+        /Common/web1:80 {
+            address 10.0.1.10
+        }
+        /Common/web2:80 {
+            address 10.0.1.11
+        }
+    }
+    monitor /Common/my_http_monitor
+    load-balancing-mode round-robin
+}
+
 # ===== referenced data-group /Common/allowed_hosts =====
 ltm data-group internal /Common/allowed_hosts {
     records {
@@ -24,6 +52,30 @@ ltm data-group internal /Common/allowed_hosts {
         admin.example.com { }
     }
     type string
+}
+
+# ===== referenced monitor /Common/my_http_monitor =====
+ltm monitor http /Common/my_http_monitor {
+    defaults-from /Common/http
+    interval 10
+    timeout 31
+    send "GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n"
+    recv "200 OK"
+}
+
+# ===== referenced node /Common/web2 =====
+ltm node /Common/web2 {
+    address 10.0.1.11
+}
+
+# ===== referenced node /Common/web3 =====
+ltm node /Common/web3 {
+    address 10.0.1.12
+}
+
+# ===== referenced node /Common/web1 =====
+ltm node /Common/web1 {
+    address 10.0.1.10
 }
 
 # ===== iRule /Common/ip_blocklist =====

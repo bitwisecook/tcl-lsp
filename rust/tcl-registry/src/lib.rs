@@ -95,7 +95,9 @@ pub mod prelude {
     pub use crate::body_kind::BodyKind;
     pub use crate::byte_array_effect::ByteArrayEffect;
     pub use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError};
-    pub use crate::definer::{DefinerFamily, DefinitionBodyGrammar, MemberKind, MemberSpec};
+    pub use crate::definer::{
+        DefinerFamily, DefinitionBodyGrammar, MemberKind, MemberRefKind, MemberSpec,
+    };
     pub use crate::dialects::DialectSet;
     pub use crate::events::EventRequires;
     pub use crate::forms::{CommandForm, SubCommandForm};
@@ -110,7 +112,7 @@ pub mod prelude {
     pub use crate::scoped::{ScopedCommand, ScopedCommandEnv};
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
     pub use crate::spec::{
-        BytePayloadSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSubCommand,
+        BytePayloadSpec, CaseListSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSubCommand,
     };
     pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
     pub use crate::taint::{SetterConstraint, TaintColour};
@@ -133,7 +135,9 @@ pub use dialects::{
 pub use hover::ArgValue;
 pub use patterns::{FormatType, PatternType};
 pub use registry::{CommandRegistry, ResolvedCall, ResolvedTerminator};
-pub use spec::{BytePayloadSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSubCommand};
+pub use spec::{
+    BytePayloadSpec, CaseListSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSubCommand,
+};
 pub use special_vars::{
     SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, VarAccess, VarOrigin,
     is_externally_read, is_special_var, special_var, special_var_in_dialect,

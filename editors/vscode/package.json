@@ -1177,7 +1177,7 @@
           "vlan": [
             "entity.name.type.vlan.bigip"
           ],
-          "interface": [
+          "bigipInterface": [
             "entity.name.type.interface.bigip"
           ],
           "regexpGroup": [
@@ -2062,7 +2062,7 @@
           "vlan:tcl-bigip": {
             "foreground": "#82aaff"
           },
-          "interface:tcl-bigip": {
+          "bigipInterface:tcl-bigip": {
             "foreground": "#ff9e64",
             "underline": true
           },

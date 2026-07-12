@@ -183,6 +183,7 @@ pub fn spec() -> CommandSpec {
         // pattern-list-or-first-pattern words are never mistaken for
         // options, even when dynamic/tainted and starting with `-`.
         reserved_trailing_words: 2,
+        case_list: Some(&CaseListSpec::SWITCH),
         ..CommandSpec::DEFAULT
     }
 }

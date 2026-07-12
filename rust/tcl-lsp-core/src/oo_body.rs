@@ -63,7 +63,7 @@
 //! than by fixed argument roles: `self …` (a nested member) and
 //! `property … -get/-set …` (flag-keyed bodies).
 
-use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind, MemberSpec};
+use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind, MemberRefKind, MemberSpec};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 /// The definition-body grammar for `command`'s body when it is an *outer*
@@ -183,6 +183,52 @@ pub fn member_param_indices(
     member_role_indices(grammar, command, args, ArgRole::ParamList)
 }
 
+/// Name-argument indices for a member call under `grammar` — the declared name
+/// of a `method foo {…} {…}` / `typemethod` / `property`.  A wrapper member
+/// (`self method …`, itcl `public method …`) nests, so the name is found
+/// through the inner member.
+///
+/// The grammar has always carried [`ArgRole::Name`]; the semantic-token walk
+/// simply never consumed it, so a member's declared name fell through to the
+/// default literal classification and painted as a plain `string` (#898 §2).
+#[must_use]
+pub fn member_name_indices(
+    grammar: &DefinitionBodyGrammar,
+    command: &str,
+    args: &[&str],
+) -> Vec<usize> {
+    member_role_indices(grammar, command, args, ArgRole::Name)
+}
+
+/// The entity kind a member's arguments *reference*, plus their indices, when
+/// the member is an unbounded reference list (`superclass A B` → classes,
+/// `export m n` → methods).  `None` for every other member.
+///
+/// A wrapper member (`self mixin M`) nests, so the lookup follows the inner
+/// member — the same way the role lookups do.
+#[must_use]
+pub fn member_ref_indices(
+    grammar: &DefinitionBodyGrammar,
+    command: &str,
+    args: &[&str],
+) -> Option<(MemberRefKind, Vec<usize>)> {
+    let member = grammar.member(command)?;
+    match member.kind {
+        MemberKind::Flat => {
+            let kind = member.all_args_ref?;
+            Some((kind, (0..args.len()).collect()))
+        }
+        // `self mixin M` / itcl `public method …` — resolve through the inner
+        // member and shift its indices past the wrapper word.
+        MemberKind::Wrapper => {
+            let inner = args.first()?;
+            let (kind, idx) = member_ref_indices(grammar, inner, args.get(1..)?)?;
+            Some((kind, idx.into_iter().map(|i| i + 1).collect()))
+        }
+        MemberKind::FlagKeyed => None,
+    }
+}
+
 /// Declared-variable argument indices for a member call under `grammar` — the
 /// names bound by `variable a b c` / `typevariable v` / `component c` /
 /// `onconfigure -opt valueVar …` / itcl `public variable x`.
@@ -213,13 +259,20 @@ fn member_role_indices(
     match member.kind {
         MemberKind::Flat => flat_member_indices(member, args, role),
         MemberKind::Wrapper => wrapper_member_indices(grammar, member, args, role),
-        MemberKind::FlagKeyed => {
-            if role == ArgRole::Body {
-                collect_property_body_indices(args)
-            } else {
-                Vec::new()
-            }
-        }
+        MemberKind::FlagKeyed => match role {
+            ArgRole::Body => collect_property_body_indices(args),
+            // `property NAME… ?-get script? ?-set script?` — every leading bare
+            // word before the first flag is a declared property name.  Without
+            // this the name fell through to the default literal classifier and
+            // painted as a plain string, unlike every other member's name.
+            ArgRole::Name => args
+                .iter()
+                .take_while(|a| !a.starts_with('-'))
+                .enumerate()
+                .map(|(i, _)| i)
+                .collect(),
+            _ => Vec::new(),
+        },
     }
 }
 

@@ -4220,6 +4220,7 @@ dependencies = [
  "tcl-compiler",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -4236,6 +4237,7 @@ dependencies = [
  "regex",
  "rustc-hash",
  "serde_json",
+ "tcl-bigip",
  "tcl-compiler",
  "tcl-irules",
  "tcl-lexer",

@@ -57,6 +57,20 @@ pub enum MemberKind {
     FlagKeyed,
 }
 
+/// What a member's arguments *refer* to, when they are an unbounded list of
+/// references rather than declarations (`superclass A B`, `export m n`).
+///
+/// Distinct from [`ArgRole`], which describes a declaring position: these
+/// arguments name an entity defined elsewhere, so a walker types them as a
+/// reference to that entity rather than as a definition of it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemberRefKind {
+    /// Each argument names a class (`superclass A B`, `mixin M`).
+    Class,
+    /// Each argument names a method (`export m`, `unexport m`, `filter f`).
+    Method,
+}
+
 /// One member sub-keyword of a definition body, with the argument roles a
 /// walker should apply to its call.  `arg_roles` indices are 0-based *after*
 /// the member keyword itself (`method NAME PARAMS BODY` →
@@ -70,6 +84,12 @@ pub struct MemberSpec {
     /// When set, *every* argument is a declared variable name (the unbounded
     /// `variable a b c` form).  Overrides `arg_roles` for name collection.
     pub all_args_var: bool,
+    /// When set, *every* argument is a **reference** to an entity of this kind
+    /// — `superclass A B` names classes, `export m n` names methods.  These
+    /// members declare nothing and recurse nothing, but their arguments are not
+    /// free strings either; without this they fell through to the default
+    /// literal classifier and every `superclass Base` painted as a plain string.
+    pub all_args_ref: Option<MemberRefKind>,
     /// The structural shape of the member's arguments (see [`MemberKind`]).
     pub kind: MemberKind,
     /// For a [`MemberKind::Wrapper`], whether the wrapper *also* accepts a bare
@@ -90,6 +110,21 @@ impl MemberSpec {
             keyword,
             arg_roles,
             all_args_var: false,
+            all_args_ref: None,
+            kind: MemberKind::Flat,
+            wrapper_block_body: false,
+        }
+    }
+
+    /// A member whose every argument references an entity of `kind`
+    /// (`superclass A B`, `export m`).
+    #[must_use]
+    const fn all_refs(keyword: &'static str, kind: MemberRefKind) -> Self {
+        Self {
+            keyword,
+            arg_roles: NO_ROLES,
+            all_args_var: false,
+            all_args_ref: Some(kind),
             kind: MemberKind::Flat,
             wrapper_block_body: false,
         }
@@ -102,6 +137,7 @@ impl MemberSpec {
             keyword,
             arg_roles: NO_ROLES,
             all_args_var: true,
+            all_args_ref: None,
             kind: MemberKind::Flat,
             wrapper_block_body: false,
         }
@@ -115,6 +151,7 @@ impl MemberSpec {
             keyword,
             arg_roles: NO_ROLES,
             all_args_var: false,
+            all_args_ref: None,
             kind: MemberKind::Flat,
             wrapper_block_body: false,
         }
@@ -129,6 +166,7 @@ impl MemberSpec {
             keyword,
             arg_roles: NO_ROLES,
             all_args_var: false,
+            all_args_ref: None,
             kind: MemberKind::Wrapper,
             wrapper_block_body: false,
         }
@@ -146,6 +184,7 @@ impl MemberSpec {
             keyword,
             arg_roles: BODY0_ROLES,
             all_args_var: false,
+            all_args_ref: None,
             kind: MemberKind::Wrapper,
             wrapper_block_body: true,
         }
@@ -158,6 +197,7 @@ impl MemberSpec {
             keyword,
             arg_roles: NO_ROLES,
             all_args_var: false,
+            all_args_ref: None,
             kind: MemberKind::FlagKeyed,
             wrapper_block_body: false,
         }
@@ -238,6 +278,8 @@ const METHOD_ROLES: &[(u8, ArgRole)] = &[
 const CTOR_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::ParamList), (1, ArgRole::Body)];
 /// A single trailing body (`destructor BODY`, `typeconstructor BODY`, …).
 const BODY0_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Body)];
+/// A single declared name and nothing else (`forward NAME cmd …`).
+const NAME0_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Name)];
 /// A single declared variable name (`typevariable v`, `component c`).
 const VAR0_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite)];
 /// A member keyword that carries no recursable body / parameter list /
@@ -257,16 +299,20 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
     MemberSpec::wrapper_or_body("private"),
     // `variable a b c` inside a class body declares every name.
     MemberSpec::all_vars("variable"),
-    // Name-reference-only members — recognised (so they read as keywords and a
-    // same-named proc is not) but carry nothing to recurse or declare.
-    MemberSpec::keyword_only("superclass"),
-    MemberSpec::keyword_only("mixin"),
-    MemberSpec::keyword_only("filter"),
-    MemberSpec::keyword_only("export"),
-    MemberSpec::keyword_only("unexport"),
-    MemberSpec::keyword_only("forward"),
-    MemberSpec::keyword_only("renamemethod"),
-    MemberSpec::keyword_only("deletemethod"),
+    // Reference-only members: they declare nothing and recurse nothing, but
+    // their arguments *name* an entity defined elsewhere — a class or a method
+    // — so they are references, not free strings.
+    MemberSpec::all_refs("superclass", MemberRefKind::Class),
+    MemberSpec::all_refs("mixin", MemberRefKind::Class),
+    MemberSpec::all_refs("filter", MemberRefKind::Method),
+    MemberSpec::all_refs("export", MemberRefKind::Method),
+    MemberSpec::all_refs("unexport", MemberRefKind::Method),
+    MemberSpec::all_refs("deletemethod", MemberRefKind::Method),
+    // `forward NAME cmd ?arg…?` declares NAME as a method; the forwarded
+    // command prefix that follows is ordinary code.
+    MemberSpec::flat("forward", NAME0_ROLES),
+    // `renamemethod FROM TO` — both name methods.
+    MemberSpec::all_refs("renamemethod", MemberRefKind::Method),
     MemberSpec::keyword_only("definitionnamespace"),
     // Structurally irregular — a nested-member wrapper (`self method …`) and a
     // flag-keyed body form (`property … -get/-set …`); their body indices come

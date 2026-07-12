@@ -3,10 +3,11 @@
 # Direction: both
 # Sources: file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf
 # Searches: 1 matched object(s)
-# Related: 5 object(s)
+# Related: 6 object(s)
 #   ltm_monitor_http: 1
 #   ltm_node: 2
 #   ltm_pool: 1
+#   ltm_rule: 1
 #   ltm_virtual: 2
 
 # Searches (matched by pattern):
@@ -16,5 +17,6 @@
   [ltm_monitor_http] /Common/my_http_monitor  (depth 1)
   [ltm_node] /Common/web1  (depth 1)
   [ltm_node] /Common/web2  (depth 1)
+  [ltm_rule] /Common/route_by_host  (depth 1)
   [ltm_virtual] /Common/ssl_only_vs  (depth 1)
   [ltm_virtual] /Common/www_vs  (depth 1)

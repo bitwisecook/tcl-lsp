@@ -1322,9 +1322,10 @@ fn test_foreach_loop_variables_are_variables() {
 }
 
 #[test]
-fn test_proc_and_lambda_parameters_are_variables() {
-    // Procedure / method / apply-lambda parameter names read as variable
-    // declarations, and `dict map` binds its loop variables (peer of dict for).
+fn test_proc_and_lambda_parameters_are_parameters() {
+    // Procedure / apply-lambda parameter names carry the standard LSP
+    // `parameter` type (#898 §4) — distinguishable from an ordinary local — while
+    // `dict map`'s loop variables stay plain variable declarations.
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
     let src = "proc greet {name age} { return $name }\n\
@@ -1332,15 +1333,21 @@ fn test_proc_and_lambda_parameters_are_variables() {
                dict map {mk mv} $d { set mk $mv }\n";
     let uri = open_doc(&mut lsp, src);
     let tokens = typed(&mut lsp, &lg, &uri);
-    let is_var = |word: &str| {
+    let has = |word: &str, ttype: &str| {
         tokens
             .iter()
-            .any(|t| covered(src, t) == word && t.ttype == "variable")
+            .any(|t| covered(src, t) == word && t.ttype == ttype)
     };
-    for name in ["name", "age", "alpha", "beta", "mk", "mv"] {
+    for name in ["name", "age", "alpha", "beta"] {
         assert!(
-            is_var(name),
-            "`{name}` must be a variable declaration: {tokens:?}"
+            has(name, "parameter"),
+            "`{name}` must be a parameter declaration: {tokens:?}"
+        );
+    }
+    for name in ["mk", "mv"] {
+        assert!(
+            has(name, "variable"),
+            "loop var `{name}` must stay a variable declaration: {tokens:?}"
         );
     }
 }
@@ -1384,13 +1391,34 @@ fn test_snit_type_body_members_highlight() {
                }\n";
     let uri = open_doc(&mut lsp, src);
     let tokens = typed(&mut lsp, &lg, &uri);
-    // `barks` (declaration) and `volume` (method param) are variables.
-    for name in ["barks", "volume"] {
+    // `barks` is a declared variable; `volume` is a method *parameter* and now
+    // carries the standard LSP `parameter` type (#898 §4).
+    assert!(
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == "barks" && t.ttype == "variable"),
+        "snit `barks` must be a variable: {tokens:?}",
+    );
+    assert!(
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == "volume" && t.ttype == "parameter"),
+        "snit `volume` must be a parameter: {tokens:?}",
+    );
+    // The type name and the member names are `class` / `method`, not strings
+    // (#898 §2).
+    assert!(
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == "Dog" && t.ttype == "class"),
+        "snit `Dog` must be a class: {tokens:?}",
+    );
+    for m in ["bark", "count"] {
         assert!(
             tokens
                 .iter()
-                .any(|t| covered(src, t) == name && t.ttype == "variable"),
-            "snit `{name}` must be a variable: {tokens:?}",
+                .any(|t| covered(src, t) == m && t.ttype == "method"),
+            "snit `{m}` must be a method: {tokens:?}",
         );
     }
     // `typemethod` is a member keyword; the method body's `return` is recursed.
@@ -1422,8 +1450,8 @@ fn test_itcl_class_body_members_highlight() {
                }\n";
     let uri = open_doc(&mut lsp, src);
     let tokens = typed(&mut lsp, &lg, &uri);
-    // Declarations + a method parameter are variables (incl. the wrapped ones).
-    for name in ["barks", "volume", "secret"] {
+    // Declared variables (incl. the access-modifier-wrapped ones) are variables.
+    for name in ["barks", "secret"] {
         assert!(
             tokens
                 .iter()
@@ -1431,6 +1459,28 @@ fn test_itcl_class_body_members_highlight() {
             "itcl `{name}` must be a variable: {tokens:?}",
         );
     }
+    // A method's *parameter* carries the standard LSP `parameter` type, so a
+    // theme can tell an argument from an ordinary local (#898 §4).
+    assert!(
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == "volume" && t.ttype == "parameter"),
+        "itcl `volume` must be a parameter: {tokens:?}",
+    );
+    // The class name is a `class`, not a bare string (#898 §2).
+    assert!(
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == "Dog" && t.ttype == "class"),
+        "itcl `Dog` must be a class: {tokens:?}",
+    );
+    // The method's declared name is a `method`, not a bare string (#898 §2).
+    assert!(
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == "bark" && t.ttype == "method"),
+        "itcl `bark` must be a method: {tokens:?}",
+    );
     // The access modifier and the inner wrapped keyword are both keywords.
     for kw in ["inherit", "public", "method", "private"] {
         assert!(
@@ -1446,5 +1496,488 @@ fn test_itcl_class_body_members_highlight() {
             .iter()
             .any(|t| covered(src, t) == "set" && t.ttype == "function"),
         "an itcl method body must be recursed: {tokens:?}",
+    );
+}
+
+/// APL (iApp presentation) is not Tcl: it must be tokenised by its own lexer,
+/// not run through the Tcl pipeline.
+///
+/// Regression for the 2.1.6 state, where a `.apl` document fell through to the
+/// Tcl tokenizer, which read each braced block as one literal word and emitted
+/// whole *lines* as `string` tokens — mis-colouring the file rather than merely
+/// under-colouring it.
+#[test]
+fn test_apl_presentation_uses_the_apl_token_set() {
+    let mut lsp = Lsp::tcl();
+    let leg = legend(&lsp);
+    let src = concat!(
+        "#include \"f5.apl_common\"\n",
+        "\n",
+        "# a comment\n",
+        "define choice yesno_choice {\n",
+        "    \"Yes\" => \"yes\"\n",
+        "}\n",
+        "\n",
+        "section basic {\n",
+        "    string addr required validator \"IpAddress\"\n",
+        "    message \"Welcome to the template.\"\n",
+        "}\n",
+    );
+    let uri = unique_uri("apl");
+    // Not `open_ready_lang`: an APL document is not indexed into workspace
+    // state, so its `workspace_state.update` log never arrives. Await the
+    // diagnostics publish instead — `semanticTokens/full` is ordered behind the
+    // `didOpen` that produced it.
+    lsp.open_document_lang(&uri, src, "tcl-apl", 1);
+    lsp.await_diagnostics_version(&uri, Some(1), std::time::Duration::from_secs(30));
+    let tokens = typed(&mut lsp, &leg, &uri);
+
+    let has = |text: &str, ttype: &str| {
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == text && t.ttype == ttype)
+    };
+
+    assert!(has("#include", "aplDirective"), "{tokens:?}");
+    assert!(has("define", "aplDefine"), "{tokens:?}");
+    assert!(has("choice", "aplFieldType"), "{tokens:?}");
+    assert!(has("yesno_choice", "aplDefineName"), "{tokens:?}");
+    assert!(has("section", "aplSection"), "{tokens:?}");
+    assert!(has("basic", "aplSectionName"), "{tokens:?}");
+    assert!(has("string", "aplFieldType"), "{tokens:?}");
+    assert!(has("addr", "aplFieldName"), "{tokens:?}");
+    assert!(has("required", "aplAttribute"), "{tokens:?}");
+    assert!(has("validator", "aplAttribute"), "{tokens:?}");
+    assert!(has("=>", "operator"), "{tokens:?}");
+    assert!(has("# a comment", "comment"), "{tokens:?}");
+
+    // The validator name is split out of its quotes rather than overlaid on
+    // the string, which is how the retired Python implementation did it.
+    assert!(has("IpAddress", "aplValidator"), "{tokens:?}");
+
+    // A quoted value after a field-type keyword is a string, never the field's
+    // name — the Python version's `\S+` name group swallowed the opening quote
+    // and emitted `"Welcome` as a field name overlapping the string.
+    assert!(
+        !tokens
+            .iter()
+            .any(|t| t.ttype == "aplFieldName" && covered(src, t).starts_with('"')),
+        "a quoted value must not be typed as a field name: {tokens:?}",
+    );
+
+    // No whole-line `string` dumps: the Tcl fallback emitted one per line.
+    assert!(
+        !tokens
+            .iter()
+            .any(|t| t.ttype == "string" && covered(src, t).trim_start().starts_with("string ")),
+        "APL must not be tokenised as Tcl literal words: {tokens:?}",
+    );
+
+    // The LSP spec forbids overlapping tokens. 1.11.4 emitted 110 overlapping
+    // pairs for `samples/apl/example.apl` by overlaying each specific type on a
+    // generic one; that must never come back.
+    let mut by_line: std::collections::BTreeMap<i64, Vec<&TypedToken>> =
+        std::collections::BTreeMap::new();
+    for t in &tokens {
+        by_line.entry(t.line).or_default().push(t);
+    }
+    for (line, mut ts) in by_line {
+        ts.sort_by_key(|t| (t.char, t.length));
+        for w in ts.windows(2) {
+            assert!(
+                w[0].char + w[0].length <= w[1].char,
+                "overlapping APL tokens on line {line}: {:?} then {:?}",
+                w[0],
+                w[1],
+            );
+        }
+    }
+}
+
+/// BIG-IP config (`bigip.conf`, `.scf`) is not Tcl: it must be tokenised by its
+/// own config lexer, not run through the Tcl pipeline.
+///
+/// Regression for the 2.1.6 state, where a `bigip.conf` fell through to the Tcl
+/// tokenizer, which read each stanza body as one literal braced word — 272 of
+/// the 302 tokens it produced for `samples/bigip/bigip.conf` were whole config
+/// *lines* emitted as `string`.
+#[test]
+fn test_bigip_conf_uses_the_bigip_token_set() {
+    let mut lsp = Lsp::tcl();
+    let leg = legend(&lsp);
+    let src = concat!(
+        "# a config comment\n",
+        "auth partition Common {\n",
+        "    description \"Default partition\"\n",
+        "}\n",
+        "auth user opsUser {\n",
+        "    shell tmsh\n",
+        "}\n",
+        "ltm node /Common/web1 {\n",
+        "    address 10.0.1.10\n",
+        "}\n",
+        "ltm pool /Common/web_pool {\n",
+        "    members {\n",
+        "        /Common/web1:80 {\n",
+        "        }\n",
+        "    }\n",
+        "    monitor /Common/http\n",
+        "}\n",
+    );
+    let uri = unique_uri("conf");
+    lsp.open_document_lang(&uri, src, "tcl-bigip", 1);
+    lsp.await_diagnostics_version(&uri, Some(1), std::time::Duration::from_secs(30));
+    let tokens = typed(&mut lsp, &leg, &uri);
+
+    let has = |text: &str, ttype: &str| {
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == text && t.ttype == ttype)
+    };
+
+    assert!(has("# a config comment", "comment"), "{tokens:?}");
+    assert!(has("ltm", "keyword"), "{tokens:?}");
+    assert!(has("pool", "keyword"), "{tokens:?}");
+    // A `/Common/x` path splits into its partition and its typed object name.
+    assert!(has("Common", "partition"), "{tokens:?}");
+    assert!(has("web_pool", "pool"), "{tokens:?}");
+    assert!(has("web1", "object"), "{tokens:?}");
+    assert!(has("http", "monitor"), "{tokens:?}");
+    assert!(has("10.0.1.10", "ipAddress"), "{tokens:?}");
+    assert!(has("80", "port"), "{tokens:?}");
+    assert!(has("opsUser", "username"), "{tokens:?}");
+    assert!(has("address", "property"), "{tokens:?}");
+
+    // `auth partition Common` names a partition directly, not via a path.
+    assert!(has("Common", "partition"), "{tokens:?}");
+
+    // No whole-line `string` dumps — the Tcl fallback emitted one per line.
+    assert!(
+        !tokens
+            .iter()
+            .any(|t| t.ttype == "string" && covered(src, t).trim_start().starts_with("members")),
+        "BIG-IP config must not be tokenised as Tcl literal words: {tokens:?}",
+    );
+
+    // The LSP spec forbids overlapping tokens. 1.11.4 produced 65 overlapping
+    // pairs for `bigip_base.conf` by overlaying each specific type on a generic
+    // one; that must never come back.
+    let mut by_line: std::collections::BTreeMap<i64, Vec<&TypedToken>> =
+        std::collections::BTreeMap::new();
+    for t in &tokens {
+        by_line.entry(t.line).or_default().push(t);
+    }
+    for (line, mut ts) in by_line {
+        ts.sort_by_key(|t| (t.char, t.length));
+        for w in ts.windows(2) {
+            assert!(
+                w[0].char + w[0].length <= w[1].char,
+                "overlapping BIG-IP tokens on line {line}: {:?} then {:?}",
+                w[0],
+                w[1],
+            );
+        }
+    }
+}
+
+/// Issue #898 — the semantic-token correctness audit against 1.11.4.
+///
+/// One test per section, so a regression names the section it broke.
+#[test]
+fn test_issue_898_semantic_token_corrections() {
+    let mut lsp = Lsp::tcl();
+    let leg = legend(&lsp);
+    let src = concat!(
+        // §1 — a literal word's closing delimiter must be covered.
+        "set greeting \"hello world\"\n",
+        "set braced {a b}\n",
+        "set bound 3\n",
+        "puts ${bound}\n",
+        "set esc \"with \\\"q\\\" in\"\n",
+        // §3 — an array ref with a *substituted* index is still a variable.
+        "set env($greeting) 1\n",
+        // §4 / §2 — parameters, method + class names.
+        "proc greet {name} { return $name }\n",
+        "oo::class create Shape {\n",
+        "    method area {} { return 0 }\n",
+        "}\n",
+        // §5 — a regex group's closer is a group, not a quantifier.
+        "regexp {^(foo)+$} $s\n",
+        // §6 — expr parens and ternary are operators.
+        "set r [expr {($a + $b) * ($c > 1 ? 1 : 2)}]\n",
+        // §7 — an empty body emits no stray `}` token.
+        "proc empty {args} {}\n",
+        // §8 — a quoted string containing `::` is a string, not a namespace.
+        "append cmd \"::scan x\"\n",
+    );
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &leg, &uri);
+    let has = |text: &str, ttype: &str| {
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == text && t.ttype == ttype)
+    };
+
+    // §1: both delimiters covered, for quotes, braces and `${…}` alike.
+    assert!(has("\"hello world\"", "string"), "§1 quotes: {tokens:?}");
+    assert!(has("{a b}", "string"), "§1 braces: {tokens:?}");
+    assert!(has("${bound}", "variable"), "§1 braced var: {tokens:?}");
+    // An escaped string keeps its delimiters too — that path drops *both*.
+    assert!(has("\"", "string"), "§1 escaped-string quotes: {tokens:?}");
+    assert!(has("\\\"", "escape"), "§1 escape: {tokens:?}");
+
+    // §3: the literal fragments of `env($greeting)` are the variable, not strings.
+    assert!(has("env(", "variable"), "§3 array name: {tokens:?}");
+    assert!(has(")", "variable"), "§3 array close: {tokens:?}");
+
+    // §4 / §2.
+    assert!(has("name", "parameter"), "§4 parameter: {tokens:?}");
+    assert!(has("Shape", "class"), "§2 class name: {tokens:?}");
+    assert!(has("area", "method"), "§2 method name: {tokens:?}");
+
+    // §5: `)` is a group delimiter, never a quantifier.
+    assert!(has(")", "regexpGroup"), "§5 regex close: {tokens:?}");
+    assert!(
+        !tokens
+            .iter()
+            .any(|t| covered(src, t) == ")" && t.ttype == "regexpQuantifier"),
+        "§5: a regex `)` must not be a quantifier: {tokens:?}",
+    );
+
+    // §6: grouping and ternary punctuation are operators.
+    for op in ["(", ")", "?", ":"] {
+        assert!(
+            has(op, "operator"),
+            "§6 `{op}` must be an operator: {tokens:?}"
+        );
+    }
+
+    // §7: the empty body `{}` must not emit a `}` as a command head.
+    assert!(
+        !tokens
+            .iter()
+            .any(|t| covered(src, t) == "}" && t.ttype == "function"),
+        "§7: an empty body must not emit `}}` as a function: {tokens:?}",
+    );
+
+    // §8: a `::`-bearing *quoted* word is a string literal, not a namespace.
+    assert!(
+        !tokens
+            .iter()
+            .any(|t| t.ttype == "namespace" && covered(src, t).starts_with('"')),
+        "§8: a quoted string must not be typed as a namespace: {tokens:?}",
+    );
+
+    // Nothing above may overlap — the LSP spec forbids it.
+    let mut by_line: std::collections::BTreeMap<i64, Vec<&TypedToken>> =
+        std::collections::BTreeMap::new();
+    for t in &tokens {
+        by_line.entry(t.line).or_default().push(t);
+    }
+    for (line, mut ts) in by_line {
+        ts.sort_by_key(|t| (t.char, t.length));
+        for w in ts.windows(2) {
+            assert!(
+                w[0].char + w[0].length <= w[1].char,
+                "overlapping tokens on line {line}: {:?} then {:?}",
+                w[0],
+                w[1],
+            );
+        }
+    }
+}
+
+/// Issue #898 §11 — `defaultLibrary` on a built-in reached through a namespace
+/// prefix, or through a `namespace import`ed bare alias.
+#[test]
+fn test_issue_898_default_library_modifier() {
+    let mut lsp = Lsp::tcl();
+    let leg = legend(&lsp);
+    let src = "namespace import msgcat::*\nmc \"hi\"\nputs [tcl::mathop::+ 1 2]\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &leg, &uri);
+    let dl = modifier_bit(&modifiers(&lsp), "defaultLibrary");
+
+    // An imported bare alias resolves to its qualified spec, so it is a built-in.
+    assert!(
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == "mc" && t.ttype == "function" && t.modifiers & dl != 0),
+        "an imported `msgcat::mc` alias must carry defaultLibrary: {tokens:?}",
+    );
+    // The namespace prefix of a built-in is part of that built-in's name.
+    assert!(
+        tokens.iter().any(|t| covered(src, t) == "tcl::mathop::"
+            && t.ttype == "namespace"
+            && t.modifiers & dl != 0),
+        "a built-in's namespace prefix must carry defaultLibrary: {tokens:?}",
+    );
+}
+
+/// `TclOO`, end to end: declarations, call sites, references, the one-liner
+/// definer form, and `property`.
+///
+/// A method is the same entity at its declaration and at its call site, and a
+/// `superclass` / `mixin` argument names a class rather than being a free
+/// string — the registry's definition-body grammar carries both facts, so no
+/// command name appears in the walker.
+#[test]
+fn test_tcloo_members_references_and_call_sites() {
+    let mut lsp = Lsp::tcl();
+    let leg = legend(&lsp);
+    let src = concat!(
+        "oo::class create Base {\n",
+        "    superclass Shape\n",
+        "    mixin Loggable\n",
+        "    variable count\n",
+        "    constructor {n} { set count $n }\n",
+        "    method bump {by} { my Recalc }\n",
+        "    method Recalc {} { return $count }\n",
+        "    forward len llength\n",
+        "    export bump\n",
+        "    unexport Recalc\n",
+        "}\n",
+        "oo::define Base method inline {z} { return $z }\n",
+        "set o [Base new 1]\n",
+        "$o bump 2\n",
+    );
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &leg, &uri);
+    let has = |text: &str, ttype: &str| {
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == text && t.ttype == ttype)
+    };
+
+    // Declarations.
+    assert!(has("Base", "class"), "class name: {tokens:?}");
+    assert!(has("bump", "method"), "method decl: {tokens:?}");
+    assert!(has("by", "parameter"), "method param: {tokens:?}");
+    assert!(has("n", "parameter"), "constructor param: {tokens:?}");
+    assert!(has("count", "variable"), "declared variable: {tokens:?}");
+
+    // References: a `superclass` / `mixin` argument names a *class*; an
+    // `export` / `unexport` argument names a *method*.
+    assert!(has("Shape", "class"), "superclass ref: {tokens:?}");
+    assert!(has("Loggable", "class"), "mixin ref: {tokens:?}");
+    assert!(has("Recalc", "method"), "unexport ref: {tokens:?}");
+    // `forward NAME cmd` declares NAME as a method.
+    assert!(has("len", "method"), "forward name: {tokens:?}");
+
+    // The one-liner definer form gets the same treatment as the body form —
+    // name, parameter and body — not just its keyword.
+    assert!(has("inline", "method"), "one-liner method name: {tokens:?}");
+    assert!(has("z", "parameter"), "one-liner method param: {tokens:?}");
+
+    // Call sites are the same entity as the declaration.
+    assert!(
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == "bump" && t.ttype == "method"),
+        "`$o bump` call site must be a method: {tokens:?}",
+    );
+    assert!(
+        !tokens
+            .iter()
+            .any(|t| covered(src, t) == "Recalc" && t.ttype == "function"),
+        "`my Recalc` must be a method, not a function: {tokens:?}",
+    );
+}
+
+/// Tcl's backslash escapes are not uniformly two characters: `\xhh` takes up to
+/// two hex digits, `\uhhhh` four, `\Uhhhhhhhh` eight, and `\ooo` up to three
+/// octal digits.  Treating every escape as `\` + one char split `\x41` into an
+/// `escape` of `\x` and a `string` of `41`.
+#[test]
+fn test_backslash_escape_widths() {
+    let mut lsp = Lsp::tcl();
+    let leg = legend(&lsp);
+    let src = "set x \"a\\x41b\\u00e9c\\U0001F600d\\101e\\ng\"\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &leg, &uri);
+    for esc in ["\\x41", "\\u00e9", "\\U0001F600", "\\101", "\\n"] {
+        assert!(
+            tokens
+                .iter()
+                .any(|t| covered(src, t) == esc && t.ttype == "escape"),
+            "`{esc}` must be one escape token: {tokens:?}",
+        );
+    }
+    // The digits belong to the escape, so no stray string token starts with one.
+    for stray in ["41", "00e9", "0001F600", "01"] {
+        assert!(
+            !tokens
+                .iter()
+                .any(|t| covered(src, t) == stray && t.ttype == "string"),
+            "`{stray}` must be part of its escape, not a string: {tokens:?}",
+        );
+    }
+}
+
+/// Expect's `expect { ?-flags? pat body … }` is the same clause-list construct
+/// as `switch`, and is described by the same registry data
+/// (`CommandSpec::case_list`).
+///
+/// Regression for the walker's old `if seg.texts[0] != "switch"` hardcode: with
+/// it, Expect's clause bodies were never recursed and an entire `expect {…}`
+/// block — the central construct of every Expect script — rendered as flat
+/// per-line `string` tokens.
+#[test]
+fn test_expect_clause_list_patterns_and_bodies() {
+    let mut lsp = Lsp::tcl();
+    let leg = legend(&lsp);
+    let src = concat!(
+        "spawn ssh host\n",
+        "expect {\n",
+        "    \"password:\" { send \"pw\\r\" }\n",
+        "    -re {ye+s} { send \"yes\\r\" }\n",
+        "    timeout { puts slow }\n",
+        "    eof { puts done }\n",
+        "}\n",
+        "set timeout 30\n",
+    );
+    let uri = unique_uri("exp");
+    lsp.open_document_lang(&uri, src, "tcl-expect", 1);
+    lsp.await_diagnostics_version(&uri, Some(1), std::time::Duration::from_secs(30));
+    let tokens = typed(&mut lsp, &leg, &uri);
+    let has = |text: &str, ttype: &str| {
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == text && t.ttype == ttype)
+    };
+
+    // Clause bodies are recursed as scripts, not left opaque.
+    assert!(
+        has("send", "function"),
+        "clause body must recurse: {tokens:?}"
+    );
+    assert!(
+        has("puts", "function"),
+        "clause body must recurse: {tokens:?}"
+    );
+    // `timeout` / `eof` match no text — they are keywords.
+    assert!(has("timeout", "keyword"), "{tokens:?}");
+    assert!(has("eof", "keyword"), "{tokens:?}");
+    // A `-re` clause flag is a decorator and puts its pattern in regex mode.
+    assert!(has("-re", "decorator"), "{tokens:?}");
+    assert!(
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == "+" && t.ttype == "regexpQuantifier"),
+        "an `-re` pattern must sub-tokenise as a regex: {tokens:?}",
+    );
+    // No whole-line `string` dumps.
+    assert!(
+        !tokens
+            .iter()
+            .any(|t| t.ttype == "string" && covered(src, t).trim_start().starts_with("timeout {")),
+        "an expect block must not be tokenised as one literal: {tokens:?}",
+    );
+    // Context still matters: `timeout` as a *variable* name is a variable.
+    assert!(
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == "timeout" && t.ttype == "variable" && t.line == 7),
+        "`set timeout 30` must bind a variable, not a keyword: {tokens:?}",
     );
 }

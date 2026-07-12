@@ -13,6 +13,8 @@ test://config:79:26:ltm:pool:/Common/api_pool	test://config:58:41:ltm:monitor ht
 test://config:92:28:ltm:pool:/Common/empty_pool	test://config:58:41:ltm:monitor http:/Common/my_http_monitor	monitor	ltm_monitor_http
 test://config:92:28:ltm:pool:/Common/empty_pool	test://config:58:41:ltm:monitor http:/Common/my_http_monitor	monitor[]	ltm_monitor_http
 test://config:137:31:ltm:rule:/Common/route_by_host	test://config:3:46:ltm:data-group internal:/Common/allowed_hosts	irule:class	ltm_data_group_internal
+test://config:137:31:ltm:rule:/Common/route_by_host	test://config:79:26:ltm:pool:/Common/api_pool	irule:pool	ltm_pool
+test://config:137:31:ltm:rule:/Common/route_by_host	test://config:66:26:ltm:pool:/Common/web_pool	irule:pool	ltm_pool
 test://config:154:30:ltm:rule:/Common/ip_blocklist	test://config:12:44:ltm:data-group internal:/Common/blocked_ips	irule:class	ltm_data_group_internal
 test://config:162:29:ltm:rule:/Common/uri_rewrite	test://config:27:49:ltm:data-group internal:/Common/uri_redirect_map	irule:class	ltm_data_group_internal
 test://config:190:27:ltm:virtual:/Common/www_vs	test://config:66:26:ltm:pool:/Common/web_pool	pool	ltm_pool

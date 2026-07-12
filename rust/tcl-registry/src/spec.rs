@@ -153,6 +153,59 @@ impl ObjectClassSpec {
 /// Fields use `&'static` references where possible — command specs are
 /// compile-time constants that live in the binary's `.rodata` section.
 /// Use `..CommandSpec::DEFAULT` to fill unset fields with sensible
+/// The shape of a `{pattern body …}` clause list (see
+/// [`CommandSpec::case_list`]).
+///
+/// `switch` and Expect's `expect` are the same construct with different
+/// spellings: `switch` decides regex-ness once for the whole list (`-regexp`)
+/// and takes a subject argument; `expect` decides it per clause (`-re`) and has
+/// no subject.  Both have patterns that are keywords rather than match text.
+#[derive(Debug, Clone, Copy)]
+pub struct CaseListSpec {
+    /// Non-option words between the command's options and the clause list —
+    /// `switch`'s subject string is 1; `expect` has none.
+    pub subject_args: u8,
+    /// A *command* option that makes every pattern a regex (`switch -regexp`).
+    pub regex_option: Option<&'static str>,
+    /// Command options that consume a following value word (`switch -matchvar
+    /// var`), so the value is not mistaken for the subject.
+    pub value_options: &'static [&'static str],
+    /// Flags that may precede a pattern *inside* the list (Expect's `-re`,
+    /// `-gl`, `-ex`, `-nocase`, `-timeout`).  Empty means no clause flags.
+    pub clause_flags: &'static [&'static str],
+    /// The clause flag that makes its pattern a regex (Expect's `-re`).
+    pub clause_regex_flag: Option<&'static str>,
+    /// Clause flags that consume a following value word (`-timeout 5`).
+    pub clause_value_flags: &'static [&'static str],
+    /// Patterns that are keywords, not match text (`default`; Expect's
+    /// `timeout` / `eof` / `full_buffer`).
+    pub keyword_patterns: &'static [&'static str],
+}
+
+impl CaseListSpec {
+    /// The `switch … { pat body … }` shape.
+    pub const SWITCH: Self = Self {
+        subject_args: 1,
+        regex_option: Some("-regexp"),
+        value_options: &["-matchvar", "-indexvar"],
+        clause_flags: &[],
+        clause_regex_flag: None,
+        clause_value_flags: &[],
+        keyword_patterns: &["default"],
+    };
+
+    /// The Expect `expect { ?-flags? pat body … }` shape.
+    pub const EXPECT: Self = Self {
+        subject_args: 0,
+        regex_option: None,
+        value_options: &[],
+        clause_flags: &["-re", "-gl", "-ex", "-nocase", "-timeout", "-i", "--"],
+        clause_regex_flag: Some("-re"),
+        clause_value_flags: &["-timeout", "-i"],
+        keyword_patterns: &["timeout", "eof", "default", "full_buffer"],
+    };
+}
+
 /// defaults.
 #[derive(Debug, Clone)]
 // The remaining plain-bool fields are orthogonal config flags on a
@@ -499,6 +552,18 @@ pub struct CommandSpec {
     /// `match cmd_name` logic in the compiler / analyser / LSP.
     pub definition_body: Option<&'static crate::definer::DefinitionBodyGrammar>,
 
+    /// The `{pattern body pattern body …}` clause list this command takes as its
+    /// final braced word — `switch … { pat body … }` and Expect's
+    /// `expect { pat body … }`.
+    ///
+    /// A clause list is *not* a script: its bodies must be recursed and its
+    /// patterns classified, or the whole block collapses into one opaque
+    /// literal.  Describing the shape here (rather than matching the command
+    /// name in the LSP) is what lets Expect's `expect` / `expect_before` / …
+    /// share the walker `switch` already uses — and is why the walker names no
+    /// command.
+    pub case_list: Option<&'static CaseListSpec>,
+
     /// Object-class metadata — `Some` when this command is a `TclOO` /
     /// megawidget class factory whose `new` / `create` returns an object handle
     /// dispatched as `$obj <method> …`.  See [`ObjectClassSpec`].
@@ -602,6 +667,7 @@ impl CommandSpec {
         byte_array_payload: None,
         byte_array_effect: crate::byte_array_effect::ByteArrayEffect::None,
         definition_body: None,
+        case_list: None,
         object_class: None,
         defines_symbol: None,
         body_scope: None,

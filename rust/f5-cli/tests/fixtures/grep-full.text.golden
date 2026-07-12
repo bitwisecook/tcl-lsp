@@ -58,6 +58,25 @@
         address 10.0.1.11
     }
 
+  [ltm_rule] /Common/route_by_host  (depth 1)
+    ltm rule /Common/route_by_host {
+
+        when HTTP_REQUEST {
+            if { [class match [HTTP::host] equals allowed_hosts] } {
+                switch -glob [HTTP::uri] {
+                    "/api/*" {
+                        pool /Common/api_pool
+                    }
+                    default {
+                        pool /Common/web_pool
+                    }
+                }
+            } else {
+                reject
+            }
+        }
+    }
+
   [ltm_virtual] /Common/ssl_only_vs  (depth 1)
     ltm virtual /Common/ssl_only_vs {
 
@@ -107,6 +126,17 @@
             type snat
             pool /Common/my_snatpool
         }
+    }
+
+  [ltm_data_group_internal] /Common/allowed_hosts  (depth 2)
+    ltm data-group internal /Common/allowed_hosts {
+
+        records {
+            www.example.com { }
+            api.example.com { }
+            admin.example.com { }
+        }
+        type string
     }
 
   [ltm_persistence_cookie] /Common/my_cookie_persist  (depth 2)
@@ -181,25 +211,6 @@
         }
     }
 
-  [ltm_rule] /Common/route_by_host  (depth 2)
-    ltm rule /Common/route_by_host {
-
-        when HTTP_REQUEST {
-            if { [class match [HTTP::host] equals allowed_hosts] } {
-                switch -glob [HTTP::uri] {
-                    "/api/*" {
-                        pool /Common/api_pool
-                    }
-                    default {
-                        pool /Common/web_pool
-                    }
-                }
-            } else {
-                reject
-            }
-        }
-    }
-
   [ltm_rule] /Common/ssl_info  (depth 2)
     ltm rule /Common/ssl_info {
 
@@ -228,15 +239,19 @@
         }
     }
 
-  [ltm_data_group_internal] /Common/allowed_hosts  (depth 3)
-    ltm data-group internal /Common/allowed_hosts {
+  [ltm_virtual] /Common/api_vs  (depth 2)
+    ltm virtual /Common/api_vs {
 
-        records {
-            www.example.com { }
-            api.example.com { }
-            admin.example.com { }
+        destination /Common/10.0.0.2:443
+        pool /Common/api_pool
+        profiles {
+            /Common/my_http_profile { }
+            /Common/my_tcp_profile { }
+            /Common/my_clientssl { }
         }
-        type string
+        rules {
+            /Common/route_by_host
+        }
     }
 
   [ltm_data_group_internal] /Common/blocked_ips  (depth 3)
@@ -274,21 +289,6 @@
     ltm node /Common/web3 {
 
         address 10.0.1.12
-    }
-
-  [ltm_virtual] /Common/api_vs  (depth 3)
-    ltm virtual /Common/api_vs {
-
-        destination /Common/10.0.0.2:443
-        pool /Common/api_pool
-        profiles {
-            /Common/my_http_profile { }
-            /Common/my_tcp_profile { }
-            /Common/my_clientssl { }
-        }
-        rules {
-            /Common/route_by_host
-        }
     }
 
   [ltm_virtual] /Common/bad_vs  (depth 3)

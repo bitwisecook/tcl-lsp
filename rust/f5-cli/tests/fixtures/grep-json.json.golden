@@ -92,6 +92,27 @@
       }
     },
     {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:137:31:ltm:rule:/Common/route_by_host",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "rule",
+      "fullPath": "/Common/route_by_host",
+      "kind": "ltm_rule",
+      "header": "ltm rule /Common/route_by_host",
+      "depth": 1,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 137,
+          "character": 31
+        },
+        "end": {
+          "line": 152,
+          "character": 1
+        }
+      }
+    },
+    {
       "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:237:32:ltm:virtual:/Common/ssl_only_vs",
       "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
       "module": "ltm",
@@ -129,6 +150,27 @@
         },
         "end": {
           "line": 222,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:3:46:ltm:data-group internal:/Common/allowed_hosts",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "data-group internal",
+      "fullPath": "/Common/allowed_hosts",
+      "kind": "ltm_data_group_internal",
+      "header": "ltm data-group internal /Common/allowed_hosts",
+      "depth": 2,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 3,
+          "character": 46
+        },
+        "end": {
+          "line": 10,
           "character": 1
         }
       }
@@ -323,27 +365,6 @@
       }
     },
     {
-      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:137:31:ltm:rule:/Common/route_by_host",
-      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
-      "module": "ltm",
-      "objectType": "rule",
-      "fullPath": "/Common/route_by_host",
-      "kind": "ltm_rule",
-      "header": "ltm rule /Common/route_by_host",
-      "depth": 2,
-      "isSearch": false,
-      "range": {
-        "start": {
-          "line": 137,
-          "character": 31
-        },
-        "end": {
-          "line": 152,
-          "character": 1
-        }
-      }
-    },
-    {
       "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:171:26:ltm:rule:/Common/ssl_info",
       "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
       "module": "ltm",
@@ -407,22 +428,22 @@
       }
     },
     {
-      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:3:46:ltm:data-group internal:/Common/allowed_hosts",
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:224:27:ltm:virtual:/Common/api_vs",
       "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
       "module": "ltm",
-      "objectType": "data-group internal",
-      "fullPath": "/Common/allowed_hosts",
-      "kind": "ltm_data_group_internal",
-      "header": "ltm data-group internal /Common/allowed_hosts",
-      "depth": 3,
+      "objectType": "virtual",
+      "fullPath": "/Common/api_vs",
+      "kind": "ltm_virtual",
+      "header": "ltm virtual /Common/api_vs",
+      "depth": 2,
       "isSearch": false,
       "range": {
         "start": {
-          "line": 3,
-          "character": 46
+          "line": 224,
+          "character": 27
         },
         "end": {
-          "line": 10,
+          "line": 235,
           "character": 1
         }
       }
@@ -486,27 +507,6 @@
         },
         "end": {
           "line": 56,
-          "character": 1
-        }
-      }
-    },
-    {
-      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:224:27:ltm:virtual:/Common/api_vs",
-      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
-      "module": "ltm",
-      "objectType": "virtual",
-      "fullPath": "/Common/api_vs",
-      "kind": "ltm_virtual",
-      "header": "ltm virtual /Common/api_vs",
-      "depth": 3,
-      "isSearch": false,
-      "range": {
-        "start": {
-          "line": 224,
-          "character": 27
-        },
-        "end": {
-          "line": 235,
           "character": 1
         }
       }
@@ -644,6 +644,18 @@
       "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:3:46:ltm:data-group internal:/Common/allowed_hosts",
       "viaProperty": "irule:class",
       "viaKind": "ltm_data_group_internal"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:137:31:ltm:rule:/Common/route_by_host",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:79:26:ltm:pool:/Common/api_pool",
+      "viaProperty": "irule:pool",
+      "viaKind": "ltm_pool"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:137:31:ltm:rule:/Common/route_by_host",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:66:26:ltm:pool:/Common/web_pool",
+      "viaProperty": "irule:pool",
+      "viaKind": "ltm_pool"
     },
     {
       "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:154:30:ltm:rule:/Common/ip_blocklist",
@@ -926,16 +938,16 @@
     "ltm_pool": 3,
     "ltm_monitor_http": 1,
     "ltm_node": 3,
+    "ltm_rule": 5,
     "ltm_virtual": 4,
+    "ltm_data_group_internal": 3,
     "ltm_persistence_cookie": 1,
     "ltm_profile_client_ssl": 1,
     "ltm_profile_http": 1,
     "ltm_profile_one_connect": 1,
     "ltm_profile_server_ssl": 1,
     "ltm_profile_tcp": 1,
-    "ltm_rule": 5,
-    "ltm_snatpool": 1,
-    "ltm_data_group_internal": 3
+    "ltm_snatpool": 1
   },
-  "textReport": "# tcl-lsp BIG-IP grep\n# Pattern: web_pool\n# Direction: both\n# Sources: file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf\n# Searches: 1 matched object(s)\n# Related: 25 object(s)\n#   ltm_data_group_internal: 3\n#   ltm_monitor_http: 1\n#   ltm_node: 3\n#   ltm_persistence_cookie: 1\n#   ltm_pool: 3\n#   ltm_profile_client_ssl: 1\n#   ltm_profile_http: 1\n#   ltm_profile_one_connect: 1\n#   ltm_profile_server_ssl: 1\n#   ltm_profile_tcp: 1\n#   ltm_rule: 5\n#   ltm_snatpool: 1\n#   ltm_virtual: 4\n\n# Searches (matched by pattern):\n* [ltm_pool] /Common/web_pool  (depth 0)\n\n# Related objects (reachable through reference edges):\n  [ltm_monitor_http] /Common/my_http_monitor  (depth 1)\n  [ltm_node] /Common/web1  (depth 1)\n  [ltm_node] /Common/web2  (depth 1)\n  [ltm_virtual] /Common/ssl_only_vs  (depth 1)\n  [ltm_virtual] /Common/www_vs  (depth 1)\n  [ltm_persistence_cookie] /Common/my_cookie_persist  (depth 2)\n  [ltm_pool] /Common/api_pool  (depth 2)\n  [ltm_pool] /Common/empty_pool  (depth 2)\n  [ltm_profile_client_ssl] /Common/my_clientssl  (depth 2)\n  [ltm_profile_http] /Common/my_http_profile  (depth 2)\n  [ltm_profile_one_connect] /Common/my_oneconnect  (depth 2)\n  [ltm_profile_server_ssl] /Common/my_serverssl  (depth 2)\n  [ltm_profile_tcp] /Common/my_tcp_profile  (depth 2)\n  [ltm_rule] /Common/ip_blocklist  (depth 2)\n  [ltm_rule] /Common/route_by_host  (depth 2)\n  [ltm_rule] /Common/ssl_info  (depth 2)\n  [ltm_rule] /Common/uri_rewrite  (depth 2)\n  [ltm_snatpool] /Common/my_snatpool  (depth 2)\n  [ltm_data_group_internal] /Common/allowed_hosts  (depth 3)\n  [ltm_data_group_internal] /Common/blocked_ips  (depth 3)\n  [ltm_data_group_internal] /Common/uri_redirect_map  (depth 3)\n  [ltm_node] /Common/web3  (depth 3)\n  [ltm_virtual] /Common/api_vs  (depth 3)\n  [ltm_virtual] /Common/bad_vs  (depth 3)\n  [ltm_rule] /Common/bad_references  (depth 4)\n"
+  "textReport": "# tcl-lsp BIG-IP grep\n# Pattern: web_pool\n# Direction: both\n# Sources: file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf\n# Searches: 1 matched object(s)\n# Related: 25 object(s)\n#   ltm_data_group_internal: 3\n#   ltm_monitor_http: 1\n#   ltm_node: 3\n#   ltm_persistence_cookie: 1\n#   ltm_pool: 3\n#   ltm_profile_client_ssl: 1\n#   ltm_profile_http: 1\n#   ltm_profile_one_connect: 1\n#   ltm_profile_server_ssl: 1\n#   ltm_profile_tcp: 1\n#   ltm_rule: 5\n#   ltm_snatpool: 1\n#   ltm_virtual: 4\n\n# Searches (matched by pattern):\n* [ltm_pool] /Common/web_pool  (depth 0)\n\n# Related objects (reachable through reference edges):\n  [ltm_monitor_http] /Common/my_http_monitor  (depth 1)\n  [ltm_node] /Common/web1  (depth 1)\n  [ltm_node] /Common/web2  (depth 1)\n  [ltm_rule] /Common/route_by_host  (depth 1)\n  [ltm_virtual] /Common/ssl_only_vs  (depth 1)\n  [ltm_virtual] /Common/www_vs  (depth 1)\n  [ltm_data_group_internal] /Common/allowed_hosts  (depth 2)\n  [ltm_persistence_cookie] /Common/my_cookie_persist  (depth 2)\n  [ltm_pool] /Common/api_pool  (depth 2)\n  [ltm_pool] /Common/empty_pool  (depth 2)\n  [ltm_profile_client_ssl] /Common/my_clientssl  (depth 2)\n  [ltm_profile_http] /Common/my_http_profile  (depth 2)\n  [ltm_profile_one_connect] /Common/my_oneconnect  (depth 2)\n  [ltm_profile_server_ssl] /Common/my_serverssl  (depth 2)\n  [ltm_profile_tcp] /Common/my_tcp_profile  (depth 2)\n  [ltm_rule] /Common/ip_blocklist  (depth 2)\n  [ltm_rule] /Common/ssl_info  (depth 2)\n  [ltm_rule] /Common/uri_rewrite  (depth 2)\n  [ltm_snatpool] /Common/my_snatpool  (depth 2)\n  [ltm_virtual] /Common/api_vs  (depth 2)\n  [ltm_data_group_internal] /Common/blocked_ips  (depth 3)\n  [ltm_data_group_internal] /Common/uri_redirect_map  (depth 3)\n  [ltm_node] /Common/web3  (depth 3)\n  [ltm_virtual] /Common/bad_vs  (depth 3)\n  [ltm_rule] /Common/bad_references  (depth 4)\n"
 }

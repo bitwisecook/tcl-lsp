@@ -334,9 +334,10 @@ fn st_switch_regexp_case_list_subtokenises_patterns_and_recurses_bodies() {
 
 #[test]
 fn st_switch_regexp_default_keyword_is_not_a_regex() {
-    // The literal `default` pattern word is classified by `classify_arg_token`
-    // (a bareword → `string`), NOT sub-tokenised as a regex — the `text ==
-    // "default"` arm of the case-list walk.
+    // `default` matches no text — it is the fall-through arm, so it is a
+    // `keyword`, never sub-tokenised as a regex.  The clause-list walk takes it
+    // from the registry's `CaseListSpec::keyword_patterns`, the same mechanism
+    // that makes Expect's `timeout` / `eof` / `full_buffer` keywords.
     let src = "switch -regexp $x {\n  {^z} {puts 1}\n  default {puts 2}\n}\n";
     let toks = decode(src, "tcl8.6");
     let default_tok = toks
@@ -344,8 +345,8 @@ fn st_switch_regexp_default_keyword_is_not_a_regex() {
         .find(|t| t.line == 2 && t.character == 2 && t.length == 7)
         .expect("the `default` word token");
     assert_eq!(
-        default_tok.ttype, "string",
-        "`default` is a string keyword word; got {toks:?}"
+        default_tok.ttype, "keyword",
+        "`default` is the fall-through keyword; got {toks:?}"
     );
 }
 
