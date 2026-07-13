@@ -308,6 +308,28 @@
       devices.forEach(function (d) { d.classList.toggle("active", d === activeDevice); });
     });
 
+    // Open the expandable rows for real, rather than only revealing their
+    // `tr.detail` with CSS at mark time.
+    //
+    // Each iRule's control-flow diagram is drawn lazily by irule-flow.ts, off the
+    // row's *click* handler. Revealing the detail row with `.print-include` never
+    // fires that handler, so the diagram never drew and every iRule printed with an
+    // empty bordered box above its code. Worse, whenDrawn() then sat waiting the
+    // full 8s for `<svg>`s that could never appear — so this also cost most of the
+    // delay before the print dialog opened.
+    //
+    // Clicking is a toggle, so only open rows that are closed, and close them again
+    // on restore.
+    deviceEls.forEach(function (dev) {
+      dev.querySelectorAll(".panel tr.expandable").forEach(function (row) {
+        if (row.classList.contains("open")) return;
+        row.click();
+        remember(function () {
+          if (row.classList.contains("open")) row.click();
+        });
+      });
+    });
+
     // `.catch` before `.then`: if the wasm engine fails (or is absent), still
     // print — just without formatting/diagnostics. Otherwise a rejected promise
     // would leave the toast spinning forever with no print dialog behind it.

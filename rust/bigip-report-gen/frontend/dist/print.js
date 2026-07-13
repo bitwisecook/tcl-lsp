@@ -222,6 +222,15 @@
           d.classList.toggle("active", d === activeDevice);
         });
       });
+      deviceEls.forEach(function(dev) {
+        dev.querySelectorAll(".panel tr.expandable").forEach(function(row) {
+          if (row.classList.contains("open")) return;
+          row.click();
+          remember(function() {
+            if (row.classList.contains("open")) row.click();
+          });
+        });
+      });
       applyIruleOptions(deviceEls, doFmt, doDiag).catch(function() {
       }).then(function() {
         toast("Rendering diagrams\u2026");
