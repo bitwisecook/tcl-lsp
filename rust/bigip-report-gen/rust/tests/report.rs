@@ -217,6 +217,24 @@ fn build_report_html_self_contained() {
     assert!(!html.contains("<link "), "no external stylesheet links");
     // The wasm console + embedded config are present.
     assert!(html.contains("id=\"f5-wasm\""), "wasm blob embedded");
+    // …and the blob must still be *decodable*. The template autoescapes by
+    // default, which rewrites every `/` in the base64 as `&#x2f;`; `atob()` then
+    // throws on load and the console, the iRule Format button and
+    // print-with-diagnostics all die silently. Assert the payload is base64.
+    let payload = html
+        .split_once("id=\"f5-wasm\" type=\"application/octet-stream\">")
+        .expect("wasm script tag")
+        .1
+        .split_once("</script>")
+        .expect("closing tag")
+        .0;
+    assert!(
+        !payload.is_empty()
+            && payload
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'=')),
+        "wasm payload must be raw base64 — no HTML-escaped characters"
+    );
     assert!(html.contains("data-panel=\"console\""), "console panel");
     assert!(html.contains("wasm_bindgen"), "wasm glue");
     assert!(

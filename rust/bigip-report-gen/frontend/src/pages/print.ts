@@ -46,6 +46,11 @@
     var name = (t && t.textContent.trim()) || dev.getAttribute("data-name") || "";
     return name || "Device " + (i + 1);
   }
+  // Interactive tools rather than report content: the query console prints as an
+  // empty prompt and the listener matcher as an empty form. Neither is offered
+  // in the dialog, and print.css hides them for the raw Ctrl-P path too.
+  var TOOLS = { console: true, listener: true };
+
   // Union of sections (data-panel) across all devices, first-seen order, with a
   // human label taken from the tab text (minus its count badge).
   var sections = [];
@@ -53,7 +58,7 @@
   devices.forEach(function (dev) {
     dev.querySelectorAll(".tabs .tab[data-panel]").forEach(function (tab) {
       var key = tab.dataset.panel;
-      if (seen[key]) return;
+      if (seen[key] || TOOLS[key]) return;
       seen[key] = true;
       var label = tab.cloneNode(true);
       var n = label.querySelector(".n"); if (n) n.remove();
@@ -209,9 +214,46 @@
     });
 
     applyIruleOptions(deviceEls, doFmt, doDiag).then(function () {
-      // wait for async Mermaid renders to settle, then mark + print
-      setTimeout(function () { markAndPrint(deviceEls, secs); }, 700);
+      whenDrawn(deviceEls, secs, function () { markAndPrint(deviceEls, secs); });
     });
+  }
+
+  // The topology / apps / architecture diagrams are laid out asynchronously, and
+  // on a large estate that takes well past the fixed delay this used to allow —
+  // printing early gave pages with an empty diagram box on them. Wait for the
+  // panels being printed to actually have their <svg>, and cap the wait so a
+  // host that legitimately never draws one ("no linked objects") can't hang the
+  // print run.
+  function whenDrawn(deviceEls, secs, done) {
+    var deadline = Date.now() + 8000;
+    (function poll() {
+      var undrawn = 0;
+      deviceEls.forEach(function (dev) {
+        secs.forEach(function (key) {
+          var panel = dev.querySelector('.panel[data-panel="' + key + '"]');
+          if (!panel) return;
+          panel.querySelectorAll(".diag-host").forEach(function (host) {
+            if (!host.querySelector("svg") && !host.textContent.trim()) undrawn++;
+          });
+        });
+      });
+      if (!undrawn || Date.now() > deadline) { done(); return; }
+      setTimeout(poll, 150);
+    })();
+  }
+
+  // An empty section still costs a sheet of paper: its own forced page, a
+  // heading, and nothing under it. A device with no monitors should simply not
+  // have a Monitors page. Judged on the tab's count badge where it has one, and
+  // otherwise on whether the panel drew anything at all.
+  function isEmptySection(dev, key) {
+    var tab = dev.querySelector('.tab[data-panel="' + key + '"]');
+    var badge = tab && tab.querySelector(".n");
+    if (badge && /^\s*0\s*$/.test(badge.textContent)) return true;
+    var panel = dev.querySelector('.panel[data-panel="' + key + '"]');
+    if (!panel) return true;
+    if (panel.querySelector("tbody tr, svg, pre, .card, .cert-row, .app-detail")) return false;
+    return !panel.textContent.trim();
   }
 
   // ---- Running head/foot on every printed page --------------------------
@@ -223,26 +265,56 @@
   // the running title and attribution — the browser then repeats them on every
   // sheet and reserves the room. `.print-running-head` / `.print-running-foot`
   // in the template are the (hidden) source of that markup.
-  function parkInSheet(nodes) {
+  // ONE sheet per section, not one sheet for the whole report. A forced page
+  // break *inside* a table cell is the case Gecko gets wrong — Firefox emitted
+  // page after blank page from it — so each section is parked in a table of its
+  // own and the breaks fall between the tables, at block level, where both
+  // engines agree. Each sheet repeats its own head/foot over the pages it spans.
+  function parkInSheets(nodes) {
     if (!nodes.length) return;
-    var head = document.querySelector(".print-running-head");
-    var foot = document.querySelector(".print-running-foot");
-    var sheet = document.createElement("table");
-    sheet.className = "print-sheet";
-    sheet.innerHTML =
-      '<thead class="print-sheet-head"><tr><th>' + ((head && head.innerHTML) || "") + "</th></tr></thead>" +
-      '<tfoot class="print-sheet-foot"><tr><td>' + ((foot && foot.innerHTML) || "") + "</td></tr></tfoot>" +
-      '<tbody><tr><td class="print-sheet-body"></td></tr></tbody>';
-    var cell = sheet.querySelector(".print-sheet-body");
-    nodes[0].parentNode.insertBefore(sheet, nodes[0]);
-    nodes.forEach(function (n) {
+    var headSrc = document.querySelector(".print-running-head");
+    var footSrc = document.querySelector(".print-running-foot");
+
+    // All sheets live side by side at top level: a panel parked in a table still
+    // nested inside its device's table would put the forced break back inside a
+    // cell, which is the very thing this avoids.
+    var host = document.createElement("div");
+    host.className = "print-host";
+    nodes[0].parentNode.insertBefore(host, nodes[0]);
+
+    // The running head/foot carry the marks as inline <svg>, so a clone per
+    // sheet would repeat every gradient id. Re-namespace each copy's ids and the
+    // url(#…) / href="#…" references that point at them.
+    function runner(cell, src, tag) {
+      if (!src || !cell) return;
+      var clone = src.cloneNode(true);
+      clone.innerHTML = clone.innerHTML.replace(
+        /(id="|url\(#|href="#)([A-Za-z][\w.:-]*)/g,
+        function (_m, prefix, id) { return prefix + tag + "-" + id; }
+      );
+      cell.appendChild(clone);
+    }
+
+    nodes.forEach(function (n, i) {
+      var sheet = document.createElement("table");
+      sheet.className = "print-sheet";
+      sheet.innerHTML =
+        '<thead class="print-sheet-head"><tr><th></th></tr></thead>' +
+        '<tfoot class="print-sheet-foot"><tr><td></td></tr></tfoot>' +
+        '<tbody><tr><td class="print-sheet-body"></td></tr></tbody>';
+      runner(sheet.querySelector("thead th"), headSrc, "sh" + i);
+      runner(sheet.querySelector("tfoot td"), footSrc, "sf" + i);
+
       var parent = n.parentNode, next = n.nextSibling;
       remember(function () { parent.insertBefore(n, next); });
-      cell.appendChild(n);
+      host.appendChild(sheet);
+      sheet.querySelector(".print-sheet-body").appendChild(n);
     });
-    // Unwound first (restore runs last-registered-first): drops the table, then
-    // each node goes back where it came from.
-    remember(function () { if (sheet.parentNode) sheet.parentNode.removeChild(sheet); });
+
+    // Unwound first (restore runs last-registered-first): the host and its
+    // tables go, then every node is put back where it came from — panels before
+    // the device they belong to, since they were registered after it.
+    remember(function () { if (host.parentNode) host.parentNode.removeChild(host); });
   }
 
   // The cross-device architecture view is a top-level section, not a device tab,
@@ -285,7 +357,7 @@
       remember(function () { dev.classList.remove("print-include"); });
       secs.forEach(function (key) {
         var panel = dev.querySelector('.panel[data-panel="' + key + '"]');
-        if (!panel) return;
+        if (!panel || isEmptySection(dev, key)) return;
         panel.classList.add("print-include");
         remember(function () { panel.classList.remove("print-include"); });
         // printed section heading
@@ -305,15 +377,27 @@
     });
 
     // Linearise: the estate summary, the architecture view (when the report has
-    // one), then each device — all parked in the running-head/foot sheet, in
-    // document order, so the printed page follows the on-screen one.
+    // one), then each device — its heading block, then one section at a time —
+    // in document order, so the printed page follows the on-screen one. Each of
+    // these becomes a sheet of its own, and a sheet is a page.
     var summary = document.querySelector("section.summary");
     if (summary) {
       summary.classList.add("print-include");
       remember(function () { summary.classList.remove("print-include"); });
     }
     var arch = prepArchitecture();
-    parkInSheet([summary, arch].filter(Boolean).concat(deviceEls));
+
+    var order = [];
+    if (summary) order.push(summary);
+    if (arch) order.push(arch);
+    deviceEls.forEach(function (dev) {
+      order.push(dev);
+      secs.forEach(function (key) {
+        var panel = dev.querySelector('.panel[data-panel="' + key + '"]');
+        if (panel && panel.classList.contains("print-include")) order.push(panel);
+      });
+    });
+    parkInSheets(order);
 
     document.documentElement.classList.add("printing");
     remember(function () { document.documentElement.classList.remove("printing"); });

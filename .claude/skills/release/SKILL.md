@@ -1,10 +1,11 @@
 ---
 name: release
 description: >
-  Run the full release workflow: validate branch, test, generate changelog,
-  tag, push, and publish to all editor marketplaces. Asks for
-  patch/minor/major if not specified. Tag-only — no source-file edits,
-  no commit on main (main is protected).
+  Run the full release workflow: validate the release branch (2.x pre-releases
+  are cut from `rust`, 1.x stable from `main`), test, generate changelog, tag,
+  push, then let CI build and publish — approving the marketplace Environments
+  with `gh` from the release laptop. Asks for patch/minor/major if not
+  specified. Tag-only — no source-file edits, no commit on the release branch.
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 ---
 
@@ -15,29 +16,58 @@ Orchestrates a full release of tcl-lsp. This skill is internal to the project.
 The release is **tag-only**: every version literal in the tree is derived
 from the latest annotated tag (via `hatch-vcs` for the Python wheel and via
 the Makefile + `git describe` for every editor build). To cut a release we
-push a `vX.Y.Z` tag — there is no source-file bump and no commit on `main`.
-RELEASE_NOTES.md is the one exception, and it lands via a PR before tagging.
+push a `vX.Y.Z` tag — there is no source-file bump and no commit on the
+release branch. RELEASE_NOTES.md is the one exception, and it lands via a PR
+before tagging.
+
+## Two release lines
+
+There are two, and they are cut from **different branches**:
+
+| Line | Branch | Channel | GitHub release |
+| --- | --- | --- | --- |
+| **1.x — stable** | `main` | VS Code stable / JetBrains stable | latest |
+| **2.x — pre-release** (the Python → Rust rewrite) | `rust` | VS Code pre-release / JetBrains eap | pre-release, never "latest" |
+
+Nothing declares which line you are on except the version: `scripts/release/prerelease.sh`
+is the single source of truth, and it says a tag is a pre-release when
+**major ≥ 2 and minor is odd** (so `v2.1.8` is a pre-release; `v2.2.0` would not
+be). CI reads that same script to decide the GitHub release's prerelease flag and
+the marketplace channel — you never pass a flag by hand.
+
+The rewrite is where the work is, so in practice a release is usually a **2.1.x
+pre-release cut from `rust`**. Do not "fix" this by tagging `main`: `main` does
+not contain the 2.x work, and tagging it would ship a stale tree under a new
+version.
 
 ## Workflow
 
 Follow these steps **in order**. Stop and report on failure at any step.
 
-### 1. Branch guard
+### 1. Pick the line, then guard the branch
+
+Work out the line from the version being cut, and require the matching branch:
 
 ```bash
+# The branch this line releases from: 2.x odd-minor => `rust`, otherwise `main`.
 branch=$(git branch --show-current)
-if [ "$branch" != "main" ]; then
-  echo "ERROR: Must be on 'main' branch to release (currently on '$branch')"
+prev_tag=$(git describe --tags --abbrev=0)
+release_branch=$(git branch -r --contains "$prev_tag" \
+                   | grep -qE 'origin/(rust)$' && echo rust || echo main)
+
+if [ "$branch" != "$release_branch" ]; then
+  echo "ERROR: $release_branch is the release branch for this line (on '$branch')"
   exit 1
 fi
 ```
 
-Fail immediately if not on `main`. Do not offer to switch branches.
+If the user asks for a release from the other branch, confirm with them before
+proceeding — do not silently switch lines.
 
 ### 2. Pull latest
 
 ```bash
-git pull origin main
+git pull origin "$release_branch"
 ```
 
 ### 3. Pre-release validation
@@ -108,22 +138,24 @@ list every file touched; summarise the meaningful changes.
 
 ### 6. Land RELEASE_NOTES.md via PR
 
-Main is protected, so the release-notes commit lands via a PR:
+The release branch is protected, so the release-notes commit lands via a PR
+**against that branch** (`--base "$release_branch"` — a notes PR opened against
+`main` for a 2.x pre-release would land the notes on the wrong line):
 
 ```bash
 git checkout -b release/vX.Y.Z
 git add RELEASE_NOTES.md
 git commit -m "Add release notes for vX.Y.Z"
 git push -u origin release/vX.Y.Z
-gh pr create --title "Release vX.Y.Z notes" --body "..."
+gh pr create --base "$release_branch" --title "Release vX.Y.Z notes" --body "..."
 ```
 
 Wait for CI on the PR to go green, then ask the user to merge it (squash).
 Once merged, switch back and pull:
 
 ```bash
-git checkout main
-git pull origin main
+git checkout "$release_branch"
+git pull origin "$release_branch"
 ```
 
 ### 7. Create and push the tag
@@ -213,12 +245,43 @@ step 9.
 **VS Code and JetBrains are published by CI, not here.** When the tag's CI
 run reaches the `publish-vsix-marketplace` and `publish-jetbrains-marketplace`
 jobs, each pauses on its protected Environment (`marketplace-vscode` /
-`marketplace-jetbrains`) for your approval. After the step 8 verification
-passes, approve both deployments in the Actions run; CI then publishes the
+`marketplace-jetbrains`) waiting for a reviewer. CI then publishes the
 released, checksum-verified `.vsix` / plugin `.zip` using the Environment
-secret (`secrets.VSCE_PAT` / `secrets.JETBRAINS_TOKEN`). The laptop targets
-`make publish-vsix` / `make publish-jetbrains` remain only as fallbacks if
-the CI job fails. This step's own work is just **Sublime and Zed**.
+secret (`secrets.VSCE_PAT` / `secrets.JETBRAINS_TOKEN`) — no publish token
+ever leaves the laptop, and the channel (stable vs pre-release/eap) is derived
+from the tag by `scripts/release/prerelease.sh`, not passed by hand.
+
+**Approve both deployments with `gh`, from the release laptop, as part of this
+flow** — there is no need to open the Actions UI. Only do this once step 8 has
+passed: approving is what actually ships to the marketplaces.
+
+```bash
+tag="vX.Y.Z"
+run=$(gh run list --workflow ci.yml --commit "$(git rev-list -n1 "$tag")" \
+        --json databaseId,headBranch --jq '.[0].databaseId')
+
+# The environments waiting on a reviewer, with their ids
+gh api "repos/bitwisecook/tcl-lsp/actions/runs/$run/pending_deployments" \
+  --jq '.[] | "\(.environment.id)  \(.environment.name)  waiting=\(.current_user_can_approve)"'
+
+# Approve them (ids from above; both environments in one call)
+gh api "repos/bitwisecook/tcl-lsp/actions/runs/$run/pending_deployments" \
+  -X POST \
+  -F "environment_ids[]=<vscode-env-id>" \
+  -F "environment_ids[]=<jetbrains-env-id>" \
+  -f state=approved \
+  -f comment="Artefacts verified against SHA256SUMS ($tag)"
+
+# Then watch them through
+gh run watch "$run" --exit-status
+```
+
+If `current_user_can_approve` is `false`, the account `gh` is authenticated as
+is not a reviewer on that Environment — report that rather than trying to work
+around it. The laptop targets `make publish-vsix` / `make publish-jetbrains`
+remain only as fallbacks if a CI job itself fails.
+
+This step's own remaining work is just **Sublime and Zed**.
 
 Before asking which editors to publish, run a readiness check so any
 missing token or unclaimed namespace surfaces *before* the user picks

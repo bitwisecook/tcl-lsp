@@ -26,9 +26,14 @@
        inlines the same mark, and ids are document-global, so this copy's ids
        (all of them `f5q-…`, along with every url(#…) that points at them) are
        re-prefixed — two copies of `f5q-a` would be a duplicate id. #}
-    {% if logo %}<img class="logo logo-custom" src="{{ logo }}" alt="Report logo">{% else %}<span class="logo logo-mark" role="img" aria-label="f5-query">{{ logo_f5q_svg | replace("f5q-", "hdrf5q-") | safe }}</span>{% endif %}
+    {# The mark and the title are the way back: clicking either returns the
+       report to the view it opened in (report.js). Screen only — the topbar is
+       not printed, and the running head that is carries no link. #}
+    <a class="brand-home" href="#" title="Back to the report's opening view">
+      {% if logo %}<img class="logo logo-custom" src="{{ logo }}" alt="Report logo">{% else %}<span class="logo logo-mark" role="img" aria-label="f5-query">{{ logo_f5q_svg | replace("f5q-", "hdrf5q-") | safe }}</span>{% endif %}
+    </a>
     <div>
-      <h1>{{ title }}</h1>
+      <h1><a class="brand-home" href="#" title="Back to the report's opening view">{{ title }}</a></h1>
       <p class="sub">
         Generated {{ generated_at }} ·
         {{ devices|length }} device{{ 's' if devices|length != 1 else '' }} ·
@@ -986,9 +991,19 @@
   <p class="print-only attrib">{% if copyright %}{{ copyright }} — {% endif %}BIG-IP Report Generator, tcl-lsp &amp; f5-query by © 2026 bitwisecook — https://github.com/bitwisecook/tcl-lsp</p>
 </footer>
 
-<!-- Print-only running header/footer, repeated on every printed page (see print.css). -->
-<div class="print-running-head" aria-hidden="true">{{ title }}</div>
-<div class="print-running-foot" aria-hidden="true">{% if copyright %}{{ copyright }} · {% endif %}BIG-IP Report Generator, tcl-lsp &amp; f5-query by © 2026 bitwisecook · version {{ version }} · https://github.com/bitwisecook/tcl-lsp</div>
+{# Print-only running header/footer, repeated on every printed page: print.ts
+   moves these two into the thead/tfoot of the print sheet (see print.css).
+   They carry the marks as well as the text, so every printed page is branded.
+   The ids are re-prefixed because the on-screen header/footer already inline
+   the same SVGs and ids are document-global. #}
+<div class="print-running-head" aria-hidden="true">
+  <span class="print-mark">{% if logo %}<img src="{{ logo }}" alt="">{% else %}{{ logo_f5q_svg | replace("f5q-", "prnh-") | safe }}{% endif %}</span>
+  <span class="print-run-title">{{ title }}</span>
+</div>
+<div class="print-running-foot" aria-hidden="true">
+  <span class="print-mark">{{ logo_f5q_svg | replace("f5q-", "prnf-") | safe }}{{ logo_tcl_lsp_svg | replace("tcl-", "prnt-") | safe }}</span>
+  <span class="print-run-text">{% if copyright %}{{ copyright }} · {% endif %}BIG-IP Report Generator, tcl-lsp &amp; f5-query by © 2026 bitwisecook · version {{ version }} · https://github.com/bitwisecook/tcl-lsp</span>
+</div>
 
 <script>
 {{ report_js | safe }}
@@ -1023,7 +1038,11 @@
 </script>
 {% if has_console %}
 <!-- in-browser query engine: wasm-bindgen glue + base64 wasm (the f5-query DSL compiled to WebAssembly) -->
-<script id="f5-wasm" type="application/octet-stream">{{ wasm_b64 }}</script>
+{# `safe`: base64 is A–Za–z0–9+/= — no HTML-special character, so nothing to
+   escape and nothing to inject. Without it autoescape rewrites every `/` as
+   `&#x2f;`, and `atob()` then throws on the payload: the console, the iRule
+   Format button and print-with-diagnostics all die on page load. #}
+<script id="f5-wasm" type="application/octet-stream">{{ wasm_b64 | safe }}</script>
 <script>{{ wasm_glue | safe }}</script>
 <script>
 {{ console_js | safe }}
