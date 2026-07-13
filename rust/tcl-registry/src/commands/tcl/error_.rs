@@ -29,8 +29,19 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "error",
+        // `LANGUAGE_KEYWORD`, like its sibling `throw`: both raise an exception
+        // and both are `TERMINATES_BLOCK`. `error` carried neither the trait nor
+        // any keyword colouring, so `catch { error boom }` painted `catch` as a
+        // control keyword and `error` as an ordinary library call — the two
+        // halves of one construct in two different colours (issue #904).
+        //
+        // Every Tcl grammar that *has* a function category agrees `error` is not
+        // one: Pygments lists it under `Keyword`, tree-sitter under `@keyword`,
+        // Zed under `@operator`, and the TextMate bundle under `keyword.other`.
+        // Only grammars with no function bucket at all put it with the builtins.
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
+            | Traits::LANGUAGE_KEYWORD
             | Traits::TERMINATES_BLOCK
             | Traits::NEEDS_START_CMD,
         arity: Arity::new(1, 3),

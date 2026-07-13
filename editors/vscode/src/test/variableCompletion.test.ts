@@ -33,6 +33,18 @@ import { getDocUri, activate, pollUntil } from "./helper";
  * rebuild and was flaky under load (the request could land before the new
  * version was analysed, returning only keyword/command items).  This mirrors
  * the robust ``pollUntil`` pattern in ``variableContexts.test.ts``.
+ *
+ * The **revert is awaited to quiescence**, not merely issued.
+ * ``workbench.action.files.revert`` resolves once the editor buffer is
+ * restored, but the server has not necessarily re-analysed the restored text
+ * and re-published diagnostics by then.  A later test that reads diagnostics
+ * could therefore observe ranges computed against the *edited* document —
+ * shifted by the length of ``insertion`` — and go on to query code actions at
+ * the wrong line.  That is what made ``variableContexts``'s W216 quick-fix
+ * test fail in a full run while passing in isolation: it found the
+ * ``${arr}(name)`` diagnostic but at a stale range, so the provider returned
+ * the *other* W216's fix.  Waiting for the buffer to be back to baseline here
+ * keeps the staleness from leaking out of this helper at all.
  */
 async function completionItems(
   uri: vscode.Uri,
@@ -40,6 +52,7 @@ async function completionItems(
   position: vscode.Position,
 ): Promise<vscode.CompletionItem[]> {
   const doc = await activate(uri);
+  const baseline = doc.getText();
   const startOffset = doc.offsetAt(position);
   const edit = new vscode.WorkspaceEdit();
   edit.insert(uri, position, insertion);
@@ -64,8 +77,24 @@ async function completionItems(
       },
     );
   } finally {
-    await vscode.commands.executeCommand("workbench.action.files.revert", doc);
+    await revertToBaseline(doc, baseline);
   }
+}
+
+/**
+ * Revert `doc` and wait until its buffer is actually back to `baseline`.
+ *
+ * The revert command resolves before the restored text is necessarily visible
+ * to everything downstream; returning early leaves the *next* test reading a
+ * document — and diagnostics — that still reflect the edit.
+ */
+async function revertToBaseline(doc: vscode.TextDocument, baseline: string): Promise<void> {
+  await vscode.commands.executeCommand("workbench.action.files.revert", doc);
+  await pollUntil(
+    () => Promise.resolve(doc.getText()),
+    (text) => text === baseline,
+    { timeout: 10_000, label: "document reverted to its on-disk content" },
+  );
 }
 
 function labelOf(item: vscode.CompletionItem): string {
@@ -227,6 +256,7 @@ suite("Variable Completion", () => {
     // scanner eat the rest of the file looking for ``)``, which breaks
     // the surrounding proc analysis and starves the LSP of array data.
     const doc = await activate(docUri);
+    const baseline = doc.getText();
     const insertOffset = doc.offsetAt(HELPER_BODY_INSERT);
     const insertion = "\n        puts $arr()";
     const edit = new vscode.WorkspaceEdit();
@@ -250,7 +280,7 @@ suite("Variable Completion", () => {
         `Expected $arr(age): ${labels.slice(0, 30).join(", ")}`,
       );
     } finally {
-      await vscode.commands.executeCommand("workbench.action.files.revert", doc);
+      await revertToBaseline(doc, baseline);
     }
   });
 });

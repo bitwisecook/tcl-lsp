@@ -82,6 +82,74 @@ pub enum ArgRole {
     CommandPrefix,
 }
 
+impl ArgRole {
+    /// Every variant, so a consumer can assert it handles the whole space
+    /// rather than the subset it happened to think of.
+    pub const ALL: &'static [Self] = &[
+        Self::Body,
+        Self::Expr,
+        Self::VarWrite,
+        Self::VarRead,
+        Self::LoopVarList,
+        Self::ParamList,
+        Self::Name,
+        Self::Pattern,
+        Self::Option,
+        Self::Value,
+        Self::Subcommand,
+        Self::OptionTerminator,
+        Self::Channel,
+        Self::Index,
+        Self::Keyword,
+        Self::CommandPrefix,
+    ];
+
+    /// Whether an argument in this role carries **executable Tcl** that a
+    /// consumer walking the code must descend into.
+    ///
+    /// The one place that answers this question. Every walker that recurses
+    /// into code — the semantic-token walker, the iRules object-reference
+    /// walker — reads it, so they cannot drift apart about what counts as
+    /// executable.
+    ///
+    /// The match is exhaustive on purpose: a new [`ArgRole`] that can hold a
+    /// script fails to compile until someone decides which side it falls on.
+    /// That decision used to be implicit, and the walkers each carried their
+    /// own idea of it — which is how an object referenced only from a `switch`
+    /// arm came to be invisible to the reference graph that `bigip-cleanup`
+    /// decides deletions from. A clause list is not an [`ArgRole::Body`], so
+    /// nothing descended into it (see [`crate::CommandSpec::case_list`], which
+    /// carries the scripts a role cannot).
+    ///
+    /// [`ArgRole::Body`] is a complete script. [`ArgRole::Expr`] is not, but the
+    /// `[…]` substitutions inside it are, and they run with the same effects a
+    /// body's would — so both are walked.
+    ///
+    /// [`ArgRole::CommandPrefix`] is deliberately *not* script-bearing: its
+    /// first word is a callable **reference**, not code. Recursing it would read
+    /// a bareword proc name as a script.
+    #[must_use]
+    pub const fn carries_script(self) -> bool {
+        match self {
+            Self::Body | Self::Expr => true,
+            Self::CommandPrefix
+            | Self::VarWrite
+            | Self::VarRead
+            | Self::LoopVarList
+            | Self::ParamList
+            | Self::Name
+            | Self::Pattern
+            | Self::Option
+            | Self::Value
+            | Self::Subcommand
+            | Self::OptionTerminator
+            | Self::Channel
+            | Self::Index
+            | Self::Keyword => false,
+        }
+    }
+}
+
 /// How many arguments a command appends to a [`ArgRole::CommandPrefix`]
 /// callback when it invokes it.
 ///

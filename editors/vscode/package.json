@@ -218,13 +218,19 @@
       },
       {
         "language": "tcl-apl",
-        "scopeName": "source.tcl",
-        "path": "./syntaxes/tcl.tmLanguage.json"
+        "scopeName": "source.tcl-apl",
+        "path": "./syntaxes/apl.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.tcl": "tcl"
+        }
       },
       {
         "language": "tcl-bigip",
-        "scopeName": "source.tcl",
-        "path": "./syntaxes/tcl.tmLanguage.json"
+        "scopeName": "source.tcl-bigip",
+        "path": "./syntaxes/bigip.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.tcl": "tcl"
+        }
       },
       {
         "language": "tcl8.4",

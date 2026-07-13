@@ -60,11 +60,11 @@
 (command
   name: (simple_word) @keyword
   (#any-of? @keyword
-    "apply" "break" "classvariable" "continue" "coroutine" "global"
-    "interp" "my" "next" "nextto" "oo::abstract" "oo::class"
-    "oo::configurable" "oo::define" "oo::objdefine" "oo::singleton" "package" "rename"
-    "return" "self" "source" "tailcall" "throw" "uplevel"
-    "upvar" "variable" "yield" "yieldto"))
+    "apply" "break" "classvariable" "continue" "coroutine" "error"
+    "global" "interp" "my" "next" "nextto" "oo::abstract"
+    "oo::class" "oo::configurable" "oo::define" "oo::objdefine" "oo::singleton" "package"
+    "rename" "return" "self" "source" "tailcall" "throw"
+    "uplevel" "upvar" "variable" "yield" "yieldto"))
 
 ; --- generated from tcl-registry: built-in commands ---
 (command
@@ -74,23 +74,22 @@
     "auto_load_index" "auto_mkindex" "auto_mkindex_old" "auto_qualify" "auto_reset" "bgerror"
     "binary" "cd" "chan" "clock" "close" "concat"
     "const" "coroinject" "coroprobe" "dict" "divmod" "encoding"
-    "eof" "eq" "error" "eval" "exec" "exit"
-    "fblocked" "fconfigure" "fcopy" "file" "fileevent" "filename"
-    "flush" "format" "frexp" "gets" "gettimes" "glob"
-    "history" "http" "in" "incr" "info" "join"
-    "lappend" "lassign" "ledit" "lgen" "lindex" "linsert"
-    "list" "llength" "load" "lpop" "lrange" "lremove"
-    "lrepeat" "lreplace" "lreverse" "lsearch" "lseq" "lset"
-    "lsort" "lstring" "memory" "modf" "ne" "ni"
-    "noop" "oo::copy" "oo::object" "open" "parray" "pid"
-    "pkg::create" "pkg_mkIndex" "pkg_mkindex" "puts" "pwd" "re_quote"
-    "read" "readFile" "regex::quote" "regex_quote" "regexp" "regexp::quote"
-    "registry" "regsub" "remquo" "scan" "seek" "socket"
-    "split" "string" "subst" "tclLog" "tclPkgSetup" "tclPkgUnknown"
-    "tcl_endOfWord" "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore"
-    "tell" "time" "timer" "timerate" "trace" "unicode"
-    "unknown" "unload" "unset" "update" "vwait" "writeFile"
-    "zlib"))
+    "eof" "eq" "eval" "exec" "exit" "fblocked"
+    "fconfigure" "fcopy" "file" "fileevent" "filename" "flush"
+    "format" "frexp" "gets" "gettimes" "glob" "history"
+    "http" "in" "incr" "info" "join" "lappend"
+    "lassign" "ledit" "lgen" "lindex" "linsert" "list"
+    "llength" "load" "lpop" "lrange" "lremove" "lrepeat"
+    "lreplace" "lreverse" "lsearch" "lseq" "lset" "lsort"
+    "lstring" "memory" "modf" "ne" "ni" "noop"
+    "oo::copy" "oo::object" "open" "parray" "pid" "pkg::create"
+    "pkg_mkIndex" "pkg_mkindex" "puts" "pwd" "re_quote" "read"
+    "readFile" "regex::quote" "regex_quote" "regexp" "regexp::quote" "registry"
+    "regsub" "remquo" "scan" "seek" "socket" "split"
+    "string" "subst" "tclLog" "tclPkgSetup" "tclPkgUnknown" "tcl_endOfWord"
+    "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore" "tell"
+    "time" "timer" "timerate" "trace" "unicode" "unknown"
+    "unload" "unset" "update" "vwait" "writeFile" "zlib"))
 
 ; Highlight unset / variable arguments as variables
 (command

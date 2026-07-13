@@ -141,6 +141,10 @@ const CONTROL_STYLE: &[&str] = &[
     "break",
     "catch",
     "continue",
+    // `error` sits here with `catch`/`throw`/`try`: it is a non-local exit, not
+    // a computation. Before #904 it was not a `LANGUAGE_KEYWORD` at all, so
+    // `catch { error boom }` coloured its two halves differently.
+    "error",
     "for",
     "foreach",
     "foreachLine",

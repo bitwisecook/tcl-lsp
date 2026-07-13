@@ -1,0 +1,102 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "F5 iApp APL",
+  "scopeName": "source.tcl-apl",
+  "fileTypes": ["apl"],
+  "comment": "APL — the presentation language of an F5 iApp template. Not Tcl: it has its own grammar of sections, typed fields and attributes, with `[ … ]` bracket expressions that *are* Tcl. Every Tcl-family language used to be pointed at `tcl.tmLanguage.json`, which contains no APL rule at all, so an APL file was painted with Tcl rules until the server answered and replaced them wholesale (issue #903). The scopes below are the ones `package.json` already maps the server's `apl*` semantic-token types to, so the static paint and the semantic paint agree instead of contradicting each other. Where the grammar cannot tell (a bareword that is a field *name* only because of its position), it emits nothing rather than guess wrong.",
+  "patterns": [
+    { "include": "#directive" },
+    { "include": "#comment" },
+    { "include": "#embedded-tcl" },
+    { "include": "#define" },
+    { "include": "#section" },
+    { "include": "#field" },
+    { "include": "#validator" },
+    { "include": "#attribute" },
+    { "include": "#optional" },
+    { "include": "#string" },
+    { "include": "#number" }
+  ],
+  "repository": {
+    "directive": {
+      "comment": "A preprocessor directive. Matched before #comment so `#include` is not swallowed as one.",
+      "match": "^\\s*(#include)\\b",
+      "captures": {
+        "1": { "name": "keyword.control.directive.apl" }
+      }
+    },
+    "comment": {
+      "match": "#.*$",
+      "name": "comment.line.number-sign.apl"
+    },
+    "embedded-tcl": {
+      "comment": "A bracket expression is Tcl, and the server walks it as Tcl. Painting it as Tcl here keeps the two layers in step.",
+      "begin": "\\[",
+      "end": "\\]",
+      "beginCaptures": {
+        "0": { "name": "punctuation.section.embedded.begin.apl" }
+      },
+      "endCaptures": {
+        "0": { "name": "punctuation.section.embedded.end.apl" }
+      },
+      "contentName": "meta.embedded.block.tcl",
+      "patterns": [{ "include": "source.tcl" }]
+    },
+    "define": {
+      "match": "(?<=^|\\s)(define)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "keyword.other.define.apl" },
+        "2": { "name": "entity.name.function.apl" }
+      }
+    },
+    "section": {
+      "comment": "`section NAME {`, and the `text` / `table` / `row` block keywords.",
+      "match": "(?<=^|\\s)(section|text|table|row)(?:\\s+([A-Za-z_][A-Za-z0-9_.]*))?",
+      "captures": {
+        "1": { "name": "keyword.control.apl" },
+        "2": { "name": "entity.name.section.apl" }
+      }
+    },
+    "field": {
+      "comment": "A field declaration is `<field-type> <name> …`. The type word identifies it, so the name that follows can be scoped too — that positional fact is the one thing a static grammar *can* know here.",
+      "match": "(?<=^|\\s)(addrport|choice|disena|editchoice|enadis|enadisdry|falsetrue|indefint|message|multichoice|noyes|password|string|tcpprof|truefalse|yesno)(?:\\s+([A-Za-z_][A-Za-z0-9_.]*))?",
+      "captures": {
+        "1": { "name": "keyword.other.apl" },
+        "2": { "name": "variable.other.field.apl" }
+      }
+    },
+    "attribute": {
+      "match": "(?<=^|\\s)(default|display|required|validator)(?=\\s|$)",
+      "name": "entity.other.attribute-name.apl"
+    },
+    "validator": {
+      "comment": "The validators APL ships with, named inside `validator \"…\"`. The whole construct is matched as one unit, quotes included: TextMate resolves competing patterns by which one starts *earliest*, not by list order, so the opening quote would otherwise start #string and the name inside would be painted as ordinary string content. Only a name in this position is a validator — a bare `Number` elsewhere is not.",
+      "match": "(?<=^|\\s)(validator)\\s+(\")(FQDN|IpAddress|IpOrFqdn|NonNegativeNumber|Number|PortNumber)(\")",
+      "captures": {
+        "1": { "name": "entity.other.attribute-name.apl" },
+        "2": { "name": "string.quoted.double.apl" },
+        "3": { "name": "support.constant.validator.apl" },
+        "4": { "name": "string.quoted.double.apl" }
+      }
+    },
+    "optional": {
+      "match": "(?<=^|\\s)(optional)(?=\\s|$)",
+      "name": "keyword.control.optional.apl"
+    },
+    "string": {
+      "begin": "\"",
+      "end": "\"",
+      "name": "string.quoted.double.apl",
+      "patterns": [
+        {
+          "match": "\\\\(?:x[0-9a-fA-F]{1,2}|u[0-9a-fA-F]{1,4}|U[0-9a-fA-F]{1,8}|[0-7]{1,3}|.)",
+          "name": "constant.character.escape.apl"
+        }
+      ]
+    },
+    "number": {
+      "match": "(?<=^|\\s)[+-]?(?:0[xX][0-9a-fA-F]+|(?:[0-9]*\\.)?[0-9]+f?)(?=\\s|$|,|\\})",
+      "name": "constant.numeric.apl"
+    }
+  }
+}
