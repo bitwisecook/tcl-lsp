@@ -24,7 +24,19 @@
   "use strict";
 
   var modelEl = document.getElementById("f5-model");
-  if (!modelEl || typeof wasm_bindgen === "undefined") return;
+  // A bare `typeof wasm_bindgen` THROWS, it does not return "undefined", when the
+  // glue's `let wasm_bindgen = (function(){…})(…)` initialiser failed and left the
+  // binding in the temporal dead zone (it does `new URL(document.currentScript.src,
+  // …)`, which fails for an inlined <script>). It must stay a bare identifier — a
+  // top-level `let` is not a property of globalThis — so catch instead.
+  // See pages/print.ts for the full story.
+  var wasmReady = false;
+  try {
+    wasmReady = typeof wasm_bindgen !== "undefined";
+  } catch (_e) {
+    wasmReady = false;
+  }
+  if (!modelEl || !wasmReady) return;
   var MODEL = JSON.parse(modelEl.textContent);
 
   var B64 = document.getElementById("f5-wasm").textContent.trim();

@@ -65,7 +65,30 @@
       sections.push({ key: key, label: label.textContent.trim() || key });
     });
   });
-  var hasConsole = !!document.getElementById("f5-wasm") && typeof wasm_bindgen !== "undefined";
+  // `typeof wasm_bindgen` looks safe and is NOT.
+  //
+  // The wasm-bindgen glue is emitted as `let wasm_bindgen = (function(){…})(…)`,
+  // and its first act is `new URL(document.currentScript.src, location.href)` —
+  // which throws `TypeError: Invalid URL` when the glue is inlined into the
+  // report, because an inline <script> has no `src`. The `let` initialiser then
+  // never completes, so the binding sits in the temporal dead zone for the rest
+  // of the page — and `typeof` on a TDZ binding THROWS `ReferenceError` rather
+  // than returning "undefined".
+  //
+  // That killed this entire IIFE at load: no Print button, and Ctrl/Cmd-P never
+  // bound, so it fell through to the browser's own print dialog.
+  //
+  // It has to stay a bare identifier — a top-level `let` is a lexical binding,
+  // not a property of `globalThis`, so `globalThis.wasm_bindgen` is `undefined`
+  // even when the glue loaded fine. So catch instead: TDZ (or absent) → no
+  // console features, but the rest of printing still works.
+  var wasmReady = false;
+  try {
+    wasmReady = typeof wasm_bindgen !== "undefined";
+  } catch (_e) {
+    wasmReady = false; // glue failed; binding trapped in the TDZ
+  }
+  var hasConsole = !!document.getElementById("f5-wasm") && wasmReady;
 
   // ---- Build the Print button + dialog ----------------------------------
   var btn = document.createElement("button");

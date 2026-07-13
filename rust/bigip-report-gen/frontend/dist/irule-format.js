@@ -6,7 +6,13 @@
   (function() {
     "use strict";
     var wasmEl = document.getElementById("f5-wasm");
-    if (!wasmEl || typeof wasm_bindgen === "undefined") return;
+    var wasmReady = false;
+    try {
+      wasmReady = typeof wasm_bindgen !== "undefined";
+    } catch (_e) {
+      wasmReady = false;
+    }
+    if (!wasmEl || !wasmReady) return;
     function initWasm() {
       if (!window.__f5qReady) {
         var b64 = wasmEl.textContent.trim();
