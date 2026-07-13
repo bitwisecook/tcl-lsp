@@ -265,38 +265,56 @@
   // the running title and attribution — the browser then repeats them on every
   // sheet and reserves the room. `.print-running-head` / `.print-running-foot`
   // in the template are the (hidden) source of that markup.
-  function parkInSheet(nodes) {
+  // ONE sheet per section, not one sheet for the whole report. A forced page
+  // break *inside* a table cell is the case Gecko gets wrong — Firefox emitted
+  // page after blank page from it — so each section is parked in a table of its
+  // own and the breaks fall between the tables, at block level, where both
+  // engines agree. Each sheet repeats its own head/foot over the pages it spans.
+  function parkInSheets(nodes) {
     if (!nodes.length) return;
-    var sheet = document.createElement("table");
-    sheet.className = "print-sheet";
-    sheet.innerHTML =
-      '<thead class="print-sheet-head"><tr><th></th></tr></thead>' +
-      '<tfoot class="print-sheet-foot"><tr><td></td></tr></tfoot>' +
-      '<tbody><tr><td class="print-sheet-body"></td></tr></tbody>';
-    var cell = sheet.querySelector(".print-sheet-body");
-    nodes[0].parentNode.insertBefore(sheet, nodes[0]);
+    var headSrc = document.querySelector(".print-running-head");
+    var footSrc = document.querySelector(".print-running-foot");
 
-    // The running head/foot are MOVED in, not copied: they carry the project
-    // marks as inline <svg>, and a copy would duplicate every gradient id.
-    [
-      [".print-running-head", "thead th"],
-      [".print-running-foot", "tfoot td"],
-    ].forEach(function (pair) {
-      var el = document.querySelector(pair[0]);
-      if (!el) return;
-      var parent = el.parentNode, next = el.nextSibling;
-      remember(function () { parent.insertBefore(el, next); });
-      sheet.querySelector(pair[1]).appendChild(el);
-    });
+    // All sheets live side by side at top level: a panel parked in a table still
+    // nested inside its device's table would put the forced break back inside a
+    // cell, which is the very thing this avoids.
+    var host = document.createElement("div");
+    host.className = "print-host";
+    nodes[0].parentNode.insertBefore(host, nodes[0]);
 
-    nodes.forEach(function (n) {
+    // The running head/foot carry the marks as inline <svg>, so a clone per
+    // sheet would repeat every gradient id. Re-namespace each copy's ids and the
+    // url(#…) / href="#…" references that point at them.
+    function runner(cell, src, tag) {
+      if (!src || !cell) return;
+      var clone = src.cloneNode(true);
+      clone.innerHTML = clone.innerHTML.replace(
+        /(id="|url\(#|href="#)([A-Za-z][\w.:-]*)/g,
+        function (_m, prefix, id) { return prefix + tag + "-" + id; }
+      );
+      cell.appendChild(clone);
+    }
+
+    nodes.forEach(function (n, i) {
+      var sheet = document.createElement("table");
+      sheet.className = "print-sheet";
+      sheet.innerHTML =
+        '<thead class="print-sheet-head"><tr><th></th></tr></thead>' +
+        '<tfoot class="print-sheet-foot"><tr><td></td></tr></tfoot>' +
+        '<tbody><tr><td class="print-sheet-body"></td></tr></tbody>';
+      runner(sheet.querySelector("thead th"), headSrc, "sh" + i);
+      runner(sheet.querySelector("tfoot td"), footSrc, "sf" + i);
+
       var parent = n.parentNode, next = n.nextSibling;
       remember(function () { parent.insertBefore(n, next); });
-      cell.appendChild(n);
+      host.appendChild(sheet);
+      sheet.querySelector(".print-sheet-body").appendChild(n);
     });
-    // Unwound first (restore runs last-registered-first): drops the table, then
-    // each node goes back where it came from.
-    remember(function () { if (sheet.parentNode) sheet.parentNode.removeChild(sheet); });
+
+    // Unwound first (restore runs last-registered-first): the host and its
+    // tables go, then every node is put back where it came from — panels before
+    // the device they belong to, since they were registered after it.
+    remember(function () { if (host.parentNode) host.parentNode.removeChild(host); });
   }
 
   // The cross-device architecture view is a top-level section, not a device tab,
@@ -359,15 +377,27 @@
     });
 
     // Linearise: the estate summary, the architecture view (when the report has
-    // one), then each device — all parked in the running-head/foot sheet, in
-    // document order, so the printed page follows the on-screen one.
+    // one), then each device — its heading block, then one section at a time —
+    // in document order, so the printed page follows the on-screen one. Each of
+    // these becomes a sheet of its own, and a sheet is a page.
     var summary = document.querySelector("section.summary");
     if (summary) {
       summary.classList.add("print-include");
       remember(function () { summary.classList.remove("print-include"); });
     }
     var arch = prepArchitecture();
-    parkInSheet([summary, arch].filter(Boolean).concat(deviceEls));
+
+    var order = [];
+    if (summary) order.push(summary);
+    if (arch) order.push(arch);
+    deviceEls.forEach(function (dev) {
+      order.push(dev);
+      secs.forEach(function (key) {
+        var panel = dev.querySelector('.panel[data-panel="' + key + '"]');
+        if (panel && panel.classList.contains("print-include")) order.push(panel);
+      });
+    });
+    parkInSheets(order);
 
     document.documentElement.classList.add("printing");
     remember(function () { document.documentElement.classList.remove("printing"); });

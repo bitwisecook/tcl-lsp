@@ -81,7 +81,10 @@
   .print-sheet-foot .print-mark svg { height: 13px; }
   .print-run-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
-  .print-sheet { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  /* min-height, so a short section's sheet still fills the page and its tfoot is
+     pushed to the foot of the paper instead of floating under the content. A
+     table shorter than the page would otherwise end wherever its rows end. */
+  .print-sheet { width: 100%; min-height: 100vh; border-collapse: collapse; table-layout: fixed; }
   .print-sheet-body { padding: 0; vertical-align: top; }
   /* The sheet's own row holds the entire report, so it must be free to break —
      the blanket `tr { break-inside: avoid }` below would otherwise ask the
@@ -117,21 +120,25 @@
   .foot { display: none !important; }
 
   /* ---- Page structure: a section per page, with a printed heading ----- */
-  .panel.print-include,
-  article.device.print-include,
-  .architecture.print-include {
+  /* The break lives on the sheet, at block level *between* the tables — never
+     inside a cell, which is where Gecko falls apart (it emitted a page, then 20
+     blank ones, for a forced break inside a cell). One sheet, one section, one
+     fresh page; the first must not push a leading blank page. */
+  .print-sheet {
     break-before: page;
     page-break-before: always;
   }
-  /* the first printed panel of the run must not push a leading blank page */
-  article.device.print-include > .panel.print-include:first-of-type {
+  .print-host > .print-sheet:first-child {
     break-before: auto;
     page-break-before: avoid;
   }
-  /* …nor whatever leads the sheet (the architecture view, or the first device) */
-  .print-sheet-body > :first-child {
-    break-before: auto !important;
-    page-break-before: avoid !important;
+  /* Nothing may trail the last sheet: any leftover margin or padding past it
+     spills onto one more sheet of paper, which prints as a wholly blank page. */
+  html, body, .print-host { margin: 0 !important; padding: 0 !important; }
+  .print-sheet { margin: 0; }
+  .print-host > .print-sheet:last-child {
+    break-after: avoid;
+    page-break-after: avoid;
   }
 
   /* ---- Architecture: its own page, diagram + the manifest that defined it -- */

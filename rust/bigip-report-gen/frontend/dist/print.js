@@ -208,34 +208,39 @@
       if (panel.querySelector("tbody tr, svg, pre, .card, .cert-row, .app-detail")) return false;
       return !panel.textContent.trim();
     }
-    function parkInSheet(nodes) {
+    function parkInSheets(nodes) {
       if (!nodes.length) return;
-      var sheet = document.createElement("table");
-      sheet.className = "print-sheet";
-      sheet.innerHTML = '<thead class="print-sheet-head"><tr><th></th></tr></thead><tfoot class="print-sheet-foot"><tr><td></td></tr></tfoot><tbody><tr><td class="print-sheet-body"></td></tr></tbody>';
-      var cell = sheet.querySelector(".print-sheet-body");
-      nodes[0].parentNode.insertBefore(sheet, nodes[0]);
-      [
-        [".print-running-head", "thead th"],
-        [".print-running-foot", "tfoot td"]
-      ].forEach(function(pair) {
-        var el = document.querySelector(pair[0]);
-        if (!el) return;
-        var parent = el.parentNode, next = el.nextSibling;
-        remember(function() {
-          parent.insertBefore(el, next);
-        });
-        sheet.querySelector(pair[1]).appendChild(el);
-      });
-      nodes.forEach(function(n) {
+      var headSrc = document.querySelector(".print-running-head");
+      var footSrc = document.querySelector(".print-running-foot");
+      var host = document.createElement("div");
+      host.className = "print-host";
+      nodes[0].parentNode.insertBefore(host, nodes[0]);
+      function runner(cell, src, tag) {
+        if (!src || !cell) return;
+        var clone = src.cloneNode(true);
+        clone.innerHTML = clone.innerHTML.replace(
+          /(id="|url\(#|href="#)([A-Za-z][\w.:-]*)/g,
+          function(_m, prefix, id) {
+            return prefix + tag + "-" + id;
+          }
+        );
+        cell.appendChild(clone);
+      }
+      nodes.forEach(function(n, i) {
+        var sheet = document.createElement("table");
+        sheet.className = "print-sheet";
+        sheet.innerHTML = '<thead class="print-sheet-head"><tr><th></th></tr></thead><tfoot class="print-sheet-foot"><tr><td></td></tr></tfoot><tbody><tr><td class="print-sheet-body"></td></tr></tbody>';
+        runner(sheet.querySelector("thead th"), headSrc, "sh" + i);
+        runner(sheet.querySelector("tfoot td"), footSrc, "sf" + i);
         var parent = n.parentNode, next = n.nextSibling;
         remember(function() {
           parent.insertBefore(n, next);
         });
-        cell.appendChild(n);
+        host.appendChild(sheet);
+        sheet.querySelector(".print-sheet-body").appendChild(n);
       });
       remember(function() {
-        if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
+        if (host.parentNode) host.parentNode.removeChild(host);
       });
     }
     function prepArchitecture() {
@@ -309,7 +314,17 @@
         });
       }
       var arch = prepArchitecture();
-      parkInSheet([summary, arch].filter(Boolean).concat(deviceEls));
+      var order = [];
+      if (summary) order.push(summary);
+      if (arch) order.push(arch);
+      deviceEls.forEach(function(dev) {
+        order.push(dev);
+        secs.forEach(function(key) {
+          var panel = dev.querySelector('.panel[data-panel="' + key + '"]');
+          if (panel && panel.classList.contains("print-include")) order.push(panel);
+        });
+      });
+      parkInSheets(order);
       document.documentElement.classList.add("printing");
       remember(function() {
         document.documentElement.classList.remove("printing");
