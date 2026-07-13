@@ -260,17 +260,67 @@ export class ServerBackend implements ReportBackend {
   }
 }
 
+/** Stand-in for the standalone in-browser app when its inlined wasm generator
+ *  is present on the page but failed to load. It performs NO network I/O: this
+ *  app's whole promise is that the config never leaves the browser, so a broken
+ *  engine must surface an error — never silently fall back to uploading via
+ *  {@link ServerBackend}. Every call rejects with the load reason, so the input
+ *  page reports it and keeps generation disabled. */
+class UnavailableBackend implements ReportBackend {
+  constructor(private reason: string) {}
+  private fail(): Promise<never> {
+    return Promise.reject(new Error(this.reason));
+  }
+  ready(): Promise<void> {
+    return this.fail();
+  }
+  engineVersion(): Promise<string> {
+    return this.fail();
+  }
+  probe(): Promise<ProbeResult> {
+    return this.fail();
+  }
+  generate(): Promise<GenerateResult> {
+    return this.fail();
+  }
+  buildArchitecture(): Promise<string> {
+    return this.fail();
+  }
+  manual(): Promise<string> {
+    return this.fail();
+  }
+}
+
+// The `no-modules` wasm-bindgen glue the standalone app inlines *ahead* of this
+// bundle declares its init function with a top-level `let wasm_bindgen = …`. A
+// top-level `let` is a global *lexical* binding: reachable as a bare identifier
+// from later classic scripts (as here), but — unlike `var`/`function` — NOT a
+// property of `window`/`globalThis`, so `window.wasm_bindgen` is always
+// `undefined`. It must be read as a bare identifier. Declared optional so the
+// `typeof` guard type-checks; `typeof` also keeps the bare reference from
+// throwing on the server page, where the glue (and this binding) are absent.
+declare const wasm_bindgen: WasmBindgen | undefined;
+
 /** Pick the backend for the current page: the inlined wasm generator when it's
  *  present (the standalone in-browser app), else the server. */
 export function selectBackend(): ReportBackend {
-  const w = window as unknown as { wasm_bindgen?: WasmBindgen };
   const payload = document.getElementById("report-wasm");
-  if (typeof w.wasm_bindgen === "function" && payload && payload.textContent) {
-    const b64 = payload.textContent.trim();
-    const bin = atob(b64);
+  const inlined = payload && payload.textContent ? payload.textContent.trim() : "";
+  // A `#report-wasm` payload means THIS is the standalone in-browser app, so the
+  // whole pipeline runs client-side and nothing is ever uploaded. In that case
+  // we must use the wasm backend — and if its glue didn't load, fail loudly
+  // rather than fall through to the uploading server backend below.
+  if (inlined) {
+    if (typeof wasm_bindgen !== "function") {
+      return new UnavailableBackend(
+        "the in-browser report engine failed to load — reload the page (your configuration was not uploaded)",
+      );
+    }
+    const bin = atob(inlined);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return new WasmBackend(w.wasm_bindgen, bytes);
+    return new WasmBackend(wasm_bindgen, bytes);
   }
+  // No inlined payload → the f5report web server page: generate server-side.
   return new ServerBackend("");
 }
