@@ -1,7 +1,7 @@
 let wasm_bindgen = (function(exports) {
     let script_src;
     if (typeof document !== 'undefined' && document.currentScript !== null) {
-        script_src = new URL(document.currentScript.src, location.href).toString();
+        try { script_src = new URL(document.currentScript.src, location.href).toString(); } catch (_) { script_src = undefined; }  // blob: base throws; see build-wasm.sh
     }
 
     /**

@@ -39,6 +39,49 @@ wasm="$here/target/wasm32-unknown-unknown/release/bigip_report_wasm.wasm"
 echo "==> wasm-bindgen (no-modules)"
 wasm-bindgen "$wasm" --out-dir "$out" --target no-modules --no-typescript
 
+# ---------------------------------------------------------------------------
+# Make the glue's script_src probe non-fatal.
+#
+# wasm-bindgen emits, at the top of `let wasm_bindgen = (function(){…})()`:
+#
+#     script_src = new URL(document.currentScript.src, location.href).toString();
+#
+# The glue is inlined, so `document.currentScript.src` is "" — and `new URL("",
+# base)` THROWS when `base` is a blob: URL. This page IS the in-browser generator:
+# it builds the report as a Blob and opens it, so `location.href` is
+# `blob:https://bitwisecook.github.io/…` and the probe throws every time. (It is
+# fine from https:// and file://, which is why it only bites the hosted app.)
+#
+# The `let` initialiser then never completes, trapping `wasm_bindgen` in the
+# temporal dead zone — after which every `typeof wasm_bindgen` guard throws
+# ReferenceError rather than returning "undefined", killing print.js, console.js
+# and irule-format.js (no Print button, no Ctrl/Cmd-P, no query console).
+#
+# `script_src` only derives a default `_bg.wasm` path when the caller passes no
+# module, and we always pass explicit bytes — so swallowing the failure is free.
+echo "==> patching script_src probe (blob: URLs make new URL() throw)"
+python3 - "$out"/*.js <<'PY'
+import re, sys
+pat = re.compile(
+    r"(\s*)script_src = new URL\(document\.currentScript\.src, location\.href\)\.toString\(\);"
+)
+patched = 0
+for p in sys.argv[1:]:
+    s = open(p, encoding="utf-8").read()
+    if not pat.search(s):
+        continue
+    s = pat.sub(
+        lambda m: f"{m.group(1)}try {{ script_src = new URL(document.currentScript.src, location.href).toString(); }}"
+                  f" catch (_) {{ script_src = undefined; }}  // blob: base throws; see build-wasm.sh",
+        s, count=1,
+    )
+    open(p, "w", encoding="utf-8").write(s)
+    patched += 1
+if not patched:
+    raise SystemExit("script_src probe not found — did wasm-bindgen change its glue?")
+print(f"    patched {patched} glue file(s)")
+PY
+
 # wasm-opt is intentionally NOT run. On modern rustc layouts, binaryen rebinds
 # the `__wbindgen_externrefs` export from the growable externref table onto the
 # fixed-size funcref table, so `Table.grow` throws at runtime ("could not grow
