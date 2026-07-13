@@ -32,7 +32,13 @@
         sections.push({ key, label: label.textContent.trim() || key });
       });
     });
-    var hasConsole = !!document.getElementById("f5-wasm") && typeof wasm_bindgen !== "undefined";
+    var wasmReady = false;
+    try {
+      wasmReady = typeof wasm_bindgen !== "undefined";
+    } catch (_e) {
+      wasmReady = false;
+    }
+    var hasConsole = !!document.getElementById("f5-wasm") && wasmReady;
     var btn = document.createElement("button");
     btn.id = "printBtn";
     btn.title = "Print / export to PDF";

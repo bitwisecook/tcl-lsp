@@ -6,7 +6,13 @@
   (function() {
     "use strict";
     var modelEl = document.getElementById("f5-model");
-    if (!modelEl || typeof wasm_bindgen === "undefined") return;
+    var wasmReady = false;
+    try {
+      wasmReady = typeof wasm_bindgen !== "undefined";
+    } catch (_e) {
+      wasmReady = false;
+    }
+    if (!modelEl || !wasmReady) return;
     var MODEL = JSON.parse(modelEl.textContent);
     var B64 = document.getElementById("f5-wasm").textContent.trim();
     function b64ToBytes(b64) {

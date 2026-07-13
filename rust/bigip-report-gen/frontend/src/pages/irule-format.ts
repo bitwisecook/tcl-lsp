@@ -27,7 +27,19 @@
   "use strict";
 
   var wasmEl = document.getElementById("f5-wasm");
-  if (!wasmEl || typeof wasm_bindgen === "undefined") return;
+  // A bare `typeof wasm_bindgen` THROWS, it does not return "undefined", when the
+  // glue's `let wasm_bindgen = (function(){…})(…)` initialiser failed and left the
+  // binding in the temporal dead zone (it does `new URL(document.currentScript.src,
+  // …)`, which fails for an inlined <script>). It must stay a bare identifier — a
+  // top-level `let` is not a property of globalThis — so catch instead.
+  // See pages/print.ts for the full story.
+  var wasmReady = false;
+  try {
+    wasmReady = typeof wasm_bindgen !== "undefined";
+  } catch (_e) {
+    wasmReady = false;
+  }
+  if (!wasmEl || !wasmReady) return;
 
   // Share one wasm instantiation with the query console (whichever loads first
   // wins) so the module is only initialised once per report.

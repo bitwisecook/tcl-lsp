@@ -311,7 +311,16 @@ export function selectBackend(): ReportBackend {
   // we must use the wasm backend — and if its glue didn't load, fail loudly
   // rather than fall through to the uploading server backend below.
   if (inlined) {
-    if (typeof wasm_bindgen !== "function") {
+    // A bare `typeof` THROWS (not "undefined") when the glue's `let` initialiser
+    // failed and trapped the binding in the TDZ. It must stay a bare identifier —
+    // a top-level `let` is not a property of globalThis. See pages/print.ts.
+    let wasmFn: WasmBindgen | undefined;
+    try {
+      wasmFn = typeof wasm_bindgen === "function" ? wasm_bindgen : undefined;
+    } catch {
+      wasmFn = undefined;
+    }
+    if (!wasmFn) {
       return new UnavailableBackend(
         "the in-browser report engine failed to load — reload the page (your configuration was not uploaded)",
       );
@@ -319,7 +328,7 @@ export function selectBackend(): ReportBackend {
     const bin = atob(inlined);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return new WasmBackend(wasm_bindgen, bytes);
+    return new WasmBackend(wasmFn, bytes);
   }
   // No inlined payload → the f5report web server page: generate server-side.
   return new ServerBackend("");

@@ -171,7 +171,13 @@
     const payload = document.getElementById("report-wasm");
     const inlined = payload && payload.textContent ? payload.textContent.trim() : "";
     if (inlined) {
-      if (typeof wasm_bindgen !== "function") {
+      let wasmFn;
+      try {
+        wasmFn = typeof wasm_bindgen === "function" ? wasm_bindgen : void 0;
+      } catch {
+        wasmFn = void 0;
+      }
+      if (!wasmFn) {
         return new UnavailableBackend(
           "the in-browser report engine failed to load \u2014 reload the page (your configuration was not uploaded)"
         );
@@ -179,7 +185,7 @@
       const bin = atob(inlined);
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      return new WasmBackend(wasm_bindgen, bytes);
+      return new WasmBackend(wasmFn, bytes);
     }
     return new ServerBackend("");
   }
