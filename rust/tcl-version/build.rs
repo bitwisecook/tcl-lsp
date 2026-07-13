@@ -43,7 +43,9 @@ fn main() {
         println!("cargo:rerun-if-changed=../../{p}");
     }
 
-    let base = env_version()
+    let stamped = env_version();
+    let base = stamped
+        .clone()
         .or_else(git_describe)
         .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_owned());
 
@@ -57,7 +59,16 @@ fn main() {
     // `…+g4c5a8f8.dirty` from a modified tree. Semver build metadata (`+…`) is
     // ignored for precedence, so this stays a legal version string.
     let hash = env_hash().or_else(git_hash);
-    let dirty = git_is_dirty();
+
+    // `.dirty` means "a developer built this from a modified tree", and it must
+    // not fire in CI. A workflow that ships an artefact regenerates TRACKED files
+    // on the way (build-wasm.sh rewrites assets/, build-report-assets rewrites
+    // dist/), so by the time the crate compiles the tree is dirty *by
+    // construction* — and every published build would claim to be a dev build.
+    //
+    // An explicit `TCL_LSP_VERSION` is the signal that a pipeline, not a person,
+    // decided what this is. Trust it and skip the check.
+    let dirty = stamped.is_none() && git_is_dirty();
 
     // Normalise whatever `git describe` produced down to the bare
     // `<tag>[-<n>]` core: it may carry its own `-dirty` and `-g<hash>`, both of

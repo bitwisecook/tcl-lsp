@@ -70,6 +70,21 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # Full history + tags: `tcl-version` resolves the release version with
+          # `git describe --tags`, and a shallow, tagless checkout makes that fail —
+          # every published artefact then reported the manifest placeholder (0.1.0)
+          # rather than the release it was cut from.
+          fetch-depth: 0
+
+      # Stamp the version from a PRISTINE tree, before anything below regenerates
+      # tracked files (build-wasm.sh rewrites assets/, the front-end build rewrites
+      # dist/). `tcl-version` prefers TCL_LSP_VERSION over `git describe`, so it
+      # cannot later mistake CI's own build output for a developer's edits and mark
+      # a published build `.dirty`.
+      - name: Stamp the release version
+        shell: bash
+        run: echo "TCL_LSP_VERSION=$(git describe --tags --always)" >> "$GITHUB_ENV"
 
       # rust-toolchain.toml pins the channel (stable). Cache both crate trees:
       # the workspace member the report links (bigip-report-gen/python) and the

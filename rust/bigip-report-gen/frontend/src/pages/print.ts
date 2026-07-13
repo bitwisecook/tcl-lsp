@@ -211,6 +211,46 @@
     return window.__f5qReady;
   }
 
+  var SEV_ORDER = ["error", "warning", "info", "hint"];
+
+  // `analyze_irule` returns `{ html, diagnostics[], counts }`. `html` only wraps
+  // each finding's range in an underline span — the MESSAGES live in
+  // `diagnostics[]`. On screen they are listed in the `.irule-diags` panel, which
+  // print.css hides (it is interactive chrome, and print.ts never builds one for
+  // the print run anyway). So a printed report used to carry underlined code and
+  // no findings at all: the underline told you *where*, and nothing told you *what*.
+  //
+  // Render the findings into the printout instead, next to the iRule they belong
+  // to. Screen-hidden, so it never flashes up mid-print-run.
+  function diagsTable(res) {
+    var diags = res.diagnostics || [];
+    var el = document.createElement("div");
+    el.className = "print-diags";
+    if (!diags.length) {
+      el.innerHTML = '<div class="print-diags-empty">No analyser findings — clean iRule.</div>';
+      return el;
+    }
+    var counts = res.counts || {};
+    var summary = SEV_ORDER.filter(function (s) { return counts[s]; })
+      .map(function (s) {
+        return '<span class="diag-badge diag-' + s + '">' + counts[s] + " " + s + (counts[s] > 1 ? "s" : "") + "</span>";
+      })
+      .join("");
+    var rows = diags
+      .map(function (d) {
+        return '<li class="diag-row diag-' + d.severity + '">' +
+          '<span class="diag-sev diag-' + d.severity + '">' + esc(d.severity) + "</span>" +
+          '<span class="diag-code">' + esc(d.code) + "</span>" +
+          '<span class="diag-loc">' + d.line + ":" + d.col + "</span>" +
+          '<span class="diag-msg">' + esc(d.message) + "</span></li>";
+      })
+      .join("");
+    el.innerHTML =
+      '<div class="print-diags-head">Analyser findings' + (summary ? " " + summary : "") + "</div>" +
+      '<ul class="diag-list">' + rows + "</ul>";
+    return el;
+  }
+
   // Apply Format / Diagnostics to every iRule body inside the print scope.
   function applyIruleOptions(deviceEls, doFmt, doDiag) {
     if (!doFmt && !doDiag) return Promise.resolve();
@@ -224,6 +264,9 @@
             if (doDiag) {
               var res = JSON.parse(wasm_bindgen.analyze_irule(src));
               pre.innerHTML = res.html;
+              var table = diagsTable(res);
+              pre.parentNode.insertBefore(table, pre.nextSibling);
+              remember(function () { if (table.parentNode) table.parentNode.removeChild(table); });
             } else if (doFmt) {
               pre.innerHTML = wasm_bindgen.format_irule(src);
             }
@@ -263,6 +306,28 @@
     var activeDevice = document.querySelector(".device.active");
     remember(function () {
       devices.forEach(function (d) { d.classList.toggle("active", d === activeDevice); });
+    });
+
+    // Open the expandable rows for real, rather than only revealing their
+    // `tr.detail` with CSS at mark time.
+    //
+    // Each iRule's control-flow diagram is drawn lazily by irule-flow.ts, off the
+    // row's *click* handler. Revealing the detail row with `.print-include` never
+    // fires that handler, so the diagram never drew and every iRule printed with an
+    // empty bordered box above its code. Worse, whenDrawn() then sat waiting the
+    // full 8s for `<svg>`s that could never appear — so this also cost most of the
+    // delay before the print dialog opened.
+    //
+    // Clicking is a toggle, so only open rows that are closed, and close them again
+    // on restore.
+    deviceEls.forEach(function (dev) {
+      dev.querySelectorAll(".panel tr.expandable").forEach(function (row) {
+        if (row.classList.contains("open")) return;
+        row.click();
+        remember(function () {
+          if (row.classList.contains("open")) row.click();
+        });
+      });
     });
 
     // `.catch` before `.then`: if the wasm engine fails (or is absent), still
