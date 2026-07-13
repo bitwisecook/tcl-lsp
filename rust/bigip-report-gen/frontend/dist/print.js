@@ -136,6 +136,27 @@
       }
       return window.__f5qReady;
     }
+    var SEV_ORDER = ["error", "warning", "info", "hint"];
+    function diagsTable(res) {
+      var diags = res.diagnostics || [];
+      var el = document.createElement("div");
+      el.className = "print-diags";
+      if (!diags.length) {
+        el.innerHTML = '<div class="print-diags-empty">No analyser findings \u2014 clean iRule.</div>';
+        return el;
+      }
+      var counts = res.counts || {};
+      var summary = SEV_ORDER.filter(function(s) {
+        return counts[s];
+      }).map(function(s) {
+        return '<span class="diag-badge diag-' + s + '">' + counts[s] + " " + s + (counts[s] > 1 ? "s" : "") + "</span>";
+      }).join("");
+      var rows = diags.map(function(d) {
+        return '<li class="diag-row diag-' + d.severity + '"><span class="diag-sev diag-' + d.severity + '">' + esc(d.severity) + '</span><span class="diag-code">' + esc(d.code) + '</span><span class="diag-loc">' + d.line + ":" + d.col + '</span><span class="diag-msg">' + esc(d.message) + "</span></li>";
+      }).join("");
+      el.innerHTML = '<div class="print-diags-head">Analyser findings' + (summary ? " " + summary : "") + '</div><ul class="diag-list">' + rows + "</ul>";
+      return el;
+    }
     function applyIruleOptions(deviceEls, doFmt, doDiag) {
       if (!doFmt && !doDiag) return Promise.resolve();
       return initWasm().then(function() {
@@ -150,6 +171,11 @@
               if (doDiag) {
                 var res = JSON.parse(wasm_bindgen.analyze_irule(src));
                 pre.innerHTML = res.html;
+                var table = diagsTable(res);
+                pre.parentNode.insertBefore(table, pre.nextSibling);
+                remember(function() {
+                  if (table.parentNode) table.parentNode.removeChild(table);
+                });
               } else if (doFmt) {
                 pre.innerHTML = wasm_bindgen.format_irule(src);
               }

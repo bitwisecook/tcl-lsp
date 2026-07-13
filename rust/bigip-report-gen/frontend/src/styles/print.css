@@ -243,7 +243,58 @@
   pre.code.tcl .tk-comment, pre.code.conf .tk-comment { color: #6a737d !important; font-style: italic; }
   /* diagnostic underlines still visible in print */
   pre.code.tcl .diag { text-decoration: underline; }
+
+  /* The findings themselves, printed under the iRule they belong to. The
+     underline spans above say *where*; nothing said *what* — the on-screen
+     `.irule-diags` panel is interactive chrome and is hidden in print, and the
+     analyser's messages live in `diagnostics[]`, not in the annotated html.
+     print.ts builds these during the print run (see diagsTable). */
+  .print-diags {
+    display: block !important;
+    break-inside: avoid;
+    margin: 6px 0 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-family: var(--sans, system-ui, sans-serif);
+  }
+  .print-diags-head {
+    font: 650 10px/1.4 var(--sans, system-ui, sans-serif);
+    padding: 5px 8px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
+  }
+  .print-diags-empty { padding: 6px 8px; font-size: 9.5px; color: #555; }
+  .print-diags .diag-list {
+    list-style: none; margin: 0; padding: 2px 0;
+    max-height: none; overflow: visible;   /* the on-screen panel scrolls; paper cannot */
+  }
+  .print-diags .diag-row {
+    display: grid;
+    grid-template-columns: auto auto auto 1fr;
+    gap: 6px;
+    align-items: baseline;
+    padding: 3px 8px;
+    font-size: 9.5px;
+    break-inside: avoid;
+  }
+  .print-diags .diag-loc, .print-diags .diag-code {
+    font-family: var(--mono, ui-monospace, monospace);
+    color: #555;
+  }
+  .print-diags .diag-msg { color: #111; }
+  /* The severity/badge chips are deliberately NOT restyled here: the rule above
+     ("Neutralise dark tag/badge backgrounds") already flattens them to a light,
+     bordered, ink-friendly chip. Forcing the on-screen severity colour back would
+     print white-on-light-grey, i.e. invisible. The severity is spelled out as text
+     in the chip, so nothing is lost. */
 }
+
+/* Only ever printed: built during the print run, so keep it off the screen or it
+   flashes up under each iRule while the report is being prepared. */
+.print-diags { display: none; }
 
 /* ---- The print dialog (screen only) ----------------------------------- */
 .print-scrim {
