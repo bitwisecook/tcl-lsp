@@ -16,8 +16,10 @@ printed report is now a linear document with a running header and footer on
 every page, one section per page, and the architecture view rendered properly
 alongside the manifest that defined it.
 
-Chasing the printing work turned up a bug that was never about printing: every
-device node in the **architecture diagram was invisible on screen too**. See
+Chasing that work turned up two bugs that were never about printing, and had
+been shipping for a while: every device node in the **architecture diagram was
+invisible on screen too**, and the report's **embedded WebAssembly never
+loaded** — which quietly took the in-report query console with it. See
 **Bug Fixes**.
 
 ## New Features
@@ -36,10 +38,34 @@ device node in the **architecture diagram was invisible on screen too**. See
   a page of its own — the diagram, the devices-by-tier breakdown, and the
   manifest DSL that defined the estate, rendered as a code block rather than as
   the empty box an editable textarea prints as. The f5-query manual is left out
-  of the printed copy, where a reference manual is only noise.
+  of the printed copy, where a reference manual is only noise — as are the query
+  console and the listener matcher, which are tools rather than report content
+  and printed as an empty prompt and an empty form.
+- **The mark and the title are the way back.** Clicking either returns the report
+  to the view it opened in — device, tab, search, filters, expanded rows, drawer
+  and scroll position — so there is a way out of a deep drilldown that isn't the
+  browser's back button.
 
 ## Bug Fixes
 
+- **The in-report f5-query console works.** The embedded WebAssembly payload was
+  the one inlined asset the template escaped, so every `/` in its base64 became
+  `&#x2f;` and decoding it threw as the page loaded. The console, the **Format
+  iRule** button and printing with diagnostics were all dead on arrival — and
+  because the failure was a silent exception at load, the page looked fine until
+  you used one of them. A test now asserts the payload survives templating.
+- **A report prints correctly in Firefox.** The running header and footer ride in
+  a table so that browsers repeat them on every page, but parking the whole
+  report in a single table put every section break inside one table cell — the
+  case Gecko gets badly wrong. Firefox printed a two-device estate as 70 pages,
+  22 of them blank, where Chrome printed the same file cleanly. Each section now
+  prints from a sheet of its own, and the same report comes out with no blank
+  pages in either browser, header and footer on every page.
+- **Empty sections no longer cost a sheet of paper.** A device with no monitors
+  printed a Monitors page: a heading, and nothing under it. On a large estate the
+  diagrams had not finished drawing before the print run started, so their pages
+  printed as empty boxes; the run now waits for the diagrams it is about to
+  print.
 - **The architecture diagram now draws its devices — on screen as well as in
   print.** The diagram draws each device as an SVG node carrying
   `class="device"`, and the report's own `.device { display: none }` rule — the
