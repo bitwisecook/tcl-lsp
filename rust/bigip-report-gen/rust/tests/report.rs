@@ -215,6 +215,13 @@ fn build_report_html_self_contained() {
     // fine — they are user-initiated navigation, not loaded to run the report.
     assert!(!html.contains("src=\"http"), "no remote script/image src");
     assert!(!html.contains("<link "), "no external stylesheet links");
+    // …and enforced in the browser: a CSP that forbids ALL network egress
+    // (connect-src 'none'), so the config a report carries can never be phoned
+    // home even if a future change or injected data tried to.
+    assert!(
+        html.contains("Content-Security-Policy") && html.contains("connect-src 'none'"),
+        "report carries a no-network CSP"
+    );
     // The wasm console + embedded config are present.
     assert!(html.contains("id=\"f5-wasm\""), "wasm blob embedded");
     // …and the blob must still be *decodable*. The template autoescapes by
