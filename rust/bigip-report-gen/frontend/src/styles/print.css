@@ -29,6 +29,10 @@
    * those too — blanking the diagram. */
   .printing article.device { display: none !important; }
   .printing article.device.print-include { display: block !important; }
+  /* Interactive tools, never report content — they print as an empty prompt and
+     an empty form. print.ts drops them from the dialog; this covers the raw
+     Ctrl-P path, where whichever tab is open would otherwise print. */
+  .panel[data-panel="console"], .panel[data-panel="listener"] { display: none !important; }
   .printing .panel { display: none !important; }
   .printing .panel.print-include { display: block !important; }
   /* Detail rows the user chose to include must be expanded. */
@@ -54,10 +58,39 @@
    * `table.print-sheet` and copies the running head/foot into its thead/tfoot;
    * the source elements stay hidden. The head carries the document title, the
    * foot the attribution + version + git build hash + copyright notice. */
+  /* Only ever shown once print.ts has moved them into the sheet. */
   .print-running-head, .print-running-foot { display: none !important; }
+  .print-sheet-head .print-running-head,
+  .print-sheet-foot .print-running-foot {
+    display: flex !important;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+  }
+  .print-sheet-foot .print-running-foot { justify-content: center; }
+  /* The marks ride the running head/foot, so every printed page is branded.
+     Forced colour-adjust: without it a browser drops them as "backgrounds". */
+  .print-mark { display: inline-flex; align-items: center; gap: 5px; flex: none; }
+  .print-mark svg, .print-mark img {
+    display: block;
+    width: auto;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-sheet-head .print-mark svg, .print-sheet-head .print-mark img { height: 17px; }
+  .print-sheet-foot .print-mark svg { height: 13px; }
+  .print-run-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
   .print-sheet { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .print-sheet-body { padding: 0; vertical-align: top; }
+  /* The sheet's own row holds the entire report, so it must be free to break —
+     the blanket `tr { break-inside: avoid }` below would otherwise ask the
+     browser to keep the whole document on a single page. */
+  .print-sheet > thead > tr, .print-sheet > tbody > tr, .print-sheet > tfoot > tr,
+  .print-sheet > tbody > tr > td {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
   .print-sheet-head th, .print-sheet-foot td {
     font-family: var(--sans, system-ui, sans-serif);
     color: #555;

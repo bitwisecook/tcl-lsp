@@ -54,15 +54,25 @@ code{font-family:var(--mono)}
 .topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;
   gap:16px;padding:12px 22px;background:var(--panel);border-bottom:1px solid var(--line)}
 .brand{display:flex;align-items:center;gap:14px}
-.logo{display:grid;place-items:center;width:38px;height:38px;border-radius:10px;
-  background:linear-gradient(135deg,var(--accent),var(--blue));color:#fff;font-size:20px}
+/* The mark and the title are the way back to the report's opening view — a link,
+   but it should read as the brand, not as link text. */
+.brand-home{display:inline-flex;color:inherit;text-decoration:none;border-radius:10px}
+.brand-home:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:2px}
+.topbar h1 .brand-home:hover{text-decoration:underline}
+/* 58px is the height of the text stack beside it — the title, the meta line and
+ * the attribution — so the mark squares off the whole brand block rather than
+ * floating against it. Sized in px, not stretched to the sibling: flex resolves
+ * an item's width from its content before the stretched height is known, so a
+ * square that takes its width from its height cannot be expressed that way. */
+.logo{display:grid;place-items:center;width:58px;height:58px;border-radius:10px;
+  background:linear-gradient(135deg,var(--accent),var(--blue));color:#fff;font-size:26px}
 /* User-supplied report logo (inlined data-URI): show at its aspect ratio, no
  * gradient background. Capped so a wide wordmark or tall badge both fit. */
-.logo-custom{background:none;width:auto;height:38px;max-width:160px;object-fit:contain;border-radius:6px}
+.logo-custom{background:none;width:auto;height:58px;max-width:220px;object-fit:contain;border-radius:6px}
 /* Fallback when no report logo was supplied: the f5-query squircle, inlined as
  * <svg>. It brings its own rounded background, so drop the gradient tile. */
 .logo-mark{background:none;border-radius:0}
-.logo-mark svg{display:block;width:38px;height:38px}
+.logo-mark svg{display:block;width:58px;height:58px}
 .topbar h1{font-size:17px}
 .sub{margin:2px 0 0;color:var(--muted);font-size:12px}
 .topbar-actions{display:flex;align-items:center;gap:10px}
@@ -268,7 +278,7 @@ pre.code.tcl .diag.flash{background:rgba(191,135,0,.25);border-radius:3px}
 /* The marks lead the footer, centred above the attribution text. */
 .foot-logos{display:flex;gap:18px;align-items:center;justify-content:center;margin:0 0 12px;color:var(--muted)}
 .foot-logo{display:inline-flex;align-items:center;color:inherit;opacity:.85;transition:opacity .12s}
-.foot-logo svg{display:block;height:24px;width:auto}
+.foot-logo svg{display:block;height:36px;width:auto}
 a.foot-logo{text-decoration:none}
 a.foot-logo:hover,a.foot-logo:focus-visible{opacity:1;outline:none}
 /* The tcl-lsp mark ships a light and a dark squircle and the report emits both;

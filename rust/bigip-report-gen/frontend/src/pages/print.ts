@@ -46,6 +46,11 @@
     var name = (t && t.textContent.trim()) || dev.getAttribute("data-name") || "";
     return name || "Device " + (i + 1);
   }
+  // Interactive tools rather than report content: the query console prints as an
+  // empty prompt and the listener matcher as an empty form. Neither is offered
+  // in the dialog, and print.css hides them for the raw Ctrl-P path too.
+  var TOOLS = { console: true, listener: true };
+
   // Union of sections (data-panel) across all devices, first-seen order, with a
   // human label taken from the tab text (minus its count badge).
   var sections = [];
@@ -53,7 +58,7 @@
   devices.forEach(function (dev) {
     dev.querySelectorAll(".tabs .tab[data-panel]").forEach(function (tab) {
       var key = tab.dataset.panel;
-      if (seen[key]) return;
+      if (seen[key] || TOOLS[key]) return;
       seen[key] = true;
       var label = tab.cloneNode(true);
       var n = label.querySelector(".n"); if (n) n.remove();
@@ -209,9 +214,46 @@
     });
 
     applyIruleOptions(deviceEls, doFmt, doDiag).then(function () {
-      // wait for async Mermaid renders to settle, then mark + print
-      setTimeout(function () { markAndPrint(deviceEls, secs); }, 700);
+      whenDrawn(deviceEls, secs, function () { markAndPrint(deviceEls, secs); });
     });
+  }
+
+  // The topology / apps / architecture diagrams are laid out asynchronously, and
+  // on a large estate that takes well past the fixed delay this used to allow —
+  // printing early gave pages with an empty diagram box on them. Wait for the
+  // panels being printed to actually have their <svg>, and cap the wait so a
+  // host that legitimately never draws one ("no linked objects") can't hang the
+  // print run.
+  function whenDrawn(deviceEls, secs, done) {
+    var deadline = Date.now() + 8000;
+    (function poll() {
+      var undrawn = 0;
+      deviceEls.forEach(function (dev) {
+        secs.forEach(function (key) {
+          var panel = dev.querySelector('.panel[data-panel="' + key + '"]');
+          if (!panel) return;
+          panel.querySelectorAll(".diag-host").forEach(function (host) {
+            if (!host.querySelector("svg") && !host.textContent.trim()) undrawn++;
+          });
+        });
+      });
+      if (!undrawn || Date.now() > deadline) { done(); return; }
+      setTimeout(poll, 150);
+    })();
+  }
+
+  // An empty section still costs a sheet of paper: its own forced page, a
+  // heading, and nothing under it. A device with no monitors should simply not
+  // have a Monitors page. Judged on the tab's count badge where it has one, and
+  // otherwise on whether the panel drew anything at all.
+  function isEmptySection(dev, key) {
+    var tab = dev.querySelector('.tab[data-panel="' + key + '"]');
+    var badge = tab && tab.querySelector(".n");
+    if (badge && /^\s*0\s*$/.test(badge.textContent)) return true;
+    var panel = dev.querySelector('.panel[data-panel="' + key + '"]');
+    if (!panel) return true;
+    if (panel.querySelector("tbody tr, svg, pre, .card, .cert-row, .app-detail")) return false;
+    return !panel.textContent.trim();
   }
 
   // ---- Running head/foot on every printed page --------------------------
@@ -225,16 +267,28 @@
   // in the template are the (hidden) source of that markup.
   function parkInSheet(nodes) {
     if (!nodes.length) return;
-    var head = document.querySelector(".print-running-head");
-    var foot = document.querySelector(".print-running-foot");
     var sheet = document.createElement("table");
     sheet.className = "print-sheet";
     sheet.innerHTML =
-      '<thead class="print-sheet-head"><tr><th>' + ((head && head.innerHTML) || "") + "</th></tr></thead>" +
-      '<tfoot class="print-sheet-foot"><tr><td>' + ((foot && foot.innerHTML) || "") + "</td></tr></tfoot>" +
+      '<thead class="print-sheet-head"><tr><th></th></tr></thead>' +
+      '<tfoot class="print-sheet-foot"><tr><td></td></tr></tfoot>' +
       '<tbody><tr><td class="print-sheet-body"></td></tr></tbody>';
     var cell = sheet.querySelector(".print-sheet-body");
     nodes[0].parentNode.insertBefore(sheet, nodes[0]);
+
+    // The running head/foot are MOVED in, not copied: they carry the project
+    // marks as inline <svg>, and a copy would duplicate every gradient id.
+    [
+      [".print-running-head", "thead th"],
+      [".print-running-foot", "tfoot td"],
+    ].forEach(function (pair) {
+      var el = document.querySelector(pair[0]);
+      if (!el) return;
+      var parent = el.parentNode, next = el.nextSibling;
+      remember(function () { parent.insertBefore(el, next); });
+      sheet.querySelector(pair[1]).appendChild(el);
+    });
+
     nodes.forEach(function (n) {
       var parent = n.parentNode, next = n.nextSibling;
       remember(function () { parent.insertBefore(n, next); });
@@ -285,7 +339,7 @@
       remember(function () { dev.classList.remove("print-include"); });
       secs.forEach(function (key) {
         var panel = dev.querySelector('.panel[data-panel="' + key + '"]');
-        if (!panel) return;
+        if (!panel || isEmptySection(dev, key)) return;
         panel.classList.add("print-include");
         remember(function () { panel.classList.remove("print-include"); });
         // printed section heading

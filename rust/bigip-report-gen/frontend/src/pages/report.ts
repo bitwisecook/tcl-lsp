@@ -149,6 +149,55 @@
     sel.addEventListener("change", apply);
   });
 
+  // --- the mark + title are the way home ------------------------------------
+  // Clicking either returns the report to the view it opened in. The opening
+  // view is *recorded* here rather than assumed, so it stays right if the
+  // default tab ever changes (a report with front-matter opens on that tab, not
+  // on Virtual Servers). A reload would be the other way to do this, but a
+  // report opened from a blob: URL — straight out of the in-browser generator —
+  // cannot be reloaded, and this keeps it working there too.
+  (function brandHome() {
+    var homes = document.querySelectorAll(".brand-home");
+    if (!homes.length) return;
+
+    var openDevice = document.querySelector(".dev-tab.active");
+    var openTabs = [];
+    document.querySelectorAll("article.device[data-dev]").forEach(function (dev) {
+      openTabs.push({ dev: dev, tab: dev.querySelector(".tab.active") });
+    });
+
+    function reset(ev) {
+      if (ev) ev.preventDefault();
+      // the device that was showing, and the tab each device was showing
+      if (openDevice) openDevice.click();
+      openTabs.forEach(function (o) { if (o.tab) o.tab.click(); });
+      // filters and drilldowns: search, partition, system rows, expanded rows
+      var search = document.getElementById("globalSearch");
+      if (search && search.value) {
+        search.value = "";
+        search.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      document.querySelectorAll(".partition-filter").forEach(function (sel) {
+        if (sel.selectedIndex !== 0) {
+          sel.selectedIndex = 0;
+          sel.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      });
+      document.querySelectorAll("article.device.show-system-on").forEach(function (d) {
+        d.classList.remove("show-system-on");
+      });
+      document.querySelectorAll("tr.expandable.open, tr.detail.open").forEach(function (r) {
+        r.classList.remove("open");
+      });
+      // any open object drawer, and back to the top
+      var close = document.querySelector("#objDrawer .drawer-close");
+      if (close && document.getElementById("objDrawer").classList.contains("open")) close.click();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    homes.forEach(function (a) { a.addEventListener("click", reset); });
+  })();
+
   // --- expandable rows (pool members, iRule bodies, data-group records) -----
   document.querySelectorAll("tr.expandable").forEach(function (row) {
     var detail = row.nextElementSibling;
