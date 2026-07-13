@@ -24,23 +24,80 @@
           "begin": "(?:^|;)\\s*(?=#)",
           "end": "(?=\\n)",
           "contentName": "comment.line.number-sign.tcl",
-          "patterns": [
-            { "match": "\\\\\\\\" },
-            { "match": "\\\\\\n" }
-          ]
+          "patterns": [{ "match": "\\\\\\\\" }, { "match": "\\\\\\n" }]
         }
       ]
     },
     "definitions": {
-      "comment": "Command definitions that introduce a named entity",
+      "comment": "Command definitions that introduce a named entity. These rules exist so the grammar's paint agrees with the semantic-token layer's `function` / `method` / `class` / `parameter` types rather than contradicting it: the grammar is what the user sees before the server answers, and everywhere the server never runs (Linguist, a plain editor, a file too large for semantic tokens). It is allowed to be *less* specific than the server; it must never be differently coloured (issue #903).",
       "patterns": [
         {
-          "comment": "proc/method name — capture the command name as entity.name.function. The name class deliberately excludes string/brace/bracket delimiters so a bareword 'proc'/'method' used as an argument (e.g. `dict set frame proc \"x\"`) cannot swallow an opening quote and derail string/brace scoping (issue #637).",
+          "comment": "proc/method definition with its parameter list — the name is an entity and each parameter is a variable.parameter, matching the semantic layer's `function`/`method` + `parameter` types. Sublime's bundled Tcl syntax scopes proc parameters the same way; the TextMate bundle scopes neither. The name class deliberately excludes string/brace/bracket delimiters so a bareword 'proc'/'method' used as an argument (e.g. `dict set frame proc \"x\"`) cannot swallow an opening quote and derail string/brace scoping (issue #637); requiring the opening brace of the parameter list keeps that guarantee here.",
+          "begin": "(?<=^|\\s|;|\\[)(proc|method)\\s+([^\\s\"{}\\[\\];$]+)\\s*(\\{)",
+          "beginCaptures": {
+            "1": { "name": "storage.type.function.tcl" },
+            "2": { "name": "entity.name.function.tcl" },
+            "3": { "name": "punctuation.definition.parameters.begin.tcl" }
+          },
+          "end": "(\\})",
+          "endCaptures": {
+            "1": { "name": "punctuation.definition.parameters.end.tcl" }
+          },
+          "patterns": [{ "include": "#parameter-list" }]
+        },
+        {
+          "comment": "constructor/destructor take a parameter list but no name (TclOO).",
+          "begin": "(?<=^|\\s|;|\\[)(constructor)\\s*(\\{)",
+          "beginCaptures": {
+            "1": { "name": "storage.type.function.tcl" },
+            "2": { "name": "punctuation.definition.parameters.begin.tcl" }
+          },
+          "end": "(\\})",
+          "endCaptures": {
+            "1": { "name": "punctuation.definition.parameters.end.tcl" }
+          },
+          "patterns": [{ "include": "#parameter-list" }]
+        },
+        {
+          "comment": "TclOO / Itcl class definition — the class name matches the semantic layer's `class` type. No existing Tcl grammar scopes TclOO at all (checked: TextMate, Sublime, tree-sitter, Pygments), so this follows the LSP type names rather than a grammar convention.",
+          "match": "(?<=^|\\s|;|\\[)(oo::class\\s+create|oo::define|oo::objdefine|itcl::class)\\s+([^\\s\"{}\\[\\];$]+)",
+          "captures": {
+            "1": { "name": "support.class.tcl" },
+            "2": { "name": "entity.name.class.tcl" }
+          }
+        },
+        {
+          "comment": "A class named as a superclass or mixin is a class reference, as the semantic layer types it.",
+          "match": "(?<=^|\\s|;|\\[)(superclass|mixin)\\s+([^\\s\"{}\\[\\];$]+)",
+          "captures": {
+            "1": { "name": "storage.modifier.tcl" },
+            "2": { "name": "entity.other.inherited-class.tcl" }
+          }
+        },
+        {
+          "comment": "proc/method name with no parameter list following (e.g. a forward declaration, or `method` used with a brace on the next line). Kept after the rules above so the parameter-list form wins.",
           "match": "(?<=^|\\s|;|\\[)(proc|method)\\s+([^\\s\"{}\\[\\];$]+)",
           "captures": {
-            "1": { "name": "keyword.other.tcl" },
+            "1": { "name": "storage.type.function.tcl" },
             "2": { "name": "entity.name.function.tcl" }
           }
+        }
+      ]
+    },
+    "parameter-list": {
+      "comment": "The inside of a proc/method parameter list.",
+      "patterns": [
+        {
+          "comment": "A parameter with a default value — `{name default}`. Matched as one unit so its closing brace is consumed here and cannot terminate the enclosing parameter list early.",
+          "match": "\\{\\s*([^\\s{}]+)([^{}]*)\\}",
+          "captures": {
+            "1": { "name": "variable.parameter.tcl" }
+          }
+        },
+        {
+          "comment": "A plain parameter name. `args` is Tcl's variadic marker, but it is an ordinary parameter name too, so it is not special-cased.",
+          "match": "[^\\s{}]+",
+          "name": "variable.parameter.tcl"
         }
       ]
     },
@@ -53,29 +110,30 @@
           "end": "(\\})",
           "beginCaptures": {
             "1": { "name": "support.function.tcl" },
-            "2": { "name": "meta.options.tcl", "patterns": [
-              {
-                "name": "keyword.operator.option.tcl",
-                "match": "-(?:nocase|expanded|line|linestop|lineanchor|indices|all|inline|about|start)\\b"
-              },
-              {
-                "name": "constant.numeric.tcl",
-                "match": "\\b[0-9]+\\b"
-              },
-              {
-                "name": "punctuation.separator.option-end.tcl",
-                "match": "--"
-              }
-            ]},
+            "2": {
+              "name": "meta.options.tcl",
+              "patterns": [
+                {
+                  "name": "keyword.operator.option.tcl",
+                  "match": "-(?:nocase|expanded|line|linestop|lineanchor|indices|all|inline|about|start)\\b"
+                },
+                {
+                  "name": "constant.numeric.tcl",
+                  "match": "\\b[0-9]+\\b"
+                },
+                {
+                  "name": "punctuation.separator.option-end.tcl",
+                  "match": "--"
+                }
+              ]
+            },
             "3": { "name": "punctuation.definition.string.begin.regexp.tcl" }
           },
           "endCaptures": {
             "1": { "name": "punctuation.definition.string.end.regexp.tcl" }
           },
           "name": "string.regexp.tcl",
-          "patterns": [
-            { "include": "#regex-internals" }
-          ]
+          "patterns": [{ "include": "#regex-internals" }]
         },
         {
           "comment": "regexp/regsub with quoted pattern: regexp \"pattern\" ...",
@@ -83,20 +141,23 @@
           "end": "(\")",
           "beginCaptures": {
             "1": { "name": "support.function.tcl" },
-            "2": { "name": "meta.options.tcl", "patterns": [
-              {
-                "name": "keyword.operator.option.tcl",
-                "match": "-(?:nocase|expanded|line|linestop|lineanchor|indices|all|inline|about|start)\\b"
-              },
-              {
-                "name": "constant.numeric.tcl",
-                "match": "\\b[0-9]+\\b"
-              },
-              {
-                "name": "punctuation.separator.option-end.tcl",
-                "match": "--"
-              }
-            ]},
+            "2": {
+              "name": "meta.options.tcl",
+              "patterns": [
+                {
+                  "name": "keyword.operator.option.tcl",
+                  "match": "-(?:nocase|expanded|line|linestop|lineanchor|indices|all|inline|about|start)\\b"
+                },
+                {
+                  "name": "constant.numeric.tcl",
+                  "match": "\\b[0-9]+\\b"
+                },
+                {
+                  "name": "punctuation.separator.option-end.tcl",
+                  "match": "--"
+                }
+              ]
+            },
             "3": { "name": "punctuation.definition.string.begin.regexp.tcl" }
           },
           "endCaptures": {
@@ -114,20 +175,23 @@
           "match": "(?<=^|\\s|;|\\[)(regexp|regsub)\\s+((?:-[a-z]+\\s+)*(?:--\\s+)?)(\\S+)",
           "captures": {
             "1": { "name": "support.function.tcl" },
-            "2": { "name": "meta.options.tcl", "patterns": [
-              {
-                "name": "keyword.operator.option.tcl",
-                "match": "-(?:nocase|expanded|line|linestop|lineanchor|indices|all|inline|about|start)\\b"
-              },
-              {
-                "name": "constant.numeric.tcl",
-                "match": "\\b[0-9]+\\b"
-              },
-              {
-                "name": "punctuation.separator.option-end.tcl",
-                "match": "--"
-              }
-            ]},
+            "2": {
+              "name": "meta.options.tcl",
+              "patterns": [
+                {
+                  "name": "keyword.operator.option.tcl",
+                  "match": "-(?:nocase|expanded|line|linestop|lineanchor|indices|all|inline|about|start)\\b"
+                },
+                {
+                  "name": "constant.numeric.tcl",
+                  "match": "\\b[0-9]+\\b"
+                },
+                {
+                  "name": "punctuation.separator.option-end.tcl",
+                  "match": "--"
+                }
+              ]
+            },
             "3": { "name": "string.regexp.tcl" }
           }
         }
@@ -174,9 +238,7 @@
             "1": { "name": "punctuation.definition.group.end.regexp.tcl" }
           },
           "name": "meta.group.regexp.tcl",
-          "patterns": [
-            { "include": "#regex-internals" }
-          ]
+          "patterns": [{ "include": "#regex-internals" }]
         },
         {
           "comment": "Non-capturing group and lookaheads: (?:), (?=), (?!), (?<=), (?<!)",
@@ -213,9 +275,7 @@
           "comment": "Nested braces (Tcl brace nesting within regex)",
           "begin": "\\{",
           "end": "\\}",
-          "patterns": [
-            { "include": "#regex-internals" }
-          ]
+          "patterns": [{ "include": "#regex-internals" }]
         }
       ]
     },
@@ -266,9 +326,7 @@
           "endCaptures": {
             "0": { "name": "punctuation.section.bracket.end.tcl" }
           },
-          "patterns": [
-            { "include": "source.tcl" }
-          ]
+          "patterns": [{ "include": "source.tcl" }]
         }
       ]
     },
@@ -318,9 +376,7 @@
           "endCaptures": {
             "0": { "name": "punctuation.section.braces.end.tcl" }
           },
-          "patterns": [
-            { "include": "source.tcl" }
-          ]
+          "patterns": [{ "include": "source.tcl" }]
         }
       ]
     },
@@ -329,7 +385,7 @@
         {
           "comment": "Control flow keywords (when is iRule-specific but this grammar serves all dialects). lmap lives here (not in the built-in-commands list below) because the registry carries it with the same LANGUAGE_KEYWORD trait as foreach — it binds loop variables, not just a plain library call.",
           "name": "keyword.control.tcl",
-          "match": "(?<=^|\\s|;|\\[)(?:break|catch|continue|else|elseif|finally|for|foreach|foreachLine|if|lfilter|lmap|on|return|switch|tailcall|throw|trap|try|when|while|yield|yieldto)(?=\\s|$|;)"
+          "match": "(?<=^|\\s|;|\\[)(?:break|catch|continue|else|elseif|error|finally|for|foreach|foreachLine|if|lfilter|lmap|on|return|switch|tailcall|throw|trap|try|when|while|yield|yieldto)(?=\\s|$|;)"
         },
         {
           "comment": "Definition keywords (proc/method handled in #definitions for name capture)",
@@ -339,7 +395,7 @@
         {
           "comment": "Common built-in commands",
           "name": "support.function.tcl",
-          "match": "(?<=^|\\s|;|\\[)(?:after|append|array|auto_execok|auto_import|auto_load|auto_load_index|auto_mkindex|auto_mkindex_old|auto_qualify|auto_reset|bgerror|binary|cd|chan|clock|close|concat|const|coroinject|coroprobe|dict|divmod|encoding|eof|eq|error|eval|exec|exit|expr|fblocked|fconfigure|fcopy|file|fileevent|filename|flush|format|frexp|gets|gettimes|glob|history|http|in|incr|info|join|lappend|lassign|ledit|lgen|lindex|linsert|list|llength|load|lpop|lrange|lremove|lrepeat|lreplace|lreverse|lsearch|lseq|lset|lsort|lstring|memory|modf|ne|ni|noop|oo::copy|oo::object|open|parray|pid|pkg::create|pkg_mkIndex|pkg_mkindex|puts|pwd|re_quote|read|readFile|regex::quote|regex_quote|regexp|regexp::quote|registry|regsub|remquo|scan|seek|set|socket|split|string|subst|tclLog|tclPkgSetup|tclPkgUnknown|tcl_endOfWord|tcl_findLibrary|tcl_startOfNextWord|tcl_startOfPreviousWord|tcl_wordBreakAfter|tcl_wordBreakBefore|tell|time|timer|timerate|trace|unicode|unknown|unload|unset|update|vwait|writeFile|zlib)(?=\\s|$|;)"
+          "match": "(?<=^|\\s|;|\\[)(?:after|append|array|auto_execok|auto_import|auto_load|auto_load_index|auto_mkindex|auto_mkindex_old|auto_qualify|auto_reset|bgerror|binary|cd|chan|clock|close|concat|const|coroinject|coroprobe|dict|divmod|encoding|eof|eq|eval|exec|exit|expr|fblocked|fconfigure|fcopy|file|fileevent|filename|flush|format|frexp|gets|gettimes|glob|history|http|in|incr|info|join|lappend|lassign|ledit|lgen|lindex|linsert|list|llength|load|lpop|lrange|lremove|lrepeat|lreplace|lreverse|lsearch|lseq|lset|lsort|lstring|memory|modf|ne|ni|noop|oo::copy|oo::object|open|parray|pid|pkg::create|pkg_mkIndex|pkg_mkindex|puts|pwd|re_quote|read|readFile|regex::quote|regex_quote|regexp|regexp::quote|registry|regsub|remquo|scan|seek|set|socket|split|string|subst|tclLog|tclPkgSetup|tclPkgUnknown|tcl_endOfWord|tcl_findLibrary|tcl_startOfNextWord|tcl_startOfPreviousWord|tcl_wordBreakAfter|tcl_wordBreakBefore|tell|time|timer|timerate|trace|unicode|unknown|unload|unset|update|vwait|writeFile|zlib)(?=\\s|$|;)"
         }
       ]
     },

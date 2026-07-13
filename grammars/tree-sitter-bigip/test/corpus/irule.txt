@@ -1,0 +1,39 @@
+================================================================================
+An ltm rule body is one raw token, for the Tcl injection
+================================================================================
+
+ltm rule /Common/r {
+when HTTP_REQUEST {
+    if { [HTTP::uri] starts_with "/api" } { pool /Common/p }
+}
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (irule
+    module: (module)
+    type: (object_type)
+    name: (object_path
+      partition: (path_component)
+      name: (path_component))
+    body: (rule_body)))
+
+================================================================================
+A brace behind a backslash does not close the body early
+================================================================================
+
+ltm rule /Common/r {
+set x \}
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (irule
+    module: (module)
+    type: (object_type)
+    name: (object_path
+      partition: (path_component)
+      name: (path_component))
+    body: (rule_body)))

@@ -78,6 +78,7 @@ _SYNTAX_DIALECT_MAP = {
     "iRule": "f5-irules",
     "iApp": "f5-iapps",
     "APL": "f5-iapps",
+    "BIG-IP": "f5-bigip",
     "Synopsys EDA": "synopsys-eda-tcl",
     "Cadence EDA": "cadence-eda-tcl",
     "Xilinx EDA": "xilinx-eda-tcl",
@@ -621,11 +622,15 @@ def _is_tcl_view(view):
 
     Matches by scope rather than syntax-file path so it covers every
     dialect the package ships — the EDA, Expect, iApp and Tcl-version
-    grammars all declare ``source.tcl``; iRules use ``source.irule`` and
-    F5 iApp APL uses ``source.apl``.
+    grammars all declare ``source.tcl``; iRules use ``source.irule``,
+    F5 iApp APL uses ``source.tcl-apl`` and a BIG-IP config uses
+    ``source.tcl-bigip`` (the same scope names the VS Code grammars use,
+    so every editor agrees).
     """
     if view is None:
         return False
     sel = view.sel()
     point = sel[0].b if sel else 0
-    return view.match_selector(point, "source.tcl, source.irule, source.apl")
+    return view.match_selector(
+        point, "source.tcl, source.irule, source.tcl-apl, source.tcl-bigip"
+    )

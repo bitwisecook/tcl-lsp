@@ -60,11 +60,11 @@
 (command
   name: (simple_word) @keyword
   (#any-of? @keyword
-    "apply" "break" "classvariable" "continue" "coroutine" "global"
-    "interp" "my" "next" "nextto" "oo::abstract" "oo::class"
-    "oo::configurable" "oo::define" "oo::objdefine" "oo::singleton" "package" "rename"
-    "return" "self" "source" "tailcall" "throw" "uplevel"
-    "upvar" "variable" "yield" "yieldto"))
+    "apply" "break" "classvariable" "continue" "coroutine" "error"
+    "global" "interp" "my" "next" "nextto" "oo::abstract"
+    "oo::class" "oo::configurable" "oo::define" "oo::objdefine" "oo::singleton" "package"
+    "rename" "return" "self" "source" "tailcall" "throw"
+    "uplevel" "upvar" "variable" "yield" "yieldto"))
 
 ; --- generated from tcl-registry: built-in commands ---
 (command
@@ -74,28 +74,28 @@
     "auto_load_index" "auto_mkindex" "auto_mkindex_old" "auto_qualify" "auto_reset" "bgerror"
     "binary" "cd" "chan" "clock" "close" "concat"
     "const" "coroinject" "coroprobe" "debug" "dict" "disconnect"
-    "divmod" "encoding" "eof" "eq" "error" "eval"
-    "exec" "exit" "exp_continue" "exp_internal" "exp_pid" "exp_version"
-    "expect" "expect_after" "expect_background" "expect_before" "expect_tty" "expect_user"
-    "fblocked" "fconfigure" "fcopy" "file" "fileevent" "filename"
-    "flush" "fork" "format" "frexp" "gets" "gettimes"
-    "glob" "history" "http" "in" "incr" "info"
-    "interact" "join" "lappend" "lassign" "ledit" "lgen"
-    "lindex" "linsert" "list" "llength" "load" "log_file"
-    "log_user" "lpop" "lrange" "lremove" "lrepeat" "lreplace"
-    "lreverse" "lsearch" "lseq" "lset" "lsort" "lstring"
-    "match_max" "memory" "modf" "ne" "ni" "noop"
-    "oo::copy" "oo::object" "open" "overlay" "parity" "parray"
-    "pid" "pkg::create" "pkg_mkIndex" "pkg_mkindex" "puts" "pwd"
-    "re_quote" "read" "readFile" "regex::quote" "regex_quote" "regexp"
-    "regexp::quote" "registry" "regsub" "remove_nulls" "remquo" "scan"
-    "seek" "send" "send_error" "send_log" "send_tty" "send_user"
-    "sleep" "socket" "spawn" "split" "strace" "string"
-    "stty" "subst" "system" "tclLog" "tclPkgSetup" "tclPkgUnknown"
-    "tcl_endOfWord" "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore"
-    "tell" "time" "timer" "timerate" "timestamp" "trace"
-    "trap" "unicode" "unknown" "unload" "unset" "update"
-    "vwait" "wait" "writeFile" "zlib"))
+    "divmod" "encoding" "eof" "eq" "eval" "exec"
+    "exit" "exp_continue" "exp_internal" "exp_pid" "exp_version" "expect"
+    "expect_after" "expect_background" "expect_before" "expect_tty" "expect_user" "fblocked"
+    "fconfigure" "fcopy" "file" "fileevent" "filename" "flush"
+    "fork" "format" "frexp" "gets" "gettimes" "glob"
+    "history" "http" "in" "incr" "info" "interact"
+    "join" "lappend" "lassign" "ledit" "lgen" "lindex"
+    "linsert" "list" "llength" "load" "log_file" "log_user"
+    "lpop" "lrange" "lremove" "lrepeat" "lreplace" "lreverse"
+    "lsearch" "lseq" "lset" "lsort" "lstring" "match_max"
+    "memory" "modf" "ne" "ni" "noop" "oo::copy"
+    "oo::object" "open" "overlay" "parity" "parray" "pid"
+    "pkg::create" "pkg_mkIndex" "pkg_mkindex" "puts" "pwd" "re_quote"
+    "read" "readFile" "regex::quote" "regex_quote" "regexp" "regexp::quote"
+    "registry" "regsub" "remove_nulls" "remquo" "scan" "seek"
+    "send" "send_error" "send_log" "send_tty" "send_user" "sleep"
+    "socket" "spawn" "split" "strace" "string" "stty"
+    "subst" "system" "tclLog" "tclPkgSetup" "tclPkgUnknown" "tcl_endOfWord"
+    "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore" "tell"
+    "time" "timer" "timerate" "timestamp" "trace" "trap"
+    "unicode" "unknown" "unload" "unset" "update" "vwait"
+    "wait" "writeFile" "zlib"))
 
 ; Highlight unset / variable arguments as variables
 (command

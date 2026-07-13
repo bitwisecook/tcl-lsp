@@ -1,0 +1,194 @@
+%YAML 1.2
+---
+# F5 BIG-IP configuration syntax highlighting for Sublime Text
+# Converted from editors/vscode/syntaxes/bigip.tmLanguage.json (#903)
+#
+# A `bigip.conf` / `.scf` is not Tcl — but an `ltm rule` body *is* Tcl, and is
+# included as such here, exactly as the server walks it with the iRules dialect.
+#
+# The scopes are deliberately the *less specific* members of the scope families
+# the server's BIG-IP semantic tokens map to: the server can tell a pool from a
+# monitor from a profile and emits `entity.name.type.pool.bigip`; a static
+# grammar usually cannot, so it emits `entity.name.type.bigip`.  Both live under
+# `entity.name.type`, so a theme colours them identically — the grammar is less
+# precise than the server, and never contradicts it.
+name: BIG-IP
+scope: source.tcl-bigip
+version: 2
+
+file_extensions:
+  - scf
+
+# NOT `conf`: a bare `.conf` extension would claim every unrelated .conf file
+# in Sublime, which has no filename-glob support in a syntax file. VS Code
+# matches the specific filenames (bigip.conf, bigip_base.conf, …) instead.
+# `plugin.py` sets this syntax by filename; first_line_match catches the rest.
+
+first_line_match: '^#TMSH-VERSION'
+
+contexts:
+  main:
+    - include: comment
+    - include: irule
+    - include: monitor-expression
+    - include: typed-object-reference
+    - include: property-name
+    - include: declaration
+    - include: encrypted
+    - include: string
+    - include: member-path
+    - include: object-path
+    - include: ip-address
+    - include: number
+
+  comment:
+    - match: '#.*$'
+      scope: comment.line.number-sign.bigip
+
+  # `ltm rule /Common/name { … }` — the body is an iRule, i.e. Tcl.  The block
+  # ends at a closing brace in column 0, which is where tmsh writes it; a brace
+  # nested in the script is indented and so cannot end the block early.  The
+  # pop rule lives only in this context, so a `}` inside a Tcl brace/bracket
+  # context (which source.tcl pushes) is consumed there and cannot escape early.
+  irule:
+    - match: '^(ltm)\s+(rule)\s+((?:/([^/\s{}]+))?/?([^\s{}]+))\s*(\{)\s*$'
+      captures:
+        1: keyword.control.bigip
+        2: keyword.control.bigip
+        4: entity.name.namespace.partition.bigip
+        5: entity.name.type.bigip
+        6: punctuation.section.block.begin.bigip
+      push: irule-body
+
+  irule-body:
+    - meta_content_scope: meta.embedded.block.tcl
+    - match: '^\}'
+      scope: punctuation.section.block.end.bigip
+      pop: true
+    - include: scope:source.tcl
+
+  # `monitor` takes an EXPRESSION, not merely a reference: `default`, `none`,
+  # `M1 and M2`, or `min N of { M1 M2 }` (rust/tcl-bigip/src/value/monitor_expression.rs).
+  # The plain `monitor <ref>` form paints `min` — and `default`/`none` — as the
+  # monitor object. The server types the *whole* expression as `monitor`, the
+  # keywords and the count included, so this does too (#905 review).
+  monitor-expression:
+    - match: '(?<=^|\s)(monitor)(?=\s|$)'
+      captures:
+        1: variable.other.property.bigip
+      push:
+        - match: '$'
+          pop: true
+        - match: '(?<=^|\s)(default|none|min|of|and)(?=\s|$)'
+          scope: entity.name.type.monitor.bigip
+        # The `N` of `min N of` — a count, but the server types it `monitor`, so
+        # a `number` scope here would contradict it.
+        - match: '(?<=^|\s)[0-9]+(?=\s|$)'
+          scope: entity.name.type.monitor.bigip
+        - match: '/([^/\s{}]+)/([^\s{}]+)'
+          captures:
+            1: entity.name.namespace.partition.bigip
+            2: entity.name.type.monitor.bigip
+        - match: '[{}]'
+          scope: punctuation.section.block.bigip
+
+  # A reference whose *type* is named by the preceding word — the one case where
+  # a static grammar can be as specific as the server, so it is. The name word
+  # itself is a `property` to the server (`pool`, `profiles`, `vlans` all come
+  # back as `property`), not a keyword: painting it `keyword.other` made it flip
+  # colour the moment semantic tokens arrived. The value class excludes braces —
+  # `vlans { /Common/internal }` opens a block, and `(\S+)` captured the `{`.
+  typed-object-reference:
+    - match: '(?<=^|\s)(pool)\s+([^\s{}]+)'
+      captures:
+        1: variable.other.property.bigip
+        2: entity.name.type.pool.bigip
+    - match: '(?<=^|\s)(profiles|profile|persistence)\s+([^\s{}]+)'
+      captures:
+        1: variable.other.property.bigip
+        2: entity.name.type.profile.bigip
+    - match: '(?<=^|\s)(vlan|vlans)\s+([^\s{}]+)'
+      captures:
+        1: variable.other.property.bigip
+        2: entity.name.type.vlan.bigip
+    - match: '(?<=^|\s)(interface)\s+([^\s{}]+)'
+      captures:
+        1: variable.other.property.bigip
+        2: entity.name.type.interface.bigip
+
+  # A property whose value is a *block* — `vlans { … }`, `members { … }`. The
+  # typed rules above cannot reach these because the value is `{`, not a
+  # reference. The match starts at the WORD, not at the indentation: a rule
+  # anchored `^\s+` begins at column 0 and, since the earliest match wins, would
+  # silently disable monitor-expression and the typed references on every line.
+  property-name:
+    - match: '(?<=^|\s)([a-z][a-z0-9._-]*)(?=\s*\{)'
+      captures:
+        1: variable.other.property.bigip
+
+  # A top-level object declaration — `<module> <type> ?<subtype>? /Partition/name {`.
+  # The module and type words are the config's structure.
+  declaration:
+    - match: '^(ltm|gtm|apm|asm|auth|cli|cm|net|pem|security|sys|wom|ilx|analytics|vcmp)\s+([a-z0-9-]+)((?:\s+[a-z0-9-]+)*)'
+      captures:
+        1: keyword.control.bigip
+        2: keyword.other.bigip
+        3: keyword.other.bigip
+
+  # An encrypted secret — tmsh writes these as `$M$…`.  Scoped so a theme can
+  # visibly mark it, matching the server's `encrypted` token type.
+  encrypted:
+    - match: '\$[A-Za-z0-9]\$\S+'
+      scope: string.other.encrypted.bigip
+
+  string:
+    - match: '"'
+      push: string-body
+
+  string-body:
+    - meta_scope: string.quoted.double.bigip
+    - match: '"'
+      pop: true
+    - match: '\\(?:x[0-9a-fA-F]{1,2}|u[0-9a-fA-F]{1,4}|U[0-9a-fA-F]{1,8}|[0-7]{1,3}|.)'
+      scope: constant.character.escape.bigip
+
+  # A pool-member / virtual-destination path, `/Partition/<address>:<port>`.
+  # The name component *is* an address, and the server types it as one — so it
+  # must not fall through to `object-path` and be painted as an object name
+  # instead, which is the one place these two layers could have contradicted
+  # each other.  Listed before `object-path` so it wins the tie at the same
+  # start position.
+  member-path:
+    - match: '(?<=^|\s|\{)/([^/\s{}:%]+)/((?:[0-9]{1,3}\.){3}[0-9]{1,3}|(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4})(?:(%)([0-9]+))?(?:(:)([0-9]+|[a-z-]+))?'
+      captures:
+        1: entity.name.namespace.partition.bigip
+        2: constant.numeric.ip-address.bigip
+        4: entity.name.type.route-domain.bigip
+        6: constant.numeric.port.bigip
+
+  # An object path, `/Partition/name`, optionally with a route domain (`%1`) and
+  # a port (`:80`).  The partition is a namespace and is scoped as one, exactly
+  # as the server does; the object itself gets the generic `entity.name.type.bigip`
+  # because a bare path does not say what kind of object it names.
+  object-path:
+    - match: '(?<=^|\s|\{)/([^/\s{}:%]+)/([^\s{}:%]+)(?:(%)([0-9]+))?(?:(:)([0-9]+|[a-z-]+))?'
+      captures:
+        1: entity.name.namespace.partition.bigip
+        2: entity.name.type.bigip
+        4: entity.name.type.route-domain.bigip
+        6: constant.numeric.port.bigip
+
+  # IPv4 (with optional CIDR / route domain / port) and IPv6.
+  ip-address:
+    - match: '(?<=^|\s|\{|/)((?:[0-9]{1,3}\.){3}[0-9]{1,3})(?:(%)([0-9]+))?(?:(/)([0-9]{1,2}))?(?:(:)([0-9]+))?'
+      captures:
+        1: constant.numeric.ip-address.bigip
+        3: entity.name.type.route-domain.bigip
+        5: constant.numeric.bigip
+        7: constant.numeric.port.bigip
+    - match: '(?<=^|\s|\{)(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}(?:/[0-9]{1,3})?'
+      scope: constant.numeric.ip-address.bigip
+
+  number:
+    - match: '(?<=^|\s)[+-]?[0-9]+(?:\.[0-9]+)?(?=\s|$|\})'
+      scope: constant.numeric.bigip

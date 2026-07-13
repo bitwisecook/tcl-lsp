@@ -1,0 +1,280 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "F5 BIG-IP configuration",
+  "scopeName": "source.tcl-bigip",
+  "fileTypes": [
+    "conf",
+    "scf"
+  ],
+  "comment": "A BIG-IP `bigip.conf` / `.scf`. Not Tcl — but an `ltm rule` body *is* Tcl, and is included as such here, exactly as the server walks it with the iRules dialect. Before this grammar, every Tcl-family language was pointed at `tcl.tmLanguage.json`, which contains no BIG-IP rule at all, so a config was painted with Tcl rules and then replaced wholesale once semantic tokens arrived (issue #903).\n\nThe scopes are deliberately the *less specific* members of the families `package.json` maps the server's BIG-IP token types to: the server can tell a pool from a monitor from a profile and emits `entity.name.type.pool.bigip`; a static grammar usually cannot, so it emits `entity.name.type.bigip`. Both live under `entity.name.type`, so a theme colours them identically — the grammar is less precise than the server, and never contradicts it.",
+  "patterns": [
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#irule"
+    },
+    {
+      "include": "#monitor-expression"
+    },
+    {
+      "include": "#typed-object-reference"
+    },
+    {
+      "include": "#property-name"
+    },
+    {
+      "include": "#declaration"
+    },
+    {
+      "include": "#encrypted"
+    },
+    {
+      "include": "#string"
+    },
+    {
+      "include": "#member-path"
+    },
+    {
+      "include": "#object-path"
+    },
+    {
+      "include": "#ip-address"
+    },
+    {
+      "include": "#number"
+    }
+  ],
+  "repository": {
+    "comment": {
+      "match": "#.*$",
+      "name": "comment.line.number-sign.bigip"
+    },
+    "irule": {
+      "comment": "`ltm rule /Common/name { … }` — the body is an iRule, i.e. Tcl. The end pattern is a closing brace in column 0, which is where tmsh writes it; a brace nested in the script is indented and so cannot end the block early.",
+      "begin": "^(ltm)\\s+(rule)\\s+((?:/([^/\\s{}]+))?/?([^\\s{}]+))\\s*(\\{)\\s*$",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.bigip"
+        },
+        "2": {
+          "name": "keyword.control.bigip"
+        },
+        "4": {
+          "name": "entity.name.namespace.partition.bigip"
+        },
+        "5": {
+          "name": "entity.name.type.bigip"
+        },
+        "6": {
+          "name": "punctuation.section.block.begin.bigip"
+        }
+      },
+      "end": "^\\}",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.block.end.bigip"
+        }
+      },
+      "contentName": "meta.embedded.block.tcl",
+      "patterns": [
+        {
+          "include": "source.tcl"
+        }
+      ]
+    },
+    "typed-object-reference": {
+      "comment": "A reference whose *type* is named by the preceding word — the one case where a static grammar can be as specific as the server, so it is. The name word itself is a `property` to the server (`pool`, `profiles`, `vlans` all come back as `property`), not a keyword: painting it `keyword.other` made it flip colour the moment semantic tokens arrived. The value class excludes braces: `vlans { /Common/internal }` opens a block, and `(\\S+)` captured the `{` itself as the object name.",
+      "patterns": [
+        {
+          "match": "(?<=^|\\s)(pool)\\s+([^\\s{}]+)",
+          "captures": {
+            "1": {
+              "name": "variable.other.property.bigip"
+            },
+            "2": {
+              "name": "entity.name.type.pool.bigip"
+            }
+          }
+        },
+        {
+          "match": "(?<=^|\\s)(profiles|profile|persistence)\\s+([^\\s{}]+)",
+          "captures": {
+            "1": {
+              "name": "variable.other.property.bigip"
+            },
+            "2": {
+              "name": "entity.name.type.profile.bigip"
+            }
+          }
+        },
+        {
+          "match": "(?<=^|\\s)(vlan|vlans)\\s+([^\\s{}]+)",
+          "captures": {
+            "1": {
+              "name": "variable.other.property.bigip"
+            },
+            "2": {
+              "name": "entity.name.type.vlan.bigip"
+            }
+          }
+        },
+        {
+          "match": "(?<=^|\\s)(interface)\\s+([^\\s{}]+)",
+          "captures": {
+            "1": {
+              "name": "variable.other.property.bigip"
+            },
+            "2": {
+              "name": "entity.name.type.interface.bigip"
+            }
+          }
+        }
+      ]
+    },
+    "declaration": {
+      "comment": "A top-level object declaration — `<module> <type> ?<subtype>? /Partition/name {`. The module and type words are the config's structure.",
+      "match": "^(ltm|gtm|apm|asm|auth|cli|cm|net|pem|security|sys|wom|ilx|analytics|vcmp)\\s+([a-z0-9-]+)((?:\\s+[a-z0-9-]+)*)",
+      "captures": {
+        "1": {
+          "name": "keyword.control.bigip"
+        },
+        "2": {
+          "name": "keyword.other.bigip"
+        },
+        "3": {
+          "name": "keyword.other.bigip"
+        }
+      }
+    },
+    "encrypted": {
+      "comment": "An encrypted secret — tmsh writes these as `$M$…`. Scoped so a theme can visibly mark it, matching the server's `encrypted` type.",
+      "match": "\\$[A-Za-z0-9]\\$\\S+",
+      "name": "string.other.encrypted.bigip"
+    },
+    "string": {
+      "begin": "\"",
+      "end": "\"",
+      "name": "string.quoted.double.bigip",
+      "patterns": [
+        {
+          "match": "\\\\(?:x[0-9a-fA-F]{1,2}|u[0-9a-fA-F]{1,4}|U[0-9a-fA-F]{1,8}|[0-7]{1,3}|.)",
+          "name": "constant.character.escape.bigip"
+        }
+      ]
+    },
+    "member-path": {
+      "comment": "A pool-member / virtual-destination path, `/Partition/<address>:<port>`. The name component *is* an address, and the server types it as one — so it must not fall through to #object-path and be painted as an object name instead, which is the one place these two grammars could have contradicted each other.",
+      "match": "(?<=^|\\s|\\{)/([^/\\s{}:%]+)/((?:[0-9]{1,3}\\.){3}[0-9]{1,3}|(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4})(?:(%)([0-9]+))?(?:(:)([0-9]+|[a-z-]+))?",
+      "captures": {
+        "1": {
+          "name": "entity.name.namespace.partition.bigip"
+        },
+        "2": {
+          "name": "constant.numeric.ip-address.bigip"
+        },
+        "4": {
+          "name": "entity.name.type.route-domain.bigip"
+        },
+        "6": {
+          "name": "constant.numeric.port.bigip"
+        }
+      }
+    },
+    "object-path": {
+      "comment": "An object path, `/Partition/name`, optionally with a route domain (`%1`) and a port (`:80`). The partition is a namespace and is scoped as one, exactly as the server does; the object itself gets the generic `entity.name.type.bigip` because a bare path does not say what kind of object it names.",
+      "match": "(?<=^|\\s|\\{)/([^/\\s{}:%]+)/([^\\s{}:%]+)(?:(%)([0-9]+))?(?:(:)([0-9]+|[a-z-]+))?",
+      "captures": {
+        "1": {
+          "name": "entity.name.namespace.partition.bigip"
+        },
+        "2": {
+          "name": "entity.name.type.bigip"
+        },
+        "4": {
+          "name": "entity.name.type.route-domain.bigip"
+        },
+        "6": {
+          "name": "constant.numeric.port.bigip"
+        }
+      }
+    },
+    "ip-address": {
+      "comment": "IPv4 (with optional CIDR / route domain / port) and IPv6.",
+      "patterns": [
+        {
+          "match": "(?<=^|\\s|\\{|/)((?:[0-9]{1,3}\\.){3}[0-9]{1,3})(?:(%)([0-9]+))?(?:(/)([0-9]{1,2}))?(?:(:)([0-9]+))?",
+          "captures": {
+            "1": {
+              "name": "constant.numeric.ip-address.bigip"
+            },
+            "3": {
+              "name": "entity.name.type.route-domain.bigip"
+            },
+            "5": {
+              "name": "constant.numeric.bigip"
+            },
+            "7": {
+              "name": "constant.numeric.port.bigip"
+            }
+          }
+        },
+        {
+          "match": "(?<=^|\\s|\\{)(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}(?:/[0-9]{1,3})?",
+          "name": "constant.numeric.ip-address.bigip"
+        }
+      ]
+    },
+    "number": {
+      "match": "(?<=^|\\s)[+-]?[0-9]+(?:\\.[0-9]+)?(?=\\s|$|\\})",
+      "name": "constant.numeric.bigip"
+    },
+    "monitor-expression": {
+      "comment": "`monitor` takes an expression, not merely a reference: `default`, `none`, `M1 and M2`, or `min N of { M1 M2 }` (see rust/tcl-bigip/src/value/monitor_expression.rs). The plain `monitor <ref>` rule scoped the next word as the monitor object, which paints `min` — and `default`/`none` — as a monitor name. The server types the *whole* expression as `monitor`, keywords and the count included, so this does too: less specific than the server is fine, differently coloured is not.",
+      "begin": "(?<=^|\\s)(monitor)(?=\\s|$)",
+      "beginCaptures": {
+        "1": {
+          "name": "variable.other.property.bigip"
+        }
+      },
+      "end": "(?=$)",
+      "patterns": [
+        {
+          "comment": "The expression's own words. The server types these `monitor` too.",
+          "match": "(?<=^|\\s)(default|none|min|of|and)(?=\\s|$)",
+          "name": "entity.name.type.monitor.bigip"
+        },
+        {
+          "comment": "The `N` of `min N of` — a count, but the server types it `monitor`, so a `number` scope here would contradict it.",
+          "match": "(?<=^|\\s)[0-9]+(?=\\s|$)",
+          "name": "entity.name.type.monitor.bigip"
+        },
+        {
+          "comment": "Each monitor named in the expression.",
+          "match": "/([^/\\s{}]+)/([^\\s{}]+)",
+          "captures": {
+            "1": {
+              "name": "entity.name.namespace.partition.bigip"
+            },
+            "2": {
+              "name": "entity.name.type.monitor.bigip"
+            }
+          }
+        },
+        {
+          "match": "[{}]",
+          "name": "punctuation.section.block.bigip"
+        }
+      ]
+    },
+    "property-name": {
+      "comment": "A property whose value is a *block* — `vlans { … }`, `members { … }`, `records { … }`. The typed rules above cannot reach these because their value is `{`, not a reference.\n\nThe match must START at the word, not at the indentation. TextMate picks the pattern whose match begins **leftmost**, and only breaks ties by list order — so an `^\\s+(word)` rule starts at column 0 and beats every rule on the line no matter where it is listed. Written that way, it silently disabled `monitor-expression` and the typed references entirely.",
+      "match": "(?<=^|\\s)([a-z][a-z0-9._-]*)(?=\\s*\\{)",
+      "captures": {
+        "1": {
+          "name": "variable.other.property.bigip"
+        }
+      }
+    }
+  }
+}

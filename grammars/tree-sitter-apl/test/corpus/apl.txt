@@ -1,0 +1,64 @@
+================================================================================
+define names the new type, not the base type
+================================================================================
+
+define choice lb_method {
+    "Round Robin" => "round-robin"
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (define
+    type: (identifier)
+    name: (identifier)
+    (choice_list
+      (choice_mapping
+        label: (string)
+        value: (string)))))
+
+================================================================================
+message takes a string literal, not a field name
+================================================================================
+
+section intro {
+    message "Welcome."
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (section
+    name: (identifier)
+    body: (block
+      (message_field
+        text: (string)))))
+
+================================================================================
+optional guards a block on an APL expression, in parens
+================================================================================
+
+section ssl {
+    optional ( basic.protocol == "tcp" ) {
+        string sni validator "FQDN"
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (section
+    name: (identifier)
+    body: (block
+      (optional_block
+        condition: (binary_expression
+          left: (dotted_name
+            (identifier)
+            (identifier))
+          right: (string))
+        body: (block
+          (field
+            type: (identifier)
+            name: (identifier)
+            (attribute
+              value: (string))))))))

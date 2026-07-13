@@ -1,0 +1,8 @@
+{
+  "name": "tree-sitter-apl",
+  "version": "0.1.0",
+  "description": "F5 iApp APL grammar for tree-sitter",
+  "license": "AGPL-3.0-or-later",
+  "main": "bindings/node",
+  "tree-sitter": [{ "scope": "source.apl", "file-types": ["apl"] }]
+}
