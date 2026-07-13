@@ -465,7 +465,11 @@ def find_interval_bounds(
         if command == _STRING_INDEX:
             # First arg is a *value* (string); use the per-version char-length.
             svar = _plain_var_name(list_arg)
-            length = str_lengths.get((svar, version_map[svar])) if svar in version_map else None
+            length = (
+                str_lengths.get((svar, version_map[svar]))
+                if svar is not None and svar in version_map
+                else None
+            )
         else:
             length = length_for_list(
                 list_arg, is_lset, version_map, entry_versions, block_stmts, stmt_index
