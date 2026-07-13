@@ -45,6 +45,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-version",
  "wasm-bindgen",
 ]
 
@@ -501,6 +502,7 @@ dependencies = [
  "tcl-compiler",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -517,6 +519,7 @@ dependencies = [
  "regex",
  "rustc-hash",
  "serde_json",
+ "tcl-bigip",
  "tcl-compiler",
  "tcl-irules",
  "tcl-lexer",
@@ -555,6 +558,10 @@ dependencies = [
  "bitflags",
  "tcl-lexer",
 ]
+
+[[package]]
+name = "tcl-version"
+version = "0.1.0"
 
 [[package]]
 name = "thiserror"

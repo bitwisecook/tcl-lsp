@@ -309,6 +309,7 @@ dependencies = [
  "tcl-f5mku",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-version",
 ]
 
 [[package]]

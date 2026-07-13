@@ -36,7 +36,13 @@ use crate::jutil::{barr, bbool, bstr, sarr, truthy};
 use crate::query::{Source, query};
 
 /// The engine version string embedded in the report header.
-pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
+///
+/// `tcl_version::VERSION`, not `CARGO_PKG_VERSION`: the workspace manifest
+/// carries `0.1.0` and is never bumped (releases are tag-only), so the manifest
+/// version made every report's header read `query engine v0.1.0` regardless of
+/// what was actually shipped. `tcl-version` resolves the tag, plus the commit as
+/// build metadata (`2.1.8+g4c5a8f86`).
+pub const ENGINE_VERSION: &str = tcl_version::VERSION;
 
 /// The short git commit hash the generator was built from, stamped by
 /// `build.rs`. `"unknown"` when the build carried no git metadata.
@@ -2017,5 +2023,20 @@ mod app_tests {
         let b = apps[1].as_object().unwrap();
         assert_eq!(bstr(b, "name"), "store"); // ".app" stripped
         assert_eq!(bstr(b, "source"), "iapp");
+    }
+}
+
+#[cfg(test)]
+mod engine_version_tests {
+    /// The report header renders `query engine v{{ engine_version }}`. It read
+    /// `0.1.0` — the never-bumped workspace manifest version — for every release.
+    #[test]
+    fn engine_version_is_the_tag_not_the_manifest_placeholder() {
+        let v = super::ENGINE_VERSION;
+        assert_ne!(v, "0.1.0", "engine version fell back to the manifest placeholder");
+        assert!(
+            v.starts_with(char::is_numeric),
+            "expected a resolved version, got {v:?}"
+        );
     }
 }

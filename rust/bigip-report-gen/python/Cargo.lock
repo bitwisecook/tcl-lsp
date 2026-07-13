@@ -125,6 +125,7 @@ dependencies = [
  "tcl-f5mku",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-version",
 ]
 
 [[package]]
@@ -1254,6 +1255,7 @@ dependencies = [
  "tcl-compiler",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -1294,6 +1296,10 @@ dependencies = [
  "bitflags",
  "tcl-lexer",
 ]
+
+[[package]]
+name = "tcl-version"
+version = "0.1.0"
 
 [[package]]
 name = "thiserror"

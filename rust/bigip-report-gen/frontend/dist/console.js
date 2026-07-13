@@ -19,7 +19,7 @@
         window.__f5qReady = wasm_bindgen(b64ToBytes(B64));
       }
       return window.__f5qReady.then(function() {
-        return wasm_bindgen.engine_version();
+        return MODEL.engine_version || wasm_bindgen.engine_version();
       });
     }
     var EXAMPLES = [
