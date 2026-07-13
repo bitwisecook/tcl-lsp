@@ -2033,7 +2033,10 @@ mod engine_version_tests {
     #[test]
     fn engine_version_is_the_tag_not_the_manifest_placeholder() {
         let v = super::ENGINE_VERSION;
-        assert_ne!(v, "0.1.0", "engine version fell back to the manifest placeholder");
+        assert_ne!(
+            v, "0.1.0",
+            "engine version fell back to the manifest placeholder"
+        );
         assert!(
             v.starts_with(char::is_numeric),
             "expected a resolved version, got {v:?}"
