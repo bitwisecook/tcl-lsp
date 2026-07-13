@@ -53,6 +53,16 @@ def _input_page() -> str:
     )
     css = resources.files("f5report.templates").joinpath("input.css").read_text("utf-8")
     js = resources.files("f5report.templates").joinpath("input.js").read_text("utf-8")
+    # Same self-contained CSP as the standalone app and the generated report,
+    # but `connect-src 'self'` (not 'none'): this page's ServerBackend POSTs the
+    # config to this same server's /probe and /generate. No external origin is
+    # ever reachable, so nothing is uploaded off-box.
+    csp = (
+        "default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; "
+        "style-src 'unsafe-inline'; img-src data: blob:; connect-src 'self'; "
+        "base-uri 'none'; form-action 'none'"
+    )
+    tmpl = tmpl.replace("__CSP__", csp)
     tmpl = tmpl.replace("__STYLES__", f"<style>{css}</style>")
     tmpl = tmpl.replace("__WASM_PAYLOAD__", "")  # no wasm → the page uses ServerBackend
     tmpl = tmpl.replace("__INPUT_JS__", f"<script>{js}</script>")

@@ -32,7 +32,13 @@ def _get(url: str) -> str:
 
 
 def test_builder_page_and_version(server):
-    assert "selectBackend" in _get(server + "/")  # the shared input controller
+    page = _get(server + "/")
+    assert "selectBackend" in page  # the shared input controller
+    # The __CSP__ placeholder is substituted, and the server page's policy allows
+    # only same-origin connections (its ServerBackend POSTs to /generate) — never
+    # an external origin, and never a leftover unsubstituted placeholder.
+    assert "__CSP__" not in page
+    assert "Content-Security-Policy" in page and "connect-src 'self'" in page
     assert _get(server + "/version").strip()  # engine version string
     assert "F5 QUERY DSL" in _get(server + "/manual")  # embedded manual
 

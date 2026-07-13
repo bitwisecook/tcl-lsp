@@ -81,15 +81,27 @@ LOGOS = {
     "__LOGO_TCL_LSP__": "logo-tcl-lsp.svg",
     "__LOGO_TCL_LSP_DARK__": "logo-tcl-lsp-dark.svg",
 }
+# The standalone in-browser app is fully self-contained: forbid ALL network
+# egress so nothing it reads can ever be uploaded (`connect-src 'none'`). The
+# allowances cover only the inlined machinery — inline scripts/styles, wasm
+# instantiation, data/blob images and blob downloads. Mirrors the CSP baked into
+# the generated report; the f5report server page instead uses `connect-src
+# 'self'` (see web.py), the only difference.
+CSP = (
+    "default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; "
+    "style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; "
+    "base-uri 'none'; form-action 'none'"
+)
 # str.replace is a literal replace (not regex), so backslashes/ampersands in the
 # payload are safe.
+tmpl = tmpl.replace("__CSP__", CSP)
 tmpl = tmpl.replace("__STYLES__", "<style>" + css + "</style>")
 tmpl = tmpl.replace("__WASM_PAYLOAD__", payload)
 tmpl = tmpl.replace("__INPUT_JS__", "<script>" + js + "</script>")
 for tok, name in LOGOS.items():
     mark = open(os.path.join(assets_dir, name), encoding="utf-8").read()
     tmpl = tmpl.replace(tok, mark)
-for tok in ("__STYLES__", "__WASM_PAYLOAD__", "__INPUT_JS__", *LOGOS):
+for tok in ("__CSP__", "__STYLES__", "__WASM_PAYLOAD__", "__INPUT_JS__", *LOGOS):
     if tok in tmpl:
         raise SystemExit(f"placeholder {tok} substitution failed")
 open(out_path, "w", encoding="utf-8").write(tmpl)

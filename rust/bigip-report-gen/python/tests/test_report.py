@@ -139,6 +139,11 @@ def test_build_report_html_self_contained():
     assert 'src="http' not in html
     assert "<link " not in html
     assert "cdn." not in html.split('<script id="f5-model"')[0]
+    # …and enforced in the browser: a CSP that forbids ALL network egress
+    # (connect-src 'none'), so the config a report carries can never be phoned
+    # home even if a future change or injected data tried to.
+    assert "Content-Security-Policy" in html
+    assert "connect-src 'none'" in html
 
 
 def test_wasm_console_embedded_when_vendored():

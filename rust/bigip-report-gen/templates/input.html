@@ -8,6 +8,13 @@
 <html lang="en" data-theme="auto">
 <head>
 <meta charset="utf-8">
+<!-- Content-Security-Policy, substituted per backend (see build-wasm.sh /
+     web.py). The in-browser app is fully self-contained and gets `connect-src
+     'none'` so it can NEVER make a network request — the config never leaves the
+     browser; the f5report server page gets `connect-src 'self'` so its
+     ServerBackend can reach its own /probe and /generate. Either way no external
+     origin is reachable. -->
+<meta http-equiv="Content-Security-Policy" content="__CSP__">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <title>F5 BIG-IP Report Generator</title>

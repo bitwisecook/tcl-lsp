@@ -3,6 +3,14 @@
 <html lang="en" data-theme="auto" data-generator="bitwisecook-bigip-report-generator" data-generator-url="https://github.com/bitwisecook" data-report-id="{{ report_id }}">
 <head>
 <meta charset="utf-8">
+<!-- The report is fully self-contained — every asset is inlined and it makes NO
+     network requests. This CSP enforces that in the browser: it permits the
+     inlined machinery (inline scripts/styles, the wasm f5-query console, data/
+     blob images and blob downloads) but forbids all network egress, so the
+     config a report carries can never be phoned home even if a future change
+     (or injected data) tried to. `connect-src 'none'` blocks fetch/XHR/
+     WebSocket/beacon; `img-src data: blob:` blocks image-beacon exfiltration. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="bitwisecook BIG-IP Report Generator & f5-query — https://github.com/bitwisecook">
 <meta name="author" content="bitwisecook (https://github.com/bitwisecook)">

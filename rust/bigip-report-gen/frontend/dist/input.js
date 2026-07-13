@@ -141,15 +141,45 @@
       return r.ok ? r.text() : "";
     }
   };
+  var UnavailableBackend = class {
+    constructor(reason) {
+      this.reason = reason;
+    }
+    fail() {
+      return Promise.reject(new Error(this.reason));
+    }
+    ready() {
+      return this.fail();
+    }
+    engineVersion() {
+      return this.fail();
+    }
+    probe() {
+      return this.fail();
+    }
+    generate() {
+      return this.fail();
+    }
+    buildArchitecture() {
+      return this.fail();
+    }
+    manual() {
+      return this.fail();
+    }
+  };
   function selectBackend() {
-    const w = window;
     const payload = document.getElementById("report-wasm");
-    if (typeof w.wasm_bindgen === "function" && payload && payload.textContent) {
-      const b64 = payload.textContent.trim();
-      const bin = atob(b64);
+    const inlined = payload && payload.textContent ? payload.textContent.trim() : "";
+    if (inlined) {
+      if (typeof wasm_bindgen !== "function") {
+        return new UnavailableBackend(
+          "the in-browser report engine failed to load \u2014 reload the page (your configuration was not uploaded)"
+        );
+      }
+      const bin = atob(inlined);
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      return new WasmBackend(w.wasm_bindgen, bytes);
+      return new WasmBackend(wasm_bindgen, bytes);
     }
     return new ServerBackend("");
   }
