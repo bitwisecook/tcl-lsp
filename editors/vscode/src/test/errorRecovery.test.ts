@@ -86,17 +86,30 @@ function symbolNames(
   return out;
 }
 
-/** Replace the document content and resolve with the resulting diagnostics. */
+/**
+ * Replace the document content and resolve with the resulting diagnostics.
+ *
+ * `until` is what the caller is actually waiting for. The server publishes
+ * diagnostics **progressively**: a first publish can carry the lint pass alone,
+ * with the parse-recovery error arriving in a later one. Reading whatever
+ * happens to be published first (`predicate: () => true`) therefore races the
+ * analysis, and under CI load C1 saw `[W211]` and no recovery error and failed —
+ * while passing every time on an idle laptop.
+ *
+ * A test asserting a diagnostic is *present* must say so, and wait for it.
+ * A test asserting *absence* has nothing to wait for, so it keeps the settle
+ * behaviour (the default `until`).
+ */
 async function setContentAndWait(
   editor: vscode.TextEditor,
   docUri: vscode.Uri,
   content: string,
+  until: (diags: vscode.Diagnostic[]) => boolean = () => true,
 ): Promise<vscode.Diagnostic[]> {
   const fresh = nextDiagnosticsPublish(docUri, { timeout: 15_000 });
   await setTestContent(editor, content);
   await fresh;
-  // A second short wait lets the deep/async pass settle before we read.
-  return waitForDiagnostics(docUri, { timeout: 5_000, predicate: () => true });
+  return waitForDiagnostics(docUri, { timeout: 15_000, predicate: until });
 }
 
 async function symbolsFor(docUri: vscode.Uri): Promise<string[]> {
@@ -114,7 +127,12 @@ suite("Error Recovery (contract)", () => {
   test("C1: unterminated bracket is flagged", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(editor, docUri, "set x [foo bar\nputs hi\n");
+    const diags = await setContentAndWait(
+      editor,
+      docUri,
+      "set x [foo bar\nputs hi\n",
+      hasRecoveryError,
+    );
     assert.ok(hasRecoveryError(diags), `expected a recovery error, got [${diags.map(codeOf)}]`);
   });
 
@@ -150,9 +168,11 @@ suite("Error Recovery (contract)", () => {
     // observable recovery behaviour, not a specific diagnostic code.
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(editor, docUri, "if {$x > 5\nset\n");
+    const hasArityOrShape = (ds: vscode.Diagnostic[]) =>
+      ds.some((d) => codeOf(d) === "E002" || codeOf(d) === "E004");
+    const diags = await setContentAndWait(editor, docUri, "if {$x > 5\nset\n", hasArityOrShape);
     assert.ok(
-      diags.some((d) => codeOf(d) === "E002" || codeOf(d) === "E004"),
+      hasArityOrShape(diags),
       `tail after \`if {\` should still be analysed and arity/shape-error; got [${diags.map(codeOf)}]`,
     );
   });
@@ -246,7 +266,7 @@ suite("Error Recovery (contract)", () => {
     let diags = await setContentAndWait(editor, docUri, "set x [foo bar]\nputs hi\n");
     assert.ok(!hasRecoveryError(diags), `clean start flagged: [${diags.map(codeOf)}]`);
 
-    diags = await setContentAndWait(editor, docUri, "set x [foo bar\nputs hi\n");
+    diags = await setContentAndWait(editor, docUri, "set x [foo bar\nputs hi\n", hasRecoveryError);
     assert.ok(hasRecoveryError(diags), `break not flagged: [${diags.map(codeOf)}]`);
 
     diags = await setContentAndWait(editor, docUri, "set x [foo bar]\nputs hi\n");
