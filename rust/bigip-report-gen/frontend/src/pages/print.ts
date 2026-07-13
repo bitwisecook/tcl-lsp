@@ -35,7 +35,12 @@
   }
 
   // ---- Enumerate devices + sections from the DOM ------------------------
-  var devices = Array.prototype.slice.call(document.querySelectorAll(".device"));
+  // `[data-dev]` matters: the architecture diagram draws each device as an SVG
+  // node that also carries `class="device"` (`g.elk-node.device`), so a bare
+  // `.device` picks those up too — they would show up as phantom devices in the
+  // dialog, and parking them in the print sheet would tear them out of their
+  // <svg> and blank the diagram.
+  var devices = Array.prototype.slice.call(document.querySelectorAll("article.device[data-dev]"));
   function deviceLabel(dev, i) {
     var t = document.querySelector('.dev-tab[data-dev="' + dev.dataset.dev + '"]');
     var name = (t && t.textContent.trim()) || dev.getAttribute("data-name") || "";
@@ -209,6 +214,68 @@
     });
   }
 
+  // ---- Running head/foot on every printed page --------------------------
+  // Only a table repeats content per page in Chrome: a position:fixed box that
+  // sits in the page *margin* gets attributed to the neighbouring page (the head
+  // lands at the foot of the page before it, the foot at the head of the page
+  // after), and one inside the page box overlaps the content. So the print run
+  // parks everything printable in a single-cell table whose thead/tfoot carry
+  // the running title and attribution — the browser then repeats them on every
+  // sheet and reserves the room. `.print-running-head` / `.print-running-foot`
+  // in the template are the (hidden) source of that markup.
+  function parkInSheet(nodes) {
+    if (!nodes.length) return;
+    var head = document.querySelector(".print-running-head");
+    var foot = document.querySelector(".print-running-foot");
+    var sheet = document.createElement("table");
+    sheet.className = "print-sheet";
+    sheet.innerHTML =
+      '<thead class="print-sheet-head"><tr><th>' + ((head && head.innerHTML) || "") + "</th></tr></thead>" +
+      '<tfoot class="print-sheet-foot"><tr><td>' + ((foot && foot.innerHTML) || "") + "</td></tr></tfoot>" +
+      '<tbody><tr><td class="print-sheet-body"></td></tr></tbody>';
+    var cell = sheet.querySelector(".print-sheet-body");
+    nodes[0].parentNode.insertBefore(sheet, nodes[0]);
+    nodes.forEach(function (n) {
+      var parent = n.parentNode, next = n.nextSibling;
+      remember(function () { parent.insertBefore(n, next); });
+      cell.appendChild(n);
+    });
+    // Unwound first (restore runs last-registered-first): drops the table, then
+    // each node goes back where it came from.
+    remember(function () { if (sheet.parentNode) sheet.parentNode.removeChild(sheet); });
+  }
+
+  // The cross-device architecture view is a top-level section, not a device tab,
+  // so it needs its own printed heading — and its manifest lives in an editable
+  // textarea that would print as an empty box, so the definition is re-emitted
+  // as a code block.
+  function prepArchitecture() {
+    var arch = document.getElementById("architecture");
+    if (!arch) return null;
+    arch.classList.add("print-include");
+    remember(function () { arch.classList.remove("print-include"); });
+
+    var h = document.createElement("div");
+    h.className = "print-heading";
+    h.textContent = "Architecture";
+    arch.insertBefore(h, arch.firstChild);
+    remember(function () { if (h.parentNode) h.parentNode.removeChild(h); });
+
+    var ta = arch.querySelector(".arch-editor-ta");
+    var def = ta && ta.value ? ta.value.trim() : "";
+    if (def) {
+      var wrap = document.createElement("div");
+      wrap.className = "print-arch-def";
+      wrap.innerHTML =
+        '<div class="print-arch-def-lbl">Architecture definition (manifest DSL)</div>' +
+        '<pre class="code"></pre>';
+      wrap.querySelector("pre").textContent = def;
+      arch.appendChild(wrap);
+      remember(function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); });
+    }
+    return arch;
+  }
+
   function markAndPrint(deviceEls, secs) {
     var secSet = {};
     secs.forEach(function (s) { secSet[s] = true; });
@@ -236,6 +303,17 @@
         });
       });
     });
+
+    // Linearise: the estate summary, the architecture view (when the report has
+    // one), then each device — all parked in the running-head/foot sheet, in
+    // document order, so the printed page follows the on-screen one.
+    var summary = document.querySelector("section.summary");
+    if (summary) {
+      summary.classList.add("print-include");
+      remember(function () { summary.classList.remove("print-include"); });
+    }
+    var arch = prepArchitecture();
+    parkInSheet([summary, arch].filter(Boolean).concat(deviceEls));
 
     document.documentElement.classList.add("printing");
     remember(function () { document.documentElement.classList.remove("printing"); });

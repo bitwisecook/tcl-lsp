@@ -72,6 +72,16 @@ const APM_JS: &str = include_str!("../../frontend/dist/apm.js");
 const ELK_JS: &str = include_str!("../../assets/elk.bundled.js");
 const ELK_GRAPH_JS: &str = include_str!("../../frontend/dist/elk-graph.js");
 
+// Project marks, inlined into the report as <svg> elements (not <img> data:
+// URIs) so they inherit the page's theme and stay crisp at any zoom. Copies of
+// the canonical `docs/*.svg`, propagated here by `make logo`; their ids are
+// namespaced (`f5q-`, `tcl-`, `tcld-`) so all three can coexist in one document.
+// tcl-lsp ships light and dark variants; the report shows whichever matches the
+// active theme. f5-query has a single (dark squircle) variant that reads on both.
+const LOGO_F5Q_SVG: &str = include_str!("../../assets/logo-f5q.svg");
+const LOGO_TCL_LSP_SVG: &str = include_str!("../../assets/logo-tcl-lsp.svg");
+const LOGO_TCL_LSP_DARK_SVG: &str = include_str!("../../assets/logo-tcl-lsp-dark.svg");
+
 /// Options controlling report rendering.
 pub struct RenderOptions {
     /// Document title.
@@ -113,7 +123,7 @@ pub struct RenderOptions {
     /// matter" tab. Empty = no tab.
     pub front_matter: String,
     /// Optional report logo as an inlined `data:` URI, shown in the report
-    /// header in place of the default glyph. Empty = default glyph.
+    /// header. Empty = the f5-query mark, inlined as `<svg>`.
     pub logo: String,
 }
 
@@ -217,6 +227,15 @@ pub fn render_report(model: J, opts: &RenderOptions) -> Result<String, ReportErr
     ctx.insert("apm_js".into(), J::String(APM_JS.into()));
     ctx.insert("elk_js".into(), J::String(ELK_JS.into()));
     ctx.insert("elk_graph_js".into(), J::String(ELK_GRAPH_JS.into()));
+    ctx.insert("logo_f5q_svg".into(), J::String(LOGO_F5Q_SVG.into()));
+    ctx.insert(
+        "logo_tcl_lsp_svg".into(),
+        J::String(LOGO_TCL_LSP_SVG.into()),
+    );
+    ctx.insert(
+        "logo_tcl_lsp_dark_svg".into(),
+        J::String(LOGO_TCL_LSP_DARK_SVG.into()),
+    );
     ctx.insert("topo_types".into(), topo_types());
 
     if opts.embed_console {

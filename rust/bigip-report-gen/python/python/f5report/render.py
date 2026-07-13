@@ -162,6 +162,11 @@ def render_report(
     model["forensics_js"] = _asset_text("forensics.js")
     model["irule_flow_js"] = _asset_text("irule-flow.js")
     model["print_js"] = _asset_text("print.js")
+    # Project marks, inlined as <svg> (mirrors render.rs). tcl-lsp has a light
+    # and a dark variant; the report shows whichever matches the active theme.
+    model["logo_f5q_svg"] = _vendor_text("logo-f5q.svg")
+    model["logo_tcl_lsp_svg"] = _vendor_text("logo-tcl-lsp.svg")
+    model["logo_tcl_lsp_dark_svg"] = _vendor_text("logo-tcl-lsp-dark.svg")
     # Topology tab type legend (mirrors render.rs).
     model["topo_types"] = _TOPO_TYPES
 

@@ -66,4 +66,5 @@ include = [
     "python/f5report/templates/*.html",
     "python/f5report/vendor/*.js",
     "python/f5report/vendor/*.wasm",
+    "python/f5report/vendor/*.svg",
 ]

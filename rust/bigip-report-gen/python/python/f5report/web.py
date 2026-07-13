@@ -56,6 +56,14 @@ def _input_page() -> str:
     tmpl = tmpl.replace("__STYLES__", f"<style>{css}</style>")
     tmpl = tmpl.replace("__WASM_PAYLOAD__", "")  # no wasm → the page uses ServerBackend
     tmpl = tmpl.replace("__INPUT_JS__", f"<script>{js}</script>")
+    # Project marks, inlined as <svg> (the same files the report embeds).
+    for token, svg in (
+        ("__LOGO_F5Q__", "logo-f5q.svg"),
+        ("__LOGO_TCL_LSP__", "logo-tcl-lsp.svg"),
+        ("__LOGO_TCL_LSP_DARK__", "logo-tcl-lsp-dark.svg"),
+    ):
+        mark = resources.files("f5report.vendor").joinpath(svg).read_text("utf-8")
+        tmpl = tmpl.replace(token, mark)
     return tmpl
 
 

@@ -30,6 +30,21 @@ body {
 .wrap { max-width: 46rem; margin: 0 auto; padding: 2rem 1.1rem 4rem; }
 h1 { font-size: 1.5rem; margin: 0 0 .25rem; letter-spacing: -.01em; }
 .tagline { color: var(--muted); margin: 0 0 1.25rem; }
+
+/* Project marks, inlined as <svg> (substituted into the page by whichever host
+   serves it — the wasm app or the f5report web server), leading the page beside
+   the title. The tcl-lsp mark ships a light and a dark squircle; this page has
+   no theme toggle, so it follows the OS preference. */
+.brand { display: flex; align-items: center; gap: .85rem; margin-bottom: .55rem; }
+.brand h1 { margin: 0; }
+.brand-mark { display: inline-flex; transition: transform .12s; }
+.brand-mark svg { display: block; width: 56px; height: 56px; }
+.brand-mark:hover, .brand-mark:focus-visible { transform: translateY(-1px); }
+.logo-when-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  .logo-when-light { display: none; }
+  .logo-when-dark { display: block; }
+}
 .card {
   background: var(--card); border: 1px solid var(--border); border-radius: 12px;
   padding: 1.25rem; box-shadow: var(--shadow); margin-bottom: 1.1rem;

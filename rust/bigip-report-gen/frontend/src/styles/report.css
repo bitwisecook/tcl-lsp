@@ -59,6 +59,10 @@ code{font-family:var(--mono)}
 /* User-supplied report logo (inlined data-URI): show at its aspect ratio, no
  * gradient background. Capped so a wide wordmark or tall badge both fit. */
 .logo-custom{background:none;width:auto;height:38px;max-width:160px;object-fit:contain;border-radius:6px}
+/* Fallback when no report logo was supplied: the f5-query squircle, inlined as
+ * <svg>. It brings its own rounded background, so drop the gradient tile. */
+.logo-mark{background:none;border-radius:0}
+.logo-mark svg{display:block;width:38px;height:38px}
 .topbar h1{font-size:17px}
 .sub{margin:2px 0 0;color:var(--muted);font-size:12px}
 .topbar-actions{display:flex;align-items:center;gap:10px}
@@ -80,8 +84,12 @@ code{font-family:var(--mono)}
   color:var(--muted);cursor:pointer;font-weight:600}
 .dev-tab.active{background:var(--panel);color:var(--ink);border-bottom-color:var(--panel)}
 
-.device{display:none;padding:8px 22px 40px}
-.device.active{display:block}
+/* `article` matters: the architecture diagram draws each device as an SVG node
+   that also carries class="device" (`g.elk-node.device`), and an unqualified
+   `.device{display:none}` hides those groups too — the diagram then renders with
+   its edges but no devices. Keep every device-section rule tied to the article. */
+article.device{display:none;padding:8px 22px 40px}
+article.device.active{display:block}
 /* partition filter */
 .partition-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 2px}
 .partition-lbl{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
@@ -257,11 +265,23 @@ pre.code.tcl .diag.flash{background:rgba(191,135,0,.25);border-radius:3px}
 /* User-supplied report copyright notice (shown on screen + print). */
 .foot-copyright{margin:10px 0 0;font-size:12px;color:var(--ink);white-space:pre-line}
 /* Footer branding: placeholder f5q mark + the tcl-lsp mark (links to GitHub). */
-.foot-logos{display:flex;gap:18px;align-items:center;justify-content:center;margin:14px 0 2px;color:var(--muted)}
-.foot-logo{display:inline-flex;align-items:center;color:inherit;opacity:.75;transition:opacity .12s}
+/* The marks lead the footer, centred above the attribution text. */
+.foot-logos{display:flex;gap:18px;align-items:center;justify-content:center;margin:0 0 12px;color:var(--muted)}
+.foot-logo{display:inline-flex;align-items:center;color:inherit;opacity:.85;transition:opacity .12s}
 .foot-logo svg{display:block;height:24px;width:auto}
 a.foot-logo{text-decoration:none}
-a.foot-logo:hover,a.foot-logo:focus-visible{opacity:1;color:var(--accent,#2563eb);outline:none}
+a.foot-logo:hover,a.foot-logo:focus-visible{opacity:1;outline:none}
+/* The tcl-lsp mark ships a light and a dark squircle and the report emits both;
+   show whichever suits the active theme (explicit toggle, or the OS preference
+   while the theme is still "auto"). */
+.logo-when-light{display:block}
+.logo-when-dark{display:none}
+:root[data-theme="dark"] .logo-when-light{display:none}
+:root[data-theme="dark"] .logo-when-dark{display:block}
+@media (prefers-color-scheme:dark){
+  :root[data-theme="auto"] .logo-when-light{display:none}
+  :root[data-theme="auto"] .logo-when-dark{display:block}
+}
 
 /* Attribution — the bitwisecook BIG-IP Report Generator. Shown small in the
    footer and (print only) as a page footer; also embedded invisibly in the

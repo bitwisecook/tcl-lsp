@@ -17,12 +17,18 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# render_logo.sh — rasterise the canonical Tcl-LSP logo SVGs to the PNG
+# render_logo.sh — rasterise the canonical project logo SVGs to the PNG
 # sizes the project ships.
 #
 # The SVGs in docs/ are the source of truth:
 #   docs/tcl-lsp-logo.svg        (light squircle)
 #   docs/tcl-lsp-logo-dark.svg   (dark squircle, for dark UI themes)
+#   docs/f5q-logo.svg            (f5-query — dark squircle, one variant)
+#
+# Every id in those SVGs is namespaced (`tcl-`, `tcld-`, `f5q-`) because the
+# BIG-IP report inlines them side by side as <svg> elements in one document,
+# where ids share a single namespace — unprefixed ids (the minifier emits `a`,
+# `b`, `c`, …) would collide and make one logo render with another's gradients.
 #
 # This regenerates the committed 8-bit PNGs that everything else consumes
 # (the README, the VS Code extension icon copied from the 128px light PNG
@@ -51,6 +57,7 @@ SIZES=(64 128 256 512 1024)
 TARGETS=(
     "docs/tcl-lsp-logo.svg|docs/Tcl LSP Logo-8bit-{size}"
     "docs/tcl-lsp-logo-dark.svg|docs/Tcl LSP Logo-dark-8bit-{size}"
+    "docs/f5q-logo.svg|docs/f5q-logo-8bit-{size}"
 )
 
 # --- tool detection ---------------------------------------------------------
@@ -119,14 +126,19 @@ for entry in "${TARGETS[@]}"; do
 done
 
 # --- downstream integration ------------------------------------------------
-# Keep docs/tcl-lsp-logo*.svg the single source of truth, then propagate
-# copies + raster favicons to the places that consume a logo directly:
+# Keep docs/*.svg the single source of truth, then propagate copies + raster
+# favicons to the places that consume a logo directly:
 #   * the Sphinx docs theme (furo light/dark logo + favicon)
 #   * the compiler-explorer web GUI (browser-tab favicon)
+#   * the BIG-IP report generator, which inlines them into every report
 SPHINX_STATIC="docs/sphinx/_static"
 # The explorer GUI moved out of the retired tooling/explorer/static tree into
 # the tcl-cli crate, where build.rs embeds it into the `tcl` binary.
 EXPLORER_STATIC="rust/tcl-cli/gui"
+# The report generator's vendored assets: render.rs `include_str!`s these, and
+# frontend/build.mjs syncs them into the Python `f5report` package, so both
+# backends inline the same marks into the report they emit.
+REPORT_ASSETS="rust/bigip-report-gen/assets"
 
 if [ -d "docs/sphinx" ]; then
     mkdir -p "$SPHINX_STATIC"
@@ -143,4 +155,14 @@ if [ -d "$EXPLORER_STATIC" ]; then
     report "$EXPLORER_STATIC/favicon.png"
 fi
 
-echo "logo: rendered ${#SIZES[@]} sizes × ${#TARGETS[@]} variants from docs/*.svg (+ docs/explorer assets)"
+if [ -d "$REPORT_ASSETS" ]; then
+    cp docs/f5q-logo.svg          "$REPORT_ASSETS/logo-f5q.svg"
+    cp docs/tcl-lsp-logo.svg      "$REPORT_ASSETS/logo-tcl-lsp.svg"
+    cp docs/tcl-lsp-logo-dark.svg "$REPORT_ASSETS/logo-tcl-lsp-dark.svg"
+    for f in logo-f5q logo-tcl-lsp logo-tcl-lsp-dark; do
+        svg="$REPORT_ASSETS/$f.svg"
+        printf '  %-44s svg (%s bytes)\n' "$svg" "$(wc -c <"$svg" | tr -d ' ')"
+    done
+fi
+
+echo "logo: rendered ${#SIZES[@]} sizes × ${#TARGETS[@]} variants from docs/*.svg (+ sphinx/explorer/report assets)"
