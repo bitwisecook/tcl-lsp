@@ -168,8 +168,29 @@ main:
 make release-tag V=X.Y.Z
 ```
 
+`tag.sh` derives the channel itself and enforces the branch that goes with it
+(pre-release → `rust`, stable → `main`), so it will refuse a tag cut from the
+wrong line.
+
 The tag push triggers `.github/workflows/ci.yml` to build artefacts, run
-`publish-checksums`, and publish the GitHub release.
+`publish-checksums`, and publish the GitHub release — as a pre-release, with the
+matching Marketplace channels, all from `prerelease.sh`. Nothing here takes a
+"pre-release" flag; the version *is* the flag.
+
+If the push fails with `Permission denied (publickey)`, the SSH agent has no
+identities (a locked 1Password, typically). Rather than reconfiguring git,
+override the push URL for that one command with the `gh` token:
+
+```bash
+TOKEN=$(gh auth token)
+GIT_CONFIG_COUNT=1 \
+GIT_CONFIG_KEY_0=remote.origin.pushurl \
+GIT_CONFIG_VALUE_0="https://x-access-token:${TOKEN}@github.com/bitwisecook/tcl-lsp.git" \
+  make release-tag V=X.Y.Z
+```
+
+(The repo rewrites `https://github.com/` → SSH via `insteadOf`; the
+`x-access-token@` form does not match that prefix, so it is not rewritten.)
 
 ### 8. Verify published artefacts
 
@@ -214,12 +235,17 @@ Also smoke-test the installer one-liner from a clean shell and
 verify the installed payload — `scripts/release/smoke_installer.sh`
 wraps the full check matrix:
 
-1. installer exits 0;
-2. every installed `.pyz` matches its SHA256SUMS entry;
-3. `tcl --version` / `f5 --version` include the released version;
+1. installer exits 0 — **pinned to the tag** via `TCL_LSP_VERSION`, which the
+   script sets for you. Never install unpinned here: the installer's default is
+   the latest *stable* release, so an unpinned run silently verifies a different
+   version, and for a pre-release (never "latest") it verifies one that has
+   nothing to do with the tag you just cut;
+2. every installed artefact matches its SHA256SUMS entry;
+3. `tcl --version` / `f5 --version` report the released version;
 4. `tcl --help` / `f5 --help` exit 0 with non-empty output;
-5. MCP zipapp launches and its `--help` banner mentions the version
-   (`--version` is intentionally empty there);
+5. the MCP server answers a real `initialize` request and its `serverInfo`
+   reports the released version (the native server takes no flags — don't expect
+   `--help` or `--version` to print anything);
 6. the Claude-skills directory has at least `MIN_SKILLS` entries
    (default 22).
 
@@ -257,24 +283,34 @@ passed: approving is what actually ships to the marketplaces.
 
 ```bash
 tag="vX.Y.Z"
-run=$(gh run list --workflow ci.yml --commit "$(git rev-list -n1 "$tag")" \
-        --json databaseId,headBranch --jq '.[0].databaseId')
 
-# The environments waiting on a reviewer, with their ids
-gh api "repos/bitwisecook/tcl-lsp/actions/runs/$run/pending_deployments" \
-  --jq '.[] | "\(.environment.id)  \(.environment.name)  waiting=\(.current_user_can_approve)"'
+# The run for the *tag* — not the branch push that preceded it, which is a
+# separate run with the same head commit.
+run=$(gh run list --workflow ci.yml --limit 20 \
+        --json databaseId,headBranch,event \
+        --jq "[.[] | select(.headBranch==\"$tag\" and .event==\"push\")][0].databaseId")
 
-# Approve them (ids from above; both environments in one call)
+# Both environments wait at once. Check `can_approve` before trying.
 gh api "repos/bitwisecook/tcl-lsp/actions/runs/$run/pending_deployments" \
-  -X POST \
-  -F "environment_ids[]=<vscode-env-id>" \
-  -F "environment_ids[]=<jetbrains-env-id>" \
+  --jq '.[] | "\(.environment.id)  \(.environment.name)  can_approve=\(.current_user_can_approve)"'
+
+# Approve both in a single call, feeding the ids straight from the query above.
+ids=$(gh api "repos/bitwisecook/tcl-lsp/actions/runs/$run/pending_deployments" \
+        --jq '.[].environment.id')
+gh api "repos/bitwisecook/tcl-lsp/actions/runs/$run/pending_deployments" \
+  -X POST $(for i in $ids; do printf ' -F environment_ids[]=%s' "$i"; done) \
   -f state=approved \
   -f comment="Artefacts verified against SHA256SUMS ($tag)"
 
-# Then watch them through
+# The response is a list of deployments, not an object — a `--jq` expecting an
+# object errors *after* the approval has already gone through. Confirm by
+# re-reading state rather than trusting the command's output:
+gh api "repos/bitwisecook/tcl-lsp/actions/runs/$run/pending_deployments" --jq 'length'  # → 0
 gh run watch "$run" --exit-status
 ```
+
+If `current_user_can_approve` is false, the account `gh` is authenticated as is
+not a reviewer on that Environment — report that rather than working around it.
 
 If `current_user_can_approve` is `false`, the account `gh` is authenticated as
 is not a reviewer on that Environment — report that rather than trying to work

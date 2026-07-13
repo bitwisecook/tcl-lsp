@@ -270,7 +270,19 @@ jobs:
   # in full.  The crate declares no [features], so dropping it from the
   # `--all-features` workspace run costs no coverage.
   rust-tests:
-    runs-on: ubuntu-26.04
+    # The single longest pole in the graph: 360s hosted, 155s on the 16-core
+    # self-hosted box.  It is the ONLY job routed there, and that is deliberate.
+    # GitHub-hosted gives 8 concurrent 4-core runners (32 cores aggregate); the
+    # self-hosted box has 16 cores and one runner, so anything sent to it
+    # executes serially.  Measured: routing this job alone puts the critical
+    # path at 239s (bounded by hosted `lsp-e2e`), while adding a second job
+    # pushes it back up to 253s.  Route more work here only after adding a
+    # second runner instance to the VM.
+    #
+    # Untrusted code must never reach the self-hosted runner, so PRs from forks
+    # stay on GitHub-hosted; everything else (push, dispatch, and PRs from
+    # branches in this repo, which only collaborators can create) goes to `tank`.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'tank' || 'ubuntu-26.04' }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -306,6 +318,9 @@ jobs:
   # The heavy VM-simulation suites, split out to run concurrently with
   # `rust-tests` (see that job's header).  Doctests are covered there.
   rust-tests-heavy:
+    # Deliberately hosted.  The self-hosted box has a single runner, so jobs
+    # sent there execute serially; measured, moving this job as well pushed the
+    # critical path from 239s to 253s.  See `rust-tests` for the full reasoning.
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -334,6 +349,7 @@ jobs:
   # Fully native — the Rust port of the former Python `tests/lsp_e2e/` pytest
   # suite, so no Python and no uv.  Also covers the crate's `*_smoke.rs` tests.
   lsp-e2e:
+    # Deliberately hosted -- see `rust-tests-heavy`.
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3

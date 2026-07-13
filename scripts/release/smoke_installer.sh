@@ -74,9 +74,15 @@ installer_env=""
 if [ -n "${TCL_LSP_OS:-}" ]; then
     installer_env="TCL_LSP_OS=$TCL_LSP_OS "
 fi
+# TCL_LSP_VERSION pins the installer to the tag we are verifying. Without it the
+# installer resolves its default channel — the latest *stable* release — so the
+# whole post-tag check ran against a different version than the one being cut,
+# and said nothing about it. That is doubly wrong for a pre-release, which is
+# never "latest": v2.1.8's smoke run installed v1.11.4 and failed on a 404.
 # shellcheck disable=SC2086
 if curl -fsSL "$INSTALLER_URL" \
-        | env $installer_env TCL_LSP_PREFIX="$PREFIX" TCL_LSP_ASSUME_NO=1 sh \
+        | env $installer_env TCL_LSP_VERSION="$tag" TCL_LSP_PREFIX="$PREFIX" \
+              TCL_LSP_ASSUME_NO=1 sh \
         > /tmp/smoke-installer.log 2>&1; then
     pass "installer ran cleanly"
 else
@@ -153,16 +159,26 @@ fi
 if [ -z "$mcp" ]; then
     fail "MCP server missing (looked for $PREFIX/tcl-mcp and $PREFIX/tcl-lsp-mcp-server.pyz)"
 else
-    # The MCP CLI's --version output is empty on purpose; the
-    # version banner shows on --help instead.
-    if helpout=$("$mcp" --help 2>&1) && [ -n "$helpout" ]; then
-        case "$helpout" in
-            *"$expected"*) pass "MCP --help banner mentions $expected" ;;
-            *)             fail "MCP --help did not include $expected
-        got: $(printf '%s' "$helpout" | head -1)" ;;
+    # Speak MCP to it rather than asking it for a banner. The native 2.x server
+    # takes no flags at all — `--help` just starts the server, which then dies on
+    # the closed stdin — so the old banner check could only ever fail once the
+    # smoke test was pinned to a 2.x tag. Driving one `initialize` request is a
+    # stronger check anyway: it proves the server runs, speaks the protocol, and
+    # reports the version we just released, rather than that it can print text.
+    init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}'
+    if reply=$(printf '%s\n' "$init" | "$mcp" 2>/dev/null | head -1) && [ -n "$reply" ]; then
+        case "$reply" in
+            *'"serverInfo"'*"\"version\":\"$expected\""*)
+                pass "MCP server answers initialize and reports $expected" ;;
+            *'"serverInfo"'*)
+                fail "MCP server answered initialize but not with $expected
+        got: $(printf '%s' "$reply" | head -c 120)" ;;
+            *)
+                fail "MCP server did not answer initialize
+        got: $(printf '%s' "$reply" | head -c 120)" ;;
         esac
     else
-        fail "MCP --help failed"
+        fail "MCP server did not respond to an initialize request"
     fi
 fi
 
