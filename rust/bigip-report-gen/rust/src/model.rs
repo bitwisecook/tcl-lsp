@@ -36,7 +36,13 @@ use crate::jutil::{barr, bbool, bstr, sarr, truthy};
 use crate::query::{Source, query};
 
 /// The engine version string embedded in the report header.
-pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
+///
+/// `tcl_version::VERSION`, not `CARGO_PKG_VERSION`: the workspace manifest
+/// carries `0.1.0` and is never bumped (releases are tag-only), so the manifest
+/// version made every report's header read `query engine v0.1.0` regardless of
+/// what was actually shipped. `tcl-version` resolves the tag, plus the commit as
+/// build metadata (`2.1.8+g4c5a8f86`).
+pub const ENGINE_VERSION: &str = tcl_version::VERSION;
 
 /// The short git commit hash the generator was built from, stamped by
 /// `build.rs`. `"unknown"` when the build carried no git metadata.
@@ -2017,5 +2023,37 @@ mod app_tests {
         let b = apps[1].as_object().unwrap();
         assert_eq!(bstr(b, "name"), "store"); // ".app" stripped
         assert_eq!(bstr(b, "source"), "iapp");
+    }
+}
+
+#[cfg(test)]
+mod engine_version_tests {
+    /// The report header renders `query engine v{{ engine_version }}`, and read
+    /// `0.1.0` — the never-bumped workspace manifest version — for every release.
+    ///
+    /// The guard is "comes from `tcl-version`", not "looks like a tag": CI checks
+    /// out with `fetch-depth: 1` and no tags, so no tag is reachable there and the
+    /// resolved version legitimately falls back to the manifest base (`0.1.0`,
+    /// plus the commit). Asserting a tag-shaped string would fail on every PR.
+    #[test]
+    fn engine_version_comes_from_tcl_version_not_cargo_pkg_version() {
+        assert_eq!(
+            super::ENGINE_VERSION,
+            tcl_version::VERSION,
+            "ENGINE_VERSION must be sourced from tcl-version (which resolves the \
+             release tag), not from CARGO_PKG_VERSION (the workspace manifest's \
+             permanent 0.1.0 placeholder)"
+        );
+    }
+
+    /// Whatever the base resolves to, the commit must always be present — that is
+    /// the whole point of stamping it separately from `git describe`.
+    #[test]
+    fn engine_version_carries_the_commit() {
+        let v = super::ENGINE_VERSION;
+        assert!(
+            v.contains("+g") || tcl_version::COMMIT.is_empty(),
+            "expected the commit as build metadata, got {v:?}"
+        );
     }
 }

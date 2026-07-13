@@ -626,7 +626,11 @@ fn build_enrichment(devices_json: &str, architecture_json: &str) -> PyResult<Str
 /// The native BIG-IP query engine binding.
 #[pymodule]
 fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+    // `tcl_version::VERSION`, not `CARGO_PKG_VERSION`: the workspace manifest
+    // carries `0.1.0` and is never bumped (releases are tag-only), so the
+    // manifest version would have `f5-report --version` report `engine 0.1.0`
+    // forever. `tcl-version` resolves TCL_LSP_VERSION, else `git describe`.
+    m.add("__version__", tcl_version::VERSION)?;
     m.add("__git_hash__", env!("GIT_HASH"))?;
     // Single `git describe --tags` version (v-tag + commits + hash) for the footer.
     m.add("__git_describe__", env!("GIT_DESCRIBE"))?;

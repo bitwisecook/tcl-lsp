@@ -47,6 +47,10 @@ crate-type = ["cdylib"]
 [dependencies]
 # No `probes` feature → no ureq / rustls / dns-lookup / x509 in the wasm binary.
 tcl-bigip-query = { path = "../tcl-bigip-query", default-features = false }
+# Reports the release version resolved from the git tag. The workspace manifest
+# carries 0.1.0 and is never bumped (releases are tag-only), so CARGO_PKG_VERSION
+# would make the console's status line claim 0.1.0 forever.
+tcl-version = { path = "../tcl-version" }
 tcl-bigip = { path = "../tcl-bigip" }
 # Tcl formatter + highlighter + iRules command registry for the report's iRule
 # Format button — runs the same formatter as the LSP / `tcl` CLI, client-side.

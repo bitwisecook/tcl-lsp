@@ -48,7 +48,10 @@ __all__ = [
     "engine_version",
 ]
 
-__version__ = "0.1.0"
+# Taken from the native binding rather than written here: releases are tag-only,
+# so a literal in the tree would go stale the moment a tag is cut. The binding
+# resolves it at compile time from TCL_LSP_VERSION, else `git describe`.
+__version__ = _engine.__version__
 
 
 def engine_version() -> str:

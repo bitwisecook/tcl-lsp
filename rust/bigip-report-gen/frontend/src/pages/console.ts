@@ -36,12 +36,20 @@
 
   // Share one wasm instantiation across the console and the iRule Format button
   // (whichever loads first wins), so the module initialises only once.
+  //
+  // The version comes from the MODEL, not from `wasm_bindgen.engine_version()`.
+  // The wasm blob is a *committed* artifact that CI does not rebuild at release,
+  // so its baked-in version is whatever it happened to be when someone last ran
+  // build-wasm.sh — stale, and after we started stamping the commit into the
+  // version it would confidently report a commit that was never shipped. The
+  // model is written by the renderer at report-generation time, which is always
+  // built fresh, so it is the only trustworthy source here.
   function initWasm() {
     if (!window.__f5qReady) {
       window.__f5qReady = wasm_bindgen(b64ToBytes(B64));
     }
     return window.__f5qReady.then(function () {
-      return wasm_bindgen.engine_version();
+      return MODEL.engine_version || wasm_bindgen.engine_version();
     });
   }
 

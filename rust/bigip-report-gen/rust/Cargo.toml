@@ -28,6 +28,10 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+# Resolves the release version from the git tag. The workspace manifest carries
+# 0.1.0 and is never bumped (releases are tag-only), so CARGO_PKG_VERSION made
+# every report header read "query engine v0.1.0".
+tcl-version = { path = "../../tcl-version" }
 # The query engine, without the network-probe layer so this crate also builds
 # for wasm32 (the in-browser report generator). A report never probes — but the
 # `x509` surface (pure Rust: x509-parser + sha2, no socket/TLS) is on so the

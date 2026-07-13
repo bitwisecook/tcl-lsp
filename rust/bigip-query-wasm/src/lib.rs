@@ -78,9 +78,13 @@ pub fn run_query(
 }
 
 /// The engine version string (for the console's status line).
+///
+/// `tcl_version::VERSION`, not `CARGO_PKG_VERSION`: the workspace manifest
+/// carries `0.1.0` and is never bumped (releases are tag-only), so the manifest
+/// version would report `0.1.0` forever. `tcl-version` resolves the tag instead.
 #[wasm_bindgen]
 pub fn engine_version() -> String {
-    env!("CARGO_PKG_VERSION").to_string()
+    tcl_version::VERSION.to_string()
 }
 
 /// Re-run cross-device architecture / topology detection for the in-report

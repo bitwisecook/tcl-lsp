@@ -52,6 +52,10 @@ crate-type = ["cdylib"]
 # the subset of the C-API covered by the limited API, so nothing here needs the
 # full, version-specific C-API.
 pyo3 = { version = "0.29", features = ["extension-module", "abi3-py39"] }
+# Resolves the release version from the git tag. The workspace manifest carries
+# 0.1.0 and is never bumped (releases are tag-only), so CARGO_PKG_VERSION would
+# make `f5-report --version` report `engine 0.1.0` forever.
+tcl-version = { path = "../../tcl-version" }
 tcl-bigip = { path = "../../tcl-bigip" }
 tcl-bigip-io = { path = "../../tcl-bigip-io" }
 tcl-bigip-query = { path = "../../tcl-bigip-query" }
