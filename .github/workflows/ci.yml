@@ -270,7 +270,11 @@ jobs:
   # in full.  The crate declares no [features], so dropping it from the
   # `--all-features` workspace run costs no coverage.
   rust-tests:
-    runs-on: ubuntu-26.04
+    # Longest pole in the graph (~360s hosted, ~90s on the 16-core self-hosted
+    # box).  Untrusted code must never reach the self-hosted runner, so PRs from
+    # forks stay on GitHub-hosted; everything else (push, dispatch, and PRs from
+    # branches in this repo, which only collaborators can create) goes to `tank`.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'tank' || 'ubuntu-26.04' }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -306,7 +310,8 @@ jobs:
   # The heavy VM-simulation suites, split out to run concurrently with
   # `rust-tests` (see that job's header).  Doctests are covered there.
   rust-tests-heavy:
-    runs-on: ubuntu-26.04
+    # Self-hosted for the same reason as `rust-tests`; fork PRs stay hosted.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'tank' || 'ubuntu-26.04' }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -334,7 +339,8 @@ jobs:
   # Fully native — the Rust port of the former Python `tests/lsp_e2e/` pytest
   # suite, so no Python and no uv.  Also covers the crate's `*_smoke.rs` tests.
   lsp-e2e:
-    runs-on: ubuntu-26.04
+    # Self-hosted for the same reason as `rust-tests`; fork PRs stay hosted.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'tank' || 'ubuntu-26.04' }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
