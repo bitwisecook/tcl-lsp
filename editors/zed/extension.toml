@@ -64,3 +64,18 @@ requires_argument = false
 [slash_commands.irule-test]
 description = "Generate an iRule test script using the Event Orchestrator framework"
 requires_argument = false
+
+# The APL and BIG-IP grammars live in this repo (`grammars/tree-sitter-*`).
+# Zed fetches a grammar from a git repository at a rev, so they are referenced
+# from here by commit rather than vendored into the extension directory. Bump
+# `rev` whenever either grammar changes — Zed caches by commit, so a stale rev
+# silently keeps serving the old parser.
+[grammars.apl]
+repository = "https://github.com/bitwisecook/tcl-lsp"
+rev = "01aaf05e7af0c32277e087ea7f4be03538435944"
+path = "grammars/tree-sitter-apl"
+
+[grammars.bigip]
+repository = "https://github.com/bitwisecook/tcl-lsp"
+rev = "01aaf05e7af0c32277e087ea7f4be03538435944"
+path = "grammars/tree-sitter-bigip"
