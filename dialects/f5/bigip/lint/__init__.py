@@ -53,9 +53,15 @@ class Finding:
 
 
 class LintRule(Protocol):
-    ID: str
-    SEVERITY: str
-    CATEGORY: str
+    # Read-only members: rule metadata is constant per class and the
+    # concrete rules are frozen dataclasses, so declaring these as
+    # writable attributes would make the (invariant) protocol match fail.
+    @property
+    def ID(self) -> str: ...
+    @property
+    def SEVERITY(self) -> str: ...
+    @property
+    def CATEGORY(self) -> str: ...
 
     def check(
         self,

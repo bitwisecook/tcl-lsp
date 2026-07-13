@@ -697,7 +697,7 @@ class IruleTestSession:
         resp = await self._send({"cmd": "get_state", "layer": layer})
         result = resp.get("result", [])
         if isinstance(result, list) and not len(result) & 1:
-            return dict(zip(result[::2], result[1::2]))
+            return {str(k): v for k, v in zip(result[::2], result[1::2])}
         return {}
 
     async def run_http_request(
