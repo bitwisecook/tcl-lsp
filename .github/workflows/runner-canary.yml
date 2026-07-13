@@ -1,0 +1,41 @@
+name: Runner canary
+
+# Temporary: validates the self-hosted `tank` runner can execute the real CI
+# toolchain path. Delete once ci.yml routing is merged.
+on:
+  push:
+    branches: [ci/self-hosted-runner]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    runs-on: tank
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Runner facts
+        run: |
+          echo "host   : $(hostname)"
+          echo "cpus   : $(nproc)"
+          echo "mem    : $(free -g | awk '/^Mem:/{print $2}') GB"
+          echo "tclsh  : $(command -v tclsh || echo MISSING)"
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2.82.7
+        with:
+          tool: cargo-nextest
+
+      - name: cargo nextest run (same set as rust-tests)
+        run: |
+          start=$(date +%s)
+          cargo nextest run --workspace \
+            --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server \
+            --all-features --no-fail-fast
+          echo "::notice::rust-tests took $(( $(date +%s) - start ))s on tank ($(nproc) cpus)"
