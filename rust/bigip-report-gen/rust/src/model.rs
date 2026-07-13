@@ -2028,18 +2028,32 @@ mod app_tests {
 
 #[cfg(test)]
 mod engine_version_tests {
-    /// The report header renders `query engine v{{ engine_version }}`. It read
+    /// The report header renders `query engine v{{ engine_version }}`, and read
     /// `0.1.0` — the never-bumped workspace manifest version — for every release.
+    ///
+    /// The guard is "comes from `tcl-version`", not "looks like a tag": CI checks
+    /// out with `fetch-depth: 1` and no tags, so no tag is reachable there and the
+    /// resolved version legitimately falls back to the manifest base (`0.1.0`,
+    /// plus the commit). Asserting a tag-shaped string would fail on every PR.
     #[test]
-    fn engine_version_is_the_tag_not_the_manifest_placeholder() {
-        let v = super::ENGINE_VERSION;
-        assert_ne!(
-            v, "0.1.0",
-            "engine version fell back to the manifest placeholder"
+    fn engine_version_comes_from_tcl_version_not_cargo_pkg_version() {
+        assert_eq!(
+            super::ENGINE_VERSION,
+            tcl_version::VERSION,
+            "ENGINE_VERSION must be sourced from tcl-version (which resolves the \
+             release tag), not from CARGO_PKG_VERSION (the workspace manifest's \
+             permanent 0.1.0 placeholder)"
         );
+    }
+
+    /// Whatever the base resolves to, the commit must always be present — that is
+    /// the whole point of stamping it separately from `git describe`.
+    #[test]
+    fn engine_version_carries_the_commit() {
+        let v = super::ENGINE_VERSION;
         assert!(
-            v.starts_with(char::is_numeric),
-            "expected a resolved version, got {v:?}"
+            v.contains("+g") || tcl_version::COMMIT.is_empty(),
+            "expected the commit as build metadata, got {v:?}"
         );
     }
 }

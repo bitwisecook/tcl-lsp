@@ -149,14 +149,23 @@ fn env_version() -> Option<String> {
     Some(strip_v(trimmed).to_owned())
 }
 
+/// `git describe --tags`, deliberately WITHOUT `--always`.
+///
+/// `--always` degrades to a bare commit hash when no tag is reachable, which is
+/// not a version at all — and since the commit is now appended separately, it
+/// produced the hash twice (`f69b196+gf69b1965`). A tag-less checkout is the norm
+/// in CI, where `actions/checkout` uses `fetch-depth: 1` and fetches no tags, so
+/// this is the common path, not an edge case. Returning `None` here lets the
+/// caller fall through to the manifest version, giving `0.1.0+gf69b1965`: honest
+/// about not knowing the release, still precise about the commit.
 fn git_describe() -> Option<String> {
     let out = Command::new("git")
-        .args(["describe", "--tags", "--always", "--dirty"])
+        .args(["describe", "--tags", "--dirty"])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .output()
         .ok()?;
     if !out.status.success() {
-        return None;
+        return None; // no reachable tag
     }
     let s = String::from_utf8(out.stdout).ok()?;
     let s = s.trim();
