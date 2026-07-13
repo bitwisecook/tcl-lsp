@@ -37,7 +37,6 @@ wasm="$here/target/wasm32-unknown-unknown/release/bigip_query_wasm.wasm"
 echo "==> wasm-bindgen (no-modules)"
 wasm-bindgen "$wasm" --out-dir "$out" --target no-modules --no-typescript
 
-# ---------------------------------------------------------------------------
 # Make the glue's script_src probe non-fatal.
 #
 # wasm-bindgen emits, at the very top of `let wasm_bindgen = (function(){…})()`:

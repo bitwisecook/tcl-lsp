@@ -143,7 +143,6 @@
   function open() { scrim.classList.add("open"); }
   function close() { scrim.classList.remove("open"); }
 
-  // ---- "Preparing print" toast -------------------------------------------
   // Preparing a print takes 10-20s on a large report: every chosen panel is
   // force-rendered (topology / apps / forensics draw lazily), their diagrams are
   // awaited, and iRules may be reformatted + analysed through the wasm engine.
