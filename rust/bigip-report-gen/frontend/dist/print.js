@@ -65,6 +65,22 @@
     function close() {
       scrim.classList.remove("open");
     }
+    var toastEl = null;
+    function toast(msg) {
+      if (!toastEl) {
+        toastEl = document.createElement("div");
+        toastEl.className = "print-toast";
+        toastEl.setAttribute("role", "status");
+        toastEl.setAttribute("aria-live", "polite");
+        toastEl.innerHTML = '<span class="print-toast-spin" aria-hidden="true"></span><span class="print-toast-msg"></span>';
+        document.body.appendChild(toastEl);
+      }
+      toastEl.querySelector(".print-toast-msg").textContent = msg;
+      toastEl.classList.add("open");
+    }
+    function toastHide() {
+      if (toastEl) toastEl.classList.remove("open");
+    }
     btn.addEventListener("click", open);
     q(".print-cancel").addEventListener("click", close);
     scrim.addEventListener("click", function(e) {
@@ -157,6 +173,7 @@
       var doFmt = q(".pfmt") && q(".pfmt").checked;
       var doDiag = q(".pdiag") && q(".pdiag").checked;
       close();
+      toast(doFmt || doDiag ? "Formatting iRules\u2026" : "Preparing print\u2026");
       deviceEls.forEach(function(dev) {
         var activeTab = dev.querySelector(".tab.active");
         var activePanel = dev.querySelector(".panel.active");
@@ -179,8 +196,11 @@
           d.classList.toggle("active", d === activeDevice);
         });
       });
-      applyIruleOptions(deviceEls, doFmt, doDiag).then(function() {
+      applyIruleOptions(deviceEls, doFmt, doDiag).catch(function() {
+      }).then(function() {
+        toast("Rendering diagrams\u2026");
         whenDrawn(deviceEls, secs, function() {
+          toast("Opening your browser\u2019s print dialog\u2026");
           markAndPrint(deviceEls, secs);
         });
       });
@@ -337,6 +357,7 @@
       });
       var done = function() {
         window.removeEventListener("afterprint", done);
+        toastHide();
         for (var i = restore.length - 1; i >= 0; i--) {
           try {
             restore[i]();
@@ -346,6 +367,7 @@
         restore = [];
       };
       window.addEventListener("afterprint", done);
+      toastHide();
       window.print();
       setTimeout(function() {
         if (restore.length) done();

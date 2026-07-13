@@ -45,7 +45,7 @@
   .expander, .code-toolbar, .irule-diags, #objDrawer, #drawerScrim,
   #globalSearch, #themeToggle, #f5qManual, .print-dialog, .print-scrim,
   #printBtn, .app-del, .app-pick, .app-pick-all, .app-save, .app-name,
-  .sys-toggle, .qc-examples {
+  .sys-toggle, .qc-examples, .print-toast {
     display: none !important;
   }
 
@@ -251,6 +251,32 @@
   display: none; align-items: center; justify-content: center; z-index: 1000;
 }
 .print-scrim.open { display: flex; }
+
+/* ---- "Preparing print" toast ------------------------------------------- */
+/* Preparing a print takes 10-20s on a large report: every chosen panel has to be
+ * force-rendered (topology / apps / forensics draw lazily), diagrams awaited, and
+ * iRules optionally reformatted + analysed through the wasm engine. `window.print()`
+ * is only called at the very end, so without this the page just sits there looking
+ * hung. Hidden in the printout itself (see the @media print block above). */
+.print-toast {
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+  display: none; align-items: center; gap: 10px;
+  background: var(--panel, #fff); color: var(--fg, #111);
+  border: 1px solid var(--line, #ccc); border-radius: 999px;
+  padding: 10px 18px; font-size: 14px; z-index: 1001;
+  box-shadow: 0 8px 28px rgba(0,0,0,.28);
+}
+.print-toast.open { display: flex; }
+.print-toast-spin {
+  width: 14px; height: 14px; flex: none; border-radius: 50%;
+  border: 2px solid var(--line, #ccc); border-top-color: var(--accent, #0a7);
+  animation: print-toast-spin .8s linear infinite;
+}
+@keyframes print-toast-spin { to { transform: rotate(360deg); } }
+/* Respect a reduced-motion preference: keep the toast, drop the spin. */
+@media (prefers-reduced-motion: reduce) {
+  .print-toast-spin { animation: none; }
+}
 .print-dialog {
   background: var(--panel, #fff); color: var(--fg, #111);
   border: 1px solid var(--line, #ccc); border-radius: 12px;

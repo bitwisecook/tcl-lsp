@@ -142,6 +142,32 @@
 
   function open() { scrim.classList.add("open"); }
   function close() { scrim.classList.remove("open"); }
+
+  // ---- "Preparing print" toast -------------------------------------------
+  // Preparing a print takes 10-20s on a large report: every chosen panel is
+  // force-rendered (topology / apps / forensics draw lazily), their diagrams are
+  // awaited, and iRules may be reformatted + analysed through the wasm engine.
+  // `window.print()` is only reached at the very end, so without this the page
+  // just sits there after the dialog closes and looks hung.
+  var toastEl = null;
+  function toast(msg) {
+    if (!toastEl) {
+      toastEl = document.createElement("div");
+      toastEl.className = "print-toast";
+      // `status` + polite: announced by a screen reader without stealing focus.
+      toastEl.setAttribute("role", "status");
+      toastEl.setAttribute("aria-live", "polite");
+      toastEl.innerHTML =
+        '<span class="print-toast-spin" aria-hidden="true"></span>' +
+        '<span class="print-toast-msg"></span>';
+      document.body.appendChild(toastEl);
+    }
+    toastEl.querySelector(".print-toast-msg").textContent = msg;
+    toastEl.classList.add("open");
+  }
+  function toastHide() {
+    if (toastEl) toastEl.classList.remove("open");
+  }
   btn.addEventListener("click", open);
   q(".print-cancel").addEventListener("click", close);
   scrim.addEventListener("click", function (e) { if (e.target === scrim) close(); });
@@ -216,6 +242,10 @@
     var doFmt = q(".pfmt") && q(".pfmt").checked;
     var doDiag = q(".pdiag") && q(".pdiag").checked;
     close();
+    // Formatting/analysing iRules through the wasm engine is the slowest step, so
+    // name it when it is actually going to happen rather than showing a generic
+    // message for 20 seconds.
+    toast(doFmt || doDiag ? "Formatting iRules…" : "Preparing print…");
 
     // Force lazily-rendered panels (topology / apps / forensics) to draw by
     // activating each chosen tab; the rendered content persists in the DOM.
@@ -236,9 +266,18 @@
       devices.forEach(function (d) { d.classList.toggle("active", d === activeDevice); });
     });
 
-    applyIruleOptions(deviceEls, doFmt, doDiag).then(function () {
-      whenDrawn(deviceEls, secs, function () { markAndPrint(deviceEls, secs); });
-    });
+    // `.catch` before `.then`: if the wasm engine fails (or is absent), still
+    // print — just without formatting/diagnostics. Otherwise a rejected promise
+    // would leave the toast spinning forever with no print dialog behind it.
+    applyIruleOptions(deviceEls, doFmt, doDiag)
+      .catch(function () {})
+      .then(function () {
+        toast("Rendering diagrams…");
+        whenDrawn(deviceEls, secs, function () {
+          toast("Opening your browser’s print dialog…");
+          markAndPrint(deviceEls, secs);
+        });
+      });
   }
 
   // The topology / apps / architecture diagrams are laid out asynchronously, and
@@ -427,11 +466,17 @@
 
     var done = function () {
       window.removeEventListener("afterprint", done);
+      toastHide();
       // unwind everything (last-registered first)
       for (var i = restore.length - 1; i >= 0; i--) { try { restore[i](); } catch (e) {} }
       restore = [];
     };
     window.addEventListener("afterprint", done);
+    // Hide the toast BEFORE printing, not just in @media print: `window.print()`
+    // blocks until the browser's dialog is dismissed, so anything still on screen
+    // is what gets captured — and print.css alone would not stop a print-to-image
+    // path from picking it up.
+    toastHide();
     window.print();
     // Safari/Firefox sometimes skip afterprint if the dialog is cancelled fast;
     // a fallback cleanup keeps the page usable.
