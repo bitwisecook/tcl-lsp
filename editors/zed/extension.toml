@@ -72,10 +72,10 @@ requires_argument = false
 # silently keeps serving the old parser.
 [grammars.apl]
 repository = "https://github.com/bitwisecook/tcl-lsp"
-rev = "01aaf05e7af0c32277e087ea7f4be03538435944"
+rev = "21b44f1a0542a92d22a6564b0e68e1912ab95ed3"
 path = "grammars/tree-sitter-apl"
 
 [grammars.bigip]
 repository = "https://github.com/bitwisecook/tcl-lsp"
-rev = "01aaf05e7af0c32277e087ea7f4be03538435944"
+rev = "21b44f1a0542a92d22a6564b0e68e1912ab95ed3"
 path = "grammars/tree-sitter-bigip"
