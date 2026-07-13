@@ -1,11 +1,121 @@
 %YAML 1.2
 ---
-# F5 iApp APL dialect — selects f5-iapps for LSP analysis of presentation files
+# F5 iApp APL (presentation language) syntax highlighting for Sublime Text
+# Converted from editors/vscode/syntaxes/apl.tmLanguage.json (#903)
+#
+# APL is the presentation language of an F5 iApp template.  It is *not* Tcl: it
+# has its own grammar of sections, typed fields and attributes, with `[ … ]`
+# bracket expressions that *are* Tcl.  This file used to `extends: Tcl.sublime-syntax`,
+# so an APL file was painted with Tcl rules until the server answered and
+# replaced them wholesale.
+#
+# The scopes below are the ones the server's `apl*` semantic tokens map to, so
+# the static paint and the semantic paint agree instead of contradicting each
+# other.  Where the grammar cannot tell (a bareword that is a field *name* only
+# because of its position), it emits nothing rather than guess wrong.
 name: APL
-scope: source.apl
+scope: source.tcl-apl
 version: 2
-
-extends: Tcl.sublime-syntax
 
 file_extensions:
   - apl
+
+contexts:
+  main:
+    - include: directive
+    - include: comment
+    - include: embedded-tcl
+    - include: define
+    - include: section
+    - include: field
+    - include: validator
+    - include: attribute
+    - include: optional
+    - include: string
+    - include: number
+
+  # A preprocessor directive.  Listed before `comment` so `#include` is not
+  # swallowed as one (it also starts earlier on the line, at the indent).
+  directive:
+    - match: '^\s*(#include)\b'
+      captures:
+        1: keyword.control.directive.apl
+
+  comment:
+    - match: '#.*$'
+      scope: comment.line.number-sign.apl
+
+  # A bracket expression is Tcl, and the server walks it as Tcl.  Painting it as
+  # Tcl here keeps the two layers in step.  The pop rule lives only in this
+  # context, so a nested `[ … ]` is consumed by source.tcl's own command
+  # substitution and cannot close the embedding early.
+  embedded-tcl:
+    - match: '\['
+      scope: punctuation.section.embedded.begin.apl
+      push: embedded-tcl-body
+
+  embedded-tcl-body:
+    - meta_content_scope: meta.embedded.block.tcl
+    - match: '\]'
+      scope: punctuation.section.embedded.end.apl
+      pop: true
+    - include: scope:source.tcl
+
+  define:
+    - match: '(?<=^|\s)(define)\s+([A-Za-z_][A-Za-z0-9_]*)'
+      captures:
+        1: keyword.other.define.apl
+        2: entity.name.function.apl
+
+  # `section NAME {`, and the `text` / `table` / `row` block keywords.
+  section:
+    - match: '(?<=^|\s)(section|text|table|row)(?:\s+([A-Za-z_][A-Za-z0-9_.]*))?'
+      captures:
+        1: keyword.control.apl
+        2: entity.name.section.apl
+
+  # A field declaration is `<field-type> <name> …`.  The type word identifies it,
+  # so the name that follows can be scoped too — that positional fact is the one
+  # thing a static grammar *can* know here.
+  field:
+    - match: '(?<=^|\s)(addrport|choice|disena|editchoice|enadis|enadisdry|falsetrue|indefint|message|multichoice|noyes|password|string|tcpprof|truefalse|yesno)(?:\s+([A-Za-z_][A-Za-z0-9_.]*))?'
+      captures:
+        1: keyword.other.apl
+        2: variable.other.field.apl
+
+  # The validators APL ships with, named inside `validator "…"`.  The whole
+  # construct is matched as one unit, quotes included: the opening quote would
+  # otherwise start `string` and the name inside would be painted as ordinary
+  # string content.  Only a name in this position is a validator — a bare
+  # `Number` in `display "Number"` is not.  Listed before `attribute` so it wins
+  # the tie on `validator` at the same start position.
+  validator:
+    - match: '(?<=^|\s)(validator)\s+(")(FQDN|IpAddress|IpOrFqdn|NonNegativeNumber|Number|PortNumber)(")'
+      captures:
+        1: entity.other.attribute-name.apl
+        2: string.quoted.double.apl
+        3: support.constant.validator.apl
+        4: string.quoted.double.apl
+
+  attribute:
+    - match: '(?<=^|\s)(default|display|required|validator)(?=\s|$)'
+      scope: entity.other.attribute-name.apl
+
+  optional:
+    - match: '(?<=^|\s)(optional)(?=\s|$)'
+      scope: keyword.control.optional.apl
+
+  string:
+    - match: '"'
+      push: string-body
+
+  string-body:
+    - meta_scope: string.quoted.double.apl
+    - match: '"'
+      pop: true
+    - match: '\\(?:x[0-9a-fA-F]{1,2}|u[0-9a-fA-F]{1,4}|U[0-9a-fA-F]{1,8}|[0-7]{1,3}|.)'
+      scope: constant.character.escape.apl
+
+  number:
+    - match: '(?<=^|\s)[+-]?(?:0[xX][0-9a-fA-F]+|(?:[0-9]*\.)?[0-9]+f?)(?=\s|$|,|\})'
+      scope: constant.numeric.apl

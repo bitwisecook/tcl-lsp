@@ -507,10 +507,37 @@ suite("TextMate grammars: BIG-IP config and APL (#903)", () => {
   });
 
   test("an APL bracket expression is highlighted as Tcl", () => {
-    const scopes = scopeMap(apl, ["    optional [ expr { $x > 1 } ]"]);
-    assert.strictEqual(scopes.get("optional"), "keyword.control.optional.apl");
+    const scopes = scopeMap(apl, ["    string x default [ expr { 1 + 1 } ]"]);
     assert.strictEqual(scopes.get("expr"), "support.function.tcl");
-    assert.strictEqual(scopes.get("$x"), "variable.other.tcl");
+    assert.strictEqual(scopes.get("+"), "keyword.operator.arithmetic.tcl");
+  });
+
+  // `optional` guards a block on APL's own tiny expression language, in
+  // PARENTHESES — not on a Tcl bracket expression. The first draft of this
+  // grammar assumed brackets, which no real APL file uses.
+  test("optional takes a parenthesised APL condition, not Tcl", () => {
+    const scopes = scopeMap(apl, ['    optional ( basic.protocol == "tcp" ) {']);
+    assert.strictEqual(scopes.get("optional"), "keyword.control.optional.apl");
+    assert.strictEqual(scopes.get("basic.protocol"), "variable.other.field.apl");
+    assert.strictEqual(scopes.get("=="), "keyword.operator.apl");
+  });
+
+  // `define <base-type> <new-name>` — the SECOND word is the type being reused.
+  // Scoping `choice` as the definition's name is a bug both this grammar's first
+  // draft and bitwisecook/vscode-iApp shipped.
+  test("define names the new type, not the base type", () => {
+    const scopes = scopeMap(apl, ["define choice lb_method {"]);
+    assert.strictEqual(scopes.get("define"), "keyword.other.define.apl");
+    assert.strictEqual(scopes.get("choice"), "keyword.other.apl");
+    assert.strictEqual(scopes.get("lb_method"), "entity.name.function.apl");
+  });
+
+  // Without a trailing word boundary on the field-type alternation, `yesno`
+  // matches inside the user-defined type name `yesno_choice`.
+  test("a field-type keyword does not match inside a longer identifier", () => {
+    const scopes = scopeMap(apl, ["define choice yesno_choice {"]);
+    assert.strictEqual(scopes.get("yesno_choice"), "entity.name.function.apl");
+    assert.strictEqual(scopes.get("yesno"), undefined);
   });
 });
 

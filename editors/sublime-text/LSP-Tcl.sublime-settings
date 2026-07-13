@@ -3,7 +3,7 @@
     // See https://github.com/bitwisecook/tcl-lsp for documentation.
 
     "command": ["${server_path}"],
-    "selector": "source.tcl | source.irule | source.apl",
+    "selector": "source.tcl | source.irule | source.tcl-apl | source.tcl-bigip",
     "schemes": ["file", "buffer"],
 
     // Server settings — passed as workspace/didChangeConfiguration.

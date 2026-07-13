@@ -2,27 +2,59 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "F5 iApp APL",
   "scopeName": "source.tcl-apl",
-  "fileTypes": ["apl"],
-  "comment": "APL — the presentation language of an F5 iApp template. Not Tcl: it has its own grammar of sections, typed fields and attributes, with `[ … ]` bracket expressions that *are* Tcl. Every Tcl-family language used to be pointed at `tcl.tmLanguage.json`, which contains no APL rule at all, so an APL file was painted with Tcl rules until the server answered and replaced them wholesale (issue #903). The scopes below are the ones `package.json` already maps the server's `apl*` semantic-token types to, so the static paint and the semantic paint agree instead of contradicting each other. Where the grammar cannot tell (a bareword that is a field *name* only because of its position), it emits nothing rather than guess wrong.",
+  "fileTypes": [
+    "apl"
+  ],
+  "comment": "APL — the presentation language of an F5 iApp template. Not Tcl: it has its own grammar of sections, typed fields, attributes and choice lists, with `[ … ]` bracket expressions that *are* Tcl. Every Tcl-family language used to be pointed at `tcl.tmLanguage.json`, which contains no APL rule at all, so an APL file was painted with Tcl rules until the server answered and replaced them wholesale (issue #903). The scopes below are the ones `package.json` already maps the server's `apl*` semantic-token types to, so the static paint and the semantic paint agree instead of contradicting each other.\n\nEvery keyword alternation carries an explicit trailing boundary. Without one, `yesno` matches inside the *user-defined type name* `yesno_choice` (`define choice yesno_choice`) and paints half of it as a field-type keyword — a real bug the first draft of this grammar had.\n\nA field's type may be user-defined (`define choice lb_method` … then `lb_method lb_algorithm`). A static grammar cannot know those names, so such a field is left unscoped rather than guessed at; the semantic layer types it correctly.",
   "patterns": [
-    { "include": "#directive" },
-    { "include": "#comment" },
-    { "include": "#embedded-tcl" },
-    { "include": "#define" },
-    { "include": "#section" },
-    { "include": "#field" },
-    { "include": "#validator" },
-    { "include": "#attribute" },
-    { "include": "#optional" },
-    { "include": "#string" },
-    { "include": "#number" }
+    {
+      "include": "#directive"
+    },
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#embedded-tcl"
+    },
+    {
+      "include": "#define"
+    },
+    {
+      "include": "#optional"
+    },
+    {
+      "include": "#section"
+    },
+    {
+      "include": "#validator"
+    },
+    {
+      "include": "#field"
+    },
+    {
+      "include": "#attribute"
+    },
+    {
+      "include": "#choice-mapping"
+    },
+    {
+      "include": "#variable"
+    },
+    {
+      "include": "#string"
+    },
+    {
+      "include": "#number"
+    }
   ],
   "repository": {
     "directive": {
       "comment": "A preprocessor directive. Matched before #comment so `#include` is not swallowed as one.",
-      "match": "^\\s*(#include)\\b",
+      "match": "^\\s*(#include|#inline)\\b",
       "captures": {
-        "1": { "name": "keyword.control.directive.apl" }
+        "1": {
+          "name": "keyword.control.directive.apl"
+        }
       }
     },
     "comment": {
@@ -34,54 +66,122 @@
       "begin": "\\[",
       "end": "\\]",
       "beginCaptures": {
-        "0": { "name": "punctuation.section.embedded.begin.apl" }
+        "0": {
+          "name": "punctuation.section.embedded.begin.apl"
+        }
       },
       "endCaptures": {
-        "0": { "name": "punctuation.section.embedded.end.apl" }
+        "0": {
+          "name": "punctuation.section.embedded.end.apl"
+        }
       },
       "contentName": "meta.embedded.block.tcl",
-      "patterns": [{ "include": "source.tcl" }]
+      "patterns": [
+        {
+          "include": "source.tcl"
+        }
+      ]
     },
     "define": {
-      "match": "(?<=^|\\s)(define)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "comment": "`define <field-type> <name> { … }` introduces a reusable type — the *second* word is the type being reused, the *third* is the new name. Getting this backwards scopes `choice` as the definition's name.",
+      "match": "(?<=^|\\s)(define)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+([A-Za-z_][A-Za-z0-9_]*)",
       "captures": {
-        "1": { "name": "keyword.other.define.apl" },
-        "2": { "name": "entity.name.function.apl" }
+        "1": {
+          "name": "keyword.other.define.apl"
+        },
+        "2": {
+          "name": "keyword.other.apl"
+        },
+        "3": {
+          "name": "entity.name.function.apl"
+        }
       }
     },
+    "optional": {
+      "comment": "`optional ( <field> == \"value\" ) { … }` guards a block on a field's value. The condition is APL's own tiny expression language, not Tcl.",
+      "begin": "(?<=^|\\s)(optional)\\s*(\\()",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.optional.apl"
+        },
+        "2": {
+          "name": "punctuation.section.parens.begin.apl"
+        }
+      },
+      "end": "(\\))",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.section.parens.end.apl"
+        }
+      },
+      "patterns": [
+        {
+          "match": "(==|!=|&&|\\|\\||<=|>=|<|>)",
+          "name": "keyword.operator.apl"
+        },
+        {
+          "include": "#string"
+        },
+        {
+          "include": "#number"
+        },
+        {
+          "comment": "A (possibly dotted) reference to another field.",
+          "match": "[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*",
+          "name": "variable.other.field.apl"
+        }
+      ]
+    },
     "section": {
-      "comment": "`section NAME {`, and the `text` / `table` / `row` block keywords.",
-      "match": "(?<=^|\\s)(section|text|table|row)(?:\\s+([A-Za-z_][A-Za-z0-9_.]*))?",
+      "comment": "`section NAME {`, and the `text` / `table` / `row` block keywords. `text` may carry a locale string instead of a name (`text \"de-DE\" { … }`).",
+      "match": "(?<=^|\\s)(section|text|table|row)(?=\\s|$|\\{)(?:\\s+([A-Za-z_][A-Za-z0-9_.]*))?",
       "captures": {
-        "1": { "name": "keyword.control.apl" },
-        "2": { "name": "entity.name.section.apl" }
+        "1": {
+          "name": "keyword.control.apl"
+        },
+        "2": {
+          "name": "entity.name.section.apl"
+        }
+      }
+    },
+    "validator": {
+      "comment": "The validators APL ships with, named inside `validator \"…\"`. The whole construct is matched as one unit, quotes included: TextMate resolves competing patterns by which one starts *earliest*, not by list order, so the opening quote would otherwise start #string and the name inside would be painted as ordinary string content. Only a name in this position is a validator — a bare `Number` in `display \"Number\"` is not.",
+      "match": "(?<=^|\\s)(validator)\\s+(\")(FQDN|IpAddress|IpOrFqdn|NonNegativeNumber|Number|PortNumber)(\")",
+      "captures": {
+        "1": {
+          "name": "entity.other.attribute-name.apl"
+        },
+        "2": {
+          "name": "string.quoted.double.apl"
+        },
+        "3": {
+          "name": "support.constant.validator.apl"
+        },
+        "4": {
+          "name": "string.quoted.double.apl"
+        }
       }
     },
     "field": {
-      "comment": "A field declaration is `<field-type> <name> …`. The type word identifies it, so the name that follows can be scoped too — that positional fact is the one thing a static grammar *can* know here.",
-      "match": "(?<=^|\\s)(addrport|choice|disena|editchoice|enadis|enadisdry|falsetrue|indefint|message|multichoice|noyes|password|string|tcpprof|truefalse|yesno)(?:\\s+([A-Za-z_][A-Za-z0-9_.]*))?",
+      "comment": "A field declaration is `<field-type> <name> …`. The trailing `(?=\\s)` boundary is load-bearing: without it `yesno` matches inside the user-defined type name `yesno_choice`.",
+      "match": "(?<=^|\\s)(addrport|choice|disena|editchoice|enadis|enadisdry|falsetrue|indefint|message|multichoice|noyes|password|string|tcpprof|truefalse|yesno)(?=\\s)(?:\\s+([A-Za-z_][A-Za-z0-9_.]*))?",
       "captures": {
-        "1": { "name": "keyword.other.apl" },
-        "2": { "name": "variable.other.field.apl" }
+        "1": {
+          "name": "keyword.other.apl"
+        },
+        "2": {
+          "name": "variable.other.field.apl"
+        }
       }
     },
     "attribute": {
       "match": "(?<=^|\\s)(default|display|required|validator)(?=\\s|$)",
       "name": "entity.other.attribute-name.apl"
     },
-    "validator": {
-      "comment": "The validators APL ships with, named inside `validator \"…\"`. The whole construct is matched as one unit, quotes included: TextMate resolves competing patterns by which one starts *earliest*, not by list order, so the opening quote would otherwise start #string and the name inside would be painted as ordinary string content. Only a name in this position is a validator — a bare `Number` elsewhere is not.",
-      "match": "(?<=^|\\s)(validator)\\s+(\")(FQDN|IpAddress|IpOrFqdn|NonNegativeNumber|Number|PortNumber)(\")",
-      "captures": {
-        "1": { "name": "entity.other.attribute-name.apl" },
-        "2": { "name": "string.quoted.double.apl" },
-        "3": { "name": "support.constant.validator.apl" },
-        "4": { "name": "string.quoted.double.apl" }
-      }
-    },
-    "optional": {
-      "match": "(?<=^|\\s)(optional)(?=\\s|$)",
-      "name": "keyword.control.optional.apl"
+    "choice-mapping": {
+      "comment": "A choice list maps a display label to a stored value: `\"Round Robin\" => \"round-robin\",`.",
+      "match": "=>",
+      "name": "keyword.operator.mapping.apl"
     },
     "string": {
       "begin": "\"",
@@ -91,12 +191,25 @@
         {
           "match": "\\\\(?:x[0-9a-fA-F]{1,2}|u[0-9a-fA-F]{1,4}|U[0-9a-fA-F]{1,8}|[0-7]{1,3}|.)",
           "name": "constant.character.escape.apl"
+        },
+        {
+          "include": "#variable"
         }
       ]
     },
     "number": {
-      "match": "(?<=^|\\s)[+-]?(?:0[xX][0-9a-fA-F]+|(?:[0-9]*\\.)?[0-9]+f?)(?=\\s|$|,|\\})",
+      "match": "(?<=^|\\s)[+-]?(?:0[xX][0-9a-fA-F]+|(?:[0-9]*\\.)?[0-9]+f?)(?=\\s|$|,|\\)|\\})",
       "name": "constant.numeric.apl"
+    },
+    "variable": {
+      "comment": "APL supports Tcl-style variable substitution — `$name`, `$ns::name`, `$arr(idx)`, `${braced}`. Taken from bitwisecook/vscode-iApp, which had it and this grammar's first draft did not.",
+      "match": "(\\$)((?:[a-zA-Z0-9_]|::)+(?:\\([^)]*\\))?|\\{[^}]*\\})",
+      "name": "variable.other.apl",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.variable.apl"
+        }
+      }
     }
   }
 }

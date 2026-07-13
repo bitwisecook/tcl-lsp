@@ -1,0 +1,8 @@
+{
+  "name": "tree-sitter-bigip",
+  "version": "0.1.0",
+  "description": "F5 BIG-IP configuration grammar for tree-sitter",
+  "license": "AGPL-3.0-or-later",
+  "main": "bindings/node",
+  "tree-sitter": [{ "scope": "source.bigip", "file-types": ["conf", "scf"] }]
+}

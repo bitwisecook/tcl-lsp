@@ -17,7 +17,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 name = "TMSH"
-grammar = "tcl"
+grammar = "bigip"
 path_suffixes = ["tmsh"]
 line_comments = ["#"]
 tab_size = 4
