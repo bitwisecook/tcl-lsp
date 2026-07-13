@@ -30,7 +30,9 @@ contexts:
   main:
     - include: comment
     - include: irule
+    - include: monitor-expression
     - include: typed-object-reference
+    - include: property-name
     - include: declaration
     - include: encrypted
     - include: string
@@ -65,29 +67,64 @@ contexts:
       pop: true
     - include: scope:source.tcl
 
+  # `monitor` takes an EXPRESSION, not merely a reference: `default`, `none`,
+  # `M1 and M2`, or `min N of { M1 M2 }` (rust/tcl-bigip/src/value/monitor_expression.rs).
+  # The plain `monitor <ref>` form paints `min` — and `default`/`none` — as the
+  # monitor object. The server types the *whole* expression as `monitor`, the
+  # keywords and the count included, so this does too (#905 review).
+  monitor-expression:
+    - match: '(?<=^|\s)(monitor)(?=\s|$)'
+      captures:
+        1: variable.other.property.bigip
+      push:
+        - match: '$'
+          pop: true
+        - match: '(?<=^|\s)(default|none|min|of|and)(?=\s|$)'
+          scope: entity.name.type.monitor.bigip
+        # The `N` of `min N of` — a count, but the server types it `monitor`, so
+        # a `number` scope here would contradict it.
+        - match: '(?<=^|\s)[0-9]+(?=\s|$)'
+          scope: entity.name.type.monitor.bigip
+        - match: '/([^/\s{}]+)/([^\s{}]+)'
+          captures:
+            1: entity.name.namespace.partition.bigip
+            2: entity.name.type.monitor.bigip
+        - match: '[{}]'
+          scope: punctuation.section.block.bigip
+
   # A reference whose *type* is named by the preceding word — the one case where
-  # a static grammar can be as specific as the server, so it is.
+  # a static grammar can be as specific as the server, so it is. The name word
+  # itself is a `property` to the server (`pool`, `profiles`, `vlans` all come
+  # back as `property`), not a keyword: painting it `keyword.other` made it flip
+  # colour the moment semantic tokens arrived. The value class excludes braces —
+  # `vlans { /Common/internal }` opens a block, and `(\S+)` captured the `{`.
   typed-object-reference:
-    - match: '(?<=^|\s)(pool)\s+(\S+)'
+    - match: '(?<=^|\s)(pool)\s+([^\s{}]+)'
       captures:
-        1: keyword.other.bigip
+        1: variable.other.property.bigip
         2: entity.name.type.pool.bigip
-    - match: '(?<=^|\s)(monitor)\s+(\S+)'
+    - match: '(?<=^|\s)(profiles|profile|persistence)\s+([^\s{}]+)'
       captures:
-        1: keyword.other.bigip
-        2: entity.name.type.monitor.bigip
-    - match: '(?<=^|\s)(profile|persistence)\s+(\S+)'
-      captures:
-        1: keyword.other.bigip
+        1: variable.other.property.bigip
         2: entity.name.type.profile.bigip
-    - match: '(?<=^|\s)(vlan|vlans)\s+(\S+)'
+    - match: '(?<=^|\s)(vlan|vlans)\s+([^\s{}]+)'
       captures:
-        1: keyword.other.bigip
+        1: variable.other.property.bigip
         2: entity.name.type.vlan.bigip
-    - match: '(?<=^|\s)(interface)\s+(\S+)'
+    - match: '(?<=^|\s)(interface)\s+([^\s{}]+)'
       captures:
-        1: keyword.other.bigip
+        1: variable.other.property.bigip
         2: entity.name.type.interface.bigip
+
+  # A property whose value is a *block* — `vlans { … }`, `members { … }`. The
+  # typed rules above cannot reach these because the value is `{`, not a
+  # reference. The match starts at the WORD, not at the indentation: a rule
+  # anchored `^\s+` begins at column 0 and, since the earliest match wins, would
+  # silently disable monitor-expression and the typed references on every line.
+  property-name:
+    - match: '(?<=^|\s)([a-z][a-z0-9._-]*)(?=\s*\{)'
+      captures:
+        1: variable.other.property.bigip
 
   # A top-level object declaration — `<module> <type> ?<subtype>? /Partition/name {`.
   # The module and type words are the config's structure.

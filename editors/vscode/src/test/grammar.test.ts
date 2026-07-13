@@ -451,7 +451,30 @@ suite("TextMate grammars: BIG-IP config and APL (#903)", () => {
     assert.strictEqual(scopes.get("ltm"), "keyword.control.bigip");
     assert.strictEqual(scopes.get("Common"), "entity.name.namespace.partition.bigip");
     assert.strictEqual(scopes.get("api_pool"), "entity.name.type.bigip");
-    assert.strictEqual(scopes.get("/Common/http"), "entity.name.type.monitor.bigip");
+    // The property NAME is a `property` to the server, not a keyword.
+    assert.strictEqual(scopes.get("monitor"), "variable.other.property.bigip");
+    assert.strictEqual(scopes.get("http"), "entity.name.type.monitor.bigip");
+  });
+
+  // A `monitor` value is an EXPRESSION — `default` / `none` / `M1 and M2` /
+  // `min N of { … }`. The simple `monitor <ref>` rule painted `min` as the
+  // monitor object. The server types the whole expression, keywords and the
+  // count included, as `monitor` (#905 review).
+  test("a monitor expression is not mistaken for a monitor reference", () => {
+    const scopes = scopeMap(bigip, [
+      "ltm pool /Common/p {",
+      "    monitor min 1 of { /Common/http_mon }",
+      "}",
+    ]);
+    assert.strictEqual(scopes.get("monitor"), "variable.other.property.bigip");
+    for (const w of ["min", "1", "of", "http_mon"]) {
+      assert.strictEqual(scopes.get(w), "entity.name.type.monitor.bigip", w);
+    }
+  });
+
+  test("monitor default is not a monitor named 'default'", () => {
+    const scopes = scopeMap(bigip, ["ltm pool /Common/p {", "    monitor default", "}"]);
+    assert.strictEqual(scopes.get("default"), "entity.name.type.monitor.bigip");
   });
 
   // A pool member's name *is* an address. If it fell through to the generic

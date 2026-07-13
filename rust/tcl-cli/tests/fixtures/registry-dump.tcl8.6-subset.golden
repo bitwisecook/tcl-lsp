@@ -662,7 +662,7 @@
       "irules_top_level_only": false,
       "is_control_flow": false,
       "is_irules_event_handler": false,
-      "is_language_keyword": false,
+      "is_language_keyword": true,
       "is_namespace_exported": false,
       "is_oo_metaclass": false,
       "is_side_switch": false,

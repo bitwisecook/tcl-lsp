@@ -572,6 +572,13 @@ fn help_catalogue_dialect() {
 // divergences. So this golden locks the matching
 // subset — the core commands whose registry data is already byte-identical to
 // the golden — verifying the snapshot serialisation + field derivation.
+//
+// One entry now diverges from the retired Python `registry-dump` on purpose:
+// `error` carries `is_language_keyword: true` (issue #904). It raises an
+// exception exactly as `throw` does, and every Tcl grammar that has a function
+// category agrees it is not one — so `catch { error boom }` no longer paints its
+// two halves in different colours. The golden records the new truth, not the old
+// parity.
 #[test]
 fn registry_dump_faithful_subset() {
     // Core commands verified byte-identical to `registry-dump`
