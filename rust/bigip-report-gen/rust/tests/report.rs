@@ -259,11 +259,90 @@ fn footer_shows_version_and_git_hash() {
         html.contains("class=\"print-running-foot\""),
         "print running footer present"
     );
-    // The print stylesheet pins them with position:fixed (repeats per page).
+    // They are repeated on every printed sheet by being copied into the
+    // thead/tfoot of the single-cell `table.print-sheet` the print run parks the
+    // content in — the only construct a browser repeats per page (a position:
+    // fixed box lands on the neighbouring page's margin instead).
     assert!(
-        html.contains(".print-running-head") && html.contains("position: fixed"),
-        "print stylesheet fixes running header"
+        html.contains(".print-sheet-head") && html.contains(".print-sheet-foot"),
+        "print stylesheet styles the per-page running head/foot"
     );
+    assert!(
+        html.contains("parkInSheet") || html.contains("print-sheet-body"),
+        "print script parks the printed content in the running-head/foot sheet"
+    );
+}
+
+#[test]
+fn project_marks_inlined_as_svg_with_unique_ids() {
+    let sources = vec![load("lab-device-01.ucs")];
+    let opts = RenderOptions {
+        title: "Marks".into(),
+        generated_at: "2026-07-03 00:00:00 UTC".into(),
+        ..Default::default()
+    };
+    let html = build_report(&sources, &opts).expect("render");
+
+    // Both marks ride in the footer as real <svg>, not <img src="data:…">, and
+    // each links somewhere useful.
+    assert!(
+        html.contains("class=\"foot-logo foot-logo--f5q\""),
+        "f5q mark"
+    );
+    assert!(
+        html.contains("class=\"foot-logo foot-logo--tcllsp\""),
+        "tcl-lsp mark"
+    );
+    assert!(
+        html.contains("docs/kcs/features/kcs-feature-bigip-query.md"),
+        "f5q mark links to the f5-query quick start"
+    );
+    assert!(
+        html.contains("href=\"https://github.com/bitwisecook/tcl-lsp\""),
+        "tcl-lsp mark links to the repo root"
+    );
+    // tcl-lsp ships light + dark squircles; the report emits both and swaps on
+    // the active theme.
+    assert!(
+        html.contains("logo-when-light") && html.contains("logo-when-dark"),
+        "both tcl-lsp variants emitted"
+    );
+    // With no user-supplied logo the header falls back to the f5-query mark.
+    assert!(
+        html.contains("class=\"logo logo-mark\""),
+        "default header mark is the f5q logo"
+    );
+
+    // Ids are document-global once the marks are inlined, and the minified SVGs
+    // number their gradients `a`, `b`, `c`, … — so every logo id is namespaced
+    // (`f5q-`, `hdrf5q-`, `tcl-`, `tcld-`). A duplicate would silently repaint
+    // one mark with another's gradients; a dangling ref would drop the fill.
+    let ids: Vec<&str> = html
+        .match_indices(" id=\"")
+        .map(|(i, m)| {
+            let rest = &html[i + m.len()..];
+            &rest[..rest.find('"').expect("closing quote")]
+        })
+        .collect();
+    let mut seen = std::collections::HashSet::new();
+    for id in &ids {
+        assert!(seen.insert(*id), "duplicate id in report: {id}");
+    }
+    // Every url(#…) the logos rely on must resolve to an id that is present.
+    for (i, m) in html.match_indices("url(#") {
+        let rest = &html[i + m.len()..];
+        let target = &rest[..rest.find(')').expect("closing paren")];
+        if target.starts_with("f5q-")
+            || target.starts_with("hdrf5q-")
+            || target.starts_with("tcl-")
+            || target.starts_with("tcld-")
+        {
+            assert!(
+                seen.contains(target),
+                "dangling logo reference: url(#{target})"
+            );
+        }
+    }
 }
 
 #[test]

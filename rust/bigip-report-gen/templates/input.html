@@ -1,7 +1,10 @@
 <!doctype html>
 <!-- Shared BIG-IP report *builder* / input page. Consumed by both the wasm app
      (rust/bigip-report-wasm, which inlines the wasm payload) and the f5report
-     web server. Substitution tokens: __STYLES__, __WASM_PAYLOAD__, __INPUT_JS__. -->
+     web server. Substitution tokens: __STYLES__, __WASM_PAYLOAD__, __INPUT_JS__,
+     and the project marks __LOGO_F5Q__ / __LOGO_TCL_LSP__ / __LOGO_TCL_LSP_DARK__,
+     each replaced with the contents of the matching `assets/logo-*.svg` so the
+     marks inline as <svg> (the report itself does the same, via its template). -->
 <html lang="en" data-theme="auto">
 <head>
 <meta charset="utf-8">
@@ -12,7 +15,11 @@ __STYLES__
 </head>
 <body>
 <div class="wrap">
-  <h1>F5 BIG-IP Report Generator</h1>
+  <div class="brand">
+    <a class="brand-mark" href="https://github.com/bitwisecook/tcl-lsp/blob/HEAD/docs/kcs/features/kcs-feature-bigip-query.md" rel="noopener" target="_blank" role="img" aria-label="f5-query quick start" title="f5-query — quick start guide">__LOGO_F5Q__</a>
+    <a class="brand-mark" href="https://github.com/bitwisecook/tcl-lsp" rel="noopener" target="_blank" role="img" aria-label="tcl-lsp on GitHub" title="tcl-lsp on GitHub"><span class="logo-when-light">__LOGO_TCL_LSP__</span><span class="logo-when-dark">__LOGO_TCL_LSP_DARK__</span></a>
+    <h1>F5 BIG-IP Report Generator</h1>
+  </div>
   <p class="tagline">Turn one or more <code>.ucs</code> backups or <code>bigip.conf</code> / SCF files into one interactive, self-contained HTML report — virtual servers, pools, iRules, GTM/DNS, AFM firewall &amp; NAT, an SSL-certificate expiry inventory, a topology explorer, a listener simulator and a live <code>f5-query</code> console. Load several devices to see how they relate as tiers (GTM → LTM tier 1 → LTM tier 2, …).</p>
 
   <div class="privacy" id="privacy">

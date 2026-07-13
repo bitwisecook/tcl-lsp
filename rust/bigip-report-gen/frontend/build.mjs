@@ -76,7 +76,16 @@ async function build() {
 // synced; APM / elk-graph stay Rust-only, as they always have been.
 const PY_JS = ["input", "report", "topology", "console", "certs", "secrets", "forensics", "irule-flow", "irule-format", "print", "elk-graph", "apm"];
 const PY_CSS = ["input", "report", "topology", "certs", "secrets", "forensics", "print", "apm"];
-const PY_VENDOR = ["elk.bundled.js", "f5query_wasm.js", "f5query_wasm_bg.wasm"];
+const PY_VENDOR = [
+  "elk.bundled.js",
+  "f5query_wasm.js",
+  "f5query_wasm_bg.wasm",
+  // Project marks the report inlines as <svg>; `make logo` refreshes these from
+  // the canonical docs/*.svg.
+  "logo-f5q.svg",
+  "logo-tcl-lsp.svg",
+  "logo-tcl-lsp-dark.svg",
+];
 
 function sync() {
   mkdirSync(pyTemplates, { recursive: true });

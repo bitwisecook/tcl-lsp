@@ -12,7 +12,7 @@
         return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
       });
     }
-    var devices = Array.prototype.slice.call(document.querySelectorAll(".device"));
+    var devices = Array.prototype.slice.call(document.querySelectorAll("article.device[data-dev]"));
     function deviceLabel(dev, i) {
       var t = document.querySelector('.dev-tab[data-dev="' + dev.dataset.dev + '"]');
       var name = t && t.textContent.trim() || dev.getAttribute("data-name") || "";
@@ -178,6 +178,54 @@
         }, 700);
       });
     }
+    function parkInSheet(nodes) {
+      if (!nodes.length) return;
+      var head = document.querySelector(".print-running-head");
+      var foot = document.querySelector(".print-running-foot");
+      var sheet = document.createElement("table");
+      sheet.className = "print-sheet";
+      sheet.innerHTML = '<thead class="print-sheet-head"><tr><th>' + (head && head.innerHTML || "") + '</th></tr></thead><tfoot class="print-sheet-foot"><tr><td>' + (foot && foot.innerHTML || "") + '</td></tr></tfoot><tbody><tr><td class="print-sheet-body"></td></tr></tbody>';
+      var cell = sheet.querySelector(".print-sheet-body");
+      nodes[0].parentNode.insertBefore(sheet, nodes[0]);
+      nodes.forEach(function(n) {
+        var parent = n.parentNode, next = n.nextSibling;
+        remember(function() {
+          parent.insertBefore(n, next);
+        });
+        cell.appendChild(n);
+      });
+      remember(function() {
+        if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
+      });
+    }
+    function prepArchitecture() {
+      var arch = document.getElementById("architecture");
+      if (!arch) return null;
+      arch.classList.add("print-include");
+      remember(function() {
+        arch.classList.remove("print-include");
+      });
+      var h = document.createElement("div");
+      h.className = "print-heading";
+      h.textContent = "Architecture";
+      arch.insertBefore(h, arch.firstChild);
+      remember(function() {
+        if (h.parentNode) h.parentNode.removeChild(h);
+      });
+      var ta = arch.querySelector(".arch-editor-ta");
+      var def = ta && ta.value ? ta.value.trim() : "";
+      if (def) {
+        var wrap = document.createElement("div");
+        wrap.className = "print-arch-def";
+        wrap.innerHTML = '<div class="print-arch-def-lbl">Architecture definition (manifest DSL)</div><pre class="code"></pre>';
+        wrap.querySelector("pre").textContent = def;
+        arch.appendChild(wrap);
+        remember(function() {
+          if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+        });
+      }
+      return arch;
+    }
     function markAndPrint(deviceEls, secs) {
       var secSet = {};
       secs.forEach(function(s) {
@@ -213,6 +261,15 @@
           });
         });
       });
+      var summary = document.querySelector("section.summary");
+      if (summary) {
+        summary.classList.add("print-include");
+        remember(function() {
+          summary.classList.remove("print-include");
+        });
+      }
+      var arch = prepArchitecture();
+      parkInSheet([summary, arch].filter(Boolean).concat(deviceEls));
       document.documentElement.classList.add("printing");
       remember(function() {
         document.documentElement.classList.remove("printing");

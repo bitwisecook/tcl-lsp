@@ -23,9 +23,12 @@
 
   /* ---- Only the chosen devices/panels print --------------------------- */
   /* print.ts marks the selection; without it (Ctrl-P straight from the
-   * browser) fall back to the on-screen active device/panel. */
-  .printing .device { display: none !important; }
-  .printing .device.print-include { display: block !important; }
+   * browser) fall back to the on-screen active device/panel.
+   * `article` matters: the architecture diagram draws each device as an SVG
+   * node that also carries `class="device"`, and a bare `.device` would hide
+   * those too — blanking the diagram. */
+  .printing article.device { display: none !important; }
+  .printing article.device.print-include { display: block !important; }
   .printing .panel { display: none !important; }
   .printing .panel.print-include { display: block !important; }
   /* Detail rows the user chose to include must be expanded. */
@@ -43,47 +46,80 @@
   }
 
   /* ---- Running title + attribution on EVERY printed page -------------- */
-  /* position:fixed boxes are painted into the page margin on each sheet; the
-   * enlarged @page top/bottom margins (above) reserve the room so body content
-   * never collides with them. The head carries the document title, the foot the
-   * generator attribution + version + git build hash. */
-  .print-running-head, .print-running-foot {
-    display: block !important;
-    position: fixed;
-    left: 0;
-    right: 0;
-    color: #555;
+  /* A table's thead/tfoot is the only thing a browser repeats on every printed
+   * sheet *and* reserves room for. position:fixed does not work here: a box in
+   * the page margin is attributed to the neighbouring page (the title prints at
+   * the foot of the page before it), and one inside the page box overlaps the
+   * content. So print.ts parks the printable content in a single-cell
+   * `table.print-sheet` and copies the running head/foot into its thead/tfoot;
+   * the source elements stay hidden. The head carries the document title, the
+   * foot the attribution + version + git build hash + copyright notice. */
+  .print-running-head, .print-running-foot { display: none !important; }
+
+  .print-sheet { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .print-sheet-body { padding: 0; vertical-align: top; }
+  .print-sheet-head th, .print-sheet-foot td {
     font-family: var(--sans, system-ui, sans-serif);
+    color: #555;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .print-running-head {
-    top: -11mm;
+  .print-sheet-head th {
     font: 700 10px/1.3 var(--sans, system-ui, sans-serif);
     color: #111;
-    padding-bottom: 2px;
+    text-align: left;
+    padding: 0 0 3px;
     border-bottom: 1px solid #bbb;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
   }
-  .print-running-foot {
-    bottom: -12mm;
+  .print-sheet-foot td {
     font: 400 8.5px/1.3 var(--sans, system-ui, sans-serif);
     text-align: center;
-    padding-top: 2px;
+    padding: 3px 0 0;
     border-top: 1px solid #bbb;
   }
+  /* The on-screen footer is redundant once the attribution rides every page. */
+  .foot { display: none !important; }
 
   /* ---- Page structure: a section per page, with a printed heading ----- */
-  .panel.print-include {
+  .panel.print-include,
+  article.device.print-include,
+  .architecture.print-include {
     break-before: page;
     page-break-before: always;
   }
   /* the first printed panel of the run must not push a leading blank page */
-  .device.print-include > .panel.print-include:first-of-type {
+  article.device.print-include > .panel.print-include:first-of-type {
     break-before: auto;
     page-break-before: avoid;
+  }
+  /* …nor whatever leads the sheet (the architecture view, or the first device) */
+  .print-sheet-body > :first-child {
+    break-before: auto !important;
+    page-break-before: avoid !important;
+  }
+
+  /* ---- Architecture: its own page, diagram + the manifest that defined it -- */
+  .printing .architecture { display: block !important; }
+  /* print.ts gives the section a `.print-heading` like every other section, so
+     the on-screen <h2> would repeat it — keep the subtitle, drop the heading. */
+  .architecture .arch-head h2 { display: none !important; }
+  /* the editor is interactive (textarea + buttons); print the definition instead */
+  .arch-editor { display: none !important; }
+  .print-arch-def { break-inside: avoid; margin-top: 10px; }
+  .print-arch-def-lbl {
+    font: 650 11px/1.3 var(--sans, system-ui, sans-serif);
+    color: #111;
+    margin: 0 0 4px;
+  }
+  .print-arch-def pre.code {
+    background: #f7f7f7 !important;
+    color: #111 !important;
+    border: 1px solid #ddd;
+    padding: 8px 10px;
+    font-size: 9.5px;
   }
   .print-heading {
     display: block !important;
@@ -127,6 +163,13 @@
     width: 100% !important;
     max-width: 100% !important;
     height: auto !important;
+  }
+  /* …except the architecture graph, which is only a few nodes: stretching it to
+     the full page width blows its labels up to headline size. Print it at its
+     natural size (still capped to the page), as it appears on screen. */
+  .arch-diagram svg {
+    width: auto !important;
+    max-height: none !important;
   }
 
   /* Links readable in print. */

@@ -63,9 +63,9 @@ shared="$here/../frontend"
 python3 - \
     "$here/../templates/input.html" "$shared/src/styles/input.css" \
     "$shared/dist/input.js" "$out/bigip_report_wasm.js" \
-    "$out/bigip_report_wasm_bg.wasm" "$dist/index.html" <<'PY'
-import base64, sys
-tmpl_path, css_path, js_path, glue_path, wasm_path, out_path = sys.argv[1:7]
+    "$out/bigip_report_wasm_bg.wasm" "$dist/index.html" "$here/../assets" <<'PY'
+import base64, os, sys
+tmpl_path, css_path, js_path, glue_path, wasm_path, out_path, assets_dir = sys.argv[1:8]
 tmpl = open(tmpl_path, encoding="utf-8").read()
 css = open(css_path, encoding="utf-8").read()
 js = open(js_path, encoding="utf-8").read()
@@ -75,12 +75,21 @@ payload = (
     '<script id="report-wasm" type="application/octet-stream">' + b64 + "</script>\n"
     "<script>" + glue + "</script>"
 )
+# The project marks, inlined as <svg> — the same asset files the report embeds.
+LOGOS = {
+    "__LOGO_F5Q__": "logo-f5q.svg",
+    "__LOGO_TCL_LSP__": "logo-tcl-lsp.svg",
+    "__LOGO_TCL_LSP_DARK__": "logo-tcl-lsp-dark.svg",
+}
 # str.replace is a literal replace (not regex), so backslashes/ampersands in the
 # payload are safe.
 tmpl = tmpl.replace("__STYLES__", "<style>" + css + "</style>")
 tmpl = tmpl.replace("__WASM_PAYLOAD__", payload)
 tmpl = tmpl.replace("__INPUT_JS__", "<script>" + js + "</script>")
-for tok in ("__STYLES__", "__WASM_PAYLOAD__", "__INPUT_JS__"):
+for tok, name in LOGOS.items():
+    mark = open(os.path.join(assets_dir, name), encoding="utf-8").read()
+    tmpl = tmpl.replace(tok, mark)
+for tok in ("__STYLES__", "__WASM_PAYLOAD__", "__INPUT_JS__", *LOGOS):
     if tok in tmpl:
         raise SystemExit(f"placeholder {tok} substitution failed")
 open(out_path, "w", encoding="utf-8").write(tmpl)
