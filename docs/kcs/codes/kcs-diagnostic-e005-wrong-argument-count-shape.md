@@ -30,8 +30,13 @@ pattern with no body.
 
 ## Symptoms
 
-- A red squiggle appears under the whole command, with a message like "wrong
-  argument-count shape for 'dict create': expected 0, 2, 4, …, got 3".
+- A red squiggle appears under the whole command, with a message like "Wrong
+  argument-count shape for 'dict create': expected 0, 2, 4, …, got 1 — usage:
+  dict create ?key value ...?". For an ensemble like `dict create` the counts
+  describe the words after the subcommand, so `dict create a` is "got 1".
+- The " — usage: …" tail quotes the command's (or subcommand's) synopsis when
+  the analyser has a registry signature for it — see the note on the
+  [E002 page](kcs-diagnostic-e002-too-few-arguments.md#symptoms).
 - The count itself doesn't look obviously wrong — it's not caught by
   `E002`/`E003`, which only check the overall minimum/maximum.
 
