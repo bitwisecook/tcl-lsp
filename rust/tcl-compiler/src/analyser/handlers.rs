@@ -2222,7 +2222,8 @@ impl Analyser {
         }
     }
 
-    /// Record `regexp` / `regsub` pattern arguments for syntax
+    /// Record the pattern arguments of regex-pattern commands
+    /// (`PatternType::Regex` specs — `regexp` / `regsub`) for syntax
     /// highlighting.
     ///
     /// Literal patterns (`Esc` / `Str` tokens) are recorded

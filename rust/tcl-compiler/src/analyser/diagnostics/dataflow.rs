@@ -1381,6 +1381,11 @@ file; this call falls through to the 'unknown' handler."
                     continue;
                 };
                 let canon = canonical_command.as_deref().unwrap_or(command);
+                // Name-guarded on purpose (not `pattern_type == Regex`): this
+                // check statically evaluates `regexp`'s no-match result from
+                // its exact positional form (pattern / input after the
+                // options, trailing out-vars), paired with `scan` — per-form
+                // value semantics the registry does not model.
                 let is_regexp = canon == "::regexp" || command == "regexp";
                 let is_scan = canon == "::scan" || command == "scan";
                 if (!is_regexp && !is_scan) || defs.is_empty() {
@@ -1503,6 +1508,8 @@ file; this call falls through to the 'unknown' handler."
             .rsplit("::")
             .next()
             .unwrap_or(cmd);
+        // Same name-guard rationale as `emit_provably_unset_w210`: exact
+        // `regexp` / `scan` form semantics, not a generic regex-pattern query.
         let is_regexp = bare == "regexp";
         let is_scan = bare == "scan";
         if !is_regexp && !is_scan {

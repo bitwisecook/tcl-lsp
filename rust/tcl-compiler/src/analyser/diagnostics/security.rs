@@ -892,10 +892,15 @@ or use explicit I/O commands."
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        if !matches!(cmd_name, "regexp" | "regsub" | "switch") {
+        let takes_regex_pattern = self.command_takes_regex_pattern(cmd_name);
+        // `switch` stays name-guarded: its patterns are glob by default and
+        // regex only under `-regexp`, so its spec is not `PatternType::Regex`;
+        // the arm scan below is switch-form-specific.
+        if !takes_regex_pattern && cmd_name != "switch" {
             return;
         }
-        let patterns = find_regex_patterns_in_command(cmd_name, args, arg_tokens);
+        let patterns =
+            find_regex_patterns_in_command(takes_regex_pattern, cmd_name, args, arg_tokens);
         if patterns.is_empty() {
             return;
         }
@@ -934,7 +939,7 @@ matching time on crafted input."
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        if !matches!(cmd_name, "regexp" | "regsub") {
+        if !self.command_takes_regex_pattern(cmd_name) {
             return;
         }
         let Some(idx) = regexp_pattern_index(args) else {
@@ -1477,13 +1482,14 @@ fn parse_subst_flags(args: &[String]) -> (Option<usize>, bool, bool) {
 }
 
 /// Return `(pattern_text, token)` pairs for every regex pattern
-/// argument in a `regexp` / `regsub` / `switch -regexp` command.
-/// `regexp` / `regsub` contribute
-/// their first positional (option-skipping) argument; `switch -regexp`
+/// argument in a command.  A `PatternType::Regex` command
+/// (`takes_regex_pattern` — `regexp` / `regsub`) contributes
+/// its first positional (option-skipping) argument; `switch -regexp`
 /// contributes every non-`default` pattern arm — inline pairs (form 1)
 /// or a single braced case list (form 2, re-segmented via
 /// [`super::handlers::parse_switch_body_elements`]).
 fn find_regex_patterns_in_command(
+    takes_regex_pattern: bool,
     cmd_name: &str,
     args: &[String],
     arg_tokens: &[tcl_lexer::Token],
@@ -1491,26 +1497,18 @@ fn find_regex_patterns_in_command(
     if args.is_empty() || arg_tokens.is_empty() {
         return Vec::new();
     }
+    if takes_regex_pattern {
+        // Skip leading flags to the pattern argument via the one canonical
+        // regex-command option-skip.
+        let Some(idx) = regexp_pattern_index(args) else {
+            return Vec::new();
+        };
+        return match (args.get(idx), arg_tokens.get(idx)) {
+            (Some(text), Some(tok)) => vec![(text.clone(), *tok)],
+            _ => Vec::new(),
+        };
+    }
     match cmd_name {
-        "regexp" | "regsub" => {
-            // Skip leading flags to the pattern argument (`-start`
-            // consumes its value; `--` ends the option section).
-            let mut idx = 0;
-            while idx < args.len() && args[idx].starts_with('-') && args[idx] != "--" {
-                if args[idx] == "-start" && idx + 1 < args.len() {
-                    idx += 2;
-                } else {
-                    idx += 1;
-                }
-            }
-            if idx < args.len() && args[idx] == "--" {
-                idx += 1;
-            }
-            match (args.get(idx), arg_tokens.get(idx)) {
-                (Some(text), Some(tok)) => vec![(text.clone(), *tok)],
-                _ => Vec::new(),
-            }
-        }
         "switch" => {
             let mut is_regexp = false;
             let mut i = 0;

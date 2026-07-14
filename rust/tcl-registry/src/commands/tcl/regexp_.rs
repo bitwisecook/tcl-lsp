@@ -128,3 +128,42 @@ pub fn spec() -> CommandSpec {
         ..CommandSpec::DEFAULT
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Membership pin against Tcl 9.0.4 `Tcl_RegexpObjCmd`
+    /// (`generic/tclCmdMZ.c` options table): the exact switch set, with
+    /// `-start` the only value-taking switch.
+    #[test]
+    fn options_match_tcl9_regexp_switch_table() {
+        let s = spec();
+        let mut names: Vec<&str> = s.options.iter().map(|o| o.name).collect();
+        names.sort_unstable();
+        assert_eq!(
+            names,
+            [
+                "--",
+                "-about",
+                "-all",
+                "-expanded",
+                "-indices",
+                "-inline",
+                "-line",
+                "-lineanchor",
+                "-linestop",
+                "-nocase",
+                "-start",
+            ]
+        );
+        for option in s.options {
+            assert_eq!(
+                option.takes_value(),
+                option.name == "-start",
+                "{}",
+                option.name
+            );
+        }
+    }
+}

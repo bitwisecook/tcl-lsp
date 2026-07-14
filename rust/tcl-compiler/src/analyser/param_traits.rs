@@ -542,8 +542,6 @@ fn scan_command<'p>(
         "after" => handle_after(cmd_args, param_set, traits),
         "scan" => handle_variadic_var_write(cmd_args, param_set, traits, 2),
         "lassign" => handle_variadic_var_write(cmd_args, param_set, traits, 1),
-        "regexp" => handle_regexp_vars(cmd_args, param_set, traits),
-        "regsub" => handle_regsub_var(cmd_args, param_set, traits),
         _ => {}
     }
 
@@ -553,7 +551,13 @@ fn scan_command<'p>(
     // `apply_arg_role_traits` above, which marks `ProcArgTrait::VarWrite`
     // for any arg whose registry `ArgRole` is `VarWrite`.  The old
     // hardcoded `var_write_index` name list was a redundant duplicate
-    // of that registry query and has been removed.)
+    // of that registry query and has been removed.  `regexp` capture
+    // vars and `regsub`'s output var are covered the same way: their
+    // specs' `arg_role_resolver` performs the spec-declared switch skip
+    // (`-start` consumes a value, `--` terminates) and resolves the
+    // trailing vars as `VarWrite`, so the old hardcoded
+    // `REGEXP_SWITCHES` skip — which missed `-about` and the Tcl 9
+    // `regsub -command` — has been removed too.)
 
     // Track writes through upvar aliases — ``set local …`` where
     // ``local`` was registered as an alias for some param.
@@ -992,8 +996,10 @@ fn handle_after<'a>(
 
 /// Mark every ``$param`` from `start` onward as a callee-local
 /// dynamic name.  Used for commands whose trailing args name
-/// CALLEE-LOCAL output variables — ``scan`` (start 2), ``lassign``
-/// (start 1), ``regexp`` match vars.  These writes land in the
+/// CALLEE-LOCAL output variables — ``scan`` (start 2) and ``lassign``
+/// (start 1); ``regexp`` / ``regsub`` output vars take the
+/// registry-role path in `apply_arg_role_traits` instead.  These
+/// writes land in the
 /// callee's own frame; they do **not** consume / alias the caller's
 /// variable unless an explicit ``upvar`` set one up (handled
 /// separately via the upvar-alias path, which emits a genuine
@@ -1014,64 +1020,6 @@ fn handle_variadic_var_write<'a>(
         {
             mark_dynamic_name_local(set);
         }
-    }
-}
-
-const REGEXP_SWITCHES: &[&str] = &[
-    "-nocase",
-    "-expanded",
-    "-line",
-    "-linestop",
-    "-lineanchor",
-    "-all",
-    "-inline",
-    "-indices",
-    "--",
-];
-const REGEXP_VALUE_SWITCHES: &[&str] = &["-start"];
-
-fn skip_regexp_switches(args: &[String]) -> usize {
-    let mut i = 0usize;
-    while i < args.len() {
-        if args[i] == "--" {
-            return i + 1;
-        }
-        if REGEXP_SWITCHES.iter().any(|s| *s == args[i].as_str()) {
-            i += 1;
-        } else if REGEXP_VALUE_SWITCHES.iter().any(|s| *s == args[i].as_str()) {
-            i += 2;
-        } else {
-            break;
-        }
-    }
-    i
-}
-
-fn handle_regexp_vars<'a>(
-    args: &[String],
-    param_set: &HashSet<&'a str>,
-    traits: &mut HashMap<&'a str, HashSet<ProcArgTrait>>,
-) {
-    let pos = skip_regexp_switches(args);
-    let var_start = pos + 2;
-    handle_variadic_var_write(args, param_set, traits, var_start);
-}
-
-fn handle_regsub_var<'a>(
-    args: &[String],
-    param_set: &HashSet<&'a str>,
-    traits: &mut HashMap<&'a str, HashSet<ProcArgTrait>>,
-) {
-    let pos = skip_regexp_switches(args);
-    let var_idx = pos + 3;
-    if var_idx < args.len()
-        && let Some(vn) = extract_var_name(&args[var_idx])
-        && let Some(p) = param_set.get(vn).copied()
-        && let Some(set) = traits.get_mut(p)
-    {
-        // `regsub`'s output var is CALLEE-LOCAL — see
-        // `handle_variadic_var_write` for the full rationale.
-        mark_dynamic_name_local(set);
     }
 }
 
@@ -1440,6 +1388,38 @@ mod tests {
             "callee-local regsub target must not be VarWrite, got {:?}",
             traits.get("out"),
         );
+    }
+
+    #[test]
+    fn regexp_capture_vars_after_switches_record_dynamic_name_local() {
+        // `regexp -nocase -- $pat $s $m` — the registry `regexp` spec's
+        // arg-role resolver performs the switch skip (`--` terminator
+        // included), so the capture var `$m` names a callee-local output
+        // variable.  The pattern / subject args are plain value reads and
+        // must record no trait.
+        let traits = infer(&["pat", "s", "m"], "regexp -nocase -- $pat $s $m");
+        assert_trait(&traits, "m", ProcArgTrait::DynamicNameLocal);
+        assert_trait(&traits, "m", ProcArgTrait::VarRead);
+        assert!(!traits.contains_key("pat"), "{traits:?}");
+        assert!(!traits.contains_key("s"), "{traits:?}");
+    }
+
+    #[test]
+    fn regexp_start_switch_value_is_skipped() {
+        // `-start` consumes its value word (spec-declared), so the capture
+        // var still resolves after the pattern + string positionals.
+        let traits = infer(&["m"], "regexp -start 2 {x+} $s $m");
+        assert_trait(&traits, "m", ProcArgTrait::DynamicNameLocal);
+    }
+
+    #[test]
+    fn regsub_command_switch_is_skipped_to_output_var() {
+        // Tcl 9 `regsub -command exp string cmdPrefix varName` — `-command`
+        // is a spec-declared flag the old hardcoded switch list missed, so
+        // the output var must still resolve at exp + 3.
+        let traits = infer(&["out"], "regsub -command {x+} $s myCb $out");
+        assert_trait(&traits, "out", ProcArgTrait::DynamicNameLocal);
+        assert_trait(&traits, "out", ProcArgTrait::VarRead);
     }
 
     #[test]
