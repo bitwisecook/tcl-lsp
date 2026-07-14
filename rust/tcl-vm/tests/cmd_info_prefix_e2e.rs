@@ -212,6 +212,22 @@ fn prefix_match_ambiguous_and_bad() {
     assert_eq!(msg, r#"bad option "z": no valid options"#);
 }
 
+/// The empty word never abbreviation-matches: one entry reports `bad`, two or
+/// more report `ambiguous` — C's `Tcl_GetIndexFromObjStruct` rejects the empty
+/// key before the abbreviation count is consulted. (Previously the VM resolved
+/// `tcl::prefix match {apple} ""` to `apple`.)
+#[test]
+fn prefix_match_empty_word_never_abbreviates() {
+    // tclsh 8.6.16: bad option "": must be apple
+    let (ok, msg, _) = run(r#"tcl::prefix match {apple} """#);
+    assert!(!ok);
+    assert_eq!(msg, r#"bad option "": must be apple"#);
+    // tclsh 8.6.16: ambiguous option "": must be apple or banana
+    let (ok, msg, _) = run(r#"tcl::prefix match {apple banana} """#);
+    assert!(!ok);
+    assert_eq!(msg, r#"ambiguous option "": must be apple or banana"#);
+}
+
 /// `tcl::prefix match -exact` requires a full table entry; a mere prefix fails.
 #[test]
 fn prefix_match_exact_option() {
