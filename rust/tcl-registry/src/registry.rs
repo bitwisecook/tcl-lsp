@@ -731,6 +731,39 @@ impl CommandRegistry {
             .collect()
     }
 
+    /// Whether `name` **writes or modifies** the variable named by its
+    /// first argument (`set` / `append` / `lappend` / `incr` / `lset`):
+    /// [`Traits::FIRST_ARG_VARNAME`] minus the destroy-only `unset`
+    /// ([`Traits::DESTROYS_VARIABLE`]).
+    ///
+    /// The single membership query for the write-command consumers —
+    /// loop-bound checks, dead-store cancellation, embedded-script def
+    /// collection, catch-body out-vars — which previously each kept a
+    /// hardcoded (and mutually inconsistent) name set.
+    #[must_use]
+    pub fn writes_first_arg_variable(&self, name: &str) -> bool {
+        self.get(name).is_some_and(|s| {
+            s.traits.contains(Traits::FIRST_ARG_VARNAME)
+                && !s.traits.contains(Traits::DESTROYS_VARIABLE)
+        })
+    }
+
+    /// Whether `name` **read-modify-writes** the variable named by its
+    /// first argument (`append` / `lappend` / `incr` / `lset` — not the
+    /// whole-value `set`): [`Traits::FIRST_ARG_VARNAME`] ∧
+    /// [`Traits::READS_BEFORE_WRITE`].
+    ///
+    /// Drives the minifier's RMW target protection: a name-compaction
+    /// must not rename a variable whose current value an RMW command is
+    /// about to fold into, while a plain `set` target is rename-safe.
+    #[must_use]
+    pub fn rmw_first_arg_variable(&self, name: &str) -> bool {
+        self.get(name).is_some_and(|s| {
+            s.traits.contains(Traits::FIRST_ARG_VARNAME)
+                && s.traits.contains(Traits::READS_BEFORE_WRITE)
+        })
+    }
+
     /// Whether `name` is a core Tcl built-in carrying the
     /// [`Traits::BYTE_COMPILED`] trait — i.e. the minifier must not
     /// rewrite this command head to a `$var` alias.  Checks every
@@ -2566,6 +2599,33 @@ mod tests {
             ),
             vec![4],
         );
+    }
+
+    #[test]
+    fn writes_first_arg_variable_membership() {
+        let reg = CommandRegistry::build_default();
+        // TP: the five first-arg writers.
+        for cmd in ["set", "append", "lappend", "incr", "lset"] {
+            assert!(reg.writes_first_arg_variable(cmd), "{cmd} writes arg 0");
+        }
+        // FP guards: `unset` destroys (not a write); value-taking and
+        // unknown commands are out.
+        for cmd in ["unset", "puts", "llength", "foreach", "nosuchcmd"] {
+            assert!(!reg.writes_first_arg_variable(cmd), "{cmd} must not match");
+        }
+    }
+
+    #[test]
+    fn rmw_first_arg_variable_membership() {
+        let reg = CommandRegistry::build_default();
+        // TP: read-modify-write commands fold the current value in.
+        for cmd in ["append", "lappend", "incr", "lset"] {
+            assert!(reg.rmw_first_arg_variable(cmd), "{cmd} is RMW");
+        }
+        // FP guards: a whole-value `set` is rename-safe; `unset` destroys.
+        for cmd in ["set", "unset", "puts", "nosuchcmd"] {
+            assert!(!reg.rmw_first_arg_variable(cmd), "{cmd} must not match");
+        }
     }
 
     #[test]

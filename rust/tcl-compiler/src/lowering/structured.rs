@@ -936,6 +936,16 @@ impl Lowerer<'_> {
 
     // dict
 
+    /// True when this `dict` invocation's subcommand writes the dict
+    /// variable at `args[1]` — the registry's per-subcommand `VarWrite`
+    /// role, resolved against the actual argument list.
+    fn dict_sub_writes_var(&self, args: &[String]) -> bool {
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        self.registry
+            .arg_indices_for_role("dict", &arg_strs, tcl_registry::prelude::ArgRole::VarWrite)
+            .contains(&1)
+    }
+
     /// Lower `dict` subcommands.
     pub(super) fn lower_dict(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         let args = seg.args();
@@ -970,7 +980,25 @@ impl Lowerer<'_> {
                 }
             }
 
-            "set" | "unset" | "append" | "lappend" | "incr" if !sub_args.is_empty() => {
+            // The body-carrying mutators barrier (the body's local-var
+            // mapping is runtime behaviour) — ordered before the generic
+            // sub-mutator arm below, whose registry query also matches
+            // their `VarWrite` role.
+            "update" | "with" => Statement::Barrier {
+                span: seg.span,
+                reason: format!("dict {sub}"),
+                command: seg.name().into(),
+                canonical_command: None,
+                args: args.to_vec(),
+                tokens: Some(Self::cmd_tokens(seg)),
+            },
+
+            // A sub-mutator (`dict set/unset/append/lappend/incr …`) tags
+            // the lowered call with the dict variable as a def.  Membership
+            // comes from the registry's per-subcommand `VarWrite` role on
+            // `dict` — the variable is `args[1]` (just past the subcommand
+            // word) — never a hardcoded subcommand list.
+            _ if !sub_args.is_empty() && self.dict_sub_writes_var(args) => {
                 let var_name = normalise_var_name(&sub_args[0]).to_owned();
                 Statement::Call {
                     span: seg.span,
@@ -985,15 +1013,6 @@ impl Lowerer<'_> {
                     foreach_groups: None,
                 }
             }
-
-            "update" | "with" => Statement::Barrier {
-                span: seg.span,
-                reason: format!("dict {sub}"),
-                command: seg.name().into(),
-                canonical_command: None,
-                args: args.to_vec(),
-                tokens: Some(Self::cmd_tokens(seg)),
-            },
 
             _ => Statement::Call {
                 span: seg.span,

@@ -40,10 +40,6 @@ use super::types::{Diagnostic, Severity};
 /// The comparison operators a simple `for`-condition may use.
 const SIMPLE_CMP_OPS: &[&str] = &["<=", ">=", "<", ">", "==", "!=", "eq", "ne"];
 
-/// Command names that write their first argument (used by the
-/// loop-counter modification scan).
-const WRITE_COMMANDS: &[&str] = &["set", "incr", "lset", "append", "lappend"];
-
 /// Whether `name` in command position ends the current loop's straight-line
 /// flow — the set consulted by the W241 "provably infinite" check.
 ///
@@ -137,7 +133,7 @@ pub(crate) fn loop_termination_diagnostics(
     // W242; the default-off opt-in is applied by the consuming LSP/config
     // layer.
     if let Some(var) = extract_counter_name(cond_text)
-        && !loop_modifies_var(&var, step_text, body_text)
+        && !loop_modifies_var(&var, step_text, body_text, registry)
     {
         return vec![Diagnostic {
             code: DiagCode::W242,
@@ -190,18 +186,23 @@ fn is_word_byte(b: u8) -> bool {
 }
 
 /// True when the step expression or the body provably updates `var`.
-fn loop_modifies_var(var: &str, step: &str, body: &str) -> bool {
+fn loop_modifies_var(
+    var: &str,
+    step: &str,
+    body: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) -> bool {
     if !step.is_empty() {
         if let Some((step_var, _)) = parse_step_incr(step)
             && step_var == var
         {
             return true;
         }
-        if body_writes_var(strip_braces(step), var) {
+        if body_writes_var(strip_braces(step), var, registry) {
             return true;
         }
     }
-    body_writes_var(body, var)
+    body_writes_var(body, var, registry)
 }
 
 /// Prove that a `for {set v INT} {$v OP INT} {incr v INT} body` loop
@@ -219,7 +220,7 @@ fn for_is_provably_infinite(
     if var_c != var_i || var_c != var_s {
         return None;
     }
-    if body_writes_var(body, &var_c) || body_may_exit(body, registry) {
+    if body_writes_var(body, &var_c, registry) || body_may_exit(body, registry) {
         return None;
     }
     let counter = format!("${var_c}");
@@ -464,10 +465,25 @@ fn parse_signed_decimal(word: &str) -> Option<i64> {
 /// would also match `set var(i)` array writes and matches inside
 /// strings), which keeps W241/W242 counts accurate — full-fidelity
 /// parsing rather than text matching.
-fn body_writes_var(body: &str, var: &str) -> bool {
+fn body_writes_var(
+    body: &str,
+    var: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) -> bool {
     any_command_recursive(body, &mut |cmd| {
-        WRITE_COMMANDS.contains(&cmd.name()) && cmd.args().first().map(String::as_str) == Some(var)
+        writes_first_arg(cmd.name(), registry)
+            && cmd.args().first().map(String::as_str) == Some(var)
     })
+}
+
+/// Whether `name` writes/modifies the variable named by its first argument
+/// (`set` / `incr` / `append` / `lappend` / `lset`) — the registry's
+/// `writes_first_arg_variable` query, with the cached default registry as
+/// the registry-less fallback (mirroring [`is_loop_exit_command`]'s shape).
+fn writes_first_arg(name: &str, registry: Option<&tcl_registry::CommandRegistry>) -> bool {
+    registry
+        .unwrap_or_else(|| tcl_registry::cache::registry_for_dialect("tcl8.6"))
+        .writes_first_arg_variable(name.trim_start_matches(':'))
 }
 
 /// Walk every command in `script`, recursing into braced / quoted word
@@ -1305,10 +1321,10 @@ mod tests {
     #[test]
     fn body_scans_are_command_structural() {
         // A write counts only in command position, not inside a string.
-        assert!(super::body_writes_var("incr i", "i"));
-        assert!(super::body_writes_var("if {$c} {set i 9}", "i")); // nested body
-        assert!(!super::body_writes_var("puts \"set i now\"", "i")); // inside a string
-        assert!(!super::body_writes_var("incr index", "i")); // word boundary
+        assert!(super::body_writes_var("incr i", "i", None));
+        assert!(super::body_writes_var("if {$c} {set i 9}", "i", None)); // nested body
+        assert!(!super::body_writes_var("puts \"set i now\"", "i", None)); // inside a string
+        assert!(!super::body_writes_var("incr index", "i", None)); // word boundary
         // `break` / `return` / `throw` / `tailcall` likewise count only as
         // commands. `return`/`throw` resolve via the registry's
         // TERMINATES_BLOCK trait; `break`/`tailcall` are recognised without it.

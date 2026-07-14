@@ -230,12 +230,16 @@ fn classify_write(stmt: &Statement) -> Option<Write> {
                 value: value.clone(),
             })
         }
+        // No membership guard here: the fold's per-command semantics below
+        // (`set` resets the chain, `append` extends the string, `lappend`
+        // extends the list) ARE the dispatch — any other command falls out
+        // of the final match.
         Statement::Call {
             command,
             args,
             tokens,
             ..
-        } if matches!(command.as_str(), "set" | "append" | "lappend") => {
+        } => {
             let tokens = tokens.as_ref()?;
             // Value words are argv index `vararg + 1 ..` (argv[0] is the
             // command, argv[1] is the variable).

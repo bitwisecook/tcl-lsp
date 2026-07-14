@@ -1275,12 +1275,14 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
     }
 }
 
-/// Variable names that are the bare write-target of a mutating command
-/// (`incr` / `append` / `lappend`). The analyser records these as
-/// definitions, not reads, so [`AnalysisResult`]'s `VarDef.references`
-/// (reads only) never includes the target argument. The name compaction
-/// excludes them so it cannot rename the `set` / `$var` sites while leaving
-/// the `incr var` target untouched (which would corrupt the program).
+/// Variable names that are the bare write-target of a read-modify-write
+/// command (`incr` / `append` / `lappend` / `lset` — the registry's
+/// `rmw_first_arg_variable` set; a whole-value `set` is rename-safe). The
+/// analyser records these as definitions, not reads, so
+/// [`AnalysisResult`]'s `VarDef.references` (reads only) never includes the
+/// target argument. The name compaction excludes them so it cannot rename
+/// the `set` / `$var` sites while leaving the `incr var` target untouched
+/// (which would corrupt the program).
 fn rmw_target_var_names(source: &str, registry: &CommandRegistry) -> FxHashSet<String> {
     let cu = CompilationUnit::build_for(source, registry, false);
     let mut names = FxHashSet::default();
@@ -1294,7 +1296,7 @@ fn rmw_target_var_names(source: &str, registry: &CommandRegistry) -> FxHashSet<S
                         names.insert(name.clone());
                     }
                     Statement::Call { command, defs, .. }
-                        if matches!(command.as_str(), "append" | "lappend") =>
+                        if registry.rmw_first_arg_variable(command) =>
                     {
                         names.extend(defs.iter().cloned());
                     }

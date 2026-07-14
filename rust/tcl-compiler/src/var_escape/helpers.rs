@@ -43,8 +43,8 @@ use crate::var_escape::info_subcommands::{
 
 /// Memoised set of commands carrying the registry's
 /// [`Traits::FIRST_ARG_VARNAME`] trait — the commands whose first arg is
-/// the variable *name* (`set` / `incr` / `append` / `lappend` / `unset`).
-/// Used to detect dynamic-name forms like `set $n value`. Sourced from
+/// the variable *name* (`set` / `incr` / `append` / `lappend` / `lset` /
+/// `unset`). Used to detect dynamic-name forms like `set $n value`. Sourced from
 /// the registry (the single source of truth); cached once because the set
 /// is dialect-agnostic (all entries are core Tcl commands).
 fn name_first_set() -> &'static HashSet<String> {
@@ -328,8 +328,8 @@ mod tests {
     }
 
     #[test]
-    fn name_first_command_is_the_documented_five() {
-        for cmd in ["set", "incr", "append", "lappend", "unset"] {
+    fn name_first_command_is_the_documented_six() {
+        for cmd in ["set", "incr", "append", "lappend", "lset", "unset"] {
             assert!(is_name_first_command(cmd), "{cmd}");
         }
         assert!(!is_name_first_command("string"));
