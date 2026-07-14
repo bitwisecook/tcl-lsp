@@ -310,6 +310,30 @@ pub fn defs_of(stmt: &Statement) -> Vec<String> {
     defs_of_with_registry(stmt, None)
 }
 
+/// Whether a barrier's command is an ensemble loop subcommand whose first
+/// argument is the iteration-variable list (`::tcl::dict::for` / `::map`,
+/// `::tcl::array::for`). Resolved from the registry's `loop_list_header`
+/// flag on the subcommand: the barrier name's last segment is the
+/// subcommand, the one before it the base command (`… ::tcl::dict::for` →
+/// `dict for`). Callers without a registry (test helpers) fall back to the
+/// legacy suffix heuristic, mirroring the trace fallback below.
+fn barrier_is_loop_list_header(command: &str, registry: Option<&CommandRegistry>) -> bool {
+    let Some(registry) = registry else {
+        return command.ends_with("::for") || command.ends_with("::map");
+    };
+    let segments = crate::naming::qualifier_segments(command.as_bytes());
+    let [.., base, sub] = segments.as_slice() else {
+        return false;
+    };
+    let (Ok(base), Ok(sub)) = (std::str::from_utf8(base), std::str::from_utf8(sub)) else {
+        return false;
+    };
+    registry
+        .get(base)
+        .and_then(|spec| spec.resolve_subcommand(sub))
+        .is_some_and(|sub| sub.loop_list_header)
+}
+
 /// Whether an IR assignment target `name` (as written) is a *dynamic* write
 /// target — its variable name is computed at runtime from a substitution
 /// (`set $p …`, `set ${tok} …`, `set a$b(k) …`).  Such a target is opaque
@@ -362,10 +386,13 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
         }
         Statement::Call { defs, .. } if !defs.is_empty() => defs.clone(),
         Statement::Barrier { command, args, .. } => {
-            // dict for/map barriers: extract iteration variable names
-            // (these come from a structured-body scan, not from a
-            // role-tagged arg, so they stay as a separate path).
-            if (command.ends_with("::for") || command.ends_with("::map")) && !args.is_empty() {
+            // Loop-header barriers (`::tcl::dict::for`/`::map`, `::tcl::array::for`
+            // — any ensemble subcommand the registry marks `loop_list_header`):
+            // args[0] is the iteration-variable list, so extract the names.
+            // Resolved via the registry rather than a name-suffix match — a
+            // user proc named `my::for` must NOT have its first argument
+            // misread as loop variables.
+            if !args.is_empty() && barrier_is_loop_list_header(command, registry) {
                 return args[0].split_whitespace().map(String::from).collect();
             }
             // Registry-driven VarWrite walk.  Skips
@@ -841,9 +868,6 @@ fn is_braced_arg(tokens: Option<&CommandTokens>, arg_index: usize) -> bool {
 /// We only exclude handler-style bodies that are lowered/analysed separately.
 /// Dynamic evaluation commands like `eval` still need their args treated as
 /// ordinary dataflow inputs (for taint and read-before-set tracking).
-/// Body-carrying options for `tcltest::test`.
-const TCLTEST_BODY_OPTIONS: &[&str] = &["-setup", "-body", "-cleanup"];
-
 pub(crate) fn structural_body_indices(
     command: &str,
     args: &[String],
@@ -895,30 +919,6 @@ pub(crate) fn structural_body_indices(
         }
     }
 
-    if command == "test" || command == "tcltest::test" {
-        let mut indices = HashSet::new();
-        let mut has_body_option = false;
-        let mut i = 2;
-        while i + 1 < args.len() {
-            if TCLTEST_BODY_OPTIONS.contains(&args[i].as_str()) {
-                let value_idx = i + 1;
-                has_body_option = true;
-                if is_braced_arg(tokens, value_idx) {
-                    indices.insert(value_idx);
-                }
-            }
-            i += 2;
-        }
-        // Legacy positional form: test name desc ?constraints? body result
-        if !has_body_option && args.len() >= 4 {
-            let body_index = args.len() - 2;
-            if is_braced_arg(tokens, body_index) {
-                indices.insert(body_index);
-            }
-        }
-        return indices;
-    }
-
     HashSet::new()
 }
 
@@ -964,12 +964,14 @@ pub fn uses_of(
 
         Statement::Barrier {
             command,
+            canonical_command,
             args,
             tokens,
             ..
         } => {
             scan_command_words(
                 command,
+                canonical_command.as_deref(),
                 args,
                 tokens.as_ref(),
                 scanner,
@@ -1143,6 +1145,7 @@ fn uses_in_call(
     };
     scan_command_words(
         command,
+        canonical_command.as_deref(),
         args,
         tokens.as_ref(),
         scanner,
@@ -1230,6 +1233,7 @@ fn uses_in_assignment(
 /// they are lowered into their own CFG blocks. Extracted from [`uses_of`].
 fn scan_command_words(
     command: &str,
+    canonical_command: Option<&str>,
     args: &[String],
     tokens: Option<&CommandTokens>,
     scanner: &mut VarReferenceScanner,
@@ -1237,7 +1241,11 @@ fn scan_command_words(
     vars_found: &mut BTreeSet<String>,
 ) {
     vars_found.extend(scanner.scan_word(command, registry));
-    let body_indices = structural_body_indices(command, args, tokens, registry);
+    // Registry lookups use the canonical name when the lowering resolved one
+    // (a bare `test` under `namespace import ::tcltest::*` canonicalises to
+    // `tcltest::test`; the raw spelling alone is not a registry key).
+    let lookup = canonical_command.unwrap_or(command);
+    let body_indices = structural_body_indices(lookup, args, tokens, registry);
     for (idx, arg) in args.iter().enumerate() {
         if body_indices.contains(&idx) {
             continue;
@@ -2134,6 +2142,88 @@ mod tests {
             tokens: None,
         };
         assert_eq!(defs_of(&stmt), vec!["k", "v"]);
+    }
+
+    /// Loop-header barriers resolve via the registry's `loop_list_header`
+    /// flag — the ensemble-rewritten spellings work, and a user proc that
+    /// merely ENDS in `::for` does not have its first argument misread as
+    /// loop variables (the old suffix match did exactly that).
+    #[test]
+    fn defs_of_barrier_loop_header_via_registry() {
+        let reg = CommandRegistry::build_default();
+        let barrier = |command: &str| Statement::Barrier {
+            span: Span::new(0, 30),
+            reason: "loop".into(),
+            command: command.into(),
+            canonical_command: None,
+            args: vec!["k v".into(), "$d".into()],
+            tokens: None,
+        };
+        for cmd in ["::tcl::dict::for", "dict::for", "::tcl::dict::map"] {
+            assert_eq!(
+                defs_of_with_registry(&barrier(cmd), Some(&reg)),
+                vec!["k", "v"],
+                "{cmd} is a registry loop-list-header subcommand"
+            );
+        }
+        assert_eq!(
+            defs_of_with_registry(&barrier("::tcl::array::for"), Some(&reg)),
+            vec!["k", "v"],
+            "array for shares the loop-list-header shape"
+        );
+        assert!(
+            !defs_of_with_registry(&barrier("my::for"), Some(&reg))
+                .iter()
+                .any(|d| d == "k" || d == "v"),
+            "a user proc ending in ::for must not be misread as a loop header"
+        );
+    }
+
+    /// `tcltest::test` body indices come from the spec's arg-role resolver
+    /// (option-keyed `-setup`/`-body`/`-cleanup` values plus the legacy
+    /// positional body) via the generic `ArgRole::Body` walk — the old
+    /// `command == "test"` special case is gone.
+    #[test]
+    fn structural_body_indices_tcltest_via_registry() {
+        use tcl_registry::ArgRole;
+        let reg = CommandRegistry::build_default();
+        // Option form: -setup and -body values are Body roles; -result's is
+        // not. Both the qualified and the exported bare spelling resolve.
+        let option_form = [
+            "n",
+            "d",
+            "-setup",
+            "{set x 1}",
+            "-body",
+            "{incr x}",
+            "-result",
+            "2",
+        ];
+        let got = reg.arg_indices_for_role("tcltest::test", &option_form, ArgRole::Body);
+        assert_eq!(got, vec![3, 5], "option-form bodies via the option model");
+        // The bare `test` spelling is NOT a registry key: it resolves only
+        // through the lowering's namespace-import canonicalisation (which
+        // stamps `canonical_command` — threaded into the SSA lookups). A
+        // user proc that merely happens to be called `test` must not pick
+        // up tcltest body semantics, which the old string match caused.
+        assert!(
+            reg.arg_indices_for_role("test", &option_form, ArgRole::Body)
+                .is_empty()
+        );
+        // Legacy positional form: body is the penultimate argument.
+        let legacy = ["n", "d", "{incr x}", "1"];
+        let got = reg.arg_indices_for_role("tcltest::test", &legacy, ArgRole::Body);
+        assert_eq!(got, vec![2], "legacy positional body");
+        // Option form with NO body options marks nothing (and must not fall
+        // back to the positional branch: `-result` is not a body).
+        let no_body = ["n", "d", "-result", "2"];
+        let got = reg.arg_indices_for_role("tcltest::test", &no_body, ArgRole::Body);
+        assert!(got.is_empty(), "no body options → no body roles: {got:?}");
+        // The generic structural walk consumes the same roles (braced-token
+        // filtering applies on real token streams; `None` tokens filter all,
+        // so only the empty expectation is assertable here).
+        let no_body_args: Vec<String> = no_body.iter().map(|s| (*s).to_string()).collect();
+        assert!(structural_body_indices("tcltest::test", &no_body_args, None, &reg).is_empty());
     }
 
     /// `trace add variable` defs route through the registry's
