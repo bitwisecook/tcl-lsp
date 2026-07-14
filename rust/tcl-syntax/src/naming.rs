@@ -318,6 +318,16 @@ pub fn qualify(prefix: &str, name: &str) -> String {
         return normalise_qualified_name(name);
     }
     let p = prefix.trim_start_matches("::").trim_end_matches("::");
+    if name.is_empty() {
+        // The empty-name entity (`proc {} {} {}`): a trailing separator
+        // names the `{}` command/variable in the qualified namespace
+        // ([`ends_with_separator`]) — `::` at the root, `::p::` inside `p`.
+        return if p.is_empty() {
+            "::".to_owned()
+        } else {
+            format!("::{p}::")
+        };
+    }
     if p.is_empty() {
         normalise_qualified_name(name)
     } else {
@@ -434,6 +444,14 @@ mod tests {
         assert_eq!(qualify("::a::b", "c::D"), "::a::b::c::D");
         assert_eq!(qualify("", "C"), "::C");
         assert_eq!(qualify("::", "C"), "::C");
+    }
+
+    #[test]
+    fn qualify_names_the_empty_entity_with_a_trailing_separator() {
+        // `proc {} {} {}` — the empty-name command is the `{}` entity the
+        // trailing separator denotes.
+        assert_eq!(qualify("", ""), "::");
+        assert_eq!(qualify("::ns", ""), "::ns::");
     }
 
     #[test]
