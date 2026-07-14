@@ -63,3 +63,11 @@
 # global fallback for namespace names, unlike command names)
 ::outer | inner | ::outer::inner::helper,::inner::helper | helper | ::outer::inner::helper
 ::a | b::c | ::a::b::c::helper | helper | ::a::b::c::helper
+
+# -- ::tcl::mathfunc is reached by this same rule: expr resolves a function
+# f as the relative name `tcl::mathfunc::f` from the *current* namespace,
+# so ::ns::tcl::mathfunc::f shadows ::tcl::mathfunc::f inside ::ns
+# (tclsh-pinned via `namespace eval ::ns {expr {f(1)}}`; the vector pins
+# the equivalent command-call shape)
+::nsa | - | ::nsa::tcl::mathfunc::pinf,::tcl::mathfunc::pinf | tcl::mathfunc::pinf | ::nsa::tcl::mathfunc::pinf
+::nsb | - | ::tcl::mathfunc::pinf | tcl::mathfunc::pinf | ::tcl::mathfunc::pinf
