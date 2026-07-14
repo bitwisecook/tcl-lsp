@@ -824,7 +824,7 @@ impl Analyser {
         // TK1001 / TK1002 / TK1003 — Tk-dialect widget + geometry checks
         // (tk dialect only); the TK1001 conflict is flushed post-walk.
         self.emit_tk_checks(cmd_name, args, arg_tokens, cmd_tok);
-        self.emit_w212_name_vs_value(cmd_name, args, arg_tokens);
+        self.emit_w212_name_vs_value(cmd_name, args, arg_tokens, scope_path);
         self.emit_w104_append_list(cmd_name, args, arg_tokens);
         self.emit_w106_unbraced_switch_body(cmd_name, args, arg_tokens);
         self.emit_w311_encoding_mismatch(cmd_name, args, arg_tokens);

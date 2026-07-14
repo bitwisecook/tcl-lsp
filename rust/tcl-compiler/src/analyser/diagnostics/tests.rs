@@ -8383,3 +8383,250 @@ entry    main.tcl
         );
     }
 }
+
+mod did_you_mean_variables {
+    //! W210 / W212 / W215 "did you mean…?" — the undefined-variable
+    //! family suggests a close in-scope variable name (W215's own tests
+    //! live with the emitter in `analyser::scope`).
+
+    use super::*;
+
+    fn find_code(src: &str, dialect: &str, code: DiagCode) -> Diagnostic {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(src, dialect);
+        r.diagnostics
+            .iter()
+            .find(|d| d.code == code)
+            .unwrap_or_else(|| panic!("expected {code:?} in {:?}", r.diagnostics))
+            .clone()
+    }
+
+    #[test]
+    fn w210_suggests_close_defined_variable() {
+        // TP: `countr` is an edit-distance-1 typo of the defined `counter`.
+        let d = find_code("set counter 1\nputs $countr\n", "tcl8.6", DiagCode::W210);
+        assert!(
+            d.message.ends_with("; did you mean 'counter'?"),
+            "expected a 'counter' suggestion: {:?}",
+            d.message
+        );
+        // The suggestion is informational only — no fix (the analyser
+        // cannot know which spelling was intended).
+        assert!(d.fixes.is_empty(), "{:?}", d.fixes);
+    }
+
+    #[test]
+    fn w210_suggests_inside_proc_bodies() {
+        let d = find_code(
+            "proc p {} {\n  set counter 1\n  puts $countr\n}\n",
+            "tcl8.6",
+            DiagCode::W210,
+        );
+        assert!(
+            d.message.ends_with("; did you mean 'counter'?"),
+            "expected a 'counter' suggestion: {:?}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn w210_case_mismatch_still_wins_over_edit_distance() {
+        // `MYLIST` is 6 edits from `mylist` — far outside the scaled
+        // budget — but the case-insensitive twin rule still names it.
+        let d = find_code("set MYLIST 1\nputs $mylist\n", "tcl8.6", DiagCode::W210);
+        assert!(
+            d.message.ends_with("; did you mean 'MYLIST'?"),
+            "expected the case twin: {:?}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn w210_no_suggestion_when_nothing_is_close() {
+        // FP guard: `frobnicate` is nowhere near `totally`.
+        let d = find_code(
+            "set totally 1\nputs $frobnicate\n",
+            "tcl8.6",
+            DiagCode::W210,
+        );
+        assert!(
+            !d.message.contains("did you mean"),
+            "no suggestion expected: {:?}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn w210_short_name_never_fishes_a_full_replacement() {
+        // FP guard: every other 1-char name is a full rewrite of `$u`,
+        // not a typo correction — `m` must not be suggested.
+        let d = find_code("set m 1\nputs $u\nputs $m\n", "tcl8.6", DiagCode::W210);
+        assert!(
+            !d.message.contains("did you mean"),
+            "no suggestion expected for a 1-char read: {:?}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn w212_suggests_close_in_scope_variable_for_undefined_name() {
+        // TP: `set $countr` where `countr` is undefined but `counter`
+        // is in scope — the better correction is `counter`.
+        let d = find_code("set counter 1\nset $countr 5\n", "tcl8.6", DiagCode::W212);
+        assert!(
+            d.message.contains("Did you mean 'counter'?"),
+            "expected the close in-scope name: {:?}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn w212_keeps_de_sigil_suggestion_for_defined_name() {
+        // `varname` is itself defined — dropping the `$` is the fix.
+        let d = find_code("set varname x\nset $varname y\n", "tcl8.6", DiagCode::W212);
+        assert!(
+            d.message.contains("Did you mean 'varname'?"),
+            "expected the de-sigiled name: {:?}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn w212_keeps_de_sigil_suggestion_when_nothing_is_close() {
+        // FP guard: no in-scope name is close — the de-sigil suggestion
+        // stands rather than fishing an unrelated variable.
+        let d = find_code(
+            "set totally 1\nincr $frobnicate\n",
+            "tcl8.6",
+            DiagCode::W212,
+        );
+        assert!(
+            d.message.contains("Did you mean 'frobnicate'?"),
+            "expected the de-sigiled name: {:?}",
+            d.message
+        );
+    }
+}
+
+mod irule2002_drop_in_fix {
+    //! IRULE2002 — a deprecated command whose registry spec marks the
+    //! replacement as a drop-in rename carries a head-swap quick fix;
+    //! non-mechanical replacements stay message-only.
+
+    use super::*;
+
+    fn irule2002_for(src: &str) -> Diagnostic {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(src, "f5-irules");
+        r.diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::Irule2002)
+            .unwrap_or_else(|| panic!("expected IRULE2002 in {:?}", r.diagnostics))
+            .clone()
+    }
+
+    #[test]
+    fn drop_in_replacement_carries_head_swap_fix() {
+        // TP: `client_addr` → `IP::client_addr` is argument-compatible.
+        let d = irule2002_for("when HTTP_REQUEST {\n  set a [client_addr]\n}\n");
+        assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
+        let fix = &d.fixes[0];
+        assert_eq!(fix.new_text, "IP::client_addr");
+        assert_eq!(fix.description, "Replace with 'IP::client_addr'");
+        // The fix replaces exactly the command head token.
+        assert_eq!(fix.span, d.span);
+    }
+
+    #[test]
+    fn drop_in_fix_preserves_arguments() {
+        // TP: an argument-taking drop-in (`decode_uri <s>` →
+        // `URI::decode <s>`) swaps only the head; the argument words are
+        // untouched (outside the fix span).
+        let d = irule2002_for("when HTTP_REQUEST {\n  set u [decode_uri $raw]\n}\n");
+        assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
+        assert_eq!(d.fixes[0].new_text, "URI::decode");
+        assert_eq!(d.fixes[0].span, d.span);
+    }
+
+    #[test]
+    fn non_mechanical_replacements_get_no_fix() {
+        // FP guards: `ip_addr` → `IP::addr` restructures its arguments
+        // (`… mask …`); `matchclass` → `class` needs the `match`
+        // subcommand (IRULE2001 carries the correct arity-aware fix);
+        // `use` → `virtual` changes the statement shape entirely.
+        for src in [
+            "when HTTP_REQUEST {\n  set m [ip_addr 10.0.0.1 255.0.0.0]\n}\n",
+            "when HTTP_REQUEST {\n  matchclass $u ::lib\n}\n",
+            "when HTTP_REQUEST {\n  use pool aol_pool\n}\n",
+        ] {
+            let d = irule2002_for(src);
+            assert!(
+                d.fixes.is_empty(),
+                "no fix expected for {src:?}: {:?}",
+                d.fixes
+            );
+        }
+    }
+}
+
+mod arity_usage_suffix {
+    //! E002 / E003 / E005 — arity messages append the registry
+    //! signature as a " — usage: …" suffix when the resolved spec
+    //! declares a synopsis.
+
+    use super::*;
+
+    fn find_code(src: &str, code: DiagCode) -> Diagnostic {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        r.diagnostics
+            .iter()
+            .find(|d| d.code == code)
+            .unwrap_or_else(|| panic!("expected {code:?} in {:?}", r.diagnostics))
+            .clone()
+    }
+
+    #[test]
+    fn e002_appends_command_synopsis() {
+        let d = find_code("lreplace\n", DiagCode::E002);
+        assert_eq!(
+            d.message,
+            "Too few arguments for 'lreplace': expected at least 3, got 0 \
+             — usage: lreplace list first last ?element element ...?"
+        );
+    }
+
+    #[test]
+    fn e003_appends_subcommand_synopsis() {
+        // The subcommand path uses the resolved subcommand's synopsis,
+        // not the parent ensemble's.
+        let d = find_code("string length a b c\n", DiagCode::E003);
+        assert!(
+            d.message.ends_with(" — usage: string length string"),
+            "expected the subcommand synopsis: {:?}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn e005_appends_command_synopsis() {
+        let d = find_code("lmap a b c d\n", DiagCode::E005);
+        assert!(
+            d.message.ends_with(" — usage: lmap varname list body"),
+            "expected the lmap synopsis: {:?}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn user_proc_arity_message_stays_count_only() {
+        // A same-file proc has no registry synopsis — the message keeps
+        // its count-only form.
+        let d = find_code("proc pair {a b} {}\npair 1\n", DiagCode::E002);
+        assert!(
+            !d.message.contains("usage:"),
+            "no usage suffix expected for a user proc: {:?}",
+            d.message
+        );
+    }
+}

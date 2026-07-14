@@ -662,6 +662,17 @@ impl Analyser {
         }
     }
 
+    /// The variable names defined so far in the scope at `scope_path` —
+    /// the walk-time in-scope candidate set for the W212 / W215
+    /// "did you mean…?" suggestions.  Owned strings so callers can keep
+    /// the list across later scope mutations.
+    #[must_use]
+    pub(in crate::analyser) fn scope_variable_names(&self, scope_path: &[usize]) -> Vec<String> {
+        scope_at(&self.result.global_scope, scope_path)
+            .map(|s| s.variables.keys().cloned().collect())
+            .unwrap_or_default()
+    }
+
     /// Record a variable definition in the scope at `scope_path`.
     ///
     /// New definitions are inserted into the scope's `variables` map
@@ -696,7 +707,7 @@ impl Analyser {
         let is_first_def = scope_at(&self.result.global_scope, &path)
             .is_some_and(|s| !s.variables.contains_key(base_name));
         if is_first_def && !self.suppress_w215 {
-            self.emit_w215_unreachable_name(base_name, element.as_deref(), tok, span);
+            self.emit_w215_unreachable_name(base_name, element.as_deref(), tok, span, &path);
         }
         let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path) else {
             return;
@@ -754,12 +765,19 @@ impl Analyser {
     /// be created/read via `set` / `info exists` / `upvar`.  The runtime
     /// name applies Tcl backslash substitution unless the word was
     /// braced (`STR`), since `{...}` preserves every byte verbatim.
+    ///
+    /// An unreachable name is usually a stray-delimiter typo of an
+    /// ordinary nearby name (`set "a}b" 1` for `set ab 1`), so the
+    /// message carries a "; did you mean 'X'?" suffix naming the closest
+    /// variable already defined in the same scope, when one sits within
+    /// the length-scaled edit budget.
     fn emit_w215_unreachable_name(
         &mut self,
         base_name: &str,
         element: Option<&str>,
         tok: Token,
         site_span: Span,
+        scope_path: &[usize],
     ) {
         use super::types::{Diagnostic, Severity};
         use crate::naming::is_brace_substitutable;
@@ -793,14 +811,29 @@ impl Analyser {
             } else {
                 "the brace form ``${name}`` cannot match this name"
             };
+            let mut message = format!(
+                "variable name ``{runtime_name}`` is not reachable via $-substitution; \
+                 it can still be created/read via ``set name`` / ``[set \"name\"]`` / \
+                 ``info exists`` / ``upvar``, but {detail}"
+            );
+            let candidates = self.scope_variable_names(scope_path);
+            let suggestions = crate::text::suggest_similar(
+                &runtime_name,
+                candidates
+                    .iter()
+                    .map(String::as_str)
+                    .filter(|name| *name != runtime_name),
+                1,
+                crate::text::scaled_max_distance_strict(&runtime_name),
+            );
+            if let Some(best) = suggestions.first() {
+                use std::fmt::Write as _;
+                let _ = write!(message, "; did you mean '{best}'?");
+            }
             self.result.diagnostics.push(Diagnostic {
                 code: DiagCode::W215,
                 span: site_span,
-                message: format!(
-                    "variable name ``{runtime_name}`` is not reachable via $-substitution; \
-                     it can still be created/read via ``set name`` / ``[set \"name\"]`` / \
-                     ``info exists`` / ``upvar``, but {detail}"
-                ),
+                message,
                 severity: Severity::Warning,
                 fixes: Vec::new(),
             });
@@ -1305,6 +1338,42 @@ mod tests {
     #[test]
     fn w215_quiet_for_normal_name() {
         assert!(!diag_codes("set normal 1", "tcl").contains(&"W215".to_string()));
+    }
+
+    #[test]
+    fn w215_suggests_close_in_scope_variable() {
+        // TP: `"a}b"` is a stray-brace typo of the already-defined `ab`
+        // (edit distance 1) — the message names it.
+        let mut a = Analyser::new();
+        let r = a.analyse("set ab 1\nset \"a}b\" 2\n", "tcl");
+        let d = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::W215)
+            .expect("W215");
+        assert!(
+            d.message.ends_with("; did you mean 'ab'?"),
+            "expected an 'ab' suggestion: {:?}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn w215_no_suggestion_when_nothing_is_close() {
+        // FP guard: no defined variable sits within the edit budget —
+        // the message keeps its plain form.
+        let mut a = Analyser::new();
+        let r = a.analyse("set totally 1\nset \"qq}zz\" 2\n", "tcl");
+        let d = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::W215)
+            .expect("W215");
+        assert!(
+            !d.message.contains("did you mean"),
+            "no suggestion expected: {:?}",
+            d.message
+        );
     }
 
     #[test]

@@ -743,12 +743,23 @@ Use braces: {{ \u{2026} }}"
     /// instead uses a `$`-substitution.  `args` / `arg_tokens` exclude
     /// the command name.  Fires when the resolved name-position argument
     /// is a `Var` token.
+    ///
+    /// The "Did you mean…?" suggestion is the de-sigiled name itself
+    /// when that name is defined in the enclosing scope (or nothing
+    /// close is); when it is *undefined* but a close in-scope variable
+    /// sits within the length-scaled edit budget, the suggestion names
+    /// that variable instead — `set counter 1; incr $countr` suggests
+    /// 'counter', not the nonexistent 'countr'.
     pub(in crate::analyser) fn emit_w212_name_vs_value(
         &mut self,
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
+        scope_path: &[usize],
     ) {
+        // Lazily materialised: most calls trip no W212, so the scope's
+        // variable set is only collected on the first finding.
+        let mut scope_vars: Option<Vec<String>> = None;
         for idx in self.variable_name_positions(cmd_name, args) {
             let (Some(tok), Some(text)) = (arg_tokens.get(idx), args.get(idx)) else {
                 continue;
@@ -784,12 +795,26 @@ Use braces: {{ \u{2026} }}"
                         .filter(|sub| spec.resolve_subcommand(sub).is_some())
                 })
                 .map_or_else(|| cmd_name.to_string(), |sub| format!("{cmd_name} {sub}"));
+            let vars = scope_vars.get_or_insert_with(|| self.scope_variable_names(scope_path));
+            let suggestion = if vars.iter().any(|name| name == bare) {
+                bare
+            } else {
+                crate::text::suggest_similar(
+                    bare,
+                    vars.iter().map(String::as_str),
+                    1,
+                    crate::text::scaled_max_distance_strict(bare),
+                )
+                .first()
+                .copied()
+                .unwrap_or(bare)
+            };
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: DiagCode::W212,
                 span: tok.span,
                 message: format!(
                     "'{display_cmd}' expects a variable name, got substitution (${bare}). \
-                     Did you mean '{bare}'?"
+                     Did you mean '{suggestion}'?"
                 ),
                 severity: super::types::Severity::Warning,
                 fixes: Vec::new(),

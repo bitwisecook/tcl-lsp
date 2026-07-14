@@ -89,6 +89,17 @@ pub fn scaled_max_distance(name: &str) -> usize {
     (name.chars().count() / 3).clamp(1, 3)
 }
 
+/// [`scaled_max_distance`] additionally capped *below* the name's own
+/// character count, so an edit budget can never rewrite the whole name.
+/// Used by the undefined-variable "did you mean…?" family (W210 / W212 /
+/// W215), where one-character names (`$i`, `$u`) are common and every
+/// other one-character variable sits at distance 1 — a full-replacement
+/// "suggestion" there is noise, not a typo correction.
+#[must_use]
+pub fn scaled_max_distance_strict(name: &str) -> usize {
+    scaled_max_distance(name).min(name.chars().count().saturating_sub(1))
+}
+
 /// Suggest up to `max_suggestions` candidates from `candidates`
 /// ranked by edit distance to `attempted`, dropping any whose
 /// distance exceeds `max_distance`.
@@ -278,6 +289,16 @@ mod tests {
         // ``é`` is 2 bytes in UTF-8 but should count as one
         // edit when substituted for ``e``.
         assert_eq!(edit_distance("café", "cafe"), 1);
+    }
+
+    #[test]
+    fn scaled_max_distance_strict_caps_below_name_length() {
+        // A 1-char name gets a zero budget — every other 1-char name is
+        // a full replacement, never a typo correction.
+        assert_eq!(scaled_max_distance_strict("u"), 0);
+        // 2+ chars keep the ordinary scaled budget.
+        assert_eq!(scaled_max_distance_strict("ab"), 1);
+        assert_eq!(scaled_max_distance_strict("countr"), 2);
     }
 
     #[test]

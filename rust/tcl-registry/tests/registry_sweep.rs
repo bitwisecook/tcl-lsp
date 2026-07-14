@@ -458,6 +458,49 @@ fn sweep_every_command_every_accessor() {
     );
 }
 
+/// Every spec marking its deprecated replacement as a drop-in rename
+/// (`deprecated_replacement_drop_in`) must (a) actually carry a
+/// replacement, (b) name a single bare command word — no prose like
+/// `"(removed)"`, no restructured multi-word form — and (c) resolve to a
+/// registered command in the same dialect: the IRULE2002 head-swap quick
+/// fix rewrites the call head to this name verbatim, so a stale or
+/// unresolvable replacement would auto-fix code into an unknown command.
+///
+/// registry-metadata: the drop-in classification is registry data.
+#[test]
+fn sweep_deprecated_drop_in_replacements_resolve() {
+    let mut drop_ins = 0usize;
+    for &dname in LOADABLE_DIALECTS {
+        let reg = registry_for_dialect(dname);
+        let names: Vec<String> = reg.command_names().map(ToOwned::to_owned).collect();
+        for name in &names {
+            let Some(spec) = reg.get(name) else { continue };
+            if !spec.deprecated_replacement_drop_in {
+                continue;
+            }
+            drop_ins += 1;
+            let replacement = spec
+                .deprecated_replacement
+                .unwrap_or_else(|| panic!("{dname}/{name}: drop-in flag without a replacement"));
+            assert!(
+                !replacement.contains(char::is_whitespace)
+                    && !replacement.contains('(')
+                    && !replacement.contains('/'),
+                "{dname}/{name}: drop-in replacement {replacement:?} is not a single command word"
+            );
+            assert!(
+                reg.get(replacement).is_some(),
+                "{dname}/{name}: drop-in replacement {replacement:?} is not a registered command"
+            );
+        }
+    }
+    // Sanity floor: the iRules pack stamps the 4.x-compat rename family.
+    assert!(
+        drop_ins >= 20,
+        "expected the iRules drop-in rename family, got {drop_ins}"
+    );
+}
+
 /// Sweep the whole trait lattice through `commands_with_trait` in a few
 /// dialects, asserting the membership listing is self-consistent with each
 /// command's own `traits.contains`.

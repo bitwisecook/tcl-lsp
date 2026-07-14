@@ -42,6 +42,7 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Client,
         }],
         deprecated_replacement: Some("IP::client_addr"),
+        deprecated_replacement_drop_in: true,
         ..CommandSpec::DEFAULT
     }
 }

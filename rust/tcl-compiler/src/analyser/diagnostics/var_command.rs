@@ -530,7 +530,15 @@ impl Analyser {
         // argument count is one fewer.
         let nargs = site.argc.saturating_sub(1);
         let display_name = format!("{} {method_name}", site.var_name);
-        super::validity::arity_verdict(&display_name, arity, nargs, false, site.cmd_span, None)
+        super::validity::arity_verdict(
+            &display_name,
+            arity,
+            nargs,
+            false,
+            site.cmd_span,
+            None,
+            None,
+        )
     }
 
     /// Build the [`W307KnownNames`] universe: registry command names, user proc

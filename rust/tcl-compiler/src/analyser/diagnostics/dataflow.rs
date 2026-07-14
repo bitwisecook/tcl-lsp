@@ -1041,7 +1041,7 @@ file; this call falls through to the 'unknown' handler."
         entries.sort_by_key(|(_, s)| s.start());
         for (var, span) in entries {
             let mut message = format!("Variable '{var}' is read before it is set");
-            if let Some(similar) = find_case_mismatch(&var, defined_vars) {
+            if let Some(similar) = undefined_var_suggestion(&var, defined_vars) {
                 let _ = write!(message, "; did you mean '{similar}'?");
             }
             self.result.diagnostics.push(super::types::Diagnostic {
@@ -1269,7 +1269,7 @@ file; this call falls through to the 'unknown' handler."
                 }
                 reported.insert(name.clone());
                 let mut message = format!("Variable '{name}' is read before it is set");
-                if let Some(similar) = find_case_mismatch(&name, defined_vars) {
+                if let Some(similar) = undefined_var_suggestion(&name, defined_vars) {
                     let _ = write!(message, "; did you mean '{similar}'?");
                 }
                 self.result.diagnostics.push(super::types::Diagnostic {
@@ -1456,7 +1456,7 @@ file; this call falls through to the 'unknown' handler."
                     };
                     reported.insert(name.to_owned());
                     let mut message = format!("Variable '{name}' is read before it is set");
-                    if let Some(similar) = find_case_mismatch(name, defined_vars) {
+                    if let Some(similar) = undefined_var_suggestion(name, defined_vars) {
                         let _ = write!(message, "; did you mean '{similar}'?");
                     }
                     self.result.diagnostics.push(super::types::Diagnostic {
@@ -2282,6 +2282,36 @@ fn match_ipv6_candidate(bytes: &[u8], start: usize) -> Option<usize> {
         }
     }
     best
+}
+
+/// The suggestion name for an undefined-variable "; did you mean 'X'?"
+/// suffix (W210): a case-insensitive twin among `defined_vars` wins at
+/// any edit distance ([`find_case_mismatch`] — the established W210/W211/
+/// W220 behaviour), otherwise the closest *other* defined name within
+/// the length-scaled edit budget ([`crate::text::scaled_max_distance`],
+/// so a short typo can't fish an unrelated short name). `None` when
+/// nothing is close — the message then stays suffix-free.
+fn undefined_var_suggestion<'a>(
+    variable: &str,
+    defined_vars: &'a HashSet<String>,
+) -> Option<&'a str> {
+    if let Some(similar) = find_case_mismatch(variable, defined_vars) {
+        return Some(similar);
+    }
+    // The read variable can itself appear in `defined_vars` when it is
+    // assigned later in the function (`puts $x; set x 1`) — never
+    // suggest the typo as its own correction.
+    crate::text::suggest_similar(
+        variable,
+        defined_vars
+            .iter()
+            .map(String::as_str)
+            .filter(|name| *name != variable),
+        1,
+        crate::text::scaled_max_distance_strict(variable),
+    )
+    .first()
+    .copied()
 }
 
 /// Find a defined variable that differs from `variable` only in case.

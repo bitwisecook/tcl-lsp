@@ -63,6 +63,14 @@ pub struct CommandSig {
     /// than miscounted as a positional argument. Dialect-consistent with
     /// `leading_options`.
     pub leading_option_specs: Vec<&'static OptionSpec>,
+
+    /// The resolved command / subcommand's primary invocation synopsis
+    /// ([`tcl_registry::CommandSpec::primary_synopsis`] /
+    /// [`tcl_registry::SubCommand::primary_synopsis`]), appended by the
+    /// arity check as a "usage: …" suffix so an E002/E003/E005 message
+    /// shows the expected shape, not just the counts. `None` when the
+    /// spec declares no synopsis.
+    pub synopsis: Option<&'static str>,
 }
 
 /// Signature for a command that dispatches on a subcommand word.
@@ -200,6 +208,7 @@ pub fn signature_for_command(
                     traits: sub.traits,
                     leading_options,
                     leading_option_specs,
+                    synopsis: sub.primary_synopsis(),
                 },
             );
         }
@@ -228,6 +237,7 @@ pub fn signature_for_command(
         traits: spec.traits,
         leading_options,
         leading_option_specs,
+        synopsis: spec.primary_synopsis(),
     }))
 }
 
@@ -258,6 +268,7 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
                     // Scoped ensemble operations declare no option flags.
                     leading_options: BTreeSet::new(),
                     leading_option_specs: Vec::new(),
+                    synopsis: sub.primary_synopsis(),
                 },
             );
         }
@@ -277,6 +288,10 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
         traits: Traits::empty(),
         leading_options: BTreeSet::new(),
         leading_option_specs: Vec::new(),
+        synopsis: scoped
+            .hover
+            .as_ref()
+            .and_then(|h| h.synopsis.iter().copied().find(|s| !s.is_empty())),
     })
 }
 
