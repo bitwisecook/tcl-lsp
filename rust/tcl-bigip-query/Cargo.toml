@@ -37,6 +37,9 @@ tcl-lexer = { path = "../tcl-lexer" }
 # stack `layer`, used to sort profiles into traffic order. Pure data + logic,
 # so it stays wasm-safe for the report/console build.
 tcl-registry = { path = "../tcl-registry" }
+# Shared Tcl semantics layer — `string match` glob (`Tcl_StringCaseMatch`) for
+# the forensic file builtins. Pure `&str` logic, wasm-safe.
+tcl-syntax = { path = "../tcl-syntax" }
 base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 indexmap = "2"

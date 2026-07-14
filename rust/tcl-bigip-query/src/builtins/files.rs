@@ -27,6 +27,7 @@
 //! same set the report's Forensics tab uses).
 
 use indexmap::IndexMap;
+use tcl_syntax::glob::string_match;
 
 use crate::errors::QueryError;
 use crate::eval::{EvalContext, FileOp, FilesReader};
@@ -85,26 +86,6 @@ fn is_text(v: &Value) -> bool {
     matches!(v, Value::Object(m) if matches!(m.get("is_text"), Some(Value::Bool(true))))
 }
 
-/// Minimal shell-style glob → regex: `*` matches any run, `?` one character;
-/// everything else is literal. Matched against the whole path.
-fn glob_match(pattern: &str, text: &str) -> bool {
-    let mut re = String::with_capacity(pattern.len() + 8);
-    re.push('^');
-    for ch in pattern.chars() {
-        match ch {
-            '*' => re.push_str(".*"),
-            '?' => re.push('.'),
-            c if r".+()|[]{}^$\".contains(c) => {
-                re.push('\\');
-                re.push(c);
-            }
-            c => re.push(c),
-        }
-    }
-    re.push('$');
-    regex::Regex::new(&re).is_ok_and(|r| r.is_match(text))
-}
-
 /// `files` — the forensic member inventory (`path` / `size` / `sha256` / `is_text`).
 fn bi_files(_args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
     Ok(Value::List(inventory(ctx, "files")?))
@@ -116,7 +97,7 @@ fn bi_glob(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
     let inv = inventory(ctx, "glob")?;
     Ok(Value::List(
         inv.into_iter()
-            .filter(|f| path_of(f).is_some_and(|p| glob_match(&pat, p)))
+            .filter(|f| path_of(f).is_some_and(|p| string_match(&pat, p)))
             .collect(),
     ))
 }
@@ -161,7 +142,7 @@ fn bi_grep(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
             continue;
         }
         if let Some(g) = &path_glob
-            && !glob_match(g, p)
+            && !string_match(g, p)
         {
             continue;
         }
@@ -199,16 +180,32 @@ mod tests {
 
     #[test]
     fn glob_matching() {
-        assert!(glob_match(
+        assert!(string_match(
             "home/*/.ssh/*",
             "home/admin/.ssh/authorized_keys"
         ));
-        assert!(glob_match("etc/*.conf", "etc/syslog-ng.conf"));
-        assert!(!glob_match("etc/*.conf", "etc/passwd"));
-        assert!(glob_match("etc/passwd", "etc/passwd"));
-        assert!(glob_match("root/.??shrc", "root/.bashrc"));
-        // Regex metacharacters in the pattern are literal.
-        assert!(glob_match("a.b", "a.b"));
-        assert!(!glob_match("a.b", "axb"));
+        assert!(string_match("etc/*.conf", "etc/syslog-ng.conf"));
+        assert!(!string_match("etc/*.conf", "etc/passwd"));
+        assert!(string_match("etc/passwd", "etc/passwd"));
+        assert!(string_match("root/.??shrc", "root/.bashrc"));
+        // Regex metacharacters in the pattern are ordinary glob literals.
+        assert!(string_match("a.b", "a.b"));
+        assert!(!string_match("a.b", "axb"));
+    }
+
+    #[test]
+    fn glob_char_classes_match_tcl_string_match() {
+        // `[…]` sets and ranges work (the old regex-based matcher had none).
+        assert!(string_match("etc/rc[0-6].d/*", "etc/rc2.d/S10network"));
+        assert!(string_match("var/log/messages.[0-9]", "var/log/messages.3"));
+        assert!(string_match("[abc]dir/f", "bdir/f"));
+        // FP guards: a non-member must not match.
+        assert!(!string_match(
+            "var/log/messages.[0-9]",
+            "var/log/messages.x"
+        ));
+        assert!(!string_match("[abc]dir/f", "ddir/f"));
+        // A literal `[` in a path is still expressible by escaping it.
+        assert!(string_match(r"backup\[1\]/etc/*", "backup[1]/etc/hosts"));
     }
 }

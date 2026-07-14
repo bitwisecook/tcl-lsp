@@ -86,7 +86,7 @@ struct ParsedCommand {
 
 // Token → raw source reconstruction
 
-/// Collapse `\<newline>` continuations to a single space.
+/// Collapse `\<newline>` continuations (LF, CR, or CRLF) to a single space.
 ///
 /// `keep_preceding` controls whitespace *before* the backslash. Inside a
 /// double-quoted string that whitespace is literal data, so it must survive
@@ -94,45 +94,14 @@ struct ParsedCommand {
 /// `true`. Inside a command substitution `[…]` (and bare word contexts) the
 /// whole `<ws>\<nl><ws>` run is inter-word spacing the lexer collapses to a
 /// single space, so the preceding whitespace must be trimmed (`[cat a \<nl> b]`
-/// → `[cat a b]`); pass `false`.
+/// → `[cat a b]`); pass `false`. Both delegate to the shared `tcl-syntax`
+/// collapse, which also leaves an escaped backslash (`\\<nl>` — a literal `\`
+/// before a real newline) alone rather than treating it as a continuation.
 fn normalise_backslash_newline(text: &str, keep_preceding: bool) -> String {
-    let mut out = String::with_capacity(text.len());
-    let bytes = text.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'\\' && i + 1 < bytes.len() && bytes[i + 1] == b'\n' {
-            if !keep_preceding {
-                // Trim the whitespace already emitted before the backslash so
-                // the continuation collapses to a single inter-word space.
-                while out.ends_with([' ', '\t']) {
-                    out.pop();
-                }
-            }
-            i += 2;
-            while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
-                i += 1;
-            }
-            out.push(' ');
-        } else {
-            // Copy one UTF-8 char.
-            let ch_len = utf8_len(bytes[i]);
-            out.push_str(&text[i..i + ch_len]);
-            i += ch_len;
-        }
-    }
-    out
-}
-
-/// Byte length of the UTF-8 char whose lead byte is `b`.
-fn utf8_len(b: u8) -> usize {
-    if b < 0x80 {
-        1
-    } else if b >> 5 == 0b110 {
-        2
-    } else if b >> 4 == 0b1110 {
-        3
+    if keep_preceding {
+        tcl_syntax::backslash::collapse_brace_continuations_str(text).into_owned()
     } else {
-        4
+        tcl_syntax::backslash::collapse_separator_continuations_str(text).into_owned()
     }
 }
 
@@ -1620,6 +1589,24 @@ mod tests {
         assert!(
             out.contains("\"a  b\""),
             "expected two spaces preserved: {out:?}"
+        );
+    }
+
+    #[test]
+    fn backslash_newline_collapse_handles_crlf() {
+        // A `\<CR><LF>` continuation collapses exactly like `\<LF>` (the old
+        // LF-only normalisation left the `\` and CRLF in place). In a quoted
+        // string the pre-backslash space is data and survives (`a  b`)…
+        let out = fmt("puts \"a \\\r\n b\"\n");
+        assert!(
+            out.contains("\"a  b\""),
+            "expected CRLF continuation collapsed with data space kept: {out:?}"
+        );
+        // …while in a command substitution the whole run is one separator.
+        let out = fmt("set y [string cat a \\\r\n  b]\n");
+        assert!(
+            out.contains("[string cat a b]"),
+            "expected CRLF continuation collapsed to one separator: {out:?}"
         );
     }
 

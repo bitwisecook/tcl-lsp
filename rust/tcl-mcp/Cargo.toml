@@ -38,6 +38,7 @@ tcl-lsp-core = { path = "../tcl-lsp-core" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-lexer = { path = "../tcl-lexer" }
+tcl-syntax = { path = "../tcl-syntax" }
 tcl-bigip = { path = "../tcl-bigip" }
 tcl-cli = { path = "../tcl-cli" }
 f5-xc = { path = "../f5-xc" }

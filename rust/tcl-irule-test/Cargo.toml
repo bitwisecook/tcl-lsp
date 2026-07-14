@@ -45,6 +45,7 @@ tcl-vm = { path = "../tcl-vm" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-bytecode = { path = "../tcl-bytecode" }
+tcl-syntax = { path = "../tcl-syntax" }
 
 [lints]
 workspace = true

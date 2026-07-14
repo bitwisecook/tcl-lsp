@@ -19,15 +19,19 @@
 //! Tcl backslash-escape decoding — the canonical decoder.
 //!
 //! Re-exports [`tcl_lexer::backslash_subst`] (the one byte-exact implementation
-//! of reference Tcl 9.0's `TclParseBackslash`, shared with the LSP/compiler) and
-//! adds a byte-slice convenience for the runtime, which holds Tcl string reps as
-//! UTF-8 bytes. There is intentionally **no** second decoder: the runtime's old
-//! hand-rolled `bs.rs` (which emitted a raw `0xFF` byte for `\xff`, invalid
-//! UTF-8) is retired in favour of this one (which yields `U+00FF`, matching
-//! Tcl 9 and the UTF-8-internal-rep invariant).
+//! of reference Tcl 9.0's `TclParseBackslash`, shared with the LSP/compiler) as
+//! [`decode`], its extent rule [`tcl_lexer::backslash_escape_end`] as
+//! [`escape_end`] (so scanners that decode one escape at a time advance by the
+//! same widths the decoder consumes), and adds a byte-slice convenience for the
+//! runtime, which holds Tcl string reps as UTF-8 bytes. There is intentionally
+//! **no** second decoder: the runtime's old hand-rolled `bs.rs` (which emitted
+//! a raw `0xFF` byte for `\xff`, invalid UTF-8) is retired in favour of this
+//! one (which yields `U+00FF`, matching Tcl 9 and the UTF-8-internal-rep
+//! invariant).
 
 use std::borrow::Cow;
 
+pub use tcl_lexer::backslash_escape_end as escape_end;
 pub use tcl_lexer::backslash_subst as decode;
 
 /// Decode Tcl backslash escapes in a byte slice that is a valid UTF-8 Tcl string
@@ -56,6 +60,25 @@ pub fn decode_bytes(raw: &[u8]) -> Cow<'_, [u8]> {
 /// continuation (the common case).
 #[must_use]
 pub fn collapse_brace_continuations(raw: &[u8]) -> Cow<'_, [u8]> {
+    collapse_continuations(raw, false)
+}
+
+/// [`collapse_brace_continuations`] for word-*separator* contexts: the spaces
+/// and tabs **preceding** the backslash collapse too, so a whole
+/// `<ws>\<newline><ws>` run becomes a single space. Between the words of a
+/// command (a command substitution `[…]`, a bare word) the run is one
+/// inter-word separator the parser collapses; inside a `{braced}` or
+/// `"quoted"` word the preceding whitespace is string data, which is why
+/// [`collapse_brace_continuations`] keeps it. Borrows unchanged when the input
+/// contains no continuation.
+#[must_use]
+pub fn collapse_separator_continuations(raw: &[u8]) -> Cow<'_, [u8]> {
+    collapse_continuations(raw, true)
+}
+
+/// The shared continuation collapse; `trim_preceding` selects the separator
+/// rule (drop spaces/tabs already emitted before the backslash).
+fn collapse_continuations(raw: &[u8], trim_preceding: bool) -> Cow<'_, [u8]> {
     if !raw
         .windows(2)
         .any(|w| w[0] == b'\\' && matches!(w[1], b'\n' | b'\r'))
@@ -72,6 +95,11 @@ pub fn collapse_brace_continuations(raw: &[u8]) -> Cow<'_, [u8]> {
                     // A `\r` pairs with a following `\n` (CRLF) as one newline.
                     if nl == b'\r' && raw.get(i) == Some(&b'\n') {
                         i += 1;
+                    }
+                    if trim_preceding {
+                        while matches!(out.last(), Some(b' ' | b'\t')) {
+                            out.pop();
+                        }
                     }
                     out.push(b' ');
                     while matches!(raw.get(i), Some(b' ' | b'\t')) {
@@ -108,11 +136,24 @@ pub fn collapse_brace_continuations(raw: &[u8]) -> Cow<'_, [u8]> {
 /// continuation to collapse.
 #[must_use]
 pub fn collapse_brace_continuations_str(text: &str) -> Cow<'_, str> {
-    match collapse_brace_continuations(text.as_bytes()) {
+    collapsed_bytes_to_str(text, collapse_brace_continuations(text.as_bytes()))
+}
+
+/// [`collapse_separator_continuations`] for a `&str`, returning a `Cow<str>`
+/// under the same UTF-8-preservation argument as
+/// [`collapse_brace_continuations_str`].
+#[must_use]
+pub fn collapse_separator_continuations_str(text: &str) -> Cow<'_, str> {
+    collapsed_bytes_to_str(text, collapse_separator_continuations(text.as_bytes()))
+}
+
+/// Rewrap a byte-level collapse of `text` as `Cow<str>`.
+fn collapsed_bytes_to_str<'s>(text: &'s str, collapsed: Cow<'s, [u8]>) -> Cow<'s, str> {
+    match collapsed {
         Cow::Borrowed(_) => Cow::Borrowed(text),
-        Cow::Owned(bytes) => Cow::Owned(
-            String::from_utf8(bytes).expect("brace-continuation collapse preserves UTF-8"),
-        ),
+        Cow::Owned(bytes) => {
+            Cow::Owned(String::from_utf8(bytes).expect("continuation collapse preserves UTF-8"))
+        }
     }
 }
 
@@ -150,6 +191,40 @@ mod tests {
         // No continuation ⇒ borrowed (no allocation), including a literal `\t`.
         assert!(matches!(
             collapse_brace_continuations_str("a\\tb"),
+            Cow::Borrowed(_)
+        ));
+    }
+
+    #[test]
+    fn separator_continuations_trim_preceding_whitespace() {
+        // Word-separator context: the whole `<ws>\<eol><ws>` run is ONE
+        // separator, so the spaces/tabs before the backslash collapse too —
+        // for LF, CR, and CRLF endings alike.
+        assert_eq!(&*collapse_separator_continuations(b"a \\\n  b"), b"a b");
+        assert_eq!(
+            &*collapse_separator_continuations(b"a\t \\\r\n\t b"),
+            b"a b"
+        );
+        assert_eq!(&*collapse_separator_continuations(b"a \\\r  b"), b"a b");
+        // Contrast: the brace/quote rule keeps the preceding space as data.
+        assert_eq!(&*collapse_brace_continuations(b"a \\\n  b"), b"a  b");
+        // FP guards: no continuation borrows unchanged (preceding whitespace
+        // untouched), and an escaped backslash is not a continuation.
+        assert!(matches!(
+            collapse_separator_continuations(b"a  b"),
+            Cow::Borrowed(_)
+        ));
+        assert_eq!(
+            &*collapse_separator_continuations(b"x \\\\\ny"),
+            b"x \\\\\ny"
+        );
+    }
+
+    #[test]
+    fn separator_continuations_str_matches_bytes() {
+        assert_eq!(&*collapse_separator_continuations_str("a \\\r\n b"), "a b");
+        assert!(matches!(
+            collapse_separator_continuations_str("a\\tb"),
             Cow::Borrowed(_)
         ));
     }

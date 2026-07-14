@@ -50,4 +50,5 @@ pub mod mro;
 pub mod naming;
 pub mod number;
 pub mod scan;
+pub mod switch_body;
 pub mod value;

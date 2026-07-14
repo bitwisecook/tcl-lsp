@@ -66,6 +66,7 @@ pub use switch_to_dict::switch_to_dict;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset};
 use tcl_lexer::{LineIndex, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_syntax::switch_body::parse_braced_pairs;
 
 use crate::definition::LspRange;
 
@@ -399,75 +400,6 @@ pub fn parse_exact_switch(texts: &[String]) -> Option<(String, Vec<(String, Stri
         p
     };
     Some((subject, pairs))
-}
-
-/// Parse `{pat1 {body1} pat2 {body2} …}` into pattern/body pairs.
-/// Both the switch transforms share it.
-#[must_use]
-pub fn parse_braced_pairs(text: &str) -> Vec<(String, String)> {
-    let mut text = text.trim();
-    if text.starts_with('{') && text.ends_with('}') && text.len() >= 2 {
-        text = text[1..text.len() - 1].trim();
-    }
-    let tokens = tokenise_switch_body(text);
-    let mut pairs = Vec::new();
-    let mut i = 0;
-    while i + 1 < tokens.len() {
-        pairs.push((tokens[i].clone(), tokens[i + 1].clone()));
-        i += 2;
-    }
-    pairs
-}
-
-/// Brace-aware tokeniser for switch body contents.
-#[must_use]
-pub fn tokenise_switch_body(text: &str) -> Vec<String> {
-    let bytes = text.as_bytes();
-    let n = bytes.len();
-    let mut tokens = Vec::new();
-    let mut i = 0;
-    while i < n {
-        while i < n && matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-            i += 1;
-        }
-        if i >= n {
-            break;
-        }
-        if bytes[i] == b'{' {
-            let mut depth = 1;
-            let start = i;
-            i += 1;
-            while i < n && depth > 0 {
-                match bytes[i] {
-                    b'{' => depth += 1,
-                    b'}' => depth -= 1,
-                    _ => {}
-                }
-                i += 1;
-            }
-            tokens.push(text[start..i].to_owned());
-        } else if bytes[i] == b'"' {
-            let start = i;
-            i += 1;
-            while i < n && bytes[i] != b'"' {
-                if bytes[i] == b'\\' {
-                    i += 1;
-                }
-                i += 1;
-            }
-            if i < n {
-                i += 1;
-            }
-            tokens.push(text[start..i].to_owned());
-        } else {
-            let start = i;
-            while i < n && !matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r' | b'{' | b'}') {
-                i += 1;
-            }
-            tokens.push(text[start..i].to_owned());
-        }
-    }
-    tokens
 }
 
 /// Leading-whitespace indent of `line`.

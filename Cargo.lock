@@ -4054,6 +4054,7 @@ dependencies = [
  "tcl-bigip",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-syntax",
  "temp-env",
  "ureq",
  "x509-parser",
@@ -4209,6 +4210,7 @@ dependencies = [
  "tcl-bytecode",
  "tcl-compiler",
  "tcl-registry",
+ "tcl-syntax",
  "tcl-vm",
 ]
 
@@ -4297,6 +4299,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-syntax",
  "tcl-version",
  "tokio",
 ]
