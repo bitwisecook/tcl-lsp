@@ -38,6 +38,11 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
 # 177 paired FP tests passing (+ 2 expected xfails for genuine
 # open findings: namespace upvar, ARRAY_ELEM dead-store).  Catalog
 # is now complete for every resolved item in this checklist.
+#
+# Update (2026-07-14): the two remaining open findings above are CLOSED in
+# the Rust analyser — see the "namespace upvar" and "ARRAY_ELEM dead-store"
+# entries at the end of "Resolved this audit".  No expected xfails remain;
+# the Rust FP suite carries no `#[ignore]` for either finding.
 
 ## Resolved this audit (FP fixed, paired tests landed)
 
@@ -241,6 +246,50 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   existing taint lattice that drives T100/T101.  Sound — evidence is
   the dispatches themselves, in the same proc, and taint disqualifies
   the heuristic.  Corpus W307 (800 files): **2912 → 444 (-85%)**.
+- [x] **FP-RBS-05** `namespace upvar` alias handling (incl. array-element
+  sources) — CLOSED (2026-07-14).  tclsh 8.6 + `tclNamesp.c
+  NamespaceUpvarCmd` confirm the semantics the analyser must honour: the
+  otherVar resolves via `TclObjLookupVarEx(..., createPart1=1,
+  createPart2=1)` in the target namespace, so **`arr(k)` is a valid source**
+  (created on demand; reads/writes through the alias hit `ns::arr(k)`;
+  linking alone does not create it — `info exists alias` stays 0 until the
+  target exists); the local side must be a scalar (`TclPtrMakeUpvar` rejects
+  `myarr(k)`).  The Rust analyser routes the alias-local recognition through
+  the shared `var_scoping` pair grammar (`scan_scope_aliases`, the
+  W210 scope-alias suppression + dynamic-target override, and
+  `var_observability::stmt_gen`), which covers scalar AND element sources —
+  the Python port's missing-def W210 FP does not reproduce, and the feared
+  shimmer cascade does not manifest (aliases are structurally recognised,
+  not def-inferred).  One residual defect did survive: the lowered
+  `namespace upvar` Call carries no `Call::defs` (unlike
+  `global`/`variable`/`upvar`), and `sccp::existence_constant_branches`
+  keyed defined-ness off defs alone, folding `[info exists alias]` to
+  constant-false — I230 + an O101 DCE miscompile-hint on the exact
+  `::safe::CheckInterp` guard shape (safe.tcl:109) the FP.md entry cites.
+  Fixed at the fold: scope-alias locals never fold (their existence tracks
+  the linked variable).  Paired tests:
+  `fp_rbs_05_namespace_upvar_array_element_silent` (+ write-only FP guard,
+  `$other` TP control, I230 guard pair) and
+  `info_exists_does_not_fold_scope_alias_locals` /
+  `info_exists_fold_survives_unrelated_scope_alias` (fold-alive control).
+- [x] **FP-DS-06** ARRAY_ELEM same-element dead-store — CLOSED (2026-07-14).
+  The Python-era xfail (`test_FP_DS_06_same_element_overwrite_still_fires`)
+  tracked the missing must-alias kill; the Rust analyser has it:
+  `place_bridge::must_alias_killed_in_block` overrides the element-observed
+  suppression for a straight-line overwrite of the same literal-key element
+  with no intervening read, so `set a(k) 1; set a(k) 2; return $a(k)` fires
+  W220 on the first write (O109 has the elimination-side pair).  tclsh 8.6
+  evidence: the proc returns 2 and a write trace fires for BOTH writes —
+  without a trace/alias the first write is unobservable, a genuine dead
+  store; distinct keys (`a(k)`/`a(j)`) remain independent live slots.
+  Cross-block and hidden-read same-key overwrites deliberately degrade to
+  conservative silence (sound; the kill is per-block by design).  New
+  adjacent FP guards: a cmd-sub read between the writes cancels the kill
+  (`fp_ds_06_cmdsub_read_between_same_element_writes_cancels_kill`) and a
+  traced array's overwrite stays silent
+  (`fp_ds_06_traced_array_same_element_overwrite_silent`), joining the
+  existing `fp_ds_06_*` pair, `state.rs::w220_must_alias_kill_same_array_element`
+  and `elimination.rs::o109_array_element_*`.
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 

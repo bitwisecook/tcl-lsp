@@ -921,16 +921,17 @@ mod no_read_before_set {
     }
 
     #[test]
-    fn vwait_var_is_not_read_before_set() {
-        // The analyser does NOT exempt `vwait varName`: it flags the `vwait`
-        // operand as a read-before-set (W210). The Tcl fact that `vwait` waits
-        // rather than reads is real (`vwait forever` is the canonical
-        // infinite-wait idiom), but the verdict here is the conservative
-        // over-warn; we capture it (and exercise the `vwait` path) at the actual
-        // verdict.
-        assert!(fires("proc p {} { vwait forever }", "W210"));
-        assert!(fires("proc p {} { vwait sig }", "W210"));
-        assert!(fires("vwait forever", "W210"));
+    fn vwait_var_is_a_write_not_a_read_before_set() {
+        // The registry models the `vwait` operand as a `VarWrite`, matching
+        // C Tcl: `Tcl_VwaitObjCmd` (tclEvent.c) never reads the variable's
+        // value — it installs a `TCL_TRACE_WRITES|TCL_TRACE_UNSETS` trace
+        // (creating the entry when absent) and returns only once an event
+        // handler has *written* it. `vwait forever` on a never-set variable
+        // is the canonical infinite-wait idiom, so no W210 fires on the
+        // operand (the pre-registry `VarRead` model over-warned here).
+        assert!(!fires("proc p {} { vwait forever }", "W210"));
+        assert!(!fires("proc p {} { vwait sig }", "W210"));
+        assert!(!fires("vwait forever", "W210"));
     }
 
     #[test]

@@ -21,6 +21,9 @@
 //! Extends [`CodegenCtx`] with methods for emitting `beginCatch4`/`endCatch`
 //! bytecodes for `catch` and `try` commands.
 
+use tcl_registry::hooks::InlineCodegenHookId;
+use tcl_registry::{CommandRegistry, Traits};
+
 use crate::cfg::Function as CfgFunction;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
@@ -53,9 +56,14 @@ pub fn detect_const_expr_error(node: &ExprNode) -> Option<(String, String)> {
 
 /// Whether a body script is a straight-line sequence of simple commands the
 /// inline `dict for` emitter can compile — no nested control flow (which needs
-/// its own blocks), no `break`/`continue` (which need loop-exception routing we
+/// its own blocks), no loop jumps (which need loop-exception routing we
 /// don't emit yet), and no nested definitions.
-fn is_straight_line_body(script: &crate::ir::Script) -> bool {
+///
+/// The loop-jump set is the registry's [`Traits::BREAKS_LOOP`] /
+/// [`Traits::CONTINUES_LOOP`] classification, matched against the raw
+/// head word (a `::`-qualified spelling never matched the retired
+/// hardcoded names, so it stays straight-line).
+fn is_straight_line_body(script: &crate::ir::Script, registry: &CommandRegistry) -> bool {
     script.statements.iter().all(|s| {
         // Reject nested control flow (needs its own blocks), opaque body
         // commands, frame shifts, and `break`/`continue` (need loop-exception
@@ -72,7 +80,12 @@ fn is_straight_line_body(script: &crate::ir::Script) -> bool {
             | Statement::Block { .. }
             | Statement::UpFrame { .. }
             | Statement::Barrier { .. } => false,
-            Statement::Call { command, .. } => command != "break" && command != "continue",
+            Statement::Call { command, .. } => !registry.get(command).is_some_and(|spec| {
+                spec.name == command.as_str()
+                    && spec
+                        .traits
+                        .intersects(Traits::BREAKS_LOOP | Traits::CONTINUES_LOOP)
+            }),
             _ => true,
         }
     })
@@ -207,7 +220,7 @@ impl CodegenCtx<'_> {
         let body_ir = crate::lowering::lower_to_ir(body_text, self.registry);
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
-            || !is_straight_line_body(&body_ir.top_level)
+            || !is_straight_line_body(&body_ir.top_level, self.registry)
         {
             return false;
         }
@@ -312,7 +325,7 @@ impl CodegenCtx<'_> {
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || body_ir.top_level.statements.is_empty()
-            || !is_straight_line_body(&body_ir.top_level)
+            || !is_straight_line_body(&body_ir.top_level, self.registry)
         {
             return false;
         }
@@ -447,7 +460,7 @@ impl CodegenCtx<'_> {
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || body_ir.top_level.statements.is_empty()
-            || !is_straight_line_body(&body_ir.top_level)
+            || !is_straight_line_body(&body_ir.top_level, self.registry)
         {
             return false;
         }
@@ -547,7 +560,7 @@ impl CodegenCtx<'_> {
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || body_ir.top_level.statements.is_empty()
-            || !is_straight_line_body(&body_ir.top_level)
+            || !is_straight_line_body(&body_ir.top_level, self.registry)
         {
             return false;
         }
@@ -723,6 +736,13 @@ impl CodegenCtx<'_> {
     }
 
     /// Compile a single-command catch body inline.
+    ///
+    /// Both classifications here are registry data: the
+    /// `startCommand`-wrapping set is [`Traits::NEEDS_START_CMD`] and
+    /// the per-command inline emitters dispatch on the spec's
+    /// [`InlineCodegenHookId`]. The spec-name equality check keeps
+    /// `::`-qualified spellings (`catch {::error x}`) on the generic
+    /// path, exactly as the retired raw-word `match` did.
     pub fn emit_catch_body(&mut self, body: &str) {
         let body_parts = parse_cmd_parts(body);
         if body_parts.is_empty() {
@@ -733,11 +753,13 @@ impl CodegenCtx<'_> {
         let body_cmd = &body_parts[0].0;
         let body_args = &body_parts[1..];
 
-        // Commands that need startCommand wrapping
-        let needs_start_cmd = matches!(
-            body_cmd.as_str(),
-            "return" | "error" | "break" | "continue" | "expr"
-        );
+        let spec = self
+            .registry
+            .get(body_cmd)
+            .filter(|s| s.name == body_cmd.as_str());
+
+        // Commands that need startCommand wrapping.
+        let needs_start_cmd = spec.is_some_and(|s| s.traits.contains(Traits::NEEDS_START_CMD));
 
         let sc_label = if needs_start_cmd {
             let label = self.fresh_label("catch_body_end");
@@ -752,16 +774,20 @@ impl CodegenCtx<'_> {
             None
         };
 
-        match body_cmd.as_str() {
-            "return" => self.emit_catch_return(body_args),
-            "error" => self.emit_catch_error(body_args),
-            "break" => {
+        // Hooks this catch-body dispatcher does not specialise
+        // (`Incr`, `String`, …, which only the value-position
+        // dispatcher in `cmd_subst` emits inline) fall to the generic
+        // invoke arm, as do guard failures.
+        match spec.and_then(|s| s.inline_codegen_hook) {
+            Some(InlineCodegenHookId::Return) => self.emit_catch_return(body_args),
+            Some(InlineCodegenHookId::Error) => self.emit_catch_error(body_args),
+            Some(InlineCodegenHookId::Break) => {
                 self.emit(Op::BREAK, vec![]);
             }
-            "continue" => {
+            Some(InlineCodegenHookId::Continue) => {
                 self.emit(Op::CONTINUE, vec![]);
             }
-            "expr" if body_args.len() == 1 => {
+            Some(InlineCodegenHookId::Expr) if body_args.len() == 1 => {
                 let expr_text = &body_args[0].0;
                 let node = crate::expr_parser::parse_expr(expr_text, None);
                 if let Some((msg, opts)) = detect_const_expr_error(&node) {
@@ -772,7 +798,7 @@ impl CodegenCtx<'_> {
                     self.emit_expr(&node);
                 }
             }
-            "try"
+            Some(InlineCodegenHookId::Try)
                 if self.is_proc
                     && body_args.len() == 5
                     && body_args[1].0 == "on"
@@ -1209,9 +1235,18 @@ impl CodegenCtx<'_> {
     }
 
     /// Emit a statement in try-body context.
+    ///
+    /// A call whose spec carries the [`InlineCodegenHookId::Error`]
+    /// inline hook (i.e. `error`, whose first argument is the message)
+    /// emits the `returnImm 1 0` throw sequence directly; the raw-name
+    /// equality on the spec keeps qualified spellings on the generic
+    /// statement path, as the retired `command == "error"` check did.
     pub fn emit_try_body_stmt(&mut self, stmt: &Statement) {
         if let Statement::Call { command, args, .. } = stmt
-            && command == "error"
+            && self.registry.get(command).is_some_and(|s| {
+                s.name == command.as_str()
+                    && s.inline_codegen_hook == Some(InlineCodegenHookId::Error)
+            })
         {
             if let Some(arg) = args.first() {
                 self.emit_value(arg, false);
@@ -1349,5 +1384,62 @@ mod tests {
             }),
         };
         assert!(detect_const_expr_error(&node).is_none());
+    }
+
+    // -- registry drift: catch-body classifications --
+
+    /// The registry's `NEEDS_START_CMD` set must equal the hardcoded
+    /// list `emit_catch_body` used to match — a future stamping change
+    /// is then a conscious decision, not a silent bytecode change.
+    #[test]
+    fn needs_start_cmd_trait_matches_previous_hardcoded_set() {
+        let registry = CommandRegistry::build_default();
+        let mut got = registry.commands_with_trait(Traits::NEEDS_START_CMD);
+        got.sort_unstable();
+        assert_eq!(got, ["break", "continue", "error", "expr", "return"]);
+    }
+
+    /// `break` in a catch body keeps its inline `break` opcode under a
+    /// `startCommand` wrap (hook + trait both registry-resolved).
+    #[test]
+    fn catch_body_break_emits_break_op() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.emit_catch_body("break");
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::BREAK), "expected BREAK, got {ops:?}");
+        assert!(
+            ops.contains(&Op::START_CMD),
+            "break needs a startCommand wrap, got {ops:?}"
+        );
+    }
+
+    /// `::error` resolves in the registry (leading `::` falls back to
+    /// the bare spec), but the retired dispatch keyed on the raw word —
+    /// the qualified spelling must keep the generic invoke and no
+    /// startCommand wrap.
+    #[test]
+    fn catch_body_qualified_error_stays_generic() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.emit_catch_body("::error boom");
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(!ops.contains(&Op::RETURN_IMM), "no inline throw: {ops:?}");
+        assert!(!ops.contains(&Op::START_CMD), "no startCommand: {ops:?}");
+        assert!(ops.contains(&Op::INVOKE_STK1), "generic invoke: {ops:?}");
+    }
+
+    /// `throw` carries `CATCHABLE_THROW` like `error`, but its first
+    /// argument is the error-code *type*, not the message — it has no
+    /// `Error` inline hook, so a catch body must keep the generic
+    /// invoke for it (guarding the throw ≠ error distinction).
+    #[test]
+    fn catch_body_throw_stays_generic() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.emit_catch_body("throw {A B} boom");
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(!ops.contains(&Op::RETURN_IMM), "no inline throw: {ops:?}");
+        assert!(ops.contains(&Op::INVOKE_STK1), "generic invoke: {ops:?}");
     }
 }

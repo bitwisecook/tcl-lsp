@@ -43,8 +43,8 @@ use tcl_compiler::loops::{build_loop_forest, dominates};
 use tcl_compiler::optimiser::{apply_optimisations, find_dead_stores, optimise, optimise_by_pass};
 use tcl_compiler::segmenter::{segment_commands, segment_commands_with_offset_and_config};
 use tcl_compiler::shimmer::{
-    find_byte_array_warnings_for_cu, find_shimmer_warnings_for_cu, find_thunking_warnings_for_cu,
-    type_name,
+    find_byte_array_warnings_for_cu, find_sharing_warnings_for_cu, find_shimmer_warnings_for_cu,
+    find_thunking_warnings_for_cu, type_name,
 };
 use tcl_compiler::taint::find_taint_warnings_for_cu;
 use tcl_lexer::{LexerConfig, LineIndex, Span, TokenType};
@@ -407,9 +407,9 @@ fn shimmer_severity(code: &str) -> &'static str {
     if code == "S102" { "error" } else { "warning" }
 }
 
-/// Serialise the `shimmer` view: intrep-shimmer (S100/S101) and
-/// loop-thunking (S102) warnings., combining
-/// both warning kinds into one list. This view is strictly gated by the
+/// Serialise the `shimmer` view: intrep-shimmer (S100/S101), loop-thunking
+/// (S102), and shared-value copy-on-write (S103) warnings, combining
+/// the warning kinds into one list. This view is strictly gated by the
 /// differential harness.
 #[must_use]
 pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
@@ -437,6 +437,19 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
             "variable": w.variable,
             "typeA": type_name(w.type_a),
             "typeB": type_name(w.type_b),
+        }));
+    }
+    // Shared-value copy-on-write (S103) — a mutation that duplicates the
+    // whole value because another live variable still holds it.
+    for w in find_sharing_warnings_for_cu(&result.unit, registry) {
+        out.push(json!({
+            "code": w.code.as_str(),
+            "message": w.message,
+            "range": range_dict(w.span, li, source),
+            "severity": shimmer_severity(w.code.as_str()),
+            "variable": w.variable,
+            "sharedWith": w.shared_with,
+            "command": w.command,
         }));
     }
     // Byte-array corruption (S110) — a correctness shimmer with the same

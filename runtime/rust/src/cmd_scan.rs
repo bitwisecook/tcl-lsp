@@ -33,13 +33,6 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"scan", scan_cmd);
 }
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 /// Build the runtime object for a scanned value: `%d`→wide int, `%f`→double,
 /// `%s`/`%[`→string. Returned fresh (rc-0); the caller adopts it.
 fn scanned_obj(v: &Scanned) -> *mut TclObj {
@@ -52,7 +45,7 @@ fn scanned_obj(v: &Scanned) -> *mut TclObj {
 
 fn scan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return wrong_args(interp, b"scan string format ?varName ...?");
+        return interp.wrong_args(b"scan string format ?varName ...?");
     }
     let input: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[1]))
         .chars()

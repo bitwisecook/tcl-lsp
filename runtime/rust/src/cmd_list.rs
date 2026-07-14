@@ -68,13 +68,6 @@ pub fn install(interp: &mut Interp) {
 
 // -- helpers ---------------------------------------------------------------
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 /// Set the result to a list built from element objects (each retained).
 fn set_list(interp: &mut Interp, elems: &[*mut TclObj]) {
     interp.set_result(list::new_list_obj(elems));
@@ -104,7 +97,7 @@ fn list_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `llength list`.
 fn llength(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 2 {
-        return wrong_args(interp, b"llength list");
+        return interp.wrong_args(b"llength list");
     }
     let r = list_core::llength(interp, &argv[1]);
     adapt(interp, r)
@@ -117,7 +110,7 @@ fn llength(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `Tcl_LindexObjCmd` (`TclLindexList`/`TclLindexFlat`).
 fn lindex(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"lindex list ?index ...?");
+        return interp.wrong_args(b"lindex list ?index ...?");
     }
     let r = list_core::lindex(interp, &argv[1], &argv[2..]);
     adapt(interp, r)
@@ -127,7 +120,7 @@ fn lindex(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// if unset), copy-on-write if the value is shared. Returns the new list.
 fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"lappend varName ?value ...?");
+        return interp.wrong_args(b"lappend varName ?value ...?");
     }
     let name = obj_bytes(argv[1]);
     let values = &argv[2..];
@@ -195,7 +188,7 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// clamped to range.
 fn lrange(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
-        return wrong_args(interp, b"lrange list first last");
+        return interp.wrong_args(b"lrange list first last");
     }
     let r = list_core::lrange(interp, &argv[1], &argv[2], &argv[3]);
     adapt(interp, r)
@@ -204,7 +197,7 @@ fn lrange(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `lreverse list`.
 fn lreverse(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 2 {
-        return wrong_args(interp, b"lreverse list");
+        return interp.wrong_args(b"lreverse list");
     }
     let r = list_core::lreverse(interp, &argv[1]);
     adapt(interp, r)
@@ -222,7 +215,7 @@ fn concat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// (default a single space).
 fn join(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
-        return wrong_args(interp, b"join list ?joinString?");
+        return interp.wrong_args(b"join list ?joinString?");
     }
     let sep = if argv.len() == 3 {
         Some(&argv[2])
@@ -237,7 +230,7 @@ fn join(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// (default whitespace). An empty `splitChars` makes each byte an element.
 fn split(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
-        return wrong_args(interp, b"split string ?splitChars?");
+        return interp.wrong_args(b"split string ?splitChars?");
     }
     let chars = if argv.len() == 3 {
         Some(&argv[2])
@@ -253,7 +246,7 @@ fn split(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// (missing → empty string); return the unassigned tail as a list.
 fn lassign(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"lassign list ?varName ...?");
+        return interp.wrong_args(b"lassign list ?varName ...?");
     }
     let elems = match list::list_elements(argv[1]) {
         Ok(e) => e,
@@ -305,7 +298,7 @@ fn bad_list(interp: &mut Interp, e: crate::parse::ListError) -> Code {
 /// rather than an overflowing `count * values.len()` (RUST_ISSUE_094 / 169).
 fn lrepeat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"lrepeat count ?value ...?");
+        return interp.wrong_args(b"lrepeat count ?value ...?");
     }
     let r = list_core::lrepeat(interp, &argv[1], &argv[2..]);
     adapt(interp, r)
@@ -314,7 +307,7 @@ fn lrepeat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `linsert list index ?element ...?` — insert before `index` (`end` appends).
 fn linsert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return wrong_args(interp, b"linsert list index ?element ...?");
+        return interp.wrong_args(b"linsert list index ?element ...?");
     }
     let r = list_core::linsert(interp, &argv[1], &argv[2], &argv[3..]);
     adapt(interp, r)
@@ -323,7 +316,7 @@ fn linsert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `lreplace list first last ?element ...?` — replace the `[first,last]` range.
 fn lreplace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return wrong_args(interp, b"lreplace list first last ?element ...?");
+        return interp.wrong_args(b"lreplace list first last ?element ...?");
     }
     let r = list_core::lreplace(interp, &argv[1], &argv[2], &argv[3], &argv[4..]);
     adapt(interp, r)
@@ -412,7 +405,7 @@ fn lset_descend(
 /// path (`lset x {1 0} v`); multiple index args are each one index.
 fn lset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return wrong_args(interp, b"lset listVar ?index? ?index ...? value");
+        return interp.wrong_args(b"lset listVar ?index? ?index ...? value");
     }
     let name = obj_bytes(argv[1]);
     let (base, elem) = crate::frame::split_array_ref(&name);
@@ -458,7 +451,7 @@ fn lset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn ledit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return wrong_args(interp, b"ledit listVar first last ?element ...?");
+        return interp.wrong_args(b"ledit listVar first last ?element ...?");
     }
     let name = obj_bytes(argv[1]);
     let (base, elem) = crate::frame::split_array_ref(&name);
@@ -516,7 +509,7 @@ fn ledit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `end`-relative index resolves via the shared index core (RUST_ISSUE_007).
 fn lpop(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"lpop varName ?index?");
+        return interp.wrong_args(b"lpop varName ?index?");
     }
     let name = obj_bytes(argv[1]);
     let (base, elem) = crate::frame::split_array_ref(&name);
@@ -581,7 +574,7 @@ fn lpop(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// collapse, and out-of-range indices are ignored (RUST_ISSUE_007).
 fn lremove(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"lremove list ?index ...?");
+        return interp.wrong_args(b"lremove list ?index ...?");
     }
     let elems = match list::list_elements(argv[1]) {
         Ok(v) => v,

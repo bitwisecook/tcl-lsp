@@ -41,7 +41,7 @@ pub fn install(interp: &mut Interp) {
 
 fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"dict subcommand ?arg ...?");
+        return interp.wrong_args(b"dict subcommand ?arg ...?");
     }
     let sub = obj_bytes(argv[1]);
     // Pure dict subcommands now live in the shared command core; the runtime is
@@ -103,7 +103,7 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let rest = &argv[2..];
     if rest.len() % 2 != 0 {
-        return wrong_args(interp, b"dict create ?key value ...?");
+        return interp.wrong_args(b"dict create ?key value ...?");
     }
     let pairs: Vec<(*mut TclObj, *mut TclObj)> =
         rest.chunks_exact(2).map(|c| (c[0], c[1])).collect();
@@ -114,7 +114,7 @@ fn create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `dict get dictValue ?key?` — the value for `key`, or the whole dict if no key.
 fn get(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return wrong_args(interp, b"dict get dictionary ?key ...?");
+        return interp.wrong_args(b"dict get dictionary ?key ...?");
     }
     if argv.len() == 3 {
         interp.set_result(argv[2]); // whole dict
@@ -138,7 +138,7 @@ fn get(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `dict exists dictValue key`
 fn exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return wrong_args(interp, b"dict exists dictionary key ?key ...?");
+        return interp.wrong_args(b"dict exists dictionary key ?key ...?");
     }
     // Drill the key path; a missing key or a non-dict along the way → 0 (Tcl
     // `dict exists` reports false rather than erroring).
@@ -166,7 +166,7 @@ fn exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// unspecified; we report the entry count). Validates the dict first.
 fn info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return wrong_args(interp, b"dict info dictionary");
+        return interp.wrong_args(b"dict info dictionary");
     }
     match dict::dict_pairs(argv[2]) {
         Ok(pairs) => {
@@ -181,7 +181,7 @@ fn info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `dict size dictionary`
 fn size(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return wrong_args(interp, b"dict size dictionary");
+        return interp.wrong_args(b"dict size dictionary");
     }
     match dict::dict_size(argv[2]) {
         Ok(n) => {
@@ -219,7 +219,7 @@ fn glob_filtered_result(
 /// `dict keys dictionary ?pattern?` — keys in insertion order, glob-filtered.
 fn keys(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 || argv.len() > 4 {
-        return wrong_args(interp, b"dict keys dictionary ?pattern?");
+        return interp.wrong_args(b"dict keys dictionary ?pattern?");
     }
     match dict::dict_keys(argv[2]) {
         Ok(ks) => glob_filtered_result(interp, argv, ks),
@@ -230,7 +230,7 @@ fn keys(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `dict values dictionary ?pattern?` — values in insertion order, glob-filtered.
 fn values(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 || argv.len() > 4 {
-        return wrong_args(interp, b"dict values dictionary ?pattern?");
+        return interp.wrong_args(b"dict values dictionary ?pattern?");
     }
     match dict::dict_pairs(argv[2]) {
         Ok(pairs) => {
@@ -300,10 +300,8 @@ fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(e) => return bad_dict(interp, e),
     };
     if argv.len() != 6 {
-        return wrong_args(
-            interp,
-            b"dict filter dictionary script {keyVarName valueVarName} filterScript",
-        );
+        return interp
+            .wrong_args(b"dict filter dictionary script {keyVarName valueVarName} filterScript");
     }
     // The two variable names are parsed as a *list*: a malformed list surfaces
     // the list parse error verbatim (dict-17.20), then a count other than two is
@@ -437,7 +435,7 @@ fn store_dict(interp: &mut Interp, name: &[u8], target: *mut TclObj, is_new: boo
 /// `dict append dictVarName key ?value ...?` — string-append to the key's value.
 fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return wrong_args(interp, b"dict append dictVarName key ?value ...?");
+        return interp.wrong_args(b"dict append dictVarName key ?value ...?");
     }
     let name = obj_bytes(argv[2]);
     let key = argv[3];
@@ -466,7 +464,7 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `dict lappend dictVarName key ?value ...?` — list-append to the key's value.
 fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return wrong_args(interp, b"dict lappend dictVarName key ?value ...?");
+        return interp.wrong_args(b"dict lappend dictVarName key ?value ...?");
     }
     let name = obj_bytes(argv[2]);
     let key = argv[3];
@@ -508,7 +506,7 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `wrapping_add` (RUST_ISSUE_093 / 166).
 fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 || argv.len() > 5 {
-        return wrong_args(interp, b"dict incr dictVarName key ?increment?");
+        return interp.wrong_args(b"dict incr dictVarName key ?increment?");
     }
     let name = obj_bytes(argv[2]);
     let key = argv[3];
@@ -551,7 +549,7 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// dicts along the path as needed.
 fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 5 {
-        return wrong_args(interp, b"dict set dictVarName key ?key ...? value");
+        return interp.wrong_args(b"dict set dictVarName key ?key ...? value");
     }
     let name = obj_bytes(argv[2]);
     let keys = &argv[3..argv.len() - 1];
@@ -616,7 +614,7 @@ fn dict_path_set(
 /// nested) key path from the dict held by the variable.
 fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return wrong_args(interp, b"dict unset dictVarName key ?key ...?");
+        return interp.wrong_args(b"dict unset dictVarName key ?key ...?");
     }
     let name = obj_bytes(argv[2]);
     let keys = &argv[3..];
@@ -690,10 +688,7 @@ fn dict_path_unset(dict: *mut TclObj, keys: &[*mut TclObj]) -> Result<(), PathEr
 /// evaluating `body` in the current scope with the loop vars set.
 fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
-        return wrong_args(
-            interp,
-            b"dict for {keyVarName valueVarName} dictionary script",
-        );
+        return interp.wrong_args(b"dict for {keyVarName valueVarName} dictionary script");
     }
     let var_spec = obj_bytes(argv[2]);
     let vars = match parse::split_list(&var_spec) {
@@ -737,10 +732,7 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// transformed dict. `continue` drops the key, `break` stops.
 fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
-        return wrong_args(
-            interp,
-            b"dict map {keyVarName valueVarName} dictionary script",
-        );
+        return interp.wrong_args(b"dict map {keyVarName valueVarName} dictionary script");
     }
     let vars = match parse::split_list(&obj_bytes(argv[2])) {
         Ok(v) => v,
@@ -790,10 +782,7 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // [dict, update, dictVar, k, v, k, v, …, body]: at least one pair + body.
     if argv.len() < 6 || argv.len() % 2 != 0 {
-        return wrong_args(
-            interp,
-            b"dict update dictVarName key varName ?key varName ...? script",
-        );
+        return interp.wrong_args(b"dict update dictVarName key varName ?key varName ...? script");
     }
     let dict_var = obj_bytes(argv[2]);
     let body_obj = argv[argv.len() - 1];
@@ -850,7 +839,7 @@ fn update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// local var, run body, write the vars back. Supports a leading key path.
 fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return wrong_args(interp, b"dict with dictVarName ?key ...? script");
+        return interp.wrong_args(b"dict with dictVarName ?key ...? script");
     }
     let dict_var = obj_bytes(argv[2]);
     let body_obj = argv[argv.len() - 1];
@@ -944,13 +933,6 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 // -- helpers ---------------------------------------------------------------
-
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
 
 /// The C `-errorcode` for a dict string-parse failure, keyed off the message the
 /// shared `tcl-cmd-core` core produced (which carries no code of its own). The

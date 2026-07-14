@@ -35,8 +35,81 @@ use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 use crate::regex_source::regexp_pattern_index;
 use tcl_core_types::DiagCode;
+use tcl_registry::Traits;
+use tcl_registry::arg_role::ArgRole;
 
 impl Analyser {
+    /// Registry spec for `cmd_name` (`None` when no registry is loaded or
+    /// the command is unknown).  Shared lookup for the trait-gated security
+    /// checks below — none of them match on command-name strings.
+    fn security_spec(&self, cmd_name: &str) -> Option<&tcl_registry::CommandSpec> {
+        self.registry.as_ref().and_then(|r| r.get(cmd_name))
+    }
+
+    /// W101's gate: a command that concatenates **all** of its arguments
+    /// into a script and re-parses the result (`eval`).
+    ///
+    /// [`Traits::EVALUATES_CODE`] alone is too wide for this shape:
+    /// `uplevel` carries it but takes an optional leading `level` word
+    /// (its script position is call-shape-dependent, owned by W301), and
+    /// the coroutine injectors (`coroinject` / `coroprobe`) carry it but
+    /// take a coroutine name plus a command *prefix* — a word list that is
+    /// never re-parsed.  The concat-reparse shape is the spec that pairs
+    /// the trait with [`Traits::TAINT_SINK`] and statically declares its
+    /// whole tail a script: a fixed [`ArgRole::Body`] at argument 0 with
+    /// no dynamic resolver.
+    fn is_concat_eval_command(&self, cmd_name: &str) -> bool {
+        self.security_spec(cmd_name).is_some_and(|s| {
+            s.traits
+                .contains(Traits::EVALUATES_CODE | Traits::TAINT_SINK)
+                && s.arg_role_resolver.is_none()
+                && s.arg_role_at(0) == Some(ArgRole::Body)
+        })
+    }
+
+    /// W301's gate: a code-evaluating taint sink whose script position is
+    /// call-shape-dependent — an optional leading `level` word resolved
+    /// dynamically (`uplevel`).  The complement of
+    /// [`Self::is_concat_eval_command`] within the
+    /// `EVALUATES_CODE + TAINT_SINK` pair: the registry models `uplevel`'s
+    /// "script starts after the optional level" layout as an
+    /// `arg_role_resolver` where `eval` has a static role table.
+    fn is_level_eval_command(&self, cmd_name: &str) -> bool {
+        self.security_spec(cmd_name).is_some_and(|s| {
+            s.traits
+                .contains(Traits::EVALUATES_CODE | Traits::TAINT_SINK)
+                && s.arg_role_resolver.is_some()
+        })
+    }
+
+    /// W309's gate: any command that re-parses argument text as a script
+    /// and absorbs tainted data — [`Traits::EVALUATES_CODE`] +
+    /// [`Traits::TAINT_SINK`] (`eval`, `uplevel`).  The coroutine
+    /// injectors carry only the former (command-prefix words, no
+    /// re-parse) and stay out.
+    fn is_script_reparse_sink(&self, cmd_name: &str) -> bool {
+        self.security_spec(cmd_name).is_some_and(|s| {
+            s.traits
+                .contains(Traits::EVALUATES_CODE | Traits::TAINT_SINK)
+        })
+    }
+
+    /// True when the inner script of a `[…]` substitution invokes a
+    /// substitution performer ([`Traits::PERFORMS_SUBSTITUTION`] — `subst`)
+    /// as its command head.  Registry-driven replacement for the former
+    /// literal `subst` prefix match; `get` resolves a leading `::`, so the
+    /// fully-qualified `[::subst …]` spelling is caught too.
+    fn inner_head_performs_substitution(&self, inner: &str) -> bool {
+        let head = inner
+            .split(|c: char| c.is_ascii_whitespace())
+            .next()
+            .unwrap_or("");
+        !head.is_empty()
+            && self
+                .security_spec(head)
+                .is_some_and(|s| s.traits.contains(Traits::PERFORMS_SUBSTITUTION))
+    }
+
     /// **W302.** Emit "catch without result variable" hint when a
     /// `catch BODY` invocation omits the optional `RESULTVAR`
     /// argument, silently swallowing any error the body raises.
@@ -75,7 +148,7 @@ impl Analyser {
         // ``catch {<cmd>}`` is the canonical Tcl idiom for "do this if
         // possible, ignore if not".
         if let Some(body) = args.first()
-            && catch_body_is_fire_and_forget(body)
+            && self.catch_body_is_fire_and_forget(body)
         {
             return;
         }
@@ -122,7 +195,7 @@ Consider capturing the result: catch {\u{2026}} result"
         arg_tokens: &[tcl_lexer::Token],
         arg_single: &[bool],
     ) {
-        if cmd_name != "eval" || args.is_empty() || arg_tokens.is_empty() {
+        if !self.is_concat_eval_command(cmd_name) || args.is_empty() || arg_tokens.is_empty() {
             return;
         }
         // ``eval {script}`` / ``eval {a} {b}`` — every word is a
@@ -190,9 +263,10 @@ Consider capturing the result: catch {\u{2026}} result"
         self.result.diagnostics.push(super::types::Diagnostic {
             code: DiagCode::W101,
             span: anchor.span,
-            message: "eval with substituted arguments risks code injection. \
-Prefer direct invocation or {*}$cmdList to preserve argument boundaries."
-                .to_string(),
+            message: format!(
+                "{cmd_name} with substituted arguments risks code injection. \
+Prefer direct invocation or {{*}}$cmdList to preserve argument boundaries."
+            ),
             severity: Severity::Warning,
             fixes,
         });
@@ -382,7 +456,15 @@ word as one argument; no re-parsing)"
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        if cmd_name != "source" || args.is_empty() || arg_tokens.is_empty() {
+        // Registry gate: [`Traits::SOURCES_FILE`] marks the file-executing
+        // command (`source`) — the diagnostic applies to any spec that
+        // reads and evaluates a script file named by its argument.
+        if args.is_empty()
+            || arg_tokens.is_empty()
+            || !self
+                .security_spec(cmd_name)
+                .is_some_and(|s| s.traits.contains(Traits::SOURCES_FILE))
+        {
             return;
         }
         let mut file_idx = 0;
@@ -407,9 +489,10 @@ word as one argument; no re-parsing)"
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: DiagCode::W300,
                 span: tok.span,
-                message: "source with a dynamic path (variable or command substitution) \
+                message: format!(
+                    "{cmd_name} with a dynamic path (variable or command substitution) \
 executes arbitrary Tcl code. Ensure the path is not influenced by untrusted input."
-                    .to_string(),
+                ),
                 severity: Severity::Warning,
                 fixes: Vec::new(),
             });
@@ -431,14 +514,14 @@ executes arbitrary Tcl code. Ensure the path is not influenced by untrusted inpu
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        if !matches!(cmd_name, "eval" | "uplevel") || args.is_empty() || arg_tokens.is_empty() {
+        if !self.is_script_reparse_sink(cmd_name) || args.is_empty() || arg_tokens.is_empty() {
             return;
         }
         for tok in arg_tokens {
             let Some(inner) = self.cmd_token_inner(*tok) else {
                 continue;
             };
-            if inner == "subst" || inner.starts_with("subst ") || inner.starts_with("subst\t") {
+            if self.inner_head_performs_substitution(inner) {
                 self.result.diagnostics.push(super::types::Diagnostic {
                     code: DiagCode::W309,
                     span: tok.span,
@@ -467,9 +550,15 @@ This is a code-injection risk. Use [format] or [string map] for safe templating.
         arg_tokens: &[tcl_lexer::Token],
         arg_single: &[bool],
     ) {
-        if cmd_name != "uplevel" || args.is_empty() || arg_tokens.is_empty() {
+        if !self.is_level_eval_command(cmd_name) || args.is_empty() || arg_tokens.is_empty() {
             return;
         }
+        // The literal-level probe stays local rather than reusing the
+        // spec's arg-role resolver: the resolver treats a *dynamic* first
+        // word (`uplevel $lvl $body`) as a level when a script word
+        // follows, but for injection purposes a substituted word must be
+        // scanned as script — the conservative posture this check has
+        // always taken.
         let script_idx = usize::from(uplevel_has_level(&args[0]));
         if script_idx >= args.len() || script_idx >= arg_tokens.len() {
             return;
@@ -482,9 +571,10 @@ This is a code-injection risk. Use [format] or [string map] for safe templating.
                 self.result.diagnostics.push(super::types::Diagnostic {
                     code: DiagCode::W301,
                     span: remaining_toks[0].span,
-                    message: "uplevel with multiple arguments concatenates them into \
-a script (like eval). Use a single braced body or {*}$cmdList to avoid injection."
-                        .to_string(),
+                    message: format!(
+                        "{cmd_name} with multiple arguments concatenates them into \
+a script (like eval). Use a single braced body or {{*}}$cmdList to avoid injection."
+                    ),
                     severity: Severity::Warning,
                     fixes: Vec::new(),
                 });
@@ -510,9 +600,10 @@ a script (like eval). Use a single braced body or {*}$cmdList to avoid injection
                 self.result.diagnostics.push(super::types::Diagnostic {
                     code: DiagCode::W301,
                     span: tok.span,
-                    message: "uplevel with an unbraced script argument may cause \
-double substitution. Use braces: uplevel 1 {...}"
-                        .to_string(),
+                    message: format!(
+                        "{cmd_name} with an unbraced script argument may cause \
+double substitution. Use braces: {cmd_name} 1 {{...}}"
+                    ),
                     severity: Severity::Warning,
                     fixes: Vec::new(),
                 });
@@ -520,10 +611,17 @@ double substitution. Use braces: uplevel 1 {...}"
         }
     }
 
-    /// **W312.** Emit "interp eval / invokehidden injection" when an
-    /// `interp eval` / `interp invokehidden` script argument risks
-    /// injection — the same shape as W301 but for the child-interpreter
-    /// dispatch.
+    /// **W312.** Emit "interp eval / invokehidden injection" when a
+    /// cross-interpreter script argument risks injection — the same shape
+    /// as W301 but for the child-interpreter dispatch.
+    ///
+    /// The eligible subcommands are the parent spec's
+    /// `taint_interp_eval_subcommands` list (`interp eval` /
+    /// `interp invokehidden`, Tk's `console eval` and
+    /// `consoleinterp eval|record`) — never a command-name match.  The
+    /// subcommand word resolves through the registry's ensemble rule
+    /// (exact or unique prefix, C Tcl's `Tcl_GetIndexFromObj`), so the
+    /// abbreviated `interp ev …` C Tcl accepts is checked too.
     pub(in crate::analyser) fn emit_w312_interp_eval_injection(
         &mut self,
         cmd_name: &str,
@@ -531,44 +629,25 @@ double substitution. Use braces: uplevel 1 {...}"
         arg_tokens: &[tcl_lexer::Token],
         arg_single: &[bool],
     ) {
-        if cmd_name != "interp" || args.is_empty() {
+        let Some((sub_name, script_start, concatenates)) =
+            self.interp_eval_script_location(cmd_name, args)
+        else {
             return;
-        }
-        let sub = args[0].as_str();
-        if !matches!(sub, "eval" | "invokehidden") || args.len() < 3 || arg_tokens.len() < 3 {
-            return;
-        }
-        // Locate the first script word: `interp eval PATH script …` →
-        // index 2; `interp invokehidden PATH ?-opt…? hiddenCmd …` → the
-        // first non-option word from index 2.
-        let script_start = if sub == "eval" {
-            2
-        } else {
-            let mut i = 2;
-            while i < args.len() && args[i].starts_with('-') {
-                i += 1;
-            }
-            if i >= args.len() {
-                return;
-            }
-            i
         };
         if script_start >= args.len() || script_start >= arg_tokens.len() {
             return;
         }
         let script_args = &args[script_start..];
         let script_toks = &arg_tokens[script_start..];
-        if script_args.is_empty() || script_toks.is_empty() {
-            return;
-        }
-        // `interp eval` with multiple script words concatenates them.
-        if sub == "eval" && script_args.len() > 1 {
+        // A Body-role sink (`interp eval`) with multiple script words
+        // concatenates them, like `eval`.
+        if concatenates && script_args.len() > 1 {
             if self.args_have_substitution(arg_tokens, arg_single) {
                 self.result.diagnostics.push(super::types::Diagnostic {
                     code: DiagCode::W312,
                     span: script_toks[0].span,
                     message: format!(
-                        "interp {sub} with multiple arguments concatenates \
+                        "{cmd_name} {sub_name} with multiple arguments concatenates \
 them into a script (like eval). Use a single braced body to avoid injection."
                     ),
                     severity: Severity::Warning,
@@ -587,13 +666,50 @@ them into a script (like eval). Use a single braced body to avoid injection."
                 code: DiagCode::W312,
                 span: tok.span,
                 message: format!(
-                    "interp {sub} with an unbraced script argument may \
-cause code injection. Use braces: interp {sub} $child {{...}}"
+                    "{cmd_name} {sub_name} with an unbraced script argument may \
+cause code injection. Use braces: {cmd_name} {sub_name} $child {{...}}"
                 ),
                 severity: Severity::Warning,
                 fixes: Vec::new(),
             });
         }
+    }
+
+    /// Resolve a W312 call site against the registry: `Some((canonical
+    /// subcommand name, absolute index of the first script word, whether
+    /// multiple script words concatenate))` when `cmd_name`'s spec lists
+    /// the resolved subcommand in `taint_interp_eval_subcommands`, else
+    /// `None`.
+    ///
+    /// The script position comes from the subcommand's declared
+    /// [`ArgRole::Body`] (`interp eval PATH script` → absolute index 2;
+    /// `console eval script` → 1); a listed sink *without* a Body role
+    /// (`interp invokehidden` — the words are invoked verbatim, never
+    /// re-parsed) locates the hidden command word instead: past the
+    /// interpreter path, skipping `-opt` words.
+    fn interp_eval_script_location(
+        &self,
+        cmd_name: &str,
+        args: &[String],
+    ) -> Option<(&'static str, usize, bool)> {
+        let spec = self.security_spec(cmd_name)?;
+        if spec.taint_interp_eval_subcommands.is_empty() || args.is_empty() {
+            return None;
+        }
+        let sub = spec.resolve_subcommand(&args[0])?;
+        if !spec.taint_interp_eval_subcommands.contains(&sub.name) {
+            return None;
+        }
+        if let Some((idx, _)) = sub.arg_roles.iter().find(|(_, r)| *r == ArgRole::Body) {
+            // +1: subcommand arg roles are relative to the word after the
+            // subcommand.
+            return Some((sub.name, *idx as usize + 1, true));
+        }
+        let mut i = 2;
+        while i < args.len() && args[i].starts_with('-') {
+            i += 1;
+        }
+        (i < args.len()).then_some((sub.name, i, false))
     }
 
     /// **W102.** Emit "subst on variable input" when `subst`'s template
@@ -609,7 +725,15 @@ cause code injection. Use braces: interp {sub} $child {{...}}"
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        if cmd_name != "subst" || args.is_empty() || arg_tokens.is_empty() {
+        // Registry gate: [`Traits::PERFORMS_SUBSTITUTION`] marks the
+        // template-expanding command (`subst`) — any spec that performs
+        // `$var` / `[cmd]` substitution over an argument string.
+        if args.is_empty()
+            || arg_tokens.is_empty()
+            || !self
+                .security_spec(cmd_name)
+                .is_some_and(|s| s.traits.contains(Traits::PERFORMS_SUBSTITUTION))
+        {
             return;
         }
         let (template_idx, nocommands, novariables) = parse_subst_flags(args);
@@ -644,7 +768,7 @@ cause code injection. Use braces: interp {sub} $child {{...}}"
             mitigations.push("-novariables");
         }
         let message = format!(
-            "subst with a variable argument enables code injection: any \
+            "{cmd_name} with a variable argument enables code injection: any \
 {active} in the string will be evaluated. Add {} to limit substitution \
 scope, or use [format] / [string map] for safe templating.",
             mitigations.join(" ")
@@ -671,7 +795,21 @@ scope, or use [format] / [string map] for safe templating.",
         arg_tokens: &[tcl_lexer::Token],
         arg_single: &[bool],
     ) {
-        if cmd_name != "open" || args.is_empty() || arg_tokens.is_empty() {
+        // Registry gate: [`Traits::OPENS_CHANNEL`] marks the channel
+        // factories (`open`, `socket`).  The pipeline interpretation of a
+        // leading `|` in the first argument belongs to the file-open family
+        // only (`Tcl_OpenObjCmd` → `TclOpenCommandChannel`, tclIOCmd.c); a
+        // network socket's first argument is an address / `-option`, never
+        // an exec spec, and its spec carries [`Traits::TAINT_SOURCE`]
+        // (remote-peer data) which the local file `open` deliberately does
+        // not — so the taint trait is the behaviour-preserving excluder for
+        // the non-pipeline channel openers.
+        if args.is_empty()
+            || arg_tokens.is_empty()
+            || !self.security_spec(cmd_name).is_some_and(|s| {
+                s.traits.contains(Traits::OPENS_CHANNEL) && !s.traits.contains(Traits::TAINT_SOURCE)
+            })
+        {
             return;
         }
         let tok = arg_tokens[0];
@@ -679,17 +817,19 @@ scope, or use [format] / [string map] for safe templating.",
             let (severity, message) = if self.args_have_substitution(arg_tokens, arg_single) {
                 (
                     Severity::Warning,
-                    "open with a pipeline containing variable/command \
+                    format!(
+                        "{cmd_name} with a pipeline containing variable/command \
 substitution risks command injection. Validate and sanitize the command \
-before passing to open."
-                        .to_string(),
+before passing to {cmd_name}."
+                    ),
                 )
             } else {
                 (
                     Severity::Hint,
-                    "open with a pipeline (\"|\") executes an external command. \
+                    format!(
+                        "{cmd_name} with a pipeline (\"|\") executes an external command. \
 Ensure the command is not influenced by untrusted input."
-                        .to_string(),
+                    ),
                 )
             };
             self.result.diagnostics.push(super::types::Diagnostic {
@@ -714,9 +854,10 @@ Ensure the command is not influenced by untrusted input."
                     self.result.diagnostics.push(super::types::Diagnostic {
                         code: DiagCode::W103,
                         span: tok.span,
-                        message: "open with a pipeline (\"|\") executes an external command. \
+                        message: format!(
+                            "{cmd_name} with a pipeline (\"|\") executes an external command. \
 Ensure the command is not influenced by untrusted input."
-                            .to_string(),
+                        ),
                         severity: Severity::Hint,
                         fixes: Vec::new(),
                     });
@@ -728,10 +869,11 @@ Ensure the command is not influenced by untrusted input."
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: DiagCode::W103,
                 span: tok.span,
-                message: "open with a dynamic argument (variable or command substitution): \
+                message: format!(
+                    "{cmd_name} with a dynamic argument (variable or command substitution): \
 if the value starts with \"|\", it will execute a command pipeline. Validate input \
 or use explicit I/O commands."
-                    .to_string(),
+                ),
                 severity: Severity::Warning,
                 fixes: Vec::new(),
             });
@@ -1125,57 +1267,59 @@ pub(super) fn has_redos_shape(pattern: &str) -> bool {
     false
 }
 
-/// Destructive builtins whose bare `catch {<cmd> ...}` form is the
-/// documented "fire-and-forget" idiom — failure when the target is
-/// already gone is expected and intentionally ignored.
-fn fire_and_forget_bare(bare: &str) -> bool {
-    matches!(bare, "close" | "unset" | "rename")
-}
-
-/// Ensemble commands where only certain destructive subcommands are
-/// fire-and-forget (`chan close` is, `chan configure` is not).
-fn fire_and_forget_subcommand(bare: &str, sub: &str) -> bool {
-    match bare {
-        "after" => sub == "cancel",
-        "chan" => sub == "close",
-        "array" | "dict" => sub == "unset",
-        "interp" | "file" => sub == "delete",
-        "namespace" => sub == "delete" || sub == "forget",
-        _ => false,
-    }
-}
-
-/// True when the body of a `catch` matches the documented
-/// "fire-and-forget" idiom: a single command whose head is a
-/// destructive builtin (`close $h`, `unset var`, `rename foo ""`) or a
-/// documented destructive ensemble subcommand (`after cancel`, `chan
-/// close`, `array unset`, …).  Conservative: only single-statement
-/// bodies match, and ensemble heads are subcommand-checked.
-fn catch_body_is_fire_and_forget(body: &str) -> bool {
-    let segs: Vec<_> = crate::segmenter::segment_commands(body)
-        .into_iter()
-        .filter(|c| !c.texts.is_empty())
-        .collect();
-    if segs.len() != 1 {
-        return false;
-    }
-    let Some(head) = segs[0].texts.first() else {
-        return false;
-    };
-    if head.is_empty() {
-        return false;
-    }
-    let bare = head
-        .trim_start_matches(':')
-        .rsplit("::")
-        .next()
-        .unwrap_or(head);
-    if fire_and_forget_bare(bare) {
-        return true;
-    }
-    match segs[0].texts.get(1) {
-        Some(first_arg) => fire_and_forget_subcommand(bare, first_arg),
-        None => false,
+impl Analyser {
+    /// True when the body of a `catch` matches the documented
+    /// "fire-and-forget" idiom: a single command whose spec carries
+    /// [`Traits::HAS_DESTRUCTIVE_OPS`] — bare for a non-ensemble builtin
+    /// (`close $h`, `unset var`, `rename foo ""`), or resolved to a
+    /// registry-flagged `destructive` subcommand for an ensemble
+    /// (`after cancel`, `chan close`, `array unset`, `dict unset`,
+    /// `interp delete`, `file delete`, `namespace delete|forget`, …).
+    ///
+    /// Failure when the target is already gone is expected and
+    /// intentionally ignored, so W302's "capture the result" hint is
+    /// noise here.  Conservative: only single-statement bodies match.
+    /// The subcommand word resolves via the registry's ensemble rule
+    /// (exact or unique prefix), matching C Tcl's `Tcl_GetIndexFromObj`
+    /// dispatch — `catch {file del $f}` is the same idiom as the
+    /// unabbreviated spelling.
+    fn catch_body_is_fire_and_forget(&self, body: &str) -> bool {
+        let segs: Vec<_> = crate::segmenter::segment_commands(body)
+            .into_iter()
+            .filter(|c| !c.texts.is_empty())
+            .collect();
+        if segs.len() != 1 {
+            return false;
+        }
+        let Some(head) = segs[0].texts.first() else {
+            return false;
+        };
+        if head.is_empty() {
+            return false;
+        }
+        // A namespaced spelling of a builtin (`::close`, `foo::close`)
+        // suppresses like the bare tail always has — the pre-registry
+        // behaviour this migration preserves.
+        let bare = head
+            .trim_start_matches(':')
+            .rsplit("::")
+            .next()
+            .unwrap_or(head);
+        let Some(spec) = self.registry.as_ref().and_then(|r| r.get(bare)) else {
+            return false;
+        };
+        if !spec.traits.contains(Traits::HAS_DESTRUCTIVE_OPS) {
+            return false;
+        }
+        if spec.subcommands.is_empty() {
+            return true;
+        }
+        match segs[0].texts.get(1) {
+            Some(first_arg) => spec
+                .resolve_subcommand(first_arg)
+                .is_some_and(|sub| sub.destructive),
+            None => false,
+        }
     }
 }
 

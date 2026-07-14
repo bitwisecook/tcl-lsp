@@ -311,6 +311,11 @@ are its rules, and what are the failure modes". One contract per file.
   front-end-driven tests that validate them (including the `rust` branch).
 - [shared-utility-contracts.md](contracts/shared-utility-contracts.md) —
   shared helper ownership across core and LSP.
+- [shared-utility-contracts-rust.md](contracts/shared-utility-contracts-rust.md)
+  — the Rust workspace's shared-utility owners (`tcl-syntax` grammars,
+  `tcl-lexer` backslash decode, `tcl-cmd-core` namespace byte-ops /
+  prefix matcher / error catalogue, `tcl-core-types` vocabulary), the
+  no-re-derivation rule, and the documented exceptions.
 - [core-lsp-shared-utility.md](contracts/core-lsp-shared-utility.md) — the
   single home for logic that otherwise drifts between features/passes
   (offset mapping, proc lookup, package ranking, event context,

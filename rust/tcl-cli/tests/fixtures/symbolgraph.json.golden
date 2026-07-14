@@ -20,6 +20,10 @@
             {
               "line": 25,
               "character": 9
+            },
+            {
+              "line": 25,
+              "character": 9
             }
           ]
         },
@@ -37,6 +41,10 @@
           "name": "dkey",
           "line": 27,
           "references": [
+            {
+              "line": 28,
+              "character": 9
+            },
             {
               "line": 28,
               "character": 9

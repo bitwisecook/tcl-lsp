@@ -73,6 +73,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Cancel a previously scheduled delayed command.",
         synopsis: "after cancel id",
         return_type: Some(TclType::String),
+        // `Tcl_AfterObjCmd` (tclTimer.c, `AFTER_CANCEL` arm) removes the
+        // scheduled timer/idle handler — the destroyed handler cannot be
+        // re-cancelled, which is why `catch {after cancel $id}` is the
+        // documented fire-and-forget idiom the W302 suppression keys off.
+        destructive: true,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -102,7 +107,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "after",
-        traits: Traits::BYTE_COMPILED,
+        // `HAS_DESTRUCTIVE_OPS`: the `cancel` subform destroys a scheduled
+        // handler (`Tcl_AfterObjCmd`, tclTimer.c) — see the `destructive`
+        // flag on the `cancel` subcommand.
+        traits: Traits::BYTE_COMPILED | Traits::HAS_DESTRUCTIVE_OPS,
         arity: Arity::at_least(1),
         arg_role_resolver: Some(after_arg_roles),
         subcommands: SUBCOMMANDS,

@@ -131,47 +131,85 @@ pub(super) fn scan(
                     ctx,
                 );
             }
-            "package" => handlers::handle_package(texts, argv, conditional, &mut ctx.result),
+            "package" => {
+                handlers::handle_package(texts, argv, conditional, ctx.registry, &mut ctx.result);
+            }
             "source" => handlers::handle_source(texts, argv, &mut ctx.result),
-            "interp" => handlers::handle_interp(texts, &mut ctx.result),
+            "interp" => handlers::handle_interp(texts, ctx.registry, &mut ctx.result),
             "rename" => handlers::handle_rename(texts, ns_prefix, &mut ctx.result),
-            // Every stock `TclOO` metaclass creates a class via the same
-            // `METACLASS create NAME ?BODY?` interface — `oo::configurable`
-            // (property-bearing), `oo::abstract`, and `oo::singleton` included,
-            // so a `[Pin new]` on an `oo::configurable` class is typed as an
-            // object like any other (issue #797).
-            "oo::class" | "::oo::class" | "oo::configurable" | "::oo::configurable"
-            | "oo::abstract" | "::oo::abstract" | "oo::singleton" | "::oo::singleton" => {
-                handlers::handle_oo_class(texts, argv, ns_prefix, &mut ctx.result);
-            }
-            "itcl::class" | "::itcl::class" => {
-                handlers::handle_itcl_class(texts, argv, ns_prefix, &mut ctx.result);
-            }
-            // snit types/widgets create instances via `Name create obj` /
-            // `Name %AUTO%` / a widget's `Name .path`, so record them as classes
-            // to type those constructors' receivers (same shape as itcl).
-            "snit::type"
-            | "::snit::type"
-            | "snit::widget"
-            | "::snit::widget"
-            | "snit::widgetadaptor"
-            | "::snit::widgetadaptor" => {
-                handlers::handle_snit_type(texts, argv, ns_prefix, &mut ctx.result);
-            }
             "if" => handle_if(texts, argv, ns_prefix, known_commands, ctx),
             "catch" => handle_catch(texts, argv, ns_prefix, known_commands, ctx),
             "try" => handle_try(texts, argv, ns_prefix, known_commands, ctx),
             "lappend" | "set" => handlers::handle_auto_path(texts, argv, &mut ctx.result),
             _ => {
-                handlers::maybe_handle_import_wrapper(
-                    head,
-                    texts,
-                    argv,
-                    ns_prefix,
-                    &mut ctx.result,
-                );
-                handlers::maybe_record_factory_candidate(head, texts, argv, ns_prefix, ctx);
+                // Class-definer heads are registry data, not a name list —
+                // see [`definer_family`].  Every stock `TclOO` metaclass
+                // creates a class via the same `METACLASS create NAME ?BODY?`
+                // interface (`oo::configurable`, `oo::abstract`,
+                // `oo::singleton` included, so a `[Pin new]` on an
+                // `oo::configurable` class is typed as an object like any
+                // other — issue #797); snit types/widgets and `itcl::class`
+                // both take the `DEFINER Name Body` shape, recorded as
+                // classes to type their constructors' receivers.
+                if let Some(family) = definer_family(head, ctx.registry) {
+                    match family {
+                        tcl_registry::definer::DefinerFamily::TclOo => {
+                            handlers::handle_oo_class(texts, argv, ns_prefix, &mut ctx.result);
+                        }
+                        tcl_registry::definer::DefinerFamily::Itcl => {
+                            handlers::handle_itcl_class(texts, argv, ns_prefix, &mut ctx.result);
+                        }
+                        tcl_registry::definer::DefinerFamily::Snit => {
+                            handlers::handle_snit_type(texts, argv, ns_prefix, &mut ctx.result);
+                        }
+                    }
+                } else {
+                    handlers::maybe_handle_import_wrapper(
+                        head,
+                        texts,
+                        argv,
+                        ns_prefix,
+                        &mut ctx.result,
+                    );
+                    handlers::maybe_record_factory_candidate(head, texts, argv, ns_prefix, ctx);
+                }
             }
+        }
+    }
+}
+
+/// Classify `head` as a class-definer via the registry: the spec's
+/// `definition_body` grammar names the class system
+/// ([`tcl_registry::definer::DefinerFamily`]), and for `TclOO` the
+/// [`tcl_registry::Traits::IS_OO_METACLASS`] trait narrows the grammar
+/// carriers to the class *manufacturers* — the same rule the analyser's
+/// `handle_oo_class_command` applies:
+///
+/// - the trait alone would include `oo::object`, which carries it but
+///   makes *instances*, not classes (no definition body);
+/// - the grammar alone would include `oo::define` / `oo::objdefine`,
+///   which *extend* an existing class named at `args[1]` rather than
+///   creating one.
+///
+/// snit (`snit::type|widget|widgetadaptor`) and itcl (`itcl::class`)
+/// definers carry only the grammar; their families dispatch the
+/// `DEFINER Name Body` handlers.  [`tcl_registry::CommandRegistry::get`]
+/// resolves a leading `::`, so the fully-qualified spelling of every
+/// head keeps working.  `None` when no registry is threaded (focused
+/// unit tests) — class discovery is a registry-driven feature.
+fn definer_family(
+    head: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) -> Option<tcl_registry::definer::DefinerFamily> {
+    let spec = registry?.get(head)?;
+    let family = spec.definition_body?.family;
+    match family {
+        tcl_registry::definer::DefinerFamily::TclOo => spec
+            .traits
+            .contains(tcl_registry::Traits::IS_OO_METACLASS)
+            .then_some(family),
+        tcl_registry::definer::DefinerFamily::Snit | tcl_registry::definer::DefinerFamily::Itcl => {
+            Some(family)
         }
     }
 }

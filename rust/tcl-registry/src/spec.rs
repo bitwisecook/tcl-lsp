@@ -29,8 +29,8 @@ use crate::clause_shape::ClauseShapeChecker;
 use crate::dialects::DialectSet;
 use crate::forms::{CommandForm, SubCommandForm};
 use crate::hooks::{
-    ArgTypeHint, CodegenHookId, ConstFoldFn, LoweringHookId, TclVersion, VersionedConstFoldFn,
-    WasmCodegenHookId,
+    ArgTypeHint, CodegenHookId, ConstFoldFn, InlineCodegenHookId, LoweringHookId, TclVersion,
+    VersionedConstFoldFn, WasmCodegenHookId,
 };
 use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
 use crate::patterns::{FormatType, PatternType};
@@ -360,6 +360,14 @@ pub struct CommandSpec {
     /// `None` means the generic invoke emitter handles this command.
     pub codegen_hook: Option<CodegenHookId>,
 
+    /// Inline (value-position / catch-body) bytecode codegen hook ID —
+    /// picks the per-command emitter on the compiler's
+    /// command-substitution and catch-body paths
+    /// (`tcl_compiler::codegen::cmd_subst` /
+    /// `tcl_compiler::codegen::control_flow`). `None` means those
+    /// paths use their generic invoke emission for this command.
+    pub inline_codegen_hook: Option<InlineCodegenHookId>,
+
     /// WASM-runtime codegen hook ID — picks the per-command
     /// emitter on the WASM target. Currently always `None`
     /// (no WASM-specific emitters yet); the field exists so
@@ -686,6 +694,7 @@ impl CommandSpec {
         const_fold_versioned: None,
         lowering_hook: None,
         codegen_hook: None,
+        inline_codegen_hook: None,
         wasm_codegen_hook: None,
         side_effects: &[],
         inferred_storage_type: None,
@@ -1077,6 +1086,12 @@ pub struct SubCommand {
     /// [`CommandSpec::codegen_hook`].
     pub codegen_hook: Option<CodegenHookId>,
 
+    /// Inline (value-position / catch-body) bytecode codegen hook ID.
+    /// See [`CommandSpec::inline_codegen_hook`]. Overrides the
+    /// parent's when the call resolves to this subcommand
+    /// (`dict get` / `info exists`).
+    pub inline_codegen_hook: Option<InlineCodegenHookId>,
+
     /// WASM-runtime codegen hook ID. See
     /// [`CommandSpec::wasm_codegen_hook`].
     pub wasm_codegen_hook: Option<WasmCodegenHookId>,
@@ -1260,6 +1275,7 @@ impl SubCommand {
         const_fold_versioned: None,
         lowering_hook: None,
         codegen_hook: None,
+        inline_codegen_hook: None,
         wasm_codegen_hook: None,
         options: &[],
         arg_values: &[],

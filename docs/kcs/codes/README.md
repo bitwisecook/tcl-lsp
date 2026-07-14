@@ -130,6 +130,7 @@ for historical reference.
 - [S100 — shimmer outside loop](kcs-diagnostic-s100-shimmer-outside-loop.md)
 - [S101 — shimmer inside loop](kcs-diagnostic-s101-shimmer-inside-loop.md)
 - [S102 — shimmer oscillation](kcs-diagnostic-s102-shimmer-oscillation.md)
+- [S103 — shared-value copy-on-write](kcs-diagnostic-s103-shared-value-copy.md)
 
 ## Taint (T-codes)
 

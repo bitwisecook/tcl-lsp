@@ -141,6 +141,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::any(),
         detail: "Delete namespaces and their contents.",
         synopsis: "namespace delete ?namespace namespace ...?",
+        // `Tcl_NamespaceObjCmd` (tclNamesp.c, `NamespaceDeleteCmd` →
+        // `Tcl_DeleteNamespace`) destroys the namespace with everything in
+        // it and errors on an unknown namespace — `catch {namespace delete
+        // $ns}` is the documented fire-and-forget idiom the W302
+        // suppression keys off.
+        destructive: true,
         return_type: Some(TclType::String),
         ..SubCommand::DEFAULT
     },
@@ -200,6 +206,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::any(),
         detail: "Removes previously imported commands from a namespace.",
         synopsis: "namespace forget ?pattern pattern ...?",
+        // `NamespaceForgetCmd` (tclNamesp.c → `Tcl_ForgetImport`) removes
+        // previously imported command aliases — a removal of interpreter
+        // state, so `catch {namespace forget …}` is treated as the same
+        // fire-and-forget idiom as `namespace delete` by the W302
+        // suppression.
+        destructive: true,
         return_type: Some(TclType::String),
         ..SubCommand::DEFAULT
     },

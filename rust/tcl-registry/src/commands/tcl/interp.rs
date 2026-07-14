@@ -168,6 +168,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Delete interpreters.",
         synopsis: "interp delete ?path ...?",
+        // `Tcl_InterpObjCmd` (tclInterp.c, `OPT_DELETE` arm) tears the
+        // child interpreter down (`Tcl_DeleteInterp`) and errors when the
+        // path no longer names one — `catch {interp delete $child}` is the
+        // documented fire-and-forget idiom the W302 suppression keys off.
+        destructive: true,
         return_type: Some(TclType::String),
         ..SubCommand::DEFAULT
     },

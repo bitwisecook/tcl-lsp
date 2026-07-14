@@ -86,13 +86,6 @@ pub fn install(interp: &mut Interp) {
     crate::cmd_oo::install(interp);
 }
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut msg = b"wrong # args: should be \"".to_vec();
-    msg.extend_from_slice(usage);
-    msg.push(b'"');
-    interp.set_error(&msg)
-}
-
 pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
     // A write-trace error: wrap the trace's own message (stashed in pending_err)
     // as `can't set "name": <msg>` (C's TclObjVarErrMsg).
@@ -144,7 +137,7 @@ fn incr_constant_error(
 /// variable, an array, or an array element is an error.
 fn const_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return wrong_args(interp, b"const varName value");
+        return interp.wrong_args(b"const varName value");
     }
     let name = obj_bytes(argv[1]);
     let (base, elem) = split_array_ref(&name);
@@ -233,7 +226,7 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 Err(e) => var_error(interp, &name, e),
             }
         }
-        _ => wrong_args(interp, b"set varName ?newValue?"),
+        _ => interp.wrong_args(b"set varName ?newValue?"),
     }
 }
 
@@ -247,7 +240,7 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 #[cfg(have_tommath)]
 fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
-        return wrong_args(interp, b"incr varName ?increment?");
+        return interp.wrong_args(b"incr varName ?increment?");
     }
     let name = obj_bytes(argv[1]);
     let (base, elem) = split_array_ref(&name);
@@ -297,7 +290,7 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 #[cfg(not(have_tommath))]
 fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
-        return wrong_args(interp, b"incr varName ?increment?");
+        return interp.wrong_args(b"incr varName ?increment?");
     }
     let name = obj_bytes(argv[1]);
     let (base, elem) = split_array_ref(&name);
@@ -581,7 +574,7 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     const USAGE: &[u8] = b"subst ?-nobackslashes? ?-nocommands? ?-novariables? string";
     if argv.len() < 2 {
-        return wrong_args(interp, USAGE);
+        return interp.wrong_args(USAGE);
     }
     // Every argument before the last is an option (C's `TclSubstOptions` over
     // `objv[1 .. objc-1]`), matched with Tcl's unambiguous-prefix rule.
@@ -825,7 +818,7 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
 #[cfg(have_tommath)]
 fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"expr arg ?arg ...?");
+        return interp.wrong_args(b"expr arg ?arg ...?");
     }
     let mut text = Vec::new();
     for (i, &a) in argv[1..].iter().enumerate() {

@@ -483,6 +483,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "S103",
+    section: "shimmer",
+    description:
+      "Mutation of a potentially shared value copies it — Tcl duplicates a shared value before a `lappend`/`lset`/`dict` write.",
+    defaultEnabled: true,
+  },
+  {
     code: "S110",
     section: "shimmer",
     description:

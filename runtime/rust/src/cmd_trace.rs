@@ -171,13 +171,6 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"trace", trace_cmd);
 }
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 /// `bad option "X": must be ...` (the `Tcl_GetIndexFromObj` miss).
 fn bad_option(interp: &mut Interp, bad: &[u8], must_be: &[u8]) -> Code {
     let mut m = b"bad option \"".to_vec();
@@ -224,21 +217,18 @@ fn resolve_trace_type(arg: &[u8]) -> Option<TraceType> {
 
 fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"trace option ?arg ...?");
+        return interp.wrong_args(b"trace option ?arg ...?");
     }
     match obj_bytes(argv[1]).as_slice() {
         // `trace add`/`remove` then dispatch on the type word (objv[2]).
         op @ (b"add" | b"remove") => {
             let is_add = op == b"add";
             if argv.len() < 3 {
-                return wrong_args(
-                    interp,
-                    if is_add {
-                        b"trace add type ?arg ...?"
-                    } else {
-                        b"trace remove type ?arg ...?"
-                    },
-                );
+                return interp.wrong_args(if is_add {
+                    b"trace add type ?arg ...?"
+                } else {
+                    b"trace remove type ?arg ...?"
+                });
             }
             let ty = obj_bytes(argv[2]);
             match resolve_trace_type(&ty) {
@@ -258,7 +248,7 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         b"info" => {
             if argv.len() < 3 {
-                return wrong_args(interp, b"trace info type name");
+                return interp.wrong_args(b"trace info type name");
             }
             let ty = obj_bytes(argv[2]);
             match resolve_trace_type(&ty) {
@@ -328,7 +318,7 @@ fn cmd_trace_add_remove(
         };
         usage.extend_from_slice(kind);
         usage.extend_from_slice(b" name opList command");
-        return wrong_args(interp, &usage);
+        return interp.wrong_args(&usage);
     }
     let spec = obj_bytes(argv[4]);
     let flags = match if category == ops::EXEC_ANY {
@@ -381,7 +371,7 @@ fn cmd_trace_info(interp: &mut Interp, argv: &[*mut TclObj], category: u8) -> Co
         let mut usage = b"trace info ".to_vec();
         usage.extend_from_slice(kind);
         usage.extend_from_slice(b" name");
-        return wrong_args(interp, &usage);
+        return interp.wrong_args(&usage);
     }
     let name = obj_bytes(argv[3]);
     let Some(fqn) = interp.resolve_cmd_fqn(&name) else {
@@ -430,14 +420,11 @@ fn parse_ops(interp: &mut Interp, spec: &[u8]) -> Result<Vec<Vec<u8>>, Code> {
 /// `trace add|remove variable name ops command`.
 fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool) -> Code {
     if argv.len() != 6 {
-        return wrong_args(
-            interp,
-            if is_add {
-                b"trace add variable name opList command"
-            } else {
-                b"trace remove variable name opList command"
-            },
-        );
+        return interp.wrong_args(if is_add {
+            b"trace add variable name opList command"
+        } else {
+            b"trace remove variable name opList command"
+        });
     }
     let name = obj_bytes(argv[3]);
     let ops = match parse_ops(interp, &obj_bytes(argv[4])) {
@@ -487,7 +474,7 @@ fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool)
 /// as a `{opList command}` pair.
 fn trace_var_info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
-        return wrong_args(interp, b"trace info variable name");
+        return interp.wrong_args(b"trace info variable name");
     }
     let name = obj_bytes(argv[3]);
     let mut entries: Vec<*mut TclObj> = Vec::new();

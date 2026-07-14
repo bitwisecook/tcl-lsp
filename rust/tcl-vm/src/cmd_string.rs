@@ -22,7 +22,7 @@ use tcl_runtime_api::Completion;
 use tcl_syntax::glob::string_case_match;
 
 use crate::command::resolve_index;
-use crate::interp::{Vm, err, ok};
+use crate::interp::{Vm, err, err_wrong_args, ok};
 use crate::value::Value;
 
 pub(crate) fn register(vm: &mut Vm) {
@@ -142,7 +142,7 @@ fn resolve_string_sub(input: &str) -> Result<&'static str, String> {
 
 fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
-        return err("wrong # args: should be \"string subcommand ?arg ...?\"");
+        return err_wrong_args("string subcommand ?arg ...?");
     };
     let canon = match resolve_string_sub(&sub.to_str()) {
         Ok(c) => c,
@@ -173,7 +173,7 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             [pairs, s] => string_map(pairs, &s.to_str(), false),
             [opt, pairs, s] if is_nocase(&opt.to_str()) => string_map(pairs, &s.to_str(), true),
             [opt, _, _] => err(format!("bad option \"{}\": must be -nocase", opt.to_str())),
-            _ => err("wrong # args: should be \"string map ?-nocase? charMap string\""),
+            _ => err_wrong_args("string map ?-nocase? charMap string"),
         },
         "cat" => ok(Value::string(
             rest.iter()
@@ -194,7 +194,7 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// empty *original* string is replaceable (so `string replace {} -1 0 A` → A).
 fn string_replace(rest: &[Value]) -> Completion<Value> {
     if rest.len() < 3 || rest.len() > 4 {
-        return err("wrong # args: should be \"string replace string first last ?string?\"");
+        return err_wrong_args("string replace string first last ?string?");
     }
     let (s, first, last) = (&rest[0], &rest[1], &rest[2]);
     let chars: Vec<char> = s.to_str().chars().collect();
@@ -226,7 +226,7 @@ fn string_replace(rest: &[Value]) -> Completion<Value> {
 /// character (so `end` appends).
 fn string_insert(rest: &[Value]) -> Completion<Value> {
     let [s, idx, ins] = rest else {
-        return err("wrong # args: should be \"string insert string index insertString\"");
+        return err_wrong_args("string insert string index insertString");
     };
     let chars: Vec<char> = s.to_str().chars().collect();
     let len = chars.len();
@@ -261,7 +261,7 @@ fn string_match(rest: &[Value]) -> Completion<Value> {
             true,
         ))),
         [opt, _, _] => err(format!("bad option \"{}\": must be -nocase", opt.to_str())),
-        _ => err("wrong # args: should be \"string match ?-nocase? pattern string\""),
+        _ => err_wrong_args("string match ?-nocase? pattern string"),
     }
 }
 
@@ -273,9 +273,7 @@ fn case_convert(rest: &[Value], op: &str) -> Completion<Value> {
         [s, f] => (s, Some(f), None),
         [s, f, l] => (s, Some(f), Some(l)),
         _ => {
-            return err(format!(
-                "wrong # args: should be \"string {op} string ?first? ?last?\""
-            ));
+            return err_wrong_args(&format!("string {op} string ?first? ?last?"));
         }
     };
     let chars: Vec<char> = s.to_str().chars().collect();
@@ -332,9 +330,7 @@ fn string_first(rest: &[Value]) -> Completion<Value> {
         [n, h] => (n, h, None),
         [n, h, s] => (n, h, Some(s)),
         _ => {
-            return err(
-                "wrong # args: should be \"string first needleString haystackString ?startIndex?\"",
-            );
+            return err_wrong_args("string first needleString haystackString ?startIndex?");
         }
     };
     let hay: Vec<char> = hay.to_str().chars().collect();
@@ -368,9 +364,7 @@ fn string_last(rest: &[Value]) -> Completion<Value> {
         [n, h] => (n, h, None),
         [n, h, s] => (n, h, Some(s)),
         _ => {
-            return err(
-                "wrong # args: should be \"string last needleString haystackString ?lastIndex?\"",
-            );
+            return err_wrong_args("string last needleString haystackString ?lastIndex?");
         }
     };
     let hay: Vec<char> = hay.to_str().chars().collect();
@@ -406,8 +400,8 @@ fn string_last(rest: &[Value]) -> Completion<Value> {
 fn str_compare(rest: &[Value], equal: bool) -> Completion<Value> {
     let name = if equal { "equal" } else { "compare" };
     let wrong = || {
-        err(format!(
-            "wrong # args: should be \"string {name} ?-nocase? ?-length int? string1 string2\""
+        err_wrong_args(&format!(
+            "string {name} ?-nocase? ?-length int? string1 string2"
         ))
     };
     // Mirror StringCmpOpts (tclCmdMZ.c): 2..=5 args, options (abbreviatable)
@@ -479,9 +473,7 @@ fn trim_str(rest: &[Value], op: &str, left: bool, right: bool) -> Completion<Val
         [s] => (s.to_str(), None),
         [s, c] => (s.to_str(), Some(c.to_str())),
         _ => {
-            return err(format!(
-                "wrong # args: should be \"string {op} string ?chars?\""
-            ));
+            return err_wrong_args(&format!("string {op} string ?chars?"));
         }
     };
     let custom: Option<Vec<char>> = chars.as_deref().map(|c| c.chars().collect());
@@ -541,7 +533,7 @@ fn string_map(pairs: &Value, s: &str, nocase: bool) -> Completion<Value> {
 
 fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((name, vals)) = args.split_first() else {
-        return err("wrong # args: should be \"append varName ?value ...?\"");
+        return err_wrong_args("append varName ?value ...?");
     };
     let n = name.to_str();
     if vals.is_empty() {

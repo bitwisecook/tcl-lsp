@@ -500,9 +500,10 @@ impl Analyser {
         self.handle_upvar_command(cmd_name, args, arg_tokens, scope_path);
         self.handle_namespace_upvar_command(cmd_name, args, arg_tokens, scope_path);
         self.handle_dict_var_command(cmd_name, args, arg_tokens, scope_path);
-        // `lassign` / `scan` / `regexp` / `regsub` write their results into
-        // trailing variable arguments; bind them so completion/hover/definition
-        // see the destructured / captured names.
+        // Any command with registry `VarWrite`-role args (`lassign`, `scan`,
+        // `regexp`, `regsub`, `gets`, `binary scan`, `vwait`, …) writes
+        // results into named variable arguments; bind them so
+        // completion/hover/definition see the destructured / captured names.
         self.handle_var_binding_command(cmd_name, args, arg_tokens, scope_path);
         // Registry symbol-definer commands (`tcltest::test NAME …`) contribute a
         // lightweight named definition to the outline.  Void handler — it only
@@ -1333,11 +1334,12 @@ impl Analyser {
         // the check entirely, so the brace-then-paren emitter must run on
         // substitution commands too.
         self.emit_w216_brace_then_paren(seg);
-        // `lassign`/`scan`/`regexp`/`regsub` nested in a `[…]` substitution still
-        // write their trailing variables into the enclosing scope — the
-        // idiomatic `if {[regexp {…} $s m]} {…}` / `set n [scan $s "%d" x]` —
-        // so bind them for completion/hover/definition and read-before-set,
-        // just as the top-level `process_command` path does.
+        // A `VarWrite`-role command nested in a `[…]` substitution still
+        // writes its variable arguments into the enclosing scope — the
+        // idiomatic `if {[regexp {…} $s m]} {…}` / `set n [scan $s "%d" x]` /
+        // `while {[gets $chan line] >= 0} {…}` — so bind them for
+        // completion/hover/definition and read-before-set, just as the
+        // top-level `process_command` path does.
         self.handle_var_binding_command(&cmd_name, args, arg_tokens, scope_path);
         // Record the nested command's variable-/command-substitution-as-command
         // call site too (`puts [$obj method]`, `if {[$obj ok]} …`).  The main

@@ -75,6 +75,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Convert to specified encoding.",
         synopsis: "encoding convertto ?encoding? string",
         pure: true,
+        // S110: encodes its character operand into a fresh byte array (the
+        // `ByteArray` return type marks it a binary source — tclsh
+        // 8.6.14-verified: `tcl::unsupported::representation [encoding
+        // convertto utf-8 héllo]` → bytearray). On an *already-binary*
+        // operand this is the double-encode bug: the bytes are reinterpreted
+        // as latin-1 characters and re-encoded — 8.6.14-verified, byte `200`
+        // → bytes `C3 88`. Identical in 9.0 (`Tcl_UtfToExternalDStringEx`);
+        // TIP 568 does not change `convertto` because its operand is read as
+        // a *string*, not as bytes.
+        byte_array_effect: ByteArrayEffect::Encodes,
         return_type: Some(TclType::ByteArray),
         arg_values: &[(
             0,

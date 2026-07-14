@@ -426,9 +426,11 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
     } else {
         // An unqualified target binds in the current namespace; a qualified one
-        // is used as given. `register_command` canonicalises the key.
-        let key = if new_name.contains("::") {
-            new_name.to_string()
+        // is used as given, normalised to the key form (separator runs
+        // collapse, the root drops — `rename p a:::q` creates `::a::q`,
+        // tclsh8.6-verified; the raw name used to register a `a:::q` key).
+        let key = if tcl_syntax::naming::is_qualified(new_name.as_bytes()) {
+            crate::interp::canonical_cmd_key(&new_name).into_owned()
         } else {
             vm.qualify_name(&new_name)
         };
@@ -438,17 +440,19 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // A proc executes in the namespace it currently lives in, so renaming
         // it across namespaces re-homes its body (C `TclRenameCommand` updates
         // the command's `nsPtr`). `namespace current` inside the body then
-        // reports the destination namespace (proc-3.4).
+        // reports the destination namespace (proc-3.4). The key is canonical,
+        // so the shared qualifier split yields its namespace directly.
         let cmd = match cmd {
             Command::Proc(def) => {
-                let canon = key.strip_prefix("::").unwrap_or(&key);
-                let new_ns = canon.rsplit_once("::").map_or("", |(ns, _)| ns);
-                if new_ns == def.namespace && canon == def.name {
+                let new_ns =
+                    std::str::from_utf8(tcl_cmd_core::namespace::qualifiers(key.as_bytes()))
+                        .expect("subslice of valid UTF-8");
+                if new_ns == def.namespace && key == def.name {
                     Command::Proc(def)
                 } else {
                     let mut relocated = (*def).clone();
                     relocated.namespace = new_ns.to_string();
-                    relocated.name = canon.to_string();
+                    relocated.name.clone_from(&key);
                     Command::Proc(Rc::new(relocated))
                 }
             }
@@ -677,9 +681,11 @@ fn interp_hidectl_cmd(vm: &mut Vm, hide: bool, rest: &[Value]) -> Completion<Val
 }
 
 /// Whether `name` resolves in the global namespace — i.e. it carries no
-/// namespace qualifiers beyond an optional leading `::`.
+/// namespace qualifiers beyond an optional leading `::` run (the shared
+/// separator-run-aware split: `::::foo` is global too, where the old
+/// single-`strip_prefix` misclassified it).
 fn is_global_command(name: &str) -> bool {
-    !name.strip_prefix("::").unwrap_or(name).contains("::")
+    tcl_cmd_core::namespace::qualifiers(name.as_bytes()).is_empty()
 }
 
 /// `interp invokehidden path ?-namespace ns? ?--? cmd ?arg ...?` — invoke a
@@ -854,7 +860,9 @@ fn cmd_auto_load(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .first()
         .map(|v| v.to_str().to_string())
         .unwrap_or_default();
-    let simple = name.rsplit("::").next().unwrap_or(&name);
+    // The shared `namespace tail` op (separator-run-aware, matching C).
+    let simple = std::str::from_utf8(tcl_cmd_core::namespace::tail(name.as_bytes()))
+        .expect("subslice of valid UTF-8");
     let src = match simple {
         "parray" => PARRAY_SRC,
         _ => return ok(Value::int(0)),
@@ -1065,9 +1073,13 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // `::name`-keyed entry; namespaced bodies the compiler globalised under
     // `::name` simply miss and recompile via `compile_dynamic_body`.
     let body_key = reg_name.clone();
-    let namespace = reg_name
-        .rsplit_once("::")
-        .map_or_else(String::new, |(ns, _)| ns.to_string());
+    // `reg_name` is canonical (single `::`s); the shared qualifier split keeps
+    // the namespace correct for colon-run sources too (`proc foo:::baz` in an
+    // existing `foo` defines `::foo::baz`, tclsh8.6-verified — the old
+    // `rsplit_once` derived the bogus namespace `foo:` and errored).
+    let namespace = std::str::from_utf8(tcl_cmd_core::namespace::qualifiers(reg_name.as_bytes()))
+        .expect("subslice of valid UTF-8")
+        .to_string();
     // A namespace-qualified proc name requires its namespace to already exist
     // (C's `TclGetNamespaceForQualName` → `nsPtr == NULL`). An unqualified name
     // lands in the current namespace, which always exists (proc-1.2).

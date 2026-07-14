@@ -4723,6 +4723,46 @@ fn info_exists_does_not_fold_unset_parameter() {
 }
 
 #[test]
+fn info_exists_does_not_fold_scope_alias_locals() {
+    // A local bound to out-of-frame storage exists iff the *linked* variable
+    // does — runtime state this function cannot see, so the fold must skip
+    // it for every alias kind.  tclsh 8.6: `namespace eval ns {variable s
+    // ok}; proc t {} {namespace upvar ns s a; info exists a}; t` → 1, and →
+    // 0 once `ns::s` is unset.  Pre-fix, `namespace upvar` (whose lowered
+    // Call carries no defs, unlike `global`/`variable`/`upvar`) folded
+    // "always false" — the `::safe::CheckInterp` guard shape (safe.tcl:109).
+    for src in [
+        // The two `namespace upvar` forms are the regression; the other
+        // alias kinds pin the behaviour they already had via `Call::defs`.
+        "proc f {} { namespace upvar ::ns state alias\n if {[info exists alias]} { puts hi } }",
+        "proc f {} { namespace upvar ::ns arr(k) alias\n if {[info exists alias]} { puts hi } }",
+        "proc f {} { upvar 1 src alias\n if {[info exists alias]} { puts hi } }",
+        "proc f {} { global alias\n if {[info exists alias]} { puts hi } }",
+        "proc f {} { variable alias\n if {[info exists alias]} { puts hi } }",
+    ] {
+        let codes = codes_for(src);
+        assert!(
+            !codes.contains(&"I230".to_string()),
+            "existence of a scope-alias local must not fold; got {codes:?} for {src}",
+        );
+    }
+}
+
+#[test]
+fn info_exists_fold_survives_unrelated_scope_alias() {
+    // TP control for the alias skip: an alias binding for one name must not
+    // blanket-disable the fold — a *different*, never-defined local still
+    // folds to I230.
+    let codes = codes_for(
+        "proc f {} { namespace upvar ::ns state alias\n if {[info exists other]} { puts hi } }",
+    );
+    assert!(
+        codes.contains(&"I230".to_string()),
+        "never-defined `other` must still fold beside an unrelated alias; got {codes:?}",
+    );
+}
+
+#[test]
 fn analyse_w307_suppressed_for_known_class_constructor_chain() {
     // ``[Dog new] bark`` — ``Dog`` is a user class so
     // ``new`` returns an Object whose class is ``Dog``.
@@ -7234,6 +7274,235 @@ fn w103_open_pipeline() {
     assert_eq!(
         code_sevs("proc g {f} { open $f }\n", "W103"),
         vec!["Warning"]
+    );
+}
+
+// -- registry-trait gate swaps (W101 / W103 / W309 / W312 / W302) --
+//
+// The security emitters resolve their eligible commands from registry
+// traits/fields, never from command-name literals. Each swapped gate keeps
+// one fire and one silent case here (beyond the per-code fixtures above).
+
+#[test]
+fn w101_gate_trait_pair_keeps_eval_only() {
+    // Fire: the concat-reparse shape (EVALUATES_CODE + TAINT_SINK with a
+    // static Body role at arg 0) — `eval`.
+    assert_eq!(sec_codes("eval $cmd\n", "W101"), 1);
+    // Silent: `uplevel` carries the trait pair but its script position is
+    // resolver-driven (optional level word) — owned by W301, no W101.
+    assert_eq!(sec_codes("uplevel 1 \"set x $y\"\n", "W101"), 0);
+    // Silent: the coroutine injectors carry EVALUATES_CODE but take a
+    // coroutine name + command *prefix* — nothing is re-parsed as script.
+    assert_eq!(sec_codes("coroinject c $cmd\n", "W101"), 0);
+    assert_eq!(sec_codes("coroprobe c $cmd\n", "W101"), 0);
+}
+
+#[test]
+fn w309_inner_subst_head_resolves_through_registry() {
+    // The `[subst …]` head check is a registry PERFORMS_SUBSTITUTION
+    // lookup, so the fully-qualified spelling is caught too (`get`
+    // resolves a leading `::`) — previously a literal-prefix miss.
+    assert_eq!(sec_codes("eval [::subst $template]\n", "W309"), 1);
+    // A non-substituting inner head stays silent.
+    assert_eq!(sec_codes("eval [format %s $x]\n", "W309"), 0);
+}
+
+#[test]
+fn w103_socket_is_not_a_pipeline_opener() {
+    // `socket` carries OPENS_CHANNEL too, but its first argument is an
+    // address (`Tcl_OpenTcpClient`) — never a `|` exec spec — and its spec
+    // carries TAINT_SOURCE, the excluder the gate pairs with the trait.
+    assert_eq!(sec_codes("socket $host 80\n", "W103"), 0);
+    assert_eq!(sec_codes("socket -server accept 8080\n", "W103"), 0);
+    // The file opener still fires.
+    assert_eq!(code_sevs("open $f\n", "W103"), vec!["Warning"]);
+}
+
+#[test]
+fn w312_registry_taint_list_widens_to_console_and_abbreviations() {
+    // `console eval` / `consoleinterp eval|record` declare
+    // `taint_interp_eval_subcommands` in the registry, so the same
+    // injection check applies — an intentional widening from the former
+    // `cmd_name == "interp"` gate.
+    assert_eq!(sec_codes("console eval $script\n", "W312"), 1);
+    assert_eq!(sec_codes("consoleinterp record $script\n", "W312"), 1);
+    assert_eq!(sec_codes("console eval {set x 1}\n", "W312"), 0);
+    // The subcommand word resolves via the ensemble rule, matching C Tcl:
+    // `interp ev` is the unique-prefix spelling tclsh accepts…
+    assert_eq!(sec_codes("interp ev $child $script\n", "W312"), 1);
+    // …and `interp e` is ambiguous (eval/exists/expose), a tclsh error, so
+    // no diagnostic pretends it dispatched.
+    assert_eq!(sec_codes("interp e $child $script\n", "W312"), 0);
+}
+
+#[test]
+fn w302_fire_and_forget_is_registry_destructive_data() {
+    // The suppression reads HAS_DESTRUCTIVE_OPS + SubCommand.destructive
+    // from the registry. `file mkdir` / `file rename` are
+    // registry-declared destructive (W313's set), so their bare-catch
+    // forms now suppress too — an intentional widening from the former
+    // `file delete`-only table.
+    assert_eq!(
+        sec_codes("proc f {d} { catch {file mkdir $d} }\n", "W302"),
+        0
+    );
+    assert_eq!(
+        sec_codes("proc f {a b} { catch {file rename $a $b} }\n", "W302"),
+        0
+    );
+    // Ensemble subcommand words resolve via the registry's unique-prefix
+    // rule, matching C Tcl's `Tcl_GetIndexFromObj` (`file del` works in
+    // tclsh).
+    assert_eq!(sec_codes("proc f {p} { catch {file del $p} }\n", "W302"), 0);
+    // Non-destructive subforms of a destructive-capable ensemble still
+    // fire.
+    assert_eq!(
+        sec_codes("proc f {p} { catch {file exists $p} }\n", "W302"),
+        1
+    );
+    assert_eq!(
+        sec_codes("proc f {} { catch {array set a {x 1}} }\n", "W302"),
+        1
+    );
+    // Newly stamped bare commands and destructive subforms suppress.
+    assert_eq!(sec_codes("proc f {} { catch {unset gone} }\n", "W302"), 0);
+    assert_eq!(
+        sec_codes("proc f {} { catch {rename foo {}} }\n", "W302"),
+        0
+    );
+    assert_eq!(
+        sec_codes("proc f {id} { catch {after cancel $id} }\n", "W302"),
+        0
+    );
+    assert_eq!(
+        sec_codes("proc f {} { catch {namespace delete ::tmp} }\n", "W302"),
+        0
+    );
+    assert_eq!(
+        sec_codes("proc f {} { catch {dict unset cfg key} }\n", "W302"),
+        0
+    );
+    assert_eq!(
+        sec_codes("proc f {c} { catch {interp delete $c} }\n", "W302"),
+        0
+    );
+}
+
+// -- registry-wide VarWrite binding (handle_var_binding_command) --
+//
+// The binder takes no command-name gate: every command whose registry spec
+// marks VarWrite-role arguments binds its literal targets.
+
+#[test]
+fn var_binding_gets_defines_target_and_read_is_clean() {
+    let mut a = Analyser::new();
+    let r = a.analyse(
+        "proc f {chan} {\n    gets $chan line\n    puts $line\n}\n",
+        "tcl8.6",
+    );
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+        "gets writes its line variable — reading it back must not fire W210; got {:?}",
+        r.diagnostics
+    );
+    assert!(
+        r.all_variables.contains_key("f::line"),
+        "gets' line target must be a recorded definition; got {:?}",
+        r.all_variables.keys().collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn var_binding_binary_scan_defines_targets() {
+    let mut a = Analyser::new();
+    let r = a.analyse(
+        "proc f {d} {\n    binary scan $d c v\n    puts $v\n}\n",
+        "tcl8.6",
+    );
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+        "binary scan writes its capture variables; got {:?}",
+        r.diagnostics
+    );
+    assert!(
+        r.all_variables.contains_key("f::v"),
+        "binary scan's target must be a recorded definition; got {:?}",
+        r.all_variables.keys().collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn var_binding_vwait_defines_target() {
+    // `vwait done` returns only after an event handler wrote `done`
+    // (`Tcl_VwaitObjCmd` traces WRITES|UNSETS and never reads the value),
+    // so the operand is a definition site, and a read after the wait is
+    // clean.
+    let mut a = Analyser::new();
+    let r = a.analyse("vwait done\nputs $done\n", "tcl8.6");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+        "a read after `vwait done` is guaranteed defined; got {:?}",
+        r.diagnostics
+    );
+    assert!(
+        r.all_variables.contains_key("::::done"),
+        "vwait's operand must be a recorded definition; got {:?}",
+        r.all_variables.keys().collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn var_binding_double_bind_with_set_is_idempotent() {
+    // `set` has a dedicated handler that binds first; the generic
+    // VarWrite binder re-binding the same token must not push a duplicate
+    // self-reference or downgrade the dedicated handler's
+    // `warn_if_unused = true`.
+    let mut a = Analyser::new();
+    let r = a.analyse("set x 5\n", "tcl8.6");
+    let var = r
+        .global_scope
+        .variables
+        .get("x")
+        .expect("set must define x");
+    assert!(
+        var.references.is_empty(),
+        "the definition site must not be double-recorded as a reference; got {:?}",
+        var.references
+    );
+    assert!(
+        var.warn_if_unused,
+        "the generic binder's warn_if_unused=false must not downgrade set's true"
+    );
+}
+
+#[test]
+fn var_binding_scope_alias_and_destroy_families_are_excluded() {
+    // CREATES_SCOPE_ALIAS: `global ::ns::v` binds the local alias tail
+    // `v` (its dedicated handler's layout), never the qualified name a
+    // flat VarWrite walk would record.
+    let mut a = Analyser::new();
+    let r = a.analyse(
+        "proc f {} {\n    global ::ns::v\n    set v 1\n}\n",
+        "tcl8.6",
+    );
+    assert!(
+        r.all_variables.contains_key("f::v"),
+        "global's dedicated handler binds the alias tail; got {:?}",
+        r.all_variables.keys().collect::<Vec<_>>()
+    );
+    assert!(
+        !r.all_variables.keys().any(|k| k.contains("ns::v")),
+        "the generic binder must not record the qualified name; got {:?}",
+        r.all_variables.keys().collect::<Vec<_>>()
+    );
+    // DESTROYS_VARIABLE: `unset`'s VarWrite role marks a removal target,
+    // not a binding.
+    let mut a = Analyser::new();
+    let r = a.analyse("proc g {} {\n    unset zombie\n}\n", "tcl8.6");
+    assert!(
+        !r.all_variables.contains_key("g::zombie"),
+        "unset must not record a definition for its removal target; got {:?}",
+        r.all_variables.keys().collect::<Vec<_>>()
     );
 }
 

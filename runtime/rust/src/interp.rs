@@ -6183,6 +6183,17 @@ impl Interp {
     pub(crate) fn set_error(&mut self, msg: &[u8]) -> Code {
         self.error(msg)
     }
+
+    /// Set the canonical `wrong # args: should be "usage"` arity error and
+    /// return [`Code::Error`] (`Tcl_WrongNumArgs` with a literal usage) — the
+    /// one home for the builtins' arity message, formerly a per-`cmd_*.rs`
+    /// copy.
+    pub(crate) fn wrong_args(&mut self, usage: &[u8]) -> Code {
+        let mut m = b"wrong # args: should be \"".to_vec();
+        m.extend_from_slice(usage);
+        m.push(b'"');
+        self.set_error(&m)
+    }
 }
 
 /// The `wrong # args: should be "name p1 ?p2? ?arg ...?"` message for a proc

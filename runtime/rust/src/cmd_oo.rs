@@ -684,14 +684,11 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
 }
 
 /// Unambiguous-prefix match of `arg` against `cands` (Tcl option-table style):
-/// the exact name, else the unique candidate it prefixes, else `None`.
+/// the exact name, else the unique candidate it prefixes, else `None` — the
+/// shared `Tcl_GetIndexFromObjStruct` matcher.
 fn prefix_match<'a>(arg: &[u8], cands: &'a [&'a [u8]]) -> Option<&'a [u8]> {
-    if let Some(c) = cands.iter().find(|c| **c == arg) {
-        return Some(c);
-    }
-    let mut it = cands.iter().filter(|c| c.starts_with(arg));
-    match (it.next(), it.next()) {
-        (Some(c), None) => Some(c),
+    match tcl_cmd_core::prefix::lookup(cands, arg, false) {
+        tcl_cmd_core::prefix::Lookup::Found(i) => Some(cands[i]),
         _ => None,
     }
 }
@@ -1241,17 +1238,20 @@ fn err(interp: &mut Interp, msg: &[u8]) -> Code {
     interp.set_error(msg)
 }
 
+/// `wrong # args` for the OO definition commands — a deliberate variant of
+/// [`Interp::wrong_args`]: the single-command definition forms
+/// (`oo::define Foo method …`) report the *whole* original command via the
+/// active ensemble-rewrite prefix (C's `Tcl_WrongNumArgs` rewrite path), so
+/// this prepends `def_rewrite` before delegating to the shared helper.
 fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    // Single-command definition forms (`oo::define Foo method …`) report the
-    // whole original command via the active ensemble-rewrite prefix.
-    if let Some(prefix) = interp.oo.borrow().def_rewrite.clone() {
-        m.extend_from_slice(&prefix);
-        m.push(b' ');
+    let rewrite = interp.oo.borrow().def_rewrite.clone();
+    if let Some(prefix) = rewrite {
+        let mut u = prefix;
+        u.push(b' ');
+        u.extend_from_slice(usage);
+        return Interp::wrong_args(interp, &u);
     }
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
+    Interp::wrong_args(interp, usage)
 }
 
 impl Interp {

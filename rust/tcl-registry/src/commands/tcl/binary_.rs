@@ -52,6 +52,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Decode binary data.",
         synopsis: "binary decode format data",
         pure: true,
+        // S110 binary source: the return type marks the result a byte array —
+        // tclsh 8.6.14-verified (`tcl::unsupported::representation
+        // [binary decode hex 41ffc8]` → bytearray); 9.0 `BinaryDecodeHex`/
+        // `64`/`Uu` (tclBinary.c) build the result with `Tcl_NewObj` +
+        // `Tcl_SetByteArrayLength` likewise.
         return_type: Some(TclType::ByteArray),
         // `data` is arg 1 (sub-index 1: arg 0 is the `format` keyword, e.g.
         // `hex`/`base64`). It is text-friendly *encoded* data being
@@ -79,6 +84,18 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "binary encode format data",
         pure: true,
         return_type: Some(TclType::String),
+        // S110: reads `data` *as bytes*, installing the byte-array rep on it
+        // in place — tclsh 8.6.14-verified (`set q héllo; binary encode hex
+        // $q` leaves `q` a bytearray). 8.6 `BinaryEncodeHex`/`64`/`Uu`
+        // (tclBinary.c) convert via `Tcl_GetByteArrayFromObj(objv[objc-1])`,
+        // silently truncating characters > 0xFF (`UCHAR`); 9.0 (TIP 568) uses
+        // `Tcl_GetBytesFromObj(interp, objv[objc-1], …)` which **errors**
+        // ("expected byte sequence but character …") on an improper byte
+        // sequence and only installs the rep when proper. The `value_arg`
+        // models the option-less `binary encode <fmt> <data>` form; with
+        // `-maxlen`/`-wrapchar` options the data shifts right and is
+        // (conservatively) not tracked.
+        byte_array_effect: ByteArrayEffect::Rebinarifies { value_arg: 1 },
         // `data` is arg 1 (sub-index 1: arg 0 is the `format` keyword).
         arg_types: &[(
             1,
@@ -98,6 +115,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Format values into a binary string.",
         synopsis: "binary format formatString ?arg ...?",
         pure: true,
+        // S110 binary source: the return type marks the result a byte array —
+        // tclsh 8.6.14-verified (`tcl::unsupported::representation
+        // [binary format c* {1 2}]` → bytearray). Not stamped `Rebinarifies`:
+        // which value args the `a`/`A` cursors read as bytes depends on the
+        // format string, so the in-place conversion (8.6
+        // `Tcl_GetByteArrayFromObj(objv[arg])`; 9.0 `TclNarrowToBytes`, which
+        // converts in place only for a *proper* byte sequence and otherwise
+        // works on a truncated copy without erroring) is not modelled and a
+        // damaged operand conservatively stays damaged.
         return_type: Some(TclType::ByteArray),
         // The format string is read via its string rep only — cached
         // alongside the intrep, so a list-typed format spec keeps its list
@@ -118,6 +144,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Parse a binary string.",
         synopsis: "binary scan string formatString ?varName ...?",
         return_type: Some(TclType::Int),
+        // S110: reads `string` *as bytes*, installing the byte-array rep on
+        // it in place — the documented fix for byte-array corruption (F5
+        // K22406348: `binary scan $v c* -` re-binarifies `$v`). tclsh
+        // 8.6.14-verified; 8.6 `BinaryScanCmd` (tclBinary.c) converts via
+        // `Tcl_GetByteArrayFromObj(objv[1])` with silent `UCHAR` truncation
+        // of characters > 0xFF, 9.0 (TIP 568) via
+        // `Tcl_GetBytesFromObj(interp, objv[1], …)` which errors on them.
+        // S110-damaged values only hold characters <= 0xFF (latin-1 range),
+        // so the fix behaves identically in both versions.
+        byte_array_effect: ByteArrayEffect::Rebinarifies { value_arg: 0 },
         // `binary scan` writes format-dependent values (`a` → string, `c`/`s`/
         // `i` → int, `f` → double, `@` → none) to its targets while returning
         // the *count* of conversions.  The targets are not the count, so they

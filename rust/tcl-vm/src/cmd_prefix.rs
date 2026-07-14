@@ -100,29 +100,6 @@ fn prefix_longest(rest: &[Value]) -> Completion<Value> {
     ok(Value::string(first.chars().take(len).collect::<String>()))
 }
 
-/// Format a table for an error message: `a`, `a or b`, or `a, b, or c` — Tcl
-/// omits the comma for a two-element list.
-fn oxford_or(table: &[String]) -> String {
-    match table {
-        [] => String::new(),
-        [a] => a.clone(),
-        [a, b] => format!("{a} or {b}"),
-        _ => {
-            let mut out = String::new();
-            for (i, e) in table.iter().enumerate() {
-                if i > 0 {
-                    out.push_str(", ");
-                }
-                if i == table.len() - 1 {
-                    out.push_str("or ");
-                }
-                out.push_str(e);
-            }
-            out
-        }
-    }
-}
-
 /// `tcl::prefix match ?-exact? ?-message s? ?-error opts? table string`.
 fn prefix_match(_vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let mut exact = false;
@@ -173,31 +150,18 @@ fn prefix_match(_vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     };
     let s = sv.to_str();
 
-    // An exact table entry always wins; otherwise a unique prefix matches.
-    if let Some(e) = table.iter().find(|e| **e == *s) {
-        return ok(Value::string(e.clone()));
-    }
-    let matches: Vec<&String> = if exact {
-        Vec::new()
-    } else {
-        table.iter().filter(|e| e.starts_with(&*s)).collect()
+    // The shared `Tcl_GetIndexFromObjStruct` matcher: an exact entry always
+    // wins; otherwise a unique prefix (unless `-exact`); the miss carries C's
+    // exact bad/ambiguous wording (including the empty-string-never-matches
+    // rule, where the old local matcher wrongly resolved `""` against a
+    // one-entry table).
+    let miss = match tcl_cmd_core::prefix::lookup(&table, s.as_bytes(), exact) {
+        tcl_cmd_core::prefix::Lookup::Found(i) => {
+            return ok(Value::string(table[i].clone()));
+        }
+        miss => miss,
     };
-    if let [only] = matches.as_slice() {
-        return ok(Value::string((*only).clone()));
-    }
-
-    // No (or ambiguous) match: build the error.
-    let kind = if matches.len() > 1 {
-        "ambiguous"
-    } else {
-        "bad"
-    };
-    let list = if table.is_empty() {
-        "no valid options".to_string()
-    } else {
-        format!("must be {}", oxford_or(&table))
-    };
-    let msg = format!("{kind} {message} \"{s}\": {list}");
+    let msg = tcl_cmd_core::prefix::lookup_error(&table, &message, &s, miss).into_message();
     match error_opts {
         // No `-error`: a normal error.
         None => err(msg),

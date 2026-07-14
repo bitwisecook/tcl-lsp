@@ -403,11 +403,19 @@ fn to_i64(mag: u64, negative: bool) -> Option<i64> {
 /// shape). Returns `None` on trailing junk.
 #[must_use]
 pub fn parse_whole(s: &str) -> Option<Number> {
-    let flags = ParseFlags::default();
+    parse_whole_with(s, ParseFlags::default())
+}
+
+/// [`parse_whole`] with explicit [`ParseFlags`] — e.g. `integer_only` for the
+/// whole-string integer shape (`Tcl_GetWideIntFromObj` via
+/// `TCL_PARSE_INTEGER_ONLY`), where a fractional part is trailing junk.
+/// Trailing whitespace is skipped unless `no_whitespace` forbids it.
+#[must_use]
+pub fn parse_whole_with(s: &str, flags: ParseFlags) -> Option<Number> {
     let p = parse(s, flags)?;
     let mut i = p.end;
     let b = s.as_bytes();
-    while i < b.len() && is_ws(b[i]) {
+    while !flags.no_whitespace && i < b.len() && is_ws(b[i]) {
         i += 1;
     }
     (i == b.len()).then_some(p.number)

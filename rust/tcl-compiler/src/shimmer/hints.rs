@@ -96,8 +96,15 @@ pub fn arg_shimmer_expectation(
     if !spec.subcommands.is_empty() {
         let sub_name = args.first().copied()?;
         let sub = spec.resolve_subcommand(sub_name)?;
-        // arg_index 0 = subcommand word; subtract 1 for sub-relative index.
-        let sub_idx = u8::try_from(arg_index.checked_sub(1)?).ok()?;
+        // arg_index 0 = subcommand word; subtract 1 for the sub-relative
+        // index, then subtract the leading declared option words so the
+        // static positional hints stay aligned under a `?-nocase?`-style
+        // prefix (`string map -nocase $mapping $subject` must resolve
+        // `$mapping` to positional 0, not 1). A query landing *inside* the
+        // option prefix (`rel < skip`) is an option word — never a hint.
+        let rel = arg_index.checked_sub(1)?;
+        let skip = leading_option_words(sub, args.get(1..).unwrap_or(&[]));
+        let sub_idx = u8::try_from(rel.checked_sub(skip)?).ok()?;
         return sub
             .arg_types
             .iter()
@@ -110,6 +117,51 @@ pub fn arg_shimmer_expectation(
         .iter()
         .find(|(i, _)| *i == needle)
         .and_then(|(_, h)| expectation(h))
+}
+
+/// Count the leading words of `sub_args` that are declared options of `sub`
+/// — the `?-nocase? ?-length N?` prefix `string`-style subcommands accept
+/// before their positional arguments — so positional `arg_types` hints can
+/// be resolved against the true positional index.
+///
+/// A word counts as an option when it begins with `-`, is at least two
+/// characters, and resolves to exactly one declared option — by exact name,
+/// declared alias, or unique prefix (C Tcl's option tables accept any
+/// unambiguous prefix of two or more characters: `string map -noc …`
+/// behaves like `-nocase`, verified in `tclCmdMZ.c`'s
+/// `strncmp(string, "-nocase", length)` loops). A value-taking option also
+/// consumes its following word. Counting stops at the first
+/// non-option-shaped word; a subcommand with no declared options returns 0
+/// unconditionally, so purely positional subcommands are untouched.
+fn leading_option_words(sub: &tcl_registry::SubCommand, sub_args: &[&str]) -> usize {
+    if sub.options.is_empty() {
+        return 0;
+    }
+    let mut i = 0;
+    while let Some(&word) = sub_args.get(i) {
+        if !word.starts_with('-') || word.len() < 2 {
+            break;
+        }
+        // Exact name / declared alias wins outright; otherwise require a
+        // unique prefix match (an ambiguous prefix is a runtime `bad
+        // option` error — treat it as ending the option prefix).
+        let resolved = sub
+            .options
+            .iter()
+            .find(|o| o.name == word || o.aliases.contains(&word))
+            .or_else(|| {
+                let mut prefixed = sub.options.iter().filter(|o| o.name.starts_with(word));
+                let first = prefixed.next();
+                if prefixed.next().is_some() {
+                    None
+                } else {
+                    first
+                }
+            });
+        let Some(opt) = resolved else { break };
+        i += 1 + usize::from(opt.takes_value());
+    }
+    i
 }
 
 /// Return `true` when the two types are numerically compatible — i.e. a
@@ -249,6 +301,128 @@ mod tests {
                 Some(TclType::Dict),
                 "dict {sub} should shimmer its dict argument like dict get",
             );
+        }
+    }
+
+    /// `string first`/`last` install the string intrep on BOTH the needle
+    /// and the haystack (tclsh8.6-verified: `set l [list 1 2 3]; string
+    /// first x $l` flips `l`'s representation list→string, and so does the
+    /// needle position). The startIndex position keeps its Int hint.
+    #[test]
+    fn arg_shimmer_expectation_string_first_last_needle_and_haystack() {
+        let r = registry();
+        for sub in ["first", "last"] {
+            for (arg_index, label) in [(1usize, "needle"), (2usize, "haystack")] {
+                let exp = arg_shimmer_expectation(&r, "string", &[sub, "$n", "$h", "1"], arg_index)
+                    .unwrap_or_else(|| panic!("string {sub} {label} must be a shimmer position"));
+                assert_eq!(exp.expected, TclType::String, "string {sub} {label}");
+                // 9.0's TclStringFirst/Last keep the rep only for the
+                // both-pure-byte-array pair; the positional hint cannot see
+                // the sibling operand, so ByteArray is transparent (the
+                // 9.0-safe under-approximation — 8.6 actually converts).
+                assert!(exp.is_transparent_from(TclType::ByteArray));
+                assert!(!exp.is_transparent_from(TclType::List));
+            }
+            assert_eq!(
+                arg_shimmer_type(&r, "string", &[sub, "$n", "$h", "$i"], 3),
+                Some(TclType::Int),
+                "string {sub} startIndex keeps its Int hint"
+            );
+        }
+    }
+
+    /// `string map`'s mapping takes the dict path only for a pure dict and
+    /// otherwise goes through `TclListObjGetElements` — tclsh8.6-verified:
+    /// a plain-string mapping flips to `list`, a list mapping stays `list`,
+    /// a `dict create` mapping stays `dict`. The former `expected: Dict`
+    /// hint was refuted by that probe.
+    #[test]
+    fn arg_shimmer_expectation_string_map_mapping_is_list_dict_transparent() {
+        let r = registry();
+        let exp = arg_shimmer_expectation(&r, "string", &["map", "$m", "$s"], 1)
+            .expect("string map mapping must be a shimmer position");
+        assert_eq!(exp.expected, TclType::List);
+        assert!(exp.is_transparent_from(TclType::Dict));
+        assert!(!exp.is_transparent_from(TclType::ByteArray));
+    }
+
+    /// `string map`'s subject is read via `Tcl_GetUnicodeFromObj` in both
+    /// 8.6 and 9.0 — tclsh8.6-verified: a list subject flips list→string
+    /// AND a pure byte-array subject flips bytearray→string, so nothing is
+    /// transparent.
+    #[test]
+    fn arg_shimmer_expectation_string_map_subject_converts_bytearray_too() {
+        let r = registry();
+        let exp = arg_shimmer_expectation(&r, "string", &["map", "$m", "$s"], 2)
+            .expect("string map subject must be a shimmer position");
+        assert_eq!(exp.expected, TclType::String);
+        assert!(!exp.is_transparent_from(TclType::ByteArray));
+    }
+
+    /// The `?-nocase?` option shifts `string map`'s positional arguments by
+    /// one; the leading-option skip keeps the hints aligned: under
+    /// `-nocase` (or C Tcl's accepted unique prefix `-noc`) index 2 is the
+    /// mapping and index 3 the subject, while index 1 — the option word
+    /// itself — carries no hint.
+    #[test]
+    fn arg_shimmer_expectation_string_map_nocase_shifts_positions() {
+        let r = registry();
+        for opt in ["-nocase", "-noc"] {
+            let args = ["map", opt, "$m", "$s"];
+            assert_eq!(
+                arg_shimmer_expectation(&r, "string", &args, 1).map(|e| e.expected),
+                None,
+                "the {opt} option word must carry no hint"
+            );
+            assert_eq!(
+                arg_shimmer_expectation(&r, "string", &args, 2).map(|e| e.expected),
+                Some(TclType::List),
+                "mapping under {opt}"
+            );
+            assert_eq!(
+                arg_shimmer_expectation(&r, "string", &args, 3).map(|e| e.expected),
+                Some(TclType::String),
+                "subject under {opt}"
+            );
+        }
+        // A value-taking option consumes its value word too: `string equal
+        // -length $n $a $b` must not resolve $n (index 2) to any positional
+        // hint (it is the option's value, not a positional argument).
+        assert_eq!(
+            arg_shimmer_expectation(&r, "string", &["equal", "-length", "$n", "$a", "$b"], 2)
+                .map(|e| e.expected),
+            None,
+        );
+    }
+
+    /// Oracle-verified negatives: subjects read via their string rep only
+    /// (dual-ported — the intrep survives) carry NO shimmer hint. tclsh8.6:
+    /// a list subject stays `list` through every one of these.
+    #[test]
+    fn arg_shimmer_expectation_dual_ported_string_subjects_have_no_hint() {
+        let r = registry();
+        for (sub, subject_index) in [
+            ("compare", 1usize),
+            ("compare", 2),
+            ("equal", 1),
+            ("equal", 2),
+            ("match", 1),
+            ("match", 2),
+            ("repeat", 1),
+            ("tolower", 1),
+            ("toupper", 1),
+            ("totitle", 1),
+            ("trim", 1),
+            ("trimleft", 1),
+            ("trimright", 1),
+            ("cat", 1),
+            ("wordend", 1),
+            ("wordstart", 1),
+        ] {
+            let got =
+                arg_shimmer_expectation(&r, "string", &[sub, "$a", "$b", "$c"], subject_index)
+                    .map(|e| e.expected);
+            assert_eq!(got, None, "string {sub} arg {subject_index}");
         }
     }
 

@@ -34,19 +34,12 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"apply", apply_cmd);
 }
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 // -- proc ------------------------------------------------------------------
 
 /// `proc name params body` — define a procedure.
 fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
-        return wrong_args(interp, b"proc name args body");
+        return interp.wrong_args(b"proc name args body");
     }
     let name = obj_bytes(argv[1]);
     // A namespace-qualified proc name requires that namespace to already exist
@@ -139,7 +132,7 @@ fn check_param_name(name: &[u8]) -> Result<(), Vec<u8>> {
 /// protocol (`Interp::run_proc`).
 fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"apply lambdaExpr ?arg ...?");
+        return interp.wrong_args(b"apply lambdaExpr ?arg ...?");
     }
     let lambda = obj_bytes(argv[1]);
     let parts = match split_list(&lambda) {

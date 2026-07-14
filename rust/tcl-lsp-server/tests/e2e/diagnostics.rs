@@ -2468,6 +2468,89 @@ fn shimmer_noqa_for_unrelated_code_does_not_suppress_s100() {
     );
 }
 
+// -- S103 (shared-value copy-on-write) ------------------------------------
+
+#[test]
+fn s103_fires_on_shared_copy_mutation_as_hint_with_tight_range() {
+    // The tight pattern: `set b $a`, `lappend b y`, `a` read afterwards —
+    // tclsh-verified (8.6.14): b holds the same object as a until the
+    // lappend, which duplicates the whole list before appending. The
+    // range covers the mutating command; the severity is Hint (4).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "set a [lrepeat 1000 x]\nset b $a\nlappend b y\nputs [llength $a]\n",
+    );
+    let s103: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("S103"))
+        .collect();
+    assert_eq!(s103.len(), 1, "expected exactly one S103: {diags:?}");
+    let range = &s103[0]["range"];
+    assert_eq!(range["start"]["line"], 2);
+    assert_eq!(range["start"]["character"], 0);
+    assert_eq!(range["end"]["line"], 2);
+    assert_eq!(range["end"]["character"], 11, "must cover `lappend b y`");
+    assert_eq!(
+        s103[0].get("severity").and_then(Value::as_i64),
+        Some(4), // Hint
+        "S103 is a hint: {:?}",
+        s103[0]
+    );
+}
+
+#[test]
+fn s103_silent_for_param_mutation_and_explicit_copy_and_dead_source() {
+    let mut lsp = Lsp::tcl();
+    // FP guard: mutating a parameter directly is idiomatic (the caller's
+    // copy is the normal case) — silent.
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "proc p {l} {\n    lappend l x\n    return $l\n}\n");
+    assert!(!has_code(&diags, "S103"), "param mutation FP: {diags:?}");
+
+    // FP guard: an explicit copy is not a pure-var-ref pair — silent.
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "set a [list 1 2 3]\nset b [lrange $a 0 end]\nlappend b y\nputs [llength $a]\n",
+    );
+    assert!(!has_code(&diags, "S103"), "explicit copy FP: {diags:?}");
+
+    // FP guard: the source is dead past the mutation — silent (the sharing
+    // is unwanted; deliberate under-approximation).
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "set a [list 1 2 3]\nset b $a\nlappend b y\nputs [llength $b]\n",
+    );
+    assert!(!has_code(&diags, "S103"), "dead source FP: {diags:?}");
+
+    // FP guard: array elements conflate onto one SSA symbol — silent.
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "set arr(src) [list 1 2 3]\nset b $arr(src)\nlappend b y\nputs [llength $arr(src)]\n",
+    );
+    assert!(!has_code(&diags, "S103"), "array element FP: {diags:?}");
+}
+
+#[test]
+fn s103_noqa_suppresses_and_shimmer_toggle_disables() {
+    // `# noqa: S103` on the preceding line suppresses it through the live
+    // pipeline (the shimmer-family suppression path).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "set a [list 1 2 3]\nset b $a\n# noqa: S103\nlappend b y\nputs [llength $a]\n",
+    );
+    assert!(
+        !has_code(&diags, "S103"),
+        "S103 must be suppressed by a preceding '# noqa: S103': {diags:?}"
+    );
+}
+
 // -- W003 (dialect-gated expr operators) ---------------------------------
 
 #[test]

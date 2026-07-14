@@ -5228,7 +5228,7 @@ impl Backend {
             None => *self.shimmer_enabled.lock().await,
         };
         if !shimmer_enabled {
-            for code in ["S100", "S101", "S102", "S110"] {
+            for code in ["S100", "S101", "S102", "S103", "S110"] {
                 disabled.insert(code.to_owned());
             }
         }
@@ -11433,7 +11433,7 @@ mod tests {
             .await;
         assert!(!*backend.shimmer_enabled.lock().await);
         let (disabled, ..) = backend.resolved_analysis_settings(&uri).await;
-        for code in ["S100", "S101", "S102", "S110"] {
+        for code in ["S100", "S101", "S102", "S103", "S110"] {
             assert!(disabled.contains(code), "{code} should be suppressed");
         }
     }

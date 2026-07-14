@@ -181,6 +181,7 @@ class TclLspSettingsPanel {
     private val diagS100 = JBCheckBox("S100: Single shimmer outside a loop")
     private val diagS101 = JBCheckBox("S101: Shimmer inside a loop body")
     private val diagS102 = JBCheckBox("S102: Variable oscillates between two types across loop it...")
+    private val diagS103 = JBCheckBox("S103: Mutation of a potentially shared value copies it")
     private val diagS110 = JBCheckBox("S110: Byte-array value coerced to a string by a string ope...")
 
     // Diagnostics — Taint
@@ -403,7 +404,7 @@ class TclLspSettingsPanel {
         builder.addComponent(TitledSeparator("Diagnostics — Shimmer"))
         val diagShimmerPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
-            diagS100, diagS101, diagS102, diagS110,
+            diagS100, diagS101, diagS102, diagS103, diagS110,
         ).forEach { diagShimmerPanel.add(it) }
         builder.addComponent(diagShimmerPanel)
 
@@ -621,6 +622,7 @@ class TclLspSettingsPanel {
             diagS100.isSelected != s.diagnosticS100 ||
             diagS101.isSelected != s.diagnosticS101 ||
             diagS102.isSelected != s.diagnosticS102 ||
+            diagS103.isSelected != s.diagnosticS103 ||
             diagS110.isSelected != s.diagnosticS110 ||
             diagT100.isSelected != s.diagnosticT100 ||
             diagT101.isSelected != s.diagnosticT101 ||
@@ -853,6 +855,7 @@ class TclLspSettingsPanel {
         s.diagnosticS100 = diagS100.isSelected
         s.diagnosticS101 = diagS101.isSelected
         s.diagnosticS102 = diagS102.isSelected
+        s.diagnosticS103 = diagS103.isSelected
         s.diagnosticS110 = diagS110.isSelected
         s.diagnosticT100 = diagT100.isSelected
         s.diagnosticT101 = diagT101.isSelected
@@ -1102,6 +1105,7 @@ class TclLspSettingsPanel {
         diagS100.isSelected = s.diagnosticS100
         diagS101.isSelected = s.diagnosticS101
         diagS102.isSelected = s.diagnosticS102
+        diagS103.isSelected = s.diagnosticS103
         diagS110.isSelected = s.diagnosticS110
         diagT100.isSelected = s.diagnosticT100
         diagT101.isSelected = s.diagnosticT101

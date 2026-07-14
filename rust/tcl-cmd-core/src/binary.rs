@@ -301,24 +301,13 @@ fn parse_count(fmt: &[u8], i: &mut usize) -> Count {
     }
 }
 
-/// Parse a Tcl integer (optional sign + `0x`/`0o`/`0b`/decimal) to a wide int.
+/// Parse a Tcl integer to a wide int — the shared grammar
+/// ([`crate::sort::parse_wide`], the 9.0-first `tcl_syntax::number` integer
+/// shape), narrowed by wrapping: an `i128` past `i64` wraps modulo 2⁶⁴,
+/// matching C's `binary format` truncation of oversize values.
 #[allow(clippy::cast_possible_truncation)] // i128 → i64 wrap matches C's `binary format`
 fn parse_wide(b: &[u8]) -> Option<i64> {
-    let s = core::str::from_utf8(b).ok()?.trim();
-    let (neg, rest) = match s.strip_prefix('-') {
-        Some(r) => (true, r),
-        None => (false, s.strip_prefix('+').unwrap_or(s)),
-    };
-    let v: i128 = if let Some(h) = rest.strip_prefix("0x").or_else(|| rest.strip_prefix("0X")) {
-        i128::from_str_radix(h, 16).ok()?
-    } else if let Some(o) = rest.strip_prefix("0o").or_else(|| rest.strip_prefix("0O")) {
-        i128::from_str_radix(o, 8).ok()?
-    } else if let Some(bb) = rest.strip_prefix("0b").or_else(|| rest.strip_prefix("0B")) {
-        i128::from_str_radix(bb, 2).ok()?
-    } else {
-        rest.parse::<i128>().ok()?
-    };
-    Some((if neg { -v } else { v }) as i64)
+    crate::sort::parse_wide(b).map(|v| v as i64)
 }
 
 /// Write `bytes` at the cursor `cur`, overwriting then extending `out`.

@@ -45,16 +45,9 @@ fn err(interp: &mut Interp, msg: &[u8]) -> Code {
     interp.set_error(msg)
 }
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 fn binary_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"binary subcommand ?arg ...?");
+        return interp.wrong_args(b"binary subcommand ?arg ...?");
     }
     match obj_bytes(argv[1]).as_slice() {
         b"format" => binary_format(interp, argv),
@@ -75,13 +68,13 @@ fn binary_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `tcl_cmd_core::binary`; this adapter handles option parsing + result/error.
 fn binary_encode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return wrong_args(interp, b"binary encode format ?options? data");
+        return interp.wrong_args(b"binary encode format ?options? data");
     }
     let fmt = obj_bytes(argv[2]);
     match fmt.as_slice() {
         b"hex" => {
             if argv.len() != 4 {
-                return wrong_args(interp, b"binary encode hex data");
+                return interp.wrong_args(b"binary encode hex data");
             }
             let out = tcl_cmd_core::binary::hex_encode(&obj_bytes(argv[3]));
             interp.set_result_bytes(&out);
@@ -118,11 +111,11 @@ fn binary_encode_wrapped(interp: &mut Interp, argv: &[*mut TclObj], uu: bool) ->
                 wrapchar = obj_bytes(argv[i + 1]);
                 i += 2;
             }
-            _ => return wrong_args(interp, b"binary encode format ?options? data"),
+            _ => return interp.wrong_args(b"binary encode format ?options? data"),
         }
     }
     if argv.len() - i != 1 {
-        return wrong_args(interp, b"binary encode format ?options? data");
+        return interp.wrong_args(b"binary encode format ?options? data");
     }
     let data = obj_bytes(argv[i]);
     let out = if uu {
@@ -138,13 +131,13 @@ fn binary_encode_wrapped(interp: &mut Interp, argv: &[*mut TclObj], uu: bool) ->
 /// shared in `tcl_cmd_core::binary`; this adapter handles options + errors.
 fn binary_decode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return wrong_args(interp, b"binary decode format ?options? data");
+        return interp.wrong_args(b"binary decode format ?options? data");
     }
     let fmt = obj_bytes(argv[2]);
     match fmt.as_slice() {
         b"hex" => {
             if argv.len() != 4 {
-                return wrong_args(interp, b"binary decode hex data");
+                return interp.wrong_args(b"binary decode hex data");
             }
             match tcl_cmd_core::binary::hex_decode(&obj_bytes(argv[3])) {
                 Ok(out) => {
@@ -182,11 +175,11 @@ fn binary_decode_b64(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 strict = true;
                 i += 1;
             }
-            _ => return wrong_args(interp, b"binary decode format ?options? data"),
+            _ => return interp.wrong_args(b"binary decode format ?options? data"),
         }
     }
     if argv.len() - i != 1 {
-        return wrong_args(interp, b"binary decode format ?options? data");
+        return interp.wrong_args(b"binary decode format ?options? data");
     }
     match tcl_cmd_core::binary::base64_decode(&obj_bytes(argv[i]), strict) {
         Ok(out) => {
@@ -202,11 +195,11 @@ fn binary_decode_uu(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     while i < argv.len() - 1 {
         match obj_bytes(argv[i]).as_slice() {
             b"-strict" => i += 1,
-            _ => return wrong_args(interp, b"binary decode format ?options? data"),
+            _ => return interp.wrong_args(b"binary decode format ?options? data"),
         }
     }
     if argv.len() - i != 1 {
-        return wrong_args(interp, b"binary decode format ?options? data");
+        return interp.wrong_args(b"binary decode format ?options? data");
     }
     let out = tcl_cmd_core::binary::uu_decode(&obj_bytes(argv[i]));
     interp.set_result_bytes(&out);
@@ -215,7 +208,7 @@ fn binary_decode_uu(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn binary_format(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return wrong_args(interp, b"binary format formatString ?arg ...?");
+        return interp.wrong_args(b"binary format formatString ?arg ...?");
     }
     let fmt = obj_bytes(argv[2]);
     let args: Vec<Vec<u8>> = argv[3..].iter().map(|&a| obj_bytes(a)).collect();
@@ -233,7 +226,7 @@ fn binary_format(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn binary_scan(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return wrong_args(interp, b"binary scan string formatString ?varName ...?");
+        return interp.wrong_args(b"binary scan string formatString ?varName ...?");
     }
     let data = obj_bytes(argv[2]);
     let fmt = obj_bytes(argv[3]);

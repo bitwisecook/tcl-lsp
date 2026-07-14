@@ -21,7 +21,7 @@ flowchart LR
 
     SP --- OPT["Optimiser<br/>O100–O126"]
     SP --- TAINT["Taint<br/>T100–T106"]
-    SP --- SHIM["Shimmer<br/>S100–S102"]
+    SP --- SHIM["Shimmer<br/>S100–S103"]
     SP --- INTERP["Interprocedural<br/>ProcSummary"]
 ```
 
@@ -563,7 +563,9 @@ flowchart LR
 > Each arrow is a shimmer — Tcl silently converts the internal
 > representation.  Excessive shimmering degrades performance.
 
-Most shimmers are a performance concern (`S100`/`S101`/`S102`).  One shimmer is
+Most shimmers are a performance concern (`S100`/`S101`/`S102`, plus the
+shared-value copy-on-write cost `S103` — mutating a value another live
+variable still holds makes Tcl duplicate it first).  One shimmer is
 a **correctness** concern: a byte array (binary data) forced through
 character-string semantics and written back as bytes re-encodes every byte
 `≥ 0x80` (latin-1 decode → UTF-8 encode), corrupting the data.  This is

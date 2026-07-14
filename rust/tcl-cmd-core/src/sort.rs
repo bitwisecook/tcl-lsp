@@ -45,28 +45,34 @@ pub enum SortMode {
     Real,
 }
 
-/// Parse a Tcl integer (optional sign + `0x`/`0o`/`0b`/decimal) for `-integer`
-/// keys. `i128` so a key just past `i64` still orders correctly.
+/// Parse a Tcl integer for `-integer` keys — the shared 9.0-first
+/// [`tcl_syntax::number`] grammar (optional sign + surrounding whitespace,
+/// `0x`/`0o`/`0b`/`0d` radix prefixes, `_` digit separators) in its
+/// whole-string, integer-only shape (`Tcl_GetWideIntFromObj` via
+/// `TCL_PARSE_INTEGER_ONLY`). `i128` so a key just past `i64` still orders
+/// correctly; values beyond `i128` (and floats, `Inf`, `NaN`) are `None`.
 #[must_use]
 pub fn parse_wide(b: &[u8]) -> Option<i128> {
-    let s = core::str::from_utf8(b).ok()?.trim();
-    let (neg, body) = match s.strip_prefix('-') {
-        Some(r) => (true, r),
-        None => (false, s.strip_prefix('+').unwrap_or(s)),
+    use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
+    let s = core::str::from_utf8(b).ok()?;
+    let flags = ParseFlags {
+        integer_only: true,
+        ..ParseFlags::default()
     };
-    if body.is_empty() {
-        return None;
+    match parse_whole_with(s, flags)? {
+        Number::Int(v) => Some(i128::from(v)),
+        Number::Big {
+            negative,
+            radix,
+            digits,
+        } => {
+            let mag = i128::from_str_radix(&digits, radix as u32).ok()?;
+            Some(if negative { -mag } else { mag })
+        }
+        // `integer_only` classifies only Int/Big; named specials (`Inf`,
+        // `NaN`) are not `-integer` keys.
+        Number::Double(_) | Number::Nan { .. } => None,
     }
-    let v: i128 = if let Some(h) = body.strip_prefix("0x").or_else(|| body.strip_prefix("0X")) {
-        i128::from_str_radix(h, 16).ok()?
-    } else if let Some(o) = body.strip_prefix("0o").or_else(|| body.strip_prefix("0O")) {
-        i128::from_str_radix(o, 8).ok()?
-    } else if let Some(bb) = body.strip_prefix("0b").or_else(|| body.strip_prefix("0B")) {
-        i128::from_str_radix(bb, 2).ok()?
-    } else {
-        body.parse::<i128>().ok()?
-    };
-    Some(if neg { -v } else { v })
 }
 
 /// Parse a Tcl floating-point value for `-real` sort keys.
@@ -173,6 +179,36 @@ pub fn key_compare(mode: SortMode, nocase: bool, a: &[u8], b: &[u8]) -> Ordering
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_wide_shares_the_canonical_integer_grammar() {
+        // The classic forms are unchanged (whitespace, sign, radix prefixes,
+        // and the i128 headroom past i64).
+        assert_eq!(parse_wide(b" 42 "), Some(42));
+        assert_eq!(parse_wide(b"+7"), Some(7));
+        assert_eq!(parse_wide(b"-0x10"), Some(-16));
+        assert_eq!(parse_wide(b"0o17"), Some(15));
+        assert_eq!(parse_wide(b"0b101"), Some(5));
+        assert_eq!(
+            parse_wide(b"0x7FFFFFFFFFFFFFFFF"), // one nibble past i64
+            Some(0x0007_FFFF_FFFF_FFFF_FFFF_i128)
+        );
+        // Routing through `tcl_syntax::number` (integer-only, whole-string)
+        // adds the Tcl 9.0 forms the hand-rolled copy rejected: `0d` decimal
+        // prefixes and `_` digit separators. (tclsh8.6 rejects both — they
+        // are 9.0 syntax; the shared grammar is 9.0-first by design.)
+        assert_eq!(parse_wide(b"0d5"), Some(5));
+        assert_eq!(parse_wide(b"1_000"), Some(1000));
+        // …and fixes its accidental double-sign acceptance (`--5` parsed as 5
+        // because `i128::from_str` re-parsed the sign; tclsh: not an integer).
+        assert_eq!(parse_wide(b"--5"), None);
+        assert_eq!(parse_wide(b"0x-5"), None);
+        // Non-integers stay rejected.
+        assert_eq!(parse_wide(b""), None);
+        assert_eq!(parse_wide(b"1.5"), None);
+        assert_eq!(parse_wide(b"Inf"), None);
+        assert_eq!(parse_wide(b"12x"), None);
+    }
 
     #[test]
     fn dictionary_orders_embedded_numbers() {

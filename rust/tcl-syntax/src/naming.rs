@@ -80,6 +80,29 @@ pub fn ends_with_separator(name: &[u8]) -> bool {
     name.len() >= 2 && name[name.len() - 1] == b':' && name[name.len() - 2] == b':'
 }
 
+/// [`qualifier_segments`] over a `&str`, as owned `String`s — the one shared
+/// segment split for consumers that hold qualified names as strings (the
+/// compiler's interprocedural/optimiser namespace walks). Same colon-run rule:
+/// `::a:::b::` → `["a", "b"]`.
+///
+/// ```
+/// use tcl_syntax::naming::qualifier_segments_owned;
+/// assert_eq!(qualifier_segments_owned("::a::b::cmd"), vec!["a", "b", "cmd"]);
+/// assert_eq!(qualifier_segments_owned("a:::b"), vec!["a", "b"]);
+/// assert!(qualifier_segments_owned("::").is_empty());
+/// ```
+#[must_use]
+pub fn qualifier_segments_owned(name: &str) -> Vec<String> {
+    qualifier_segments(name.as_bytes())
+        .into_iter()
+        .map(|s| {
+            core::str::from_utf8(s)
+                .expect("subslice of valid UTF-8")
+                .to_owned()
+        })
+        .collect()
+}
+
 /// Strip a variable reference's substitution sigil (`$`, `${…}`) while
 /// **keeping** any array-index suffix — the form an evaluator needs to read the
 /// actual variable (`$arr(idx)` → `arr(idx)`, `${v}` → `v`, `$x` → `x`). Unlike

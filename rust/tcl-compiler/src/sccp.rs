@@ -812,6 +812,9 @@ fn collect_constant_branches(
 /// optimiser's O101 (constant-branch fold / DCE).  Only simple local
 /// names are folded, and only in functions free of opaque barriers (an
 /// unknown command could `unset` or `upvar`-define the variable).
+/// Scope-alias locals (`global` / `variable` / `upvar` / `namespace
+/// upvar` bindings) are never folded — their existence tracks the
+/// linked out-of-frame variable.
 #[must_use]
 pub fn existence_constant_branches<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
@@ -857,6 +860,18 @@ pub fn existence_constant_branches<S: std::hash::BuildHasher>(
             }
         }
     }
+    // Locals bound to out-of-frame storage (`global` / `variable` / `upvar` /
+    // `namespace upvar`): whether such a name exists depends on the *linked*
+    // variable, which this function cannot see, so its existence query must
+    // never fold either way.  `global` / `variable` / `upvar` escape via
+    // `defined` already (their `Call::defs` carry the alias local), but
+    // `namespace upvar` lowers with empty defs — tclsh 8.6:
+    // `namespace eval ns {variable s ok}; proc t {} {namespace upvar ns s a;
+    // info exists a}; t` → 1 (and → 0 when `ns::s` is unset), the exact
+    // `::safe::CheckInterp` guard shape (safe.tcl:109).  The scanner also
+    // returns `trace` targets, which only widens the skip — conservative,
+    // never a false fold.
+    let aliased = crate::optimiser::elimination::scan_scope_aliases(cfg);
     for block in cfg.blocks.values() {
         let Some(Terminator::Branch {
             condition,
@@ -873,6 +888,11 @@ pub fn existence_constant_branches<S: std::hash::BuildHasher>(
         // Array elements / namespaced globals may be populated outside
         // the function's view — only fold simple local names.
         if var.is_empty() || !var.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
+            continue;
+        }
+        // A scope-alias local's existence tracks the linked variable — never
+        // fold it (see the `aliased` collection above).
+        if aliased.contains(var.as_str()) {
             continue;
         }
         let exists = if params.contains(var.as_str()) {

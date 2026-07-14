@@ -1618,7 +1618,7 @@ also stay silent.
 
 ---
 
-### FP-RBS-05 — `namespace upvar` alias-not-a-def (OPEN, ~39 W210 still FP)
+### FP-RBS-05 — `namespace upvar` alias-not-a-def (RESOLVED in the Rust port; see fp-audit-todo.md disposition)
 
 - **Verdict:** FALSE POSITIVE (W210) — `namespace upvar ns src alias` legally
   links `alias` in the caller frame but no lowering hook records it as an
@@ -3414,7 +3414,7 @@ Use-set building in `compiler/var_refs.py` includes CFGReturn value-expression r
 ### FP-DS-06 — array-element dead-store distinction: $a(k) write is not killed by $a(j) write
 
 - **Verdict:** FALSE POSITIVE (now fixed, Phase 8G)
-- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_06_array_elem_writes_distinct`
+- **Status:** locked in by `analyser/diagnostics/fp/ds.rs::fp_ds_06_*` (Rust; the Python-era xfail for the same-element must-alias kill is resolved — see fp-audit-todo.md)
 - **Codes:** W220, W211, O109
 - **Corpus:** any keyed-by-element pattern (tcllib's `dict`-builders, iRules' `set ::tbl(\$client) val` patterns, snit option storage).  Corpus impact: **W220 −88, W211 −2, O109 −66** on first measurement.
 

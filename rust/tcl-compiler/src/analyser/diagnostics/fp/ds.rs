@@ -265,12 +265,48 @@ fn fp_ds_06_array_elem_writes_distinct() {
 
 #[test]
 fn fp_ds_06_same_element_overwrite_fires_w220() {
-    // TP / must-alias kill: two writes to the same literal-key element, no intervening read.
+    // TP / must-alias kill: two writes to the same literal-key element, no
+    // intervening read.  tclsh 8.6: `proc f {} {set a(k) 1; set a(k) 2;
+    // return $a(k)}; f` → 2, and with a write trace attached the callback
+    // fires for BOTH writes — so without a trace/alias the first write is
+    // genuinely unobservable, a true dead store.
     let src = "proc f {} {\n    set a(k) 1\n    set a(k) 2\n    return $a(k)\n}";
     let found = fires(src, D, "W220") || fires(src, D, "O109");
     assert!(
         found,
         "FP-DS-06 TP: two writes to the same array element must surface as W220 or O109; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_ds_06_cmdsub_read_between_same_element_writes_cancels_kill() {
+    // Adjacent FP guard for the must-alias kill: a read of `a(k)` buried in a
+    // command substitution BETWEEN the two writes observes the first write,
+    // so the kill is cancelled and nothing may fire.  tclsh 8.6: `n` is 1
+    // (the length of "1") — deleting the first write would change it.
+    let src = "proc f {} {\n    set a(k) 1\n    set n [string length $a(k)]\n    set a(k) 2\n    return \"$a(k) $n\"\n}";
+    assert!(
+        !fires(src, D, "W220"),
+        "FP-DS-06: a cmd-sub read between same-element writes must cancel the kill; emitted: {:?}",
+        codes(src, D)
+    );
+    assert!(
+        !fires(src, D, "W211"),
+        "FP-DS-06: `a` is read; must NOT fire W211; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_ds_06_traced_array_same_element_overwrite_silent() {
+    // Adjacent FP guard: with a write trace on the array, the callback
+    // observes BOTH writes (tclsh: the trace fires twice), so the first
+    // same-key write is not a dead store.
+    let src = "proc f {} {\n    trace add variable a write cb\n    set a(k) 1\n    set a(k) 2\n    return $a(k)\n}";
+    assert!(
+        !fires(src, D, "W220"),
+        "FP-DS-06: a traced array's same-element overwrite must NOT fire W220; emitted: {:?}",
         codes(src, D)
     );
 }

@@ -145,7 +145,7 @@ fn switch_list_form(
         Err(e) => return interp.set_error(e),
     };
     if elems.is_empty() {
-        return wrong_args(interp, USAGE_LIST);
+        return interp.wrong_args(USAGE_LIST);
     }
     if elems.len() % 2 != 0 {
         // The infamous "comment in switch" heuristic: a pattern beginning with
@@ -306,15 +306,6 @@ fn element_value(src: &[u8], e: &Elem) -> Vec<u8> {
 /// Count the newlines in `s` (line delta between two offsets).
 fn count_newlines(s: &[u8]) -> u32 {
     s.iter().filter(|&&b| b == b'\n').count() as u32
-}
-
-/// `wrong # args: should be "usage"` — the list-form arity error (the option
-/// scan's arity error lives in the shared `parse_options`).
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
 }
 
 #[cfg(test)]

@@ -27,7 +27,7 @@ use std::collections::{HashMap, HashSet};
 
 pub use tcl_registry::Arity;
 
-use crate::naming::{normalise_qualified_name, normalise_var_name, split_array_name};
+use crate::naming::{normalise_var_name, split_array_name};
 use crate::side_effects::EffectRegion;
 
 // Summary types
@@ -394,18 +394,14 @@ pub fn resolve_call_target<S: std::hash::BuildHasher>(
 }
 
 /// Return the namespace segments of a qualified proc name —
-/// everything except the trailing simple name.
+/// everything except the trailing simple name. The split is the one canonical
+/// [`crate::naming::qualifier_segments_owned`] (colon runs are a single
+/// separator, so `::a:::b::p` yields `["a", "b"]`).
 #[must_use]
 pub fn namespace_parts_from_proc(qname: &str) -> Vec<String> {
-    let normalised = normalise_qualified_name(qname);
-    let parts: Vec<&str> = normalised.split("::").filter(|p| !p.is_empty()).collect();
-    if parts.len() <= 1 {
-        return Vec::new();
-    }
-    parts[..parts.len() - 1]
-        .iter()
-        .map(|s| (*s).to_owned())
-        .collect()
+    let mut parts = crate::naming::qualifier_segments_owned(qname);
+    parts.pop();
+    parts
 }
 
 // Summary building (partial)
@@ -2219,6 +2215,15 @@ mod tests {
         );
         assert_eq!(namespace_parts_from_proc("::simple"), Vec::<String>::new());
         assert_eq!(namespace_parts_from_proc("::"), Vec::<String>::new());
+        // Colon runs are one separator (C's `TclGetNamespaceForQualName`;
+        // tclsh8.6: `foo:::bar` names `::foo::bar`) — the shared
+        // `qualifier_segments` split, where a naive `split("::")` would keep
+        // a stray `:` segment.
+        assert_eq!(
+            namespace_parts_from_proc("::foo:::bar::baz"),
+            vec!["foo", "bar"]
+        );
+        assert_eq!(namespace_parts_from_proc("a:::b"), vec!["a"]);
     }
 
     #[test]

@@ -18,6 +18,7 @@
 
 //! `break` — abort looping command.
 
+use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -32,6 +33,7 @@ pub fn spec() -> CommandSpec {
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
+            | Traits::BREAKS_LOOP
             | Traits::NEEDS_START_CMD,
         arity: Arity::exact(0),
         return_type: Some(TclType::String),
@@ -49,6 +51,7 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        inline_codegen_hook: Some(InlineCodegenHookId::Break),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

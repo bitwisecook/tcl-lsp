@@ -51,6 +51,27 @@ pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
     crate::naming::qualify(ns_prefix, name)
 }
 
+/// Resolve `word` against `parent`'s registry subcommand table, returning
+/// the canonical subcommand name.
+///
+/// Resolution follows the registry's ensemble rule — exact match or unique
+/// non-empty prefix, C Tcl's `Tcl_GetIndexFromObj` dispatch — so the
+/// abbreviated spellings C Tcl accepts (`namespace ev`, `package req`)
+/// resolve to their full names, and an ambiguous prefix (`interp al` —
+/// `alias`/`aliases`) resolves to nothing, exactly as tclsh errors on it.
+/// Falls back to the word as written when no registry is threaded (focused
+/// unit tests) or the word doesn't resolve, preserving exact-name matching.
+fn canonical_subcommand<'w>(
+    registry: Option<&tcl_registry::CommandRegistry>,
+    parent: &str,
+    word: &'w str,
+) -> &'w str {
+    registry
+        .and_then(|r| r.get(parent))
+        .and_then(|spec| spec.resolve_subcommand(word))
+        .map_or(word, |sub| sub.name)
+}
+
 /// Insert a class record under `result.classes`, computing the
 /// qualified name + simple-name split.
 ///
@@ -144,7 +165,10 @@ pub(super) fn handle_namespace(
     if texts.len() < 2 {
         return;
     }
-    let sub = &texts[1];
+    // Resolve the subcommand word through the registry's ensemble rule so
+    // the abbreviated spellings C Tcl accepts (`namespace ev` /
+    // `namespace imp`) dispatch like their full names.
+    let sub = canonical_subcommand(ctx.registry, "namespace", &texts[1]);
     if sub == "eval" && texts.len() >= 4 {
         let raw_ns = &texts[2];
         let inner_prefix = if let Some(rest) = raw_ns.strip_prefix("::") {
@@ -222,14 +246,17 @@ pub(super) fn handle_namespace_import(
 /// `SignaturePackageRequire`; the optional `-exact` flag is parsed
 /// and skipped (we do not currently distinguish exact from
 /// minimum-version requires); the optional `VERSION` is captured
-/// when present.
+/// when present.  The subcommand word resolves through the registry's
+/// ensemble rule, so C Tcl's accepted abbreviation (`package req Tcl`)
+/// records the requirement too.
 pub(super) fn handle_package(
     texts: &[String],
     argv: &[Token],
     conditional: bool,
+    registry: Option<&tcl_registry::CommandRegistry>,
     result: &mut SignatureScanResult,
 ) {
-    if texts.len() < 3 || texts[1] != "require" {
+    if texts.len() < 3 || canonical_subcommand(registry, "package", &texts[1]) != "require" {
         return;
     }
     let mut idx = 2;
@@ -282,9 +309,16 @@ pub(super) fn handle_source(texts: &[String], argv: &[Token], result: &mut Signa
 /// Records only **local-interpreter** aliases (slave path and
 /// target path both empty `{}`); cross-interpreter aliases install
 /// commands inside child interpreters and are not visible to
-/// workspace command resolution, so they are skipped.
-pub(super) fn handle_interp(texts: &[String], result: &mut SignatureScanResult) {
-    if texts.len() < 6 || texts[1] != "alias" {
+/// workspace command resolution, so they are skipped.  The subcommand
+/// word resolves through the registry's ensemble rule — which, matching
+/// tclsh, rejects `interp al` / `interp alia` as ambiguous with
+/// `aliases`, so in practice only the full spelling dispatches here.
+pub(super) fn handle_interp(
+    texts: &[String],
+    registry: Option<&tcl_registry::CommandRegistry>,
+    result: &mut SignatureScanResult,
+) {
+    if texts.len() < 6 || canonical_subcommand(registry, "interp", &texts[1]) != "alias" {
         return;
     }
     if !texts[2].is_empty() || !texts[4].is_empty() {
@@ -330,9 +364,20 @@ pub(super) fn handle_rename(texts: &[String], ns_prefix: &str, result: &mut Sign
     );
 }
 
-/// Handler for `oo::class create NAME ?BODY?`.
+/// Handler for `oo::class create NAME ?BODY?` (any `TclOO` metaclass —
+/// the walker dispatches every registry `IS_OO_METACLASS` +
+/// `definition_body` bearer here).
 ///
 /// When `BODY` is absent the body span falls back to the name token.
+///
+/// The `create` word stays a literal match: the metaclass specs model
+/// their `create` / `new` / `createWithNamespace` shapes via
+/// `arg_role_resolver` (there is no `SubCommand` table to resolve
+/// against), and `create` is a `TclOO` *method* word — method dispatch is
+/// exact-match in C Tcl (`oo::class cr` errors "unknown method"), so an
+/// ensemble-style prefix resolution would be wrong here.  `new` makes
+/// anonymous classes (nothing to index) and `createWithNamespace` is not
+/// modelled.
 pub(super) fn handle_oo_class(
     texts: &[String],
     argv: &[Token],
@@ -444,6 +489,13 @@ pub(super) fn maybe_handle_import_wrapper(
 /// word after `auto_path` is recorded as a `SignatureAutoPathEntry`.
 /// Path-resolution to absolute filesystem paths happens later in
 /// the analyser pipeline.
+///
+/// `auto_path` here is a *variable name*, not a subcommand — the
+/// registry's special-variable table (`tcl_registry::special_vars`)
+/// declares the variable and its interpreter write-effect, but "is the
+/// package auto-load path the workspace indexer must resolve" is this
+/// consumer's own question, so the name match is deliberate, not a
+/// registry bypass.
 pub(super) fn handle_auto_path(texts: &[String], argv: &[Token], result: &mut SignatureScanResult) {
     if texts.len() < 3 || texts[1] != "auto_path" {
         return;
@@ -712,7 +764,7 @@ mod tests {
         ];
         let argv = vec![token(0, 7), token(8, 15), token(16, 19), token(20, 23)];
         let mut result = SignatureScanResult::default();
-        handle_package(&texts, &argv, false, &mut result);
+        handle_package(&texts, &argv, false, None, &mut result);
         assert_eq!(result.package_requires.len(), 1);
         let req = &result.package_requires[0];
         assert_eq!(req.name, "Tcl");
@@ -730,7 +782,7 @@ mod tests {
         ];
         let argv = vec![token(0, 7), token(8, 15), token(16, 19)];
         let mut result = SignatureScanResult::default();
-        handle_package(&texts, &argv, true, &mut result);
+        handle_package(&texts, &argv, true, None, &mut result);
         assert_eq!(result.package_requires.len(), 1);
         let req = &result.package_requires[0];
         assert_eq!(req.name, "Tcl");
@@ -796,7 +848,7 @@ mod tests {
             token(27, 30),
         ];
         let mut result = SignatureScanResult::default();
-        handle_package(&texts, &argv, false, &mut result);
+        handle_package(&texts, &argv, false, None, &mut result);
         assert_eq!(result.package_requires.len(), 1);
         let req = &result.package_requires[0];
         assert_eq!(req.name, "Tcl");
@@ -816,7 +868,7 @@ mod tests {
             "hello".to_string(),
         ];
         let mut result = SignatureScanResult::default();
-        handle_interp(&texts, &mut result);
+        handle_interp(&texts, None, &mut result);
         assert_eq!(result.command_aliases.len(), 1);
         let alias = result.command_aliases.get("::myalias").expect("inserted");
         assert_eq!(alias.target, "puts");
@@ -834,7 +886,7 @@ mod tests {
             "puts".to_string(),
         ];
         let mut result = SignatureScanResult::default();
-        handle_interp(&texts, &mut result);
+        handle_interp(&texts, None, &mut result);
         assert!(result.command_aliases.is_empty());
     }
 

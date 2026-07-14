@@ -18,7 +18,7 @@
 
 //! `dict` — dictionary operations.
 
-use crate::hooks::CodegenHookId;
+use crate::hooks::{CodegenHookId, InlineCodegenHookId};
 use crate::prelude::*;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
@@ -154,6 +154,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "get",
         const_fold: Some(crate::const_fold::fold_dict_get),
+        inline_codegen_hook: Some(InlineCodegenHookId::DictGet),
         arity: Arity::at_least(1),
         detail: "Get a value from a dictionary.",
         synopsis: "dict get dictionaryValue ?key ...?",
@@ -333,6 +334,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Remove keys from a dictionary variable.",
         synopsis: "dict unset dictionaryVariable key ?key ...?",
+        // `Tcl_DictObjCmd` (tclDictObj.c, `DictUnsetCmd`) removes the key —
+        // erroring on a missing *nested* path — so `catch {dict unset d …}`
+        // is the documented fire-and-forget idiom the W302 suppression keys
+        // off. (The variable itself is written back, created when absent —
+        // the `VarWrite` role below — so this is a key removal, not a
+        // variable destroy.)
+        destructive: true,
         arg_roles: &[(0, ArgRole::VarWrite)],
         arg_types: &[(
             0,
@@ -503,10 +511,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dict",
+        // `HAS_DESTRUCTIVE_OPS`: the `unset` subform removes keys
+        // (`DictUnsetCmd`, tclDictObj.c) — see the `destructive` flag on
+        // the `unset` subcommand.
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CSE_CANDIDATE
-            | Traits::NEVER_INLINE_BODY,
+            | Traits::NEVER_INLINE_BODY
+            | Traits::HAS_DESTRUCTIVE_OPS,
         dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

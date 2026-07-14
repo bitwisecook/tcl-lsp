@@ -31,7 +31,7 @@ use crate::arg_role::{AppendedArity, ArgRole};
 use crate::arity::Arity;
 use crate::dialects::DialectSet;
 use crate::forms::CommandForm;
-use crate::hooks::{CodegenHookId, LoweringHookId};
+use crate::hooks::{CodegenHookId, InlineCodegenHookId, LoweringHookId};
 use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
 use crate::traits::Traits;
 use crate::types::VarWriteTyping;
@@ -995,6 +995,7 @@ impl CommandRegistry {
             form: None,
             lowering_hook: spec.lowering_hook,
             codegen_hook: spec.codegen_hook,
+            inline_codegen_hook: spec.inline_codegen_hook,
         };
 
         if !spec.subcommands.is_empty()
@@ -1015,6 +1016,10 @@ impl CommandRegistry {
                 .and_then(|f| f.codegen_hook)
                 .or(sub.codegen_hook)
                 .or(spec.codegen_hook);
+            // Forms carry no inline hook — the inline emitters guard
+            // their own applicability (arity / shape) at the dispatch
+            // site, so subcommand-level wins over command-level.
+            resolved.inline_codegen_hook = sub.inline_codegen_hook.or(spec.inline_codegen_hook);
             resolved.form = form;
             return Some(resolved);
         }
@@ -1215,6 +1220,9 @@ pub struct ResolvedCall<'r> {
     pub lowering_hook: Option<LoweringHookId>,
     /// Effective codegen hook identifier.
     pub codegen_hook: Option<CodegenHookId>,
+    /// Effective inline (value-position / catch-body) codegen hook
+    /// identifier (subcommand-level wins over command-level).
+    pub inline_codegen_hook: Option<InlineCodegenHookId>,
 }
 
 impl ResolvedCall<'_> {

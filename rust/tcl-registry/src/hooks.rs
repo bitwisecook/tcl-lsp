@@ -167,6 +167,73 @@ pub enum CodegenHookId {
     Upvar,
 }
 
+/// Typed identifier for an *inline* (value-position) bytecode codegen
+/// specialisation.
+///
+/// Identifies which command shape gets a hand-written inline emitter
+/// on the compiler's command-substitution / catch-body paths — the
+/// `[cmd …]` value-position dispatch in
+/// `tcl_compiler::codegen::cmd_subst::emit_inline_cmd_subst` and the
+/// single-command catch/try-body dispatch in
+/// `tcl_compiler::codegen::control_flow::emit_catch_body`. The
+/// compiler owns the per-variant emitters (and their applicability
+/// guards — arity / shape / proc-context); the registry stamps which
+/// command form picks which emitter, exactly as [`CodegenHookId`]
+/// does for the statement-position dispatch in
+/// `tcl_compiler::codegen::emitter::bytecoded`. A new variant here
+/// gives the compiler a compile-time match-exhaustion error until the
+/// new arm is wired up. A dispatcher matches only the variants it
+/// specialises in its own context — an unmatched variant falls to
+/// that dispatcher's generic-invoke arm (e.g. [`Self::Break`] is
+/// specialised in a catch body but generic in plain value position).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum InlineCodegenHookId {
+    /// `expr expression` — inline typed-expression compilation
+    /// (value position and catch body).
+    Expr,
+    /// `incr varName ?increment?` — LVT / stack increment.
+    Incr,
+    /// `info exists varName` — `existScalar` / `existStk`
+    /// (subcommand-keyed: stamped on `info`'s `exists` subcommand).
+    InfoExists,
+    /// `string <subcommand> …` — per-subcommand string ops with an
+    /// FQN `::tcl::string::*` invoke fallback.
+    String,
+    /// `lindex list index ?index …?`.
+    Lindex,
+    /// `lrange list first last`.
+    Lrange,
+    /// `lreplace list first last ?element …?`.
+    Lreplace,
+    /// `linsert list index ?element …?`.
+    Linsert,
+    /// `regexp ?-nocase? ?--? pattern subject`.
+    Regexp,
+    /// `list ?arg …?` (non-expanding form).
+    List,
+    /// `array <subcommand> …` — `exists` / `names` / `size` forms.
+    Array,
+    /// `dict get dictionary ?key …?` (subcommand-keyed: stamped on
+    /// `dict`'s `get` subcommand).
+    DictGet,
+    /// `catch body ?resultVar? ?optionsVar?` — inline
+    /// `beginCatch4`/`endCatch` sequence.
+    Catch,
+    /// `return ?-code C? ?-level L? ?value?` inside a catch body —
+    /// `returnImm` with compile-time-folded code/level.
+    Return,
+    /// `error message ?info? ?code?` inside a catch/try body —
+    /// `returnImm 1 0`.
+    Error,
+    /// `break` inside a catch body — the `break` opcode.
+    Break,
+    /// `continue` inside a catch body — the `continue` opcode.
+    Continue,
+    /// `try body on error {var} handler` inside a catch body —
+    /// inline two-range catch/handler sequence.
+    Try,
+}
+
 /// Typed identifier for a WASM-runtime codegen specialisation.
 ///
 /// Reserved for the WASM-target codegen path

@@ -284,6 +284,47 @@ bitflags! {
         /// distinguished structurally via an [`crate::arg_role::ArgRole::Name`]
         /// at argument index 0, not by command name.
         const TCLOO_NEXT_CHAIN           = 1 << 55;
+
+        /// Raises a *catchable* exception — completes `TCL_ERROR`, which
+        /// `catch` / `try` intercept: `error` (`Tcl_ErrorObjCmd`,
+        /// `generic/tclCmdAH.c`) and `throw` (`TclNRThrowObjCmd`,
+        /// `generic/tclBasic.c`, 8.6+). The strict subset of
+        /// [`Self::TERMINATES_BLOCK`] that sources an enclosing `try`'s
+        /// on-error edge: `exit` (`Tcl_ExitObjCmd`) terminates the
+        /// process rather than unwinding through exception ranges, and
+        /// `return` pops the frame with `TCL_RETURN`, so neither is a
+        /// throw point. Consumed by the CFG builder's throw-block
+        /// recording.
+        const CATCHABLE_THROW           = 1 << 57;
+
+        /// Jumps to the innermost enclosing loop's *post-loop* target —
+        /// `break`, which completes `TCL_BREAK` (`Tcl_BreakObjCmd`,
+        /// `generic/tclCmdAH.c`); inside a compiled loop the bytecode
+        /// compiler rewrites it into a jump to the loop's break fixup
+        /// site (`TclCompileBreakCmd`, `generic/tclCompCmds.c`).
+        /// Loop-jump classification for the CFG builder's
+        /// `break`/`continue` edge lowering and the inline emitters'
+        /// straight-line-body gate; paired with
+        /// [`Self::CONTINUES_LOOP`].
+        const BREAKS_LOOP               = 1 << 58;
+
+        /// Jumps to the innermost enclosing loop's *next-iteration*
+        /// target — `continue`, which completes `TCL_CONTINUE`
+        /// (`Tcl_ContinueObjCmd`, `generic/tclCmdAH.c`;
+        /// `TclCompileContinueCmd`, `generic/tclCompCmds.c`). The
+        /// other half of the loop-jump classification — see
+        /// [`Self::BREAKS_LOOP`].
+        const CONTINUES_LOOP            = 1 << 59;
+
+        /// Replaces the current procedure's frame — `tailcall`
+        /// (`TclNRTailcallObjCmd`, `generic/tclBasic.c`, 8.6+), which
+        /// schedules its command to run after the frame pops and always
+        /// completes `TCL_RETURN`, so control never resumes in the
+        /// calling body. Deliberately *not* [`Self::TERMINATES_BLOCK`]:
+        /// the analysis CFG promotes it to a proc-exit terminator, but
+        /// codegen must keep the plain fall-through call shape so the
+        /// emitted bytecode matches C Tcl's.
+        const REPLACES_FRAME            = 1 << 60;
     }
 }
 

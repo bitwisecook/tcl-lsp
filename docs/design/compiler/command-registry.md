@@ -213,6 +213,7 @@ still types `left` from `return_type`.
 |-------|------|---------|---------|
 | `handler` | `CommandHandler \| None` | `None` | VM execution hook |
 | `codegen` | `CodegenHook \| None` | `None` | Bytecode specialisation hook |
+| `inline_codegen_hook` | `Option<InlineCodegenHookId>` | `None` | Inline (value-position `[cmd …]` / catch-body) bytecode specialisation hook — the Rust registry's typed ID dispatched by `tcl_compiler::codegen::{cmd_subst,control_flow}` |
 | `lowering` | `LoweringHook \| None` | `None` | IR lowering hook |
 
 #### Cross-cutting

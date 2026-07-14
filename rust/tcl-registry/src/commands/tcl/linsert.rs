@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `linsert` — insert elements into a list.
-use crate::hooks::CodegenHookId;
+use crate::hooks::{CodegenHookId, InlineCodegenHookId};
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
@@ -43,6 +43,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         codegen_hook: Some(CodegenHookId::Linsert),
+        inline_codegen_hook: Some(InlineCodegenHookId::Linsert),
         forms: FORMS,
         arg_types: &[
             (

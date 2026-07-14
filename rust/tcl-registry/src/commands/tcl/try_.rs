@@ -102,6 +102,7 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         arg_role_resolver: Some(try_arg_roles),
         lowering_hook: Some(crate::hooks::LoweringHookId::Try),
+        inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::Try),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {
             summary: "Trap and process errors and exceptions",
