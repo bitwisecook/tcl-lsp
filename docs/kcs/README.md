@@ -76,6 +76,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   Tcl splits a list (and a `proc` / method parameter list) into elements
   on whitespace, and how braces, quotes, and a trailing backslash line
   continuation move those boundaries.
+- [kcs-qa-how-are-command-names-resolved.md](kcs-qa-how-are-command-names-resolved.md)
+  — which definition a bare, relative, or absolute command name
+  dispatches to, and the one shared algorithm every backend conforms to.
 - [kcs-qa-tcltest-package-support.md](kcs-qa-tcltest-package-support.md) —
   how the server models the `tcltest` package, its `test` / `configure`
   options, and their per-version availability across Tcl 8.4-9.0.

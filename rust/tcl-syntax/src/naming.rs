@@ -304,21 +304,11 @@ pub fn normalise_qualified_name(name: &str) -> String {
 /// Candidate qualified names for Tcl's real bareword command/procedure
 /// resolution, in priority order: the current namespace first, then global.
 ///
-/// * An absolute name (`::foo`, `::ns::foo`) is taken as-is — one candidate.
-/// * A relative name containing `::` (`inner::p`) is still resolved against
-///   the current namespace first, **not** rooted straight at global: calling
-///   `inner::p` from inside `namespace eval ::ns { … }` reaches
-///   `::ns::inner::p` before `::inner::p`, when both exist (confirmed
-///   against tclsh 9.0.4). Only a *leading* `::` is genuinely absolute.
-/// * A bare name (`foo`) tries `{namespace}::foo` then `::foo` — exactly two
-///   levels, never every enclosing ancestor namespace (Tcl's own command
-///   lookup does not walk intermediate namespaces absent an explicit
-///   `namespace path`, which this does not model).
-///
-/// Shared by every same-file "resolve this call the way Tcl would" consumer
-/// — the analyser's same-file shadow/arity-suppression checks and the
-/// optimiser's interprocedural proc-identity resolution — so a fix to the
-/// resolution rule (or a bug in it) can't drift between them.
+/// The `namespace path`-free specialisation of
+/// [`command_resolution_candidates`] — see there for the full rule.  Kept
+/// as the common entry point for consumers that do not model
+/// `namespace path` (the static analyser, the optimiser's interprocedural
+/// proc-identity resolution).
 ///
 /// ```
 /// use tcl_syntax::naming::bareword_resolution_candidates;
@@ -332,15 +322,116 @@ pub fn normalise_qualified_name(name: &str) -> String {
 /// ```
 #[must_use]
 pub fn bareword_resolution_candidates(namespace: &str, cmd_name: &str) -> Vec<String> {
+    command_resolution_candidates::<&str>(namespace, &[], cmd_name)
+}
+
+/// Candidate qualified names for Tcl's command resolution, in priority
+/// order, including the current namespace's `namespace path`.
+///
+/// This is the **canonical encoding of C Tcl's command-lookup order**
+/// (`Tcl_FindCommand`, `generic/tclNamesp.c`, Tcl 9.0.4) — the algorithm
+/// every backend must agree with (behaviour pinned against tclsh 8.6.16
+/// and 9.0.4 by `tests/command_resolution_conformance.rs`):
+///
+/// * An absolute name (`::foo`, `::ns::foo`) is taken as-is — one
+///   candidate; the path is **not** consulted.
+/// * Any relative name — bare (`foo`) *or* with embedded qualifiers
+///   (`inner::p`) — is resolved against the current namespace first, then
+///   each `namespace path` entry in order, then the global namespace.
+///   The dispatch target is the first candidate that **exists**; mere
+///   existence of an intermediate *namespace* does not commit resolution
+///   (calling `inner::p` from `::outer` reaches `::inner::p` even when
+///   the namespace `::outer::inner` exists but holds no `p`).
+/// * No implicit ancestor walk: a bare `helper` inside `::a::b` never
+///   reaches `::a::helper` unless `::a` is on the `namespace path`.
+///
+/// `path` entries may be rooted (`::pathns`) or unrooted (`pathns`); both
+/// normalise.  Consumers that do not model `namespace path` pass `&[]`
+/// (equivalently, use [`bareword_resolution_candidates`]).
+///
+/// ```
+/// use tcl_syntax::naming::command_resolution_candidates;
+/// // path slots between the current namespace and global:
+/// assert_eq!(
+///     command_resolution_candidates("::c", &["::pathns"], "helper"),
+///     vec!["::c::helper", "::pathns::helper", "::helper"],
+/// );
+/// // ... for relative-qualified names too (tclsh-confirmed):
+/// assert_eq!(
+///     command_resolution_candidates("::d", &["pathq"], "sub::q"),
+///     vec!["::d::sub::q", "::pathq::sub::q", "::sub::q"],
+/// );
+/// // absolute names ignore the path entirely:
+/// assert_eq!(
+///     command_resolution_candidates("::d", &["::pathq"], "::sub::q"),
+///     vec!["::sub::q"],
+/// );
+/// // duplicates collapse, keeping the highest-priority position:
+/// assert_eq!(
+///     command_resolution_candidates("::", &["::"], "foo"),
+///     vec!["::foo"],
+/// );
+/// ```
+#[must_use]
+pub fn command_resolution_candidates<S: AsRef<str>>(
+    namespace: &str,
+    path: &[S],
+    cmd_name: &str,
+) -> Vec<String> {
     if cmd_name.starts_with("::") {
         return vec![cmd_name.to_owned()];
     }
-    let global = format!("::{cmd_name}");
-    if namespace == "::" {
-        return vec![global];
+    let mut out: Vec<String> = Vec::with_capacity(path.len() + 2);
+    let push_base = |base: &str, out: &mut Vec<String>| {
+        let candidate = if base.is_empty() || base == "::" {
+            format!("::{cmd_name}")
+        } else {
+            let rooted = normalise_qualified_name(base);
+            format!("{rooted}::{cmd_name}")
+        };
+        if !out.contains(&candidate) {
+            out.push(candidate);
+        }
+    };
+    push_base(namespace, &mut out);
+    for entry in path {
+        push_base(entry.as_ref(), &mut out);
     }
-    let relative = format!("{namespace}::{cmd_name}");
-    vec![relative, global]
+    push_base("::", &mut out);
+    out
+}
+
+/// Resolve a command name the way C Tcl's `Tcl_FindCommand` does: walk
+/// [`command_resolution_candidates`] in priority order and return the
+/// first candidate for which `exists` is true.
+///
+/// `exists` is the caller's command table — the analyser's collected
+/// definitions, a compilation unit's proc map, or a live interpreter's
+/// registry.  Returns `None` when no candidate exists (Tcl would raise
+/// `invalid command name` / fall through to `unknown`).
+///
+/// ```
+/// use tcl_syntax::naming::resolve_command_with;
+/// let defined = ["::inner::p"];
+/// let exists = |q: &str| defined.contains(&q);
+/// // local candidate absent -> falls back to the global command:
+/// assert_eq!(
+///     resolve_command_with::<&str, _>("::outer", &[], "inner::p", exists),
+///     Some("::inner::p".to_string()),
+/// );
+/// // nothing defined -> unresolved:
+/// assert_eq!(resolve_command_with::<&str, _>("::outer", &[], "nope", exists), None);
+/// ```
+#[must_use]
+pub fn resolve_command_with<S: AsRef<str>, F: FnMut(&str) -> bool>(
+    namespace: &str,
+    path: &[S],
+    cmd_name: &str,
+    mut exists: F,
+) -> Option<String> {
+    command_resolution_candidates(namespace, path, cmd_name)
+        .into_iter()
+        .find(|candidate| exists(candidate))
 }
 
 /// Split a Tcl variable reference into `(base, element)`.
@@ -398,6 +489,133 @@ pub fn split_array_name(name: &str) -> (&str, Option<&str>) {
 #[must_use]
 pub fn is_dynamic_word(word: &str) -> bool {
     word.contains('$') || word.contains('[')
+}
+
+/// Shared command-resolution conformance vectors.
+///
+/// One table of `(namespace, namespace path, defined commands, call,
+/// expected winner)` rows — the executable ground truth for
+/// [`resolve_command_with`](super::naming::resolve_command_with) and for
+/// every backend that re-implements the rule over its own command store
+/// (the analyser's post-walk settlement, the bytecode VM's dispatch, the
+/// WASM runtime's namespace tree).  Each consumer runs the *same* rows, so
+/// a change to the rule that lands in one implementation but not another
+/// fails that consumer's conformance test rather than drifting silently.
+///
+/// The rows themselves are pinned against real tclsh by
+/// `tests/command_resolution_conformance.rs` in this crate, which renders
+/// each row with [`conformance::vector_script`] and diffs the interpreter's
+/// answer against `want`.
+pub mod conformance {
+    /// One resolution scenario: from `ns` (with `path` as its
+    /// `namespace path`), a call to `call` with exactly `defs` defined
+    /// must dispatch `want` (`None` = `invalid command name`).
+    #[derive(Debug, Clone)]
+    pub struct ResolutionVector {
+        /// `::`-rooted current namespace (`::` = global).
+        pub ns: String,
+        /// `namespace path` entries for `ns`, in order (each `::`-rooted).
+        pub path: Vec<String>,
+        /// Every defined command, `::`-rooted.
+        pub defs: Vec<String>,
+        /// The call text as written (bare, relative-qualified, or absolute).
+        pub call: String,
+        /// The `::`-rooted winner, or `None` for `invalid command name`.
+        pub want: Option<String>,
+        /// 1-based line in the vector file (for failure messages).
+        pub line: usize,
+    }
+
+    /// The raw vector table (see the file header for the format).
+    pub const RAW: &str = include_str!("../tests/data/command_resolution_vectors.txt");
+
+    /// Parse [`RAW`] into vectors.
+    ///
+    /// # Panics
+    /// On a malformed row — the file is repo-controlled test data, so a
+    /// parse failure is a bug in the row, not an input condition.
+    #[must_use]
+    pub fn vectors() -> Vec<ResolutionVector> {
+        let split_list = |field: &str| -> Vec<String> {
+            if field == "-" {
+                Vec::new()
+            } else {
+                field.split(',').map(|s| s.trim().to_string()).collect()
+            }
+        };
+        let mut out = Vec::new();
+        for (idx, raw_line) in RAW.lines().enumerate() {
+            let line = raw_line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let fields: Vec<&str> = line.split('|').map(str::trim).collect();
+            assert!(
+                fields.len() == 5,
+                "vector line {}: expected 5 |-separated fields, got {}: {raw_line:?}",
+                idx + 1,
+                fields.len(),
+            );
+            out.push(ResolutionVector {
+                ns: fields[0].to_string(),
+                path: split_list(fields[1]),
+                defs: split_list(fields[2]),
+                call: fields[3].to_string(),
+                want: (fields[4] != "-").then(|| fields[4].to_string()),
+                line: idx + 1,
+            });
+        }
+        assert!(!out.is_empty(), "no conformance vectors parsed");
+        out
+    }
+
+    /// Render a vector as a runnable Tcl script whose **output** is the
+    /// dispatched command's qualified name, or `-` on
+    /// `invalid command name`.
+    ///
+    /// Each defined command becomes a proc returning its own qualified
+    /// name; the call runs inside `namespace eval {ns}` after any
+    /// `namespace path` is applied.  Shared by the tclsh pin test, the
+    /// bytecode-VM conformance test, and the WASM-runtime conformance
+    /// test, so all three execute byte-identical scripts.
+    #[must_use]
+    pub fn vector_script(v: &ResolutionVector) -> String {
+        use std::fmt::Write as _;
+        let mut script = String::new();
+        // Every namespace referenced anywhere must exist up front: the
+        // call namespace, each path entry, and each definition's holder
+        // (`namespace eval ::a::b {}` creates intermediate levels too).
+        let ensure_ns = |ns: &str, script: &mut String| {
+            if ns != "::" && !ns.is_empty() {
+                let _ = writeln!(script, "namespace eval {ns} {{}}");
+            }
+        };
+        ensure_ns(&v.ns, &mut script);
+        for p in &v.path {
+            ensure_ns(p, &mut script);
+        }
+        for def in &v.defs {
+            if let Some((holder, _tail)) = def.rsplit_once("::") {
+                ensure_ns(holder, &mut script);
+            }
+            let _ = writeln!(script, "proc {def} {{}} {{ return {def} }}");
+        }
+        if !v.path.is_empty() {
+            let entries = v.path.join(" ");
+            let _ = writeln!(
+                script,
+                "namespace eval {} [list namespace path [list {entries}]]",
+                v.ns
+            );
+        }
+        let _ = writeln!(
+            script,
+            "if {{[catch {{namespace eval {} {{{}}}}} __r]}} {{ set __r - }}",
+            v.ns, v.call
+        );
+        script.push_str("puts $__r\n");
+        script
+    }
 }
 
 #[cfg(test)]

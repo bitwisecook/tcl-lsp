@@ -297,9 +297,14 @@ impl Namespaces {
 
     /// For a **qualified** variable name, the `(namespace, simple tail)` it
     /// addresses, or `None` if that namespace doesn't exist. Absolute when
-    /// `::`-led, else relative to `current`. The variable parallel of command
-    /// `resolve_qualified` (`tclVar.c` / `namespace-tree.md` §5.3). Callers
-    /// guard with `is_qualified` first, so `None` means *namespace missing*.
+    /// `::`-led, else relative to `current` (`tclVar.c` /
+    /// `namespace-tree.md` §5.3). Callers guard with `is_qualified` first,
+    /// so `None` means *namespace missing*.
+    ///
+    /// Deliberately **not** the command rule ([`Self::home_of`]): variable
+    /// resolution has no existence-checked fall-through — a qualified write
+    /// creates the variable in the first namespace the qualifier resolves
+    /// to — so this commits at namespace level.
     #[must_use]
     pub(crate) fn var_home(&self, current: NsId, name: &[u8]) -> Option<(NsId, Vec<u8>)> {
         let absolute = name.starts_with(b"::");
@@ -649,25 +654,56 @@ impl Namespaces {
     // -- helpers --------------------------------------------------------------
 
     /// Locate the namespace + simple name that *holds* the binding `name`
-    /// resolves to, following the full resolution order (qualified → current →
-    /// path → global). The shared core of `resolve`/`delete`/`rename`.
+    /// resolves to, following C Tcl's full command-resolution order
+    /// (`Tcl_FindCommand`, `generic/tclNamesp.c`). The shared core of
+    /// `resolve`/`delete`/`rename`.
+    ///
+    /// Structural mirror of the canonical
+    /// [`tcl_syntax::naming::resolve_command_with`] rule (this table is a
+    /// namespace tree, not a flat string map, so the loop walks base
+    /// namespaces instead of joining candidate strings — conformance is
+    /// pinned by the shared vector suite,
+    /// `rust/tcl-syntax/tests/data/command_resolution_vectors.txt`):
+    ///
+    /// * An absolute name resolves from the global namespace only.
+    /// * Any relative name — bare (`helper`) *or* qualifier-carrying
+    ///   (`inner::p`) — tries the current namespace, then each
+    ///   `namespace path` entry in order, then global, dispatching the
+    ///   first base under which the **command exists**.  A qualifier
+    ///   namespace merely existing does not commit resolution: `inner::p`
+    ///   from `::outer` reaches `::inner::p` even when the namespace
+    ///   `::outer::inner` exists but holds no `p` (tclsh 8.6/9.0
+    ///   confirmed).
     fn home_of(&self, current: NsId, name: &[u8]) -> Option<(NsId, Vec<u8>)> {
-        if let Some((ns, simple)) = self.resolve_qualified(current, name) {
-            return self.arena[ns]
-                .commands
-                .contains_key(simple)
-                .then(|| (ns, simple.to_vec()));
+        let segments = split_qualifier(name);
+        let (simple, ns_parts) = segments.split_last()?;
+        // Walk `ns_parts` from `base`, then require the command itself.
+        let find_under = |base: NsId| -> Option<NsId> {
+            let mut ns = base;
+            for part in ns_parts {
+                ns = *self.arena[ns].children.get(*part)?;
+            }
+            if self.arena[ns].commands.contains_key(*simple) {
+                Some(ns)
+            } else {
+                None
+            }
+        };
+        if name.starts_with(b"::") {
+            return find_under(GLOBAL).map(|ns| (ns, simple.to_vec()));
         }
-        if self.arena[current].commands.contains_key(name) {
-            return Some((current, name.to_vec()));
+        if let Some(ns) = find_under(current) {
+            return Some((ns, simple.to_vec()));
         }
         for &p in &self.arena[current].path {
-            if self.arena[p].commands.contains_key(name) {
-                return Some((p, name.to_vec()));
+            if let Some(ns) = find_under(p) {
+                return Some((ns, simple.to_vec()));
             }
         }
-        if current != GLOBAL && self.arena[GLOBAL].commands.contains_key(name) {
-            return Some((GLOBAL, name.to_vec()));
+        if current != GLOBAL {
+            if let Some(ns) = find_under(GLOBAL) {
+                return Some((ns, simple.to_vec()));
+            }
         }
         None
     }
@@ -680,34 +716,6 @@ impl Namespaces {
         self.arena.push(Namespace::new(name.to_vec(), Some(parent)));
         self.arena[parent].children.insert(name.to_vec(), id);
         id
-    }
-
-    /// If `name` is qualified, walk to its namespace and return
-    /// `(target_ns, simple_name)`; else `None` (unqualified).
-    fn resolve_qualified<'n>(&self, current: NsId, name: &'n [u8]) -> Option<(NsId, &'n [u8])> {
-        if !contains_qualifier(name) {
-            return None;
-        }
-        let absolute = name.starts_with(b"::");
-        let segments = split_qualifier(name);
-        let (simple, ns_parts) = segments.split_last()?;
-        // Walk the qualifier path from `start`, following child links.
-        let walk = |start: NsId| -> Option<NsId> {
-            let mut ns = start;
-            for part in ns_parts {
-                ns = *self.arena[ns].children.get(*part)?;
-            }
-            Some(ns)
-        };
-        // A relative qualifier resolves against the current namespace, falling
-        // back to the global namespace (C's `TclGetNamespaceForQualName`), so
-        // `tcl::build-info` from inside `::a::b` still finds `::tcl::build-info`.
-        let ns = if absolute {
-            walk(GLOBAL)?
-        } else {
-            walk(current).or_else(|| walk(GLOBAL))?
-        };
-        Some((ns, simple))
     }
 }
 

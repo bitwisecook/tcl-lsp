@@ -1386,9 +1386,9 @@ fn resolve_proc_qname(
     if command.is_empty() {
         return None;
     }
-    crate::naming::bareword_resolution_candidates(namespace, command)
-        .into_iter()
-        .find(|qname| ia.procedures.contains_key(qname))
+    crate::naming::resolve_command_with::<&str, _>(namespace, &[], command, |qname| {
+        ia.procedures.contains_key(qname)
+    })
 }
 
 /// O103: if `command` resolves to a proc with `can_fold_static_calls`

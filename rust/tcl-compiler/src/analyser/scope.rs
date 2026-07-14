@@ -344,14 +344,27 @@ impl Analyser {
             let Some(resolved) = inv.resolved_qualified_name.as_deref() else {
                 continue;
             };
-            // Mirrors `bareword_resolution_candidates`' global candidate.
-            let global = format!("::{}", inv.name);
-            if resolved == global || known(resolved) {
-                continue;
+            // The walk stored the local-first candidate (`{ns}::{name}`);
+            // recover the call namespace and re-run the *shared* resolver
+            // (`resolve_command_with`, the same rule the optimiser, the
+            // uplevel inliner, and the VM dispatch on) now that `known` is
+            // complete.  The analyser does not track `namespace path`, so
+            // the path is empty here.
+            let suffix = format!("::{}", inv.name);
+            let ns = match resolved.strip_suffix(suffix.as_str()) {
+                Some("") => "::",
+                Some(prefix) => prefix,
+                // Not the `{ns}::{name}` shape the walk produces — leave it.
+                None => continue,
+            };
+            if let Some(winner) =
+                crate::naming::resolve_command_with::<&str, _>(ns, &[], &inv.name, &known)
+                && winner != resolved
+            {
+                inv.resolved_qualified_name = Some(winner);
             }
-            if known(&global) {
-                inv.resolved_qualified_name = Some(global);
-            }
+            // No candidate known: keep the local-first guess for cross-file
+            // consumers (the reference matchers treat it as a candidate).
         }
     }
 

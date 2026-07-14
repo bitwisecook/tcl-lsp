@@ -1497,30 +1497,8 @@ impl Vm {
     }
 
     pub(crate) fn lookup_command(&self, name: &str) -> Option<Command> {
-        if let Some(abs) = name.strip_prefix("::") {
-            return self.commands.get(abs).cloned();
-        }
-        let cur = self.current_ns();
-        if !cur.is_empty()
-            && let Some(c) = self.commands.get(&format!("{cur}::{name}"))
-        {
-            return Some(c.clone());
-        }
-        // `namespace path`: consult the current namespace's resolution path
-        // (in order) before falling back to the global namespace.
-        if let Some(path) = self.ns_paths.get(cur) {
-            for p in path {
-                let key = if p.is_empty() {
-                    name.to_string()
-                } else {
-                    format!("{p}::{name}")
-                };
-                if let Some(c) = self.commands.get(&key) {
-                    return Some(c.clone());
-                }
-            }
-        }
-        self.commands.get(name).cloned()
+        self.resolve_command_fqn(self.current_ns(), name)
+            .and_then(|key| self.commands.get(&key).cloned())
     }
 
     /// Get the current namespace's command resolution path (`namespace path`)
@@ -1567,21 +1545,22 @@ impl Vm {
             .unwrap_or_default()
     }
 
-    /// Resolve `name` from namespace `cxt` to its command's canonical key (the
-    /// `commands` map key — a qualified name without the leading `::`), mirroring
-    /// [`lookup_command`](Self::lookup_command)'s order: an absolute `::name`
-    /// directly, else `cxt::name`, else the global `name`. `None` if unresolved.
+    /// Resolve `name` from namespace `cxt` to its command's canonical key
+    /// (the `commands` map key — a qualified name without the leading `::`),
+    /// via the shared C-Tcl resolution rule
+    /// ([`tcl_syntax::naming::resolve_command_with`]): an absolute `::name`
+    /// directly, else `cxt`'s candidate, then each of `cxt`'s
+    /// `namespace path` entries in order, then global — dispatching the
+    /// first that **exists**.  [`lookup_command`](Self::lookup_command) is
+    /// this plus the command fetch, so the two can never disagree.
+    /// `None` if unresolved.
     pub(crate) fn resolve_command_fqn(&self, cxt: &str, name: &str) -> Option<String> {
-        if let Some(abs) = name.strip_prefix("::") {
-            return self.commands.contains_key(abs).then(|| abs.to_string());
-        }
-        if !cxt.is_empty() {
-            let qualified = format!("{cxt}::{name}");
-            if self.commands.contains_key(&qualified) {
-                return Some(qualified);
-            }
-        }
-        self.commands.contains_key(name).then(|| name.to_string())
+        let path = self.ns_paths.get(cxt).map_or(&[][..], Vec::as_slice);
+        tcl_syntax::naming::resolve_command_with(cxt, path, name, |candidate| {
+            self.commands
+                .contains_key(candidate.trim_start_matches(':'))
+        })
+        .map(|winner| winner.trim_start_matches(':').to_string())
     }
 
     /// Intern an absolute command FQN to a stable, dense raw `CommandId`, minting

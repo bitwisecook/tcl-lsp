@@ -1164,6 +1164,65 @@ mod tests {
     }
 
     #[test]
+    fn qualifier_namespace_existing_does_not_commit_resolution() {
+        // tclsh 8.6/9.0 (PR #924): the fallback is *command*-existence-
+        // checked, not namespace-existence-checked.  `inner::p` from
+        // `::outer` must dispatch `::inner::p` even though the namespace
+        // `::outer::inner` exists — it merely holds no `p`.
+        leak_free(|i| {
+            i.eval_str(b"namespace eval inner { proc p {} {return GLOBAL} }");
+            i.eval_str(b"namespace eval outer { namespace eval inner { proc other {} {} } }");
+            assert_eq!(
+                i.eval_str(b"namespace eval outer { inner::p }"),
+                Code::Ok,
+                "resolution must fall through to ::inner::p: {:?}",
+                String::from_utf8_lossy(&i.result_bytes()),
+            );
+            assert_eq!(i.result_bytes(), b"GLOBAL");
+        });
+    }
+
+    /// Every shared command-resolution vector
+    /// (`tcl_syntax::naming::conformance`, pinned against real tclsh by
+    /// the `tcl-syntax` conformance test) must dispatch identically
+    /// through this runtime's namespace tree — the anti-drift gate for
+    /// `Namespaces::home_of`.
+    #[test]
+    fn dispatch_matches_every_conformance_vector() {
+        use tcl_syntax::naming::conformance::{vector_script, vectors};
+        for v in vectors() {
+            let script = vector_script(&v);
+            // Drop the trailing `puts $__r` — this harness reads the
+            // variable back instead of capturing stdout.
+            let body = script
+                .strip_suffix("puts $__r\n")
+                .expect("vector_script ends with puts")
+                .to_string();
+            counters::reset();
+            {
+                let mut i = Interp::new();
+                assert_eq!(
+                    i.eval_str(body.as_bytes()),
+                    Code::Ok,
+                    "vector line {}: runtime errored on script:\n{script}",
+                    v.line,
+                );
+                assert_eq!(i.eval_str(b"set __r"), Code::Ok);
+                let got = String::from_utf8_lossy(&i.result_bytes()).to_string();
+                let want = v.want.clone().unwrap_or_else(|| "-".to_string());
+                assert_eq!(
+                    got, want,
+                    "vector line {} (ns={} path={:?} defs={:?} call={}): runtime dispatch \
+                     disagrees with C Tcl\nscript:\n{script}",
+                    v.line, v.ns, v.path, v.defs, v.call,
+                );
+            }
+            assert_eq!(counters::finalize(), 0, "vector line {}: leak", v.line);
+            assert_eq!(counters::double_free_count(), 0);
+        }
+    }
+
+    #[test]
     fn namespace_delete_removes_subtree() {
         leak_free(|i| {
             i.eval_str(b"namespace eval foo { proc p {} {return P} ; namespace eval bar {} }");
