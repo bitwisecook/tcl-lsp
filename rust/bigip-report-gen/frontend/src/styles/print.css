@@ -197,18 +197,30 @@
 
   /* ---- Code + diagrams ------------------------------------------------- */
   pre.code { white-space: pre-wrap !important; word-break: break-word; }
-  /* Diagrams always included and scaled to the printable width. */
+  /* Diagrams are capped to the printable width but never stretched UP to it.
+   *
+   * `width: 100%` scaled every diagram to the full page. That is only ever right
+   * for a big graph; a small one — an iRule with a single `when`, a two-node flow —
+   * got magnified, and since scaling an <svg> scales its text with it, the labels
+   * came out as gigantic pills. The architecture graph already carried an exception
+   * for exactly this; it applies to all of them.
+   *
+   * `width: auto` + `max-width: 100%` caps the scale factor at 1:1: a diagram
+   * wider than the page still shrinks to fit (labels get smaller, which is fine),
+   * and one narrower than the page prints at its natural size — the size it was
+   * laid out for, which matches the body text.
+   *
+   * Note this cannot be done with a `font-size` cap on the SVG text: elk computes
+   * each node's box from the authored text metrics, so overriding the font size
+   * would leave labels rattling around inside oversized pills, or overflowing
+   * them. Bounding the scale is what bounds the text. */
   .diag-host svg, .elk-svg,
   .app-pipe-diagram svg, .app-flow-diagram svg, .app-obj-flow svg, .irule-flow-diagram svg, .arch-diagram svg {
-    width: 100% !important;
+    width: auto !important;
     max-width: 100% !important;
     height: auto !important;
   }
-  /* …except the architecture graph, which is only a few nodes: stretching it to
-     the full page width blows its labels up to headline size. Print it at its
-     natural size (still capped to the page), as it appears on screen. */
   .arch-diagram svg {
-    width: auto !important;
     max-height: none !important;
   }
 
