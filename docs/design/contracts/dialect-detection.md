@@ -118,3 +118,13 @@ Dialect is re-evaluated when:
 | `.iapp`, `.iappimpl`, `.impl` | `f5-iapps` |
 | `.apl` | `f5-iapps` |
 | `.exp` | `expect` |
+
+## Command-line tools (`tcl diag` / `lint` / `validate`)
+
+The diagnostics verbs of the `tcl` CLI apply the same chain per input
+document (minus the editor language ID, which has no CLI equivalent):
+an explicit `--dialect` flag overrides everything; otherwise the
+in-source signals (comment directive, shebang, content), then the file
+extension, then the `tcl8.6` fallback decide.  This keeps `tcl diag`
+and the editor reporting the same set for the same file — an `.irul`
+input gets full iRules analysis without any flag.

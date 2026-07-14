@@ -1239,6 +1239,7 @@ fn w127_suggestion_fix(
     span: tcl_lexer::Span,
     message: &mut String,
 ) -> Vec<crate::analyser::types::CodeFix> {
+    use std::fmt::Write as _;
     let suggestions = crate::text::suggest_similar(
         value,
         allowed.iter().copied(),
@@ -1248,7 +1249,6 @@ fn w127_suggestion_fix(
     let Some(best) = suggestions.first() else {
         return Vec::new();
     };
-    use std::fmt::Write as _;
     let _ = write!(message, "; did you mean '{best}'?");
     vec![crate::analyser::types::CodeFix {
         span,

@@ -173,6 +173,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp eval path arg ?arg ...?",
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::Body)],
+        // Runs an arbitrary script — dynamic-dispatch consumers (memory-SSA
+        // clobber classification, side-effect analysis) key off this.
+        traits: Traits::EVALUATES_CODE,
         ..SubCommand::DEFAULT
     },
     SubCommand {

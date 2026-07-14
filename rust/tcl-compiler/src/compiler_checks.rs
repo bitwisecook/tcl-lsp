@@ -305,11 +305,11 @@ pub fn run_all_checks_with_solved_and_patterns(
 /// procedure's checks are a cache hit.  The S110 `*::payload` byte-command set is
 /// dialect-gated (empty outside iRules).
 #[must_use]
-pub fn function_nontaint_checks(
+pub fn function_nontaint_checks<S: std::hash::BuildHasher>(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
     dialect: Option<&str>,
-    instance_vars: Option<&std::collections::HashSet<String>>,
+    instance_vars: Option<&std::collections::HashSet<String, S>>,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
     for cb in &fu.sccp.constant_branches {
@@ -341,11 +341,11 @@ pub fn function_nontaint_checks(
 /// `namespace eval` body. The S110 `*::payload` byte-command set is
 /// dialect-gated (empty outside iRules).
 #[must_use]
-pub fn shimmer_family_checks(
+pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
     dialect: Option<&str>,
-    instance_vars: Option<&std::collections::HashSet<String>>,
+    instance_vars: Option<&std::collections::HashSet<String, S>>,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
     for w in find_shimmer_warnings(

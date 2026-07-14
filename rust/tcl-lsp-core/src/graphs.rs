@@ -984,7 +984,7 @@ fn memory_function_json(
 pub fn memory_alias_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Value {
     let cu = CompilationUnit::build_for(source, registry, false)
         .with_interprocedural(registry, Some(dialect))
-        .with_memory_ssa();
+        .with_memory_ssa(registry);
 
     let mut functions: Vec<Value> = vec![memory_function_json(
         "::top",

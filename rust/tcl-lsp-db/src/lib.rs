@@ -1350,7 +1350,7 @@ pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<V
         &fu,
         &registry,
         dialect_opt,
-        None,
+        None::<&std::collections::HashSet<String>>,
     ))
 }
 
@@ -1491,7 +1491,7 @@ pub fn proc_taint_solve<'db>(
                     fu,
                     &registry,
                     dialect_opt,
-                    None,
+                    None::<&std::collections::HashSet<String>>,
                 ) {
                     fn_checks.push(d);
                 }

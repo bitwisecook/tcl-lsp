@@ -65,6 +65,7 @@ struct ArityWords<'a> {
 /// up to the last argument), plus where a "remove surplus arguments" fix
 /// should start deleting — the end of the last *kept* word, so the fix
 /// also removes the separating whitespace.
+#[derive(Clone, Copy)]
 pub(super) struct ExcessArgs {
     /// Span of the surplus argument run (diagnostic anchor).
     pub span: tcl_lexer::Span,
@@ -637,12 +638,12 @@ impl Analyser {
         arg_expand_in: &[bool],
         scope_path: &[usize],
     ) {
-        use super::dispatch::{CommandSignature, signature_for_command};
+        use super::dispatch::CommandSignature;
         use tcl_registry::prelude::DialectSet;
 
-        let Some(registry) = self.registry.as_ref() else {
+        if self.registry.is_none() {
             return;
-        };
+        }
         let Some(first_arg) = args.first() else {
             // Empty arg list — E001 path; not in scope here.
             return;
@@ -722,40 +723,14 @@ impl Analyser {
         // depend on facts not yet known mid-walk.
         let ns = self.command_resolution_namespace(scope_path);
         let enforce_order = !self.scope_path_in_proc_body(scope_path);
-        if let Some(CommandSignature::WithSubcommands(any_sig)) =
-            signature_for_command(registry, cmd_name, DialectSet::all())
-            && any_sig.is_known(first_arg)
-        {
-            let span = match arg_tokens.first() {
-                Some(sub_tok) => tcl_lexer::Span::new(cmd_tok.span.start(), sub_tok.span.end()),
-                None => cmd_tok.span,
-            };
-            // Best-effort "available in: …" hint from the registry's own
-            // dialect gate on the matching `SubCommand` entry (falling back
-            // to the parent command's, the same inheritance
-            // `emit_w004_dialect_invalid_option` uses). An abbreviated
-            // `first_arg` that doesn't literally match a `SubCommand.name`
-            // just yields no hint — the base message stays accurate either
-            // way.
-            let suffix = registry.get(cmd_name).map_or(String::new(), |spec| {
-                spec.subcommands
-                    .iter()
-                    .find(|s| s.name == first_arg.as_str())
-                    .map_or(String::new(), |sub| {
-                        dialect_availability_suffix(sub.dialects.or(spec.dialects))
-                    })
-            });
-            let diag = super::types::Diagnostic {
-                code: DiagCode::W002,
-                span,
-                message: format!(
-                    "'{cmd_name} {first_arg}' is disabled in the active dialect profile{suffix}"
-                ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            };
-            self.pending_disabled_commands
-                .push((cmd_name.to_string(), ns, enforce_order, diag));
+        if self.queue_w002_other_dialect_subcommand(
+            cmd_name,
+            first_arg,
+            cmd_tok,
+            arg_tokens,
+            &ns,
+            enforce_order,
+        ) {
             return;
         }
         let mut message = format!("Unknown subcommand '{first_arg}' for '{cmd_name}'");
@@ -795,6 +770,68 @@ impl Analyser {
                 fixes,
             },
         ));
+    }
+
+    /// The disabled-in-other-dialect half of the W001 check: when the
+    /// unknown subcommand *exists* under some other dialect (`info cmdtype`
+    /// is real but 9.0-only), queue a W002 disabled-in-dialect diagnostic —
+    /// with a best-effort "available in: …" hint from the registry's own
+    /// dialect gate on the matching [`tcl_registry::SubCommand`] entry
+    /// (falling back to the parent command's, the same inheritance
+    /// `emit_w004_dialect_invalid_option` uses; an abbreviated `first_arg`
+    /// that doesn't literally match a `SubCommand.name` just yields no
+    /// hint) — and return `true` so the caller skips the "Unknown
+    /// subcommand" path with its misleading spelling suggestion.
+    fn queue_w002_other_dialect_subcommand(
+        &mut self,
+        cmd_name: &str,
+        first_arg: &str,
+        cmd_tok: tcl_lexer::Token,
+        arg_tokens: &[tcl_lexer::Token],
+        ns: &str,
+        enforce_order: bool,
+    ) -> bool {
+        use super::dispatch::{CommandSignature, signature_for_command};
+        use tcl_registry::prelude::DialectSet;
+        let Some(registry) = self.registry.as_ref() else {
+            return false;
+        };
+        let Some(CommandSignature::WithSubcommands(any_sig)) =
+            signature_for_command(registry, cmd_name, DialectSet::all())
+        else {
+            return false;
+        };
+        if !any_sig.is_known(first_arg) {
+            return false;
+        }
+        let span = match arg_tokens.first() {
+            Some(sub_tok) => tcl_lexer::Span::new(cmd_tok.span.start(), sub_tok.span.end()),
+            None => cmd_tok.span,
+        };
+        let suffix = registry.get(cmd_name).map_or(String::new(), |spec| {
+            spec.subcommands
+                .iter()
+                .find(|s| s.name == first_arg)
+                .map_or(String::new(), |sub| {
+                    dialect_availability_suffix(sub.dialects.or(spec.dialects))
+                })
+        });
+        let diag = super::types::Diagnostic {
+            code: DiagCode::W002,
+            span,
+            message: format!(
+                "'{cmd_name} {first_arg}' is disabled in the active dialect profile{suffix}"
+            ),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        };
+        self.pending_disabled_commands.push((
+            cmd_name.to_string(),
+            ns.to_string(),
+            enforce_order,
+            diag,
+        ));
+        true
     }
 
     /// **E002 / E003.** Argument-count check for simple (non-

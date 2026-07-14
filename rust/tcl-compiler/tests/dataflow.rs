@@ -136,7 +136,7 @@ fn build_graph(cu: &CompilationUnit) -> DataFlowGraph {
 
 /// Build the data-flow graph for `source`, with memory-SSA populated.
 fn graph_for(source: &str) -> DataFlowGraph {
-    let cu = build_cu(source).with_memory_ssa();
+    let cu = build_cu(source).with_memory_ssa(&CommandRegistry::build_default());
     build_graph(&cu)
 }
 
@@ -496,7 +496,7 @@ fn dataflow_prebuilt_cu() {
     // the same ≥2 defs. The API *only* consumes pre-built per-function inputs,
     // so this is the same path as `build_graph` but spelled out: reuse one
     // `CompilationUnit`.
-    let cu = build_cu("set x 1\nset y $x").with_memory_ssa();
+    let cu = build_cu("set x 1\nset y $x").with_memory_ssa(&CommandRegistry::build_default());
     let g = build_graph(&cu);
     assert!(g.total_defs() >= 2);
 }

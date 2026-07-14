@@ -44,3 +44,6 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+tcl-registry = { path = "../tcl-registry" }

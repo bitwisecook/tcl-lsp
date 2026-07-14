@@ -507,8 +507,8 @@ impl FunctionUnit {
 
     /// Populate memory-SSA on demand. Returns `self` for chaining.
     #[must_use]
-    pub fn with_memory_ssa(mut self) -> Self {
-        self.memory_ssa = Some(build_memory_ssa(&self.ssa));
+    pub fn with_memory_ssa(mut self, registry: &tcl_registry::CommandRegistry) -> Self {
+        self.memory_ssa = Some(build_memory_ssa(&self.ssa, registry));
         self
     }
 
@@ -1162,11 +1162,11 @@ impl CompilationUnit {
 
     /// Populate memory-SSA on the top-level and every procedure.
     #[must_use]
-    pub fn with_memory_ssa(mut self) -> Self {
-        self.top_level = self.top_level.with_memory_ssa();
+    pub fn with_memory_ssa(mut self, registry: &tcl_registry::CommandRegistry) -> Self {
+        self.top_level = self.top_level.with_memory_ssa(registry);
         let mut out: HashMap<String, FunctionUnit> = HashMap::with_capacity(self.procedures.len());
         for (k, fu) in self.procedures.drain() {
-            out.insert(k, fu.with_memory_ssa());
+            out.insert(k, fu.with_memory_ssa(registry));
         }
         self.procedures = out;
         self
@@ -1808,7 +1808,8 @@ mod tests {
 
     #[test]
     fn with_memory_ssa_populates_optional() {
-        let cu = CompilationUnit::build_for("set x 1", &registry(), false).with_memory_ssa();
+        let cu =
+            CompilationUnit::build_for("set x 1", &registry(), false).with_memory_ssa(&registry());
         assert!(cu.top_level.memory_ssa.is_some());
     }
 

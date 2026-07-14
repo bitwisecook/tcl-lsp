@@ -122,7 +122,7 @@ fn mem(source: &str, proc: &str) -> MemorySsaFunction {
             },
             |(_, f)| f,
         );
-    build_memory_ssa(&build_ssa(f, registry()))
+    build_memory_ssa(&build_ssa(f, registry()), registry())
 }
 
 /// Every diagnostic code the full pipeline surfaces for `src`, mirroring the

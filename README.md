@@ -64,6 +64,12 @@ All editors connect to the native Rust binary `tcl-lsp-server` over stdio
 `#!/usr/bin/tclsh`, `#!/usr/bin/wish`, and `#!/usr/bin/expect`.
 Files named `presentation` (no extension) are auto-detected as APL.
 Per-file `# tcl-dialect:` comment directives pin a specific dialect.
+The `tcl diag` / `lint` / `validate` CLI verbs apply the same per-file
+detection (directive, shebang, content, extension) unless `--dialect` is
+passed, so the CLI and the editor report the same set for the same file.
+Files named `tclpkg.tcl` are analysed as `tcl pkg` package manifests:
+their directives resolve against the manifest command set instead of
+drawing unknown-command warnings.
 
 ### VS Code
 

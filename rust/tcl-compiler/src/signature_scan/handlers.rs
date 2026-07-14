@@ -48,13 +48,7 @@ use super::types::{
 /// `ns_prefix` is expected to be the call-site namespace **without**
 /// a leading `::` (the walker carries it that way by convention).
 pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
-    if name.starts_with("::") {
-        name.to_string()
-    } else if ns_prefix.is_empty() {
-        format!("::{name}")
-    } else {
-        format!("::{ns_prefix}::{name}")
-    }
+    crate::naming::qualify(ns_prefix, name)
 }
 
 /// Insert a class record under `result.classes`, computing the

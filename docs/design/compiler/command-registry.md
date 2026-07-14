@@ -94,6 +94,7 @@ class StringCommand(CommandDef):
 |-------|------|---------|---------|
 | `subcommands` | `dict[str, SubCommand]` | `{}` | Ensemble subcommand registry.  See SubCommand section |
 | `allow_unknown_subcommands` | `bool` | `False` | Suppress W102 for unrecognised subcommands (e.g. user-defined `oo::class` methods) |
+| `default_form_first_word` | `Option<DefaultFormFirstWord>` | `None` | Value shape a non-subcommand first word may take to select the command's *default* form (`after 200 ...` — an integer first word is a delay, not an unknown subcommand). Matched via the canonical `tcl-syntax` number parser, so every Tcl integer spelling works |
 
 #### Compiler traits
 

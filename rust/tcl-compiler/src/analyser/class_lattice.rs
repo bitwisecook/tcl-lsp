@@ -442,15 +442,11 @@ fn import_prefix(pattern: &str) -> String {
 }
 
 /// Join a namespace prefix and a (possibly-relative) name into a fully
-/// qualified `::`-name, collapsing duplicate separators.
+/// qualified `::`-name — the canonical [`crate::naming`] join.  Notably an
+/// *absolute* `name` keeps its own namespace (the previous local join
+/// re-prefixed `::other::C` under the current namespace).
 fn qualify(prefix: &str, name: &str) -> String {
-    let p = prefix.trim_end_matches("::");
-    let n = name.trim_start_matches("::");
-    if p.is_empty() || p == "::" {
-        format!("::{n}")
-    } else {
-        format!("{p}::{n}")
-    }
+    crate::naming::qualify(prefix, name)
 }
 
 /// Resolve a possibly-bare / namespace-relative class name to a qualified

@@ -1,0 +1,378 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! End-to-end coverage for the diagnostics precision review: tight ranges,
+//! did-you-mean suggestions and their quick fixes, and the false-positive
+//! classes the review eliminated.  Each area carries its TP (fires), FP
+//! guard (must not fire), and — where a fix exists — the fix payload.
+
+use crate::common::{Lsp, unique_uri};
+
+use serde_json::Value;
+
+fn code_str(d: &Value) -> String {
+    match d.get("code") {
+        Some(Value::String(s)) => s.clone(),
+        Some(other) => other.to_string(),
+        None => "None".to_owned(),
+    }
+}
+
+fn codes(diags: &[Value]) -> Vec<String> {
+    diags.iter().map(code_str).collect()
+}
+
+fn find<'a>(diags: &'a [Value], code: &str) -> Option<&'a Value> {
+    diags.iter().find(|d| code_str(d) == code)
+}
+
+fn range_of(d: &Value) -> (i64, i64, i64, i64) {
+    let r = &d["range"];
+    (
+        r["start"]["line"].as_i64().unwrap(),
+        r["start"]["character"].as_i64().unwrap(),
+        r["end"]["line"].as_i64().unwrap(),
+        r["end"]["character"].as_i64().unwrap(),
+    )
+}
+
+fn message_of(d: &Value) -> String {
+    d["message"].as_str().unwrap_or_default().to_owned()
+}
+
+// -- W123 / rename resolution ---------------------------------------------
+
+/// FP guard: `rename OLD NEW` binds NEW — calling the renamed name is not an
+/// unknown command.  TP control: the vacated OLD name still draws W128.
+#[test]
+fn rename_target_is_known_and_old_name_flags_w128() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc user_args {args} { puts [llength $args] }\nrename user_args ua2\nua2 1 2\nuser_args 9\n",
+    );
+    assert!(
+        !codes(&diags).iter().any(|c| c == "W123"),
+        "the rename target must be a known command: {diags:?}"
+    );
+    assert!(
+        codes(&diags).iter().any(|c| c == "W128"),
+        "the vacated source name still draws W128: {diags:?}"
+    );
+}
+
+/// Suggestion-budget guard: a 3-character unknown command must not fish an
+/// unrelated command out of the registry (the old fixed budget suggested
+/// 'cat' for 'ua2').
+#[test]
+fn short_unknown_command_gets_no_far_suggestion() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "zq9 1 2\n");
+    let d = find(&diags, "W123").expect("W123 fires for a genuinely unknown command");
+    assert!(
+        !message_of(d).contains("did you mean"),
+        "no candidate is within one edit of 'zq9': {}",
+        message_of(d)
+    );
+}
+
+// -- W210 nested-read narrowing + cross-event suppression ------------------
+
+/// The read-before-set squiggle sits on the `$foo` read nested inside the
+/// command substitution, not on the whole `set` command.
+#[test]
+fn w210_range_is_tight_on_nested_read() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x [lindex $foo 0]\nputs $x\n");
+    let d = find(&diags, "W210").expect("W210 fires for the unset $foo");
+    // `$foo` occupies characters 14..18 of line 0.
+    assert_eq!(range_of(d), (0, 14, 0, 18), "range must cover exactly $foo");
+}
+
+/// iRules cross-event flow: a variable set in `HTTP_REQUEST` is defined by the
+/// time `HTTP_RESPONSE` reads it — no read-before-set.  TP control: a name no
+/// event defines still fires.
+#[test]
+fn w210_silent_on_cross_event_read_but_fires_on_undefined() {
+    let mut lsp = Lsp::irules();
+    let uri = unique_uri("irule");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "when HTTP_REQUEST {\n    set g 1\n}\nwhen HTTP_RESPONSE {\n    set x $g\n    puts $x\n}\n",
+        "tcl-irule",
+    );
+    assert!(
+        !codes(&diags).iter().any(|c| c == "W210"),
+        "cross-event defined variable is not read-before-set: {diags:?}"
+    );
+
+    let uri2 = unique_uri("irule");
+    let diags2 = lsp.open_ready_lang(
+        &uri2,
+        "when HTTP_RESPONSE {\n    set x $neverdefined\n    puts $x\n}\n",
+        "tcl-irule",
+    );
+    assert!(
+        codes(&diags2).iter().any(|c| c == "W210"),
+        "a name no event defines still fires W210: {diags2:?}"
+    );
+}
+
+// -- W308 method word + suggestion + fix -----------------------------------
+
+const OO_SRC: &str = "oo::class create Animal {\n    method speak {} { return woof }\n}\nset a [Animal new]\n$a spek\n";
+
+/// The unknown-method squiggle sits on the method word, the message carries
+/// the MRO-derived suggestion, and the attached fix replaces exactly that
+/// word.
+#[test]
+fn w308_anchors_method_word_with_mro_suggestion() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, OO_SRC);
+    let d = find(&diags, "W308").expect("W308 fires for the typo'd method");
+    // `spek` occupies characters 3..7 of line 4.
+    assert_eq!(range_of(d), (4, 3, 4, 7), "range must cover exactly `spek`");
+    assert!(
+        message_of(d).contains("did you mean 'speak'"),
+        "suggestion comes from the class's methods: {}",
+        message_of(d)
+    );
+}
+
+/// FP guard for the suggestion: a method name nowhere near any declared
+/// method gets no suggestion (and the diagnostic still fires).
+#[test]
+fn w308_no_far_suggestion() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Animal {\n    method speak {} { return woof }\n}\nset a [Animal new]\n$a zz9\n",
+    );
+    let d = find(&diags, "W308").expect("W308 fires");
+    assert!(
+        !message_of(d).contains("did you mean"),
+        "no method is within one edit of 'zz9': {}",
+        message_of(d)
+    );
+}
+
+// -- E003 surplus-argument anchoring + removal fix --------------------------
+
+/// The too-many-arguments squiggle covers only the surplus run — for a
+/// same-file proc resolved at flush time as much as for a registry command.
+#[test]
+fn e003_range_covers_surplus_run_for_proc_and_builtin() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "proc greet {name} { puts $name }\ngreet a b\n");
+    let d = find(&diags, "E003").expect("E003 fires for the surplus argument");
+    // Line 1 is `greet a b`; the surplus `b` is character 8..9.
+    assert_eq!(range_of(d), (1, 8, 1, 9), "range must cover exactly `b`");
+
+    let uri2 = unique_uri("tcl");
+    let diags2 = lsp.open_ready(&uri2, "string length abc def ghi\n");
+    let d2 = find(&diags2, "E003").expect("E003 fires for the builtin");
+    // Surplus run `def ghi` is characters 18..25.
+    assert_eq!(range_of(d2), (0, 18, 0, 25));
+}
+
+// -- W124 literal anchoring --------------------------------------------------
+
+/// The invalid-IP squiggle covers the literal itself, not the whole `set`.
+#[test]
+fn w124_range_is_tight_on_the_literal() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set ip 10.0.0.999\nputs $ip\n");
+    let d = find(&diags, "W124").expect("W124 fires for the over-255 octet");
+    // `10.0.0.999` occupies characters 7..17 of line 0.
+    assert_eq!(range_of(d), (0, 7, 0, 17));
+}
+
+// -- after: registry default-form first word ---------------------------------
+
+/// `after <ms>` selects the default form for every Tcl integer spelling —
+/// including the radix forms the old decimal-only check rejected — while a
+/// non-integer word still draws the unknown-subcommand warning.
+#[test]
+fn after_integer_first_word_is_not_a_subcommand() {
+    let mut lsp = Lsp::tcl();
+    for src in ["after 200 {puts hi}\n", "after 0x10 {puts hi}\n"] {
+        let uri = unique_uri("tcl");
+        let diags = lsp.open_ready(&uri, src);
+        assert!(
+            !codes(&diags).iter().any(|c| c == "W001"),
+            "{src:?} is the default delayed form: {diags:?}"
+        );
+    }
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "after soon {puts hi}\n");
+    assert!(
+        codes(&diags).iter().any(|c| c == "W001"),
+        "a non-integer, non-subcommand word still fires W001: {diags:?}"
+    );
+}
+
+// -- W120 guarded package require --------------------------------------------
+
+/// The guarded-optional-dependency idiom satisfies W120; an unguarded use
+/// still fires.
+#[test]
+fn w120_silent_on_guarded_require_fires_without() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "if {[catch {package require Tk} err]} {\n    exit 0\n}\ncanvas .c -width 10\n",
+    );
+    assert!(
+        !codes(&diags).iter().any(|c| c == "W120"),
+        "the require inside the catch guard counts: {diags:?}"
+    );
+
+    let uri2 = unique_uri("tcl");
+    let diags2 = lsp.open_ready(&uri2, "canvas .c -width 10\n");
+    assert!(
+        codes(&diags2).iter().any(|c| c == "W120"),
+        "without any require, W120 fires: {diags2:?}"
+    );
+}
+
+// -- TK1003 pair-aware option scan -------------------------------------------
+
+/// The unknown-option hint anchors on the offending word with a suggestion;
+/// option *values* starting with `-` and legal unique-prefix abbreviations
+/// stay silent.
+#[test]
+fn tk1003_tight_anchor_suggestion_and_fp_guards() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "package require Tk\nbutton .b -comand {puts hi}\nlabel .l -padx -2 -text ok\nentry .e -wid 20\n",
+    );
+    let tk: Vec<&Value> = diags.iter().filter(|d| code_str(d) == "TK1003").collect();
+    assert_eq!(
+        tk.len(),
+        1,
+        "only the real typo fires — not the -2 value, not the -wid abbreviation: {diags:?}"
+    );
+    // `-comand` occupies characters 10..17 of line 1.
+    assert_eq!(range_of(tk[0]), (1, 10, 1, 17));
+    assert!(
+        message_of(tk[0]).contains("Did you mean '-command'"),
+        "suggestion from the declared option set: {}",
+        message_of(tk[0])
+    );
+}
+
+// -- IRULE3102 single ownership ----------------------------------------------
+
+/// Exactly one IRULE3102 per getter site, anchored on the getter word.
+#[test]
+fn irule3102_fires_once_with_tight_anchor() {
+    let mut lsp = Lsp::irules();
+    let uri = unique_uri("irule");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "when HTTP_REQUEST {\n    set u [HTTP::uri]\n    puts $u\n}\n",
+        "tcl-irule",
+    );
+    let hits: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d) == "IRULE3102")
+        .collect();
+    assert_eq!(hits.len(), 1, "one emitter owns the code: {diags:?}");
+    // `HTTP::uri` inside the brackets occupies characters 11..20 of line 1.
+    assert_eq!(range_of(hits[0]), (1, 11, 1, 20));
+}
+
+// -- W127 did-you-mean fix -----------------------------------------------------
+
+/// The invalid-enum-value warning names the closest allowed value.
+#[test]
+fn w127_suggests_closest_allowed_value() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "string is alnun \"abc\"\n");
+    let d = find(&diags, "W127").expect("W127 fires for the misspelt class");
+    assert!(
+        message_of(d).contains("did you mean 'alnum'"),
+        "suggestion from the allowed set: {}",
+        message_of(d)
+    );
+}
+
+// -- tclpkg manifest environment ----------------------------------------------
+
+/// A `tclpkg.tcl` manifest resolves its directives against the registry's
+/// whole-file environment: no unknown-command / package noise, while a
+/// typo'd directive still fires (closed environment).
+#[test]
+fn tclpkg_manifest_directives_resolve() {
+    let mut lsp = Lsp::tcl();
+    let uri = format!("file:///e2e/{}_manifest/tclpkg.tcl", std::process::id());
+    let diags = lsp.open_ready(
+        &uri,
+        "package demo-app\nversion 0.1.0\nrequire json 1.0.0\nprovides demo::serve\nentry main.tcl\n",
+    );
+    assert!(
+        diags.is_empty(),
+        "a valid manifest produces no diagnostics: {diags:?}"
+    );
+
+    let uri2 = format!("file:///e2e/{}_manifest2/tclpkg.tcl", std::process::id());
+    let diags2 = lsp.open_ready(&uri2, "package demo-app\nverison 0.1.0\n");
+    assert!(
+        codes(&diags2).iter().any(|c| c == "W123"),
+        "a typo'd directive stays unknown in the closed environment: {diags2:?}"
+    );
+}
+
+// -- S102 intra-iteration thunking ---------------------------------------------
+
+/// The textbook oscillation fires even though the loop-header type is
+/// consistent; the hardened single-representation loop stays silent.
+#[test]
+fn s102_intra_iteration_oscillation_matrix() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc j {items} {\n    set acc \"\"\n    foreach x $items {\n        lappend acc $x\n        set acc \"$acc,\"\n    }\n    return $acc\n}\n",
+    );
+    assert!(
+        codes(&diags).iter().any(|c| c == "S102"),
+        "intra-iteration oscillation thunks: {diags:?}"
+    );
+
+    let uri2 = unique_uri("tcl");
+    let diags2 = lsp.open_ready(
+        &uri2,
+        "proc j {items} {\n    set parts [list]\n    foreach x $items {\n        lappend parts $x\n    }\n    return [join $parts ,]\n}\n",
+    );
+    assert!(
+        !codes(&diags2).iter().any(|c| c == "S102"),
+        "a single-representation accumulator does not thunk: {diags2:?}"
+    );
+}

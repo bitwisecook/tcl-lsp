@@ -301,6 +301,30 @@ pub fn normalise_qualified_name(name: &str) -> String {
     format!("::{}", parts.join("::"))
 }
 
+/// Join a namespace `prefix` and a (possibly-relative) `name` into a fully
+/// qualified, `::`-rooted name — the canonical Tcl qualification rule:
+///
+/// * An **absolute** `name` (leading `::`) ignores the prefix entirely —
+///   `qualify("::ns", "::other::C")` is `::other::C`, never re-prefixed.
+/// * A relative `name` resolves under `prefix`, which may be given rooted
+///   (`::a::b`) or unrooted (`a::b`); duplicate separators collapse.
+/// * An empty / root prefix roots the name at `::`.
+///
+/// The one shared join for the analyser / signature-scan / class-lattice
+/// qualifiers, so the absolute-name rule cannot drift between them.
+#[must_use]
+pub fn qualify(prefix: &str, name: &str) -> String {
+    if name.starts_with("::") {
+        return normalise_qualified_name(name);
+    }
+    let p = prefix.trim_start_matches("::").trim_end_matches("::");
+    if p.is_empty() {
+        normalise_qualified_name(name)
+    } else {
+        normalise_qualified_name(&format!("{p}::{name}"))
+    }
+}
+
 /// Candidate qualified names for Tcl's real bareword command/procedure
 /// resolution, in priority order: the current namespace first, then global.
 ///
@@ -402,6 +426,23 @@ pub fn is_dynamic_word(word: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn qualify_joins_relative_names_under_rooted_and_unrooted_prefixes() {
+        assert_eq!(qualify("::ns", "C"), "::ns::C");
+        assert_eq!(qualify("ns", "C"), "::ns::C");
+        assert_eq!(qualify("::a::b", "c::D"), "::a::b::c::D");
+        assert_eq!(qualify("", "C"), "::C");
+        assert_eq!(qualify("::", "C"), "::C");
+    }
+
+    #[test]
+    fn qualify_keeps_absolute_names_absolute() {
+        // The class-lattice regression: an absolute name must never be
+        // re-prefixed under the current namespace.
+        assert_eq!(qualify("::ns", "::other::C"), "::other::C");
+        assert_eq!(qualify("ns", "::C"), "::C");
+    }
     use super::*;
 
     #[test]

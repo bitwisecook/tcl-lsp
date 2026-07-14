@@ -343,13 +343,17 @@ pub fn fold_cmd_args(value: &str, prefix: &str) -> Option<String> {
         .strip_prefix(&full_prefix)
         .and_then(|s| s.strip_suffix(']'))?;
 
-    // Resolve backslash-newline continuations to a single space.
-    let inner = resolve_backslash_newline(inner);
+    // Canonical C-rule continuation collapse (`\<LF>`/`\<CR>`/`\<CRLF>` +
+    // following spaces/tabs → one space) — UTF-8-safe, unlike the retired
+    // local byte-by-byte copy, which pushed each byte through `char::from`
+    // and mangled multi-byte characters.
+    let inner = tcl_syntax::backslash::collapse_brace_continuations_str(inner);
+    let inner = inner.as_ref();
 
     // Cannot fold across a `{*}` argument expansion: it turns one braced word
     // into *several* arguments, so a naive literal fold would mis-read `{*}` as
     // the braced word `*`. Bail to the normal (expansion-aware) codegen.
-    if has_expand_marker(&inner) {
+    if has_expand_marker(inner) {
         return None;
     }
 
@@ -368,35 +372,13 @@ pub fn fold_cmd_args(value: &str, prefix: &str) -> Option<String> {
     // argument's *value* is what `list` quotes: braced words are verbatim, while
     // quoted and bare words are backslash-decoded first (so `"\x00"` becomes a
     // NUL byte and `"a\tb"` an embedded tab, not the literal escape text).
-    let args = split_list_values(&inner);
+    let args = split_list_values(inner);
     Some(
         args.iter()
             .map(|a| tcl_list_element(a))
             .collect::<Vec<_>>()
             .join(" "),
     )
-}
-
-/// Resolve backslash-newline continuations (`\<newline><whitespace>`)
-/// to a single space, matching the regex `\\\n\s*` replaced with a space.
-fn resolve_backslash_newline(s: &str) -> String {
-    let mut result = String::with_capacity(s.len());
-    let bytes = s.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'\\' && i + 1 < bytes.len() && bytes[i + 1] == b'\n' {
-            result.push(' ');
-            i += 2;
-            // Skip trailing whitespace
-            while i < bytes.len() && matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-                i += 1;
-            }
-        } else {
-            result.push(char::from(bytes[i]));
-            i += 1;
-        }
-    }
-    result
 }
 
 /// Whether `s` contains a `{*}` argument-expansion operator: a `{*}` at a word

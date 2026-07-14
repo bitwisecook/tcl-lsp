@@ -83,6 +83,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   — why a large file's diagnostics arrive in two waves (a fast tier of
   single-file checks, then the complete deep tier), and why W120/W123 are
   held back from the first wave.
+- [kcs-qa-tclpkg-manifest-diagnostics.md](kcs-qa-tclpkg-manifest-diagnostics.md)
+  — what the editor checks inside a `tclpkg.tcl` package manifest, and
+  why its directives no longer draw "Unknown command" warnings.
 
 ## How-Tos
 
