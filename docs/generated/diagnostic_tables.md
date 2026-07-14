@@ -64,6 +64,7 @@
 | W215 | variable | Variable name unreachable via $-substitution (creatable via set/info exists/upvar but no $-form can read it). | ✓ |
 | W216 | variable | Broken brace-form array element reference — ``${arr}(x)`` parses as scalar+literal, ``${arr($foo)}`` does not substitute the index. | ✓ |
 | W217 | variable | `unset` unsets nothing — every argument is consumed as an option (`-nocomplain` / `--`); prefix a `-`-named variable with `--`. | ✓ |
+| W218 | variable | `args` in a non-final parameter position is an ordinary parameter — it only collects the rest as the last formal. | ✓ |
 | W220 | variable | Dead store — variable set but overwritten before use. | ✓ |
 | W101 | security | `eval` with string concatenation — code injection risk. | ✓ |
 | W102 | security | `subst` on variable input — code injection risk. | ✓ |

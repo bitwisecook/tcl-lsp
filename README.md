@@ -1917,6 +1917,8 @@ In a project with an "entry" file that runs the `package require`s and then
 | W214 | Unused proc parameter -- argument declared but never read in the body | |
 | W215 | Variable name unreachable via `$`-substitution (creatable, but no `$`-form can read it) | |
 | W216 | Broken brace-form array element reference (`${arr}(x)` parses as scalar + literal) | |
+| W217 | `unset` unsets nothing -- every argument consumed as an option; add `--` before a `-`-named variable | |
+| W218 | `args` in a non-final parameter position -- it only collects the rest as the last formal | |
 | W220 | Dead store -- variable set but overwritten before use (with case-mismatch suggestion when applicable) | |
 
 ### Warnings -- Security

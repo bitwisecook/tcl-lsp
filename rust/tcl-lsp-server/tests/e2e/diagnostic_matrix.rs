@@ -75,6 +75,12 @@ const MATRIX: &[Case] = &[
         note: "variable set but never read",
     },
     Case {
+        code: "W218",
+        fire: "proc p {args extra} {\n    puts $extra\n}\np a b\n",
+        silent: "proc p {extra args} {\n    puts $extra\n}\np a b\n",
+        note: "args in a non-final parameter position is an ordinary parameter",
+    },
+    Case {
         code: "W220",
         fire: "proc p {} {\n    set x 1\n    set x 2\n    return $x\n}\n",
         silent: "proc p {} {\n    set x 1\n    puts $x\n    set x 2\n    return $x\n}\n",
@@ -222,6 +228,10 @@ fn w211_fires_on_defect() {
     assert_fires(case_for("W211"));
 }
 #[test]
+fn w218_fires_on_defect() {
+    assert_fires(case_for("W218"));
+}
+#[test]
 fn w220_fires_on_defect() {
     assert_fires(case_for("W220"));
 }
@@ -271,6 +281,10 @@ fn w110_silent_on_corrected_form() {
 #[test]
 fn w211_silent_on_corrected_form() {
     assert_silent(case_for("W211"));
+}
+#[test]
+fn w218_silent_on_corrected_form() {
+    assert_silent(case_for("W218"));
 }
 #[test]
 fn w220_silent_on_corrected_form() {

@@ -357,6 +357,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W218",
+    section: "variable",
+    description:
+      "`args` in a non-final parameter position is an ordinary parameter — it only collects the rest as the last formal.",
+    defaultEnabled: true,
+  },
+  {
     code: "W220",
     section: "variable",
     description: "Dead store — variable set but overwritten before use.",

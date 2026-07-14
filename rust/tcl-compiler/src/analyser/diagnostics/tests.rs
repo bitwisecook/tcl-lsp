@@ -385,6 +385,96 @@ Greeter new x
 }
 
 #[test]
+fn w211_deliberately_skips_destructuring_writer_outputs() {
+    // Policy pin (review-2 audit): a command-output variable the script
+    // never reads (`binary scan … rest`, `regexp … m`) is how Tcl spells
+    // "ignore the remainder" — no W211.  A plain `set` of an unread
+    // variable is the TP control.
+    let src = "proc f {d} {
+    binary scan $d H2H* type rest
+    return $type
+}
+";
+    let codes = codes_for_dialect(src, "tcl8.6");
+    assert!(
+        !codes.contains(&"W211".to_string()),
+        "unread destructuring output must not draw W211: {codes:?}"
+    );
+
+    let src_tp = "proc g {} {
+    set unread 1
+    return 2
+}
+";
+    let codes_tp = codes_for_dialect(src_tp, "tcl8.6");
+    assert!(
+        codes_tp.contains(&"W211".to_string()),
+        "a plain unread set still draws W211: {codes_tp:?}"
+    );
+}
+
+#[test]
+fn w218_args_in_non_final_position_fires() {
+    // TP: the classic pitfall — `args` before another parameter is an
+    // ordinary parameter (C Tcl sets VAR_IS_ARGS only on the last formal).
+    let mut a = crate::analyser::Analyser::new();
+    let src = "proc p {args extra} { puts $extra }
+";
+    let r = a.analyse(src, "tcl8.6");
+    let w218: Vec<_> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W218)
+        .collect();
+    assert_eq!(w218.len(), 1, "got {:?}", r.diagnostics);
+    let expected = src.find("args").unwrap();
+    assert_eq!(
+        w218[0].span.start() as usize,
+        expected,
+        "anchor at the args parameter name"
+    );
+}
+
+#[test]
+fn w218_silent_for_final_args_and_plain_params() {
+    // TN: `args` in final position is the variadic idiom; no `args` at all
+    // is trivially fine; a lone `args` IS final.
+    for src in [
+        "proc p {a args} { puts $a }
+",
+        "proc p {a b} { puts $a$b }
+",
+        "proc p {args} { llength $args }
+",
+    ] {
+        assert!(
+            !codes_for_dialect(src, "tcl8.6").contains(&"W218".to_string()),
+            "must be silent for {src:?}"
+        );
+    }
+}
+
+#[test]
+fn w218_fires_for_method_and_apply_params() {
+    // TP: the same pitfall inside a TclOO method parameter list and an
+    // apply lambda.
+    let method_src = "oo::class create C {
+    method m {args other} { puts $other }
+}
+";
+    assert!(
+        codes_for_dialect(method_src, "tcl8.6").contains(&"W218".to_string()),
+        "method params must be checked"
+    );
+    let apply_src = "apply {{args extra} { puts $extra }} 1 2
+";
+    assert!(
+        codes_for_dialect(apply_src, "tcl8.6").contains(&"W218".to_string()),
+        "apply lambda params must be checked"
+    );
+}
+
+#[test]
 fn w108_off_mode_disables_entirely() {
     use crate::analyser::NonAsciiMode::Off;
     // Even smart quotes / NBSP are silent when W108 is off.

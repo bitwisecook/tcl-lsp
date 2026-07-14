@@ -517,6 +517,38 @@ impl Analyser {
         }
     }
 
+    /// **W218.** `args` declared anywhere but the final parameter position
+    /// is an ordinary parameter named `args` — C Tcl sets `VAR_IS_ARGS`
+    /// only on the last formal (`tclProc.c`), so the variadic
+    /// collect-the-rest meaning is silently lost.  Anchors at the
+    /// parameter's own name span; `fallback_tok` is used when the name
+    /// span could not be recovered.  Shared by the `proc`, `apply`, and
+    /// OO-method param walks.
+    pub(super) fn emit_w218_args_not_final(
+        &mut self,
+        params: &[crate::signature_scan::types::ParamDef],
+        param_spans: &[tcl_lexer::Span],
+        fallback_tok: Token,
+    ) {
+        let Some(last) = params.len().checked_sub(1) else {
+            return;
+        };
+        for (i, p) in params.iter().enumerate() {
+            if i == last || p.name != "args" {
+                continue;
+            }
+            let span = param_spans.get(i).copied().unwrap_or(fallback_tok.span);
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: DiagCode::W218,
+                span,
+                message: "`args` here is an ordinary parameter — it only has its special                           collect-the-rest meaning as the final parameter. Move it last, or                           rename it if a plain parameter is intended."
+                    .to_string(),
+                severity: super::types::Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
     /// Handle a `proc name params body` definition: record the procedure
     /// (name, parameter list, body, and harvested doc-comment) in the
     /// analysis result and run per-parameter trait inference. Returns `true`
@@ -637,6 +669,7 @@ impl Analyser {
                     param_spans.get(i).copied(),
                 );
             }
+            self.emit_w218_args_not_final(&params, &param_spans, params_tok);
 
             // Save / restore last_comment around the body walk so
             // a doc-comment inside the proc body doesn't bleed to
@@ -829,6 +862,7 @@ impl Analyser {
                 param_spans.get(i).copied(),
             );
         }
+        self.emit_w218_args_not_final(&params, &param_spans, params_tok);
 
         // Save / restore last_comment around the body walk, as `proc` does, so a
         // doc-comment inside the lambda body doesn't bleed to what follows.

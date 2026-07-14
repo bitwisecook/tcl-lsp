@@ -3988,12 +3988,19 @@
             "markdownDescription": "**W217:** `unset` unsets nothing — every argument is consumed as an option (`-nocomplain` / `--`); prefix a `-`-named variable with `--`.",
             "order": 7
           },
+          "tclLsp.diagnostics.W218": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W218:** `args` in a non-final parameter position is an ordinary parameter — it only collects the rest as the last formal.",
+            "order": 8
+          },
           "tclLsp.diagnostics.W220": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W220:** Dead store — variable set but overwritten before use.",
-            "order": 8
+            "order": 9
           }
         }
       },

@@ -570,7 +570,11 @@ file; this call falls through to the 'unknown' handler."
             // A variable written by a command (`scan` / `binary scan` /
             // `regexp -> capture`, etc.) or a barrier is a command output the
             // user may legitimately ignore; `IRCall` / `IRBarrier` defs are
-            // skipped.
+            // skipped.  This is deliberate policy, not a gap: a destructuring
+            // writer's surplus output (`binary scan $d H2H* type rest` with
+            // `rest` unread) is how Tcl spells "ignore the remainder" — there
+            // is no `_` placeholder — so flagging it would punish the idiom
+            // (review-2 audit, S5).
             if matches!(
                 stmt,
                 crate::ir::Statement::Call { .. } | crate::ir::Statement::Barrier { .. }

@@ -314,6 +314,9 @@ impl Analyser {
             let def_span = param_spans.as_ref().and_then(|s| s.get(i).copied());
             self.define_var(&p.name, mb.body_tok, &method_path, false, def_span);
         }
+        if let Some(pt) = mb.params_tok {
+            self.emit_w218_args_not_final(&mb.params, param_spans.as_deref().unwrap_or(&[]), pt);
+        }
         // Class instance variables — visible in every method body.
         for var in class_variables {
             let base = crate::naming::normalise_var_name(var);
