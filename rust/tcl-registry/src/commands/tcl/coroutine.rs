@@ -37,6 +37,10 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(2),
         arg_roles: &[(0, ArgRole::Name)],
+        // `coroutine NAME cmd ?arg …?` creates the command NAME
+        // (`TclNRCoroutineObjCmd`, `tclBasic.c`) — later calls to a literal
+        // NAME resolve to the coroutine, not an unknown command.
+        defines_command_at: Some(0),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {
             summary: "Create and produce values from coroutines",

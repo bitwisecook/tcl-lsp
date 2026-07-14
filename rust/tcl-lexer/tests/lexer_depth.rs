@@ -503,12 +503,62 @@ fn token_text_empty_clamp_for_degenerate_wrappers() {
 #[test]
 fn token_text_keeps_a_real_closer_that_ends_the_content() {
     // A non-degenerate braced var whose name legitimately ends in `}` via
-    // nesting (`${a{b}}` names `a{b}`) must NOT be clamped to empty.
-    // tclsh: `set "a{b}" 7; set ${a{b}}` -> 7, so `a{b}` is the name.
+    // nesting (`${a{b}}` names `a{b}`) must NOT be clamped to empty. This is
+    // the **Tcl 9** rule (the default config): 9.0.1's `Tcl_ParseVarName`
+    // tracks nested braces. The 8.x family instead closes at the FIRST `}`
+    // (`a{b` is the name there) — covered by the dialect-gated test below.
     let toks = Lexer::new("${a{b}}").tokenise_all().unwrap();
     let sm = SourceMap::new("${a{b}}");
     let var = toks.iter().find(|t| t.kind == TokenType::Var).unwrap();
     assert_eq!(sm.token_text(*var), "a{b}");
+}
+
+#[test]
+fn braced_var_delimiting_is_dialect_gated() {
+    // Tcl 8.x (tclsh8.6-verified): `${a{b}c}` reads the variable `a{b` —
+    // the name ends at the FIRST literal `}`; `c}` is ordinary word text.
+    // `\}` does not escape the closer either: `${a\}b}` reads `a\`.
+    for (src, want_name) in [("${a{b}c}", "a{b"), (r"${a\}b}", r"a\")] {
+        let toks = Lexer::with_source_map(SourceMap::new(src), LexerConfig::for_dialect("tcl8.6"))
+            .tokenise_all()
+            .unwrap();
+        let sm = SourceMap::new(src);
+        let var = toks.iter().find(|t| t.kind == TokenType::Var).unwrap();
+        assert_eq!(
+            sm.token_text(*var),
+            want_name,
+            "8.x first-close rule for {src}"
+        );
+    }
+
+    // Tcl 9 (default / tcl9.0): the same sources track nesting and consume
+    // `\X` pairs, so the whole braced body is the name.
+    for (src, want_name) in [("${a{b}c}", "a{b}c"), (r"${a\}b}", r"a\}b")] {
+        let toks = Lexer::with_source_map(SourceMap::new(src), LexerConfig::for_dialect("tcl9.0"))
+            .tokenise_all()
+            .unwrap();
+        let sm = SourceMap::new(src);
+        let var = toks.iter().find(|t| t.kind == TokenType::Var).unwrap();
+        assert_eq!(sm.token_text(*var), want_name, "9.x nesting rule for {src}");
+    }
+}
+
+#[test]
+fn bare_var_names_are_ascii_only() {
+    // `TclIsBareword` is ASCII-only in every Tcl (8.6.14 and 9.0.1,
+    // tclsh8.6-verified: `$café` reads variable `caf`, `é` is word text; a
+    // `$` before a non-ASCII letter is a literal `$`).
+    let toks = Lexer::new("$café").tokenise_all().unwrap();
+    let sm = SourceMap::new("$café");
+    let var = toks.iter().find(|t| t.kind == TokenType::Var).unwrap();
+    assert_eq!(sm.token_text(*var), "caf");
+
+    // `$变量` — no bareword char after `$`: the `$` is a literal string.
+    let toks2 = Lexer::new("$变量").tokenise_all().unwrap();
+    assert!(
+        toks2.iter().all(|t| t.kind != TokenType::Var),
+        "`$` before a non-ASCII letter must not start a variable: {toks2:?}"
+    );
 }
 
 #[test]

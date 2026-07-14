@@ -939,6 +939,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Int),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -952,13 +953,29 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_index),
-        arg_types: &[(
-            1,
-            ArgTypeHint {
-                expected: Some(TclType::Int),
-                shimmers: true,
-            },
-        )],
+        arg_types: &[
+            (
+                0,
+                // The subject installs the `tclStringType` intrep
+                // (`SetStringFromAny` via the char-indexing path), replacing
+                // a List/Dict/Int/… rep — tclsh-verified (a list becomes
+                // `string`). A pure byte array short-circuits before the
+                // conversion and keeps its rep.
+                ArgTypeHint {
+                    expected: Some(TclType::String),
+                    shimmers: true,
+                    transparent_from: &[TclType::ByteArray],
+                },
+            ),
+            (
+                1,
+                ArgTypeHint {
+                    expected: Some(TclType::Int),
+                    shimmers: true,
+                    transparent_from: &[],
+                },
+            ),
+        ],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -975,6 +992,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Int),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -1029,6 +1047,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Int),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -1041,6 +1060,21 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_length),
+        // `Tcl_GetCharLength` installs the `tclStringType` intrep
+        // (`SetStringFromAny`), replacing a List/Dict/Int/… rep —
+        // tclsh-verified (`set i 5; incr i; string length $i` leaves `i` a
+        // `string`). A pure byte array short-circuits to its byte count and
+        // keeps its rep, so it is transparent here even though the
+        // subcommand is no byte-array value-transform
+        // (`byte_array_effect: None` — the result is a count, not bytes).
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::String),
+                shimmers: true,
+                transparent_from: &[TclType::ByteArray],
+            },
+        )],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1067,6 +1101,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -1101,10 +1136,21 @@ static SUBCOMMANDS: &[SubCommand] = &[
         const_fold: Some(fold_range),
         arg_types: &[
             (
+                0,
+                // Subject: installs the string intrep except for the pure
+                // byte-array fast path — see `string index` arg 0.
+                ArgTypeHint {
+                    expected: Some(TclType::String),
+                    shimmers: true,
+                    transparent_from: &[TclType::ByteArray],
+                },
+            ),
+            (
                 1,
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
             (
@@ -1112,6 +1158,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
         ],
@@ -1131,6 +1178,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Int),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -1150,6 +1198,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
             (
@@ -1157,6 +1206,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
         ],
@@ -1190,6 +1240,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
             (
@@ -1197,6 +1248,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
         ],
@@ -1217,6 +1269,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
             (
@@ -1224,6 +1277,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
         ],
@@ -1244,6 +1298,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
             (
@@ -1251,6 +1306,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
         ],
@@ -1301,6 +1357,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Int),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -1317,6 +1374,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Int),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT

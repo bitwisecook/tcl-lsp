@@ -339,6 +339,17 @@ fn for_rotation_requires_a_non_stale_constant_init() {
         "$i < 3",
         "an upvar-writing init call must not be claimed guaranteed",
     );
+    // A call to a proc whose `upvar` SOURCE is dynamic (`upvar 1 [pick] v`)
+    // can write ANY caller variable — the per-name summary is empty, so the
+    // call site must widen to an opaque barrier rather than trust it.
+    let m = cfg(
+        "proc clobber {} { upvar 1 [pick] slot; set slot 99 }\nproc f {} { for {set i 0; clobber} {$i < 3} {incr i} { set y $i } }\n",
+    );
+    assert_eq!(
+        for_header_condition(proc(&m, "::f")),
+        "$i < 3",
+        "a dynamic-source upvar callee must widen the caller (opaque clobber)",
+    );
 }
 
 #[test]

@@ -646,6 +646,17 @@ pub struct CommandSpec {
     /// The bound name resolves later `reportName <method> …` dispatch through
     /// `object_class`.  `None` for a command that creates no object command.
     pub creates_instance_at: Option<u8>,
+
+    /// Command-defining name argument — `Some(idx)` when the *literal* value
+    /// of this command's `idx`-th argument (0-based, after the command name)
+    /// becomes a callable command name once the call runs: `coroutine NAME
+    /// cmd ?arg …?` binds `NAME` (`TclNRCoroutineObjCmd`, `tclBasic.c`).
+    /// Lighter than [`Self::creates_instance_at`], which additionally binds
+    /// the name to an [`Self::object_class`] for method dispatch — this is
+    /// the bare "the name is now a command" fact, consumed generically by
+    /// the analyser so later calls to the name don't draw W123
+    /// (unknown command).  `None` = no argument names a new command.
+    pub defines_command_at: Option<u8>,
 }
 
 impl CommandSpec {
@@ -718,6 +729,7 @@ impl CommandSpec {
         defines_symbol: None,
         body_scope: None,
         creates_instance_at: None,
+        defines_command_at: None,
     };
 
     /// Run this command's constant folder for `args` under the optimiser's
@@ -1198,6 +1210,13 @@ pub struct SubCommand {
     /// #798), and drives hover and completion for it. Empty for the
     /// overwhelmingly-common single-level subcommand.
     pub sub_subcommands: &'static [SubSubCommand],
+
+    /// Command-defining name argument (0-based, *after* the subcommand word)
+    /// — the subcommand-level twin of [`CommandSpec::defines_command_at`]:
+    /// `interp create ?-safe? ?--? ?name?` binds `name` as a callable
+    /// command.  A word at the index that is an option flag (leading `-`) or
+    /// a missing name (auto-generated at run time) names nothing statically.
+    pub defines_command_at: Option<u8>,
 }
 
 /// A second-level subcommand of a two-level ensemble (`info object <op>`,
@@ -1269,6 +1288,7 @@ impl SubCommand {
         is_unescape: false,
         cfg_rewrite_name: None,
         sub_subcommands: &[],
+        defines_command_at: None,
     };
 
     /// Run this subcommand's constant folder for `args` under `dialect` —

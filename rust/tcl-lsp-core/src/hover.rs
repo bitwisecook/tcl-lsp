@@ -22,9 +22,11 @@
 //! and produces a [`Hover`] with markdown-formatted content for
 //! one of:
 //!
-//! * a user-defined `proc` whose name (or fully-qualified name)
-//!   matches the cursor word — formats the signature plus the
-//!   harvested doc-comment;
+//! * a user-defined `proc` the cursor word resolves to under C
+//!   Tcl's command lookup (the cursor's namespace first, then
+//!   global; absolute `::`-prefixed words exact — see
+//!   `crate::definition::resolve_called_proc`) — formats the
+//!   signature plus the harvested doc-comment;
 //! * a `TclOO` class whose name matches — formats the
 //!   metaclass-qualified declaration plus method / property
 //!   summaries;
@@ -249,7 +251,19 @@ pub fn hover_with_dialect(
         return Some(Hover::markdown(text));
     }
 
-    if let Some(proc_def) = lookup_proc(analysis, &word) {
+    // Proc hover — namespace-aware, following C Tcl's command resolution
+    // (`Tcl_FindCommand`, `tclNamesp.c`): the cursor's namespace first, then
+    // the global namespace (absolute `::`-prefixed words exact), so a
+    // namespace proc shadows a same-named builtin *inside its namespace
+    // only*.  When no candidate is defined and the word names a registry
+    // builtin, this yields nothing and the registry hover below wins — a
+    // proc in an unrelated namespace must not hijack builtin hover.  A
+    // non-builtin word keeps the lenient (deterministic) tail fallback.
+    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let namespace = crate::definition::namespace_context_at(&analysis.global_scope, cursor_offset);
+    if let Some(proc_def) =
+        crate::definition::resolve_called_proc(analysis, source, &namespace, &word, registry)
+    {
         return Some(Hover::markdown(proc_hover_text(proc_def)));
     }
 
@@ -262,7 +276,6 @@ pub fn hover_with_dialect(
     // a one-line method / property summary.  Fires when the
     // cursor sits inside a class body and `word` matches one
     // of that class's members.
-    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some(text) = class_member_hover_text(analysis, &word, cursor_offset) {
         return Some(Hover::markdown(text));
     }
@@ -2182,15 +2195,6 @@ fn braced_var_around(chars: &[char], cursor: usize) -> Option<String> {
     None
 }
 
-fn lookup_proc<'a>(analysis: &'a AnalysisResult, word: &str) -> Option<&'a ProcDef> {
-    for (qname, proc_def) in &analysis.all_procs {
-        if proc_def.name == word || qname == word || qname == &format!("::{word}") {
-            return Some(proc_def);
-        }
-    }
-    None
-}
-
 fn lookup_class<'a>(analysis: &'a AnalysisResult, word: &str) -> Option<&'a ClassDef> {
     for class_def in analysis.all_classes.values() {
         if class_def.name == word
@@ -2868,6 +2872,52 @@ mod tests {
         // contract is that hover surfaces the proc when present.
         if let Some(h) = h {
             assert!(h.value.contains("helper"), "{}", h.value);
+        }
+    }
+
+    // namespace-aware proc resolution (C Tcl `Tcl_FindCommand` order)
+
+    #[test]
+    fn hover_unqualified_call_prefers_callers_namespace_proc() {
+        // Two namespaces each define `helper`; hovering the unqualified call
+        // inside ::b must surface ::b::helper — the current namespace
+        // resolves before global, never a sibling namespace.
+        let src = "namespace eval a {\n    proc helper {x} { return 1 }\n}\nnamespace eval b {\n    proc helper {y} { return 2 }\n    helper 5\n}\n";
+        let analysis = analyse(src);
+        let h = hover(src, 5, 6, &analysis, None).expect("hover on namespaced call");
+        assert!(h.value.contains("proc ::b::helper {y}"), "{}", h.value);
+    }
+
+    #[test]
+    fn hover_namespace_proc_set_shadows_builtin_inside_namespace_only() {
+        // A namespace proc named like a builtin: inside ::ns the proc wins;
+        // at global scope only the builtin resolves — a proc in an unrelated
+        // namespace must not hijack builtin hover.
+        let src = "namespace eval ns {\n    proc set {key value} { return $value }\n    set x 1\n}\nset y 2\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let inside = hover(src, 2, 5, &analysis, Some(&registry)).expect("hover inside ns");
+        assert!(inside.value.contains("proc ::ns::set"), "{}", inside.value);
+        let global = hover(src, 4, 1, &analysis, Some(&registry)).expect("hover at global");
+        assert!(global.value.contains("built-in"), "{}", global.value);
+        assert!(!global.value.contains("::ns::set"), "{}", global.value);
+    }
+
+    #[test]
+    fn hover_global_call_fallback_is_deterministic() {
+        // No ::helper exists, so no candidate resolves; the lenient tail
+        // fallback fires and must pick the lexicographically smallest
+        // qualified name (::a::helper) on every repeat — never a
+        // `HashMap`-iteration-order hijack.
+        let src = "namespace eval z {\n    proc helper {a} { return 26 }\n}\nnamespace eval a {\n    proc helper {b} { return 1 }\n}\nhelper 1\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let first = hover(src, 6, 2, &analysis, Some(&registry)).expect("hover on global call");
+        assert!(first.value.contains("proc ::a::helper"), "{}", first.value);
+        for attempt in 0..8 {
+            let repeat =
+                hover(src, 6, 2, &analysis, Some(&registry)).expect("hover on global call");
+            assert_eq!(first, repeat, "attempt {attempt}: hover must be stable");
         }
     }
 

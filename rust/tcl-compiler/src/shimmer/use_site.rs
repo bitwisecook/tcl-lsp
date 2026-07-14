@@ -49,7 +49,9 @@ use crate::types::{TypeKind, TypeLattice};
 use crate::value_shapes::is_pure_var_ref;
 
 use super::graph::loop_body_blocks;
-use super::hints::{arg_shimmer_type, is_numeric_compatible};
+use super::hints::{
+    ShimmerExpectation, arg_shimmer_expectation, arg_shimmer_type, is_numeric_compatible,
+};
 use super::span::def_range_map;
 use super::{ShimmerWarning, type_name};
 
@@ -342,14 +344,20 @@ fn check_invocation(
     } = *site;
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
     for (i, word) in args.iter().enumerate() {
-        let expected = if is_foreach_header {
-            foreach_header_expected_type(ctx.registry, lookup_command)
+        let expectation = if is_foreach_header {
+            foreach_header_expected_type(ctx.registry, lookup_command).map(|expected| {
+                ShimmerExpectation {
+                    expected,
+                    transparent_from: &[],
+                }
+            })
         } else {
-            arg_shimmer_type(ctx.registry, lookup_command, &arg_refs, i)
+            arg_shimmer_expectation(ctx.registry, lookup_command, &arg_refs, i)
         };
-        let Some(expected) = expected else {
+        let Some(expectation) = expectation else {
             continue;
         };
+        let expected = expectation.expected;
         // Only flag pure variable references — complex words may produce
         // the right type via their own evaluation.
         let stripped = word.trim();
@@ -382,6 +390,27 @@ fn check_invocation(
             continue;
         };
         if current == expected || is_numeric_compatible(current, expected) {
+            continue;
+        }
+        // The registry marks intreps this operation reads directly without
+        // installing `expected` (e.g. `string length`'s pure-byte-array fast
+        // path): those operands keep their rep — no shimmer.
+        if expectation.is_transparent_from(current) {
+            continue;
+        }
+        // A numeric lattice type does not prove a numeric *intrep*: a
+        // literal-defined `set x 42` is a pure string at runtime
+        // (tclsh-verified) with nothing for a String-installing operation to
+        // destroy, and when the numeric rep IS installed its string
+        // regenerates in O(digits). Only container intreps (List/Dict) lose
+        // real structure to a String expectation, so numeric currents stay
+        // silent there.
+        if expected == TclType::String
+            && matches!(
+                current,
+                TclType::Int | TclType::Double | TclType::Numeric | TclType::Boolean
+            )
+        {
             continue;
         }
         // A prior use in this block already coerced `(var, ver)` to this
@@ -1012,6 +1041,52 @@ mod tests {
 
     /// TP control: the identical shape on a plain scalar still fires — the
     /// array guard must not blanket-silence use-site shimmer.
+    /// `string length`/`index`/`range` install the string intrep on their
+    /// subject (tclsh-verified: a list becomes `string`) — genuine shimmer —
+    /// but a pure byte array short-circuits and keeps its rep
+    /// (`transparent_from`), so it must stay silent.
+    #[test]
+    fn string_subject_shimmers_list_but_not_bytearray() {
+        // TP: a List-typed subject is coerced to the string intrep.
+        let cu =
+            CompilationUnit::build_for("set l [list 1 2 3]\nstring length $l", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.variable == "l" && w.to_type == TclType::String),
+            "list subject of `string length` must shimmer: {warnings:?}"
+        );
+
+        // FP guard: a ByteArray-typed subject passes through untouched.
+        let cu2 = CompilationUnit::build_for(
+            "set ba [binary format c* {200 201}]\nstring length $ba\nstring range $ba 0 1",
+            &registry(),
+            false,
+        );
+        let fu2 = cu2.function("::top").unwrap();
+        let warnings2 = find_use_site_shimmers(
+            &fu2.cfg,
+            &fu2.ssa,
+            &fu2.types,
+            &fu2.sccp.executable_blocks,
+            &registry(),
+            &fu2.sccp.values,
+        );
+        assert!(
+            !warnings2.iter().any(|w| w.variable == "ba"),
+            "byte-array subject is transparent — no shimmer: {warnings2:?}"
+        );
+    }
+
     #[test]
     fn use_site_shimmer_still_fires_for_scalar_control() {
         let cu =

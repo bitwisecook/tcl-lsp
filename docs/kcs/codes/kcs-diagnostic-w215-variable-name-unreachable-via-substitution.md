@@ -19,8 +19,8 @@ Why does the analyser flag `set "weird}name" 1` (or `set "arr(weird)stuff)" 1`) 
 
 Tcl variables can be created with names containing arbitrary bytes — including `}` (which `set` accepts as a literal because backslash-substitution at the command-word level converts `\}` into the literal byte) and `)` inside an array element name. However, neither of Tcl's `$`-substitution forms can fetch such values:
 
-- The bare form `$name` stops at the first non-word character.
-- The brace form `${name}` reads literally until the first `}` — there is **no escape mechanism** inside the braces (per the Tcl(n) man page: *"There is no further substitution or modification to its character contents"*).
+- The bare form `$name` stops at the first non-word character (ASCII letters, digits, and `_` only).
+- The brace form `${name}` is dialect-dependent. In Tcl 8.x (and the F5 and EDA dialects) it reads literally until the **first** `}` — there is no escape mechanism inside the braces. Tcl 9.0 changed the rule: nested `{…}` pairs are tracked and `\}` no longer ends the name, so a name with **balanced** inner braces (`a{b}c`) becomes reachable in 9.x while a bare `}` still is not. The analyser applies the active dialect's rule, so the same file can warn under `tcl8.6` and stay silent under `tcl9.0`.
 - `$arr(idx)` reads up to the matching `)`; an `idx` containing `)` is unreachable.
 
 Such a variable is alive — `set name`, `[set "name"]`, `info exists`, `upvar`, and other commands that take a *variable name* will all see it — but every `$`-form attempt to read it parses as something else (a different variable plus literal text), almost always producing a `can't read` error or a silent wrong value.

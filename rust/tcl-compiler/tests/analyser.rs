@@ -1423,22 +1423,101 @@ mod unresolved_command {
     }
 
     #[test]
-    fn other_dynamic_providers_do_not_suppress_w123_rust_behaviour() {
-        // The analyser sets `has_dynamic_providers` for `load` /
-        // `namespace import` / `lappend auto_path` but still emits W123 for the
-        // unknown command (the suppression is scoped to `package require`). This
-        // matches tclsh for the `load` case: `load mylib.so` of a missing file
-        // does NOT define `mycommand` (`info commands mycommand` stays empty).
+    fn dynamic_providers_suppress_w123() {
+        // `has_dynamic_providers` gates W123 exactly as it gates W120: a
+        // `load` / `auto_path` mutation / dynamic import may register
+        // commands at runtime the analyser can't see, so the resolvable
+        // command set is unknowable and W123 must abstain file-wide.
         for src in [
             "load mylib.so\nmycommand arg1",
-            "namespace import ::foo::*\nbar arg",
             "lappend auto_path /opt/mylib\nmycmd arg",
+            "namespace import ::foo::[computed]::*\nbar arg",
         ] {
-            assert!(
-                !w123(src).is_empty(),
-                "expected W123 (Rust verdict) for {src:?}"
-            );
+            assert!(w123(src).is_empty(), "expected no W123 for {src:?}");
         }
+    }
+
+    #[test]
+    fn glob_namespace_import_suppresses_matching_tail_only() {
+        // A literal glob import provides every source command matching the
+        // pattern's tail — `render_box` matches `render_*` (silent), while an
+        // unrelated name matches nothing and still fires.
+        let src = "namespace import ::acme::widgets::render_*\nrender_box 10 20\nfrobnicate 1\n";
+        let d = w123(src);
+        assert_eq!(d.len(), 1, "only the unrelated name fires; got {d:?}");
+        assert!(d[0].contains("frobnicate"));
+        // A full `*` tail conservatively resolves every bare name (the
+        // imported namespace's export set is unknowable single-file).
+        assert!(w123("namespace import ::foo::*\nbar arg").is_empty());
+    }
+
+    #[test]
+    fn literal_namespace_import_suppresses_exactly_that_name() {
+        let src =
+            "namespace import ::acme::widgets::render_box\nrender_box 10 20\nrender_circle 5\n";
+        let d = w123(src);
+        assert_eq!(d.len(), 1, "only the un-imported name fires; got {d:?}");
+        assert!(d[0].contains("render_circle"));
+    }
+
+    #[test]
+    fn coroutine_name_is_a_known_command() {
+        // `coroutine NAME cmd ?arg …?` creates the command NAME
+        // (`TclNRCoroutineObjCmd`) — calling it is not an unknown command,
+        // while a typo'd name in the same file still fires.
+        let src = "proc gen {} { while 1 { yield 1 } }\ncoroutine nextNum gen\nnextNum\n";
+        assert!(w123(src).is_empty(), "got {:?}", w123(src));
+        let typo = "proc gen {} { while 1 { yield 1 } }\ncoroutine nextNum gen\nnextNun\n";
+        let d = w123(typo);
+        assert_eq!(d.len(), 1, "the typo'd name fires; got {d:?}");
+        assert!(d[0].contains("nextNun"));
+    }
+
+    #[test]
+    fn interp_create_name_is_a_known_command() {
+        // `interp create NAME` binds NAME as the child interpreter's
+        // command — `NAME eval {…}` dispatches on it.
+        assert!(w123("interp create child\nchild eval { puts hi }\n").is_empty());
+        // The `-safe` flag at the name index is an option, never a name; a
+        // missing name is auto-generated — nothing to record, nothing fires.
+        assert!(w123("interp create -safe\n").is_empty());
+        let r = Analyser::new().analyse("interp create -safe\n", D);
+        assert!(
+            !r.created_instance_commands.contains("-safe"),
+            "an option flag must not be recorded as a created command"
+        );
+    }
+
+    #[test]
+    fn renamed_away_builtin_call_fires_w123() {
+        // `rename puts {}` (or a rename-away) deletes the builtin — a later
+        // call fails "invalid command name" (tclsh 9.0.4), so W123 fires.
+        let d = w123("rename puts {}\nputs x\n");
+        assert_eq!(d.len(), 1, "deleted builtin fires; got {d:?}");
+        assert!(d[0].contains("'puts'"));
+        assert_eq!(w123("rename puts myputs\nputs x\n").len(), 1);
+        // The rename target stays known, and calls lexically BEFORE the
+        // rename still resolve to the builtin.
+        assert!(w123("rename puts myputs\nmyputs x\n").is_empty());
+        assert!(w123("puts before\nrename puts myputs\n").is_empty());
+        // A re-binding after the deletion makes the name callable again.
+        assert!(w123("rename puts {}\nproc puts {args} {}\nputs x\n").is_empty());
+        // A rename buried in a proc body is conditional — it runs only if
+        // the proc is ever called — so the builtin stays known at top level.
+        assert!(w123("proc hook {} { rename puts _p }\nputs hi\n").is_empty());
+    }
+
+    #[test]
+    fn namespace_unknown_handler_suppresses_w123() {
+        // Installing a per-namespace unknown handler (TIP 181) makes command
+        // resolution unknowable — file-wide suppression, like a dynamic
+        // `proc unknown`.
+        let src = "proc handler {args} { puts $args }\nnamespace unknown handler\nmystery_cmd 1\n";
+        assert!(w123(src).is_empty(), "got {:?}", w123(src));
+        // The bare query form installs nothing; an empty handler resets to
+        // the default — neither suppresses.
+        assert_eq!(w123("namespace unknown\nmystery_cmd 1\n").len(), 1);
+        assert_eq!(w123("namespace unknown {}\nmystery_cmd 1\n").len(), 1);
     }
 
     #[test]
@@ -1882,25 +1961,55 @@ mod canonicalisation_matrix {
 
     #[test]
     fn w215_trailing_backslash_in_var_name() {
-        // `set "back\\" 1` creates `back\`; `${back\}` runs out of input.
-        // Verified against tclsh 9.0.3.
-        let ds = analyser_diags("set \"back\\\\\" 1", D);
+        // `set "back\\" 1` creates `back\`. Under the Tcl 9 nesting rule
+        // `${back\}` reads the `\}` as an inert pair and runs out of input
+        // (missing close-brace) — unreachable, W215 fires (verified against
+        // tclsh 9.0.3). Under the 8.x first-`}` rule there is no backslash
+        // processing: `${back\}` simply names `back\` — reachable, silent.
+        let ds = analyser_diags("set \"back\\\\\" 1", "tcl9.0");
         let w215: Vec<_> = ds.iter().filter(|(c, _, _)| c == "W215").collect();
         assert_eq!(w215.len(), 1);
         assert!(w215[0].1.contains("trailing") || w215[0].1.contains("missing close-brace"));
+
+        assert!(
+            !fires("set \"back\\\\\" 1", D, "W215"),
+            "8.x reads ${{back\\}} as the name back\\ — reachable, no W215"
+        );
     }
 
     #[test]
     fn w215_does_not_fire_when_brace_form_reaches_the_name() {
-        // mid-name backslash / balanced inner braces / normal names ARE
-        // reachable via ${...}. Verified against tclsh 9.0.3.
+        // Names reachable via ${...} under BOTH `${…}` delimiting rules
+        // (Tcl 9 nesting and the 8.x first-`}` scan): mid-name backslash
+        // (no `}` involved) and ordinary names.
         for src in [
             "set \"back\\\\slash\" 1",
-            "set \"a{b}c\" 1",
             "set \"foo-bar\" 1\nset normal 2\nset ::globalvar 3\nset arr(name) 4",
         ] {
-            assert!(!fires(src, D, "W215"), "unexpected W215 for {src:?}");
+            for dialect in [D, "tcl9.0"] {
+                assert!(
+                    !fires(src, dialect, "W215"),
+                    "unexpected W215 for {src:?} under {dialect}"
+                );
+            }
         }
+    }
+
+    #[test]
+    fn w215_balanced_inner_braces_are_dialect_dependent() {
+        // A name with balanced inner braces is reachable only under the Tcl 9
+        // nesting rule. tclsh8.6-verified: `set "a{b}c" 1; set ${a{b}c}` →
+        // can't read "a{b" (the 8.x form ends at the FIRST `}`), while tclsh
+        // 9.0.3 reads it fine.
+        let src = "set \"a{b}c\" 1";
+        assert!(
+            !fires(src, "tcl9.0", "W215"),
+            "Tcl 9 nesting reaches a{{b}}c — no W215"
+        );
+        assert!(
+            fires(src, D, "W215"),
+            "the 8.x first-close rule cannot reach a{{b}}c — W215 must fire"
+        );
     }
 
     #[test]

@@ -248,6 +248,29 @@ impl CfgBuilder {
     /// depend on call-site arguments, so no params-based mapping is
     /// needed, just the literal name list.
     fn apply_upvar_invalidation(&self, mut stmt: Statement) -> Vec<Statement> {
+        // 0. A callee whose `upvar` caller-side name is unresolvable
+        //    (`upvar 1 $computed x`) can write ANY caller variable — no
+        //    per-name def list is sound, so widen the call site with an
+        //    opaque barrier after the call (SCCP/propagation widen every
+        //    tracked value at a `Statement::Barrier`), instead of trusting
+        //    the under-approximate `caller_side_defs`.
+        if let Statement::Call { command, span, .. } = &stmt
+            && self
+                .upvar_procs
+                .get(command.as_str())
+                .is_some_and(|info| info.has_unresolvable_caller_target)
+        {
+            let barrier = Statement::Barrier {
+                span: *span,
+                reason: format!("{command} upvar-aliases a dynamic caller variable"),
+                command: command.clone(),
+                canonical_command: None,
+                args: Vec::new(),
+                tokens: None,
+            };
+            return vec![stmt, barrier];
+        }
+
         // 1. Direct-call extras: command is a known upvar proc / a proc that
         //    writes outer-scope names.
         let direct_extras: Vec<String> = match &stmt {
@@ -1648,6 +1671,13 @@ impl CfgBuilder {
             _ => return None,
         };
         for s in self.apply_upvar_invalidation(stmt.clone()) {
+            // A widening barrier means the callee can write ANY caller
+            // variable (an `upvar` with a dynamic caller-side name) — no
+            // per-name set exists, so report "can't tell" and let the
+            // caller drop every constant binding.
+            if matches!(s, Statement::Barrier { .. }) {
+                return None;
+            }
             if let Statement::Call { defs, .. } = &s {
                 for d in defs {
                     if !names.contains(d) {

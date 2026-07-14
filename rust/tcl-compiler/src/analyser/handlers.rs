@@ -1938,6 +1938,13 @@ impl Analyser {
     }
 
     /// Record `namespace import ?-force? PATTERN ...` declarations.
+    ///
+    /// Literal patterns are recorded in ``result.namespace_imports`` (the
+    /// W123 unresolved-command pass suppresses an unqualified call whose
+    /// name glob-matches a recorded pattern's tail); a *dynamic* pattern
+    /// (``$``/``[…]`` substitution) can't be qualified statically, so it
+    /// flips ``has_dynamic_providers`` instead — the imported namespace may
+    /// provide any name at runtime, which suppresses W120/W123 file-wide.
     pub fn handle_namespace_import_command(
         &mut self,
         cmd_name: &str,
@@ -1951,11 +1958,6 @@ impl Analyser {
         if args[0] != "import" {
             return;
         }
-        // Any ``namespace import`` flips ``has_dynamic_providers``
-        // because the imported namespace can register commands at
-        // runtime, which suppresses W123 unknown-command on the
-        // imported names.
-        self.result.has_dynamic_providers = true;
         // Skip the subcommand word + an optional ``-force`` flag.
         let mut idx = 1;
         if idx < args.len() && args[idx] == "-force" {
@@ -1964,9 +1966,11 @@ impl Analyser {
         let importing_ns = self.namespace_from_scope_path(scope_path);
         while idx < args.len() && idx < arg_tokens.len() {
             let pat_raw = args[idx].clone();
-            // Skip patterns containing ``$`` / ``[`` substitutions —
-            // we can't statically qualify a runtime-computed name.
+            // Patterns containing ``$`` / ``[`` substitutions can't be
+            // statically qualified — a runtime-computed import makes the
+            // available command set unknowable.
             if pat_raw.contains('$') || pat_raw.contains('[') {
+                self.result.has_dynamic_providers = true;
                 idx += 1;
                 continue;
             }
@@ -1992,6 +1996,27 @@ impl Analyser {
             );
             idx += 1;
         }
+    }
+
+    /// Handle `namespace unknown HANDLER` — installing a per-namespace
+    /// unknown handler (TIP 181, `NamespaceUnknownCmd` in `tclNamesp.c`)
+    /// makes command resolution unknowable, exactly like a dynamic user
+    /// `proc unknown`: the handler runs for every failed lookup and may
+    /// resolve anything.  Flips ``has_dynamic_providers``, which suppresses
+    /// W120/W123 file-wide (matching the proc-unknown behaviour).
+    ///
+    /// Only the *setter* form suppresses: the bare query (`namespace
+    /// unknown`) installs nothing, and an empty handler (`namespace unknown
+    /// {}`) resets to the default lookup (`Tcl_SetNamespaceUnknownHandler`
+    /// treats an empty list as a reset).
+    pub fn handle_namespace_unknown_command(&mut self, cmd_name: &str, args: &[String]) {
+        if cmd_name != "namespace" || args.len() < 2 || args[0] != "unknown" {
+            return;
+        }
+        if args[1].trim().is_empty() {
+            return;
+        }
+        self.result.has_dynamic_providers = true;
     }
 
     /// Recognise the tcllib ``<NS>::import <ALIAS>`` wrapper idiom

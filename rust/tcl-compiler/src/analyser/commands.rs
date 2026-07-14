@@ -518,6 +518,7 @@ impl Analyser {
         self.handle_source_command(cmd_name, args, arg_tokens);
         self.handle_namespace_import_command(cmd_name, args, arg_tokens, scope_path);
         self.handle_namespace_path_command(cmd_name, args, scope_path);
+        self.handle_namespace_unknown_command(cmd_name, args);
         self.handle_tcllib_import_wrapper(cmd_name, cmd_tok, args, scope_path);
         self.handle_auto_path_command(cmd_name, args, arg_tokens);
         self.handle_regex_pattern_capture(cmd_name, args, arg_tokens, scope_path);
@@ -1576,6 +1577,12 @@ impl Analyser {
     /// Best-effort and not flow-sensitive: the last assignment
     /// to a given name wins.
     pub(crate) fn record_instance_creation(&mut self, cmd_name: &str, args: &[String]) {
+        // Registry `defines_command_at` — a spec-declared argument whose
+        // literal value becomes a callable command name (`coroutine NAME cmd
+        // …`, `interp create NAME`).  Registry data only, so it is recorded
+        // eagerly (like the factory binding below) and works inside an
+        // isolated proc body too.
+        self.record_registry_defined_command(cmd_name, args);
         // Registry object-factories (`struct::graph g` naming form, `set g
         // [struct::graph …]` return form) resolve from the registry alone — no
         // `all_classes` — so bind them IMMEDIATELY, even inside an isolated proc
@@ -1683,6 +1690,48 @@ impl Analyser {
             return true;
         }
         false
+    }
+
+    /// Record a command name bound by a registry `defines_command_at` spec —
+    /// the argument whose *literal* value becomes a callable command once the
+    /// call runs (`coroutine NAME cmd ?arg …?` at the command level, `interp
+    /// create ?-safe? ?--? ?NAME?` at the subcommand level).  The name goes
+    /// into [`AnalysisResult::created_instance_commands`] so the W123
+    /// unresolved-command pass treats later calls to it as resolved.  Purely
+    /// registry-driven — no command name is matched here.
+    ///
+    /// Conservative by construction: only a plain literal word is recorded (a
+    /// `$var` / `[cmd]` / `%AUTO%` name is runtime-computed), and a word
+    /// starting with `-` at the name index is an option flag (`interp create
+    /// -safe`), never a name — a missing name is auto-generated at run time
+    /// and needs no recording.
+    fn record_registry_defined_command(&mut self, cmd_name: &str, args: &[String]) {
+        let Some(reg) = self.registry.as_ref() else {
+            return;
+        };
+        let Some(spec) = reg.get(cmd_name) else {
+            return;
+        };
+        // Command-level index, else the resolved subcommand's index shifted
+        // past the subcommand word itself.
+        let name_idx = if let Some(idx) = spec.defines_command_at {
+            Some(usize::from(idx))
+        } else {
+            args.first()
+                .and_then(|sub| spec.resolve_subcommand(sub))
+                .and_then(|sub| sub.defines_command_at)
+                .map(|idx| usize::from(idx) + 1)
+        };
+        let Some(idx) = name_idx else {
+            return;
+        };
+        let Some(name) = args.get(idx) else {
+            return;
+        };
+        if name.starts_with('-') || !is_plain_created_name(name) {
+            return;
+        }
+        self.result.created_instance_commands.insert(name.clone());
     }
 
     /// The class named by a `[factory …]` command-substitution when `factory` is

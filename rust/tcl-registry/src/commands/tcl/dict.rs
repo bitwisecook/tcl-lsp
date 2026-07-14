@@ -79,6 +79,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         mutator: true,
@@ -110,6 +111,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -126,6 +128,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -141,6 +144,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         loop_list_header: true,
@@ -160,6 +164,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -175,6 +180,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         mutator: true,
@@ -195,6 +201,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -212,6 +219,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -227,6 +235,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         return_type: Some(TclType::Dict),
@@ -257,6 +266,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -276,6 +286,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -291,6 +302,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         mutator: true,
@@ -311,6 +323,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -326,6 +339,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         mutator: true,
@@ -339,6 +353,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // + 1 body — confirmed against tclsh 8.6.14: `dict update d k v
         // extra body` (5 args) fails "wrong # args").
         arity: Arity::stepped(4, Arity::UNLIMITED, 2),
+        // Like `dict with`: the dictionary variable is read on entry and
+        // written back after the body — a scope alias (reads-own-def).
+        creates_scope_alias: true,
         detail: "Map dictionary keys to variables, execute body, write back.",
         synopsis: "dict update dictionaryVariable key varName ?...? body",
         arg_role_resolver: Some(dict_last_arg_body),
@@ -347,6 +364,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         mutator: true,
@@ -365,6 +383,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -374,12 +393,18 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Map all dictionary keys to variables, execute body, write back.",
         synopsis: "dict with dictionaryVariable ?key ...? body",
+        // The dictionary variable is read on entry and written back when the
+        // body ends — a scope alias whose def is its own use (the SSA walk
+        // marks it reads-own-def so a `dict with $param {}` reference keeps
+        // the parameter used).
+        creates_scope_alias: true,
         arg_role_resolver: Some(dict_last_arg_body),
         arg_types: &[(
             0,
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         mutator: true,
@@ -397,6 +422,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -420,6 +446,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -442,6 +469,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -464,6 +492,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT

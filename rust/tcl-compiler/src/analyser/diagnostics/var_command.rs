@@ -212,10 +212,10 @@ impl Analyser {
     /// A method counts as found when the hierarchy resolves it, a local class
     /// declares it (or it's a built-in `new`/`create`/`destroy`/`configure`/
     /// `cget` or an `unknown` handler), an inherited `unknown` handler exists,
-    /// the class has an external (unindexed) superclass, the receiver var was
-    /// `oo::objdefine`d, or any candidate class is a snit metaclass (whose
-    /// delegation the analyser can't model).  W308 fires only when not found
-    /// and at least one candidate class is locally known.
+    /// the class has an external (unindexed) superclass or mixin, the receiver
+    /// var was `oo::objdefine`d, or any candidate class is a snit metaclass
+    /// (whose delegation the analyser can't model).  W308 fires only when not
+    /// found and at least one candidate class is locally known.
     ///
     /// A dispatch with no method word at all (`$obj` alone) is a different,
     /// unconditional failure — see [`Self::e001_for_bare_object_dispatch`] —
@@ -278,22 +278,15 @@ impl Analyser {
                 }
             }
         }
-        // External superclass: a method might come from a class outside the
-        // current index.
+        // External superclass or mixin: a method might come from a class
+        // outside the current index.
         if !found && has_local_class {
-            const OO_BASE: &[&str] = &["oo::object", "oo::class"];
-            'cls_loop: for cls in class_names {
-                if let Some(cd) = self.result.all_classes.get(cls) {
-                    for s in &cd.superclasses {
-                        if !self.result.all_classes.contains_key(s)
-                            && !OO_BASE.contains(&s.as_str())
-                        {
-                            found = true;
-                            break 'cls_loop;
-                        }
-                    }
-                }
-            }
+            found = class_names.iter().any(|cls| {
+                self.result
+                    .all_classes
+                    .get(cls)
+                    .is_some_and(|cd| self.has_external_super_or_mixin(cd))
+            });
         }
         // ``oo::objdefine`` adds per-instance methods we can't see at the
         // class level.
@@ -1236,8 +1229,8 @@ impl Analyser {
     /// class is external (no local `ClassDef`), or the method
     /// is one of the OO standard hooks (``new`` / ``create`` /
     /// ``destroy`` / ``configure`` / ``cget``), or the class
-    /// declares an ``unknown`` method, or the class extends an
-    /// external superclass we can't introspect.
+    /// declares an ``unknown`` method, or the class extends or
+    /// mixes in an external class we can't introspect.
     fn validate_method_on_class(
         &self,
         class_name: &str,
@@ -1264,15 +1257,22 @@ impl Analyser {
         if hierarchy.is_some_and(|h| h.method_target(class_name, "unknown").is_some()) {
             return true;
         }
-        // External superclass ⇒ skip W308.
-        if !cd.superclasses.is_empty() {
-            for s in &cd.superclasses {
-                if !self.result.all_classes.contains_key(s) && !OO_BASE.contains(&s.as_str()) {
-                    return true;
-                }
-            }
-        }
-        false
+        // External superclass or mixin ⇒ skip W308.
+        self.has_external_super_or_mixin(cd)
+    }
+
+    /// True when `cd` names a superclass **or mixin** that is not in the
+    /// local class index (the `TclOO` bases in [`OO_BASE`] excepted).
+    /// `TclOO` mixins contribute to the MRO exactly as superclasses do, so
+    /// an unresolvable name in either list means the class's callable
+    /// method set is unknowable and W308 must abstain.  Shared by
+    /// [`Self::w308_for_object_var`] and [`Self::validate_method_on_class`]
+    /// so the two escape hatches cannot drift.
+    fn has_external_super_or_mixin(&self, cd: &super::types::ClassDef) -> bool {
+        cd.superclasses
+            .iter()
+            .chain(&cd.mixins)
+            .any(|s| !self.result.all_classes.contains_key(s) && !OO_BASE.contains(&s.as_str()))
     }
 
     /// Suppress W123 diagnostics whose command-name contains a
@@ -1847,7 +1847,7 @@ fn return_values_of(cfg: &crate::cfg::Function) -> Vec<String> {
 
 /// External OO base classes that aren't in the per-document
 /// ``ClassDef`` index but are recognised as legitimate
-/// superclasses for W308 / W308-related gates.
+/// superclasses / mixins for W308 / W308-related gates.
 const OO_BASE: [&str; 2] = ["oo::object", "oo::class"];
 
 /// Extract the first single-quoted word from a diagnostic

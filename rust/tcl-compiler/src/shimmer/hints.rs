@@ -46,7 +46,51 @@ pub fn arg_shimmer_type(
     args: &[&str],
     arg_index: usize,
 ) -> Option<TclType> {
+    arg_shimmer_expectation(registry, command, args, arg_index).map(|e| e.expected)
+}
+
+/// A shimmering argument position's expectation: the intrep the operation
+/// installs, plus the current intreps it reads directly *without* converting
+/// (the registry's `ArgTypeHint::transparent_from` — e.g. `string length`'s
+/// pure-byte-array fast path).
+#[derive(Debug, Clone, Copy)]
+pub struct ShimmerExpectation {
+    /// The intrep the operation installs on the operand.
+    pub expected: TclType,
+    /// Current intreps that pass through unconverted despite differing from
+    /// [`Self::expected`] — no shimmer for an operand already in one of these.
+    pub transparent_from: &'static [TclType],
+}
+
+impl ShimmerExpectation {
+    /// Whether an operand currently holding `current` is left untouched.
+    #[must_use]
+    pub fn is_transparent_from(&self, current: TclType) -> bool {
+        self.transparent_from.contains(&current)
+    }
+}
+
+/// Like [`arg_shimmer_type`] but returning the full [`ShimmerExpectation`]
+/// (expected type + transparency list) for consumers that must suppress the
+/// warning on transparent current intreps.
+#[must_use]
+pub fn arg_shimmer_expectation(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[&str],
+    arg_index: usize,
+) -> Option<ShimmerExpectation> {
     let spec = registry.get(command)?;
+    let expectation = |h: &tcl_registry::hooks::ArgTypeHint| {
+        if h.shimmers {
+            h.expected.map(|expected| ShimmerExpectation {
+                expected,
+                transparent_from: h.transparent_from,
+            })
+        } else {
+            None
+        }
+    };
 
     // Subcommand dispatch: spec has subcommands and args[0] names one.
     if !spec.subcommands.is_empty() {
@@ -58,14 +102,14 @@ pub fn arg_shimmer_type(
             .arg_types
             .iter()
             .find(|(i, _)| *i == sub_idx)
-            .and_then(|(_, h)| if h.shimmers { h.expected } else { None });
+            .and_then(|(_, h)| expectation(h));
     }
 
     let needle = u8::try_from(arg_index).ok()?;
     spec.arg_types
         .iter()
         .find(|(i, _)| *i == needle)
-        .and_then(|(_, h)| if h.shimmers { h.expected } else { None })
+        .and_then(|(_, h)| expectation(h))
 }
 
 /// Return `true` when the two types are numerically compatible — i.e. a
@@ -144,19 +188,41 @@ mod tests {
 
     #[test]
     fn arg_shimmer_type_binary_decode_data_is_arg1_not_format_keyword() {
-        // `binary decode format data` — sub arg 1 (overall arg 2) is `data`
-        // and expects String (text-friendly encoded input); sub arg 0 (the
-        // `format` keyword, e.g. "hex") must NOT carry the hint.
+        // `binary decode format data` — sub arg 1 (overall arg 2) is `data`,
+        // read via its string rep only: dual-ported, the intrep is KEPT
+        // (tclsh-verified: `set d 4142; binary decode hex $d` leaves `d` an
+        // int), so it is no longer a shimmer position. Sub arg 0 (the
+        // `format` keyword, e.g. "hex") never carried the hint.
         let r = registry();
         assert_eq!(
             arg_shimmer_type(&r, "binary", &["decode", "hex", "$data"], 2),
-            Some(TclType::String)
+            None,
+            "reading the string rep is not a shimmer (dual-porting)"
         );
         assert_eq!(
             arg_shimmer_type(&r, "binary", &["decode", "hex", "$data"], 1),
             None,
             "the 'format' keyword slot must not carry the shimmer hint"
         );
+        // `binary encode` genuinely installs the byte-array intrep on `data`.
+        assert_eq!(
+            arg_shimmer_type(&r, "binary", &["encode", "hex", "$data"], 2),
+            Some(TclType::ByteArray)
+        );
+    }
+
+    #[test]
+    fn arg_shimmer_expectation_string_length_transparent_bytearray() {
+        // `string length` installs the string intrep on its subject
+        // (tclsh-verified: an int becomes `string`) — but a pure byte array
+        // short-circuits to its byte count and keeps its rep, which the
+        // registry expresses via `transparent_from`.
+        let r = registry();
+        let exp = arg_shimmer_expectation(&r, "string", &["length", "$s"], 1)
+            .expect("string length subject must be a shimmer position");
+        assert_eq!(exp.expected, TclType::String);
+        assert!(exp.is_transparent_from(TclType::ByteArray));
+        assert!(!exp.is_transparent_from(TclType::List));
     }
 
     #[test]

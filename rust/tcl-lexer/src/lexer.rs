@@ -145,6 +145,8 @@ pub struct LexerConfig {
     /// close-quote/brace) are reported as `LexError` instead of
     /// best-effort warnings. Used by the VM's compilation path.
     pub strict_quoting: bool,
+    /// How a `${…}` variable name is delimited — see [`BracedVarStyle`].
+    pub braced_var: BracedVarStyle,
     /// Byte offset to add to every `SourcePosition.offset`
     /// produced by the lexer. Used when sub-lexing a body
     /// extracted from a parent token.
@@ -155,12 +157,37 @@ pub struct LexerConfig {
     pub base_col: u32,
 }
 
+/// The dialect's `${…}` variable-name delimiting rule — Tcl 9.0 changed it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum BracedVarStyle {
+    /// Tcl 9.x (and the unversioned default): `Tcl_ParseVarName` tracks
+    /// nested `{…}` pairs and treats `\X` as an inert two-character unit
+    /// inside the braces, so `${a{b}c}` names the variable `a{b}c`
+    /// (tcl9.0.1 `tclParse.c`, the `braceCount` loop).
+    #[default]
+    Tcl9Nesting,
+    /// The 8.x family (8.4–8.6, iRules/iApps, EDA): the name runs to the
+    /// FIRST literal `}` — no nesting, no backslash processing — so
+    /// `${a{b}c}` names `a{b` and `c}` is ordinary word text
+    /// (8.6.14 `tclParse.c:1466`, tclsh-verified).
+    FirstClose,
+}
+
+impl BracedVarStyle {
+    /// Whether this style tracks nested `{…}` / `\X` pairs (the Tcl 9 rule).
+    #[must_use]
+    pub fn nests(self) -> bool {
+        matches!(self, Self::Tcl9Nesting)
+    }
+}
+
 impl Default for LexerConfig {
     fn default() -> Self {
         Self {
             expand_syntax: true,
             irules_brace_separator: false,
             strict_quoting: false,
+            braced_var: BracedVarStyle::Tcl9Nesting,
             base_offset: 0,
             base_line: 0,
             base_col: 0,
@@ -175,23 +202,40 @@ impl LexerConfig {
     ///   that build on Tcl 8.5+ (Tk, Expect, EDA flavours).
     ///   False for Tcl 8.4 and iRules.
     /// * `irules_brace_separator` — true only for iRules.
+    /// * `braced_var` — the `${…}` delimiting rule: [`BracedVarStyle::FirstClose`]
+    ///   for every 8.x-based dialect (8.4–8.6, the F5 dialects, EDA),
+    ///   [`BracedVarStyle::Tcl9Nesting`] for 9.x and unversioned Tcl.
     ///
     /// Unknown dialect names fall back to `Self::default()`
-    /// (Tcl-8.5+ semantics) so a typo in a workspace's
+    /// (modern-Tcl semantics) so a typo in a workspace's
     /// `languageId` doesn't change parsing behaviour.
     #[must_use]
     pub fn for_dialect(dialect: &str) -> Self {
+        let eight_x_family = matches!(
+            dialect,
+            "tcl8.4" | "tcl8.5" | "tcl8.6" | "f5-irules" | "f5-iapps"
+        ) || dialect.ends_with("-eda-tcl");
+        let braced_var = if eight_x_family {
+            BracedVarStyle::FirstClose
+        } else {
+            BracedVarStyle::Tcl9Nesting
+        };
         match dialect {
             "tcl8.4" => Self {
                 expand_syntax: false,
+                braced_var,
                 ..Self::default()
             },
             "f5-irules" => Self {
                 expand_syntax: false,
                 irules_brace_separator: true,
+                braced_var,
                 ..Self::default()
             },
-            _ => Self::default(),
+            _ => Self {
+                braced_var,
+                ..Self::default()
+            },
         }
     }
 }
@@ -577,29 +621,45 @@ impl<'src> Lexer<'src> {
         if self.current_byte() == Some(b'{') {
             self.pos += 1; // skip '{'
             let content_start = self.pos;
-            let mut brace_depth: u32 = 0;
-            while let Some(ch) = self.current_char() {
-                match ch {
-                    '}' if brace_depth == 0 => break,
-                    '{' => {
-                        brace_depth += 1;
-                        self.pos += 1;
-                    }
-                    '}' => {
-                        brace_depth -= 1;
-                        self.pos += 1;
-                    }
-                    '\\' => {
-                        // Consume the backslash and, if present, the
-                        // following char as a literal pair.
-                        self.pos += 1;
-                        if let Some(next) = self.current_char() {
-                            self.pos += u32::try_from(next.len_utf8()).expect("char len fits u32");
+            if self.config.braced_var.nests() {
+                // Tcl 9 rule (tcl9.0.1 `tclParse.c`, Tcl_ParseVarName): track
+                // nested `{…}` pairs and consume `\X` as an inert
+                // two-character unit, closing on the balancing `}`.
+                let mut brace_depth: u32 = 0;
+                while let Some(ch) = self.current_char() {
+                    match ch {
+                        '}' if brace_depth == 0 => break,
+                        '{' => {
+                            brace_depth += 1;
+                            self.pos += 1;
+                        }
+                        '}' => {
+                            brace_depth -= 1;
+                            self.pos += 1;
+                        }
+                        '\\' => {
+                            // Consume the backslash and, if present, the
+                            // following char as a literal pair.
+                            self.pos += 1;
+                            if let Some(next) = self.current_char() {
+                                self.pos +=
+                                    u32::try_from(next.len_utf8()).expect("char len fits u32");
+                            }
+                        }
+                        _ => {
+                            self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
                         }
                     }
-                    _ => {
-                        self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+                }
+            } else {
+                // Tcl 8.x rule (8.6.14 `tclParse.c:1466`, tclsh-verified):
+                // the name is everything up to the FIRST literal `}` — no
+                // nesting, no backslash processing (`${a{b}c}` names `a{b`).
+                while let Some(ch) = self.current_char() {
+                    if ch == '}' {
+                        break;
                     }
+                    self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
                 }
             }
             let content_empty = self.pos == content_start;
@@ -621,11 +681,15 @@ impl<'src> Lexer<'src> {
             ));
         }
 
-        // `$name` or `$ns::var` identifier form
+        // `$name` or `$ns::var` identifier form. Bareword characters are the
+        // ASCII `[0-9A-Za-z_]` ONLY (`TclIsBareword`, identical in 8.6.14 and
+        // 9.0.1; the man page: "Letters and digits are only the standard
+        // ASCII ones") — `$café` names the variable `caf` and `é` is ordinary
+        // word text, and a `$` before a non-ASCII letter is a literal `$`.
         let name_start = self.pos;
         while let Some(ch) = self.current_char() {
-            if ch.is_alphanumeric() || ch == '_' {
-                self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+            if ch.is_ascii_alphanumeric() || ch == '_' {
+                self.pos += 1;
                 continue;
             }
             if ch == ':' && self.peek_byte(1) == Some(b':') {
@@ -765,18 +829,43 @@ impl<'src> Lexer<'src> {
         self.pos += 1; // skip '$'
         if self.current_byte() == Some(b'{') {
             self.pos += 1;
+            // Same dialect-gated delimiting as `parse_var`'s braced branch:
+            // Tcl 9 tracks nesting and skips `\X` pairs; 8.x stops at the
+            // first literal `}`.
+            let mut brace_depth: u32 = 0;
             while let Some(ch) = self.current_char() {
-                self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
-                if ch == '}' {
-                    break;
+                match ch {
+                    '}' if brace_depth == 0 => {
+                        self.pos += 1;
+                        break;
+                    }
+                    '{' if self.config.braced_var.nests() => {
+                        brace_depth += 1;
+                        self.pos += 1;
+                    }
+                    '}' => {
+                        // Only reachable with nesting mode (depth > 0).
+                        brace_depth -= 1;
+                        self.pos += 1;
+                    }
+                    '\\' if self.config.braced_var.nests() => {
+                        self.pos += 1;
+                        if let Some(next) = self.current_char() {
+                            self.pos += u32::try_from(next.len_utf8()).expect("char len fits u32");
+                        }
+                    }
+                    _ => {
+                        self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+                    }
                 }
             }
             return Ok(());
         }
-        // Bare name: an alphanumeric / `_` run, with `::` namespace separators.
+        // Bare name: an ASCII alphanumeric / `_` run (`TclIsBareword`), with
+        // `::` namespace separators.
         while let Some(ch) = self.current_char() {
-            if ch.is_alphanumeric() || ch == '_' {
-                self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+            if ch.is_ascii_alphanumeric() || ch == '_' {
+                self.pos += 1;
             } else if ch == ':' && self.peek_byte(1) == Some(b':') {
                 self.pos += 2;
             } else {
@@ -1150,6 +1239,9 @@ impl<'src> Lexer<'src> {
     /// name does not fool its delimiter counter (issue 163).
     fn skip_braced_var_name(&mut self) {
         self.pos += 2; // skip '${'
+        // Dialect-gated delimiting, mirroring `parse_var`'s braced branch:
+        // Tcl 9 tracks nested `{…}` and `\X` pairs; 8.x stops at the first
+        // literal `}`.
         let mut brace_depth: u32 = 0;
         while let Some(inner) = self.current_char() {
             match inner {
@@ -1157,15 +1249,16 @@ impl<'src> Lexer<'src> {
                     self.pos += 1;
                     break;
                 }
-                '{' => {
+                '{' if self.config.braced_var.nests() => {
                     brace_depth += 1;
                     self.pos += 1;
                 }
                 '}' => {
+                    // Only reachable in nesting mode (depth > 0).
                     brace_depth -= 1;
                     self.pos += 1;
                 }
-                '\\' => {
+                '\\' if self.config.braced_var.nests() => {
                     self.pos += 1;
                     if let Some(next) = self.current_char() {
                         self.pos += u32::try_from(next.len_utf8()).expect("char len fits u32");

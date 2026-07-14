@@ -127,6 +127,63 @@ fn recursive_call_navigates_to_definition() {
     assert_eq!(start_line(&locs[0]), 0);
 }
 
+// -- TestNamespaceResolution -----------------------------------------------
+// C Tcl resolves an unqualified command in the current namespace first, then
+// the global namespace (`Tcl_FindCommand`, `tclNamesp.c`) — never a sibling
+// namespace picked by proc-table iteration order.
+
+#[test]
+fn unqualified_call_resolves_in_callers_namespace_first() {
+    // Two namespaces each define `helper`; the unqualified call inside ::b
+    // must land on ::b::helper, never ::a::helper.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval a {\n    proc helper {} { return 1 }\n}\nnamespace eval b {\n    proc helper {} { return 2 }\n    helper\n}\n";
+    lsp.open_ready(&uri, src);
+    // Cursor on the bare `helper` call (line 5).
+    let result = lsp.definition(&uri, 5, 6);
+    let locs = locations(&result);
+    assert!(!locs.is_empty());
+    assert_eq!(start_line(&locs[0]), 4, "must resolve to ::b::helper");
+}
+
+#[test]
+fn global_call_with_single_namespaced_proc_uses_fallback() {
+    // Only ::a::helper exists: a global-scope call has no namespace-visible
+    // candidate, and `helper` names no builtin, so the lenient fallback
+    // resolves the call to the only same-named proc.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval a {\n    proc helper {} { return 1 }\n}\nhelper\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.definition(&uri, 3, 2);
+    let locs = locations(&result);
+    assert!(!locs.is_empty());
+    assert_eq!(start_line(&locs[0]), 1, "fallback must reach ::a::helper");
+}
+
+#[test]
+fn global_call_fallback_is_deterministic_across_repeats() {
+    // No ::helper exists, so the lenient fallback fires — and must pick the
+    // lexicographically smallest qualified name (::a::helper) on every
+    // repeat, never a proc-table-iteration-order hijack (::z::helper is
+    // deliberately defined first).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval z {\n    proc helper {} { return 26 }\n}\nnamespace eval a {\n    proc helper {} { return 1 }\n}\nhelper\n";
+    lsp.open_ready(&uri, src);
+    for attempt in 0..4 {
+        let result = lsp.definition(&uri, 6, 2);
+        let locs = locations(&result);
+        assert!(!locs.is_empty(), "attempt {attempt}: no definition");
+        assert_eq!(
+            start_line(&locs[0]),
+            4,
+            "attempt {attempt}: fallback must pick ::a::helper deterministically"
+        );
+    }
+}
+
 // -- TestVariableDefinition ----------------------------------------------
 
 #[test]

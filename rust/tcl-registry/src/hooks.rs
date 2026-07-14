@@ -244,6 +244,14 @@ pub struct ArgTypeHint {
     pub expected: Option<crate::types::TclType>,
     /// Whether converting to this type destroys a previous intrep (shimmer).
     pub shimmers: bool,
+    /// Current intreps the operation reads directly, without installing
+    /// [`Self::expected`] — no shimmer happens for an operand already in one
+    /// of these representations even though it differs from `expected`.
+    /// E.g. `string length`/`index`/`range` have a pure-byte-array fast path
+    /// (`Tcl_GetCharLength` short-circuits before `SetStringFromAny`;
+    /// tclsh-verified the intrep survives), so their string argument is
+    /// `expected: String, shimmers: true, transparent_from: &[ByteArray]`.
+    pub transparent_from: &'static [crate::types::TclType],
 }
 
 #[cfg(test)]

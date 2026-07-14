@@ -976,24 +976,39 @@ pub fn uses_of(
                 registry,
                 &mut vars_found,
             );
-            // dict with/update: the dict variable name is a plain string,
-            // not a $-substitution, so scan_word misses it.
+            // Scope-alias subcommands (`dict with` / `dict update` — any
+            // resolved subcommand with `creates_scope_alias`): the aliased
+            // variable name is a plain string, not a $-substitution, so
+            // scan_word misses it.
             //
-            // arg 0 carries both VarRead and VarWrite roles.  When
-            // barrier defs route through the registry, the same name
+            // The variable arg carries both VarRead and VarWrite roles.
+            // When barrier defs route through the registry, the same name
             // appears in `defs` from the VarWrite query.  The closing
             // filter at line ~553
             // (`!defs.contains(v) || reads_own_def.contains(v)`) would
-            // then drop the dict var unless we mark it as reads-own-def
-            // here.  Without this, a proc whose only reference to a
-            // parameter is `dict with $param {}` would produce a
-            // false unused-parameter diagnostic.
-            if command == "dict" && args.len() >= 2 && (args[0] == "with" || args[0] == "update") {
-                let dict_var = normalise_var_name(&args[1]);
-                if !dict_var.is_empty() {
-                    let owned = dict_var.to_owned();
-                    vars_found.insert(owned.clone());
-                    reads_own_def.insert(owned);
+            // then drop the var unless we mark it as reads-own-def here.
+            // Without this, a proc whose only reference to a parameter is
+            // `dict with $param {}` would produce a false unused-parameter
+            // diagnostic.
+            let creates_scope_alias = registry
+                .get(command)
+                .zip(args.first())
+                .and_then(|(spec, sub)| spec.resolve_subcommand(sub))
+                .is_some_and(|sub| sub.creates_scope_alias);
+            if creates_scope_alias {
+                let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+                for idx in registry.arg_indices_for_role(
+                    command,
+                    &arg_strs,
+                    tcl_registry::ArgRole::VarWrite,
+                ) {
+                    let Some(word) = args.get(idx) else { continue };
+                    let alias_var = normalise_var_name(word);
+                    if !alias_var.is_empty() {
+                        let owned = alias_var.to_owned();
+                        vars_found.insert(owned.clone());
+                        reads_own_def.insert(owned);
+                    }
                 }
             }
         }

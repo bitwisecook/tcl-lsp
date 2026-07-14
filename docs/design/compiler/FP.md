@@ -6348,6 +6348,60 @@ function ::f
 
 ---
 
+### FP-OBJ-20 — external mixin methods are callable — W308 abstains as for an external superclass
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `analyser/diagnostics/fp/obj.rs::fp_obj_20_*`
+- **Codes:** W308 (unknown method)
+
+#### Reproducer
+
+```tcl
+oo::class create Reactive {
+    mixin ::somelib::Observable
+    method local {} {}
+}
+set o [Reactive new]
+$o subscribe handler
+```
+
+#### Per-line reasoning
+
+`TclOO` mixins contribute to the MRO exactly as superclasses do, so
+`subscribe` provided by `::somelib::Observable` is callable on `Reactive`
+instances.  The W308 external-class escape hatch — abstain when a candidate
+class inherits from a class outside the local index, because its callable
+method set is then unknowable — walked only `superclasses`, so an
+unresolvable **mixin** did not abstain and `$o subscribe` fired W308.  Fix:
+one shared helper (`has_external_super_or_mixin` in
+`analyser/diagnostics/var_command.rs`) evaluates the escape hatch over
+superclasses ∪ mixins at both W308 sites (`w308_for_object_var` and
+`validate_method_on_class`), preserving the `oo::object` / `oo::class` base
+special-casing.  A *local* (indexed) mixin is unaffected: it resolves
+through the MRO, and an unknown method on such a class still fires.
+
+#### tclsh ground truth (8.6.14)
+
+```
+% oo::class create Observable { method subscribe {h} { return "subscribed $h" } }
+% oo::class create Reactive { mixin Observable; method local {} {} }
+% set o [Reactive new]
+% $o subscribe handler
+subscribed handler
+% $o nosuch
+unknown method "nosuch": must be destroy, local or subscribe
+```
+
+#### Tests
+
+- `analyser/diagnostics/fp/obj.rs::fp_obj_20_external_mixin_method_no_w308` (FP)
+- `analyser/diagnostics/fp/obj.rs::fp_obj_20_external_mixin_cmdsub_dispatch_no_w308` (FP, `[Reactive new] subscribe` shape)
+- `analyser/diagnostics/fp/obj.rs::fp_obj_20_all_local_class_unknown_method_still_w308` (TP control)
+- `analyser/diagnostics/fp/obj.rs::fp_obj_20_local_mixin_unknown_method_still_w308` (TP control — an indexed mixin does not blanket-suppress)
+- `analyser/diagnostics/fp/obj.rs::fp_obj_20_local_mixin_provides_method_silent` (regression — in-file mixin resolves via the MRO)
+
+---
+
 
 ## RCH — reachability (O107)
 

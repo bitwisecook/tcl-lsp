@@ -124,6 +124,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Create a child interpreter.",
         synopsis: "interp create ?-safe? ?--? ?name?",
+        // `interp create NAME` binds NAME as the child interpreter's command
+        // (`NAME eval {…}` dispatches on it).  Index 0 is after the `create`
+        // word; a `-safe` / `--` flag there (or a missing, auto-generated
+        // name) is skipped by the consumer.
+        defines_command_at: Some(0),
         return_type: Some(TclType::String),
         options: const {
             &[

@@ -55,13 +55,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::ByteArray),
         // `data` is arg 1 (sub-index 1: arg 0 is the `format` keyword, e.g.
         // `hex`/`base64`). It is text-friendly *encoded* data being
-        // *decoded into* a byte array, so the shimmer-sensitive expectation
-        // is String, not ByteArray — the reverse of `encode` below.
+        // *decoded into* a byte array, so the expectation is String, not
+        // ByteArray — the reverse of `encode` below. Reading it only takes
+        // the string rep, which is generated *alongside* the existing intrep
+        // (dual-porting), never in place of it — tclsh-verified:
+        // `set d 4142; binary decode hex $d` leaves `d` an int. No shimmer.
         arg_types: &[(
             1,
             ArgTypeHint {
                 expected: Some(TclType::String),
-                shimmers: true,
+                shimmers: false,
+                transparent_from: &[],
             },
         )],
         // `binary encode`/`binary decode` added in Tcl 8.6 (TIP 317).
@@ -81,6 +85,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::ByteArray),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         // `binary encode`/`binary decode` added in Tcl 8.6 (TIP 317).
@@ -94,11 +99,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "binary format formatString ?arg ...?",
         pure: true,
         return_type: Some(TclType::ByteArray),
+        // The format string is read via its string rep only — cached
+        // alongside the intrep, so a list-typed format spec keeps its list
+        // intrep (tclsh-verified). No shimmer.
         arg_types: &[(
             0,
             ArgTypeHint {
                 expected: Some(TclType::String),
-                shimmers: true,
+                shimmers: false,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -120,13 +129,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::ByteArray),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
             (
                 1,
                 ArgTypeHint {
+                    // The format string is read via its string rep only
+                    // (dual-ported — intrep kept). No shimmer.
                     expected: Some(TclType::String),
-                    shimmers: true,
+                    shimmers: false,
+                    transparent_from: &[],
                 },
             ),
         ],
