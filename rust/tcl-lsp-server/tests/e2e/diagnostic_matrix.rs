@@ -135,6 +135,24 @@ const MATRIX: &[Case] = &[
         silent: "lmap x {1 2} {incr x}\n",
         note: "lmap shares foreach's odd/even grammar — an even arg count is wrong # args (registry `stepped` arity, verified vs tclsh 9.0.4)",
     },
+    Case {
+        code: "W124",
+        fire: "proc foo {} { set ip 192.168.1.999 }\n",
+        silent: "proc foo {} { set ip 192.168.1.1 }\n",
+        note: "an IPv4 octet above 255 is not a valid address literal",
+    },
+    Case {
+        code: "W127",
+        fire: "string is booleanx 1\n",
+        silent: "string is boolean 1\n",
+        note: "`string is` carries a closed class set; a non-member (and no unique prefix) is a runtime `bad class` error",
+    },
+    Case {
+        code: "TK1003",
+        fire: "package require Tk\nbutton .b -comand {puts hi}\n",
+        silent: "package require Tk\nbutton .b -command {puts hi}\n",
+        note: "typo'd widget option; `package require Tk` enables the Tk overlay in a plain .tcl buffer",
+    },
 ];
 
 /// The set of `code` strings carried by `diags` (mirrors Python `_codes`).
@@ -269,6 +287,22 @@ fn t100_fires_on_defect() {
 fn s102_fires_on_defect() {
     assert_fires(case_for("S102"));
 }
+#[test]
+fn e005_fires_on_defect() {
+    assert_fires(case_for("E005"));
+}
+#[test]
+fn w124_fires_on_defect() {
+    assert_fires(case_for("W124"));
+}
+#[test]
+fn w127_fires_on_defect() {
+    assert_fires(case_for("W127"));
+}
+#[test]
+fn tk1003_fires_on_defect() {
+    assert_fires(case_for("TK1003"));
+}
 
 // -- silent cases --------------------------------------------------------
 
@@ -327,6 +361,22 @@ fn t100_silent_on_corrected_form() {
 #[test]
 fn s102_silent_on_corrected_form() {
     assert_silent(case_for("S102"));
+}
+#[test]
+fn e005_silent_on_corrected_form() {
+    assert_silent(case_for("E005"));
+}
+#[test]
+fn w124_silent_on_valid_address() {
+    assert_silent(case_for("W124"));
+}
+#[test]
+fn w127_silent_on_class_member() {
+    assert_silent(case_for("W127"));
+}
+#[test]
+fn tk1003_silent_on_real_option() {
+    assert_silent(case_for("TK1003"));
 }
 
 // -- TestOptimisationMatrix ----------------------------------------------
