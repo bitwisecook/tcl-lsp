@@ -963,7 +963,21 @@
     },
     {
       "name": "console",
-      "summary": "Control the debugging console window (hide/show/eval/…)."
+      "summary": "Control the debugging console window.",
+      "subcommands": [
+        "eval",
+        "hide",
+        "show",
+        "title"
+      ]
+    },
+    {
+      "name": "consoleinterp",
+      "summary": "Evaluate or record a script in the console's attached interpreter.",
+      "subcommands": [
+        "eval",
+        "record"
+      ]
     },
     {
       "name": "const",

@@ -6746,6 +6746,36 @@ mod tests {
     }
 
     #[test]
+    fn console_eval_body_recurses_into_script() {
+        // `console eval {puts $x}` (issue #925) — the `console eval` script
+        // argument is a body (ArgRole::Body via the `console` SubCommand
+        // table), so it recurses: `$x` inside the braces resolves as a
+        // Variable rather than the whole `{...}` staying one opaque string.
+        let toks = decode_full("console eval {puts $x}\n", "tk", &reg());
+        assert!(
+            toks.iter()
+                .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
+            "expected $x resolved inside the `console eval` body; got {toks:?}"
+        );
+    }
+
+    #[test]
+    fn consoleinterp_eval_and_record_bodies_recurse_into_script() {
+        // `consoleinterp eval`/`record` (issue #925 follow-up) — both take a
+        // script argument that should recurse the same way `console eval`
+        // does.
+        for sub in ["eval", "record"] {
+            let src = format!("consoleinterp {sub} {{puts $x}}\n");
+            let toks = decode_full(&src, "tk", &reg());
+            assert!(
+                toks.iter()
+                    .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
+                "expected $x resolved inside `consoleinterp {sub}` body; got {toks:?}"
+            );
+        }
+    }
+
+    #[test]
     fn option_enum_value_is_enum_member() {
         // `button .b -relief raised` — the closed-set option value is coloured
         // as an EnumMember (Phase 5), not a generic OptionValue.

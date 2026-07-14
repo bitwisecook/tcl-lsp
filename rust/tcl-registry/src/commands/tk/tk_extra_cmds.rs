@@ -18,11 +18,13 @@
 
 //! Additional standalone Tk commands not previously registered — `bindtags`,
 //! `tk_optionMenu`, `tk_dialog`, `tk_setPalette`, `tk_bisque`,
-//! `tk_focusNext`, `tk_focusPrev`, `tk_focusFollowsMouse`, and `console`.
+//! `tk_focusNext`, `tk_focusPrev`, and `tk_focusFollowsMouse`.
 //!
 //! Synopses are taken from the Tk 8.6 manual pages.  (`tk busy` and
 //! `tk fontchooser` are already modelled as sub-commands of the `tk`
-//! command.)  Available in a `wish` / `package require Tk` interpreter.
+//! command; `console` and `consoleinterp` have their own file, `console.rs`,
+//! since they need a `SubCommand` table.)  Available in a `wish` /
+//! `package require Tk` interpreter.
 
 use crate::prelude::*;
 
@@ -112,13 +114,6 @@ pub fn specs() -> Vec<CommandSpec> {
             Arity::exact(0),
             &["tk_focusFollowsMouse"],
             "Change focus behaviour so focus follows the mouse pointer.",
-            &[],
-        ),
-        cmd(
-            "console",
-            Arity::at_least(1),
-            &["console subcommand ?arg ...?"],
-            "Control the debugging console window (hide/show/eval/…).",
             &[],
         ),
     ]

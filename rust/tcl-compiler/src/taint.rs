@@ -3755,6 +3755,39 @@ mod tests {
     }
 
     #[test]
+    fn t105_cross_interp_for_tainted_console_eval() {
+        // `console eval $x` with tainted `$x` → cross-interp (T105): the
+        // script runs in the separate console interpreter, the same
+        // category as `interp eval` (issue #925).
+        let sink = call_stmt("console", &["eval", "$x"]);
+        let w = warnings_for_tainted_sink(sink, &[("x", 1)]);
+        let t105 = w
+            .iter()
+            .find(|w| w.code == DiagCode::T105 && w.variable == "x");
+        assert!(t105.is_some(), "expected T105 for console eval; got {w:?}");
+        assert_eq!(t105.unwrap().sink_command, "console eval");
+    }
+
+    #[test]
+    fn t105_cross_interp_for_tainted_consoleinterp_eval_and_record() {
+        // `consoleinterp eval $x` / `consoleinterp record $x` with tainted
+        // `$x` → cross-interp (T105): both cross back into the interpreter
+        // the console is attached to (issue #925 follow-up).
+        for sub in ["eval", "record"] {
+            let sink = call_stmt("consoleinterp", &[sub, "$x"]);
+            let w = warnings_for_tainted_sink(sink, &[("x", 1)]);
+            let t105 = w
+                .iter()
+                .find(|w| w.code == DiagCode::T105 && w.variable == "x");
+            assert!(
+                t105.is_some(),
+                "expected T105 for consoleinterp {sub}; got {w:?}"
+            );
+            assert_eq!(t105.unwrap().sink_command, format!("consoleinterp {sub}"));
+        }
+    }
+
+    #[test]
     fn t106_double_encode_through_uri_encode() {
         // `set x [URI::encode $tainted]` stamps URL_ENCODED on x; passing
         // x back through `URI::encode` double-encodes → T106.

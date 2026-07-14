@@ -15,10 +15,10 @@ or an explicit *not required* classification.
 | handler | 104 |
 | handler (native) | 6 |
 | stdlib | 11 |
-| not-required | 111 |
+| not-required | 105 |
 | known-gap (`RUST_ISSUE_007`) | 0 |
 | **UNCLASSIFIED** | 0 |
-| **total** | 232 |
+| **total** | 226 |
 
 | command | backing | note |
 | --- | --- | --- |
@@ -54,8 +54,6 @@ or an explicit *not required* classification.
 | `::tcl::mathop::^` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::eq` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::in` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::max` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::min` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::ne` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::ni` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::|` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
@@ -149,9 +147,7 @@ or an explicit *not required* classification.
 | `lseq` | handler |  |
 | `lset` | handler |  |
 | `lsort` | handler |  |
-| `max` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `memory` | not-required | TCL_MEM_DEBUG-only heap-debug command |
-| `min` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `my` | handler (native) | per-object command created by TclOO method dispatch (oo_register_my) |
 | `namespace` | handler |  |
 | `ne` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
@@ -220,8 +216,6 @@ or an explicit *not required* classification.
 | `tcl::mathop::^` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::eq` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::in` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::max` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::min` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::ne` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::ni` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::|` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
