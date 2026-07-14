@@ -129,7 +129,7 @@ dependency graph (a crate can only use what it declares in
 
 - [`AGENTS.md`](../../../AGENTS.md) "Repository layout" section —
   per-crate one-line summaries.
-- [`shared-utility-contracts.md`](shared-utility-contracts.md) —
+- [`shared-utility-contracts-rust.md`](shared-utility-contracts-rust.md) —
   ownership rules for the cross-cutting helpers.
 - [`pipeline-lsp-first.md`](pipeline-lsp-first.md) — pipeline layering
   for LSP use cases.

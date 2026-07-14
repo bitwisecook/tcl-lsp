@@ -42,6 +42,8 @@
 
 use tcl_syntax::value::ValueOps;
 
+use crate::option_table::OptionTable;
+
 // the engine seam
 
 /// The "did not participate" sentinel for a subexpression's offset (mirrors the
@@ -238,47 +240,10 @@ struct Common {
     start: Option<Vec<u8>>,
 }
 
-/// Try to consume one shared option `name` (already known to start with `-`).
-/// `Some(Ok(ate_next))` = recognised (`ate_next` is whether it consumed the
-/// following arg, for `-start`); `Some(Err(()))` = a `-start` with no argument
-/// (Tcl treats it as end-of-options); `None` = not a shared option.
-fn shared_option(c: &mut Common, name: &[u8], next: Option<&[u8]>) -> Option<Result<bool, ()>> {
-    match name {
-        b"-all" => c.all = true,
-        b"-nocase" => c.flags.nocase = true,
-        b"-expanded" => c.flags.expanded = true,
-        b"-line" => {
-            c.flags.linestop = true;
-            c.flags.lineanchor = true;
-        }
-        b"-linestop" => c.flags.linestop = true,
-        b"-lineanchor" => c.flags.lineanchor = true,
-        b"-start" => {
-            return match next {
-                Some(v) => {
-                    c.start = Some(v.to_vec());
-                    Some(Ok(true))
-                }
-                None => Some(Err(())),
-            };
-        }
-        _ => return None,
-    }
-    Some(Ok(false))
-}
-
 fn wrong_args(usage: &[u8]) -> RegexError {
     let mut m = b"wrong # args: should be \"".to_vec();
     m.extend_from_slice(usage);
     m.push(b'"');
-    RegexError(m)
-}
-
-fn bad_option(name: &[u8], tail: &[u8]) -> RegexError {
-    let mut m = b"bad option \"".to_vec();
-    m.extend_from_slice(name);
-    m.extend_from_slice(b"\": must be ");
-    m.extend_from_slice(tail);
     RegexError(m)
 }
 
@@ -292,8 +257,40 @@ fn compile_error(detail: &[u8]) -> RegexError {
 // regexp
 
 const REGEXP_USAGE: &[u8] = b"regexp ?-option ...? exp string ?matchVar? ?subMatchVar ...?";
-const REGEXP_OPTS: &[u8] =
-    b"-all, -about, -indices, -inline, -expanded, -line, -linestop, -lineanchor, -nocase, -start, or --";
+
+// C's `options[]` in `Tcl_RegexpObjCmd` (`tclCmdMZ.c`), matched with
+// `TCL_EXACT`: abbreviations are rejected, so `regexp -no …` is a bad option
+// here. tclsh's bytecode compiler (`TclCompileRegexpCmd`) separately accepts
+// any two-plus-character prefix of `-nocase` in its no-match-variable fast
+// path `regexp ?-nocase? ?--? exp string`, so that one form abbreviates in
+// tclsh scripts; every other form (match variables, any other option, an
+// `eval`'d word list) reaches the runtime command and is exact-only. We
+// implement the runtime semantics everywhere (probed tclsh 8.6.14; 9.0.4
+// source).
+const RE_ALL: usize = 0;
+const RE_ABOUT: usize = 1;
+const RE_INDICES: usize = 2;
+const RE_INLINE: usize = 3;
+const RE_EXPANDED: usize = 4;
+const RE_LINE: usize = 5;
+const RE_LINESTOP: usize = 6;
+const RE_LINEANCHOR: usize = 7;
+const RE_NOCASE: usize = 8;
+const RE_START: usize = 9;
+const REGEXP_NAMES: [&str; 11] = [
+    "-all",
+    "-about",
+    "-indices",
+    "-inline",
+    "-expanded",
+    "-line",
+    "-linestop",
+    "-lineanchor",
+    "-nocase",
+    "-start",
+    "--",
+];
+const REGEXP_OPTIONS: OptionTable<'static> = OptionTable::exact_only("option", &REGEXP_NAMES);
 
 /// Drive `regexp` over the engine `E` and value-ops `O`. `args` is the
 /// command's arguments **without** the command name.
@@ -316,28 +313,33 @@ pub fn regexp<O: ValueOps, E: RegexEngine>(
         if name.first() != Some(&b'-') {
             break;
         }
-        if name == b"--" {
-            i += 1;
-            break;
-        }
-        match shared_option(&mut c, name, args.get(i + 1).copied()) {
-            Some(Ok(ate)) => {
-                i += 1 + usize::from(ate);
-                continue;
-            }
-            Some(Err(())) => {
-                i += 1; // `-start` with no argument → end of options
-                break;
-            }
-            None => {}
-        }
-        match name {
-            b"-indices" => indices = true,
-            b"-inline" => inline = true,
-            b"-about" => about = true,
-            _ => return Err(bad_option(name, REGEXP_OPTS)),
-        }
+        let idx = REGEXP_OPTIONS.index_of(name).map_err(RegexError)?;
         i += 1;
+        match idx {
+            RE_ALL => c.all = true,
+            RE_ABOUT => about = true,
+            RE_INDICES => indices = true,
+            RE_INLINE => inline = true,
+            RE_EXPANDED => c.flags.expanded = true,
+            RE_LINE => {
+                c.flags.linestop = true;
+                c.flags.lineanchor = true;
+            }
+            RE_LINESTOP => c.flags.linestop = true,
+            RE_LINEANCHOR => c.flags.lineanchor = true,
+            RE_NOCASE => c.flags.nocase = true,
+            RE_START => match args.get(i) {
+                Some(v) => {
+                    c.start = Some(v.to_vec());
+                    i += 1;
+                }
+                // A trailing `-start` ends the options (C's `goto
+                // endOfForLoop`); the arity check below then reports it.
+                None => break,
+            },
+            // `--`: explicit end of options.
+            _ => break,
+        }
     }
 
     if about {
@@ -487,8 +489,31 @@ fn build_match_item<O: ValueOps>(
 // regsub
 
 const REGSUB_USAGE: &[u8] = b"regsub ?-option ...? exp string subSpec ?varName?";
-const REGSUB_OPTS: &[u8] =
-    b"-all, -command, -expanded, -line, -linestop, -lineanchor, -nocase, -start, or --";
+
+// C's `options[]` in `Tcl_RegsubObjCmd` (`tclCmdMZ.c`), matched with
+// `TCL_EXACT` like `regexp`'s — and here even tclsh's bytecode compiler
+// (`TclCompileRegsubCmd`) only fast-paths a literal `-all`, so `regsub` is
+// exact-only in every context.
+const RS_ALL: usize = 0;
+const RS_COMMAND: usize = 1;
+const RS_EXPANDED: usize = 2;
+const RS_LINE: usize = 3;
+const RS_LINESTOP: usize = 4;
+const RS_LINEANCHOR: usize = 5;
+const RS_NOCASE: usize = 6;
+const RS_START: usize = 7;
+const REGSUB_NAMES: [&str; 9] = [
+    "-all",
+    "-command",
+    "-expanded",
+    "-line",
+    "-linestop",
+    "-lineanchor",
+    "-nocase",
+    "-start",
+    "--",
+];
+const REGSUB_OPTIONS: OptionTable<'static> = OptionTable::exact_only("option", &REGSUB_NAMES);
 
 /// Drive `regsub` over the engine `E`. `args` is the command's arguments
 /// **without** the command name. The result string + count + optional var name
@@ -505,26 +530,32 @@ pub fn regsub<E: RegexEngine>(args: &[&[u8]]) -> Result<RegsubResult, RegexError
         if name.first() != Some(&b'-') {
             break;
         }
-        if name == b"--" {
-            i += 1;
-            break;
-        }
-        match shared_option(&mut c, name, args.get(i + 1).copied()) {
-            Some(Ok(ate)) => {
-                i += 1 + usize::from(ate);
-                continue;
-            }
-            Some(Err(())) => {
-                i += 1;
-                break;
-            }
-            None => {}
-        }
-        match name {
-            b"-command" => {
+        let idx = REGSUB_OPTIONS.index_of(name).map_err(RegexError)?;
+        i += 1;
+        match idx {
+            RS_ALL => c.all = true,
+            RS_COMMAND => {
                 return Err(RegexError(b"regsub -command is not yet supported".to_vec()));
             }
-            _ => return Err(bad_option(name, REGSUB_OPTS)),
+            RS_EXPANDED => c.flags.expanded = true,
+            RS_LINE => {
+                c.flags.linestop = true;
+                c.flags.lineanchor = true;
+            }
+            RS_LINESTOP => c.flags.linestop = true,
+            RS_LINEANCHOR => c.flags.lineanchor = true,
+            RS_NOCASE => c.flags.nocase = true,
+            RS_START => match args.get(i) {
+                Some(v) => {
+                    c.start = Some(v.to_vec());
+                    i += 1;
+                }
+                // A trailing `-start` ends the options (C's `goto
+                // endOfForLoop`); the arity check below then reports it.
+                None => break,
+            },
+            // `--`: explicit end of options.
+            _ => break,
         }
     }
 

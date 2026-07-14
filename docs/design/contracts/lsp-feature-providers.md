@@ -78,4 +78,4 @@ LSP features are implemented as focused providers under `server/features/`, each
 - [KCS index](../../../docs/design/README.md)
 - [LSP diagnostics publication](../../../docs/design/contracts/lsp-diagnostics-publication.md)
 - [workspace/indexing contracts](../../../docs/design/contracts/workspace-indexing.md)
-- [shared utility contracts](../../../docs/design/contracts/shared-utility-contracts.md)
+- [shared utility contracts](../../../docs/design/contracts/shared-utility-contracts-rust.md)

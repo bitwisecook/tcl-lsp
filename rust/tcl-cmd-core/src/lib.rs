@@ -49,6 +49,7 @@ pub mod lseq;
 pub mod lsort;
 pub mod mathop;
 pub mod namespace;
+pub mod option_table;
 pub mod path;
 pub mod platform;
 pub mod prefix;

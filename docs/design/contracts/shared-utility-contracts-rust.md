@@ -35,6 +35,9 @@ never re-derives it.
   (`Tcl_PrintDouble`).
 - `glob` — `string match` globbing (`string_match`,
   `string_case_match`).
+- `switch_body` — the one `switch` pattern/body-pair tokeniser (brace
+  levels, comment rule, `-`-fallthrough), shared by the analyser,
+  formatter, minifier, and semantic tokens.
 - `naming` — `::`-qualified-name parsing and command resolution:
   `qualifier_segments` / `qualifier_segments_owned` (a colon **run** is
   one separator, mirroring `TclGetNamespaceForQualName`),
@@ -74,8 +77,18 @@ never re-derives it.
   enumeration with C's empty-entry quirks), `bad_key_message` /
   `lookup_error` (the full `bad option "x": must be …` /
   `ambiguous …` / `no valid options` texts). Consumers: `switch`
-  option parsing (this crate), the VM's `tcl::prefix match`, the WASM
-  runtime's `index_lookup` / `tcl::prefix match` / OO option tables.
+  option parsing (this crate), the VM's `tcl::prefix match` and
+  `string is` options, the WASM runtime's `index_lookup` /
+  `tcl::prefix match` / OO option tables.
+- `option_table::OptionTable` — the typed, const-constructible wrapper
+  over `prefix` for a command's whole table declaration in one value:
+  names in C table order, the error noun, and the abbreviation mode
+  (`abbreviating` = C flags `0`; `exact_only` = `TCL_EXACT`), with
+  `resolve` refining the hit into exact-vs-unique-prefix. The
+  string-side option words (`switch`, `lsort`, `lsearch`, `regexp`,
+  `regsub`, `trace`, `string is`) resolve through it; byte-generic
+  runtime tables use `prefix` directly. New command modules MUST use
+  one of the two — never a hand-rolled scan.
 - `sort::parse_wide` / `sort::parse_real` — the `-integer` / `-real`
   key parsers (`parse_wide` is the whole-string integer-only shape of
   `tcl_syntax::number`, `i128`-wide; `binary`'s wide parse narrows it
@@ -84,6 +97,18 @@ never re-derives it.
   (`wrong_args`, `bad_choice`, …). The runtimes' arity helpers are
   thin adapters: `runtime/rust`'s single `Interp::wrong_args` method
   and the VM's `interp::err_wrong_args`.
+
+### `tcl-compiler` — text similarity
+
+- `text` — `edit_distance` (optimal string alignment over chars),
+  `suggest_similar` and the ranking cores `rank_suggestions`
+  (ascending `(score, name)`, capped) and
+  `rank_containment_suggestions` (exact > prefix > substring).
+  Consumers: every did-you-mean suffix (W001/W123/W210/W212/W215,
+  E001), completion's fuzzy fallback, and the package-suggestion
+  ranking in code actions. Re-homing into `tcl-syntax` was assessed
+  July 2026 and declined — no compiler-independent consumer exists;
+  revisit only if one appears.
 
 ### `tcl-core-types` — shared vocabulary
 
@@ -116,6 +141,13 @@ never re-derives it.
    gating is a lexer/analyser concern, not a per-consumer parser fork).
 
 ## Known deliberate exceptions
+
+- `string match` / `string map` `-nocase`: C hand-rolls a
+  `length > 1` prefix test (`strncmp`) instead of
+  `Tcl_GetIndexFromObj`, which differs from the table rule on a lone
+  `-` (`string match - a b` is `bad option`, where the table rule
+  would call it ambiguous) — kept hand-rolled, with the probe cited at
+  the site (`tcl-cmd-core::string`).
 
 Each of these is a *documented* divergence — keep the comment at the
 site pointing back here, and do not "fix" them onto the canonical

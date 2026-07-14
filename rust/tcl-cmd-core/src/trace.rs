@@ -31,6 +31,7 @@
 //! `TraceExecutionObjCmd` option tables (`tclTrace.c`).
 
 use crate::error::CmdError;
+use crate::option_table::{OptionTable, Resolution, enumerate_names};
 
 /// A trace category — selects the valid operations and the error wording.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -44,19 +45,14 @@ pub enum TraceKind {
 }
 
 impl TraceKind {
-    /// The valid operation names and the human-readable "must be …" tail of the
-    /// bad-operation error for this kind (the orders match tclsh 9.0).
-    const fn ops(self) -> (&'static [&'static str], &'static str) {
+    /// The valid operation names for this kind, in C's `opStrings[]` table
+    /// order (`tclTrace.c`) — the bad-operation error enumerates them in
+    /// this order.
+    const fn ops(self) -> &'static [&'static str] {
         match self {
-            TraceKind::Variable => (
-                &["array", "read", "write", "unset"],
-                "array, read, unset, or write",
-            ),
-            TraceKind::Command => (&["rename", "delete"], "delete or rename"),
-            TraceKind::Execution => (
-                &["enter", "leave", "enterstep", "leavestep"],
-                "enter, leave, enterstep, or leavestep",
-            ),
+            TraceKind::Variable => &["array", "read", "unset", "write"],
+            TraceKind::Command => &["delete", "rename"],
+            TraceKind::Execution => &["enter", "leave", "enterstep", "leavestep"],
         }
     }
 }
@@ -69,26 +65,25 @@ impl TraceKind {
 /// A malformed list, an empty op-list (`bad operation list ""`), or an
 /// unrecognised operation (`bad operation "X": must be …`).
 pub fn parse_ops(spec: &[u8], kind: TraceKind) -> Result<Vec<&'static str>, CmdError> {
-    let (valid, must_be) = kind.ops();
+    let valid = kind.ops();
+    // C resolves each op element with `TCL_EXACT` (`tclTrace.c`): unlike most
+    // option words, a trace operation may NOT be abbreviated — `trace add
+    // variable x w cb` is `bad operation "w"` in tclsh (probed 8.6.14).
+    let table = OptionTable::exact_only("operation", valid);
     let s =
         core::str::from_utf8(spec).map_err(|_| CmdError::new("unmatched open brace in list"))?;
     let elems =
         tcl_syntax::list::split_list(s).map_err(|e| CmdError::new(e.message().to_string()))?;
     if elems.is_empty() {
         return Err(CmdError::new(format!(
-            "bad operation list \"\": must be one or more of {must_be}"
+            "bad operation list \"\": must be one or more of {}",
+            enumerate_names(valid)
         )));
     }
     let mut out = Vec::with_capacity(elems.len());
     for o in &elems {
-        match valid.iter().find(|v| ***v == **o) {
-            Some(v) => out.push(*v),
-            None => {
-                return Err(CmdError::new(format!(
-                    "bad operation \"{o}\": must be {must_be}"
-                )));
-            }
-        }
+        let idx = table.index_of_str(o)?;
+        out.push(valid[idx]);
     }
     Ok(out)
 }
@@ -112,41 +107,30 @@ pub fn ambiguous_type_error(got: &str) -> CmdError {
     ))
 }
 
+// C's `traceTypeOptions[]` (`tclTrace.c`), resolved with abbreviations
+// allowed (flags 0) — which is why `trace add var x write cb` is accepted
+// (set-2.4 / set-4.4).
+const TYPE_NAMES: [&str; 3] = ["execution", "command", "variable"];
+const TYPE_KINDS: [TraceKind; 3] = [
+    TraceKind::Execution,
+    TraceKind::Command,
+    TraceKind::Variable,
+];
+const TYPE_OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &TYPE_NAMES);
+
 /// Resolve a trace-type word (`trace add|remove|info <type> …`) to its
-/// [`TraceKind`], applying Tcl's unambiguous-prefix rule: an exact match always
-/// wins, otherwise a unique prefix matches (`var` → `variable`). Mirrors C's
-/// `Tcl_GetIndexFromObj` over `traceTypeOptions` (`{variable, command,
-/// execution}`), which is why `trace add var x write cb` is accepted
-/// (set-2.4 / set-4.4).
+/// [`TraceKind`] with the shared [`OptionTable`] rule: an exact match always
+/// wins, otherwise a unique prefix matches (`var` → `variable`).
 ///
 /// # Errors
 /// Returns [`bad_type_error`] when the word matches no type and
-/// [`ambiguous_type_error`] when it is a prefix of more than one. An empty
-/// word is reported as `bad` (it is a prefix of every option, but C treats the
-/// empty index lookup as a miss here).
+/// [`ambiguous_type_error`] when it abbreviates more than one — including the
+/// empty word, which prefixes all three types (`trace add "" x …` is
+/// `ambiguous option ""` in tclsh).
 pub fn resolve_type(got: &str) -> Result<TraceKind, CmdError> {
-    const NAMES: [(&str, TraceKind); 3] = [
-        ("variable", TraceKind::Variable),
-        ("command", TraceKind::Command),
-        ("execution", TraceKind::Execution),
-    ];
-    if got.is_empty() {
-        return Err(bad_type_error(got));
-    }
-    let mut found: Option<TraceKind> = None;
-    let mut count = 0u32;
-    for (name, kind) in NAMES {
-        if name == got {
-            return Ok(kind);
-        }
-        if name.starts_with(got) {
-            found = Some(kind);
-            count += 1;
-        }
-    }
-    match (count, found) {
-        (1, Some(k)) => Ok(k),
-        (0, _) => Err(bad_type_error(got)),
-        _ => Err(ambiguous_type_error(got)),
+    match TYPE_OPTIONS.resolve(got.as_bytes()) {
+        Resolution::Exact(i) | Resolution::UniquePrefix(i) => Ok(TYPE_KINDS[i]),
+        Resolution::Ambiguous => Err(ambiguous_type_error(got)),
+        Resolution::NoMatch => Err(bad_type_error(got)),
     }
 }

@@ -129,5 +129,5 @@ on the closer) and silently omits quoted `"..."` words.
 
 - [KCS index](README.md)
 - [range drift across passes](kcs-issue-range-drift.md)
-- [shared utility contracts](../design/contracts/shared-utility-contracts.md)
+- [shared utility contracts](../design/contracts/shared-utility-contracts-rust.md)
 - [Glossary](../GLOSSARY.md)

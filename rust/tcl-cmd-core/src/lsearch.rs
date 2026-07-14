@@ -52,8 +52,55 @@ use tcl_syntax::value::ValueOps;
 use tcl_syntax::list::split_list;
 
 use crate::index;
+use crate::option_table::OptionTable;
 use crate::regex::{RegexEngine, RegexFlags, decode_utf8};
 use crate::sort::{self, SortMode};
+
+// C's `options[]` in `Tcl_LsearchObjCmd` (`tclCmdIL.c`), resolved with
+// abbreviations allowed (flags 0), so `lsearch -exa …`/`lsearch -inl …` work
+// like tclsh and a shared prefix (`-in`, `-no`, the empty word) is an
+// ambiguous option.
+const OPT_ALL: usize = 0;
+const OPT_ASCII: usize = 1;
+const OPT_BISECT: usize = 2;
+const OPT_DECREASING: usize = 3;
+const OPT_DICTIONARY: usize = 4;
+const OPT_EXACT: usize = 5;
+const OPT_GLOB: usize = 6;
+const OPT_INCREASING: usize = 7;
+const OPT_INDEX: usize = 8;
+const OPT_INLINE: usize = 9;
+const OPT_INTEGER: usize = 10;
+const OPT_NOCASE: usize = 11;
+const OPT_NOT: usize = 12;
+const OPT_REAL: usize = 13;
+const OPT_REGEXP: usize = 14;
+const OPT_SORTED: usize = 15;
+const OPT_START: usize = 16;
+const OPT_STRIDE: usize = 17;
+const OPT_SUBINDICES: usize = 18;
+const OPT_NAMES: [&str; 19] = [
+    "-all",
+    "-ascii",
+    "-bisect",
+    "-decreasing",
+    "-dictionary",
+    "-exact",
+    "-glob",
+    "-increasing",
+    "-index",
+    "-inline",
+    "-integer",
+    "-nocase",
+    "-not",
+    "-real",
+    "-regexp",
+    "-sorted",
+    "-start",
+    "-stride",
+    "-subindices",
+];
+const OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &OPT_NAMES);
 
 /// The match mode (`-exact`/`-glob`/`-regexp`/`-sorted`).
 #[derive(Clone, Copy, PartialEq)]
@@ -160,34 +207,34 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
     let mut i = 0;
     while i < last_opt {
         let opt = ops.as_bytes(&args[i]);
-        match opt.as_ref() {
-            b"-all" => o.all = true,
-            b"-ascii" => o.dtype = SortMode::Ascii,
-            b"-dictionary" => o.dtype = SortMode::Dictionary,
-            b"-integer" => o.dtype = SortMode::Integer,
-            b"-real" => o.dtype = SortMode::Real,
-            b"-bisect" => {
+        match OPTIONS.index_of(&opt).map_err(LsearchError::msg)? {
+            OPT_ALL => o.all = true,
+            OPT_ASCII => o.dtype = SortMode::Ascii,
+            OPT_DICTIONARY => o.dtype = SortMode::Dictionary,
+            OPT_INTEGER => o.dtype = SortMode::Integer,
+            OPT_REAL => o.dtype = SortMode::Real,
+            OPT_BISECT => {
                 o.mode = SearchMode::Sorted;
                 o.bisect = true;
             }
-            b"-decreasing" => o.increasing = false,
-            b"-increasing" => o.increasing = true,
-            b"-exact" => o.mode = SearchMode::Exact,
-            b"-glob" => o.mode = SearchMode::Glob,
-            b"-regexp" => o.mode = SearchMode::Regexp,
-            b"-sorted" => o.mode = SearchMode::Sorted,
-            b"-inline" => o.inline = true,
-            b"-nocase" => o.nocase = true,
-            b"-not" => o.not = true,
-            b"-subindices" => o.subindices = true,
-            b"-start" => {
+            OPT_DECREASING => o.increasing = false,
+            OPT_INCREASING => o.increasing = true,
+            OPT_EXACT => o.mode = SearchMode::Exact,
+            OPT_GLOB => o.mode = SearchMode::Glob,
+            OPT_REGEXP => o.mode = SearchMode::Regexp,
+            OPT_SORTED => o.mode = SearchMode::Sorted,
+            OPT_INLINE => o.inline = true,
+            OPT_NOCASE => o.nocase = true,
+            OPT_NOT => o.not = true,
+            OPT_SUBINDICES => o.subindices = true,
+            OPT_START => {
                 if i + 1 >= last_opt {
                     return Err(LsearchError::msg("missing starting index"));
                 }
                 o.start_spec = Some(ops.as_bytes(&args[i + 1]).to_vec());
                 i += 1;
             }
-            b"-stride" => {
+            OPT_STRIDE => {
                 if i + 1 >= last_opt {
                     return Err(LsearchError::msg(
                         "\"-stride\" option must be followed by stride length",
@@ -201,7 +248,7 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
                 }
                 i += 1;
             }
-            b"-index" => {
+            OPT_INDEX => {
                 if i + 1 >= last_opt {
                     return Err(LsearchError::msg(
                         "\"-index\" option must be followed by list index",
@@ -211,7 +258,7 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
                 validate_index_path(&o.index_path)?;
                 i += 1;
             }
-            other => return Err(bad_option(other)),
+            _ => unreachable!("the option table is closed"),
         }
         i += 1;
     }
@@ -574,13 +621,6 @@ fn validate_index_path(path: &[Vec<u8>]) -> Result<(), LsearchError> {
         }
     }
     Ok(())
-}
-
-fn bad_option(other: &[u8]) -> LsearchError {
-    let mut m = b"bad option \"".to_vec();
-    m.extend_from_slice(other);
-    m.extend_from_slice(b"\": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, -stride, or -subindices");
-    LsearchError::msg(m)
 }
 
 /// `&[u8]` → owned `String` (lossy-safe: index/option specs are ASCII).

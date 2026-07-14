@@ -58,4 +58,4 @@ After CU assembly, specialised passes consume shared facts and emit typed findin
 
 - [compiler KCS index](README.md)
 - [compiler architecture overview](../../../docs/design/compiler-architecture.md)
-- [shared utility contracts](../../../docs/design/contracts/shared-utility-contracts.md)
+- [shared utility contracts](../../../docs/design/contracts/shared-utility-contracts-rust.md)
