@@ -27,6 +27,7 @@ mod canvas;
 mod checkbutton;
 mod clipboard;
 mod common;
+mod console;
 mod destroy;
 mod entry;
 mod event;
@@ -88,6 +89,7 @@ pub fn tk_command_specs() -> Vec<CommandSpec> {
     let mut specs = tk_command_specs_raw();
     specs.extend(ttk_extra::specs());
     specs.extend(tk_extra_cmds::specs());
+    specs.extend(console::specs());
     // The themed-widget set (`ttk::*`) was introduced with Tk 8.5.  Stamp the
     // package `min_version` here rather than in every ttk spec file so the
     // gate stays in one place.
@@ -208,12 +210,75 @@ mod tests {
             "tk_setPalette",
             "tk_focusNext",
             "tk_focusPrev",
+            "console",
+            "consoleinterp",
         ] {
             assert!(has(c), "tk command `{c}` is registered");
         }
         // ttk::spinbox is gated to 8.5 like the rest of the themed set.
         let spin = specs.iter().find(|s| s.name == "ttk::spinbox").unwrap();
         assert_eq!(spin.min_version, Some("8.5"));
+    }
+
+    #[test]
+    fn console_and_consoleinterp_eval_bodies_are_registered_correctly() {
+        use crate::{ArgRole, Arity};
+        // Issue #925: `console eval` / `consoleinterp eval` / `consoleinterp
+        // record` each take exactly one script argument that must resolve as
+        // `ArgRole::Body` (so the LSP recurses into it) and must be listed as
+        // a cross-interpreter eval sink (T105) — same shape as `interp eval`.
+        // Stable across Tk 8.4-9.0 (no `min_version` gate on any subcommand).
+        let specs = tk_command_specs();
+
+        let console = specs.iter().find(|s| s.name == "console").unwrap();
+        assert_eq!(console.min_version, None);
+        assert_eq!(console.taint_interp_eval_subcommands, &["eval"]);
+        let console_eval = console.resolve_subcommand("eval").unwrap();
+        assert_eq!(console_eval.arity, Arity::exact(1));
+        assert_eq!(console_eval.arg_role_at(0), Some(ArgRole::Body));
+        for name in ["hide", "show", "title"] {
+            let sub = console.resolve_subcommand(name).unwrap();
+            assert_eq!(sub.arg_role_at(0), None, "`console {name}` has no body arg");
+        }
+
+        let consoleinterp = specs.iter().find(|s| s.name == "consoleinterp").unwrap();
+        assert_eq!(consoleinterp.min_version, None);
+        assert_eq!(
+            consoleinterp.taint_interp_eval_subcommands,
+            &["eval", "record"]
+        );
+        for name in ["eval", "record"] {
+            let sub = consoleinterp.resolve_subcommand(name).unwrap();
+            assert_eq!(sub.arity, Arity::exact(1));
+            assert_eq!(sub.arg_role_at(0), Some(ArgRole::Body));
+        }
+    }
+
+    #[test]
+    fn ttk_instate_script_arg_is_a_body_with_tight_arity() {
+        // Found while auditing for issue #925 siblings: `pathName instate
+        // statespec ?script?` runs `script` as `if {[pathName instate
+        // statespec]} script` per the ttk::widget manual page — a real body,
+        // same shape as `console eval`, but was declared with an unbounded
+        // `Arity::at_least(1)` and no `ArgRole::Body`. Note: unlike
+        // `console`/`consoleinterp`, this is a data-correctness fix only —
+        // the LSP has no widget-path → widget-type tracking, so a real
+        // `.w instate ...` call never resolves to this SubCommand table
+        // (only a literal `ttk::treeview instate ...`/`ttk::notebook instate
+        // ...` head would); it's registered for when/if that resolution is
+        // added.
+        use crate::{ArgRole, Arity};
+        let specs = tk_command_specs();
+        for widget in ["ttk::treeview", "ttk::notebook"] {
+            let spec = specs.iter().find(|s| s.name == widget).unwrap();
+            let instate = spec.resolve_subcommand("instate").unwrap();
+            assert_eq!(instate.arity, Arity::new(1, 2), "{widget} instate arity");
+            assert_eq!(
+                instate.arg_role_at(1),
+                Some(ArgRole::Body),
+                "{widget} instate script arg"
+            );
+        }
     }
 
     #[test]

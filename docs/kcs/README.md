@@ -46,6 +46,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-issue-array-element-not-highlighted-as-variable.md](kcs-issue-array-element-not-highlighted-as-variable.md)
   — a by-reference variable-name argument (`set arr(key) 1`,
   `info exists arr(key)`) is not highlighted as a variable.
+- [kcs-issue-subcommand-script-body-not-highlighted.md](kcs-issue-subcommand-script-body-not-highlighted.md)
+  — a subcommand's script argument (`console eval { ... }`) stays one opaque
+  string instead of recursing into keyword/variable/comment highlighting.
 - [kcs-issue-duplicate-diagnostics.md](kcs-issue-duplicate-diagnostics.md)
   — the same finding is reported twice.
 - [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)

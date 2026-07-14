@@ -273,9 +273,15 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "instate",
-        arity: Arity::at_least(1),
+        arity: Arity::new(1, 2),
         detail: "Test whether the widget state matches statespec, optionally running a script.",
         synopsis: "pathName instate statespec ?script?",
+        // `script`, when given, runs as `if {[pathName instate statespec]} script`
+        // — a real Tcl body. (The LSP has no widget-path → widget-type
+        // tracking yet, so this only takes effect for a literal
+        // `ttk::treeview instate ...` head, not realistic `$w instate ...`
+        // usage; declared correctly regardless, per the registry contract.)
+        arg_roles: &[(1, ArgRole::Body)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
