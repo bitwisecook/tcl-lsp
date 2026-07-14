@@ -99,6 +99,11 @@ fn domain_err() -> Completion<Value> {
 }
 
 pub(crate) fn register(vm: &mut Vm) {
+    // `::tcl::mathfunc` is a real namespace in C Tcl, so a user
+    // `proc tcl::mathfunc::square {x} {…}` (TIP 232's custom-function
+    // mechanism) must find it existing — declare it alongside the builtin
+    // registrations (which only create flat command-table keys).
+    vm.declare_namespace("tcl::mathfunc");
     vm.register("tcl::mathfunc::abs", m_abs);
     vm.register("tcl::mathfunc::int", m_int);
     vm.register("tcl::mathfunc::wide", m_wide);

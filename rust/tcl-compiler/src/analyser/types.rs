@@ -588,6 +588,16 @@ pub struct Scope {
     pub defined_symbols: Vec<DefinedSymbol>,
     /// Child scopes (in declaration order).
     pub children: Vec<Scope>,
+    /// True for a **`TclOO`** method scope: the body executes with the
+    /// *object's* run-time namespace current (`::oo::ObjN`, path
+    /// `::oo::Helpers`), so bare command calls are statically approximated
+    /// as resolving from the GLOBAL namespace — the class's defining
+    /// namespace is NEVER searched (tclsh 8.6.16 / 9.0.4-pinned: a helper
+    /// proc in the class's defining namespace is unreachable unqualified
+    /// from a method body; a global one is found). snit / itcl method
+    /// scopes stay `false` — their members genuinely resolve in the
+    /// type / class namespace.
+    pub oo_global_resolution: bool,
 }
 
 impl Scope {
@@ -603,6 +613,7 @@ impl Scope {
             classes: HashMap::new(),
             defined_symbols: Vec::new(),
             children: Vec::new(),
+            oo_global_resolution: false,
         }
     }
 

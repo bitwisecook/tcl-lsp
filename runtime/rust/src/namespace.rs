@@ -220,6 +220,26 @@ impl Namespaces {
         RenameOutcome::Renamed
     }
 
+    /// Rewrite every [`Command::Imported`] redirect whose source is `old_fqn`
+    /// to point at `new_fqn`. In C Tcl an imported command holds the source's
+    /// command *token*, so `rename`ing the source keeps every import working
+    /// and `namespace origin` reports the source's **new** name (tclsh
+    /// 8.6.16 / 9.0.4-pinned); this by-name store follows the rename
+    /// explicitly instead. Deletion is *not* retargeted — a deleted source
+    /// leaves the import dangling (`invalid command name`), also pinned.
+    /// Rename is cold-path, so the full-tree scan is fine.
+    pub fn retarget_imports(&mut self, old_fqn: &[u8], new_fqn: &[u8]) {
+        for ns in &mut self.arena {
+            for cmd in ns.commands.values_mut() {
+                if let Command::Imported { source } = cmd {
+                    if source.as_slice() == old_fqn {
+                        *source = new_fqn.to_vec();
+                    }
+                }
+            }
+        }
+    }
+
     /// Every alias command's fully-qualified name across the tree (`interp
     /// aliases`). Global aliases keep their simple name (aliases are registered
     /// interpreter-wide); namespaced ones are qualified.

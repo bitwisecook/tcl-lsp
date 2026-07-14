@@ -1275,6 +1275,27 @@ mod tests {
         });
     }
 
+    /// C imports hold the source's command *token*: renaming the source
+    /// keeps the import working and `namespace origin` reports the NEW name;
+    /// deleting the source leaves the import dangling. Pinned on tclsh
+    /// 8.6.16 / 9.0.4 (`rename ::src::e ::src::e2` → `::dst::e` still runs,
+    /// origin `::src::e2`; `rename ::src2::f ""` → `::dst2::f` errors).
+    #[test]
+    fn import_follows_source_rename_but_not_delete() {
+        leak_free(|i| {
+            i.eval_str(b"namespace eval src { namespace export e; proc e {} { return E } }");
+            i.eval_str(b"namespace eval dst { namespace import ::src::e }");
+            assert_eq!(i.eval_str(b"rename ::src::e ::src::e2"), Code::Ok);
+            assert_eq!(i.eval_str(b"::dst::e"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"E");
+            assert_eq!(i.eval_str(b"namespace origin ::dst::e"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::src::e2");
+            // Delete dangles (lazy miss), as in C.
+            assert_eq!(i.eval_str(b"rename ::src::e2 {}"), Code::Ok);
+            assert_eq!(i.eval_str(b"::dst::e"), Code::Error);
+        });
+    }
+
     #[test]
     fn export_query_returns_patterns() {
         leak_free(|i| {

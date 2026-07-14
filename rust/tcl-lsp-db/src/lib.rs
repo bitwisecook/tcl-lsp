@@ -646,6 +646,10 @@ pub struct ItemBodyKey<'db> {
     /// `true` for a `TclOO` method body (isolated in a `Method` scope with
     /// instance variables pre-bound); `false` for a `proc`.
     pub is_method: bool,
+    /// Mirrors `Scope::oo_global_resolution`: `true` for a TclOO method
+    /// body (bare commands resolve globally — object-namespace semantics),
+    /// `false` for procs and snit / itcl members.
+    pub oo_global_resolution: bool,
     /// Class instance variables pre-bound in a method body (empty for procs).
     #[returns(ref)]
     pub class_variables: Vec<String>,
@@ -669,6 +673,7 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
         body_tok: tcl_lexer::Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(0, 0)),
         scope_path: Vec::new(),
         is_method: key.is_method(db),
+        oo_global_resolution: key.oo_global_resolution(db),
         namespace: key.namespace(db).clone(),
         scope_name: key.scope_name(db).clone(),
         params: key.params(db).clone(),
@@ -2067,6 +2072,7 @@ pub fn file_analysis_incremental(
             body.scope_name.clone(),
             body.params.clone(),
             body.is_method,
+            body.oo_global_resolution,
             body.class_variables.clone(),
             dialect.clone(),
             disabled_vec.clone(),

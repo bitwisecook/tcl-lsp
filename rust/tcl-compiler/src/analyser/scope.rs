@@ -96,7 +96,10 @@ pub(super) fn scope_at_mut<'a>(root: &'a mut Scope, path: &[usize]) -> Option<&'
 ///   name) rather than accumulating lexically: a proc resolves its body's
 ///   unqualified calls in its own namespace, not necessarily its lexical
 ///   nesting (a `proc ::a::b::p {}` declared at the top level still
-///   resolves unqualified calls against `::a::b`).
+///   resolves unqualified calls against `::a::b`). **Exception:** a
+///   `TclOO` method scope ([`Scope::oo_global_resolution`]) resets to
+///   global — the body runs in the object's namespace, and the class's
+///   defining namespace is never searched (tclsh-pinned).
 /// * [`ScopeKind::Uplevel`] (`uplevel #0`) resets to global — the body
 ///   runs in the global frame.
 /// * [`ScopeKind::Global`] is a no-op.
@@ -109,6 +112,13 @@ pub(super) fn scope_at_mut<'a>(root: &'a mut Scope, path: &[usize]) -> Option<&'
 fn advance_command_resolution_namespace(ns: &str, child: &Scope) -> String {
     match child.kind {
         ScopeKind::Namespace => join_namespace(ns, &child.name),
+        // A `TclOO` method body executes with the *object's* namespace current
+        // (`::oo::ObjN`, path `::oo::Helpers`) — the class's defining
+        // namespace is never searched, so the static approximation is
+        // global-only resolution (tclsh 8.6.16 / 9.0.4-pinned; see
+        // `Scope::oo_global_resolution`). snit / itcl methods fall through
+        // to the defining-namespace rule below.
+        ScopeKind::Method if child.oo_global_resolution => "::".to_string(),
         ScopeKind::Proc | ScopeKind::Method => {
             let qualified = if child.name.starts_with("::") {
                 normalise_qualified_name(&child.name)
@@ -328,6 +338,19 @@ impl Analyser {
         // `::outer::inner`, never `::inner` — tclsh-pinned; see
         // `command_resolution_candidates`).
         let paths = self.namespace_paths.clone();
+        // A builtin renamed away (`rename puts ::a::p`) or deleted
+        // (`rename puts ""` / alias deletion) is no longer callable under
+        // its original name — C raises `invalid command name` — so the
+        // registry name must not count as existing. (User procs keep the
+        // whole-file semantics documented above; this gates only the
+        // builtin clause.)
+        let renamed_away: std::collections::HashSet<String> = self
+            .result
+            .renamed_commands
+            .values()
+            .cloned()
+            .chain(self.deleted_commands.keys().cloned())
+            .collect();
         let result = &mut self.result;
         let (procs, classes, aliases, renames) = (
             &result.all_procs,
@@ -340,7 +363,8 @@ impl Analyser {
                 || classes.contains_key(qualified)
                 || aliases.contains_key(qualified)
                 || renames.contains_key(qualified)
-                || builtins.contains(qualified.trim_start_matches(':'))
+                || (builtins.contains(qualified.trim_start_matches(':'))
+                    && !renamed_away.contains(qualified))
         };
         for inv in &mut result.command_invocations {
             // Absolute names are exact; `None` means a background scan that
@@ -1076,6 +1100,73 @@ mod tests {
             .push(Scope::new(ScopeKind::Proc, "::ns1::myproc"));
         a.result.global_scope.children.push(ns);
         assert_eq!(a.namespace_from_scope_path(&[0, 0]), "::ns1");
+    }
+
+    /// The Method-scope namespace rule: a `TclOO` method (flagged) resolves
+    /// globally; a snit/itcl method (unflagged) resolves in the class's
+    /// defining namespace, like a proc.
+    #[test]
+    fn method_scope_namespace_honours_oo_global_resolution() {
+        let flagged = {
+            let mut m = Scope::new(ScopeKind::Method, "::pkg::C::m");
+            m.oo_global_resolution = true;
+            m
+        };
+        assert_eq!(
+            advance_command_resolution_namespace("::pkg", &flagged),
+            "::"
+        );
+        let unflagged = Scope::new(ScopeKind::Method, "::pkg::C::m");
+        assert_eq!(
+            advance_command_resolution_namespace("::pkg", &unflagged),
+            "::pkg::C",
+        );
+    }
+
+    /// tclsh 8.6.16 / 9.0.4-pinned (G1 shape): a bare call in a `TclOO`
+    /// method body dispatches the GLOBAL helper, not the class's
+    /// defining-namespace helper — method bodies run in the object's
+    /// namespace and never search the class's namespace.
+    #[test]
+    fn tcloo_method_call_settles_to_the_global_helper() {
+        let src = "namespace eval ::pkg {\n\
+                       proc helper {} { return PKGHELPER }\n\
+                       oo::class create C { method m {} { helper } }\n\
+                   }\n\
+                   proc ::helper {} { return GLOBALHELPER }\n";
+        let mut a = Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6");
+        let inv = analysis
+            .command_invocations
+            .iter()
+            .find(|i| i.name == "helper")
+            .expect("method-body helper invocation recorded");
+        assert_eq!(
+            inv.resolved_qualified_name.as_deref(),
+            Some("::helper"),
+            "TclOO method bodies resolve bare calls globally (tclsh-pinned)",
+        );
+    }
+
+    /// A builtin renamed away is not callable under its original name
+    /// (tclsh-pinned: C raises `invalid command name`), so settlement must
+    /// not demote a namespace-local guess to the dead builtin name.
+    #[test]
+    fn renamed_away_builtin_no_longer_settles_calls() {
+        let src = "rename puts ::a::p\n\
+                   namespace eval ::ns { puts x }\n";
+        let mut a = Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6");
+        let inv = analysis
+            .command_invocations
+            .iter()
+            .find(|i| i.name == "puts" && i.resolved_qualified_name.as_deref() != Some("::a::p"))
+            .expect("namespaced puts invocation recorded");
+        assert_eq!(
+            inv.resolved_qualified_name.as_deref(),
+            Some("::ns::puts"),
+            "the dead builtin name must not win; the local-first guess stays",
+        );
     }
 
     fn diag_codes(source: &str, dialect: &str) -> Vec<String> {

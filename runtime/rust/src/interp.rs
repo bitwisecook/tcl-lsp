@@ -1065,10 +1065,15 @@ impl Interp {
         if let Some(of) = old_fqn {
             let oo_live = !self.oo_is_empty();
             match outcome {
-                // The trace list (and any OO object) follows to the new name.
+                // The trace list (and any OO object) follows to the new name,
+                // and so does every `namespace import` redirect of the old
+                // name — C's imports hold the source's command token, so they
+                // survive a source rename (tclsh-pinned; see
+                // `Namespaces::retarget_imports`).
                 RenameOutcome::Renamed => {
                     let nf = self.fqn_for(new);
                     self.move_cmd_traces(&of, &nf);
+                    self.namespaces.borrow_mut().retarget_imports(&of, &nf);
                     if oo_live {
                         self.oo_command_renamed(&of, Some(&nf));
                     }
@@ -5783,9 +5788,18 @@ impl Interp {
     /// "tcl::mathfunc::NAME"` (no leading `::`, matching tclsh).
     #[cfg(have_tommath)]
     pub(crate) fn eval_math_call(&mut self, fname: &[u8], args: &[*mut TclObj]) -> Code {
-        let mut full = b"::tcl::mathfunc::".to_vec();
-        full.extend_from_slice(fname);
-        let cmd = self.namespaces.borrow().resolve(GLOBAL, &full);
+        // C's expr emits the *relative* name `tcl::mathfunc::NAME`, resolved
+        // from the CURRENT namespace by the ordinary command rule — so
+        // `::ns::tcl::mathfunc::NAME` shadows the global function inside
+        // `::ns` (tclsh 8.6.16/9.0.4-pinned; see the mathfunc rows in the
+        // shared conformance vector table). The global `::tcl::mathfunc`
+        // is simply the final fall-through base.
+        let mut rel = b"tcl::mathfunc::".to_vec();
+        rel.extend_from_slice(fname);
+        let cmd = self
+            .namespaces
+            .borrow()
+            .resolve(self.current_ns.get(), &rel);
         let Some(cmd) = cmd else {
             let mut m = b"invalid command name \"tcl::mathfunc::".to_vec();
             m.extend_from_slice(fname);
@@ -5793,9 +5807,9 @@ impl Interp {
             return self.error(&m);
         };
         // Build [name, args…], each owned (+1), and invoke the resolved command
-        // directly (no re-resolution through current_ns).
+        // directly (already resolved above; no second resolution).
         let mut argv: Vec<*mut TclObj> = Vec::with_capacity(args.len() + 1);
-        let name_obj = new_string(&full);
+        let name_obj = new_string(&rel);
         // SAFETY: name_obj is fresh; args are live; take the owning +1 the argv holds.
         unsafe { obj::incr_ref_count(name_obj) };
         argv.push(name_obj);

@@ -597,13 +597,27 @@ impl ExprOps for ExprEval<'_> {
     }
 
     fn call(&mut self, function: &str, args: Vec<Value>) -> Result<Value, TclError> {
+        // TIP 232: a math function is an ordinary command, so a user
+        // `proc tcl::mathfunc::f {…} {…}` (the canonical custom-function
+        // mechanism) must dispatch exactly like a builtin one — full command
+        // dispatch, not builtin-only. The name stays *relative*, so
+        // resolution is current-namespace-first (a namespace-local
+        // `tcl::mathfunc::f` shadows the global; tclsh-pinned by the
+        // mathfunc conformance vectors).
         let name = format!("tcl::mathfunc::{function}");
-        match self.vm.dispatch_builtin(&name, &args) {
-            Some(c) if c.code.is_ok() => Ok(c.result),
-            Some(c) => Err(TclError::new(c.result.to_str().to_string())),
-            None => Err(TclError::new(format!(
-                "unknown math function \"{function}\""
-            ))),
+        if self.vm.lookup_command(&name).is_none() {
+            // C reports the command miss, not a special math-function error
+            // (tclsh 8.6.16 / 9.0.4: `expr {frobnicate(1)}` →
+            // `invalid command name "tcl::mathfunc::frobnicate"`).
+            return Err(TclError::new(format!(
+                "invalid command name \"tcl::mathfunc::{function}\""
+            )));
+        }
+        let c = self.vm.invoke_command(&name, &args);
+        match c.code {
+            Code::Ok => Ok(c.result),
+            Code::Error => Err(TclError::new(c.result.to_str().to_string())),
+            code => Err(TclError::with_code(c.result.to_str().to_string(), code)),
         }
     }
 

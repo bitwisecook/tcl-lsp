@@ -70,6 +70,11 @@ pub struct DeferredBody {
     /// isolated `Method` scope with instance variables pre-bound); `false` for a
     /// `proc` body.
     pub is_method: bool,
+    /// Mirrors [`super::types::Scope::oo_global_resolution`] for the isolated
+    /// rebuild: `true` for a `TclOO` method body (bare commands resolve
+    /// globally — object-namespace semantics), `false` for procs and
+    /// snit / itcl members.
+    pub oo_global_resolution: bool,
     /// Lexical namespace of the proc (e.g. `"::ns"`), or — for a method — the
     /// class's **defining** namespace, used to reconstruct the isolated analysis
     /// context.
@@ -590,6 +595,13 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         &db.scope_name,
         kind,
     );
+    // A `TclOO` method's isolated scope resolves bare commands globally, like
+    // its whole-file twin (`Scope::oo_global_resolution`).
+    if db.oo_global_resolution
+        && let Some(scope) = super::scope::scope_at_mut(&mut a.result.global_scope, &proc_path)
+    {
+        scope.oo_global_resolution = true;
+    }
     let placeholder = tcl_lexer::Span::new(0, 0);
     let dummy = Token::new(tcl_lexer::TokenType::Str, placeholder);
     // Re-binding params / instance variables into the isolated scope is purely

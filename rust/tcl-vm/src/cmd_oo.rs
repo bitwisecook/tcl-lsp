@@ -1340,7 +1340,11 @@ fn run_step(
         return err("no such method");
     };
 
-    // A forward: evaluate `prefix args…` (qualified in the object namespace).
+    // A forward: evaluate `prefix args…` with the OBJECT's namespace current,
+    // so the target resolves object-ns → global exactly as C TclOO does —
+    // never in the dispatch site's namespace (tclsh 8.6.16 / 9.0.4-pinned:
+    // `$obj fw` called from a namespace that has its own same-named proc
+    // still dispatches the global target).
     if let Some(prefix) = &m.forward {
         let mut words: Vec<Value> = prefix.clone();
         words.extend_from_slice(args);
@@ -1355,9 +1359,10 @@ fn run_step(
             usage_prefix: usage_prefix.clone(),
         };
         vm.oo.call_stack.push(frame);
-        let _ = ns;
+        vm.push_ns(ns.unwrap_or_default());
         let name = words[0].to_str().to_string();
         let res = vm.invoke_command(&name, &words[1..]);
+        vm.pop_ns();
         vm.oo.call_stack.pop();
         return res;
     }
