@@ -1516,20 +1516,50 @@ impl Analyser {
             }
             _ => {}
         }
-        // A `catch SCRIPT ?resultVar? ?optionsVar?` nested in a `[...]`
-        // substitution (`set out [catch {…} msg]`, `if {[catch {…} e]} …`)
-        // still binds its result/options variables in the enclosing scope, so
-        // record them for `symbols`/completion/hover — var-defs are collected
-        // from substitution commands too.
-        // `warn_if_unused = false`: the binding is a side effect of `catch`,
+        // A variable-binding tail (`catch SCRIPT ?resultVar? ?optionsVar?`)
+        // nested in a `[...]` substitution (`set out [catch {…} msg]`,
+        // `if {[catch {…} e]} …`) still binds its variables in the enclosing
+        // scope, so record them for `symbols`/completion/hover — var-defs are
+        // collected from substitution commands too.  The bound positions come
+        // from the registry's `ArgRole::VarWrite` rows, not a hardcoded
+        // `catch` shape.
+        // `warn_if_unused = false`: the binding is a command side effect,
         // not a "set but never used" target (no W211).
-        if cmd_name == "catch" {
-            for (i, name) in args.iter().enumerate().take(3).skip(1) {
-                if let Some(tok) = arg_tokens.get(i) {
-                    self.define_var(name, *tok, scope_path, false, None);
+        if cmd_name == "catch"
+            && let Some(registry) = self.registry.as_ref()
+        {
+            let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+            for i in registry.arg_indices_for_role(&cmd_name, &arg_strs, ArgRole::VarWrite) {
+                if let (Some(name), Some(tok)) = (args.get(i), arg_tokens.get(i)) {
+                    let name = name.clone();
+                    self.define_var(&name, *tok, scope_path, false, None);
                 }
             }
         }
+
+        // A definition command (`proc`, a class definer, `oo::define`)
+        // nested inside a substitution — the feature-detection idiom
+        // `if {![catch {oo::configurable create Greeter {…}}]} {…}` — still
+        // defines its procedure/class and walks its body by the definer
+        // grammar, exactly as the top-level dispatch does.  Without this the
+        // definer's member keywords (`property`, `constructor`) and the
+        // defined name (`Greeter`) all draw W123 as unknown commands, even
+        // though W002 already reported the dialect-gated definer once.  The
+        // generic collector skips these bodies (`definition_handler_owns_body`)
+        // so members are never also dispatched as plain commands.
+        if self.handle_proc_command(&cmd_name, args, arg_tokens, scope_path) {
+            return;
+        }
+        if self.handle_oo_class_command(&cmd_name, args, arg_tokens, scope_path) {
+            return;
+        }
+        if self.handle_oo_define_command(&cmd_name, args, arg_tokens, scope_path) {
+            return;
+        }
+        if self.handle_snit_type_command(&cmd_name, args, arg_tokens, scope_path) {
+            return;
+        }
+        self.handle_itcl_class_command(&cmd_name, args, arg_tokens, scope_path);
     }
 
     /// The `[…]` substitution fragment tokens of a (possibly compound)
@@ -2118,7 +2148,17 @@ fn record_command_invocations(
         } else {
             None
         };
-        for body in descend_command(registry, sm, name, &args, &arg_tokens, config) {
+        // Definition commands are excluded from the plain-script body
+        // descent for the same reason as `collect_segment_recursive`: their
+        // bodies are definer grammars (member keywords, not commands), and
+        // the real handlers walk them — recording `property`/`constructor`
+        // here would draw spurious W123s.
+        let bodies = if definition_handler_owns_body(registry, name) {
+            Vec::new()
+        } else {
+            descend_command(registry, sm, name, &args, &arg_tokens, config)
+        };
+        for body in bodies {
             if switch_list_idx == Some(body.index) {
                 let elements = super::handlers::parse_switch_body_elements(&body.text, body.token);
                 // Elements alternate pattern, body, pattern, body, … —
@@ -2222,8 +2262,14 @@ fn collect_segment_recursive(
         }
     }
     // Registry-resolved body arguments (`[if {$c} {string index …}]`):
-    // their commands are also invisible to the main walk here.
-    if let Some(registry) = registry {
+    // their commands are also invisible to the main walk here.  Definition
+    // commands are excluded: `dispatch_nested_segment` routes them through
+    // the real proc/definer handlers, which own their body walks — a plain
+    // script descent here would dispatch definer member keywords
+    // (`property`, `constructor`) as unknown commands.
+    if let Some(registry) = registry
+        && !definition_handler_owns_body(registry, seg.name())
+    {
         let args: Vec<&str> = seg.texts.iter().skip(1).map(String::as_str).collect();
         let arg_tokens: Vec<Token> = seg.argv.iter().skip(1).copied().collect();
         for body in descend_command(registry, sm, seg.name(), &args, &arg_tokens, config) {
@@ -2233,6 +2279,20 @@ fn collect_segment_recursive(
         }
     }
     out.push(seg);
+}
+
+/// Whether the nested dispatch routes `name` through a real definition
+/// handler (`handle_proc_command` / the class-definer handlers), which owns
+/// its body walk — the generic collector must not also descend that body as
+/// a plain script.  Registry-driven: a `definition_body` grammar (class
+/// definers, `oo::define`) or the `DEFINES_PROCEDURE` trait (`proc`).
+fn definition_handler_owns_body(registry: &CommandRegistry, name: &str) -> bool {
+    registry.get(name).is_some_and(|spec| {
+        spec.definition_body.is_some()
+            || spec
+                .traits
+                .contains(tcl_registry::Traits::DEFINES_PROCEDURE)
+    })
 }
 
 /// For the ``switch ?options? string {pattern body …}`` form, the index

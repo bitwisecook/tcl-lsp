@@ -307,6 +307,83 @@ fn w108_bidi_control_in_code_flags_in_confusables_mode() {
     assert_eq!(hits[0].0, 0x202e);
 }
 
+fn codes_for_dialect(src: &str, dialect: &str) -> Vec<String> {
+    let mut a = crate::analyser::Analyser::new();
+    a.analyse(src, dialect)
+        .diagnostics
+        .iter()
+        .map(|d| d.code.to_string())
+        .collect()
+}
+
+#[test]
+fn disabled_definer_nested_in_catch_reports_w002_once_without_cascade() {
+    // The feature-detection idiom: a Tcl 9-only definer probed under 8.6.
+    // W002 reports the availability once; the definer's member keywords
+    // (`property`, `constructor`) and the defined class name must NOT
+    // cascade into W123 — the definer grammar still resolves the body
+    // structurally even though the dialect gate fails.
+    let src = "if {![catch {oo::configurable create Greeter {
+    property greeting
+                   constructor {g} { my configure -greeting $g }
+}}]} { puts ok }
+Greeter new x
+";
+    let codes = codes_for_dialect(src, "tcl8.6");
+    assert_eq!(
+        codes.iter().filter(|c| *c == "W002").count(),
+        1,
+        "W002 exactly once: {codes:?}"
+    );
+    assert!(
+        !codes.contains(&"W123".to_string()),
+        "no unknown-command cascade for members or the class name: {codes:?}"
+    );
+}
+
+#[test]
+fn proc_nested_in_catch_registers_the_proc() {
+    // `catch {proc p …}` still defines `p` — a later call is not unknown.
+    let src = "if {[catch {proc p {} { return 1 }}]} { puts no }
+p
+";
+    let codes = codes_for_dialect(src, "tcl8.6");
+    assert!(
+        !codes.contains(&"W123".to_string()),
+        "the nested proc must register: {codes:?}"
+    );
+}
+
+#[test]
+fn plain_script_body_nested_in_catch_still_descends() {
+    // FP guard for the definer carve-out: an ordinary control-flow body
+    // nested in the substitution is still walked, so a genuinely unknown
+    // command inside it keeps its W123.
+    let src = "if {[catch {if {1} { zz9unknowncmd a b }}]} { puts no }
+";
+    let codes = codes_for_dialect(src, "tcl8.6");
+    assert!(
+        codes.contains(&"W123".to_string()),
+        "unknown command inside a nested plain body still fires: {codes:?}"
+    );
+}
+
+#[test]
+fn enabled_definer_nested_in_catch_is_silent() {
+    // Under a dialect where the definer exists there is no W002 and no
+    // cascade either.
+    let src = "if {![catch {oo::configurable create Greeter {
+    property greeting
+}}]}                { puts ok }
+Greeter new x
+";
+    let codes = codes_for_dialect(src, "tcl9.0");
+    assert!(
+        !codes.contains(&"W002".to_string()) && !codes.contains(&"W123".to_string()),
+        "enabled definer draws neither W002 nor a cascade: {codes:?}"
+    );
+}
+
 #[test]
 fn w108_off_mode_disables_entirely() {
     use crate::analyser::NonAsciiMode::Off;
@@ -7652,9 +7729,16 @@ fn w303_redos_nested_quantifiers() {
     );
     // Option flags before the pattern are skipped.
     assert_eq!(sec_codes("regexp -nocase {(a+)+} $s\n", "W303"), 1);
+    // Anchored nested quantifier still fires.
+    assert_eq!(sec_codes("regexp {(a+)+$} $x\n", "W303"), 1);
     // Safe patterns don't fire.
     assert_eq!(sec_codes("regexp {abc} $str\n", "W303"), 0);
     assert_eq!(sec_codes("regexp {[0-9]+} $s\n", "W303"), 0);
+    // FP gate: glob-pattern commands are not regexes — the guard is the
+    // spec's `pattern_type == Regex`, so regex-looking text under
+    // `string match` / `lsearch` must not fire.
+    assert_eq!(sec_codes("string match {(a+)+$} $x\n", "W303"), 0);
+    assert_eq!(sec_codes("lsearch $l {(a+)+$}\n", "W303"), 0);
 }
 
 #[test]
