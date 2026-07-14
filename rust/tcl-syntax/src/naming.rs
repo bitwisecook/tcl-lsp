@@ -345,9 +345,15 @@ pub fn bareword_resolution_candidates(namespace: &str, cmd_name: &str) -> Vec<St
 /// * No implicit ancestor walk: a bare `helper` inside `::a::b` never
 ///   reaches `::a::helper` unless `::a` is on the `namespace path`.
 ///
-/// `path` entries may be rooted (`::pathns`) or unrooted (`pathns`); both
-/// normalise.  Consumers that do not model `namespace path` pass `&[]`
-/// (equivalently, use [`bareword_resolution_candidates`]).
+/// `path` entries may be given rooted (`::pathns`) or as written
+/// (`pathns`): a *relative* entry is **current-namespace-relative only**
+/// — `namespace path inner` inside `::outer` means `::outer::inner`,
+/// never `::inner` (tclsh 8.6.16 / 9.0.4: the set errors `namespace
+/// "inner" not found in "::outer"` when `::outer::inner` does not exist,
+/// even with `::inner` present — namespace names have no global
+/// fallback, unlike command names).  Consumers that do not model
+/// `namespace path` pass `&[]` (equivalently, use
+/// [`bareword_resolution_candidates`]).
 ///
 /// ```
 /// use tcl_syntax::naming::command_resolution_candidates;
@@ -356,10 +362,10 @@ pub fn bareword_resolution_candidates(namespace: &str, cmd_name: &str) -> Vec<St
 ///     command_resolution_candidates("::c", &["::pathns"], "helper"),
 ///     vec!["::c::helper", "::pathns::helper", "::helper"],
 /// );
-/// // ... for relative-qualified names too (tclsh-confirmed):
+/// // a relative path entry is current-namespace-relative (tclsh-pinned):
 /// assert_eq!(
 ///     command_resolution_candidates("::d", &["pathq"], "sub::q"),
-///     vec!["::d::sub::q", "::pathq::sub::q", "::sub::q"],
+///     vec!["::d::sub::q", "::d::pathq::sub::q", "::sub::q"],
 /// );
 /// // absolute names ignore the path entirely:
 /// assert_eq!(
@@ -395,7 +401,18 @@ pub fn command_resolution_candidates<S: AsRef<str>>(
     };
     push_base(namespace, &mut out);
     for entry in path {
-        push_base(entry.as_ref(), &mut out);
+        let entry = entry.as_ref();
+        if entry.starts_with("::") {
+            push_base(entry, &mut out);
+        } else {
+            // Relative entry: current-namespace-relative only (see above).
+            let based = if namespace.is_empty() || namespace == "::" {
+                format!("::{entry}")
+            } else {
+                format!("{namespace}::{entry}")
+            };
+            push_base(&based, &mut out);
+        }
     }
     push_base("::", &mut out);
     out

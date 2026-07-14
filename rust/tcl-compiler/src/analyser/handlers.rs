@@ -895,6 +895,34 @@ impl Analyser {
         true
     }
 
+    /// Handle `namespace path {…}`: record the current namespace's
+    /// command-resolution search path for the post-walk settlement
+    /// ([`Self::finalise_invocation_resolutions`]).
+    ///
+    /// Void handler (internal cmd-name guard). Only the two-word set form
+    /// with a *literal* list is recorded — the one-word query form mutates
+    /// nothing, and a dynamic list (`$var` / `[cmd]`) is statically
+    /// unknowable, so it keeps the conservative empty path. Each
+    /// declaration replaces the namespace's whole path, as in C Tcl, so
+    /// the lexically-last one wins (settlement is call-time / whole-file,
+    /// like the rest of the resolution model).
+    pub fn handle_namespace_path_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        scope_path: &[usize],
+    ) {
+        if cmd_name != "namespace" || args.len() != 2 || args[0] != "path" {
+            return;
+        }
+        if tcl_syntax::naming::is_dynamic_word(&args[1]) {
+            return;
+        }
+        let ns = self.command_resolution_namespace(scope_path);
+        let entries = args[1].split_whitespace().map(str::to_string).collect();
+        self.namespace_paths.insert(ns, entries);
+    }
+
     /// Handle `uplevel #0 { body }`: the script runs in the global
     /// frame, so the body's locals belong to a global-rooted scope
     /// rather than the enclosing proc.  Open an [`ScopeKind::Uplevel`]
@@ -3028,6 +3056,78 @@ mod tests {
     }
 
     // handle_namespace_eval_command
+
+    // handle_namespace_path_command
+
+    /// The two-word literal set form records entries under the declaring
+    /// namespace; a later declaration replaces the whole path (C Tcl
+    /// semantics), and entries are kept as written (rooting happens in the
+    /// shared candidate builder).
+    #[test]
+    fn handle_namespace_path_records_and_replaces() {
+        let mut a = Analyser::new();
+        a.handle_namespace_path_command(
+            "namespace",
+            &["path".to_string(), "::u ::v".to_string()],
+            &[],
+        );
+        assert_eq!(
+            a.namespace_paths.get("::").map(Vec::as_slice),
+            Some(&["::u".to_string(), "::v".to_string()][..]),
+        );
+        a.handle_namespace_path_command(
+            "namespace",
+            &["path".to_string(), "inner".to_string()],
+            &[],
+        );
+        assert_eq!(
+            a.namespace_paths.get("::").map(Vec::as_slice),
+            Some(&["inner".to_string()][..]),
+            "each namespace path declaration replaces the whole path",
+        );
+    }
+
+    /// The query form (no list) and a dynamic list (`$var` / `[cmd]`)
+    /// record nothing — the conservative empty path stands.
+    #[test]
+    fn handle_namespace_path_skips_query_and_dynamic_forms() {
+        let mut a = Analyser::new();
+        a.handle_namespace_path_command("namespace", &["path".to_string()], &[]);
+        a.handle_namespace_path_command(
+            "namespace",
+            &["path".to_string(), "$entries".to_string()],
+            &[],
+        );
+        a.handle_namespace_path_command(
+            "namespace",
+            &["path".to_string(), "[current_path]".to_string()],
+            &[],
+        );
+        assert!(a.namespace_paths.is_empty());
+    }
+
+    /// A declaration inside a namespace scope keys to that namespace's
+    /// accumulated name, so settlement applies it to the right call sites.
+    #[test]
+    fn handle_namespace_path_keys_to_declaring_namespace() {
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(crate::analyser::types::Scope::new(
+                crate::analyser::types::ScopeKind::Namespace,
+                "outer",
+            ));
+        a.handle_namespace_path_command(
+            "namespace",
+            &["path".to_string(), "::helpers".to_string()],
+            &[0],
+        );
+        assert_eq!(
+            a.namespace_paths.get("::outer").map(Vec::as_slice),
+            Some(&["::helpers".to_string()][..]),
+        );
+    }
 
     #[test]
     fn handle_namespace_eval_creates_child_scope() {

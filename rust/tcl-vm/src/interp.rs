@@ -1555,8 +1555,16 @@ impl Vm {
     /// this plus the command fetch, so the two can never disagree.
     /// `None` if unresolved.
     pub(crate) fn resolve_command_fqn(&self, cxt: &str, name: &str) -> Option<String> {
-        let path = self.ns_paths.get(cxt).map_or(&[][..], Vec::as_slice);
-        tcl_syntax::naming::resolve_command_with(cxt, path, name, |candidate| {
+        // `ns_paths` entries are stored in the VM's canonical form — always
+        // absolute, no leading `::` (rooted at set time by `canon_ns`).
+        // Root them before handing to the shared resolver, whose unrooted
+        // entries mean *current-namespace-relative* (the Tcl source form —
+        // tclsh-pinned; see `command_resolution_candidates`).
+        let rooted: Vec<String> = self
+            .ns_paths
+            .get(cxt)
+            .map_or_else(Vec::new, |p| p.iter().map(|e| format!("::{e}")).collect());
+        tcl_syntax::naming::resolve_command_with(cxt, &rooted, name, |candidate| {
             self.commands
                 .contains_key(candidate.trim_start_matches(':'))
         })

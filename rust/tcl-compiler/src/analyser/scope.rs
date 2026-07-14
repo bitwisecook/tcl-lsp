@@ -321,6 +321,13 @@ impl Analyser {
         let Some(builtins) = self.builtin_names.as_ref() else {
             return;
         };
+        // Recorded `namespace path` declarations, cloned before borrowing
+        // `result` mutably. Entries are passed as written — the shared
+        // candidate builder roots a relative entry against the declaring
+        // namespace (`namespace path inner` inside `::outer` means
+        // `::outer::inner`, never `::inner` — tclsh-pinned; see
+        // `command_resolution_candidates`).
+        let paths = self.namespace_paths.clone();
         let result = &mut self.result;
         let (procs, classes, aliases, renames) = (
             &result.all_procs,
@@ -348,8 +355,10 @@ impl Analyser {
             // recover the call namespace and re-run the *shared* resolver
             // (`resolve_command_with`, the same rule the optimiser, the
             // uplevel inliner, and the VM dispatch on) now that `known` is
-            // complete.  The analyser does not track `namespace path`, so
-            // the path is empty here.
+            // complete — with the namespace's recorded `namespace path`
+            // (empty when none was declared), so a call the path would
+            // catch settles to the path candidate, exactly as it
+            // dispatches at run time.
             let suffix = format!("::{}", inv.name);
             let ns = match resolved.strip_suffix(suffix.as_str()) {
                 Some("") => "::",
@@ -357,8 +366,8 @@ impl Analyser {
                 // Not the `{ns}::{name}` shape the walk produces — leave it.
                 None => continue,
             };
-            if let Some(winner) =
-                crate::naming::resolve_command_with::<&str, _>(ns, &[], &inv.name, &known)
+            let path: &[String] = paths.get(ns).map_or(&[], Vec::as_slice);
+            if let Some(winner) = crate::naming::resolve_command_with(ns, path, &inv.name, &known)
                 && winner != resolved
             {
                 inv.resolved_qualified_name = Some(winner);

@@ -28,6 +28,11 @@ namespace `ns`:
 4. Resolution is at call time, so a definition later in the file still
    wins for calls made from procedure bodies.
 
+A `namespace path` entry written *relative* (`namespace path inner`
+inside `::outer`) always means the current-namespace child
+(`::outer::inner`) — namespace names have no global fallback, unlike
+command names; the set errors if that namespace does not exist.
+
 One shared implementation (`resolve_command_with` in the `tcl-syntax`
 crate) backs the analyser, the optimiser, the bytecode virtual machine,
 and the WASM runtime. A conformance table of scenarios, executed against
@@ -35,6 +40,8 @@ real tclsh 8.6 and 9.0, keeps every implementation in agreement — see the
 [command-resolution contract](../design/contracts/command-resolution.md)
 for the algorithm, the consumer list, and how to add a scenario.
 
-One static limitation: the analyser does not yet track `namespace path`
-declarations, so editor features assume an empty path. The virtual
-machine and the WASM runtime honour the real path at run time.
+The analyser tracks `namespace path` declarations statically when the
+path is a literal list (the common form); a dynamic list
+(`namespace path $entries`) is unknowable ahead of run time, so editor
+features then assume an empty path. The virtual machine and the WASM
+runtime always honour the real path at run time.

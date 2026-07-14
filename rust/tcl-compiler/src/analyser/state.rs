@@ -209,6 +209,17 @@ pub struct Analyser {
     /// [`Self::rename_offsets`]), instead of still validating it against
     /// a definition that's no longer callable under that name.
     pub deleted_commands: HashMap<String, u32>,
+    /// Static `namespace path {…}` declarations: ``declaring namespace →
+    /// raw path entries`` (each declaration replaces the whole path, as in
+    /// C Tcl, so the lexically-last one wins). Entries are stored as
+    /// written — absolute or relative — and normalised post-walk by
+    /// [`Self::finalise_invocation_resolutions`], which resolves a
+    /// relative entry against the namespaces declared in the file
+    /// (current-first, then global — Tcl's namespace-name resolution at
+    /// `namespace path` set time). Only a literal list argument is
+    /// recorded; a dynamic one (`$var` / `[cmd]`) is skipped, keeping the
+    /// conservative empty path.
+    pub(super) namespace_paths: HashMap<String, Vec<String>>,
     /// Variable-as-command call sites; resolved post-walk by W307.
     pub var_command_sites: Vec<VarCommandSite>,
     /// Command-substitution-as-command call sites; same dispatch
@@ -500,6 +511,7 @@ impl Analyser {
             alias_offsets: HashMap::new(),
             rename_offsets: HashMap::new(),
             deleted_commands: HashMap::new(),
+            namespace_paths: HashMap::new(),
             var_command_sites: Vec::new(),
             cmd_command_sites: Vec::new(),
             ns_cache: HashMap::new(),

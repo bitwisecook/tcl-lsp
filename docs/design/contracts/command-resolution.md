@@ -15,7 +15,12 @@ Given a call to `name` from current namespace `ns` whose
 2. **Relative** name — bare (`helper`) *or* qualifier-carrying
    (`inner::p`), identically: try, in order, `ns`, then `P1 … Pn`, then
    the global namespace as the base; the call dispatches the **first base
-   under which the command exists**.
+   under which the command exists**. A *relative* path entry is
+   **current-namespace-relative only**: `namespace path inner` inside
+   `::outer` means `::outer::inner`, never `::inner` — the set errors
+   (`namespace "inner" not found in "::outer"`) when `::outer::inner`
+   does not exist, even with `::inner` present. Namespace names have no
+   global fallback, unlike command names (tclsh-pinned).
 3. Existence means the *command* exists. A qualifier namespace merely
    existing does not commit resolution: `inner::p` from `::outer`
    dispatches `::inner::p` even when the namespace `::outer::inner`
@@ -34,7 +39,7 @@ case, including all edge cases above).
 
 | Helper | Role |
 |---|---|
-| `command_resolution_candidates(ns, path, name)` | Candidate list in priority order (absolute → single candidate; relative → `ns`, path entries, global; deduped). |
+| `command_resolution_candidates(ns, path, name)` | Candidate list in priority order (absolute → single candidate; relative → `ns`, path entries, global; deduped). Roots a relative path entry against `ns` (the current-namespace-relative-only rule above), so callers may pass entries as written. |
 | `bareword_resolution_candidates(ns, name)` | Path-free wrapper for consumers that do not model `namespace path`. |
 | `resolve_command_with(ns, path, name, exists)` | The full rule: first candidate for which `exists` is true, `None` = `invalid command name`. |
 | `naming::conformance` | The shared vector table (`tests/data/command_resolution_vectors.txt`), its parser, and `vector_script` (renders a vector as runnable Tcl). |
@@ -43,7 +48,7 @@ case, including all edge cases above).
 
 | Consumer | How it conforms | Gate |
 |---|---|---|
-| Analyser call-site settlement (`Analyser::finalise_invocation_resolutions`, feeds `resolved_qualified_name` for references / rename / call hierarchy / code lens / symbol graph / minifier) | calls `resolve_command_with` post-walk (call-time semantics: whole-file definitions count) | `tcl-compiler/tests/command_resolution_conformance.rs` |
+| Analyser call-site settlement (`Analyser::finalise_invocation_resolutions`, feeds `resolved_qualified_name` for references / rename / call hierarchy / code lens / symbol graph / minifier) | calls `resolve_command_with` post-walk (call-time semantics: whole-file definitions count) with the namespace's statically-recorded `namespace path` (`handle_namespace_path_command` tracks literal declarations; each replaces the whole path, as in C Tcl) | `tcl-compiler/tests/command_resolution_conformance.rs` (every vector, path-carrying included) |
 | Analyser shadow/arity checks (`resolve_proc_call`), W-code validity (`qualify_candidates`) | shared candidate helper | unit tests in `handlers.rs` / `validity.rs` |
 | Optimiser interprocedural identity (`resolve_internal_call` / `resolve_call_target`), O103 folding (`resolve_proc_qname`) | `resolve_command_with` over the unit's proc table | unit tests in `interprocedural.rs` |
 | `uplevel` passthrough inliner (`inline_uplevel.rs`) | `resolve_command_with` over the candidate map | existing inliner tests |
@@ -87,11 +92,17 @@ not change the rule, and must not grow bespoke resolution logic:
 
 ## Known modelling gaps (static side)
 
-- The **analyser does not track `namespace path` declarations**, so its
-  settlement conservatively passes an empty path (path-carrying vectors
-  are skipped in its conformance test; both execution backends cover
-  them). If the analyser gains path tracking, remove that filter and the
-  gate tightens itself.
+- The analyser tracks **literal** `namespace path {…}` declarations only:
+  a dynamic list (`namespace path $entries` / `[…]`) is statically
+  unknowable and keeps the conservative empty path. Path knowledge is
+  whole-file (call-time semantics, like the rest of the settlement) —
+  the lexically-last declaration per namespace wins, with no
+  between-declarations ordering within one namespace.
+- The **walk-time** heuristics (shadow/arity `resolve_proc_call`, W-code
+  `qualify_candidates`) still resolve pathlessly — a path declaration may
+  lexically follow the site they fire at. The settled
+  `resolved_qualified_name` (what references / rename / call hierarchy /
+  code lens consume) is the path-aware, conformance-gated value.
 - **Custom command resolvers** (`Tcl_SetNamespaceResolvers`, C-level) and
   `namespace unknown` handlers are out of scope for static resolution;
   the runtime's `unknown` fallback fires only after this rule misses.

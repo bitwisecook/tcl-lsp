@@ -516,6 +516,7 @@ impl Analyser {
         self.handle_package_command(cmd_name, cmd_tok, args, arg_tokens);
         self.handle_source_command(cmd_name, args, arg_tokens);
         self.handle_namespace_import_command(cmd_name, args, arg_tokens, scope_path);
+        self.handle_namespace_path_command(cmd_name, args, scope_path);
         self.handle_tcllib_import_wrapper(cmd_name, cmd_tok, args, scope_path);
         self.handle_auto_path_command(cmd_name, args, arg_tokens);
         self.handle_regex_pattern_capture(cmd_name, args, arg_tokens, scope_path);

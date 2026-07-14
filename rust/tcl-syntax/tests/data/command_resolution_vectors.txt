@@ -55,3 +55,11 @@
 # ... and its qualifier-namespace-exists-but-command-missing case falls
 # through past the path entry to global
 ::d | ::pathq | ::pathq::sub::other,::sub::q | sub::q | ::sub::q
+
+# -- relative path entries are current-namespace-relative ONLY: `inner`
+# from ::outer means ::outer::inner, never ::inner (tclsh 8.6.16 / 9.0.4:
+# `namespace path inner` errors `namespace "inner" not found in "::outer"`
+# when ::outer::inner does not exist, even with ::inner present — no
+# global fallback for namespace names, unlike command names)
+::outer | inner | ::outer::inner::helper,::inner::helper | helper | ::outer::inner::helper
+::a | b::c | ::a::b::c::helper | helper | ::a::b::c::helper

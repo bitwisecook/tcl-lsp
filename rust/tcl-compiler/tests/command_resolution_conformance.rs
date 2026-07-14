@@ -19,20 +19,18 @@
 //! Command-resolution conformance for the static analyser: the settled
 //! `resolved_qualified_name` on every recorded call site must agree with
 //! the shared vector table (`tcl_syntax::naming::conformance`, itself
-//! pinned against real tclsh), for every vector the analyser can express.
-//!
-//! The analyser does not track `namespace path` declarations, so
-//! path-carrying vectors are skipped here (the executing backends — the
-//! bytecode VM and the WASM runtime — cover them); if the analyser gains
-//! path tracking, delete the filter and this test tightens itself.
+//! pinned against real tclsh) — including the `namespace path`-carrying
+//! vectors, which exercise the analyser's static `namespace path`
+//! tracking (`handle_namespace_path_command` → the settlement pass).
 
 use tcl_compiler::analyser::Analyser;
 use tcl_syntax::naming::conformance::vectors;
 
-/// Render a vector as analysable source: the definitions as procs, and the
-/// call inside `namespace eval {ns}` — the same shapes `vector_script`
-/// executes, minus the runtime plumbing.
-fn vector_source(ns: &str, defs: &[String], call: &str) -> String {
+/// Render a vector as analysable source: the definitions as procs, any
+/// `namespace path` as a literal declaration in the call namespace, and
+/// the call inside `namespace eval {ns}` — the same shapes
+/// `vector_script` executes, minus the runtime plumbing.
+fn vector_source(ns: &str, path: &[String], defs: &[String], call: &str) -> String {
     use std::fmt::Write as _;
     let mut src = String::new();
     for def in defs {
@@ -44,6 +42,17 @@ fn vector_source(ns: &str, defs: &[String], call: &str) -> String {
         }
         let _ = writeln!(src, "proc {def} {{}} {{ return {def} }}");
     }
+    if !path.is_empty() {
+        let entries = path.join(" ");
+        if ns == "::" {
+            let _ = writeln!(src, "namespace path {{{entries}}}");
+        } else {
+            let _ = writeln!(
+                src,
+                "namespace eval {ns} {{ namespace path {{{entries}}} }}"
+            );
+        }
+    }
     if ns == "::" {
         let _ = writeln!(src, "{call}");
     } else {
@@ -53,9 +62,9 @@ fn vector_source(ns: &str, defs: &[String], call: &str) -> String {
 }
 
 #[test]
-fn analyser_settlement_matches_every_pathless_vector() {
-    for v in vectors().iter().filter(|v| v.path.is_empty()) {
-        let src = vector_source(&v.ns, &v.defs, &v.call);
+fn analyser_settlement_matches_every_vector() {
+    for v in vectors() {
+        let src = vector_source(&v.ns, &v.path, &v.defs, &v.call);
         let mut analyser = Analyser::new();
         let analysis = analyser.analyse(&src, "tcl8.6");
         let inv = analysis
@@ -77,7 +86,7 @@ fn analyser_settlement_matches_every_pathless_vector() {
         // consumers — pin that exact behaviour so it can't silently
         // change.
         let expected = v.want.clone().unwrap_or_else(|| {
-            tcl_syntax::naming::command_resolution_candidates::<&str>(&v.ns, &[], &v.call)
+            tcl_syntax::naming::command_resolution_candidates(&v.ns, &v.path, &v.call)
                 .into_iter()
                 .next()
                 .expect("at least one candidate")
@@ -85,11 +94,12 @@ fn analyser_settlement_matches_every_pathless_vector() {
         assert_eq!(
             resolved,
             expected.as_str(),
-            "vector line {} (ns={} defs={:?} call={}): analyser settlement disagrees with \
-             C Tcl (or, for an unresolvable call, with the pinned local-first guess)\
+            "vector line {} (ns={} path={:?} defs={:?} call={}): analyser settlement disagrees \
+             with C Tcl (or, for an unresolvable call, with the pinned local-first guess)\
              \nsource:\n{src}",
             v.line,
             v.ns,
+            v.path,
             v.defs,
             v.call,
         );
