@@ -124,7 +124,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 
         // O123: any non-tail self-call embedded in an expression
         // → accumulator candidate (hint-only).
-        if non_tail_self_call_in_expression(&proc.body, &self_names) {
+        if non_tail_self_call_in_expression(&proc.body, &self_names, ctx.registry) {
             let mut opt = Optimisation::new(
                 DiagCode::O123,
                 format!(
@@ -393,17 +393,27 @@ fn count_bracket_self_calls(text: &str, self_names: &HashSet<String>) -> usize {
 /// wrapper:
 ///
 /// 1. the argument is an `[expr {…}]` command substitution (not a plain
-///    `[self …]` tail call, which O121 already handles);
+///    `[self …]` tail call, which O121 already handles) — the head is
+///    recognised via the registry's `EXPR_CONCATENATES_ARGS` trait, not a
+///    name match;
 /// 2. it embeds **exactly one** self-call — tree recursion like
 ///    `fib` (`[fib …] + [fib …]`, two calls) is *not* a simple
 ///    accumulator and must not fire;
 /// 3. it contains an associative operator (`+` / `*`) so introducing an
 ///    accumulator parameter is meaningful.
-fn is_accumulator_pattern(value: &str, self_names: &HashSet<String>) -> bool {
+fn is_accumulator_pattern(
+    value: &str,
+    self_names: &HashSet<String>,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) -> bool {
     let Some((head, _)) = parse_return_subst(value) else {
         return false;
     };
-    if head != "expr" {
+    let head_is_expr = registry.and_then(|r| r.get(&head)).is_some_and(|s| {
+        s.traits
+            .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+    });
+    if !head_is_expr {
         return false;
     }
     if count_bracket_self_calls(value, self_names) != 1 {
@@ -414,16 +424,24 @@ fn is_accumulator_pattern(value: &str, self_names: &HashSet<String>) -> bool {
 
 /// Detect a non-tail self-call embedded in an expression body
 /// or a return's command substitution — the accumulator pattern.
-fn non_tail_self_call_in_expression(script: &Script, self_names: &HashSet<String>) -> bool {
+fn non_tail_self_call_in_expression(
+    script: &Script,
+    self_names: &HashSet<String>,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) -> bool {
     for stmt in &script.statements {
-        if non_tail_in_stmt(stmt, self_names) {
+        if non_tail_in_stmt(stmt, self_names, registry) {
             return true;
         }
     }
     false
 }
 
-fn non_tail_in_stmt(stmt: &Statement, self_names: &HashSet<String>) -> bool {
+fn non_tail_in_stmt(
+    stmt: &Statement,
+    self_names: &HashSet<String>,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) -> bool {
     match stmt {
         Statement::Return {
             value: Some(v),
@@ -435,7 +453,7 @@ fn non_tail_in_stmt(stmt: &Statement, self_names: &HashSet<String>) -> bool {
             if *braced {
                 return false;
             }
-            is_accumulator_pattern(v, self_names)
+            is_accumulator_pattern(v, self_names, registry)
         }
         // Accumulator sites come from `return` statements only, so
         // an assignment never contributes an O123 candidate.
@@ -444,10 +462,10 @@ fn non_tail_in_stmt(stmt: &Statement, self_names: &HashSet<String>) -> bool {
         } => {
             clauses
                 .iter()
-                .any(|c| non_tail_self_call_in_expression(&c.body, self_names))
+                .any(|c| non_tail_self_call_in_expression(&c.body, self_names, registry))
                 || else_body
                     .as_ref()
-                    .is_some_and(|b| non_tail_self_call_in_expression(b, self_names))
+                    .is_some_and(|b| non_tail_self_call_in_expression(b, self_names, registry))
         }
         Statement::Switch {
             arms, default_body, ..
@@ -455,34 +473,36 @@ fn non_tail_in_stmt(stmt: &Statement, self_names: &HashSet<String>) -> bool {
             arms.iter().any(|a| {
                 a.body
                     .as_ref()
-                    .is_some_and(|b| non_tail_self_call_in_expression(b, self_names))
+                    .is_some_and(|b| non_tail_self_call_in_expression(b, self_names, registry))
             }) || default_body
                 .as_ref()
-                .is_some_and(|b| non_tail_self_call_in_expression(b, self_names))
+                .is_some_and(|b| non_tail_self_call_in_expression(b, self_names, registry))
         }
         Statement::For {
             init, body, next, ..
         } => {
-            non_tail_self_call_in_expression(init, self_names)
-                || non_tail_self_call_in_expression(body, self_names)
-                || non_tail_self_call_in_expression(next, self_names)
+            non_tail_self_call_in_expression(init, self_names, registry)
+                || non_tail_self_call_in_expression(body, self_names, registry)
+                || non_tail_self_call_in_expression(next, self_names, registry)
         }
         Statement::While { body, .. }
         | Statement::Catch { body, .. }
-        | Statement::Foreach { body, .. } => non_tail_self_call_in_expression(body, self_names),
+        | Statement::Foreach { body, .. } => {
+            non_tail_self_call_in_expression(body, self_names, registry)
+        }
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            non_tail_self_call_in_expression(body, self_names)
+            non_tail_self_call_in_expression(body, self_names, registry)
                 || handlers
                     .iter()
-                    .any(|h| non_tail_self_call_in_expression(&h.body, self_names))
+                    .any(|h| non_tail_self_call_in_expression(&h.body, self_names, registry))
                 || finally_body
                     .as_ref()
-                    .is_some_and(|fb| non_tail_self_call_in_expression(fb, self_names))
+                    .is_some_and(|fb| non_tail_self_call_in_expression(fb, self_names, registry))
         }
         _ => false,
     }
@@ -669,19 +689,23 @@ mod tests {
     }
 
     fn run_pass(source: &str) -> Vec<Optimisation> {
-        let cu = CompilationUnit::build_for(source, &registry(), false);
+        let reg = registry();
+        let cu = CompilationUnit::build_for(source, &reg, false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.registry = Some(&reg);
         run(&mut ctx, &cu);
         ctx.optimisations
     }
 
     fn run_pass_with_dialect(source: &str, dialect: &str) -> Vec<Optimisation> {
-        let cu = CompilationUnit::build_for(source, &registry(), false);
+        let reg = registry();
+        let cu = CompilationUnit::build_for(source, &reg, false);
         let mut ctx = PassContext::with_dialect(
             &cu.source,
             InterproceduralAnalysis::default(),
             Some(dialect),
         );
+        ctx.registry = Some(&reg);
         run(&mut ctx, &cu);
         ctx.optimisations
     }

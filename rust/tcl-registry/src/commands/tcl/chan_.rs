@@ -129,6 +129,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "close",
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::new(1, 2),
         detail: "Close a channel.",
         synopsis: "chan close channelId ?direction?",

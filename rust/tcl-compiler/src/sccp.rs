@@ -1407,6 +1407,11 @@ fn resolve_const_string<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     None
 }
 
+// The per-command fold arms below (`list` / `format` / `llength` / `string
+// length` / `expr`) are name-keyed on purpose: each arm IS that command's
+// fold semantics (what a constant call evaluates to), not a membership
+// test a registry trait could answer — the same irreducible-fold rationale
+// as `chain_fold`'s per-command arms.
 fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     value: &str,
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,

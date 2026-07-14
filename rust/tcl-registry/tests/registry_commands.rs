@@ -326,6 +326,121 @@ fn needs_start_cmd_trait_membership() {
     );
 }
 
+/// The splice-safe set (`CommandRegistry::is_splice_safe`) must cover exactly
+/// the inliner's former `SPLICE_SAFE_COMMANDS` list — frame-independent
+/// value/IO builtins — and exclude the frame-observing / variable-writing /
+/// control-transferring commands the old list deliberately left out.
+///
+/// registry-metadata: splice-safety is our classification (a composition of
+/// the `FRAMELESS_RUNTIME` / frame-sensitivity / variable-name traits).
+#[test]
+fn splice_safe_membership() {
+    let (reg, _) = reg_and_set("tcl8.6");
+    for c in [
+        "list", "lindex", "lrange", "linsert", "llength", "lsort", "lsearch", "lreverse",
+        "lreplace", "lrepeat", "concat", "split", "join", "string", "expr", "puts",
+    ] {
+        assert!(reg.is_splice_safe(c), "{c} must be splice-safe");
+    }
+    // The old list's documented exclusions: frame-affecting control flow,
+    // frame-observing scope commands, and variable writers.
+    for c in [
+        "return",
+        "break",
+        "continue",
+        "uplevel",
+        "upvar",
+        "global",
+        "variable",
+        "set",
+        "append",
+        "lassign",
+        "namespace",
+        "info",
+        "unset",
+    ] {
+        assert!(!reg.is_splice_safe(c), "{c} must NOT be splice-safe");
+    }
+}
+
+/// The frame-sensitive set (`CommandRegistry::is_frame_sensitive`) must cover
+/// every member of the inline-proc code action's former `UNSAFE` list — the
+/// commands whose meaning changes when a proc body is textually inlined into
+/// a caller — and exclude plain value/IO commands.
+///
+/// registry-metadata: frame-sensitivity is our classification (the
+/// `TERMINATES_BLOCK` | `TRANSFERS_CONTROL` | `CREATES_SCOPE_ALIAS` |
+/// `CREATES_BARRIER` trait union).
+#[test]
+fn frame_sensitive_membership() {
+    let (reg, _) = reg_and_set("tcl8.6");
+    for c in [
+        "return", "break", "continue", "tailcall", "yield", "uplevel", "upvar", "global",
+        "variable",
+    ] {
+        assert!(reg.is_frame_sensitive(c), "{c} must be frame-sensitive");
+        assert!(
+            reg.frame_sensitive_commands().contains(&c),
+            "{c} in the scan set"
+        );
+    }
+    for c in ["puts", "set", "expr", "string", "list"] {
+        assert!(
+            !reg.is_frame_sensitive(c),
+            "{c} must NOT be frame-sensitive"
+        );
+    }
+}
+
+/// The fire-and-forget teardown set (`FIRE_AND_FORGET_TEARDOWN`) must cover
+/// the W302 suppression idiom's documented members, at both the command and
+/// the subcommand level, and stay off destructive-but-not-teardown
+/// subcommands (`file rename` / `file mkdir` fail for real reasons).
+///
+/// registry-metadata: the fire-and-forget classification is our metadata.
+#[test]
+fn fire_and_forget_teardown_membership() {
+    let (reg, _) = reg_and_set("tcl8.6");
+    for c in ["close", "unset", "rename"] {
+        let spec = reg.get(c).unwrap_or_else(|| panic!("{c} registered"));
+        assert!(
+            spec.traits.contains(Traits::FIRE_AND_FORGET_TEARDOWN),
+            "{c}"
+        );
+    }
+    for (c, sub) in [
+        ("after", "cancel"),
+        ("chan", "close"),
+        ("array", "unset"),
+        ("dict", "unset"),
+        ("interp", "delete"),
+        ("file", "delete"),
+        ("namespace", "delete"),
+        ("namespace", "forget"),
+    ] {
+        let sc = reg
+            .get(c)
+            .and_then(|s| s.subcommand(sub))
+            .unwrap_or_else(|| panic!("{c} {sub} registered"));
+        assert!(
+            sc.traits.contains(Traits::FIRE_AND_FORGET_TEARDOWN),
+            "{c} {sub}"
+        );
+    }
+    for (c, sub) in [
+        ("file", "rename"),
+        ("file", "mkdir"),
+        ("chan", "configure"),
+        ("namespace", "eval"),
+    ] {
+        let sc = reg.get(c).and_then(|s| s.subcommand(sub));
+        assert!(
+            sc.is_none_or(|s| !s.traits.contains(Traits::FIRE_AND_FORGET_TEARDOWN)),
+            "{c} {sub} must NOT be fire-and-forget"
+        );
+    }
+}
+
 // ===========================================================================
 // Commands-for-event / command legality (iRules event ⇄ command cross-product)
 // ===========================================================================

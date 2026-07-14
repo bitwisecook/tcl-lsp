@@ -262,6 +262,45 @@ pub fn scope_alias_local_indices(
     }
 }
 
+/// Indices (into `args`) of the variable names a scope-alias command
+/// *declares* for **navigation** consumers (the LSP go-to-declaration
+/// provider), or empty for any other command.
+///
+/// The navigation twin of [`scope_alias_local_indices`]: recognition is the
+/// same registry-driven [`is_scope_alias_call`], but the `upvar` /
+/// `namespace upvar` forms use the stricter
+/// [`upvar_local_declaration_indices`] pair filter — a `$`-substituted
+/// *source* side means there is nothing to navigate to, while the
+/// observability flavour still counts the local as a live alias.
+#[must_use]
+pub fn scope_alias_declaration_indices(
+    registry: &tcl_registry::CommandRegistry,
+    command: &str,
+    args: &[String],
+) -> Vec<usize> {
+    if !is_scope_alias_call(registry, command, args) {
+        return Vec::new();
+    }
+    let canonical = command.trim_start_matches(':');
+    match canonical {
+        "global" => global_declaration_indices(args),
+        "variable" => variable_declaration_indices(args),
+        "upvar" | "namespace" | "namespace upvar" => {
+            upvar_local_declaration_indices(canonical, args)
+        }
+        _ => {
+            // Subcommand-shaped alias (`my variable`): the spec's own
+            // role resolver locates the bound names.
+            let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+            registry
+                .arg_indices_for_role(command, &arg_strs, tcl_registry::prelude::ArgRole::VarWrite)
+                .into_iter()
+                .filter(|&i| args.get(i).is_some_and(|a| !a.starts_with('$')))
+                .collect()
+        }
+    }
+}
+
 /// True when `head` looks like a Tcl upvar-level word:
 /// - A decimal integer (optionally prefixed with `-`).
 /// - `#<digits>` (absolute frame level).

@@ -271,6 +271,34 @@ bitflags! {
         /// optimiser (`O102` load-forwarding) and dead-store elimination.
         const ESTABLISHES_VARIABLE_TRACE = 1 << 56;
 
+        /// Transfers control relative to the enclosing loop, frame, or
+        /// coroutine instead of falling through to the next statement —
+        /// `break` / `continue` (loop exit / re-entry), `tailcall` (frame
+        /// replacement), `yield` / `yieldto` (coroutine suspension).
+        /// Deliberately distinct from [`Traits::TERMINATES_BLOCK`], which
+        /// marks commands that *unwind* the enclosing block/proc
+        /// (`return` / `error` / `exit` / `throw`) — a `break` leaves only
+        /// the loop and a `yield` resumes in place, so stamping them
+        /// `TERMINATES_BLOCK` would corrupt the dead-end analyses (W241,
+        /// taint guard propagation) that consume that trait.  Together the
+        /// two traits give consumers the full "diverts control flow" set;
+        /// the inline-proc code action and the inliner's splice-safety
+        /// query are the current consumers.
+        const TRANSFERS_CONTROL          = 1 << 61;
+
+        /// Teardown/removal command (or subcommand) for which a bare
+        /// `catch {…}` with no result variable is the documented
+        /// fire-and-forget idiom: the operation errors when its target is
+        /// already gone, and ignoring that failure is intentional —
+        /// `close` / `unset` / `rename foo {}`, `after cancel`,
+        /// `chan close`, `array unset`, `dict unset`, `interp delete`,
+        /// `file delete`, `namespace delete|forget`.  Single source of
+        /// truth for W302's suppression set.  Narrower than
+        /// [`crate::spec::SubCommand::destructive`] (`file rename` /
+        /// `file mkdir` are destructive but their failures are real
+        /// errors, not expected teardown noise).
+        const FIRE_AND_FORGET_TEARDOWN   = 1 << 62;
+
         /// `TclOO` `next` / `nextto` — invokes the next implementation of the
         /// *currently executing* method along the receiver's MRO. Its
         /// callee's arity is resolvable only from the enclosing method's
@@ -345,3 +373,17 @@ bitflags! {
 /// new clause word is added once and both consumers pick it up.
 pub const CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC: &[&str] =
     &["else", "elseif", "on", "trap", "finally"];
+
+/// Clause *noise* words: accepted by a clause grammar as optional filler but
+/// deliberately **not** highlighted as keywords — today only `if`'s optional
+/// `then` (`if {c} then {b}`), which `if`'s arg-role resolver and clause-shape
+/// checker match by literal value.
+///
+/// Kept separate from [`CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`] because the two
+/// lists serve different consumers: the keyword list drives highlighting (the
+/// semantic-token classifier and the TextMate-grammar generator, which must
+/// not paint `then`), while the union of both lists is "every word a clause
+/// grammar matches by value", which value-sensitive rewriters (the minifier's
+/// argument aliasing — rewriting a literal `then` to `$alias` would break
+/// `if`'s clause parsing) must keep literal.
+pub const CLAUSE_NOISE_KEYWORDS: &[&str] = &["then"];

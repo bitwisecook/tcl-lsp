@@ -163,6 +163,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "unset",
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::new(1, 2),
         detail: "Unsets all of the elements in the array that match pattern.",
         synopsis: "array unset arrayName ?pattern?",
@@ -183,13 +184,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "array",
-        // `HAS_DESTRUCTIVE_OPS`: the `unset` subform destroys elements or
+        // `FIRE_AND_FORGET_TEARDOWN` (on the subform below where noted): the `unset` subform destroys elements or
         // the whole array (`ArrayUnsetCmd`, tclVar.c) — see the
         // `destructive` flag on the `unset` subcommand.
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::WHOLE_ARRAY_ARG
-            | Traits::HAS_DESTRUCTIVE_OPS,
+           ,
         arity: Arity::at_least(1),
         assigns_variable_at: Some(1),
         inferred_storage_type: Some(StorageType::Array),

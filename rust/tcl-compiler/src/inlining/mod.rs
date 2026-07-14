@@ -73,6 +73,7 @@ use crate::ir::{
 };
 use crate::var_escape::ProcEscapeSummary;
 use crate::var_escape::interprocedural::resolve_callee;
+use tcl_registry::CommandRegistry;
 
 /// Per-proc inlining policy decision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -313,24 +314,16 @@ pub fn classify_proc(
 
 // splice-eligibility
 
-/// Commands whose semantics are independent of the calling frame — a
-/// wrapped call to one of these can be spliced into any caller's frame.
-/// Frame-observing (`info` / `uplevel` / `upvar`) and frame-affecting
-/// control flow (`return` / `break` / `continue`) are deliberately
-/// excluded.
-const SPLICE_SAFE_COMMANDS: &[&str] = &[
-    // List primitives — pure value computation.
-    "list", "lindex", "lrange", "linsert", "llength", "lsort", "lsearch", "lreverse", "lreplace",
-    "lrepeat", "concat", // String primitives.
-    "split", "join", "string", // Arithmetic.
-    "expr",   // I/O — observable but frame-independent.
-    "puts",
-];
-
-/// Whether `command` is a frame-independent, splice-safe builtin.
-fn command_is_splice_safe(command: &str) -> bool {
-    let bare = command.strip_prefix("::").unwrap_or(command);
-    SPLICE_SAFE_COMMANDS.contains(&bare)
+/// Whether `command` is a frame-independent, splice-safe builtin — a
+/// wrapped call to one can be spliced into any caller's frame.  Membership
+/// is the registry's [`CommandRegistry::is_splice_safe`] classification
+/// (fully-lowered `FRAMELESS_RUNTIME` commands minus the frame-observing /
+/// frame-affecting / variable-name-operating traits), so frame-observing
+/// (`info` / `uplevel` / `upvar`) and frame-affecting control flow
+/// (`return` / `break` / `continue`) stay excluded without a name list
+/// here.
+fn command_is_splice_safe(command: &str, registry: &CommandRegistry) -> bool {
+    registry.is_splice_safe(command)
 }
 
 /// True iff `arg` contains a `[cmd …]` command substitution at brace
@@ -378,6 +371,7 @@ fn stmt_is_splice_eligible(
     stmt: &Statement,
     callee_qname: &str,
     summaries: &HashMap<String, ProcEscapeSummary>,
+    registry: &CommandRegistry,
 ) -> bool {
     let Statement::Call {
         command,
@@ -394,7 +388,7 @@ fn stmt_is_splice_eligible(
     if !command_is_namespace_invariant(command, callee_qname, summaries) {
         return false;
     }
-    if !command_is_splice_safe(command) {
+    if !command_is_splice_safe(command, registry) {
         return false;
     }
     if args.iter().any(|a| arg_has_command_subst(a)) {
@@ -410,6 +404,7 @@ fn v3_eligible(
     proc: &Procedure,
     qname: &str,
     summaries: &HashMap<String, ProcEscapeSummary>,
+    registry: &CommandRegistry,
 ) -> bool {
     if has_irreturn_in_unsafe_scope(&proc.body, false) {
         return false;
@@ -418,7 +413,7 @@ fn v3_eligible(
         if matches!(stmt, Statement::Return { .. }) {
             continue; // top-level return is fine — handled by wrap or kept
         }
-        if !v3_stmt_eligible(stmt, qname, summaries) {
+        if !v3_stmt_eligible(stmt, qname, summaries, registry) {
             return false;
         }
     }
@@ -521,6 +516,7 @@ fn v3_stmt_eligible(
     stmt: &Statement,
     callee_qname: &str,
     summaries: &HashMap<String, ProcEscapeSummary>,
+    registry: &CommandRegistry,
 ) -> bool {
     match stmt {
         Statement::AssignConst { name, .. }
@@ -531,43 +527,45 @@ fn v3_stmt_eligible(
             // covers locals. Array writes (`arr(idx)`) qualify.
             !name.contains("::")
         }
-        Statement::Call { .. } => stmt_is_splice_eligible(stmt, callee_qname, summaries),
+        Statement::Call { .. } => stmt_is_splice_eligible(stmt, callee_qname, summaries, registry),
         Statement::ExprEval { .. } => true,
         Statement::If {
             clauses, else_body, ..
         } => {
             clauses
                 .iter()
-                .all(|c| v3_script_eligible(&c.body, callee_qname, summaries))
+                .all(|c| v3_script_eligible(&c.body, callee_qname, summaries, registry))
                 && else_body
                     .as_ref()
-                    .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries))
+                    .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries, registry))
         }
         Statement::For {
             init, next, body, ..
         } => {
-            v3_script_eligible(init, callee_qname, summaries)
-                && v3_script_eligible(next, callee_qname, summaries)
-                && v3_script_eligible(body, callee_qname, summaries)
+            v3_script_eligible(init, callee_qname, summaries, registry)
+                && v3_script_eligible(next, callee_qname, summaries, registry)
+                && v3_script_eligible(body, callee_qname, summaries, registry)
         }
         Statement::Block { body, .. }
         | Statement::While { body, .. }
         | Statement::Foreach { body, .. }
         | Statement::Catch { body, .. }
-        | Statement::UpFrame { body, .. } => v3_script_eligible(body, callee_qname, summaries),
+        | Statement::UpFrame { body, .. } => {
+            v3_script_eligible(body, callee_qname, summaries, registry)
+        }
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            v3_script_eligible(body, callee_qname, summaries)
+            v3_script_eligible(body, callee_qname, summaries, registry)
                 && handlers
                     .iter()
-                    .all(|h| v3_script_eligible(&h.body, callee_qname, summaries))
+                    .all(|h| v3_script_eligible(&h.body, callee_qname, summaries, registry))
                 && finally_body
                     .as_ref()
-                    .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries))
+                    .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries, registry))
         }
         Statement::Switch {
             arms, default_body, ..
@@ -575,10 +573,10 @@ fn v3_stmt_eligible(
             arms.iter().all(|a| {
                 a.body
                     .as_ref()
-                    .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries))
+                    .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries, registry))
             }) && default_body
                 .as_ref()
-                .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries))
+                .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries, registry))
         }
         // Return is handled by the caller; Barrier and anything else decline.
         _ => false,
@@ -592,12 +590,13 @@ fn v3_script_eligible(
     script: &Script,
     callee_qname: &str,
     summaries: &HashMap<String, ProcEscapeSummary>,
+    registry: &CommandRegistry,
 ) -> bool {
     for stmt in &script.statements {
         if matches!(stmt, Statement::Return { .. }) {
             continue;
         }
-        if !v3_stmt_eligible(stmt, callee_qname, summaries) {
+        if !v3_stmt_eligible(stmt, callee_qname, summaries, registry) {
             return false;
         }
     }
@@ -613,6 +612,7 @@ fn v3_script_eligible(
 fn build_inlinable_map(
     module: &Module,
     summaries: &HashMap<String, ProcEscapeSummary>,
+    registry: &CommandRegistry,
 ) -> HashMap<String, InlineSpec> {
     let counts = count_static_calls(module, summaries);
     let mut map = HashMap::new();
@@ -637,7 +637,7 @@ fn build_inlinable_map(
                 .body
                 .statements
                 .iter()
-                .all(|s| stmt_is_splice_eligible(s, qname, summaries))
+                .all(|s| stmt_is_splice_eligible(s, qname, summaries, registry))
         {
             map.insert(
                 qname.clone(),
@@ -647,7 +647,7 @@ fn build_inlinable_map(
         }
 
         // v3 — parameterised inline with α-renaming.
-        if v3_eligible(proc, qname, summaries) {
+        if v3_eligible(proc, qname, summaries, registry) {
             map.insert(qname.clone(), InlineSpec::Parameterised(proc.clone()));
         }
     }
@@ -665,9 +665,9 @@ fn build_inlinable_map(
 /// the module so host eval / `info procs` / `rename` observers still see
 /// them.
 #[must_use]
-pub fn inline_module(mut module: Module) -> Module {
+pub fn inline_module(mut module: Module, registry: &CommandRegistry) -> Module {
     let summaries = crate::var_escape::analyse_var_escape(&module, true);
-    let inlinable = build_inlinable_map(&module, &summaries);
+    let inlinable = build_inlinable_map(&module, &summaries, registry);
     if inlinable.is_empty() {
         return module;
     }

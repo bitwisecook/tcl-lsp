@@ -160,7 +160,14 @@ Use braces: {{ \u{2026} }}"
         }
         indices.sort_unstable();
 
-        let is_expr = cmd_name == "expr";
+        // Whether this command concatenates its whole argument tail into
+        // one expression (the registry's `EXPR_CONCATENATES_ARGS` trait —
+        // `expr`), so W100 anchors at the full tail span rather than one
+        // argument.
+        let is_expr = registry.get(cmd_name).is_some_and(|s| {
+            s.traits
+                .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+        });
         let dialect = self.dialect.clone();
         // The whole-`expr` argument span (used when the command is
         // `expr`, whose expression is the remaining words).

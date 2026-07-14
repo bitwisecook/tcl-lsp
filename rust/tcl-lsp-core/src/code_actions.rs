@@ -1091,10 +1091,20 @@ fn extract_inline_actions(
     analysis: &AnalysisResult,
     line_index: &LineIndex,
 ) -> Vec<CodeAction> {
+    // Load the iRules dialect so `when`-body descent and the
+    // `class match` / `class lookup` data-group form resolve.  Loading is
+    // additive — vanilla command resolution is unchanged — so we do it
+    // unconditionally rather than threading the document dialect through
+    // the code-action signature (the data-group transform self-gates on
+    // the registry resolving a `class` form).
+    let mut registry = tcl_registry::CommandRegistry::build_default();
+    registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
     let mut out = Vec::new();
     out.extend(extract_proc_action(source, range));
-    out.extend(inline_proc_action(source, range, analysis));
-    out.extend(refactor_engine_actions(source, range, analysis, line_index));
+    out.extend(inline_proc_action(source, range, analysis, &registry));
+    out.extend(refactor_engine_actions(
+        source, range, analysis, line_index, &registry,
+    ));
     out
 }
 
@@ -1111,16 +1121,9 @@ fn refactor_engine_actions(
     range: LspRange,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
+    registry: &tcl_registry::CommandRegistry,
 ) -> Vec<CodeAction> {
     use crate::refactor;
-    // Load the iRules dialect so `when`-body descent and the
-    // `class match` / `class lookup` data-group form resolve.  Loading is
-    // additive — vanilla command resolution is unchanged — so we do it
-    // unconditionally rather than threading the document dialect through
-    // the code-action signature (the data-group transform self-gates on
-    // the registry resolving a `class` form).
-    let mut registry = tcl_registry::CommandRegistry::build_default();
-    registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
     let mut out = Vec::new();
 
     let cursor = line_index.offset_at_utf16(
@@ -1140,16 +1143,16 @@ fn refactor_engine_actions(
         }
     }
 
-    if let Some(r) = refactor::inline_variable(source, cursor, analysis, &registry, line_index) {
+    if let Some(r) = refactor::inline_variable(source, cursor, analysis, registry, line_index) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
-    if let Some(r) = refactor::if_to_switch(source, cursor, &registry, line_index) {
+    if let Some(r) = refactor::if_to_switch(source, cursor, registry, line_index) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
-    if let Some(r) = refactor::switch_to_dict(source, cursor, &registry, line_index) {
+    if let Some(r) = refactor::switch_to_dict(source, cursor, registry, line_index) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
-    if let Some(r) = refactor::extract_to_datagroup(source, cursor, "", &registry, line_index) {
+    if let Some(r) = refactor::extract_to_datagroup(source, cursor, "", registry, line_index) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
     out
@@ -1416,12 +1419,17 @@ fn substitute_var_refs(body: &str, subs: &[(&str, &str)]) -> String {
 
 /// `refactor.inline` — inline a single-command proc at the call cursor.
 /// Declines branchy / control-flow bodies.
-fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) -> Vec<CodeAction> {
-    // Control-flow / scope keywords whose bodies can't be safely inlined.
-    const UNSAFE: &[&str] = &[
-        "return", "break", "continue", "tailcall", "yield", "uplevel", "upvar", "global",
-        "variable",
-    ];
+fn inline_proc_action(
+    source: &str,
+    range: LspRange,
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+) -> Vec<CodeAction> {
+    // Frame-sensitive commands (block terminators, control transfers, scope
+    // aliases, barriers — the registry's `is_frame_sensitive` union) whose
+    // bodies can't be safely inlined: moving them out of the proc frame
+    // changes what they return from, break out of, or bind against.
+    let unsafe_heads = registry.frame_sensitive_commands();
     let line = source
         .split('\n')
         .nth(range.start_line as usize)
@@ -1461,7 +1469,7 @@ fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) 
     if body_raw.is_empty()
         || body_raw.contains('\n')
         || body_raw.contains(';')
-        || UNSAFE.iter().any(|kw| {
+        || unsafe_heads.iter().any(|kw| {
             body_raw == *kw
                 || body_raw.starts_with(&format!("{kw} "))
                 || body_raw.contains(&format!("[{kw} "))

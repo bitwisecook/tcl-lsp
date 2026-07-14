@@ -237,6 +237,17 @@ impl CaseListSpec {
     };
 }
 
+/// Option-flag spellings whose value is a credential on *any* command
+/// (`open $url -password hunter2`), lower-case for case-insensitive
+/// matching.  The generic vocabulary half of the credential-exposure check
+/// (W310): unlike [`CommandSpec::credential_options`] — which names the
+/// per-command flags whose spelling alone is not secret-suggestive
+/// (`http::geturl`'s `-headers`) — these names identify themselves, so they
+/// are matched command-independently and the per-command field only adds to
+/// them.
+pub const DEFAULT_CREDENTIAL_OPTION_NAMES: &[&str] =
+    &["-password", "-pass", "-secret", "-token", "-apikey"];
+
 /// Unified command metadata — the single source of truth.
 ///
 /// Every consumer (compiler, analyser, codegen, LSP, formatter, diagram

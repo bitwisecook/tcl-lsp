@@ -31,6 +31,11 @@ fn module_for(source: &str) -> Module {
     CompilationUnit::build_for(source, &CommandRegistry::build_default(), false).ir_module
 }
 
+/// `inline_module` against a freshly-built default registry.
+fn inline_module_default(module: Module) -> Module {
+    inline_module(module, &CommandRegistry::build_default())
+}
+
 /// Count statement-position calls to `command` across the top level.
 fn top_calls_to(module: &Module, command: &str) -> usize {
     module
@@ -43,7 +48,9 @@ fn top_calls_to(module: &Module, command: &str) -> usize {
 
 /// All top-level statements after inlining.
 fn inlined_top(source: &str) -> Vec<Statement> {
-    inline_module(module_for(source)).top_level.statements
+    inline_module(module_for(source), &CommandRegistry::build_default())
+        .top_level
+        .statements
 }
 
 /// Whether any top-level statement is an assignment to a mangled
@@ -63,7 +70,7 @@ fn has_inline_binding(stmts: &[Statement]) -> bool {
 fn empty_body_call_vanishes() {
     let module = module_for("proc ::noop {} {}\nnoop\nputs done");
     assert_eq!(top_calls_to(&module, "noop"), 1);
-    let inlined = inline_module(module);
+    let inlined = inline_module(module, &CommandRegistry::build_default());
     assert_eq!(
         top_calls_to(&inlined, "noop"),
         0,
@@ -75,7 +82,7 @@ fn empty_body_call_vanishes() {
 #[test]
 fn verbatim_wrapper_body_is_spliced() {
     let module = module_for("proc ::greet {} { puts hello }\ngreet");
-    let inlined = inline_module(module);
+    let inlined = inline_module(module, &CommandRegistry::build_default());
     assert_eq!(top_calls_to(&inlined, "greet"), 0, "wrapper call replaced");
     assert_eq!(top_calls_to(&inlined, "puts"), 1, "wrapper body spliced");
 }
@@ -83,7 +90,7 @@ fn verbatim_wrapper_body_is_spliced() {
 #[test]
 fn multi_statement_verbatim_wrapper() {
     let module = module_for("proc ::two {} { puts a\n puts b }\ntwo");
-    let inlined = inline_module(module);
+    let inlined = inline_module(module, &CommandRegistry::build_default());
     assert_eq!(top_calls_to(&inlined, "two"), 0);
     assert_eq!(top_calls_to(&inlined, "puts"), 2, "both body stmts spliced");
 }
@@ -92,7 +99,7 @@ fn multi_statement_verbatim_wrapper() {
 fn redefined_proc_is_not_inlined() {
     let module = module_for("proc ::r {} { puts a }\nproc ::r {} { puts b }\nr");
     assert!(module.redefined_procedures.contains("::r"));
-    let inlined = inline_module(module);
+    let inlined = inline_module(module, &CommandRegistry::build_default());
     assert_eq!(top_calls_to(&inlined, "r"), 1, "redefined proc kept");
 }
 
@@ -101,14 +108,14 @@ fn arg_command_subst_blocks_inline() {
     // `puts [clock seconds]` depends on frame command resolution — neither
     // verbatim nor v3 may splice it.
     let module = module_for("proc ::w {} { puts [clock seconds] }\nw");
-    let inlined = inline_module(module);
+    let inlined = inline_module(module, &CommandRegistry::build_default());
     assert_eq!(top_calls_to(&inlined, "w"), 1);
 }
 
 #[test]
 fn inline_inside_control_flow_body() {
     let module = module_for("proc ::greet {} { puts hi }\nif {1} { greet }");
-    let inlined = inline_module(module);
+    let inlined = inline_module(module, &CommandRegistry::build_default());
     let if_has_puts = inlined.top_level.statements.iter().any(|s| {
         matches!(s, Statement::If { clauses, .. }
             if clauses.iter().any(|c| c.body.statements.iter().any(|b|
@@ -271,7 +278,7 @@ fn v3_default_value_is_literal() {
 fn v3_terminal_if_branch_keeps_trailing_return() {
     // The inlined `id 7` sits in the terminal branch of a terminal `if`, so
     // its trailing return forwards `outer`'s value — kept intact, not wrapped.
-    let module = inline_module(module_for(
+    let module = inline_module_default(module_for(
         "proc ::id {x} { return $x }\nproc ::outer {} { if {1} { id 7 } }",
     ));
     let outer = &module.procedures["::outer"];
@@ -307,7 +314,7 @@ fn v3_non_terminal_if_branch_still_wraps_return() {
     // Same inline, but now the `if` is followed by another statement, so the
     // branch is not terminal — the trailing return must be wrapped so it
     // doesn't escape `outer` early.
-    let module = inline_module(module_for(
+    let module = inline_module_default(module_for(
         "proc ::id {x} { return $x }\nproc ::outer {} { if {1} { id 7 }\n puts done }",
     ));
     let outer = &module.procedures["::outer"];
@@ -375,7 +382,7 @@ fn v3_trailing_return_non_terminal_is_wrapped() {
     );
     assert_eq!(
         top_calls_to(
-            &inline_module(module_for("proc ::g {x} { return $x }\ng 7\nputs after")),
+            &inline_module_default(module_for("proc ::g {x} { return $x }\ng 7\nputs after")),
             "puts"
         ),
         1
@@ -413,8 +420,8 @@ fn v3_return_inside_loop_declines() {
 
 #[test]
 fn idempotent_second_pass_is_noop() {
-    let once = inline_module(module_for("proc ::id {x} { puts $x }\nid 1"));
-    let twice = inline_module(once.clone());
+    let once = inline_module_default(module_for("proc ::id {x} { puts $x }\nid 1"));
+    let twice = inline_module(once.clone(), &CommandRegistry::build_default());
     assert_eq!(once, twice, "re-running the inliner changes nothing");
 }
 
@@ -434,6 +441,6 @@ fn classify_large_single_call_is_if_single_call() {
         InlineDecision::IfSingleCall
     );
     // The pass leaves IF_SINGLE_CALL procs alone.
-    let inlined = inline_module(module);
+    let inlined = inline_module(module, &CommandRegistry::build_default());
     assert_eq!(top_calls_to(&inlined, "big"), 1);
 }

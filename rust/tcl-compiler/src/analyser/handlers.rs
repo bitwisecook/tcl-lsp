@@ -1315,10 +1315,22 @@ impl Analyser {
             self.analyse_body(&args[0], body_tok, scope_path);
             self.conditional_depth -= 1;
         }
-        // Result var (args[1]) and options var (args[2]).
-        for (i, name) in args.iter().enumerate().take(3).skip(1) {
-            if let Some(tok) = arg_tokens.get(i) {
-                self.define_var(name, *tok, scope_path, false, None);
+        // The result-var / options-var positions come from the registry's
+        // `ArgRole::VarWrite` rows on the `catch` spec, matching the nested
+        // `[catch …]` path in `dispatch_nested_segment`. The literal spec
+        // name is sound here: `AnalyserHookId::Catch` dispatch already
+        // resolved the head (qualified spellings included) to this spec.
+        if let Some(registry) = self.registry.as_ref() {
+            let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+            for i in registry.arg_indices_for_role(
+                "catch",
+                &arg_strs,
+                tcl_registry::arg_role::ArgRole::VarWrite,
+            ) {
+                if let (Some(name), Some(tok)) = (args.get(i), arg_tokens.get(i)) {
+                    let name = name.clone();
+                    self.define_var(&name, *tok, scope_path, false, None);
+                }
             }
         }
         true
@@ -3589,6 +3601,8 @@ mod tests {
     #[test]
     fn handle_catch_with_result_var_defines_it() {
         let mut a = Analyser::new();
+        // The binding positions come from the registry's VarWrite roles.
+        a.registry = Some(tcl_registry::CommandRegistry::build_default());
         a.handle_catch_command(
             &["body".to_string(), "res".to_string()],
             &[esc_tok(span(0, 4)), esc_tok(span(5, 8))],
@@ -3600,6 +3614,7 @@ mod tests {
     #[test]
     fn handle_catch_with_options_var_defines_both() {
         let mut a = Analyser::new();
+        a.registry = Some(tcl_registry::CommandRegistry::build_default());
         a.handle_catch_command(
             &["body".to_string(), "res".to_string(), "opts".to_string()],
             &[

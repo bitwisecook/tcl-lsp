@@ -114,7 +114,7 @@ fn assign_body(n: usize) -> String {
 /// Run the whole-module inline transform (`inline_module` runs its own
 /// `analyse_var_escape` internally, so no summaries argument).
 fn inlined(source: &str) -> Module {
-    inline_module(module_for(source))
+    inline_module(module_for(source), &reg())
 }
 
 /// Whole-callee `uplevel`-passthrough inlining over a fresh module.
@@ -303,7 +303,7 @@ fn empty_body_call_is_dropped() {
     // Both `noop` calls vanish; the proc definition stays.
     let module = module_for("proc noop {} {}\nnoop\nnoop\n");
     assert_eq!(top_calls_to(&module, "noop"), 2);
-    let out = inline_module(module);
+    let out = inline_module(module, &reg());
     assert_eq!(top_calls_to(&out, "noop"), 0);
     assert!(out.procedures.contains_key("::noop"));
 }
@@ -367,7 +367,7 @@ fn input_module_unchanged_by_inlining() {
     // shared IR).
     let original = module_for("proc noop {} {}\nnoop\n");
     let before = top_calls_to(&original, "noop");
-    let _ = inline_module(original);
+    let _ = inline_module(original, &reg());
     let again = module_for("proc noop {} {}\nnoop\n");
     assert_eq!(top_calls_to(&again, "noop"), before);
 }
@@ -376,7 +376,7 @@ fn input_module_unchanged_by_inlining() {
 fn inlining_is_idempotent() {
     // A second pass changes nothing.
     let once = inlined("proc noop {} {}\nnoop\n");
-    let twice = inline_module(once.clone());
+    let twice = inline_module(once.clone(), &reg());
     assert_eq!(once, twice);
 }
 
@@ -389,7 +389,7 @@ fn two_call_wrapper_inlines_both() {
     let module = module_for("proc setup {} { puts \"a\"\nputs \"b\" }\nsetup\n");
     assert_eq!(top_calls_to(&module, "setup"), 1);
     assert_eq!(top_calls_to(&module, "puts"), 0);
-    let out = inline_module(module);
+    let out = inline_module(module, &reg());
     assert_eq!(top_calls_to(&out, "setup"), 0);
     assert_eq!(top_calls_to(&out, "puts"), 2);
 }
@@ -829,7 +829,7 @@ fn wrapper_call_is_replaced_with_inner() {
     let module = module_for("proc setup {} { puts \"starting\" }\nsetup\n");
     assert_eq!(top_calls_to(&module, "setup"), 1);
     assert_eq!(top_calls_to(&module, "puts"), 0);
-    let out = inline_module(module);
+    let out = inline_module(module, &reg());
     assert_eq!(top_calls_to(&out, "setup"), 0);
     assert_eq!(top_calls_to(&out, "puts"), 1);
 }
@@ -876,7 +876,7 @@ fn qualified_command_body_is_conservatively_kept() {
             .is_some_and(ProcEscapeSummary::safe_to_inline),
         "a ::-qualified builtin body is classified non-pure-leaf in Rust"
     );
-    let out = inline_module(module);
+    let out = inline_module(module, &reg());
     assert_eq!(
         top_calls_to(&out, "setup"),
         1,
@@ -898,7 +898,7 @@ fn unqualified_call_in_namespace() {
         classify_proc(proc, summary_for(&summaries, "::ns::noop"), 0),
         InlineDecision::Always
     );
-    let out = inline_module(module);
+    let out = inline_module(module, &reg());
     let caller = &out.procedures["::ns::caller"];
     assert_eq!(calls_to(&caller.body.statements, "noop"), 0);
 }

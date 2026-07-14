@@ -1310,9 +1310,16 @@ fn rmw_target_var_names(source: &str, registry: &CommandRegistry) -> FxHashSet<S
 
 // Aggressive-tier aliasing (command / argument / string-literal)
 
-/// Control-flow keywords that must stay literal (body/expr index
-/// detection checks them by value).
-const CONTROL_FLOW_KEYWORDS: &[&str] = &["else", "elseif", "then", "on", "trap", "finally"];
+/// Whether `word` is a clause word an `if`/`try` grammar matches by literal
+/// value, so it must stay literal — aliasing it to `$var` would break the
+/// clause parsing (body/expr index detection checks these by value).  The
+/// set is the registry's clause-keyword vocabulary: the highlighted clause
+/// keywords (`else` / `elseif` / `on` / `trap` / `finally`) plus the
+/// non-highlighted clause noise word (`then`).
+fn is_clause_keyword(word: &str) -> bool {
+    tcl_registry::traits::CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC.contains(&word)
+        || tcl_registry::traits::CLAUSE_NOISE_KEYWORDS.contains(&word)
+}
 
 /// Every compacted short name across the symbol map, so aggressive
 /// aliases avoid colliding with a (possibly proc-local) compacted
@@ -1480,7 +1487,7 @@ fn alias_repeated_arguments(
             let val = sm.token_text(*tok);
             if val.len() < 3
                 || val.contains([' ', '\t', '\n', '"', '{', '}', '[', ']', '$', '\\', ';'])
-                || CONTROL_FLOW_KEYWORDS.contains(&val)
+                || is_clause_keyword(val)
             {
                 continue;
             }

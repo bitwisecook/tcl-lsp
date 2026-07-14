@@ -167,6 +167,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "delete",
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::at_least(0),
         detail: "Delete interpreters.",
         synopsis: "interp delete ?path ...?",

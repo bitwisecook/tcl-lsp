@@ -138,6 +138,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "delete",
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::any(),
         detail: "Delete namespaces and their contents.",
         synopsis: "namespace delete ?namespace namespace ...?",
@@ -205,6 +206,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "forget",
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::any(),
         detail: "Removes previously imported commands from a namespace.",
         synopsis: "namespace forget ?pattern pattern ...?",

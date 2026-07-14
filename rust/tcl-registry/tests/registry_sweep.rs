@@ -146,6 +146,12 @@ const ALL_TRAITS: &[Traits] = &[
     Traits::FRAME_HASH_BUILTIN,
     Traits::OVERRIDABLE_LIBRARY_PROC,
     Traits::WASM_EMITS_NOTHING,
+    Traits::EXPR_CONCATENATES_ARGS,
+    Traits::STRUCTURALLY_CHECKED_ARITY,
+    Traits::TCLOO_NEXT_CHAIN,
+    Traits::ESTABLISHES_VARIABLE_TRACE,
+    Traits::TRANSFERS_CONTROL,
+    Traits::FIRE_AND_FORGET_TEARDOWN,
 ];
 
 /// Assert the basic arity invariant shared by every `Arity` (command or

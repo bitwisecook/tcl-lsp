@@ -211,6 +211,7 @@ impl Analyser {
                 false,
                 site.cmd_span,
                 None,
+                sub.primary_synopsis(),
             ) {
                 self.result.diagnostics.push(diag);
             }

@@ -906,13 +906,22 @@ impl Analyser {
             return;
         }
         indices.sort_unstable();
+        // Whether this command concatenates its whole argument tail into one
+        // expression (the registry's `EXPR_CONCATENATES_ARGS` trait — `expr`).
+        // Resolved before the emitters below so the registry borrow ends
+        // ahead of the `&mut self` calls.
+        let concatenates_args = registry.get(cmd_name).is_some_and(|s| {
+            s.traits
+                .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+        });
 
         // W100: unbraced expression argument. Runs for every
         // EXPR-role form, including the `expr 1 + 2` multi-word case
         // handled by the early return below.
         self.emit_w100_unbraced_expr(cmd_name, args, arg_tokens);
 
-        // Special-case ``expr ...``: when the user wrote multiple
+        // Special-case the whole-tail expression command
+        // (`concatenates_args` — `expr`): when the user wrote multiple
         // arguments (``expr $a == "x"`` instead of the more common
         // ``expr {$a eq "x"}``), anchor W110 at the full argument
         // token range and parse the joined arguments — the
@@ -924,7 +933,7 @@ impl Analyser {
         // this shape (`emit_w003_dialect_invalid_expr_words`): a gated
         // operator here is always its own standalone word, already at
         // a tight span, with no offset remapping needed.
-        if cmd_name == "expr" && args.len() > 1 && !arg_tokens.is_empty() {
+        if concatenates_args && args.len() > 1 && !arg_tokens.is_empty() {
             let span = tcl_lexer::Span::new(
                 arg_tokens[0].span.start(),
                 arg_tokens[arg_tokens.len() - 1].span.end(),

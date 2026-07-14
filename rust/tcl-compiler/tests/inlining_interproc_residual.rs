@@ -107,7 +107,7 @@ fn module_for(source: &str) -> Module {
 
 /// Run the whole-module inline transform over a fresh module.
 fn inlined(source: &str) -> Module {
-    inline_module(module_for(source))
+    inline_module(module_for(source), &reg())
 }
 
 /// Build the interprocedural analysis for `source` (no dialect).
@@ -740,7 +740,7 @@ fn inline_module_no_inlinable_proc_returns_unchanged() {
     // and `inline_module` hits its early-return.  The module is structurally
     // identical to its input.
     let m = module_for("proc p {n} { upvar 1 $n v\nset v 1 }\np x\n");
-    let out = inline_module(m.clone());
+    let out = inline_module(m.clone(), &reg());
     assert_eq!(
         out, m,
         "an empty inlinable map returns the module unchanged"
@@ -751,7 +751,7 @@ fn inline_module_no_inlinable_proc_returns_unchanged() {
 fn inline_module_with_no_procs_at_all_is_unchanged() {
     // A module with no procedures: the inlinable map is trivially empty.
     let m = module_for("set x 1\nputs $x\n");
-    let out = inline_module(m.clone());
+    let out = inline_module(m.clone(), &reg());
     assert_eq!(out, m);
 }
 

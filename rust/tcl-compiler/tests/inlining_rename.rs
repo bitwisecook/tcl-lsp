@@ -85,7 +85,7 @@ fn module_for(source: &str) -> Module {
 
 /// Run the whole-module inline transform over a fresh module.
 fn inlined(source: &str) -> Module {
-    inline_module(module_for(source))
+    inline_module(module_for(source), &reg())
 }
 
 /// The body statements of one proc in `module`.
@@ -1082,7 +1082,7 @@ fn idempotent_reinlining_preserves_renamed_names() {
     // renamed slots stay byte-identical (the renamer never double-mangles).
     let once =
         inlined("proc add {a b} { set t [expr {$a + $b}]\nputs $t }\nproc caller {} { add 1 2 }\n");
-    let twice = inline_module(once.clone());
+    let twice = inline_module(once.clone(), &reg());
     assert_eq!(once, twice, "second pass leaves renamed names unchanged");
 }
 
