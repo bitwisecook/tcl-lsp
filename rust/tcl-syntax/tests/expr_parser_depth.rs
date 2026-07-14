@@ -63,7 +63,7 @@
 use core::cmp::Ordering;
 
 use tcl_syntax::expr::mathfunc::{Num, dispatch};
-use tcl_syntax::expr::{BinOp, ExprNode, ExprOps, UnaryOp, eval, parse_expr};
+use tcl_syntax::expr::{BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp, eval, parse_expr};
 
 // ===========================================================================
 // Part A — `mathfunc::dispatch` directly.
@@ -516,11 +516,12 @@ impl ExprOps for Tower {
         Ok(Val::N(Num::Int(i64::from(b))))
     }
 
-    fn compare_numeric(&mut self, left: &Val, right: &Val) -> Option<Ordering> {
-        // The `Some` arm of the numeric-vs-string rule: a numeric ordering when
-        // BOTH operands are numeric, else `None` (caller falls back to string).
+    fn compare_numeric(&mut self, left: &Val, right: &Val) -> Option<NumericCompare> {
+        // The `Some` arm of the numeric-vs-string rule: a numeric outcome when
+        // BOTH operands are numeric (NaN → `Unordered`), else `None` (caller
+        // falls back to string).
         match (left.as_f64(), right.as_f64()) {
-            (Some(l), Some(r)) => l.partial_cmp(&r),
+            (Some(l), Some(r)) => Some(NumericCompare::from_partial(l.partial_cmp(&r))),
             _ => None,
         }
     }

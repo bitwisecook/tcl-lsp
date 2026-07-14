@@ -36,6 +36,30 @@ use core::cmp::Ordering;
 
 use super::ast::{BinOp, ExprNode, UnaryOp};
 
+/// Outcome of a numeric comparison between two number-classified operands.
+///
+/// C Tcl's `==`/`<`/… are only *mostly* a three-way ordering: a NaN operand is
+/// still a **number** (so the string-comparison fallback must not apply) but
+/// orders against nothing — `tclExecute.c`'s rule is "NaN arg: NaN != to
+/// everything, other compares are false". [`eval`] maps [`Self::Unordered`]
+/// accordingly; a plain `Option<Ordering>` cannot carry that third state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NumericCompare {
+    /// Both operands are ordered numbers.
+    Ordered(Ordering),
+    /// At least one operand is NaN.
+    Unordered,
+}
+
+impl NumericCompare {
+    /// Wrap an [`Ordering`], or [`Self::Unordered`] for `None` — the shape
+    /// `f64::partial_cmp` hands back.
+    #[must_use]
+    pub fn from_partial(ord: Option<Ordering>) -> Self {
+        ord.map_or(Self::Unordered, Self::Ordered)
+    }
+}
+
 /// The value operations an `expr` consumer supplies. The shared [`eval`] walker
 /// drives these; it owns the dispatch, short-circuit, ternary, and the
 /// numeric-vs-string comparison rule.
@@ -80,10 +104,18 @@ pub trait ExprOps {
         Err(self.unsupported("operator"))
     }
 
-    /// Numeric three-way comparison, or `None` when an operand is non-numeric
-    /// (the walker then falls back to [`ExprOps::compare_string`] — the Tcl
-    /// `==`/`<`… "numeric when both look numeric, else string" rule).
-    fn compare_numeric(&mut self, left: &Self::Value, right: &Self::Value) -> Option<Ordering>;
+    /// Numeric comparison, or `None` when an operand is non-numeric (the
+    /// walker then falls back to [`ExprOps::compare_string`] — the Tcl
+    /// `==`/`<`… "numeric when both look numeric, else string" rule). A NaN
+    /// operand is numeric but unordered: return
+    /// `Some(NumericCompare::Unordered)`, **not** `None` — Tcl does not
+    /// string-compare NaN, it applies the "`!=` true, everything else false"
+    /// rule (which the walker owns).
+    fn compare_numeric(
+        &mut self,
+        left: &Self::Value,
+        right: &Self::Value,
+    ) -> Option<NumericCompare>;
     /// String comparison (for `eq`/`ne`/`lt`… and the `==` string fallback).
     fn compare_string(&mut self, left: &Self::Value, right: &Self::Value) -> Ordering;
     /// `needle in list` membership (string equality of elements).
@@ -193,13 +225,16 @@ fn eval_binary<O: ExprOps>(
     // Otherwise it's a comparison / membership → a boolean. Compute the boolean
     // first (releasing the `ops` borrow) before constructing the result value.
     let b = match op {
-        // `==`/`!=`/`<`… numeric when both look numeric, else string.
-        BinOp::Eq => num_or_str(ops, &l, &r).is_eq(),
-        BinOp::Ne => !num_or_str(ops, &l, &r).is_eq(),
-        BinOp::Lt => num_or_str(ops, &l, &r).is_lt(),
-        BinOp::Le => num_or_str(ops, &l, &r).is_le(),
-        BinOp::Gt => num_or_str(ops, &l, &r).is_gt(),
-        BinOp::Ge => num_or_str(ops, &l, &r).is_ge(),
+        // `==`/`!=`/`<`… numeric when both look numeric, else string; a NaN
+        // operand is unordered — unequal to everything, ordered before/after
+        // nothing (`tclExecute.c`: "NaN arg: NaN != to everything, other
+        // compares are false").
+        BinOp::Eq => matches!(num_or_str(ops, &l, &r), NumericCompare::Ordered(o) if o.is_eq()),
+        BinOp::Ne => !matches!(num_or_str(ops, &l, &r), NumericCompare::Ordered(o) if o.is_eq()),
+        BinOp::Lt => matches!(num_or_str(ops, &l, &r), NumericCompare::Ordered(o) if o.is_lt()),
+        BinOp::Le => matches!(num_or_str(ops, &l, &r), NumericCompare::Ordered(o) if o.is_le()),
+        BinOp::Gt => matches!(num_or_str(ops, &l, &r), NumericCompare::Ordered(o) if o.is_gt()),
+        BinOp::Ge => matches!(num_or_str(ops, &l, &r), NumericCompare::Ordered(o) if o.is_ge()),
         // `eq`/`ne`/`lt`… always string-compare.
         BinOp::StrEq | BinOp::StrEquals => ops.compare_string(&l, &r).is_eq(),
         BinOp::StrNe => !ops.compare_string(&l, &r).is_eq(),
@@ -219,11 +254,11 @@ fn eval_binary<O: ExprOps>(
 }
 
 /// The numeric-or-string comparison rule: numeric when both operands compare
-/// numerically, else a string comparison.
-fn num_or_str<O: ExprOps>(ops: &mut O, l: &O::Value, r: &O::Value) -> Ordering {
+/// numerically (possibly unordered, for NaN), else a string comparison.
+fn num_or_str<O: ExprOps>(ops: &mut O, l: &O::Value, r: &O::Value) -> NumericCompare {
     match ops.compare_numeric(l, r) {
-        Some(ord) => ord,
-        None => ops.compare_string(l, r),
+        Some(outcome) => outcome,
+        None => NumericCompare::Ordered(ops.compare_string(l, r)),
     }
 }
 
@@ -341,9 +376,9 @@ mod tests {
                 UnaryOp::Not | UnaryOp::WordNot => V::Num(i64::from(n == 0)),
             })
         }
-        fn compare_numeric(&mut self, left: &V, right: &V) -> Option<Ordering> {
+        fn compare_numeric(&mut self, left: &V, right: &V) -> Option<NumericCompare> {
             match (left, right) {
-                (V::Num(a), V::Num(b)) => Some(a.cmp(b)),
+                (V::Num(a), V::Num(b)) => Some(NumericCompare::Ordered(a.cmp(b))),
                 _ => None,
             }
         }

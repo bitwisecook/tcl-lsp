@@ -368,16 +368,21 @@ fn fp_sh_08_eq_both_non_numeric_no_shimmer() {
     );
 }
 
-/// FP-SH-08 TP control: `expr {$s == "5"}` with `s` STRING-typed — the
-/// other operand parses as numeric, so tclsh attempts the numeric path and
-/// coerces $s.  Genuine shimmer.
+/// FP-SH-08 guard: `expr {$s == "5"}` with `s` STRING-typed stays silent.
+/// C Tcl probes each comparison operand's OWN string with
+/// `GetNumberFromObj`: `"5"` parses (the literal shimmers, harmlessly), but
+/// `$s` = "hello" does not — the comparison falls back to a string compare
+/// and `s` keeps its intrep (tclsh-verified: `s` stays `string`). The old
+/// claim "the sibling operand parses as numeric, so `$s` is coerced" was a
+/// verified false positive.
 #[test]
-fn fp_sh_08_eq_with_numeric_literal_still_fires() {
+fn fp_sh_08_eq_with_numeric_literal_stays_silent() {
     let src = r#"proc f {} { set s [string trim hello]; set y [expr {$s == "5"}]; puts $y }"#;
     let got = codes(src, D);
     assert!(
-        got.iter().any(|c| c == "S100" || c == "S101"),
-        "FP-SH-08 TP: ==/numeric-literal mix must still fire shimmer; got {got:?}"
+        !got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-08: a comparison must not flag an operand whose own value \
+         decides the coercion; got {got:?}"
     );
 }
 
@@ -1355,15 +1360,18 @@ fn fp_sh_20_ordering_compare_non_numeric_silent() {
     }
 }
 
-/// FP-SH-20 TP control: once a numeric literal forces the numeric path
-/// (`$s <= 5`), the String operand's intrep is genuinely coerced to int, so
-/// S100 must still fire.
+/// FP-SH-20 guard: `$s <= 5` stays silent too. A numeric literal on one side
+/// does NOT force the other operand onto the numeric path — the probe is
+/// per-operand on its own value, and "hello" cannot parse, so the comparison
+/// string-compares and `s` keeps its `string` intrep (tclsh-verified). The
+/// old "numeric literal forces the numeric path" claim was a verified false
+/// positive.
 #[test]
-fn fp_sh_20_ordering_compare_numeric_literal_still_fires() {
+fn fp_sh_20_ordering_compare_numeric_literal_stays_silent() {
     let src = "set s [string trim hello]\nset y [expr {$s <= 5}]\n";
     assert!(
-        fires(src, D, "S100"),
-        "FP-SH-20 TP: `$s <= 5` must fire S100; got {:?}",
+        !fires(src, D, "S100") && !fires(src, D, "S101"),
+        "FP-SH-20: `$s <= 5` must not shimmer-flag `s`; got {:?}",
         codes(src, D),
     );
 }

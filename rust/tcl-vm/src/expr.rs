@@ -30,9 +30,9 @@ use std::cmp::Ordering;
 
 use num_bigint::BigInt;
 use num_integer::Integer;
-use num_traits::{Signed, ToPrimitive, Zero};
+use num_traits::{FromPrimitive, Signed, ToPrimitive, Zero};
 use tcl_runtime_api::Code;
-use tcl_syntax::expr::{BinOp, ExprOps, UnaryOp};
+use tcl_syntax::expr::{BinOp, ExprOps, NumericCompare, UnaryOp};
 use tcl_syntax::number::{self, Number};
 
 use crate::error::TclError;
@@ -449,11 +449,102 @@ pub fn arith(op: BinOp, a: &Value, b: &Value) -> Result<Value, TclError> {
     }
 }
 
-fn num_cmp(x: Num, y: Num) -> Ordering {
-    match (num_i128(x), num_i128(y)) {
-        (Some(a), Some(b)) => a.cmp(&b),
-        _ => num_f(x).partial_cmp(&num_f(y)).unwrap_or(Ordering::Equal),
+/// Exact bignum-vs-double comparison for integers past `i128`: compare integer
+/// parts as bignums, then let a non-zero fraction break a tie. NaN is
+/// unordered.
+fn cmp_bigint_double(w: &BigInt, d: f64) -> NumericCompare {
+    use NumericCompare::{Ordered, Unordered};
+    if d.is_nan() {
+        return Unordered;
     }
+    if d == f64::INFINITY {
+        return Ordered(Ordering::Less);
+    }
+    if d == f64::NEG_INFINITY {
+        return Ordered(Ordering::Greater);
+    }
+    let truncated = d.trunc();
+    // `from_f64` on a finite integral double is exact; `None` is unreachable
+    // for the finite values that get here, but degrade to "unordered" (which
+    // callers treat conservatively) rather than panic.
+    let Some(int_part) = BigInt::from_f64(truncated) else {
+        return Unordered;
+    };
+    Ordered(match w.cmp(&int_part) {
+        Ordering::Equal => {
+            let fraction = d - truncated;
+            if fraction > 0.0 {
+                Ordering::Less
+            } else if fraction < 0.0 {
+                Ordering::Greater
+            } else {
+                Ordering::Equal
+            }
+        }
+        unequal => unequal,
+    })
+}
+
+/// A comparison operand classified across the full numeric tower. Distinct
+/// from [`Num`] (the arithmetic coercion) because comparison must keep
+/// integers past `i128` exact and must classify NaN as a *number* — both of
+/// which the arithmetic path deliberately rejects.
+enum CmpNum {
+    /// Any integer that fits `i128` (wides included).
+    Int(i128),
+    /// An integer past `i128`, exact.
+    Big(BigInt),
+    /// A double — possibly NaN.
+    Dbl(f64),
+}
+
+/// Classify a comparison operand, or `None` for a non-numeric value.
+fn cmp_num_of(v: &Value) -> Option<CmpNum> {
+    if let Ok(n) = v.as_int() {
+        return Some(CmpNum::Int(i128::from(n)));
+    }
+    if let Some(b) = v.as_i128() {
+        return Some(CmpNum::Int(b));
+    }
+    // Typed doubles (including a typed NaN) and ordinary numeric strings.
+    if let Ok(d) = v.as_double() {
+        return Some(CmpNum::Dbl(d));
+    }
+    // `as_double` rejects integers past `i128` and the NaN spellings; both
+    // are numeric for comparison purposes (`RUST_ISSUE_011`; Tcl's NaN rule).
+    match number::parse_whole(v.to_str().trim()) {
+        Some(Number::Nan { .. }) => Some(CmpNum::Dbl(f64::NAN)),
+        Some(Number::Big { .. }) => value_as_bigint(v).map(CmpNum::Big),
+        _ => None,
+    }
+}
+
+/// The one numeric-comparison path over *values*: `None` when either operand is
+/// non-numeric (the caller falls back to a string comparison), otherwise the
+/// exact outcome across the whole tower — wide/`i128` exactly, integer-vs-double
+/// exactly, integers past `i128` as bignums (`RUST_ISSUE_011`), NaN unordered.
+/// Shared by [`compare`] and the [`ExprEval`] adapter so the two cannot drift.
+fn compare_values_numeric(a: &Value, b: &Value) -> Option<NumericCompare> {
+    use NumericCompare::{Ordered, Unordered};
+    let reversed = |outcome: NumericCompare| match outcome {
+        Ordered(ord) => Ordered(ord.reverse()),
+        Unordered => Unordered,
+    };
+    Some(match (cmp_num_of(a)?, cmp_num_of(b)?) {
+        (CmpNum::Int(p), CmpNum::Int(q)) => Ordered(p.cmp(&q)),
+        (CmpNum::Int(p), CmpNum::Dbl(d)) => {
+            NumericCompare::from_partial(number::compare_int_double(p, d))
+        }
+        (CmpNum::Dbl(d), CmpNum::Int(q)) => reversed(NumericCompare::from_partial(
+            number::compare_int_double(q, d),
+        )),
+        (CmpNum::Dbl(p), CmpNum::Dbl(q)) => NumericCompare::from_partial(p.partial_cmp(&q)),
+        (CmpNum::Big(p), CmpNum::Big(q)) => Ordered(p.cmp(&q)),
+        (CmpNum::Big(p), CmpNum::Int(q)) => Ordered(p.cmp(&BigInt::from(q))),
+        (CmpNum::Int(p), CmpNum::Big(q)) => Ordered(BigInt::from(p).cmp(&q)),
+        (CmpNum::Big(p), CmpNum::Dbl(d)) => cmp_bigint_double(&p, d),
+        (CmpNum::Dbl(d), CmpNum::Big(q)) => reversed(cmp_bigint_double(&q, d)),
+    })
 }
 
 /// Apply a comparison operator, returning the boolean result. Numeric when both
@@ -461,30 +552,24 @@ fn num_cmp(x: Num, y: Num) -> Ordering {
 /// string comparison — Tcl's `==`/`<`… rule.
 pub fn compare(op: BinOp, a: &Value, b: &Value) -> Result<bool, TclError> {
     use BinOp::{Eq, Ge, Gt, Le, Lt, Ne, StrEq, StrGe, StrGt, StrLe, StrLt, StrNe};
-    let str_ord = || (*a.to_str()).cmp(&b.to_str());
-    let ord = match op {
+    use NumericCompare::{Ordered, Unordered};
+    let str_ord = || Ordered((*a.to_str()).cmp(&b.to_str()));
+    let outcome = match op {
         StrEq | StrNe | StrLt | StrLe | StrGt | StrGe => str_ord(),
-        _ => match (to_num(a), to_num(b)) {
-            // When an operand is an integer past `i128`, compare exactly as
-            // bignums — `num_cmp`'s `f64` fallback would lose precision
-            // (`RUST_ISSUE_011`); the common `i128`-fit case stays on `num_cmp`.
-            (Ok(x), Ok(y)) if num_i128(x).is_none() || num_i128(y).is_none() => {
-                match (value_as_bigint(a), value_as_bigint(b)) {
-                    (Some(xb), Some(yb)) => xb.cmp(&yb),
-                    _ => num_cmp(x, y),
-                }
-            }
-            (Ok(x), Ok(y)) => num_cmp(x, y),
-            _ => str_ord(),
-        },
+        // Numeric when both operands are numbers, else string — with a NaN
+        // operand unordered: unequal to everything, ordered before/after
+        // nothing (C Tcl's "NaN arg" rule in tclExecute.c).
+        _ => compare_values_numeric(a, b).unwrap_or_else(str_ord),
     };
-    Ok(match op {
-        Eq | StrEq => ord.is_eq(),
-        Ne | StrNe => ord.is_ne(),
-        Lt | StrLt => ord.is_lt(),
-        Le | StrLe => ord.is_le(),
-        Gt | StrGt => ord.is_gt(),
-        Ge | StrGe => ord.is_ge(),
+    Ok(match (op, outcome) {
+        (Ne | StrNe, Unordered) => true,
+        (_, Unordered) => false,
+        (Eq | StrEq, Ordered(ord)) => ord.is_eq(),
+        (Ne | StrNe, Ordered(ord)) => ord.is_ne(),
+        (Lt | StrLt, Ordered(ord)) => ord.is_lt(),
+        (Le | StrLe, Ordered(ord)) => ord.is_le(),
+        (Gt | StrGt, Ordered(ord)) => ord.is_gt(),
+        (Ge | StrGe, Ordered(ord)) => ord.is_ge(),
         _ => return Err(TclError::new("unsupported comparison operator")),
     })
 }
@@ -629,11 +714,8 @@ impl ExprOps for ExprEval<'_> {
         unary(op, &v)
     }
 
-    fn compare_numeric(&mut self, l: &Value, r: &Value) -> Option<Ordering> {
-        match (to_num(l), to_num(r)) {
-            (Ok(x), Ok(y)) => Some(num_cmp(x, y)),
-            _ => None,
-        }
+    fn compare_numeric(&mut self, l: &Value, r: &Value) -> Option<NumericCompare> {
+        compare_values_numeric(l, r)
     }
 
     fn compare_string(&mut self, l: &Value, r: &Value) -> Ordering {
@@ -765,5 +847,44 @@ mod tests {
     fn compare_numeric_then_string() {
         assert!(compare(BinOp::Lt, &Value::string("9"), &Value::string("10")).unwrap());
         assert!(!compare(BinOp::Lt, &Value::string("apple"), &Value::string("Apple")).unwrap());
+    }
+
+    #[test]
+    fn compare_int_vs_double_is_exact() {
+        // tclsh: expr {9007199254740993 == 9007199254740992.0} → 0 — a
+        // both-as-f64 comparison would call them equal.
+        let big = Value::string("9007199254740993");
+        let dbl = Value::double(9_007_199_254_740_992.0);
+        assert!(!compare(BinOp::Eq, &big, &dbl).unwrap());
+        assert!(compare(BinOp::Gt, &big, &dbl).unwrap());
+        assert!(compare(BinOp::Lt, &dbl, &big).unwrap());
+        // Integers past i128 (lossy `Dbl` in `to_num`) against a double —
+        // the bignum-vs-double arm: 2¹³⁰ vs 1.5×2¹³⁰-ish.
+        let huge = Value::string("1361129467683753853853498429727072845824"); // 2^130
+        assert!(compare(BinOp::Gt, &huge, &Value::double(1e39)).unwrap());
+        assert!(compare(BinOp::Lt, &huge, &Value::double(1.4e39)).unwrap());
+        // Equal-integer-part case in the bignum arm: a double that is exactly
+        // 2¹³⁰ (powers of two are representable) compares Equal to the exact
+        // decimal spelling of 2¹³⁰.
+        assert!(compare(BinOp::Eq, &huge, &Value::double(2f64.powi(130))).unwrap());
+    }
+
+    #[test]
+    fn compare_nan_is_unordered() {
+        // tclsh: `set x NaN` — `$x != 1` → 1; `==`/`<`/`<=`/`>`/`>=` → 0;
+        // `$x == $x` → 0. Applies to string-spelled and typed NaN alike.
+        for nan in [Value::string("NaN"), Value::double(f64::NAN)] {
+            assert!(compare(BinOp::Ne, &nan, &Value::int(1)).unwrap());
+            assert!(!compare(BinOp::Eq, &nan, &Value::int(1)).unwrap());
+            assert!(!compare(BinOp::Lt, &nan, &Value::int(1)).unwrap());
+            assert!(!compare(BinOp::Le, &nan, &Value::int(1)).unwrap());
+            assert!(!compare(BinOp::Gt, &nan, &Value::int(1)).unwrap());
+            assert!(!compare(BinOp::Ge, &nan, &Value::int(1)).unwrap());
+            assert!(!compare(BinOp::Eq, &nan, &nan).unwrap());
+            assert!(compare(BinOp::Ne, &nan, &nan).unwrap());
+        }
+        // The string comparators still see the spelling: `NaN eq NaN` → 1.
+        let nan = Value::string("NaN");
+        assert!(compare(BinOp::StrEq, &nan, &nan).unwrap());
     }
 }

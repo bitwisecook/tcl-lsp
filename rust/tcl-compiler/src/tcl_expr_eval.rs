@@ -210,11 +210,13 @@ impl FoldValue {
 /// `env`, `[cmd]`/`Raw` are opaque.
 struct FoldOps<'a> {
     env: &'a Env,
-    /// Set when a comparison operand is a leading-zero integer whose
-    /// octal-vs-decimal reading is dialect-dependent AND [`Self::octal`] is
-    /// unknown (`None`): the comparison result would depend on the dialect, so
+    /// Set when a comparison's folded result would be unreliable, so
     /// [`eval_tcl_expr`] declines to fold rather than risk a false
-    /// I230 unreachable-branch.
+    /// I230 unreachable-branch. Two triggers: a leading-zero integer operand
+    /// whose octal-vs-decimal reading is dialect-dependent while
+    /// [`Self::octal`] is unknown (`None`), and the wide-vs-2⁶³-double
+    /// comparison whose answer is platform-dependent in C Tcl (see
+    /// [`numeric_cmp`]).
     ambiguous: bool,
     /// How a bare leading-zero integer (`08`, `010`) is read in `==`/`!=`/`<`/…
     /// numeric eligibility: `Some(true)` = octal (Tcl 8.x — `08`/`09` invalid →
@@ -373,7 +375,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         &mut self,
         left: &FoldValue,
         right: &FoldValue,
-    ) -> Option<std::cmp::Ordering> {
+    ) -> Option<tcl_syntax::expr::NumericCompare> {
         // `==` / `!=` / `<` / … are polymorphic: Tcl compares numerically only
         // when *both* operands are valid numbers, otherwise as strings. The
         // *strict* number grammar (no boolean words — `parse_literal` would
@@ -394,7 +396,18 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             return None;
         }
         match (lo, ro) {
-            (Operand::Num(a), Operand::Num(b)) => Some(numeric_cmp(a, b)),
+            (Operand::Num(a), Operand::Num(b)) => {
+                let outcome = numeric_cmp(a, b);
+                if outcome.is_none() {
+                    // The comparison itself can't be folded reliably (the 2⁶³
+                    // C-UB sliver — see `numeric_cmp`): decline the whole
+                    // fold. Returning bare `None` would instead fall back to
+                    // a string comparison of two numbers, computing a wrong
+                    // value.
+                    self.ambiguous = true;
+                }
+                outcome
+            }
             _ => None,
         }
     }
@@ -588,21 +601,24 @@ fn apply_binary(op: BinOp, a: TclValue, b: TclValue) -> Option<TclValue> {
             _ => None,
         },
 
-        // Numeric comparison — always returns Int(0) or Int(1).
-        BinOp::Eq => Some(TclValue::Int(i64::from(numeric_eq(a, b)))),
-        BinOp::Ne => Some(TclValue::Int(i64::from(!numeric_eq(a, b)))),
-        BinOp::Lt => Some(TclValue::Int(i64::from(
-            numeric_cmp(a, b) == std::cmp::Ordering::Less,
-        ))),
-        BinOp::Le => Some(TclValue::Int(i64::from(
-            numeric_cmp(a, b) != std::cmp::Ordering::Greater,
-        ))),
-        BinOp::Gt => Some(TclValue::Int(i64::from(
-            numeric_cmp(a, b) == std::cmp::Ordering::Greater,
-        ))),
-        BinOp::Ge => Some(TclValue::Int(i64::from(
-            numeric_cmp(a, b) != std::cmp::Ordering::Less,
-        ))),
+        // Numeric comparison — always returns Int(0) or Int(1). A NaN operand
+        // is unordered: unequal to everything, ordered against nothing.
+        BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => {
+            use std::cmp::Ordering;
+            use tcl_syntax::expr::NumericCompare;
+            let outcome = numeric_cmp(a, b)?;
+            let result = match (op, outcome) {
+                (BinOp::Ne, NumericCompare::Unordered) => true,
+                (_, NumericCompare::Unordered) => false,
+                (BinOp::Eq, NumericCompare::Ordered(o)) => o == Ordering::Equal,
+                (BinOp::Ne, NumericCompare::Ordered(o)) => o != Ordering::Equal,
+                (BinOp::Lt, NumericCompare::Ordered(o)) => o == Ordering::Less,
+                (BinOp::Le, NumericCompare::Ordered(o)) => o != Ordering::Greater,
+                (BinOp::Gt, NumericCompare::Ordered(o)) => o == Ordering::Greater,
+                (_, NumericCompare::Ordered(o)) => o != Ordering::Less,
+            };
+            Some(TclValue::Int(i64::from(result)))
+        }
 
         // String-comparison ops (eq/ne/lt/le/gt/ge) are routed through
         // `apply_string_compare` from `eval_binary` before they reach here
@@ -640,21 +656,44 @@ where
     }
 }
 
-fn numeric_eq(a: TclValue, b: TclValue) -> bool {
-    match (a, b) {
-        (TclValue::Int(x), TclValue::Int(y)) => x == y,
-        _ => (a.as_f64() - b.as_f64()).abs() == 0.0,
-    }
+/// Numeric comparison outcome for two folded numbers, exact across the whole
+/// wide range (C Tcl's `TclCompareTwoNumbers` — a both-as-`f64` comparison
+/// merges distinct wides above 2⁵³), with NaN as `Unordered` (Tcl's "`!=` is
+/// true, every other comparison false" rule).
+///
+/// `None` declines the fold: a double equal to exactly 2⁶³ compared against a
+/// wide that rounds onto it hits undefined behaviour in C Tcl's double→wide
+/// cast, and real interpreters answer platform-dependently (x86-64 tclsh 8.6
+/// says the wide is *greater*; the saturating ARM64 conversion says *equal*;
+/// the exact answer is *less*). No fold can match every runtime, so none is
+/// made.
+fn numeric_cmp(a: TclValue, b: TclValue) -> Option<tcl_syntax::expr::NumericCompare> {
+    use tcl_syntax::expr::NumericCompare;
+    Some(match (a, b) {
+        (TclValue::Int(x), TclValue::Int(y)) => NumericCompare::Ordered(x.cmp(&y)),
+        (TclValue::Float(x), TclValue::Float(y)) => NumericCompare::from_partial(x.partial_cmp(&y)),
+        (TclValue::Int(x), TclValue::Float(y)) => int_vs_double(x, y)?,
+        (TclValue::Float(x), TclValue::Int(y)) => match int_vs_double(y, x)? {
+            NumericCompare::Ordered(ord) => NumericCompare::Ordered(ord.reverse()),
+            NumericCompare::Unordered => NumericCompare::Unordered,
+        },
+    })
 }
 
-fn numeric_cmp(a: TclValue, b: TclValue) -> std::cmp::Ordering {
-    match (a, b) {
-        (TclValue::Int(x), TclValue::Int(y)) => x.cmp(&y),
-        _ => a
-            .as_f64()
-            .partial_cmp(&b.as_f64())
-            .unwrap_or(std::cmp::Ordering::Equal),
+/// Exact wide-vs-double comparison, declining (`None`) in the C-UB sliver
+/// documented on [`numeric_cmp`].
+fn int_vs_double(w: i64, d: f64) -> Option<tcl_syntax::expr::NumericCompare> {
+    use tcl_syntax::expr::NumericCompare;
+    // 2⁶³ as a double. A wide in (2⁶³−1024, 2⁶³) rounds onto it, which is the
+    // window where C Tcl's `(Tcl_WideInt) d2` conversion is undefined.
+    const TWO_POW_63: f64 = 9_223_372_036_854_775_808.0;
+    if d == TWO_POW_63 && w as f64 == TWO_POW_63 {
+        return None;
     }
+    Some(
+        tcl_syntax::number::compare_int_double(i128::from(w), d)
+            .map_or(NumericCompare::Unordered, NumericCompare::Ordered),
+    )
 }
 
 fn tcl_div(a: TclValue, b: TclValue) -> Option<TclValue> {
@@ -1114,6 +1153,81 @@ mod tests {
         assert_eq!(eval_str("2 < 1"), Some(TclValue::Int(0)));
         assert_eq!(eval_str("3 == 3"), Some(TclValue::Int(1)));
         assert_eq!(eval_str("3 != 3"), Some(TclValue::Int(0)));
+    }
+
+    #[test]
+    fn mixed_int_double_comparisons_are_exact_past_2_pow_53() {
+        // tclsh (8.6 and 9.0): a wide compares against a double at full
+        // precision, not through a lossy both-as-f64 conversion.
+        //   expr {9007199254740993 == 9007199254740992.0} → 0
+        //   expr {9007199254740993 >  9007199254740992.0} → 1
+        //   expr {9007199254740993 >  9007199254740993.0} → 1  (the float
+        //   literal itself rounds down to …992.0)
+        assert_eq!(
+            eval_str("9007199254740993 == 9007199254740992.0"),
+            Some(TclValue::Int(0))
+        );
+        assert_eq!(
+            eval_str("9007199254740993 > 9007199254740992.0"),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(
+            eval_str("9007199254740993 > 9007199254740993.0"),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(
+            eval_str("20000000000000003 < 20000000000000004.0"),
+            Some(TclValue::Int(1))
+        );
+        // Order flipped: the double on the left.
+        assert_eq!(
+            eval_str("9007199254740992.0 < 9007199254740993"),
+            Some(TclValue::Int(1))
+        );
+    }
+
+    #[test]
+    fn nan_comparisons_follow_tcl_unordered_rule() {
+        // tclsh: `set x NaN; expr {$x == 1}` → 0, `!=` → 1, every ordering
+        // comparison → 0 — numeric-unordered, NOT a string comparison.
+        let mut env = Env::new();
+        env.insert("x".to_owned(), EnvValue::Str("NaN".to_owned()));
+        assert_eq!(eval_str_env("$x == 1", &env), Some(TclValue::Int(0)));
+        assert_eq!(eval_str_env("$x != 1", &env), Some(TclValue::Int(1)));
+        assert_eq!(eval_str_env("$x < 1", &env), Some(TclValue::Int(0)));
+        assert_eq!(eval_str_env("$x <= 1", &env), Some(TclValue::Int(0)));
+        assert_eq!(eval_str_env("$x > 1", &env), Some(TclValue::Int(0)));
+        assert_eq!(eval_str_env("$x >= 1", &env), Some(TclValue::Int(0)));
+        // NaN != NaN numerically… but `eq` is a string comparison, so the
+        // spelling matters there instead (both verified against tclsh).
+        assert_eq!(eval_str_env("$x == $x", &env), Some(TclValue::Int(0)));
+        assert_eq!(eval_str_env("$x eq $x", &env), Some(TclValue::Int(1)));
+    }
+
+    #[test]
+    fn wide_vs_2_pow_63_double_declines_to_fold() {
+        // `9223372036854775807 < 9223372036854775808.0` is answered
+        // platform-dependently by C Tcl (UB in its double→wide cast: x86-64
+        // says 0, a saturating conversion says 1, exact maths says 1) — the
+        // folder must decline rather than bake in any one answer.
+        assert_eq!(
+            eval_str("9223372036854775807 < 9223372036854775808.0"),
+            None
+        );
+        assert_eq!(
+            eval_str("9223372036854775807 == 9223372036854775808.0"),
+            None
+        );
+        // The negative mirror is well-defined (−2⁶³ is representable): fold.
+        assert_eq!(
+            eval_str("-9223372036854775807-1 == -9223372036854775808.0"),
+            Some(TclValue::Int(1))
+        );
+        // And a double clearly past the boundary is well-defined: 2⁶³−1 < 9.3e18.
+        assert_eq!(
+            eval_str("9223372036854775807 < 9.3e18"),
+            Some(TclValue::Int(1))
+        );
     }
 
     #[test]

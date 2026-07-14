@@ -4402,6 +4402,20 @@ function ::f
 - `tests/test_fp_sh.py::test_FP_SH_08_eq_with_numeric_literal_still_fires` (TP, `$s == "5"` with $s STRING)
 - `tests/test_fp_sh.py::test_FP_SH_08_add_still_fires` (TP control, `$s + 0` — always numeric)
 
+**Addendum (compiler deep review):** the `_operand_looks_numeric` gate was
+itself a verified false-positive class. C Tcl's numeric probe is
+**per-operand on its own value** — `$s == "5"` with `s = "hello"` converts
+only the `"5"` literal; `$s` fails the parse, the comparison string-compares,
+and `s` keeps its intrep (tclsh-verified). A sibling operand's numericness
+proves nothing about this one, and a static type cannot prove a value
+parses, so `==`/`!=` (with the ordering comparisons — see FP-SH-20) are no
+longer flagged at all. The Rust locks are
+`analyser/diagnostics/fp/sh.rs::fp_sh_08_eq_both_non_numeric_no_shimmer`,
+`fp_sh_08_eq_with_numeric_literal_stays_silent` (was `…_still_fires`, whose
+TP claim was refuted), `fp_sh_08_add_still_fires` (arithmetic keeps firing —
+it has no string fallback), and
+`shimmer/expr.rs::expr_shimmer_comparisons_never_flag`.
+
 ---
 
 ### FP-SH-09 — byte array case-folded / re-encoded by a string op corrupts high bytes (S110)
@@ -5221,10 +5235,20 @@ fired S100/S101.  But Tcl's comparison operators — ordering **and** equality
 they compare the operands' string representations.  A non-numeric operand
 therefore never has its intrep clobbered, so the warning is a false positive.
 
-The fix moves `Lt`/`Le`/`Gt`/`Ge` into the same `operand_looks_numeric`
-gate already used for `==` / `!=`: fire only when at least one operand is
-provably numeric (the case where the numeric path — and the coercion — is
-actually taken).
+The first fix moved `Lt`/`Le`/`Gt`/`Ge` into the same
+`operand_looks_numeric` gate already used for `==` / `!=`: fire only when at
+least one operand is provably numeric.
+
+**Addendum (compiler deep review):** that gate was still wrong — a verified
+false-positive class remained. C Tcl's probe is **per-operand on its own
+value**: `GetNumberFromObj(NULL, …)` converts an operand's intrep only when
+*that operand's* string parses as a number, and a non-numeric sibling then
+falls the whole comparison back to a string compare with both intreps kept.
+So `expr {$s <= 5}` with `s = "hello"` leaves `s` a `string` (tclsh-verified)
+— the "numeric literal forces the numeric path" claim the old TP-control
+tests locked in was false. A static type cannot prove a value parses, so the
+comparison operators are no longer flagged at all; the S102 flip-flop
+detection still catches genuinely alternating intreps.
 
 #### tclsh ground truth (8.6 and 9.0)
 
@@ -5235,15 +5259,17 @@ actually taken).
 % tcl::unsupported::representation $a        ;# STILL pure string — no shimmer
 % set lst [list a b c]
 % expr {$lst > $b}                          ;# list intrep preserved (string rep only materialised)
+% set s [string trim hello]
+% expr {$s <= 5}                            ;# 0 — string compare; $s STAYS pure string
 % set n 10
-% expr {$n < 5}                             ;# 0 — n shimmers pure string -> int (TP)
+% expr {$n < 5}                             ;# 0 — n's own value parses: string -> int
 ```
 
 #### Tests
 
 - `analyser/diagnostics/fp/sh.rs::fp_sh_20_ordering_compare_non_numeric_silent` (FP)
-- `analyser/diagnostics/fp/sh.rs::fp_sh_20_ordering_compare_numeric_literal_still_fires` (TP)
-- `shimmer/expr.rs::expr_shimmer_ordering_op_only_when_numeric` (FP + TP)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_20_ordering_compare_numeric_literal_stays_silent` (FP)
+- `shimmer/expr.rs::expr_shimmer_comparisons_never_flag` (FP)
 
 ---
 

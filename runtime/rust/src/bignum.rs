@@ -37,6 +37,7 @@
 use core::ffi::{c_char, c_int};
 
 use crate::obj::{self, TclObj, TclObjType};
+use tcl_syntax::expr::NumericCompare;
 use tcl_syntax::number::Radix;
 
 /// libtommath's `mp_int` (pristine, `MP_64BIT`): `{ int used, alloc; mp_sign
@@ -494,28 +495,152 @@ pub fn as_math_num(obj: *mut TclObj) -> Option<tcl_syntax::expr::mathfunc::Num> 
 
 /// on a non-numeric operand (NaN compares as the IEEE result via `f64`).
 #[must_use]
-pub fn compare(a: *mut TclObj, b: *mut TclObj) -> Option<core::cmp::Ordering> {
+pub fn compare(a: *mut TclObj, b: *mut TclObj) -> Option<NumericCompare> {
     use core::cmp::Ordering;
+    use NumericCompare::{Ordered, Unordered};
+    // NaN is numeric-but-unordered for comparisons (C Tcl: `!=` true, every
+    // other comparison false), while [`read`] deliberately folds a NaN
+    // *string* to `None` because the arithmetic paths must raise on it — so
+    // detect NaN here first. A typed double NaN is caught the same way.
+    if is_nan_operand(a) || is_nan_operand(b) {
+        return Some(Unordered);
+    }
     let x = read(a)?;
     let y = read(b)?;
     Some(match (x, y) {
-        (NumVal::Wide(p), NumVal::Wide(q)) => p.cmp(&q),
-        // Any float operand → compare as f64 (partial_cmp; NaN → treat as
-        // Greater so it sorts consistently — the expr layer handles NaN rules).
-        (p, q) if matches!(p, NumVal::Float(_)) || matches!(q, NumVal::Float(_)) => as_f64(p)
-            .partial_cmp(&as_f64(q))
-            .unwrap_or(Ordering::Greater),
-        // At least one bignum → mp_cmp.
+        (NumVal::Wide(p), NumVal::Wide(q)) => Ordered(p.cmp(&q)),
+        // Integer-vs-double compares exactly — a both-as-`f64` comparison
+        // merges distinct wides above 2⁵³ (`20000000000000003` vs
+        // `20000000000000004.0` — the case C's TclCompareTwoNumbers cites).
+        (NumVal::Wide(p), NumVal::Float(d)) => {
+            NumericCompare::from_partial(tcl_syntax::number::compare_int_double(i128::from(p), d))
+        }
+        (NumVal::Float(d), NumVal::Wide(q)) => {
+            match tcl_syntax::number::compare_int_double(i128::from(q), d) {
+                Some(ord) => Ordered(ord.reverse()),
+                None => Unordered,
+            }
+        }
+        (NumVal::Float(p), NumVal::Float(q)) => NumericCompare::from_partial(p.partial_cmp(&q)),
+        (NumVal::Big(m), NumVal::Float(d)) => big_vs_double(&m, d),
+        (NumVal::Float(d), NumVal::Big(m)) => match big_vs_double(&m, d) {
+            Ordered(ord) => Ordered(ord.reverse()),
+            unordered => unordered,
+        },
+        // Both integers, at least one bignum → mp_cmp.
         (p, q) => {
             let pm = into_mp(p)?;
             let qm = into_mp(q)?;
             // SAFETY: live mp_ints; mp_cmp returns -1/0/1.
-            match unsafe { mp_cmp(pm.ptr(), qm.ptr()) } {
+            Ordered(match unsafe { mp_cmp(pm.ptr(), qm.ptr()) } {
                 n if n < 0 => Ordering::Less,
                 0 => Ordering::Equal,
                 _ => Ordering::Greater,
+            })
+        }
+    })
+}
+
+/// Whether the operand is a NaN — a typed double NaN, or an untyped string
+/// spelling one (`NaN`, `nan(...)`) per the shared number grammar.
+fn is_nan_operand(obj: *mut TclObj) -> bool {
+    let tp = obj::obj_type_ptr(obj);
+    if tp == &obj::TCL_DOUBLE_TYPE {
+        return obj::double_of(obj).is_nan();
+    }
+    if tp == &obj::TCL_INT_TYPE || tp == &TCL_BIGNUM_TYPE {
+        return false;
+    }
+    let bytes = obj::bytes_of(obj);
+    let Ok(s) = core::str::from_utf8(&bytes) else {
+        return false;
+    };
+    matches!(
+        tcl_syntax::number::parse_whole(s),
+        Some(tcl_syntax::number::Number::Nan { .. })
+    )
+}
+
+/// Exact bignum-vs-finite-double comparison (NaN was filtered by the caller):
+/// split the double into its exact integer part and fraction, compare the
+/// integer parts with `mp_cmp`, and let a non-zero fraction break a tie.
+fn big_vs_double(m: &Mp, d: f64) -> NumericCompare {
+    use core::cmp::Ordering;
+    use NumericCompare::Ordered;
+    if d == f64::INFINITY {
+        return Ordered(Ordering::Less);
+    }
+    if d == f64::NEG_INFINITY {
+        return Ordered(Ordering::Greater);
+    }
+    const MANTISSA_BITS: u64 = 52;
+    const EXPONENT_BIAS_AND_SHIFT: u64 = 1023 + MANTISSA_BITS;
+    let bits = d.to_bits();
+    let negative = (bits >> 63) == 1;
+    let stored_exponent = (bits >> MANTISSA_BITS) & 0x7ff;
+    let fraction_bits = bits & ((1 << MANTISSA_BITS) - 1);
+    // value = mantissa × 2^(stored − 1075); subnormal/zero ⇒ integer part 0.
+    let mantissa = if stored_exponent == 0 {
+        fraction_bits
+    } else {
+        (1 << MANTISSA_BITS) | fraction_bits
+    };
+    let (int_magnitude, scale_up, has_fraction) =
+        match stored_exponent.checked_sub(EXPONENT_BIAS_AND_SHIFT) {
+            // Scale up: purely integral, worth `mantissa << left` (left ≤ 971,
+            // applied via mp_mul_2d below).
+            Some(left) => (mantissa, left, false),
+            None => {
+                let right = EXPONENT_BIAS_AND_SHIFT - stored_exponent;
+                if right >= MANTISSA_BITS + 2 {
+                    // |d| < 1 (incl. zero/subnormal): integer part 0.
+                    (0, 0, mantissa != 0)
+                } else {
+                    (mantissa >> right, 0, mantissa & ((1 << right) - 1) != 0)
+                }
+            }
+        };
+    // The integer part as an mp: |int| = int_magnitude × 2^scale_up, signed.
+    let signed = i64::try_from(int_magnitude).map_or(i64::MAX, |v| if negative { -v } else { v });
+    let Some(mut dm) = Mp::from_i64(signed) else {
+        // Allocation failure: degrade to the (lossy) float compare rather
+        // than panic — vanishingly rare and still totally ordered.
+        return NumericCompare::from_partial(
+            // SAFETY: live bignum; libtommath's double conversion.
+            unsafe { mp_get_double(m.ptr()) }.partial_cmp(&d),
+        );
+    };
+    if scale_up > 0 {
+        let mut out = zeroed_mp();
+        // SAFETY: init `out`, then shift the live `dm` left into it.
+        unsafe {
+            if mp_init(&mut out) != MP_OKAY {
+                return NumericCompare::from_partial(mp_get_double(m.ptr()).partial_cmp(&d));
+            }
+            if mp_mul_2d(
+                dm.ptr(),
+                c_int::try_from(scale_up).unwrap_or(c_int::MAX),
+                &mut out,
+            ) != MP_OKAY
+            {
+                mp_clear(&mut out);
+                return NumericCompare::from_partial(mp_get_double(m.ptr()).partial_cmp(&d));
             }
         }
+        dm = Mp(out);
+    }
+    // SAFETY: both live mp_ints.
+    let cmp = match unsafe { mp_cmp(m.ptr(), dm.ptr()) } {
+        n if n < 0 => Ordering::Less,
+        0 => Ordering::Equal,
+        _ => Ordering::Greater,
+    };
+    Ordered(match (cmp, has_fraction) {
+        // Equal integer parts, fraction on the double: truncation is toward
+        // zero, so positive d sits above its integer part, negative below.
+        (Ordering::Equal, true) if !negative => Ordering::Less,
+        (Ordering::Equal, true) => Ordering::Greater,
+        (ord, _) => ord,
     })
 }
 
@@ -1124,14 +1249,26 @@ mod tests {
         crate::counters::reset();
         let big = two_pow_63();
         let small = int_obj(5);
-        assert_eq!(compare(big, small), Some(Ordering::Greater)); // bignum > wide
-        assert_eq!(compare(small, big), Some(Ordering::Less));
+        assert_eq!(
+            compare(big, small),
+            Some(NumericCompare::Ordered(Ordering::Greater))
+        ); // bignum > wide
+        assert_eq!(
+            compare(small, big),
+            Some(NumericCompare::Ordered(Ordering::Less))
+        );
         let two = int_obj(2);
         let half = rc1(obj::new_double_obj(2.5));
-        assert_eq!(compare(two, half), Some(Ordering::Less)); // 2 < 2.5
+        assert_eq!(
+            compare(two, half),
+            Some(NumericCompare::Ordered(Ordering::Less))
+        ); // 2 < 2.5
         let two_eq = int_obj(2);
         let two_b = int_obj(2);
-        assert_eq!(compare(two_eq, two_b), Some(Ordering::Equal));
+        assert_eq!(
+            compare(two_eq, two_b),
+            Some(NumericCompare::Ordered(Ordering::Equal))
+        );
         for o in [big, small, two, half, two_eq, two_b] {
             drop1(o);
         }
