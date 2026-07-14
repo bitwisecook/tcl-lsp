@@ -22,9 +22,9 @@
 | W002 | warning | Command is disabled in active dialect profile. | ✓ |
 | W003 | warning | Expression operator not available in active dialect. | ✓ |
 | W004 | warning | Command option is not available in the active dialect. | ✓ |
-| W100 | warning | Unbraced expression argument — prevents byte-compilation and risks double substitution. | ✓ |
+| W100 | warning | Unbraced expression argument — prevents byte-compilation and risks double substitution. Escalates to Error when the argument provably contains a substitution. | ✓ |
 | W104 | warning | String concatenation for list building — use `lappend` instead. | ✓ |
-| W105 | warning | Unbraced code block or missing `variable` declaration in `namespace eval`. | ✓ |
+| W105 | warning | Unbraced code block or missing `variable` declaration in `namespace eval`. Escalates to Error when the block provably contains a substitution (double-substitution risk). | ✓ |
 | W106 | warning | Dangerous unbraced `switch` body — risks double substitution. | ✓ |
 | W108 | warning | Non-ASCII characters in token content. | ✓ |
 | W110 | warning | Use `eq`/`ne` instead of `==`/`!=` for string comparison. | ✓ |

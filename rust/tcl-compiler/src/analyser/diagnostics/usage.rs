@@ -97,6 +97,10 @@ impl Analyser {
         if !trimmed.contains(char::is_whitespace) && !has_substitution {
             return;
         }
+        // Deliberate severity escalation (documented in the DiagCode
+        // catalogue): a provable substitution in an unbraced block is a
+        // double-substitution bug waiting to run, not just style — the
+        // W-family code stays, the severity is Error.
         let severity = if has_substitution {
             super::types::Severity::Error
         } else {
@@ -233,6 +237,10 @@ Use braces: {{ \u{2026} }}"
         text: &str,
         has_sub: bool,
     ) {
+        // Deliberate severity escalation (documented in the DiagCode
+        // catalogue): an unbraced expression that provably substitutes is
+        // evaluated twice at runtime — a correctness/injection risk, not
+        // just a byte-compilation loss.
         let severity = if has_sub {
             super::types::Severity::Error
         } else {

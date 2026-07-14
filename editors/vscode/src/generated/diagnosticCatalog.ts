@@ -94,7 +94,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "W100",
     section: "warning",
     description:
-      "Unbraced expression argument — prevents byte-compilation and risks double substitution.",
+      "Unbraced expression argument — prevents byte-compilation and risks double substitution. Escalates to Error when the argument provably contains a substitution.",
     defaultEnabled: true,
   },
   {
@@ -106,7 +106,8 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "W105",
     section: "warning",
-    description: "Unbraced code block or missing `variable` declaration in `namespace eval`.",
+    description:
+      "Unbraced code block or missing `variable` declaration in `namespace eval`. Escalates to Error when the block provably contains a substitution (double-substitution risk).",
     defaultEnabled: true,
   },
   {

@@ -3692,7 +3692,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**W100:** Unbraced expression argument — prevents byte-compilation and risks double substitution.",
+            "markdownDescription": "**W100:** Unbraced expression argument — prevents byte-compilation and risks double substitution. Escalates to Error when the argument provably contains a substitution.",
             "order": 4
           },
           "tclLsp.diagnostics.W104": {
@@ -3706,7 +3706,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**W105:** Unbraced code block or missing `variable` declaration in `namespace eval`.",
+            "markdownDescription": "**W105:** Unbraced code block or missing `variable` declaration in `namespace eval`. Escalates to Error when the block provably contains a substitution (double-substitution risk).",
             "order": 6
           },
           "tclLsp.diagnostics.W106": {

@@ -386,12 +386,12 @@ diagnostic_codes! {
     W002 => "W002", diag(Warning, true, "Command is disabled in active dialect profile.");
     W003 => "W003", diag(Warning, true, "Expression operator not available in active dialect.");
     W004 => "W004", diag(Warning, true, "Command option is not available in the active dialect.");
-    W100 => "W100", diag(Warning, true, "Unbraced expression argument — prevents byte-compilation and risks double substitution.");
+    W100 => "W100", diag(Warning, true, "Unbraced expression argument — prevents byte-compilation and risks double substitution. Escalates to Error when the argument provably contains a substitution.");
     W101 => "W101", diag(Security, true, "`eval` with string concatenation — code injection risk.");
     W102 => "W102", diag(Security, true, "`subst` on variable input — code injection risk.");
     W103 => "W103", diag(Security, true, "`open` with pipeline `|` — command injection risk.");
     W104 => "W104", diag(Warning, true, "String concatenation for list building — use `lappend` instead.");
-    W105 => "W105", diag(Warning, true, "Unbraced code block or missing `variable` declaration in `namespace eval`.");
+    W105 => "W105", diag(Warning, true, "Unbraced code block or missing `variable` declaration in `namespace eval`. Escalates to Error when the block provably contains a substitution (double-substitution risk).");
     W106 => "W106", diag(Warning, true, "Dangerous unbraced `switch` body — risks double substitution.");
     W108 => "W108", diag(Warning, true, "Non-ASCII characters in token content.");
     W110 => "W110", diag(Warning, true, "Use `eq`/`ne` instead of `==`/`!=` for string comparison.");
