@@ -12,7 +12,7 @@
     {
       "code": "W110",
       "line": 3,
-      "column": 8,
+      "column": 16,
       "message": "Use 'eq' instead of '==' for string comparison in expressions to avoid ambiguous numeric/string coercion.",
       "conversion": "== / != for strings -> eq / ne"
     }
