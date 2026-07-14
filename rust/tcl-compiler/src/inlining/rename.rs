@@ -160,11 +160,15 @@ fn rewrite_assign_like(stmt: &Statement, rename: &HashMap<String, String>) -> St
             name,
             name_braced,
             expr,
+            ..
         } => Statement::AssignExpr {
             span: *span,
             name: rename_var_name(name, rename),
             name_braced: *name_braced,
             expr: rewrite_expr(expr, rename),
+            // The rewrite renames variables in-place, so leaf offsets no
+            // longer index the (renamed) text — drop the source anchor.
+            expr_base: None,
         },
         Statement::Incr {
             span,
@@ -179,9 +183,10 @@ fn rewrite_assign_like(stmt: &Statement, rename: &HashMap<String, String>) -> St
             amount: amount.as_ref().map(|a| rewrite_value_string(a, rename)),
             safe_on_uninit: *safe_on_uninit,
         },
-        Statement::ExprEval { span, expr } => Statement::ExprEval {
+        Statement::ExprEval { span, expr, .. } => Statement::ExprEval {
             span: *span,
             expr: rewrite_expr(expr, rename),
+            expr_base: None,
         },
         _ => unreachable!("rewrite_assign_like dispatched a non-assign statement"),
     }
@@ -276,6 +281,7 @@ fn rewrite_control_flow(stmt: &Statement, rename: &HashMap<String, String>) -> S
                 .map(|c| IfClause {
                     condition: rewrite_expr(&c.condition, rename),
                     condition_span: c.condition_span,
+                    condition_base: None,
                     body: rewrite_script(&c.body, rename),
                     body_span: c.body_span,
                 })
@@ -295,12 +301,14 @@ fn rewrite_control_flow(stmt: &Statement, rename: &HashMap<String, String>) -> S
             body_span,
             raw_args,
             raw_tokens,
+            ..
         } => Statement::For {
             span: *span,
             init: rewrite_script(init, rename),
             init_span: *init_span,
             condition: rewrite_expr(condition, rename),
             condition_span: *condition_span,
+            condition_base: None,
             next: rewrite_script(next, rename),
             next_span: *next_span,
             body: rewrite_script(body, rename),
@@ -316,10 +324,12 @@ fn rewrite_control_flow(stmt: &Statement, rename: &HashMap<String, String>) -> S
             body_span,
             raw_args,
             raw_tokens,
+            ..
         } => Statement::While {
             span: *span,
             condition: rewrite_expr(condition, rename),
             condition_span: *condition_span,
+            condition_base: None,
             body: rewrite_script(body, rename),
             body_span: *body_span,
             raw_args: raw_args.clone(),

@@ -86,6 +86,11 @@ pub enum Terminator {
         false_target: BlockId,
         /// Source span of the condition.
         span: Option<Span>,
+        /// Absolute source offset of the condition *text*'s first byte,
+        /// when it is a verbatim source slice — see
+        /// [`crate::ir::IfClause::condition_base`].  Lets consumers map
+        /// expression-AST leaf offsets to absolute operand spans.
+        condition_base: Option<u32>,
     },
 
     /// Procedure exit.
@@ -480,6 +485,7 @@ mod tests {
             true_target: t,
             false_target: f,
             span: None,
+            condition_base: None,
         }
     }
 
@@ -813,6 +819,7 @@ mod tests {
                     body_span: Span::new(0, 0),
                     raw_args: Vec::new(),
                     raw_tokens: None,
+                    condition_base: None,
                 },
             },
         );

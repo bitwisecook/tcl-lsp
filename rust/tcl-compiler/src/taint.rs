@@ -1469,21 +1469,23 @@ pub fn find_destructive_file_warnings<S: std::hash::BuildHasher, E: std::hash::B
                 path_start += 1;
             }
             // One W313 per statement (first offending path variable).
-            // Collect candidate path variables in argument (source) order:
+            // Collect candidate path variables in argument (source) order —
+            // tagged with their argument index so the warning can anchor at
+            // the offending *path argument*, not the whole command:
             // `ssa_stmt.uses` is a `HashMap`, so iterating it would pick a
             // nondeterministic variable for a multi-path sink like
             // `file rename $a $b` — making the warning's message (and the memo
             // vs whole-module builds) differ run-to-run.
             let mut seen: FxHashSet<String> = FxHashSet::default();
-            let mut ordered: Vec<String> = Vec::new();
-            for a in args.iter().skip(path_start) {
+            let mut ordered: Vec<(usize, String)> = Vec::new();
+            for (idx, a) in args.iter().enumerate().skip(path_start) {
                 for name in arg_var_names_ordered(a) {
                     if seen.insert(name.clone()) {
-                        ordered.push(name);
+                        ordered.push((idx, name));
                     }
                 }
             }
-            for name in &ordered {
+            for (arg_idx, name) in &ordered {
                 let Some(sym) = ssa.var_symbol(name) else {
                     continue;
                 };
@@ -1516,7 +1518,10 @@ pub fn find_destructive_file_warnings<S: std::hash::BuildHasher, E: std::hash::B
                     )
                 };
                 warnings.push(TaintWarning {
-                    span: *span,
+                    // Anchor at the offending path argument's own token span
+                    // (mirroring T102's per-argument targeting); the whole
+                    // statement span is the tokens-unavailable fallback.
+                    span: arg_index_span(&ssa_stmt.statement, *arg_idx).unwrap_or(*span),
                     variable: name.clone(),
                     sink_command: format!("file {sub}"),
                     code: DiagCode::W313,
@@ -3132,9 +3137,10 @@ fn option_scan_region(
     region
 }
 
-/// Resolve a tight per-argument span for a T102 diagnostic, so the
-/// highlighted range (and its `--`-insertion fix) covers only the
-/// offending argument rather than the whole statement.
+/// Resolve a tight per-argument span for an argument-anchored taint
+/// diagnostic (T102 option injection, W313 destructive-file path), so the
+/// highlighted range (and any fix) covers only the offending argument
+/// rather than the whole statement.
 ///
 /// - `Call` / `Barrier`: the argument's own token span, read directly off
 ///   `tokens.argv` (offset by 1 to skip the command-name word — `argv[0]`
@@ -3152,7 +3158,7 @@ fn option_scan_region(
 /// the whole-statement span in that case. A tight span is a
 /// highlighting nicety, never a correctness requirement, so this never
 /// panics or guesses.
-fn t102_arg_span(stmt: &Statement, arg_index: usize) -> Option<Span> {
+fn arg_index_span(stmt: &Statement, arg_index: usize) -> Option<Span> {
     match stmt {
         Statement::Call {
             tokens: Some(t), ..
@@ -3198,7 +3204,7 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
     warnings: &mut Vec<TaintWarning>,
     stmt: &Statement,
 ) {
-    // `tokens` is unused here: T102's own `t102_arg_span(stmt, arg_index)`
+    // `tokens` is unused here: T102's own `arg_index_span(stmt, arg_index)`
     // re-derives the tight per-argument span directly from `stmt` (it
     // already knows the exact `arg_index` from `option_scan_region`'s
     // iteration, so an index-based lookup is more precise than
@@ -3276,7 +3282,7 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
             // fix in that case — a fabricated span could misplace the
             // insertion, e.g. before the command name rather than the
             // argument).
-            let (warn_span, fixes) = match t102_arg_span(stmt, i) {
+            let (warn_span, fixes) = match arg_index_span(stmt, i) {
                 Some(tight) => (
                     tight,
                     vec![CodeFix {

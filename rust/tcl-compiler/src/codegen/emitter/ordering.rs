@@ -486,6 +486,7 @@ mod tests {
             true_target: then,
             false_target: els,
             span: None,
+            condition_base: None,
         });
         cfg.blocks.get_mut(&then).unwrap().terminator = Some(Terminator::Goto {
             target: join,
@@ -525,6 +526,7 @@ mod tests {
             true_target: then,
             false_target: els,
             span: None,
+            condition_base: None,
         });
         cfg.blocks.get_mut(&then).unwrap().terminator = Some(Terminator::Goto {
             target: join,

@@ -2789,6 +2789,58 @@ mod tests {
     }
 
     #[test]
+    fn w110_span_anchors_on_the_operator() {
+        // Range precision: the diagnostic anchors on the `==` itself, not
+        // the whole condition.
+        let src = "if {$x == \"foo\"} {puts yes}\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        let w110: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W110)
+            .collect();
+        assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
+        let expected = src.find("==").unwrap();
+        assert_eq!(
+            (w110[0].span.start() as usize, w110[0].span.end() as usize),
+            (expected, expected + 2),
+            "W110 must cover exactly the operator, got {:?}",
+            w110[0].span
+        );
+        // The code fix still replaces the whole condition text.
+        assert!(!w110[0].fixes.is_empty(), "fix expected: {:?}", w110[0]);
+        assert!(
+            w110[0].fixes[0].span.start() < w110[0].span.start(),
+            "fix span must cover the argument, not just the operator"
+        );
+    }
+
+    #[test]
+    fn w110_span_anchors_on_the_matched_operator_not_the_first() {
+        // `$a == $b` (variable compare — not flagged) precedes the
+        // string compare `$c == "x"`; the anchor must be the SECOND `==`.
+        let src = "if {$a == $b && $c == \"x\"} {puts yes}\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        let w110: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W110)
+            .collect();
+        assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
+        let expected = src.rfind("==").unwrap();
+        assert_eq!(
+            (w110[0].span.start() as usize, w110[0].span.end() as usize),
+            (expected, expected + 2),
+            "W110 must anchor the matched (second) `==`, got {:?}",
+            w110[0].span
+        );
+        // Mixed string/non-string compares must not offer the blanket fix.
+        assert!(w110[0].fixes.is_empty(), "no fix expected: {:?}", w110[0]);
+    }
+
+    #[test]
     fn analyse_no_w110_for_numeric_compare() {
         // ``$x == 42`` — numeric literal on the right, no string
         // operand, should not fire.

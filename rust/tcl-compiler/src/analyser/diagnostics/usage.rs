@@ -925,33 +925,46 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
     /// `expr_text` is the post-substitution body of the EXPR-role
     /// argument (already brace-stripped) — the caller is
     /// responsible for joining multi-arg `expr` invocations with
-    /// spaces before calling.  `diag_span` is the source span the
-    /// diagnostic anchors to (the source range of the argument
-    /// token, or the full token range for `expr`).
+    /// spaces before calling.  `diag_span` is the fallback span (the
+    /// source range of the argument token, or the full token range for
+    /// `expr`); the diagnostic anchors on the offending *operator*
+    /// itself when `anchor` lets its offset map back to real source
+    /// bytes.  The code fix always spans the whole argument
+    /// (`diag_span`) — the rewrite replaces the full expression text.
     pub(in crate::analyser) fn emit_w110_string_eq_ne(
         &mut self,
         expr_text: &str,
         diag_span: tcl_lexer::Span,
+        anchor: &W110Anchor<'_>,
     ) {
         // Quick bail-out: no equality operator at all.
         if !expr_text.contains("==") && !expr_text.contains("!=") {
             return;
         }
-        let parsed = crate::parse_expr(expr_text.trim(), Some(self.dialect.as_str()));
+        let trimmed = expr_text.trim();
+        let parsed = crate::parse_expr(trimmed, Some(self.dialect.as_str()));
         // ``ExprNode::Raw`` means the expression was unparseable.
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
         }
-        let matched_ops = find_string_eq_ne_ops(&parsed);
+        let matched_ops = find_string_eq_ne_ops(&parsed, trimmed);
         if matched_ops.is_empty() {
             return;
         }
-        let first_op = matched_ops[0];
+        let (first_op, first_off) = matched_ops[0];
         let (op_text, replacement) = match first_op {
             BinOp::Eq => ("==", "eq"),
             BinOp::Ne => ("!=", "ne"),
             _ => unreachable!("find_string_eq_ne_ops only returns Eq/Ne"),
         };
+        // Anchor the diagnostic on the matched operator when its offset in
+        // the parsed text maps back to verbatim source bytes; the argument
+        // span is the fallback.  Offsets are relative to the *trimmed*
+        // text, so shift by the leading whitespace the trim removed.
+        let trim_off = expr_text.len() - expr_text.trim_start().len();
+        let span = first_off
+            .and_then(|off| self.w110_operator_span(anchor, trim_off + off as usize, op_text))
+            .unwrap_or(diag_span);
         // Only offer the regex-based code fix when every ``==``/
         // ``!=`` in the expression has a string-literal operand;
         // otherwise the blanket rewrite would incorrectly change
@@ -975,12 +988,73 @@ numeric/string coercion."
         );
         self.result.diagnostics.push(super::types::Diagnostic {
             code: DiagCode::W110,
-            span: diag_span,
+            span,
             message,
             severity: Severity::Hint,
             fixes,
         });
     }
+
+    /// Map a W110 operator offset (within the emitter's `expr_text`) to
+    /// its absolute source span, verifying the source bytes actually spell
+    /// `op_text` there (reconstructed argument texts fail the check →
+    /// `None`, and the caller falls back to the argument span).
+    fn w110_operator_span(
+        &self,
+        anchor: &W110Anchor<'_>,
+        off: usize,
+        op_text: &str,
+    ) -> Option<tcl_lexer::Span> {
+        let candidate = match anchor {
+            // Single argument word: content starts `content_offset` bytes
+            // into the token span.
+            W110Anchor::ArgToken(tok) => {
+                tok.span.start() as usize + usize::from(tok.content_offset) + off
+            }
+            // `expr $a == "x"` multi-word form: `expr_text` is
+            // `args.join(" ")`, so locate which word the offset falls in
+            // and anchor at that word's own token.
+            W110Anchor::JoinedWords { args, tokens } => {
+                let mut cum = 0usize;
+                let mut found = None;
+                for (i, arg) in args.iter().enumerate() {
+                    if off < cum + arg.len() {
+                        found = Some((i, off - cum));
+                        break;
+                    }
+                    cum += arg.len() + 1;
+                }
+                let (word_idx, in_word) = found?;
+                let tok = tokens.get(word_idx)?;
+                tok.span.start() as usize + usize::from(tok.content_offset) + in_word
+            }
+        };
+        // Byte-verify: the span is only trustworthy when the source spells
+        // the operator at the candidate position.
+        if self.source.get(candidate..candidate + op_text.len())? != op_text {
+            return None;
+        }
+        Some(tcl_lexer::Span::new(
+            u32::try_from(candidate).ok()?,
+            u32::try_from(candidate + op_text.len()).ok()?,
+        ))
+    }
+}
+
+/// How [`Analyser::emit_w110_string_eq_ne`] maps an operator offset within
+/// its `expr_text` back to source bytes.
+pub(in crate::analyser) enum W110Anchor<'a> {
+    /// The single EXPR-role argument's own token — `expr_text` is that
+    /// word's (possibly brace-stripped) content.
+    ArgToken(tcl_lexer::Token),
+    /// The joined multi-word `expr $a == "x"` form — `expr_text` is
+    /// `args.join(" ")` over these words/tokens.
+    JoinedWords {
+        /// The argument word texts that were joined.
+        args: &'a [String],
+        /// The words' representative tokens, same order.
+        tokens: &'a [tcl_lexer::Token],
+    },
 }
 
 /// True when `tok` is a `${name}` (brace-form) VAR token.  Bare `$name` spans
@@ -1306,46 +1380,92 @@ pub(super) fn first_nested_expr(slice: &str) -> Option<(usize, usize)> {
 }
 
 /// Walk `node` and collect every `==`/`!=` operator whose at least
-/// one operand is a string literal ([`ExprNode::String`]).
+/// one operand is a string literal ([`ExprNode::String`]), paired with
+/// the operator's byte offset within `text` (the parsed expression
+/// source) when it can be located — `None` when an operand extent is
+/// unavailable (a `Raw` child) or the operator text is not found in the
+/// gap between the operands.
 ///
 /// Comparisons between
 /// two variables (`$x == $y`) are intentionally *not* collected —
 /// the variables may hold integer values, making `==` correct.
-fn find_string_eq_ne_ops(node: &ExprNode) -> Vec<BinOp> {
+fn find_string_eq_ne_ops(node: &ExprNode, text: &str) -> Vec<(BinOp, Option<u32>)> {
     let mut found = Vec::new();
-    walk_string_eq_ne(node, &mut found);
+    walk_string_eq_ne(node, text, &mut found);
     found
 }
 
-fn walk_string_eq_ne(node: &ExprNode, found: &mut Vec<BinOp>) {
+fn walk_string_eq_ne(node: &ExprNode, text: &str, found: &mut Vec<(BinOp, Option<u32>)>) {
     match node {
         ExprNode::Binary { op, left, right } => {
-            walk_string_eq_ne(left, found);
-            walk_string_eq_ne(right, found);
+            walk_string_eq_ne(left, text, found);
+            walk_string_eq_ne(right, text, found);
             if matches!(op, BinOp::Eq | BinOp::Ne)
                 && (matches!(**left, ExprNode::String { .. })
                     || matches!(**right, ExprNode::String { .. }))
             {
-                found.push(*op);
+                found.push((*op, op_offset_between(text, left, right, *op)));
             }
         }
-        ExprNode::Unary { operand, .. } => walk_string_eq_ne(operand, found),
+        ExprNode::Unary { operand, .. } => walk_string_eq_ne(operand, text, found),
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            walk_string_eq_ne(condition, found);
-            walk_string_eq_ne(true_branch, found);
-            walk_string_eq_ne(false_branch, found);
+            walk_string_eq_ne(condition, text, found);
+            walk_string_eq_ne(true_branch, text, found);
+            walk_string_eq_ne(false_branch, text, found);
         }
         ExprNode::Call { args, .. } => {
             for arg in args {
-                walk_string_eq_ne(arg, found);
+                walk_string_eq_ne(arg, text, found);
             }
         }
         _ => {}
     }
+}
+
+/// The `(start, end)` extent of `node` within its parsed text, from its
+/// leaves' offsets (`end` inclusive — the expr lexer's convention).
+/// `None` when a `Raw` child makes the extent unknowable.
+fn node_extent(node: &ExprNode) -> Option<(u32, u32)> {
+    match node {
+        ExprNode::Literal { start, end, .. }
+        | ExprNode::String { start, end, .. }
+        | ExprNode::Var { start, end, .. }
+        | ExprNode::Command { start, end, .. }
+        | ExprNode::Call { start, end, .. } => Some((*start, *end)),
+        ExprNode::Binary { left, right, .. } => {
+            let (ls, _) = node_extent(left)?;
+            let (_, re) = node_extent(right)?;
+            Some((ls, re))
+        }
+        ExprNode::Unary { operand, .. } => node_extent(operand),
+        ExprNode::Ternary {
+            condition,
+            false_branch,
+            ..
+        } => {
+            let (cs, _) = node_extent(condition)?;
+            let (_, fe) = node_extent(false_branch)?;
+            Some((cs, fe))
+        }
+        ExprNode::Raw { .. } => None,
+    }
+}
+
+/// Byte offset of `op`'s source text within `text`, located in the gap
+/// between the left operand's (inclusive) end and the right operand's
+/// start.  This pins the *matched* operator, not merely the first
+/// occurrence — `$a == $b && $c == "x"` anchors the second `==`.
+fn op_offset_between(text: &str, left: &ExprNode, right: &ExprNode, op: BinOp) -> Option<u32> {
+    let (_, left_end) = node_extent(left)?;
+    let (right_start, _) = node_extent(right)?;
+    let gap_start = (left_end as usize) + 1;
+    let gap = text.get(gap_start..right_start as usize)?;
+    let rel = gap.find(op.as_str())?;
+    u32::try_from(gap_start + rel).ok()
 }
 
 /// Count the total number of `==`/`!=` operators in the expression

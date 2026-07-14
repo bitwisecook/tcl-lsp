@@ -861,6 +861,7 @@ fn rewrite_if_stmt(
             new_clauses.push(IfClause {
                 condition: c.condition.clone(),
                 condition_span: c.condition_span,
+                condition_base: c.condition_base,
                 body,
                 body_span: c.body_span,
             });
@@ -904,6 +905,7 @@ fn rewrite_for_stmt(
         init_span,
         condition,
         condition_span,
+        condition_base,
         next,
         next_span,
         body,
@@ -924,6 +926,7 @@ fn rewrite_for_stmt(
             init_span: *init_span,
             condition: condition.clone(),
             condition_span: *condition_span,
+            condition_base: *condition_base,
             next: new_next,
             next_span: *next_span,
             body: new_body,
@@ -948,6 +951,7 @@ fn rewrite_single_body_stmt(
             span,
             condition,
             condition_span,
+            condition_base,
             body,
             body_span,
             raw_args,
@@ -960,6 +964,7 @@ fn rewrite_single_body_stmt(
                     span: *span,
                     condition: condition.clone(),
                     condition_span: *condition_span,
+                    condition_base: *condition_base,
                     body: new_body,
                     body_span: *body_span,
                     raw_args: raw_args.clone(),
@@ -1426,6 +1431,7 @@ fn wrap_with_irreturn_loop(
                 end: 1,
             },
             condition_span: span,
+            condition_base: None,
             body: Script {
                 statements: body_with_break,
             },
@@ -1503,6 +1509,7 @@ fn substitute_irreturn_stmt(stmt: &Statement, result_var: &str) -> Statement {
                 .map(|c| IfClause {
                     condition: c.condition.clone(),
                     condition_span: c.condition_span,
+                    condition_base: c.condition_base,
                     body: substitute_irreturn(&c.body, result_var),
                     body_span: c.body_span,
                 })

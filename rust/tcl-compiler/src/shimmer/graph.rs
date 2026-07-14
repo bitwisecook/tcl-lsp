@@ -148,6 +148,7 @@ mod tests {
             true_target: tt,
             false_target: ft,
             span: None,
+            condition_base: None,
         }
     }
 

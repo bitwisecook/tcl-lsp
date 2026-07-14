@@ -161,6 +161,28 @@ pub(crate) fn has_expansion(cmd: &LoweringCommand<'_>) -> bool {
     cmd.expand_word.is_some_and(|ew| ew.iter().any(|&e| e))
 }
 
+/// Absolute source offset of a word's *content* first byte, when the word is
+/// a single token whose content `text` is a verbatim source slice — the base
+/// that maps expression-AST leaf offsets (relative to the parsed text) back
+/// to absolute source positions.
+///
+/// The lexer's inner-end span convention makes the opening-delimiter width
+/// recoverable without a `content_offset`: `span_len - text_len` is `0` for a
+/// bare word and `1` for a braced / quoted / bracketed one (whose span covers
+/// the opener plus the content, ending exclusively at the closer).  Any other
+/// difference means the text was reconstructed (`${x}` re-braced by the
+/// segmenter, an empty `{}`, a multi-token word) and no verbatim mapping
+/// exists, so the result is `None`.
+pub(crate) fn word_content_base(span: Span, single: bool, text: &str) -> Option<u32> {
+    if !single {
+        return None;
+    }
+    let span_len = span.end().checked_sub(span.start())?;
+    let text_len = u32::try_from(text.len()).ok()?;
+    let delta = span_len.checked_sub(text_len)?;
+    (delta <= 1).then(|| span.start() + delta)
+}
+
 // expr
 //
 // Moved to `crate::lowering::hooks::control::try_lower_expr`. The
@@ -259,13 +281,29 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                     .and_then(|s| s.strip_suffix(']'))
                     .unwrap_or(value);
                 let alias_names = expr_alias_names(aliases);
-                if let Some(expr_arg) = extract_single_expr_arg(inner, &alias_names) {
+                if let Some((expr_arg, rel_base)) = extract_single_expr_arg(inner, &alias_names) {
                     let expr = parse_expr(&expr_arg, None);
+                    // Anchor the expression text absolutely when both the
+                    // `[...]` value word's content and the expr word within
+                    // it are verbatim slices: absolute = the bracketed
+                    // word's content start + the expr word's offset in it.
+                    let inner_base = cmd.tokens.as_ref().and_then(|t| {
+                        word_content_base(
+                            *t.argv.get(2)?,
+                            t.single_token_word.get(2).copied().unwrap_or(false),
+                            inner,
+                        )
+                    });
+                    let expr_base = match (inner_base, rel_base) {
+                        (Some(b), Some(r)) => Some(b + r),
+                        _ => None,
+                    };
                     return Statement::AssignExpr {
                         span: cmd.span,
                         name: name.clone(),
                         name_braced,
                         expr,
+                        expr_base,
                     };
                 }
             }
@@ -484,8 +522,12 @@ pub(crate) fn make_call(cmd: &LoweringCommand<'_>) -> Statement {
 
 /// Extract the single expression argument from a `[expr ...]` command.
 ///
-/// Returns `Some(expr_text)` if the text is `expr <one-word>` (or an
-/// expr alias), `None` otherwise.
+/// Returns `Some((expr_text, content_base))` if the text is
+/// `expr <one-word>` (or an expr alias), `None` otherwise.
+/// `content_base` is the offset of the expression text's first byte
+/// *within `text`* when the word content is a verbatim slice of it
+/// (see [`word_content_base`]), letting callers anchor expression-AST
+/// leaf offsets back to the source.
 ///
 /// `pub(crate)` so per-command hook modules under
 /// [`crate::lowering::hooks`] (e.g. `control::try_lower_return`) can
@@ -493,7 +535,7 @@ pub(crate) fn make_call(cmd: &LoweringCommand<'_>) -> Statement {
 pub(crate) fn extract_single_expr_arg(
     text: &str,
     expr_aliases: &HashSet<String>,
-) -> Option<String> {
+) -> Option<(String, Option<u32>)> {
     use tcl_lexer::{Lexer, SourceMap, TokenType};
 
     let sm = SourceMap::new(text);
@@ -504,6 +546,8 @@ pub(crate) fn extract_single_expr_arg(
 
     let mut words = Vec::new();
     let mut single = Vec::new();
+    // Representative (first) token span per word, for content anchoring.
+    let mut word_spans: Vec<Span> = Vec::new();
     // Whether each word is built only from *literal* tokens (`Esc`/`Str`). A
     // `Var`/`Cmd` token has its sigil/brackets stripped in `token_text`, so the
     // reconstructed word would lose them (`$e` → `e`); such an arg also needs the
@@ -522,6 +566,7 @@ pub(crate) fn extract_single_expr_arg(
                     words.push(t.to_owned());
                     single.push(true);
                     literal.push(is_lit);
+                    word_spans.push(tok.span);
                 } else if let Some(last) = words.last_mut() {
                     last.push_str(t);
                     if let Some(s) = single.last_mut() {
@@ -534,6 +579,7 @@ pub(crate) fn extract_single_expr_arg(
                     words.push(t.to_owned());
                     single.push(true);
                     literal.push(is_lit);
+                    word_spans.push(tok.span);
                 }
                 prev_is_sep = false;
             }
@@ -555,7 +601,8 @@ pub(crate) fn extract_single_expr_arg(
     if !literal[1] {
         return None;
     }
-    Some(words[1].clone())
+    let base = word_content_base(word_spans[1], single[1], &words[1]);
+    Some((words[1].clone(), base))
 }
 
 /// Validate text as a decimal integer, returning the source text if valid.
@@ -698,10 +745,11 @@ mod tests {
     #[test]
     fn extract_expr_arg_basic() {
         let aliases = HashSet::new();
-        // token_text strips braces from Str tokens.
+        // token_text strips braces from Str tokens; the content base is the
+        // offset just past the `{` (the expr text's first byte in `text`).
         assert_eq!(
             extract_single_expr_arg("expr {$a + $b}", &aliases),
-            Some("$a + $b".into())
+            Some(("$a + $b".into(), Some(6)))
         );
     }
 
@@ -717,7 +765,7 @@ mod tests {
         aliases.insert("=".into());
         assert_eq!(
             extract_single_expr_arg("= {1+2}", &aliases),
-            Some("1+2".into())
+            Some(("1+2".into(), Some(3)))
         );
     }
 

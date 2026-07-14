@@ -1287,6 +1287,55 @@ mod w313_destructive_file {
     }
 
     #[test]
+    fn span_covers_only_the_path_argument() {
+        // Range precision: the warning anchors at the dynamic path argument
+        // (`$p`), not the whole `file delete …` command — mirroring T102's
+        // per-argument targeting.
+        let src = "set p [read $fd]\nfile delete $p";
+        let ws = of_code(src, D, "W313");
+        assert!(!ws.is_empty());
+        let expected = src.rfind("$p").unwrap();
+        assert_eq!(
+            (ws[0].span.start() as usize, ws[0].span.end() as usize),
+            (expected, expected + 2),
+            "W313 must cover exactly the `$p` argument, got {:?}",
+            ws[0].span
+        );
+    }
+
+    #[test]
+    fn span_covers_first_offending_path_argument_of_rename() {
+        // `file rename $a $b` warns once, anchored at the first offending
+        // path argument (`$a`), not the statement.
+        let src = "set a [read $f1]\nset b [read $f2]\nfile rename $a $b";
+        let ws = of_code(src, D, "W313");
+        assert_eq!(ws.len(), 1);
+        let expected = src.rfind("$a").unwrap();
+        assert_eq!(
+            (ws[0].span.start() as usize, ws[0].span.end() as usize),
+            (expected, expected + 2),
+            "W313 must cover exactly the `$a` argument, got {:?}",
+            ws[0].span
+        );
+    }
+
+    #[test]
+    fn span_skips_force_flag_to_the_path_argument() {
+        // With `-force` present the anchor is still the *path* argument, not
+        // the switch word.
+        let src = "set p [read $fd]\nfile delete -force $p";
+        let ws = of_code(src, D, "W313");
+        assert!(!ws.is_empty());
+        let expected = src.rfind("$p").unwrap();
+        assert_eq!(
+            (ws[0].span.start() as usize, ws[0].span.end() as usize),
+            (expected, expected + 2),
+            "W313 must anchor past `-force` at `$p`, got {:?}",
+            ws[0].span
+        );
+    }
+
+    #[test]
     fn first_path_variable_is_deterministic() {
         // `file rename $a $b` — one W313 per statement on the FIRST offending
         // path variable in source order (the `arg_var_names_ordered` determinism

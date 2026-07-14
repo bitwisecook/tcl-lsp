@@ -33,7 +33,8 @@
 //! cloned statements (read for positions by some emitters), and the SCCP
 //! constant-branch spans.
 //! `ExprNode` carries *relative* offsets anchored to a statement span we shift,
-//! so it needs no rebasing.
+//! so it needs no rebasing — but the absolute `expr_base` / `condition_base`
+//! anchors those offsets map through do.
 
 use tcl_lexer::Span;
 
@@ -94,6 +95,15 @@ fn shift_opt(span: &mut Option<Span>, delta: i64) {
     }
 }
 
+/// Shift an absolute expression-text anchor (`expr_base` / `condition_base`)
+/// — same clamping as [`shift`].
+fn shift_base(base: &mut Option<u32>, delta: i64) {
+    if let Some(b) = base {
+        let shifted = (i64::from(*b) + delta).max(0);
+        *b = u32::try_from(shifted).unwrap_or(u32::MAX);
+    }
+}
+
 fn rebase_tokens(tokens: &mut Option<CommandTokens>, delta: i64) {
     if let Some(tokens) = tokens {
         for span in &mut tokens.argv {
@@ -120,19 +130,32 @@ pub fn rebase_script(script: &mut Script, delta: i64) {
 
 fn rebase_terminator(term: &mut Terminator, delta: i64) {
     match term {
-        Terminator::Goto { span, .. }
-        | Terminator::Branch { span, .. }
-        | Terminator::Return { span, .. } => shift_opt(span, delta),
+        Terminator::Goto { span, .. } | Terminator::Return { span, .. } => shift_opt(span, delta),
+        Terminator::Branch {
+            span,
+            condition_base,
+            ..
+        } => {
+            shift_opt(span, delta);
+            shift_base(condition_base, delta);
+        }
     }
 }
 
 fn rebase_statement(stmt: &mut Statement, delta: i64) {
     match stmt {
         Statement::AssignConst { span, .. }
-        | Statement::AssignExpr { span, .. }
         | Statement::Incr { span, .. }
-        | Statement::ExprEval { span, .. }
         | Statement::Return { span, .. } => shift(span, delta),
+        Statement::AssignExpr {
+            span, expr_base, ..
+        }
+        | Statement::ExprEval {
+            span, expr_base, ..
+        } => {
+            shift(span, delta);
+            shift_base(expr_base, delta);
+        }
         Statement::AssignValue { span, tokens, .. }
         | Statement::Call { span, tokens, .. }
         | Statement::Barrier { span, tokens, .. } => {
@@ -159,6 +182,7 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
             next,
             next_span,
             condition_span,
+            condition_base,
             body,
             body_span,
             raw_tokens,
@@ -167,6 +191,7 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
             shift(span, delta);
             shift(init_span, delta);
             shift(condition_span, delta);
+            shift_base(condition_base, delta);
             shift(next_span, delta);
             shift(body_span, delta);
             rebase_script(init, delta);
@@ -177,6 +202,7 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
         Statement::While {
             span,
             condition_span,
+            condition_base,
             body,
             body_span,
             raw_tokens,
@@ -184,6 +210,7 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
         } => {
             shift(span, delta);
             shift(condition_span, delta);
+            shift_base(condition_base, delta);
             shift(body_span, delta);
             rebase_script(body, delta);
             rebase_tokens(raw_tokens, delta);
@@ -229,6 +256,7 @@ fn rebase_branching_statement(stmt: &mut Statement, delta: i64) {
             shift_opt(else_span, delta);
             for clause in clauses {
                 shift(&mut clause.condition_span, delta);
+                shift_base(&mut clause.condition_base, delta);
                 shift(&mut clause.body_span, delta);
                 rebase_script(&mut clause.body, delta);
             }

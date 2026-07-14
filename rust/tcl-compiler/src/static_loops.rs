@@ -633,6 +633,7 @@ mod tests {
                 condition_span: sp(),
                 body: script_of(vec![assign_const("x", "10")]),
                 body_span: sp(),
+                condition_base: None,
             }],
             else_body: Some(script_of(vec![assign_const("x", "20")])),
             else_span: None,
@@ -704,6 +705,7 @@ mod tests {
             body_span: sp(),
             raw_args: Vec::new(),
             raw_tokens: None,
+            condition_base: None,
         };
         let env =
             summarise_for_statement(&for_stmt, &StaticEnv::new(), 100, None).expect("summarised");

@@ -994,6 +994,7 @@ mod tests {
                 start: 0,
                 end: 2,
             },
+            expr_base: None,
         };
         let mut ugi = false;
         ctx.emit_stmt(&stmt, &mut ugi);
@@ -1012,6 +1013,7 @@ mod tests {
                 start: 0,
                 end: 1,
             },
+            expr_base: None,
         };
         let mut ugi = false;
         ctx.emit_stmt(&stmt, &mut ugi);

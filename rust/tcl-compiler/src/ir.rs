@@ -169,6 +169,13 @@ pub struct IfClause {
     pub condition: ExprNode,
     /// Source span of the condition text.
     pub condition_span: Span,
+    /// Absolute source offset of the condition *text*'s first byte, when
+    /// the text handed to `parse_expr` is a verbatim source slice (single
+    /// braced / bare word).  Expression-AST leaf offsets are relative to
+    /// that text, so `condition_base + leaf.start` recovers an absolute
+    /// operand span.  `None` when the text was reconstructed (quoted /
+    /// multi-token words) — consumers fall back to `condition_span`.
+    pub condition_base: Option<u32>,
     /// Body script to execute when the condition is true.
     pub body: Script,
     /// Source span of the body text.
@@ -261,6 +268,10 @@ pub enum Statement {
         name_braced: bool,
         /// Parsed expression AST.
         expr: ExprNode,
+        /// Absolute source offset of the expression text's first byte —
+        /// see [`IfClause::condition_base`].  `None` when the expression
+        /// text is not a verbatim source slice.
+        expr_base: Option<u32>,
     },
 
     /// General value assignment: `set name value` where value may
@@ -302,6 +313,10 @@ pub enum Statement {
         span: Span,
         /// Parsed expression AST.
         expr: ExprNode,
+        /// Absolute source offset of the expression text's first byte —
+        /// see [`IfClause::condition_base`].  `None` when the expression
+        /// text is not a verbatim source slice.
+        expr_base: Option<u32>,
     },
 
     /// A generic command invocation.
@@ -444,6 +459,9 @@ pub enum Statement {
         condition: ExprNode,
         /// Source span of the condition.
         condition_span: Span,
+        /// Absolute source offset of the condition text — see
+        /// [`IfClause::condition_base`].
+        condition_base: Option<u32>,
         /// Next-iteration script.
         next: Script,
         /// Source span of the next script.
@@ -471,6 +489,9 @@ pub enum Statement {
         condition: ExprNode,
         /// Source span of the condition.
         condition_span: Span,
+        /// Absolute source offset of the condition text — see
+        /// [`IfClause::condition_base`].
+        condition_base: Option<u32>,
         /// Loop body.
         body: Script,
         /// Source span of the body.
@@ -920,6 +941,7 @@ mod tests {
                 condition_span: Span::new(0, 0),
                 body: Script::from_statements(vec![inner1]),
                 body_span: Span::new(0, 0),
+                condition_base: None,
             }],
             else_body: Some(Script::from_statements(vec![inner2])),
             else_span: None,
@@ -1064,6 +1086,7 @@ mod tests {
                     foreach_groups: None,
                 }]),
                 body_span: Span::new(5, 16),
+                condition_base: None,
             }],
             else_body: None,
             else_span: None,
@@ -1112,6 +1135,7 @@ mod tests {
             body_span: Span::new(32, 34),
             raw_args: Vec::new(),
             raw_tokens: None,
+            condition_base: None,
         };
         assert_eq!(stmt.span(), Span::new(0, 40));
     }

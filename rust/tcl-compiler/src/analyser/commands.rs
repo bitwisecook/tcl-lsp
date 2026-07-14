@@ -930,14 +930,25 @@ impl Analyser {
                 arg_tokens[arg_tokens.len() - 1].span.end(),
             );
             let expr_text = args.join(" ");
-            self.emit_w110_string_eq_ne(&expr_text, span);
+            self.emit_w110_string_eq_ne(
+                &expr_text,
+                span,
+                &super::diagnostics::W110Anchor::JoinedWords {
+                    args,
+                    tokens: arg_tokens,
+                },
+            );
             self.emit_w003_dialect_invalid_expr_words(args, arg_tokens, &expr_text);
             return;
         }
 
         for idx in indices {
             if let (Some(text), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) {
-                self.emit_w110_string_eq_ne(text, tok.span);
+                self.emit_w110_string_eq_ne(
+                    text,
+                    tok.span,
+                    &super::diagnostics::W110Anchor::ArgToken(*tok),
+                );
                 // W003 anchors on the argument's inner content (delimiters
                 // stripped via `content_offset`), not the raw token span —
                 // it re-slices `self.source` directly so its operator

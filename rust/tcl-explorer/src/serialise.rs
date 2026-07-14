@@ -269,6 +269,7 @@ fn terminator_dict(
             true_target,
             false_target,
             span,
+            ..
         }) => json!({
             "type": "branch",
             "condition": preview(&render_expr(condition), 80),

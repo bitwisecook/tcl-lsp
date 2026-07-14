@@ -41,7 +41,10 @@ use crate::types::{TypeKind, TypeLattice};
 
 use super::graph::loop_body_blocks;
 use super::span::{def_range_map, phi_span};
-use super::thunking::{destructure_foreach_blocks, empty_value_versions, per_loop_body_types};
+use super::thunking::{
+    DefSpanLookup, destructure_foreach_blocks, empty_value_versions, per_loop_body_types,
+    per_loop_type_span,
+};
 use super::{ShimmerWarning, type_name};
 
 /// Find phi-node shimmer warnings for a function.
@@ -58,6 +61,9 @@ struct PhiCtx<'a> {
     loop_blocks: &'a HashSet<String>,
     loop_body_types: &'a HashMap<Symbol, HashSet<TclType>>,
     def_map: &'a HashMap<ValueKey, tcl_lexer::Span>,
+    /// Destructure-foreach blocks excluded from in-loop def anchoring —
+    /// see [`destructure_foreach_blocks`].
+    destructure: &'a HashSet<String>,
     /// Array-base symbols excluded from shimmer reporting (FP-SH-13) — a
     /// conflated `arr(a)`/`arr(b)` phi merges independent elements.
     array_syms: &'a HashSet<Symbol>,
@@ -127,7 +133,28 @@ fn classify_phi_shimmer(ctx: &PhiCtx<'_>, phi: &Phi, in_loop: bool) -> Option<Sh
         return None;
     }
 
-    let span = phi_span(phi, ctx.ssa, ctx.def_map);
+    // Anchor an in-loop merge on the loop-body statement that actually
+    // produced one of the merging types, rather than on whichever incoming
+    // def sorts earliest in the source — for an ordinary loop that is
+    // always the pre-loop initialiser (`set sep ""` above the loop), not
+    // the code the developer must change. Mirrors the S102 thunking pass's
+    // `per_loop_type_span` preference; falls back to the whole-phi
+    // heuristic when neither type traces to an in-loop def.
+    let span = if in_loop {
+        let look = DefSpanLookup {
+            ssa: ctx.ssa,
+            types: ctx.types,
+            empty_by_name: ctx.empty_by_name,
+            def_map: ctx.def_map,
+            destructure: ctx.destructure,
+        };
+        [to, from]
+            .into_iter()
+            .find_map(|t| per_loop_type_span(&look, ctx.loop_blocks, phi.name, t))
+            .unwrap_or_else(|| phi_span(phi, ctx.ssa, ctx.def_map))
+    } else {
+        phi_span(phi, ctx.ssa, ctx.def_map)
+    };
     let related: Vec<_> = phi
         .incoming
         .iter()
@@ -190,6 +217,7 @@ pub(crate) fn find_phi_shimmers(
         loop_blocks: &loop_blocks,
         loop_body_types: &loop_body_types,
         def_map: &def_map,
+        destructure: &destructure,
         array_syms: &array_syms,
     };
     let mut out = Vec::new();
@@ -304,6 +332,60 @@ mod tests {
         assert!(
             warnings.iter().any(|w| w.variable == "y"),
             "plain scalar merge must still phi-shimmer: {warnings:?}"
+        );
+    }
+
+    /// TP (range precision): an in-loop S101 merge anchors on the loop-body
+    /// statement that produced one of the merging types, not on the pre-loop
+    /// initialiser (`set v 5` above the loop) — mirroring the S102 thunking
+    /// pass's `per_loop_type_span` preference.
+    #[test]
+    fn phi_shimmer_in_loop_anchors_on_in_loop_def() {
+        let src = "set v 5\nforeach x {a b c} {\n  puts $v\n  if {$x eq \"b\"} { set v \"s\" } \
+                   else { set v 7 }\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = warnings
+            .iter()
+            .find(|w| w.variable == "v" && w.in_loop)
+            .unwrap_or_else(|| panic!("expected in-loop phi shimmer for v: {warnings:?}"));
+        let loop_start = src.find("foreach").unwrap();
+        assert!(
+            (w.span.start() as usize) >= loop_start,
+            "S101 must anchor inside the loop (>= {loop_start}), got {:?} \
+             (pre-loop initialiser anchor)",
+            w.span
+        );
+        // Precisely: one of the two in-loop `set v …` statements.
+        let set_s = src.find("set v \"s\"").unwrap();
+        let set_7 = src.find("set v 7").unwrap();
+        assert!(
+            (w.span.start() as usize) == set_s || (w.span.start() as usize) == set_7,
+            "anchor must be an in-loop def of the merging type, got {:?}",
+            w.span
+        );
+    }
+
+    /// FP guard: the in-loop preference must not disturb the out-of-loop
+    /// S100 merge anchor (no loop, no in-loop defs — the phi heuristic
+    /// stays).
+    #[test]
+    fn phi_shimmer_out_of_loop_anchor_unchanged() {
+        let src = "set cond [gets stdin]\nif {$cond} { set x 1 } else { set x \"hi\" }\nputs $x";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = warnings
+            .iter()
+            .find(|w| w.variable == "x")
+            .unwrap_or_else(|| panic!("expected phi shimmer for x: {warnings:?}"));
+        // The earliest incoming def is `set x 1` — the existing anchor.
+        let expected = src.find("set x 1").unwrap();
+        assert_eq!(
+            w.span.start() as usize,
+            expected,
+            "out-of-loop anchor must stay on the earliest incoming def"
         );
     }
 

@@ -4669,6 +4669,60 @@ fn info_exists_query_word_not_read_before_set() {
 }
 
 #[test]
+fn i230_message_quotes_bare_var_as_source_spells_it() {
+    // Message fidelity: `if $n …` must render the condition as `$n`, not
+    // the segmenter's re-braced `${n}` reconstruction.
+    let src = "set n 1\nif $n { puts a } else { puts b }\n";
+    let mut a = Analyser::new();
+    a.emit_cfg_ssa_diagnostics(src);
+    let i230: Vec<_> = a
+        .result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code.to_string() == "I230")
+        .collect();
+    assert!(
+        !i230.is_empty(),
+        "expected I230: {:?}",
+        a.result.diagnostics
+    );
+    assert!(
+        i230[0].message.contains("'$n'"),
+        "message must quote the source spelling `$n`, got {:?}",
+        i230[0].message
+    );
+    assert!(
+        !i230[0].message.contains("${n}"),
+        "message must not re-brace to `${{n}}`, got {:?}",
+        i230[0].message
+    );
+}
+
+#[test]
+fn i230_message_keeps_braced_var_spelling() {
+    // A source-braced `${n}` stays `${n}` — fidelity cuts both ways.
+    let src = "set n 1\nif ${n} { puts a } else { puts b }\n";
+    let mut a = Analyser::new();
+    a.emit_cfg_ssa_diagnostics(src);
+    let i230: Vec<_> = a
+        .result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code.to_string() == "I230")
+        .collect();
+    assert!(
+        !i230.is_empty(),
+        "expected I230: {:?}",
+        a.result.diagnostics
+    );
+    assert!(
+        i230[0].message.contains("'${n}'"),
+        "message must keep the source's braced spelling, got {:?}",
+        i230[0].message
+    );
+}
+
+#[test]
 fn info_exists_folds_false_for_never_defined_local() {
     // A never-defined non-parameter never
     // exists → predicate folds false → I230.

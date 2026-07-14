@@ -103,6 +103,10 @@ pub(in crate::analyser::diagnostics) use usage::{
 #[cfg(test)]
 pub(in crate::analyser::diagnostics) use validity::contains_gated_word;
 
+// The W110 operator-anchor selector is consumed by the EXPR-argument
+// dispatch in `crate::analyser::commands`.
+pub(in crate::analyser) use usage::W110Anchor;
+
 mod dataflow;
 mod helpers;
 mod security;

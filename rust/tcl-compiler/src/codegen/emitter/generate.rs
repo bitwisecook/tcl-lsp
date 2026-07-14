@@ -1074,6 +1074,7 @@ mod tests {
             true_target: then,
             false_target: els,
             span: None,
+            condition_base: None,
         });
         cfg.blocks
             .get_mut(&then)

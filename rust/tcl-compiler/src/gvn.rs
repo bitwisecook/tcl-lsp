@@ -2360,6 +2360,7 @@ mod tests {
             true_target: body,
             false_target: exit,
             span: None,
+            condition_base: None,
         });
         cfg.blocks
             .get_mut(&body)
@@ -2429,6 +2430,7 @@ mod tests {
             true_target: cond,
             false_target: exit,
             span: None,
+            condition_base: None,
         });
         cfg.blocks.get_mut(&cond).unwrap().terminator = Some(Terminator::Branch {
             condition: crate::expr_ast::ExprNode::Literal {
@@ -2439,6 +2441,7 @@ mod tests {
             true_target: then,
             false_target: latch,
             span: None,
+            condition_base: None,
         });
         cfg.blocks
             .get_mut(&then)
@@ -2511,6 +2514,7 @@ mod tests {
             true_target: body,
             false_target: exit,
             span: None,
+            condition_base: None,
         });
         let llength_on_i = Statement::Call {
             span: Span::new(0, 0),
@@ -2622,6 +2626,7 @@ mod tests {
             true_target: tt,
             false_target: ff,
             span: None,
+            condition_base: None,
         });
         cfg.blocks
             .get_mut(&tt)

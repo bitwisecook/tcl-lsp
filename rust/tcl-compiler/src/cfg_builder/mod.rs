@@ -2036,6 +2036,7 @@ mod tests {
                     value: "1".into(),
                 }]),
                 body_span: Span::new(6, 15),
+                condition_base: None,
             }],
             else_body: None,
             else_span: None,

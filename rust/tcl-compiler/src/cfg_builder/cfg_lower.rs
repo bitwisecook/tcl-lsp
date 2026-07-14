@@ -106,6 +106,7 @@ impl CfgBuilder {
                 true_target,
                 false_target,
                 span: Some(clause.condition_span),
+                condition_base: clause.condition_base,
             });
 
             if let Some(tail) = self.lower_script(&clause.body, &then_block) {
@@ -136,6 +137,7 @@ impl CfgBuilder {
             init_span,
             condition,
             condition_span,
+            condition_base,
             next,
             next_span,
             body,
@@ -177,6 +179,7 @@ impl CfgBuilder {
             true_target: body_id,
             false_target: end_id,
             span: Some(*condition_span),
+            condition_base: *condition_base,
         });
 
         // `break` exits to `end_block`; `continue` runs the step at `step_block`.
@@ -225,12 +228,14 @@ impl CfgBuilder {
                     true_target: body_id,
                     false_target: end_id,
                     span: None,
+                    condition_base: None,
                 });
                 self.block_mut(&step_tail).terminator = Some(Terminator::Branch {
                     condition: condition.clone(),
                     true_target: body_id,
                     false_target: end_id,
                     span: Some(*condition_span),
+                    condition_base: *condition_base,
                 });
             } else {
                 self.ensure_goto(&step_tail, &header, Some(*next_span));
@@ -257,6 +262,7 @@ impl CfgBuilder {
         let Statement::While {
             condition,
             condition_span,
+            condition_base,
             body,
             body_span,
             ..
@@ -296,6 +302,7 @@ impl CfgBuilder {
             true_target: body_id,
             false_target: end_id,
             span: Some(*condition_span),
+            condition_base: *condition_base,
         });
 
         // `break` exits to `end_block`; `continue` re-tests at `header`.
@@ -385,6 +392,7 @@ impl CfgBuilder {
                 true_target: body_id,
                 false_target: end_id,
                 span: None,
+                condition_base: None,
             });
             // The iteration variables are (re)bound at the top of every body
             // execution, so a post-loop read of a loop variable also resolves.
@@ -405,6 +413,7 @@ impl CfgBuilder {
                 true_target: body_id,
                 false_target: end_id,
                 span: Some(*span),
+                condition_base: None,
             });
             return end_block;
         }
@@ -419,6 +428,7 @@ impl CfgBuilder {
             true_target: body_id,
             false_target: end_id,
             span: Some(*span),
+            condition_base: None,
         });
 
         // `break` exits to `end_block`; `continue` advances at `header`.
@@ -558,6 +568,7 @@ impl CfgBuilder {
                 true_target: true_id,
                 false_target: false_id,
                 span,
+                condition_base: None,
             });
             current = false_target;
         }
@@ -654,6 +665,7 @@ impl CfgBuilder {
                 true_target: true_id,
                 false_target: false_id,
                 span: arm.pattern_span.into(),
+                condition_base: None,
             });
             dispatch = next_dispatch;
         }
@@ -944,6 +956,7 @@ mod tests {
             body_span: Span::new(32, 34),
             raw_args: vec![],
             raw_tokens: None,
+            condition_base: None,
         }]);
 
         let func = build_cfg_function("::test", &script, true);
@@ -972,6 +985,7 @@ mod tests {
             body_span: Span::new(9, 11),
             raw_args: vec![],
             raw_tokens: None,
+            condition_base: None,
         }]);
 
         let func = build_cfg_function("::test", &script, true);

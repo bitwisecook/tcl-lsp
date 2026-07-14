@@ -878,6 +878,7 @@ pub fn existence_constant_branches<S: std::hash::BuildHasher>(
             true_target,
             false_target,
             span: Some(span),
+            ..
         }) = &block.terminator
         else {
             continue;
@@ -1595,6 +1596,7 @@ mod tests {
             true_target: tt,
             false_target: ft,
             span: None,
+            condition_base: None,
         }
     }
 
@@ -2040,6 +2042,7 @@ mod tests {
                 name: "x".into(),
                 name_braced: false,
                 expr,
+                expr_base: None,
             },
             uses,
             defs,
