@@ -29,9 +29,10 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::arg_role::{AppendedArity, ArgRole};
 use crate::arity::Arity;
+use crate::command_table::CommandTableEffect;
 use crate::dialects::DialectSet;
 use crate::forms::CommandForm;
-use crate::hooks::{CodegenHookId, InlineCodegenHookId, LoweringHookId};
+use crate::hooks::{AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId};
 use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
 use crate::traits::Traits;
 use crate::types::VarWriteTyping;
@@ -996,6 +997,7 @@ impl CommandRegistry {
             lowering_hook: spec.lowering_hook,
             codegen_hook: spec.codegen_hook,
             inline_codegen_hook: spec.inline_codegen_hook,
+            analyser_hook: spec.analyser_hook,
         };
 
         if !spec.subcommands.is_empty()
@@ -1020,6 +1022,10 @@ impl CommandRegistry {
             // their own applicability (arity / shape) at the dispatch
             // site, so subcommand-level wins over command-level.
             resolved.inline_codegen_hook = sub.inline_codegen_hook.or(spec.inline_codegen_hook);
+            // Forms carry no analyser hook either — the analyser
+            // handlers keep their own shape guards, so the
+            // subcommand-level stamp wins over the command-level one.
+            resolved.analyser_hook = sub.analyser_hook.or(spec.analyser_hook);
             resolved.form = form;
             return Some(resolved);
         }
@@ -1099,6 +1105,34 @@ impl CommandRegistry {
         }
 
         None
+    }
+
+    /// Resolve how a call mutates the interpreter's command table —
+    /// the [`CommandTableEffect`] stamped on the command spec, or on
+    /// the subcommand `first_arg` names (which wins), for the
+    /// mutators `proc` / `rename` / `interp alias`.
+    ///
+    /// `name` is matched against the spec's own spelling only: a
+    /// `::`-qualified head resolves no effect, mirroring the retired
+    /// per-consumer literal matches (`cmd_name != "rename"`), which
+    /// never matched a qualified spelling — callers that canonicalise
+    /// first (the command-binding lattice strips a leading `::`)
+    /// keep doing so before calling.  The subcommand word must match
+    /// exactly (no prefix abbreviation), as those matches also did.
+    #[must_use]
+    pub fn command_table_effect(
+        &self,
+        name: &str,
+        first_arg: Option<&str>,
+    ) -> Option<CommandTableEffect> {
+        if name.starts_with("::") {
+            return None;
+        }
+        let spec = self.get(name)?;
+        first_arg
+            .and_then(|word| spec.subcommand(word))
+            .and_then(|sub| sub.command_table_effect)
+            .or(spec.command_table_effect)
     }
 
     /// Whether `name` (or the compound key `"cmd sub"`) produces a
@@ -1223,6 +1257,9 @@ pub struct ResolvedCall<'r> {
     /// Effective inline (value-position / catch-body) codegen hook
     /// identifier (subcommand-level wins over command-level).
     pub inline_codegen_hook: Option<InlineCodegenHookId>,
+    /// Effective analyser handler-family hook identifier
+    /// (subcommand-level wins over command-level).
+    pub analyser_hook: Option<AnalyserHookId>,
 }
 
 impl ResolvedCall<'_> {

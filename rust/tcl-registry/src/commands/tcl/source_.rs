@@ -62,6 +62,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: FORMS,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::Source),
         ..CommandSpec::DEFAULT
     }
 }

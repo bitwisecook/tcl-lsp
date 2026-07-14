@@ -149,6 +149,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         )],
         loop_list_header: true,
         cfg_rewrite_name: Some("::tcl::dict::for"),
+        analyser_hook: Some(crate::hooks::AnalyserHookId::DictFor),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -376,6 +377,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             },
         )],
         mutator: true,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::DictUpdate),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -416,6 +418,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             },
         )],
         mutator: true,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::DictWith),
         ..SubCommand::DEFAULT
     },
     SubCommand {

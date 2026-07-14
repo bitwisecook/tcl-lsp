@@ -21,7 +21,8 @@
 //! The variable-write trio:
 //!
 //! - [`Analyser::handle_set_command`] — `set var ?value?`
-//! - [`Analyser::handle_var_declaration_command`] —
+//! - [`Analyser::handle_variable_command`] /
+//!   [`Analyser::handle_global_command`] —
 //!   `variable name ?value? ...?` and `global name...`
 //! - [`Analyser::handle_incr_command`] — `incr var ?amount?`
 //!
@@ -137,15 +138,17 @@ impl Analyser {
     /// `true` when the corresponding word is a single atomic
     /// token, i.e. when the word's text is the same as a single
     /// token's raw text.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Set`];
+    /// only the argument-shape checks live here.
     pub fn handle_set_command(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         single_token_word: &[bool],
         scope_path: &[usize],
     ) {
-        if cmd_name != "set" || args.is_empty() {
+        if args.is_empty() {
             return;
         }
 
@@ -174,39 +177,40 @@ impl Analyser {
         }
     }
 
-    /// Handle `variable` / `global` declarations.
+    /// Handle a `global` declaration: a flat list of names; each gets
+    /// a var binding with `warn_if_unused = false` (declared, not
+    /// "set but unused").
     ///
-    /// - `global` takes a flat list of names; each gets a var
-    ///   binding with `warn_if_unused = false` (declared, not
-    ///   "set but unused").
-    /// - `variable` takes alternating `name ?value?` pairs; only
-    ///   the names get bindings. The optional value words are
-    ///   skipped (the IR pass handles their assignment if the
-    ///   value form actually fires).
-    pub fn handle_var_declaration_command(
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Global`].
+    pub fn handle_global_command(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        if !matches!(cmd_name, "variable" | "global") || args.is_empty() {
-            return;
-        }
-
-        if cmd_name == "global" {
-            // `global ::ns::v` makes the *unqualified tail* (`v`) a local alias
-            // to the global variable, so define the tail name locally (matches
-            // Tcl + completion's expectation of both `$v` and `$::ns::v`).
-            for (i, name) in args.iter().enumerate() {
-                let local = name.rsplit("::").next().unwrap_or(name);
-                if let Some(tok) = arg_tokens.get(i) {
-                    self.define_var(local, *tok, scope_path, false, None);
-                }
+        // `global ::ns::v` makes the *unqualified tail* (`v`) a local alias
+        // to the global variable, so define the tail name locally (matches
+        // Tcl + completion's expectation of both `$v` and `$::ns::v`).
+        for (i, name) in args.iter().enumerate() {
+            let local = name.rsplit("::").next().unwrap_or(name);
+            if let Some(tok) = arg_tokens.get(i) {
+                self.define_var(local, *tok, scope_path, false, None);
             }
-            return;
         }
+    }
 
+    /// Handle a `variable` declaration: alternating `name ?value?`
+    /// pairs; only the names get bindings. The optional value words
+    /// are skipped (the IR pass handles their assignment if the value
+    /// form actually fires).
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Variable`].
+    pub fn handle_variable_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
         // `variable name ?value? name ?value? ...`
         let mut i = 0;
         while i < args.len() {
@@ -516,15 +520,17 @@ impl Analyser {
     /// Handle a `proc name params body` definition: record the procedure
     /// (name, parameter list, body, and harvested doc-comment) in the
     /// analysis result and run per-parameter trait inference. Returns `true`
-    /// when the command was a `proc` definition this handler consumed.
+    /// when the definition had the full three-argument shape this handler
+    /// consumes.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Proc`].
     pub fn handle_proc_command(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        if cmd_name != "proc" || args.len() < 3 || arg_tokens.len() < 3 {
+        if args.len() < 3 || arg_tokens.len() < 3 {
             return false;
         }
 
@@ -670,10 +676,11 @@ impl Analyser {
     /// pairs carrying absolute source spans, in declaration order (params,
     /// body, and an optional target-namespace pin).
     ///
-    /// Returns `None` when `cmd_name` isn't `apply`, there are no
-    /// arguments, or the first argument isn't a *braced* literal (a `$var`
-    /// / `[cmd]` / quoted lambda is opaque — its element boundaries can't
-    /// be split statically). Shared by [`Self::handle_apply_command`] (body
+    /// Returns `None` when there are no arguments or the first argument
+    /// isn't a *braced* literal (a `$var` / `[cmd]` / quoted lambda is
+    /// opaque — its element boundaries can't be split statically).  Both
+    /// callers gate on [`tcl_registry::hooks::AnalyserHookId::Apply`]
+    /// first. Shared by [`Self::handle_apply_command`] (body
     /// / scope walk) and the `apply` direct-call arity check
     /// ([`super::diagnostics::validity::Analyser::emit_arity_diagnostics`])
     /// so both consumers agree on exactly what counts as a
@@ -681,11 +688,10 @@ impl Analyser {
     /// brace-literal guard and segmentation independently.
     pub(in crate::analyser) fn parse_apply_lambda_elements(
         &self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
     ) -> Option<Vec<(Token, String)>> {
-        if cmd_name != "apply" || args.is_empty() || arg_tokens.is_empty() {
+        if args.is_empty() || arg_tokens.is_empty() {
             return None;
         }
         let lambda_tok = arg_tokens[0];
@@ -742,14 +748,15 @@ impl Analyser {
     /// generic body recursion. A dynamic lambda (`apply $lambda …`) returns
     /// `false` and falls through to the generic path (whose `analyse_body` is a
     /// no-op on the non-braced word), preserving its existing behaviour.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Apply`].
     pub fn handle_apply_command(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        let Some(elements) = self.parse_apply_lambda_elements(cmd_name, args, arg_tokens) else {
+        let Some(elements) = self.parse_apply_lambda_elements(args, arg_tokens) else {
             return false;
         };
         // A lambda needs at least a parameter list and a body.
@@ -853,14 +860,18 @@ impl Analyser {
     /// Creates the child namespace scope so downstream handlers see
     /// qualified names resolve through it, then recurses into the
     /// body.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::NamespaceEval`] (stamped
+    /// on `namespace`'s `eval` subcommand); `args[0]` is still the
+    /// subcommand word.
     pub fn handle_namespace_eval_command(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        if cmd_name != "namespace" || args.len() < 2 || args[0] != "eval" {
+        if args.len() < 2 {
             return false;
         }
         let ns_name = args[1].clone();
@@ -895,20 +906,20 @@ impl Analyser {
     /// command-resolution search path for the post-walk settlement
     /// ([`Self::finalise_invocation_resolutions`]).
     ///
-    /// Void handler (internal cmd-name guard). Only the two-word set form
+    /// Only the two-word set form
     /// with a *literal* list is recorded — the one-word query form mutates
     /// nothing, and a dynamic list (`$var` / `[cmd]`) is statically
     /// unknowable, so it keeps the conservative empty path. Each
     /// declaration replaces the namespace's whole path, as in C Tcl, so
     /// the lexically-last one wins (settlement is call-time / whole-file,
     /// like the rest of the resolution model).
-    pub fn handle_namespace_path_command(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        scope_path: &[usize],
-    ) {
-        if cmd_name != "namespace" || args.len() != 2 || args[0] != "path" {
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::NamespacePath`] (stamped
+    /// on `namespace`'s `path` subcommand); `args[0]` is still the
+    /// subcommand word.
+    pub fn handle_namespace_path_command(&mut self, args: &[String], scope_path: &[usize]) {
+        if args.len() != 2 {
             return;
         }
         if tcl_syntax::naming::is_dynamic_word(&args[1]) {
@@ -930,9 +941,10 @@ impl Analyser {
     /// `uplevel` form (numeric level, level-relative, or no explicit
     /// level) falls through to the generic body recursion, which keeps
     /// the enclosing proc scope.
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Uplevel`];
+    /// the `#0` level word is a shape check, not a command name.
     pub fn handle_uplevel_command(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
@@ -941,7 +953,7 @@ impl Analyser {
         // body form.  `uplevel #0` with multiple concatenated script
         // words is left to the generic recursion (the W301 injection
         // check already flags that shape).
-        if cmd_name != "uplevel" || args.len() != 2 || args[0] != "#0" {
+        if args.len() != 2 || args[0] != "#0" {
             return false;
         }
         let Some(body_tok) = arg_tokens.get(1).copied() else {
@@ -992,16 +1004,17 @@ impl Analyser {
     /// over every word) is what keeps another option's *value* word
     /// (`-map`'s dict, `-subcommands`' list, …) from ever being misread as
     /// `-command`'s own flag or value.
-    pub fn handle_namespace_ensemble(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        scope_path: &[usize],
-    ) {
-        if cmd_name != "namespace" || args.len() < 2 {
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::NamespaceEnsemble`]
+    /// (stamped on `namespace`'s `ensemble` subcommand); `args[0]` is
+    /// still the subcommand word, and only the `create` form (checked
+    /// on `args[1]`) mutates anything.
+    pub fn handle_namespace_ensemble(&mut self, args: &[String], scope_path: &[usize]) {
+        if args.len() < 2 {
             return;
         }
-        if args[0] != "ensemble" || args[1] != "create" {
+        if args[1] != "create" {
             return;
         }
         let ns = self.namespace_from_scope_path(scope_path);
@@ -1069,21 +1082,19 @@ impl Analyser {
     }
 
     /// Handle `foreach var list body` (and the `foreach_in_collection`
-    /// dialect variant).
+    /// dialect variant, whose spec carries the same hook).
     ///
     /// Defines the loop-variable list in the active scope, then
     /// recurses into the body so vars defined inside the loop land
     /// in the enclosing scope.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Foreach`].
     pub fn handle_foreach_command(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        if !matches!(cmd_name, "foreach" | "foreach_in_collection") {
-            return false;
-        }
         if args.len() < 3 {
             return false;
         }
@@ -1103,14 +1114,15 @@ impl Analyser {
     /// Recurses into init / next / body so locals defined inside any
     /// of the three statement positions land in the enclosing scope's
     /// variable set.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::For`].
     pub fn handle_for_command(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        if cmd_name != "for" || args.len() < 4 {
+        if args.len() < 4 {
             return false;
         }
         // init body
@@ -1155,14 +1167,14 @@ impl Analyser {
     /// earlier in the same scope.  Command-substitution patterns
     /// are skipped (runtime-computed values can't be statically
     /// resolved).
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Switch`].
     pub fn handle_switch_command(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        if cmd_name != "switch" || args.len() < 2 {
+        if args.len() < 2 {
             return false;
         }
 
@@ -1242,14 +1254,15 @@ impl Analyser {
     /// Defines the optional `RESULTVAR` and `OPTIONSVAR` bindings
     /// (they receive values when the body throws / completes) and
     /// bumps `conditional_depth` for the duration of the body.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Catch`].
     pub fn handle_catch_command(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        if cmd_name != "catch" || args.is_empty() {
+        if args.is_empty() {
             return false;
         }
         // The script body (args[0]) is evaluated by `catch`, so walk it like
@@ -1365,14 +1378,15 @@ impl Analyser {
     /// - ``on CODE VARLIST BODY`` / ``trap PATTERN VARLIST BODY``
     ///   (4 words) — define the handler's ``VARLIST`` (e.g.
     ///   ``{result options}``), then recurse into ``BODY``.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Try`].
     pub fn handle_try_command(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        if cmd_name != "try" || args.is_empty() {
+        if args.is_empty() {
             return false;
         }
         // Main try body at args[0].
@@ -1418,14 +1432,15 @@ impl Analyser {
     /// `upvar ?level? otherVar myVar ?otherVar myVar ...?` — an optional
     /// leading level makes the arg count odd; each pair after it binds the
     /// local alias `myVar`.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Upvar`].
     pub fn handle_upvar_command(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        if cmd_name != "upvar" || args.is_empty() || arg_tokens.is_empty() {
+        if args.is_empty() || arg_tokens.is_empty() {
             return;
         }
         let pair_start = usize::from(args.len() % 2 == 1);
@@ -1440,14 +1455,18 @@ impl Analyser {
     ///
     /// `namespace upvar nsname otherVar myVar ?otherVar myVar ...?` — `myVar`
     /// lives at indices 3, 5, 7, …
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::NamespaceUpvar`] (stamped
+    /// on `namespace`'s `upvar` subcommand); `args[0]` is still the
+    /// subcommand word.
     pub fn handle_namespace_upvar_command(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        if cmd_name != "namespace" || args.len() < 4 || args[0] != "upvar" {
+        if args.len() < 4 {
             return;
         }
         let mut i = 3;
@@ -1457,53 +1476,75 @@ impl Analyser {
         }
     }
 
-    /// Register loop / alias variables introduced by `dict for` / `dict
-    /// update` / `dict with`.
-    pub fn handle_dict_var_command(
+    /// Register the loop variables of `dict for {keyVar valueVar}
+    /// dictValue body`.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::DictFor`]
+    /// (stamped on `dict`'s `for` subcommand); `args[0]` is still the
+    /// subcommand word.
+    pub fn handle_dict_for_command(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        if cmd_name != "dict" || args.is_empty() || arg_tokens.is_empty() {
+        if args.len() >= 4 && arg_tokens.len() >= 2 {
+            self.define_vars_from_list(&args[1], arg_tokens[1], scope_path);
+        }
+    }
+
+    /// Register the alias variables of `dict update dictVar key1 var1
+    /// ?key2 var2 ...? body` — vars at 3, 5, 7, … (i.e. `len-2` last).
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::DictUpdate`] (stamped on
+    /// `dict`'s `update` subcommand).
+    pub fn handle_dict_update_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if args.len() < 5 || !(args.len() - 3).is_multiple_of(2) {
             return;
         }
-        match args[0].as_str() {
-            // `dict for {keyVar valueVar} dictValue body`.
-            "for" if args.len() >= 4 && arg_tokens.len() >= 2 => {
-                self.define_vars_from_list(&args[1], arg_tokens[1], scope_path);
+        let mut i = 3;
+        while i + 1 < args.len() {
+            if let Some(tok) = arg_tokens.get(i) {
+                self.define_var(&args[i], *tok, scope_path, false, None);
             }
-            // `dict update dictVar key1 var1 ?key2 var2 ...? body` — vars at
-            // 3, 5, 7, … (i.e. `len-2` last).
-            "update" if args.len() >= 5 && (args.len() - 3).is_multiple_of(2) => {
-                let mut i = 3;
-                while i + 1 < args.len() {
-                    if let Some(tok) = arg_tokens.get(i) {
-                        self.define_var(&args[i], *tok, scope_path, false, None);
-                    }
-                    i += 2;
-                }
+            i += 2;
+        }
+    }
+
+    /// Register the key variables of `dict with dictVar body` — only
+    /// the no-path case is statically resolvable, and only when the
+    /// dict came from a const literal.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::DictWith`]
+    /// (stamped on `dict`'s `with` subcommand).
+    pub fn handle_dict_with_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if args.len() != 3 || arg_tokens.len() < 2 {
+            return;
+        }
+        let Some(const_val) = self
+            .lookup_const_string(&args[1], scope_path)
+            .map(str::to_owned)
+        else {
+            return;
+        };
+        let elements = crate::tcl_expr_eval::split_tcl_list(&const_val);
+        let mut i = 0;
+        while i < elements.len() {
+            if !elements[i].is_empty() {
+                self.define_var(&elements[i], arg_tokens[1], scope_path, false, None);
             }
-            // `dict with dictVar body` — only the no-path case is statically
-            // resolvable, and only when the dict came from a const literal.
-            "with" if args.len() == 3 && arg_tokens.len() >= 2 => {
-                let Some(const_val) = self
-                    .lookup_const_string(&args[1], scope_path)
-                    .map(str::to_owned)
-                else {
-                    return;
-                };
-                let elements = crate::tcl_expr_eval::split_tcl_list(&const_val);
-                let mut i = 0;
-                while i < elements.len() {
-                    if !elements[i].is_empty() {
-                        self.define_var(&elements[i], arg_tokens[1], scope_path, false, None);
-                    }
-                    i += 2;
-                }
-            }
-            _ => {}
+            i += 2;
         }
     }
 
@@ -1516,12 +1557,17 @@ impl Analyser {
     /// prepended-args slice). `offset` is the command token's start,
     /// recorded in [`Analyser::alias_offsets`] for the same-file arity
     /// resolver's top-level order gate.
-    pub fn handle_interp_alias(&mut self, cmd_name: &str, args: &[String], offset: u32) {
-        if let Some(deleted) = crate::alias::detect_interp_alias_delete(cmd_name, args) {
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::InterpAlias`] (stamped on
+    /// `interp`'s `alias` subcommand); `args[0]` is still the
+    /// subcommand word the detectors expect.
+    pub fn handle_interp_alias(&mut self, args: &[String], offset: u32) {
+        if let Some(deleted) = crate::alias::detect_interp_alias_delete(args) {
             self.deleted_commands.insert(deleted, offset);
             return;
         }
-        let Some((qualified, target_cmd, prepended)) = detect_interp_alias(cmd_name, args) else {
+        let Some((qualified, target_cmd, prepended)) = detect_interp_alias(args) else {
             return;
         };
         self.command_aliases
@@ -1558,8 +1604,10 @@ impl Analyser {
     /// top-level order gate. A deleting `rename OLD {}` records only
     /// `OLD`'s deletion (confirmed against tclsh 9.0.4: also "invalid
     /// command name" afterwards) — there is no `NEW` to map it to.
-    pub fn handle_rename(&mut self, cmd_name: &str, args: &[String], offset: u32) -> bool {
-        if cmd_name != "rename" || args.len() != 2 {
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Rename`].
+    pub fn handle_rename(&mut self, args: &[String], offset: u32) -> bool {
+        if args.len() != 2 {
             return false;
         }
         if crate::naming::is_dynamic_word(&args[0]) || crate::naming::is_dynamic_word(&args[1]) {
@@ -1584,8 +1632,11 @@ impl Analyser {
     /// Handle `oo::objdefine $obj …` — record the object variable
     /// so later W308 (unknown method on object) checks can suppress
     /// false positives from per-instance method extensions.
-    pub fn handle_oo_objdefine(&mut self, cmd_name: &str, args: &[String]) {
-        if cmd_name != "oo::objdefine" || args.is_empty() {
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::OoObjdefine`].
+    pub fn handle_oo_objdefine(&mut self, args: &[String]) {
+        if args.is_empty() {
             return;
         }
         let mut obj_name = args[0].trim().to_string();
@@ -1620,78 +1671,82 @@ impl Analyser {
     /// uses its span so code-action / quick-fix UX points at the
     /// ``package`` keyword rather than at the ``require``
     /// subcommand word.
-    pub fn handle_package_command(
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::PackageRequire`] (stamped
+    /// on `package`'s `require` subcommand — other ``package``
+    /// subcommands like ``ifneeded`` / ``forget`` / ``vsatisfies``
+    /// carry no hook and aren't recorded); `args[0]` is still the
+    /// subcommand word.
+    pub fn handle_package_require(
         &mut self,
-        cmd_name: &str,
         cmd_tok: Token,
         args: &[String],
         arg_tokens: &[Token],
     ) {
-        if cmd_name != "package" || args.is_empty() {
-            return;
-        }
-        let sub = args[0].as_str();
         if args.len() < 2 {
             return;
         }
-        match sub {
-            "require" => {
-                // ``package require -exact NAME ?VERSION?`` —
-                // strip the flag and shift the name index.
-                let (name_idx, name_text) = if args[1] == "-exact" && args.len() >= 3 {
-                    (2usize, args[2].clone())
-                } else {
-                    (1usize, args[1].clone())
-                };
-                let version_idx = name_idx + 1;
-                let version = if version_idx < args.len() {
-                    Some(args[version_idx].clone())
-                } else {
-                    None
-                };
+        // ``package require -exact NAME ?VERSION?`` —
+        // strip the flag and shift the name index.
+        let (name_idx, name_text) = if args[1] == "-exact" && args.len() >= 3 {
+            (2usize, args[2].clone())
+        } else {
+            (1usize, args[1].clone())
+        };
+        let version_idx = name_idx + 1;
+        let version = if version_idx < args.len() {
+            Some(args[version_idx].clone())
+        } else {
+            None
+        };
 
-                // Dynamic-provider detection — non-literal package
-                // name suppresses W123 unknown-command emission
-                // because the dynamic provider may register the
-                // missing command at runtime.
-                if let Some(name_tok) = arg_tokens.get(name_idx)
-                    && (matches!(name_tok.kind, TokenType::Var | TokenType::Cmd)
-                        || name_text.contains('$')
-                        || name_text.contains('['))
-                {
-                    self.result.has_dynamic_providers = true;
-                }
-
-                self.result.package_requires.push(
-                    crate::signature_scan::types::SignaturePackageRequire {
-                        name: name_text,
-                        version,
-                        range: cmd_tok.span,
-                        conditional: self.conditional_depth > 0,
-                    },
-                );
-            }
-            "provide" => {
-                // ``package provide NAME ?VERSION?``.
-                let name = args[1].clone();
-                let version = if args.len() >= 3 {
-                    Some(args[2].clone())
-                } else {
-                    None
-                };
-                self.result
-                    .package_provides
-                    .push(super::types::PackageProvide {
-                        name,
-                        version,
-                        range: cmd_tok.span,
-                    });
-            }
-            _ => {
-                // Other ``package`` subcommands (``ifneeded``,
-                // ``forget``, ``vsatisfies`` …) aren't recorded.
-            }
+        // Dynamic-provider detection — non-literal package
+        // name suppresses W123 unknown-command emission
+        // because the dynamic provider may register the
+        // missing command at runtime.
+        if let Some(name_tok) = arg_tokens.get(name_idx)
+            && (matches!(name_tok.kind, TokenType::Var | TokenType::Cmd)
+                || name_text.contains('$')
+                || name_text.contains('['))
+        {
+            self.result.has_dynamic_providers = true;
         }
+
+        self.result
+            .package_requires
+            .push(crate::signature_scan::types::SignaturePackageRequire {
+                name: name_text,
+                version,
+                range: cmd_tok.span,
+                conditional: self.conditional_depth > 0,
+            });
+    }
+
+    /// Record ``package provide NAME ?VERSION?``.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::PackageProvide`] (stamped
+    /// on `package`'s `provide` subcommand).  See
+    /// [`Self::handle_package_require`] for the `cmd_tok` anchoring
+    /// convention.
+    pub fn handle_package_provide(&mut self, cmd_tok: Token, args: &[String]) {
+        if args.len() < 2 {
+            return;
+        }
+        let name = args[1].clone();
+        let version = if args.len() >= 3 {
+            Some(args[2].clone())
+        } else {
+            None
+        };
+        self.result
+            .package_provides
+            .push(super::types::PackageProvide {
+                name,
+                version,
+                range: cmd_tok.span,
+            });
     }
 
     /// Resolve a command alias to `(target_cmd, effective_args)`.
@@ -1838,6 +1893,11 @@ impl Analyser {
     /// stub ``ClassDef`` is created so subsequent
     /// ``oo::define`` calls + the workspace index see a
     /// consistent record.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::OoDefine`]; `cmd_name` is
+    /// the invocation's own head (always the stamped `oo::define`
+    /// spelling), used only to look its definition grammar back up.
     pub fn handle_oo_define_command(
         &mut self,
         cmd_name: &str,
@@ -1845,7 +1905,7 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        if cmd_name != "oo::define" || args.is_empty() {
+        if args.is_empty() {
             return false;
         }
         let raw_class_name = &args[0];
@@ -1902,7 +1962,7 @@ impl Analyser {
             // guarantees the grammar is present here.)
             let inline_args: Vec<String> = args[1..].to_vec();
             let inline_tokens: Vec<Token> = arg_tokens.iter().skip(1).copied().collect();
-            if let Some(grammar) = self.definition_grammar("oo::define") {
+            if let Some(grammar) = self.definition_grammar(cmd_name) {
                 super::oo::parse_oo_define_inline(
                     grammar,
                     &inline_args,
@@ -1913,7 +1973,7 @@ impl Analyser {
         } else if let Some(body_tok) = arg_tokens.get(1).copied() {
             // ``oo::define Class { body }`` — args[1] is the
             // body text, arg_tokens[1] is the body token.
-            let grammar = self.definition_grammar("oo::define");
+            let grammar = self.definition_grammar(cmd_name);
             self.parse_oo_definition_body(
                 &args[1],
                 body_tok,
@@ -1938,8 +1998,10 @@ impl Analyser {
     }
 
     /// Record `source ?-encoding ENC? FILE` invocations.
-    pub fn handle_source_command(&mut self, cmd_name: &str, args: &[String], arg_tokens: &[Token]) {
-        if cmd_name != "source" || args.is_empty() {
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Source`].
+    pub fn handle_source_command(&mut self, args: &[String], arg_tokens: &[Token]) {
+        if args.is_empty() {
             return;
         }
         let file_idx = if args[0] == "-encoding" && args.len() >= 3 {
@@ -1972,17 +2034,18 @@ impl Analyser {
     /// (``$``/``[…]`` substitution) can't be qualified statically, so it
     /// flips ``has_dynamic_providers`` instead — the imported namespace may
     /// provide any name at runtime, which suppresses W120/W123 file-wide.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::NamespaceImport`] (stamped
+    /// on `namespace`'s `import` subcommand); `args[0]` is still the
+    /// subcommand word.
     pub fn handle_namespace_import_command(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        if cmd_name != "namespace" || args.is_empty() {
-            return;
-        }
-        if args[0] != "import" {
+        if args.is_empty() {
             return;
         }
         // Skip the subcommand word + an optional ``-force`` flag.
@@ -2036,8 +2099,13 @@ impl Analyser {
     /// unknown`) installs nothing, and an empty handler (`namespace unknown
     /// {}`) resets to the default lookup (`Tcl_SetNamespaceUnknownHandler`
     /// treats an empty list as a reset).
-    pub fn handle_namespace_unknown_command(&mut self, cmd_name: &str, args: &[String]) {
-        if cmd_name != "namespace" || args.len() < 2 || args[0] != "unknown" {
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::NamespaceUnknown`]
+    /// (stamped on `namespace`'s `unknown` subcommand); `args[0]` is
+    /// still the subcommand word.
+    pub fn handle_namespace_unknown_command(&mut self, args: &[String]) {
+        if args.len() < 2 {
             return;
         }
         if args[1].trim().is_empty() {
@@ -2106,54 +2174,50 @@ impl Analyser {
         );
     }
 
-    /// Record `lappend auto_path PATH...` and `set auto_path PATH`
-    /// mutations.
-    pub fn handle_auto_path_command(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[Token],
-    ) {
-        if args.is_empty() {
+    /// Record a `lappend auto_path PATH...` mutation.
+    ///
+    /// Dispatched from the
+    /// [`tcl_registry::hooks::AnalyserHookId::Lappend`] arm alongside
+    /// the ordinary variable handling — the `auto_path` check is a
+    /// *variable-name* shape check, not a command guard.  Any
+    /// ``auto_path`` mutation flips ``has_dynamic_providers``:
+    /// packages discovered at runtime can register commands the static
+    /// analyser can't see, so W123 unknown-command diagnostics
+    /// suppress on the document.
+    pub fn handle_auto_path_lappend(&mut self, args: &[String], arg_tokens: &[Token]) {
+        if args.first().map(String::as_str) != Some("auto_path") {
             return;
         }
-        let recorded = match cmd_name {
-            "lappend" if args[0] == "auto_path" => {
-                for (i, path) in args.iter().enumerate().skip(1) {
-                    let Some(tok) = arg_tokens.get(i) else {
-                        continue;
-                    };
-                    self.result
-                        .auto_path_entries
-                        .push(super::types::AutoPathEntry {
-                            raw_path: path.clone(),
-                            range: tok.span,
-                        });
-                }
-                true
-            }
-            "set" if args[0] == "auto_path" && args.len() >= 2 => {
-                if let Some(tok) = arg_tokens.get(1) {
-                    self.result
-                        .auto_path_entries
-                        .push(super::types::AutoPathEntry {
-                            raw_path: args[1].clone(),
-                            range: tok.span,
-                        });
-                    true
-                } else {
-                    false
-                }
-            }
-            _ => false,
-        };
-        // Any ``auto_path`` mutation flips
-        // ``has_dynamic_providers``.  Mutating ``auto_path``
-        // makes command resolution unreliable — packages
-        // discovered at runtime can register commands the
-        // static analyser can't see, so W123 unknown-command
-        // diagnostics suppress on the document.
-        if recorded {
+        for (i, path) in args.iter().enumerate().skip(1) {
+            let Some(tok) = arg_tokens.get(i) else {
+                continue;
+            };
+            self.result
+                .auto_path_entries
+                .push(super::types::AutoPathEntry {
+                    raw_path: path.clone(),
+                    range: tok.span,
+                });
+        }
+        self.result.has_dynamic_providers = true;
+    }
+
+    /// Record a `set auto_path PATH` mutation.
+    ///
+    /// Dispatched from the [`tcl_registry::hooks::AnalyserHookId::Set`]
+    /// arm; see [`Self::handle_auto_path_lappend`] for why any
+    /// ``auto_path`` mutation flips ``has_dynamic_providers``.
+    pub fn handle_auto_path_set(&mut self, args: &[String], arg_tokens: &[Token]) {
+        if args.first().map(String::as_str) != Some("auto_path") || args.len() < 2 {
+            return;
+        }
+        if let Some(tok) = arg_tokens.get(1) {
+            self.result
+                .auto_path_entries
+                .push(super::types::AutoPathEntry {
+                    raw_path: args[1].clone(),
+                    range: tok.span,
+                });
             self.result.has_dynamic_providers = true;
         }
     }
@@ -2167,6 +2231,11 @@ impl Analyser {
     /// `regexp $p $line` records the literal stored in `p`.
     /// `Cmd`-substitution patterns are skipped — runtime-computed
     /// patterns can't be statically resolved.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::RegexPatternCapture`]
+    /// (stamped on both `regexp` and `regsub`); `cmd_name` is data —
+    /// it labels the recorded pattern — not a guard.
     pub fn handle_regex_pattern_capture(
         &mut self,
         cmd_name: &str,
@@ -2174,7 +2243,7 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        if !matches!(cmd_name, "regexp" | "regsub") || args.is_empty() {
+        if args.is_empty() {
             return;
         }
         // Skip leading option flags (`-nocase`, `-line`, `-all`, `-indices`,
@@ -2247,16 +2316,14 @@ impl Analyser {
     /// `warn_if_unused = true` — the diagnostic emitter will
     /// still flag a `set`-only-no-read variable, but won't flag
     /// an `incr`-only-no-read one.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Incr`].
     pub fn handle_incr_command(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        if cmd_name != "incr" {
-            return;
-        }
         if let (Some(name), Some(tok)) = (args.first(), arg_tokens.first()) {
             self.define_var(name, *tok, scope_path, true, None);
         }
@@ -2270,16 +2337,17 @@ impl Analyser {
     /// `warn_if_unused = false` because the command itself reads the prior
     /// value, so an `append`/`lappend` target is never "set but never used"
     /// (no W211 for it).
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Append`]
+    /// and [`tcl_registry::hooks::AnalyserHookId::Lappend`] (the two
+    /// commands share this handler; the `Lappend` arm additionally
+    /// records `lappend auto_path …`).
     pub fn handle_append_lappend_command(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        if !matches!(cmd_name, "append" | "lappend") {
-            return;
-        }
         if let (Some(name), Some(tok)) = (args.first(), arg_tokens.first()) {
             self.define_var(name, *tok, scope_path, false, None);
         }
@@ -2393,7 +2461,6 @@ mod tests {
     fn handle_set_defines_variable() {
         let mut a = Analyser::new();
         a.handle_set_command(
-            "set",
             &["x".to_string(), "1".to_string()],
             &[esc_tok(span(0, 1)), esc_tok(span(2, 3))],
             &[true, true],
@@ -2406,7 +2473,6 @@ mod tests {
     fn handle_set_tracks_single_token_literal_value() {
         let mut a = Analyser::new();
         a.handle_set_command(
-            "set",
             &["x".to_string(), "hello".to_string()],
             &[esc_tok(span(0, 1)), esc_tok(span(2, 7))],
             &[true, true],
@@ -2419,7 +2485,6 @@ mod tests {
     fn handle_set_tracks_braced_string_value() {
         let mut a = Analyser::new();
         a.handle_set_command(
-            "set",
             &["x".to_string(), "hello world".to_string()],
             &[esc_tok(span(0, 1)), str_tok(span(2, 15))],
             &[true, true],
@@ -2436,7 +2501,6 @@ mod tests {
         // Re-assign with a multi-token (interpolation) value —
         // single_token_word[1] is false, so const_string is cleared.
         a.handle_set_command(
-            "set",
             &["x".to_string(), "$other".to_string()],
             &[esc_tok(span(0, 1)), esc_tok(span(2, 8))],
             &[true, false],
@@ -2452,13 +2516,7 @@ mod tests {
         let mut a = Analyser::new();
         // Pre-define x so the read records a reference.
         a.define_var("x", esc_tok(span(0, 1)), &[], false, None);
-        a.handle_set_command(
-            "set",
-            &["x".to_string()],
-            &[esc_tok(span(10, 11))],
-            &[true],
-            &[],
-        );
+        a.handle_set_command(&["x".to_string()], &[esc_tok(span(10, 11))], &[true], &[]);
         // The read appended a reference; no second definition.
         assert!(a.result.global_scope.variables.contains_key("x"));
         assert_eq!(
@@ -2475,27 +2533,8 @@ mod tests {
         // record_var_read helper silently no-ops when the name
         // isn't in scope, so no spurious binding lands.
         let mut a = Analyser::new();
-        a.handle_set_command(
-            "set",
-            &["x".to_string()],
-            &[esc_tok(span(0, 1))],
-            &[true],
-            &[],
-        );
+        a.handle_set_command(&["x".to_string()], &[esc_tok(span(0, 1))], &[true], &[]);
         assert!(!a.result.global_scope.variables.contains_key("x"));
-    }
-
-    #[test]
-    fn handle_set_wrong_command_no_op() {
-        let mut a = Analyser::new();
-        a.handle_set_command(
-            "puts",
-            &["x".to_string(), "1".to_string()],
-            &[esc_tok(span(0, 1)), esc_tok(span(2, 3))],
-            &[true, true],
-            &[],
-        );
-        assert!(a.result.global_scope.variables.is_empty());
     }
 
     // handle_var_declaration_command
@@ -2503,8 +2542,7 @@ mod tests {
     #[test]
     fn handle_global_defines_each_name() {
         let mut a = Analyser::new();
-        a.handle_var_declaration_command(
-            "global",
+        a.handle_global_command(
             &["x".to_string(), "y".to_string(), "z".to_string()],
             &[
                 esc_tok(span(0, 1)),
@@ -2523,8 +2561,7 @@ mod tests {
     fn handle_variable_defines_only_names_skipping_values() {
         let mut a = Analyser::new();
         // `variable x 1 y 2 z` — names at 0, 2, 4; values at 1, 3.
-        a.handle_var_declaration_command(
-            "variable",
+        a.handle_variable_command(
             &[
                 "x".to_string(),
                 "1".to_string(),
@@ -2552,20 +2589,8 @@ mod tests {
     #[test]
     fn handle_variable_single_name_no_value() {
         let mut a = Analyser::new();
-        a.handle_var_declaration_command(
-            "variable",
-            &["x".to_string()],
-            &[esc_tok(span(0, 1))],
-            &[],
-        );
+        a.handle_variable_command(&["x".to_string()], &[esc_tok(span(0, 1))], &[]);
         assert!(a.result.global_scope.variables.contains_key("x"));
-    }
-
-    #[test]
-    fn handle_var_declaration_wrong_command_no_op() {
-        let mut a = Analyser::new();
-        a.handle_var_declaration_command("set", &["x".to_string()], &[esc_tok(span(0, 1))], &[]);
-        assert!(a.result.global_scope.variables.is_empty());
     }
 
     // handle_proc_command
@@ -2574,7 +2599,6 @@ mod tests {
     fn handle_proc_records_proc_at_global() {
         let mut a = Analyser::new();
         let handled = a.handle_proc_command(
-            "proc",
             &["foo".to_string(), "a b".to_string(), "set x $a".to_string()],
             &[
                 esc_tok(span(5, 8)),
@@ -2602,7 +2626,6 @@ mod tests {
             .children
             .push(Scope::new(ScopeKind::Namespace, "ns1"));
         let handled = a.handle_proc_command(
-            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -2628,7 +2651,6 @@ mod tests {
             .children
             .push(Scope::new(ScopeKind::Namespace, "ns1"));
         a.handle_proc_command(
-            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -2663,7 +2685,6 @@ mod tests {
             .children
             .push(Scope::new(ScopeKind::Namespace, "outer"));
         let handled = a.handle_proc_command(
-            "proc",
             &["::other::foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 17)),
@@ -2683,7 +2704,6 @@ mod tests {
         let mut a = Analyser::new();
         a.last_comment = "doc string".to_string();
         a.handle_proc_command(
-            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(0, 3)),
@@ -2700,25 +2720,7 @@ mod tests {
     #[test]
     fn handle_proc_too_few_args_returns_false() {
         let mut a = Analyser::new();
-        let handled =
-            a.handle_proc_command("proc", &["foo".to_string()], &[esc_tok(span(0, 3))], &[]);
-        assert!(!handled);
-        assert!(a.result.all_procs.is_empty());
-    }
-
-    #[test]
-    fn handle_proc_wrong_command_returns_false() {
-        let mut a = Analyser::new();
-        let handled = a.handle_proc_command(
-            "puts",
-            &["foo".to_string(), String::new(), String::new()],
-            &[
-                esc_tok(span(0, 3)),
-                str_tok(span(4, 6)),
-                str_tok(span(7, 9)),
-            ],
-            &[],
-        );
+        let handled = a.handle_proc_command(&["foo".to_string()], &[esc_tok(span(0, 3))], &[]);
         assert!(!handled);
         assert!(a.result.all_procs.is_empty());
     }
@@ -2733,7 +2735,6 @@ mod tests {
         let mut a = Analyser::new();
         a.dialect = "tcl".to_string();
         a.handle_proc_command(
-            "proc",
             &["set".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -2761,7 +2762,6 @@ mod tests {
         let mut a = Analyser::new();
         a.dialect = "tcl".to_string();
         a.handle_proc_command(
-            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -2787,7 +2787,6 @@ mod tests {
         let mut a = Analyser::new();
         a.dialect = "tcl".to_string();
         a.handle_proc_command(
-            "proc",
             &["::set".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 10)),
@@ -2810,7 +2809,6 @@ mod tests {
         let mut a = Analyser::new();
         // dialect intentionally left empty
         a.handle_proc_command(
-            "proc",
             &["set".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -2840,7 +2838,6 @@ mod tests {
         let mut a = Analyser::new();
         a.dialect = "f5-irules".to_string();
         a.handle_proc_command(
-            "proc",
             &["pool".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 9)),
@@ -2861,7 +2858,6 @@ mod tests {
         let mut b = Analyser::new();
         b.dialect = "tcl".to_string();
         b.handle_proc_command(
-            "proc",
             &["pool".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 9)),
@@ -2887,7 +2883,6 @@ mod tests {
         let mut a = Analyser::new();
         a.dialect = "f5-irules".to_string();
         a.handle_proc_command(
-            "proc",
             &["HTTP::respond".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 18)),
@@ -2914,7 +2909,6 @@ mod tests {
         // place to record locals.
         let mut a = Analyser::new();
         a.handle_proc_command(
-            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -2936,7 +2930,6 @@ mod tests {
         // proc scope, not in the outer scope.
         let mut a = Analyser::new();
         a.handle_proc_command(
-            "proc",
             &["foo".to_string(), "a b".to_string(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -2964,7 +2957,6 @@ mod tests {
         // re-segmented inner runs at base 14.
         let mut a = Analyser::new();
         a.handle_proc_command(
-            "proc",
             &["foo".to_string(), String::new(), "set x 1".to_string()],
             &[
                 esc_tok(span(5, 8)),
@@ -2990,7 +2982,6 @@ mod tests {
         // (link to outer var) live with diagnostic emission later.
         let mut a = Analyser::new();
         a.handle_proc_command(
-            "proc",
             &["foo".to_string(), String::new(), "global a b".to_string()],
             &[
                 esc_tok(span(5, 8)),
@@ -3010,7 +3001,6 @@ mod tests {
         // creating a nested proc scope under the outer proc.
         let mut a = Analyser::new();
         a.handle_proc_command(
-            "proc",
             &[
                 "outer".to_string(),
                 String::new(),
@@ -3050,7 +3040,6 @@ mod tests {
         let mut a = Analyser::new();
         let var_tok = Token::new(TokenType::Var, span(13, 18));
         a.handle_proc_command(
-            "proc",
             &["foo".to_string(), String::new(), "$body".to_string()],
             &[esc_tok(span(5, 8)), str_tok(span(9, 11)), var_tok],
             &[],
@@ -3068,7 +3057,6 @@ mod tests {
         let mut a = Analyser::new();
         assert_eq!(a.body_depth, 0);
         a.handle_proc_command(
-            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -3090,7 +3078,6 @@ mod tests {
         let mut a = Analyser::new();
         a.last_comment = "doc string".to_string();
         a.handle_proc_command(
-            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -3114,20 +3101,12 @@ mod tests {
     #[test]
     fn handle_namespace_path_records_and_replaces() {
         let mut a = Analyser::new();
-        a.handle_namespace_path_command(
-            "namespace",
-            &["path".to_string(), "::u ::v".to_string()],
-            &[],
-        );
+        a.handle_namespace_path_command(&["path".to_string(), "::u ::v".to_string()], &[]);
         assert_eq!(
             a.namespace_paths.get("::").map(Vec::as_slice),
             Some(&["::u".to_string(), "::v".to_string()][..]),
         );
-        a.handle_namespace_path_command(
-            "namespace",
-            &["path".to_string(), "inner".to_string()],
-            &[],
-        );
+        a.handle_namespace_path_command(&["path".to_string(), "inner".to_string()], &[]);
         assert_eq!(
             a.namespace_paths.get("::").map(Vec::as_slice),
             Some(&["inner".to_string()][..]),
@@ -3140,17 +3119,9 @@ mod tests {
     #[test]
     fn handle_namespace_path_skips_query_and_dynamic_forms() {
         let mut a = Analyser::new();
-        a.handle_namespace_path_command("namespace", &["path".to_string()], &[]);
-        a.handle_namespace_path_command(
-            "namespace",
-            &["path".to_string(), "$entries".to_string()],
-            &[],
-        );
-        a.handle_namespace_path_command(
-            "namespace",
-            &["path".to_string(), "[current_path]".to_string()],
-            &[],
-        );
+        a.handle_namespace_path_command(&["path".to_string()], &[]);
+        a.handle_namespace_path_command(&["path".to_string(), "$entries".to_string()], &[]);
+        a.handle_namespace_path_command(&["path".to_string(), "[current_path]".to_string()], &[]);
         assert!(a.namespace_paths.is_empty());
     }
 
@@ -3166,11 +3137,7 @@ mod tests {
                 crate::analyser::types::ScopeKind::Namespace,
                 "outer",
             ));
-        a.handle_namespace_path_command(
-            "namespace",
-            &["path".to_string(), "::helpers".to_string()],
-            &[0],
-        );
+        a.handle_namespace_path_command(&["path".to_string(), "::helpers".to_string()], &[0]);
         assert_eq!(
             a.namespace_paths.get("::outer").map(Vec::as_slice),
             Some(&["::helpers".to_string()][..]),
@@ -3181,7 +3148,6 @@ mod tests {
     fn handle_namespace_eval_creates_child_scope() {
         let mut a = Analyser::new();
         let handled = a.handle_namespace_eval_command(
-            "namespace",
             &[
                 "eval".to_string(),
                 "ns1".to_string(),
@@ -3207,7 +3173,6 @@ mod tests {
     fn handle_namespace_eval_records_body_span() {
         let mut a = Analyser::new();
         a.handle_namespace_eval_command(
-            "namespace",
             &["eval".to_string(), "ns1".to_string(), String::new()],
             &[
                 esc_tok(span(10, 14)),
@@ -3222,19 +3187,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn handle_namespace_eval_wrong_subcommand_returns_false() {
-        let mut a = Analyser::new();
-        let handled = a.handle_namespace_eval_command(
-            "namespace",
-            &["import".to_string(), "::tcl::*".to_string()],
-            &[esc_tok(span(0, 6)), esc_tok(span(7, 16))],
-            &[],
-        );
-        assert!(!handled);
-        assert!(a.result.global_scope.children.is_empty());
-    }
-
     // handle_namespace_ensemble
 
     #[test]
@@ -3245,11 +3197,7 @@ mod tests {
             .global_scope
             .children
             .push(Scope::new(ScopeKind::Namespace, "myns"));
-        a.handle_namespace_ensemble(
-            "namespace",
-            &["ensemble".to_string(), "create".to_string()],
-            &[0],
-        );
+        a.handle_namespace_ensemble(&["ensemble".to_string(), "create".to_string()], &[0]);
         assert!(a.ensemble_namespaces.contains("::myns"));
     }
 
@@ -3264,7 +3212,6 @@ mod tests {
             .children
             .push(Scope::new(ScopeKind::Namespace, "myns"));
         a.handle_namespace_ensemble(
-            "namespace",
             &[
                 "ensemble".to_string(),
                 "create".to_string(),
@@ -3288,7 +3235,6 @@ mod tests {
             .children
             .push(Scope::new(ScopeKind::Namespace, "myns"));
         a.handle_namespace_ensemble(
-            "namespace",
             &[
                 "ensemble".to_string(),
                 "create".to_string(),
@@ -3309,7 +3255,6 @@ mod tests {
             .children
             .push(Scope::new(ScopeKind::Namespace, "myns"));
         a.handle_namespace_ensemble(
-            "namespace",
             &[
                 "ensemble".to_string(),
                 "create".to_string(),
@@ -3344,7 +3289,6 @@ mod tests {
             .children
             .push(Scope::new(ScopeKind::Namespace, "myns"));
         a.handle_namespace_ensemble(
-            "namespace",
             &[
                 "ensemble".to_string(),
                 "create".to_string(),
@@ -3366,11 +3310,7 @@ mod tests {
     #[test]
     fn handle_namespace_ensemble_global_scope_no_op() {
         let mut a = Analyser::new();
-        a.handle_namespace_ensemble(
-            "namespace",
-            &["ensemble".to_string(), "create".to_string()],
-            &[],
-        );
+        a.handle_namespace_ensemble(&["ensemble".to_string(), "create".to_string()], &[]);
         assert!(a.ensemble_namespaces.is_empty());
     }
 
@@ -3382,7 +3322,7 @@ mod tests {
             .global_scope
             .children
             .push(Scope::new(ScopeKind::Namespace, "myns"));
-        a.handle_namespace_ensemble("namespace", &["eval".to_string(), "myns".to_string()], &[0]);
+        a.handle_namespace_ensemble(&["eval".to_string(), "myns".to_string()], &[0]);
         assert!(a.ensemble_namespaces.is_empty());
     }
 
@@ -3392,7 +3332,6 @@ mod tests {
     fn handle_foreach_defines_single_loop_var() {
         let mut a = Analyser::new();
         let handled = a.handle_foreach_command(
-            "foreach",
             &[
                 "i".to_string(),
                 "{1 2 3}".to_string(),
@@ -3413,7 +3352,6 @@ mod tests {
     fn handle_foreach_defines_multiple_loop_vars() {
         let mut a = Analyser::new();
         a.handle_foreach_command(
-            "foreach",
             &["k v".to_string(), "{a 1 b 2}".to_string(), String::new()],
             &[
                 esc_tok(span(8, 11)),
@@ -3438,25 +3376,8 @@ mod tests {
     fn handle_foreach_too_few_args_returns_false() {
         let mut a = Analyser::new();
         let handled = a.handle_foreach_command(
-            "foreach",
             &["i".to_string(), "{1 2}".to_string()],
             &[esc_tok(span(0, 1)), str_tok(span(2, 7))],
-            &[],
-        );
-        assert!(!handled);
-    }
-
-    #[test]
-    fn handle_foreach_wrong_command_returns_false() {
-        let mut a = Analyser::new();
-        let handled = a.handle_foreach_command(
-            "while",
-            &["i".to_string(), "list".to_string(), "body".to_string()],
-            &[
-                esc_tok(span(0, 1)),
-                esc_tok(span(2, 6)),
-                esc_tok(span(7, 11)),
-            ],
             &[],
         );
         assert!(!handled);
@@ -3468,7 +3389,6 @@ mod tests {
     fn handle_for_returns_true_for_canonical_shape() {
         let mut a = Analyser::new();
         let handled = a.handle_for_command(
-            "for",
             &[
                 "set i 0".to_string(),
                 "$i < 10".to_string(),
@@ -3484,12 +3404,8 @@ mod tests {
     #[test]
     fn handle_for_too_few_args_returns_false() {
         let mut a = Analyser::new();
-        let handled = a.handle_for_command(
-            "for",
-            &["set i 0".to_string(), "$i < 10".to_string()],
-            &[],
-            &[],
-        );
+        let handled =
+            a.handle_for_command(&["set i 0".to_string(), "$i < 10".to_string()], &[], &[]);
         assert!(!handled);
     }
 
@@ -3499,7 +3415,6 @@ mod tests {
     fn handle_switch_returns_true_for_canonical_shape() {
         let mut a = Analyser::new();
         let handled = a.handle_switch_command(
-            "switch",
             &["$x".to_string(), "{a {puts a} b {puts b}}".to_string()],
             &[esc_tok(span(7, 9)), str_tok(span(10, 36))],
             &[],
@@ -3510,7 +3425,7 @@ mod tests {
     #[test]
     fn handle_switch_too_few_args_returns_false() {
         let mut a = Analyser::new();
-        let handled = a.handle_switch_command("switch", &["$x".to_string()], &[], &[]);
+        let handled = a.handle_switch_command(&["$x".to_string()], &[], &[]);
         assert!(!handled);
     }
 
@@ -3522,7 +3437,6 @@ mod tests {
         // offsets 13..23 (``{set y 1}``) and 27..37 (``{set z 2}``).
         let mut a = Analyser::new();
         a.handle_switch_command(
-            "switch",
             &[
                 "$x".to_string(),
                 "a".to_string(),
@@ -3555,7 +3469,6 @@ mod tests {
         // body_text has 25 chars, plus surrounding braces → token
         // span 10..37, content_offset = 1 to skip the opening ``{``.
         a.handle_switch_command(
-            "switch",
             &["$x".to_string(), body_text],
             &[esc_tok(span(7, 9)), str_tok(span(10, 37))],
             &[],
@@ -3571,7 +3484,6 @@ mod tests {
         // ``b``'s body should be walked.
         let mut a = Analyser::new();
         a.handle_switch_command(
-            "switch",
             &[
                 "$x".to_string(),
                 "a".to_string(),
@@ -3598,7 +3510,6 @@ mod tests {
         // the arm body and lands ``y``.
         let mut a = Analyser::new();
         a.handle_switch_command(
-            "switch",
             &[
                 "--".to_string(),
                 "$x".to_string(),
@@ -3623,7 +3534,6 @@ mod tests {
         let mut a = Analyser::new();
         let var_tok = Token::new(TokenType::Var, span(10, 15));
         a.handle_switch_command(
-            "switch",
             &["$x".to_string(), "$body".to_string()],
             &[esc_tok(span(7, 9)), var_tok],
             &[],
@@ -3637,8 +3547,7 @@ mod tests {
     #[test]
     fn handle_catch_canonical_returns_true() {
         let mut a = Analyser::new();
-        let handled =
-            a.handle_catch_command("catch", &["body".to_string()], &[esc_tok(span(0, 4))], &[]);
+        let handled = a.handle_catch_command(&["body".to_string()], &[esc_tok(span(0, 4))], &[]);
         assert!(handled);
     }
 
@@ -3646,7 +3555,6 @@ mod tests {
     fn handle_catch_with_result_var_defines_it() {
         let mut a = Analyser::new();
         a.handle_catch_command(
-            "catch",
             &["body".to_string(), "res".to_string()],
             &[esc_tok(span(0, 4)), esc_tok(span(5, 8))],
             &[],
@@ -3658,7 +3566,6 @@ mod tests {
     fn handle_catch_with_options_var_defines_both() {
         let mut a = Analyser::new();
         a.handle_catch_command(
-            "catch",
             &["body".to_string(), "res".to_string(), "opts".to_string()],
             &[
                 esc_tok(span(0, 4)),
@@ -3674,7 +3581,7 @@ mod tests {
     #[test]
     fn handle_catch_no_args_returns_false() {
         let mut a = Analyser::new();
-        let handled = a.handle_catch_command("catch", &[], &[], &[]);
+        let handled = a.handle_catch_command(&[], &[], &[]);
         assert!(!handled);
     }
 
@@ -3683,15 +3590,14 @@ mod tests {
     #[test]
     fn handle_try_canonical_returns_true() {
         let mut a = Analyser::new();
-        let handled =
-            a.handle_try_command("try", &["body".to_string()], &[str_tok(span(0, 4))], &[]);
+        let handled = a.handle_try_command(&["body".to_string()], &[str_tok(span(0, 4))], &[]);
         assert!(handled);
     }
 
     #[test]
     fn handle_try_no_args_returns_false() {
         let mut a = Analyser::new();
-        let handled = a.handle_try_command("try", &[], &[], &[]);
+        let handled = a.handle_try_command(&[], &[], &[]);
         assert!(!handled);
     }
 
@@ -3699,12 +3605,7 @@ mod tests {
     fn handle_try_walks_main_body() {
         // ``try {set y 1}`` — main body walks and lands ``y``.
         let mut a = Analyser::new();
-        a.handle_try_command(
-            "try",
-            &["set y 1".to_string()],
-            &[str_tok(span(5, 14))],
-            &[],
-        );
+        a.handle_try_command(&["set y 1".to_string()], &[str_tok(span(5, 14))], &[]);
         assert!(a.result.global_scope.variables.contains_key("y"));
     }
 
@@ -3713,7 +3614,6 @@ mod tests {
         // ``try {} finally {set z 1}`` — finally clause body walks.
         let mut a = Analyser::new();
         a.handle_try_command(
-            "try",
             &[String::new(), "finally".to_string(), "set z 1".to_string()],
             &[
                 str_tok(span(5, 7)),
@@ -3732,7 +3632,6 @@ mod tests {
         // is *not* defined as a local.
         let mut a = Analyser::new();
         a.handle_try_command(
-            "try",
             &[
                 String::new(),
                 "on".to_string(),
@@ -3763,7 +3662,6 @@ mod tests {
         // as ``on``, but the keyword is ``trap``.
         let mut a = Analyser::new();
         a.handle_try_command(
-            "try",
             &[
                 String::new(),
                 "trap".to_string(),
@@ -3790,7 +3688,6 @@ mod tests {
         // ``::foo`` resolves directly when registered.
         let mut a = Analyser::new();
         a.handle_proc_command(
-            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -3815,7 +3712,6 @@ mod tests {
             .children
             .push(Scope::new(ScopeKind::Namespace, "ns1"));
         a.handle_proc_command(
-            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -3836,7 +3732,6 @@ mod tests {
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
         a.handle_proc_command(
-            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -3930,7 +3825,6 @@ mod tests {
         a.result.global_scope.children.push(ns_a);
         // scope_path [0] = ::a — define `foo` there.
         a.handle_proc_command(
-            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -4060,7 +3954,6 @@ mod tests {
     fn handle_interp_alias_records_canonical_form() {
         let mut a = Analyser::new();
         a.handle_interp_alias(
-            "interp",
             &[
                 "alias".to_string(),
                 String::new(),
@@ -4082,7 +3975,6 @@ mod tests {
     fn handle_interp_alias_with_prepended_args() {
         let mut a = Analyser::new();
         a.handle_interp_alias(
-            "interp",
             &[
                 "alias".to_string(),
                 String::new(),
@@ -4101,7 +3993,7 @@ mod tests {
     #[test]
     fn handle_interp_alias_wrong_shape_no_op() {
         let mut a = Analyser::new();
-        a.handle_interp_alias("interp", &["alias".to_string()], 0);
+        a.handle_interp_alias(&["alias".to_string()], 0);
         assert!(a.command_aliases.is_empty());
         assert!(a.alias_offsets.is_empty());
     }
@@ -4111,11 +4003,7 @@ mod tests {
     #[test]
     fn handle_rename_records_static_move() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(
-            "rename",
-            &["target".to_string(), "target_orig".to_string()],
-            42,
-        );
+        let dynamic = a.handle_rename(&["target".to_string(), "target_orig".to_string()], 42);
         assert!(!dynamic, "a fully static rename is not dynamic");
         assert_eq!(
             a.renamed_commands.get("::target_orig").map(String::as_str),
@@ -4142,7 +4030,7 @@ mod tests {
         // itself must be recorded as gone (confirmed against tclsh
         // 9.0.4: also "invalid command name" afterwards).
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename("rename", &["target".to_string(), String::new()], 7);
+        let dynamic = a.handle_rename(&["target".to_string(), String::new()], 7);
         assert!(!dynamic);
         assert!(a.renamed_commands.is_empty());
         assert_eq!(a.deleted_commands.get("::target"), Some(&7));
@@ -4151,7 +4039,7 @@ mod tests {
     #[test]
     fn handle_rename_dynamic_old_name_reports_dynamic() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename("rename", &["$x".to_string(), "y".to_string()], 0);
+        let dynamic = a.handle_rename(&["$x".to_string(), "y".to_string()], 0);
         assert!(dynamic, "rename $x y cannot be resolved statically");
         assert!(a.renamed_commands.is_empty());
         assert!(a.deleted_commands.is_empty());
@@ -4160,7 +4048,7 @@ mod tests {
     #[test]
     fn handle_rename_dynamic_new_name_reports_dynamic() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename("rename", &["x".to_string(), "y[z]".to_string()], 0);
+        let dynamic = a.handle_rename(&["x".to_string(), "y[z]".to_string()], 0);
         assert!(dynamic, "rename x y[z] cannot be resolved statically");
         assert!(a.renamed_commands.is_empty());
         assert!(a.deleted_commands.is_empty());
@@ -4169,16 +4057,7 @@ mod tests {
     #[test]
     fn handle_rename_wrong_shape_no_op() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename("rename", &["onlyone".to_string()], 0);
-        assert!(!dynamic);
-        assert!(a.renamed_commands.is_empty());
-        assert!(a.deleted_commands.is_empty());
-    }
-
-    #[test]
-    fn handle_rename_ignores_non_rename_commands() {
-        let mut a = Analyser::new();
-        let dynamic = a.handle_rename("puts", &["a".to_string(), "b".to_string()], 0);
+        let dynamic = a.handle_rename(&["onlyone".to_string()], 0);
         assert!(!dynamic);
         assert!(a.renamed_commands.is_empty());
         assert!(a.deleted_commands.is_empty());
@@ -4189,29 +4068,22 @@ mod tests {
     #[test]
     fn handle_oo_objdefine_records_dollar_var() {
         let mut a = Analyser::new();
-        a.handle_oo_objdefine("oo::objdefine", &["$obj".to_string()]);
+        a.handle_oo_objdefine(&["$obj".to_string()]);
         assert!(a.objdefined_vars.contains("obj"));
     }
 
     #[test]
     fn handle_oo_objdefine_records_braced_dollar_var() {
         let mut a = Analyser::new();
-        a.handle_oo_objdefine("oo::objdefine", &["${obj}".to_string()]);
+        a.handle_oo_objdefine(&["${obj}".to_string()]);
         assert!(a.objdefined_vars.contains("obj"));
     }
 
     #[test]
     fn handle_oo_objdefine_records_bare_name() {
         let mut a = Analyser::new();
-        a.handle_oo_objdefine("oo::objdefine", &["obj".to_string()]);
+        a.handle_oo_objdefine(&["obj".to_string()]);
         assert!(a.objdefined_vars.contains("obj"));
-    }
-
-    #[test]
-    fn handle_oo_objdefine_wrong_command_no_op() {
-        let mut a = Analyser::new();
-        a.handle_oo_objdefine("oo::class", &["$obj".to_string()]);
-        assert!(a.objdefined_vars.is_empty());
     }
 
     // resolve_alias
@@ -4413,12 +4285,7 @@ mod tests {
     #[test]
     fn handle_incr_defines_var() {
         let mut a = Analyser::new();
-        a.handle_incr_command(
-            "incr",
-            &["counter".to_string()],
-            &[esc_tok(span(0, 7))],
-            &[],
-        );
+        a.handle_incr_command(&["counter".to_string()], &[esc_tok(span(0, 7))], &[]);
         assert!(a.result.global_scope.variables.contains_key("counter"));
         // incr-defined vars warn_if_unused = true (so a `set`-only
         // var pattern still fires; an `incr`-only-no-read does too).
@@ -4429,7 +4296,6 @@ mod tests {
     fn handle_incr_with_amount() {
         let mut a = Analyser::new();
         a.handle_incr_command(
-            "incr",
             &["counter".to_string(), "5".to_string()],
             &[esc_tok(span(0, 7)), esc_tok(span(8, 9))],
             &[],
@@ -4440,14 +4306,7 @@ mod tests {
     #[test]
     fn handle_incr_no_args_no_op() {
         let mut a = Analyser::new();
-        a.handle_incr_command("incr", &[], &[], &[]);
-        assert!(a.result.global_scope.variables.is_empty());
-    }
-
-    #[test]
-    fn handle_incr_wrong_command_no_op() {
-        let mut a = Analyser::new();
-        a.handle_incr_command("set", &["counter".to_string()], &[esc_tok(span(0, 7))], &[]);
+        a.handle_incr_command(&[], &[], &[]);
         assert!(a.result.global_scope.variables.is_empty());
     }
 

@@ -124,6 +124,7 @@ pub fn spec() -> CommandSpec {
         inline_codegen_hook: Some(InlineCodegenHookId::Regexp),
         forms: FORMS,
         arg_role_resolver: Some(regexp_arg_roles),
+        analyser_hook: Some(crate::hooks::AnalyserHookId::RegexPatternCapture),
         ..CommandSpec::DEFAULT
     }
 }

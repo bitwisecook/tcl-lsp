@@ -163,6 +163,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // this covers the whole `namespace ensemble …` surface rather than
         // just `create`'s.
         options: ENSEMBLE_CREATE_OPTIONS,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceEnsemble),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -182,6 +183,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // dynamic-dispatch consumers (memory-SSA clobber classification)
         // key off this.
         traits: Traits::EVALUATES_CODE,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceEval),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -221,6 +223,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Imports commands into a namespace.",
         synopsis: "namespace import ?-force? ?pattern pattern ...?",
         return_type: Some(TclType::List),
+        analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceImport),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -260,6 +263,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace path ?namespaceList?",
         return_type: Some(TclType::List),
         dialects: Some(DialectSet::TCL85_PLUS),
+        analyser_hook: Some(crate::hooks::AnalyserHookId::NamespacePath),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -291,6 +295,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // prefix invoked with the unknown command name + its args appended
         // (variadic ⇒ AtLeast(1)). The zero-arg query form has no prefix.
         command_prefixes: &[(0, AppendedArity::AtLeast(1))],
+        analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceUnknown),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -301,6 +306,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         creates_scope_alias: true,
         dialects: Some(DialectSet::TCL85_PLUS),
+        analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceUpvar),
         ..SubCommand::DEFAULT
     },
     SubCommand {

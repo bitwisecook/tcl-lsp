@@ -64,6 +64,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp alias path cmd",
         return_type: Some(TclType::List),
         command_prefix_resolver: Some(interp_alias_command_prefixes),
+        analyser_hook: Some(crate::hooks::AnalyserHookId::InterpAlias),
+        command_table_effect: Some(crate::command_table::CommandTableEffect::CreatesAliases),
         ..SubCommand::DEFAULT
     },
     SubCommand {

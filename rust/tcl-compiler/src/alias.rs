@@ -21,6 +21,17 @@
 //! Used by the lowerer to detect
 //! `interp alias {} name {} target ?args?` definitions and resolve
 //! command names through the alias table.
+//!
+//! Which commands mutate the command table is registry data
+//! ([`tcl_registry::CommandTableEffect`], resolved via
+//! `CommandRegistry::command_table_effect`), so the destructuring
+//! helpers here take only the argument words: every caller has already
+//! dispatched on the effect ([`CommandTableEffect::CreatesAliases`]
+//! for the `interp alias` shapes, [`CommandTableEffect::RenamesCommands`]
+//! for `rename`) rather than matching the command name itself.
+//!
+//! [`CommandTableEffect::CreatesAliases`]: tcl_registry::CommandTableEffect::CreatesAliases
+//! [`CommandTableEffect::RenamesCommands`]: tcl_registry::CommandTableEffect::RenamesCommands
 
 use std::collections::{HashMap, HashSet};
 
@@ -31,19 +42,24 @@ pub type CommandAliasMap = HashMap<String, (String, Vec<String>)>;
 
 /// Detect `interp alias {} name {} target ?args?`.
 ///
+/// `args` are the words after the `interp` head (`args[0]` is the
+/// `alias` subcommand word the caller's
+/// [`CommandTableEffect::CreatesAliases`] dispatch already resolved).
+///
 /// Returns `(qualified_alias_name, target_cmd, prepended_args)` or
 /// `None` if this is not a current-interpreter alias definition.
 /// Only aliases in the current interpreter (empty source and target
 /// paths) are tracked.
+///
+/// [`CommandTableEffect::CreatesAliases`]: tcl_registry::CommandTableEffect::CreatesAliases
 #[must_use]
-pub fn detect_interp_alias(
-    cmd_name: &str,
-    args: &[String],
-) -> Option<(String, String, Vec<String>)> {
-    if cmd_name != "interp" || args.len() < 5 {
-        return None;
-    }
-    if args[0] != "alias" {
+pub fn detect_interp_alias(args: &[String]) -> Option<(String, String, Vec<String>)> {
+    debug_assert_eq!(
+        args.first().map(String::as_str),
+        Some("alias"),
+        "caller dispatches on CommandTableEffect::CreatesAliases"
+    );
+    if args.len() < 5 {
         return None;
     }
     let src_path = &args[1];
@@ -86,14 +102,19 @@ pub fn detect_interp_alias(
 /// [`detect_interp_alias`]'s `args.len() >= 5` guard alike, so neither
 /// function fires for it.
 ///
+/// `args` are the words after the `interp` head, exactly as for
+/// [`detect_interp_alias`].
+///
 /// Returns the qualified alias name to delete, or `None` when this
 /// isn't a current-interpreter deletion.
 #[must_use]
-pub fn detect_interp_alias_delete(cmd_name: &str, args: &[String]) -> Option<String> {
-    if cmd_name != "interp" || args.len() != 4 {
-        return None;
-    }
-    if args[0] != "alias" {
+pub fn detect_interp_alias_delete(args: &[String]) -> Option<String> {
+    debug_assert_eq!(
+        args.first().map(String::as_str),
+        Some("alias"),
+        "caller dispatches on CommandTableEffect::CreatesAliases"
+    );
+    if args.len() != 4 {
         return None;
     }
     let src_path = &args[1];
@@ -113,6 +134,9 @@ pub fn detect_interp_alias_delete(cmd_name: &str, args: &[String]) -> Option<Str
 /// than renaming it, per Tcl semantics, and creates no new alias), and neither
 /// dynamically substituted.
 ///
+/// `args` are the words after the `rename` head (the caller has
+/// dispatched on [`CommandTableEffect::RenamesCommands`]).
+///
 /// Returns `(old_name, new_name)` — **both raw**, unlike [`detect_interp_alias`]
 /// which pre-qualifies its alias name at the global root. `rename` binds
 /// `newName` in the *current* namespace (`rename set myset` inside
@@ -123,9 +147,11 @@ pub fn detect_interp_alias_delete(cmd_name: &str, args: &[String]) -> Option<Str
 /// dispatch, canonical-command typing), a `rename` is then indistinguishable
 /// from an `interp alias {} newName {} oldName` — calling through the new name
 /// really does invoke the old command.
+///
+/// [`CommandTableEffect::RenamesCommands`]: tcl_registry::CommandTableEffect::RenamesCommands
 #[must_use]
-pub fn detect_rename(cmd_name: &str, args: &[String]) -> Option<(String, String)> {
-    if cmd_name != "rename" || args.len() != 2 {
+pub fn detect_rename(args: &[String]) -> Option<(String, String)> {
+    if args.len() != 2 {
         return None;
     }
     let (old, new) = (&args[0], &args[1]);
@@ -202,18 +228,12 @@ mod tests {
             "puts".into(),
             "-nonewline".into(),
         ];
-        let result = detect_interp_alias("interp", &args);
+        let result = detect_interp_alias(&args);
         assert!(result.is_some());
         let (name, target, prepended) = result.unwrap();
         assert_eq!(name, "::myalias");
         assert_eq!(target, "puts");
         assert_eq!(prepended, vec!["-nonewline"]);
-    }
-
-    #[test]
-    fn detect_non_alias() {
-        let args: Vec<String> = vec!["eval".into(), "{}".into(), "puts hello".into()];
-        assert!(detect_interp_alias("interp", &args).is_none());
     }
 
     #[test]
@@ -229,7 +249,7 @@ mod tests {
             "{}".into(),
             "$target".into(),
         ];
-        assert!(detect_interp_alias("interp", &args).is_none());
+        assert!(detect_interp_alias(&args).is_none());
     }
 
     #[test]
@@ -241,21 +261,15 @@ mod tests {
             "{}".into(),
             "eval".into(),
         ];
-        assert!(detect_interp_alias("interp", &args).is_none());
+        assert!(detect_interp_alias(&args).is_none());
     }
 
     #[test]
     fn detect_rename_basic() {
         // Returns `(old, new)` raw — the caller namespace-qualifies `new`.
         let args: Vec<String> = vec!["eval".into(), "myEval".into()];
-        let result = detect_rename("rename", &args);
+        let result = detect_rename(&args);
         assert_eq!(result, Some(("eval".to_string(), "myEval".to_string())));
-    }
-
-    #[test]
-    fn detect_rename_wrong_command() {
-        let args: Vec<String> = vec!["eval".into(), "myEval".into()];
-        assert!(detect_rename("puts", &args).is_none());
     }
 
     #[test]
@@ -266,26 +280,26 @@ mod tests {
         // later in the same script instead of just leaving them
         // unaliased).
         let args: Vec<String> = vec!["$old".into(), "eval".into()];
-        assert!(detect_rename("rename", &args).is_none());
+        assert!(detect_rename(&args).is_none());
     }
 
     #[test]
     fn detect_rename_rejects_dynamic_new_name() {
         let args: Vec<String> = vec!["eval".into(), "myEval[x]".into()];
-        assert!(detect_rename("rename", &args).is_none());
+        assert!(detect_rename(&args).is_none());
     }
 
     #[test]
     fn detect_rename_deletion_form_is_not_an_alias() {
         // `rename oldName {}` *deletes* oldName — not a rename.
         let args: Vec<String> = vec!["eval".into(), String::new()];
-        assert!(detect_rename("rename", &args).is_none());
+        assert!(detect_rename(&args).is_none());
     }
 
     #[test]
     fn detect_rename_wrong_arity() {
-        assert!(detect_rename("rename", &["eval".to_string()]).is_none());
-        assert!(detect_rename("rename", &[]).is_none());
+        assert!(detect_rename(&["eval".to_string()]).is_none());
+        assert!(detect_rename(&[]).is_none());
     }
 
     #[test]
@@ -293,23 +307,11 @@ mod tests {
         // A `::`-qualified NEW is returned verbatim; the caller
         // (`join_namespace`) leaves it rooted globally.
         let args: Vec<String> = vec!["eval".into(), "::ns::myEval".into()];
-        let result = detect_rename("rename", &args);
+        let result = detect_rename(&args);
         assert_eq!(
             result,
             Some(("eval".to_string(), "::ns::myEval".to_string()))
         );
-    }
-
-    #[test]
-    fn detect_wrong_command() {
-        let args: Vec<String> = vec![
-            "alias".into(),
-            "{}".into(),
-            "x".into(),
-            "{}".into(),
-            "y".into(),
-        ];
-        assert!(detect_interp_alias("puts", &args).is_none());
     }
 
     #[test]
@@ -321,16 +323,13 @@ mod tests {
             "{}".into(),
             "y".into(),
         ];
-        assert!(detect_interp_alias("interp", &args).is_none());
+        assert!(detect_interp_alias(&args).is_none());
     }
 
     #[test]
     fn detect_delete_basic() {
         let args: Vec<String> = vec!["alias".into(), "{}".into(), "bar".into(), "{}".into()];
-        assert_eq!(
-            detect_interp_alias_delete("interp", &args),
-            Some("::bar".to_string())
-        );
+        assert_eq!(detect_interp_alias_delete(&args), Some("::bar".to_string()));
     }
 
     #[test]
@@ -338,7 +337,7 @@ mod tests {
         // Only 2 args after `alias` (no target path at all) — a query,
         // not a deletion.
         let args: Vec<String> = vec!["alias".into(), "{}".into(), "bar".into()];
-        assert!(detect_interp_alias_delete("interp", &args).is_none());
+        assert!(detect_interp_alias_delete(&args).is_none());
     }
 
     #[test]
@@ -352,13 +351,13 @@ mod tests {
             "{}".into(),
             "foo".into(),
         ];
-        assert!(detect_interp_alias_delete("interp", &args).is_none());
+        assert!(detect_interp_alias_delete(&args).is_none());
     }
 
     #[test]
     fn detect_delete_rejects_foreign_interp() {
         let args: Vec<String> = vec!["alias".into(), "slave".into(), "bar".into(), "{}".into()];
-        assert!(detect_interp_alias_delete("interp", &args).is_none());
+        assert!(detect_interp_alias_delete(&args).is_none());
     }
 
     #[test]

@@ -26,11 +26,12 @@ use crate::arg_role::ArgRole;
 use crate::arity::Arity;
 use crate::body_kind::BodyKind;
 use crate::clause_shape::ClauseShapeChecker;
+use crate::command_table::CommandTableEffect;
 use crate::dialects::DialectSet;
 use crate::forms::{CommandForm, SubCommandForm};
 use crate::hooks::{
-    ArgTypeHint, CodegenHookId, ConstFoldFn, InlineCodegenHookId, LoweringHookId, TclVersion,
-    VersionedConstFoldFn, WasmCodegenHookId,
+    AnalyserHookId, ArgTypeHint, CodegenHookId, ConstFoldFn, InlineCodegenHookId, LoweringHookId,
+    TclVersion, VersionedConstFoldFn, WasmCodegenHookId,
 };
 use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
 use crate::patterns::{FormatType, PatternType};
@@ -374,6 +375,21 @@ pub struct CommandSpec {
     /// the per-command coverage audit can track WASM hook stamping.
     pub wasm_codegen_hook: Option<WasmCodegenHookId>,
 
+    /// Analyser handler-family hook ID — picks the per-command
+    /// handler in the analyser's central dispatch
+    /// (`tcl_compiler::analyser`). `None` means the analyser has no
+    /// command-specific handler for this command; only the generic,
+    /// registry-role-driven walks apply.
+    pub analyser_hook: Option<AnalyserHookId>,
+
+    /// How this command mutates the interpreter's *command table*
+    /// (`proc` defines, `rename` moves, `interp alias` aliases — see
+    /// [`CommandTableEffect`]). `None` = the command never rebinds a
+    /// command name. Consumed by the command-binding lattice, the
+    /// lowerer's alias table, and the analyser's rename / alias
+    /// records via [`crate::CommandRegistry::command_table_effect`].
+    pub command_table_effect: Option<CommandTableEffect>,
+
     /// Structured side-effect declarations.
     pub side_effects: &'static [SideEffect],
 
@@ -696,6 +712,8 @@ impl CommandSpec {
         codegen_hook: None,
         inline_codegen_hook: None,
         wasm_codegen_hook: None,
+        analyser_hook: None,
+        command_table_effect: None,
         side_effects: &[],
         inferred_storage_type: None,
         required_package: None,
@@ -1096,6 +1114,18 @@ pub struct SubCommand {
     /// [`CommandSpec::wasm_codegen_hook`].
     pub wasm_codegen_hook: Option<WasmCodegenHookId>,
 
+    /// Analyser handler-family hook ID.
+    /// See [`CommandSpec::analyser_hook`]. Overrides the parent's when
+    /// the call resolves to this subcommand (`namespace eval` /
+    /// `dict for`).
+    pub analyser_hook: Option<AnalyserHookId>,
+
+    /// Command-table mutation descriptor.
+    /// See [`CommandSpec::command_table_effect`]. Overrides the
+    /// parent's when the call resolves to this subcommand
+    /// (`interp alias`).
+    pub command_table_effect: Option<CommandTableEffect>,
+
     /// Per-subcommand options.
     pub options: &'static [OptionSpec],
 
@@ -1277,6 +1307,8 @@ impl SubCommand {
         codegen_hook: None,
         inline_codegen_hook: None,
         wasm_codegen_hook: None,
+        analyser_hook: None,
+        command_table_effect: None,
         options: &[],
         arg_values: &[],
         subcommand_forms: &[],

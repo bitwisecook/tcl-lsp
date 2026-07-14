@@ -45,6 +45,7 @@ pub fn spec() -> CommandSpec {
         )),
         forms: FORMS,
         arg_roles: &[(0, ArgRole::VarWrite), (2, ArgRole::Body)],
+        analyser_hook: Some(crate::hooks::AnalyserHookId::Foreach),
         ..CommandSpec::DEFAULT
     }
 }

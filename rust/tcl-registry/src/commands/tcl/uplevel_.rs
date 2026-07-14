@@ -128,6 +128,7 @@ pub fn spec() -> CommandSpec {
         side_effects: SIDE_EFFECTS,
         xc_translatable: Some(false),
         unsafe_command: true,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::Uplevel),
         ..CommandSpec::DEFAULT
     }
 }

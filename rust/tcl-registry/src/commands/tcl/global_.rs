@@ -62,6 +62,7 @@ pub fn spec() -> CommandSpec {
         lowering_hook: Some(LoweringHookId::Global),
         codegen_hook: Some(CodegenHookId::Global),
         forms: FORMS,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::Global),
         ..CommandSpec::DEFAULT
     }
 }

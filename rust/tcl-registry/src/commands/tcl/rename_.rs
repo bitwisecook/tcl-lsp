@@ -53,6 +53,8 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::Rename),
+        command_table_effect: Some(crate::command_table::CommandTableEffect::RenamesCommands),
         ..CommandSpec::DEFAULT
     }
 }

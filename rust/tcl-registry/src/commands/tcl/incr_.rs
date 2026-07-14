@@ -98,6 +98,7 @@ pub fn spec() -> CommandSpec {
         command_forms: &[INCR_IMPLICIT, INCR_EXPLICIT],
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::Incr),
         ..CommandSpec::DEFAULT
     }
 }

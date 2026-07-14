@@ -1166,7 +1166,18 @@ impl Analyser {
         cmd_tok: tcl_lexer::Token,
         scope_path: &[usize],
     ) {
-        let Some(elements) = self.parse_apply_lambda_elements(cmd_name, args, arg_tokens) else {
+        // The head must actually resolve to `apply` — registry hook
+        // resolution, not a name literal, decides that (the same
+        // [`AnalyserHookId::Apply`] gate the handler dispatch uses).
+        // Without the gate, any command whose first argument is a braced
+        // literal (`proc {a b} {…}`) would be arity-checked as a lambda.
+        if !matches!(
+            self.resolve_analyser_hook(cmd_name, args),
+            Some(tcl_registry::hooks::AnalyserHookId::Apply)
+        ) {
+            return;
+        }
+        let Some(elements) = self.parse_apply_lambda_elements(args, arg_tokens) else {
             return;
         };
         let Some((_, params_text)) = elements.first() else {

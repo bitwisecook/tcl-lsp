@@ -71,6 +71,8 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::Proc),
+        command_table_effect: Some(crate::command_table::CommandTableEffect::DefinesProcedure),
         ..CommandSpec::DEFAULT
     }
 }

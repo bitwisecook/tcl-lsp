@@ -66,6 +66,7 @@ pub fn spec() -> CommandSpec {
         lowering_hook: Some(LoweringHookId::AppendOrLappend),
         codegen_hook: Some(CodegenHookId::Lappend),
         forms: FORMS,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::Lappend),
         ..CommandSpec::DEFAULT
     }
 }
