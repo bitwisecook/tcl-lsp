@@ -707,7 +707,15 @@ impl Analyser {
             // declaration span, but its span is recorded as a reference so
             // find-references / rename see every assignment, and it escalates
             // the unused flag.  Array indices accumulate.
-            if span != existing.definition_span {
+            //
+            // The last-reference check makes re-definition idempotent per
+            // token span: a write site is recorded once even when both its
+            // dedicated handler (`incr` / `append` / `dict update`) and the
+            // registry `VarWrite`-role walk (`handle_var_binding_command`)
+            // bind it — the two run back-to-back for the same word, and a
+            // duplicated reference becomes a duplicated (hence overlapping)
+            // rename edit downstream.
+            if span != existing.definition_span && existing.references.last() != Some(&span) {
                 existing.references.push(span);
             }
             if warn_if_unused {

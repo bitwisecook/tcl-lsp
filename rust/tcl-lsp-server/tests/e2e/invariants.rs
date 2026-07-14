@@ -179,7 +179,8 @@ fn test_rename_edits_do_not_overlap() {
     let src = "proc greet {name} { puts $name }\ngreet a\ngreet b\ngreet c\n";
     lsp.open_ready(&uri, src);
     let edit = lsp.rename(&uri, 0, 6, "welcome");
-    assert!(workspace_edit_violations(&edit, "rename").is_empty());
+    let violations = workspace_edit_violations(&edit, "rename");
+    assert!(violations.is_empty(), "{}", violations.join("\n"));
 }
 
 #[test]
@@ -190,7 +191,8 @@ fn test_multisite_variable_rename_edits_are_disjoint() {
         "proc p {} {\n    set count 0\n    incr count\n    incr count\n    return $count\n}\n";
     lsp.open_ready(&uri, src);
     let edit = lsp.rename(&uri, 1, 8, "counter");
-    assert!(workspace_edit_violations(&edit, "var-rename").is_empty());
+    let violations = workspace_edit_violations(&edit, "var-rename");
+    assert!(violations.is_empty(), "{}", violations.join("\n"));
 }
 
 #[test]
