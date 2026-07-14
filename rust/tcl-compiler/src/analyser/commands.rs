@@ -1350,6 +1350,14 @@ impl Analyser {
         // the IRULE5005 emitter never sees it.  Matches the top-level
         // `process_command` ordering (proc-resolution after site recording).
         self.emit_proc_resolution_diagnostics(&cmd_name, args, cmd_tok, scope_path);
+        // A `package require` nested in a `[…]` substitution still runs — the
+        // guarded-optional-dependency idiom puts it exactly there
+        // (`if {[catch {package require Tk} err]} { … fallback … }`), and the
+        // body collector descends `catch`'s script argument to reach it. Without
+        // this, W120 ("requires `package require Tk`") false-positives on every
+        // file using the standard guard, and the W123 conservative
+        // any-require-seen gate never engages.
+        self.handle_package_command(&cmd_name, cmd_tok, args, arg_tokens);
         // A `catch SCRIPT ?resultVar? ?optionsVar?` nested in a `[...]`
         // substitution (`set out [catch {…} msg]`, `if {[catch {…} e]} …`)
         // still binds its result/options variables in the enclosing scope, so

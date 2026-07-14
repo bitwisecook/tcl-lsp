@@ -385,7 +385,13 @@ fn classify_thunking_phi(
     }
     let lattice = ctx.types.get(&(phi.name, phi.version))?;
     if lattice.kind != TypeKind::Shimmered {
-        return None;
+        // The header lattice only records oscillation that survives to the
+        // loop-header phi (entry type ≠ body-exit type).  A body that
+        // converts list→string→list *within one iteration* returns to the
+        // entry type by the join, leaving the header `Known` — yet every
+        // pass still pays both conversions (`lappend acc …; set acc
+        // "$acc,"`).  Catch that shape from the body evidence instead.
+        return classify_intra_iteration_thunk(ctx, phi, this_loop, per_loop);
     }
     let type_a = lattice.from_type?;
     let type_b = lattice.tcl_type?;
@@ -485,7 +491,72 @@ fn classify_thunking_phi(
         type_b,
         code: DiagCode::S102,
         message: format!(
-            "S102: '{var}' oscillates between {a} and {b} across \
+            "'{var}' oscillates between {a} and {b} across \
+             loop iterations (thunking)",
+            a = type_name(type_a),
+            b = type_name(type_b),
+        ),
+        related,
+    })
+}
+
+/// Decide whether a loop variable thunks *within* each iteration even
+/// though its loop-header phi is not `Shimmered`: the body's own defs carry
+/// two (or more) distinct KNOWN intreps for a self-referential variable, so
+/// every pass re-converts between them — `lappend acc $x; set acc "$acc,"`
+/// costs a string→list parse and a list→string regeneration per iteration
+/// while the header phi sees a consistent string.
+///
+/// The self-reference requirement keeps fresh-per-pass variables (branch
+/// arms assigning independent literals of different types) out: those have
+/// no prior-pass value to reinterpret — the same evidence standard the
+/// `Shimmered`-header path applies via [`loop_self_referential`].  Empty
+/// initialiser versions and destructure-foreach blocks are already excluded
+/// by [`per_loop_body_types`]; array-element symbols were excluded by the
+/// caller.
+fn classify_intra_iteration_thunk(
+    ctx: &ThunkCtx<'_>,
+    phi: &Phi,
+    this_loop: &HashSet<String>,
+    per_loop: &HashMap<Symbol, HashSet<TclType>>,
+) -> Option<ThunkingWarning> {
+    let body_types = per_loop.get(&phi.name)?;
+    if body_types.len() < 2 {
+        return None;
+    }
+    if !loop_self_referential(ctx.ssa, this_loop, phi.name) {
+        return None;
+    }
+    // Deterministic pair selection: order by display name so the message
+    // and anchor never depend on hash iteration order.
+    let mut sorted: Vec<TclType> = body_types.iter().copied().collect();
+    sorted.sort_by_key(|t| type_name(*t));
+    let (type_a, type_b) = (sorted[0], sorted[1]);
+    let span = [type_b, type_a]
+        .into_iter()
+        .find_map(|t| per_loop_type_span(ctx, this_loop, phi.name, t))
+        .unwrap_or_else(|| phi_span(phi, ctx.ssa, ctx.def_map));
+    let related: Vec<_> = phi
+        .incoming
+        .iter()
+        .filter_map(|(pred_block, &ver)| {
+            ctx.def_map.get(&(phi.name, ver)).copied().map(|sp| {
+                (
+                    sp,
+                    format!("version from '{}'", ctx.cfg.block_name(*pred_block)),
+                )
+            })
+        })
+        .collect();
+    let var = ctx.ssa.var_name(phi.name);
+    Some(ThunkingWarning {
+        span,
+        variable: var.to_owned(),
+        type_a,
+        type_b,
+        code: DiagCode::S102,
+        message: format!(
+            "'{var}' oscillates between {a} and {b} across \
              loop iterations (thunking)",
             a = type_name(type_a),
             b = type_name(type_b),
@@ -496,8 +567,11 @@ fn classify_thunking_phi(
 
 /// Find thunking warnings for a function.
 ///
-/// Returns one [`ThunkingWarning`] per loop-header phi node whose type
-/// lattice is `Shimmered` and whose incomings genuinely oscillate.
+/// Returns one [`ThunkingWarning`] per loop-header phi node that genuinely
+/// oscillates: either its type lattice is `Shimmered` and the incomings
+/// re-introduce the entry type each pass, or the loop body itself defines
+/// the (self-referential) variable with two distinct intreps within one
+/// iteration ([`classify_intra_iteration_thunk`]).
 #[must_use]
 pub(crate) fn find_thunking_warnings(
     cfg: &CfgFunction,
@@ -611,6 +685,57 @@ mod tests {
         let fu = cu.function("::f").unwrap();
         let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
         assert!(w.is_empty(), "accumulator promotion must not thunk: {w:?}");
+    }
+
+    /// TP: intra-iteration oscillation — the body converts list→string
+    /// within each pass (`lappend acc …; set acc "$acc,"`), so the header
+    /// phi sees a consistent string yet every iteration pays both
+    /// conversions.  The `Shimmered`-header gate alone missed this shape.
+    #[test]
+    fn s102_for_intra_iteration_oscillation() {
+        let cu = CompilationUnit::build_for(
+            "proc g {items} { set acc \"\"\n foreach x $items { lappend acc $x\n set acc \"$acc,\" }\n return $acc }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::g").unwrap();
+        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        assert_eq!(w.len(), 1, "intra-iteration oscillation must thunk: {w:?}");
+        assert_eq!(w[0].variable, "acc");
+        assert_eq!(w[0].code, tcl_core_types::DiagCode::S102);
+    }
+
+    /// FP guard: a variable reset from independent literals of different
+    /// types each pass (never reading its own prior value) has no
+    /// prior-pass value to reinterpret — the intra-iteration path must not
+    /// fire without self-reference.
+    #[test]
+    fn no_intra_iteration_s102_for_fresh_per_pass_variable() {
+        let cu = CompilationUnit::build_for(
+            "proc h {items c} { foreach x $items { if {$c} { set v 1 } else { set v \"s\" }\n puts $v } }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::h").unwrap();
+        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        assert!(
+            w.is_empty(),
+            "fresh-per-pass variable must not thunk: {w:?}"
+        );
+    }
+
+    /// TN: a self-referential accumulator held at ONE intrep throughout
+    /// (`set n [expr {$n + 1}]`) — a single body type is not oscillation.
+    #[test]
+    fn no_intra_iteration_s102_for_uniform_self_reference() {
+        let cu = CompilationUnit::build_for(
+            "proc k {items} { set n 0\n foreach x $items { set n [expr {$n + 1}] }\n return $n }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::k").unwrap();
+        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        assert!(w.is_empty(), "uniform self-reference must not thunk: {w:?}");
     }
 
     /// Empty source: no thunking warnings and no panic.

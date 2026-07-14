@@ -75,9 +75,11 @@ pub struct InputArgs {
     #[arg(long = "package-path", value_name = "DIR")]
     pub package_path: Vec<PathBuf>,
 
-    /// Dialect profile for parsing and registry lookups.
-    #[arg(long, default_value = "tcl8.6", value_name = "DIALECT")]
-    pub dialect: String,
+    /// Dialect profile for parsing and registry lookups. Defaults to
+    /// per-file auto-detection (a `# tcl-dialect:` directive, shebang,
+    /// content signals, then the file extension), falling back to tcl8.6.
+    #[arg(long, value_name = "DIALECT")]
+    pub dialect: Option<String>,
 
     /// Do not recurse into input directories.
     #[arg(long = "no-recursive")]
@@ -86,6 +88,19 @@ pub struct InputArgs {
     /// Output path ('-' or omitted for stdout).
     #[arg(long, short, value_name = "FILE")]
     pub output: Option<PathBuf>,
+}
+
+impl InputArgs {
+    /// The `--dialect` value with the historical `tcl8.6` fallback — for
+    /// verbs that take one dialect for the whole invocation (transforms,
+    /// graphs, explore).  The diagnostics verbs (`diag` / `lint` /
+    /// `validate`) instead resolve per document via
+    /// [`tcl_cli_support::InputDocument::effective_dialect`], which layers
+    /// in-source / filename detection under an explicit flag.
+    #[must_use]
+    pub fn dialect_or_default(&self) -> &str {
+        self.dialect.as_deref().unwrap_or("tcl8.6")
+    }
 }
 
 /// Paired `--colour` / `--no-colour` toggle (resolved against config + TTY).

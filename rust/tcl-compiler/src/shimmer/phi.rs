@@ -158,7 +158,7 @@ fn classify_phi_shimmer(ctx: &PhiCtx<'_>, phi: &Phi, in_loop: bool) -> Option<Sh
         in_loop,
         code,
         message: format!(
-            "{code}: '{var}' merges {from} and {to} at control-flow join",
+            "'{var}' merges {from} and {to} at control-flow join",
             from = type_name(from),
             to = type_name(to),
         ),

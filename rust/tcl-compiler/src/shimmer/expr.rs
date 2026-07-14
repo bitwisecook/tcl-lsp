@@ -353,8 +353,8 @@ fn check_numeric_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinO
             in_loop: ctx.in_loop,
             code,
             message: format!(
-                "{code}: variable '{var}' has {from} intrep used in arithmetic \
-                 expression (op {op:?})",
+                "variable '{var}' has {from} intrep used in arithmetic \
+                 expression (operand of '{op}')",
                 var = base,
                 from = type_name(current),
             ),
@@ -419,7 +419,7 @@ fn check_string_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp
             in_loop: ctx.in_loop,
             code,
             message: format!(
-                "{code}: numeric variable '{base}' used in string comparison (op {op:?}); \
+                "numeric variable '{base}' used in string comparison ('{op}'); \
                  if a numeric comparison was intended, use '{numeric_op}' instead"
             ),
             related: Vec::new(),

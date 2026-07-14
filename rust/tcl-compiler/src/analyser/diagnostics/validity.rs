@@ -33,7 +33,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_core_types::DiagCode;
 use tcl_registry::Arity;
 
-use super::helpers::{has_substitution, is_ident_continue, is_integer_word};
+use super::helpers::{has_substitution, is_ident_continue};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::{PendingUserCallArity, Severity};
 use crate::expr_ast::{ExprNode, render_expr};
@@ -567,8 +567,8 @@ impl Analyser {
     ///
     /// When emission is warranted, includes a "did you mean…?"
     /// suffix using [`crate::text::suggest_similar`] over the
-    /// known subcommand set (max 1 suggestion within edit
-    /// distance 3), and anchors the diagnostic at the subcommand token's
+    /// known subcommand set (max 1 suggestion within the length-scaled
+    /// edit-distance budget), and anchors the diagnostic at the subcommand token's
     /// *content* range only ([`subcommand_content_span`]) — not the command
     /// name — so the squiggle sits tightly on the one word that is actually
     /// wrong, matching the "did you mean" fix's replacement range.
@@ -642,12 +642,14 @@ impl Analyser {
         if sig.allow_unknown {
             return;
         }
-        // `after` dispatches on `cancel` / `idle` / `info`, but its first word
-        // may instead be a millisecond delay (`after 200 {…}`).  An integer
-        // first word is a valid time argument, not an unknown subcommand, so
-        // it must not trip W001.  (Non-integer, non-subcommand words such as
-        // `after foo` remain genuine errors and still fire.)
-        if cmd_name == "after" && is_integer_word(first_arg) {
+        // A command may declare a *default* form selected by a first word of
+        // a particular value shape rather than a subcommand — `after`
+        // dispatches on `cancel` / `idle` / `info`, but an integer first word
+        // is a millisecond delay (`after 200 {…}`), not an unknown
+        // subcommand. The shape comes from the spec's
+        // `default_form_first_word`; no command is named here. (Non-matching
+        // words such as `after foo` remain genuine errors and still fire.)
+        if sig.matches_default_form(first_arg) {
             return;
         }
         // A subcommand name never starts with `.`, so a `.`-prefixed first word
@@ -719,7 +721,12 @@ impl Analyser {
         }
         let mut message = format!("Unknown subcommand '{first_arg}' for '{cmd_name}'");
         let candidates: Vec<&str> = sig.subcommands.keys().map(String::as_str).collect();
-        let suggestions = crate::text::suggest_similar(first_arg, candidates.iter().copied(), 1, 3);
+        let suggestions = crate::text::suggest_similar(
+            first_arg,
+            candidates.iter().copied(),
+            1,
+            crate::text::scaled_max_distance(first_arg),
+        );
         let mut fixes: Vec<super::types::CodeFix> = Vec::new();
         // Anchor the squiggle at the subcommand token's content range only —
         // not the command name — so it sits tightly on the one word that is

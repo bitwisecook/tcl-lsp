@@ -30,7 +30,12 @@
 
 use std::collections::HashSet;
 
-/// Levenshtein edit distance between two strings.
+/// Edit distance between two strings — optimal string alignment
+/// (restricted Damerau–Levenshtein): insertions, deletions,
+/// substitutions, and **adjacent transpositions** each count as one
+/// edit.  A transposed pair (`ste` → `set`) is the single most common
+/// real-world typo, so counting it as one edit instead of two keeps
+/// such names inside the "did you mean…?" distance budget.
 ///
 /// O(len(a) × len(b)) time, O(min(len(a), len(b))) space.
 #[must_use]
@@ -49,18 +54,39 @@ fn edit_distance_inner(longer: &[char], shorter: &[char]) -> usize {
     if shorter.is_empty() {
         return longer.len();
     }
+    // Rolling three-row DP: `prev2` (i-2), `prev` (i-1), `curr` (i).
+    // The transposition case reads `prev2[j-1]`.
+    let mut prev2: Vec<usize> = Vec::new();
     let mut prev: Vec<usize> = (0..=shorter.len()).collect();
     for (i, &ca) in longer.iter().enumerate() {
         let mut curr: Vec<usize> = Vec::with_capacity(shorter.len() + 1);
         curr.push(i + 1);
         for (j, &cb) in shorter.iter().enumerate() {
             let cost = usize::from(ca != cb);
-            let v = (prev[j + 1] + 1).min(curr[j] + 1).min(prev[j] + cost);
+            let mut v = (prev[j + 1] + 1).min(curr[j] + 1).min(prev[j] + cost);
+            if i > 0 && j > 0 && ca == shorter[j - 1] && longer[i - 1] == cb {
+                v = v.min(prev2[j - 1] + 1);
+            }
             curr.push(v);
         }
-        prev = curr;
+        prev2 = std::mem::replace(&mut prev, curr);
     }
     prev[shorter.len()]
+}
+
+/// The "did you mean…?" distance budget for a name of `chars` characters:
+/// one edit per three whole characters, at least 1, at most 3.
+///
+/// A fixed budget over-suggests on short names (with a budget of 2, a
+/// 3-character typo like `ua2` "matches" the entirely unrelated `cat`;
+/// with 3, the 7-character `require` "matches" `re_quote`) and
+/// under-suggests on long ones.  Scaling by length keeps suggestions
+/// plausible at both ends: 1–5 chars → 1 edit, 6–8 → 2, 9+ → 3.
+/// Transpositions count as one edit ([`edit_distance`] is OSA), so the
+/// common swapped-pair typo stays within budget even on short names.
+#[must_use]
+pub fn scaled_max_distance(name: &str) -> usize {
+    (name.chars().count() / 3).clamp(1, 3)
 }
 
 /// Suggest up to `max_suggestions` candidates from `candidates`

@@ -40,9 +40,9 @@ pub fn run_highlight(input: &InputArgs, format: &str, colour: &ColourArgs) -> an
     let target = OutputTarget::from_arg(input.output.as_deref());
 
     let mut out = if format == "html" {
-        highlight_html(&source, &input.dialect)
+        highlight_html(&source, input.dialect_or_default())
     } else if resolve_use_colour(colour.colour, colour.no_colour, &target) {
-        highlight_ansi(&source, &input.dialect)
+        highlight_ansi(&source, input.dialect_or_default())
     } else {
         source
     };

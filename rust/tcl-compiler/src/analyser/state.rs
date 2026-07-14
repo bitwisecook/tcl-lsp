@@ -559,6 +559,18 @@ impl Analyser {
         self
     }
 
+    /// Set the source-file path, returning `self` for builder-style
+    /// configuration.  Path-keyed behaviour: `pkgIndex.tcl` suppresses
+    /// dead-store / unused hints for the loader-supplied `$dir`, and a
+    /// file with a registry whole-file scoped environment (`tclpkg.tcl`
+    /// manifests — [`tcl_registry::scoped::file_scope_env`]) is analysed
+    /// with that environment ambient.
+    #[must_use]
+    pub fn with_file_path(mut self, path: Option<String>) -> Self {
+        self.file_path = path;
+        self
+    }
+
     /// Supply a pre-built [`crate::compilation_unit::CompilationUnit`] for the
     /// CFG/SSA diagnostic tail, so [`Self::emit_cfg_ssa_diagnostics`] consumes
     /// it (once) instead of rebuilding the whole-file unit.  The supplied unit
@@ -698,7 +710,11 @@ impl Analyser {
         // ``recover_missing_open_brace`` (for switch with a forgotten
         // body brace), ``detect_stolen_close_brace`` (E103), and the
         // generic E200 partial-command emitter.
+        let file_env_pushed = self.seed_file_scope_env(source);
         self.walk_commands_top_level(&commands, ghost_recovery_applied);
+        if file_env_pushed {
+            self.body_scope_stack.pop();
+        }
 
         // Run the diagnostic-emission orchestrator and the post-pass
         // filters:
@@ -1081,7 +1097,11 @@ impl Analyser {
         self.result.stub_commands = stub_cmds;
         self.result.stub_expr_defs = stub_exprs;
 
+        let file_env_pushed = self.seed_file_scope_env(source);
         self.analyse_commands_inner(commands);
+        if file_env_pushed {
+            self.body_scope_stack.pop();
+        }
 
         if finalise {
             self.run_diagnostic_emitters(source);
@@ -1375,6 +1395,33 @@ impl Analyser {
         self.defer_proc_bodies = false;
         self.deferred_bodies.clear();
         self.cu_override = None;
+    }
+
+    /// Seed the whole-file scoped command environment for this document, if
+    /// its file name declares one
+    /// ([`tcl_registry::scoped::file_scope_env`]) — the file-level analogue
+    /// of the `body_scope` push in `dispatch_body_arguments`.  Records the
+    /// whole-document region (so the post-walk W123/W120 passes and the LSP
+    /// providers resolve scoped heads by position) and pushes the
+    /// environment so the in-walk arity / subcommand checks resolve them
+    /// too.  Returns whether an environment was pushed, so the caller can
+    /// balance the stack after its walk.
+    pub(super) fn seed_file_scope_env(&mut self, source: &str) -> bool {
+        let Some(env) = self
+            .file_path
+            .as_deref()
+            .and_then(tcl_registry::scoped::file_scope_env)
+        else {
+            return false;
+        };
+        self.result
+            .scoped_command_regions
+            .push(super::types::ScopedBodyRegion {
+                span: Span::new(0, u32::try_from(source.len()).unwrap_or(u32::MAX)),
+                env,
+            });
+        self.body_scope_stack.push(env);
+        true
     }
 }
 

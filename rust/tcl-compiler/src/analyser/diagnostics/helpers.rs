@@ -53,15 +53,6 @@ pub(super) fn is_word_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
-/// Whether `word` is a literal Tcl integer (decimal, with an optional
-/// leading sign).  Used by the W001 unknown-subcommand check to let
-/// `after <ms>` through — `after`'s first word is a delay in
-/// milliseconds, not a subcommand, when it parses as an integer.
-pub(super) fn is_integer_word(word: &str) -> bool {
-    let digits = word.strip_prefix(['+', '-']).unwrap_or(word);
-    !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
-}
-
 /// One dotted-quad match found in a value: the four octet substrings and
 /// the byte offset where it begins (for context checks like a preceding
 /// `/`).
