@@ -44,7 +44,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use tcl_registry::dialects::DialectSet;
-use tcl_registry::{CommandRegistry, TclType, Traits, VarWriteTyping};
+use tcl_registry::{CommandRegistry, TclType, VarWriteTyping};
 
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
@@ -408,26 +408,16 @@ fn expr_call_type(
     }
 }
 
-/// True when `command` (with `args`) creates a scope alias — `global`,
-/// `variable`, `upvar`, or the `namespace upvar` compound.
+/// True when `command` (with `args`) creates a scope alias — see
+/// [`crate::var_scoping::is_scope_alias_call`], the shared recogniser.
 ///
 /// Such a statement imports an externally-determined variable whose intrep
 /// lives in another scope, so its def must widen to `Overdefined` rather
 /// than take the command's nominal (`String`) return type — otherwise a
 /// use-site / merge shimmer check fires on a nominally-`String`-typed
-/// alias.  Derived from the registry's `CREATES_SCOPE_ALIAS` trait
-/// (top-level commands) and the per-subcommand `creates_scope_alias` flag
-/// (`namespace upvar`).
+/// alias.
 fn is_scope_alias_call(registry: &CommandRegistry, command: &str, args: &[String]) -> bool {
-    let Some(spec) = registry.get(command) else {
-        return false;
-    };
-    if spec.traits.contains(Traits::CREATES_SCOPE_ALIAS) {
-        return true;
-    }
-    args.first()
-        .and_then(|sub| spec.resolve_subcommand(sub))
-        .is_some_and(|sub| sub.creates_scope_alias)
+    crate::var_scoping::is_scope_alias_call(registry, command, args)
 }
 
 /// The tracked [`TypeLattice`] of the SSA value `name` reads at this site, or

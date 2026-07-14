@@ -142,7 +142,7 @@ fn shimmer_codes(src: &str) -> Vec<String> {
     for w in find_shimmer_warnings_for_cu(&cu, registry) {
         v.push(w.code.as_str().to_owned());
     }
-    for w in find_thunking_warnings_for_cu(&cu) {
+    for w in find_thunking_warnings_for_cu(&cu, registry) {
         v.push(w.code.as_str().to_owned());
     }
     v.sort();

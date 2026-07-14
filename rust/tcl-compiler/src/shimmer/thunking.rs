@@ -613,6 +613,7 @@ pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
     executable_blocks: &HashSet<BlockId>,
+    registry: &tcl_registry::CommandRegistry,
     extra_scope_aliases: Option<&HashSet<String, S>>,
 ) -> Vec<ThunkingWarning> {
     let loop_blocks = loop_body_blocks(cfg);
@@ -629,7 +630,7 @@ pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
     // in this body, plus the caller-supplied implicit set (a method's
     // class-declared instance variables, which never appear as statements
     // in the method's own CFG).
-    let mut scope_aliases = crate::optimiser::elimination::scan_scope_aliases(cfg);
+    let mut scope_aliases = crate::optimiser::elimination::scan_scope_aliases(cfg, registry);
     if let Some(extra) = extra_scope_aliases {
         scope_aliases.extend(extra.iter().cloned());
     }
@@ -704,6 +705,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(w.is_empty(), "unexpected thunking warnings: {w:?}");
@@ -725,6 +727,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(w.is_empty(), "sibling loops must not thunk: {w:?}");
@@ -745,6 +748,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(w.is_empty(), "accumulator promotion must not thunk: {w:?}");
@@ -767,6 +771,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert_eq!(w.len(), 1, "intra-iteration oscillation must thunk: {w:?}");
@@ -791,6 +796,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(
@@ -814,6 +820,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(w.is_empty(), "uniform self-reference must not thunk: {w:?}");
@@ -829,6 +836,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(w.is_empty());
@@ -844,6 +852,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(w.is_empty(), "unexpected thunking: {w:?}");
@@ -868,6 +877,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         let has_thunking = w
@@ -895,6 +905,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert_eq!(w.len(), 1, "expected exactly one S102 warning: {w:?}");
@@ -928,6 +939,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(
@@ -956,6 +968,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(
@@ -983,6 +996,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(
@@ -1012,6 +1026,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(w.is_empty(), "traced variable must not thunk: {w:?}");
@@ -1037,6 +1052,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(
@@ -1061,6 +1077,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(

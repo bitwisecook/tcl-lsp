@@ -2828,7 +2828,11 @@ fn populate_variable_trace_facts(
     }
 }
 
-fn is_literal_trace_target(s: &str) -> bool {
+/// True when a `trace` target word names a static variable literally —
+/// no substitution, quoting, or whitespace.  Shared with the optimiser's
+/// scope-alias / traced-global scans so every consumer applies one
+/// literalness rule.
+pub(crate) fn is_literal_trace_target(s: &str) -> bool {
     !s.is_empty()
         && !s.contains('$')
         && !s.contains('[')

@@ -207,7 +207,8 @@ impl Analyser {
         // per-function `scan_scope_aliases` only sees a function's own traces;
         // fold the module-wide traced globals into every function's
         // suppression context (which already covers both W211 and W220).
-        let traced_globals = crate::optimiser::elimination::scan_module_traced_globals(cu);
+        let traced_globals =
+            crate::optimiser::elimination::scan_module_traced_globals(cu, registry);
 
         // **W220 call-by-name suppression.** Build the
         // interprocedural proc-index once so a caller-local passed *by
@@ -401,7 +402,14 @@ impl Analyser {
         cross_event_vars: &HashSet<String>,
     ) {
         let defined = collect_defined_vars(&function_unit.cfg);
-        let scope_aliases = crate::optimiser::elimination::scan_scope_aliases(&function_unit.cfg);
+        // Alias recognition is registry-driven; fall back to the cached
+        // default registry when the analyser has none loaded.
+        let scan_registry = self.registry.as_ref().map_or_else(
+            || tcl_registry::cache::registry_for_dialect("tcl8.6"),
+            |r| r,
+        );
+        let scope_aliases =
+            crate::optimiser::elimination::scan_scope_aliases(&function_unit.cfg, scan_registry);
         let mut textually_referenced =
             crate::optimiser::elimination::collect_textual_var_references(
                 &self.source,

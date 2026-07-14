@@ -380,6 +380,7 @@ pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
         &fu.ssa,
         &fu.types,
         &fu.sccp.executable_blocks,
+        registry,
         instance_vars,
     ) {
         out.push(Diagnostic::from_thunking(&w));

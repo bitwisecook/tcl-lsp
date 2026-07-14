@@ -474,7 +474,7 @@ fn couple_const_dead_stores_in_function(
         source,
         selected,
         def_count,
-        scope_aliases: super::elimination::scan_scope_aliases(&fu.cfg),
+        scope_aliases: super::elimination::scan_scope_aliases(&fu.cfg, registry),
         rmw_hidden: super::elimination::collect_rmw_hidden_reads(fu, registry),
     };
 

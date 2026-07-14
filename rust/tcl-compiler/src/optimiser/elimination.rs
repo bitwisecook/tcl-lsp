@@ -416,7 +416,13 @@ fn emit_dead_stores_and_unused(
     proc_index: &crate::interprocedural::ProcIndex,
 ) -> HashSet<(String, u32)> {
     let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
-    let scope_aliases = scan_scope_aliases(&fu.cfg);
+    // Alias recognition is registry-driven; a registry-less context (unit
+    // tests) falls back to the cached default so `global`/`upvar` bindings
+    // are still respected.
+    let scan_registry = purity
+        .registry
+        .unwrap_or_else(|| tcl_registry::cache::registry_for_dialect("tcl8.6"));
+    let scope_aliases = scan_scope_aliases(&fu.cfg, scan_registry);
     // Caller-locals this function passes by name to an
     // upvar callee — not dead/unused even when the name-level SSA sees
     // no read (the callee reads/writes it through the alias).
@@ -1072,85 +1078,40 @@ fn dollar_reads_in_cmd_subs(word: &str) -> Vec<String> {
     out
 }
 
-/// Scan every CFG block for scope-alias commands (`global`,
-/// `variable`, `upvar`, `namespace upvar`) and collect the
-/// variable names they bind. Those must not be flagged as dead
-/// stores / unused — writes go to a different scope.
-pub(crate) fn scan_scope_aliases(cfg: &CfgFunction) -> HashSet<String> {
+/// Scan every CFG block for scope-alias commands (`global`, `variable`,
+/// `upvar`, `namespace upvar`, `my variable`) and variable-trace
+/// establishers, collecting the variable names they bind or trace.  Those
+/// must not be flagged as dead stores / unused — alias writes go to a
+/// different scope, and a write trace fires its callback on every `set`.
+///
+/// Entirely registry-driven: alias recognition comes from
+/// `Traits::CREATES_SCOPE_ALIAS` / the per-subcommand flag via
+/// [`crate::var_scoping::scope_alias_local_indices`], and trace targets
+/// from `Traits::ESTABLISHES_VARIABLE_TRACE` via
+/// [`crate::lowering::variable_trace_write_indices`] — no hardcoded
+/// command-name grammar here.
+pub(crate) fn scan_scope_aliases(
+    cfg: &CfgFunction,
+    registry: &tcl_registry::CommandRegistry,
+) -> HashSet<String> {
     let mut aliases: HashSet<String> = HashSet::new();
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
-            if let Statement::Call {
-                command,
-                args,
-                defs,
-                ..
-            } = stmt
-            {
-                match command.as_str() {
-                    "global" => {
-                        for a in args {
-                            aliases.insert(a.clone());
-                        }
+            if let Statement::Call { command, args, .. } = stmt {
+                for i in crate::var_scoping::scope_alias_local_indices(registry, command, args) {
+                    if let Some(a) = args.get(i) {
+                        aliases.insert(a.clone());
                     }
-                    "variable" => {
-                        // variable name ?value? ?name value? …
-                        let mut i = 0;
-                        while i < args.len() {
-                            aliases.insert(args[i].clone());
-                            i += 2;
-                        }
-                    }
-                    "upvar" => {
-                        // upvar ?level? name localname ?name localname? …
-                        // Take the odd-indexed args (the locals).
-                        let has_level = args.first().is_some_and(|a| {
-                            a.starts_with('#') || a == "0" || a == "1" || a.parse::<i64>().is_ok()
-                        });
-                        let start = usize::from(has_level);
-                        let mut i = start + 1;
-                        while i < args.len() {
-                            aliases.insert(args[i].clone());
-                            i += 2;
-                        }
-                    }
-                    "namespace" if matches!(args.first().map(String::as_str), Some("upvar")) => {
-                        // namespace upvar NS name localname …
-                        let mut i = 3;
-                        while i < args.len() {
-                            aliases.insert(args[i].clone());
-                            i += 2;
-                        }
-                    }
-                    "trace" => {
-                        // A write trace fires the callback on every `set`, so
-                        // the traced variable is observable and must never be
-                        // a dead store (W220) / unused (W211).  Recognises both
-                        // `trace add variable NAME …` (8.5+) and the 8.4 `trace
-                        // variable NAME …` spelling; a dynamic `$`-target names
-                        // no static local and is skipped here.
-                        let target = if args.len() >= 3 && args[0] == "add" && args[1] == "variable"
-                        {
-                            Some(&args[2])
-                        } else if args.len() >= 2 && args[0] == "variable" {
-                            Some(&args[1])
-                        } else {
-                            None
-                        };
-                        if let Some(t) = target
-                            && !t.starts_with('$')
-                            && !t.contains('[')
-                        {
-                            aliases.insert(t.clone());
-                        }
-                    }
-                    _ => {
-                        // For other calls, trust the per-statement
-                        // `defs` annotation when present (it
-                        // captures upvars the lowering recognised).
-                        for d in defs {
-                            let _ = d;
-                        }
+                }
+                // A dynamic `$`-target names no static local and is skipped;
+                // a `trace remove`/`vdelete` target counts too — a variable
+                // whose trace is being removed had one established, so its
+                // stores were observable.
+                for i in crate::lowering::variable_trace_write_indices(registry, command, args) {
+                    if let Some(t) = args.get(i)
+                        && crate::lowering::is_literal_trace_target(t)
+                    {
+                        aliases.insert(t.clone());
                     }
                 }
             }
@@ -1171,36 +1132,37 @@ pub(crate) fn scan_scope_aliases(cfg: &CfgFunction) -> HashSet<String> {
 /// are the only ones that denote the same variable across scopes.
 pub(crate) fn scan_module_traced_globals(
     cu: &crate::compilation_unit::CompilationUnit,
+    registry: &tcl_registry::CommandRegistry,
 ) -> HashSet<String> {
-    fn scan_cfg(cfg: &CfgFunction, out: &mut HashSet<String>) {
+    // Trace-target positions come from the registry
+    // (`Traits::ESTABLISHES_VARIABLE_TRACE` + `ArgRole::VarWrite`), the same
+    // query the lowering's whole-module trace facts use — this scan adds only
+    // the `::`-qualified + literal filters.
+    fn scan_cfg(
+        cfg: &CfgFunction,
+        registry: &tcl_registry::CommandRegistry,
+        out: &mut HashSet<String>,
+    ) {
         for block in cfg.blocks.values() {
             for stmt in &block.statements {
-                if let Statement::Call { command, args, .. } = stmt
-                    && command == "trace"
-                {
-                    // `trace add variable NAME …` (8.5+) or `trace variable NAME …` (8.4).
-                    let target = if args.len() >= 3 && args[0] == "add" && args[1] == "variable" {
-                        Some(&args[2])
-                    } else if args.len() >= 2 && args[0] == "variable" {
-                        Some(&args[1])
-                    } else {
-                        None
-                    };
-                    if let Some(t) = target
-                        && t.contains("::")
-                        && !t.starts_with('$')
-                        && !t.contains('[')
+                if let Statement::Call { command, args, .. } = stmt {
+                    for i in crate::lowering::variable_trace_write_indices(registry, command, args)
                     {
-                        out.insert(t.clone());
+                        if let Some(t) = args.get(i)
+                            && t.contains("::")
+                            && crate::lowering::is_literal_trace_target(t)
+                        {
+                            out.insert(t.clone());
+                        }
                     }
                 }
             }
         }
     }
     let mut out: HashSet<String> = HashSet::new();
-    scan_cfg(&cu.top_level.cfg, &mut out);
+    scan_cfg(&cu.top_level.cfg, registry, &mut out);
     for fu in cu.procedures.values() {
-        scan_cfg(&fu.cfg, &mut out);
+        scan_cfg(&fu.cfg, registry, &mut out);
     }
     out
 }
