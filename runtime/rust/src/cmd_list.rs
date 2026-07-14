@@ -745,6 +745,8 @@ mod tests {
         b
     }
 
+    // Needs the numeric tower: `-command` comparators are `expr` lambdas.
+    #[cfg(have_tommath)]
     #[test]
     fn lsort_shared_core() {
         // Pinned against tclsh 9.0 (each case leak-checked by `ok`/`run`).
@@ -1045,6 +1047,8 @@ mod tests {
         );
     }
 
+    // Needs the numeric tower: `-command` comparators are `expr` lambdas.
+    #[cfg(have_tommath)]
     #[test]
     fn lsort_options() {
         assert_eq!(ok(b"lsort {c a b}"), b"a b c");

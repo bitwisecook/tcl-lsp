@@ -447,7 +447,7 @@ fn main() {
         Vec::new(),
         None,
     );
-    let file = SourceFile::new(&db, base_text.clone(), params.dialect.clone());
+    let file = SourceFile::new(&db, base_text.clone(), params.dialect.clone(), None);
 
     // Readers each hold their own `TclDatabase` handle, refreshed from the
     // shared `db_handle` before every query — the exact "clone a fresh,

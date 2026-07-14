@@ -55,6 +55,40 @@ pub type ArgRoleResolver = fn(args: &[&str]) -> Vec<(u8, ArgRole)>;
 /// [`CommandSpec::command_prefixes`] table — either may be set.
 pub type CommandPrefixResolver = fn(args: &[&str]) -> Vec<(u8, crate::arg_role::AppendedArity)>;
 
+/// The value shape a *non-subcommand* first word may take for a command
+/// whose first word usually dispatches to a subcommand.
+///
+/// `after` is the canonical case: `after cancel|idle|info …` dispatch on a
+/// subcommand, but `after 200 …` selects the default delayed-execution form
+/// — an integer first word is not an unknown subcommand. Carrying the shape
+/// here keeps that knowledge out of the analyser: the unknown-subcommand
+/// check (W001) asks the resolved signature whether the word matches the
+/// declared default-form shape instead of naming any command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DefaultFormFirstWord {
+    /// An integer first word (any Tcl integer spelling — decimal, `0x…`,
+    /// `0o…`, `0b…`, optional sign, `_` separators) selects the default
+    /// form.
+    Integer,
+}
+
+impl DefaultFormFirstWord {
+    /// Whether `word` matches this default-form shape.
+    ///
+    /// [`Self::Integer`] accepts exactly what `Tcl_GetIntFromObj` accepts
+    /// syntactically, via the canonical [`tcl_syntax::number`] parser
+    /// (`TclParseNumber` port) in integer-only, whole-string mode.
+    #[must_use]
+    pub fn matches(self, word: &str) -> bool {
+        match self {
+            Self::Integer => matches!(
+                tcl_syntax::number::parse_whole(word),
+                Some(tcl_syntax::number::Number::Int(_) | tcl_syntax::number::Number::Big { .. })
+            ),
+        }
+    }
+}
+
 /// Layout of a `<proto>::payload` byte-array command for the S110
 /// byte-array-corruption check.
 ///
@@ -277,6 +311,12 @@ pub struct CommandSpec {
 
     /// Whether unknown subcommands are accepted (for dialect packs).
     pub allow_unknown_subcommands: bool,
+
+    /// For a subcommand-dispatching command whose first word may instead be
+    /// a plain value selecting the default form (`after 200 …`), the value
+    /// shape that word takes. `None` = every first word must be a known
+    /// subcommand. See [`DefaultFormFirstWord`].
+    pub default_form_first_word: Option<DefaultFormFirstWord>,
 
     /// Hover documentation.
     pub hover: Option<HoverSnippet>,
@@ -625,6 +665,7 @@ impl CommandSpec {
         arg_types: &[],
         subcommands: &[],
         allow_unknown_subcommands: false,
+        default_form_first_word: None,
         hover: None,
         forms: &[],
         command_forms: &[],

@@ -62,7 +62,7 @@ fn maybe_optimise(source: &str, registry: &CommandRegistry, optimise_on: bool) -
 /// `tcl dis` — compile source and emit human-readable bytecode disassembly.
 pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let registry = registry_for_dialect(&input.dialect);
+    let registry = registry_for_dialect(input.dialect_or_default());
     let source = maybe_optimise(&combine_sources(&documents), registry, optimise_on);
 
     let ir = lower_to_ir_for_bytecode(&source, registry);
@@ -161,7 +161,7 @@ fn run_compwasm_tree_walker(
     wat_output: Option<&std::path::Path>,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let registry = registry_for_dialect(&input.dialect);
+    let registry = registry_for_dialect(input.dialect_or_default());
     let source = combine_sources(&documents);
 
     let ir = lower_to_ir(&source, registry);

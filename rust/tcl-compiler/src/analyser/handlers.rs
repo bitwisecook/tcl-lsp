@@ -69,13 +69,7 @@ fn overridable_library_procs() -> &'static std::collections::HashSet<String> {
 /// `ns_prefix` is the namespace **without** a leading `::` — the
 /// convention used throughout the analyser walker.
 pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
-    if name.starts_with("::") {
-        name.to_string()
-    } else if ns_prefix.is_empty() {
-        format!("::{name}")
-    } else {
-        format!("::{ns_prefix}::{name}")
-    }
+    crate::naming::qualify(ns_prefix, name)
 }
 
 /// Condense a definition's description argument into a single-line outline

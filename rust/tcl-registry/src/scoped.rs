@@ -340,3 +340,165 @@ pub const REPORT_DEFSTYLE_ENV: ScopedCommandEnv = ScopedCommandEnv {
     include_sibling_definitions: true,
     allow_unknown_commands: false,
 };
+
+// ---------------------------------------------------------------------------
+// tclpkg — the `tclpkg.tcl` package-manifest directive environment.
+//
+// A manifest is a Tcl script evaluated in a deprivileged interpreter that
+// defines exactly these directive commands (see
+// `rust/tcl-pkg/src/manifest.rs`, `DIRECTIVES` + `apply_directive`, which is
+// the runtime source of truth for names and arities — a drift test in
+// `tcl-pkg` asserts the two stay aligned).  Several directives shadow real
+// Tcl/Tk commands (`package`, `entry`), so the environment must *replace*
+// normal resolution for its names inside a manifest file rather than merge
+// with it — exactly what a scoped environment does.
+// ---------------------------------------------------------------------------
+
+/// Build a hover snippet for a tclpkg manifest directive.
+const fn manifest_hover(summary: &'static str, synopsis: &'static str) -> HoverSnippet {
+    HoverSnippet {
+        summary,
+        synopsis: &[],
+        snippet: synopsis,
+        source: "tclpkg manifest (tcl pkg)",
+        examples: "",
+        return_value: "",
+    }
+}
+
+/// A tclpkg manifest directive (all are plain commands, no subcommands).
+const fn manifest_directive(
+    name: &'static str,
+    arity: Arity,
+    detail: &'static str,
+    synopsis: &'static str,
+) -> ScopedCommand {
+    ScopedCommand {
+        name,
+        arity,
+        subcommands: &[],
+        allow_unknown_subcommands: false,
+        detail,
+        hover: Some(manifest_hover(detail, synopsis)),
+    }
+}
+
+/// The tclpkg manifest directive set — names and arities mirror
+/// `tcl-pkg`'s `manifest.rs` (`require_arity` calls in `apply_directive`).
+const TCLPKG_MANIFEST_COMMANDS: &[ScopedCommand] = &[
+    manifest_directive(
+        "package",
+        Arity::exact(1),
+        "declare the package name",
+        "package <name>",
+    ),
+    manifest_directive(
+        "version",
+        Arity::exact(1),
+        "declare the package version",
+        "version <semver>",
+    ),
+    manifest_directive(
+        "description",
+        Arity::exact(1),
+        "one-line package description",
+        "description <text>",
+    ),
+    manifest_directive(
+        "license",
+        Arity::exact(1),
+        "SPDX licence identifier",
+        "license <spdx-id>",
+    ),
+    manifest_directive(
+        "author",
+        Arity::exact(1),
+        "package author (repeatable)",
+        "author <name-and-email>",
+    ),
+    manifest_directive(
+        "homepage",
+        Arity::exact(1),
+        "project homepage URL",
+        "homepage <url>",
+    ),
+    manifest_directive(
+        "tcl",
+        Arity::exact(1),
+        "required Tcl version constraint",
+        "tcl <constraint>  (e.g. tcl >=8.6)",
+    ),
+    manifest_directive(
+        "require",
+        Arity::new(2, 4),
+        "production dependency",
+        "require <name> <minimum> ?-source <url>?",
+    ),
+    manifest_directive(
+        "dev-require",
+        Arity::new(2, 4),
+        "development-only dependency",
+        "dev-require <name> <minimum> ?-source <url>?",
+    ),
+    manifest_directive(
+        "replace",
+        Arity::exact(3),
+        "replace a transitive dependency's source",
+        "replace <name> <version> <source-url>",
+    ),
+    manifest_directive(
+        "exclude",
+        Arity::exact(2),
+        "exclude a transitive dependency version",
+        "exclude <name> <version>",
+    ),
+    manifest_directive(
+        "provides",
+        Arity::exact(1),
+        "namespace or capability provided (repeatable)",
+        "provides <name>",
+    ),
+    manifest_directive(
+        "entry",
+        Arity::exact(1),
+        "application entry-point script",
+        "entry <script.tcl>",
+    ),
+    manifest_directive(
+        "build",
+        Arity::new(1, 2),
+        "declarative build script (never auto-run)",
+        "build <script.tcl> ?-network?",
+    ),
+];
+
+/// The whole-file environment of a `tclpkg.tcl` package manifest.
+///
+/// Closed (`allow_unknown_commands: false`): the manifest evaluator rejects
+/// non-directive commands, so a typo'd directive should still draw W123.
+pub const TCLPKG_MANIFEST_ENV: ScopedCommandEnv = ScopedCommandEnv {
+    name: "tclpkg manifest",
+    commands: TCLPKG_MANIFEST_COMMANDS,
+    include_sibling_definitions: false,
+    allow_unknown_commands: false,
+};
+
+/// File-name-keyed ambient environments: a document whose file *basename*
+/// matches is analysed with the environment ambient across the whole
+/// document — the file-level analogue of [`ScopedCommandEnv`] on a command
+/// body.  Purely registry data; consumers look the file up here rather than
+/// matching names themselves.
+pub const FILE_SCOPED_ENVS: &[(&str, &ScopedCommandEnv)] = &[("tclpkg.tcl", &TCLPKG_MANIFEST_ENV)];
+
+/// The whole-file scoped environment for a document at `file_path`, if any.
+///
+/// Matches on the path's final component (`/` or `\` separated), so both
+/// `/proj/tclpkg.tcl` and a bare `tclpkg.tcl` resolve.
+#[must_use]
+pub fn file_scope_env(file_path: &str) -> Option<&'static ScopedCommandEnv> {
+    let base = file_path.rsplit(['/', '\\']).next().unwrap_or(file_path);
+    FILE_SCOPED_ENVS
+        .iter()
+        .find(|(name, _)| *name == base)
+        .map(|(_, env)| *env)
+}

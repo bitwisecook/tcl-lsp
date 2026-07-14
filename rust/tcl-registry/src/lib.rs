@@ -112,7 +112,8 @@ pub mod prelude {
     pub use crate::scoped::{ScopedCommand, ScopedCommandEnv};
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
     pub use crate::spec::{
-        BytePayloadSpec, CaseListSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSubCommand,
+        BytePayloadSpec, CaseListSpec, CommandSpec, DefaultFormFirstWord, ObjectClassSpec,
+        SubCommand, SubSubCommand,
     };
     pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
     pub use crate::taint::{SetterConstraint, TaintColour};
@@ -136,7 +137,8 @@ pub use hover::ArgValue;
 pub use patterns::{FormatType, PatternType};
 pub use registry::{CommandRegistry, ResolvedCall, ResolvedTerminator};
 pub use spec::{
-    BytePayloadSpec, CaseListSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSubCommand,
+    BytePayloadSpec, CaseListSpec, CommandSpec, DefaultFormFirstWord, ObjectClassSpec, SubCommand,
+    SubSubCommand,
 };
 pub use special_vars::{
     SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, VarAccess, VarOrigin,

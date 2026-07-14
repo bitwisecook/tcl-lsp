@@ -768,6 +768,8 @@ mod tests {
         });
     }
 
+    // Needs the numeric tower: the traced proc body is `if`+`expr` (quoted in the pinned log).
+    #[cfg(have_tommath)]
     #[test]
     fn step_trace_recursion_installs_once() {
         leak_free(|i| {

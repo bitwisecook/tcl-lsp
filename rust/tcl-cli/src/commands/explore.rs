@@ -44,10 +44,10 @@ pub fn run_explore(
     let source = combine_sources(&documents);
 
     if tui {
-        return run_tui(&source, &input.dialect);
+        return run_tui(&source, input.dialect_or_default());
     }
 
-    let result = tcl_explorer::run_pipeline(&source, &input.dialect);
+    let result = tcl_explorer::run_pipeline(&source, input.dialect_or_default());
     let value = tcl_explorer::serialise_result(&result);
 
     let target = OutputTarget::from_arg(input.output.as_deref());

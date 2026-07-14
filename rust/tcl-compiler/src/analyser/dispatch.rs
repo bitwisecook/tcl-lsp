@@ -88,6 +88,11 @@ pub struct SubcommandSig {
     /// spec that sets `arity.min == 0` on a `WithSubcommands` command
     /// gets the same treatment automatically.
     pub subcommand_required: bool,
+    /// The value shape a non-subcommand first word may take to select the
+    /// command's *default* form (`after 200 …`), copied from
+    /// [`tcl_registry::CommandSpec::default_form_first_word`]. `None` =
+    /// every first word must be a known subcommand.
+    pub default_form_first_word: Option<tcl_registry::DefaultFormFirstWord>,
 }
 
 impl SubcommandSig {
@@ -119,6 +124,15 @@ impl SubcommandSig {
     #[must_use]
     pub fn is_known(&self, word: &str) -> bool {
         self.resolve(word).is_some()
+    }
+
+    /// Whether `word` matches the spec-declared default-form value shape
+    /// (`after 200 …` — an integer first word is the default form, not an
+    /// unknown subcommand). `false` when the spec declares no default form.
+    #[must_use]
+    pub fn matches_default_form(&self, word: &str) -> bool {
+        self.default_form_first_word
+            .is_some_and(|shape| shape.matches(word))
     }
 }
 
@@ -193,6 +207,7 @@ pub fn signature_for_command(
             subcommands: subs,
             allow_unknown: spec.allow_unknown_subcommands,
             subcommand_required: spec.arity.min > 0,
+            default_form_first_word: spec.default_form_first_word,
         }));
     }
 
@@ -250,6 +265,8 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
             subcommands: subs,
             allow_unknown: scoped.allow_unknown_subcommands,
             subcommand_required: scoped.arity.min > 0,
+            // Scoped ensembles declare no non-subcommand default form.
+            default_form_first_word: None,
         });
     }
     CommandSignature::Simple(CommandSig {

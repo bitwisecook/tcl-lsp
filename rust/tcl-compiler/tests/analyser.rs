@@ -1424,14 +1424,13 @@ mod unresolved_command {
 
     #[test]
     fn other_dynamic_providers_do_not_suppress_w123_rust_behaviour() {
-        // The analyser sets `has_dynamic_providers` for `load` / `rename` /
+        // The analyser sets `has_dynamic_providers` for `load` /
         // `namespace import` / `lappend auto_path` but still emits W123 for the
         // unknown command (the suppression is scoped to `package require`). This
         // matches tclsh for the `load` case: `load mylib.so` of a missing file
         // does NOT define `mycommand` (`info commands mycommand` stays empty).
         for src in [
             "load mylib.so\nmycommand arg1",
-            "rename puts myputs\nmyputs hello",
             "namespace import ::foo::*\nbar arg",
             "lappend auto_path /opt/mylib\nmycmd arg",
         ] {
@@ -1440,6 +1439,16 @@ mod unresolved_command {
                 "expected W123 (Rust verdict) for {src:?}"
             );
         }
+    }
+
+    #[test]
+    fn static_rename_target_is_a_known_command() {
+        // A static `rename OLD NEW` *defines* NEW (confirmed against tclsh
+        // 9.0.4: `rename puts myputs; info commands myputs` lists it), so a
+        // call to the renamed name must not draw W123 — while a genuinely
+        // unknown name in the same file still does.
+        assert!(w123("rename puts myputs\nmyputs hello").is_empty());
+        assert_eq!(w123("rename puts myputs\nmyputz hello").len(), 1);
     }
 
     #[test]

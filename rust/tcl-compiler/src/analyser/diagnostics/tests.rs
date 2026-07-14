@@ -7723,3 +7723,87 @@ fn tcltest_import_is_namespace_scoped() {
         test t {d} { expr $x+1 } {}\n";
     assert_eq!(count_code(top_level, "W100"), 1);
 }
+
+/// tclpkg manifest whole-file scoped environment (`tcl_registry::scoped::
+/// file_scope_env` keyed on the `tclpkg.tcl` basename): directives resolve
+/// against the environment, never against same-named Tcl/Tk commands.
+mod tclpkg_manifest_env {
+    use super::*;
+
+    const MANIFEST: &str = "\
+package     demo-app
+version     0.1.0
+description \"A demo\"
+license     MIT
+author      \"Dev <dev@example.org>\"
+
+tcl >=8.6
+
+require json    1.0.0
+require http    2.9.0
+
+dev-require tcltest 2.5.0
+
+provides demo::serve
+entry    main.tcl
+";
+
+    fn diags_for(path: Option<&str>) -> Vec<Diagnostic> {
+        let mut analyser =
+            crate::analyser::Analyser::new().with_file_path(path.map(str::to_string));
+        analyser.analyse(MANIFEST, "tcl8.6").diagnostics
+    }
+
+    /// TN: every directive resolves in the manifest environment — no
+    /// unknown-command / unknown-subcommand / missing-package noise.
+    #[test]
+    fn manifest_directives_resolve_cleanly() {
+        let diags = diags_for(Some("/proj/tclpkg.tcl"));
+        assert!(
+            diags.is_empty(),
+            "a valid manifest must produce no diagnostics: {diags:?}"
+        );
+    }
+
+    /// TP control: the same text WITHOUT the manifest file name is plain
+    /// Tcl — the directives draw their usual diagnostics (the environment
+    /// must never leak into ordinary documents).
+    #[test]
+    fn plain_tcl_document_still_flags_directives() {
+        let diags = diags_for(Some("/proj/other.tcl"));
+        assert!(
+            diags.iter().any(|d| d.code == DiagCode::W123),
+            "outside a manifest the directives are unknown commands: {diags:?}"
+        );
+    }
+
+    /// TP: a typo'd directive still draws W123 — the environment is closed.
+    #[test]
+    fn manifest_typo_directive_fires_w123() {
+        let mut analyser =
+            crate::analyser::Analyser::new().with_file_path(Some("/proj/tclpkg.tcl".to_string()));
+        let result = analyser.analyse("package demo\nverison 0.1.0\n", "tcl8.6");
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W123 && d.message.contains("verison")),
+            "a typo'd directive must stay unknown: {:?}",
+            result.diagnostics
+        );
+    }
+
+    /// TP: a directive arity error is checked against the manifest
+    /// grammar (`require <name> <minimum> ?-source <url>?`).
+    #[test]
+    fn manifest_directive_arity_checked() {
+        let mut analyser =
+            crate::analyser::Analyser::new().with_file_path(Some("/proj/tclpkg.tcl".to_string()));
+        let result = analyser.analyse("package demo\nrequire json\n", "tcl8.6");
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == DiagCode::E002),
+            "`require` with one argument is below the directive's minimum: {:?}",
+            result.diagnostics
+        );
+    }
+}

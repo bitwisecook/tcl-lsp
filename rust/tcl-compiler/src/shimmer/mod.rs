@@ -178,6 +178,7 @@ pub fn find_thunking_warnings_for_cu(
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            cu.method_instance_vars(&fu.name),
         ));
     }
     out
@@ -188,13 +189,14 @@ pub fn find_thunking_warnings_for_cu(
 /// Identifies variables that oscillate between two intrep types across
 /// loop iterations, causing a type conversion on every pass (S102).
 #[must_use]
-pub(crate) fn find_thunking_warnings(
+pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
     executable_blocks: &HashSet<BlockId>,
+    extra_scope_aliases: Option<&HashSet<String, S>>,
 ) -> Vec<ThunkingWarning> {
-    thunking::find_thunking_warnings(cfg, ssa, types, executable_blocks)
+    thunking::find_thunking_warnings(cfg, ssa, types, executable_blocks, extra_scope_aliases)
 }
 
 /// Find byte-array-corruption warnings (S110) for a single function.
@@ -283,6 +285,15 @@ mod tests {
             )
             .is_empty()
         );
-        assert!(find_thunking_warnings(&f, &ssa, &types, &sccp.executable_blocks).is_empty());
+        assert!(
+            find_thunking_warnings(
+                &f,
+                &ssa,
+                &types,
+                &sccp.executable_blocks,
+                None::<&HashSet<String>>
+            )
+            .is_empty()
+        );
     }
 }

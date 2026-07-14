@@ -160,6 +160,24 @@ impl ClassHierarchy {
             .map(|((cls, _meth), provider)| (cls.clone(), provider.clone()))
             .collect()
     }
+
+    /// Every method name callable on `class_name` — instance and class
+    /// methods declared anywhere on its linearised MRO — sorted and
+    /// deduplicated.  Feeds the W308 "did you mean…?" suggestion list;
+    /// empty for an unknown class.
+    #[must_use]
+    pub fn known_methods(&self, class_name: &str) -> Vec<String> {
+        let mut out: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        if let Some(mro) = self.mro_map.get(class_name) {
+            for ancestor in mro {
+                if let Some(cd) = self.classes.get(ancestor) {
+                    out.extend(cd.methods.keys().cloned());
+                    out.extend(cd.class_methods.keys().cloned());
+                }
+            }
+        }
+        out.into_iter().collect()
+    }
 }
 
 /// Build a [`ClassHierarchy`] from a dict of class definitions.

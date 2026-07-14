@@ -34,7 +34,6 @@ use crate::gvn::{find_loop_invariants, find_partial_redundancies, find_redundanc
 use crate::irules_checks::{
     CodeFix, IrulesCheckWarning, find_collect_flow_warnings, find_generic_static_name_warnings,
     find_hoistable_set_warnings, find_http_flow_warnings, find_unguarded_drop_warnings,
-    find_unnormalised_getter_warnings,
 };
 use crate::path_concat::{PathConcatWarning, find_path_concat_warnings};
 use crate::sccp::ConstantBranch;
@@ -278,7 +277,8 @@ pub fn run_all_checks_with_solved_and_patterns(
     // (SRV-INCREMENTAL 2a): an unedited procedure's checks are a cache hit
     // instead of recomputed over the whole unit every edit.
     for fu in cu.analysable_body_function_units() {
-        for d in function_nontaint_checks(fu, registry, dialect) {
+        for d in function_nontaint_checks(fu, registry, dialect, cu.method_instance_vars(&fu.name))
+        {
             out.push(shift(fu, d));
         }
     }
@@ -305,10 +305,11 @@ pub fn run_all_checks_with_solved_and_patterns(
 /// procedure's checks are a cache hit.  The S110 `*::payload` byte-command set is
 /// dialect-gated (empty outside iRules).
 #[must_use]
-pub fn function_nontaint_checks(
+pub fn function_nontaint_checks<S: std::hash::BuildHasher>(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
     dialect: Option<&str>,
+    instance_vars: Option<&std::collections::HashSet<String, S>>,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
     for cb in &fu.sccp.constant_branches {
@@ -323,7 +324,7 @@ pub fn function_nontaint_checks(
     for r in find_loop_invariants(registry, &fu.cfg, &fu.ssa, dialect) {
         out.push(Diagnostic::from_redundant(&r));
     }
-    out.extend(shimmer_family_checks(fu, registry, dialect));
+    out.extend(shimmer_family_checks(fu, registry, dialect, instance_vars));
     out
 }
 
@@ -340,10 +341,11 @@ pub fn function_nontaint_checks(
 /// `namespace eval` body. The S110 `*::payload` byte-command set is
 /// dialect-gated (empty outside iRules).
 #[must_use]
-pub fn shimmer_family_checks(
+pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
     dialect: Option<&str>,
+    instance_vars: Option<&std::collections::HashSet<String, S>>,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
     for w in find_shimmer_warnings(
@@ -356,7 +358,13 @@ pub fn shimmer_family_checks(
     ) {
         out.push(Diagnostic::from_shimmer(&w));
     }
-    for w in find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks) {
+    for w in find_thunking_warnings(
+        &fu.cfg,
+        &fu.ssa,
+        &fu.types,
+        &fu.sccp.executable_blocks,
+        instance_vars,
+    ) {
         out.push(Diagnostic::from_thunking(&w));
     }
     let payload_layouts = if is_irules_dialect(dialect) {
@@ -481,11 +489,20 @@ pub fn push_taint_and_module_checks(
 }
 
 /// Append the iRules-dialect module-level checks (IRULE5002/5004 +
-/// IRULE1005-1008/1201/1202/4004 + the unnormalised-getter warning).
+/// IRULE1005-1008/1201/1202/4004).
 ///
 /// Each helper is dialect-gated internally (returns empty for non-iRules
 /// dialects), so calling them unconditionally is correct.  Split out of
 /// [`run_all_checks`] to keep that aggregator within the line budget.
+///
+/// The unnormalised-getter warning (IRULE3102) is deliberately *not*
+/// aggregated here: the analyser's per-command emitter
+/// (`analyser::irules_event_checks`) owns it for the LSP/CLI stream — it
+/// anchors on the getter word itself and reaches nested `[…]`
+/// substitutions through the nested-segment dispatch.  Emitting the
+/// CFG-side scan (`find_unnormalised_getter_warnings`, still used by the
+/// compiler explorer's own view) here as well double-reported every site
+/// with a second, wider span.
 fn push_irules_flow_checks(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
@@ -493,9 +510,6 @@ fn push_irules_flow_checks(
     generic_patterns: Option<&[String]>,
     out: &mut Vec<Diagnostic>,
 ) {
-    for w in find_unnormalised_getter_warnings(cu, registry, dialect) {
-        out.push(Diagnostic::from_irules_check(&w));
-    }
     for w in find_unguarded_drop_warnings(cu, dialect) {
         out.push(Diagnostic::from_irules_check(&w));
     }
@@ -742,16 +756,38 @@ mod tests {
     }
 
     #[test]
-    fn run_all_checks_reports_irule3102_end_to_end() {
+    fn run_all_checks_does_not_double_report_irule3102() {
+        // IRULE3102 ownership: the analyser's per-command emitter
+        // (`analyser::irules_event_checks`) reports it for the LSP/CLI
+        // stream with a tight getter-word anchor; aggregating the CFG-side
+        // scan here as well double-reported every site with a second,
+        // wider span. `run_all_checks` must therefore stay silent — the
+        // analyser end-to-end assertion lives alongside.
         let cu = CompilationUnit::build_for("set u [HTTP::uri]", &registry(), false)
             .with_interprocedural(&registry(), Some("f5-irules"));
         let diagnostics = run_all_checks(&cu, &registry(), Some("f5-irules"));
-        let hit = diagnostics
+        assert!(
+            diagnostics.iter().all(|d| d.code != DiagCode::Irule3102),
+            "run_all_checks must not double-report IRULE3102: {diagnostics:?}"
+        );
+
+        // The analyser stream owns the code (single, tight instance).
+        let mut analyser = crate::analyser::Analyser::new();
+        let result = analyser.analyse(
+            "when HTTP_REQUEST {\n    set u [HTTP::uri]\n}\n",
+            "f5-irules",
+        );
+        let hits: Vec<_> = result
+            .diagnostics
             .iter()
-            .find(|d| d.code == DiagCode::Irule3102)
-            .unwrap_or_else(|| panic!("expected IRULE3102, got {diagnostics:?}"));
-        assert_eq!(hit.category, "irules");
-        assert_eq!(hit.severity, Severity::Warning);
+            .filter(|d| d.code == DiagCode::Irule3102)
+            .collect();
+        assert_eq!(
+            hits.len(),
+            1,
+            "the analyser stream reports IRULE3102 exactly once: {:?}",
+            result.diagnostics
+        );
     }
 
     #[test]

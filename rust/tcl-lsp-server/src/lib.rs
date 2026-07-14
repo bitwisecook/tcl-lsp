@@ -2323,7 +2323,8 @@ impl Backend {
             file.set_text(&mut *db).to(text);
             file.set_dialect(&mut *db).to(dialect);
         } else {
-            let file = tcl_lsp_db::SourceFile::new(&*db, text, dialect);
+            let path = uri.to_file_path().map(|p| p.display().to_string());
+            let file = tcl_lsp_db::SourceFile::new(&*db, text, dialect, path);
             files.insert(uri.clone(), file);
             // Membership changed — re-set the `Project` file set.
             let mut project = self.db_project.lock().await;
@@ -2361,7 +2362,8 @@ impl Backend {
                 file.set_text(&mut *db).to(text.clone());
                 file.set_dialect(&mut *db).to(dialect.clone());
             } else {
-                let file = tcl_lsp_db::SourceFile::new(&*db, text.clone(), dialect.clone());
+                let path = uri.to_file_path().map(|p| p.display().to_string());
+                let file = tcl_lsp_db::SourceFile::new(&*db, text.clone(), dialect.clone(), path);
                 files.insert(uri.clone(), file);
                 membership_changed = true;
             }

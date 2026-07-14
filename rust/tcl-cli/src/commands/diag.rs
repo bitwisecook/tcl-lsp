@@ -26,7 +26,7 @@ use std::collections::HashSet;
 
 use serde::Serialize;
 use tcl_cli_support::{
-    OutputTarget, read_input_documents, registry_for_dialect, write_text_output,
+    InputDocument, OutputTarget, read_input_documents, registry_for_dialect, write_text_output,
 };
 use tcl_compiler::analyser::{Analyser, Severity};
 use tcl_compiler::compilation_unit::CompilationUnit;
@@ -142,11 +142,15 @@ struct Row {
 /// domain of the `optimise` verb, so they are dropped here — the same split the
 /// server draws with its optimiser toggle. Rows come back in a deterministic
 /// `(line, column, code)` order; `disabled` removes `--disable`d codes.
-fn collect_rows(source: &str, dialect: &str, disabled: &HashSet<String>) -> Vec<Row> {
+fn collect_rows(document: &InputDocument, dialect: &str, disabled: &HashSet<String>) -> Vec<Row> {
+    let source = document.source.as_str();
     let line_index = LineIndex::new(source);
     let mut rows: Vec<Row> = Vec::new();
 
-    let result = Analyser::new().analyse(source, dialect);
+    let file_path = document.path.as_deref().map(|p| p.display().to_string());
+    let result = Analyser::new()
+        .with_file_path(file_path)
+        .analyse(source, dialect);
     for d in &result.diagnostics {
         if disabled.contains(d.code.as_str()) {
             continue;
@@ -197,7 +201,8 @@ pub fn run_diag(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
     let mut diagnostic_count = 0usize;
 
     for document in &documents {
-        let rows = collect_rows(&document.source, &input.dialect, &disabled);
+        let dialect = document.effective_dialect(input.dialect.as_deref());
+        let rows = collect_rows(document, &dialect, &disabled);
         let mut items = Vec::with_capacity(rows.len());
         for r in rows {
             diagnostic_count += 1;
@@ -253,7 +258,8 @@ pub fn run_validate(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
 
     let mut errors: Vec<ValidateError> = Vec::new();
     for document in &documents {
-        for r in collect_rows(&document.source, &input.dialect, &disabled) {
+        let dialect = document.effective_dialect(input.dialect.as_deref());
+        for r in collect_rows(document, &dialect, &disabled) {
             if r.severity == Severity::Error {
                 errors.push(ValidateError {
                     file: document.label.clone(),

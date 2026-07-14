@@ -132,7 +132,7 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     // `aliases` list degrades to empty.
     let unit = CompilationUnit::build_for_with_config(source, registry, false, config)
         .with_interprocedural(registry, Some(dialect))
-        .with_memory_ssa();
+        .with_memory_ssa(registry);
 
     ExplorerResult {
         source: source.to_owned(),

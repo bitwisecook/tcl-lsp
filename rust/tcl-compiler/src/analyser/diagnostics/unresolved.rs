@@ -36,13 +36,15 @@ use crate::analyser::types::Severity;
 
 /// The "known command name" sets consulted by the W123 unresolved-command
 /// pass: registry names enabled in the active dialect, the simple-name tails
-/// of user procs / classes / aliases / ensemble commands, inline-stub names,
-/// and the deduplicated candidate list for "did you mean…?" suggestions.
+/// of user procs / classes / aliases / rename targets / ensemble commands,
+/// inline-stub names, and the deduplicated candidate list for "did you
+/// mean…?" suggestions.
 struct W123KnownNames {
     registry_names: HashSet<String>,
     proc_tail_names: HashSet<String>,
     class_tail_names: HashSet<String>,
     alias_names: HashSet<String>,
+    rename_target_names: HashSet<String>,
     ensemble_cmds: HashSet<String>,
     stub_names: HashSet<String>,
     candidates: Vec<String>,
@@ -66,6 +68,7 @@ impl Analyser {
     /// - User-defined proc tail or absolute name.
     /// - User-defined class tail or absolute name.
     /// - Command alias tail.
+    /// - Static `rename OLD NEW` target tail.
     /// - Ensemble namespace tail.
     ///
     /// Idempotency: ``self.unresolved_commands_emitted`` guards
@@ -193,6 +196,24 @@ impl Analyser {
             .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_string()))
             .filter(|s| !s.is_empty())
             .collect();
+        // A static `rename OLD NEW` binds `NEW` to whatever `OLD` denoted —
+        // `NEW` is a callable command from the rename onward, so calls to it
+        // must not draw W123 (the same-file arity resolver already validates
+        // them against `OLD`'s signature via `renamed_commands`). Deletion is
+        // order-gated exactly like `alias_names` above: a `NEW` whose most
+        // recent action in the file is a deletion (`rename NEW {}`, or `NEW`
+        // renamed away again) is no longer callable at file end.
+        let rename_target_names: HashSet<String> = self
+            .renamed_commands
+            .keys()
+            .filter(|qn| {
+                self.deleted_commands
+                    .get(qn.as_str())
+                    .is_none_or(|&del_off| self.rename_offsets.get(qn.as_str()) > Some(&del_off))
+            })
+            .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_string()))
+            .filter(|s| !s.is_empty())
+            .collect();
         let ensemble_cmds: HashSet<String> = self
             .ensemble_namespaces
             .iter()
@@ -209,6 +230,7 @@ impl Analyser {
         candidates.extend(proc_tail_names.iter().cloned());
         candidates.extend(class_tail_names.iter().cloned());
         candidates.extend(alias_names.iter().cloned());
+        candidates.extend(rename_target_names.iter().cloned());
         candidates.extend(ensemble_cmds.iter().cloned());
         candidates.extend(stub_names.iter().cloned());
         // User-declared extra commands (`tclLsp.extraCommands`) are known.
@@ -224,6 +246,7 @@ impl Analyser {
             proc_tail_names,
             class_tail_names,
             alias_names,
+            rename_target_names,
             ensemble_cmds,
             stub_names,
             candidates,
@@ -274,6 +297,9 @@ impl Analyser {
             if known.alias_names.contains(name) {
                 continue;
             }
+            if known.rename_target_names.contains(name) {
+                continue;
+            }
             if known.ensemble_cmds.contains(name) {
                 continue;
             }
@@ -321,14 +347,19 @@ impl Analyser {
                 continue;
             }
 
-            // "Did you mean…?" suggestion
-            // via Levenshtein (max 1 suggestion, max distance 2).
+            // "Did you mean…?" suggestion via edit distance (max 1
+            // suggestion, budget scaled to the name's length so a short
+            // typo can't match an unrelated short command).
             // ``candidate_strs`` was
             // deduplicated above so every name in it is unique;
             // copying the slice per invocation is cheap (Vec of
             // ``&str`` references).
-            let suggestions =
-                crate::text::suggest_similar(name, candidate_strs.iter().copied(), 1, 2);
+            let suggestions = crate::text::suggest_similar(
+                name,
+                candidate_strs.iter().copied(),
+                1,
+                crate::text::scaled_max_distance(name),
+            );
             let mut message = format!("Unknown command '{name}'");
             let mut fixes: Vec<super::types::CodeFix> = Vec::new();
             if let Some(best) = suggestions.first() {
@@ -459,6 +490,14 @@ impl Analyser {
                 continue;
             };
             if spec.required_package.is_none() {
+                continue;
+            }
+            // A head resolved by a scoped command environment at its call
+            // site is that environment's command, not the package-gated
+            // registry command it happens to share a name with — `entry`
+            // in a tclpkg manifest is the entry-point directive, never the
+            // Tk widget, so no `package require Tk` is missing.
+            if self.is_scoped_command_resolved(&inv.name, inv.range) {
                 continue;
             }
             best.entry(inv.name.as_str())

@@ -414,11 +414,12 @@ fn check_invocation(
             in_loop: ctx.in_loop,
             code,
             message: format!(
-                "{code}: variable '{var}' has {from} intrep \
-                 but '{cmd}' expects {to} at arg {i}",
+                "variable '{var}' has {from} intrep \
+                 but '{cmd}' expects {to} (argument {n})",
                 from = type_name(current),
                 cmd = command,
                 to = type_name(expected),
+                n = i + 1,
             ),
             related,
         });
@@ -587,7 +588,7 @@ fn check_incr_var(ctx: &mut UseSiteCtx<'_>, var: &str, span: Span, uses: &HashMa
         in_loop: ctx.in_loop,
         code,
         message: format!(
-            "{code}: variable '{var}' has {from} intrep but 'incr' expects int",
+            "variable '{var}' has {from} intrep but 'incr' expects int",
             from = type_name(current),
         ),
         related,

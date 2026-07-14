@@ -1187,20 +1187,22 @@ fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
 }
 
 fn subcommand_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Vec<CompletionItem> {
-    let mut names: Vec<&str> = spec
+    let mut subs: Vec<&tcl_registry::SubCommand> = spec
         .subcommands
         .iter()
-        .map(|sub| sub.name)
-        .filter(|n| partial.is_empty() || n.starts_with(partial))
+        .filter(|sub| partial.is_empty() || sub.name.starts_with(partial))
         .collect();
-    names.sort_unstable();
-    names
-        .into_iter()
-        .map(|name| CompletionItem {
-            label: name.to_owned(),
-            insert_text: name.to_owned(),
+    subs.sort_unstable_by_key(|sub| sub.name);
+    subs.into_iter()
+        .map(|sub| CompletionItem {
+            label: sub.name.to_owned(),
+            insert_text: sub.name.to_owned(),
             kind: CompletionKind::Function,
-            detail: None,
+            // Surface the registry's one-line description, exactly as the
+            // sub-subcommand / scoped-op / arg-value completions already do
+            // — `string <TAB>` shows what each operation does, not a bare
+            // name list.
+            detail: (!sub.detail.is_empty()).then(|| sub.detail.to_owned()),
             sort_text: None,
             is_snippet: false,
             filter_text: None,

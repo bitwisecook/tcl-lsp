@@ -747,7 +747,8 @@ mod compilation_unit_build {
 
     #[test]
     fn with_memory_ssa_populates_top_and_procs() {
-        let cu = build("proc f {} { set x 1; return $x }").with_memory_ssa();
+        let cu = build("proc f {} { set x 1; return $x }")
+            .with_memory_ssa(&CommandRegistry::build_default());
         assert!(cu.top_level.memory_ssa.is_some());
         assert!(cu.function("::f").unwrap().memory_ssa.is_some());
     }

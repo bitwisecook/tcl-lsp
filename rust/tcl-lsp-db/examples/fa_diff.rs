@@ -41,7 +41,7 @@ fn main() {
         Vec::new(),
         None,
     );
-    let file = SourceFile::new(&db, src.clone(), dialect.clone());
+    let file = SourceFile::new(&db, src.clone(), dialect.clone(), None);
     let inc = file_analysis_incremental(&db, file, cfg);
     let full = file_analysis(&db, file, cfg);
 

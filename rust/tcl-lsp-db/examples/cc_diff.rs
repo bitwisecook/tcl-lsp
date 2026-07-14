@@ -38,7 +38,7 @@ fn main() {
     let src = std::fs::read_to_string(root.join(&rel)).expect("read FILE");
 
     let db = TclDatabase::default();
-    let file = SourceFile::new(&db, src.clone(), dialect.clone());
+    let file = SourceFile::new(&db, src.clone(), dialect.clone(), None);
     let cfg = AnalyserConfig::new(
         &db,
         Vec::new(),

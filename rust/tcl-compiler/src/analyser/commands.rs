@@ -357,6 +357,7 @@ impl Analyser {
             self.record_var_or_cmd_command_site(
                 cmd_tok,
                 args,
+                arg_tokens,
                 arg_expand_in.get(1..).unwrap_or(&[]),
                 scope_path,
             );
@@ -1340,6 +1341,7 @@ impl Analyser {
         self.record_var_or_cmd_command_site(
             cmd_tok,
             args,
+            arg_tokens,
             arg_expand.get(1..).unwrap_or(&[]),
             scope_path,
         );
@@ -1350,6 +1352,14 @@ impl Analyser {
         // the IRULE5005 emitter never sees it.  Matches the top-level
         // `process_command` ordering (proc-resolution after site recording).
         self.emit_proc_resolution_diagnostics(&cmd_name, args, cmd_tok, scope_path);
+        // A `package require` nested in a `[…]` substitution still runs — the
+        // guarded-optional-dependency idiom puts it exactly there
+        // (`if {[catch {package require Tk} err]} { … fallback … }`), and the
+        // body collector descends `catch`'s script argument to reach it. Without
+        // this, W120 ("requires `package require Tk`") false-positives on every
+        // file using the standard guard, and the W123 conservative
+        // any-require-seen gate never engages.
+        self.handle_package_command(&cmd_name, cmd_tok, args, arg_tokens);
         // A `catch SCRIPT ?resultVar? ?optionsVar?` nested in a `[...]`
         // substitution (`set out [catch {…} msg]`, `if {[catch {…} e]} …`)
         // still binds its result/options variables in the enclosing scope, so
@@ -1492,10 +1502,16 @@ impl Analyser {
         &mut self,
         cmd_tok: Token,
         args: &[String],
+        arg_tokens: &[Token],
         arg_expand: &[bool],
         scope_path: &[usize],
     ) {
         let in_method = self.scope_path_in_method_body(scope_path);
+        // Content span of the method word (delimiters trimmed) — the tight
+        // W308 anchor and "did you mean" fix target.
+        let method_span = arg_tokens.first().map(|t| {
+            tcl_lexer::Span::new(t.span.start() + u32::from(t.content_offset), t.span.end())
+        });
         match cmd_tok.kind {
             TokenType::Var => {
                 let sm = tcl_lexer::SourceMap::new(&self.source);
@@ -1516,6 +1532,7 @@ impl Analyser {
                 self.var_command_sites.push(super::state::VarCommandSite {
                     var_name,
                     method_name,
+                    method_span,
                     cmd_span: cmd_tok.span,
                     in_method,
                     argc: args.len(),
@@ -1529,6 +1546,7 @@ impl Analyser {
                 self.cmd_command_sites.push(super::state::CmdCommandSite {
                     cmd_text,
                     method_name,
+                    method_span,
                     cmd_span: cmd_tok.span,
                     in_method,
                 });

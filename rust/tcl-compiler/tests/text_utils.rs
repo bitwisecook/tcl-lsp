@@ -55,10 +55,14 @@ fn test_single_substitution() {
 
 #[test]
 fn test_transposition() {
-    // Levenshtein counts a transposition as 2 operations (one
-    // delete + one insert, or two substitutions). Damerau would
-    // score this as 1 — but both impls here are plain Levenshtein.
-    assert_eq!(edit_distance("puts", "pust"), 2);
+    // Optimal string alignment (restricted Damerau–Levenshtein): an
+    // adjacent transposition is ONE edit, not the two plain Levenshtein
+    // charges. The swapped-pair typo is the most common real-world
+    // misspelling, so `pust` must stay within a one-edit "did you
+    // mean…?" budget of `puts`.
+    assert_eq!(edit_distance("puts", "pust"), 1);
+    // A non-adjacent swap is not a transposition — still two edits.
+    assert_eq!(edit_distance("abcd", "dbca"), 2);
 }
 
 #[test]

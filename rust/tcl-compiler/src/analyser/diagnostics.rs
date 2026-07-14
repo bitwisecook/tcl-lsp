@@ -282,10 +282,28 @@ impl Analyser {
                 &cbn_proc_index,
             ));
             cross_event_vars.extend(traced_globals.iter().cloned());
+            // Consumer-side cross-event suppression for W210: a variable
+            // another event on the same connection defines (and the event
+            // registry's scope gate accepted the pair) is set by the time
+            // this event reads it — `set g 1` in HTTP_REQUEST feeds
+            // `set x $g` in HTTP_RESPONSE, so the read is not
+            // read-before-set. `cross_event_imports` is exactly that set;
+            // without threading it here the RBS pass saw only an empty
+            // `extra_known_defined` and flagged every such read.
+            let extra_known_defined: HashSet<String> =
+                if let Some(scope) = cu.connection_scope.as_ref() {
+                    if qname.starts_with("::when::") {
+                        scope.cross_event_imports.iter().cloned().collect()
+                    } else {
+                        HashSet::new()
+                    }
+                } else {
+                    HashSet::new()
+                };
             self.emit_cfg_ssa_diagnostics_for_function_full(
                 fu,
                 &cu.ir_module,
-                &HashSet::new(),
+                &extra_known_defined,
                 &cross_event_vars,
             );
             self.emit_channel_diagnostics(fu, registry);

@@ -671,6 +671,8 @@ mod tests {
         });
     }
 
+    // Needs the numeric tower: `info functions` needs the `::tcl::mathfunc::*` table.
+    #[cfg(have_tommath)]
     #[test]
     fn info_cmdtype_loaded_functions() {
         leak_free(|i| {
@@ -736,6 +738,8 @@ mod tests {
         });
     }
 
+    // Needs the numeric tower: membership asserts go through `expr`.
+    #[cfg(have_tommath)]
     #[test]
     fn info_vars_locals_globals() {
         leak_free(|i| {
@@ -765,6 +769,8 @@ mod tests {
         });
     }
 
+    // Needs the numeric tower: membership asserts go through `expr`.
+    #[cfg(have_tommath)]
     #[test]
     fn info_commands_procs_namespaced() {
         leak_free(|i| {

@@ -709,6 +709,8 @@ mod tests {
         i.result_bytes()
     }
 
+    // Needs the numeric tower: the generator body loops via `for`.
+    #[cfg(have_tommath)]
     #[test]
     fn coroutine_yield_resume_and_info() {
         let mut i = Interp::new();
@@ -755,6 +757,8 @@ mod tests {
         assert_eq!(i.eval_str(b"::tcl::unsupported::corotype"), Code::Error);
     }
 
+    // Needs the numeric tower: the coroutine body parks in `while`.
+    #[cfg(have_tommath)]
     #[test]
     fn deleting_a_suspended_coroutine_is_clean() {
         let mut i = Interp::new();
@@ -768,6 +772,8 @@ mod tests {
         assert_eq!(run(&mut i, b"p 2 3"), b"5");
     }
 
+    // Needs the numeric tower: the coroutine body parks in `while`.
+    #[cfg(have_tommath)]
     #[test]
     fn coroprobe_reads_and_mutates_suspended_context() {
         use crate::interp::Code;
@@ -796,6 +802,8 @@ mod tests {
         assert_eq!(i.result_bytes(), b"can't read \"nope\": no such variable");
     }
 
+    // Needs the numeric tower: the coroutine body parks in `while`.
+    #[cfg(have_tommath)]
     #[test]
     fn coroinject_runs_on_next_resume() {
         use crate::interp::Code;

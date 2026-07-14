@@ -69,6 +69,24 @@ pub struct InputDocument {
     pub path: Option<PathBuf>,
 }
 
+impl InputDocument {
+    /// The analysis dialect for this document.
+    ///
+    /// An explicitly-passed `--dialect` wins; otherwise the registry's
+    /// standard detection runs over the document (a `# tcl-dialect:` /
+    /// shebang / content signal, then the file extension), falling back to
+    /// `tcl8.6` — the same priority order the LSP server applies, so `tcl
+    /// diag` and the editor report the same set for the same file.
+    #[must_use]
+    pub fn effective_dialect(&self, explicit: Option<&str>) -> String {
+        if let Some(d) = explicit {
+            return d.to_string();
+        }
+        let filename = self.path.as_deref().and_then(Path::to_str);
+        tcl_registry::dialects::detect_dialect(&self.source, filename, "tcl8.6").to_string()
+    }
+}
+
 /// `pkgIndex.tcl` is always accepted; otherwise the extension must be known.
 fn is_supported_source_file(path: &Path) -> bool {
     if path.file_name().is_some_and(|n| n == "pkgIndex.tcl") {

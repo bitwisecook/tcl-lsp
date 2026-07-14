@@ -172,6 +172,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // proc param read only inside the body looks used).  The body's
         // `$var` reads are excluded from caller-local read recovery.
         body_kind: BodyKind::Structural,
+        // Runs an arbitrary script that can touch namespace/global state —
+        // dynamic-dispatch consumers (memory-SSA clobber classification)
+        // key off this.
+        traits: Traits::EVALUATES_CODE,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -216,6 +220,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         // Like `eval`, the script runs in the namespace frame.
         body_kind: BodyKind::Structural,
+        traits: Traits::EVALUATES_CODE,
         ..SubCommand::DEFAULT
     },
     SubCommand {

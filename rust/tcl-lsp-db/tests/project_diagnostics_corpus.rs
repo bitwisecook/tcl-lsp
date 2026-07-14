@@ -144,11 +144,11 @@ fn project_diagnostics_incremental_matches_fresh_over_corpus() {
             let db = TclDatabase::default();
             let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
             let mut files = vec![
-                SourceFile::new(&db, lib.to_owned(), dialect.to_owned()),
-                SourceFile::new(&db, caller.to_owned(), dialect.to_owned()),
+                SourceFile::new(&db, lib.to_owned(), dialect.to_owned(), None),
+                SourceFile::new(&db, caller.to_owned(), dialect.to_owned(), None),
             ];
             for (src, dia) in &real {
-                files.push(SourceFile::new(&db, src.clone(), dia.clone()));
+                files.push(SourceFile::new(&db, src.clone(), dia.clone(), None));
             }
             let project = Project::new(&db, files.clone());
             (db, cfg, files, project)

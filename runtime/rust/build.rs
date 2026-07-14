@@ -77,6 +77,18 @@ fn main() {
         // bignum backend rather than fail the build. The bignum obj rep is
         // `#[cfg]`-gated on `have_tommath` so the rest of the runtime still
         // builds + tests.
+        //
+        // Re-probe on every build while the sources are absent: a watched
+        // path that never exists keeps the fingerprint stale, so the first
+        // build after a fetch re-runs this script and turns the tower on.
+        // (Watching the candidate directory itself is not enough — tar
+        // restores the archive's old mtimes on extraction, so the fetched
+        // tree looks *older* than the cached probe and cargo would keep the
+        // tower-less result until `build.rs` was touched by hand.)
+        if let Ok(out) = env::var("OUT_DIR") {
+            let never = PathBuf::from(out).join("force-tower-reprobe");
+            println!("cargo:rerun-if-changed={}", never.display());
+        }
         println!("cargo:warning=libtommath source not found; bignum backend disabled");
         return;
     };

@@ -143,9 +143,16 @@ impl Analyser {
         }
 
         // --- pass 1: shell (defer proc/method bodies) ---
+        // Whole-file scoped environment (tclpkg manifests) — same seeding as
+        // `analyse`, so the per-item path resolves file-scoped directives
+        // identically (gated by the corpus `per_item == analyse` test).
+        let file_env_pushed = self.seed_file_scope_env(source);
         self.defer_proc_bodies = true;
         self.walk_commands_top_level(&commands, false);
         self.defer_proc_bodies = false;
+        if file_env_pushed {
+            self.body_scope_stack.pop();
+        }
 
         // --- pass 2: fill each deferred body ---
         // Returns `Err(fallback_result)` for the patterns the isolated-body

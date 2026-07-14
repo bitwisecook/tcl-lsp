@@ -654,20 +654,46 @@ const CONTENT_SIGNATURES: &[(&str, &[&str])] = &[
 ];
 
 /// Whether `marker` appears in `haystack` at a word boundary on its **left**
-/// (start-of-string or a non-word byte before it). Unlike [`has_word`] this
-/// puts no constraint on the byte after the marker, so command-prefix markers
-/// like `tmsh::` / `quartus_` (followed by more identifier) still match.
+/// (start-of-string or a non-word byte before it). A marker whose final
+/// character is itself a word byte (`interact`, `spawn`, `vsim`) also
+/// requires a word boundary on its **right** — `interactive` must not match
+/// `interact`. A marker ending in a non-word byte (`tmsh::`, `iapp::`) is a
+/// command-*prefix* form: the identifier that follows is expected, so no
+/// right constraint applies. The one prefix marker ending in a word byte,
+/// `quartus_` (`_` is a word byte), keeps prefix semantics by ending in `_`
+/// — treat a trailing `_` as an explicit "identifier continues" marker.
 fn contains_token(haystack: &str, marker: &str) -> bool {
     let hbytes = haystack.as_bytes();
+    let whole_word = marker
+        .as_bytes()
+        .last()
+        .is_some_and(|&b| is_word_byte(b) && b != b'_');
     let mut i = 0;
     while let Some(off) = haystack[i..].find(marker) {
         let start = i + off;
-        if start == 0 || !is_word_byte(hbytes[start - 1]) {
+        let left_ok = start == 0 || !is_word_byte(hbytes[start - 1]);
+        let end = start + marker.len();
+        let right_ok = !whole_word || end >= hbytes.len() || !is_word_byte(hbytes[end]);
+        if left_ok && right_ok {
             return true;
         }
         i = start + 1;
     }
     false
+}
+
+/// `source` with full-line comments removed (lines whose first non-blank
+/// byte is `#`), so a dialect marker mentioned in prose — a header like
+/// `# Source: user-reported interactive session` — can never flip the
+/// detected dialect. Mid-line `;# …` tails are left in place: they are rare
+/// in practice and a structural strip would need a full lex, which
+/// [`scan_tokens_for_tcl_version`] already provides for the version guard.
+fn strip_comment_lines(source: &str) -> String {
+    source
+        .lines()
+        .filter(|line| !line.trim_start().starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Detect a dialect from a script's *content* signatures (iRules `when`,
@@ -676,8 +702,9 @@ fn detect_from_content(head: &str) -> Option<&'static str> {
     if has_irules_when(head) {
         return Some("f5-irules");
     }
+    let code = strip_comment_lines(head);
     for (dialect, markers) in CONTENT_SIGNATURES {
-        if markers.iter().any(|m| contains_token(head, m)) {
+        if markers.iter().any(|m| contains_token(&code, m)) {
             return Some(dialect);
         }
     }

@@ -33,7 +33,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_core_types::DiagCode;
 use tcl_registry::Arity;
 
-use super::helpers::{has_substitution, is_ident_continue, is_integer_word};
+use super::helpers::{has_substitution, is_ident_continue};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::{PendingUserCallArity, Severity};
 use crate::expr_ast::{ExprNode, render_expr};
@@ -60,27 +60,50 @@ struct ArityWords<'a> {
 /// [`Analyser::check_simple_arity`]'s original inline formula exactly;
 /// shared here so [`Analyser::queue_user_call_arity_candidate`] doesn't
 /// reimplement it.
-/// The tight E003 highlight: the span covering the run of *surplus*
-/// positional arguments, from the first argument past the command's `max`
-/// up to the last argument. `positional_start` is the index of the first
-/// positional word (after any leading option flags), `max` the command's
-/// maximum positional count. Returns `None` — so [`arity_verdict`] falls
-/// back to the whole-command span — when the positional region contains a
-/// `{*}` expansion (which makes "the first surplus word" ambiguous) or the
-/// index arithmetic can't land on a real token.
+/// The tight E003 anchor: the span covering the run of *surplus*
+/// positional arguments (from the first argument past the command's `max`
+/// up to the last argument), plus where a "remove surplus arguments" fix
+/// should start deleting — the end of the last *kept* word, so the fix
+/// also removes the separating whitespace.
+#[derive(Clone, Copy)]
+pub(super) struct ExcessArgs {
+    /// Span of the surplus argument run (diagnostic anchor).
+    pub span: tcl_lexer::Span,
+    /// Deletion start for the removal fix (end of the preceding word).
+    pub delete_from: u32,
+}
+
+/// Compute the [`ExcessArgs`] anchor. `positional_start` is the index of
+/// the first positional word (after any leading option flags), `max` the
+/// command's maximum positional count, `fallback_delete_from` the widened
+/// end of whatever word precedes the first positional (the command head or
+/// subcommand word) for the `max == 0` case. Returns `None` — so
+/// [`arity_verdict`] falls back to the whole-command span — when the
+/// positional region contains a `{*}` expansion (which makes "the first
+/// surplus word" ambiguous) or the index arithmetic can't land on a real
+/// token.
 fn excess_positional_span(
     arg_tokens: &[tcl_lexer::Token],
     arg_expand: &[bool],
     positional_start: usize,
     max: usize,
-) -> Option<tcl_lexer::Span> {
+    source: &str,
+    fallback_delete_from: u32,
+) -> Option<ExcessArgs> {
     if (positional_start..arg_tokens.len()).any(|i| arg_expand.get(i).copied().unwrap_or(false)) {
         return None;
     }
     let first_excess = positional_start.checked_add(max)?;
     let first = arg_tokens.get(first_excess)?;
     let last = arg_tokens.last()?;
-    Some(tcl_lexer::Span::new(first.span.start(), last.span.end()))
+    let delete_from = match first_excess.checked_sub(1).and_then(|i| arg_tokens.get(i)) {
+        Some(prev) => widen_token_end(*prev, source),
+        None => fallback_delete_from,
+    };
+    Some(ExcessArgs {
+        span: tcl_lexer::Span::new(first.span.start(), widen_token_end(*last, source)),
+        delete_from,
+    })
 }
 
 fn count_positionals(args: &[String], arg_expand: &[bool], start: usize) -> (usize, bool) {
@@ -114,7 +137,12 @@ fn widen_token_end(tok: tcl_lexer::Token, source: &str) -> u32 {
         _ => return tok.span.end(),
     };
     let end = tok.span.end();
-    if tcl_lexer::SourceMap::new(source).token_text(tok).is_empty() {
+    // Empty content (`{}` / `[]` / `""`) — the span's end already sits past
+    // the closer.  Detected arithmetically (content start reaching the end)
+    // rather than by slicing the source, so a token whose span outruns the
+    // supplied text (unit tests drive the walk with detached tokens) never
+    // panics.
+    if tok.span.start() + u32::from(tok.content_offset) >= end {
         return end;
     }
     if source.as_bytes().get(end as usize) == Some(&closer) {
@@ -170,7 +198,7 @@ pub(super) fn arity_verdict(
     nargs_min: usize,
     positional_any_expand: bool,
     span: tcl_lexer::Span,
-    excess_span: Option<tcl_lexer::Span>,
+    excess: Option<ExcessArgs>,
 ) -> Option<crate::analyser::types::Diagnostic> {
     let min = usize::from(arity.min);
     let max = usize::from(arity.max);
@@ -195,18 +223,30 @@ pub(super) fn arity_verdict(
             fixes: Vec::new(),
         })
     } else if !arity.is_unlimited() && nargs_min > max {
+        // Highlight only the surplus arguments when the caller could
+        // isolate them (the whole command otherwise), and offer to delete
+        // exactly that run (plus the separating whitespace). E002/E005 keep
+        // the whole-command anchor: a too-few or wrong-shape count has no
+        // specific surplus word to point at.
+        let (e003_span, fixes) = match &excess {
+            Some(ex) => (
+                ex.span,
+                vec![crate::analyser::types::CodeFix {
+                    span: tcl_lexer::Span::new(ex.delete_from, ex.span.end()),
+                    new_text: String::new(),
+                    description: "Remove surplus argument(s)".to_string(),
+                }],
+            ),
+            None => (span, Vec::new()),
+        };
         Some(crate::analyser::types::Diagnostic {
             code: DiagCode::E003,
-            // Highlight only the surplus arguments when the caller could
-            // isolate them (the whole command otherwise). E002/E005 keep the
-            // whole-command anchor: a too-few or wrong-shape count has no
-            // specific surplus word to point at.
-            span: excess_span.unwrap_or(span),
+            span: e003_span,
             message: format!(
                 "Too many arguments for '{display_name}': expected at most {max}, got {nargs_min}"
             ),
             severity: Severity::Error,
-            fixes: Vec::new(),
+            fixes,
         })
     } else if !positional_any_expand
         && arity.step != 0
@@ -567,8 +607,8 @@ impl Analyser {
     ///
     /// When emission is warranted, includes a "did you mean…?"
     /// suffix using [`crate::text::suggest_similar`] over the
-    /// known subcommand set (max 1 suggestion within edit
-    /// distance 3), and anchors the diagnostic at the subcommand token's
+    /// known subcommand set (max 1 suggestion within the length-scaled
+    /// edit-distance budget), and anchors the diagnostic at the subcommand token's
     /// *content* range only ([`subcommand_content_span`]) — not the command
     /// name — so the squiggle sits tightly on the one word that is actually
     /// wrong, matching the "did you mean" fix's replacement range.
@@ -598,12 +638,12 @@ impl Analyser {
         arg_expand_in: &[bool],
         scope_path: &[usize],
     ) {
-        use super::dispatch::{CommandSignature, signature_for_command};
+        use super::dispatch::CommandSignature;
         use tcl_registry::prelude::DialectSet;
 
-        let Some(registry) = self.registry.as_ref() else {
+        if self.registry.is_none() {
             return;
-        };
+        }
         let Some(first_arg) = args.first() else {
             // Empty arg list — E001 path; not in scope here.
             return;
@@ -642,12 +682,14 @@ impl Analyser {
         if sig.allow_unknown {
             return;
         }
-        // `after` dispatches on `cancel` / `idle` / `info`, but its first word
-        // may instead be a millisecond delay (`after 200 {…}`).  An integer
-        // first word is a valid time argument, not an unknown subcommand, so
-        // it must not trip W001.  (Non-integer, non-subcommand words such as
-        // `after foo` remain genuine errors and still fire.)
-        if cmd_name == "after" && is_integer_word(first_arg) {
+        // A command may declare a *default* form selected by a first word of
+        // a particular value shape rather than a subcommand — `after`
+        // dispatches on `cancel` / `idle` / `info`, but an integer first word
+        // is a millisecond delay (`after 200 {…}`), not an unknown
+        // subcommand. The shape comes from the spec's
+        // `default_form_first_word`; no command is named here. (Non-matching
+        // words such as `after foo` remain genuine errors and still fire.)
+        if sig.matches_default_form(first_arg) {
             return;
         }
         // A subcommand name never starts with `.`, so a `.`-prefixed first word
@@ -681,45 +723,24 @@ impl Analyser {
         // depend on facts not yet known mid-walk.
         let ns = self.command_resolution_namespace(scope_path);
         let enforce_order = !self.scope_path_in_proc_body(scope_path);
-        if let Some(CommandSignature::WithSubcommands(any_sig)) =
-            signature_for_command(registry, cmd_name, DialectSet::all())
-            && any_sig.is_known(first_arg)
-        {
-            let span = match arg_tokens.first() {
-                Some(sub_tok) => tcl_lexer::Span::new(cmd_tok.span.start(), sub_tok.span.end()),
-                None => cmd_tok.span,
-            };
-            // Best-effort "available in: …" hint from the registry's own
-            // dialect gate on the matching `SubCommand` entry (falling back
-            // to the parent command's, the same inheritance
-            // `emit_w004_dialect_invalid_option` uses). An abbreviated
-            // `first_arg` that doesn't literally match a `SubCommand.name`
-            // just yields no hint — the base message stays accurate either
-            // way.
-            let suffix = registry.get(cmd_name).map_or(String::new(), |spec| {
-                spec.subcommands
-                    .iter()
-                    .find(|s| s.name == first_arg.as_str())
-                    .map_or(String::new(), |sub| {
-                        dialect_availability_suffix(sub.dialects.or(spec.dialects))
-                    })
-            });
-            let diag = super::types::Diagnostic {
-                code: DiagCode::W002,
-                span,
-                message: format!(
-                    "'{cmd_name} {first_arg}' is disabled in the active dialect profile{suffix}"
-                ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            };
-            self.pending_disabled_commands
-                .push((cmd_name.to_string(), ns, enforce_order, diag));
+        if self.queue_w002_other_dialect_subcommand(
+            cmd_name,
+            first_arg,
+            cmd_tok,
+            arg_tokens,
+            &ns,
+            enforce_order,
+        ) {
             return;
         }
         let mut message = format!("Unknown subcommand '{first_arg}' for '{cmd_name}'");
         let candidates: Vec<&str> = sig.subcommands.keys().map(String::as_str).collect();
-        let suggestions = crate::text::suggest_similar(first_arg, candidates.iter().copied(), 1, 3);
+        let suggestions = crate::text::suggest_similar(
+            first_arg,
+            candidates.iter().copied(),
+            1,
+            crate::text::scaled_max_distance(first_arg),
+        );
         let mut fixes: Vec<super::types::CodeFix> = Vec::new();
         // Anchor the squiggle at the subcommand token's content range only —
         // not the command name — so it sits tightly on the one word that is
@@ -749,6 +770,68 @@ impl Analyser {
                 fixes,
             },
         ));
+    }
+
+    /// The disabled-in-other-dialect half of the W001 check: when the
+    /// unknown subcommand *exists* under some other dialect (`info cmdtype`
+    /// is real but 9.0-only), queue a W002 disabled-in-dialect diagnostic —
+    /// with a best-effort "available in: …" hint from the registry's own
+    /// dialect gate on the matching [`tcl_registry::SubCommand`] entry
+    /// (falling back to the parent command's, the same inheritance
+    /// `emit_w004_dialect_invalid_option` uses; an abbreviated `first_arg`
+    /// that doesn't literally match a `SubCommand.name` just yields no
+    /// hint) — and return `true` so the caller skips the "Unknown
+    /// subcommand" path with its misleading spelling suggestion.
+    fn queue_w002_other_dialect_subcommand(
+        &mut self,
+        cmd_name: &str,
+        first_arg: &str,
+        cmd_tok: tcl_lexer::Token,
+        arg_tokens: &[tcl_lexer::Token],
+        ns: &str,
+        enforce_order: bool,
+    ) -> bool {
+        use super::dispatch::{CommandSignature, signature_for_command};
+        use tcl_registry::prelude::DialectSet;
+        let Some(registry) = self.registry.as_ref() else {
+            return false;
+        };
+        let Some(CommandSignature::WithSubcommands(any_sig)) =
+            signature_for_command(registry, cmd_name, DialectSet::all())
+        else {
+            return false;
+        };
+        if !any_sig.is_known(first_arg) {
+            return false;
+        }
+        let span = match arg_tokens.first() {
+            Some(sub_tok) => tcl_lexer::Span::new(cmd_tok.span.start(), sub_tok.span.end()),
+            None => cmd_tok.span,
+        };
+        let suffix = registry.get(cmd_name).map_or(String::new(), |spec| {
+            spec.subcommands
+                .iter()
+                .find(|s| s.name == first_arg)
+                .map_or(String::new(), |sub| {
+                    dialect_availability_suffix(sub.dialects.or(spec.dialects))
+                })
+        });
+        let diag = super::types::Diagnostic {
+            code: DiagCode::W002,
+            span,
+            message: format!(
+                "'{cmd_name} {first_arg}' is disabled in the active dialect profile{suffix}"
+            ),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        };
+        self.pending_disabled_commands.push((
+            cmd_name.to_string(),
+            ns.to_string(),
+            enforce_order,
+            diag,
+        ));
+        true
     }
 
     /// **E002 / E003.** Argument-count check for simple (non-
@@ -1033,11 +1116,13 @@ impl Analyser {
         // A class / alias / ensemble / stub match suppresses regardless
         // of definition order; a *proc* match additionally honours
         // `enforce_order` (in-order/reachability gate).
-        let excess_span = excess_positional_span(
+        let excess = excess_positional_span(
             arg_tokens,
             arg_expand,
             positional_start,
             usize::from(sig.arity.max),
+            &self.source,
+            widen_token_end(cmd_tok, &self.source),
         );
         if let Some(diag) = arity_verdict(
             display_name,
@@ -1045,7 +1130,7 @@ impl Analyser {
             nargs_min,
             positional_any_expand,
             full_span,
-            excess_span,
+            excess,
         ) {
             self.pending_arity
                 .push((resolution_name.to_string(), ns, enforce_order, diag));
@@ -1097,14 +1182,21 @@ impl Analyser {
         };
         // Positional args (and so the surplus run) start after the lambda
         // literal at index 1.
-        let excess_span = excess_positional_span(arg_tokens, arg_expand, 1, usize::from(arity.max));
+        let excess = excess_positional_span(
+            arg_tokens,
+            arg_expand,
+            1,
+            usize::from(arity.max),
+            &self.source,
+            widen_token_end(cmd_tok, &self.source),
+        );
         if let Some(diag) = arity_verdict(
             "apply",
             arity,
             nargs_min,
             positional_any_expand,
             full_span,
-            excess_span,
+            excess,
         ) {
             let ns = self.command_resolution_namespace(scope_path);
             let enforce_order = !self.scope_path_in_proc_body(scope_path);
@@ -1216,13 +1308,31 @@ impl Analyser {
             let Some(arity) = self.resolve_indirect_call_target(&cand, &facts.proc_offsets) else {
                 continue;
             };
+            // The surplus-run anchor: only computable now that the resolved
+            // arity's `max` is known. `arg_spans` is empty under `{*}`
+            // expansion, so `.get(max)` naturally abstains there.
+            let excess = (!arity.is_unlimited())
+                .then(|| {
+                    let max = usize::from(arity.max);
+                    let first = cand.arg_spans.get(max)?;
+                    let last = cand.arg_spans.last()?;
+                    let delete_from = match max.checked_sub(1).and_then(|i| cand.arg_spans.get(i)) {
+                        Some(prev) => prev.end(),
+                        None => cand.head_end,
+                    };
+                    Some(ExcessArgs {
+                        span: tcl_lexer::Span::new(first.start(), last.end()),
+                        delete_from,
+                    })
+                })
+                .flatten();
             if let Some(diag) = arity_verdict(
                 &cand.cmd_name,
                 arity,
                 cand.nargs_min,
                 cand.positional_any_expand,
                 cand.full_span,
-                None,
+                excess,
             ) {
                 self.result.diagnostics.push(diag);
             }
@@ -1518,6 +1628,16 @@ impl Analyser {
             Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
             None => cmd_tok.span,
         };
+        // Argument-word spans for the flush-time E003 surplus anchor —
+        // omitted under `{*}` expansion, where the surplus run is ambiguous.
+        let arg_spans: Vec<tcl_lexer::Span> = if positional_any_expand {
+            Vec::new()
+        } else {
+            arg_tokens
+                .iter()
+                .map(|t| widened_word_span(*t, &self.source))
+                .collect()
+        };
         self.pending_user_call_arity.push(PendingUserCallArity {
             cmd_name: cmd_name.to_string(),
             ns: self.command_resolution_namespace(scope_path),
@@ -1526,6 +1646,8 @@ impl Analyser {
             full_span,
             nargs_min,
             positional_any_expand,
+            arg_spans,
+            head_end: widen_token_end(cmd_tok, &self.source),
         });
     }
 

@@ -208,7 +208,7 @@ impl Analyser {
             }
 
             // TK1003: unknown option for the widget command.
-            self.emit_tk1003_unknown_options(cmd_name, args, cmd_tok);
+            self.emit_tk1003_unknown_options(cmd_name, args, arg_tokens, cmd_tok);
         }
 
         // Track geometry-manager usage for the post-walk TK1001 check.
@@ -224,35 +224,80 @@ impl Analyser {
         }
     }
 
-    /// TK1003 — buffer `-option` arguments that the widget command does not
-    /// declare.  A lone `-` / `--` is skipped, and the check is silent when
-    /// the command has no registry spec (so unknown widgets never false
-    /// positive).
-    fn emit_tk1003_unknown_options(&mut self, cmd_name: &str, args: &[String], cmd_tok: Token) {
+    /// TK1003 — buffer `-option` words that the widget command does not
+    /// declare.  The check is silent when the command has no registry spec
+    /// (so unknown widgets never false positive).
+    ///
+    /// Widget-creation options are alternating `-option value` pairs
+    /// (`Tk_ConfigureWidget`), so the scan walks pairs: an option word is
+    /// validated and its *value* word skipped — a value that itself starts
+    /// with `-` (`-padx -2`) is data, never an unknown option.  A unique
+    /// prefix of a declared option is accepted, matching Tk's
+    /// abbreviation rule; an ambiguous prefix abstains.  A non-`-` word in
+    /// option position ends the scan (Tk itself errors there).  Each
+    /// finding anchors on the offending option word and carries a "did you
+    /// mean…?" replace fix drawn from the declared option set.
+    fn emit_tk1003_unknown_options(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        cmd_tok: Token,
+    ) {
         let Some(registry) = self.registry.as_ref() else {
             return;
         };
         let Some(spec) = registry.get(cmd_name) else {
             return;
         };
-        let known: std::collections::HashSet<&str> = spec.switch_names(None).into_iter().collect();
-        let mut unknown: Vec<String> = Vec::new();
-        for arg in &args[1..] {
-            if arg.starts_with('-')
-                && !arg.starts_with("--")
-                && arg.len() > 1
-                && !known.contains(arg.as_str())
-            {
-                unknown.push(arg.clone());
+        let known: Vec<&str> = spec.switch_names(None);
+        let mut findings: Vec<(String, tcl_lexer::Span)> = Vec::new();
+        let mut i = 1;
+        while i < args.len() {
+            let arg = &args[i];
+            if !arg.starts_with('-') || arg == "-" || arg.starts_with("--") {
+                // Non-option word in option position — Tk stops parsing
+                // options here, so anything after is not ours to judge.
+                break;
             }
+            // Dynamic option word (`-$style`, `-[pick]`) — unknowable.
+            if arg.contains('$') || arg.contains('[') {
+                i += 2;
+                continue;
+            }
+            let exact = known.contains(&arg.as_str());
+            let prefix_hits = known.iter().filter(|k| k.starts_with(arg.as_str())).count();
+            if !exact && prefix_hits == 0 {
+                let span = arg_tokens.get(i).map_or(cmd_tok.span, |t| t.span);
+                findings.push((arg.clone(), span));
+            }
+            // Skip the option's value word.
+            i += 2;
         }
-        for arg in unknown {
+        for (arg, span) in findings {
+            let suggestions = crate::text::suggest_similar(
+                &arg,
+                known.iter().copied(),
+                1,
+                crate::text::scaled_max_distance(&arg),
+            );
+            let mut message = format!("Unknown option '{arg}' for {cmd_name}.");
+            let mut fixes: Vec<super::types::CodeFix> = Vec::new();
+            if let Some(best) = suggestions.first() {
+                use std::fmt::Write as _;
+                let _ = write!(message, " Did you mean '{best}'?");
+                fixes.push(super::types::CodeFix {
+                    span,
+                    new_text: (*best).to_string(),
+                    description: format!("Replace with '{best}'"),
+                });
+            }
             self.tk_pending_diags.push(Diagnostic {
                 code: DiagCode::Tk1003,
-                span: cmd_tok.span,
-                message: format!("Unknown option '{arg}' for {cmd_name}."),
+                span,
+                message,
                 severity: Severity::Hint,
-                fixes: Vec::new(),
+                fixes,
             });
         }
     }

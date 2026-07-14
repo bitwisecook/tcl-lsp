@@ -88,7 +88,7 @@ fn main() {
         Vec::new(),
         None,
     );
-    let file = SourceFile::new(&db, src.clone(), dialect.to_owned());
+    let file = SourceFile::new(&db, src.clone(), dialect.to_owned(), None);
     let _ = file_analysis_incremental(&db, file, cfg);
     let _ = compiler_check_diagnostics(&db, file, cfg);
 
@@ -216,7 +216,7 @@ fn rerun_breadth(src: &str, dialect: &str, fallback_pos: usize, n_functions: usi
         Vec::new(),
         None,
     );
-    let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned());
+    let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned(), None);
     let _ = file_analysis_incremental(&db, file, cfg);
     let _ = compiler_check_diagnostics(&db, file, cfg);
     let cold: Vec<String> = std::mem::take(&mut *log.lock().unwrap());

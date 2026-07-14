@@ -42,6 +42,7 @@
 //! - `compute_aliases` + `build_memory_ssa` driver.
 
 use std::collections::{BTreeSet, HashMap};
+use tcl_registry::{CommandRegistry, Traits};
 
 use crate::cfg::BlockId;
 use crate::ir::Statement;
@@ -417,22 +418,39 @@ pub fn detect_namespace_variable(stmt: &Statement) -> Vec<String> {
         .collect()
 }
 
+/// The spec-declared trait set that classifies a call as a memory clobber.
+const CLOBBER_TRAITS: Traits = Traits::EVALUATES_CODE.union(Traits::CREATES_BARRIER);
+
 /// True if `stmt` may clobber arbitrary memory locations.
 ///
 /// Barriers always clobber. A static-body [`Statement::UpFrame`]
 /// (barrier-relaxed `uplevel`) clobbers because its body runs in a
 /// caller's frame and can touch arbitrary caller locals or globals.
-/// Calls clobber when their command name matches an explicit
-/// dynamic-dispatch name (`eval`, `uplevel`, `interp eval`,
-/// `namespace eval`).
+/// Calls clobber when the registry marks the resolved command (or the
+/// resolved subcommand — `interp eval`, `namespace eval`) as evaluating
+/// code or acting as a barrier ([`Traits::EVALUATES_CODE`] |
+/// [`Traits::CREATES_BARRIER`]) — the same spec-declared classification
+/// `side_effects.rs` dispatches on, replacing the old hardcoded name list
+/// (whose compound `"interp eval"` spellings never matched a bare
+/// `command` field, silently under-clobbering those calls).
 #[must_use]
-pub fn is_clobber(stmt: &Statement) -> bool {
+pub fn is_clobber(stmt: &Statement, registry: &CommandRegistry) -> bool {
     match stmt {
         Statement::Barrier { .. } | Statement::UpFrame { .. } => true,
-        Statement::Call { command, .. } => matches!(
-            command.as_str(),
-            "eval" | "uplevel" | "interp eval" | "namespace eval"
-        ),
+        Statement::Call { command, args, .. } => {
+            let Some(spec) = registry.get(command) else {
+                return false;
+            };
+            if spec.traits.intersects(CLOBBER_TRAITS) {
+                return true;
+            }
+            // Subcommand-level classification (`interp eval`, `namespace
+            // eval`, …) — resolve the first word the way ensemble dispatch
+            // does and consult its traits.
+            args.first()
+                .and_then(|sub| spec.resolve_subcommand(sub))
+                .is_some_and(|sub| sub.traits.intersects(CLOBBER_TRAITS))
+        }
         _ => false,
     }
 }
@@ -584,7 +602,7 @@ pub fn compute_aliases(ssa: &SsaFunction) -> Vec<AliasSet> {
 /// Walks blocks in dominator-tree order (reverse iteration for
 /// stack emulation) for consistent versioning.
 #[must_use]
-pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySsaFunction {
+pub fn build_memory_ssa(ssa: &SsaFunction, registry: &CommandRegistry) -> MemorySsaFunction {
     let alias_sets = compute_aliases(ssa);
     let aliased_names: BTreeSet<String> = alias_sets.iter().flat_map(AliasSet::names).collect();
 
@@ -629,7 +647,7 @@ pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySsaFunction {
             let stmt = &stmt_ssa.statement;
             let idx_i32 = i32::try_from(idx).unwrap_or(i32::MAX);
 
-            if is_clobber(stmt) {
+            if is_clobber(stmt, registry) {
                 version_counter += 1;
                 memory_ops.push(MemoryOp::new_clobber(version_counter, bn, idx_i32));
                 // Fall through — a barrier that also defines
@@ -878,10 +896,28 @@ mod tests {
 
     #[test]
     fn is_clobber_barrier_and_eval() {
-        assert!(is_clobber(&barrier("eval", &["x"])));
-        assert!(is_clobber(&call("eval", &["script"])));
-        assert!(is_clobber(&call("uplevel", &["1", "script"])));
-        assert!(!is_clobber(&call("set", &["x", "1"])));
+        let reg = CommandRegistry::build_default();
+        assert!(is_clobber(&barrier("eval", &["x"]), &reg));
+        assert!(is_clobber(&call("eval", &["script"]), &reg));
+        assert!(is_clobber(&call("uplevel", &["1", "script"]), &reg));
+        assert!(!is_clobber(&call("set", &["x", "1"]), &reg));
+    }
+
+    /// The old hardcoded name list spelt these as the compound strings
+    /// `"interp eval"` / `"namespace eval"`, which a bare `command` field
+    /// never matches — so the subcommand-resolved forms silently escaped
+    /// the clobber classification.  The registry path resolves the
+    /// subcommand word (unique prefixes included) and reads its traits.
+    #[test]
+    fn is_clobber_resolves_code_evaluating_subcommands() {
+        let reg = CommandRegistry::build_default();
+        assert!(is_clobber(&call("interp", &["eval", "{}", "script"]), &reg));
+        assert!(is_clobber(
+            &call("namespace", &["eval", "ns", "script"]),
+            &reg
+        ));
+        assert!(!is_clobber(&call("namespace", &["current"]), &reg));
+        assert!(!is_clobber(&call("interp", &["exists", "x"]), &reg));
     }
 
     // -- compute_aliases + build_memory_ssa --
@@ -941,7 +977,7 @@ mod tests {
         assert!(set.contains_name("b"));
         assert!(set.contains_name("x"));
 
-        let m = build_memory_ssa(&ssa);
+        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default());
         assert!(m.may_alias("a", "b"), "a and b share caller x");
     }
 
@@ -974,7 +1010,7 @@ mod tests {
     #[test]
     fn build_memory_ssa_empty_function() {
         let ssa = make_ssa_with_entry_stmts(Vec::new());
-        let m = build_memory_ssa(&ssa);
+        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default());
         assert!(m.alias_sets.is_empty());
         assert!(m.memory_ops.is_empty());
         assert_eq!(m.count_defs, 0);
@@ -985,7 +1021,7 @@ mod tests {
     #[test]
     fn build_memory_ssa_emits_clobber_for_eval() {
         let ssa = make_ssa_with_entry_stmts(vec![call("eval", &["foo"])]);
-        let m = build_memory_ssa(&ssa);
+        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default());
         assert_eq!(m.count_clobbers, 1);
         assert_eq!(m.memory_ops[0].kind, MemoryOpKind::Clobber);
         assert_eq!(m.memory_ops[0].location.name, "*");
@@ -1002,9 +1038,9 @@ mod tests {
             body: crate::ir::Script::new(),
             tokens: None,
         };
-        assert!(is_clobber(&upframe));
+        assert!(is_clobber(&upframe, &CommandRegistry::build_default()));
         let ssa = make_ssa_with_entry_stmts(vec![upframe]);
-        let m = build_memory_ssa(&ssa);
+        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default());
         assert_eq!(m.count_clobbers, 1);
         assert_eq!(m.memory_ops[0].kind, MemoryOpKind::Clobber);
     }
@@ -1047,7 +1083,7 @@ mod tests {
             },
         );
         ssa.dominator_tree.insert(entry, Vec::new());
-        let m = build_memory_ssa(&ssa);
+        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default());
         assert_eq!(m.count_defs, 1);
         assert_eq!(m.count_uses, 1);
         // Version for def must be > version visible at preceding
@@ -1109,7 +1145,7 @@ mod tests {
             },
         );
         ssa.dominator_tree.insert(entry, Vec::new());
-        let m = build_memory_ssa(&ssa);
+        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default());
         // The def and use from the self-referential statement (index 2).
         let self_def = m
             .memory_ops

@@ -419,10 +419,15 @@ file; this call falls through to the 'unknown' handler."
 
     /// Narrow a whole-command span to the `$var` read token for *var*,
     /// returning that token's absolute span — or `None` when no matching
-    /// top-level `Var` token is found (e.g. the read is nested inside a
-    /// quoted/compound word, where the caller falls back to the command
-    /// span).  W210 anchors at the variable read, not the command-start
-    /// column.
+    /// `Var` token is found anywhere in the statement (the caller falls
+    /// back to the command span).  W210 anchors at the variable read, not
+    /// the command-start column.
+    ///
+    /// The read is frequently nested inside a command substitution
+    /// (`set x [cmd $var]`, `if {[llength $var]} …`), so the scan descends
+    /// into `Cmd` tokens' inner scripts rather than stopping at the
+    /// top-level word walk.  Braced (`Str`) words are literal text — a
+    /// `$var` inside one is not a read — so they are never descended.
     fn narrow_to_read_var(&self, stmt_span: tcl_lexer::Span, var: &str) -> Option<tcl_lexer::Span> {
         // De-sigil + drop any array-index suffix so `$a(k)` / `${a}` / `$a`
         // all compare equal to the chain's scalar/element base name.
@@ -433,19 +438,58 @@ file; this call falls through to the 'unknown' handler."
             );
             inner.split('(').next().unwrap_or(inner)
         }
+        /// First `$target` `Var` token within `slice` (whose absolute start
+        /// is `abs_base`), descending into command-substitution contents.
+        /// `depth` bounds pathological nesting.
+        fn find_var(
+            slice: &str,
+            abs_base: u32,
+            target: &str,
+            config: tcl_lexer::LexerConfig,
+            depth: u8,
+        ) -> Option<tcl_lexer::Span> {
+            if depth > 4 {
+                return None;
+            }
+            let sm = tcl_lexer::SourceMap::new(slice);
+            let toks = tcl_lexer::Lexer::with_source_map(tcl_lexer::SourceMap::new(slice), config)
+                .tokenise_all()
+                .ok()?;
+            for t in &toks {
+                match t.kind {
+                    tcl_lexer::TokenType::Var if base(sm.token_text(*t)) == target => {
+                        return Some(tcl_lexer::Span::new(
+                            t.span.start() + abs_base,
+                            t.span.end() + abs_base,
+                        ));
+                    }
+                    // A `[…]` word: recurse into its inner script (the span
+                    // covers `[inner` and excludes the closing `]`; the
+                    // content starts past the opening bracket).
+                    tcl_lexer::TokenType::Cmd => {
+                        let content_start = t.span.start() as usize + usize::from(t.content_offset);
+                        let content_end = t.span.end() as usize;
+                        if let Some(inner) = slice.get(content_start..content_end)
+                            && inner.contains('$')
+                            && let Some(found) = find_var(
+                                inner,
+                                abs_base + t.span.start() + u32::from(t.content_offset),
+                                target,
+                                config,
+                                depth + 1,
+                            )
+                        {
+                            return Some(found);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            None
+        }
         let target = base(var);
-        let start = stmt_span.start();
         let slice = source_slice(&self.source, stmt_span)?;
-        let sm = tcl_lexer::SourceMap::new(&slice);
-        let toks = tcl_lexer::Lexer::with_source_map(
-            tcl_lexer::SourceMap::new(&slice),
-            self.lexer_config(),
-        )
-        .tokenise_all()
-        .ok()?;
-        toks.iter()
-            .find(|t| t.kind == tcl_lexer::TokenType::Var && base(sm.token_text(**t)) == target)
-            .map(|t| tcl_lexer::Span::new(t.span.start() + start, t.span.end() + start))
+        find_var(&slice, stmt_span.start(), target, self.lexer_config(), 0)
     }
 
     /// W211 — unused-variable hint.
@@ -1979,7 +2023,8 @@ file; this call falls through to the 'unknown' handler."
                     }
                 }
                 if let Some((msg, sev)) = diag {
-                    self.emit_ip_diag_at_def(fu, *key, &msg, sev, &mut seen_offsets);
+                    let literal = &text[quad.start..quad.end];
+                    self.emit_ip_diag_at_def(fu, *key, &msg, sev, Some(literal), &mut seen_offsets);
                     break;
                 }
             }
@@ -1988,7 +2033,14 @@ file; this call falls through to the 'unknown' handler."
             for candidate in find_ipv6_candidates(text) {
                 if Ipv6Addr::from_str(candidate).is_err() {
                     let msg = format!("Invalid IPv6 address '{candidate}'.");
-                    self.emit_ip_diag_at_def(fu, *key, &msg, Severity::Error, &mut seen_offsets);
+                    self.emit_ip_diag_at_def(
+                        fu,
+                        *key,
+                        &msg,
+                        Severity::Error,
+                        Some(candidate),
+                        &mut seen_offsets,
+                    );
                     break;
                 }
             }
@@ -1996,12 +2048,18 @@ file; this call falls through to the 'unknown' handler."
     }
 
     /// Helper for [`Self::emit_invalid_ip_diagnostics`].
+    ///
+    /// Anchors on the offending IP `literal` within the def statement when
+    /// it appears verbatim in the source (with non-address bytes on both
+    /// sides), falling back to the whole statement span when the constant
+    /// was folded from parts the source never spells out.
     fn emit_ip_diag_at_def(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
         key: crate::ssa::ValueKey,
         message: &str,
         severity: Severity,
+        literal: Option<&str>,
         seen_offsets: &mut FxHashSet<u32>,
     ) {
         let (sym, version) = key;
@@ -2018,13 +2076,36 @@ file; this call falls through to the 'unknown' handler."
         let Some(stmt) = block.statements.get(idx) else {
             return;
         };
-        let span = fu.abs_span(stmt.span());
-        if span.is_empty() {
+        let stmt_span = fu.abs_span(stmt.span());
+        if stmt_span.is_empty() {
             return;
         }
-        if !seen_offsets.insert(span.start()) {
+        if !seen_offsets.insert(stmt_span.start()) {
             return;
         }
+        // Tight anchor: the literal's own bytes inside the statement, when
+        // the source spells it out directly.
+        let span = literal
+            .and_then(|lit| {
+                let slice = source_slice(&self.source, stmt_span)?;
+                let is_addr_byte = |b: u8| b.is_ascii_hexdigit() || b == b'.' || b == b':';
+                let mut from = 0;
+                while let Some(off) = slice[from..].find(lit) {
+                    let start = from + off;
+                    let end = start + lit.len();
+                    let left_ok = start == 0 || !is_addr_byte(slice.as_bytes()[start - 1]);
+                    let right_ok = end >= slice.len() || !is_addr_byte(slice.as_bytes()[end]);
+                    if left_ok && right_ok {
+                        return Some(tcl_lexer::Span::new(
+                            stmt_span.start() + u32::try_from(start).ok()?,
+                            stmt_span.start() + u32::try_from(end).ok()?,
+                        ));
+                    }
+                    from = start + 1;
+                }
+                None
+            })
+            .unwrap_or(stmt_span);
         self.result.diagnostics.push(super::types::Diagnostic {
             code: DiagCode::W124,
             span,

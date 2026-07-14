@@ -190,7 +190,7 @@ fn collect_scope_entries(
 pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let source = combine_sources(&documents);
-    let result = Analyser::new().analyse(&source, &input.dialect);
+    let result = Analyser::new().analyse(&source, input.dialect_or_default());
     let line_index = LineIndex::new(&source);
 
     let mut entries = detect_event_entries(&source, &line_index);
@@ -201,7 +201,7 @@ pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     if json {
         let payload = SymbolsPayload {
             count: entries.len(),
-            dialect: input.dialect.clone(),
+            dialect: input.dialect_or_default().to_string(),
             inputs: documents.iter().map(|d| d.label.clone()).collect(),
             symbols: entries,
         };
@@ -302,7 +302,7 @@ fn append_symbolgraph_scope(lines: &mut Vec<String>, scope: &Value, depth: usize
 pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let source = combine_sources(&documents);
-    let data = graphs::symbol_graph(&source, &input.dialect);
+    let data = graphs::symbol_graph(&source, input.dialect_or_default());
 
     let summary = data.get("summary").cloned().unwrap_or_else(|| json!({}));
     let count = |key: &str| summary.get(key).and_then(Value::as_i64).unwrap_or(0);
@@ -338,8 +338,8 @@ pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> 
 pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(&input.dialect);
-    let data = graphs::call_graph(&source, registry, &input.dialect);
+    let registry = registry_for_dialect(input.dialect_or_default());
+    let data = graphs::call_graph(&source, registry, input.dialect_or_default());
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 
@@ -426,8 +426,8 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
 pub fn run_dataflow(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(&input.dialect);
-    let data = graphs::dataflow_graph(&source, registry, &input.dialect);
+    let registry = registry_for_dialect(input.dialect_or_default());
+    let data = graphs::dataflow_graph(&source, registry, input.dialect_or_default());
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 

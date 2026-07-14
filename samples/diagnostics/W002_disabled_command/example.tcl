@@ -1,4 +1,5 @@
 # W002: Command disabled in active dialect profile
+# tcl-dialect: tcl8.6
 # Source: SpiceGenTcl/src/generalClasses.tcl (oo::configurable, lremove)
 #         SpiceGenTcl/src/ltspice/specElementsClassesLtspice.tcl (oo::abstract)
 #

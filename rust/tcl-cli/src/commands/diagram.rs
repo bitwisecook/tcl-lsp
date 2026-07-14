@@ -37,11 +37,11 @@ use crate::cli::InputArgs;
 pub fn run_diagram(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(&input.dialect);
+    let registry = registry_for_dialect(input.dialect_or_default());
     let data = diagram::diagram_data_with_config(
         &source,
         registry,
-        tcl_lexer::LexerConfig::for_dialect(&input.dialect),
+        tcl_lexer::LexerConfig::for_dialect(input.dialect_or_default()),
     );
 
     let target = OutputTarget::from_arg(input.output.as_deref());

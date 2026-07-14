@@ -143,6 +143,13 @@ pub struct SourceFile {
     pub text: String,
     #[returns(ref)]
     pub dialect: String,
+    /// Source-file path (from the document URI), or `None` for in-memory
+    /// text.  Path-keyed analysis behaviour: `pkgIndex.tcl` suppresses
+    /// dead-store/unused hints on the loader-supplied `$dir`, and a file
+    /// with a registry whole-file scoped environment (`tclpkg.tcl`
+    /// manifests) is analysed with that environment ambient.
+    #[returns(ref)]
+    pub path: Option<String>,
 }
 
 /// Analyser configuration mirrored from the editor (the former
@@ -186,7 +193,8 @@ pub fn file_analysis(
     let extra: HashSet<String> = config.extra_commands(db).iter().cloned().collect();
     let mut analyser = Analyser::with_disabled_diagnostics(disabled)
         .with_non_ascii_mode(config.non_ascii_mode(db))
-        .with_extra_commands(extra);
+        .with_extra_commands(extra)
+        .with_file_path(file.path(db).clone());
     Arc::new(analyser.analyse(file.text(db), file.dialect(db)))
 }
 
@@ -1337,10 +1345,12 @@ pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<V
     let dialect = key.dialect(db);
     let dialect_opt = (!dialect.is_empty()).then_some(dialect.as_str());
     let registry = db.registry(dialect);
+    // Per-procedure memo — procs have no implicit instance variables.
     Arc::new(tcl_compiler::compiler_checks::function_nontaint_checks(
         &fu,
         &registry,
         dialect_opt,
+        None::<&std::collections::HashSet<String>>,
     ))
 }
 
@@ -1481,6 +1491,7 @@ pub fn proc_taint_solve<'db>(
                     fu,
                     &registry,
                     dialect_opt,
+                    None::<&std::collections::HashSet<String>>,
                 ) {
                     fn_checks.push(d);
                 }
@@ -1500,7 +1511,12 @@ pub fn proc_taint_solve<'db>(
     // they carry absolute spans already and need no rebase, same as the
     // `None` arm above.
     for fu in cu.analysable_methods_and_body_units() {
-        for d in tcl_compiler::compiler_checks::shimmer_family_checks(fu, &registry, dialect_opt) {
+        for d in tcl_compiler::compiler_checks::shimmer_family_checks(
+            fu,
+            &registry,
+            dialect_opt,
+            cu.method_instance_vars(&fu.name),
+        ) {
             fn_checks.push(d);
         }
     }
@@ -2046,7 +2062,8 @@ pub fn file_analysis_incremental(
     let text = file.text(db).clone();
     let mut analyser = Analyser::with_disabled_diagnostics(disabled_vec.iter().cloned().collect())
         .with_non_ascii_mode(non_ascii)
-        .with_extra_commands(extra_commands);
+        .with_extra_commands(extra_commands)
+        .with_file_path(file.path(db).clone());
 
     // Build the CFG/SSA tail's compilation unit with per-procedure lattices
     // memoised by `function_lattice`, and feed it through the analyser's
@@ -2399,7 +2416,7 @@ mod tests {
         let src = "proc countdown {n} {\n    puts $n\n    if {$n <= 0} { return }\n    countdown [expr {$n - 1}]\n}\n";
         let db = TclDatabase::default();
         let registry = db.registry(dialect);
-        let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned());
+        let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned(), None);
         let got = compiler_check_diagnostics(&db, file, cfg(&db));
         let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None);
         assert!(
@@ -2415,7 +2432,7 @@ mod tests {
     #[test]
     fn file_analysis_matches_direct_analyse() {
         let db = TclDatabase::default();
-        let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned());
+        let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
         let got = file_analysis(&db, file, cfg(&db));
 
         let mut direct = Analyser::new();
@@ -2427,7 +2444,7 @@ mod tests {
     #[test]
     fn document_symbols_match_direct() {
         let db = TclDatabase::default();
-        let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned());
+        let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
         let got = document_symbols(&db, file, cfg(&db));
         let expected = tcl_lsp_core::document_symbols::document_symbols(SRC, "tcl");
         assert_eq!(got, expected);
@@ -2436,7 +2453,7 @@ mod tests {
     #[test]
     fn semantic_tokens_match_direct() {
         let db = TclDatabase::default();
-        let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned());
+        let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
         let got = semantic_tokens(&db, file, cfg(&db));
         let reg = db.registry("tcl");
         let expected = tcl_lsp_core::semantic_tokens::full(SRC, "tcl", &reg);
@@ -2459,7 +2476,7 @@ mod tests {
     fn semantic_tokens_retags_constant_regex_source_true_positive() {
         let src = "set my_re \".*abc\"\nregexp $my_re $s\n";
         let db = TclDatabase::default();
-        let file = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned());
+        let file = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
         let enriched = semantic_tokens(&db, file, cfg(&db));
         let reg = db.registry("tcl9.0");
         let coarse = tcl_lsp_core::semantic_tokens::full(src, "tcl9.0", &reg);
@@ -2479,7 +2496,7 @@ mod tests {
     fn semantic_tokens_skips_retag_for_non_constant_pattern_true_negative() {
         let src = "proc match {re s} {\n    regexp $re $s\n}\n";
         let db = TclDatabase::default();
-        let file = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned());
+        let file = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
         let enriched = semantic_tokens(&db, file, cfg(&db));
         let reg = db.registry("tcl9.0");
         let coarse = tcl_lsp_core::semantic_tokens::full(src, "tcl9.0", &reg);
@@ -2513,7 +2530,7 @@ mod tests {
             registries: Arc::default(),
         };
         let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
-        let file = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned());
+        let file = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned(), None);
 
         // Diagnostics-first order: the worker analyses, then a token request
         // arrives for the same revision.
@@ -2589,11 +2606,13 @@ mod tests {
             &db,
             "oo::configurable create ::Pin { property node }\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let main = SourceFile::new(
             &db,
             "set p [::Pin new]\n$p configure -node n1\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let project = Project::new(&db, vec![lib, main]);
 
@@ -2640,11 +2659,13 @@ mod tests {
             &db,
             "oo::configurable create ::Pin { property node }\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let main = SourceFile::new(
             &db,
             "proc ::helper {a b} { return [expr {$a + $b}] }\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let project = Project::new(&db, vec![lib, main]);
 
@@ -2680,11 +2701,13 @@ mod tests {
             &db,
             "oo::configurable create ::Pin { property node }\n".to_owned(),
             "tcl9.0".to_owned(),
+            None,
         );
         let user = SourceFile::new(
             &db,
             "[::Pin new] configure -node 5\n".to_owned(),
             "tcl9.0".to_owned(),
+            None,
         );
         let project = Project::new(&db, vec![lib, user]);
         let cross = semantic_tokens_project(&db, user, cfg(&db), project);
@@ -2714,11 +2737,13 @@ mod tests {
             &db,
             "oo::class create ::Pin { method a {} {} }\n".to_owned(),
             "tcl9.0".to_owned(),
+            None,
         );
         let b = SourceFile::new(
             &db,
             "oo::class create ::Pin { method b {} {} }\n".to_owned(),
             "tcl9.0".to_owned(),
+            None,
         );
         // Both orderings must agree (and both must drop the ambiguous class).
         for files in [vec![a, b], vec![b, a]] {
@@ -2735,7 +2760,7 @@ mod tests {
     #[test]
     fn folding_matches_direct() {
         let db = TclDatabase::default();
-        let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned());
+        let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
         let got = folding_ranges(&db, file);
         let reg = db.registry("tcl");
         let expected = tcl_lsp_core::folding::folding_ranges(SRC, "tcl", &reg);
@@ -2747,7 +2772,7 @@ mod tests {
         use salsa::Setter as _;
         let mut db = TclDatabase::default();
         let config = cfg(&db);
-        let file = SourceFile::new(&db, "proc a {} {}\n".to_owned(), "tcl".to_owned());
+        let file = SourceFile::new(&db, "proc a {} {}\n".to_owned(), "tcl".to_owned(), None);
         assert!(
             file_analysis(&db, file, config)
                 .all_procs
@@ -2765,7 +2790,7 @@ mod tests {
         use std::collections::BTreeSet;
         let db = TclDatabase::default();
         let src = "proc p {} {}\noo::class create K {}\nnamespace eval z { proc q {} {} }\n";
-        let file = SourceFile::new(&db, src.to_owned(), "tcl".to_owned());
+        let file = SourceFile::new(&db, src.to_owned(), "tcl".to_owned(), None);
         let decls = file_decls(&db, file);
         let analysis = file_analysis(&db, file, cfg(&db));
         let want_procs: BTreeSet<String> = analysis.all_procs.keys().cloned().collect();
@@ -2781,7 +2806,12 @@ mod tests {
     fn item_sigs_track_signatures() {
         use tcl_compiler::analyser::ItemKind;
         let db = TclDatabase::default();
-        let file = SourceFile::new(&db, "proc greet {name} {}\n".to_owned(), "tcl".to_owned());
+        let file = SourceFile::new(
+            &db,
+            "proc greet {name} {}\n".to_owned(),
+            "tcl".to_owned(),
+            None,
+        );
         let sigs = item_sigs(&db, file);
         let greet = sigs
             .iter()
@@ -2796,7 +2826,7 @@ mod tests {
     fn item_tree_recomputes_on_edit() {
         use salsa::Setter as _;
         let mut db = TclDatabase::default();
-        let file = SourceFile::new(&db, "proc a {} {}\n".to_owned(), "tcl".to_owned());
+        let file = SourceFile::new(&db, "proc a {} {}\n".to_owned(), "tcl".to_owned(), None);
         assert!(file_decls(&db, file).procs.contains("::a"));
         file.set_text(&mut db).to("proc b {} {}\n".to_owned());
         let after = file_decls(&db, file);
@@ -2814,7 +2844,7 @@ mod tests {
             "namespace eval n { proc f {y} { set z $y } }\nset g 1\nputs $g\n",
             "oo::class create K {\n  method m {a} { set n $a }\n}\nproc p {} { set q 1 }\n",
         ] {
-            let file = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned());
+            let file = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned(), None);
             let inc = file_analysis_incremental(&db, file, cfg);
             let full = file_analysis(&db, file, cfg);
             assert_eq!(*inc, *full, "incremental != full for:\n{src}");
@@ -2844,6 +2874,7 @@ mod tests {
             &db,
             "proc a {} { set x 11111 }\nproc b {} { set y 22222 }\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let _ = file_analysis_incremental(&db, file, cfg);
         let init = std::mem::take(&mut *log.lock().unwrap());
@@ -2897,6 +2928,7 @@ mod tests {
             "oo::class create K {\n  method a {} { set x 11111 }\n  method b {} { set y 22222 }\n}\n"
                 .to_owned(),
             "tcl8.6".to_owned(),
+         None,
         );
         let _ = file_analysis_incremental(&db, file, cfg);
         let init = std::mem::take(&mut *log.lock().unwrap());
@@ -2940,7 +2972,7 @@ mod tests {
             ),
             ("when HTTP_REQUEST { set u [HTTP::uri] }\n", "f5-irules"),
         ] {
-            let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned());
+            let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned(), None);
             let got = compiler_check_diagnostics(
                 &db,
                 file,
@@ -2996,7 +3028,7 @@ mod tests {
         // not exercise stale-cache reuse, which is the point.
         let mut db = TclDatabase::default();
         let registry = db.registry(dialect);
-        let file = SourceFile::new(&db, versions[0].to_owned(), dialect.to_owned());
+        let file = SourceFile::new(&db, versions[0].to_owned(), dialect.to_owned(), None);
         for src in versions {
             file.set_text(&mut db).to(src.to_owned());
             let got = compiler_check_diagnostics(
@@ -3088,7 +3120,7 @@ mod tests {
         let mut state = [1usize, 1, 1, 1];
         let mut db = TclDatabase::default();
         let registry = db.registry(dialect);
-        let file = SourceFile::new(&db, assemble(&state), dialect.to_owned());
+        let file = SourceFile::new(&db, assemble(&state), dialect.to_owned(), None);
 
         for iter in 0..250 {
             let slot = (next() as usize) % state.len();
@@ -3145,6 +3177,7 @@ mod tests {
              proc c {} { set z 33333 }\n"
                 .to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let _ = compiler_check_diagnostics(
             &db,
@@ -3212,6 +3245,7 @@ mod tests {
              proc c {} { puts 33333 }\n"
                 .to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let _ = compiler_check_diagnostics(&db, file, cfg(&db));
         assert_eq!(
@@ -3270,6 +3304,7 @@ mod tests {
              proc c {} { puts 33333 }\n"
                 .to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let _ = compiler_check_diagnostics(&db, file, cfg(&db));
         assert_eq!(
@@ -3340,6 +3375,7 @@ mod tests {
              proc c {} { set z 33333 }\n"
                 .to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let _ = compiler_check_diagnostics(
             &db,
@@ -3402,11 +3438,13 @@ mod tests {
             &db,
             "proc a {} { set x 1 }\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let b = SourceFile::new(
             &db,
             "proc b {} { set y 2 }\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let project = Project::new(&db, vec![a, b]);
 
@@ -3473,8 +3511,14 @@ mod tests {
             &db,
             "proc helper {x y} { set z 1 }\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
-        let b = SourceFile::new(&db, "proc other {} {}\n".to_owned(), "tcl8.6".to_owned());
+        let b = SourceFile::new(
+            &db,
+            "proc other {} {}\n".to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
         let project = Project::new(&db, vec![a, b]);
 
         // Cold: `helper` is a 2-param proc → arity (2, 2).
@@ -3554,10 +3598,11 @@ mod tests {
             &db,
             "proc foo {x} {}\nproc bar {y} {}\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         // `b` calls `foo` with one arg — resolves cross-file, fits arity (1, 1),
         // so its diagnostics are empty.  It never references `bar`.
-        let b = SourceFile::new(&db, "foo 1\n".to_owned(), "tcl8.6".to_owned());
+        let b = SourceFile::new(&db, "foo 1\n".to_owned(), "tcl8.6".to_owned(), None);
         let project = Project::new(&db, vec![a, b]);
 
         assert!(
@@ -3624,11 +3669,17 @@ mod tests {
     fn project_diagnostics_suppresses_cross_file_w123() {
         let db = TclDatabase::default();
         let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
-        let a = SourceFile::new(&db, "helper foo bar\n".to_owned(), "tcl8.6".to_owned());
+        let a = SourceFile::new(
+            &db,
+            "helper foo bar\n".to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
         let b = SourceFile::new(
             &db,
             "proc helper {x y} { return $x }\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let has_helper_w123 = |diags: &[tcl_compiler::analyser::types::Diagnostic]| {
             diags
@@ -3679,16 +3730,16 @@ mod tests {
         let mk = |b_text: &str| -> Vec<(String, u32, u32, String)> {
             let db = TclDatabase::default();
             let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
-            let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned());
-            let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned());
+            let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
+            let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned(), None);
             let project = Project::new(&db, vec![a, b]);
             diag_keys(&project_diagnostics(&db, a, cfg, project))
         };
 
         let mut db = TclDatabase::default();
         let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
-        let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned());
-        let b = SourceFile::new(&db, b_variants[0].to_owned(), "tcl8.6".to_owned());
+        let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
+        let b = SourceFile::new(&db, b_variants[0].to_owned(), "tcl8.6".to_owned(), None);
         let project = Project::new(&db, vec![a, b]);
 
         let mut rng = 0x1234_5678_9abc_def0_u64;
@@ -3737,16 +3788,16 @@ mod tests {
         let mk = |a_text: &str, b_text: &str| -> Vec<(String, u32, u32, String)> {
             let db = TclDatabase::default();
             let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
-            let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned());
-            let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned());
+            let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
+            let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned(), None);
             let project = Project::new(&db, vec![a, b]);
             diag_keys(&project_diagnostics(&db, a, cfg, project))
         };
 
         let mut db = TclDatabase::default();
         let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
-        let a = SourceFile::new(&db, a_variants[0].to_owned(), "tcl8.6".to_owned());
-        let b = SourceFile::new(&db, b_variants[0].to_owned(), "tcl8.6".to_owned());
+        let a = SourceFile::new(&db, a_variants[0].to_owned(), "tcl8.6".to_owned(), None);
+        let b = SourceFile::new(&db, b_variants[0].to_owned(), "tcl8.6".to_owned(), None);
         let project = Project::new(&db, vec![a, b]);
 
         let mut rng = 0x0f0f_1234_dead_beef_u64;
@@ -3789,6 +3840,7 @@ mod tests {
             &db,
             "proc helper {x y} { return $x }\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let has = |diags: &[tcl_compiler::analyser::types::Diagnostic], code: &str| {
             diags
@@ -3797,7 +3849,7 @@ mod tests {
         };
 
         // 3 args to a 2-param proc → E003 (too many), and the W123 is suppressed.
-        let a3 = SourceFile::new(&db, "helper a b c\n".to_owned(), "tcl8.6".to_owned());
+        let a3 = SourceFile::new(&db, "helper a b c\n".to_owned(), "tcl8.6".to_owned(), None);
         let p3 = Project::new(&db, vec![a3, b]);
         let d3 = project_diagnostics(&db, a3, cfg, p3);
         assert!(
@@ -3814,7 +3866,7 @@ mod tests {
         );
 
         // Correct arity (2 args) → no arity error and no W123.
-        let a2 = SourceFile::new(&db, "helper a b\n".to_owned(), "tcl8.6".to_owned());
+        let a2 = SourceFile::new(&db, "helper a b\n".to_owned(), "tcl8.6".to_owned(), None);
         let p2 = Project::new(&db, vec![a2, b]);
         let d2 = project_diagnostics(&db, a2, cfg, p2);
         assert!(
@@ -3839,6 +3891,7 @@ mod tests {
              namespace eval ns { proc Widget {x} {} }\n"
                 .to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         // The arity table must record `Widget` as resolvable but arity-less
         // (mixed), so it can never draw an arity error.
@@ -3852,7 +3905,12 @@ mod tests {
         );
         // A calls `Widget new extra` (3 args) — fits no proc arity, but resolves to
         // the class → neither an arity error nor W123.
-        let a = SourceFile::new(&db, "Widget new extra\n".to_owned(), "tcl8.6".to_owned());
+        let a = SourceFile::new(
+            &db,
+            "Widget new extra\n".to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
         let proj = Project::new(&db, vec![a, b]);
         let d = project_diagnostics(&db, a, cfg, proj);
         assert!(
@@ -3883,9 +3941,10 @@ mod tests {
             &db,
             "proc onNode {a b} { }\n".to_owned(),
             "tcl9.0".to_owned(),
+            None,
         );
         let has_e003 = |src: &str| {
-            let a = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned());
+            let a = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
             let p = Project::new(&db, vec![a, b]);
             project_diagnostics(&db, a, cfg, p)
                 .iter()
@@ -3906,11 +3965,13 @@ mod tests {
             &db,
             "proc onNode {a b c} { }\n".to_owned(),
             "tcl9.0".to_owned(),
+            None,
         );
         let a_ok = SourceFile::new(
             &db,
             "proc build {} {\n struct::graph g\n g walk root -command onNode\n}\n".to_owned(),
             "tcl9.0".to_owned(),
+            None,
         );
         let p_ok = Project::new(&db, vec![a_ok, b3]);
         assert!(
@@ -3935,8 +3996,9 @@ mod tests {
             &db,
             "proc helper {x y} { return $x }\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
-        let a = SourceFile::new(&db, "helper a b c\n".to_owned(), "tcl8.6".to_owned());
+        let a = SourceFile::new(&db, "helper a b c\n".to_owned(), "tcl8.6".to_owned(), None);
         let proj = Project::new(&db, vec![a, b]);
         let has = |diags: &[tcl_compiler::analyser::types::Diagnostic], code: &str| {
             diags
@@ -3983,6 +4045,7 @@ mod tests {
             &db,
             "proc helper {x y} { return $x }\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let has = |diags: &[tcl_compiler::analyser::types::Diagnostic], code: &str| {
             diags.iter().any(|d| d.code.as_str() == code)
@@ -3997,7 +4060,7 @@ mod tests {
         );
 
         // Wrong arity (3 args to a 2-param proc) → E003 still fires; no W123.
-        let bad = SourceFile::new(&db, "helper a b c\n".to_owned(), "tcl8.6".to_owned());
+        let bad = SourceFile::new(&db, "helper a b c\n".to_owned(), "tcl8.6".to_owned(), None);
         let pb = Project::new(&db, vec![bad, b]);
         let d_bad = project_diagnostics(&db, bad, cfg, pb);
         assert!(
@@ -4011,7 +4074,7 @@ mod tests {
         );
 
         // Correct arity → no arity error and no W123 (resolved, W123 disabled).
-        let ok = SourceFile::new(&db, "helper a b\n".to_owned(), "tcl8.6".to_owned());
+        let ok = SourceFile::new(&db, "helper a b\n".to_owned(), "tcl8.6".to_owned(), None);
         let pok = Project::new(&db, vec![ok, b]);
         let d_ok = project_diagnostics(&db, ok, cfg, pok);
         assert!(
@@ -4031,7 +4094,7 @@ mod tests {
         let db = TclDatabase::default();
         let src = "mylibsend foo\n";
         let has_w123 = |cfg: AnalyserConfig| {
-            let file = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned());
+            let file = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned(), None);
             file_analysis_incremental(&db, file, cfg)
                 .diagnostics
                 .iter()
@@ -4063,9 +4126,10 @@ mod tests {
             &db,
             "oo::class create Widget { method draw {} {} }\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         // A invokes the `Widget` class command (defined cross-file).
-        let a = SourceFile::new(&db, "Widget new\n".to_owned(), "tcl8.6".to_owned());
+        let a = SourceFile::new(&db, "Widget new\n".to_owned(), "tcl8.6".to_owned(), None);
         let proj = Project::new(&db, vec![a, b]);
         let d = project_diagnostics(&db, a, cfg, proj);
         assert!(
@@ -4094,11 +4158,12 @@ mod tests {
             "proc two {a b} {}\nproc opt {a {b 1}} {}\nproc variadic {a args} {}\nproc none {} {}\n"
                 .to_owned(),
             "tcl8.6".to_owned(),
+         None,
         );
         // The cross-file arity code drawn by calling `src` (file A over {A, B}):
         // Some("E002") too few, Some("E003") too many, None if it fits.
         let arity_code = |src: &str| -> Option<String> {
-            let a = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned());
+            let a = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned(), None);
             let proj = Project::new(&db, vec![a, b]);
             project_diagnostics(&db, a, cfg, proj)
                 .iter()
@@ -4162,9 +4227,10 @@ mod tests {
             &db,
             "proc opt {a {b 5} c} {}\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let arity_code = |src: &str| -> Option<String> {
-            let a = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned());
+            let a = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned(), None);
             let proj = Project::new(&db, vec![a, b]);
             project_diagnostics(&db, a, cfg, proj)
                 .iter()
@@ -4197,12 +4263,18 @@ mod tests {
     fn cross_file_arity_skips_expanded_call() {
         let db = TclDatabase::default();
         let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
-        let b = SourceFile::new(&db, "proc two {a b} {}\n".to_owned(), "tcl8.6".to_owned());
+        let b = SourceFile::new(
+            &db,
+            "proc two {a b} {}\n".to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
         // `two {*}$lst` — one literal word, `{*}`-expanded → runtime arity unknown.
         let a = SourceFile::new(
             &db,
             "set lst {1 2 3}\ntwo {*}$lst\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let proj = Project::new(&db, vec![a, b]);
         let d = project_diagnostics(&db, a, cfg, proj);
@@ -4230,12 +4302,14 @@ mod tests {
             &db,
             "proc helper {x y} { return $x }\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         // `helper` called with 3 args inside a `[…]` substitution → too many.
         let a = SourceFile::new(
             &db,
             "set x [helper a b c]\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let proj = Project::new(&db, vec![a, b]);
         let d = project_diagnostics(&db, a, cfg, proj);
@@ -4256,7 +4330,7 @@ mod tests {
     fn callback_arity_codes(src: &str) -> Vec<(String, String)> {
         let db = TclDatabase::default();
         let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
-        let f = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned());
+        let f = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
         let proj = Project::new(&db, vec![f]);
         project_diagnostics(&db, f, cfg, proj)
             .iter()
@@ -4567,7 +4641,7 @@ mod tests {
                    namespace eval ::b { proc x {p} { set q $p; return $q } }\n\
                    proc top {} { set z 1 }\n";
         let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
-        let file = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned());
+        let file = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned(), None);
         let _ = file_analysis_incremental(&db, file, cfg);
         log.lock().unwrap().clear();
         // Pure whole-file shift: prepend a blank line (every proc shifts, none
@@ -4609,6 +4683,7 @@ mod tests {
             &db,
             "proc a {} { set x 11111 }\nproc b {} { set y 22222 }\n".to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let _ = file_analysis_incremental(&db, file, cfg);
         let init = std::mem::take(&mut *log.lock().unwrap());
@@ -4668,6 +4743,7 @@ mod tests {
              proc d {} { set w 44444 }\n"
                 .to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let _ = file_analysis_incremental(&db, file, cfg);
         let _ = compiler_check_diagnostics(&db, file, cfg);
@@ -4746,6 +4822,7 @@ mod tests {
              proc caller {} { target 42 }\n"
                 .to_owned(),
             "tcl8.6".to_owned(),
+            None,
         );
         let _ = file_analysis_incremental(&db, file, cfg);
         assert_eq!(
@@ -4815,7 +4892,7 @@ mod tests {
         };
 
         // tcl8.6: default == for_dialect, so the two consumers share one build.
-        let file86 = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned());
+        let file86 = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned(), None);
         let _ = file_analysis_incremental(&db, file86, cfg);
         let _ = compiler_check_diagnostics(&db, file86, cfg);
         assert_eq!(
@@ -4826,7 +4903,7 @@ mod tests {
 
         // tcl8.4: for_dialect disables `{*}` expansion, so the configs differ
         // and each consumer builds its own unit (two executions).
-        let file84 = SourceFile::new(&db, src.to_owned(), "tcl8.4".to_owned());
+        let file84 = SourceFile::new(&db, src.to_owned(), "tcl8.4".to_owned(), None);
         let _ = file_analysis_incremental(&db, file84, cfg);
         let _ = compiler_check_diagnostics(&db, file84, cfg);
         assert_eq!(

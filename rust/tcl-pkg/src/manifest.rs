@@ -45,6 +45,13 @@ static TCL_CONSTRAINT_RE: LazyLock<Regex> = LazyLock::new(|| {
         .expect("constraint regex compiles")
 });
 
+/// The manifest directive names, for cross-crate drift tests (the registry's
+/// `TCLPKG_MANIFEST_ENV` scoped environment must describe exactly this set).
+#[must_use]
+pub fn directive_names() -> &'static [&'static str] {
+    DIRECTIVES
+}
+
 const DIRECTIVES: &[&str] = &[
     "package",
     "version",

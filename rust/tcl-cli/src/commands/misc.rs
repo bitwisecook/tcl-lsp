@@ -78,7 +78,7 @@ pub fn run_find_legacy(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let source = combine_sources(&documents);
 
-    let result = Analyser::new().analyse(&source, &input.dialect);
+    let result = Analyser::new().analyse(&source, input.dialect_or_default());
     let line_index = LineIndex::new(&source);
 
     let issues: Vec<LegacyIssue> = result
@@ -102,7 +102,7 @@ pub fn run_find_legacy(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     if json {
         let payload = LegacyPayload {
             count: issues.len(),
-            dialect: input.dialect.clone(),
+            dialect: input.dialect_or_default().to_string(),
             issues,
         };
         let rendered = ensure_ascii(&serde_json::to_string_pretty(&payload)?);

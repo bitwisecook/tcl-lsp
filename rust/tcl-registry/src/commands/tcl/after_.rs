@@ -106,6 +106,9 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         arg_role_resolver: Some(after_arg_roles),
         subcommands: SUBCOMMANDS,
+        // `after 200 …` — an integer first word selects the default
+        // delayed-execution form rather than dispatching on a subcommand.
+        default_form_first_word: Some(DefaultFormFirstWord::Integer),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,

@@ -319,16 +319,76 @@ impl Analyser {
             let mut classes_sorted: Vec<&str> = class_names.iter().map(String::as_str).collect();
             classes_sorted.sort_unstable();
             let cls_display = classes_sorted.join(", ");
-            let message = format!("Unknown method '{method_name}' on class '{cls_display}'");
-            return Some(super::types::Diagnostic {
-                code: DiagCode::W308,
-                span: site.cmd_span,
-                message,
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+            return Some(self.w308_diagnostic(
+                method_name,
+                &cls_display,
+                &classes_sorted,
+                Some(hierarchy),
+                site.method_span,
+                site.cmd_span,
+            ));
         }
         None
+    }
+
+    /// Build the W308 (unknown method) diagnostic: anchored on the method
+    /// *word* when the dispatch site recorded one (falling back to the
+    /// command-head span), with a "did you mean…?" suggestion drawn from
+    /// every method callable on the candidate classes — their MRO-resolved
+    /// methods plus the implicit `TclOO` object builtins — and a replace
+    /// fix targeting the same word.
+    fn w308_diagnostic(
+        &self,
+        method: &str,
+        cls_display: &str,
+        class_names: &[&str],
+        hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
+        method_span: Option<tcl_lexer::Span>,
+        cmd_span: tcl_lexer::Span,
+    ) -> super::types::Diagnostic {
+        // Candidate methods for the suggestion: MRO methods of every
+        // candidate class, locally-declared methods (for classes the
+        // hierarchy may not index), and the implicit object builtins.
+        let mut candidates: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for cls in class_names {
+            if let Some(h) = hierarchy {
+                candidates.extend(h.known_methods(cls));
+            }
+            if let Some(cd) = self.result.all_classes.get(*cls) {
+                candidates.extend(cd.methods.keys().cloned());
+                candidates.extend(cd.class_methods.keys().cloned());
+            }
+        }
+        for builtin in ["cget", "configure", "create", "destroy", "new"] {
+            candidates.insert(builtin.to_string());
+        }
+        let suggestions = crate::text::suggest_similar(
+            method,
+            candidates.iter().map(String::as_str),
+            1,
+            crate::text::scaled_max_distance(method),
+        );
+        let mut message = format!("Unknown method '{method}' on class '{cls_display}'");
+        let mut fixes: Vec<super::types::CodeFix> = Vec::new();
+        let span = method_span.unwrap_or(cmd_span);
+        if let Some(best) = suggestions.first() {
+            use std::fmt::Write as _;
+            let _ = write!(message, "; did you mean '{best}'?");
+            if let Some(fix_span) = method_span {
+                fixes.push(super::types::CodeFix {
+                    span: fix_span,
+                    new_text: (*best).to_string(),
+                    description: format!("Replace with '{best}'"),
+                });
+            }
+        }
+        super::types::Diagnostic {
+            code: DiagCode::W308,
+            span,
+            message,
+            severity: Severity::Warning,
+            fixes,
+        }
     }
 
     /// **E001** (`TclOO` form) — `$obj` invoked with no method word at all.
@@ -1039,13 +1099,15 @@ impl Analyser {
                     let method_ok =
                         self.validate_method_on_class(&cls_qn, method, cd.as_ref(), hierarchy);
                     if !method_ok {
-                        self.result.diagnostics.push(super::types::Diagnostic {
-                            code: DiagCode::W308,
-                            span: site.cmd_span,
-                            message: format!("Unknown method '{method}' on class '{class_name}'"),
-                            severity: Severity::Warning,
-                            fixes: Vec::new(),
-                        });
+                        let diag = self.w308_diagnostic(
+                            method,
+                            class_name,
+                            &[cls_qn.as_str()],
+                            hierarchy,
+                            site.method_span,
+                            site.cmd_span,
+                        );
+                        self.result.diagnostics.push(diag);
                     }
                 }
                 continue;
